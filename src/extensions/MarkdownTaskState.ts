@@ -133,6 +133,7 @@ export const MarkdownTaskState = Extension.create({
   },
   addGlobalAttributes() {
     return [
+      { types: ["bulletList", "orderedList"], attributes: { spread: { default: false, parseHTML: element => element.getAttribute("data-list-spread") === "true", renderHTML: attributes => attributes.spread ? { "data-list-spread": "true" } : {} } } },
       {
         types: ["listItem"],
         attributes: {

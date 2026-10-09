@@ -48,7 +48,7 @@ function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
       className="blockquote-node-view"
       data-workspace-collapsed={readingCollapsed === null ? undefined : String(readingCollapsed)}
     >
-      <BlockquoteToolbar text={node.textContent} collapsed={collapsed} toggle={toggle}
+      <BlockquoteToolbar alert={node.attrs.alert} text={node.textContent} collapsed={collapsed} toggle={toggle}
         onOpen={event => openBlockWorkspace(editor, getPos(), event.currentTarget)} />
       <NodeViewContent className="blockquote-content" />
     </NodeViewWrapper>
@@ -59,6 +59,7 @@ export const CollapsibleBlockquote = Blockquote.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
+      alert: { default: null, parseHTML: element => element.getAttribute("data-alert"), renderHTML: attributes => attributes.alert ? { "data-alert": attributes.alert } : {} },
       collapsed: {
         default: false,
         parseHTML: (element) => element.getAttribute("data-collapsed") === "true",
@@ -76,6 +77,7 @@ export const CollapsibleBlockquote = Blockquote.extend({
       attrs: ({ node }) => ({
         "data-indent": String(node.attrs.indent ?? 0),
         "data-collapsed": node.attrs.collapsed === true ? "true" : "false",
+        "data-alert": node.attrs.alert || "",
       }),
     });
   },

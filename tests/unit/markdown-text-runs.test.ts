@@ -31,7 +31,9 @@ describe("Markdown continuous plain-text runs", () => {
       mdToDelta("前 ! [broken] *unclosed `literal ![图片](image.png) 后").ops,
     ).toEqual([
       { insert: "前 ! [broken] *unclosed `literal " },
-      { insert: { image: "image.png" } },
+      {
+        insert: { inlineImage: { src: "image.png", alt: "图片", title: null } },
+      },
       { insert: " 后" },
       { insert: "\n" },
     ]);

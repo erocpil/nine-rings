@@ -1,6 +1,18 @@
 /** User-facing highlights shipped with the app, newest first. Keep dates in ISO format. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-10",
+    title: "Markdown 语义与导出统一",
+    changes: [
+      "ideas 自动添加 Markdown 全景演示，覆盖 GFM、GitHub 补充语法与 Nine Rings 扩展，不覆盖用户编辑或恢复已删除的示例。",
+      "桌面 PDF 导出使用独立原生打印预览，修复 macOS 点击无响应；预览可关闭、重试打印，失败时显示原因。",
+      "导入、粘贴、源码、模板与 flow 使用标准 CommonMark/GFM 解析，完善强调、硬换行、复杂列表、表格和引用式链接。",
+      "保留链接 title、行内图片描述、代码语言与 info；脚注按引用顺序编号，重复引用分别回跳，编辑后自动更新编号。",
+      "支持 math 围栏、嵌套 details、受限高亮/上下标/换行及 GitHub 提示引用；任意 HTML 保留为安全文本。",
+      "Web 与桌面 Markdown 导出共用实现，命令行批量导入保留原始源码；源码切换继续在后台处理大文档。",
+    ],
+  },
+  {
     date: "2026-10-09",
     title: "自动目录与独立块排版",
     changes: [

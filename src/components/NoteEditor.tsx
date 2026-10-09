@@ -1,3 +1,4 @@
+import { FootnoteNumbering } from "../extensions/FootnoteNumbering";
 import { markdownContentFingerprint } from "../lib/external-markdown-source";
 import { FlowPresentation, flowPresentationKey } from "../extensions/FlowPresentation";
 import { flowHeadingLevel } from "../lib/flow-presentation";
@@ -28,7 +29,7 @@ import { DocumentOutlineContext } from "./TableOfContentsBlock";
 import { headingLinkTarget } from "../lib/heading-links";
 import { OrderedListLayout } from "../extensions/OrderedListLayout";
 import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
-import { MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes } from "../extensions/MarkdownExtras";
+import { MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes, HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline } from "../extensions/MarkdownExtras";
 import { useDocumentHoverPreview } from "./FootnoteHoverPreview";
 import { footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
 import { createToolbarSelectionCommands } from "../lib/editor-toolbar-commands";
@@ -36,8 +37,8 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Heading from "@tiptap/extension-heading";
 import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
-import { ResizableImage } from "../extensions/ResizableImage";
-import LinkExt from "@tiptap/extension-link";
+import { ResizableImage, MarkdownImage } from "../extensions/ResizableImage";
+import { DocumentLink as LinkExt } from "../extensions/DocumentLink";
 import { ContentSizedTable as Table, AlignedTableCell, AlignedTableHeader } from "../extensions/ContentSizedTable";
 import TableRow from "@tiptap/extension-table-row";
 import { MarkdownLinkInput } from "../extensions/MarkdownLinkInput";
@@ -465,8 +466,8 @@ function DocumentEditor(props: NoteEditorProps) {
     if (!readingSource) return null;
     readonlySchema ??= getSchema([
       DocumentStarterKit.configure({ codeBlock: false, blockquote: false }), TextStyle, Color, FontSize,
-      LinkExt, CodeBlockLineNumbers, CollapsibleBlockquote, BlockIndent, MarkdownTaskState, AutomaticTOC,
-      MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes,
+      LinkExt, CodeBlockLineNumbers, CollapsibleBlockquote, BlockIndent, MarkdownTaskState, FootnoteNumbering, AutomaticTOC, MarkdownImage, Table, TableRow, AlignedTableCell, AlignedTableHeader,
+      MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes, HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline,
     ]);
     const doc = buildReadonlyDocument(JSON.parse(readingSource), readonlySchema);
     return doc ? { doc, key: ++readonlyDocumentSequence } : null;
@@ -939,15 +940,15 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       }),
       Heading.configure({ levels: [1, 2, 3, 4, 5, 6] }).extend({ addInputRules: () => [] }),
       OrderedListLayout,
-      MarkdownTaskState, AutomaticTOC,
-      MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes,
+      MarkdownTaskState, FootnoteNumbering, AutomaticTOC,
+      MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes, HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline,
       // 仅使用扩展的 is-editor-empty class 识别空段落；不在 gutter
       // 内显示文字，避免与行号和行间插入按钮争用伪元素。
       Placeholder.configure({ placeholder: "" }),
       TextStyle,
       Color.configure({ types: ["textStyle"] }),
       FontSize,
-      ResizableImage.configure({ inline: false, allowBase64: true }),
+      MarkdownImage, ResizableImage.configure({ inline: false, allowBase64: true }),
       LinkExt.configure({ openOnClick: true, protocols: ["nr-note"] }),
       Table.configure({
         resizable: true,
@@ -2608,6 +2609,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       title: localTitle.trim() || "无标题",
       contentHtml: editor.getHTML(),
       metadata: pdfDocumentInfo,
+      onError: error => window.alert(`无法导出 PDF：${error.message}`),
     });
     if (!opened) {
       window.alert(isTauri()
@@ -4194,7 +4196,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             onBlurCapture={documentHover.onBlurCapture}
             onScrollCapture={documentHover.onScrollCapture}
             onClickCapture={(event) => {
-              const heading = editor && headingLinkTarget(event.target, extractDocumentOutline(editor.state.doc));
+              const heading = editor && headingLinkTarget(event.target, extractDocumentOutline(editor.state.doc), editor.state.doc);
               if (heading) {
                 event.preventDefault();
                 event.stopPropagation();

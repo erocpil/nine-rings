@@ -31,6 +31,7 @@ const supportedNodes = new Set([
   "blockquote",
   "codeBlock",
   "mathInline", "mathBlock", "htmlDetails", "footnotes", "footnoteDefinition",
+  "rawHtml", "rawHtmlInline", "htmlAnchor", "markdownImage", "table", "tableRow", "tableCell", "tableHeader",
 ]);
 const supportedMarks = new Set([
   "bold",
@@ -40,6 +41,7 @@ const supportedMarks = new Set([
   "link",
   "textStyle",
   "inlineHighlight", "footnoteReference",
+  "htmlStyle",
 ]);
 
 /** Conservative gate: unknown node/mark types must never silently disappear. */

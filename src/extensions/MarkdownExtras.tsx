@@ -51,11 +51,12 @@ export const InlineHighlight = Mark.create({
 
 export const FootnoteReference = Mark.create({
   name: "footnoteReference", inclusive: false,
-  addAttributes: () => ({ id: { default: "" } }),
+  addAttributes: () => ({ id: { default: "", rendered: false }, number: { default: null, rendered: false }, occurrence: { default: 1, rendered: false } }),
   parseHTML: () => [{ tag: "sup[data-footnote-ref]", getAttrs: el => ({ id: (el as HTMLElement).getAttribute("data-footnote-ref") ?? "" }) }],
   renderHTML: ({ mark, HTMLAttributes }) => {
     const id = encodeURIComponent(String(mark.attrs.id ?? ""));
-    return ["sup", mergeAttributes(HTMLAttributes, { "data-footnote-ref": mark.attrs.id, class: "nr-footnote-reference" }), ["a", { href: `#nr-footnote-${id}`, id: `nr-footnote-ref-${id}` }, 0]];
+    const occurrence = Number(mark.attrs.occurrence) || 1;
+    return ["sup", mergeAttributes(HTMLAttributes, { "data-footnote-ref": mark.attrs.id, class: "nr-footnote-reference" }), ["a", { href: `#nr-footnote-${id}`, id: `nr-footnote-ref-${id}${occurrence > 1 ? `-${occurrence}` : ""}` }, 0]];
   },
 });
 
@@ -109,13 +110,13 @@ export const HTMLDetails = Node.create({
 
 export const FootnoteDefinition = Node.create({
   name: "footnoteDefinition", content: "block+", defining: true,
-  addAttributes: () => ({ id: { default: "" } }),
+  addAttributes: () => ({ id: { default: "" }, number: { default: null }, references: { default: 1 } }),
   parseHTML: () => [{ tag: "li[data-footnote-id]", contentElement: "[data-footnote-content]", getAttrs: el => ({ id: (el as HTMLElement).getAttribute("data-footnote-id") ?? "" }) }],
   renderHTML: ({ node, HTMLAttributes }) => {
     const id = encodeURIComponent(String(node.attrs.id ?? ""));
-    return ["li", mergeAttributes(HTMLAttributes, { "data-footnote-id": node.attrs.id, id: `nr-footnote-${id}`, tabIndex: -1 }),
+    return ["li", mergeAttributes(HTMLAttributes, { "data-footnote-id": node.attrs.id, id: `nr-footnote-${id}`, value: node.attrs.number ?? undefined, tabIndex: -1 }),
       ["div", { "data-footnote-content": "" }, 0],
-      ["a", { href: `#nr-footnote-ref-${id}`, class: "nr-footnote-backref", "aria-label": "返回脚注引用", contenteditable: "false" }, "↩"]];
+      ...Array.from({ length: Math.max(0, Number(node.attrs.references) || 0) }, (_, index) => ["a", { href: `#nr-footnote-ref-${id}${index ? `-${index + 1}` : ""}`, class: "nr-footnote-backref", "aria-label": index ? `返回脚注引用 ${index + 1}` : "返回脚注引用", contenteditable: "false" }, index ? `↩${index + 1}` : "↩"])];
   },
 });
 
@@ -123,4 +124,32 @@ export const Footnotes = Node.create({
   name: "footnotes", group: "block", content: "footnoteDefinition+", defining: true,
   parseHTML: () => [{ tag: "section[data-footnotes]" }],
   renderHTML: ({ HTMLAttributes }) => ["section", mergeAttributes(HTMLAttributes, { "data-footnotes": "", class: "nr-footnotes" }), ["ol", {}, 0]],
+});
+
+export const HTMLStyle = Mark.create({
+  name: "htmlStyle", addAttributes: () => ({ tag: { default: "ins" } }),
+  parseHTML: () => ["sub", "sup:not(.nr-footnote-reference)", "ins"].map(tag => ({ tag, getAttrs: element => ({ tag: (element as HTMLElement).tagName.toLowerCase() }) })),
+  renderHTML: ({ mark }) => [["sub", "sup", "ins"].includes(mark.attrs.tag) ? mark.attrs.tag : "ins", {}, 0],
+});
+export const HTMLAnchor = Node.create({
+  name: "htmlAnchor", group: "inline", inline: true, atom: true,
+  addAttributes: () => ({ id: { default: "" } }),
+  parseHTML: () => [{ tag: "a[id]:not([href])" }, { tag: "a[name]:not([href])", getAttrs: element => ({ id: (element as HTMLElement).getAttribute("name") }) }],
+  renderHTML: ({ node }) => ["a", { id: node.attrs.id, "data-document-anchor": "" }],
+});
+function RawHTMLView({ node }: NodeViewProps) {
+  const source = String(node.attrs.source ?? "");
+  const comment = /^<!--[\s\S]*-->$/.test(source.trim());
+  return <NodeViewWrapper as={node.isInline ? "span" : "div"} className="nr-raw-html" data-html-comment={comment ? "true" : undefined} contentEditable={false}>{comment ? null : <code>{source}</code>}</NodeViewWrapper>;
+}
+export const RawHTML = Node.create({
+  name: "rawHtml", group: "block", atom: true,
+  addAttributes: () => ({ source: { default: "" } }),
+  parseHTML: () => [{ tag: "div[data-raw-html]", getAttrs: element => ({ source: (element as HTMLElement).getAttribute("data-source") }) }],
+  renderHTML: ({ node }) => ["div", { class: "nr-raw-html", "data-raw-html": "", "data-source": node.attrs.source, ...( /^<!--[\s\S]*-->$/.test(String(node.attrs.source).trim()) ? { "data-html-comment": "true" } : {}) }, ["code", {}, node.attrs.source]],
+  addNodeView: () => ReactNodeViewRenderer(RawHTMLView),
+});
+export const RawHTMLInline = RawHTML.extend({ name: "rawHtmlInline", group: "inline", inline: true,
+  parseHTML: () => [{ tag: "span[data-raw-html]", getAttrs: element => ({ source: (element as HTMLElement).getAttribute("data-source") }) }],
+  renderHTML: ({ node }) => ["span", { class: "nr-raw-html", "data-raw-html": "", "data-source": node.attrs.source, ...( /^<!--[\s\S]*-->$/.test(String(node.attrs.source).trim()) ? { "data-html-comment": "true" } : {}) }, node.attrs.source],
 });

@@ -11,10 +11,9 @@ describe("Markdown task list round trips", () => {
     const source = "- [ ]\n- [x]\n\n```\n- [ ] literal\\[code\\]\n```";
     const delta = mdToDelta(source);
     expect(
-      delta.ops
-        .filter((op) => op.insert === "\n")
-        .slice(0, 2)
-        .map((op) => op.attributes?.taskChecked),
+      deltaToProseMirror(delta).content[0].content?.map(
+        (item) => item.attrs?.taskChecked,
+      ),
     ).toEqual([false, true]);
     const result = deltaToMarkdown(
       proseMirrorToDelta(deltaToProseMirror(delta)),
@@ -51,7 +50,7 @@ describe("Markdown task list round trips", () => {
       ).toEqual([false, true, true, undefined, false]);
       source = deltaToMarkdown(delta);
       expect(source).toBe(
-        "- [ ] 待办 **重点**\n  - [x] 已完成\n- [x] 大写标记\n- 普通列表\n1. [ ] 有序任务",
+        "- [ ] 待办 **重点**\n  - [x] 已完成\n- [x] 大写标记\n- 普通列表\n\n1. [ ] 有序任务",
       );
     }
   });

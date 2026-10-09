@@ -96,28 +96,24 @@ describe("quoted Markdown structure", () => {
         "> - nested list",
       ]) {
         const doc = parse(`- item\n${gap}${block}`);
-        expect(doc.content[1].attrs?.indentExplicit === true).toBe(
-          Boolean(gap),
-        );
+        expect(doc.content[1].attrs?.indentExplicit === true).toBe(true);
         const saved = roundtrip(`- item\n${gap}${block}`);
-        expect(saved.content[1].attrs?.indentExplicit === true).toBe(
-          Boolean(gap),
-        );
+        expect(saved.content[1].attrs?.indentExplicit === true).toBe(true);
         expect(saved.content[1].type).toBe(doc.content[1].type);
       }
     },
   );
-  it("keeps explicit indentation even with a blank line", () => {
-    for (const block of ["  > quote", "  ```text\nsource\n  ```"]) {
-      const doc = parse(`- item\n\n${block}`);
-      expect(doc.content[1].attrs).toMatchObject({
-        indent: 1,
-        indentExplicit: true,
-      });
-      expect(roundtrip(`- item\n\n${block}`).content[1].attrs).toMatchObject({
-        indent: 1,
-        indentExplicit: true,
-      });
+  it("keeps source-indented quote/code inside a list item even with a blank line", () => {
+    for (const block of ["  > quote", "  ```text\n  source\n  ```"]) {
+      const source = `- item\n\n${block}`;
+      const doc = parse(source);
+      expect(doc.content).toHaveLength(1);
+      expect(doc.content[0].content?.[0].content?.[1].type).toBe(
+        block.includes(">") ? "blockquote" : "codeBlock",
+      );
+      expect(roundtrip(source).content[0].content?.[0].content?.[1].type).toBe(
+        doc.content[0].content?.[0].content?.[1].type,
+      );
     }
   });
 });

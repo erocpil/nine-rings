@@ -1,3 +1,4 @@
+import { noteToMarkdown } from "../markdown-serializer";
 /**
  * TauriAdapter — 通过 IPC 调 Rust 后端。
  *
@@ -92,7 +93,11 @@ export const tauriAdapter: StorageAdapter = {
       replace: mode === "replace",
     });
   },
-  exportNoteMarkdown: (noteId) => invoke<string>("export_note_markdown", { noteId }),
+  exportNoteMarkdown: async (noteId) => {
+    const note = await invokeNoteNullable("get_note", { id: noteId });
+    if (!note) throw new Error(`Note ${noteId} not found`);
+    return noteToMarkdown(note.title, note.content);
+  },
 
   // ── Trash ──
   getDeletedNotes: () => invokeNotes("get_deleted_notes"),

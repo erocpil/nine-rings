@@ -123,19 +123,23 @@ export function renderReadonlyBlock(
           const href = String(mark.attrs.href ?? "");
           if (/^(https?:|mailto:|tel:)/i.test(href))
             rendered = (
-              <a href={href} target="_blank" rel="noopener noreferrer">
+              <a href={href} title={mark.attrs.title ?? undefined} target="_blank" rel="noopener noreferrer">
                 {rendered}
               </a>
             );
-          else if (href.startsWith("#") || isRelativeMarkdownLink(href) || internalNoteId(href)) rendered = <a href={href}>{rendered}</a>;
+          else if (href.startsWith("#") || isRelativeMarkdownLink(href) || internalNoteId(href)) rendered = <a href={href} title={mark.attrs.title ?? undefined}>{rendered}</a>;
           break;
         }
+        case "htmlStyle":
+          rendered = React.createElement(["sub", "sup", "ins"].includes(mark.attrs.tag) ? mark.attrs.tag : "ins", null, rendered);
+          break;
         case "inlineHighlight":
           rendered = <mark>{rendered}</mark>;
           break;
         case "footnoteReference": {
           const id = String(mark.attrs.id ?? "");
-          rendered = <sup id={`nr-footnote-ref-${encodeURIComponent(id)}`} className="nr-footnote-reference" data-footnote-ref={id}><a href={`#nr-footnote-${encodeURIComponent(id)}`}>{rendered}</a></sup>;
+          const occurrence = Number(mark.attrs.occurrence) || 1;
+          rendered = <sup id={`nr-footnote-ref-${encodeURIComponent(id)}${occurrence > 1 ? `-${occurrence}` : ""}`} className="nr-footnote-reference" data-footnote-ref={id}><a href={`#nr-footnote-${encodeURIComponent(id)}`}>{rendered}</a></sup>;
           break;
         }
       }
@@ -175,6 +179,13 @@ export function renderReadonlyBlock(
       return <KaTeXFormula source={String(node.attrs.source ?? "")} />;
     case "mathBlock":
       return <div {...attrs} className="nr-math-block"><KaTeXFormula source={String(node.attrs.source ?? "")} displayMode /> </div>;
+    case "rawHtml": case "rawHtmlInline": {
+      const source = String(node.attrs.source ?? "");
+      if (/^<!--[\s\S]*-->$/.test(source.trim())) return null;
+      return React.createElement(node.type.name === "rawHtml" ? "div" : "span", { ...attrs, className: "nr-raw-html" }, <code>{source}</code>);
+    }
+    case "htmlAnchor": return <a {...attrs} id={String(node.attrs.id)} data-document-anchor="" />;
+    case "markdownImage": return <span {...attrs} className="markdown-inline-image"><ReadonlyImage src={String(node.attrs.src || "")} alt={node.attrs.alt} title={node.attrs.title} /></span>;
     case "htmlDetails":
       { const collapsed = state.collapsed ?? node.attrs.open !== true; return <details {...attrs} className="nr-details" open={!collapsed}>
         <summary className="nr-details-summary" onClick={event => { if (event.target instanceof Element && event.target.closest("button")) return; event.preventDefault(); update(pos, { ...state, collapsed: !collapsed }); }}>
@@ -190,16 +201,17 @@ export function renderReadonlyBlock(
     case "footnotes":
       return <section {...attrs} className="nr-footnotes"><ol>{children}</ol></section>;
     case "footnoteDefinition":
-      { const id = encodeURIComponent(String(node.attrs.id ?? "")); return <li {...attrs} id={`nr-footnote-${id}`} tabIndex={-1}><div data-footnote-content="">{children}</div><a className="nr-footnote-backref" href={`#nr-footnote-ref-${id}`} aria-label="返回脚注引用">↩</a></li>; }
+      { const id = encodeURIComponent(String(node.attrs.id ?? "")); return <li {...attrs} id={`nr-footnote-${id}`} value={node.attrs.number ?? undefined} tabIndex={-1}><div data-footnote-content="">{children}</div>{Array.from({ length: Math.max(0, Number(node.attrs.references) || 0) }, (_, index) => <a key={index} className="nr-footnote-backref" href={`#nr-footnote-ref-${id}${index ? `-${index + 1}` : ""}`} aria-label={index ? `返回脚注引用 ${index + 1}` : "返回脚注引用"}>{index ? `↩${index + 1}` : "↩"}</a>)}</li>; }
     case "heading":
       return React.createElement(`h${node.attrs.level}`, attrs, children);
     case "bulletList":
-      return <ul {...attrs}>{children}</ul>;
+      return <ul {...attrs} data-list-spread={node.attrs.spread ? "true" : undefined}>{children}</ul>;
     case "orderedList":
       return (
         <ol
           {...attrs}
           start={node.attrs.start}
+          data-list-spread={node.attrs.spread ? "true" : undefined}
           style={
             Object.fromEntries(
               listStyle(node)
@@ -226,10 +238,10 @@ export function renderReadonlyBlock(
       return (
         <blockquote
           {...attrs}
-          className="blockquote-wrap"
+          className="blockquote-wrap" data-alert={node.attrs.alert || undefined}
           data-collapsed={String(collapsed)}
         >
-          <BlockquoteToolbar text={node.textContent} collapsed={collapsed}
+          <BlockquoteToolbar alert={node.attrs.alert} text={node.textContent} collapsed={collapsed}
             position={pos} toggle={() => update(pos, { collapsed: !collapsed })} />
           {!collapsed && <div className="blockquote-content">{children}</div>}
         </blockquote>
@@ -1190,7 +1202,7 @@ export function ReadonlyVirtualNote(
           onBlurCapture={documentHover.onBlurCapture}
           onScrollCapture={documentHover.onScrollCapture}
           onClickCapture={(event) => {
-            const heading = headingLinkTarget(event.target, extractDocumentOutline(doc));
+            const heading = headingLinkTarget(event.target, extractDocumentOutline(doc), doc);
             if (heading) {
               event.preventDefault();
               event.stopPropagation();

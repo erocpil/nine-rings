@@ -1,0 +1,6 @@
+{
+  "identifier": "pdf-print",
+  "description": "The document-only PDF print preview can close its own window.",
+  "windows": ["pdf-print-*"],
+  "permissions": ["core:window:allow-close"]
+}

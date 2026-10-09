@@ -1,3 +1,4 @@
+import { FootnoteNumbering } from "../extensions/FootnoteNumbering";
 import {
   cloneElement,
   isValidElement,
@@ -12,14 +13,14 @@ import { getSchema } from "@tiptap/core";
 import { DocumentStarterKit } from "../extensions/DocumentStarterKit";
 import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
 import { CollapsibleBlockquote } from "../extensions/CollapsibleBlockquote";
-import { ResizableImage } from "../extensions/ResizableImage";
+import { ResizableImage, MarkdownImage } from "../extensions/ResizableImage";
 import {
   ContentSizedTable,
   AlignedTableCell,
   AlignedTableHeader,
 } from "../extensions/ContentSizedTable";
 import TableRow from "@tiptap/extension-table-row";
-import Link from "@tiptap/extension-link";
+import { DocumentLink as Link } from "../extensions/DocumentLink";
 import { BlockIndent } from "../extensions/BlockIndent";
 import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
 import {
@@ -30,6 +31,7 @@ import {
   HTMLDetails,
   FootnoteDefinition,
   Footnotes,
+  HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline,
 } from "../extensions/MarkdownExtras";
 import { mdToDelta } from "../lib/md-parser";
 import { deltaToProseMirror } from "../lib/delta-converter";
@@ -54,14 +56,14 @@ function parse(source: string) {
     DocumentStarterKit.configure({ codeBlock: false, blockquote: false }),
     CodeBlockLineNumbers,
     CollapsibleBlockquote,
-    ResizableImage,
+    ResizableImage, MarkdownImage,
     ContentSizedTable,
     TableRow,
     AlignedTableCell,
     AlignedTableHeader,
     Link,
     BlockIndent,
-    MarkdownTaskState,
+    MarkdownTaskState, FootnoteNumbering,
     MathInline,
     MathBlock,
     InlineHighlight,
@@ -69,6 +71,7 @@ function parse(source: string) {
     HTMLDetails,
     FootnoteDefinition,
     Footnotes,
+    HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline,
   ]);
   const doc = schema.nodeFromJSON(deltaToProseMirror(mdToDelta(source)));
   doc.check();

@@ -2,6 +2,8 @@
 
 将 Markdown 文件批量导入为九环笔记。支持两种模式：生成 JSON 文件手动导入，或 `--serve` 直接推送到运行中的开发服务器。
 
+脚本调用应用共用的标准解析器；先在仓库执行 `npm ci`，使用项目指定 Node 版本。优先使用 `.local-tools` 内的 Node，未安装时使用 PATH 中的 Node；不要求安装 Rust 或额外 Python 包。批量转换保留原始文件名和源码，详见 [兼容范围](markdown-compatibility.md)。
+
 ---
 
 ## 一、两种导入模式

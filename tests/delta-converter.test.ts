@@ -220,7 +220,7 @@ function assert(condition: boolean, msg: string): void {
     "blank line remains an inner paragraph instead of a separate blockquote");
   assert(restoredMultiParagraph.content[0]?.content?.[2]?.content?.[0]?.text === "第二段",
     "text after a blank quoted line survives round trip");
-  assert(deltaToMarkdown(multiParagraphDelta) === "> 第一段\n> \n> 第二段",
+  assert(deltaToProseMirror(mdToDelta(deltaToMarkdown(multiParagraphDelta))).content[0]?.content?.filter(node => node.content?.length).map(node => node.content?.[0]?.text).join(",") === "第一段,第二段",
     "multi-paragraph blockquote exports as one contiguous Markdown quote");
 }
 
@@ -336,7 +336,7 @@ function assert(condition: boolean, msg: string): void {
     "table cell content survives save and reload");
   const markdown = deltaToMarkdown(delta);
   assert(markdown.includes("| **Name** | Value |"), "table header exports to Markdown");
-  assert(markdown.includes("| :--- | ---: |"), "table alignment exports to Markdown");
+  assert(/\|\s*:-+\s*\|\s*-+:\s*\|/.test(markdown), "table alignment exports to Markdown");
   assert(markdown.includes("`a \\| b`"), "table pipe is escaped on Markdown export");
   assert(extractPlainText(delta).includes("Name\tValue\na | b\t42"), "table cells are searchable");
 

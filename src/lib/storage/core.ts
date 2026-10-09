@@ -27,6 +27,14 @@ export function extractPlainText(content: unknown): string {
         const quote = insert.blockquote as { content?: unknown } | null;
         if (quote && Array.isArray(quote.content)) return [extractPlainText({ ops: quote.content })];
       }
+      if (insert && typeof insert === "object") {
+        const embed = insert as Record<string, unknown>;
+        if (embed.list && typeof embed.list === "object") return [((embed.list as { items?: { content: unknown }[] }).items ?? []).map(item => extractPlainText({ ops: item.content })).join("\n")];
+        if (embed.htmlDetails && typeof embed.htmlDetails === "object") { const details = embed.htmlDetails as { summary?: string; content?: unknown }; return [details.summary ?? "", extractPlainText({ ops: details.content })]; }
+        if (Array.isArray(embed.footnotes)) return [embed.footnotes.map((definition: { content: unknown }) => extractPlainText({ ops: definition.content })).join("\n")];
+        if (embed.inlineImage && typeof embed.inlineImage === "object") return [String((embed.inlineImage as { alt?: string }).alt ?? "")];
+        if (typeof embed.mathInline === "string" || typeof embed.mathBlock === "string") return [String(embed.mathInline ?? embed.mathBlock)];
+      }
       const table = getTableEmbed(insert);
       if (table) {
         return [table.rows

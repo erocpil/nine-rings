@@ -501,6 +501,7 @@ export const CodeBlockLineNumbers = Node.create<CodeBlockLineNumberOptions>({
   addAttributes() {
     return {
       ...this.parent?.(),
+      meta: { default: null, renderHTML: () => ({}) },
       language: {
         default: null,
         parseHTML: (element) => element.getAttribute("data-language") || null,

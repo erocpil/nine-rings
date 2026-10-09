@@ -164,15 +164,15 @@ function assert(condition: boolean | undefined, msg: string): void {
   const listLines = result.ops.filter((op) => op.attributes?.list === "ordered");
   const hardBreaks = result.ops.filter((op) => typeof op.insert === "string" && op.insert.startsWith("\n") && op.insert.length > 1);
   assert(listLines.length === 2, "continuation lines do not create extra list items");
-  assert(hardBreaks.length === 2, "source continuation lines are preserved as hard breaks");
+  assert(hardBreaks.length === 0, "soft continuation lines remain soft breaks");
 
   const pm = deltaToProseMirror(result);
   const items = pm.content
     .filter((node) => node.type === "orderedList")
     .flatMap((list) => list.content ?? []);
   assert(items.length === 2, "two ordered list items are rendered");
-  assert(items.every((item) => item.content?.[0]?.content?.some((node) => node.type === "hardBreak")),
-    "each rendered list item preserves its continuation line");
+  assert(items.every((item) => !item.content?.[0]?.content?.some((node) => node.type === "hardBreak")),
+    "each rendered list item preserves a single soft-wrapped paragraph");
 }
 
 // 有序项之间包含缩进段落/代码块时会成为独立的 ProseMirror 列表节点，
@@ -192,16 +192,12 @@ function assert(condition: boolean | undefined, msg: string): void {
     "",
     "3. Third",
   ].join("\n"));
-  const listLines = result.ops.filter((op) => op.attributes?.list === "ordered");
-  assert(JSON.stringify(listLines.map((op) => op.attributes?.listStart)) === "[1,2,3]",
-    "loose ordered list markers are preserved");
-
   const pm = deltaToProseMirror(result);
-  const orderedLists = pm.content.filter((node) => node.type === "orderedList");
-  assert(orderedLists.length === 3, "loose items rebuild as three ordered list nodes");
-  assert((orderedLists[0].attrs?.start ?? 1) === 1, "first node starts at 1");
-  assert(orderedLists[1].attrs?.start === 2, "second node starts at 2");
-  assert(orderedLists[2].attrs?.start === 3, "third node starts at 3");
+  const orderedLists = pm.content.filter(node => node.type === "orderedList");
+  assert(orderedLists.length === 1, "loose items stay in one ordered list");
+  assert(orderedLists[0]?.content?.length === 3, "all three ordered items are retained");
+  assert(orderedLists[0]?.content?.[0]?.content?.length === 2, "item explanation remains in its list item");
+  assert(orderedLists[0]?.content?.[1]?.content?.[1]?.type === "codeBlock", "code stays inside the second item");
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -211,7 +207,7 @@ function assert(condition: boolean | undefined, msg: string): void {
   console.log("\n── Blockquote ──");
 
   const result = mdToDelta("> This is a quote");
-  const quoteOps = result.ops.filter((o) => o.attributes?.blockquote);
+  const quoteOps = deltaToProseMirror(result).content.filter(node => node.type === "blockquote");
   assert(quoteOps.length >= 1, "blockquote op exists");
 }
 
@@ -263,27 +259,27 @@ function assert(condition: boolean | undefined, msg: string): void {
   消除内核态/用户态拷贝和上下文切换开销。`;
   const pm = deltaToProseMirror(mdToDelta(md));
 
-  assert(pm.content.length === 7, "wrapped source produces 7 intended top-level blocks");
+  assert(pm.content.length === 6, "wrapped source produces six standard blocks");
   assert(pm.content[1]?.type === "blockquote", "quote remains a blockquote");
   assert(
     pm.content[1]?.content?.[0]?.content?.[0]?.text?.includes("不需要硬编项目经历。"),
     "unmarked quote continuation stays in the quote",
   );
   assert(pm.content[2]?.type === "horizontalRule", "divider remains a horizontal rule");
-  assert(pm.content[5]?.content?.map((node) => node.text).join("") === "概念",
-    "standalone bold label remains its own paragraph");
+  assert(pm.content[5]?.content?.[0]?.text === "概念",
+    "bold label remains formatted within its paragraph");
   assert(pm.content[5]?.content?.[0]?.marks?.some((mark) => mark.type === "bold"),
     "standalone label remains bold");
-  assert(pm.content[6]?.content?.map((node) => node.text).join("").includes("上下文切换开销。"),
+  assert(pm.content[5]?.content?.map((node) => node.text).join("").includes("上下文切换开销。"),
     "wrapped body stays in one paragraph");
 
   const pastedQuote = deltaToProseMirror(mdToDelta("> 第一段\n>\n> 第二段"));
   assert(pastedQuote.content.length === 1 && pastedQuote.content[0]?.type === "blockquote",
     "quoted paragraphs separated by a blank quoted line share one blockquote");
-  assert(pastedQuote.content[0]?.content?.length === 3,
-    "blank quoted line remains inside the shared blockquote");
+  assert(pastedQuote.content[0]?.content?.length === 2,
+    "blank quoted line separates two inner paragraphs");
   assert(pastedQuote.content[0]?.content?.[0]?.content?.[0]?.text === "第一段"
-    && pastedQuote.content[0]?.content?.[2]?.content?.[0]?.text === "第二段",
+    && pastedQuote.content[0]?.content?.[1]?.content?.[0]?.text === "第二段",
   "both quoted paragraphs retain their text");
 }
 
@@ -293,9 +289,9 @@ function assert(condition: boolean | undefined, msg: string): void {
   const pm = deltaToProseMirror(mdToDelta(
     "**概念**\nDPDK应用通常把每个lcore绑定到一个物理CPU核。",
   ));
-  assert(pm.content.length === 2, "bold label and body render as two paragraphs");
+  assert(pm.content.length === 1, "soft line break does not split a paragraph");
   assert(pm.content[0]?.content?.[0]?.text === "概念", "label text is preserved");
-  assert(pm.content[1]?.content?.[0]?.text?.startsWith("DPDK应用"), "body starts in the next paragraph");
+  assert(pm.content[0]?.content?.[1]?.text?.trimStart().startsWith("DPDK应用"), "body continues in the same paragraph");
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -328,7 +324,7 @@ function assert(condition: boolean | undefined, msg: string): void {
   assert(shortTable?.rows.length === 2 && shortTable.columns.length === 2,
     "short aligned table separator still creates a table");
 
-  const escaped = mdToDelta("| Code | Pipe |\n| :--- | ---: |\n| `a | b` | escaped \\| pipe |");
+  const escaped = mdToDelta("| Code | Pipe |\n| :--- | ---: |\n| `a \\| b` | escaped \\| pipe |");
   const escapedTable = getTableEmbed(escaped.ops[0].insert)!;
   assert(escapedTable.columns[0].align === "left" && escapedTable.columns[1].align === "right",
     "column alignment is parsed");
@@ -366,7 +362,7 @@ This is a **bold** and *italic* text with \`code\`.
   const hasItalic = result.ops.some((o) => o.attributes?.italic);
   const hasCode = result.ops.some((o) => o.attributes?.code);
   const hasList = result.ops.some((o) => o.attributes?.list === "bullet");
-  const hasQuote = result.ops.some((o) => o.attributes?.blockquote);
+  const hasQuote = deltaToProseMirror(result).content.some(node => node.type === "blockquote");
   const hasLink = result.ops.some((o) => o.attributes?.link);
 
   assert(hasH1, "H1 detected");
@@ -432,7 +428,7 @@ This is a **bold** and *italic* text with \`code\`.
     "long interview notes with headings, quote and divider are detected",
   );
   assert(!looksLikeMarkdown("1.0.0 is a version"), "version text is not detected");
-  assert(!looksLikeMarkdown("> 100"), "single comparison-like line is not detected");
+  assert(looksLikeMarkdown("> 100"), "a valid single-line quote is detected");
   assert(!looksLikeMarkdown("#12345"), "issue number is not detected");
 }
 
@@ -444,7 +440,7 @@ This is a **bold** and *italic* text with \`code\`.
   const delta = mdToDelta(
     "- Parent\r\n" +
     "  1. Child\r\n" +
-    "    - Grandchild\r\n" +
+    "     - Grandchild\r\n" +
     "- Sibling",
   );
   const listLines = delta.ops.filter((op) => op.attributes?.list);
@@ -453,7 +449,7 @@ This is a **bold** and *italic* text with \`code\`.
   assert(listLines[1].attributes?.list === "ordered" && listLines[1].attributes?.indent === 1,
     "CRLF two-space ordered child becomes indent 1");
   assert(listLines[2].attributes?.list === "bullet" && listLines[2].attributes?.indent === 2,
-    "four-space bullet grandchild becomes indent 2");
+    "five-space bullet grandchild becomes indent 2");
 
   const pm = deltaToProseMirror(delta);
   const rootList = pm.content[0];

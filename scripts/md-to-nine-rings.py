@@ -27,9 +27,8 @@ md-to-nine-rings.py — 批量将 .md 文件导入为 Nine Rings 笔记
     浏览器自动接收并创建笔记，刷新即可看到结果
 
 支持的 Markdown 语法:
-  # ## ### 标题   **粗体**  *斜体*  `行内代码`
-  ``` 代码块     - 无序列表   1. 有序列表
-  > 引用          [链接](url)   --- 分割线
+  与应用共用 CommonMark/GFM、脚注、公式和受限 HTML 解析。
+  需先在仓库运行 npm ci；不需要额外的 Python 依赖。
 """
 
 import json
@@ -37,186 +36,30 @@ import os
 import re
 import sys
 import uuid
+import subprocess
+from pathlib import Path
 from datetime import datetime, timezone
 
 
-# ════════════════════════════════════════
-# Markdown → Quill Delta 解析器
-# ════════════════════════════════════════
-
-def parse_inline(text):
-    """解析行内格式：**bold**, *italic*, `code`, [link](url)"""
-    result = []
-    i = 0
-    while i < len(text):
-        m = re.match(r'\[([^\]]+)\]\(([^)]+)\)', text[i:])
-        if m:
-            result.append((m.group(1), {'link': m.group(2)}))
-            i += m.end()
-            continue
-        if text[i:i+2] == '**':
-            j = text.find('**', i+2)
-            if j != -1:
-                inner = text[i+2:j]
-                if inner:
-                    result.append((inner, {'bold': True}))
-                    i = j + 2
-                    continue
-                # 相邻 **** → 空内容，回退为普通字符逐个处理
-            result.append((text[i], {}))
-            i += 1
-            continue
-        if text[i] == '*' and (i+1 >= len(text) or text[i+1] != '*'):
-            j = text.find('*', i+1)
-            if j != -1:
-                if text[i+1:j]:
-                    result.append((text[i+1:j], {'italic': True}))
-                    i = j + 1
-                    continue
-        if text[i] == '`':
-            j = text.find('`', i+1)
-            if j != -1:
-                inner = text[i+1:j]
-                if inner:
-                    result.append((inner, {'code': True}))
-                    i = j + 1
-                    continue
-                # 相邻反引号 `` → 无内容，当作普通字符
-            # 无匹配闭合反引号，当作普通字符
-            result.append((text[i], {}))
-            i += 1
-            continue
-        result.append((text[i], {}))
-        i += 1
-    return result
-
-
-def inline_to_delta_ops(text, base_attrs=None):
-    """行内文本（含格式）→ Delta insert ops，相同属性合并"""
-    if not text:
-        return []
-    parts = parse_inline(text)
-    # Merge consecutive segments with same attrs
-    merged = []
-    for seg_text, seg_attrs in parts:
-        attrs = dict(base_attrs or {})
-        attrs.update(seg_attrs)
-        clean = {k: v for k, v in attrs.items() if v}
-        if merged and merged[-1]['attrs'] == clean:
-            merged[-1]['text'] += seg_text
-        else:
-            merged.append({'text': seg_text, 'attrs': clean})
-    ops = []
-    for m in merged:
-        if m['attrs']:
-            ops.append({'insert': m['text'], 'attributes': m['attrs']})
-        else:
-            ops.append({'insert': m['text']})
-    return ops
+def transform_markdown(files):
+    """Use the shared CommonMark/GFM parser; no independent Python grammar."""
+    root = Path(__file__).resolve().parent.parent
+    version = (root / '.node-version').read_text().strip()
+    local_node = root / '.local-tools' / f'node-v{version}' / 'bin' / 'node'
+    node = str(local_node) if local_node.is_file() else 'node'
+    result = subprocess.run(
+        [node, '--import', 'tsx', 'scripts/markdown-transform.ts'],
+        input=json.dumps(files), text=True, capture_output=True, cwd=root, check=True,
+    )
+    return json.loads(result.stdout)
 
 
 def md_to_delta(md_text):
-    """完整 markdown 文本 → Delta ops 数组"""
-    lines = md_text.split('\n')
-    ops = []
-    i = 0
-    in_code = False
-    code_buf = []
+    return transform_markdown([{'fileName': 'document.md', 'source': md_text}])[0]['content']['ops']
 
-    while i < len(lines):
-        line = lines[i]
-
-        # ── 代码块 ──
-        if re.match(r'^```', line.strip()):
-            if in_code:
-                if code_buf:
-                    ops.append({'insert': '\n'.join(code_buf)})
-                    ops.append({'insert': '\n', 'attributes': {'code-block': True}})
-                code_buf = []
-                in_code = False
-            else:
-                in_code = True
-            i += 1
-            continue
-
-        if in_code:
-            code_buf.append(line)
-            i += 1
-            continue
-
-        stripped = line.strip()
-
-        # ── 空行 ──
-        if not stripped:
-            if ops and not ops[-1]['insert'].endswith('\n'):
-                ops.append({'insert': '\n'})
-            i += 1
-            continue
-
-        # ── 分割线 ──
-        if re.match(r'^[-*_]{3,}\s*$', stripped):
-            ops.append({'insert': '─' * 8, 'attributes': {'strike': True}})
-            ops.append({'insert': '\n'})
-            i += 1
-            continue
-
-        # ── 标题 ──
-        hm = re.match(r'^(#{1,3})\s+(.+)$', stripped)
-        if hm:
-            level = len(hm.group(1))
-            text = hm.group(2)
-            ops.extend(inline_to_delta_ops(text))
-            ops.append({'insert': '\n', 'attributes': {'header': level}})
-            i += 1
-            continue
-
-        # ── 引用 ──
-        bqm = re.match(r'^>\s?(.*)$', stripped)
-        if bqm:
-            ops.extend(inline_to_delta_ops(bqm.group(1)))
-            ops.append({'insert': '\n', 'attributes': {'blockquote': True}})
-            i += 1
-            continue
-
-        # ── 无序列表 ──
-        blm = re.match(r'^[-*+]\s+(.+)$', stripped)
-        if blm:
-            ops.extend(inline_to_delta_ops(blm.group(1)))
-            ops.append({'insert': '\n', 'attributes': {'list': 'bullet'}})
-            i += 1
-            continue
-
-        # ── 有序列表 ──
-        olm = re.match(r'^\d+\.\s+(.+)$', stripped)
-        if olm:
-            ops.extend(inline_to_delta_ops(olm.group(1)))
-            ops.append({'insert': '\n', 'attributes': {'list': 'ordered'}})
-            i += 1
-            continue
-
-        # ── 普通段落 ──
-        ops.extend(inline_to_delta_ops(line))
-        ops.append({'insert': '\n'})
-        i += 1
-
-    # 关闭未闭合的代码块
-    if in_code and code_buf:
-        ops.append({'insert': '\n'.join(code_buf)})
-        ops.append({'insert': '\n', 'attributes': {'code-block': True}})
-
-    return ops
-
-
-# ════════════════════════════════════════
-# 文件扫描 + 导入 JSON 生成
-# ════════════════════════════════════════
 
 def extract_title(md_text, filename):
-    """从 markdown 提取标题，fallback 到文件名"""
-    m = re.search(r'^#\s+(.+)$', md_text, re.MULTILINE)
-    if m:
-        return m.group(1).strip()
-    return os.path.splitext(filename)[0]
+    return transform_markdown([{'fileName': filename, 'source': md_text}])[0]['title']
 
 
 def md_files_from_args(args):
@@ -254,12 +97,14 @@ def build_import_json(md_files, today, now, storage_path=None, doc_type=None, co
     """
     storage_path = storage_path or "references"
     notes = []
-    for fp, subdir in md_files.items():
+    files = []
+    for fp in md_files:
         with open(fp, 'r', encoding='utf-8') as f:
-            md_text = f.read()
-
-        title = extract_title(md_text, os.path.basename(fp))
-        delta_ops = {'ops': md_to_delta(md_text)}
+            files.append({'fileName': os.path.basename(fp), 'source': f.read()})
+    transformed = transform_markdown(files)
+    for (fp, subdir), parsed in zip(md_files.items(), transformed):
+        title = parsed['title']
+        delta_ops = parsed['content']
 
         note = {
             'id': str(uuid.uuid4()),

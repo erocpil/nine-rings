@@ -697,7 +697,7 @@ test.describe("编辑器复制粘贴", () => {
       "- **VFIO/UIO接入层**",
       "  - 将PCI BAR以MMIO方式暴露给进程",
       "  1. Child",
-      "    - Grandchild",
+      "     - Grandchild",
       "- Sibling",
     ].join("\r\n");
     const editor = page.locator(".ProseMirror");
@@ -877,9 +877,9 @@ test.describe("编辑器复制粘贴", () => {
     const path = await download.path();
     expect(path).not.toBeNull();
     const exported = await readFile(path!, "utf8");
-    expect(exported).toContain("| 名称 | 数值 |");
-    expect(exported).toContain("| :---: | ---: |");
-    expect(exported).toContain("| `a \\| b` | **42** |");
+    expect(exported).toMatch(/\|\s*名称\s*\|\s*数值\s*\|/);
+    expect(exported).toMatch(/\|\s*:-+:\s*\|\s*-+:\s*\|/);
+    expect(exported).toMatch(/\|\s*`a \\\| b`\s*\|\s*\*\*42\*\*\s*\|/);
   });
 
   test("超过五万字符的 Markdown 可替换已有内容", async ({ page }) => {

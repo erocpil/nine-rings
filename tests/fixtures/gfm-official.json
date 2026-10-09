@@ -1,0 +1,4214 @@
+[
+  {
+    "id": "gfm-spec.txt:1",
+    "section": "Tabs",
+    "markdown": "\tfoo\tbaz\t\tbim\n",
+    "html": "<pre><code>foo\tbaz\t\tbim\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:2",
+    "section": "Tabs",
+    "markdown": "  \tfoo\tbaz\t\tbim\n",
+    "html": "<pre><code>foo\tbaz\t\tbim\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:3",
+    "section": "Tabs",
+    "markdown": "    a\ta\n    ὐ\ta\n",
+    "html": "<pre><code>a\ta\nὐ\ta\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:4",
+    "section": "Tabs",
+    "markdown": "  - foo\n\n\tbar\n",
+    "html": "<ul>\n<li>\n<p>foo</p>\n<p>bar</p>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:5",
+    "section": "Tabs",
+    "markdown": "- foo\n\n\t\tbar\n",
+    "html": "<ul>\n<li>\n<p>foo</p>\n<pre><code>  bar\n</code></pre>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:6",
+    "section": "Tabs",
+    "markdown": ">\t\tfoo\n",
+    "html": "<blockquote>\n<pre><code>  foo\n</code></pre>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:7",
+    "section": "Tabs",
+    "markdown": "-\t\tfoo\n",
+    "html": "<ul>\n<li>\n<pre><code>  foo\n</code></pre>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:8",
+    "section": "Tabs",
+    "markdown": "    foo\n\tbar\n",
+    "html": "<pre><code>foo\nbar\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:9",
+    "section": "Tabs",
+    "markdown": " - foo\n   - bar\n\t - baz\n",
+    "html": "<ul>\n<li>foo\n<ul>\n<li>bar\n<ul>\n<li>baz</li>\n</ul>\n</li>\n</ul>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:10",
+    "section": "Tabs",
+    "markdown": "#\tFoo\n",
+    "html": "<h1>Foo</h1>\n"
+  },
+  {
+    "id": "gfm-spec.txt:11",
+    "section": "Tabs",
+    "markdown": "*\t*\t*\t\n",
+    "html": "<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:12",
+    "section": "Precedence",
+    "markdown": "- `one\n- two`\n",
+    "html": "<ul>\n<li>`one</li>\n<li>two`</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:13",
+    "section": "Thematic breaks",
+    "markdown": "***\n---\n___\n",
+    "html": "<hr />\n<hr />\n<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:14",
+    "section": "Thematic breaks",
+    "markdown": "+++\n",
+    "html": "<p>+++</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:15",
+    "section": "Thematic breaks",
+    "markdown": "===\n",
+    "html": "<p>===</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:16",
+    "section": "Thematic breaks",
+    "markdown": "--\n**\n__\n",
+    "html": "<p>--\n**\n__</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:17",
+    "section": "Thematic breaks",
+    "markdown": " ***\n  ***\n   ***\n",
+    "html": "<hr />\n<hr />\n<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:18",
+    "section": "Thematic breaks",
+    "markdown": "    ***\n",
+    "html": "<pre><code>***\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:19",
+    "section": "Thematic breaks",
+    "markdown": "Foo\n    ***\n",
+    "html": "<p>Foo\n***</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:20",
+    "section": "Thematic breaks",
+    "markdown": "_____________________________________\n",
+    "html": "<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:21",
+    "section": "Thematic breaks",
+    "markdown": " - - -\n",
+    "html": "<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:22",
+    "section": "Thematic breaks",
+    "markdown": " **  * ** * ** * **\n",
+    "html": "<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:23",
+    "section": "Thematic breaks",
+    "markdown": "-     -      -      -\n",
+    "html": "<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:24",
+    "section": "Thematic breaks",
+    "markdown": "- - - -    \n",
+    "html": "<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:25",
+    "section": "Thematic breaks",
+    "markdown": "_ _ _ _ a\n\na------\n\n---a---\n",
+    "html": "<p>_ _ _ _ a</p>\n<p>a------</p>\n<p>---a---</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:26",
+    "section": "Thematic breaks",
+    "markdown": " *-*\n",
+    "html": "<p><em>-</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:27",
+    "section": "Thematic breaks",
+    "markdown": "- foo\n***\n- bar\n",
+    "html": "<ul>\n<li>foo</li>\n</ul>\n<hr />\n<ul>\n<li>bar</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:28",
+    "section": "Thematic breaks",
+    "markdown": "Foo\n***\nbar\n",
+    "html": "<p>Foo</p>\n<hr />\n<p>bar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:29",
+    "section": "Thematic breaks",
+    "markdown": "Foo\n---\nbar\n",
+    "html": "<h2>Foo</h2>\n<p>bar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:30",
+    "section": "Thematic breaks",
+    "markdown": "* Foo\n* * *\n* Bar\n",
+    "html": "<ul>\n<li>Foo</li>\n</ul>\n<hr />\n<ul>\n<li>Bar</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:31",
+    "section": "Thematic breaks",
+    "markdown": "- Foo\n- * * *\n",
+    "html": "<ul>\n<li>Foo</li>\n<li>\n<hr />\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:32",
+    "section": "ATX headings",
+    "markdown": "# foo\n## foo\n### foo\n#### foo\n##### foo\n###### foo\n",
+    "html": "<h1>foo</h1>\n<h2>foo</h2>\n<h3>foo</h3>\n<h4>foo</h4>\n<h5>foo</h5>\n<h6>foo</h6>\n"
+  },
+  {
+    "id": "gfm-spec.txt:33",
+    "section": "ATX headings",
+    "markdown": "####### foo\n",
+    "html": "<p>####### foo</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:34",
+    "section": "ATX headings",
+    "markdown": "#5 bolt\n\n#hashtag\n",
+    "html": "<p>#5 bolt</p>\n<p>#hashtag</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:35",
+    "section": "ATX headings",
+    "markdown": "\\## foo\n",
+    "html": "<p>## foo</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:36",
+    "section": "ATX headings",
+    "markdown": "# foo *bar* \\*baz\\*\n",
+    "html": "<h1>foo <em>bar</em> *baz*</h1>\n"
+  },
+  {
+    "id": "gfm-spec.txt:37",
+    "section": "ATX headings",
+    "markdown": "#                  foo                     \n",
+    "html": "<h1>foo</h1>\n"
+  },
+  {
+    "id": "gfm-spec.txt:38",
+    "section": "ATX headings",
+    "markdown": " ### foo\n  ## foo\n   # foo\n",
+    "html": "<h3>foo</h3>\n<h2>foo</h2>\n<h1>foo</h1>\n"
+  },
+  {
+    "id": "gfm-spec.txt:39",
+    "section": "ATX headings",
+    "markdown": "    # foo\n",
+    "html": "<pre><code># foo\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:40",
+    "section": "ATX headings",
+    "markdown": "foo\n    # bar\n",
+    "html": "<p>foo\n# bar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:41",
+    "section": "ATX headings",
+    "markdown": "## foo ##\n  ###   bar    ###\n",
+    "html": "<h2>foo</h2>\n<h3>bar</h3>\n"
+  },
+  {
+    "id": "gfm-spec.txt:42",
+    "section": "ATX headings",
+    "markdown": "# foo ##################################\n##### foo ##\n",
+    "html": "<h1>foo</h1>\n<h5>foo</h5>\n"
+  },
+  {
+    "id": "gfm-spec.txt:43",
+    "section": "ATX headings",
+    "markdown": "### foo ###     \n",
+    "html": "<h3>foo</h3>\n"
+  },
+  {
+    "id": "gfm-spec.txt:44",
+    "section": "ATX headings",
+    "markdown": "### foo ### b\n",
+    "html": "<h3>foo ### b</h3>\n"
+  },
+  {
+    "id": "gfm-spec.txt:45",
+    "section": "ATX headings",
+    "markdown": "# foo#\n",
+    "html": "<h1>foo#</h1>\n"
+  },
+  {
+    "id": "gfm-spec.txt:46",
+    "section": "ATX headings",
+    "markdown": "### foo \\###\n## foo #\\##\n# foo \\#\n",
+    "html": "<h3>foo ###</h3>\n<h2>foo ###</h2>\n<h1>foo #</h1>\n"
+  },
+  {
+    "id": "gfm-spec.txt:47",
+    "section": "ATX headings",
+    "markdown": "****\n## foo\n****\n",
+    "html": "<hr />\n<h2>foo</h2>\n<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:48",
+    "section": "ATX headings",
+    "markdown": "Foo bar\n# baz\nBar foo\n",
+    "html": "<p>Foo bar</p>\n<h1>baz</h1>\n<p>Bar foo</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:49",
+    "section": "ATX headings",
+    "markdown": "## \n#\n### ###\n",
+    "html": "<h2></h2>\n<h1></h1>\n<h3></h3>\n"
+  },
+  {
+    "id": "gfm-spec.txt:50",
+    "section": "Setext headings",
+    "markdown": "Foo *bar*\n=========\n\nFoo *bar*\n---------\n",
+    "html": "<h1>Foo <em>bar</em></h1>\n<h2>Foo <em>bar</em></h2>\n"
+  },
+  {
+    "id": "gfm-spec.txt:51",
+    "section": "Setext headings",
+    "markdown": "Foo *bar\nbaz*\n====\n",
+    "html": "<h1>Foo <em>bar\nbaz</em></h1>\n"
+  },
+  {
+    "id": "gfm-spec.txt:52",
+    "section": "Setext headings",
+    "markdown": "  Foo *bar\nbaz*\t\n====\n",
+    "html": "<h1>Foo <em>bar\nbaz</em></h1>\n"
+  },
+  {
+    "id": "gfm-spec.txt:53",
+    "section": "Setext headings",
+    "markdown": "Foo\n-------------------------\n\nFoo\n=\n",
+    "html": "<h2>Foo</h2>\n<h1>Foo</h1>\n"
+  },
+  {
+    "id": "gfm-spec.txt:54",
+    "section": "Setext headings",
+    "markdown": "   Foo\n---\n\n  Foo\n-----\n\n  Foo\n  ===\n",
+    "html": "<h2>Foo</h2>\n<h2>Foo</h2>\n<h1>Foo</h1>\n"
+  },
+  {
+    "id": "gfm-spec.txt:55",
+    "section": "Setext headings",
+    "markdown": "    Foo\n    ---\n\n    Foo\n---\n",
+    "html": "<pre><code>Foo\n---\n\nFoo\n</code></pre>\n<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:56",
+    "section": "Setext headings",
+    "markdown": "Foo\n   ----      \n",
+    "html": "<h2>Foo</h2>\n"
+  },
+  {
+    "id": "gfm-spec.txt:57",
+    "section": "Setext headings",
+    "markdown": "Foo\n    ---\n",
+    "html": "<p>Foo\n---</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:58",
+    "section": "Setext headings",
+    "markdown": "Foo\n= =\n\nFoo\n--- -\n",
+    "html": "<p>Foo\n= =</p>\n<p>Foo</p>\n<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:59",
+    "section": "Setext headings",
+    "markdown": "Foo  \n-----\n",
+    "html": "<h2>Foo</h2>\n"
+  },
+  {
+    "id": "gfm-spec.txt:60",
+    "section": "Setext headings",
+    "markdown": "Foo\\\n----\n",
+    "html": "<h2>Foo\\</h2>\n"
+  },
+  {
+    "id": "gfm-spec.txt:61",
+    "section": "Setext headings",
+    "markdown": "`Foo\n----\n`\n\n<a title=\"a lot\n---\nof dashes\"/>\n",
+    "html": "<h2>`Foo</h2>\n<p>`</p>\n<h2>&lt;a title=&quot;a lot</h2>\n<p>of dashes&quot;/&gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:62",
+    "section": "Setext headings",
+    "markdown": "> Foo\n---\n",
+    "html": "<blockquote>\n<p>Foo</p>\n</blockquote>\n<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:63",
+    "section": "Setext headings",
+    "markdown": "> foo\nbar\n===\n",
+    "html": "<blockquote>\n<p>foo\nbar\n===</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:64",
+    "section": "Setext headings",
+    "markdown": "- Foo\n---\n",
+    "html": "<ul>\n<li>Foo</li>\n</ul>\n<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:65",
+    "section": "Setext headings",
+    "markdown": "Foo\nBar\n---\n",
+    "html": "<h2>Foo\nBar</h2>\n"
+  },
+  {
+    "id": "gfm-spec.txt:66",
+    "section": "Setext headings",
+    "markdown": "---\nFoo\n---\nBar\n---\nBaz\n",
+    "html": "<hr />\n<h2>Foo</h2>\n<h2>Bar</h2>\n<p>Baz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:67",
+    "section": "Setext headings",
+    "markdown": "\n====\n",
+    "html": "<p>====</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:68",
+    "section": "Setext headings",
+    "markdown": "---\n---\n",
+    "html": "<hr />\n<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:69",
+    "section": "Setext headings",
+    "markdown": "- foo\n-----\n",
+    "html": "<ul>\n<li>foo</li>\n</ul>\n<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:70",
+    "section": "Setext headings",
+    "markdown": "    foo\n---\n",
+    "html": "<pre><code>foo\n</code></pre>\n<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:71",
+    "section": "Setext headings",
+    "markdown": "> foo\n-----\n",
+    "html": "<blockquote>\n<p>foo</p>\n</blockquote>\n<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:72",
+    "section": "Setext headings",
+    "markdown": "\\> foo\n------\n",
+    "html": "<h2>&gt; foo</h2>\n"
+  },
+  {
+    "id": "gfm-spec.txt:73",
+    "section": "Setext headings",
+    "markdown": "Foo\n\nbar\n---\nbaz\n",
+    "html": "<p>Foo</p>\n<h2>bar</h2>\n<p>baz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:74",
+    "section": "Setext headings",
+    "markdown": "Foo\nbar\n\n---\n\nbaz\n",
+    "html": "<p>Foo\nbar</p>\n<hr />\n<p>baz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:75",
+    "section": "Setext headings",
+    "markdown": "Foo\nbar\n* * *\nbaz\n",
+    "html": "<p>Foo\nbar</p>\n<hr />\n<p>baz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:76",
+    "section": "Setext headings",
+    "markdown": "Foo\nbar\n\\---\nbaz\n",
+    "html": "<p>Foo\nbar\n---\nbaz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:77",
+    "section": "Indented code blocks",
+    "markdown": "    a simple\n      indented code block\n",
+    "html": "<pre><code>a simple\n  indented code block\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:78",
+    "section": "Indented code blocks",
+    "markdown": "  - foo\n\n    bar\n",
+    "html": "<ul>\n<li>\n<p>foo</p>\n<p>bar</p>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:79",
+    "section": "Indented code blocks",
+    "markdown": "1.  foo\n\n    - bar\n",
+    "html": "<ol>\n<li>\n<p>foo</p>\n<ul>\n<li>bar</li>\n</ul>\n</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:80",
+    "section": "Indented code blocks",
+    "markdown": "    <a/>\n    *hi*\n\n    - one\n",
+    "html": "<pre><code>&lt;a/&gt;\n*hi*\n\n- one\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:81",
+    "section": "Indented code blocks",
+    "markdown": "    chunk1\n\n    chunk2\n  \n \n \n    chunk3\n",
+    "html": "<pre><code>chunk1\n\nchunk2\n\n\n\nchunk3\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:82",
+    "section": "Indented code blocks",
+    "markdown": "    chunk1\n      \n      chunk2\n",
+    "html": "<pre><code>chunk1\n  \n  chunk2\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:83",
+    "section": "Indented code blocks",
+    "markdown": "Foo\n    bar\n\n",
+    "html": "<p>Foo\nbar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:84",
+    "section": "Indented code blocks",
+    "markdown": "    foo\nbar\n",
+    "html": "<pre><code>foo\n</code></pre>\n<p>bar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:85",
+    "section": "Indented code blocks",
+    "markdown": "# Heading\n    foo\nHeading\n------\n    foo\n----\n",
+    "html": "<h1>Heading</h1>\n<pre><code>foo\n</code></pre>\n<h2>Heading</h2>\n<pre><code>foo\n</code></pre>\n<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:86",
+    "section": "Indented code blocks",
+    "markdown": "        foo\n    bar\n",
+    "html": "<pre><code>    foo\nbar\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:87",
+    "section": "Indented code blocks",
+    "markdown": "\n    \n    foo\n    \n\n",
+    "html": "<pre><code>foo\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:88",
+    "section": "Indented code blocks",
+    "markdown": "    foo  \n",
+    "html": "<pre><code>foo  \n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:89",
+    "section": "Fenced code blocks",
+    "markdown": "```\n<\n >\n```\n",
+    "html": "<pre><code>&lt;\n &gt;\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:90",
+    "section": "Fenced code blocks",
+    "markdown": "~~~\n<\n >\n~~~\n",
+    "html": "<pre><code>&lt;\n &gt;\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:91",
+    "section": "Fenced code blocks",
+    "markdown": "``\nfoo\n``\n",
+    "html": "<p><code>foo</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:92",
+    "section": "Fenced code blocks",
+    "markdown": "```\naaa\n~~~\n```\n",
+    "html": "<pre><code>aaa\n~~~\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:93",
+    "section": "Fenced code blocks",
+    "markdown": "~~~\naaa\n```\n~~~\n",
+    "html": "<pre><code>aaa\n```\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:94",
+    "section": "Fenced code blocks",
+    "markdown": "````\naaa\n```\n``````\n",
+    "html": "<pre><code>aaa\n```\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:95",
+    "section": "Fenced code blocks",
+    "markdown": "~~~~\naaa\n~~~\n~~~~\n",
+    "html": "<pre><code>aaa\n~~~\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:96",
+    "section": "Fenced code blocks",
+    "markdown": "```\n",
+    "html": "<pre><code></code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:97",
+    "section": "Fenced code blocks",
+    "markdown": "`````\n\n```\naaa\n",
+    "html": "<pre><code>\n```\naaa\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:98",
+    "section": "Fenced code blocks",
+    "markdown": "> ```\n> aaa\n\nbbb\n",
+    "html": "<blockquote>\n<pre><code>aaa\n</code></pre>\n</blockquote>\n<p>bbb</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:99",
+    "section": "Fenced code blocks",
+    "markdown": "```\n\n  \n```\n",
+    "html": "<pre><code>\n  \n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:100",
+    "section": "Fenced code blocks",
+    "markdown": "```\n```\n",
+    "html": "<pre><code></code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:101",
+    "section": "Fenced code blocks",
+    "markdown": " ```\n aaa\naaa\n```\n",
+    "html": "<pre><code>aaa\naaa\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:102",
+    "section": "Fenced code blocks",
+    "markdown": "  ```\naaa\n  aaa\naaa\n  ```\n",
+    "html": "<pre><code>aaa\naaa\naaa\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:103",
+    "section": "Fenced code blocks",
+    "markdown": "   ```\n   aaa\n    aaa\n  aaa\n   ```\n",
+    "html": "<pre><code>aaa\n aaa\naaa\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:104",
+    "section": "Fenced code blocks",
+    "markdown": "    ```\n    aaa\n    ```\n",
+    "html": "<pre><code>```\naaa\n```\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:105",
+    "section": "Fenced code blocks",
+    "markdown": "```\naaa\n  ```\n",
+    "html": "<pre><code>aaa\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:106",
+    "section": "Fenced code blocks",
+    "markdown": "   ```\naaa\n  ```\n",
+    "html": "<pre><code>aaa\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:107",
+    "section": "Fenced code blocks",
+    "markdown": "```\naaa\n    ```\n",
+    "html": "<pre><code>aaa\n    ```\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:108",
+    "section": "Fenced code blocks",
+    "markdown": "``` ```\naaa\n",
+    "html": "<p><code> </code>\naaa</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:109",
+    "section": "Fenced code blocks",
+    "markdown": "~~~~~~\naaa\n~~~ ~~\n",
+    "html": "<pre><code>aaa\n~~~ ~~\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:110",
+    "section": "Fenced code blocks",
+    "markdown": "foo\n```\nbar\n```\nbaz\n",
+    "html": "<p>foo</p>\n<pre><code>bar\n</code></pre>\n<p>baz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:111",
+    "section": "Fenced code blocks",
+    "markdown": "foo\n---\n~~~\nbar\n~~~\n# baz\n",
+    "html": "<h2>foo</h2>\n<pre><code>bar\n</code></pre>\n<h1>baz</h1>\n"
+  },
+  {
+    "id": "gfm-spec.txt:112",
+    "section": "Fenced code blocks",
+    "markdown": "```ruby\ndef foo(x)\n  return 3\nend\n```\n",
+    "html": "<pre><code class=\"language-ruby\">def foo(x)\n  return 3\nend\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:113",
+    "section": "Fenced code blocks",
+    "markdown": "~~~~    ruby startline=3 $%@#$\ndef foo(x)\n  return 3\nend\n~~~~~~~\n",
+    "html": "<pre><code class=\"language-ruby\">def foo(x)\n  return 3\nend\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:114",
+    "section": "Fenced code blocks",
+    "markdown": "````;\n````\n",
+    "html": "<pre><code class=\"language-;\"></code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:115",
+    "section": "Fenced code blocks",
+    "markdown": "``` aa ```\nfoo\n",
+    "html": "<p><code>aa</code>\nfoo</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:116",
+    "section": "Fenced code blocks",
+    "markdown": "~~~ aa ``` ~~~\nfoo\n~~~\n",
+    "html": "<pre><code class=\"language-aa\">foo\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:117",
+    "section": "Fenced code blocks",
+    "markdown": "```\n``` aaa\n```\n",
+    "html": "<pre><code>``` aaa\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:118",
+    "section": "HTML blocks",
+    "markdown": "<table><tr><td>\n<pre>\n**Hello**,\n\n_world_.\n</pre>\n</td></tr></table>\n",
+    "html": "<table><tr><td>\n<pre>\n**Hello**,\n<p><em>world</em>.\n</pre></p>\n</td></tr></table>\n"
+  },
+  {
+    "id": "gfm-spec.txt:119",
+    "section": "HTML blocks",
+    "markdown": "<table>\n  <tr>\n    <td>\n           hi\n    </td>\n  </tr>\n</table>\n\nokay.\n",
+    "html": "<table>\n  <tr>\n    <td>\n           hi\n    </td>\n  </tr>\n</table>\n<p>okay.</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:120",
+    "section": "HTML blocks",
+    "markdown": " <div>\n  *hello*\n         <foo><a>\n",
+    "html": " <div>\n  *hello*\n         <foo><a>\n"
+  },
+  {
+    "id": "gfm-spec.txt:121",
+    "section": "HTML blocks",
+    "markdown": "</div>\n*foo*\n",
+    "html": "</div>\n*foo*\n"
+  },
+  {
+    "id": "gfm-spec.txt:122",
+    "section": "HTML blocks",
+    "markdown": "<DIV CLASS=\"foo\">\n\n*Markdown*\n\n</DIV>\n",
+    "html": "<DIV CLASS=\"foo\">\n<p><em>Markdown</em></p>\n</DIV>\n"
+  },
+  {
+    "id": "gfm-spec.txt:123",
+    "section": "HTML blocks",
+    "markdown": "<div id=\"foo\"\n  class=\"bar\">\n</div>\n",
+    "html": "<div id=\"foo\"\n  class=\"bar\">\n</div>\n"
+  },
+  {
+    "id": "gfm-spec.txt:124",
+    "section": "HTML blocks",
+    "markdown": "<div id=\"foo\" class=\"bar\n  baz\">\n</div>\n",
+    "html": "<div id=\"foo\" class=\"bar\n  baz\">\n</div>\n"
+  },
+  {
+    "id": "gfm-spec.txt:125",
+    "section": "HTML blocks",
+    "markdown": "<div>\n*foo*\n\n*bar*\n",
+    "html": "<div>\n*foo*\n<p><em>bar</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:126",
+    "section": "HTML blocks",
+    "markdown": "<div id=\"foo\"\n*hi*\n",
+    "html": "<div id=\"foo\"\n*hi*\n"
+  },
+  {
+    "id": "gfm-spec.txt:127",
+    "section": "HTML blocks",
+    "markdown": "<div class\nfoo\n",
+    "html": "<div class\nfoo\n"
+  },
+  {
+    "id": "gfm-spec.txt:128",
+    "section": "HTML blocks",
+    "markdown": "<div *???-&&&-<---\n*foo*\n",
+    "html": "<div *???-&&&-<---\n*foo*\n"
+  },
+  {
+    "id": "gfm-spec.txt:129",
+    "section": "HTML blocks",
+    "markdown": "<div><a href=\"bar\">*foo*</a></div>\n",
+    "html": "<div><a href=\"bar\">*foo*</a></div>\n"
+  },
+  {
+    "id": "gfm-spec.txt:130",
+    "section": "HTML blocks",
+    "markdown": "<table><tr><td>\nfoo\n</td></tr></table>\n",
+    "html": "<table><tr><td>\nfoo\n</td></tr></table>\n"
+  },
+  {
+    "id": "gfm-spec.txt:131",
+    "section": "HTML blocks",
+    "markdown": "<div></div>\n``` c\nint x = 33;\n```\n",
+    "html": "<div></div>\n``` c\nint x = 33;\n```\n"
+  },
+  {
+    "id": "gfm-spec.txt:132",
+    "section": "HTML blocks",
+    "markdown": "<a href=\"foo\">\n*bar*\n</a>\n",
+    "html": "<a href=\"foo\">\n*bar*\n</a>\n"
+  },
+  {
+    "id": "gfm-spec.txt:133",
+    "section": "HTML blocks",
+    "markdown": "<Warning>\n*bar*\n</Warning>\n",
+    "html": "<Warning>\n*bar*\n</Warning>\n"
+  },
+  {
+    "id": "gfm-spec.txt:134",
+    "section": "HTML blocks",
+    "markdown": "<i class=\"foo\">\n*bar*\n</i>\n",
+    "html": "<i class=\"foo\">\n*bar*\n</i>\n"
+  },
+  {
+    "id": "gfm-spec.txt:135",
+    "section": "HTML blocks",
+    "markdown": "</ins>\n*bar*\n",
+    "html": "</ins>\n*bar*\n"
+  },
+  {
+    "id": "gfm-spec.txt:136",
+    "section": "HTML blocks",
+    "markdown": "<del>\n*foo*\n</del>\n",
+    "html": "<del>\n*foo*\n</del>\n"
+  },
+  {
+    "id": "gfm-spec.txt:137",
+    "section": "HTML blocks",
+    "markdown": "<del>\n\n*foo*\n\n</del>\n",
+    "html": "<del>\n<p><em>foo</em></p>\n</del>\n"
+  },
+  {
+    "id": "gfm-spec.txt:138",
+    "section": "HTML blocks",
+    "markdown": "<del>*foo*</del>\n",
+    "html": "<p><del><em>foo</em></del></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:139",
+    "section": "HTML blocks",
+    "markdown": "<pre language=\"haskell\"><code>\nimport Text.HTML.TagSoup\n\nmain :: IO ()\nmain = print $ parseTags tags\n</code></pre>\nokay\n",
+    "html": "<pre language=\"haskell\"><code>\nimport Text.HTML.TagSoup\n\nmain :: IO ()\nmain = print $ parseTags tags\n</code></pre>\n<p>okay</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:140",
+    "section": "HTML blocks",
+    "markdown": "<script type=\"text/javascript\">\n// JavaScript example\n\ndocument.getElementById(\"demo\").innerHTML = \"Hello JavaScript!\";\n</script>\nokay\n",
+    "html": "<script type=\"text/javascript\">\n// JavaScript example\n\ndocument.getElementById(\"demo\").innerHTML = \"Hello JavaScript!\";\n</script>\n<p>okay</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:141",
+    "section": "HTML blocks",
+    "markdown": "<style\n  type=\"text/css\">\nh1 {color:red;}\n\np {color:blue;}\n</style>\nokay\n",
+    "html": "<style\n  type=\"text/css\">\nh1 {color:red;}\n\np {color:blue;}\n</style>\n<p>okay</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:142",
+    "section": "HTML blocks",
+    "markdown": "<style\n  type=\"text/css\">\n\nfoo\n",
+    "html": "<style\n  type=\"text/css\">\n\nfoo\n"
+  },
+  {
+    "id": "gfm-spec.txt:143",
+    "section": "HTML blocks",
+    "markdown": "> <div>\n> foo\n\nbar\n",
+    "html": "<blockquote>\n<div>\nfoo\n</blockquote>\n<p>bar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:144",
+    "section": "HTML blocks",
+    "markdown": "- <div>\n- foo\n",
+    "html": "<ul>\n<li>\n<div>\n</li>\n<li>foo</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:145",
+    "section": "HTML blocks",
+    "markdown": "<style>p{color:red;}</style>\n*foo*\n",
+    "html": "<style>p{color:red;}</style>\n<p><em>foo</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:146",
+    "section": "HTML blocks",
+    "markdown": "<!-- foo -->*bar*\n*baz*\n",
+    "html": "<!-- foo -->*bar*\n<p><em>baz</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:147",
+    "section": "HTML blocks",
+    "markdown": "<script>\nfoo\n</script>1. *bar*\n",
+    "html": "<script>\nfoo\n</script>1. *bar*\n"
+  },
+  {
+    "id": "gfm-spec.txt:148",
+    "section": "HTML blocks",
+    "markdown": "<!-- Foo\n\nbar\n   baz -->\nokay\n",
+    "html": "<!-- Foo\n\nbar\n   baz -->\n<p>okay</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:149",
+    "section": "HTML blocks",
+    "markdown": "<?php\n\n  echo '>';\n\n?>\nokay\n",
+    "html": "<?php\n\n  echo '>';\n\n?>\n<p>okay</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:150",
+    "section": "HTML blocks",
+    "markdown": "<!DOCTYPE html>\n",
+    "html": "<!DOCTYPE html>\n"
+  },
+  {
+    "id": "gfm-spec.txt:151",
+    "section": "HTML blocks",
+    "markdown": "<![CDATA[\nfunction matchwo(a,b)\n{\n  if (a < b && a < 0) then {\n    return 1;\n\n  } else {\n\n    return 0;\n  }\n}\n]]>\nokay\n",
+    "html": "<![CDATA[\nfunction matchwo(a,b)\n{\n  if (a < b && a < 0) then {\n    return 1;\n\n  } else {\n\n    return 0;\n  }\n}\n]]>\n<p>okay</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:152",
+    "section": "HTML blocks",
+    "markdown": "  <!-- foo -->\n\n    <!-- foo -->\n",
+    "html": "  <!-- foo -->\n<pre><code>&lt;!-- foo --&gt;\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:153",
+    "section": "HTML blocks",
+    "markdown": "  <div>\n\n    <div>\n",
+    "html": "  <div>\n<pre><code>&lt;div&gt;\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:154",
+    "section": "HTML blocks",
+    "markdown": "Foo\n<div>\nbar\n</div>\n",
+    "html": "<p>Foo</p>\n<div>\nbar\n</div>\n"
+  },
+  {
+    "id": "gfm-spec.txt:155",
+    "section": "HTML blocks",
+    "markdown": "<div>\nbar\n</div>\n*foo*\n",
+    "html": "<div>\nbar\n</div>\n*foo*\n"
+  },
+  {
+    "id": "gfm-spec.txt:156",
+    "section": "HTML blocks",
+    "markdown": "Foo\n<a href=\"bar\">\nbaz\n",
+    "html": "<p>Foo\n<a href=\"bar\">\nbaz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:157",
+    "section": "HTML blocks",
+    "markdown": "<div>\n\n*Emphasized* text.\n\n</div>\n",
+    "html": "<div>\n<p><em>Emphasized</em> text.</p>\n</div>\n"
+  },
+  {
+    "id": "gfm-spec.txt:158",
+    "section": "HTML blocks",
+    "markdown": "<div>\n*Emphasized* text.\n</div>\n",
+    "html": "<div>\n*Emphasized* text.\n</div>\n"
+  },
+  {
+    "id": "gfm-spec.txt:159",
+    "section": "HTML blocks",
+    "markdown": "<table>\n\n<tr>\n\n<td>\nHi\n</td>\n\n</tr>\n\n</table>\n",
+    "html": "<table>\n<tr>\n<td>\nHi\n</td>\n</tr>\n</table>\n"
+  },
+  {
+    "id": "gfm-spec.txt:160",
+    "section": "HTML blocks",
+    "markdown": "<table>\n\n  <tr>\n\n    <td>\n      Hi\n    </td>\n\n  </tr>\n\n</table>\n",
+    "html": "<table>\n  <tr>\n<pre><code>&lt;td&gt;\n  Hi\n&lt;/td&gt;\n</code></pre>\n  </tr>\n</table>\n"
+  },
+  {
+    "id": "gfm-spec.txt:161",
+    "section": "Link reference definitions",
+    "markdown": "[foo]: /url \"title\"\n\n[foo]\n",
+    "html": "<p><a href=\"/url\" title=\"title\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:162",
+    "section": "Link reference definitions",
+    "markdown": "   [foo]: \n      /url  \n           'the title'  \n\n[foo]\n",
+    "html": "<p><a href=\"/url\" title=\"the title\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:163",
+    "section": "Link reference definitions",
+    "markdown": "[Foo*bar\\]]:my_(url) 'title (with parens)'\n\n[Foo*bar\\]]\n",
+    "html": "<p><a href=\"my_(url)\" title=\"title (with parens)\">Foo*bar]</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:164",
+    "section": "Link reference definitions",
+    "markdown": "[Foo bar]:\n<my url>\n'title'\n\n[Foo bar]\n",
+    "html": "<p><a href=\"my%20url\" title=\"title\">Foo bar</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:165",
+    "section": "Link reference definitions",
+    "markdown": "[foo]: /url '\ntitle\nline1\nline2\n'\n\n[foo]\n",
+    "html": "<p><a href=\"/url\" title=\"\ntitle\nline1\nline2\n\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:166",
+    "section": "Link reference definitions",
+    "markdown": "[foo]: /url 'title\n\nwith blank line'\n\n[foo]\n",
+    "html": "<p>[foo]: /url 'title</p>\n<p>with blank line'</p>\n<p>[foo]</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:167",
+    "section": "Link reference definitions",
+    "markdown": "[foo]:\n/url\n\n[foo]\n",
+    "html": "<p><a href=\"/url\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:168",
+    "section": "Link reference definitions",
+    "markdown": "[foo]:\n\n[foo]\n",
+    "html": "<p>[foo]:</p>\n<p>[foo]</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:169",
+    "section": "Link reference definitions",
+    "markdown": "[foo]: <>\n\n[foo]\n",
+    "html": "<p><a href=\"\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:170",
+    "section": "Link reference definitions",
+    "markdown": "[foo]: <bar>(baz)\n\n[foo]\n",
+    "html": "<p>[foo]: <bar>(baz)</p>\n<p>[foo]</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:171",
+    "section": "Link reference definitions",
+    "markdown": "[foo]: /url\\bar\\*baz \"foo\\\"bar\\baz\"\n\n[foo]\n",
+    "html": "<p><a href=\"/url%5Cbar*baz\" title=\"foo&quot;bar\\baz\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:172",
+    "section": "Link reference definitions",
+    "markdown": "[foo]\n\n[foo]: url\n",
+    "html": "<p><a href=\"url\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:173",
+    "section": "Link reference definitions",
+    "markdown": "[foo]\n\n[foo]: first\n[foo]: second\n",
+    "html": "<p><a href=\"first\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:174",
+    "section": "Link reference definitions",
+    "markdown": "[FOO]: /url\n\n[Foo]\n",
+    "html": "<p><a href=\"/url\">Foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:175",
+    "section": "Link reference definitions",
+    "markdown": "[ΑΓΩ]: /φου\n\n[αγω]\n",
+    "html": "<p><a href=\"/%CF%86%CE%BF%CF%85\">αγω</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:176",
+    "section": "Link reference definitions",
+    "markdown": "[foo]: /url\n",
+    "html": ""
+  },
+  {
+    "id": "gfm-spec.txt:177",
+    "section": "Link reference definitions",
+    "markdown": "[\nfoo\n]: /url\nbar\n",
+    "html": "<p>bar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:178",
+    "section": "Link reference definitions",
+    "markdown": "[foo]: /url \"title\" ok\n",
+    "html": "<p>[foo]: /url &quot;title&quot; ok</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:179",
+    "section": "Link reference definitions",
+    "markdown": "[foo]: /url\n\"title\" ok\n",
+    "html": "<p>&quot;title&quot; ok</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:180",
+    "section": "Link reference definitions",
+    "markdown": "    [foo]: /url \"title\"\n\n[foo]\n",
+    "html": "<pre><code>[foo]: /url &quot;title&quot;\n</code></pre>\n<p>[foo]</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:181",
+    "section": "Link reference definitions",
+    "markdown": "```\n[foo]: /url\n```\n\n[foo]\n",
+    "html": "<pre><code>[foo]: /url\n</code></pre>\n<p>[foo]</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:182",
+    "section": "Link reference definitions",
+    "markdown": "Foo\n[bar]: /baz\n\n[bar]\n",
+    "html": "<p>Foo\n[bar]: /baz</p>\n<p>[bar]</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:183",
+    "section": "Link reference definitions",
+    "markdown": "# [Foo]\n[foo]: /url\n> bar\n",
+    "html": "<h1><a href=\"/url\">Foo</a></h1>\n<blockquote>\n<p>bar</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:184",
+    "section": "Link reference definitions",
+    "markdown": "[foo]: /url\nbar\n===\n[foo]\n",
+    "html": "<h1>bar</h1>\n<p><a href=\"/url\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:185",
+    "section": "Link reference definitions",
+    "markdown": "[foo]: /url\n===\n[foo]\n",
+    "html": "<p>===\n<a href=\"/url\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:186",
+    "section": "Link reference definitions",
+    "markdown": "[foo]: /foo-url \"foo\"\n[bar]: /bar-url\n  \"bar\"\n[baz]: /baz-url\n\n[foo],\n[bar],\n[baz]\n",
+    "html": "<p><a href=\"/foo-url\" title=\"foo\">foo</a>,\n<a href=\"/bar-url\" title=\"bar\">bar</a>,\n<a href=\"/baz-url\">baz</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:187",
+    "section": "Link reference definitions",
+    "markdown": "[foo]\n\n> [foo]: /url\n",
+    "html": "<p><a href=\"/url\">foo</a></p>\n<blockquote>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:188",
+    "section": "Link reference definitions",
+    "markdown": "[foo]: /url\n",
+    "html": ""
+  },
+  {
+    "id": "gfm-spec.txt:189",
+    "section": "Paragraphs",
+    "markdown": "aaa\n\nbbb\n",
+    "html": "<p>aaa</p>\n<p>bbb</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:190",
+    "section": "Paragraphs",
+    "markdown": "aaa\nbbb\n\nccc\nddd\n",
+    "html": "<p>aaa\nbbb</p>\n<p>ccc\nddd</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:191",
+    "section": "Paragraphs",
+    "markdown": "aaa\n\n\nbbb\n",
+    "html": "<p>aaa</p>\n<p>bbb</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:192",
+    "section": "Paragraphs",
+    "markdown": "  aaa\n bbb\n",
+    "html": "<p>aaa\nbbb</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:193",
+    "section": "Paragraphs",
+    "markdown": "aaa\n             bbb\n                                       ccc\n",
+    "html": "<p>aaa\nbbb\nccc</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:194",
+    "section": "Paragraphs",
+    "markdown": "   aaa\nbbb\n",
+    "html": "<p>aaa\nbbb</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:195",
+    "section": "Paragraphs",
+    "markdown": "    aaa\nbbb\n",
+    "html": "<pre><code>aaa\n</code></pre>\n<p>bbb</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:196",
+    "section": "Paragraphs",
+    "markdown": "aaa     \nbbb     \n",
+    "html": "<p>aaa<br />\nbbb</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:197",
+    "section": "Blank lines",
+    "markdown": "  \n\naaa\n  \n\n# aaa\n\n  \n",
+    "html": "<p>aaa</p>\n<h1>aaa</h1>\n"
+  },
+  {
+    "id": "gfm-spec.txt:198",
+    "section": "Tables (extension)",
+    "markdown": "| foo | bar |\n| --- | --- |\n| baz | bim |\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>foo</th>\n<th>bar</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>baz</td>\n<td>bim</td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-spec.txt:199",
+    "section": "Tables (extension)",
+    "markdown": "| abc | defghi |\n:-: | -----------:\nbar | baz\n",
+    "html": "<table>\n<thead>\n<tr>\n<th align=\"center\">abc</th>\n<th align=\"right\">defghi</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align=\"center\">bar</td>\n<td align=\"right\">baz</td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-spec.txt:200",
+    "section": "Tables (extension)",
+    "markdown": "| f\\|oo  |\n| ------ |\n| b `\\|` az |\n| b **\\|** im |\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>f|oo</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>b <code>|</code> az</td>\n</tr>\n<tr>\n<td>b <strong>|</strong> im</td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-spec.txt:201",
+    "section": "Tables (extension)",
+    "markdown": "| abc | def |\n| --- | --- |\n| bar | baz |\n> bar\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>abc</th>\n<th>def</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>bar</td>\n<td>baz</td>\n</tr>\n</tbody>\n</table>\n<blockquote>\n<p>bar</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:202",
+    "section": "Tables (extension)",
+    "markdown": "| abc | def |\n| --- | --- |\n| bar | baz |\nbar\n\nbar\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>abc</th>\n<th>def</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>bar</td>\n<td>baz</td>\n</tr>\n<tr>\n<td>bar</td>\n<td></td>\n</tr>\n</tbody>\n</table>\n<p>bar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:203",
+    "section": "Tables (extension)",
+    "markdown": "| abc | def |\n| --- |\n| bar |\n",
+    "html": "<p>| abc | def |\n| --- |\n| bar |</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:204",
+    "section": "Tables (extension)",
+    "markdown": "| abc | def |\n| --- | --- |\n| bar |\n| bar | baz | boo |\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>abc</th>\n<th>def</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>bar</td>\n<td></td>\n</tr>\n<tr>\n<td>bar</td>\n<td>baz</td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-spec.txt:205",
+    "section": "Tables (extension)",
+    "markdown": "| abc | def |\n| --- | --- |\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>abc</th>\n<th>def</th>\n</tr>\n</thead>\n</table>\n"
+  },
+  {
+    "id": "gfm-spec.txt:206",
+    "section": "Block quotes",
+    "markdown": "> # Foo\n> bar\n> baz\n",
+    "html": "<blockquote>\n<h1>Foo</h1>\n<p>bar\nbaz</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:207",
+    "section": "Block quotes",
+    "markdown": "># Foo\n>bar\n> baz\n",
+    "html": "<blockquote>\n<h1>Foo</h1>\n<p>bar\nbaz</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:208",
+    "section": "Block quotes",
+    "markdown": "   > # Foo\n   > bar\n > baz\n",
+    "html": "<blockquote>\n<h1>Foo</h1>\n<p>bar\nbaz</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:209",
+    "section": "Block quotes",
+    "markdown": "    > # Foo\n    > bar\n    > baz\n",
+    "html": "<pre><code>&gt; # Foo\n&gt; bar\n&gt; baz\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:210",
+    "section": "Block quotes",
+    "markdown": "> # Foo\n> bar\nbaz\n",
+    "html": "<blockquote>\n<h1>Foo</h1>\n<p>bar\nbaz</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:211",
+    "section": "Block quotes",
+    "markdown": "> bar\nbaz\n> foo\n",
+    "html": "<blockquote>\n<p>bar\nbaz\nfoo</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:212",
+    "section": "Block quotes",
+    "markdown": "> foo\n---\n",
+    "html": "<blockquote>\n<p>foo</p>\n</blockquote>\n<hr />\n"
+  },
+  {
+    "id": "gfm-spec.txt:213",
+    "section": "Block quotes",
+    "markdown": "> - foo\n- bar\n",
+    "html": "<blockquote>\n<ul>\n<li>foo</li>\n</ul>\n</blockquote>\n<ul>\n<li>bar</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:214",
+    "section": "Block quotes",
+    "markdown": ">     foo\n    bar\n",
+    "html": "<blockquote>\n<pre><code>foo\n</code></pre>\n</blockquote>\n<pre><code>bar\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:215",
+    "section": "Block quotes",
+    "markdown": "> ```\nfoo\n```\n",
+    "html": "<blockquote>\n<pre><code></code></pre>\n</blockquote>\n<p>foo</p>\n<pre><code></code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:216",
+    "section": "Block quotes",
+    "markdown": "> foo\n    - bar\n",
+    "html": "<blockquote>\n<p>foo\n- bar</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:217",
+    "section": "Block quotes",
+    "markdown": ">\n",
+    "html": "<blockquote>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:218",
+    "section": "Block quotes",
+    "markdown": ">\n>  \n> \n",
+    "html": "<blockquote>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:219",
+    "section": "Block quotes",
+    "markdown": ">\n> foo\n>  \n",
+    "html": "<blockquote>\n<p>foo</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:220",
+    "section": "Block quotes",
+    "markdown": "> foo\n\n> bar\n",
+    "html": "<blockquote>\n<p>foo</p>\n</blockquote>\n<blockquote>\n<p>bar</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:221",
+    "section": "Block quotes",
+    "markdown": "> foo\n> bar\n",
+    "html": "<blockquote>\n<p>foo\nbar</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:222",
+    "section": "Block quotes",
+    "markdown": "> foo\n>\n> bar\n",
+    "html": "<blockquote>\n<p>foo</p>\n<p>bar</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:223",
+    "section": "Block quotes",
+    "markdown": "foo\n> bar\n",
+    "html": "<p>foo</p>\n<blockquote>\n<p>bar</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:224",
+    "section": "Block quotes",
+    "markdown": "> aaa\n***\n> bbb\n",
+    "html": "<blockquote>\n<p>aaa</p>\n</blockquote>\n<hr />\n<blockquote>\n<p>bbb</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:225",
+    "section": "Block quotes",
+    "markdown": "> bar\nbaz\n",
+    "html": "<blockquote>\n<p>bar\nbaz</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:226",
+    "section": "Block quotes",
+    "markdown": "> bar\n\nbaz\n",
+    "html": "<blockquote>\n<p>bar</p>\n</blockquote>\n<p>baz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:227",
+    "section": "Block quotes",
+    "markdown": "> bar\n>\nbaz\n",
+    "html": "<blockquote>\n<p>bar</p>\n</blockquote>\n<p>baz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:228",
+    "section": "Block quotes",
+    "markdown": "> > > foo\nbar\n",
+    "html": "<blockquote>\n<blockquote>\n<blockquote>\n<p>foo\nbar</p>\n</blockquote>\n</blockquote>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:229",
+    "section": "Block quotes",
+    "markdown": ">>> foo\n> bar\n>>baz\n",
+    "html": "<blockquote>\n<blockquote>\n<blockquote>\n<p>foo\nbar\nbaz</p>\n</blockquote>\n</blockquote>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:230",
+    "section": "Block quotes",
+    "markdown": ">     code\n\n>    not code\n",
+    "html": "<blockquote>\n<pre><code>code\n</code></pre>\n</blockquote>\n<blockquote>\n<p>not code</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:231",
+    "section": "List items",
+    "markdown": "A paragraph\nwith two lines.\n\n    indented code\n\n> A block quote.\n",
+    "html": "<p>A paragraph\nwith two lines.</p>\n<pre><code>indented code\n</code></pre>\n<blockquote>\n<p>A block quote.</p>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:232",
+    "section": "List items",
+    "markdown": "1.  A paragraph\n    with two lines.\n\n        indented code\n\n    > A block quote.\n",
+    "html": "<ol>\n<li>\n<p>A paragraph\nwith two lines.</p>\n<pre><code>indented code\n</code></pre>\n<blockquote>\n<p>A block quote.</p>\n</blockquote>\n</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:233",
+    "section": "List items",
+    "markdown": "- one\n\n two\n",
+    "html": "<ul>\n<li>one</li>\n</ul>\n<p>two</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:234",
+    "section": "List items",
+    "markdown": "- one\n\n  two\n",
+    "html": "<ul>\n<li>\n<p>one</p>\n<p>two</p>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:235",
+    "section": "List items",
+    "markdown": " -    one\n\n     two\n",
+    "html": "<ul>\n<li>one</li>\n</ul>\n<pre><code> two\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:236",
+    "section": "List items",
+    "markdown": " -    one\n\n      two\n",
+    "html": "<ul>\n<li>\n<p>one</p>\n<p>two</p>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:237",
+    "section": "List items",
+    "markdown": "   > > 1.  one\n>>\n>>     two\n",
+    "html": "<blockquote>\n<blockquote>\n<ol>\n<li>\n<p>one</p>\n<p>two</p>\n</li>\n</ol>\n</blockquote>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:238",
+    "section": "List items",
+    "markdown": ">>- one\n>>\n  >  > two\n",
+    "html": "<blockquote>\n<blockquote>\n<ul>\n<li>one</li>\n</ul>\n<p>two</p>\n</blockquote>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:239",
+    "section": "List items",
+    "markdown": "-one\n\n2.two\n",
+    "html": "<p>-one</p>\n<p>2.two</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:240",
+    "section": "List items",
+    "markdown": "- foo\n\n\n  bar\n",
+    "html": "<ul>\n<li>\n<p>foo</p>\n<p>bar</p>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:241",
+    "section": "List items",
+    "markdown": "1.  foo\n\n    ```\n    bar\n    ```\n\n    baz\n\n    > bam\n",
+    "html": "<ol>\n<li>\n<p>foo</p>\n<pre><code>bar\n</code></pre>\n<p>baz</p>\n<blockquote>\n<p>bam</p>\n</blockquote>\n</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:242",
+    "section": "List items",
+    "markdown": "- Foo\n\n      bar\n\n\n      baz\n",
+    "html": "<ul>\n<li>\n<p>Foo</p>\n<pre><code>bar\n\n\nbaz\n</code></pre>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:243",
+    "section": "List items",
+    "markdown": "123456789. ok\n",
+    "html": "<ol start=\"123456789\">\n<li>ok</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:244",
+    "section": "List items",
+    "markdown": "1234567890. not ok\n",
+    "html": "<p>1234567890. not ok</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:245",
+    "section": "List items",
+    "markdown": "0. ok\n",
+    "html": "<ol start=\"0\">\n<li>ok</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:246",
+    "section": "List items",
+    "markdown": "003. ok\n",
+    "html": "<ol start=\"3\">\n<li>ok</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:247",
+    "section": "List items",
+    "markdown": "-1. not ok\n",
+    "html": "<p>-1. not ok</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:248",
+    "section": "List items",
+    "markdown": "- foo\n\n      bar\n",
+    "html": "<ul>\n<li>\n<p>foo</p>\n<pre><code>bar\n</code></pre>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:249",
+    "section": "List items",
+    "markdown": "  10.  foo\n\n           bar\n",
+    "html": "<ol start=\"10\">\n<li>\n<p>foo</p>\n<pre><code>bar\n</code></pre>\n</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:250",
+    "section": "List items",
+    "markdown": "    indented code\n\nparagraph\n\n    more code\n",
+    "html": "<pre><code>indented code\n</code></pre>\n<p>paragraph</p>\n<pre><code>more code\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:251",
+    "section": "List items",
+    "markdown": "1.     indented code\n\n   paragraph\n\n       more code\n",
+    "html": "<ol>\n<li>\n<pre><code>indented code\n</code></pre>\n<p>paragraph</p>\n<pre><code>more code\n</code></pre>\n</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:252",
+    "section": "List items",
+    "markdown": "1.      indented code\n\n   paragraph\n\n       more code\n",
+    "html": "<ol>\n<li>\n<pre><code> indented code\n</code></pre>\n<p>paragraph</p>\n<pre><code>more code\n</code></pre>\n</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:253",
+    "section": "List items",
+    "markdown": "   foo\n\nbar\n",
+    "html": "<p>foo</p>\n<p>bar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:254",
+    "section": "List items",
+    "markdown": "-    foo\n\n  bar\n",
+    "html": "<ul>\n<li>foo</li>\n</ul>\n<p>bar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:255",
+    "section": "List items",
+    "markdown": "-  foo\n\n   bar\n",
+    "html": "<ul>\n<li>\n<p>foo</p>\n<p>bar</p>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:256",
+    "section": "List items",
+    "markdown": "-\n  foo\n-\n  ```\n  bar\n  ```\n-\n      baz\n",
+    "html": "<ul>\n<li>foo</li>\n<li>\n<pre><code>bar\n</code></pre>\n</li>\n<li>\n<pre><code>baz\n</code></pre>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:257",
+    "section": "List items",
+    "markdown": "-   \n  foo\n",
+    "html": "<ul>\n<li>foo</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:258",
+    "section": "List items",
+    "markdown": "-\n\n  foo\n",
+    "html": "<ul>\n<li></li>\n</ul>\n<p>foo</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:259",
+    "section": "List items",
+    "markdown": "- foo\n-\n- bar\n",
+    "html": "<ul>\n<li>foo</li>\n<li></li>\n<li>bar</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:260",
+    "section": "List items",
+    "markdown": "- foo\n-   \n- bar\n",
+    "html": "<ul>\n<li>foo</li>\n<li></li>\n<li>bar</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:261",
+    "section": "List items",
+    "markdown": "1. foo\n2.\n3. bar\n",
+    "html": "<ol>\n<li>foo</li>\n<li></li>\n<li>bar</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:262",
+    "section": "List items",
+    "markdown": "*\n",
+    "html": "<ul>\n<li></li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:263",
+    "section": "List items",
+    "markdown": "foo\n*\n\nfoo\n1.\n",
+    "html": "<p>foo\n*</p>\n<p>foo\n1.</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:264",
+    "section": "List items",
+    "markdown": " 1.  A paragraph\n     with two lines.\n\n         indented code\n\n     > A block quote.\n",
+    "html": "<ol>\n<li>\n<p>A paragraph\nwith two lines.</p>\n<pre><code>indented code\n</code></pre>\n<blockquote>\n<p>A block quote.</p>\n</blockquote>\n</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:265",
+    "section": "List items",
+    "markdown": "  1.  A paragraph\n      with two lines.\n\n          indented code\n\n      > A block quote.\n",
+    "html": "<ol>\n<li>\n<p>A paragraph\nwith two lines.</p>\n<pre><code>indented code\n</code></pre>\n<blockquote>\n<p>A block quote.</p>\n</blockquote>\n</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:266",
+    "section": "List items",
+    "markdown": "   1.  A paragraph\n       with two lines.\n\n           indented code\n\n       > A block quote.\n",
+    "html": "<ol>\n<li>\n<p>A paragraph\nwith two lines.</p>\n<pre><code>indented code\n</code></pre>\n<blockquote>\n<p>A block quote.</p>\n</blockquote>\n</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:267",
+    "section": "List items",
+    "markdown": "    1.  A paragraph\n        with two lines.\n\n            indented code\n\n        > A block quote.\n",
+    "html": "<pre><code>1.  A paragraph\n    with two lines.\n\n        indented code\n\n    &gt; A block quote.\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:268",
+    "section": "List items",
+    "markdown": "  1.  A paragraph\nwith two lines.\n\n          indented code\n\n      > A block quote.\n",
+    "html": "<ol>\n<li>\n<p>A paragraph\nwith two lines.</p>\n<pre><code>indented code\n</code></pre>\n<blockquote>\n<p>A block quote.</p>\n</blockquote>\n</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:269",
+    "section": "List items",
+    "markdown": "  1.  A paragraph\n    with two lines.\n",
+    "html": "<ol>\n<li>A paragraph\nwith two lines.</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:270",
+    "section": "List items",
+    "markdown": "> 1. > Blockquote\ncontinued here.\n",
+    "html": "<blockquote>\n<ol>\n<li>\n<blockquote>\n<p>Blockquote\ncontinued here.</p>\n</blockquote>\n</li>\n</ol>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:271",
+    "section": "List items",
+    "markdown": "> 1. > Blockquote\n> continued here.\n",
+    "html": "<blockquote>\n<ol>\n<li>\n<blockquote>\n<p>Blockquote\ncontinued here.</p>\n</blockquote>\n</li>\n</ol>\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:272",
+    "section": "List items",
+    "markdown": "- foo\n  - bar\n    - baz\n      - boo\n",
+    "html": "<ul>\n<li>foo\n<ul>\n<li>bar\n<ul>\n<li>baz\n<ul>\n<li>boo</li>\n</ul>\n</li>\n</ul>\n</li>\n</ul>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:273",
+    "section": "List items",
+    "markdown": "- foo\n - bar\n  - baz\n   - boo\n",
+    "html": "<ul>\n<li>foo</li>\n<li>bar</li>\n<li>baz</li>\n<li>boo</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:274",
+    "section": "List items",
+    "markdown": "10) foo\n    - bar\n",
+    "html": "<ol start=\"10\">\n<li>foo\n<ul>\n<li>bar</li>\n</ul>\n</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:275",
+    "section": "List items",
+    "markdown": "10) foo\n   - bar\n",
+    "html": "<ol start=\"10\">\n<li>foo</li>\n</ol>\n<ul>\n<li>bar</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:276",
+    "section": "List items",
+    "markdown": "- - foo\n",
+    "html": "<ul>\n<li>\n<ul>\n<li>foo</li>\n</ul>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:277",
+    "section": "List items",
+    "markdown": "1. - 2. foo\n",
+    "html": "<ol>\n<li>\n<ul>\n<li>\n<ol start=\"2\">\n<li>foo</li>\n</ol>\n</li>\n</ul>\n</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:278",
+    "section": "List items",
+    "markdown": "- # Foo\n- Bar\n  ---\n  baz\n",
+    "html": "<ul>\n<li>\n<h1>Foo</h1>\n</li>\n<li>\n<h2>Bar</h2>\nbaz</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:279",
+    "section": "Task list items (extension)",
+    "markdown": "- [ ] foo\n- [x] bar\n",
+    "html": "<ul>\n<li><input disabled=\"\" type=\"checkbox\"> foo</li>\n<li><input checked=\"\" disabled=\"\" type=\"checkbox\"> bar</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:280",
+    "section": "Task list items (extension)",
+    "markdown": "- [x] foo\n  - [ ] bar\n  - [x] baz\n- [ ] bim\n",
+    "html": "<ul>\n<li><input checked=\"\" disabled=\"\" type=\"checkbox\"> foo\n<ul>\n<li><input disabled=\"\" type=\"checkbox\"> bar</li>\n<li><input checked=\"\" disabled=\"\" type=\"checkbox\"> baz</li>\n</ul>\n</li>\n<li><input disabled=\"\" type=\"checkbox\"> bim</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:281",
+    "section": "Lists",
+    "markdown": "- foo\n- bar\n+ baz\n",
+    "html": "<ul>\n<li>foo</li>\n<li>bar</li>\n</ul>\n<ul>\n<li>baz</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:282",
+    "section": "Lists",
+    "markdown": "1. foo\n2. bar\n3) baz\n",
+    "html": "<ol>\n<li>foo</li>\n<li>bar</li>\n</ol>\n<ol start=\"3\">\n<li>baz</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:283",
+    "section": "Lists",
+    "markdown": "Foo\n- bar\n- baz\n",
+    "html": "<p>Foo</p>\n<ul>\n<li>bar</li>\n<li>baz</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:284",
+    "section": "Lists",
+    "markdown": "The number of windows in my house is\n14.  The number of doors is 6.\n",
+    "html": "<p>The number of windows in my house is\n14.  The number of doors is 6.</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:285",
+    "section": "Lists",
+    "markdown": "The number of windows in my house is\n1.  The number of doors is 6.\n",
+    "html": "<p>The number of windows in my house is</p>\n<ol>\n<li>The number of doors is 6.</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:286",
+    "section": "Lists",
+    "markdown": "- foo\n\n- bar\n\n\n- baz\n",
+    "html": "<ul>\n<li>\n<p>foo</p>\n</li>\n<li>\n<p>bar</p>\n</li>\n<li>\n<p>baz</p>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:287",
+    "section": "Lists",
+    "markdown": "- foo\n  - bar\n    - baz\n\n\n      bim\n",
+    "html": "<ul>\n<li>foo\n<ul>\n<li>bar\n<ul>\n<li>\n<p>baz</p>\n<p>bim</p>\n</li>\n</ul>\n</li>\n</ul>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:288",
+    "section": "Lists",
+    "markdown": "- foo\n- bar\n\n<!-- -->\n\n- baz\n- bim\n",
+    "html": "<ul>\n<li>foo</li>\n<li>bar</li>\n</ul>\n<!-- -->\n<ul>\n<li>baz</li>\n<li>bim</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:289",
+    "section": "Lists",
+    "markdown": "-   foo\n\n    notcode\n\n-   foo\n\n<!-- -->\n\n    code\n",
+    "html": "<ul>\n<li>\n<p>foo</p>\n<p>notcode</p>\n</li>\n<li>\n<p>foo</p>\n</li>\n</ul>\n<!-- -->\n<pre><code>code\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:290",
+    "section": "Lists",
+    "markdown": "- a\n - b\n  - c\n   - d\n  - e\n - f\n- g\n",
+    "html": "<ul>\n<li>a</li>\n<li>b</li>\n<li>c</li>\n<li>d</li>\n<li>e</li>\n<li>f</li>\n<li>g</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:291",
+    "section": "Lists",
+    "markdown": "1. a\n\n  2. b\n\n   3. c\n",
+    "html": "<ol>\n<li>\n<p>a</p>\n</li>\n<li>\n<p>b</p>\n</li>\n<li>\n<p>c</p>\n</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:292",
+    "section": "Lists",
+    "markdown": "- a\n - b\n  - c\n   - d\n    - e\n",
+    "html": "<ul>\n<li>a</li>\n<li>b</li>\n<li>c</li>\n<li>d\n- e</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:293",
+    "section": "Lists",
+    "markdown": "1. a\n\n  2. b\n\n    3. c\n",
+    "html": "<ol>\n<li>\n<p>a</p>\n</li>\n<li>\n<p>b</p>\n</li>\n</ol>\n<pre><code>3. c\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:294",
+    "section": "Lists",
+    "markdown": "- a\n- b\n\n- c\n",
+    "html": "<ul>\n<li>\n<p>a</p>\n</li>\n<li>\n<p>b</p>\n</li>\n<li>\n<p>c</p>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:295",
+    "section": "Lists",
+    "markdown": "* a\n*\n\n* c\n",
+    "html": "<ul>\n<li>\n<p>a</p>\n</li>\n<li></li>\n<li>\n<p>c</p>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:296",
+    "section": "Lists",
+    "markdown": "- a\n- b\n\n  c\n- d\n",
+    "html": "<ul>\n<li>\n<p>a</p>\n</li>\n<li>\n<p>b</p>\n<p>c</p>\n</li>\n<li>\n<p>d</p>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:297",
+    "section": "Lists",
+    "markdown": "- a\n- b\n\n  [ref]: /url\n- d\n",
+    "html": "<ul>\n<li>\n<p>a</p>\n</li>\n<li>\n<p>b</p>\n</li>\n<li>\n<p>d</p>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:298",
+    "section": "Lists",
+    "markdown": "- a\n- ```\n  b\n\n\n  ```\n- c\n",
+    "html": "<ul>\n<li>a</li>\n<li>\n<pre><code>b\n\n\n</code></pre>\n</li>\n<li>c</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:299",
+    "section": "Lists",
+    "markdown": "- a\n  - b\n\n    c\n- d\n",
+    "html": "<ul>\n<li>a\n<ul>\n<li>\n<p>b</p>\n<p>c</p>\n</li>\n</ul>\n</li>\n<li>d</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:300",
+    "section": "Lists",
+    "markdown": "* a\n  > b\n  >\n* c\n",
+    "html": "<ul>\n<li>a\n<blockquote>\n<p>b</p>\n</blockquote>\n</li>\n<li>c</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:301",
+    "section": "Lists",
+    "markdown": "- a\n  > b\n  ```\n  c\n  ```\n- d\n",
+    "html": "<ul>\n<li>a\n<blockquote>\n<p>b</p>\n</blockquote>\n<pre><code>c\n</code></pre>\n</li>\n<li>d</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:302",
+    "section": "Lists",
+    "markdown": "- a\n",
+    "html": "<ul>\n<li>a</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:303",
+    "section": "Lists",
+    "markdown": "- a\n  - b\n",
+    "html": "<ul>\n<li>a\n<ul>\n<li>b</li>\n</ul>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:304",
+    "section": "Lists",
+    "markdown": "1. ```\n   foo\n   ```\n\n   bar\n",
+    "html": "<ol>\n<li>\n<pre><code>foo\n</code></pre>\n<p>bar</p>\n</li>\n</ol>\n"
+  },
+  {
+    "id": "gfm-spec.txt:305",
+    "section": "Lists",
+    "markdown": "* foo\n  * bar\n\n  baz\n",
+    "html": "<ul>\n<li>\n<p>foo</p>\n<ul>\n<li>bar</li>\n</ul>\n<p>baz</p>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:306",
+    "section": "Lists",
+    "markdown": "- a\n  - b\n  - c\n\n- d\n  - e\n  - f\n",
+    "html": "<ul>\n<li>\n<p>a</p>\n<ul>\n<li>b</li>\n<li>c</li>\n</ul>\n</li>\n<li>\n<p>d</p>\n<ul>\n<li>e</li>\n<li>f</li>\n</ul>\n</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:307",
+    "section": "Inlines",
+    "markdown": "`hi`lo`\n",
+    "html": "<p><code>hi</code>lo`</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:308",
+    "section": "Backslash escapes",
+    "markdown": "\\!\\\"\\#\\$\\%\\&\\'\\(\\)\\*\\+\\,\\-\\.\\/\\:\\;\\<\\=\\>\\?\\@\\[\\\\\\]\\^\\_\\`\\{\\|\\}\\~\n",
+    "html": "<p>!&quot;#$%&amp;'()*+,-./:;&lt;=&gt;?@[\\]^_`{|}~</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:309",
+    "section": "Backslash escapes",
+    "markdown": "\\\t\\A\\a\\ \\3\\φ\\«\n",
+    "html": "<p>\\\t\\A\\a\\ \\3\\φ\\«</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:310",
+    "section": "Backslash escapes",
+    "markdown": "\\*not emphasized*\n\\<br/> not a tag\n\\[not a link](/foo)\n\\`not code`\n1\\. not a list\n\\* not a list\n\\# not a heading\n\\[foo]: /url \"not a reference\"\n\\&ouml; not a character entity\n",
+    "html": "<p>*not emphasized*\n&lt;br/&gt; not a tag\n[not a link](/foo)\n`not code`\n1. not a list\n* not a list\n# not a heading\n[foo]: /url &quot;not a reference&quot;\n&amp;ouml; not a character entity</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:311",
+    "section": "Backslash escapes",
+    "markdown": "\\\\*emphasis*\n",
+    "html": "<p>\\<em>emphasis</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:312",
+    "section": "Backslash escapes",
+    "markdown": "foo\\\nbar\n",
+    "html": "<p>foo<br />\nbar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:313",
+    "section": "Backslash escapes",
+    "markdown": "`` \\[\\` ``\n",
+    "html": "<p><code>\\[\\`</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:314",
+    "section": "Backslash escapes",
+    "markdown": "    \\[\\]\n",
+    "html": "<pre><code>\\[\\]\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:315",
+    "section": "Backslash escapes",
+    "markdown": "~~~\n\\[\\]\n~~~\n",
+    "html": "<pre><code>\\[\\]\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:316",
+    "section": "Backslash escapes",
+    "markdown": "<http://example.com?find=\\*>\n",
+    "html": "<p><a href=\"http://example.com?find=%5C*\">http://example.com?find=\\*</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:317",
+    "section": "Backslash escapes",
+    "markdown": "<a href=\"/bar\\/)\">\n",
+    "html": "<a href=\"/bar\\/)\">\n"
+  },
+  {
+    "id": "gfm-spec.txt:318",
+    "section": "Backslash escapes",
+    "markdown": "[foo](/bar\\* \"ti\\*tle\")\n",
+    "html": "<p><a href=\"/bar*\" title=\"ti*tle\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:319",
+    "section": "Backslash escapes",
+    "markdown": "[foo]\n\n[foo]: /bar\\* \"ti\\*tle\"\n",
+    "html": "<p><a href=\"/bar*\" title=\"ti*tle\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:320",
+    "section": "Backslash escapes",
+    "markdown": "``` foo\\+bar\nfoo\n```\n",
+    "html": "<pre><code class=\"language-foo+bar\">foo\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:321",
+    "section": "Entity and numeric character references",
+    "markdown": "&nbsp; &amp; &copy; &AElig; &Dcaron;\n&frac34; &HilbertSpace; &DifferentialD;\n&ClockwiseContourIntegral; &ngE;\n",
+    "html": "<p>  &amp; © Æ Ď\n¾ ℋ ⅆ\n∲ ≧̸</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:322",
+    "section": "Entity and numeric character references",
+    "markdown": "&#35; &#1234; &#992; &#0;\n",
+    "html": "<p># Ӓ Ϡ �</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:323",
+    "section": "Entity and numeric character references",
+    "markdown": "&#X22; &#XD06; &#xcab;\n",
+    "html": "<p>&quot; ആ ಫ</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:324",
+    "section": "Entity and numeric character references",
+    "markdown": "&nbsp &x; &#; &#x;\n&#987654321;\n&#abcdef0;\n&ThisIsNotDefined; &hi?;\n",
+    "html": "<p>&amp;nbsp &amp;x; &amp;#; &amp;#x;\n&amp;#987654321;\n&amp;#abcdef0;\n&amp;ThisIsNotDefined; &amp;hi?;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:325",
+    "section": "Entity and numeric character references",
+    "markdown": "&copy\n",
+    "html": "<p>&amp;copy</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:326",
+    "section": "Entity and numeric character references",
+    "markdown": "&MadeUpEntity;\n",
+    "html": "<p>&amp;MadeUpEntity;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:327",
+    "section": "Entity and numeric character references",
+    "markdown": "<a href=\"&ouml;&ouml;.html\">\n",
+    "html": "<a href=\"&ouml;&ouml;.html\">\n"
+  },
+  {
+    "id": "gfm-spec.txt:328",
+    "section": "Entity and numeric character references",
+    "markdown": "[foo](/f&ouml;&ouml; \"f&ouml;&ouml;\")\n",
+    "html": "<p><a href=\"/f%C3%B6%C3%B6\" title=\"föö\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:329",
+    "section": "Entity and numeric character references",
+    "markdown": "[foo]\n\n[foo]: /f&ouml;&ouml; \"f&ouml;&ouml;\"\n",
+    "html": "<p><a href=\"/f%C3%B6%C3%B6\" title=\"föö\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:330",
+    "section": "Entity and numeric character references",
+    "markdown": "``` f&ouml;&ouml;\nfoo\n```\n",
+    "html": "<pre><code class=\"language-föö\">foo\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:331",
+    "section": "Entity and numeric character references",
+    "markdown": "`f&ouml;&ouml;`\n",
+    "html": "<p><code>f&amp;ouml;&amp;ouml;</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:332",
+    "section": "Entity and numeric character references",
+    "markdown": "    f&ouml;f&ouml;\n",
+    "html": "<pre><code>f&amp;ouml;f&amp;ouml;\n</code></pre>\n"
+  },
+  {
+    "id": "gfm-spec.txt:333",
+    "section": "Entity and numeric character references",
+    "markdown": "&#42;foo&#42;\n*foo*\n",
+    "html": "<p>*foo*\n<em>foo</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:334",
+    "section": "Entity and numeric character references",
+    "markdown": "&#42; foo\n\n* foo\n",
+    "html": "<p>* foo</p>\n<ul>\n<li>foo</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-spec.txt:335",
+    "section": "Entity and numeric character references",
+    "markdown": "foo&#10;&#10;bar\n",
+    "html": "<p>foo\n\nbar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:336",
+    "section": "Entity and numeric character references",
+    "markdown": "&#9;foo\n",
+    "html": "<p>\tfoo</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:337",
+    "section": "Entity and numeric character references",
+    "markdown": "[a](url &quot;tit&quot;)\n",
+    "html": "<p>[a](url &quot;tit&quot;)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:338",
+    "section": "Code spans",
+    "markdown": "`foo`\n",
+    "html": "<p><code>foo</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:339",
+    "section": "Code spans",
+    "markdown": "`` foo ` bar ``\n",
+    "html": "<p><code>foo ` bar</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:340",
+    "section": "Code spans",
+    "markdown": "` `` `\n",
+    "html": "<p><code>``</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:341",
+    "section": "Code spans",
+    "markdown": "`  ``  `\n",
+    "html": "<p><code> `` </code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:342",
+    "section": "Code spans",
+    "markdown": "` a`\n",
+    "html": "<p><code> a</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:343",
+    "section": "Code spans",
+    "markdown": "` b `\n",
+    "html": "<p><code> b </code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:344",
+    "section": "Code spans",
+    "markdown": "` `\n`  `\n",
+    "html": "<p><code> </code>\n<code>  </code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:345",
+    "section": "Code spans",
+    "markdown": "``\nfoo\nbar  \nbaz\n``\n",
+    "html": "<p><code>foo bar   baz</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:346",
+    "section": "Code spans",
+    "markdown": "``\nfoo \n``\n",
+    "html": "<p><code>foo </code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:347",
+    "section": "Code spans",
+    "markdown": "`foo   bar \nbaz`\n",
+    "html": "<p><code>foo   bar  baz</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:348",
+    "section": "Code spans",
+    "markdown": "`foo\\`bar`\n",
+    "html": "<p><code>foo\\</code>bar`</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:349",
+    "section": "Code spans",
+    "markdown": "``foo`bar``\n",
+    "html": "<p><code>foo`bar</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:350",
+    "section": "Code spans",
+    "markdown": "` foo `` bar `\n",
+    "html": "<p><code>foo `` bar</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:351",
+    "section": "Code spans",
+    "markdown": "*foo`*`\n",
+    "html": "<p>*foo<code>*</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:352",
+    "section": "Code spans",
+    "markdown": "[not a `link](/foo`)\n",
+    "html": "<p>[not a <code>link](/foo</code>)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:353",
+    "section": "Code spans",
+    "markdown": "`<a href=\"`\">`\n",
+    "html": "<p><code>&lt;a href=&quot;</code>&quot;&gt;`</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:354",
+    "section": "Code spans",
+    "markdown": "<a href=\"`\">`\n",
+    "html": "<p><a href=\"`\">`</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:355",
+    "section": "Code spans",
+    "markdown": "`<http://foo.bar.`baz>`\n",
+    "html": "<p><code>&lt;http://foo.bar.</code>baz&gt;`</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:356",
+    "section": "Code spans",
+    "markdown": "<http://foo.bar.`baz>`\n",
+    "html": "<p><a href=\"http://foo.bar.%60baz\">http://foo.bar.`baz</a>`</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:357",
+    "section": "Code spans",
+    "markdown": "```foo``\n",
+    "html": "<p>```foo``</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:358",
+    "section": "Code spans",
+    "markdown": "`foo\n",
+    "html": "<p>`foo</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:359",
+    "section": "Code spans",
+    "markdown": "`foo``bar``\n",
+    "html": "<p>`foo<code>bar</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:360",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo bar*\n",
+    "html": "<p><em>foo bar</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:361",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "a * foo bar*\n",
+    "html": "<p>a * foo bar*</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:362",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "a*\"foo\"*\n",
+    "html": "<p>a*&quot;foo&quot;*</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:363",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "* a *\n",
+    "html": "<p>* a *</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:364",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo*bar*\n",
+    "html": "<p>foo<em>bar</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:365",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "5*6*78\n",
+    "html": "<p>5<em>6</em>78</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:366",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_foo bar_\n",
+    "html": "<p><em>foo bar</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:367",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_ foo bar_\n",
+    "html": "<p>_ foo bar_</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:368",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "a_\"foo\"_\n",
+    "html": "<p>a_&quot;foo&quot;_</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:369",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo_bar_\n",
+    "html": "<p>foo_bar_</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:370",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "5_6_78\n",
+    "html": "<p>5_6_78</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:371",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "пристаням_стремятся_\n",
+    "html": "<p>пристаням_стремятся_</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:372",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "aa_\"bb\"_cc\n",
+    "html": "<p>aa_&quot;bb&quot;_cc</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:373",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo-_(bar)_\n",
+    "html": "<p>foo-<em>(bar)</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:374",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_foo*\n",
+    "html": "<p>_foo*</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:375",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo bar *\n",
+    "html": "<p>*foo bar *</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:376",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo bar\n*\n",
+    "html": "<p>*foo bar\n*</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:377",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*(*foo)\n",
+    "html": "<p>*(*foo)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:378",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*(*foo*)*\n",
+    "html": "<p><em>(<em>foo</em>)</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:379",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo*bar\n",
+    "html": "<p><em>foo</em>bar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:380",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_foo bar _\n",
+    "html": "<p>_foo bar _</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:381",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_(_foo)\n",
+    "html": "<p>_(_foo)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:382",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_(_foo_)_\n",
+    "html": "<p><em>(<em>foo</em>)</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:383",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_foo_bar\n",
+    "html": "<p>_foo_bar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:384",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_пристаням_стремятся\n",
+    "html": "<p>_пристаням_стремятся</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:385",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_foo_bar_baz_\n",
+    "html": "<p><em>foo_bar_baz</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:386",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_(bar)_.\n",
+    "html": "<p><em>(bar)</em>.</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:387",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo bar**\n",
+    "html": "<p><strong>foo bar</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:388",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "** foo bar**\n",
+    "html": "<p>** foo bar**</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:389",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "a**\"foo\"**\n",
+    "html": "<p>a**&quot;foo&quot;**</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:390",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo**bar**\n",
+    "html": "<p>foo<strong>bar</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:391",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__foo bar__\n",
+    "html": "<p><strong>foo bar</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:392",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__ foo bar__\n",
+    "html": "<p>__ foo bar__</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:393",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__\nfoo bar__\n",
+    "html": "<p>__\nfoo bar__</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:394",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "a__\"foo\"__\n",
+    "html": "<p>a__&quot;foo&quot;__</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:395",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo__bar__\n",
+    "html": "<p>foo__bar__</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:396",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "5__6__78\n",
+    "html": "<p>5__6__78</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:397",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "пристаням__стремятся__\n",
+    "html": "<p>пристаням__стремятся__</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:398",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__foo, __bar__, baz__\n",
+    "html": "<p><strong>foo, bar, baz</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:399",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo-__(bar)__\n",
+    "html": "<p>foo-<strong>(bar)</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:400",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo bar **\n",
+    "html": "<p>**foo bar **</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:401",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**(**foo)\n",
+    "html": "<p>**(**foo)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:402",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*(**foo**)*\n",
+    "html": "<p><em>(<strong>foo</strong>)</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:403",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**Gomphocarpus (*Gomphocarpus physocarpus*, syn.\n*Asclepias physocarpa*)**\n",
+    "html": "<p><strong>Gomphocarpus (<em>Gomphocarpus physocarpus</em>, syn.\n<em>Asclepias physocarpa</em>)</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:404",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo \"*bar*\" foo**\n",
+    "html": "<p><strong>foo &quot;<em>bar</em>&quot; foo</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:405",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo**bar\n",
+    "html": "<p><strong>foo</strong>bar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:406",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__foo bar __\n",
+    "html": "<p>__foo bar __</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:407",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__(__foo)\n",
+    "html": "<p>__(__foo)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:408",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_(__foo__)_\n",
+    "html": "<p><em>(<strong>foo</strong>)</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:409",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__foo__bar\n",
+    "html": "<p>__foo__bar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:410",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__пристаням__стремятся\n",
+    "html": "<p>__пристаням__стремятся</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:411",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__foo__bar__baz__\n",
+    "html": "<p><strong>foo__bar__baz</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:412",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__(bar)__.\n",
+    "html": "<p><strong>(bar)</strong>.</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:413",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo [bar](/url)*\n",
+    "html": "<p><em>foo <a href=\"/url\">bar</a></em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:414",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo\nbar*\n",
+    "html": "<p><em>foo\nbar</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:415",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_foo __bar__ baz_\n",
+    "html": "<p><em>foo <strong>bar</strong> baz</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:416",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_foo _bar_ baz_\n",
+    "html": "<p><em>foo <em>bar</em> baz</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:417",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__foo_ bar_\n",
+    "html": "<p><em><em>foo</em> bar</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:418",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo *bar**\n",
+    "html": "<p><em>foo <em>bar</em></em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:419",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo **bar** baz*\n",
+    "html": "<p><em>foo <strong>bar</strong> baz</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:420",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo**bar**baz*\n",
+    "html": "<p><em>foo<strong>bar</strong>baz</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:421",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo**bar*\n",
+    "html": "<p><em>foo**bar</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:422",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "***foo** bar*\n",
+    "html": "<p><em><strong>foo</strong> bar</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:423",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo **bar***\n",
+    "html": "<p><em>foo <strong>bar</strong></em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:424",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo**bar***\n",
+    "html": "<p><em>foo<strong>bar</strong></em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:425",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo***bar***baz\n",
+    "html": "<p>foo<em><strong>bar</strong></em>baz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:426",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo******bar*********baz\n",
+    "html": "<p>foo<strong>bar</strong>***baz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:427",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo **bar *baz* bim** bop*\n",
+    "html": "<p><em>foo <strong>bar <em>baz</em> bim</strong> bop</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:428",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo [*bar*](/url)*\n",
+    "html": "<p><em>foo <a href=\"/url\"><em>bar</em></a></em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:429",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "** is not an empty emphasis\n",
+    "html": "<p>** is not an empty emphasis</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:430",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**** is not an empty strong emphasis\n",
+    "html": "<p>**** is not an empty strong emphasis</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:431",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo [bar](/url)**\n",
+    "html": "<p><strong>foo <a href=\"/url\">bar</a></strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:432",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo\nbar**\n",
+    "html": "<p><strong>foo\nbar</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:433",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__foo _bar_ baz__\n",
+    "html": "<p><strong>foo <em>bar</em> baz</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:434",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__foo __bar__ baz__\n",
+    "html": "<p><strong>foo bar baz</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:435",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "____foo__ bar__\n",
+    "html": "<p><strong>foo bar</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:436",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo **bar****\n",
+    "html": "<p><strong>foo bar</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:437",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo *bar* baz**\n",
+    "html": "<p><strong>foo <em>bar</em> baz</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:438",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo*bar*baz**\n",
+    "html": "<p><strong>foo<em>bar</em>baz</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:439",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "***foo* bar**\n",
+    "html": "<p><strong><em>foo</em> bar</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:440",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo *bar***\n",
+    "html": "<p><strong>foo <em>bar</em></strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:441",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo *bar **baz**\nbim* bop**\n",
+    "html": "<p><strong>foo <em>bar <strong>baz</strong>\nbim</em> bop</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:442",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo [*bar*](/url)**\n",
+    "html": "<p><strong>foo <a href=\"/url\"><em>bar</em></a></strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:443",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__ is not an empty emphasis\n",
+    "html": "<p>__ is not an empty emphasis</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:444",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "____ is not an empty strong emphasis\n",
+    "html": "<p>____ is not an empty strong emphasis</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:445",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo ***\n",
+    "html": "<p>foo ***</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:446",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo *\\**\n",
+    "html": "<p>foo <em>*</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:447",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo *_*\n",
+    "html": "<p>foo <em>_</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:448",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo *****\n",
+    "html": "<p>foo *****</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:449",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo **\\***\n",
+    "html": "<p>foo <strong>*</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:450",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo **_**\n",
+    "html": "<p>foo <strong>_</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:451",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo*\n",
+    "html": "<p>*<em>foo</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:452",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo**\n",
+    "html": "<p><em>foo</em>*</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:453",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "***foo**\n",
+    "html": "<p>*<strong>foo</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:454",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "****foo*\n",
+    "html": "<p>***<em>foo</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:455",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo***\n",
+    "html": "<p><strong>foo</strong>*</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:456",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo****\n",
+    "html": "<p><em>foo</em>***</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:457",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo ___\n",
+    "html": "<p>foo ___</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:458",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo _\\__\n",
+    "html": "<p>foo <em>_</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:459",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo _*_\n",
+    "html": "<p>foo <em>*</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:460",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo _____\n",
+    "html": "<p>foo _____</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:461",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo __\\___\n",
+    "html": "<p>foo <strong>_</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:462",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "foo __*__\n",
+    "html": "<p>foo <strong>*</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:463",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__foo_\n",
+    "html": "<p>_<em>foo</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:464",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_foo__\n",
+    "html": "<p><em>foo</em>_</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:465",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "___foo__\n",
+    "html": "<p>_<strong>foo</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:466",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "____foo_\n",
+    "html": "<p>___<em>foo</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:467",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__foo___\n",
+    "html": "<p><strong>foo</strong>_</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:468",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_foo____\n",
+    "html": "<p><em>foo</em>___</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:469",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo**\n",
+    "html": "<p><strong>foo</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:470",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*_foo_*\n",
+    "html": "<p><em><em>foo</em></em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:471",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__foo__\n",
+    "html": "<p><strong>foo</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:472",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_*foo*_\n",
+    "html": "<p><em><em>foo</em></em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:473",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "****foo****\n",
+    "html": "<p><strong>foo</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:474",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "____foo____\n",
+    "html": "<p><strong>foo</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:475",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "******foo******\n",
+    "html": "<p><strong>foo</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:476",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "***foo***\n",
+    "html": "<p><em><strong>foo</strong></em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:477",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_____foo_____\n",
+    "html": "<p><em><strong>foo</strong></em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:478",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo _bar* baz_\n",
+    "html": "<p><em>foo _bar</em> baz_</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:479",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo __bar *baz bim__ bam*\n",
+    "html": "<p><em>foo <strong>bar *baz bim</strong> bam</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:480",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**foo **bar baz**\n",
+    "html": "<p>**foo <strong>bar baz</strong></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:481",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*foo *bar baz*\n",
+    "html": "<p>*foo <em>bar baz</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:482",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*[bar*](/url)\n",
+    "html": "<p>*<a href=\"/url\">bar*</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:483",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_foo [bar_](/url)\n",
+    "html": "<p>_foo <a href=\"/url\">bar_</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:484",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*<img src=\"foo\" title=\"*\"/>\n",
+    "html": "<p>*<img src=\"foo\" title=\"*\"/></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:485",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**<a href=\"**\">\n",
+    "html": "<p>**<a href=\"**\"></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:486",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__<a href=\"__\">\n",
+    "html": "<p>__<a href=\"__\"></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:487",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "*a `*`*\n",
+    "html": "<p><em>a <code>*</code></em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:488",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "_a `_`_\n",
+    "html": "<p><em>a <code>_</code></em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:489",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "**a<http://foo.bar/?q=**>\n",
+    "html": "<p>**a<a href=\"http://foo.bar/?q=**\">http://foo.bar/?q=**</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:490",
+    "section": "Emphasis and strong emphasis",
+    "markdown": "__a<http://foo.bar/?q=__>\n",
+    "html": "<p>__a<a href=\"http://foo.bar/?q=__\">http://foo.bar/?q=__</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:491",
+    "section": "Strikethrough (extension)",
+    "markdown": "~~Hi~~ Hello, world!\n",
+    "html": "<p><del>Hi</del> Hello, world!</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:492",
+    "section": "Strikethrough (extension)",
+    "markdown": "This ~~has a\n\nnew paragraph~~.\n",
+    "html": "<p>This ~~has a</p>\n<p>new paragraph~~.</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:493",
+    "section": "Links",
+    "markdown": "[link](/uri \"title\")\n",
+    "html": "<p><a href=\"/uri\" title=\"title\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:494",
+    "section": "Links",
+    "markdown": "[link](/uri)\n",
+    "html": "<p><a href=\"/uri\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:495",
+    "section": "Links",
+    "markdown": "[link]()\n",
+    "html": "<p><a href=\"\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:496",
+    "section": "Links",
+    "markdown": "[link](<>)\n",
+    "html": "<p><a href=\"\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:497",
+    "section": "Links",
+    "markdown": "[link](/my uri)\n",
+    "html": "<p>[link](/my uri)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:498",
+    "section": "Links",
+    "markdown": "[link](</my uri>)\n",
+    "html": "<p><a href=\"/my%20uri\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:499",
+    "section": "Links",
+    "markdown": "[link](foo\nbar)\n",
+    "html": "<p>[link](foo\nbar)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:500",
+    "section": "Links",
+    "markdown": "[link](<foo\nbar>)\n",
+    "html": "<p>[link](<foo\nbar>)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:501",
+    "section": "Links",
+    "markdown": "[a](<b)c>)\n",
+    "html": "<p><a href=\"b)c\">a</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:502",
+    "section": "Links",
+    "markdown": "[link](<foo\\>)\n",
+    "html": "<p>[link](&lt;foo&gt;)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:503",
+    "section": "Links",
+    "markdown": "[a](<b)c\n[a](<b)c>\n[a](<b>c)\n",
+    "html": "<p>[a](&lt;b)c\n[a](&lt;b)c&gt;\n[a](<b>c)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:504",
+    "section": "Links",
+    "markdown": "[link](\\(foo\\))\n",
+    "html": "<p><a href=\"(foo)\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:505",
+    "section": "Links",
+    "markdown": "[link](foo(and(bar)))\n",
+    "html": "<p><a href=\"foo(and(bar))\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:506",
+    "section": "Links",
+    "markdown": "[link](foo\\(and\\(bar\\))\n",
+    "html": "<p><a href=\"foo(and(bar)\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:507",
+    "section": "Links",
+    "markdown": "[link](<foo(and(bar)>)\n",
+    "html": "<p><a href=\"foo(and(bar)\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:508",
+    "section": "Links",
+    "markdown": "[link](foo\\)\\:)\n",
+    "html": "<p><a href=\"foo):\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:509",
+    "section": "Links",
+    "markdown": "[link](#fragment)\n\n[link](http://example.com#fragment)\n\n[link](http://example.com?foo=3#frag)\n",
+    "html": "<p><a href=\"#fragment\">link</a></p>\n<p><a href=\"http://example.com#fragment\">link</a></p>\n<p><a href=\"http://example.com?foo=3#frag\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:510",
+    "section": "Links",
+    "markdown": "[link](foo\\bar)\n",
+    "html": "<p><a href=\"foo%5Cbar\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:511",
+    "section": "Links",
+    "markdown": "[link](foo%20b&auml;)\n",
+    "html": "<p><a href=\"foo%20b%C3%A4\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:512",
+    "section": "Links",
+    "markdown": "[link](\"title\")\n",
+    "html": "<p><a href=\"%22title%22\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:513",
+    "section": "Links",
+    "markdown": "[link](/url \"title\")\n[link](/url 'title')\n[link](/url (title))\n",
+    "html": "<p><a href=\"/url\" title=\"title\">link</a>\n<a href=\"/url\" title=\"title\">link</a>\n<a href=\"/url\" title=\"title\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:514",
+    "section": "Links",
+    "markdown": "[link](/url \"title \\\"&quot;\")\n",
+    "html": "<p><a href=\"/url\" title=\"title &quot;&quot;\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:515",
+    "section": "Links",
+    "markdown": "[link](/url \"title\")\n",
+    "html": "<p><a href=\"/url%C2%A0%22title%22\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:516",
+    "section": "Links",
+    "markdown": "[link](/url \"title \"and\" title\")\n",
+    "html": "<p>[link](/url &quot;title &quot;and&quot; title&quot;)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:517",
+    "section": "Links",
+    "markdown": "[link](/url 'title \"and\" title')\n",
+    "html": "<p><a href=\"/url\" title=\"title &quot;and&quot; title\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:518",
+    "section": "Links",
+    "markdown": "[link](   /uri\n  \"title\"  )\n",
+    "html": "<p><a href=\"/uri\" title=\"title\">link</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:519",
+    "section": "Links",
+    "markdown": "[link] (/uri)\n",
+    "html": "<p>[link] (/uri)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:520",
+    "section": "Links",
+    "markdown": "[link [foo [bar]]](/uri)\n",
+    "html": "<p><a href=\"/uri\">link [foo [bar]]</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:521",
+    "section": "Links",
+    "markdown": "[link] bar](/uri)\n",
+    "html": "<p>[link] bar](/uri)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:522",
+    "section": "Links",
+    "markdown": "[link [bar](/uri)\n",
+    "html": "<p>[link <a href=\"/uri\">bar</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:523",
+    "section": "Links",
+    "markdown": "[link \\[bar](/uri)\n",
+    "html": "<p><a href=\"/uri\">link [bar</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:524",
+    "section": "Links",
+    "markdown": "[link *foo **bar** `#`*](/uri)\n",
+    "html": "<p><a href=\"/uri\">link <em>foo <strong>bar</strong> <code>#</code></em></a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:525",
+    "section": "Links",
+    "markdown": "[![moon](moon.jpg)](/uri)\n",
+    "html": "<p><a href=\"/uri\"><img src=\"moon.jpg\" alt=\"moon\" /></a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:526",
+    "section": "Links",
+    "markdown": "[foo [bar](/uri)](/uri)\n",
+    "html": "<p>[foo <a href=\"/uri\">bar</a>](/uri)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:527",
+    "section": "Links",
+    "markdown": "[foo *[bar [baz](/uri)](/uri)*](/uri)\n",
+    "html": "<p>[foo <em>[bar <a href=\"/uri\">baz</a>](/uri)</em>](/uri)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:528",
+    "section": "Links",
+    "markdown": "![[[foo](uri1)](uri2)](uri3)\n",
+    "html": "<p><img src=\"uri3\" alt=\"[foo](uri2)\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:529",
+    "section": "Links",
+    "markdown": "*[foo*](/uri)\n",
+    "html": "<p>*<a href=\"/uri\">foo*</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:530",
+    "section": "Links",
+    "markdown": "[foo *bar](baz*)\n",
+    "html": "<p><a href=\"baz*\">foo *bar</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:531",
+    "section": "Links",
+    "markdown": "*foo [bar* baz]\n",
+    "html": "<p><em>foo [bar</em> baz]</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:532",
+    "section": "Links",
+    "markdown": "[foo <bar attr=\"](baz)\">\n",
+    "html": "<p>[foo <bar attr=\"](baz)\"></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:533",
+    "section": "Links",
+    "markdown": "[foo`](/uri)`\n",
+    "html": "<p>[foo<code>](/uri)</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:534",
+    "section": "Links",
+    "markdown": "[foo<http://example.com/?search=](uri)>\n",
+    "html": "<p>[foo<a href=\"http://example.com/?search=%5D(uri)\">http://example.com/?search=](uri)</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:535",
+    "section": "Links",
+    "markdown": "[foo][bar]\n\n[bar]: /url \"title\"\n",
+    "html": "<p><a href=\"/url\" title=\"title\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:536",
+    "section": "Links",
+    "markdown": "[link [foo [bar]]][ref]\n\n[ref]: /uri\n",
+    "html": "<p><a href=\"/uri\">link [foo [bar]]</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:537",
+    "section": "Links",
+    "markdown": "[link \\[bar][ref]\n\n[ref]: /uri\n",
+    "html": "<p><a href=\"/uri\">link [bar</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:538",
+    "section": "Links",
+    "markdown": "[link *foo **bar** `#`*][ref]\n\n[ref]: /uri\n",
+    "html": "<p><a href=\"/uri\">link <em>foo <strong>bar</strong> <code>#</code></em></a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:539",
+    "section": "Links",
+    "markdown": "[![moon](moon.jpg)][ref]\n\n[ref]: /uri\n",
+    "html": "<p><a href=\"/uri\"><img src=\"moon.jpg\" alt=\"moon\" /></a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:540",
+    "section": "Links",
+    "markdown": "[foo [bar](/uri)][ref]\n\n[ref]: /uri\n",
+    "html": "<p>[foo <a href=\"/uri\">bar</a>]<a href=\"/uri\">ref</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:541",
+    "section": "Links",
+    "markdown": "[foo *bar [baz][ref]*][ref]\n\n[ref]: /uri\n",
+    "html": "<p>[foo <em>bar <a href=\"/uri\">baz</a></em>]<a href=\"/uri\">ref</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:542",
+    "section": "Links",
+    "markdown": "*[foo*][ref]\n\n[ref]: /uri\n",
+    "html": "<p>*<a href=\"/uri\">foo*</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:543",
+    "section": "Links",
+    "markdown": "[foo *bar][ref]\n\n[ref]: /uri\n",
+    "html": "<p><a href=\"/uri\">foo *bar</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:544",
+    "section": "Links",
+    "markdown": "[foo <bar attr=\"][ref]\">\n\n[ref]: /uri\n",
+    "html": "<p>[foo <bar attr=\"][ref]\"></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:545",
+    "section": "Links",
+    "markdown": "[foo`][ref]`\n\n[ref]: /uri\n",
+    "html": "<p>[foo<code>][ref]</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:546",
+    "section": "Links",
+    "markdown": "[foo<http://example.com/?search=][ref]>\n\n[ref]: /uri\n",
+    "html": "<p>[foo<a href=\"http://example.com/?search=%5D%5Bref%5D\">http://example.com/?search=][ref]</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:547",
+    "section": "Links",
+    "markdown": "[foo][BaR]\n\n[bar]: /url \"title\"\n",
+    "html": "<p><a href=\"/url\" title=\"title\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:548",
+    "section": "Links",
+    "markdown": "[Толпой][Толпой] is a Russian word.\n\n[ТОЛПОЙ]: /url\n",
+    "html": "<p><a href=\"/url\">Толпой</a> is a Russian word.</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:549",
+    "section": "Links",
+    "markdown": "[Foo\n  bar]: /url\n\n[Baz][Foo bar]\n",
+    "html": "<p><a href=\"/url\">Baz</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:550",
+    "section": "Links",
+    "markdown": "[foo] [bar]\n\n[bar]: /url \"title\"\n",
+    "html": "<p>[foo] <a href=\"/url\" title=\"title\">bar</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:551",
+    "section": "Links",
+    "markdown": "[foo]\n[bar]\n\n[bar]: /url \"title\"\n",
+    "html": "<p>[foo]\n<a href=\"/url\" title=\"title\">bar</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:552",
+    "section": "Links",
+    "markdown": "[foo]: /url1\n\n[foo]: /url2\n\n[bar][foo]\n",
+    "html": "<p><a href=\"/url1\">bar</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:553",
+    "section": "Links",
+    "markdown": "[bar][foo\\!]\n\n[foo!]: /url\n",
+    "html": "<p>[bar][foo!]</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:554",
+    "section": "Links",
+    "markdown": "[foo][ref[]\n\n[ref[]: /uri\n",
+    "html": "<p>[foo][ref[]</p>\n<p>[ref[]: /uri</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:555",
+    "section": "Links",
+    "markdown": "[foo][ref[bar]]\n\n[ref[bar]]: /uri\n",
+    "html": "<p>[foo][ref[bar]]</p>\n<p>[ref[bar]]: /uri</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:556",
+    "section": "Links",
+    "markdown": "[[[foo]]]\n\n[[[foo]]]: /url\n",
+    "html": "<p>[[[foo]]]</p>\n<p>[[[foo]]]: /url</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:557",
+    "section": "Links",
+    "markdown": "[foo][ref\\[]\n\n[ref\\[]: /uri\n",
+    "html": "<p><a href=\"/uri\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:558",
+    "section": "Links",
+    "markdown": "[bar\\\\]: /uri\n\n[bar\\\\]\n",
+    "html": "<p><a href=\"/uri\">bar\\</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:559",
+    "section": "Links",
+    "markdown": "[]\n\n[]: /uri\n",
+    "html": "<p>[]</p>\n<p>[]: /uri</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:560",
+    "section": "Links",
+    "markdown": "[\n ]\n\n[\n ]: /uri\n",
+    "html": "<p>[\n]</p>\n<p>[\n]: /uri</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:561",
+    "section": "Links",
+    "markdown": "[foo][]\n\n[foo]: /url \"title\"\n",
+    "html": "<p><a href=\"/url\" title=\"title\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:562",
+    "section": "Links",
+    "markdown": "[*foo* bar][]\n\n[*foo* bar]: /url \"title\"\n",
+    "html": "<p><a href=\"/url\" title=\"title\"><em>foo</em> bar</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:563",
+    "section": "Links",
+    "markdown": "[Foo][]\n\n[foo]: /url \"title\"\n",
+    "html": "<p><a href=\"/url\" title=\"title\">Foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:564",
+    "section": "Links",
+    "markdown": "[foo] \n[]\n\n[foo]: /url \"title\"\n",
+    "html": "<p><a href=\"/url\" title=\"title\">foo</a>\n[]</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:565",
+    "section": "Links",
+    "markdown": "[foo]\n\n[foo]: /url \"title\"\n",
+    "html": "<p><a href=\"/url\" title=\"title\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:566",
+    "section": "Links",
+    "markdown": "[*foo* bar]\n\n[*foo* bar]: /url \"title\"\n",
+    "html": "<p><a href=\"/url\" title=\"title\"><em>foo</em> bar</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:567",
+    "section": "Links",
+    "markdown": "[[*foo* bar]]\n\n[*foo* bar]: /url \"title\"\n",
+    "html": "<p>[<a href=\"/url\" title=\"title\"><em>foo</em> bar</a>]</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:568",
+    "section": "Links",
+    "markdown": "[[bar [foo]\n\n[foo]: /url\n",
+    "html": "<p>[[bar <a href=\"/url\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:569",
+    "section": "Links",
+    "markdown": "[Foo]\n\n[foo]: /url \"title\"\n",
+    "html": "<p><a href=\"/url\" title=\"title\">Foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:570",
+    "section": "Links",
+    "markdown": "[foo] bar\n\n[foo]: /url\n",
+    "html": "<p><a href=\"/url\">foo</a> bar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:571",
+    "section": "Links",
+    "markdown": "\\[foo]\n\n[foo]: /url \"title\"\n",
+    "html": "<p>[foo]</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:572",
+    "section": "Links",
+    "markdown": "[foo*]: /url\n\n*[foo*]\n",
+    "html": "<p>*<a href=\"/url\">foo*</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:573",
+    "section": "Links",
+    "markdown": "[foo][bar]\n\n[foo]: /url1\n[bar]: /url2\n",
+    "html": "<p><a href=\"/url2\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:574",
+    "section": "Links",
+    "markdown": "[foo][]\n\n[foo]: /url1\n",
+    "html": "<p><a href=\"/url1\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:575",
+    "section": "Links",
+    "markdown": "[foo]()\n\n[foo]: /url1\n",
+    "html": "<p><a href=\"\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:576",
+    "section": "Links",
+    "markdown": "[foo](not a link)\n\n[foo]: /url1\n",
+    "html": "<p><a href=\"/url1\">foo</a>(not a link)</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:577",
+    "section": "Links",
+    "markdown": "[foo][bar][baz]\n\n[baz]: /url\n",
+    "html": "<p>[foo]<a href=\"/url\">bar</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:578",
+    "section": "Links",
+    "markdown": "[foo][bar][baz]\n\n[baz]: /url1\n[bar]: /url2\n",
+    "html": "<p><a href=\"/url2\">foo</a><a href=\"/url1\">baz</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:579",
+    "section": "Links",
+    "markdown": "[foo][bar][baz]\n\n[baz]: /url1\n[foo]: /url2\n",
+    "html": "<p>[foo]<a href=\"/url1\">bar</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:580",
+    "section": "Images",
+    "markdown": "![foo](/url \"title\")\n",
+    "html": "<p><img src=\"/url\" alt=\"foo\" title=\"title\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:581",
+    "section": "Images",
+    "markdown": "![foo *bar*]\n\n[foo *bar*]: train.jpg \"train & tracks\"\n",
+    "html": "<p><img src=\"train.jpg\" alt=\"foo bar\" title=\"train &amp; tracks\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:582",
+    "section": "Images",
+    "markdown": "![foo ![bar](/url)](/url2)\n",
+    "html": "<p><img src=\"/url2\" alt=\"foo bar\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:583",
+    "section": "Images",
+    "markdown": "![foo [bar](/url)](/url2)\n",
+    "html": "<p><img src=\"/url2\" alt=\"foo bar\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:584",
+    "section": "Images",
+    "markdown": "![foo *bar*][]\n\n[foo *bar*]: train.jpg \"train & tracks\"\n",
+    "html": "<p><img src=\"train.jpg\" alt=\"foo bar\" title=\"train &amp; tracks\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:585",
+    "section": "Images",
+    "markdown": "![foo *bar*][foobar]\n\n[FOOBAR]: train.jpg \"train & tracks\"\n",
+    "html": "<p><img src=\"train.jpg\" alt=\"foo bar\" title=\"train &amp; tracks\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:586",
+    "section": "Images",
+    "markdown": "![foo](train.jpg)\n",
+    "html": "<p><img src=\"train.jpg\" alt=\"foo\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:587",
+    "section": "Images",
+    "markdown": "My ![foo bar](/path/to/train.jpg  \"title\"   )\n",
+    "html": "<p>My <img src=\"/path/to/train.jpg\" alt=\"foo bar\" title=\"title\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:588",
+    "section": "Images",
+    "markdown": "![foo](<url>)\n",
+    "html": "<p><img src=\"url\" alt=\"foo\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:589",
+    "section": "Images",
+    "markdown": "![](/url)\n",
+    "html": "<p><img src=\"/url\" alt=\"\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:590",
+    "section": "Images",
+    "markdown": "![foo][bar]\n\n[bar]: /url\n",
+    "html": "<p><img src=\"/url\" alt=\"foo\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:591",
+    "section": "Images",
+    "markdown": "![foo][bar]\n\n[BAR]: /url\n",
+    "html": "<p><img src=\"/url\" alt=\"foo\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:592",
+    "section": "Images",
+    "markdown": "![foo][]\n\n[foo]: /url \"title\"\n",
+    "html": "<p><img src=\"/url\" alt=\"foo\" title=\"title\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:593",
+    "section": "Images",
+    "markdown": "![*foo* bar][]\n\n[*foo* bar]: /url \"title\"\n",
+    "html": "<p><img src=\"/url\" alt=\"foo bar\" title=\"title\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:594",
+    "section": "Images",
+    "markdown": "![Foo][]\n\n[foo]: /url \"title\"\n",
+    "html": "<p><img src=\"/url\" alt=\"Foo\" title=\"title\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:595",
+    "section": "Images",
+    "markdown": "![foo] \n[]\n\n[foo]: /url \"title\"\n",
+    "html": "<p><img src=\"/url\" alt=\"foo\" title=\"title\" />\n[]</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:596",
+    "section": "Images",
+    "markdown": "![foo]\n\n[foo]: /url \"title\"\n",
+    "html": "<p><img src=\"/url\" alt=\"foo\" title=\"title\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:597",
+    "section": "Images",
+    "markdown": "![*foo* bar]\n\n[*foo* bar]: /url \"title\"\n",
+    "html": "<p><img src=\"/url\" alt=\"foo bar\" title=\"title\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:598",
+    "section": "Images",
+    "markdown": "![[foo]]\n\n[[foo]]: /url \"title\"\n",
+    "html": "<p>![[foo]]</p>\n<p>[[foo]]: /url &quot;title&quot;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:599",
+    "section": "Images",
+    "markdown": "![Foo]\n\n[foo]: /url \"title\"\n",
+    "html": "<p><img src=\"/url\" alt=\"Foo\" title=\"title\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:600",
+    "section": "Images",
+    "markdown": "!\\[foo]\n\n[foo]: /url \"title\"\n",
+    "html": "<p>![foo]</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:601",
+    "section": "Images",
+    "markdown": "\\![foo]\n\n[foo]: /url \"title\"\n",
+    "html": "<p>!<a href=\"/url\" title=\"title\">foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:602",
+    "section": "Autolinks",
+    "markdown": "<http://foo.bar.baz>\n",
+    "html": "<p><a href=\"http://foo.bar.baz\">http://foo.bar.baz</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:603",
+    "section": "Autolinks",
+    "markdown": "<http://foo.bar.baz/test?q=hello&id=22&boolean>\n",
+    "html": "<p><a href=\"http://foo.bar.baz/test?q=hello&amp;id=22&amp;boolean\">http://foo.bar.baz/test?q=hello&amp;id=22&amp;boolean</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:604",
+    "section": "Autolinks",
+    "markdown": "<irc://foo.bar:2233/baz>\n",
+    "html": "<p><a href=\"irc://foo.bar:2233/baz\">irc://foo.bar:2233/baz</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:605",
+    "section": "Autolinks",
+    "markdown": "<MAILTO:FOO@BAR.BAZ>\n",
+    "html": "<p><a href=\"MAILTO:FOO@BAR.BAZ\">MAILTO:FOO@BAR.BAZ</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:606",
+    "section": "Autolinks",
+    "markdown": "<a+b+c:d>\n",
+    "html": "<p><a href=\"a+b+c:d\">a+b+c:d</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:607",
+    "section": "Autolinks",
+    "markdown": "<made-up-scheme://foo,bar>\n",
+    "html": "<p><a href=\"made-up-scheme://foo,bar\">made-up-scheme://foo,bar</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:608",
+    "section": "Autolinks",
+    "markdown": "<http://../>\n",
+    "html": "<p><a href=\"http://../\">http://../</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:609",
+    "section": "Autolinks",
+    "markdown": "<localhost:5001/foo>\n",
+    "html": "<p><a href=\"localhost:5001/foo\">localhost:5001/foo</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:610",
+    "section": "Autolinks",
+    "markdown": "<http://foo.bar/baz bim>\n",
+    "html": "<p>&lt;http://foo.bar/baz bim&gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:611",
+    "section": "Autolinks",
+    "markdown": "<http://example.com/\\[\\>\n",
+    "html": "<p><a href=\"http://example.com/%5C%5B%5C\">http://example.com/\\[\\</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:612",
+    "section": "Autolinks",
+    "markdown": "<foo@bar.example.com>\n",
+    "html": "<p><a href=\"mailto:foo@bar.example.com\">foo@bar.example.com</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:613",
+    "section": "Autolinks",
+    "markdown": "<foo+special@Bar.baz-bar0.com>\n",
+    "html": "<p><a href=\"mailto:foo+special@Bar.baz-bar0.com\">foo+special@Bar.baz-bar0.com</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:614",
+    "section": "Autolinks",
+    "markdown": "<foo\\+@bar.example.com>\n",
+    "html": "<p>&lt;foo+@bar.example.com&gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:615",
+    "section": "Autolinks",
+    "markdown": "<>\n",
+    "html": "<p>&lt;&gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:616",
+    "section": "Autolinks",
+    "markdown": "< http://foo.bar >\n",
+    "html": "<p>&lt; http://foo.bar &gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:617",
+    "section": "Autolinks",
+    "markdown": "<m:abc>\n",
+    "html": "<p>&lt;m:abc&gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:618",
+    "section": "Autolinks",
+    "markdown": "<foo.bar.baz>\n",
+    "html": "<p>&lt;foo.bar.baz&gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:619",
+    "section": "Autolinks",
+    "markdown": "http://example.com\n",
+    "html": "<p>http://example.com</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:620",
+    "section": "Autolinks",
+    "markdown": "foo@bar.example.com\n",
+    "html": "<p>foo@bar.example.com</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:621",
+    "section": "Autolinks (extension)",
+    "markdown": "www.commonmark.org\n",
+    "html": "<p><a href=\"http://www.commonmark.org\">www.commonmark.org</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:622",
+    "section": "Autolinks (extension)",
+    "markdown": "Visit www.commonmark.org/help for more information.\n",
+    "html": "<p>Visit <a href=\"http://www.commonmark.org/help\">www.commonmark.org/help</a> for more information.</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:623",
+    "section": "Autolinks (extension)",
+    "markdown": "Visit www.commonmark.org.\n\nVisit www.commonmark.org/a.b.\n",
+    "html": "<p>Visit <a href=\"http://www.commonmark.org\">www.commonmark.org</a>.</p>\n<p>Visit <a href=\"http://www.commonmark.org/a.b\">www.commonmark.org/a.b</a>.</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:624",
+    "section": "Autolinks (extension)",
+    "markdown": "www.google.com/search?q=Markup+(business)\n\nwww.google.com/search?q=Markup+(business)))\n\n(www.google.com/search?q=Markup+(business))\n\n(www.google.com/search?q=Markup+(business)\n",
+    "html": "<p><a href=\"http://www.google.com/search?q=Markup+(business)\">www.google.com/search?q=Markup+(business)</a></p>\n<p><a href=\"http://www.google.com/search?q=Markup+(business)\">www.google.com/search?q=Markup+(business)</a>))</p>\n<p>(<a href=\"http://www.google.com/search?q=Markup+(business)\">www.google.com/search?q=Markup+(business)</a>)</p>\n<p>(<a href=\"http://www.google.com/search?q=Markup+(business)\">www.google.com/search?q=Markup+(business)</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:625",
+    "section": "Autolinks (extension)",
+    "markdown": "www.google.com/search?q=(business))+ok\n",
+    "html": "<p><a href=\"http://www.google.com/search?q=(business))+ok\">www.google.com/search?q=(business))+ok</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:626",
+    "section": "Autolinks (extension)",
+    "markdown": "www.google.com/search?q=commonmark&hl=en\n\nwww.google.com/search?q=commonmark&hl;\n",
+    "html": "<p><a href=\"http://www.google.com/search?q=commonmark&amp;hl=en\">www.google.com/search?q=commonmark&amp;hl=en</a></p>\n<p><a href=\"http://www.google.com/search?q=commonmark\">www.google.com/search?q=commonmark</a>&amp;hl;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:627",
+    "section": "Autolinks (extension)",
+    "markdown": "www.commonmark.org/he<lp\n",
+    "html": "<p><a href=\"http://www.commonmark.org/he\">www.commonmark.org/he</a>&lt;lp</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:628",
+    "section": "Autolinks (extension)",
+    "markdown": "http://commonmark.org\n\n(Visit https://encrypted.google.com/search?q=Markup+(business))\n\nAnonymous FTP is available at ftp://foo.bar.baz.\n",
+    "html": "<p><a href=\"http://commonmark.org\">http://commonmark.org</a></p>\n<p>(Visit <a href=\"https://encrypted.google.com/search?q=Markup+(business)\">https://encrypted.google.com/search?q=Markup+(business)</a>)</p>\n<p>Anonymous FTP is available at <a href=\"ftp://foo.bar.baz\">ftp://foo.bar.baz</a>.</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:629",
+    "section": "Autolinks (extension)",
+    "markdown": "foo@bar.baz\n",
+    "html": "<p><a href=\"mailto:foo@bar.baz\">foo@bar.baz</a></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:630",
+    "section": "Autolinks (extension)",
+    "markdown": "hello@mail+xyz.example isn't valid, but hello+xyz@mail.example is.\n",
+    "html": "<p>hello@mail+xyz.example isn't valid, but <a href=\"mailto:hello+xyz@mail.example\">hello+xyz@mail.example</a> is.</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:631",
+    "section": "Autolinks (extension)",
+    "markdown": "a.b-c_d@a.b\n\na.b-c_d@a.b.\n\na.b-c_d@a.b-\n\na.b-c_d@a.b_\n",
+    "html": "<p><a href=\"mailto:a.b-c_d@a.b\">a.b-c_d@a.b</a></p>\n<p><a href=\"mailto:a.b-c_d@a.b\">a.b-c_d@a.b</a>.</p>\n<p>a.b-c_d@a.b-</p>\n<p>a.b-c_d@a.b_</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:632",
+    "section": "Raw HTML",
+    "markdown": "<a><bab><c2c>\n",
+    "html": "<p><a><bab><c2c></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:633",
+    "section": "Raw HTML",
+    "markdown": "<a/><b2/>\n",
+    "html": "<p><a/><b2/></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:634",
+    "section": "Raw HTML",
+    "markdown": "<a  /><b2\ndata=\"foo\" >\n",
+    "html": "<p><a  /><b2\ndata=\"foo\" ></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:635",
+    "section": "Raw HTML",
+    "markdown": "<a foo=\"bar\" bam = 'baz <em>\"</em>'\n_boolean zoop:33=zoop:33 />\n",
+    "html": "<p><a foo=\"bar\" bam = 'baz <em>\"</em>'\n_boolean zoop:33=zoop:33 /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:636",
+    "section": "Raw HTML",
+    "markdown": "Foo <responsive-image src=\"foo.jpg\" />\n",
+    "html": "<p>Foo <responsive-image src=\"foo.jpg\" /></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:637",
+    "section": "Raw HTML",
+    "markdown": "<33> <__>\n",
+    "html": "<p>&lt;33&gt; &lt;__&gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:638",
+    "section": "Raw HTML",
+    "markdown": "<a h*#ref=\"hi\">\n",
+    "html": "<p>&lt;a h*#ref=&quot;hi&quot;&gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:639",
+    "section": "Raw HTML",
+    "markdown": "<a href=\"hi'> <a href=hi'>\n",
+    "html": "<p>&lt;a href=&quot;hi'&gt; &lt;a href=hi'&gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:640",
+    "section": "Raw HTML",
+    "markdown": "< a><\nfoo><bar/ >\n<foo bar=baz\nbim!bop />\n",
+    "html": "<p>&lt; a&gt;&lt;\nfoo&gt;&lt;bar/ &gt;\n&lt;foo bar=baz\nbim!bop /&gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:641",
+    "section": "Raw HTML",
+    "markdown": "<a href='bar'title=title>\n",
+    "html": "<p>&lt;a href='bar'title=title&gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:642",
+    "section": "Raw HTML",
+    "markdown": "</a></foo >\n",
+    "html": "<p></a></foo ></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:643",
+    "section": "Raw HTML",
+    "markdown": "</a href=\"foo\">\n",
+    "html": "<p>&lt;/a href=&quot;foo&quot;&gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:644",
+    "section": "Raw HTML",
+    "markdown": "foo <!-- this is a --\ncomment - with hyphens -->\n",
+    "html": "<p>foo <!-- this is a --\ncomment - with hyphens --></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:645",
+    "section": "Raw HTML",
+    "markdown": "foo <!--> foo -->\n\nfoo <!---> foo -->\n",
+    "html": "<p>foo <!--> foo --&gt;</p>\n<p>foo <!---> foo --&gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:646",
+    "section": "Raw HTML",
+    "markdown": "foo <?php echo $a; ?>\n",
+    "html": "<p>foo <?php echo $a; ?></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:647",
+    "section": "Raw HTML",
+    "markdown": "foo <!ELEMENT br EMPTY>\n",
+    "html": "<p>foo <!ELEMENT br EMPTY></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:648",
+    "section": "Raw HTML",
+    "markdown": "foo <![CDATA[>&<]]>\n",
+    "html": "<p>foo <![CDATA[>&<]]></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:649",
+    "section": "Raw HTML",
+    "markdown": "foo <a href=\"&ouml;\">\n",
+    "html": "<p>foo <a href=\"&ouml;\"></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:650",
+    "section": "Raw HTML",
+    "markdown": "foo <a href=\"\\*\">\n",
+    "html": "<p>foo <a href=\"\\*\"></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:651",
+    "section": "Raw HTML",
+    "markdown": "<a href=\"\\\"\">\n",
+    "html": "<p>&lt;a href=&quot;&quot;&quot;&gt;</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:652",
+    "section": "Disallowed Raw HTML (extension)",
+    "markdown": "<strong> <title> <style> <em>\n\n<blockquote>\n  <xmp> is disallowed.  <XMP> is also disallowed.\n</blockquote>\n",
+    "html": "<p><strong> &lt;title> &lt;style> <em></p>\n<blockquote>\n  &lt;xmp> is disallowed.  &lt;XMP> is also disallowed.\n</blockquote>\n"
+  },
+  {
+    "id": "gfm-spec.txt:653",
+    "section": "Hard line breaks",
+    "markdown": "foo  \nbaz\n",
+    "html": "<p>foo<br />\nbaz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:654",
+    "section": "Hard line breaks",
+    "markdown": "foo\\\nbaz\n",
+    "html": "<p>foo<br />\nbaz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:655",
+    "section": "Hard line breaks",
+    "markdown": "foo       \nbaz\n",
+    "html": "<p>foo<br />\nbaz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:656",
+    "section": "Hard line breaks",
+    "markdown": "foo  \n     bar\n",
+    "html": "<p>foo<br />\nbar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:657",
+    "section": "Hard line breaks",
+    "markdown": "foo\\\n     bar\n",
+    "html": "<p>foo<br />\nbar</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:658",
+    "section": "Hard line breaks",
+    "markdown": "*foo  \nbar*\n",
+    "html": "<p><em>foo<br />\nbar</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:659",
+    "section": "Hard line breaks",
+    "markdown": "*foo\\\nbar*\n",
+    "html": "<p><em>foo<br />\nbar</em></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:660",
+    "section": "Hard line breaks",
+    "markdown": "`code  \nspan`\n",
+    "html": "<p><code>code   span</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:661",
+    "section": "Hard line breaks",
+    "markdown": "`code\\\nspan`\n",
+    "html": "<p><code>code\\ span</code></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:662",
+    "section": "Hard line breaks",
+    "markdown": "<a href=\"foo  \nbar\">\n",
+    "html": "<p><a href=\"foo  \nbar\"></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:663",
+    "section": "Hard line breaks",
+    "markdown": "<a href=\"foo\\\nbar\">\n",
+    "html": "<p><a href=\"foo\\\nbar\"></p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:664",
+    "section": "Hard line breaks",
+    "markdown": "foo\\\n",
+    "html": "<p>foo\\</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:665",
+    "section": "Hard line breaks",
+    "markdown": "foo  \n",
+    "html": "<p>foo</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:666",
+    "section": "Hard line breaks",
+    "markdown": "### foo\\\n",
+    "html": "<h3>foo\\</h3>\n"
+  },
+  {
+    "id": "gfm-spec.txt:667",
+    "section": "Hard line breaks",
+    "markdown": "### foo  \n",
+    "html": "<h3>foo</h3>\n"
+  },
+  {
+    "id": "gfm-spec.txt:668",
+    "section": "Soft line breaks",
+    "markdown": "foo\nbaz\n",
+    "html": "<p>foo\nbaz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:669",
+    "section": "Soft line breaks",
+    "markdown": "foo \n baz\n",
+    "html": "<p>foo\nbaz</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:670",
+    "section": "Textual content",
+    "markdown": "hello $.;'there\n",
+    "html": "<p>hello $.;'there</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:671",
+    "section": "Textual content",
+    "markdown": "Foo χρῆν\n",
+    "html": "<p>Foo χρῆν</p>\n"
+  },
+  {
+    "id": "gfm-spec.txt:672",
+    "section": "Textual content",
+    "markdown": "Multiple     spaces\n",
+    "html": "<p>Multiple     spaces</p>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:1",
+    "section": "Tables",
+    "markdown": "| abc | def |\n| --- | --- |\n| ghi | jkl |\n| mno | pqr |\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>abc</th>\n<th>def</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>ghi</td>\n<td>jkl</td>\n</tr>\n<tr>\n<td>mno</td>\n<td>pqr</td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:2",
+    "section": "Tables",
+    "markdown": "Hello!\n\n| _abc_ | セン |\n| ----- | ---- |\n| 1. Block elements inside cells don't work. | |\n| But _**inline elements do**_. | x |\n\nHi!\n",
+    "html": "<p>Hello!</p>\n<table>\n<thead>\n<tr>\n<th><em>abc</em></th>\n<th>セン</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>1. Block elements inside cells don't work.</td>\n<td></td>\n</tr>\n<tr>\n<td>But <em><strong>inline elements do</strong></em>.</td>\n<td>x</td>\n</tr>\n</tbody>\n</table>\n<p>Hi!</p>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:3",
+    "section": "Tables",
+    "markdown": "| Not enough table | to be considered table |\n\n| Not enough table | to be considered table |\n| Not enough table | to be considered table |\n\n| Just enough table | to be considered table |\n| ----------------- | ---------------------- |\n\n| ---- | --- |\n\n|x|\n|-|\n\n| xyz |\n| --- |\n",
+    "html": "<p>| Not enough table | to be considered table |</p>\n<p>| Not enough table | to be considered table |\n| Not enough table | to be considered table |</p>\n<table>\n<thead>\n<tr>\n<th>Just enough table</th>\n<th>to be considered table</th>\n</tr>\n</thead>\n</table>\n<p>| ---- | --- |</p>\n<table>\n<thead>\n<tr>\n<th>x</th>\n</tr>\n</thead>\n</table>\n<table>\n<thead>\n<tr>\n<th>xyz</th>\n</tr>\n</thead>\n</table>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:4",
+    "section": "Tables",
+    "markdown": "abc | def\n--- | ---\nxyz | ghi\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>abc</th>\n<th>def</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>xyz</td>\n<td>ghi</td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:5",
+    "section": "Tables",
+    "markdown": "Hello!\n\n| _abc_ | セン |\n| ----- | ---- |\n| this row has a space at the end | | \n| But _**inline elements do**_. | x |\n\nHi!\n",
+    "html": "<p>Hello!</p>\n<table>\n<thead>\n<tr>\n<th><em>abc</em></th>\n<th>セン</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>this row has a space at the end</td>\n<td></td>\n</tr>\n<tr>\n<td>But <em><strong>inline elements do</strong></em>.</td>\n<td>x</td>\n</tr>\n</tbody>\n</table>\n<p>Hi!</p>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:6",
+    "section": "Tables",
+    "markdown": "aaa | bbb | ccc | ddd | eee\n:-- | --- | :-: | --- | --:\nfff | ggg | hhh | iii | jjj\n",
+    "html": "<table>\n<thead>\n<tr>\n<th align=\"left\">aaa</th>\n<th>bbb</th>\n<th align=\"center\">ccc</th>\n<th>ddd</th>\n<th align=\"right\">eee</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td align=\"left\">fff</td>\n<td>ggg</td>\n<td align=\"center\">hhh</td>\n<td>iii</td>\n<td align=\"right\">jjj</td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:7",
+    "section": "Table cell count mismatches",
+    "markdown": "| a | b | c |\n| --- | --- |\n| this | isn't | okay |\n",
+    "html": "<p>| a | b | c |\n| --- | --- |\n| this | isn't | okay |</p>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:8",
+    "section": "Table cell count mismatches",
+    "markdown": "| a | b | c |\n| --- | --- | ---\n| x\n| a | b\n| 1 | 2 | 3 | 4 | 5 |\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n<th>c</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>x</td>\n<td></td>\n<td></td>\n</tr>\n<tr>\n<td>a</td>\n<td>b</td>\n<td></td>\n</tr>\n<tr>\n<td>1</td>\n<td>2</td>\n<td>3</td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:9",
+    "section": "Embedded pipes",
+    "markdown": "| a | b |\n| --- | --- |\n| Escaped pipes are \\|okay\\|. | Like \\| this. |\n| Within `\\|code\\| is okay` too. |\n| _**`c\\|`**_ \\| complex\n| don't **\\_reparse\\_**\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Escaped pipes are |okay|.</td>\n<td>Like | this.</td>\n</tr>\n<tr>\n<td>Within <code>|code| is okay</code> too.</td>\n<td></td>\n</tr>\n<tr>\n<td><em><strong><code>c|</code></strong></em> | complex</td>\n<td></td>\n</tr>\n<tr>\n<td>don't <strong>_reparse_</strong></td>\n<td></td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:10",
+    "section": "Oddly-formatted markers",
+    "markdown": "| a |\n--- |\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n</table>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:11",
+    "section": "Escaping",
+    "markdown": "| a | b |\n| --- | --- |\n| \\\\ | `\\\\` |\n| \\\\\\\\ | `\\\\\\\\` |\n| \\_ | `\\_` |\n| \\| | `\\|` |\n| \\a | `\\a` |\n\n\\\\ `\\\\`\n\n\\\\\\\\ `\\\\\\\\`\n\n\\_ `\\_`\n\n\\| `\\|`\n\n\\a `\\a`\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>\\</td>\n<td><code>\\\\</code></td>\n</tr>\n<tr>\n<td>\\\\</td>\n<td><code>\\\\\\\\</code></td>\n</tr>\n<tr>\n<td>_</td>\n<td><code>\\_</code></td>\n</tr>\n<tr>\n<td>|</td>\n<td><code>|</code></td>\n</tr>\n<tr>\n<td>\\a</td>\n<td><code>\\a</code></td>\n</tr>\n</tbody>\n</table>\n<p>\\ <code>\\\\</code></p>\n<p>\\\\ <code>\\\\\\\\</code></p>\n<p>_ <code>\\_</code></p>\n<p>| <code>\\|</code></p>\n<p>\\a <code>\\a</code></p>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:12",
+    "section": "Embedded HTML",
+    "markdown": "| a |\n| --- |\n| <strong>hello</strong> |\n| ok <br> sure |\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>a</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><strong>hello</strong></td>\n</tr>\n<tr>\n<td>ok <br> sure</td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:13",
+    "section": "Reference-style links",
+    "markdown": "Here's a link to [Freedom Planet 2][].\n\n| Here's a link to [Freedom Planet 2][] in a table header. |\n| --- |\n| Here's a link to [Freedom Planet 2][] in a table row. |\n\n[Freedom Planet 2]: http://www.freedomplanet2.com/\n",
+    "html": "<p>Here's a link to <a href=\"http://www.freedomplanet2.com/\">Freedom Planet 2</a>.</p>\n<table>\n<thead>\n<tr>\n<th>Here's a link to <a href=\"http://www.freedomplanet2.com/\">Freedom Planet 2</a> in a table header.</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>Here's a link to <a href=\"http://www.freedomplanet2.com/\">Freedom Planet 2</a> in a table row.</td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:14",
+    "section": "Sequential cells",
+    "markdown": "| a | b | c |\n| --- | --- | --- |\n| d || e |\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n<th>c</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>d</td>\n<td></td>\n<td>e</td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:15",
+    "section": "Interaction with emphasis",
+    "markdown": "| a | b |\n| --- | --- |\n|***(a)***|\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><em><strong>(a)</strong></em></td>\n<td></td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:16",
+    "section": "a table can be recognised when separated from a paragraph of text without an empty line",
+    "markdown": "123\n456\n| a | b |\n| ---| --- |\nd | e\n",
+    "html": "<p>123\n456</p>\n<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>d</td>\n<td>e</td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:17",
+    "section": "Strikethroughs",
+    "markdown": "A proper ~strikethrough~.\n",
+    "html": "<p>A proper <del>strikethrough</del>.</p>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:18",
+    "section": "Strikethroughs",
+    "markdown": "These are ~not strikethroughs.\n\nNo, they are not~\n\nThis ~is ~ legit~ isn't ~ legit.\n\nThis is not ~~~~~one~~~~~ huge strikethrough.\n\n~one~ ~~two~~ ~~~three~~~\n\nNo ~mismatch~~\n",
+    "html": "<p>These are ~not strikethroughs.</p>\n<p>No, they are not~</p>\n<p>This <del>is ~ legit</del> isn't ~ legit.</p>\n<p>This is not ~~~~~one~~~~~ huge strikethrough.</p>\n<p><del>one</del> <del>two</del> ~~~three~~~</p>\n<p>No ~mismatch~~</p>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:19",
+    "section": "Autolinks",
+    "markdown": ": http://google.com https://google.com\n\n<http://google.com/å> http://google.com/å\n\nscyther@pokemon.com\n\nscy.the_rbe-edr+ill@pokemon.com\n\nscyther@pokemon.com.\n\nscyther@pokemon.com/\n\nscyther@pokemon.com/beedrill@pokemon.com\n\nmailto:scyther@pokemon.com\n\nThis is a mailto:scyther@pokemon.com\n\nmailto:scyther@pokemon.com.\n\nmmmmailto:scyther@pokemon.com\n\nmailto:scyther@pokemon.com/\n\nmailto:scyther@pokemon.com/message\n\nmailto:scyther@pokemon.com/mailto:beedrill@pokemon.com\n\nxmpp:scyther@pokemon.com\n\nxmpp:scyther@pokemon.com.\n\nxmpp:scyther@pokemon.com/message\n\nxmpp:scyther@pokemon.com/message.\n\nEmail me at:scyther@pokemon.com\n\nwww.github.com www.github.com/á\n\nwww.google.com/a_b\n\nUnderscores not allowed in host name www.xxx.yyy._zzz\n\nUnderscores not allowed in host name www.xxx._yyy.zzz\n\nUnderscores allowed in domain name www._xxx.yyy.zzz\n\n**Autolink and http://inlines**\n\n![http://inline.com/image](http://inline.com/image)\n\na.w@b.c\n\nFull stop outside parens shouldn't be included http://google.com/ok.\n\n(Full stop inside parens shouldn't be included http://google.com/ok.)\n\n\"http://google.com\"\n\n'http://google.com'\n\nhttp://🍄.ga/ http://x🍄.ga/\n",
+    "html": "<p>: <a href=\"http://google.com\">http://google.com</a> <a href=\"https://google.com\">https://google.com</a></p>\n<p><a href=\"http://google.com/%C3%A5\">http://google.com/å</a> <a href=\"http://google.com/%C3%A5\">http://google.com/å</a></p>\n<p><a href=\"mailto:scyther@pokemon.com\">scyther@pokemon.com</a></p>\n<p><a href=\"mailto:scy.the_rbe-edr+ill@pokemon.com\">scy.the_rbe-edr+ill@pokemon.com</a></p>\n<p><a href=\"mailto:scyther@pokemon.com\">scyther@pokemon.com</a>.</p>\n<p><a href=\"mailto:scyther@pokemon.com\">scyther@pokemon.com</a>/</p>\n<p><a href=\"mailto:scyther@pokemon.com\">scyther@pokemon.com</a>/<a href=\"mailto:beedrill@pokemon.com\">beedrill@pokemon.com</a></p>\n<p><a href=\"mailto:scyther@pokemon.com\">mailto:scyther@pokemon.com</a></p>\n<p>This is a <a href=\"mailto:scyther@pokemon.com\">mailto:scyther@pokemon.com</a></p>\n<p><a href=\"mailto:scyther@pokemon.com\">mailto:scyther@pokemon.com</a>.</p>\n<p>mmmmailto:<a href=\"mailto:scyther@pokemon.com\">scyther@pokemon.com</a></p>\n<p><a href=\"mailto:scyther@pokemon.com\">mailto:scyther@pokemon.com</a>/</p>\n<p><a href=\"mailto:scyther@pokemon.com\">mailto:scyther@pokemon.com</a>/message</p>\n<p><a href=\"mailto:scyther@pokemon.com\">mailto:scyther@pokemon.com</a>/<a href=\"mailto:beedrill@pokemon.com\">mailto:beedrill@pokemon.com</a></p>\n<p><a href=\"xmpp:scyther@pokemon.com\">xmpp:scyther@pokemon.com</a></p>\n<p><a href=\"xmpp:scyther@pokemon.com\">xmpp:scyther@pokemon.com</a>.</p>\n<p><a href=\"xmpp:scyther@pokemon.com/message\">xmpp:scyther@pokemon.com/message</a></p>\n<p><a href=\"xmpp:scyther@pokemon.com/message\">xmpp:scyther@pokemon.com/message</a>.</p>\n<p>Email me at:<a href=\"mailto:scyther@pokemon.com\">scyther@pokemon.com</a></p>\n<p><a href=\"http://www.github.com\">www.github.com</a> <a href=\"http://www.github.com/%C3%A1\">www.github.com/á</a></p>\n<p><a href=\"http://www.google.com/a_b\">www.google.com/a_b</a></p>\n<p>Underscores not allowed in host name www.xxx.yyy._zzz</p>\n<p>Underscores not allowed in host name www.xxx._yyy.zzz</p>\n<p>Underscores allowed in domain name <a href=\"http://www._xxx.yyy.zzz\">www._xxx.yyy.zzz</a></p>\n<p><strong>Autolink and <a href=\"http://inlines\">http://inlines</a></strong></p>\n<p><img src=\"http://inline.com/image\" alt=\"http://inline.com/image\" /></p>\n<p><a href=\"mailto:a.w@b.c\">a.w@b.c</a></p>\n<p>Full stop outside parens shouldn't be included <a href=\"http://google.com/ok\">http://google.com/ok</a>.</p>\n<p>(Full stop inside parens shouldn't be included <a href=\"http://google.com/ok\">http://google.com/ok</a>.)</p>\n<p>&quot;<a href=\"http://google.com\">http://google.com</a>&quot;</p>\n<p>'<a href=\"http://google.com\">http://google.com</a>'</p>\n<p><a href=\"http://%F0%9F%8D%84.ga/\">http://🍄.ga/</a> <a href=\"http://x%F0%9F%8D%84.ga/\">http://x🍄.ga/</a></p>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:20",
+    "section": "Autolinks",
+    "markdown": "This shouldn't crash everything: (_A_@_.A\n",
+    "html": "<IGNORE>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:21",
+    "section": "Autolinks",
+    "markdown": "These should not link:\n\n* @a.b.c@. x\n* n@.  b\n",
+    "html": "<p>These should not link:</p>\n<ul>\n<li>@a.b.c@. x</li>\n<li>n@.  b</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:22",
+    "section": "HTML tag filter",
+    "markdown": "This is <xmp> not okay, but **this** <strong>is</strong>.\n\n<p>This is <xmp> not okay, but **this** <strong>is</strong>.</p>\n\nNope, I won't have <textarea>.\n\n<p>No <textarea> here either.</p>\n\n<p>This <random /> <thing> is okay</thing> though.</p>\n\nYep, <totally>okay</totally>.\n\n<!-- HTML comments are okay, though. -->\n<!- But we're strict. ->\n<! No nonsense. >\n<!-- Leave multiline comments the heck alone, though, okay?\nEven with {\"x\":\"y\"} or 1 > 2 or whatever. Even **markdown**.\n-->\n<!--- Support everything CommonMark's parser does. -->\n<!---->\n<!--thistoo-->\n",
+    "html": "<p>This is &lt;xmp> not okay, but <strong>this</strong> <strong>is</strong>.</p>\n<p>This is &lt;xmp> not okay, but **this** <strong>is</strong>.</p>\n<p>Nope, I won't have &lt;textarea>.</p>\n<p>No &lt;textarea> here either.</p>\n<p>This <random /> <thing> is okay</thing> though.</p>\n<p>Yep, <totally>okay</totally>.</p>\n<!-- HTML comments are okay, though. -->\n<p>&lt;!- But we're strict. -&gt;\n&lt;! No nonsense. &gt;</p>\n<!-- Leave multiline comments the heck alone, though, okay?\nEven with {\"x\":\"y\"} or 1 > 2 or whatever. Even **markdown**.\n-->\n<!--- Support everything CommonMark's parser does. -->\n<!---->\n<!--thistoo-->\n"
+  },
+  {
+    "id": "gfm-extensions.txt:23",
+    "section": "Footnotes",
+    "markdown": "This is some text![^1]. Other text.[^footnote].\n\nHere's a thing[^other-note].\n\nAnd another thing[^codeblock-note].\n\nThis doesn't have a referent[^nope].\n\n\n[^other-note]:       no code block here (spaces are stripped away)\n\n[^codeblock-note]:\n        this is now a code block (8 spaces indentation)\n\n[^1]: Some *bolded* footnote definition.\n\nHi!\n\n[^footnote]:\n    > Blockquotes can be in a footnote.\n\n        as well as code blocks\n\n    or, naturally, simple paragraphs.\n\n[^unused]: This is unused.\n",
+    "html": "<p>This is some text!<sup class=\"footnote-ref\"><a href=\"#fn-1\" id=\"fnref-1\" data-footnote-ref>1</a></sup>. Other text.<sup class=\"footnote-ref\"><a href=\"#fn-footnote\" id=\"fnref-footnote\" data-footnote-ref>2</a></sup>.</p>\n<p>Here's a thing<sup class=\"footnote-ref\"><a href=\"#fn-other-note\" id=\"fnref-other-note\" data-footnote-ref>3</a></sup>.</p>\n<p>And another thing<sup class=\"footnote-ref\"><a href=\"#fn-codeblock-note\" id=\"fnref-codeblock-note\" data-footnote-ref>4</a></sup>.</p>\n<p>This doesn't have a referent[^nope].</p>\n<p>Hi!</p>\n<section class=\"footnotes\" data-footnotes>\n<ol>\n<li id=\"fn-1\">\n<p>Some <em>bolded</em> footnote definition. <a href=\"#fnref-1\" class=\"footnote-backref\" data-footnote-backref data-footnote-backref-idx=\"1\" aria-label=\"Back to reference 1\">↩</a></p>\n</li>\n<li id=\"fn-footnote\">\n<blockquote>\n<p>Blockquotes can be in a footnote.</p>\n</blockquote>\n<pre><code>as well as code blocks\n</code></pre>\n<p>or, naturally, simple paragraphs. <a href=\"#fnref-footnote\" class=\"footnote-backref\" data-footnote-backref data-footnote-backref-idx=\"2\" aria-label=\"Back to reference 2\">↩</a></p>\n</li>\n<li id=\"fn-other-note\">\n<p>no code block here (spaces are stripped away) <a href=\"#fnref-other-note\" class=\"footnote-backref\" data-footnote-backref data-footnote-backref-idx=\"3\" aria-label=\"Back to reference 3\">↩</a></p>\n</li>\n<li id=\"fn-codeblock-note\">\n<pre><code>this is now a code block (8 spaces indentation)\n</code></pre>\n<a href=\"#fnref-codeblock-note\" class=\"footnote-backref\" data-footnote-backref data-footnote-backref-idx=\"4\" aria-label=\"Back to reference 4\">↩</a>\n</li>\n</ol>\n</section>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:24",
+    "section": "When a footnote is used multiple times, we insert multiple backrefs.",
+    "markdown": "This is some text. It has a footnote[^a-footnote].\n\nThis footnote is referenced[^a-footnote] multiple times, in lots of different places.[^a-footnote]\n\n[^a-footnote]: This footnote definition should have three backrefs.\n",
+    "html": "<p>This is some text. It has a footnote<sup class=\"footnote-ref\"><a href=\"#fn-a-footnote\" id=\"fnref-a-footnote\" data-footnote-ref>1</a></sup>.</p>\n<p>This footnote is referenced<sup class=\"footnote-ref\"><a href=\"#fn-a-footnote\" id=\"fnref-a-footnote-2\" data-footnote-ref>1</a></sup> multiple times, in lots of different places.<sup class=\"footnote-ref\"><a href=\"#fn-a-footnote\" id=\"fnref-a-footnote-3\" data-footnote-ref>1</a></sup></p>\n<section class=\"footnotes\" data-footnotes>\n<ol>\n<li id=\"fn-a-footnote\">\n<p>This footnote definition should have three backrefs. <a href=\"#fnref-a-footnote\" class=\"footnote-backref\" data-footnote-backref data-footnote-backref-idx=\"1\" aria-label=\"Back to reference 1\">↩</a> <a href=\"#fnref-a-footnote-2\" class=\"footnote-backref\" data-footnote-backref data-footnote-backref-idx=\"1-2\" aria-label=\"Back to reference 1-2\">↩<sup class=\"footnote-ref\">2</sup></a> <a href=\"#fnref-a-footnote-3\" class=\"footnote-backref\" data-footnote-backref data-footnote-backref-idx=\"1-3\" aria-label=\"Back to reference 1-3\">↩<sup class=\"footnote-ref\">3</sup></a></p>\n</li>\n</ol>\n</section>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:25",
+    "section": "Footnote reference labels are href escaped",
+    "markdown": "Hello[^\"><script>alert(1)</script>]\n\n[^\"><script>alert(1)</script>]: pwned\n",
+    "html": "<p>Hello<sup class=\"footnote-ref\"><a href=\"#fn-%22%3E%3Cscript%3Ealert(1)%3C/script%3E\" id=\"fnref-%22%3E%3Cscript%3Ealert(1)%3C/script%3E\" data-footnote-ref>1</a></sup></p>\n<section class=\"footnotes\" data-footnotes>\n<ol>\n<li id=\"fn-%22%3E%3Cscript%3Ealert(1)%3C/script%3E\">\n<p>pwned <a href=\"#fnref-%22%3E%3Cscript%3Ealert(1)%3C/script%3E\" class=\"footnote-backref\" data-footnote-backref data-footnote-backref-idx=\"1\" aria-label=\"Back to reference 1\">↩</a></p>\n</li>\n</ol>\n</section>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:26",
+    "section": "Interop",
+    "markdown": "~~www.google.com~~\n\n~~http://google.com~~\n",
+    "html": "<p><del><a href=\"http://www.google.com\">www.google.com</a></del></p>\n<p><del><a href=\"http://google.com\">http://google.com</a></del></p>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:27",
+    "section": "Interop",
+    "markdown": "| a | b |\n| --- | --- |\n| https://github.com www.github.com | http://pokemon.com |\n",
+    "html": "<table>\n<thead>\n<tr>\n<th>a</th>\n<th>b</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td><a href=\"https://github.com\">https://github.com</a> <a href=\"http://www.github.com\">www.github.com</a></td>\n<td><a href=\"http://pokemon.com\">http://pokemon.com</a></td>\n</tr>\n</tbody>\n</table>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:28",
+    "section": "Task lists",
+    "markdown": "- [ ] foo\n- [x] bar\n",
+    "html": "<ul>\n<li><input type=\"checkbox\" disabled=\"\" /> foo</li>\n<li><input type=\"checkbox\" checked=\"\" disabled=\"\" /> bar</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:29",
+    "section": "Task lists",
+    "markdown": "- [x] foo\n  - [ ] bar\n  - [x] baz\n- [ ] bim\n\nShow a regular (non task) list to show that it has the same structure\n- [@] foo\n  - [@] bar\n  - [@] baz\n- [@] bim\n",
+    "html": "<ul>\n<li><input type=\"checkbox\" checked=\"\" disabled=\"\" /> foo\n<ul>\n<li><input type=\"checkbox\" disabled=\"\" /> bar</li>\n<li><input type=\"checkbox\" checked=\"\" disabled=\"\" /> baz</li>\n</ul>\n</li>\n<li><input type=\"checkbox\" disabled=\"\" /> bim</li>\n</ul>\n<p>Show a regular (non task) list to show that it has the same structure</p>\n<ul>\n<li>[@] foo\n<ul>\n<li>[@] bar</li>\n<li>[@] baz</li>\n</ul>\n</li>\n<li>[@] bim</li>\n</ul>\n"
+  },
+  {
+    "id": "gfm-extensions.txt:30",
+    "section": "Task lists",
+    "markdown": "- [x] foo\n    - [ ] bar\n    - [x] baz\n- [ ] bim\n\nShow a regular (non task) list to show that it has the same structure\n- [@] foo\n    - [@] bar\n    - [@] baz\n- [@] bim\n",
+    "html": "<ul>\n<li><input type=\"checkbox\" checked=\"\" disabled=\"\" /> foo\n<ul>\n<li><input type=\"checkbox\" disabled=\"\" /> bar</li>\n<li><input type=\"checkbox\" checked=\"\" disabled=\"\" /> baz</li>\n</ul>\n</li>\n<li><input type=\"checkbox\" disabled=\"\" /> bim</li>\n</ul>\n<p>Show a regular (non task) list to show that it has the same structure</p>\n<ul>\n<li>[@] foo\n<ul>\n<li>[@] bar</li>\n<li>[@] baz</li>\n</ul>\n</li>\n<li>[@] bim</li>\n</ul>\n"
+  }
+]

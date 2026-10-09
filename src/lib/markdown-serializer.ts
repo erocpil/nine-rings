@@ -1,243 +1,386 @@
-import type { DeltaOp, DeltaOps } from "../types/models";
-import { getTableEmbed, type TableEmbed } from "./table-embed";
+import type { JSONContent } from "@tiptap/core";
+import { toMarkdown } from "mdast-util-to-markdown";
+import { gfmToMarkdown } from "mdast-util-gfm";
+import { mathToMarkdown } from "mdast-util-math";
+import type {
+  Root,
+  RootContent,
+  PhrasingContent,
+  Text,
+  Table,
+  BlockContent,
+} from "mdast";
+import { deltaToProseMirror, isProseMirror } from "./delta-converter";
 
-type BlockKind = "paragraph" | "list" | "table" | "code" | "quote" | "heading" | "embed";
-
-function safeFootnoteId(value: unknown): string {
-  const id = String(value ?? "");
-  return /^[A-Za-z0-9_-]+$/.test(id) ? id : "note";
-}
-
-function escapeMarkdownText(text: string, inTable: boolean): string {
-  // Preserve the CommonMark footnote reference form while escaping other
-  // square brackets that could otherwise start links or reference links.
-  const footnotes: string[] = [];
-  const protectedText = text.replace(/\[\^[A-Za-z0-9_-]+\]/g, (match) => {
-    const marker = `\uE000NRFOOTNOTE${footnotes.length}\uE001`;
-    footnotes.push(match);
-    return marker;
-  });
-  let escaped = protectedText
-    .replace(/\\/g, "\\\\")
-    .replace(/[*_[\]`~]/g, "\\$&");
-  if (inTable) escaped = escaped.replace(/\|/g, "\\|");
-  return escaped.replace(/\uE000NRFOOTNOTE(\d+)\uE001/g, (_match, index: string) => footnotes[Number(index)]);
-}
-
-function wrapCode(text: string): string {
-  const longest = (text.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0);
-  const fence = "`".repeat(longest + 1);
-  const pad = text.startsWith("`") || text.endsWith("`") || (text.startsWith(" ") && text.endsWith(" ") && /[^ ]/.test(text)) ? " " : "";
-  return `${fence}${pad}${text}${pad}${fence}`;
-}
-
-function inlineOpToMarkdown(op: DeltaOp, inTable = false): string {
-  if (typeof op.insert !== "string") {
-    const embed = op.insert as Record<string, unknown>;
-    if (typeof embed.mathInline === "string") return `$${embed.mathInline}$`;
-    return "";
+function mergeInline(nodes: PhrasingContent[]): PhrasingContent[] {
+  const result: PhrasingContent[] = [];
+  for (const node of nodes) {
+    const previous = result[result.length - 1];
+    if (previous?.type === "text" && node.type === "text")
+      previous.value += node.value;
+    else if (
+      previous &&
+      previous.type === node.type &&
+      "children" in previous &&
+      "children" in node &&
+      JSON.stringify({ ...previous, children: undefined }) ===
+        JSON.stringify({ ...node, children: undefined })
+    ) {
+      previous.children = mergeInline([...previous.children, ...node.children]);
+    } else result.push(node);
   }
-  const attrs = op.attributes ?? {};
-  if (attrs.code) return wrapCode(inTable ? op.insert.replace(/\|/g, "\\|") : op.insert);
-
-  let text = escapeMarkdownText(op.insert, inTable);
-  if (attrs.bold) text = `**${text}**`;
-  if (attrs.italic) text = `*${text}*`;
-  if (attrs.strike) text = `~~${text}~~`;
-  if (typeof attrs.link === "string" && attrs.link) text = `[${text}](${attrs.link})`;
-  if (attrs.footnoteRef) text = `[^${safeFootnoteId(attrs.footnoteRef)}]`;
-  if (attrs.highlight) text = `<mark>${text}</mark>`;
-  return text;
+  return result;
 }
-
-function inlineDeltaToMarkdown(content: DeltaOps, inTable = false): string {
-  return (content.ops ?? [])
-    .map((op) => typeof op.insert === "string" && op.insert === "\n"
-      ? (inTable ? "<br>" : "\n")
-      : inlineOpToMarkdown(op, inTable))
-    .join("");
-}
-
-function tableToMarkdown(table: TableEmbed): string {
-  const columnCount = Math.max(
-    1,
-    table.columns.length,
-    ...table.rows.map((row) => row.cells?.length ?? 0),
-  );
-  const sourceRows = table.rows.length > 0 ? table.rows : [{ cells: [] }];
-  const hasHeader = sourceRows[0].cells.some((cell) => cell?.header);
-  const header = hasHeader ? sourceRows[0] : { cells: [] };
-  const body = hasHeader ? sourceRows.slice(1) : sourceRows;
-  const renderRow = (row: (typeof sourceRows)[number]) => `| ${Array.from(
-    { length: columnCount },
-    (_, column) => inlineDeltaToMarkdown(row.cells[column]?.content ?? { ops: [] }, true),
-  ).join(" | ")} |`;
-  const separator = `| ${Array.from({ length: columnCount }, (_, column) => {
-    switch (table.columns[column]?.align) {
-      case "center": return ":---:";
-      case "right": return "---:";
-      case "left": return ":---";
-      default: return "---";
-    }
-  }).join(" | ")} |`;
-  return [renderRow(header), separator, ...body.map(renderRow)].join("\n");
-}
-
-/** 将应用的 Delta（含版本化 table embed）序列化为规范化 Markdown。 */
-export function deltaToMarkdown(content: unknown): string {
-  const candidate = content as { ops?: DeltaOp[] } | null;
-  const ops = Array.isArray(candidate?.ops)
-    ? candidate.ops
-    : Array.isArray(content) ? content as DeltaOp[] : [];
-  const blocks: Array<{ kind: BlockKind; value: string; followup: boolean }> = [];
-  const footnoteDefinitions: string[] = [];
-  let inline = "";
-  let raw = "";
-  let quoteEmbedTerminator = false;
-
-  const push = (kind: BlockKind, value: string, attrs: Record<string, unknown> = {}) => {
-    const indent = Math.max(0, Math.floor(Number(attrs.indent) || 0));
-    if (indent && (kind === "quote" || kind === "code")) {
-      const lines = value.split("\n");
-      value = lines.map((line, index) => kind === "quote" || index === 0 || index === lines.length - 1 ? "  ".repeat(indent) + line : line).join("\n");
-    }
-    blocks.push({ kind, value, followup: attrs["indent-explicit"] !== true || indent > 0 });
+function inline(content: JSONContent[]): PhrasingContent[] {
+  type Token = {
+    children: PhrasingContent[];
+    marks: NonNullable<JSONContent["marks"]>;
   };
-  const flushLine = (attrs: Record<string, unknown> = {}) => {
-    const value = inline;
-    inline = "";
-    const continuation = attrs["list-continuation"] === true && (attrs.list === "ordered" || attrs.list === "bullet");
-    const continuationPrefix = " ".repeat(2 * Math.max(0, Math.floor(Number(attrs.indent) || 0))
-      + (attrs.list === "ordered" ? `${Math.max(1, Number(attrs.listStart) || 1)}. `.length : 2));
-    const pushContinuation = (text: string) => push("list", "\n" + text.split("\n").map(line => continuationPrefix + line).join("\n"));
-    if (attrs["code-block"]) {
-      const language = typeof attrs.language === "string" ? attrs.language : "";
-      const fence = "`".repeat((raw.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length + 1), 3));
-      const code = `${fence}${language}\n${raw}\n${fence}`;
-      if (continuation) pushContinuation(code);
-      else push("code", code, attrs);
-      raw = "";
-      return;
+  const tokens: Token[] = [];
+  for (const node of content) {
+    let children: PhrasingContent[] = [];
+    switch (node.type) {
+      case "text": {
+        const footnote = node.marks?.find(
+          (mark) => mark.type === "footnoteReference",
+        );
+        const code = node.marks?.some((mark) => mark.type === "code");
+        children = [
+          footnote
+            ? {
+                type: "footnoteReference",
+                identifier: String(footnote.attrs?.id ?? "note"),
+                label: String(footnote.attrs?.id ?? "note"),
+              }
+            : code
+              ? { type: "inlineCode", value: node.text ?? "" }
+              : { type: "text", value: node.text ?? "" },
+        ];
+        break;
+      }
+      case "hardBreak":
+        children = [{ type: "break" }];
+        break;
+      case "mathInline":
+        children = [
+          { type: "inlineMath", value: String(node.attrs?.source ?? "") },
+        ];
+        break;
+      case "markdownImage":
+      case "image":
+      case "resizableImage":
+        children = [
+          {
+            type: "image",
+            url: String(node.attrs?.src ?? ""),
+            alt: String(node.attrs?.alt ?? ""),
+            title: node.attrs?.title ?? null,
+          },
+        ];
+        break;
+      case "rawHtmlInline":
+        children = [{ type: "html", value: String(node.attrs?.source ?? "") }];
+        break;
+      case "htmlAnchor":
+        children = [
+          {
+            type: "html",
+            value: `<a name="${escapeHTML(String(node.attrs?.id ?? ""))}"></a>`,
+          },
+        ];
+        break;
     }
-    raw = "";
-    if (continuation) {
-      pushContinuation(attrs.blockquote ? `> ${value}` : value);
-      return;
-    }
-    if (typeof attrs.header === "number") {
-      push("heading", `${"#".repeat(Math.min(6, Math.max(1, attrs.header)))} ${value}`);
-      return;
-    }
-    if (attrs.list === "bullet" || attrs.list === "ordered") {
-      const indent = typeof attrs.indent === "number" ? Math.max(0, Math.floor(attrs.indent)) : 0;
-      const orderedStart = Number(attrs.listStart);
-      const marker = attrs.list === "bullet"
-        ? "-"
-        : `${Number.isFinite(orderedStart) && orderedStart >= 1 ? Math.floor(orderedStart) : 1}.`;
-      const task =
-        typeof attrs.taskChecked === "boolean"
-          ? `[${attrs.taskChecked ? "x" : " "}]${value ? " " : ""}`
-          : "";
-      push("list", `${"  ".repeat(indent)}${marker} ${task}${value}`);
-      return;
-    }
-    if (attrs.blockquote) {
-      push("quote", `> ${value}`, attrs);
-      return;
-    }
-    // Plain rich-editor text must not turn into block syntax on the next parse.
-    push("paragraph", value
-      .replace(/^(\s*)(?=>|#(?:\s|#)|[+-]\s|-{3,})/, "$1\\")
-      .replace(/^(\s*\d+)\.(?=\s)/, "$1\\."));
-  };
-
-  for (const op of ops) {
-    if (typeof op.insert === "string") {
-      if (quoteEmbedTerminator && op.insert === "\n") {
-        quoteEmbedTerminator = false;
+    const marks = (node.marks ?? []).filter((mark) =>
+      [
+        "bold",
+        "italic",
+        "strike",
+        "link",
+        "inlineHighlight",
+        "htmlStyle",
+      ].includes(mark.type),
+    );
+    tokens.push({ children, marks });
+  }
+  const pack = (items: Token[]): PhrasingContent[] => {
+    const output: PhrasingContent[] = [];
+    for (let index = 0; index < items.length;) {
+      const item = items[index];
+      if (!item.marks.length) {
+        output.push(...item.children);
+        index++;
         continue;
       }
-      quoteEmbedTerminator = false;
-      if (op.insert === "\n" && op.attributes?.["hard-break"] === true) {
-        inline += "  \n";
-      } else if (op.insert === "\n") flushLine(op.attributes ?? {});
-      else {
-        inline += inlineOpToMarkdown(op);
-        raw += op.insert;
+      let chosen = item.marks[0],
+        end = index + 1;
+      for (const mark of item.marks) {
+        let candidate = index + 1;
+        while (
+          candidate < items.length &&
+          items[candidate].marks.some(
+            (other) => JSON.stringify(other) === JSON.stringify(mark),
+          )
+        )
+          candidate++;
+        if (candidate > end) {
+          chosen = mark;
+          end = candidate;
+        }
       }
-      continue;
+      const children = pack(
+        items
+          .slice(index, end)
+          .map((token) => ({
+            ...token,
+            marks: token.marks.filter(
+              (mark) => JSON.stringify(mark) !== JSON.stringify(chosen),
+            ),
+          })),
+      );
+      if (chosen.type === "bold") output.push({ type: "strong", children });
+      else if (chosen.type === "italic")
+        output.push({ type: "emphasis", children });
+      else if (chosen.type === "strike")
+        output.push({ type: "delete", children });
+      else if (chosen.type === "link")
+        output.push({
+          type: "link",
+          url: String(chosen.attrs?.href ?? ""),
+          title: chosen.attrs?.title ?? null,
+          children,
+        });
+      else {
+        const tag =
+          chosen.type === "inlineHighlight"
+            ? "mark"
+            : ["sub", "sup", "ins"].includes(chosen.attrs?.tag)
+              ? String(chosen.attrs?.tag)
+              : "ins";
+        output.push({ type: "html", value: `<${tag}>` }, ...children, {
+          type: "html",
+          value: `</${tag}>`,
+        });
+      }
+      index = end;
     }
-
-    const embedValue = op.insert as Record<string, unknown>;
-    if (typeof embedValue.mathInline === "string") {
-      inline += `$${embedValue.mathInline}$`;
-      continue;
-    }
-    if (inline) flushLine();
-    const table = getTableEmbed(op.insert);
-    if (table) {
-      push("table", tableToMarkdown(table));
-      continue;
-    }
-    const insert = embedValue;
-    if (insert.blockquote && typeof insert.blockquote === "object") {
-      const quote = insert.blockquote as { content?: DeltaOp[] };
-      const body = deltaToMarkdown({ ops: quote.content ?? [] });
-      const text = body.split("\n").map(line => `>${line ? ` ${line}` : ""}`).join("\n");
-      const attrs = op.attributes ?? {};
-      if (attrs.list === "bullet" || attrs.list === "ordered") {
-        const prefix = " ".repeat(2 * Math.max(0, Math.floor(Number(attrs.indent) || 0))
-          + (attrs.list === "ordered" ? `${Math.max(1, Number(attrs.listStart) || 1)}. `.length : 2));
-        push("list", "\n" + text.split("\n").map(line => prefix + line).join("\n"));
-      } else push("quote", text, attrs);
-      quoteEmbedTerminator = true;
-    }
-    else if (typeof insert.mathBlock === "string") push("embed", `$$${insert.mathBlock}$$`);
-    else if (insert.htmlDetails && typeof insert.htmlDetails === "object") {
-      const details = insert.htmlDetails as { summary?: unknown; open?: unknown; content?: DeltaOp[] };
-      const body = deltaToMarkdown({ ops: details.content ?? [] });
-      const summary = String(details.summary ?? "点击展开").replace(/[\r\n<>]/g, "");
-      push("embed", `<details${details.open ? " open" : ""}>\n<summary>${summary}</summary>${body ? `\n\n${body}` : ""}\n</details>`);
-    } else if (Array.isArray(insert.footnotes)) {
-      const definitions = insert.footnotes as Array<{ id?: unknown; content?: DeltaOp[] }>;
-      for (const item of definitions) footnoteDefinitions.push(`[^${safeFootnoteId(item.id)}]: ${inlineDeltaToMarkdown({ ops: item.content ?? [] })}`);
-    }
-    else if (insert.hr) push("embed", "---");
-    else {
-      const image = typeof insert.image === "string"
-        ? insert.image
-        : (insert.resizableImage as { src?: unknown } | undefined)?.src;
-      if (typeof image === "string") push("embed", `![](${image})`);
-    }
-  }
-  if (inline) flushLine();
-  if (footnoteDefinitions.length) {
-    while (blocks.length && blocks[blocks.length - 1].value === "") blocks.pop();
-    if (blocks[blocks.length - 1]?.value !== "---") push("embed", "---");
-    for (const definition of footnoteDefinitions) push("embed", definition);
-  }
-
-  let markdown = "";
-  let followsList = false;
-  blocks.forEach((block, index) => {
-    if (index > 0) {
-      const previous = blocks[index - 1];
-      const sameCompactContainer = block.kind === previous.kind
-        && (block.kind === "list" || block.kind === "quote");
-      const compactFollowup = followsList && block.followup && (block.kind === "code" || block.kind === "quote");
-      markdown += sameCompactContainer || compactFollowup ? "\n" : "\n\n";
-    }
-    markdown += block.value;
-    followsList = block.kind === "list" || (followsList && block.followup && (block.kind === "code" || block.kind === "quote"));
-  });
-  return markdown.trim();
+    return mergeInline(output);
+  };
+  return pack(tokens);
 }
-
-/** 笔记级 Markdown：正文已有同名 H1 时不重复注入标题。 */
-export function noteToMarkdown(title: string | null | undefined, content: unknown): string {
+function escapeHTML(text: string) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+function block(node: JSONContent): RootContent[] {
+  const content = node.content ?? [];
+  switch (node.type) {
+    case "paragraph":
+      return [{ type: "paragraph", children: inline(content) }];
+    case "heading":
+      return [
+        {
+          type: "heading",
+          depth: Math.min(6, Math.max(1, Number(node.attrs?.level) || 1)) as
+            1 | 2 | 3 | 4 | 5 | 6,
+          children: inline(content),
+        },
+      ];
+    case "codeBlock":
+      return [
+        {
+          type: "code",
+          lang: node.attrs?.language ?? null,
+          meta: node.attrs?.meta ?? null,
+          value: content.map((child) => child.text ?? "").join(""),
+        },
+      ];
+    case "blockquote": {
+      const children = content.flatMap(block) as BlockContent[];
+      if (node.attrs?.alert)
+        children.unshift({
+          type: "paragraph",
+          data: { nrAlert: true },
+          children: [{ type: "text", value: `[!${node.attrs.alert}]` }],
+        });
+      return [{ type: "blockquote", children }];
+    }
+    case "bulletList":
+    case "orderedList":
+      return [
+        {
+          type: "list",
+          ordered: node.type === "orderedList",
+          start: Number(node.attrs?.start) || 1,
+          spread:
+            node.attrs?.spread === true ||
+            content.some(
+              (item) =>
+                (item.content ?? []).filter(
+                  (child) =>
+                    child.type !== "bulletList" && child.type !== "orderedList",
+                ).length > 1,
+            ),
+          children: content.map((item) => ({
+            type: "listItem",
+            checked:
+              typeof item.attrs?.taskChecked === "boolean"
+                ? item.attrs.taskChecked
+                : null,
+            spread:
+              (item.content ?? []).filter(
+                (child) =>
+                  child.type !== "bulletList" && child.type !== "orderedList",
+              ).length > 1,
+            children: (item.content ?? [])
+              .filter(
+                (child, index, children) =>
+                  !(
+                    index === 0 &&
+                    children.length > 1 &&
+                    child.type === "paragraph" &&
+                    !child.content?.length
+                  ),
+              )
+              .flatMap(block) as BlockContent[],
+          })),
+        },
+      ];
+    case "horizontalRule":
+      return [{ type: "thematicBreak" }];
+    case "table": {
+      const first = content[0];
+      const table: Table = {
+        type: "table",
+        align: (first?.content ?? []).map((cell) =>
+          ["left", "right", "center"].includes(cell.attrs?.textAlign)
+            ? (cell.attrs!.textAlign as "left" | "right" | "center")
+            : null,
+        ),
+        children: content.map((row) => ({
+          type: "tableRow",
+          children: (row.content ?? []).map((cell) => ({
+            type: "tableCell",
+            children: inline(
+              (cell.content ?? []).flatMap((paragraph, index) =>
+                index
+                  ? [{ type: "hardBreak" }, ...(paragraph.content ?? [])]
+                  : (paragraph.content ?? []),
+              ),
+            ).map((child) =>
+              child.type === "break" ? { type: "html", value: "<br>" } : child,
+            ),
+          })),
+        })),
+      };
+      return [table];
+    }
+    case "resizableImage":
+    case "image":
+    case "markdownImage":
+      return [{ type: "paragraph", children: inline([node]) }];
+    case "mathBlock":
+      return [{ type: "math", value: String(node.attrs?.source ?? "") }];
+    case "htmlDetails": {
+      const body = serialize({
+        type: "root",
+        children: content.flatMap(block),
+      }).trimEnd();
+      return [
+        {
+          type: "html",
+          value: `<details${node.attrs?.open ? " open" : ""}>\n<summary>${escapeHTML(String(node.attrs?.summary ?? "点击展开"))}</summary>\n\n${body}\n</details>`,
+        },
+      ];
+    }
+    case "rawHtml":
+      return [{ type: "html", value: String(node.attrs?.source ?? "") }];
+    case "footnotes":
+      return content.map((definition) => ({
+        type: "footnoteDefinition",
+        identifier: String(definition.attrs?.id ?? "note"),
+        label: String(definition.attrs?.id ?? "note"),
+        children: (definition.content ?? []).flatMap(block) as BlockContent[],
+      }));
+    default:
+      return [];
+  }
+}
+function serialize(root: Root): string {
+  const gfm = gfmToMarkdown();
+  const taskItem = gfm.extensions!.find(
+    (extension) => extension.handlers?.listItem,
+  )?.handlers?.listItem;
+  return toMarkdown(root, {
+    extensions: [gfm, mathToMarkdown()],
+    resourceLink: true,
+    bullet: "-",
+    emphasis: "*",
+    strong: "*",
+    fences: true,
+    rule: "-",
+    ruleRepetition: 3,
+    ruleSpaces: false,
+    listItemIndent: "one",
+    incrementListMarker: true,
+    join: [
+      (left, right) =>
+        left.type === "blockquote" && right.type === "blockquote"
+          ? false
+          : undefined,
+    ],
+    unsafe: [{ character: "[", after: "\\\\^", inConstruct: ["phrasing"] }],
+    handlers: {
+      listItem(node, parent, state, info) {
+        if (
+          typeof node.checked === "boolean" &&
+          node.children.length === 1 &&
+          node.children[0].type === "paragraph" &&
+          !node.children[0].children.length
+        ) {
+          const marker =
+            parent?.type === "list" && parent.ordered
+              ? `${(parent.start ?? 1) + parent.children.indexOf(node)}.`
+              : "-";
+          return `${marker} [${node.checked ? "x" : " "}]`;
+        }
+        return taskItem!(node, parent, state, info);
+      },
+      break: () => "  \n",
+      paragraph(node, _parent, state, info) {
+        if (node.data?.nrAlert) return (node.children[0] as Text).value;
+        const exit = state.enter("paragraph");
+        const phrasing = state.enter("phrasing");
+        const value = state.containerPhrasing(node, info);
+        phrasing();
+        exit();
+        return value;
+      },
+    },
+  });
+}
+/** One structured serializer for the UI, storage, Workers and CLI. */
+export function deltaToMarkdown(content: unknown): string {
+  const doc = isProseMirror(content)
+    ? content
+    : deltaToProseMirror(Array.isArray(content) ? { ops: content } : content);
+  return serialize({
+    type: "root",
+    children: (doc.content ?? []).flatMap(block),
+  }).trimEnd();
+}
+export function noteToMarkdown(
+  title: string | null | undefined,
+  content: unknown,
+): string {
   const normalizedTitle = title?.trim() || "无标题";
   const body = deltaToMarkdown(content);
   const heading = `# ${normalizedTitle}`;
-  if (body === heading || body.startsWith(`${heading}\n`)) return body;
-  return body ? `${heading}\n\n${body}` : heading;
+  return body === heading || body.startsWith(`${heading}\n`)
+    ? body
+    : body
+      ? `${heading}\n\n${body}`
+      : heading;
 }

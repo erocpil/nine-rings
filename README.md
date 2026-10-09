@@ -266,6 +266,7 @@ nine-rings/
 | [`docs/md-import.md`](./docs/md-import.md) | Markdown 导入工具使用指南（`md-to-nine-rings.py`） |
 | [`docs/markdown-import.md`](./docs/markdown-import.md) | Markdown 导入格式说明 |
 | [`docs/document-table-of-contents.md`](./docs/document-table-of-contents.md) | `/toc` 自动目录、标题级别与手写目录跳转 |
+| [`docs/markdown-compatibility.md`](./docs/markdown-compatibility.md) | CommonMark/GFM 兼容范围、平台边界和内容契约 |
 | [`docs/markdown-gfm-audit.md`](./docs/markdown-gfm-audit.md) | GitHub Markdown 兼容性核查、已确认差异与修复优先级 |
 | [`docs/macos-platform-analysis.md`](./docs/macos-platform-analysis.md) | macOS 客户端方案分析（Tauri vs Flutter vs 原生） |
 | [`docs/lessons-learned.md`](./docs/lessons-learned.md) | 开发经验记录（踩坑、模式、判断） |

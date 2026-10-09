@@ -1,3 +1,4 @@
+import { FootnoteNumbering } from "../extensions/FootnoteNumbering";
 import { mapScrollPosition, type ScrollAnchor } from "../lib/scroll-position-map";
 import { DocumentOutlineContext } from "./TableOfContentsBlock";
 import { extractDocumentOutline } from "../lib/document-outline";
@@ -5,7 +6,7 @@ import { headingLinkTarget } from "../lib/heading-links";
 import { flowBlockAttributes } from "../lib/flow-presentation";
 import { BlockIndent } from "../extensions/BlockIndent";
 import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
-import { MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes } from "../extensions/MarkdownExtras";
+import { MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes, HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline } from "../extensions/MarkdownExtras";
 import {
   useEffect,
   useMemo,
@@ -19,14 +20,14 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import { DocumentStarterKit } from "../extensions/DocumentStarterKit";
 import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
 import { CollapsibleBlockquote } from "../extensions/CollapsibleBlockquote";
-import { ResizableImage } from "../extensions/ResizableImage";
+import { ResizableImage, MarkdownImage } from "../extensions/ResizableImage";
 import {
   ContentSizedTable,
   AlignedTableCell,
   AlignedTableHeader,
 } from "../extensions/ContentSizedTable";
 import TableRow from "@tiptap/extension-table-row";
-import Link from "@tiptap/extension-link";
+import { DocumentLink as Link } from "../extensions/DocumentLink";
 import { renderReadonlyBlock, decorateFlowBlock } from "./ReadonlyVirtualNote";
 import type { SourceNavigationDocument } from "../lib/markdown-source-navigation";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
@@ -40,15 +41,15 @@ function previewDocument(revision: SourceNavigationDocument) {
     DocumentStarterKit.configure({ codeBlock: false, blockquote: false }),
     CodeBlockLineNumbers,
     CollapsibleBlockquote,
-    ResizableImage,
+    ResizableImage, MarkdownImage,
     ContentSizedTable,
     TableRow,
     AlignedTableCell,
     AlignedTableHeader,
     Link,
     BlockIndent,
-    MarkdownTaskState,
-    MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes,
+    MarkdownTaskState, FootnoteNumbering,
+    MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes, HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline,
   ]);
   const doc = schema.nodeFromJSON(revision.document);
   doc.check();
@@ -215,11 +216,11 @@ export function MarkdownSplitPreview({
             onBlurCapture={documentHover.onBlurCapture}
             onScrollCapture={documentHover.onScrollCapture}
             onClickCapture={(event) => {
-              const heading = snapshot && headingLinkTarget(event.target, extractDocumentOutline(snapshot.doc));
+              const heading = snapshot && headingLinkTarget(event.target, extractDocumentOutline(snapshot.doc), snapshot.doc);
               if (heading) {
                 event.preventDefault();
                 event.stopPropagation();
-                const block = blocks.find(block => block.pos === heading.pos);
+                const block = [...blocks].reverse().find(block => block.pos <= heading.pos);
                 const target = block && [...event.currentTarget.querySelectorAll<HTMLElement>("[data-source-offset]")].find(element => Number(element.dataset.sourceOffset) === block.offset);
                 active.current = "preview";
                 target?.scrollIntoView({ block: "start" });

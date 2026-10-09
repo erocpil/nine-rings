@@ -6,6 +6,7 @@ import pdfjsCMapAssets from "./plugins/vite-pdfjs-cmaps-plugin";
 import pcre2Assets from "./plugins/vite-pcre2-assets";
 import { execSync } from "child_process";
 import { readFileSync } from "fs";
+import { fileURLToPath } from "node:url";
 
 const host = process.env.TAURI_DEV_HOST;
 const port = parseInt(process.env.VITE_DEV_PORT || "1420", 10);
@@ -41,6 +42,8 @@ export default defineConfig(async () => {
 
   return ({
   plugins: [react(), importPlugin(), pdfjsCMapAssets(), pcre2Assets(), pwaPlugin(version)],
+  // The dependency's browser export uses document.createElement and crashes module Workers.
+  resolve: { alias: { "decode-named-character-reference": fileURLToPath(new URL("./node_modules/decode-named-character-reference/index.js", import.meta.url)) } },
   worker: { format: "es", plugins: () => [pcre2Assets()] },
   define: {
     __APP_VERSION__: JSON.stringify(version),
@@ -48,6 +51,7 @@ export default defineConfig(async () => {
   build: {
     chunkSizeWarningLimit: 500,
     rollupOptions: {
+      input: { index: fileURLToPath(new URL("./index.html", import.meta.url)), pdfPrint: fileURLToPath(new URL("./pdf-print.html", import.meta.url)) },
       output: {
         // 懒加载组件只把组件自身放入命名 chunk。Rollup 的旧默认行为会把其
         // 依赖一并吸入手动 chunk；主应用复用这些依赖时，浏览器反而必须在
@@ -98,6 +102,7 @@ export default defineConfig(async () => {
             if (normalized.includes("/node_modules/@tauri-apps")) {
               return "tauri-shim";
             }
+            if (/\/node_modules\/(?:mdast-|micromark|hast-|parse5\/|entities\/|decode-named-character-reference\/|character-|property-information\/|space-separated-tokens\/|comma-separated-tokens\/|ccount\/|longest-streak\/|devlop\/|unist-|trim-lines\/|vfile|zwitch\/|hastscript\/|web-namespaces\/|markdown-table\/|dequal\/|escape-string-regexp\/)/.test(normalized)) return "markdown";
             return "vendor";
           }
 

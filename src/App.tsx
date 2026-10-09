@@ -1,6 +1,7 @@
 import { mergeDocumentMetadata } from "./lib/document-metadata";
 import { ReadingTypographyProvider } from "./components/ReadingTypographyProvider";
 import { ensureFlowPresentationSample } from "./lib/flow-presentation-sample";
+import { ensureMarkdownDemo } from "./lib/markdown-demo";
 import { RetainedDocument } from "./components/RetainedDocument";
 import { useWorkspaceLayout } from "./hooks/useWorkspaceLayout";
 import { readDesktopSidebarState, saveDesktopSidebarState, normalizeSidebarOrder, sidebarPanelLabel } from "./lib/desktop-sidebar-state";
@@ -838,6 +839,7 @@ function App() {
           localStorage.setItem(SEED_KEY, "1");
           if (await ensureAestheticStyleSample()) refreshNoteViews();
           if (await ensureFlowPresentationSample()) refreshNoteViews();
+          if (await ensureMarkdownDemo()) refreshNoteViews();
           return;
         }
         // 整个工作区为空 → 写入示例笔记
@@ -856,6 +858,7 @@ function App() {
         refreshNotes(); // 刷新
         if (await ensureAestheticStyleSample()) refreshNoteViews();
         if (await ensureFlowPresentationSample()) refreshNoteViews();
+        if (await ensureMarkdownDemo()) refreshNoteViews();
       } catch {
         // 静默忽略——非首次运行或环境问题
       }

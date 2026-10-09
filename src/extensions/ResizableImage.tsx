@@ -145,7 +145,7 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: NodeVi
   }, [editor, updateAttributes]);
 
   return (
-    <NodeViewWrapper className="resizable-image-wrapper" data-selected={selected ? "true" : undefined}>
+    <NodeViewWrapper as={node.isInline ? "span" : "div"} className={`resizable-image-wrapper${node.isInline ? " markdown-inline-image" : ""}`} data-selected={selected ? "true" : undefined}>
       <img
         ref={imgRef}
         src={displaySrc ?? ""}
@@ -203,5 +203,15 @@ export const ResizableImage = Node.create({
 
   addNodeView() {
     return ReactNodeViewRenderer(ResizableImageView);
+  },
+});
+
+/** Markdown images can occur inside text, links, lists and table cells. */
+export const MarkdownImage = ResizableImage.extend({
+  name: "markdownImage", group: "inline", inline: true,
+  parseHTML() { return [{ tag: "img[data-markdown-inline]" }]; },
+  renderHTML({ HTMLAttributes }) {
+    const { width, ...attrs } = HTMLAttributes;
+    return ["img", { ...attrs, ...(width ? { style: `width: ${width};` } : {}), "data-markdown-inline": "" }];
   },
 });

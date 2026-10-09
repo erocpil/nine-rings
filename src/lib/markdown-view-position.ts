@@ -1,36 +1,12 @@
 import type { JSONContent } from "@tiptap/core";
-import type { DeltaOp, DeltaOps } from "../types/models";
+import type { DeltaOps } from "../types/models";
 import { mdToDelta, type MarkdownSourceSpan } from "./md-parser";
 import { getTableEmbed } from "./table-embed";
 
-const textWeight = (text: string) => text.replace(/\s/g, "").length;
-function opWeight(op: DeltaOp): number {
-  if (typeof op.insert === "string") return textWeight(op.insert);
-  if (op.insert && typeof op.insert === "object" && op.insert.blockquote && typeof op.insert.blockquote === "object") {
-    const quote = op.insert.blockquote as { content?: DeltaOp[] };
-    if (Array.isArray(quote.content)) return quote.content.reduce((sum, child) => sum + opWeight(child), 0);
-  }
-  const table = getTableEmbed(op.insert);
-  return table
-    ? Math.max(
-        1,
-        table.rows.reduce(
-          (sum, row) =>
-            sum +
-            row.cells.reduce(
-              (sum, cell) =>
-                sum +
-                cell.content.ops.reduce((sum, op) => sum + opWeight(op), 0),
-              0,
-            ),
-          0,
-        ),
-      )
-    : 1;
-}
+import { deltaOpWeight as opWeight, textWeight } from "./delta-content-weight";
 export function nodeWeight(node: JSONContent): number {
   if (node.type === "text") return textWeight(node.text ?? "");
-  if (["image", "resizableImage", "horizontalRule"].includes(node.type ?? ""))
+  if (["image", "resizableImage", "markdownImage", "rawHtml", "rawHtmlInline", "mathInline", "mathBlock", "htmlAnchor", "horizontalRule"].includes(node.type ?? ""))
     return 1;
   const weight = (node.content ?? []).reduce(
     (sum, child) => sum + nodeWeight(child),
@@ -41,7 +17,7 @@ export function nodeWeight(node: JSONContent): number {
 function nodeSize(node: JSONContent): number {
   if (node.type === "text") return node.text?.length ?? 0;
   if (
-    ["image", "resizableImage", "horizontalRule", "hardBreak"].includes(
+    ["image", "resizableImage", "markdownImage", "rawHtml", "rawHtmlInline", "mathInline", "mathBlock", "htmlAnchor", "horizontalRule", "hardBreak"].includes(
       node.type ?? "",
     )
   )
@@ -171,7 +147,7 @@ export function sourcePositionMap(source: string, parsed?: { delta: DeltaOps; sp
         return entry;
       });
     }
-    const size = ops.reduce((sum, op) => sum + opWeight(op), 0);
+    const size = span.weight ?? ops.reduce((sum, op) => sum + opWeight(op), 0);
     const entry = { from, to, weightFrom: weight, weightTo: weight + size };
     weight += size;
     return [entry];

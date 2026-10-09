@@ -1,3 +1,4 @@
+import type { Node as PMNode } from "@tiptap/pm/model";
 import type { DocumentOutlineItem } from "./document-outline";
 
 /** GitHub-style heading fragments: lower case, remove punctuation, space → -. */
@@ -21,13 +22,27 @@ export function headingLinkMap(items: readonly DocumentOutlineItem[]): Map<strin
   return map;
 }
 
-export function headingLinkTarget(target: EventTarget | null, items: readonly DocumentOutlineItem[]): DocumentOutlineItem | null {
+const documentLinks = new WeakMap<PMNode, { headings: DocumentOutlineItem[]; anchors: Map<string, DocumentOutlineItem> }>();
+export function headingLinkTarget(target: EventTarget | null, items: readonly DocumentOutlineItem[], doc?: PMNode): DocumentOutlineItem | null {
   const link = target instanceof Element ? target.closest<HTMLAnchorElement>('a[href^="#"]') : null;
   const href = link?.getAttribute("href");
   if (!href || href.startsWith("#nr-footnote-")) return null;
   const position = /^#nr-heading-(\d+)$/.exec(href)?.[1];
   if (position !== undefined) return items.find(item => item.pos === Number(position)) ?? null;
-  try { return headingLinkMap(items).get(decodeURIComponent(href.slice(1))) ?? null; }
+  try {
+    const fragment = decodeURIComponent(href.slice(1));
+    if (!doc) return headingLinkMap(items).get(fragment) ?? null;
+    let links = documentLinks.get(doc);
+    if (!links) {
+      links = { headings: [], anchors: new Map() };
+      doc.descendants((node, pos) => {
+        if (node.type.name === "heading") links!.headings.push({ pos, level: node.attrs.level, text: node.textContent.trim() });
+        if (node.type.name === "htmlAnchor" && !links!.anchors.has(String(node.attrs.id))) links!.anchors.set(String(node.attrs.id), { pos, level: 0, text: String(node.attrs.id) });
+      });
+      documentLinks.set(doc, links);
+    }
+    return links.anchors.get(fragment) ?? headingLinkMap(links.headings).get(fragment) ?? null;
+  }
   catch { return null; }
 }
 

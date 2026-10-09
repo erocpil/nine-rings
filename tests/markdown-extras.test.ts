@@ -67,7 +67,7 @@ for (const type of ["mathInline", "mathBlock", "htmlDetails", "footnotes", "foot
 for (const type of ["inlineHighlight", "footnoteReference"]) {
   if (!parsedNames.includes(`mark:${type}`)) throw new Error(`Expected supported Markdown mark ${type}`);
 }
-for (const token of ["$E = mc^2$", "$$\\int_0^1", "<mark>高亮文本</mark>", "<details>", "[^1]: 这是脚注内容。"] ) {
+for (const token of ["$E = mc^2$", "$$\n\\int_0^1", "<mark>高亮文本</mark>", "<details>", "[^1]: 这是脚注内容。"] ) {
   if (!markdown.includes(token)) throw new Error(`Markdown export omitted ${token}: ${markdown}`);
 }
 if (JSON.stringify(names(roundTrip)) !== JSON.stringify(parsedNames)) throw new Error(`Markdown extras changed node/mark types in a round-trip: ${JSON.stringify(parsedNames)} -> ${JSON.stringify(names(roundTrip))}`);
@@ -79,9 +79,9 @@ if (!names(deltaToProseMirror(mdToDelta("脚注[^1]"))).includes("mark:footnoteR
   throw new Error("A footnote reference pasted before its definition must remain semantic");
 }
 const escapedReference = deltaToProseMirror(mdToDelta("脚注\\[^1\\]\n\n[^1]: 脚注内容"));
-if (!names(escapedReference).includes("mark:footnoteReference")) throw new Error("Previously auto-escaped footnote references should still resolve");
+if (names(escapedReference).includes("mark:footnoteReference")) throw new Error("Deliberately escaped references must remain literal");
 const plainReferenceMarkdown = deltaToMarkdown({ ops: [{ insert: "脚注[^1]" }, { insert: "\n" }] });
-if (plainReferenceMarkdown.includes("\\[")) throw new Error("Markdown export must not escape footnote brackets");
+if (!plainReferenceMarkdown.includes("\\[")) throw new Error("Literal footnote brackets must remain literal after export");
 
 const sample = "### 脚注\nMarkdown 支持脚注[^1]，用于补充说明与引用。\n[^1]: 这是一条脚注——点击箭头可返回原处。";
 const sampleDoc = deltaToProseMirror(mdToDelta(sample));

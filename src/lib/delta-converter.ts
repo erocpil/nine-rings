@@ -1,3 +1,4 @@
+import { normalizeFootnotes } from "./footnote-model";
 /**
  * ProseMirror JSON ↔ Quill Delta JSON 双向转换
  *
@@ -47,7 +48,7 @@ function pmMarkToAttr(mark: NonNullable<JSONContent["marks"]>[number]): Record<s
     case "italic":    return { italic: true };
     case "strike":    return { strike: true };
     case "code":      return { code: true };
-    case "link":      return { link: mark.attrs?.href ?? "" };
+    case "link":      return { link: mark.attrs?.href ?? "", ...(mark.attrs?.title ? { linkTitle: mark.attrs.title } : {}) };
     case "textStyle": {
       const attrs: Record<string, unknown> = {};
       if (mark.attrs?.fontSize) {
@@ -59,7 +60,8 @@ function pmMarkToAttr(mark: NonNullable<JSONContent["marks"]>[number]): Record<s
       return Object.keys(attrs).length > 0 ? attrs : null;
     }
     case "inlineHighlight": return { highlight: true };
-    case "footnoteReference": return { footnoteRef: mark.attrs?.id ?? "" };
+    case "footnoteReference": return { footnoteRef: mark.attrs?.id ?? "", ...(mark.attrs?.number ? { footnoteNumber: mark.attrs.number } : {}), ...(mark.attrs?.occurrence ? { footnoteOccurrence: mark.attrs.occurrence } : {}) };
+    case "htmlStyle": return { htmlStyle: mark.attrs?.tag };
     default:
       return null;
   }
@@ -73,9 +75,10 @@ function deltaAttrToMarks(attrs: Record<string, unknown> | undefined): NonNullab
   if (attrs.italic)    marks.push({ type: "italic" });
   if (attrs.strike)    marks.push({ type: "strike" });
   if (attrs.code)      marks.push({ type: "code" });
-  if (attrs.link)      marks.push({ type: "link", attrs: { href: attrs.link } });
+  if (typeof attrs.link === "string") marks.push({ type: "link", attrs: { href: attrs.link, title: attrs.linkTitle ?? null } });
   if (attrs.highlight) marks.push({ type: "inlineHighlight" });
-  if (attrs.footnoteRef) marks.push({ type: "footnoteReference", attrs: { id: attrs.footnoteRef } });
+  if (attrs.footnoteRef) marks.push({ type: "footnoteReference", attrs: { id: attrs.footnoteRef, number: attrs.footnoteNumber ?? null, occurrence: attrs.footnoteOccurrence ?? 1 } });
+  if (["sub", "sup", "ins"].includes(String(attrs.htmlStyle))) marks.push({ type: "htmlStyle", attrs: { tag: attrs.htmlStyle } });
   if (attrs.color)     marks.push({ type: "textStyle", attrs: { color: attrs.color } });
   if (attrs.size) {
     const px = namedToPx(String(attrs.size));
@@ -112,11 +115,10 @@ export function proseMirrorToDelta(pmJson: JSONContent | null | undefined): Delt
         break;
 
       case "bulletList":
-        appendListOps(node, ops, 0);
-        break;
-
       case "orderedList":
-        appendListOps(node, ops, 0);
+        if (hasComplexListContent(node)) {
+          ops.push({ insert: { list: { version: 1, ordered: node.type === "orderedList", start: Number(node.attrs?.start) || 1, spread: node.attrs?.spread === true, items: (node.content ?? []).map(item => ({ checked: item.attrs?.taskChecked ?? null, content: proseMirrorToDelta({ type: "doc", content: item.content ?? [] }).ops })) } } }, { insert: "\n" });
+        } else appendListOps(node, ops, 0);
         break;
 
       case "codeBlock":
@@ -127,6 +129,7 @@ export function proseMirrorToDelta(pmJson: JSONContent | null | undefined): Delt
             "code-block": true,
             ...indentAttrs(node),
             ...(node.attrs?.language ? { language: node.attrs.language } : {}),
+            ...(node.attrs?.meta ? { "code-meta": node.attrs.meta } : {}),
             ...(node.attrs?.title ? { "code-title": node.attrs.title } : {}),
             ...(node.attrs?.wrap === false ? { "code-wrap": false } : {}),
             ...(node.attrs?.collapsed === true ? { "code-collapsed": true } : {}),
@@ -142,8 +145,8 @@ export function proseMirrorToDelta(pmJson: JSONContent | null | undefined): Delt
             ...(node.attrs?.collapsed === true ? { "blockquote-collapsed": true } : {}),
           };
           const blocks = node.content?.length ? node.content : [{ type: "paragraph", content: [] }];
-          if (blocks.some(block => block.type !== "paragraph")) {
-            ops.push({ insert: { blockquote: { version: 1, content: proseMirrorToDelta({ type: "doc", content: blocks }).ops } }, attributes });
+          if (blocks.some(block => block.type !== "paragraph") || node.attrs?.alert || node.attrs?.indentExplicit === true) {
+            ops.push({ insert: { blockquote: { version: 1, content: proseMirrorToDelta({ type: "doc", content: blocks }).ops, ...(node.attrs?.alert ? { alert: node.attrs.alert } : {}) } }, attributes });
             ops.push({ insert: "\n" });
             break;
           }
@@ -158,7 +161,7 @@ export function proseMirrorToDelta(pmJson: JSONContent | null | undefined): Delt
 
       case "image":
       case "resizableImage":
-        ops.push({ insert: { image: node.attrs?.src ?? "" }, attributes: indentAttrs(node) });
+        ops.push({ insert: { image: node.attrs?.src ?? "" }, attributes: { ...indentAttrs(node), ...(node.attrs?.alt ? { imageAlt: node.attrs.alt } : {}), ...(node.attrs?.title ? { imageTitle: node.attrs.title } : {}), ...(node.attrs?.width ? { imageWidth: node.attrs.width } : {}) } });
         ops.push({ insert: "\n" });
         break;
 
@@ -184,8 +187,13 @@ export function proseMirrorToDelta(pmJson: JSONContent | null | undefined): Delt
       case "footnotes":
         ops.push({ insert: { footnotes: (node.content ?? []).map(definition => ({
           id: String(definition.attrs?.id ?? ""),
+          number: definition.attrs?.number ?? null,
+          references: definition.attrs?.references ?? 1,
           content: proseMirrorToDelta({ type: "doc", content: definition.content ?? [] }).ops,
         })) }, attributes: indentAttrs(node) }, { insert: "\n" });
+        break;
+      case "rawHtml":
+        ops.push({ insert: { rawHtml: String(node.attrs?.source ?? "") } }, { insert: "\n" });
         break;
     }
   }
@@ -226,6 +234,9 @@ function tableNodeToEmbed(tableNode: JSONContent): TableEmbed {
  * Quill 用换行属性表示列表项，并用 indent 表示嵌套深度。按文档顺序
  * 递归输出，避免 TipTap 中可正常显示的子列表在保存时被跳过。
  */
+function hasComplexListContent(node: JSONContent): boolean {
+  return (node.content ?? []).some(item => (item.content ?? []).some(child => child.type === "bulletList" || child.type === "orderedList" ? hasComplexListContent(child) : child.type !== "paragraph"));
+}
 function appendListOps(listNode: JSONContent, ops: DeltaOp[], depth: number): void {
   const list = listNode.type === "orderedList" ? "ordered" : "bullet";
   const orderedStart = list === "ordered"
@@ -240,6 +251,7 @@ function appendListOps(listNode: JSONContent, ops: DeltaOp[], depth: number): vo
       ...(depth > 0 ? { indent: depth } : {}),
       ...(nodeIndent(listNode) > 0 ? { "block-indent": nodeIndent(listNode) } : {}),
       ...(listNode.attrs?.indentExplicit === true ? { "block-indent-explicit": true } : {}),
+      ...(listNode.attrs?.spread === true ? { "list-spread": true } : {}),
       ...(orderedStart !== undefined ? { listStart: orderedStart + itemIndex } : {}),
     };
 
@@ -298,6 +310,9 @@ function extractInlineOps(
 ): void {
   const inlineContent = node.content ?? [];
   for (const inline of inlineContent) {
+    const atomAttributes: Record<string, unknown> = { ...inheritAttrs };
+    for (const mark of inline.marks ?? []) Object.assign(atomAttributes, pmMarkToAttr(mark) ?? {});
+    const atomAttrs = Object.keys(atomAttributes).length ? { attributes: atomAttributes } : {};
     if (inline.type === "text") {
       const attrs: Record<string, unknown> = { ...inheritAttrs };
       for (const mark of inline.marks ?? []) {
@@ -315,7 +330,13 @@ function extractInlineOps(
     } else if (inline.type === "image" || inline.type === "resizableImage") {
       ops.push({ insert: { image: inline.attrs?.src ?? "" } });
     } else if (inline.type === "mathInline") {
-      ops.push({ insert: { mathInline: String(inline.attrs?.source ?? "") } });
+      ops.push({ insert: { mathInline: String(inline.attrs?.source ?? "") }, ...atomAttrs });
+    } else if (inline.type === "markdownImage") {
+      ops.push({ insert: { inlineImage: { src: inline.attrs?.src ?? "", alt: inline.attrs?.alt ?? "", title: inline.attrs?.title ?? null, ...(inline.attrs?.width ? { width: inline.attrs.width } : {}) } }, ...atomAttrs });
+    } else if (inline.type === "rawHtmlInline") {
+      ops.push({ insert: { rawHtmlInline: String(inline.attrs?.source ?? "") }, ...atomAttrs });
+    } else if (inline.type === "htmlAnchor") {
+      ops.push({ insert: { htmlAnchor: String(inline.attrs?.id ?? "") } });
     } else if (inline.type === "paragraph" || inline.type === "listItem") {
       // 递归提取嵌套文本（如 listItem → paragraph → text）
       extractInlineOps(inline, ops, inheritAttrs);
@@ -357,6 +378,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
     paragraph: JSONContent;
     continuation?: boolean;
     blockStart?: boolean;
+    spread?: boolean;
   }> = [];
 
   function flushParagraph() {
@@ -384,7 +406,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
       const start = type === "orderedList"
         ? Math.max(1, Math.floor(Number(normalized[index]?.start) || 1))
         : undefined;
-      const list = {
+      const list: JSONContent & { content: JSONContent[] } = {
         type,
         ...((start !== undefined && start !== 1) || (normalized[index]?.blockIndent ?? 0) > 0 || normalized[index]?.blockIndentExplicit
           ? { attrs: { ...(start !== undefined && start !== 1 ? { start } : {}),
@@ -393,6 +415,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
           : {}),
         content: [] as JSONContent[],
       };
+      if (normalized[index]?.spread) list.attrs = { ...list.attrs, spread: true };
 
       const firstIndex = index;
       while (index < normalized.length) {
@@ -482,6 +505,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
               : {}),
             continuation: attrs["list-continuation"] === true,
             blockStart: attrs["list-block-start"] === true,
+            spread: attrs["list-spread"] === true,
             paragraph: currentParagraph.type === "blockquote" ? currentParagraph : attrs["code-block"] ? {
               type: "codeBlock", content: currentParagraph.content,
               attrs: { language: attrs.language || null, title: attrs["code-title"] || "", wrap: attrs["code-wrap"] !== false, collapsed: attrs["code-collapsed"] === true },
@@ -513,6 +537,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
           const codeBlockAttrs = {
             ...blockIndentAttrs,
             ...(typeof attrs.language === "string" && attrs.language ? { language: attrs.language } : {}),
+            ...(attrs["code-meta"] ? { meta: attrs["code-meta"] } : {}),
             ...(typeof attrs["code-title"] === "string" && attrs["code-title"]
               ? { title: attrs["code-title"] }
               : {}),
@@ -569,6 +594,15 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         });
       }
     } else if (typeof insert === "object" && insert !== null) {
+      if (insert.inlineImage && typeof insert.inlineImage === "object") {
+        const image = insert.inlineImage as Record<string, unknown>;
+        currentParagraph.content.push({ type: "markdownImage", attrs: { src: image.src ?? "", alt: image.alt ?? "", title: image.title ?? null, width: image.width ?? null }, marks: deltaAttrToMarks(attrs) });
+        continue;
+      }
+      if (typeof insert.rawHtmlInline === "string" || typeof insert.htmlAnchor === "string") {
+        currentParagraph.content.push(typeof insert.htmlAnchor === "string" ? { type: "htmlAnchor", attrs: { id: insert.htmlAnchor } } : { type: "rawHtmlInline", attrs: { source: insert.rawHtmlInline } });
+        continue;
+      }
       if (typeof insert.mathInline === "string") {
         const marks = deltaAttrToMarks(attrs);
         currentParagraph.content.push({ type: "mathInline", attrs: { source: insert.mathInline }, ...(marks.length ? { marks } : {}) });
@@ -583,6 +617,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
             indent: Math.max(0, Math.min(8, Math.floor(Number(attrs.indent) || 0))),
             indentExplicit: attrs["indent-explicit"] === true,
             collapsed: attrs["blockquote-collapsed"] === true,
+            alert: (insert.blockquote as { alert?: unknown }).alert ?? null,
           },
           content: body.length ? body : [{ type: "paragraph", content: [] }],
         };
@@ -605,6 +640,24 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         ...(embedIndent > 0 ? { indent: embedIndent } : {}),
         ...(attrs["indent-explicit"] === true ? { indentExplicit: true } : {}),
       };
+      if (insert.list && typeof insert.list === "object" && (insert.list as { version?: unknown }).version === 1) {
+        if (currentParagraph.content.length) flushParagraph();
+        const list = insert.list as { ordered?: boolean; start?: number; spread?: boolean; items?: Array<{ checked?: boolean | null; content?: DeltaOp[] }> };
+        const items = (list.items ?? []).map(item => {
+          const content = deltaToProseMirror({ ops: item.content ?? [] }).content;
+          if (content[0]?.type !== "paragraph") content.unshift({ type: "paragraph", content: [] });
+          return { type: "listItem", ...(typeof item.checked === "boolean" ? { attrs: { taskChecked: item.checked } } : {}), content };
+        });
+        if (items.length) doc.push({ type: list.ordered ? "orderedList" : "bulletList", attrs: { ...(list.ordered ? { start: list.start ?? 1 } : {}), spread: list.spread === true, ...embedIndentAttrs }, content: items });
+        currentParagraph = { type: "paragraph", content: [] }; skipEmptyLineAfterBlockEmbed = true;
+        continue;
+      }
+      if (typeof insert.rawHtml === "string") {
+        if (currentParagraph.content.length) flushParagraph();
+        doc.push({ type: "rawHtml", attrs: { source: insert.rawHtml } });
+        currentParagraph = { type: "paragraph", content: [] }; skipEmptyLineAfterBlockEmbed = true;
+        continue;
+      }
       const table = getTableEmbed(insert);
       if (table) {
         if (currentParagraph.content.length > 0 || isImageBlock) flushParagraph();
@@ -616,7 +669,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
       }
       if (insert.image) {
         if (currentParagraph.content.length > 0 || isImageBlock) flushParagraph();
-        doc.push({ type: "resizableImage", attrs: { src: insert.image, ...embedIndentAttrs }, content: [] });
+        doc.push({ type: "resizableImage", attrs: { src: insert.image, alt: attrs.imageAlt ?? null, title: attrs.imageTitle ?? null, width: attrs.imageWidth ?? null, ...embedIndentAttrs }, content: [] });
         currentParagraph = { type: "paragraph", content: [] };
         isImageBlock = false;
         skipEmptyLineAfterBlockEmbed = true;
@@ -643,9 +696,9 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         skipEmptyLineAfterBlockEmbed = true;
       } else if (Array.isArray(insert.footnotes)) {
         if (currentParagraph.content.length) flushParagraph();
-        const definitions = (insert.footnotes as Array<{ id?: unknown; content?: DeltaOp[] }>).map(item => ({
+        const definitions = (insert.footnotes as Array<{ id?: unknown; content?: DeltaOp[]; number?: number | null; references?: number }>).map(item => ({
           type: "footnoteDefinition",
-          attrs: { id: String(item.id ?? "") },
+          attrs: { id: String(item.id ?? ""), number: item.number ?? null, references: item.references ?? 1 },
           content: deltaToProseMirror({ ops: item.content ?? [] }).content,
         }));
         footnoteDefinitions.push(...definitions);
@@ -672,7 +725,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
     doc.push({ type: "paragraph", content: [] });
   }
 
-  return { type: "doc", content: doc };
+  return normalizeFootnotes({ type: "doc", content: doc }) as JSONContent & { content: JSONContent[] };
 }
 
 /** 将旧版本保存成 `| ... |` 普通段落的表格安全升级为 table embed。 */
@@ -757,17 +810,7 @@ function tableEmbedToProseMirror(table: TableEmbed): JSONContent {
 }
 
 function inlineDeltaToProseMirror(ops: DeltaOp[]): JSONContent[] {
-  const content: JSONContent[] = [];
-  for (const op of ops) {
-    if (typeof op?.insert !== "string") continue;
-    const marks = deltaAttrToMarks(op.attributes);
-    const parts = op.insert.split("\n");
-    parts.forEach((part: string, index: number) => {
-      if (index > 0) content.push({ type: "hardBreak" });
-      if (part) content.push({ type: "text", text: part, ...(marks.length > 0 ? { marks } : {}) });
-    });
-  }
-  return content;
+  return deltaToProseMirror({ ops: [...ops, { insert: "\n" }] }).content[0]?.content ?? [];
 }
 
 // ── 格式检测 ──

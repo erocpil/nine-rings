@@ -2,7 +2,7 @@
 
 九环（Nine Rings）支持文件导入、批量迁移和绑定外部 URL刷新，覆盖从单篇笔记到远端参考文档的场景。
 
-目前支持常用 Markdown 与项目扩展，尚未完整兼容 GitHub Flavored Markdown。导入保存原始源码，但渲染理解和渲染编辑后的序列化仍存在语义差异；具体复现、平台差异与修复顺序见 [Markdown / GitHub 兼容性核查](markdown-gfm-audit.md)。
+Web/PWA/Tauri 与 CLI 共用 CommonMark/GFM 解析和结构化导出，保留原始源码；支持范围、GitHub 补充功能及受限 HTML 边界见 [Markdown 兼容范围与内容契约](markdown-compatibility.md)。
 
 ## 外部 URL来源
 
@@ -44,7 +44,7 @@
 3. 文件内容解析为 Quill Delta 格式，创建为今日笔记
 
 **实现路径：** `src/lib/md-parser.ts`
-- TypeScript 实现的 Markdown → Quill Delta 解析器
+- 标准 CommonMark/GFM AST → Quill Delta 适配层
 - 支持标题（`#` `##` `###`）、粗体、斜体、行内代码、代码块、列表、引用、链接、分割线
 - 导入结果自动归入当前日期
 

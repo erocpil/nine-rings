@@ -16,6 +16,7 @@ export interface PdfExportOptions {
   title: string;
   contentHtml: string;
   metadata?: PdfDocumentInfo;
+  onError?: (error: Error) => void;
 }
 
 const PRINT_STYLES = `
@@ -133,9 +134,8 @@ function headingId(text: string, index: number, used: Set<string>): string {
  * Open a dedicated print view. The system print dialog can save it as a PDF;
  * keeping this path HTML-based preserves selectable text, links and tables.
  */
-export function exportDocumentAsPdf({ title, contentHtml, metadata }: PdfExportOptions): boolean {
-  // Tauri/WebView2 默认禁止脚本创建新窗口，因此桌面端使用同一 WebView
-  // 中的隔离 iframe。它仍调用系统打印界面，但不再依赖 window.open。
+export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: PdfExportOptions): boolean {
+  // Prepare desktop content in an isolated frame, then print a dedicated native WebView.
   const printFrame = isTauriRuntime() ? document.createElement("iframe") : null;
   if (printFrame) {
     printFrame.title = "PDF 打印文档";
@@ -326,13 +326,17 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata }: PdfExportO
     }).then(() => {
     if ((!printFrame && printWindow.closed) || (printFrame && !printFrame.isConnected)) return;
     if (printFrame) {
-      printWindow.addEventListener("afterprint", closePrintView, { once: true });
-      // 某些 WebView2 版本不会向子 frame 派发 afterprint；兜底回收即可，
-      // 延迟移除不会影响已经打开的系统打印对话框。
-      window.setTimeout(closePrintView, 60_000);
+      return import("@tauri-apps/api/core").then(({ invoke }) => invoke("open_pdf_print_preview", {
+        title: title.trim() || "无标题", html: printDocument.documentElement.outerHTML,
+      })).finally(closePrintView);
     }
     printWindow.focus();
     printWindow.print();
+  }).catch(reason => {
+    closePrintView();
+    const error = reason instanceof Error ? reason : new Error(String(reason));
+    if (onError) onError(error);
+    else window.alert(`无法导出 PDF：${error.message}`);
   });
   return true;
 }

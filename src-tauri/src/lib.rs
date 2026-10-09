@@ -704,6 +704,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() != "main" {
+                    return;
+                }
                 startup_log!("window_event CloseRequested label={}", window.label());
                 let _ = window.hide();
                 api.prevent_close();
@@ -726,6 +729,8 @@ pub fn run() {
             commands::config::get_config,
             commands::config::set_config,
             commands::export::export_data,
+            commands::window::open_pdf_print_preview,
+            commands::window::print_pdf_document,
             commands::export::import_data,
             commands::export::export_to_file,
             commands::export::export_binary_to_file,
@@ -735,7 +740,6 @@ pub fn run() {
             commands::export::restore_note,
             commands::export::permanently_delete_note,
             commands::export::clean_old_deleted,
-            commands::export::export_note_markdown,
             commands::doc_tree::search_docs,
             commands::doc_tree::get_notes_by_path,
             commands::doc_tree::get_all_concepts,
