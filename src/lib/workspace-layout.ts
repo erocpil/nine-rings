@@ -1,6 +1,8 @@
 export const WORKSPACE_LAYOUT_KEY = "nr:workspaceLayout";
 export const WORKSPACE_LAYOUT_EVENT = "nr:workspace-layout-change";
 export interface WorkspaceLayout {
+  summaryInteraction: "sidebar" | "click" | "hover";
+  summaryVisibleRows: number;
   sidebarSide: "left" | "right";
   panelsSide: "left" | "right";
   panelsArrangement: "vertical" | "horizontal";
@@ -11,6 +13,8 @@ export interface WorkspaceLayout {
   bookmarkPinned: boolean;
 }
 export const DEFAULT_WORKSPACE_LAYOUT: WorkspaceLayout = {
+  summaryInteraction: "click",
+  summaryVisibleRows: 15,
   sidebarSide: "left",
   panelsSide: "right",
   panelsArrangement: "vertical",
@@ -30,6 +34,8 @@ export function normalizeWorkspaceLayout(value: unknown): WorkspaceLayout {
       ? (value as Partial<WorkspaceLayout>)
       : {};
   return {
+    summaryInteraction: v.summaryInteraction === "click" || v.summaryInteraction === "hover" ? v.summaryInteraction : v.summaryInteraction === "sidebar" ? "sidebar" : "click",
+    summaryVisibleRows: Math.round(number(v.summaryVisibleRows, 15, 1, 50)),
     sidebarSide: v.sidebarSide === "right" ? "right" : "left",
     panelsSide: v.panelsSide === "left" ? "left" : "right",
     panelsArrangement:

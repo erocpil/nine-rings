@@ -314,6 +314,57 @@ fn toggle_window_fullscreen(window: &tauri::WebviewWindow) {
     }
 }
 
+/// Shared shutdown path for tray and confirmed keyboard exit.
+fn graceful_quit(app: &tauri::AppHandle) {
+    // ── 优雅退出：先让 WebView2 走正常关闭协议 ──
+    // app.exit(0) 是暴力终止，会留下孤儿 msedgewebview2.exe
+    // 子进程（GPU、渲染、Crashpad）继续持有 EBWebView 文件锁。
+    // cleanup_before_exit() 触发 WebView2/wry 的正常销毁流程，
+    // 释放资源后再退出。
+    startup_log!("quit requested — starting graceful shutdown");
+    // 先隐藏所有窗口，避免用户看到关闭过程
+    for (_, w) in app.webview_windows() {
+        let _ = w.hide();
+    }
+    // WAL checkpoint：把 WAL 中所有已提交事务合并回主 DB 文件。
+    // app.exit(0) 是 std::process::exit，不触发 Rust Drop，
+    // 必须在此处显式 flush，否则未 checkpoint 的数据会丢失。
+    if let Some(state) = app.try_state::<AppState>() {
+        if let Ok(conn) = state.db.lock() {
+            let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+            startup_log!("quit: WAL checkpointed to main DB");
+        }
+    }
+    app.cleanup_before_exit();
+    // 给 WebView2 子进程一点收尾时间（Chromium 多进程架构
+    // 中 GPU/Renderer/Crashpad 可能比主进程晚一拍退出）
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    startup_log!("graceful shutdown complete, exiting");
+    app.exit(0);
+}
+
+/// Replace the default Cocoa Quit action, which terminates before the WebView
+/// can show a confirmation or flush pending edits. Keep the other native items.
+#[cfg(target_os = "macos")]
+fn install_macos_quit_menu(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::MenuItemKind;
+    let Some(menu) = app.menu() else {
+        return Ok(());
+    };
+    // Tauri's default menu starts with the application submenu; Quit is last.
+    if let Some(MenuItemKind::Submenu(submenu)) = menu.items()?.first() {
+        let items = submenu.items()?;
+        if let Some(MenuItemKind::Predefined(quit)) = items.last() {
+            let replacement = MenuItemBuilder::with_id("nine-rings-confirm-quit", quit.text()?)
+                .accelerator("Command+Q")
+                .build(app)?;
+            submenu.remove_at(items.len() - 1)?;
+            submenu.append(&replacement)?;
+        }
+    }
+    Ok(())
+}
+
 /// Tauri/muda 的预定义 macOS 全屏菜单直接调用 Cocoa `toggleFullScreen:`，
 /// 对 `decorations: false` 的窗口只能退出、不能可靠进入。保留默认菜单
 /// 结构，但把 View 中的预定义项替换成普通菜单项，由事件处理器显式调用
@@ -560,6 +611,8 @@ pub fn run() {
 
             #[cfg(target_os = "macos")]
             install_macos_fullscreen_menu(app)?;
+            #[cfg(target_os = "macos")]
+            install_macos_quit_menu(app)?;
 
             // ── 系统托盘 ──
             startup_log!("setting up tray...");
@@ -598,41 +651,14 @@ pub fn run() {
                             }
                         }
                     })
-                    .on_menu_event(|app, event| {
-                        match event.id().as_ref() {
-                            "show" => {
-                                show_main_window(app);
-                            }
-                            "quit" => {
-                                // ── 优雅退出：先让 WebView2 走正常关闭协议 ──
-                                // app.exit(0) 是暴力终止，会留下孤儿 msedgewebview2.exe
-                                // 子进程（GPU、渲染、Crashpad）继续持有 EBWebView 文件锁。
-                                // cleanup_before_exit() 触发 WebView2/wry 的正常销毁流程，
-                                // 释放资源后再退出。
-                                startup_log!("quit requested — starting graceful shutdown");
-                                // 先隐藏所有窗口，避免用户看到关闭过程
-                                for (_, w) in app.webview_windows() {
-                                    let _ = w.hide();
-                                }
-                                // WAL checkpoint：把 WAL 中所有已提交事务合并回主 DB 文件。
-                                // app.exit(0) 是 std::process::exit，不触发 Rust Drop，
-                                // 必须在此处显式 flush，否则未 checkpoint 的数据会丢失。
-                                if let Some(state) = app.try_state::<AppState>() {
-                                    if let Ok(conn) = state.db.lock() {
-                                        let _ =
-                                            conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
-                                        startup_log!("quit: WAL checkpointed to main DB");
-                                    }
-                                }
-                                app.cleanup_before_exit();
-                                // 给 WebView2 子进程一点收尾时间（Chromium 多进程架构
-                                // 中 GPU/Renderer/Crashpad 可能比主进程晚一拍退出）
-                                std::thread::sleep(std::time::Duration::from_millis(500));
-                                startup_log!("graceful shutdown complete, exiting");
-                                app.exit(0);
-                            }
-                            _ => {}
+                    .on_menu_event(|app, event| match event.id().as_ref() {
+                        "show" => {
+                            show_main_window(app);
                         }
+                        "quit" => {
+                            graceful_quit(app);
+                        }
+                        _ => {}
                     })
                     .build(app)?;
 
@@ -700,6 +726,12 @@ pub fn run() {
             Ok(())
         })
         .on_menu_event(|app, event| {
+            #[cfg(target_os = "macos")]
+            if event.id().as_ref() == "nine-rings-confirm-quit" {
+                use tauri::Emitter;
+                show_main_window(app);
+                let _ = app.emit_to("main", "nine-rings:confirm-quit", ());
+            }
             if event.id().as_ref() == "nine-rings-toggle-fullscreen" {
                 toggle_main_window_fullscreen(app);
             }
@@ -715,6 +747,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::window::quit_application,
             commands::window::set_window_fullscreen,
             commands::window::toggle_window_maximize,
             commands::external_link::open_external_link,

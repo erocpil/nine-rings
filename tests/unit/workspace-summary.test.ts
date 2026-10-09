@@ -3,6 +3,7 @@ import {
   modifiedOnLocalDay,
   workspaceCounts,
   workspaceDocuments,
+  workspaceSummaryDocuments,
 } from "../../src/lib/workspace-summary";
 
 describe("workspace summary", () => {
@@ -50,13 +51,29 @@ describe("workspace summary", () => {
     ];
     expect(
       workspaceCounts(documents, ["a", "a", "missing"], "2026-10-09"),
-    ).toEqual({ all: 4, notes: 2, today: 2, favorites: 1 });
+    ).toEqual({ all: 4, notes: 2, today: 2, favorites: 1, recent: 4 });
     expect(workspaceCounts([], ["missing"], "2026-10-09")).toEqual({
+      recent: 0,
       all: 0,
       notes: 0,
       today: 0,
       favorites: 0,
     });
+  });
+
+  it("recent preview uses edit timestamps rather than visit order and caps at fifteen", () => {
+    const documents = Array.from({ length: 20 }, (_, i) => ({
+      id: String(i),
+      title: String(i),
+      storagePath: "ideas",
+      updated_at: new Date(2026, 9, 10, 0, i).toISOString(),
+    }));
+    expect(
+      workspaceSummaryDocuments(documents, "recent", [], "2026-10-10").map(
+        (note) => note.id,
+      ),
+    ).toEqual(Array.from({ length: 15 }, (_, i) => String(19 - i)));
+    expect(documents[0].id).toBe("0");
   });
 
   it("handles local midnight, future dates and malformed timestamps", () => {

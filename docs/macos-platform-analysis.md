@@ -108,3 +108,7 @@ Tauri 2.11/muda 0.19 的 macOS 预定义全屏菜单直接发送 Cocoa
 退出全屏、不能进入全屏。Nine Rings 因此将默认 View 菜单中的预定义项
 替换为带 `⌃⌘F` accelerator 的普通菜单项，并在事件回调中调用
 `WebviewWindow::set_fullscreen()`；该路径和标题栏按钮使用相同的窗口实现。
+
+## Command+Q 退出确认
+
+macOS Tauri 首次按 Command+Q 显示底部提示，两秒内再次按下才退出；超时或切换到其他应用后重新确认。确认后先刷新自动保存，再沿用托盘退出的 WAL checkpoint 和 WebView 清理流程。保存失败则保留窗口并显示错误。原生应用菜单的退出项也使用此确认；托盘菜单的明确“退出”动作保持原有行为。Command+W 仍关闭到托盘，Web/手机不接管系统退出键。

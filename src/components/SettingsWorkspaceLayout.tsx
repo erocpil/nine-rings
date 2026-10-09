@@ -16,6 +16,21 @@ export function SettingsWorkspaceLayout({
   };
   return (
     <>
+      <div className="sidebar-settings-card">
+        <div className="sidebar-settings-card-heading"><strong>工作区概览汇总</strong></div>
+        <div className="settings-radio-group" role="group" aria-label="汇总项交互方式">
+          {([["sidebar", "点击弹出分栏"], ["click", "点击显示弹层"], ["hover", "悬停显示弹层"]] as const).map(([value, label]) => (
+            <button key={value} type="button" className={`settings-radio ${layout.summaryInteraction === value ? "active" : ""}`}
+              aria-pressed={layout.summaryInteraction === value} onClick={() => save({ summaryInteraction: value })}>{label}</button>
+          ))}
+        </div>
+        <p className="sidebar-presentation-description">分栏模式再次点击恢复原来的分栏状态；弹层模式直接选择文档，不改变分栏。手机无悬停时点击显示弹层。</p>
+        <label className="sidebar-presentation-description">弹层最多显示的文档数
+          <input className="settings-input" style={{ width: 80, marginLeft: 12 }} type="number" min={1} max={50} step={1} aria-label="弹层最多显示的文档数" value={layout.summaryVisibleRows}
+            onChange={event => { if (Number.isFinite(event.currentTarget.valueAsNumber)) save({ summaryVisibleRows: event.currentTarget.valueAsNumber }); }} />
+        </label>
+        <p className="sidebar-presentation-description">默认 15 个，可设为 1～50 个；超出后滚动查看，窗口较小时自动减少可见行数。</p>
+      </div>
       {(
         [
           [

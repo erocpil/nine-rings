@@ -6,14 +6,15 @@ import { ToolbarIcon } from "./ToolbarIcon";
 import "./WorkspaceSummaryPreview.css";
 
 const ROW_HEIGHT = 28;
-const VISIBLE_ROWS = 15;
 
 /** A metadata-only preview, independent of sidebar widths and editor layout. */
-export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, onOpen, onClose, onEnter, onLeave }: {
+export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, visibleRows = 15, compact = false, onOpen, onClose, onEnter, onLeave }: {
   title: string;
   documents: WorkspaceDocumentSummary[];
   trigger: HTMLButtonElement;
   keyboard: boolean;
+  visibleRows?: number;
+  compact?: boolean;
   onOpen: (id: string) => void;
   onClose: (restoreFocus?: boolean) => void;
   onEnter: () => void;
@@ -26,14 +27,14 @@ export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, o
   const handlers = useRef({ onClose });
   handlers.current = { onClose };
   const [scrollTop, setScrollTop] = useState(0);
-  const [height, setHeight] = useState(ROW_HEIGHT * VISIBLE_ROWS);
+  const [height, setHeight] = useState(ROW_HEIGHT * visibleRows);
   const [focusIndex, setFocusIndex] = useState<number | null>(keyboard ? 0 : null);
   const previousKeyboard = useRef(keyboard);
   useLayoutEffect(() => {
     if (keyboard && !previousKeyboard.current) setFocusIndex(0);
     previousKeyboard.current = keyboard;
   }, [keyboard]);
-  const style = useDocumentPanelPosition({ open: true, triggerRef, panelRef, compact: false, heightLimit: ROW_HEIGHT * VISIBLE_ROWS + 46 });
+  const style = useDocumentPanelPosition({ open: true, triggerRef, panelRef, compact, layoutKey: String(visibleRows), heightLimit: ROW_HEIGHT * visibleRows + 46 });
   const virtual = documents.length > 60;
   const start = virtual ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 4) : 0;
   const end = virtual ? Math.min(documents.length, start + Math.ceil(height / ROW_HEIGHT) + 8) : documents.length;
@@ -74,7 +75,7 @@ export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, o
     <div className="workspace-summary-preview-heading"><strong>{title}<span>{documents.length}</span></strong>
       <button type="button" aria-label="关闭文档预览" onClick={() => onClose(true)}><ToolbarIcon name="close" /></button>
     </div>
-    {documents.length ? <ul ref={listRef} onScroll={event => setScrollTop(event.currentTarget.scrollTop)}
+    {documents.length ? <ul ref={listRef} style={{ maxHeight: ROW_HEIGHT * visibleRows + 8 }} onScroll={event => setScrollTop(event.currentTarget.scrollTop)}
       onKeyDown={event => {
         if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
         const current = Number((event.target as HTMLElement).closest<HTMLElement>("[data-summary-index]")?.dataset.summaryIndex ?? 0);

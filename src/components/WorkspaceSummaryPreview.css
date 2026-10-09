@@ -40,7 +40,7 @@
   margin: 0;
   padding: 4px;
   min-height: 0;
-  max-height: 428px; /* 15 × 28px rows, plus list padding. */
+
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;

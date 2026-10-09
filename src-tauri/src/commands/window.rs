@@ -1,3 +1,13 @@
+/// Only the main application can finish the save-before-quit handshake.
+#[tauri::command]
+pub fn quit_application(app: tauri::AppHandle, window: tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("只能从主窗口退出应用".into());
+    }
+    crate::graceful_quit(&app);
+    Ok(())
+}
+
 /// Complete the whole transition on the UI thread. Individual Tauri setters
 /// otherwise only enqueue work, allowing button and shortcut requests to race.
 #[tauri::command]

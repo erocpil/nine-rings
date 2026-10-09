@@ -1,3 +1,5 @@
+import { useQuitConfirmation } from "./hooks/useQuitConfirmation";
+import "./components/QuitConfirmation.css";
 import { mergeDocumentMetadata } from "./lib/document-metadata";
 import { preserveReadingPositions } from "./lib/reading-position";
 import { ReadingTypographyProvider } from "./components/ReadingTypographyProvider";
@@ -182,6 +184,7 @@ function App() {
     },
   });
   const flushAutoSave = autoSave.flush;
+  const quitHint = useQuitConfirmation(flushAutoSave);
   const { getPendingData, discardPending, setNoteId: setAutoSaveNoteId } = autoSave;
   const applyWebUpdate = useCallback(() => {
     if (webUpdateInFlight.current) return;
@@ -384,6 +387,17 @@ function App() {
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const documentBrowserSession = useRef<DocumentBrowserSession>({});
   const [documentBrowserRequest, setDocumentBrowserRequest] = useState<DocumentBrowserRequest>();
+  const [activeWorkspaceSummary, setActiveWorkspaceSummary] = useState<import("./lib/workspace-summary").WorkspaceSummaryKind | null>(null);
+  const summarySidebarSnapshot = useRef<{
+    kind: import("./lib/workspace-summary").WorkspaceSummaryKind;
+    layout: import("./lib/desktop-sidebar-state").DesktopSidebarState;
+    width?: number;
+    browser: DocumentBrowserSession;
+    popup: boolean;
+    homeActivated: boolean;
+    homeChromeHidden: boolean;
+  } | null>(null);
+
   const notesPanelSession = useRef<NotesPanelSession>({});
   const [browserToolbarHost, setBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
   const [desktopPanel, setDesktopPanel] = useState(() => readDesktopSidebarState().panel);
@@ -906,6 +920,7 @@ function App() {
   const sidebarHoverEnabled = desktopWorkspace && sidebarPresentation === "overlay";
   const sidebarHover = useSidebarHoverPreview({ enabled: sidebarHoverEnabled, panel: desktopPanel, hidden: sidebarHidden, resizing: sidebarResizing || readerFocus, openPanel: setSidebarPanel, setHidden: setSidebarHidden });
   const workspaceHome = workspaceHomeRequested || (!selectedNote && !selectedFolderPath && !selectedConcept);
+  useEffect(() => { summarySidebarSnapshot.current = null; setActiveWorkspaceSummary(null); }, [workspaceHome]);
   const closeHomeReaderSidebar = useCallback((format: "pdf" | "epub", documentId: string) => {
     if (!desktopWorkspace || !workspaceHome) return;
     // The home reader takes over the main area. Cancel both pinned and hover
@@ -1302,9 +1317,27 @@ function App() {
   return (
     <ReadingTypographyProvider config={config}><EditorFoldIconContext.Provider value={config}>
     <ExhibitionWorkspace desktop={desktopWorkspace} enabled={exhibitionEnabled && !mobileReaderOpen} focus={focusMode} config={config}
-      latestNote={selectedNote}
+      latestNote={selectedNote} activeSummary={activeWorkspaceSummary}
       onSummary={kind => {
-        if (kind !== "notes") setDocumentBrowserRequest(previous => ({ sequence: (previous?.sequence ?? 0) + 1, view: kind }));
+        const saved = summarySidebarSnapshot.current;
+        if (saved?.kind === kind) {
+          summarySidebarSnapshot.current = null;
+          setActiveWorkspaceSummary(null);
+          setDocumentBrowserRequest(previous => ({ sequence: (previous?.sequence ?? 0) + 1, view: "all", restore: saved.browser }));
+          setDocTreePopupOpen(saved.popup);
+          setWorkspaceHomePanelActivated(saved.homeActivated);
+          setWorkspaceHomeChromeHidden(saved.homeChromeHidden);
+          setSidebarPanel(saved.layout.panel, false, saved.width);
+          sidebarHover.restore(saved.layout, saved.width);
+          return;
+        }
+        setActiveWorkspaceSummary(kind);
+        summarySidebarSnapshot.current = saved ? { ...saved, kind } : {
+          kind, layout: { panel: desktopPanel, hidden: sidebarHidden, pinned: sidebarHover.pinned },
+          width: sidebarWidthOverride(), browser: { ...documentBrowserSession.current, scrollPositions: { ...documentBrowserSession.current.scrollPositions } },
+          popup: docTreePopupOpen, homeActivated: workspaceHomePanelActivated, homeChromeHidden: workspaceHomeChromeHidden,
+        };
+        if (kind !== "notes") setDocumentBrowserRequest(previous => ({ sequence: (previous?.sequence ?? 0) + 1, view: kind === "recent" ? "recent-edited" : kind }));
         const panel = kind === "notes" ? "notes" : "list";
         setDocTreePopupOpen(false);
         if (desktopWorkspace) {
@@ -1336,7 +1369,7 @@ function App() {
           setSelectedFolderPath(target.folder);
           setSelectedConcept(target.concept);
           if (desktopWorkspace) {
-            saveWorkspaceLayout(target.workspaceLayout);
+            saveWorkspaceLayout({ ...target.workspaceLayout, summaryInteraction: workspaceLayout.summaryInteraction, summaryVisibleRows: workspaceLayout.summaryVisibleRows });
             if (target.homeOpenedReader) {
               setDesktopPanel("reader");
               sidebarHover.restore({ panel: "reader", hidden: true, pinned: false });
@@ -1418,6 +1451,7 @@ function App() {
         />
       )}
 
+      {quitHint && <div className="quit-confirmation-hint" role="status" aria-live="polite">{quitHint}</div>}
       {externalNoteConflict && (
         <div className="tab-conflict-banner" role="alert">
           <span>此笔记已在另一个标签页修改。请选择要保留的版本。</span>
@@ -1456,6 +1490,8 @@ function App() {
                 setWorkspaceHomePanelActivated(true);
                 setWorkspaceHomeChromeHidden(false);
               } else setExhibitionReaderActive(false);
+              summarySidebarSnapshot.current = null;
+              setActiveWorkspaceSummary(null);
               sidebarHover.click(panel);
             }}>
             <ToolbarIcon name={icon} />

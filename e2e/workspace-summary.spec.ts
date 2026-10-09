@@ -30,6 +30,7 @@ async function seed(page: Page) {
     toggleDocumentFavorite(favorite.id);
     return workspaceCounts(workspaceDocuments(await api.docs.tree()), [favorite.id], localDateKey());
   });
+  await page.evaluate(async () => { const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts"); saveWorkspaceLayout({ summaryInteraction: "sidebar" }); });
   await page.reload();
   await expect(page.getByRole("navigation", { name: "工作区统计" })).toHaveAttribute("aria-busy", "false");
   return expected;
@@ -43,7 +44,7 @@ test("工作区摘要在收起和展开时可用，统计入口切换列表与�
     await expect(summary.locator(`.exhibition-summary-${kind} strong`)).toHaveText(String(counts[kind]));
   }
   await expect(page.locator(".exhibition-columns")).toHaveCount(0);
-  const lastCounter = (await summary.getByRole("button", { name: "查看收藏文档" }).boundingBox())!;
+  const lastCounter = (await summary.getByRole("button", { name: "查看最近打开文档" }).boundingBox())!;
   const expand = (await page.getByRole("button", { name: "展开概览", exact: true }).boundingBox())!;
   expect(expand.x - lastCounter.x - lastCounter.width).toBeGreaterThanOrEqual(0);
   expect(expand.x - lastCounter.x - lastCounter.width).toBeLessThanOrEqual(20);
@@ -118,15 +119,21 @@ for (const mode of ["split", "pinned", "hidden", "hover"] as const) {
     await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
     await expect.poll(() => sidebar.evaluate(element => element.getBoundingClientRect().width)).toBe(width);
     expect(await page.evaluate(() => localStorage.getItem("nr:notesSidebarW"))).toBe("610");
+    // A fresh summary after navigating home starts a new restore snapshot.
+    await summary.getByRole("button", { name: "查看全部文档", exact: true }).click();
+    await summary.getByRole("button", { name: "查看全部文档", exact: true }).click();
+    await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+    await expect.poll(() => sidebar.evaluate(element => element.getBoundingClientRect().width)).toBe(width);
+
   });
 }
 
-test("手机摘要仅保留文档和今日修改，点击使用文档列表弹层", async ({ page }) => {
+test("手机摘要保留文档、今日修改和最近打开，点击使用文档列表弹层", async ({ page }) => {
   const counts = await seed(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator(".sidebar-tab-hide").click();
   const summary = page.getByRole("navigation", { name: "工作区统计" });
-  await expect(summary.getByRole("button")).toHaveCount(2);
+  await expect(summary.getByRole("button")).toHaveCount(3);
   await expect(summary.getByRole("button", { name: "查看随记" })).toBeHidden();
   await expect(summary.getByRole("button", { name: "查看收藏文档" })).toBeHidden();
   await expect(summary.locator(".exhibition-summary-all strong")).toHaveText(String(counts.all));
@@ -155,6 +162,7 @@ test("本地跨日更新摘要和已打开的今日修改列表", async ({ page 
 test("四项摘要悬停预览，最多十五行，长标题省略且滚动后可打开文档", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
   await seed(page);
+  await page.evaluate(async () => { const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts"); saveWorkspaceLayout({ summaryInteraction: "hover" }); });
   const longTitle = "摘要预览长标题：" + "保留完整名称但不会撑宽弹层".repeat(12);
   await page.evaluate(async longTitle => {
     const { api } = await import("/src/lib/api.ts");
@@ -215,6 +223,7 @@ test("摘要预览支持键盘到末项和 Escape，不影响统计点击及手�
   await seed(page);
   await page.evaluate(async () => {
     const { api } = await import("/src/lib/api.ts");
+    const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts"); saveWorkspaceLayout({ summaryInteraction: "hover" });
     for (let i = 0; i < 65; i++) await api.notes.create({ title: `键盘预览 ${i}`, date: "2026-10-10", storagePath: "projects", content: { ops: [] } });
   });
   await page.reload();
@@ -235,10 +244,159 @@ test("摘要预览支持键盘到末项和 Escape，不影响统计点击及手�
   await page.keyboard.press("ArrowDown");
   await expect(popup.locator("li button").first()).toBeFocused();
   await page.keyboard.press("Escape");
+  await page.evaluate(async () => { const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts"); saveWorkspaceLayout({ summaryInteraction: "sidebar" }); });
   await all.click();
   await expect(popup).toHaveCount(0);
   await expect(page.getByRole("region", { name: "文档列表", exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await all.dispatchEvent("pointerenter", { pointerType: "touch" });
+  await expect(popup).toHaveCount(0);
+});
+
+for (const mode of ["split-open", "split-hidden", "overlay-pinned", "overlay-hidden"] as const) {
+  const hidden = mode.endsWith("hidden");
+  test(`汇总按钮再次点击恢复原分栏：${mode}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await seed(page);
+    await page.evaluate(({ hidden, mode }) => {
+      localStorage.setItem("nr:sidebarPresentation", mode.startsWith("overlay") ? "overlay" : "split");
+      localStorage.setItem("nr:desktopSidebar", JSON.stringify({ panel: "tree", hidden, pinned: mode === "overlay-pinned" }));
+      localStorage.setItem("nr:sidebarHidden", String(hidden));
+      localStorage.setItem("nr:treeSidebarW", "470");
+    }, { hidden, mode });
+    await page.reload();
+    const summary = page.getByRole("navigation", { name: "工作区统计" });
+    await expect(summary).toHaveAttribute("aria-busy", "false");
+    const sidebar = page.locator("#workspace-sidebar");
+    await summary.getByRole("button", { name: "查看今日修改文档", exact: true }).click();
+    await expect(page.getByRole("region", { name: "文档列表", exact: true })).toBeVisible();
+    // Switching counters retains the original layout as the restore target.
+    await summary.getByRole("button", { name: "查看随记", exact: true }).click();
+    await expect(page.getByRole("region", { name: "随记列表", exact: true })).toBeVisible();
+    await summary.getByRole("button", { name: "查看随记", exact: true }).click();
+    if (hidden) await expect(sidebar).toHaveClass(/sidebar-hidden/);
+    else await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+    await expect(page.locator('[data-sidebar-panel="tree"]')).toHaveAttribute("aria-pressed", String(!hidden));
+    if (!hidden) await expect.poll(() => sidebar.evaluate(element => element.getBoundingClientRect().width)).toBe(470);
+    expect(await page.evaluate(() => localStorage.getItem("nr:treeSidebarW"))).toBe("470");
+    if (mode.startsWith("overlay")) {
+      await expect.poll(() => page.locator(".sidebar-pin-spacer").evaluate(element => element.getBoundingClientRect().width)).toBe(hidden ? 0 : 474);
+    }
+  });
+}
+
+test("最近打开汇总展示最近编辑十五份，悬停和分栏一致", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await seed(page);
+  await page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    for (let i = 0; i < 20; i++) await api.notes.create({ title: `最近编辑文档 ${i}`, date: "2026-10-10", storagePath: "ideas/recent", content: { ops: [] } });
+  });
+  await page.reload();
+  await page.evaluate(async () => { const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts"); saveWorkspaceLayout({ summaryInteraction: "hover" }); });
+  const button = page.getByRole("button", { name: "查看最近打开文档", exact: true });
+  await expect(button).toContainText("15");
+  await button.hover();
+  await expect(page.locator(".workspace-summary-preview li button")).toHaveCount(15);
+  await page.evaluate(async () => { const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts"); saveWorkspaceLayout({ summaryInteraction: "sidebar" }); });
+  await button.click();
+  const list = page.getByRole("region", { name: "文档列表", exact: true });
+  await expect(list.locator(".document-browser-row")).toHaveCount(15);
+  await expect(list.getByRole("button", { name: "最近编辑 · 15 份", exact: true })).toBeVisible();
+});
+
+test("恢复原文档列表的视图和筛选，不沿用临时统计条件", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await seed(page);
+  await page.locator('[data-sidebar-panel="list"]').click();
+  const list = page.getByRole("region", { name: "文档列表", exact: true });
+  await list.getByRole("button", { name: "全部文档", exact: true }).click();
+  await page.getByRole("button", { name: "搜索文档", exact: true }).click();
+  const search = list.getByRole("textbox", { name: "查找文档", exact: true });
+  await search.fill("摘要昨日");
+  await expect(list.locator(".document-browser-row")).toHaveCount(1);
+  const today = page.getByRole("button", { name: "查看今日修改文档", exact: true });
+  await today.click();
+  await expect(list).not.toContainText("摘要昨日文档");
+  await today.click();
+  await expect(search).toHaveValue("摘要昨日");
+  await expect(list.locator(".document-browser-row")).toHaveCount(1);
+  await expect(list).toContainText("摘要昨日文档");
+  await expect(today).toHaveAttribute("aria-pressed", "false");
+});
+
+test("布局设置选择点击弹层和六行上限，离开保持、再次点击收起且刷新保留", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await seed(page);
+  await page.getByRole("button", { name: "设置", exact: true }).first().click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  await page.getByRole("button", { name: /打开布局设置/ }).click();
+  const mode = page.getByRole("group", { name: "汇总项交互方式", exact: true });
+  await mode.getByRole("button", { name: "点击显示弹层", exact: true }).click();
+  await expect(mode.getByRole("button", { name: "点击显示弹层", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("spinbutton", { name: "弹层最多显示的文档数", exact: true }).fill("6");
+  await page.reload();
+  const button = page.getByRole("button", { name: "查看全部文档", exact: true });
+  const popup = page.getByRole("dialog", { name: "全部文档预览", exact: true });
+  await button.hover();
+  await expect(popup).toHaveCount(0);
+  const before = await page.locator(".app-main-split").boundingBox();
+  await button.click();
+  await expect(popup).toBeVisible();
+  const list = popup.locator("ul");
+  await expect(list).toHaveCSS("max-height", "176px");
+  await page.mouse.move(1590, 50);
+  await expect(popup).toBeVisible();
+  const after = await page.locator(".app-main-split").boundingBox();
+  expect(after).toEqual(before);
+  await button.click();
+  await expect(popup).toHaveCount(0);
+  await button.click();
+  await popup.getByRole("button", { name: "摘要昨日文档", exact: true }).click();
+  await expect(page.locator(".note-title:visible")).toHaveValue("摘要昨日文档");
+});
+
+test.describe("触屏汇总", () => {
+  test.use({ hasTouch: true });
+  test("手机悬停模式点击可打开同一预览，不打开分栏", async ({ page }) => {
+  await seed(page);
+  await page.evaluate(async () => {
+    const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts");
+    saveWorkspaceLayout({ summaryInteraction: "hover", summaryVisibleRows: 5 });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator(".sidebar-tab-hide").click();
+  const button = page.getByRole("button", { name: "查看全部文档", exact: true });
+  await button.tap();
+  const popup = page.getByRole("dialog", { name: "全部文档预览", exact: true });
+  await expect(popup).toBeVisible();
+  await expect(popup.locator("ul")).toHaveCSS("max-height", "148px");
+  const bounds = (await popup.boundingBox())!;
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+  await expect(page.getByRole("dialog", { name: "文档视图", exact: true })).toHaveCount(0);
+  await popup.getByRole("button", { name: "摘要昨日文档", exact: true }).tap();
+  await expect(popup).toHaveCount(0);
+  await expect(page.locator(".note-title:visible")).toHaveValue("摘要昨日文档");
+});
+
+});
+
+test("默认点击显示弹层，悬停不会弹出，也不打开分栏", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await seed(page);
+  await page.evaluate(() => localStorage.removeItem("nr:workspaceLayout"));
+  await page.reload();
+  const summary = page.getByRole("navigation", { name: "工作区统计" });
+  await expect(summary).toHaveAttribute("aria-busy", "false");
+  const button = summary.getByRole("button", { name: "查看全部文档", exact: true });
+  const popup = page.getByRole("dialog", { name: "全部文档预览", exact: true });
+  const before = await page.locator("#workspace-sidebar").getAttribute("class");
+  await button.hover();
+  await expect(popup).toHaveCount(0);
+  await button.click();
+  await expect(popup).toBeVisible();
+  expect(await page.locator("#workspace-sidebar").getAttribute("class")).toBe(before);
+  await button.click();
   await expect(popup).toHaveCount(0);
 });

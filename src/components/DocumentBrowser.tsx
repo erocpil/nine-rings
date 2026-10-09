@@ -30,7 +30,7 @@ interface Props {
   latestNote?: Pick<Note, "id" | "updated_at"> | null;
 }
 
-export interface DocumentBrowserRequest { sequence: number; view: "all" | "favorites" | "today" }
+export interface DocumentBrowserRequest { sequence: number; view: "all" | "favorites" | "today" | "recent" | "recent-edited"; restore?: DocumentBrowserSession }
 
 export interface DocumentBrowserSession {
   notes?: Note[];
@@ -105,6 +105,17 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
   useEffect(() => {
     if (!request || session.requestSequence === request.sequence) return;
     session.requestSequence = request.sequence;
+    if (request.restore) {
+      const saved = request.restore;
+      setView(saved.view ?? "all"); setModifiedToday(saved.modifiedToday ?? false);
+      setPath(saved.path ?? ""); setQuery(saved.query ?? ""); setDocType(saved.docType ?? ""); setTag(saved.tag ?? "");
+      setSort(saved.sort ?? "updated"); setSortDirection(saved.sortDirection ?? "desc");
+      setSearchOpen(saved.searchOpen ?? false); setFiltersOpen(saved.filtersOpen ?? false);
+      if (saved.fields) setFields(saved.fields);
+      session.scrollPositions = saved.scrollPositions; session.scrollTop = saved.scrollTop;
+      if (scrollRef.current) scrollRef.current.scrollTop = saved.scrollTop ?? 0;
+      return;
+    }
     setView(request.view === "today" ? "all" : request.view);
     setModifiedToday(request.view === "today");
     setPath(""); setQuery(""); setDocType(""); setTag("");
@@ -156,7 +167,8 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
     return () => { active = false; };
   }, [refreshKey, reloadKey]);
   const visible = useMemo(() => {
-    return filterQuickSwitcherNotes(notes, query).filter(note => (view !== "recent" || recentIds.includes(note.id))
+    const candidates = view === "recent-edited" ? [...notes].sort((a, b) => (Date.parse(b.updated_at) || 0) - (Date.parse(a.updated_at) || 0) || a.id.localeCompare(b.id)).slice(0, 15) : notes;
+    return filterQuickSwitcherNotes(candidates, query).filter(note => (view !== "recent" || recentIds.includes(note.id))
       && (!modifiedToday || modifiedOnLocalDay(note.updated_at, day))
       && (view !== "favorites" || favorites.includes(note.id))
       && (!docType || note.docType === docType)
@@ -188,6 +200,7 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
       {preferencesFailed && <p role="status" className="document-browser-empty">列表偏好未能保存到本机，当前会话仍可使用。</p>}
       <div className="document-browser-tabs" aria-label="文档浏览方式">
         <button aria-pressed={view === "recent"} onClick={() => switchView("recent")}>最近打开</button>
+        {view === "recent-edited" && <button aria-pressed="true">最近编辑 · 15 份</button>}
         <button aria-pressed={view === "all"} onClick={() => switchView("all")}>全部文档</button>
         <button aria-pressed={view === "favorites"} onClick={() => switchView("favorites")}>收藏</button>
         <span className="document-browser-count" aria-live="polite">{loading ? "…" : visible.length}</span>

@@ -2,7 +2,7 @@ import type { Note, PathNode } from "../types/models";
 import { localDateKey } from "./local-date";
 import { QUICK_NOTES_PATH } from "./quick-notes";
 
-export type WorkspaceSummaryKind = "all" | "notes" | "today" | "favorites";
+export type WorkspaceSummaryKind = "all" | "notes" | "today" | "favorites" | "recent";
 export type WorkspaceDocumentSummary = Pick<Note, "id" | "title" | "storagePath" | "updated_at">;
 
 export function workspaceDocuments(tree: PathNode[]): WorkspaceDocumentSummary[] {
@@ -20,6 +20,7 @@ export function modifiedOnLocalDay(timestamp: string, day: string): boolean {
 
 export function workspaceCounts(documents: WorkspaceDocumentSummary[], favorites: string[], day: string) {
   return {
+    recent: Math.min(15, documents.length),
     all: documents.length,
     notes: workspaceSummaryDocuments(documents, "notes", favorites, day).length,
     today: workspaceSummaryDocuments(documents, "today", favorites, day).length,
@@ -30,6 +31,7 @@ export function workspaceCounts(documents: WorkspaceDocumentSummary[], favorites
 /** Counts and hover previews use the same path, local-day and favorite rules. */
 export function workspaceSummaryDocuments(documents: WorkspaceDocumentSummary[], kind: WorkspaceSummaryKind, favorites: string[], day: string) {
   switch (kind) {
+    case "recent": return [...documents].sort((a, b) => (Date.parse(b.updated_at) || 0) - (Date.parse(a.updated_at) || 0) || a.id.localeCompare(b.id)).slice(0, 15);
     case "all": return documents;
     case "notes": return documents.filter(note => note.storagePath === QUICK_NOTES_PATH || note.storagePath?.startsWith(`${QUICK_NOTES_PATH}/`));
     case "today": return documents.filter(note => modifiedOnLocalDay(note.updated_at, day));

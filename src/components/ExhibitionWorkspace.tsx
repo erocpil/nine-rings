@@ -1,3 +1,4 @@
+import { useWorkspaceLayout } from "../hooks/useWorkspaceLayout";
 import { useEffect, useMemo, useRef, useState, lazy, Suspense, type ReactNode } from "react";
 import { DocumentFilterSelect } from "./DocumentFilterSelect";
 import "./DocumentBrowser.css";
@@ -32,6 +33,7 @@ interface Props {
   onCreate: () => void;
   onSearch: () => void;
   onSettings: () => void;
+  activeSummary?: WorkspaceSummaryKind | null;
   onSummary: (kind: WorkspaceSummaryKind) => void;
   latestNote: Pick<Note, "id" | "updated_at"> | null;
 }
@@ -52,6 +54,7 @@ export function ExhibitionWorkspace(props: Props) {
   const [retry, setRetry] = useState(0);
   const day = useLocalDay();
   const counts = useMemo(() => workspaceCounts(documents, favorites, day), [documents, favorites, day]);
+  const summaryLayout = useWorkspaceLayout();
   const [summaryPreview, setSummaryPreview] = useState<{ kind: WorkspaceSummaryKind; trigger: HTMLButtonElement; keyboard: boolean } | null>(null);
   const summaryCloseTimer = useRef<ReturnType<typeof setTimeout>>();
   const keepSummary = () => clearTimeout(summaryCloseTimer.current);
@@ -62,21 +65,22 @@ export function ExhibitionWorkspace(props: Props) {
   };
   const leaveSummary = () => {
     keepSummary();
+    if (summaryLayout.summaryInteraction !== "hover" || summaryPreview?.keyboard) return;
     // Leave enough time to cross the small gap between trigger and portal.
     summaryCloseTimer.current = setTimeout(() => setSummaryPreview(null), 160);
   };
-  const previewEnabled = active && props.desktop && !busy && !blocked && !loading && !error;
+  const previewEnabled = active && summaryLayout.summaryInteraction !== "sidebar" && !busy && !blocked && !loading && !error;
   useEffect(() => {
     if (!previewEnabled) {
       clearTimeout(summaryCloseTimer.current);
       setSummaryPreview(null);
     }
     return () => clearTimeout(summaryCloseTimer.current);
-  }, [previewEnabled]);
+  }, [previewEnabled, summaryLayout.summaryInteraction]);
   const previewDocuments = useMemo(() => summaryPreview
     ? [...workspaceSummaryDocuments(documents, summaryPreview.kind, favorites, day)].sort((a, b) => b.updated_at.localeCompare(a.updated_at))
     : [], [documents, summaryPreview, favorites, day]);
-  const previewTitle = summaryPreview ? { all: "全部文档", notes: "随记", today: "今日修改", favorites: "收藏" }[summaryPreview.kind] : "";
+  const previewTitle = summaryPreview ? { all: "全部文档", notes: "随记", today: "今日修改", favorites: "收藏", recent: "最近打开（最近编辑的 15 份）" }[summaryPreview.kind] : "";
   useEffect(() => {
     const refresh = () => setFavorites(readDocumentFavorites());
     window.addEventListener("storage", refresh);
@@ -246,15 +250,20 @@ export function ExhibitionWorkspace(props: Props) {
                 ["notes", "条随记", "查看随记"],
                 ["today", "篇今日修改", "查看今日修改文档"],
                 ["favorites", "篇收藏", "查看收藏文档"],
+                ["recent", "最近打开", "查看最近打开文档"],
               ] as const).map(([kind, label, name]) => <button key={kind} type="button"
-                className={`exhibition-summary-${kind}`} aria-label={name}
-                aria-haspopup={props.desktop ? "dialog" : undefined} aria-expanded={props.desktop ? summaryPreview?.kind === kind : undefined}
-                onPointerEnter={event => { if (event.pointerType === "mouse" && previewEnabled) { keepSummary(); setSummaryPreview({ kind, trigger: event.currentTarget, keyboard: false }); } }}
+                className={`exhibition-summary-${kind}`} aria-label={name} aria-pressed={summaryLayout.summaryInteraction === "sidebar" ? props.activeSummary === kind : summaryPreview?.kind === kind}
+                aria-haspopup={summaryLayout.summaryInteraction !== "sidebar" ? "dialog" : undefined} aria-expanded={summaryLayout.summaryInteraction !== "sidebar" ? summaryPreview?.kind === kind : undefined}
+                onPointerEnter={event => { if (event.pointerType === "mouse" && previewEnabled && summaryLayout.summaryInteraction === "hover") { keepSummary(); setSummaryPreview({ kind, trigger: event.currentTarget, keyboard: false }); } }}
                 onPointerLeave={leaveSummary}
                 onKeyDown={event => {
                   if (event.key === "ArrowDown" && previewEnabled) { event.preventDefault(); keepSummary(); setSummaryPreview({ kind, trigger: event.currentTarget, keyboard: true }); }
                 }}
-                disabled={busy || blocked || loading || Boolean(error)} onClick={() => { closeSummary(); props.onSummary(kind); }}>
+                disabled={busy || blocked || loading || Boolean(error)} onClick={event => {
+                  if (summaryLayout.summaryInteraction === "sidebar") { closeSummary(); props.onSummary(kind); return; }
+                  if (summaryLayout.summaryInteraction === "click" && summaryPreview?.kind === kind) { closeSummary(); return; }
+                  keepSummary(); setSummaryPreview({ kind, trigger: event.currentTarget, keyboard: false });
+                }}>
                 <strong>{loading || error ? "…" : counts[kind]}</strong><span>{label}</span>
               </button>)}
             </nav>
@@ -364,7 +373,7 @@ export function ExhibitionWorkspace(props: Props) {
         </section>
       )}
       {previewEnabled && summaryPreview && <WorkspaceSummaryPreview key={summaryPreview.kind} title={previewTitle} documents={previewDocuments}
-        trigger={summaryPreview.trigger} keyboard={summaryPreview.keyboard} onEnter={keepSummary} onLeave={leaveSummary} onClose={closeSummary}
+        trigger={summaryPreview.trigger} keyboard={summaryPreview.keyboard} visibleRows={summaryLayout.summaryVisibleRows} compact={!props.desktop} onEnter={keepSummary} onLeave={leaveSummary} onClose={closeSummary}
         onOpen={id => { closeSummary(); open(id); }} />}
     </div>
   );

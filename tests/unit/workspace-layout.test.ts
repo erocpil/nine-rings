@@ -60,6 +60,8 @@ describe("workspace layout preferences", () => {
     const notify = vi.fn();
     window.addEventListener("nr:workspace-layout-change", notify);
     saveWorkspaceLayout({
+      summaryInteraction: "click",
+      summaryVisibleRows: 8,
       panelRatio: 0.4,
       sidebarSide: "right",
       outlinePinned: true,
@@ -75,6 +77,31 @@ describe("workspace layout preferences", () => {
     restoreFrontendSettings(backup, localStorage);
     expect(readWorkspaceLayout()).toEqual(original);
   });
+  it("normalizes summary modes and whole visible rows, with backwards-compatible defaults", () => {
+    expect(normalizeWorkspaceLayout({})).toMatchObject({
+      summaryInteraction: "click",
+      summaryVisibleRows: 15,
+    });
+    expect(
+      normalizeWorkspaceLayout({
+        summaryInteraction: "hover",
+        summaryVisibleRows: 5.7,
+      }),
+    ).toMatchObject({ summaryInteraction: "hover", summaryVisibleRows: 6 });
+    expect(
+      normalizeWorkspaceLayout({
+        summaryInteraction: "bad",
+        summaryVisibleRows: Infinity,
+      }),
+    ).toMatchObject({ summaryInteraction: "click", summaryVisibleRows: 15 });
+    expect(
+      normalizeWorkspaceLayout({ summaryVisibleRows: -1 }).summaryVisibleRows,
+    ).toBe(1);
+    expect(
+      normalizeWorkspaceLayout({ summaryVisibleRows: 999 }).summaryVisibleRows,
+    ).toBe(50);
+  });
+
   it("reports unavailable storage without throwing", () => {
     vi.stubGlobal("localStorage", {
       getItem() {
