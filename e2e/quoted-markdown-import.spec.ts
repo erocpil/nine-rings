@@ -22,6 +22,11 @@ test("导入引用内列表和行内代码，刷新后保留结构及可辨识�
   await expect(editor.locator(":scope > ul code")).toHaveText("mlx5");
   await expect(editor.locator(".code-block-toolbar .structured-block-symbol")).toHaveText("</>");
   await expect(editor.locator(".blockquote-toolbar .structured-block-symbol")).toHaveText("❝");
+  await expect.poll(() => editor.evaluate(element => {
+    const quote = element.querySelector(".blockquote-toolbar .structured-block-symbol")!.getBoundingClientRect();
+    const code = element.querySelector(".code-block-toolbar .structured-block-symbol")!.getBoundingClientRect();
+    return Math.abs(quote.left - code.left);
+  })).toBeLessThanOrEqual(1);
   await expect.poll(() => page.locator('.editor-block-number[data-block-index="4"]').evaluate(element => {
     const marker = element.getBoundingClientRect();
     const toolbar = document.querySelector(".ProseMirror .code-block-title")!.getBoundingClientRect();
@@ -59,6 +64,11 @@ for (const virtual of [false, true]) {
     const root = virtual ? page.locator(".vr-note") : page.locator(".note-editor .ProseMirror");
     await expect(root.locator("blockquote li")).toHaveCount(2);
     await expect(root.locator("blockquote li code").first()).toHaveText("rte_mbuf");
+    await expect.poll(() => root.evaluate(element => {
+      const quote = element.querySelector(".blockquote-toolbar .structured-block-symbol")!.getBoundingClientRect();
+      const code = element.querySelector(".code-block-toolbar .structured-block-symbol, .vr-code-toolbar .structured-block-symbol")!.getBoundingClientRect();
+      return Math.abs(quote.left - code.left);
+    })).toBeLessThanOrEqual(1);
     if (virtual) {
       const row = root.locator('.vr-row[data-block-type="codeBlock"]');
       await expect.poll(() => row.evaluate(element => {

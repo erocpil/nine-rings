@@ -489,6 +489,15 @@
   color: var(--text-secondary);
 }
 
+/* Keep the caption at the block edge; only the quoted body is indented. */
+.editor-content blockquote.blockquote-wrap {
+  padding-left: 0;
+}
+
+.editor-content .blockquote-content {
+  padding-left: var(--editor-blockquote-indent);
+}
+
 .editor-content .ProseMirror > :is(.code-block-wrap, .node-codeBlock) {
   margin-top: 0;
   /* Keep the following block visually separate. The code NodeView owns its

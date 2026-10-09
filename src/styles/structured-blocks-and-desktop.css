@@ -352,8 +352,9 @@
   justify-content: flex-start;
   gap: var(--block-toolbar-gap);
   min-height: 28px;
-  /* Match the code toolbar's 5px inset plus its outer 1px border. */
-  padding: 4px 6px;
+  /* The quote's 3px rule plus this inset matches the code frame's 1px
+     border and 5px toolbar inset. Theme toolbar padding overrides both. */
+  padding: 4px 6px 4px 3px;
   margin-bottom: 0;
   color: var(--text-secondary);
   font: 11px/1.4 var(--font);
