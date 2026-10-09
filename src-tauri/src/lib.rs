@@ -3,6 +3,8 @@ pub mod db;
 pub mod export;
 mod fullscreen;
 #[cfg(target_os = "macos")]
+mod macos_print;
+#[cfg(target_os = "macos")]
 mod macos_window;
 pub mod service;
 #[cfg(any(target_os = "windows", test))]

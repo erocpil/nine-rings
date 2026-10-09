@@ -51,7 +51,7 @@ import {
 
 const nesting = createContext(0);
 let schema: ReturnType<typeof getSchema> | undefined;
-function parse(source: string) {
+export function parseFlowDocument(source: string) {
   schema ??= getSchema([
     DocumentStarterKit.configure({ codeBlock: false, blockquote: false }),
     CodeBlockLineNumbers,
@@ -85,7 +85,7 @@ export function FlowBlockContent({ source }: { source: string }) {
   const [states, setStates] = useState(new Map<number, ReadingBlockState>());
   const result = useMemo(() => {
     try {
-      const doc = parse(source);
+      const doc = parseFlowDocument(source);
       const positions = new Map<PMNode, number>();
       doc.forEach((node, position) => positions.set(node, position));
       return { parts: flowParts(doc), positions };

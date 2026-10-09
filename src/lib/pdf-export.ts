@@ -107,6 +107,15 @@ const PRINT_STYLES = `
   .document-content img { display: block; max-width: 100%; height: auto; margin: 1em auto; break-inside: avoid-page; }
   .document-content hr { margin: 1.8em 0; border: 0; border-top: 1px solid #bfc3ca; }
   .document-content li { margin: 0.2em 0; }
+  .document-content .print-flow { margin: 1em 0; padding: 16px 20px; border: 1px solid #bfc3ca; border-radius: 9px; }
+  .document-content .print-flow-stages { margin-left: 13px; }
+  .document-content .print-flow-step { position: relative; padding: 0 0 24px 29px; border-left: 1px dashed #aab2c0; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  .document-content .print-flow-step:last-child { padding-bottom: 0; }
+  .document-content .print-flow-step > :is(h1,h2,h3,h4,h5,h6):first-of-type { margin-top: 0; border: 0; padding: 0; }
+  .document-content .print-flow-number { position: absolute; top: 3px; left: -14px; width: 26px; height: 26px; border: 1px solid #356ae6; border-radius: 50%; background: #fff; color: #1d5fd1; font: 600 13px/24px sans-serif; text-align: center; }
+  .document-content li[data-task-checked] { list-style: none; }
+  .print-task-checkbox { margin-left: -18px; margin-right: 6px; }
+  .document-content [data-html-comment="true"] { display: none; }
   @page { size: A4; margin: 18mm 17mm 20mm; }
   @media print {
     .print-actions { display: none !important; }
@@ -270,9 +279,32 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
   });
   content.append(template.content.cloneNode(true));
 
-  const diagrams = [...content.querySelectorAll<HTMLPreElement>("pre[data-language]")]
+  const diagramReady = (async () => {
+    if ([...content.querySelectorAll('pre[data-language]')].some(pre => pre.getAttribute("data-language")?.toLowerCase() === "flow")) {
+      const { renderPrintFlows } = await import("./pdf-flow");
+      renderPrintFlows(content);
+    }
+    content.querySelectorAll<HTMLDetailsElement>("details").forEach(element => { element.open = true; });
+    content.querySelectorAll<HTMLLIElement>("li[data-task-checked]").forEach(item => {
+      const checkbox = printDocument.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.disabled = true;
+      checkbox.className = "print-task-checkbox";
+      checkbox.checked = item.getAttribute("data-task-checked") === "true";
+      if (checkbox.checked) checkbox.setAttribute("checked", "");
+      (item.querySelector("p") ?? item).prepend(checkbox);
+    });
+    const formulas = [...content.querySelectorAll<HTMLElement>("[data-nr-math]")];
+    if (formulas.length) {
+      const [katex, css] = await Promise.all([import("katex"), import("katex/dist/katex.min.css?inline")]);
+      const mathStyle = printDocument.createElement("style");
+      mathStyle.textContent = css.default;
+      printDocument.head.append(mathStyle);
+      for (const formula of formulas) formula.innerHTML = katex.default.renderToString(formula.getAttribute("source") ?? formula.getAttribute("data-source") ?? "", { displayMode: formula.getAttribute("data-nr-math") === "block", throwOnError: false, trust: false });
+    }
+    const diagrams = [...content.querySelectorAll<HTMLPreElement>("pre[data-language]")]
     .filter(pre => pre.getAttribute("data-language")?.toLowerCase() === "mermaid");
-  const diagramReady = Promise.all(diagrams.map(async pre => {
+    await Promise.all(diagrams.map(async pre => {
     try {
       const svg = await renderMermaid(pre.textContent ?? "", {
         background: "#fff", text: "#202124", accent: "#356ae6", border: "#bfc3ca", darkMode: false,
@@ -302,6 +334,7 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
     }
     heading.id = headingId(heading.textContent ?? "", index, usedIds);
   });
+  })();
 
   wrapper.append(...coverNodes, content);
   printDocument.body.replaceChildren(actions, wrapper);
@@ -309,6 +342,7 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
 
   // Let fonts and images settle before opening the system dialog. The visible
   // print button remains available when a platform suppresses automatic print.
+  const assetsReady = () => {
   const images = [...content.querySelectorAll<HTMLImageElement>("img")];
   const imageReady = Promise.all(images.map((image) => {
     if (image.complete) return Promise.resolve();
@@ -319,10 +353,12 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
   }));
   const fontsReady = printDocument.fonts?.ready ?? Promise.resolve();
   const timeout = new Promise<void>((resolve) => window.setTimeout(resolve, 1800));
+  return Promise.race([Promise.all([imageReady, fontsReady]), timeout]);
+  };
   void Promise.race([diagramReady, new Promise<void>(resolve => window.setTimeout(resolve, 10_000))])
     .then(() => {
       printButton.disabled = false;
-      return Promise.race([Promise.all([imageReady, fontsReady]), timeout]);
+      return assetsReady();
     }).then(() => {
     if ((!printFrame && printWindow.closed) || (printFrame && !printFrame.isConnected)) return;
     if (printFrame) {

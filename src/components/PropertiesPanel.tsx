@@ -842,7 +842,16 @@ function PropertiesPanel({
             title="按展开后的完整正文生成 PDF，标题用于生成查看器侧栏书签"
           >导出 PDF（书签大纲）</button>
           <div className="prop-empty">
-            正文不会插入目录页；标题层级用于生成 PDF 查看器侧栏中的可点击书签（具体支持由系统 PDF 打印引擎决定）。使用上方发布元信息；只读文档也可以导出。iPhone/iPad 无需打印机：在系统打印预览中展开页面，再点分享并“存储到文件”。
+            按展开后的完整正文导出，流程块和图表保留渲染效果；使用上方发布元信息，只读文档也可以导出。
+          </div>
+          <div className="prop-empty">
+            不额外插入目录页；标题层级用于生成 PDF 查看器侧栏书签，具体支持由系统打印引擎决定。
+          </div>
+          <div className="prop-empty">
+            macOS 桌面版默认使用原文档名保存 PDF，采用 A4 纵向纸张，页边距为上 18mm、下 20mm、左右 17mm。
+          </div>
+          <div className="prop-empty">
+            iPhone/iPad 无需打印机：在系统打印预览中展开页面，再点分享并“存储到文件”。
           </div>
         </div>
 

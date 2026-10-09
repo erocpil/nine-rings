@@ -4,12 +4,15 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 declare global {
   interface Window {
     __NR_PRINT_HTML?: string;
+    __NR_PRINT_TITLE?: string;
   }
 }
 
 async function start() {
   const html = window.__NR_PRINT_HTML;
+  const title = window.__NR_PRINT_TITLE;
   delete window.__NR_PRINT_HTML;
+  delete window.__NR_PRINT_TITLE;
   if (!html) throw new Error("打印文档未加载，请关闭窗口后重新导出。");
   const snapshot = new DOMParser().parseFromString(html, "text/html");
   // The snapshot is already sanitized by pdf-export; never execute its scripts.
@@ -43,7 +46,9 @@ async function start() {
     printButton.disabled = true;
     error.textContent = "";
     try {
-      await invoke("print_pdf_document");
+      await invoke("print_pdf_document", {
+        title: title ?? document.title.replace(/\.pdf$/i, ""),
+      });
     } catch (reason) {
       error.textContent = `无法启动打印：${String(reason)}`;
     } finally {

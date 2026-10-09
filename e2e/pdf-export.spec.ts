@@ -28,10 +28,12 @@ test("桌面 PDF 导出把准备好的独立文档交给原生窗口并报告创
 
 test("原生打印页展示完整正文并通过原生接口打印、重试和关闭", async ({ page }) => {
   await page.addInitScript(() => {
-    const host = window as typeof window & { __NR_PRINT_HTML: string; __TAURI_INTERNALS__: unknown; nativeCalls: string[] };
+    const host = window as typeof window & { __NR_PRINT_HTML: string; __NR_PRINT_TITLE: string; __TAURI_INTERNALS__: unknown; nativeCalls: string[]; nativeTitles: string[] };
     host.nativeCalls = [];
+    host.nativeTitles = [];
+    host.__NR_PRINT_TITLE = "原文档名";
     host.__NR_PRINT_HTML = '<html><head><title>原生打印测试</title><style>@media print { .print-actions {display:none} }</style></head><body><div class="print-actions"><button>关闭</button><button class="primary">打印 / 存储为 PDF</button></div><main><h1>中文文档</h1><p>可选择的完整正文</p></main></body></html>';
-    host.__TAURI_INTERNALS__ = { metadata: { currentWindow: { label: "pdf-print-test" } }, invoke: async (command: string) => { host.nativeCalls.push(command); if (command === "print_pdf_document" && host.nativeCalls.length === 1) throw new Error("print unavailable"); } };
+    host.__TAURI_INTERNALS__ = { metadata: { currentWindow: { label: "pdf-print-test" } }, invoke: async (command: string, args?: { title?: string }) => { host.nativeCalls.push(command); if (args?.title) host.nativeTitles.push(args.title); if (command === "print_pdf_document" && host.nativeCalls.length === 1) throw new Error("print unavailable"); } };
     window.print = () => { throw new Error("must use native print"); };
   });
   await page.goto("/pdf-print.html");
@@ -41,6 +43,36 @@ test("原生打印页展示完整正文并通过原生接口打印、重试和�
   await expect(page.getByRole("alert")).toBeEmpty();
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as typeof window & { nativeCalls: string[] }).nativeCalls)).toEqual(["print_pdf_document", "print_pdf_document", "plugin:window|close"]);
+  expect(await page.evaluate(() => (window as typeof window & { nativeTitles: string[] }).nativeTitles)).toEqual(["原文档名", "原文档名"]);
+});
+
+test("PDF 保留渲染后的流程阶段、任务、表格、公式与图表，不导出 flow 源码", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".note-editor")).toBeVisible();
+  const popup = page.waitForEvent("popup");
+  await page.locator(".ProseMirror:visible").first().evaluate(async element => {
+    const { mdToDelta } = await import("/src/lib/md-parser.ts");
+    const { deltaToProseMirror } = await import("/src/lib/delta-converter.ts");
+    const { exportDocumentAsPdf } = await import("/src/lib/pdf-export.ts");
+    const source = "````flow\n## 输入\n\n**目的**：明确问题。\n\n- [x] 确认输入\n- [ ] 执行方案\n\n## 行动\n\n> 验证最小步骤。\n\n```js\nconst next = 1;\n```\n\n公式 $x^2$。\n\n```mermaid\nflowchart LR\nA[输入] --> B[结果]\n```\n\n## 输出\n\n| 项目 | 结果 |\n| --- | --- |\n| 验证 | 完成 |\n````";
+    const editor = (element as HTMLElement & { editor: { commands: { setContent(doc: unknown): void }; getHTML(): string } }).editor;
+    editor.commands.setContent(deltaToProseMirror(mdToDelta(source)));
+    exportDocumentAsPdf({ title: "流程阅读版", contentHtml: editor.getHTML() });
+  });
+  const preview = await popup;
+  await expect(preview.getByRole("button", { name: "打印 / 存储为 PDF" })).toBeEnabled();
+  await expect(preview.locator(".print-flow-step")).toHaveCount(3);
+  expect(await preview.locator(".print-flow-number").allTextContents()).toEqual(["1", "2", "3"]);
+  await expect(preview.locator('pre[data-language="flow"]')).toHaveCount(0);
+  await expect(preview.locator(".print-flow strong")).toHaveText("目的");
+  await expect(preview.locator(".print-flow blockquote")).toContainText("验证最小步骤");
+  await expect(preview.locator(".print-flow table")).toHaveCount(1);
+  await expect(preview.locator(".print-flow .katex")).toHaveCount(1);
+  await expect(preview.locator(".print-flow .print-mermaid svg")).toHaveCount(1);
+  await expect(preview.locator(".print-task-checkbox")).toHaveCount(2);
+  await expect(preview.locator(".print-task-checkbox").first()).toBeChecked();
+  await expect(preview.locator(".print-task-checkbox").last()).not.toBeChecked();
+  await expect(preview.locator(".print-flow pre code")).toContainText("const next = 1;");
 });
 
 test("PDF 打印视图用语义标题生成侧栏书签且不在正文插入目录", async ({ page, browserName }) => {
