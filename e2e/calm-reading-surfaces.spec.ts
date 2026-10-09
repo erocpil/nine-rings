@@ -30,10 +30,15 @@ for (const mode of ["light", "dark"] as const) {
     );
     const firstCell = editor.locator("td").first();
     await expect(firstCell).toHaveCSS("padding-left", "12px");
-    await expect(editor.locator("p > code").first()).toHaveCSS(
-      "border-top-color",
-      "rgba(0, 0, 0, 0)",
-    );
+    const inlineCode = editor.locator("p > code").first();
+    await expect(inlineCode).toHaveCSS("border-top-width", "1px");
+    const surface = await inlineCode.evaluate(element => ({
+      border: getComputedStyle(element).borderTopColor,
+      background: getComputedStyle(element).backgroundColor,
+      paragraph: getComputedStyle(element.parentElement!).backgroundColor,
+    }));
+    expect(surface.border).not.toBe("rgba(0, 0, 0, 0)");
+    expect(surface.background).not.toBe(surface.paragraph);
     await page.screenshot({ path: test.info().outputPath(`nr-reading-${mode}.png`) });
     // Read-only content shares the same table styling.
     await page

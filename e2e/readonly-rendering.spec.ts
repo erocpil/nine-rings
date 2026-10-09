@@ -57,18 +57,26 @@ test("局部阅读切换文档后保留代码和引用折叠及阅读锚点", as
   const root = page.locator("[data-virtual-reader]");
   await root.getByRole("button", { name: "折叠代码块", exact: true }).click();
   await root.getByRole("button", { name: "折叠引用块", exact: true }).click();
-  const saved = await page.evaluate(async () => {
+  const documents = await page.evaluate(async () => {
     const { api } = await import("/src/lib/api.ts");
     const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
     const id = useNotesStore.getState().selectedNote!.id;
     const other = await api.notes.create({ title: "局部阅读切换目标", date: "2026-09-17", content: { ops: [{ insert: "另一篇正文\n" }] } });
-    const root = document.querySelector<HTMLElement>("[data-virtual-reader] .note-editor-scroll")!;
-    root.scrollTop = 400;
-    root.dispatchEvent(new Event("scroll"));
-    const top = root.scrollTop;
-    useNotesStore.getState().selectNote(other);
-    return { id, top };
+    return { id, other: other.id, anchor: localStorage.getItem(`nr:readonlyAnchor:${id}`) };
   });
+  // Native scrolling cancels deferred fold geometry. Wait until the reader
+  // persists the settled anchor before switching, rather than snapshotting
+  // scrollTop in the same task as an unfinished virtual layout update.
+  await root.locator(".note-editor-scroll").hover();
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => page.evaluate(id => localStorage.getItem(`nr:readonlyAnchor:${id}`), documents.id)).not.toBe(documents.anchor);
+  const saved = await page.evaluate(async documents => {
+    const { api } = await import("/src/lib/api.ts");
+    const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
+    const top = document.querySelector<HTMLElement>("[data-virtual-reader] .note-editor-scroll")!.scrollTop;
+    useNotesStore.getState().selectNote(await api.notes.get(documents.other));
+    return { id: documents.id, top };
+  }, documents);
   expect(saved.top).toBeGreaterThan(350);
   await expect(page.locator(".ProseMirror")).toHaveText("另一篇正文");
   await page.evaluate(async (id) => {
@@ -90,9 +98,9 @@ test("代码简介在完整只读与局部阅读渲染之间切换时保留", as
   await expect(page.getByLabel("代码简介")).toHaveValue(description);
   await enable(page);
   const codeBlock = page.locator("[data-virtual-reader] .code-block-wrap").first();
-  await expect(codeBlock.locator(".vr-code-toolbar > span").first()).toHaveText(description);
+  await expect(codeBlock.locator(".vr-code-toolbar > .structured-block-caption")).toHaveText(description);
   await codeBlock.getByRole("button", { name: "折叠代码块" }).click();
-  await expect(codeBlock.locator(".vr-code-toolbar > span").first()).toBeVisible();
+  await expect(codeBlock.locator(".vr-code-toolbar > .structured-block-caption")).toBeVisible();
   await page.evaluate(() => {
     localStorage.setItem("nr:experimentalReadonlyRendering", "false");
     window.dispatchEvent(new Event("nine-rings:readonly-rendering-change"));

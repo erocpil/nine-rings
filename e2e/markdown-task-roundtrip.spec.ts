@@ -1,6 +1,24 @@
-import { pressLineBoundary } from "./helpers/keyboard";
+import type { Editor } from "@tiptap/core";
 import { sourceInfo, replaceSource } from "./helpers/source-editor";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Locator } from "@playwright/test";
+
+async function appendToParagraph(paragraph: Locator, page: Page) {
+  // End moves to the visual line end on Linux; narrow paragraphs can wrap
+  // inside a word. This test edits the paragraph end, not native key behavior.
+  await paragraph.evaluate(element => {
+    const editor = (element.closest(".ProseMirror") as HTMLElement & { editor: Editor }).editor;
+    editor.commands.focus(editor.view.posAtDOM(element, element.childNodes.length));
+  });
+  await expect.poll(() => paragraph.evaluate(element => {
+    const editor = (element.closest(".ProseMirror") as HTMLElement & { editor: Editor }).editor;
+    const selection = window.getSelection();
+    const end = editor.view.posAtDOM(element, element.childNodes.length);
+    return editor.view.hasFocus() && editor.state.selection.from === end
+      && !!selection?.anchorNode
+      && editor.view.posAtDOM(selection.anchorNode, selection.anchorOffset) === end;
+  })).toBe(true);
+  await page.keyboard.insertText("！");
+}
 
 async function seed(page: Page, readonly = false) {
   await page.goto("/");
@@ -41,9 +59,7 @@ for (const width of [390, 1280]) {
     await expect(editor.locator('li[data-task-checked="true"]')).toHaveCount(2);
     await page.keyboard.press("ControlOrMeta+z");
     await expect(unchecked).toHaveCount(1);
-    await unchecked.locator(":scope > p").click();
-    await pressLineBoundary(page, "end");
-    await page.keyboard.insertText("！");
+    await appendToParagraph(unchecked.locator(":scope > p"), page);
     const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
     for (let i = 0; i < 5; i++) {
       await page.getByRole("button", { name: "源码", exact: true }).click();
@@ -62,9 +78,7 @@ for (const width of [390, 1280]) {
       await expect(editor).toContainText("转义 [文字]");
       await expect(editor.locator("code")).toHaveText("\\[代码\\]");
       // Force serialization from the rich editor, not the retained source spelling.
-      await unchecked.locator(":scope > p").click();
-      await pressLineBoundary(page, "end");
-      await page.keyboard.insertText("！");
+      await appendToParagraph(unchecked.locator(":scope > p"), page);
     }
     await expect(page.locator(".save-status-saved")).toBeVisible();
     await page.reload();

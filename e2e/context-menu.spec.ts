@@ -42,7 +42,17 @@ test.describe("正文右键菜单：作用范围", () => {
   test("右键正文弹出自定义菜单", async ({ page }) => {
     const editor = await createBlankNote(page);
     await editor.fill("正文");
-    await editor.locator("p").click({ button: "right" });
+    // Right-click the text, not the paragraph's large trailing blank area.
+    await page.locator(".note-editor-scroll").hover();
+    await page.mouse.wheel(0, -1000);
+    await expect.poll(() => page.locator(".note-editor-scroll").evaluate(element => element.scrollTop)).toBe(0);
+    const point = await editor.locator("p").evaluate(element => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const rect = range.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    });
+    await page.mouse.click(point.x, point.y, { button: "right" });
     await expect(menu(page)).toBeVisible();
   });
 

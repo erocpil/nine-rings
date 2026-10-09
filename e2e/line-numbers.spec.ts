@@ -225,7 +225,7 @@ test.describe("编辑器块级 gutter", () => {
     )).not.toBe("rgba(0, 0, 0, 0)");
   });
 
-  test("长代码块的主块号固定对齐代码首行而不是块中部", async ({ page }) => {
+  test("长代码块的主块号固定对齐标题行而不是块中部", async ({ page }) => {
     const editor = await createBlankNote(page);
     await editor.fill("first line");
     await (await toolbarAction(page, "code")).click();
@@ -247,13 +247,9 @@ test.describe("编辑器块级 gutter", () => {
     await expect(codeNumber).toHaveText("1");
     const readAlignment = () => editor.locator(".code-block-wrap").evaluate((block) => {
       const number = document.querySelector<HTMLElement>('.editor-block-number[data-block-format="Code"]');
-      const code = block.querySelector<HTMLElement>("code");
-      const textNode = code ? document.createTreeWalker(code, NodeFilter.SHOW_TEXT).nextNode() : null;
-      if (!number || !(textNode instanceof Text)) return { aligned: false, nearTop: false };
-      const firstCharacter = document.createRange();
-      firstCharacter.setStart(textNode, 0);
-      firstCharacter.setEnd(textNode, 1);
-      const textRect = firstCharacter.getBoundingClientRect();
+      const title = block.querySelector<HTMLElement>(".code-block-title");
+      if (!number || !title) return { aligned: false, nearTop: false };
+      const textRect = title.getBoundingClientRect();
       const numberRect = number.getBoundingClientRect();
       const blockRect = block.getBoundingClientRect();
       const numberCenter = numberRect.top + numberRect.height / 2;

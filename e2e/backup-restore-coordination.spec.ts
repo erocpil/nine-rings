@@ -134,6 +134,9 @@ for (const mode of ["safe-merge", "replace"] as const) {
     });
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
+    // Built-in samples write asynchronously after the first editor mounts.
+    // Start the zero-write audit only after workspace initialization finishes.
+    await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:builtin-flow-sample:v2"))).toBeTruthy();
     for (const invalid of ["  ", "private-invalid-content", '{"notes":"invalid"}', '{"notes":[{"id":"valid-first","title":"valid"},{"title":"missing id"}]}']) {
       payload = invalid;
       const result = await page.evaluate(async (pullMode) => {
