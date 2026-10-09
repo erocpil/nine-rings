@@ -1,0 +1,41 @@
+/* Source preview wraps each top-level block for source navigation. Apply the
+   same pixel rhythm as the editable and virtual readers across these wrappers. */
+html:not([data-interface-style="classic"]) .markdown-preview-block {
+  display: flow-root;
+}
+
+html:not([data-interface-style="classic"]) .markdown-preview-block > * {
+  margin-block: 0 var(--style-block-gap, 16px);
+}
+
+html:not([data-interface-style="classic"]) .markdown-preview-block > :is(h1, h2, h3, h4, h5, h6) {
+  margin-block: 0 var(--style-heading-bottom, 12px);
+}
+
+html:not([data-interface-style="classic"]) .markdown-preview-block[data-next-heading="true"] > * {
+  margin-bottom: var(--style-heading-gap, 28px);
+}
+
+html:not([data-interface-style="classic"]) .markdown-preview-block[data-next-heading="true"] > :is(h1, h2, h3, h4, h5, h6) {
+  margin-bottom: min(var(--style-heading-gap, 28px), var(--style-heading-bottom, 12px));
+}
+
+/* Settings preview shares typography without pretending to be an EditorView. */
+html:not([data-interface-style="classic"]) .editor-appearance-document > :is(p, ul, ol, pre, blockquote, table) {
+  margin-block: 0 var(--style-block-gap, 16px);
+}
+
+html:not([data-interface-style="classic"]) .editor-appearance-document > :is(h1, h2, h3, h4, h5, h6) {
+  margin-block: 0 var(--style-heading-bottom, 12px);
+}
+
+html:not([data-interface-style="classic"]) .editor-appearance-document > :has(+ :is(h1, h2, h3, h4, h5, h6)) {
+  margin-bottom: var(--style-heading-gap, 28px);
+}
+
+/* A narrow preview column follows the same adaptation as a narrow editor. */
+@container nr-reading (max-width: 480px) {
+  html:not([data-interface-style="classic"]) .markdown-preview-block[data-next-heading="true"] > :not(:is(h1, h2, h3, h4, h5, h6)) {
+    margin-bottom: calc(var(--style-heading-gap, 28px) * 11 / 14);
+  }
+}

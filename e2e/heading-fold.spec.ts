@@ -51,13 +51,13 @@ test("折叠标题间距一致，列表与代码引用图块留白协调", async
     };
   });
   expect(expandedSpacing.structuralBlockTopMargins).toEqual(["0px", "0px", "0px", "0px"]);
-  expect(expandedSpacing.structuralBlockMargins).toEqual(["10px", "10px", "10px", "10px"]);
+  expect(expandedSpacing.structuralBlockMargins).toEqual(["16px", "16px", "16px", "16px"]);
   expect(expandedSpacing.trailingParagraphMargin).toBe("28px");
   expect(expandedSpacing.headingGapMargins.length).toBeGreaterThan(0);
   expect(expandedSpacing.headingGapMargins).toContain("28px");
   expect(expandedSpacing.headingGapMargins.some(margin => parseFloat(margin) >= 10 && parseFloat(margin) <= 14)).toBe(true);
   const expandedMargins = await headings.evaluateAll(elements => elements.map(element => getComputedStyle(element).marginBottom));
-  expect(new Set(expandedMargins).size).toBeGreaterThan(1);
+  expect(expandedMargins).toEqual(Array(6).fill("12px"));
   for (let index = 0; index < 6; index += 1) {
     await headings.nth(index).locator(".editor-heading-fold").click();
   }

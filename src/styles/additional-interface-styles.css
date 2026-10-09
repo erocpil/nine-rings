@@ -71,19 +71,6 @@
   --accent-bg: var(--active-bg);
   --activeline-bg: color-mix(in srgb, var(--accent) 10%, transparent);
 }
-:root[data-interface-style="paper"] {
-  --style-content-width: 820px;
-  --style-content-inset: 44px;
-}
-:root[data-interface-style="minimal"] {
-  --style-control-height: 28px;
-  --style-header-height: 42px;
-  --style-panel-gap: 10px;
-  --ui-control-height: 28px;
-  --style-content-width: 740px;
-  --style-content-inset: 24px;
-  --style-content-top: 12px;
-}
 @media (min-width: 769px) and (pointer: fine) {
   html[data-interface-style="minimal"]
     :is(

@@ -37,8 +37,6 @@
   --accent-bg: var(--active-bg);
   --activeline-bg: color-mix(in srgb, var(--accent) 12%, transparent);
   --drawer-surface: var(--surface);
-  --style-content-width: 800px;
-  --style-content-inset: 40px;
   --ui-radius-small: 5px;
   --ui-radius-medium: 8px;
 }

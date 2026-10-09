@@ -213,11 +213,12 @@ export function MarkdownSplitPreview({
             style={{ fontSize }}
           >
             <div className="ProseMirror" contentEditable={false}>
-              {blocks.map(({ node, pos, offset }) => (
+              {blocks.map(({ node, pos, offset }, index) => (
                 <div
                   key={pos}
                   data-source-offset={offset}
                   className="markdown-preview-block"
+                  data-next-heading={blocks[index + 1]?.node.type.name === "heading" || undefined}
                 >
                   {decorateFlowBlock(renderReadonlyBlock(
                     node,

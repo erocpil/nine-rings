@@ -139,6 +139,10 @@ test("managed typography overrides preserve classic values and selected style co
   expect(display.editor_heading_margin_bottom).toBeCloseTo(8 / 18);
   expect(editorAppearanceVariables(display)).toMatchObject({
     "--style-content-width": "900px",
+    "--style-custom-content-width": "900px",
+    "--style-block-gap": "20px",
+    "--style-heading-gap": "30px",
+    "--style-heading-bottom": "8px",
     "--editor-block-number-gap": "18px",
   });
   expect(
@@ -152,6 +156,12 @@ test("managed typography overrides preserve classic values and selected style co
   });
   expect(classic.note_font_size).toBe(23);
   expect(classic.editor_font_family).toBe("monospace");
+  expect(
+    editorAppearanceVariables(classic)["--style-block-gap"],
+  ).toBeUndefined();
+  expect(
+    editorAppearanceVariables(classic)["--style-custom-content-width"],
+  ).toBeUndefined();
 });
 
 test("default hierarchy palette alternates through cool/warm hues and ends with brick red", () => {

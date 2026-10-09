@@ -94,33 +94,11 @@
   --accent-bg: var(--active-bg);
   --activeline-bg: color-mix(in srgb, var(--accent) 10%, transparent);
 }
-:root[data-interface-style="mono-aware"] {
-  --style-content-width: 820px;
-  --style-content-inset: 44px;
-}
-:root[data-interface-style="yugen"] {
-  --style-content-width: 740px;
-  --style-content-inset: 36px;
-}
 :root[data-interface-style="wabi-sabi"] {
-  --style-content-width: 780px;
-  --style-content-inset: 32px;
   --ui-shadow-popover: 0 3px 12px #0002;
   --ui-shadow-dialog: 0 6px 24px #0002;
   --ui-radius-small: 2px;
   --ui-radius-medium: 3px;
-}
-html[data-interface-style="mono-aware"]
-  :is(.editor-content, .vr-block)
-  :is(h1, h2, h3) {
-  font-weight: 500;
-  letter-spacing: 0;
-}
-html[data-interface-style="wabi-sabi"]
-  :is(.editor-content, .vr-block)
-  :is(h1, h2, h3) {
-  font-weight: 600;
-  letter-spacing: 0;
 }
 html:is(
     [data-interface-style="mono-aware"],

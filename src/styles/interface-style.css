@@ -109,6 +109,9 @@
   --ui-radius-small: 4px;
   --ui-radius-medium: 6px;
   --ui-control-height: 32px;
+  --style-content-width: 780px;
+  --style-content-inset: 32px;
+  --style-content-top: 20px;
 }
 :root[data-interface-style="calm-compact"] {
   --style-control-height: 28px;
@@ -121,7 +124,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
   font-weight: 500;
 }
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
-  :is(.editor-content, .vr-block)
+  :is(.editor-content, .vr-block, .editor-appearance-document)
   :is(h1, h2, h3, h4, h5, h6) {
   font-weight: 600;
 }
@@ -247,7 +250,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
     .note-editor-scroll
     > .editor-content-shell {
     width: calc(100% - clamp(8px, 4%, var(--style-content-inset)) * 2);
-    max-width: var(--style-content-width);
+    max-width: min(var(--style-content-width), var(--style-custom-content-width, 100%));
     margin-inline: auto;
     margin-top: var(--style-content-top);
   }
@@ -255,7 +258,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
     .vr-note
     .vr-body {
     width: calc(100% - clamp(8px, 4%, var(--style-content-inset)) * 2);
-    max-width: var(--style-content-width);
+    max-width: min(var(--style-content-width), var(--style-custom-content-width, 100%));
     margin-inline: auto;
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
@@ -339,9 +342,6 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
   --code-bg: #f0f1eb;
   --activeline-bg: #e8eae280;
   --drawer-surface: #f0efea;
-  --style-content-width: 788px;
-  --style-content-inset: 40px;
-  --style-content-top: 20px;
   color-scheme: light;
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
@@ -421,29 +421,29 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
   --syntax-type-color: #bab0d5;
 }
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
-  :is(.editor-content, .vr-block)
+  :is(.editor-content, .vr-block, .editor-appearance-document)
   h1 {
-  font-size: 34px;
+  font-size: calc(var(--editor-font-size) * 2.125);
   line-height: 1.3;
-  font-weight: 650;
-  letter-spacing: -0.6px;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
-  :is(.editor-content, .vr-block)
+  :is(.editor-content, .vr-block, .editor-appearance-document)
   h2 {
-  font-size: 21px;
+  font-size: calc(var(--editor-font-size) * 1.3125);
   line-height: 1.5;
-  letter-spacing: -0.4px;
+  letter-spacing: 0;
 }
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
-  :is(.editor-content, .vr-block)
+  :is(.editor-content, .vr-block, .editor-appearance-document)
   h3 {
-  font-size: 18px;
+  font-size: calc(var(--editor-font-size) * 1.125);
 }
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
-  :is(.editor-content, .vr-block)
+  :is(.editor-content, .vr-block, .editor-appearance-document)
   :is(h4, h5, h6) {
-  font-size: 16px;
+  font-size: var(--editor-font-size);
 }
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
   :is([data-toolbar-tool="font"], .style-managed-font-action) {
@@ -451,18 +451,18 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
 }
 @media (max-width: 768px) {
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
-    :is(.editor-content, .vr-block)
+    :is(.editor-content, .vr-block, .editor-appearance-document)
     h1 {
-    font-size: 27px;
+    font-size: calc(var(--editor-font-size) * 1.6875);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
-    :is(.editor-content, .vr-block)
+    :is(.editor-content, .vr-block, .editor-appearance-document)
     h2 {
-    font-size: 19px;
+    font-size: calc(var(--editor-font-size) * 1.1875);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
-    :is(.editor-content, .vr-block) {
-    font-size: 14px;
+    :is(.editor-content, .vr-block, .editor-appearance-document) {
+    font-size: var(--editor-font-size);
   }
 }
 

@@ -22,13 +22,13 @@
     .editor-content
     .ProseMirror:not(.vr-block)
     > :is(h1, h2, h3, h4, h5, h6):has(+ :is(h1, h2, h3, h4, h5, h6)) {
-    margin-bottom: clamp(10px, 0.4em, 14px);
+    margin-bottom: min(var(--style-heading-gap, 28px), var(--style-heading-bottom, 12px));
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     .ProseMirror:not(.vr-block)
     > :is(h1, h2, h3, h4, h5, h6) + :is(h1, h2, h3, h4, h5, h6) {
-    margin-top: clamp(10px, 0.4em, 14px);
+    margin-top: min(var(--style-heading-gap, 28px), var(--style-heading-bottom, 12px));
   }
   /* A collapsed heading's next heading can be a hidden child heading. Do not
      keep the expanded section gap just because that hidden node remains in
@@ -51,13 +51,13 @@
     .vr-row[data-next-heading="true"]:has(.vr-block > :is(h1, h2, h3, h4, h5, h6))
     .vr-block
     > :last-child {
-    margin-bottom: clamp(10px, 0.4em, 14px);
+    margin-bottom: min(var(--style-heading-gap, 28px), var(--style-heading-bottom, 12px));
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     li
     :is(.code-block-wrap, .blockquote-wrap) {
-    margin-block: 8px;
+    margin-block: calc(var(--style-block-gap, 16px) / 2);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(.note-editor-scroll, .markdown-source-content) {
@@ -100,22 +100,22 @@
       )
       .editor-content
       :is(h1) {
-      font-size: 27px;
-      letter-spacing: -0.3px;
+      font-size: calc(var(--editor-font-size) * 1.6875);
+      letter-spacing: 0;
     }
     html:is(
         [data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]
       )
       .editor-content
       :is(h2) {
-      font-size: 19px;
+      font-size: calc(var(--editor-font-size) * 1.1875);
     }
     html:is(
         [data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]
       )
       .editor-content
       :is(h3) {
-      font-size: 17px;
+      font-size: calc(var(--editor-font-size) * 1.0625);
     }
     html:is(
         [data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]
@@ -123,7 +123,7 @@
       .editor-content
       .ProseMirror
       > :has(+ :is(h1, h2, h3, h4, h5, h6)) {
-      margin-bottom: 22px;
+      margin-bottom: calc(var(--style-heading-gap, 28px) * 11 / 14);
     }
     html:is(
         [data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]
@@ -132,7 +132,7 @@
       .vr-row[data-next-heading="true"]
       .vr-block
       > :last-child {
-      margin-bottom: 22px;
+      margin-bottom: calc(var(--style-heading-gap, 28px) * 11 / 14);
     }
     html:is(
         [data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]
@@ -222,7 +222,7 @@
     .document-browser-empty
     strong {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: calc(var(--style-heading-bottom, 12px) * 2 / 3);
     color: var(--text);
     font-weight: 500;
   }
@@ -282,45 +282,45 @@
     .ProseMirror
     > :is(h1, h2, h3, h4, h5, h6) {
     margin-top: 0;
-    margin-bottom: 8px;
+    margin-bottom: calc(var(--style-heading-bottom, 12px) * 2 / 3);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     .ProseMirror
     > :not(:is(h1, h2, h3, h4, h5, h6)):has(+ :is(h1, h2, h3, h4, h5, h6)) {
-    margin-bottom: 16px;
+    margin-bottom: calc(var(--style-heading-gap, 28px) * 4 / 7);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     .ProseMirror
     > :is(h1, h2, h3, h4, h5, h6):has(+ :is(h1, h2, h3, h4, h5, h6)) {
-    margin-bottom: clamp(10px, 0.4em, 14px);
+    margin-bottom: min(var(--style-heading-gap, 28px), var(--style-heading-bottom, 12px));
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     .ProseMirror
     > :is(h1, h2, h3, h4, h5, h6):has(.editor-heading-fold.folded) {
-    margin-bottom: 8px;
+    margin-bottom: calc(var(--style-heading-bottom, 12px) * 2 / 3);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     .ProseMirror
     > :is(h1, h2, h3, h4, h5, h6) + :is(h1, h2, h3, h4, h5, h6) {
-    margin-top: clamp(10px, 0.4em, 14px);
+    margin-top: min(var(--style-heading-gap, 28px), var(--style-heading-bottom, 12px));
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     .vr-row[data-next-heading="true"]
     .vr-block
     > :last-child {
-    margin-bottom: 16px;
+    margin-bottom: calc(var(--style-heading-gap, 28px) * 4 / 7);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     .vr-row[data-next-heading="true"]:has(.vr-block > :is(h1, h2, h3, h4, h5, h6))
     .vr-block
     > :last-child {
-    margin-bottom: clamp(10px, 0.4em, 14px);
+    margin-bottom: min(var(--style-heading-gap, 28px), var(--style-heading-bottom, 12px));
   }
 }
 @media (prefers-reduced-motion: reduce) {

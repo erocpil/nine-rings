@@ -742,7 +742,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 setEditorAppearanceSearch("");
                 setEditorAppearanceOpen(true);
               }}>
-                <span><strong>风格排版</strong><small>{config.interface_font_size}px · {config.interface_line_height.toFixed(1)} 行距 · {config.interface_content_width || "风格预设"} 宽度</small></span>
+                <span><strong>风格排版</strong><small>{config.interface_font_size}px · {config.interface_line_height.toFixed(1)} 行距 · {config.interface_content_width || "统一预设"} 宽度</small></span>
                 <span className="editor-appearance-entry-action">打开排版设置 →</span>
               </button>
             </Field>

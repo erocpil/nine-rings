@@ -87,7 +87,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
         <div className="editor-appearance-workspace">
           <fieldset className="editor-appearance-controls" disabled={applying}>
             {managed && <>
-              <p className="settings-hint">这些排版设置作用于所有非经典风格；每种风格的配色和预设宽度仍独立。经典排版设置会保留。</p>
+              <p className="settings-hint">七种风格共享排版设置；切换风格保留字号、间距和阅读宽度，仅改变配色与装饰。手机自动适配窄屏，经典排版设置独立保留。</p>
               <AppearanceField label="风格正文字体" desc="系统默认保持当前无衬线排版；也可选衬线或等宽字体">
                 <select className="settings-input editor-appearance-select" aria-label="风格正文字体" value={config.interface_font_family} onChange={event => onUpdate({ interface_font_family: event.target.value as AppConfig["interface_font_family"] })}>
                   <option value="system">系统默认</option><option value="sans">无衬线</option><option value="serif">衬线 / 宋体</option><option value="monospace">等宽字体</option>
@@ -99,9 +99,9 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                 <AppearanceField label="风格正文块间距" desc="相邻顶层正文块的距离"><AppearanceStepper label="风格正文块间距" value={config.interface_block_spacing_px} minimum={0} maximum={48} step={2} unit="px" onChange={value => onUpdate({ interface_block_spacing_px: value })} /></AppearanceField>
                 <AppearanceField label="风格标题上间距" desc="标题与前一块的距离"><AppearanceStepper label="风格标题上间距" value={config.interface_heading_margin_top_px} minimum={0} maximum={48} step={2} unit="px" onChange={value => onUpdate({ interface_heading_margin_top_px: value })} /></AppearanceField>
                 <AppearanceField label="风格标题下间距" desc="标题与后一块的距离"><AppearanceStepper label="风格标题下间距" value={config.interface_heading_margin_bottom_px} minimum={0} maximum={32} step={2} unit="px" onChange={value => onUpdate({ interface_heading_margin_bottom_px: value })} /></AppearanceField>
-                <AppearanceField label="桌面正文最大宽度" desc="预设保留各风格原有宽度；自定义宽度统一作用于非经典风格">
+                <AppearanceField label="桌面正文最大宽度" desc="统一预设随宽幅、标准或窄幅布局适配；自定义值限制正文最大宽度">
                   <select className="settings-input editor-appearance-select" aria-label="桌面正文最大宽度" value={config.interface_content_width} onChange={event => onUpdate({ interface_content_width: Number(event.target.value) })}>
-                    <option value={0}>风格预设</option>{[640, 740, 820, 900, 1000, 1200].map(width => <option value={width} key={width}>{width}px</option>)}
+                    <option value={0}>统一预设</option>{[640, 740, 820, 900, 1000, 1200].map(width => <option value={width} key={width}>{width}px</option>)}
                   </select>
                 </AppearanceField>
               </div>

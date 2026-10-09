@@ -27,6 +27,8 @@
 
 @import "./styles/nine-rings-interface-style.css";
 
+@import "./styles/shared-reading-typography.css";
+
 @import "./styles/flow-presentation.css";
 
 @import "./styles/flow-block.css";

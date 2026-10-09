@@ -91,8 +91,16 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
       ? '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif'
       : FONT_STACKS[resolvedFamily],
     "--editor-block-number-gap": `${clamp(config?.editor_block_number_gap, 4, 32, 8)}px`,
+    ...(config?.interface_style && config.interface_style !== "classic" ? {
+      "--style-block-gap": `${clamp(config.interface_block_spacing_px, 0, 48, 16)}px`,
+      "--style-heading-gap": `${clamp(config.interface_heading_margin_top_px, 0, 48, 28)}px`,
+      "--style-heading-bottom": `${clamp(config.interface_heading_margin_bottom_px, 0, 32, 12)}px`,
+    } : {}),
     ...(config?.interface_style && config.interface_style !== "classic" && Number(config.interface_content_width) > 0
-      ? { "--style-content-width": `${clamp(config.interface_content_width, 560, 1200, 820)}px` } : {}),
+      ? {
+        "--style-content-width": `${clamp(config.interface_content_width, 560, 1200, 780)}px`,
+        "--style-custom-content-width": `${clamp(config.interface_content_width, 560, 1200, 780)}px`,
+      } : {}),
     "--editor-font-size": `${clamp(config?.note_font_size, 12, 32, 16)}px`,
     "--editor-line-height": String(clamp(config?.editor_line_height, 1.2, 2.2, 1.6)),
     "--editor-block-spacing": `${clamp(config?.editor_block_spacing, 0, 3, 1)}em`,

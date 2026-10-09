@@ -37,7 +37,7 @@ test("物哀风格排版可调整、重载并恢复预设，经典排版保持�
   await page.getByRole("button", { name: "恢复默认排版" }).click();
   await page.getByRole("button", { name: "应用到编辑器" }).click();
   await expect(editor).toHaveCSS("font-size", "16px");
-  await expect(page.locator(".app")).toHaveCSS("--style-content-width", "820px");
+  await expect(page.locator(".app")).toHaveCSS("--style-content-width", "780px");
   await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-text-gap", "8px");
   await styles.getByRole("button", { name: /^经典/ }).click();
   await expect(editor).toHaveCSS("font-size", "22px");
