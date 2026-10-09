@@ -221,7 +221,7 @@ test("代码块与后续引用、代码块和正文保持间隔", async ({ page 
   expect(Math.abs(gaps[0] - gaps[1])).toBeLessThanOrEqual(1);
 });
 
-test("独立风格中的代码块与引用块间距统一收至 10px", async ({ page }) => {
+test("独立风格中的代码块与引用块间距使用共享默认 16px", async ({ page }) => {
   await fixture(page, "text", "calm");
   const editor = page.locator(".ProseMirror");
   await editor.evaluate((el) => {
@@ -240,8 +240,7 @@ test("独立风格中的代码块与引用块间距统一收至 10px", async ({ 
     return blocks.slice(0, -1).map((block, index) => blocks[index + 1].getBoundingClientRect().top - block.getBoundingClientRect().bottom);
   });
   expect(measurements).toHaveLength(2);
-  for (const gap of measurements) expect(gap).toBeGreaterThanOrEqual(9);
-  for (const gap of measurements) expect(gap).toBeLessThanOrEqual(11);
+  for (const gap of measurements) expect(gap).toBeCloseTo(16, 0);
 });
 
 test("首次工具提示快速显示并在离开后消失", async ({ page }) => {

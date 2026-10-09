@@ -69,6 +69,9 @@ test("局部阅读切换文档后保留代码和引用折叠及阅读锚点", as
   // scrollTop in the same task as an unfinished virtual layout update.
   await root.locator(".note-editor-scroll").hover();
   await page.mouse.wheel(0, 400);
+  // WebKit returns from wheel() before its animated scroll has finished.
+  // A fold may also persist an anchor before that scroll reaches its target.
+  await expect.poll(() => root.locator(".note-editor-scroll").evaluate(el => el.scrollTop)).toBeGreaterThan(350);
   await expect.poll(() => page.evaluate(id => localStorage.getItem(`nr:readonlyAnchor:${id}`), documents.id)).not.toBe(documents.anchor);
   const saved = await page.evaluate(async documents => {
     const { api } = await import("/src/lib/api.ts");

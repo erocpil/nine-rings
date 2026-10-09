@@ -264,13 +264,14 @@ test("桌面展陈宽度和密度独立持久化，手机保持原布局", async
   const content = page.locator(".note-editor-scroll > .editor-content-shell");
   const header = page.locator(".note-title-row");
   await selectAppearance(page, "文本宽度", "narrow");
-  await expect(content).toHaveCSS("max-width", "690px");
+  // Verify the used width rather than the serialization of CSS min().
+  await expect.poll(async () => (await content.boundingBox())!.width).toBeCloseTo(690, 0);
   const narrow = (await content.boundingBox())!.width;
   await selectAppearance(page, "文本宽度", "standard");
   const standard = (await content.boundingBox())!.width;
   expect(standard).toBeGreaterThan(narrow);
   await selectAppearance(page, "文本宽度", "wide");
-  await expect(content).toHaveCSS("max-width", "100%");
+  await expect.poll(async () => (await content.boundingBox())!.width).toBeGreaterThan(standard);
   const wide = (await content.boundingBox())!.width;
   const margins = await content.evaluate(element => {
     const style = getComputedStyle(element);

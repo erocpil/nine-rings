@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import type { Editor } from "@tiptap/core";
+import { createBlankDocument } from "./helpers/document";
 
 for (const [width, height, touch] of [
   [390, 800, true],
@@ -9,35 +11,23 @@ for (const [width, height, touch] of [
     test.use({ viewport: { width, height }, hasTouch: touch });
     test("引用与代码的最大化、折叠按钮对齐", async ({ page }) => {
       test.setTimeout(60000);
-      await page.goto("/");
-      await expect(page.locator(".ProseMirror")).toBeVisible({
-        timeout: 25000,
-      });
-      await page.evaluate(async () => {
-        const load = (path: string) => import(/* @vite-ignore */ path);
-        const { api } = (await load(
-          "/src/lib/api.ts",
-        )) as typeof import("../src/lib/api");
-        const { useNotesStore } = (await load(
-          "/src/stores/useNotesStore.ts",
-        )) as typeof import("../src/stores/useNotesStore");
-        const note = await api.notes.create({
-          title: "块工具对齐",
-          date: "2026-09-10",
-          storagePath: "tests/toolbar",
-          content: {
-            ops: [
-              { insert: "code" },
-              { insert: "\n", attributes: { "code-block": true } },
-              { insert: "引用内容" },
-              { insert: "\n", attributes: { blockquote: true } },
-            ],
-          },
+      // Create through the UI before changing to the tested viewport. Avoid an
+      // async API/import evaluation spanning a document switch during startup.
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await createBlankDocument(page, "块工具对齐");
+      await page.locator(".ProseMirror").evaluate(element => {
+        const editor = (element as HTMLElement & { editor: Editor }).editor;
+        editor.commands.setContent({
+          type: "doc",
+          content: [
+            { type: "codeBlock", content: [{ type: "text", text: "code" }] },
+            { type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "引用内容" }] }] },
+          ],
         });
-        useNotesStore
-          .getState()
-          .selectNote(await api.notes.update(note.id, { readonly: true }));
       });
+      await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+      await page.setViewportSize({ width, height });
+      if (width < 900) await page.locator(".sidebar-tab-hide").click();
       await expect.poll(() => page.locator(".note-title").evaluate(element =>
         element instanceof HTMLInputElement ? element.value : element.textContent,
       )).toBe("块工具对齐");
