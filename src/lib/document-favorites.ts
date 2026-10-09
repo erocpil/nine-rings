@@ -1,5 +1,6 @@
 /** Document-level shortcuts, separate from block bookmarks. Only IDs are stored. */
 export const DOCUMENT_FAVORITES_KEY = "nr:documentFavorites";
+export const DOCUMENT_FAVORITES_CHANGED_EVENT = "nr:documentFavoritesChanged";
 
 export function readDocumentFavorites(storage: Pick<Storage, "getItem"> = localStorage): string[] {
   try {
@@ -16,6 +17,7 @@ export function toggleDocumentFavorite(id: string, storage: Pick<Storage, "getIt
   const next = current.includes(id) ? current.filter(value => value !== id) : [...current, id];
   // Propagate storage errors so the UI never reports an unsaved favorite as saved.
   storage.setItem(DOCUMENT_FAVORITES_KEY, JSON.stringify(next));
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(DOCUMENT_FAVORITES_CHANGED_EVENT));
   return next;
 }
 

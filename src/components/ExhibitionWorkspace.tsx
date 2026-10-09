@@ -1,17 +1,19 @@
-import { useEffect, useState, lazy, Suspense, type ReactNode } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense, type ReactNode } from "react";
 import { DocumentFilterSelect } from "./DocumentFilterSelect";
 import "./DocumentBrowser.css";
 import { api } from "../lib/api";
 import { INTERFACE_STYLES } from "../lib/interface-style";
 import type { AppConfig } from "../lib/storage/types";
-import { readDocumentFavorites } from "../lib/document-favorites";
+import { DOCUMENT_FAVORITES_CHANGED_EVENT, readDocumentFavorites } from "../lib/document-favorites";
+import { workspaceDocuments, workspaceCounts, type WorkspaceDocumentSummary, type WorkspaceSummaryKind } from "../lib/workspace-summary";
+import { useLocalDay } from "../hooks/useLocalDay";
 import { readRecentNoteIds } from "../lib/quick-switcher";
 import type { Note } from "../types/models";
 import "./ExhibitionWorkspace.css";
 
 const TitleBar = lazy(() => import("./TitleBar"));
 
-type Summary = Awaited<ReturnType<typeof api.docs.searchSummaries>>[number];
+type Summary = WorkspaceDocumentSummary;
 interface Props {
   children: ReactNode;
   enabled: boolean;
@@ -29,6 +31,8 @@ interface Props {
   onCreate: () => void;
   onSearch: () => void;
   onSettings: () => void;
+  onSummary: (kind: WorkspaceSummaryKind) => void;
+  latestNote: Pick<Note, "id" | "updated_at"> | null;
 }
 
 export function ExhibitionWorkspace(props: Props) {
@@ -41,22 +45,40 @@ export function ExhibitionWorkspace(props: Props) {
   const [documents, setDocuments] = useState<Summary[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  const day = useLocalDay();
+  const counts = useMemo(() => workspaceCounts(documents, favorites, day), [documents, favorites, day]);
   useEffect(() => {
-    if (!showOverview) return;
+    const refresh = () => setFavorites(readDocumentFavorites());
+    window.addEventListener("storage", refresh);
+    window.addEventListener(DOCUMENT_FAVORITES_CHANGED_EVENT, refresh);
+    return () => {
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener(DOCUMENT_FAVORITES_CHANGED_EVENT, refresh);
+    };
+  }, []);
+  const latestId = props.latestNote?.id;
+  const latestUpdatedAt = props.latestNote?.updated_at;
+  useEffect(() => {
+    if (!latestId || !latestUpdatedAt) return;
+    setDocuments(current => current.some(note => note.id === latestId && note.updated_at !== latestUpdatedAt)
+      ? current.map(note => note.id === latestId ? { ...note, updated_at: latestUpdatedAt } : note) : current);
+  }, [latestId, latestUpdatedAt]);
+  useEffect(() => {
+    if (!active) return;
     let disposed = false;
     setLoading(true);
     setFavorites(readDocumentFavorites());
     setRecent(readRecentNoteIds());
     void api.docs
-      .searchSummaries({})
+      .tree()
       .then(
         (notes) => {
           if (!disposed) {
-            setDocuments(notes);
+            setDocuments(workspaceDocuments(notes));
             setError("");
           }
         },
@@ -70,7 +92,7 @@ export function ExhibitionWorkspace(props: Props) {
     return () => {
       disposed = true;
     };
-  }, [showOverview, refreshKey, retry]);
+  }, [active, refreshKey, retry, noteId]);
   const run = async (action: () => Promise<void>) => {
     if (busy || blocked) return;
     setBusy(true);
@@ -191,6 +213,18 @@ export function ExhibitionWorkspace(props: Props) {
               <span className="exhibition-eyebrow">THE WORKSPACE</span>
               <h2>{showOverview ? "给思考留一点空间。" : "工作区概览"}</h2>
             </div>
+            <nav className="exhibition-summary" data-mobile={!props.desktop || undefined} aria-label="工作区统计" aria-busy={loading}>
+              {([
+                ["all", "篇文档", "查看全部文档"],
+                ["notes", "条随记", "查看随记"],
+                ["today", "篇今日修改", "查看今日修改文档"],
+                ["favorites", "篇收藏", "查看收藏文档"],
+              ] as const).map(([kind, label, name]) => <button key={kind} type="button"
+                className={`exhibition-summary-${kind}`} aria-label={name}
+                disabled={busy || blocked || loading || Boolean(error)} onClick={() => props.onSummary(kind)}>
+                <strong>{loading || error ? "…" : counts[kind]}</strong><span>{label}</span>
+              </button>)}
+            </nav>
             {noteId && (
               <button
                 type="button"

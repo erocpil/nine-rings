@@ -39,7 +39,7 @@ import { useAutoSave } from "./hooks/useAutoSave";
 import { useSettings } from "./hooks/useSettings";
 import DocTree from "./components/DocTree";
 import { NotesPanel, type NotesPanelSession } from "./components/NotesPanel";
-import { DocumentBrowser, type DocumentBrowserSession } from "./components/DocumentBrowser";
+import { DocumentBrowser, type DocumentBrowserSession, type DocumentBrowserRequest } from "./components/DocumentBrowser";
 import { DocMOC } from "./components/DocMOC";
 import type { DeltaOps, DocumentMetadata, ExternalMarkdownSource, Note, DocType, SearchNavigationTarget } from "./types/models";
 import { pushSnapshotBusy, useGitHubPushJob } from "./lib/sync/push-job";
@@ -379,6 +379,7 @@ function App() {
   const [epubReaderFullscreen, setEpubReaderFullscreen] = useState(false);
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const documentBrowserSession = useRef<DocumentBrowserSession>({});
+  const [documentBrowserRequest, setDocumentBrowserRequest] = useState<DocumentBrowserRequest>();
   const notesPanelSession = useRef<NotesPanelSession>({});
   const [browserToolbarHost, setBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
   const [desktopPanel, setDesktopPanel] = useState(() => readDesktopSidebarState().panel);
@@ -1285,6 +1286,17 @@ function App() {
   return (
     <EditorFoldIconContext.Provider value={config}>
     <ExhibitionWorkspace desktop={desktopWorkspace} enabled={exhibitionEnabled && !mobileReaderOpen} focus={focusMode} config={config}
+      latestNote={selectedNote}
+      onSummary={kind => {
+        if (kind !== "notes") setDocumentBrowserRequest(previous => ({ sequence: (previous?.sequence ?? 0) + 1, view: kind }));
+        const panel = kind === "notes" ? "notes" : "list";
+        setDocTreePopupOpen(false);
+        if (desktopWorkspace) {
+          if (workspaceHome) { setWorkspaceHomePanelActivated(true); setWorkspaceHomeChromeHidden(false); }
+          sidebarHover.restore({ panel, hidden: false, pinned: true });
+        } else if (kind !== "notes") { setSidebarHidden(true); setDocTreePopupOpen(true); }
+        else { setDesktopPanel(panel); setSidebarHidden(false); }
+      }}
       blocked={protectionBusy || applyingWebUpdate || syncBusy || searchExpanded || errorDetailsOpen || settingsOpen || mobileReadingLibraryOpen || docCreateOpen || quickSwitcherOpen || (mobileDrawerViewport && !sidebarHidden)}
       path={workspaceHome ? "" : selectedFolderPath ?? selectedNote?.storagePath ?? ""} noteId={workspaceHome ? undefined : selectedNote?.id} refreshKey={docTreeKey}
       onAppearance={async patch => handleConfigChange(await api.config.set(patch))}
@@ -1532,6 +1544,8 @@ function App() {
               <button type="button" className="btn-icon" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
               </div>
               <DocumentBrowser
+                latestNote={selectedNote}
+                request={documentBrowserRequest}
                 session={documentBrowserSession.current}
                 toolbarHost={sidebarBrowserToolbarHost}
                 disabled={syncBusy}
@@ -1854,6 +1868,8 @@ function App() {
             </WorkspacePanelHeading>
             <div className="doc-tree-popup-body">
               <DocumentBrowser
+                latestNote={selectedNote}
+                request={documentBrowserRequest}
                 session={documentBrowserSession.current}
                 toolbarHost={browserToolbarHost}
                 disabled={syncBusy}

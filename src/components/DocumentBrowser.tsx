@@ -2,7 +2,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { api } from "../lib/api";
 import { filterQuickSwitcherNotes, readRecentNoteIds } from "../lib/quick-switcher";
-import { readDocumentFavorites, toggleDocumentFavorite } from "../lib/document-favorites";
+import { DOCUMENT_FAVORITES_CHANGED_EVENT, readDocumentFavorites, toggleDocumentFavorite } from "../lib/document-favorites";
+import { modifiedOnLocalDay } from "../lib/workspace-summary";
+import { useLocalDay } from "../hooks/useLocalDay";
 import type { DocType, Note } from "../types/models";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { DocumentPathPicker } from "./DocumentPathPicker";
@@ -24,7 +26,11 @@ interface Props {
   disabled: boolean;
   onSelect: (note: Note) => void;
   onCreate: (path: string) => void;
+  request?: DocumentBrowserRequest;
+  latestNote?: Pick<Note, "id" | "updated_at"> | null;
 }
+
+export interface DocumentBrowserRequest { sequence: number; view: "all" | "favorites" | "today" }
 
 export interface DocumentBrowserSession {
   notes?: Note[];
@@ -43,12 +49,21 @@ export interface DocumentBrowserSession {
   scrollPositions?: Record<string, number>;
   docType?: DocType | "";
   tag?: string;
+  modifiedToday?: boolean;
+  requestSequence?: number;
 }
 
 /** Metadata-only browsing: never index or preview document bodies, including unlocked ones. */
-export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath, refreshKey, disabled, onSelect, onCreate }: Props) {
+export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath, refreshKey, disabled, onSelect, onCreate, request, latestNote }: Props) {
   const [preferences] = useState(readDocumentBrowserPreferences);
   const [notes, setNotes] = useState<Note[]>(session.notes ?? []);
+  const latestId = latestNote?.id;
+  const latestUpdatedAt = latestNote?.updated_at;
+  useEffect(() => {
+    if (!latestId || !latestUpdatedAt) return;
+    setNotes(current => current.map(note => note.id === latestId && note.updated_at !== latestUpdatedAt
+      ? { ...note, updated_at: latestUpdatedAt } : note));
+  }, [latestId, latestUpdatedAt]);
   const [paths, setPaths] = useState<string[]>(session.paths ?? []);
   const [protectedPaths, setProtectedPaths] = useState<string[]>(session.protectedPaths ?? []);
   const [pathPickerOpen, setPathPickerOpen] = useState(false);
@@ -59,6 +74,8 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
   const [sortDirection, setSortDirection] = useState(session.sortDirection ?? (session.sort ? (session.sort === "title" ? "asc" : "desc") : preferences.sortDirection));
   const [docType, setDocType] = useState<DocType | "">(session.docType ?? "");
   const [tag, setTag] = useState(session.tag ?? "");
+  const [modifiedToday, setModifiedToday] = useState(session.modifiedToday ?? false);
+  const day = useLocalDay();
   const [view, setView] = useState(session.view ?? preferences.view);
   const [searchOpen, setSearchOpen] = useState(session.searchOpen ?? false);
   const [filtersOpen, setFiltersOpen] = useState(session.filtersOpen ?? false);
@@ -83,19 +100,34 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
-    Object.assign(session, { notes, paths, protectedPaths, path, query, sort, sortDirection, view, docType, tag, searchOpen, filtersOpen, fields });
-  }, [session, notes, paths, protectedPaths, path, query, sort, sortDirection, view, docType, tag, searchOpen, filtersOpen, fields]);
+    Object.assign(session, { notes, paths, protectedPaths, path, query, sort, sortDirection, view, docType, tag, searchOpen, filtersOpen, fields, modifiedToday });
+  }, [session, notes, paths, protectedPaths, path, query, sort, sortDirection, view, docType, tag, searchOpen, filtersOpen, fields, modifiedToday]);
+  useEffect(() => {
+    if (!request || session.requestSequence === request.sequence) return;
+    session.requestSequence = request.sequence;
+    setView(request.view === "today" ? "all" : request.view);
+    setModifiedToday(request.view === "today");
+    setPath(""); setQuery(""); setDocType(""); setTag("");
+    setSort("updated"); setSortDirection("desc"); setOpenFilter(null);
+    session.scrollPositions = {}; session.scrollTop = 0;
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [request, session]);
   useEffect(() => {
     const refreshFavorites = () => setFavorites(readDocumentFavorites());
     window.addEventListener("storage", refreshFavorites);
-    return () => window.removeEventListener("storage", refreshFavorites);
+    window.addEventListener(DOCUMENT_FAVORITES_CHANGED_EVENT, refreshFavorites);
+    return () => {
+      window.removeEventListener("storage", refreshFavorites);
+      window.removeEventListener(DOCUMENT_FAVORITES_CHANGED_EVENT, refreshFavorites);
+    };
   }, []);
   useLayoutEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = session.scrollPositions?.[view]
       ?? (session.view === view ? session.scrollTop ?? 0 : 0);
   }, [session, view]);
   const switchView = (next: string) => {
-    if (next === view) return;
+    if (next === view && !modifiedToday) return;
+    setModifiedToday(false);
     setOpenFilter(null);
     session.scrollPositions ??= {};
     session.scrollPositions[view] = scrollRef.current?.scrollTop ?? 0;
@@ -125,6 +157,7 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
   }, [refreshKey, reloadKey]);
   const visible = useMemo(() => {
     return filterQuickSwitcherNotes(notes, query).filter(note => (view !== "recent" || recentIds.includes(note.id))
+      && (!modifiedToday || modifiedOnLocalDay(note.updated_at, day))
       && (view !== "favorites" || favorites.includes(note.id))
       && (!docType || note.docType === docType)
       && (!tag || note.tags.includes(tag))
@@ -137,10 +170,10 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
           : (Date.parse(a.updated_at) || 0) - (Date.parse(b.updated_at) || 0);
         return comparison * (sortDirection === "asc" ? 1 : -1) || a.id.localeCompare(b.id);
       });
-  }, [notes, path, query, sort, sortDirection, view, recentIds, favorites, docType, tag]);
+  }, [notes, path, query, sort, sortDirection, view, recentIds, favorites, docType, tag, modifiedToday, day]);
   const tags = useMemo(() => [...new Set(notes.flatMap(note => note.tags))].sort((a, b) => a.localeCompare(b, "zh-CN")), [notes]);
-  const hasFilters = Boolean(path || query.trim() || docType || tag);
-  const clearFilters = () => { setPath(""); setQuery(""); setDocType(""); setTag(""); resetScroll(); };
+  const hasFilters = Boolean(path || query.trim() || docType || tag || modifiedToday);
+  const clearFilters = () => { setPath(""); setQuery(""); setDocType(""); setTag(""); setModifiedToday(false); resetScroll(); };
   const actions = <>
     <button className="btn-icon" aria-label="搜索文档" title="筛选当前列表（标题、路径、标签或概念）" aria-expanded={searchOpen} onClick={() => {
       flushSync(() => setSearchOpen(!searchOpen));
@@ -190,6 +223,7 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
         </details>
       </div>}
       {hasFilters && <div className="document-browser-active-filters" aria-label="已应用筛选">
+      {modifiedToday && <button className="document-browser-type-filter" aria-label="清除今日修改筛选" onClick={() => { setModifiedToday(false); resetScroll(); }}>今日修改<ToolbarIcon name="close" /></button>}
       {query.trim() && <button className="document-browser-type-filter" aria-label="清除关键词筛选" onClick={() => { setQuery(""); resetScroll(); }}><ToolbarIcon name="search" />{query.trim()}<ToolbarIcon name="close" /></button>}
       {path && <button className="document-browser-path-filter" title={path} aria-label={`清除路径筛选 ${path}`} onClick={() => { setPath(""); resetScroll(); }}>{path}<ToolbarIcon name="close" /></button>}
       {docType && <button className="document-browser-type-filter" aria-label="清除类型筛选" onClick={() => { setDocType(""); resetScroll(); }}>{DOCUMENT_TYPES[docType]}<ToolbarIcon name="close" /></button>}

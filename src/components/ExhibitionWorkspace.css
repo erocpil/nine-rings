@@ -107,6 +107,32 @@
   align-items: center;
   gap: 16px;
 }
+.exhibition-summary {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  gap: clamp(8px, 2vw, 28px);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.exhibition-summary button {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.exhibition-summary strong { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+.exhibition-summary button:hover :is(strong, span) { color: var(--accent); }
+.exhibition-summary button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+.exhibition-summary[data-mobile] :is(.exhibition-summary-notes, .exhibition-summary-favorites) { display: none !important; }
+@media (max-width: 768px) {
+  .exhibition-overview-heading { gap: 8px; flex-wrap: wrap; }
+  .exhibition-summary { flex: 1 1 auto; justify-content: flex-end; gap: 10px; }
+  .exhibition-summary button { font-size: 11px; }
+}
 .exhibition-overview h2 {
   font-size: 17px;
   font-weight: 500;
