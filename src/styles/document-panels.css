@@ -116,6 +116,14 @@
   > :is(.note-editor-scroll, .vr-title, .vr-actions, .vr-notice, .markdown-source-content) {
   margin-left: min(var(--document-dock-width, 280px), 50%);
 }
+/* Hover previews share the tree context menu's theme-aware halo. Docked panels
+   have no preview attribute and retain their flat, edge-to-edge presentation. */
+@media (min-width: 769px) and (pointer: fine) {
+  :is(.document-outline-panel, .document-bookmark-panel, .vr-panel)[data-document-preview] {
+    box-shadow: var(--ui-shadow-popover, 0 4px 12px rgba(0, 0, 0, 0.15));
+  }
+}
+
 .document-panel-slot {
   min-width: 0;
   min-height: 0;

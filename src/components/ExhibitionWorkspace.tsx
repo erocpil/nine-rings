@@ -153,6 +153,7 @@ export function ExhibitionWorkspace(props: Props) {
       className="exhibition-select" value={value} options={options} disabled={busy || blocked}
       open={openAppearance === label && !busy && !blocked}
       onOpenChange={open => setOpenAppearance(current => open ? label : current === label ? null : current)}
+      onHover={() => setOpenAppearance(current => current === null ? null : label)}
       onChange={value => void run(() => props.onAppearance(patch(value)))} />
     : <label key={label}><select aria-label={label} disabled={busy || blocked} value={value}
         onChange={event => void run(() => props.onAppearance(patch(event.target.value)))}>

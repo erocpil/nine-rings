@@ -2,7 +2,9 @@ import { expect, test, type Page } from "@playwright/test";
 import { createEpubFixture, createPdfFixture } from "./helpers/reader-fixtures";
 
 async function selectAppearance(page: Page, label: string, value: string) {
-  await page.getByRole("button", { name: label, exact: true }).click();
+  const trigger = page.getByRole("button", { name: label, exact: true });
+  await trigger.hover();
+  if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
   await page.getByRole("listbox", { name: label, exact: true }).locator(`[role="option"][value="${value}"]`).click();
 }
 
@@ -374,18 +376,38 @@ test("风格默认浅色宽幅舒适，非经典风格共享侘寂排版", async
 });
 
 
-test("桌面顶部菜单一次点击切换，取消不修改配置，手机仍为原生选择", async ({ page }) => {
+test("桌面顶部菜单点击启用悬停切换，关闭后不再悬停打开且清除鼠标焦点框", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "nine-rings", interface_color_mode: "light", workspace_layout: "exhibition" })));
   await page.goto("/");
   const before = await page.evaluate(() => localStorage.getItem("nine_rings_config"));
+  const style = page.getByRole("button", { name: "工作区风格", exact: true });
+  await style.hover();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await style.click();
+  await page.getByRole("button", { name: "工作区配色", exact: true }).dispatchEvent("pointerenter", { pointerType: "touch" });
+  await expect(page.getByRole("listbox", { name: "工作区风格", exact: true })).toBeVisible();
   for (const label of ["工作区风格", "工作区配色", "文本宽度", "紧凑程度", "工作区风格"]) {
-    await page.getByRole("button", { name: label, exact: true }).click();
+    await page.getByRole("button", { name: label, exact: true }).hover();
     await expect(page.getByRole("listbox")).toHaveCount(1);
     await expect(page.getByRole("listbox", { name: label, exact: true })).toBeVisible();
   }
   await page.keyboard.press("Escape");
   await expect(page.getByRole("listbox")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "工作区风格", exact: true })).toBeFocused();
+  await expect(style).toHaveCSS("outline-style", "solid");
+  await page.getByRole("button", { name: "工作区配色", exact: true }).hover();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await style.click();
+  await style.click();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(style).toHaveCSS("outline-style", "none");
+  await page.getByRole("button", { name: "文本宽度", exact: true }).hover();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await style.click();
+  await page.locator(".exhibition-overview h2").click();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await page.getByRole("button", { name: "紧凑程度", exact: true }).hover();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem("nine_rings_config"))).toBe(before);
   await expect(page.getByRole("button", { name: "文本宽度", exact: true })).toHaveText("宽幅");
   await selectAppearance(page, "工作区配色", "dark");

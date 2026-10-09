@@ -87,6 +87,7 @@
   box-shadow: 0 6px 24px #0003;
   font: 13px/1.5 var(--font);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   pointer-events: none;
 }
 .ProseMirror details,
@@ -523,12 +524,12 @@
 
 /* Markdown 空白行是块分隔符，不会生成空段落。正文之间保留稳定分隔，
    标题与相邻块的节奏则由排版设置独立控制。 */
-.editor-content h1 { font-size: 1.6em; }
-.editor-content h2 { font-size: 1.3em; }
-.editor-content h3 { font-size: 1.1em; }
-.editor-content h4 { font-size: 1.05em; }
-.editor-content h5 { font-size: 1em; }
-.editor-content h6 { font-size: 1em; color: var(--text-secondary); }
+.editor-content h1 { --editor-heading-size: var(--editor-h1-size); font-size: var(--editor-heading-size, 1.6em); }
+.editor-content h2 { --editor-heading-size: var(--editor-h2-size); font-size: var(--editor-heading-size, 1.3em); }
+.editor-content h3 { --editor-heading-size: var(--editor-h3-size); font-size: var(--editor-heading-size, 1.1em); }
+.editor-content h4 { --editor-heading-size: var(--editor-h4-size); font-size: var(--editor-heading-size, 1.05em); }
+.editor-content h5 { --editor-heading-size: var(--editor-h5-size); font-size: var(--editor-heading-size, 1em); }
+.editor-content h6 { --editor-heading-size: var(--editor-h6-size); font-size: var(--editor-heading-size, 1em); color: var(--text-secondary); }
 
 .editor-content :is(h1, h2, h3, h4, h5, h6) {
   margin: var(--editor-heading-margin-top) 0 var(--editor-heading-margin-bottom);

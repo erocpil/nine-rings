@@ -1,4 +1,5 @@
 import { mergeDocumentMetadata } from "./lib/document-metadata";
+import { ReadingTypographyProvider } from "./components/ReadingTypographyProvider";
 import { ensureFlowPresentationSample } from "./lib/flow-presentation-sample";
 import { RetainedDocument } from "./components/RetainedDocument";
 import { useWorkspaceLayout } from "./hooks/useWorkspaceLayout";
@@ -355,6 +356,7 @@ function App() {
     folder: string | null;
     concept: string | null;
     desktopSidebar: ReturnType<typeof readDesktopSidebarState>;
+    sidebarWidthOverride?: number;
     workspaceLayout: WorkspaceLayout;
     editorViewportWidth: number | null;
     editorViewportHeight: number | null;
@@ -802,7 +804,7 @@ function App() {
     setStartupRestoreComplete(true);
   }, [handleSelectNote, selectedNote, startupReady]);
 
-  const { sidebarPanelRef, sidebarWidth, sidebarWidthHint, sidebarResizing, readerCompanionCollapsed, setSidebarPanel, handleSidePointerDown } = useWorkspaceSidebar({ desktopPanel, setDesktopPanel, sidebarHidden, setSidebarHidden });
+  const { sidebarPanelRef, sidebarWidth, sidebarWidthHint, sidebarResizing, readerCompanionCollapsed, setSidebarPanel, summarySidebarWidth, sidebarWidthOverride, handleSidePointerDown } = useWorkspaceSidebar({ desktopPanel, setDesktopPanel, sidebarHidden, setSidebarHidden });
   const sidebarPresentation = useSidebarPresentation();
   const openReadingLibrary = useCallback(async () => {
     if (syncBusy) return;
@@ -1284,7 +1286,7 @@ function App() {
   const retainEditorLayoutAtHome = desktopWorkspace && exhibitionEnabled && workspaceHome && Boolean(selectedNote);
   const hideEditorSplit = homeReaderOpen || readerPrimaryView || (exhibitionEnabled && workspaceHome) || (!selectedNote && Boolean(selectedConcept || selectedFolderPath));
   return (
-    <EditorFoldIconContext.Provider value={config}>
+    <ReadingTypographyProvider config={config}><EditorFoldIconContext.Provider value={config}>
     <ExhibitionWorkspace desktop={desktopWorkspace} enabled={exhibitionEnabled && !mobileReaderOpen} focus={focusMode} config={config}
       latestNote={selectedNote}
       onSummary={kind => {
@@ -1293,7 +1295,8 @@ function App() {
         setDocTreePopupOpen(false);
         if (desktopWorkspace) {
           if (workspaceHome) { setWorkspaceHomePanelActivated(true); setWorkspaceHomeChromeHidden(false); }
-          sidebarHover.restore({ panel, hidden: false, pinned: true });
+          const fixed = !sidebarHidden && (!sidebarHoverEnabled || sidebarHover.pinned);
+          sidebarHover.restore({ panel, hidden: false, pinned: true }, fixed ? sidebarWidth : summarySidebarWidth());
         } else if (kind !== "notes") { setSidebarHidden(true); setDocTreePopupOpen(true); }
         else { setDesktopPanel(panel); setSidebarHidden(false); }
       }}
@@ -1325,7 +1328,7 @@ function App() {
               sidebarHover.restore({ panel: "reader", hidden: true, pinned: false });
             } else {
               setDesktopPanel(target.desktopSidebar.panel);
-              sidebarHover.restore(target.desktopSidebar);
+              sidebarHover.restore(target.desktopSidebar, target.sidebarWidthOverride);
             }
           }
           setExhibitionReaderActive(target.homeOpenedReader ? true : target.exhibitionReaderActive);
@@ -1348,6 +1351,7 @@ function App() {
           folder: selectedFolderPath,
           concept: selectedConcept,
           desktopSidebar: readDesktopSidebarState(),
+          sidebarWidthOverride: sidebarWidthOverride(),
           workspaceLayout: readWorkspaceLayout(),
           editorViewportWidth: editorViewport?.width ?? null,
           editorViewportHeight: editorViewport?.height ?? null,
@@ -1976,7 +1980,7 @@ function App() {
         <p role="status">{errorCopyNotice}</p>
       </div>
     </WorkspaceDialog>}
-    </EditorFoldIconContext.Provider>
+    </EditorFoldIconContext.Provider></ReadingTypographyProvider>
   );
 }
 

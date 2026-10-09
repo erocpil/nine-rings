@@ -1,7 +1,10 @@
 import { resolveInterfaceConfig } from "../lib/interface-style";
+import { ReadingTypographyProvider } from "./ReadingTypographyProvider";
+import { DeferredMermaidDiagram } from "./DeferredMermaidDiagram";
+import { DeferredFlowBlock } from "./DeferredFlowBlock";
 import React, { useEffect, useState, useRef } from "react";
 import type { AppConfig } from "../types/models";
-import { DEFAULT_EDITOR_APPEARANCE, editorAppearanceVariables } from "../lib/editor-appearance";
+import { DEFAULT_EDITOR_APPEARANCE, DEFAULT_BLOCK_TYPOGRAPHY, editorAppearanceVariables } from "../lib/editor-appearance";
 import { blockWorkspacePreferences, codeBlockHeightPercent } from "../lib/block-display-settings";
 import { DEFAULT_CONFIG } from "../lib/storage/types";
 
@@ -63,7 +66,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
   }, [onClose]);
 
   return (
-    <div
+    <ReadingTypographyProvider config={displayConfig}><div
       className="editor-appearance-overlay"
       role="dialog"
       aria-modal="true"
@@ -182,6 +185,33 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
             </AppearanceField>
 
             </>}
+            <section aria-label="标题与块排版">
+              <h3>标题字号</h3>
+              <p>默认保留现有字号和手机适配；自定义字号以 px 为单位，所有风格共用。</p>
+              <div className="editor-appearance-control-grid">
+                {Array.from({ length: 6 }, (_, index) => {
+                  const key = `editor_h${index + 1}_font_size` as keyof typeof DEFAULT_BLOCK_TYPOGRAPHY;
+                  return <AppearanceField key={key} label={`H${index + 1} 字号`} desc="默认随正文和屏幕宽度适配">
+                    <TypographySize label={`H${index + 1} 字号`} value={Number(config[key]) || 0} onChange={value => onUpdate({ [key]: value })} />
+                  </AppearanceField>;
+                })}
+              </div>
+              <h3>块字体与字号</h3>
+              <p>默认保持原有排版；代码块默认使用等宽字体，图块设置应用于 Mermaid 图中文字，图中显式设置优先。</p>
+              <div className="editor-appearance-control-grid">
+                {([['code', '代码块'], ['quote', '引用块'], ['mermaid', '图块'], ['flow', 'flow 块']] as const).map(([kind, label]) => {
+                  const family = `editor_${kind}_font_family` as keyof typeof DEFAULT_BLOCK_TYPOGRAPHY;
+                  const size = `editor_${kind}_font_size` as keyof typeof DEFAULT_BLOCK_TYPOGRAPHY;
+                  return <AppearanceField key={kind} label={label} desc={kind === 'code' ? '默认等宽字体，保留代码列对齐；行内代码不受影响' : '只调整块内容，工具栏保持原样'}>
+                    <select className="settings-input editor-appearance-select" aria-label={`${label}字体`} value={config[family] || "default"} onChange={event => onUpdate({ [family]: event.target.value })}>
+                      <option value="default">默认{kind === 'code' ? '（等宽）' : '（现有字体）'}</option>
+                      <option value="monospace">等宽字体</option><option value="system">系统字体</option><option value="sans">无衬线</option><option value="serif">衬线 / 宋体</option>
+                    </select>
+                    <TypographySize label={`${label}字号`} value={Number(config[size]) || 0} onChange={value => onUpdate({ [size]: value })} />
+                  </AppearanceField>;
+                })}
+              </div>
+            </section>
             <AppearanceField label="桌面块号与正文间距" desc="显示块编号时生效；手机视图保持原有间距">
               <AppearanceStepper label="桌面块号与正文间距" value={config.editor_block_number_gap} minimum={4} maximum={32} step={2} unit="px" onChange={value => onUpdate({ editor_block_number_gap: value })} />
             </AppearanceField>
@@ -226,7 +256,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
             <button
               className="settings-btn-secondary editor-appearance-reset"
               type="button"
-              onClick={() => { onUpdate(managed ? {
+              onClick={() => { onUpdate({ ...DEFAULT_BLOCK_TYPOGRAPHY, ...(managed ? {
                 interface_font_family: DEFAULT_CONFIG.interface_font_family,
                 interface_font_size: DEFAULT_CONFIG.interface_font_size,
                 interface_line_height: DEFAULT_CONFIG.interface_line_height,
@@ -235,7 +265,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                 interface_heading_margin_bottom_px: DEFAULT_CONFIG.interface_heading_margin_bottom_px,
                 interface_content_width: DEFAULT_CONFIG.interface_content_width,
                 editor_block_number_gap: DEFAULT_CONFIG.editor_block_number_gap,
-              } : { ...DEFAULT_EDITOR_APPEARANCE, editor_block_number_gap: DEFAULT_CONFIG.editor_block_number_gap }); setBlockDisplay({ mermaidDisplay: "fit", fontSize: undefined, whitespace: "off", tabSize: 4, lineNumbers: false, wrap: true }); setCodeHeight(60); setBlockDirty(true); }}
+              } : { ...DEFAULT_EDITOR_APPEARANCE, editor_block_number_gap: DEFAULT_CONFIG.editor_block_number_gap }) }); setBlockDisplay({ mermaidDisplay: "fit", fontSize: undefined, whitespace: "off", tabSize: 4, lineNumbers: false, wrap: true }); setCodeHeight(60); setBlockDirty(true); }}
             >恢复默认排版</button>
             <div className="editor-appearance-actions">
               <button className="settings-btn-secondary editor-appearance-cancel" type="button" onClick={close} disabled={applying}>取消</button>
@@ -279,6 +309,8 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
               <p className="standalone-strong-label"><strong>概念标签</strong></p>
               <p>纯粗体标签后的正文沿用紧凑的标题下间距。</p>
               <blockquote>引用块缩进帮助补充说明与正文形成清楚的层次。</blockquote>
+              <DeferredMermaidDiagram source={'flowchart LR\nA[开始] --> B[完成]'} />
+              <DeferredFlowBlock source={'## 开始\n\n记录想法。\n\n## 完成\n\n整理行动。'} />
               <hr />
               <p>代码块和引用块样式也会随着预览中的字号/行距同步变化。</p>
               <p>使用 <mark>Alt+F 搜索关键字</mark> 时，匹配内容会采用所选的高亮颜色。</p>
@@ -286,11 +318,12 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                 <thead><tr><th>项目</th><th>效果</th></tr></thead>
                 <tbody><tr><td>字体与字号</td><td>决定页面的基本气质</td></tr><tr><td>行距与缩进</td><td>控制信息密度和阅读节奏</td></tr></tbody>
               </table>
+              <h4>四级标题</h4><h5>五级标题</h5><h6>六级标题</h6>
             </article>
           </div>
         </div>
       </div>
-    </div>
+    </div></ReadingTypographyProvider>
   );
 }
 
@@ -302,6 +335,13 @@ function AppearanceField({ label, desc, children }: { label: string; desc: strin
       <div className="settings-control">{children}</div>
     </div>
   );
+}
+
+function TypographySize({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  return <label>{label}<select className="settings-input editor-appearance-select" aria-label={label} value={value} onChange={event => onChange(Number(event.target.value))}>
+    <option value={0}>默认（现有字号）</option>
+    {Array.from({ length: 63 }, (_, index) => index + 10).map(size => <option key={size} value={size}>{size}px</option>)}
+  </select></label>;
 }
 
 function AppearanceStepper({ label, value, minimum, maximum, step, unit = "", onChange }: {

@@ -39,3 +39,61 @@ html:not([data-interface-style="classic"]) .editor-appearance-document > :has(+ 
     margin-bottom: calc(var(--style-heading-gap, 28px) * 11 / 14);
   }
 }
+
+/* A missing override keeps each style and viewport’s existing defaults. */
+:root {
+  --editor-h1-size: initial;
+  --editor-h2-size: initial;
+  --editor-h3-size: initial;
+  --editor-h4-size: initial;
+  --editor-h5-size: initial;
+  --editor-h6-size: initial;
+}
+:is(.editor-content, .vr-block, .editor-appearance-document) h1 {
+  --editor-heading-size: var(--editor-h1-size);
+}
+:is(.editor-content, .vr-block, .editor-appearance-document) h2 {
+  --editor-heading-size: var(--editor-h2-size);
+}
+:is(.editor-content, .vr-block, .editor-appearance-document) h3 {
+  --editor-heading-size: var(--editor-h3-size);
+}
+:is(.editor-content, .vr-block, .editor-appearance-document) h4 {
+  --editor-heading-size: var(--editor-h4-size);
+}
+:is(.editor-content, .vr-block, .editor-appearance-document) h5 {
+  --editor-heading-size: var(--editor-h5-size);
+}
+:is(.editor-content, .vr-block, .editor-appearance-document) h6 {
+  --editor-heading-size: var(--editor-h6-size);
+}
+
+.editor-content .blockquote-content,
+.editor-content blockquote:not(.blockquote-wrap),
+.editor-appearance-document blockquote {
+  font-family: var(--editor-quote-font-family, inherit);
+  font-size: var(--editor-quote-font-size, inherit);
+}
+.flow-block-content {
+  font-family: var(--editor-flow-font-family, var(--editor-font-family));
+  font-size: var(--editor-flow-font-size, var(--editor-font-size));
+}
+html .flow-block-content.editor-content .ProseMirror.flow-prose {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.document-toc-block {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  white-space: normal;
+}
+.document-toc-block header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.document-toc-block fieldset { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; font-size: 12px; }
+.document-toc-block label { display: inline-flex; align-items: center; gap: 3px; }
+html .editor-content .document-toc-block ol { list-style: none; padding: 0; margin: 8px 0 0; }
+html .editor-content .document-toc-block ol > li::before { content: none; }
+.document-toc-block li { margin: 0; min-width: 0; }
+.document-toc-block a { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-block: 3px; }

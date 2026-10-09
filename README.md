@@ -265,6 +265,8 @@ nine-rings/
 | [`docs/engineering-improvement-plan.md`](./docs/engineering-improvement-plan.md) | 按优先级跟踪的工程整改计划、阶段任务与验收标准 |
 | [`docs/md-import.md`](./docs/md-import.md) | Markdown 导入工具使用指南（`md-to-nine-rings.py`） |
 | [`docs/markdown-import.md`](./docs/markdown-import.md) | Markdown 导入格式说明 |
+| [`docs/document-table-of-contents.md`](./docs/document-table-of-contents.md) | `/toc` 自动目录、标题级别与手写目录跳转 |
+| [`docs/markdown-gfm-audit.md`](./docs/markdown-gfm-audit.md) | GitHub Markdown 兼容性核查、已确认差异与修复优先级 |
 | [`docs/macos-platform-analysis.md`](./docs/macos-platform-analysis.md) | macOS 客户端方案分析（Tauri vs Flutter vs 原生） |
 | [`docs/lessons-learned.md`](./docs/lessons-learned.md) | 开发经验记录（踩坑、模式、判断） |
 | [`schema/note.yaml`](./schema/note.yaml) | 数据格式定义（Note / NoteVersion / ProtectedPath / Template） |

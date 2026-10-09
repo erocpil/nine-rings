@@ -1,4 +1,5 @@
 import { DeferredFlowBlock } from "../components/DeferredFlowBlock";
+import { TableOfContentsBlock } from "../components/TableOfContentsBlock";
 import { EditorFoldIcon } from "../components/EditorFoldIcon";
 import { NodeViewWrapper, NodeViewContent, type NodeViewProps } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
@@ -332,6 +333,13 @@ function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: No
     } catch { setCopyError(true); }
   };
 
+  if (node.attrs.language === "toc" && !inWorkspace) return <NodeViewWrapper className="code-block-wrap toc-block-wrap" data-indent={node.attrs.indent > 0 ? node.attrs.indent : undefined}>
+    <TableOfContentsBlock source={code} onLevelsChange={editable ? source => {
+      const pos = getPos();
+      if (typeof pos === "number") editor.view.dispatch(editor.state.tr.insertText(source, pos + 1, pos + node.nodeSize - 1));
+    } : undefined} />
+    <pre hidden><NodeViewContent as="code" /></pre>
+  </NodeViewWrapper>;
   return (
     <NodeViewWrapper
       className={`code-block-wrap ${isFlow ? "flow-block-wrap" : ""} ${collapsed ? "collapsed" : ""}`}

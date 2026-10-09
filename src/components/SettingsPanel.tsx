@@ -58,6 +58,9 @@ interface Props {
 
 type SettingsPage = "root" | "appearance" | "hierarchy" | "navigation" | "editor" | "vim" | "sidebar" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced" | "changelog";
 const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
+  "editor_h1_font_size", "editor_h2_font_size", "editor_h3_font_size", "editor_h4_font_size", "editor_h5_font_size", "editor_h6_font_size",
+  "editor_code_font_family", "editor_code_font_size", "editor_quote_font_family", "editor_quote_font_size",
+  "editor_mermaid_font_family", "editor_mermaid_font_size", "editor_flow_font_family", "editor_flow_font_size",
   "interface_font_family",
   "interface_font_size",
   "interface_line_height",
@@ -207,6 +210,20 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const settingsSearchButtonRef = useRef<HTMLButtonElement>(null);
   const settingsPanelRef = useRef<HTMLDivElement>(null);
   const mobileSettingsViewport = useMobileViewport();
+  const [peeking, setPeeking] = useState(false);
+  useEffect(() => {
+    if (!open || mobileSettingsViewport) setPeeking(false);
+  }, [open, mobileSettingsViewport]);
+  useEffect(() => {
+    if (!peeking) return;
+    const restore = () => setPeeking(false);
+    window.addEventListener("blur", restore);
+    document.addEventListener("visibilitychange", restore);
+    return () => {
+      window.removeEventListener("blur", restore);
+      document.removeEventListener("visibilitychange", restore);
+    };
+  }, [peeking]);
   const [searchDestination, setSearchDestination] = useState<SettingsSearchEntry | null>(null);
   const settingsResults = searchSettings(settingsQuery, { web: !isTauri(), updates: Boolean(webUpdate) }).map(result =>
     config && config.interface_style !== "classic" && (result.page === "navigation" || result.title === "主题")
@@ -588,7 +605,17 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const expandedPanel = !mobileSettingsViewport || settingsPage !== "root";
 
   return (
-    <div className={`settings-overlay${mobileSettingsViewport ? " settings-overlay-mobile" : ""}${expandedPanel ? " settings-expanded-overlay" : ""}`} onClick={requestClose}>
+    <div className={`settings-overlay${mobileSettingsViewport ? " settings-overlay-mobile" : ""}${expandedPanel ? " settings-expanded-overlay" : ""}${peeking ? " settings-peeking" : ""}`}
+      onClick={() => { if (mobileSettingsViewport) requestClose(); }}
+      onPointerDown={event => {
+        if (mobileSettingsViewport || event.pointerType !== "mouse" || event.button !== 0 || event.target !== event.currentTarget) return;
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        setPeeking(true);
+      }}
+      onPointerUp={() => setPeeking(false)}
+      onPointerCancel={() => setPeeking(false)}
+      onLostPointerCapture={() => setPeeking(false)}>
       <div
         className={`settings-panel${expandedPanel ? " settings-expanded-panel" : ""}`}
         ref={settingsPanelRef}

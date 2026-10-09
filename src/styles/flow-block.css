@@ -11,8 +11,8 @@
 .flow-block-content {
   --flow-inset: 42px;
   padding: 16px 20px;
-  font-family: var(--editor-font-family);
-  font-size: var(--editor-font-size);
+  font-family: var(--editor-flow-font-family, var(--editor-font-family));
+  font-size: var(--editor-flow-font-size, var(--editor-font-size));
   line-height: var(--editor-line-height);
   color: var(--text);
   background: var(--bg);

@@ -7,7 +7,7 @@ import { api } from "../lib/api";
 import type { AppConfig } from "../lib/storage/types";
 import { addLog } from "../lib/debugLog";
 import { withTimeout } from "../lib/async";
-import { DEFAULT_EDITOR_APPEARANCE } from "../lib/editor-appearance";
+import { DEFAULT_EDITOR_APPEARANCE, BLOCK_TYPOGRAPHY_KEYS } from "../lib/editor-appearance";
 import { preserveReadingPositions } from "../lib/reading-position";
 
 export function useSettings() {
@@ -58,7 +58,7 @@ export function useSettings() {
       const onlyThemeChanged = keys.every((key) => key === "theme" || c[key] === previous[key]);
       if (onlyThemeChanged) return;
     }
-    const appearanceChanged = previous && ([...Object.keys(DEFAULT_EDITOR_APPEARANCE), "interface_font_family", "interface_font_size", "interface_line_height", "interface_block_spacing_px", "interface_heading_margin_top_px", "interface_heading_margin_bottom_px", "editor_block_number_gap"] as Array<keyof AppConfig>)
+    const appearanceChanged = previous && ([...Object.keys(DEFAULT_EDITOR_APPEARANCE), ...BLOCK_TYPOGRAPHY_KEYS, "interface_font_family", "interface_font_size", "interface_line_height", "interface_block_spacing_px", "interface_heading_margin_top_px", "interface_heading_margin_bottom_px", "editor_block_number_gap"] as Array<keyof AppConfig>)
       .some(key => previous[key] !== c[key]);
     if (appearanceChanged || styleChanged) preserveReadingPositions(() => setConfig(c));
     else setConfig(c);

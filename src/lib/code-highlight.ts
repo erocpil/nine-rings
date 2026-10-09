@@ -103,7 +103,7 @@ export function normalizeCodeLanguage(language: unknown): string | null {
   const normalized = language.trim().toLowerCase();
   if (PLAIN_TEXT_ALIASES.has(normalized)) return null;
   const canonical = LANGUAGE_ALIASES[normalized] ?? normalized;
-  if (canonical === "mermaid" || canonical === "flow") return canonical;
+  if (canonical === "mermaid" || canonical === "flow" || canonical === "toc") return canonical;
   return lowlight.registered(canonical) ? canonical : null;
 }
 
@@ -114,7 +114,7 @@ function classNames(value: unknown): string[] {
 
 export function highlightCode(code: string, language: unknown): SyntaxToken[] {
   const normalized = normalizeCodeLanguage(language);
-  if (!normalized || normalized === "mermaid" || normalized === "flow" || !code || code.length > MAX_HIGHLIGHT_CODE_LENGTH) return [];
+  if (!normalized || normalized === "mermaid" || normalized === "flow" || normalized === "toc" || !code || code.length > MAX_HIGHLIGHT_CODE_LENGTH) return [];
   const cacheKey = `${normalized}\0${code}`;
   const cached = highlightCache.get(cacheKey);
   if (cached) {

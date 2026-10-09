@@ -13,7 +13,7 @@ interface Options {
   panel: Panel;
   hidden: boolean;
   resizing: boolean;
-  openPanel: (panel: Panel, toggle?: boolean) => void;
+  openPanel: (panel: Panel, toggle?: boolean, width?: number) => void;
   setHidden: (hidden: boolean) => void;
 }
 
@@ -209,7 +209,7 @@ export function useSidebarHoverPreview({
   };
   // Home navigation restores a complete layout, including the live pin state.
   // Storage alone cannot cancel a pending preview or keep the restored pane open.
-  const restore = (state: DesktopSidebarState) => {
+  const restore = (state: DesktopSidebarState, width?: number) => {
     cancel();
     cancelAnimationFrame(focusFrame.current);
     pointerInside.current = false;
@@ -217,7 +217,7 @@ export function useSidebarHoverPreview({
     previousHidden.current = state.hidden;
     setPinned(state.pinned && !state.hidden);
     saveDesktopSidebarState(state);
-    if (!state.hidden) openPanel(state.panel);
+    if (!state.hidden) openPanel(state.panel, false, width);
     setHidden(state.hidden);
   };
   return { pinned, enterButton, enterPanel, leave, click, keyDown, dismiss, restore };

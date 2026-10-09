@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getSchema } from "@tiptap/core";
+import Link from "@tiptap/extension-link";
 import { DocumentStarterKit } from "../../src/extensions/DocumentStarterKit";
 import {
   buildReadonlyDocument,
@@ -25,6 +26,30 @@ const heading = (text: string) => ({
 });
 
 describe("readonly window model", () => {
+  it("accepts heading fragments without allowing executable link schemes", () => {
+    const linkedSchema = getSchema([DocumentStarterKit, Link]);
+    const content = (href: string) => ({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "章节",
+              marks: [{ type: "link", attrs: { href } }],
+            },
+          ],
+        },
+      ],
+    });
+    expect(
+      buildReadonlyDocument(content("#1-中文章节"), linkedSchema),
+    ).not.toBeNull();
+    expect(
+      buildReadonlyDocument(content("javascript:alert(1)"), linkedSchema),
+    ).toBeNull();
+  });
   it("accepts inline code combined with bold in the same document schema", () => {
     const document = buildReadonlyDocument(
       {

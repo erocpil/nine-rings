@@ -13,10 +13,11 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onChange: (value: string) => void;
+  onHover?: () => void;
 }
 
 /** One controlled popup per DocumentBrowser, without native select click capture. */
-export function DocumentFilterSelect({ label, text, icon, disabled = false, className = "", value, options, open, onOpenChange, onChange }: Props) {
+export function DocumentFilterSelect({ label, text, icon, disabled = false, className = "", value, options, open, onOpenChange, onChange, onHover }: Props) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -90,13 +91,19 @@ export function DocumentFilterSelect({ label, text, icon, disabled = false, clas
   return <>
     <button ref={trigger} type="button" className={`document-browser-filter-control ${className}`} disabled={disabled} data-value={value}
       aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? id : undefined} aria-owns={open ? id : undefined}
+      onPointerEnter={event => { if (!disabled && event.pointerType === "mouse") onHover?.(); }}
       onMouseDown={event => {
         // WebKit otherwise focuses the sidebar ancestor and closes the popup
         // before click can toggle it, causing the same click to reopen it.
         event.preventDefault();
         event.currentTarget.focus({ preventScroll: true });
       }}
-      onClick={() => onOpenChange(!open)}
+      onClick={event => {
+        onOpenChange(!open);
+        // Hover-switching toolbar menus should not leave a focus rectangle
+        // after a pointer toggle. Keyboard toggles keep their focus target.
+        if (open && onHover && event.detail > 0) event.currentTarget.blur();
+      }}
       onKeyDown={event => {
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
           event.preventDefault(); event.stopPropagation(); onOpenChange(true);

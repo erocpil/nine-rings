@@ -48,6 +48,8 @@ export function useWorkspaceSidebar({
   // Keep the preferred ratio through intermediate native fullscreen animation
   // sizes and minimum-width clamps. Only dragging changes the preference.
   const readerRatioRef = useRef<number | null>(null);
+  // Summary shortcuts share a live width without overwriting panel preferences.
+  const shortcutWidthRef = useRef<{ panel: SidebarPanel; width: number } | null>(null);
   // ── 侧栏可拖拽分隔条 ──
   const computeDefaultSidebarWidth = useCallback(() => {
     const mobile = window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
@@ -93,14 +95,16 @@ export function useWorkspaceSidebar({
   const applyPanelSidebarWidth = useCallback(
     (panel: typeof desktopPanel) => {
       if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return;
-      const nextWidth = computePanelSidebarWidth(panel);
+      const nextWidth = shortcutWidthRef.current?.panel === panel
+        ? clampSidebarWidth(shortcutWidthRef.current.width)
+        : computePanelSidebarWidth(panel);
       sideDragWidthRef.current = nextWidth;
       setSidebarWidth(nextWidth);
     },
-    [computePanelSidebarWidth],
+    [clampSidebarWidth, computePanelSidebarWidth],
   );
   const setSidebarPanel = useCallback(
-    (panel: typeof desktopPanel, toggle = false) => {
+    (panel: typeof desktopPanel, toggle = false, width?: number) => {
       if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) {
         setDesktopPanel(panel);
         return;
@@ -110,6 +114,7 @@ export function useWorkspaceSidebar({
         setSidebarHidden(true);
         return;
       }
+      shortcutWidthRef.current = width !== undefined ? { panel, width } : null;
       setDesktopPanel(panel);
       setSidebarHidden(false);
       applyPanelSidebarWidth(panel);
@@ -158,6 +163,7 @@ export function useWorkspaceSidebar({
   }, [applyPanelSidebarWidth, sidebarHidden, desktopPanel]);
   useEffect(() => {
     const reset = () => {
+      shortcutWidthRef.current = null;
       localStorage.removeItem(READER_SIDEBAR_WIDTH_KEY);
       localStorage.removeItem(READER_SIDEBAR_RATIO_KEY);
       readerRatioRef.current = null;
@@ -295,6 +301,8 @@ export function useWorkspaceSidebar({
       window.cancelAnimationFrame(widthFrame);
       sideDragWidthRef.current = clampSidebarWidth(sideDragWidthRef.current, sideDragPanelRef.current === "reader" ? READER_SIDEBAR_MIN_WIDTH : 0);
       setSidebarWidth(sideDragWidthRef.current);
+      if (shortcutWidthRef.current?.panel === sideDragPanelRef.current)
+        shortcutWidthRef.current.width = sideDragWidthRef.current;
       setSidebarResizing(false);
       document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("pointerup", handlePointerEnd);
@@ -355,6 +363,8 @@ export function useWorkspaceSidebar({
     sidebarResizing,
     readerCompanionCollapsed,
     setSidebarPanel,
+    summarySidebarWidth: () => computePanelSidebarWidth("list"),
+    sidebarWidthOverride: () => shortcutWidthRef.current?.panel === desktopPanel ? shortcutWidthRef.current.width : undefined,
     handleSidePointerDown,
   };
 }

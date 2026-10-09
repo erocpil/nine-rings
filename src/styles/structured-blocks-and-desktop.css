@@ -157,8 +157,8 @@
 .code-block-inner {
   display: flex;
   background: var(--code-bg);
-  font-family: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", monospace;
-  font-size: 0.95em;
+  font-family: var(--editor-code-font-family, "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", monospace);
+  font-size: var(--editor-code-font-size, 0.95em);
   /* 与 .editor-content pre code 的 1.5 保持一致，避免行号逐行漂移。 */
   line-height: 1.5;
 }

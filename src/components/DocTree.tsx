@@ -273,17 +273,22 @@ function DocTree({
   useEffect(() => {
     if (contextMenu) {
       const close = () => setContextMenu(null);
+      const outsideClick = (event: MouseEvent) => {
+        if (event.target instanceof Node && !contextMenuRef.current?.contains(event.target)) close();
+      };
       const escape = (event: KeyboardEvent) => {
         if (event.key !== "Escape") return;
         event.preventDefault();
         close();
       };
       document.addEventListener("click", close);
+      document.addEventListener("click", outsideClick, true);
       document.addEventListener("keydown", escape);
       window.addEventListener("resize", close);
       window.visualViewport?.addEventListener("resize", close);
       return () => {
         document.removeEventListener("click", close);
+        document.removeEventListener("click", outsideClick, true);
         document.removeEventListener("keydown", escape);
         window.removeEventListener("resize", close);
         window.visualViewport?.removeEventListener("resize", close);

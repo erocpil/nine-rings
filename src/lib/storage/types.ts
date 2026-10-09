@@ -27,6 +27,21 @@ export interface AppConfig {
   editor_line_height: number;
   editor_block_spacing: number;
   editor_block_number_gap: number;
+  editor_h1_font_size: number;
+  editor_h2_font_size: number;
+  editor_h3_font_size: number;
+  editor_h4_font_size: number;
+  editor_h5_font_size: number;
+  editor_h6_font_size: number;
+  editor_code_font_family: "default" | "system" | "sans" | "serif" | "monospace";
+  editor_quote_font_family: "default" | "system" | "sans" | "serif" | "monospace";
+  editor_mermaid_font_family: "default" | "system" | "sans" | "serif" | "monospace";
+  editor_flow_font_family: "default" | "system" | "sans" | "serif" | "monospace";
+  editor_code_font_size: number;
+  editor_quote_font_size: number;
+  editor_mermaid_font_size: number;
+  editor_flow_font_size: number;
+
   editor_paragraph_indent: number;
   editor_heading_margin_top: number;
   editor_heading_margin_bottom: number;
@@ -100,6 +115,21 @@ export const DEFAULT_CONFIG: AppConfig = {
   editor_line_height: 1.6,
   editor_block_spacing: 1,
   editor_block_number_gap: 8,
+  editor_h1_font_size: 0,
+  editor_h2_font_size: 0,
+  editor_h3_font_size: 0,
+  editor_h4_font_size: 0,
+  editor_h5_font_size: 0,
+  editor_h6_font_size: 0,
+  editor_code_font_family: "default",
+  editor_quote_font_family: "default",
+  editor_mermaid_font_family: "default",
+  editor_flow_font_family: "default",
+  editor_code_font_size: 0,
+  editor_quote_font_size: 0,
+  editor_mermaid_font_size: 0,
+  editor_flow_font_size: 0,
+
   editor_paragraph_indent: 0,
   editor_heading_margin_top: 0.7,
   editor_heading_margin_bottom: 0.35,

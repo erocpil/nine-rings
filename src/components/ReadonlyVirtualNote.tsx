@@ -59,7 +59,10 @@ import { patchReadingState, readReadingState } from "../lib/reading-state";
 import { centerSearchMatch } from "../lib/search-scroll";
 import { KaTeXFormula } from "../extensions/MarkdownExtras";
 import { findFootnoteElement, footnoteBlockPosition, footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
-import { useFootnoteHoverPreview } from "./FootnoteHoverPreview";
+import { DocumentOutlineContext, TableOfContentsBlock } from "./TableOfContentsBlock";
+import { extractDocumentOutline } from "../lib/document-outline";
+import { headingLinkTarget, outlineLabel } from "../lib/heading-links";
+import { useDocumentHoverPreview } from "./FootnoteHoverPreview";
 import { isRelativeMarkdownLink } from "../lib/relative-document-link";
 import { internalNoteId } from "../lib/internal-note-link";
 
@@ -124,7 +127,7 @@ export function renderReadonlyBlock(
                 {rendered}
               </a>
             );
-          else if (isRelativeMarkdownLink(href) || internalNoteId(href)) rendered = <a href={href}>{rendered}</a>;
+          else if (href.startsWith("#") || isRelativeMarkdownLink(href) || internalNoteId(href)) rendered = <a href={href}>{rendered}</a>;
           break;
         }
         case "inlineHighlight":
@@ -233,6 +236,7 @@ export function renderReadonlyBlock(
       );
     }
     case "codeBlock": {
+      if (node.attrs.language === "toc") return <div {...attrs} className="toc-block-wrap"><TableOfContentsBlock source={node.textContent} /></div>;
       const { collapsed, isMermaid, showDiagram, isFlow, showFlow, wrap } = codeBlockDisplay(node.attrs, state, defaultWrap);
       const lineNumbers = codeLineNumbersEnabled();
       const lines = node.textContent.split("\n");
@@ -313,14 +317,14 @@ export function ReadonlyVirtualNote(
     onSearchTargetConsumed,
   } = props;
   const active = useDocumentActive();
-  const footnoteHover = useFootnoteHoverPreview(() => doc);
+  const documentHover = useDocumentHoverPreview(() => doc);
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const heights = useRef(new Map<number, number>());
   const pendingAnchor = useRef<ReadingAnchor | null>(null);
   const pendingNavigationRequest = useRef<number | null>(null);
   const pendingMatch = useRef<SearchMatch | null>(null);
-  const pendingBookmark = useRef<number | null>(null);
+  const pendingBlockJump = useRef<number | null>(null);
   const pendingFootnote = useRef<string | null>(null);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
@@ -440,6 +444,10 @@ export function ReadonlyVirtualNote(
     [sections, doc, states, noteId],
   );
   const navigationTarget = useNavigationStore(state => state.target?.noteId === noteId ? state.target : null);
+  const navigateHeading = useCallback((item: { pos: number }) => {
+    pendingBlockJump.current = item.pos;
+    jump(item.pos);
+  }, [jump]);
   useEffect(() => {
     if (!active) return;
     const history = useNavigationStore.getState();
@@ -690,13 +698,13 @@ export function ReadonlyVirtualNote(
   }, [start, end, layout]);
 
   useLayoutEffect(() => {
-    const position = pendingBookmark.current;
+    const position = pendingBlockJump.current;
     const root = rootRef.current;
     if (position === null || !root) return;
     const block = layout.blocks[layout.atPosition(position)];
     const row = block && bodyRef.current?.querySelector<HTMLElement>(`[data-reading-row][data-position="${block.pos}"]`);
     if (!row) return;
-    // Estimated heights can shift during mounting. Refine the explicit bookmark
+    // Estimated heights can shift during mounting. Refine the explicit bookmark/heading
     // destination once its real row is available, then preserve that viewport.
     const rowRect = row.getBoundingClientRect();
     const previousTop = root.scrollTop;
@@ -704,7 +712,7 @@ export function ReadonlyVirtualNote(
     const offset = root.scrollTop - previousTop + root.getBoundingClientRect().top - rowRect.top;
     pendingAnchor.current = { position: block.pos, offset };
     savedAnchor.current = pendingAnchor.current;
-    pendingBookmark.current = null;
+    pendingBlockJump.current = null;
     setViewport({ top: root.scrollTop, height: root.clientHeight });
   }, [start, end, layout]);
 
@@ -783,7 +791,7 @@ export function ReadonlyVirtualNote(
     if (target.bookmarkId) {
       const bookmark = props.content.metadata?.bookmarks?.find(item => item.id === target.bookmarkId);
       if (bookmark) {
-        pendingBookmark.current = bookmark.position;
+        pendingBlockJump.current = bookmark.position;
         jump(bookmark.position);
       }
       onSearchTargetConsumed?.(target.requestId);
@@ -972,12 +980,12 @@ export function ReadonlyVirtualNote(
                   <div
                     className="vr-outline-row"
                     key={section.key}
-                    title={section.text}
+                    title={outlineLabel(section.text, 500)}
                     style={{ paddingLeft: (section.level - 1) * 12 }}
                   >
                     {section.end > section.headingEnd ? <button
                       type="button"
-                      aria-label={`折叠切换 ${section.text}`}
+                      aria-label={`折叠切换 ${outlineLabel(section.text)}`}
                       aria-expanded={!folds.has(section.key)}
                       onClick={() => toggleHeading(section.pos)}
                     >
@@ -991,7 +999,7 @@ export function ReadonlyVirtualNote(
                         setPanel(null); dismissPreview();
                       }}
                     >
-                      {section.text}
+                      {outlineLabel(section.text)}
                     </button>
                   </div>
                 ))}
@@ -1060,8 +1068,9 @@ export function ReadonlyVirtualNote(
             )}
           </section>
   );
+  const tocContext = useMemo(() => ({ items: extractDocumentOutline(doc), navigate: navigateHeading }), [doc, navigateHeading]);
   return (
-    <div
+    <DocumentOutlineContext.Provider value={tocContext}><div
       className={`note-editor note-editor-readonly vr-note ${desktopPanelClass(desktopPanels, sections.length > 0)} ${props.cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${props.focusMode ? "focus-mode" : ""} ${props.showLineNumbers ? "show-line-numbers" : ""}`}
       data-virtual-reader="true"
       onClick={event => {
@@ -1175,12 +1184,19 @@ export function ReadonlyVirtualNote(
           tabIndex={0}
           role="document"
           aria-label="只读正文"
-          onPointerOver={footnoteHover.onPointerOver}
-          onPointerOut={footnoteHover.onPointerOut}
-          onFocusCapture={footnoteHover.onFocusCapture}
-          onBlurCapture={footnoteHover.onBlurCapture}
-          onScrollCapture={footnoteHover.onScrollCapture}
+          onPointerOver={documentHover.onPointerOver}
+          onPointerOut={documentHover.onPointerOut}
+          onFocusCapture={documentHover.onFocusCapture}
+          onBlurCapture={documentHover.onBlurCapture}
+          onScrollCapture={documentHover.onScrollCapture}
           onClickCapture={(event) => {
+            const heading = headingLinkTarget(event.target, extractDocumentOutline(doc));
+            if (heading) {
+              event.preventDefault();
+              event.stopPropagation();
+              navigateHeading(heading);
+              return;
+            }
             const id = footnoteLinkTarget(event.target);
             if (!id) return;
             event.preventDefault();
@@ -1283,7 +1299,7 @@ export function ReadonlyVirtualNote(
                   {section && section.end > section.headingEnd && (
                     <button
                       type="button"
-                      aria-label={`折叠切换 ${section.text}`}
+                      aria-label={`折叠切换 ${outlineLabel(section.text)}`}
                       aria-expanded={!folds.has(section.key)}
                       onClick={() => toggleHeading(block.pos)}
                     >
@@ -1316,14 +1332,14 @@ export function ReadonlyVirtualNote(
           />
         </div>
       </div>
-      {footnoteHover.preview}
+      {documentHover.preview}
       {props.showStatusBar && (
         <div className="vr-status">
           {doc.childCount} 块 · 已挂载 {end - start} 块
           {selectionWindow ? " · 正在保留选区" : ""}
         </div>
       )}
-    </div>
+    </div></DocumentOutlineContext.Provider>
   );
 }
 

@@ -15,6 +15,8 @@ let mermaidPromise: Promise<typeof mermaidType> | undefined;
 let renderQueue: Promise<unknown> = Promise.resolve();
 let nextId = 0;
 
+export interface MermaidTypography { fontFamily?: string; fontSize?: number }
+
 function loadMermaid() {
   mermaidPromise ??= import("mermaid").then(module => module.default);
   return mermaidPromise;
@@ -34,7 +36,7 @@ export const MERMAID_PALETTE: MermaidPalette = {
 };
 
 /** Mermaid has global configuration and a shared temporary DOM. Serialize renders. */
-export function renderMermaid(source: string, palette: MermaidPalette = MERMAID_PALETTE): Promise<string> {
+export function renderMermaid(source: string, palette: MermaidPalette = MERMAID_PALETTE, typography: MermaidTypography = {}): Promise<string> {
   const render = async () => {
     if (!source.trim()) throw new Error("图表内容为空");
     if (source.length > 100_000) throw new Error("图表源码过长");
@@ -44,6 +46,7 @@ export function renderMermaid(source: string, palette: MermaidPalette = MERMAID_
       securityLevel: "strict",
       suppressErrorRendering: true,
       theme: "base",
+      ...(typography.fontFamily ? { fontFamily: typography.fontFamily } : {}),
       // Reserve space for multiline subgraph titles before routing edges and
       // placing children; scaling the finished SVG cannot repair overlaps.
       flowchart: {
@@ -54,6 +57,8 @@ export function renderMermaid(source: string, palette: MermaidPalette = MERMAID_
       },
       darkMode: palette.darkMode,
       themeVariables: {
+        ...(typography.fontFamily ? { fontFamily: typography.fontFamily } : {}),
+        ...(typography.fontSize ? { fontSize: `${typography.fontSize}px` } : {}),
         darkMode: false,
         background: palette.background,
         primaryColor: palette.nodeBackground,

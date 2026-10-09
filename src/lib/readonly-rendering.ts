@@ -60,6 +60,7 @@ export function buildReadonlyDocument(
           supportedMarks.has(mark.type) &&
           (mark.type !== "link" ||
             (/^(https?:|mailto:|tel:)/i.test(String(mark.attrs?.href ?? ""))
+              || String(mark.attrs?.href ?? "").startsWith("#")
               || isRelativeMarkdownLink(String(mark.attrs?.href ?? ""))
               || internalNoteId(String(mark.attrs?.href ?? "")) !== null)),
       ) &&

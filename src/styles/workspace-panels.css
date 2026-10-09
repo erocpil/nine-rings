@@ -454,16 +454,16 @@
 }
 
 .editor-appearance-document h1 {
-  font-size: 1.65em;
+  font-size: var(--editor-heading-size, 1.65em);
   line-height: 1.25;
 }
 
 .editor-appearance-document h2 {
-  font-size: 1.25em;
+  font-size: var(--editor-heading-size, 1.25em);
 }
 
 .editor-appearance-document h3 {
-  font-size: 1.1em;
+  font-size: var(--editor-heading-size, 1.1em);
 }
 
 .editor-appearance-document :is(h1, h2, h3) {
@@ -521,8 +521,8 @@
   border-radius: 4px;
   background: var(--surface);
   overflow-x: auto;
-  font-size: 0.91em;
-  font-family: var(--font-mono);
+  font-size: var(--editor-code-font-size, 0.91em);
+  font-family: var(--editor-code-font-family, var(--font-mono));
 }
 
 .editor-appearance-document pre code {
@@ -3203,7 +3203,7 @@ button.doc-tree-toggle:focus-visible {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--ui-shadow-popover, 0 4px 12px rgba(0, 0, 0, 0.15));
   min-width: 120px;
   max-width: calc(100vw - 16px);
   max-height: calc(100vh - 16px);

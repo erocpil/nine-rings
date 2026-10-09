@@ -1,3 +1,4 @@
+import { outlineLabel } from "../lib/heading-links";
 import { EditorFoldIcon } from "./EditorFoldIcon";
 import {
   memo,
@@ -44,7 +45,7 @@ const rowEstimateCache = new WeakMap<DocumentOutlineItem, Map<string, number>>()
 export const OUTLINE_SCROLL_EVENT = "nine-rings:outline-scroll";
 
 function entryKey(entry: VisibleOutlineEntry): string {
-  return `${entry.index}:${entry.item.pos}:${entry.item.text}`;
+  return `${entry.index}:${entry.item.pos}:${outlineLabel(entry.item.text)}`;
 }
 
 function approximateTextWidth(text: string): number {
@@ -72,7 +73,7 @@ function estimatedRowHeight(
   const indentation = Math.max(0, entry.item.level - outlineBaseLevel) * 14;
   // 行内固定区域：左缩进、折叠按钮、Hn 标签、间距及右内边距。
   const availableTextWidth = Math.max(80, listWidth - indentation - 60);
-  const height = approximateTextWidth(entry.item.text) > availableTextWidth
+  const height = approximateTextWidth(outlineLabel(entry.item.text)) > availableTextWidth
     ? WRAPPED_ROW_HEIGHT
     : SINGLE_ROW_HEIGHT;
   const sizes = cached ?? new Map<string, number>();
@@ -315,19 +316,19 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
         data-outline-row-key={entryKey(entry)}
         data-visible-index={visibleIndex}
         aria-current={index === activeOutlineIndex ? "location" : undefined}
-        title={item.text}
+        title={outlineLabel(item.text, 500)}
       >
         {entry.foldable ? <button
           className="document-outline-fold"
           type="button"
-          aria-label={`${folded ? "展开" : "折叠"}章节 ${item.text}`}
+          aria-label={`${folded ? "展开" : "折叠"}章节 ${outlineLabel(item.text)}`}
           onClick={() => onToggleFold(item.pos)}
           aria-expanded={!folded}
         ><EditorFoldIcon outline expanded={!folded} /></button>
           : <span className="document-outline-fold-placeholder" aria-hidden="true" />}
         <button className="document-outline-link" type="button" onClick={() => onJump(item)}>
           <span className="document-outline-level">H{item.level}</span>
-          <span className="document-outline-text">{item.text}</span>
+          <span className="document-outline-text">{outlineLabel(item.text)}</span>
         </button>
       </div>
     );

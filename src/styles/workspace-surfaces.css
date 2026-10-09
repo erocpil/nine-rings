@@ -131,6 +131,9 @@
   animation: fadeIn 0.15s ease;
 }
 
+/* Keep the backdrop intercepting input while the live workspace is revealed. */
+.settings-overlay.settings-peeking { opacity: 0 !important; }
+
 .dialog-overlay {
   position: fixed;
   inset: 0;
@@ -1427,6 +1430,15 @@
   border-color: var(--accent);
   color: var(--accent);
   outline: none;
+}
+
+.document-outline-header-primary > button,
+.document-outline-header-actions > button,
+.document-outline-jumps > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 14px;
 }
 
 .document-outline-list {

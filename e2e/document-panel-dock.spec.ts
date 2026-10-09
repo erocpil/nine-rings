@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-test("长目录的滚动按钮在悬浮和固定面板中与收起按钮对齐且持续可见", async ({ page }) => {
+for (const style of ["classic", "calm"] as const)
+test(`长目录的滚动按钮在悬浮和固定面板中与收起按钮对齐且持续可见：${style}`, async ({ page }) => {
+  await page.addInitScript(style => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: style })), style);
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
   const ids = await page.evaluate(async () => {
@@ -24,16 +26,25 @@ test("长目录的滚动按钮在悬浮和固定面板中与收起按钮对齐�
     const alignment = await panel.evaluate(element => {
       const close = element.querySelector<HTMLButtonElement>('button[aria-label="固定目录"], button[aria-label="收起固定目录"]')!;
       const closeRect = close.getBoundingClientRect();
+      const textCenter = (button: HTMLButtonElement) => {
+        const range = document.createRange();
+        range.selectNodeContents(button);
+        const rect = range.getBoundingClientRect();
+        return (rect.top + rect.bottom) / 2;
+      };
       const panelRect = element.getBoundingClientRect();
       const buttons = ["Top", "Mid", "Bot"].map(label => {
         const button = Array.from(element.querySelectorAll<HTMLButtonElement>(".document-outline-jumps button"))
           .find(candidate => candidate.textContent === label)!;
         const rect = button.getBoundingClientRect();
-        return { offset: Math.abs((rect.top + rect.bottom) / 2 - (closeRect.top + closeRect.bottom) / 2), inside: rect.left >= panelRect.left && rect.right <= panelRect.right };
+        return { offset: Math.abs((rect.top + rect.bottom) / 2 - (closeRect.top + closeRect.bottom) / 2), topOffset: Math.abs(rect.top - closeRect.top), heightDifference: Math.abs(rect.height - closeRect.height), textOffset: Math.abs(textCenter(button) - textCenter(close)), inside: rect.left >= panelRect.left && rect.right <= panelRect.right };
       });
       return { buttons, closeInside: closeRect.left >= panelRect.left && closeRect.right <= panelRect.right };
     });
-    expect(Math.max(...alignment.buttons.map(button => button.offset))).toBeLessThanOrEqual(2);
+    expect(Math.max(...alignment.buttons.map(button => button.offset))).toBeLessThanOrEqual(0.5);
+    expect(Math.max(...alignment.buttons.map(button => button.topOffset))).toBeLessThanOrEqual(0.5);
+    expect(Math.max(...alignment.buttons.map(button => button.heightDifference))).toBeLessThanOrEqual(0.5);
+    expect(Math.max(...alignment.buttons.map(button => button.textOffset))).toBeLessThanOrEqual(1);
     expect(alignment.closeInside && alignment.buttons.every(button => button.inside)).toBe(true);
   };
   await checkHeader(preview);

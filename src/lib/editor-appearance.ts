@@ -44,6 +44,27 @@ const FONT_STACKS: Record<AppConfig["editor_font_family"], string> = {
   monospace: '"Cascadia Code", "SFMono-Regular", Consolas, "Microsoft YaHei", monospace',
 };
 
+export const DEFAULT_BLOCK_TYPOGRAPHY = {
+  editor_h1_font_size: 0, editor_h2_font_size: 0, editor_h3_font_size: 0,
+  editor_h4_font_size: 0, editor_h5_font_size: 0, editor_h6_font_size: 0,
+  editor_code_font_family: "default", editor_code_font_size: 0,
+  editor_quote_font_family: "default", editor_quote_font_size: 0,
+  editor_mermaid_font_family: "default", editor_mermaid_font_size: 0,
+  editor_flow_font_family: "default", editor_flow_font_size: 0,
+} as const;
+
+export const BLOCK_TYPOGRAPHY_KEYS = Object.keys(DEFAULT_BLOCK_TYPOGRAPHY) as Array<keyof typeof DEFAULT_BLOCK_TYPOGRAPHY>;
+
+export function blockFontFamily(value: unknown): string | undefined {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(FONT_STACKS, value)
+    ? FONT_STACKS[value as keyof typeof FONT_STACKS] : undefined;
+}
+
+export function customFontSize(value: unknown): number | undefined {
+  const size = Number(value);
+  return Number.isFinite(size) && size > 0 ? Math.min(72, Math.max(10, size)) : undefined;
+}
+
 function clamp(value: unknown, minimum: number, maximum: number, fallback: number): number {
   const number = Number(value);
   return Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, number)) : fallback;
@@ -85,6 +106,15 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
   const pathColors = safeHierarchyColors(config?.hierarchy_path_custom_colors, DEFAULT_CONFIG.hierarchy_path_custom_colors);
   const outlineColors = safeHierarchyColors(config?.hierarchy_outline_custom_colors, DEFAULT_CONFIG.hierarchy_outline_custom_colors);
   return {
+    ...Object.fromEntries(Array.from({ length: 6 }, (_, index) => {
+      const size = customFontSize(config?.[`editor_h${index + 1}_font_size` as keyof AppConfig]);
+      return size ? [[`--editor-h${index + 1}-size`, `${size}px`]] : [];
+    }).flat()),
+    ...Object.fromEntries(["code", "quote", "mermaid", "flow"].flatMap(kind => {
+      const family = blockFontFamily(config?.[`editor_${kind}_font_family` as keyof AppConfig]);
+      const size = customFontSize(config?.[`editor_${kind}_font_size` as keyof AppConfig]);
+      return [...(family ? [[`--editor-${kind}-font-family`, family]] : []), ...(size ? [[`--editor-${kind}-font-size`, `${size}px`]] : [])];
+    })),
     ...Object.fromEntries(pathColors.map((color, index) => [`--hierarchy-path-custom-${index + 1}`, color])),
     ...Object.fromEntries(outlineColors.map((color, index) => [`--hierarchy-outline-custom-${index + 1}`, color])),
     "--editor-font-family": config?.interface_style && config.interface_style !== "classic" && resolvedFamily === "system"

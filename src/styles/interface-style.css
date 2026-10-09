@@ -423,7 +423,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
   :is(.editor-content, .vr-block, .editor-appearance-document)
   h1 {
-  font-size: calc(var(--editor-font-size) * 2.125);
+  font-size: var(--editor-heading-size, calc(var(--editor-font-size) * 2.125));
   line-height: 1.3;
   font-weight: 600;
   letter-spacing: 0;
@@ -431,19 +431,19 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
   :is(.editor-content, .vr-block, .editor-appearance-document)
   h2 {
-  font-size: calc(var(--editor-font-size) * 1.3125);
+  font-size: var(--editor-heading-size, calc(var(--editor-font-size) * 1.3125));
   line-height: 1.5;
   letter-spacing: 0;
 }
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
   :is(.editor-content, .vr-block, .editor-appearance-document)
   h3 {
-  font-size: calc(var(--editor-font-size) * 1.125);
+  font-size: var(--editor-heading-size, calc(var(--editor-font-size) * 1.125));
 }
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
   :is(.editor-content, .vr-block, .editor-appearance-document)
   :is(h4, h5, h6) {
-  font-size: var(--editor-font-size);
+  font-size: var(--editor-heading-size, var(--editor-font-size));
 }
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
   :is([data-toolbar-tool="font"], .style-managed-font-action) {
@@ -453,12 +453,12 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(.editor-content, .vr-block, .editor-appearance-document)
     h1 {
-    font-size: calc(var(--editor-font-size) * 1.6875);
+    font-size: var(--editor-heading-size, calc(var(--editor-font-size) * 1.6875));
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(.editor-content, .vr-block, .editor-appearance-document)
     h2 {
-    font-size: calc(var(--editor-font-size) * 1.1875);
+    font-size: var(--editor-heading-size, calc(var(--editor-font-size) * 1.1875));
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(.editor-content, .vr-block, .editor-appearance-document) {

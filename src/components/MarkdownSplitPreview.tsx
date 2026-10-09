@@ -1,3 +1,7 @@
+import { mapScrollPosition, type ScrollAnchor } from "../lib/scroll-position-map";
+import { DocumentOutlineContext } from "./TableOfContentsBlock";
+import { extractDocumentOutline } from "../lib/document-outline";
+import { headingLinkTarget } from "../lib/heading-links";
 import { flowBlockAttributes } from "../lib/flow-presentation";
 import { BlockIndent } from "../extensions/BlockIndent";
 import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
@@ -28,7 +32,7 @@ import type { SourceNavigationDocument } from "../lib/markdown-source-navigation
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import type { ReadingBlockState } from "../lib/reading-block-session";
 import { footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
-import { useFootnoteHoverPreview } from "./FootnoteHoverPreview";
+import { useDocumentHoverPreview } from "./FootnoteHoverPreview";
 
 let schema: ReturnType<typeof getSchema> | undefined;
 function previewDocument(revision: SourceNavigationDocument) {
@@ -79,7 +83,7 @@ export function MarkdownSplitPreview({
   const preview = useRef<HTMLDivElement>(null),
     source = useRef<HTMLDivElement>(null);
   const active = useRef<"source" | "preview" | null>(null);
-  const footnoteHover = useFootnoteHoverPreview(() => snapshot?.doc ?? null);
+  const documentHover = useDocumentHoverPreview(() => snapshot?.doc ?? null);
   useEffect(() => {
     if (!enabled) return;
     const timer = setTimeout(() => {
@@ -104,46 +108,63 @@ export function MarkdownSplitPreview({
       panel = preview.current,
       host = source.current;
     if (!enabled || !sync || !area || !panel || !host || !snapshot) return;
-    let frame = 0;
+    let anchors: ScrollAnchor[] = [];
+    let dirty = true;
+    let sourceHeight = -1, previewHeight = -1;
+    const elements = [...panel.querySelectorAll<HTMLElement>("[data-source-offset]")];
+    const measure = () => {
+      if (!dirty && sourceHeight === area.view.contentHeight && previewHeight === panel.scrollHeight) return;
+      sourceHeight = area.view.contentHeight;
+      previewHeight = panel.scrollHeight;
+      dirty = false;
+      const sourceRoot = area.view.scrollDOM;
+      const sourceMax = Math.max(0, sourceRoot.scrollHeight - sourceRoot.clientHeight);
+      const previewMax = Math.max(0, panel.scrollHeight - panel.clientHeight);
+      const sourceStart = area.view.documentTop + area.scrollTop - sourceRoot.getBoundingClientRect().top;
+      const previewTop = panel.getBoundingClientRect().top + panel.clientTop;
+      anchors = [{ source: 0, preview: 0 }];
+      for (const element of elements) {
+        const offset = Math.max(0, Math.min(area.view.state.doc.length, Number(element.dataset.sourceOffset)));
+        const sourceY = sourceStart + area.view.lineBlockAt(offset).top;
+        const previewY = element.getBoundingClientRect().top - previewTop + panel.scrollTop;
+        const previous = anchors[anchors.length - 1];
+        if (sourceY > previous.source && previewY > previous.preview && sourceY < sourceMax && previewY < previewMax)
+          anchors.push({ source: sourceY, preview: previewY });
+      }
+      anchors.push({ source: sourceMax, preview: previewMax });
+    };
+    const observer = new ResizeObserver(() => { dirty = true; });
+    observer.observe(panel);
+    observer.observe(area.view.scrollDOM);
+    const body = panel.querySelector(".ProseMirror");
+    if (body) observer.observe(body);
     const fromSource = () => {
       if (active.current !== "source") return;
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const offset = area.position();
-        const elements = [
-          ...panel.querySelectorAll<HTMLElement>("[data-source-offset]"),
-        ];
-        const candidates = elements.filter(
-          (el) => Number(el.dataset.sourceOffset) <= offset,
-        );
-        const element = candidates[candidates.length - 1] ?? elements[0];
-        if (element)
-          panel.scrollTop +=
-            element.getBoundingClientRect().top -
-            panel.getBoundingClientRect().top;
-      });
+      measure();
+      panel.scrollTop = mapScrollPosition(area.scrollTop, anchors, "source");
     };
     const fromPreview = () => {
       if (active.current !== "preview") return;
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const top = panel.getBoundingClientRect().top;
-        const element = [
-          ...panel.querySelectorAll<HTMLElement>("[data-source-offset]"),
-        ].find((el) => el.getBoundingClientRect().bottom > top + 1);
-        if (element) area.scrollToOffset(Number(element.dataset.sourceOffset));
-      });
+      measure();
+      // Assign the scroll position now instead of queueing a CM measurement.
+      area.scrollTop = mapScrollPosition(panel.scrollTop, anchors, "preview");
     };
     area.addEventListener("scroll", fromSource);
     panel.addEventListener("scroll", fromPreview);
     return () => {
-      cancelAnimationFrame(frame);
+      observer.disconnect();
       area.removeEventListener("scroll", fromSource);
       panel.removeEventListener("scroll", fromPreview);
     };
   }, [sync, areaRef, snapshot, enabled]);
+  const tocContext = useMemo(() => ({ items: snapshot ? extractDocumentOutline(snapshot.doc) : [], navigate: (item: { pos: number }) => {
+    const block = blocks.find(block => block.pos === item.pos);
+    const element = block && [...(preview.current?.querySelectorAll<HTMLElement>("[data-source-offset]") ?? [])].find(element => Number(element.dataset.sourceOffset) === block.offset);
+    active.current = "preview";
+    element?.scrollIntoView({ block: "start" });
+  } }), [snapshot, blocks]);
   return (
-    <div className="markdown-split-preview">
+    <DocumentOutlineContext.Provider value={tocContext}><div className="markdown-split-preview">
       <div
         className="markdown-split-source"
         ref={source}
@@ -188,12 +209,22 @@ export function MarkdownSplitPreview({
           <div
             ref={preview}
             className="markdown-preview-scroll editor-content vr-note"
-            onPointerOver={footnoteHover.onPointerOver}
-            onPointerOut={footnoteHover.onPointerOut}
-            onFocusCapture={footnoteHover.onFocusCapture}
-            onBlurCapture={footnoteHover.onBlurCapture}
-            onScrollCapture={footnoteHover.onScrollCapture}
+            onPointerOver={documentHover.onPointerOver}
+            onPointerOut={documentHover.onPointerOut}
+            onFocusCapture={documentHover.onFocusCapture}
+            onBlurCapture={documentHover.onBlurCapture}
+            onScrollCapture={documentHover.onScrollCapture}
             onClickCapture={(event) => {
+              const heading = snapshot && headingLinkTarget(event.target, extractDocumentOutline(snapshot.doc));
+              if (heading) {
+                event.preventDefault();
+                event.stopPropagation();
+                const block = blocks.find(block => block.pos === heading.pos);
+                const target = block && [...event.currentTarget.querySelectorAll<HTMLElement>("[data-source-offset]")].find(element => Number(element.dataset.sourceOffset) === block.offset);
+                active.current = "preview";
+                target?.scrollIntoView({ block: "start" });
+                return;
+              }
               const id = footnoteLinkTarget(event.target);
               if (!id) return;
               event.preventDefault();
@@ -237,10 +268,10 @@ export function MarkdownSplitPreview({
                 </div>
               ))}
             </div>
-            {footnoteHover.preview}
+            {documentHover.preview}
           </div>
         </section>
       )}
-    </div>
+    </div></DocumentOutlineContext.Provider>
   );
 }

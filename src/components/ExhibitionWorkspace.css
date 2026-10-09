@@ -110,7 +110,7 @@
 .exhibition-summary {
   display: flex;
   flex: 1;
-  justify-content: center;
+  justify-content: flex-end;
   gap: clamp(8px, 2vw, 28px);
   min-width: 0;
   flex-wrap: wrap;
@@ -379,6 +379,7 @@
   flex-shrink: 0;
 }
 .exhibition-select > .toolbar-icon:last-child { transform: rotate(90deg); }
+.exhibition-masthead .exhibition-select[aria-expanded="false"]:not(:focus-visible) { outline: none; }
 
 /* On phones, make the welcome surface a square. In landscape, keep that square
    beside the overview instead of letting the welcome pane become a letterbox. */

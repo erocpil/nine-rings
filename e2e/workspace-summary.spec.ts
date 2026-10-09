@@ -43,6 +43,10 @@ test("工作区摘要在收起和展开时可用，统计入口切换列表与�
     await expect(summary.locator(`.exhibition-summary-${kind} strong`)).toHaveText(String(counts[kind]));
   }
   await expect(page.locator(".exhibition-columns")).toHaveCount(0);
+  const lastCounter = (await summary.getByRole("button", { name: "查看收藏文档" }).boundingBox())!;
+  const expand = (await page.getByRole("button", { name: "展开概览", exact: true }).boundingBox())!;
+  expect(expand.x - lastCounter.x - lastCounter.width).toBeGreaterThanOrEqual(0);
+  expect(expand.x - lastCounter.x - lastCounter.width).toBeLessThanOrEqual(20);
   await page.getByRole("button", { name: "展开概览", exact: true }).click();
   await expect(summary).toBeVisible();
   await page.getByRole("button", { name: "收起概览", exact: true }).click();
@@ -69,6 +73,53 @@ test("工作区摘要在收起和展开时可用，统计入口切换列表与�
   await expect(page.getByRole("region", { name: "随记列表", exact: true })).toContainText("摘要收藏文档");
   await page.screenshot({ path: test.info().outputPath("summary-desktop.png"), animations: "disabled" });
 });
+
+for (const mode of ["split", "pinned", "hidden", "hover"] as const) {
+  test(`摘要切换复用固定宽度或统一列表宽度：${mode}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await seed(page);
+    await page.evaluate(mode => {
+      localStorage.setItem("nr:sidebarPresentation", mode === "split" ? "split" : "overlay");
+      localStorage.setItem("nr:desktopSidebar", JSON.stringify({ panel: "tree", hidden: mode === "hidden" || mode === "hover", pinned: mode === "pinned" }));
+      localStorage.setItem("nr:sidebarHidden", String(mode === "hidden" || mode === "hover"));
+      localStorage.setItem("nr:treeSidebarW", "470");
+      localStorage.setItem("nr:listSidebarW", "390");
+      localStorage.setItem("nr:notesSidebarW", "610");
+    }, mode);
+    await page.reload();
+    const summary = page.getByRole("navigation", { name: "工作区统计" });
+    await expect(summary).toHaveAttribute("aria-busy", "false");
+    const sidebar = page.locator("#workspace-sidebar");
+    if (mode === "hover") {
+      await page.locator('[data-sidebar-panel="tree"]').hover();
+      await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+      await expect.poll(() => sidebar.evaluate(element => element.getBoundingClientRect().width)).toBe(470);
+    }
+    const width = mode === "split" || mode === "pinned" ? 470 : 390;
+    let editorBounds: { x: number; width: number } | undefined;
+    for (const name of ["查看随记", "查看全部文档", "查看今日修改文档", "查看收藏文档", "查看随记"]) {
+      await summary.getByRole("button", { name, exact: true }).click();
+      await expect.poll(() => sidebar.evaluate(element => element.getBoundingClientRect().width)).toBe(width);
+      if (mode !== "split") await expect.poll(() => page.locator(".sidebar-pin-spacer").evaluate(element => element.getBoundingClientRect().width)).toBe(width + 4);
+      const bounds = await page.locator(".app-main-split").boundingBox();
+      if (editorBounds) {
+        await expect.poll(async () => {
+          const current = (await page.locator(".app-main-split").boundingBox())!;
+          return Math.abs(current.width - editorBounds!.width) + Math.abs(current.x - editorBounds!.x);
+        }).toBeLessThan(1);
+      } else {
+        editorBounds = bounds!;
+      }
+    }
+    await page.setViewportSize({ width: 1580, height: 1000 });
+    await expect.poll(() => sidebar.evaluate(element => element.getBoundingClientRect().width)).toBe(width);
+    await page.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+    await page.getByRole("button", { name: "返回上一页面", exact: true }).click();
+    await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+    await expect.poll(() => sidebar.evaluate(element => element.getBoundingClientRect().width)).toBe(width);
+    expect(await page.evaluate(() => localStorage.getItem("nr:notesSidebarW"))).toBe("610");
+  });
+}
 
 test("手机摘要仅保留文档和今日修改，点击使用文档列表弹层", async ({ page }) => {
   const counts = await seed(page);

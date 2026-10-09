@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { MermaidTypographyContext } from "./ReadingTypographyProvider";
 import { createPortal } from "react-dom";
 import { BLOCK_WORKSPACE_DISPLAY_EVENT } from "../lib/block-display-settings";
 import { renderMermaid } from "../lib/mermaid-render";
@@ -21,6 +22,7 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
   onViewChange?: (view: MermaidViewTransform) => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const typography = useContext(MermaidTypographyContext);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [toolbar, setToolbar] = useState<Element | null>(null);
   const inlineBaseWidth = useRef(0);
@@ -148,14 +150,14 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
     if (!element) return;
     applyView(initialViewRef.current);
     setResult(previous => ({ svg: previous.svg }));
-    void renderMermaid(source).then(
+    void renderMermaid(source, undefined, typography).then(
       svg => { if (!cancelled) setResult({ svg }); },
       error => {
         if (!cancelled) setResult(previous => ({ ...previous, error: error instanceof Error ? error.message.split("\n")[0].slice(0, 200) : "无法渲染图表" }));
       },
     );
     return () => { cancelled = true; };
-  }, [source, applyView]);
+  }, [source, applyView, typography]);
 
   useLayoutEffect(() => {
     if (interactive) return;

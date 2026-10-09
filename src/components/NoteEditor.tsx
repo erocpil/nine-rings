@@ -23,10 +23,13 @@ import { useBlockSelectionGestures } from "../hooks/useBlockSelectionGestures";
 import { MOBILE_VIEWPORT_QUERY } from "../hooks/useEdgeDrawer";
 import { useEditor } from "@tiptap/react";
 import { DocumentStarterKit } from "../extensions/DocumentStarterKit";
+import { AutomaticTOC } from "../extensions/AutomaticTOC";
+import { DocumentOutlineContext } from "./TableOfContentsBlock";
+import { headingLinkTarget } from "../lib/heading-links";
 import { OrderedListLayout } from "../extensions/OrderedListLayout";
 import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
 import { MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes } from "../extensions/MarkdownExtras";
-import { useFootnoteHoverPreview } from "./FootnoteHoverPreview";
+import { useDocumentHoverPreview } from "./FootnoteHoverPreview";
 import { footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
 import { createToolbarSelectionCommands } from "../lib/editor-toolbar-commands";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -462,7 +465,7 @@ function DocumentEditor(props: NoteEditorProps) {
     if (!readingSource) return null;
     readonlySchema ??= getSchema([
       DocumentStarterKit.configure({ codeBlock: false, blockquote: false }), TextStyle, Color, FontSize,
-      LinkExt, CodeBlockLineNumbers, CollapsibleBlockquote, BlockIndent, MarkdownTaskState,
+      LinkExt, CodeBlockLineNumbers, CollapsibleBlockquote, BlockIndent, MarkdownTaskState, AutomaticTOC,
       MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes,
     ]);
     const doc = buildReadonlyDocument(JSON.parse(readingSource), readonlySchema);
@@ -936,7 +939,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       }),
       Heading.configure({ levels: [1, 2, 3, 4, 5, 6] }).extend({ addInputRules: () => [] }),
       OrderedListLayout,
-      MarkdownTaskState,
+      MarkdownTaskState, AutomaticTOC,
       MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes,
       // 仅使用扩展的 is-editor-empty class 识别空段落；不在 gutter
       // 内显示文字，避免与行号和行间插入按钮争用伪元素。
@@ -1805,6 +1808,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       root.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
     });
   }, [editor, scrollRef, setOutlineOpen]);
+  const tocContext = useMemo(() => ({ items: documentOutline, navigate: jumpToOutlineHeading }), [documentOutline, jumpToOutlineHeading]);
 
   // 拦截 WebView 原生 Cmd+F，并为 Windows 提供 Alt+F。Ctrl+F 不再
   // 触发搜索：macOS 保留原生文本移动；其他平台也不唤起 WebView 查找框。
@@ -2886,7 +2890,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       })
   ), [documentOutline, headingSectionByPosition, outlineCollapsedHeadingKeys, outlineVisibleHeadingPositions]);
 
-  const footnoteHover = useFootnoteHoverPreview(() => editor?.state.doc ?? null);
+  const documentHover = useDocumentHoverPreview(() => editor?.state.doc ?? null);
   const presentationLevel = flowHeadingLevel(content.metadata);
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
@@ -3652,7 +3656,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       );
 
   return (
-    <div
+    <DocumentOutlineContext.Provider value={tocContext}><div
       ref={noteEditorRef}
       className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${cjkLatinSpacing && !nativeCjkLatinSpacing ? "editor-cjk-spacing-fallback" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${focusToolbarExpanded ? "focus-toolbar-expanded" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""} ${desktopPanelClass(desktopPanels, documentOutline.length > 0)}`}
       style={desktopPanelStyle(desktopPanels)}
@@ -4184,12 +4188,19 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           <DocumentEditorContent
             editor={editor}
             className="editor-content"
-            onPointerOver={footnoteHover.onPointerOver}
-            onPointerOut={footnoteHover.onPointerOut}
-            onFocusCapture={footnoteHover.onFocusCapture}
-            onBlurCapture={footnoteHover.onBlurCapture}
-            onScrollCapture={footnoteHover.onScrollCapture}
+            onPointerOver={documentHover.onPointerOver}
+            onPointerOut={documentHover.onPointerOut}
+            onFocusCapture={documentHover.onFocusCapture}
+            onBlurCapture={documentHover.onBlurCapture}
+            onScrollCapture={documentHover.onScrollCapture}
             onClickCapture={(event) => {
+              const heading = editor && headingLinkTarget(event.target, extractDocumentOutline(editor.state.doc));
+              if (heading) {
+                event.preventDefault();
+                event.stopPropagation();
+                jumpToOutlineHeading(heading);
+                return;
+              }
               const id = footnoteLinkTarget(event.target);
               if (!id) return;
               event.preventDefault();
@@ -4204,7 +4215,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             onPointerUp={handleReadonlyHeadingPointerUp}
             onContextMenu={handleEditorContextMenu}
           />
-          {footnoteHover.preview}
+          {documentHover.preview}
         </div>
 
         {/* ── [[ 双向链接下拉 ── */}
@@ -4303,6 +4314,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         imageDialog={imageDialog} imageUrl={imageUrl}
         setImageDialog={setImageDialog} setImageUrl={setImageUrl} insertImageUrl={insertImageUrl}
       />
-    </div>
+    </div></DocumentOutlineContext.Provider>
   );
 }
