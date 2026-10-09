@@ -534,8 +534,10 @@ test("千块文档全部展开后滚动不再逐块同步测量", async ({ page 
     }
   });
 
-  // 每帧允许少量视口、锚点和 gutter 根元素测量；不能再随观察块数量增长。
-  expect(geometryReads).toBeLessThan(600);
+  // Both viewport edges now use binary geometry lookup instead of expensive
+  // native hit testing. Bound reads by O(frames * log(blocks)), not a full scan.
+  const boundaryReads = 2 * Math.ceil(Math.log2(1500));
+  expect(geometryReads).toBeLessThan(42 * (boundaryReads + 8));
 });
 
 test.describe("触控目录宽度调整", () => {

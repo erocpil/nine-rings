@@ -1,5 +1,5 @@
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { JSONContent } from "@tiptap/core";
 import { handoffReadingAnchor } from "../lib/readonly-rendering";
 import { patchReadingState } from "../lib/reading-state";
@@ -47,6 +47,7 @@ export function useMarkdownViewPosition(
 ) {
   const host = useRef<HTMLDivElement>(null);
   const area = useRef<SourceEditorHandle | null>(null);
+  const [sourceHandle, onSourceReady] = useState<SourceEditorHandle | null>(null);
   const stopHandoff = useRef<() => void>();
   // One mapping per mounted document, never a global cache of private text.
   const sourceMapRef = useRef<{
@@ -230,7 +231,9 @@ export function useMarkdownViewPosition(
   useLayoutEffect(() => {
     if (sensitive) return;
     if (!showingSource) return;
-    const input = area.current;
+    // The lazy source editor can mount after the parent layout effect.
+    // Subscribe when its handle is ready, rather than relying on ref mutation.
+    const input = sourceHandle;
     if (!input) return;
     let top = input.scrollTop;
     let timer = 0;
@@ -260,6 +263,6 @@ export function useMarkdownViewPosition(
       document.removeEventListener("visibilitychange", hidden);
       flush();
     };
-  }, [noteId, showingSource, sensitive]);
-  return { host, area, toSource, toRendered, cancelHandoff: () => { pending.current = null; stopHandoff.current?.(); } };
+  }, [noteId, showingSource, sensitive, sourceHandle]);
+  return { host, area, onSourceReady, toSource, toRendered, cancelHandoff: () => { pending.current = null; stopHandoff.current?.(); } };
 }

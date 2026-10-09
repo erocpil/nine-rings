@@ -188,7 +188,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       <MarkdownSplitPreview flowLevel={flowHeadingLevel(props.content.metadata)} enabled={preview && !mobile} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
       <MarkdownSourceEditor value={source} readonly={Boolean(props.readonly) || busy}
-        areaRef={viewPosition.area} session={sourceEditorState} onChange={editSource}
+        areaRef={viewPosition.area} onReady={viewPosition.onSourceReady} session={sourceEditorState} onChange={editSource}
         showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine}
         escapeRepair={<MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={applyEscapeRepair} />} />
       </Suspense>

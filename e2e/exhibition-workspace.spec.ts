@@ -137,7 +137,14 @@ test("手机展陈首页竖屏方形欢迎区、横屏并排且展开概览节�
     interface_color_mode: "light",
   })));
   await page.goto("/");
+  // Startup can briefly show the home surface before restoring a seeded note.
+  // Enter home explicitly so geometry is measured in the intended route.
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  const home = page.getByRole("button", { name: "返回工作区首页", exact: true });
+  await expect(home).toBeVisible();
+  await home.click();
   await expect(page.locator(".exhibition-welcome")).toBeVisible();
+  await expect(page.locator(".exhibition-columns")).toBeVisible();
 
   const app = page.locator(".is-exhibition > .app");
   const overview = page.locator(".exhibition-overview");

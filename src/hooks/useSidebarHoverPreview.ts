@@ -162,17 +162,30 @@ export function useSidebarHoverPreview({
     keyboardInside.current = true;
     openPanel(next);
     cancelAnimationFrame(focusFrame.current);
-    focusFrame.current = requestAnimationFrame(() => {
+    const started = performance.now();
+    const trigger = event.currentTarget;
+    const focusPanel = () => {
+      if (!keyboardInside.current) return;
       const root = document.getElementById("workspace-sidebar");
-      const first = [
-        ...(root?.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]',
-        ) ?? []),
-      ].find(
-        (el) => el.getClientRects().length && !el.closest("[hidden], [inert]"),
-      );
-      (first ?? root)?.focus({ preventScroll: true });
-    });
+      const active = document.activeElement;
+      if (active && active !== trigger && active !== document.body && !root?.contains(active)) return;
+      // Opening can commit after the first animation frame on a busy page.
+      // Native focus silently fails while the panel is still inert/hidden.
+      if (root && !root.closest("[inert]") && !root.classList.contains("sidebar-hidden")) {
+        const first = [
+          ...root.querySelectorAll<HTMLElement>(
+            'button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]',
+          ),
+        ].find(
+          (el) => el.getClientRects().length && !el.closest("[hidden], [inert]"),
+        );
+        (first ?? root).focus({ preventScroll: true });
+        if (root.contains(document.activeElement)) return;
+      }
+      if (performance.now() - started < 1000)
+        focusFrame.current = requestAnimationFrame(focusPanel);
+    };
+    focusFrame.current = requestAnimationFrame(focusPanel);
   };
   const click = (next: Panel) => {
     cancel();

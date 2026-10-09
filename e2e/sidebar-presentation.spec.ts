@@ -124,7 +124,8 @@ test("桌面分栏悬停预览、离开收起、点击固定并排且支持宽�
     await expect(button).toHaveAttribute("aria-pressed", "true");
     await expect.poll(width).toBeCloseTo(fullWidth, 0);
     // Moving into the content must cancel the button's dismissal timer.
-    await page.mouse.move(100, 250);
+    // Wait for the actual animated panel before moving into its content.
+    await sidebar.hover({ position: { x: 60, y: 180 } });
     await page.waitForTimeout(350);
     await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
     await page.mouse.move(1200, 650);
@@ -216,4 +217,29 @@ test("手机布局保持原样，减少动态效果偏好禁用过渡", async ({
       )
       .toBeLessThan(0.001);
   }
+});
+
+
+test("键盘进入等待浮层解除暂时 inert，Esc 仍返回分栏按钮", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nr:sidebarPresentation", "overlay"));
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  const sidebar = page.locator(".app-sidebar");
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  await sidebar.evaluate(element => {
+    const observer = new MutationObserver(() => {
+      if (element.classList.contains("sidebar-hidden")) return;
+      observer.disconnect();
+      element.setAttribute("inert", "");
+      window.setTimeout(() => element.removeAttribute("inert"), 150);
+    });
+    observer.observe(element, { attributes: true, attributeFilter: ["class"] });
+  });
+  const tree = page.locator('[data-sidebar-panel="tree"]');
+  await tree.focus();
+  await tree.press("ArrowRight");
+  await expect.poll(() => sidebar.evaluate(element => element.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  await expect(tree).toBeFocused();
 });

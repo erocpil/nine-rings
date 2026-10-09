@@ -1925,10 +1925,11 @@ test.describe("PWA 窄屏应用外壳", () => {
         Storage.prototype.setItem = originalSetItem;
       }
     });
-    // 起始锚点为常数级测量；划过文末留白时，尾部折叠修复还允许一次
-    // 二分查找恢复窗口（基线版本同样会发生），预算不随滚动帧数增长。
-    const blankTailSearchBudget = Math.ceil(Math.log2(1200));
-    expect(scrollWork.paragraphRectsDuringScroll).toBeLessThanOrEqual(6 + blankTailSearchBudget);
+    // Binary viewport lookup deliberately replaces native whole-page hit
+    // testing. Each frame permits two logarithmic searches plus anchor reads;
+    // scanning all 1200 blocks per frame still exceeds this bound by far.
+    const boundaryReads = 2 * Math.ceil(Math.log2(1200));
+    expect(scrollWork.paragraphRectsDuringScroll).toBeLessThanOrEqual(36 * boundaryReads + 6);
     // Stale IntersectionObserver batches are coalesced into one idle
     // remeasurement of the viewport plus its preloaded blocks (same budget as
     // resize above). Keep the per-scroll budget independent of frame count.

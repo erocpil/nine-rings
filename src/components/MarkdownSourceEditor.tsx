@@ -108,6 +108,7 @@ export function MarkdownSourceEditor({
   value,
   readonly,
   areaRef,
+  onReady,
   session,
   onChange,
   fontSize,
@@ -118,6 +119,7 @@ export function MarkdownSourceEditor({
   value: string;
   readonly: boolean;
   areaRef: MutableRefObject<SourceEditorHandle | null>;
+  onReady?: (handle: SourceEditorHandle | null) => void;
   session: MutableRefObject<EditorState | null>;
   onChange: (value: string, range?: SourceEditRange) => void;
   fontSize: number;
@@ -304,6 +306,7 @@ export function MarkdownSourceEditor({
       column: head - editor.state.doc.lineAt(head).from + 1,
     });
     areaRef.current = handle;
+    onReady?.(handle);
     const scroll = () => handle.dispatchEvent(new Event("scroll"));
     editor.scrollDOM.addEventListener("scroll", scroll, { passive: true });
     return () => {
@@ -312,8 +315,9 @@ export function MarkdownSourceEditor({
       editor.destroy();
       view.current = null;
       areaRef.current = null;
+      onReady?.(null);
     };
-  }, [areaRef, session]);
+  }, [areaRef, session, onReady]);
   useEffect(() => {
     view.current?.dispatch({
       effects: access.current.reconfigure([

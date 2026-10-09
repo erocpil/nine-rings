@@ -528,3 +528,80 @@ describe("security and bounded data", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
+
+describe("protected backup validation", () => {
+  const encrypted = (id: string) => ({
+    ops: [],
+    encrypted: {
+      version: 1,
+      protectionId: id,
+      iterations: 600_000,
+      salt: btoa("s".repeat(16)),
+      iv: btoa("i".repeat(12)),
+      data: btoa("d".repeat(16)),
+    },
+  });
+  const path = (id: string, location: string) => ({
+    id,
+    path: location,
+    createdAt: "2026-10-09",
+    updatedAt: "2026-10-09",
+    verifier: encrypted(id),
+  });
+  it("accepts disjoint protected paths and encrypted version metadata", () => {
+    expect(() =>
+      validateBackup({
+        notes: [],
+        protected_paths: [
+          path("a", "areas/private"),
+          path("b", "ideas/private"),
+        ],
+        protected_versions: [
+          {
+            id: "v",
+            note_id: "n",
+            saved_at: "2026-10-09",
+            tags: ["private"],
+            content: encrypted("a"),
+          },
+        ],
+      }),
+    ).not.toThrow();
+  });
+  it("rejects overlapping paths and mismatched verifier identities", () => {
+    for (const paths of [
+      [path("a", "areas/private"), path("b", "areas/private/child")],
+      [path("a", "areas/private/child"), path("b", "areas/private")],
+      [{ ...path("a", "areas/private"), verifier: encrypted("b") }],
+    ])
+      expect(() =>
+        validateBackup({ notes: [], protected_paths: paths }),
+      ).toThrow("身份冲突或路径重叠");
+  });
+  it("rejects invalid protected path/history envelopes and tag entries", () => {
+    for (const patch of [
+      { protected_paths: {} },
+      {
+        protected_paths: [
+          { ...path("a", "areas/private"), path: "/areas/private" },
+        ],
+      },
+      { protected_versions: {} },
+      {
+        protected_versions: [
+          {
+            id: "v",
+            note_id: "n",
+            saved_at: "2026-10-09",
+            tags: [1],
+            content: encrypted("a"),
+          },
+        ],
+      },
+    ])
+      expect(() => validateBackup({ notes: [], ...patch })).toThrow();
+    expect(() =>
+      validateBackup({ notes: [{ ...note("n"), tags: [1] }] }),
+    ).toThrow("标签/关联字段无效");
+  });
+});
