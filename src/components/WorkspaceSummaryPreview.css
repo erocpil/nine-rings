@@ -58,3 +58,17 @@
   border-radius: 4px;
 }
 .workspace-summary-preview-empty { margin: 0; padding: 16px 12px; color: var(--text-secondary); }
+
+.workspace-summary-shortcut {
+  display: inline-block;
+  min-width: 24px;
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.workspace-summary-shortcut-hint {
+  margin-left: auto;
+  margin-right: 8px;
+  color: var(--text-secondary);
+  font: 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

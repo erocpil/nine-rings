@@ -1,18 +1,19 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDocumentPanelPosition } from "../hooks/useDocumentPanelPosition";
-import type { WorkspaceDocumentSummary } from "../lib/workspace-summary";
+import { workspaceSummaryShortcutIndex, type WorkspaceDocumentSummary } from "../lib/workspace-summary";
 import { ToolbarIcon } from "./ToolbarIcon";
 import "./WorkspaceSummaryPreview.css";
 
 const ROW_HEIGHT = 28;
 
 /** A metadata-only preview, independent of sidebar widths and editor layout. */
-export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, visibleRows = 15, compact = false, onOpen, onClose, onEnter, onLeave }: {
+export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, numbered = false, visibleRows = 15, compact = false, onOpen, onClose, onEnter, onLeave }: {
   title: string;
   documents: WorkspaceDocumentSummary[];
   trigger: HTMLButtonElement;
   keyboard: boolean;
+  numbered?: boolean;
   visibleRows?: number;
   compact?: boolean;
   onOpen: (id: string) => void;
@@ -24,16 +25,16 @@ export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, v
   const listRef = useRef<HTMLUListElement>(null);
   const triggerRef = useRef(trigger);
   triggerRef.current = trigger;
-  const handlers = useRef({ onClose });
-  handlers.current = { onClose };
+  const handlers = useRef({ onClose, onOpen, documents, numbered });
+  handlers.current = { onClose, onOpen, documents, numbered };
   const [scrollTop, setScrollTop] = useState(0);
   const [height, setHeight] = useState(ROW_HEIGHT * visibleRows);
-  const [focusIndex, setFocusIndex] = useState<number | null>(keyboard ? 0 : null);
+  const [focusIndex, setFocusIndex] = useState<number | null>(keyboard ? numbered ? documents.length - 1 : 0 : null);
   const previousKeyboard = useRef(keyboard);
   useLayoutEffect(() => {
-    if (keyboard && !previousKeyboard.current) setFocusIndex(0);
+    if (keyboard && !previousKeyboard.current) setFocusIndex(numbered ? documents.length - 1 : 0);
     previousKeyboard.current = keyboard;
-  }, [keyboard]);
+  }, [keyboard, numbered, documents.length]);
   const style = useDocumentPanelPosition({ open: true, triggerRef, panelRef, compact, layoutKey: String(visibleRows), heightLimit: ROW_HEIGHT * visibleRows + 46 });
   const virtual = documents.length > 60;
   const start = virtual ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 4) : 0;
@@ -46,6 +47,12 @@ export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, v
     return () => observer.disconnect();
   }, []);
   useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!numbered || !list) return;
+    list.scrollTop = list.scrollHeight;
+    setScrollTop(list.scrollTop);
+  }, [numbered, documents.length]);
+  useLayoutEffect(() => {
     if (focusIndex === null || style?.visibility !== "visible") return;
     const target = listRef.current?.querySelector<HTMLButtonElement>(`[data-summary-index="${focusIndex}"]`);
     if (target) { target.focus({ preventScroll: true }); setFocusIndex(null); }
@@ -57,6 +64,15 @@ export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, v
     };
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); handlers.current.onClose(true); }
+      else if (handlers.current.numbered && !event.isComposing && !event.repeat && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        // A hover preview must never consume normal typing in an editor/search.
+        if (event.target instanceof Element && event.target.closest("input, textarea, select, [contenteditable=true], [role=textbox]")) return;
+        const index = workspaceSummaryShortcutIndex(event.key);
+        const note = index === null ? undefined : handlers.current.documents[index];
+        if (!note) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+        handlers.current.onOpen(note.id);
+      }
     };
     const blur = () => handlers.current.onClose();
     document.addEventListener("pointerdown", outside, true);
@@ -73,6 +89,7 @@ export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, v
   return createPortal(<div ref={panelRef} className="workspace-summary-preview" style={style} role="dialog" aria-label={`${title}预览`} tabIndex={-1}
     onPointerEnter={onEnter} onPointerLeave={onLeave}>
     <div className="workspace-summary-preview-heading"><strong>{title}<span>{documents.length}</span></strong>
+      {numbered && <kbd className="workspace-summary-shortcut-hint" title="输入行首十六进制编号直接打开文档">0–f</kbd>}
       <button type="button" aria-label="关闭文档预览" onClick={() => onClose(true)}><ToolbarIcon name="close" /></button>
     </div>
     {documents.length ? <ul ref={listRef} style={{ maxHeight: ROW_HEIGHT * visibleRows + 8 }} onScroll={event => setScrollTop(event.currentTarget.scrollTop)}
@@ -92,7 +109,7 @@ export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, v
       }}>
       {start > 0 && <li aria-hidden="true" style={{ height: start * ROW_HEIGHT }} />}
       {documents.slice(start, end).map((note, offset) => <li key={note.id}>
-        <button type="button" data-summary-index={start + offset} title={note.title || "未命名文档"} onClick={() => onOpen(note.id)}>{note.title || "未命名文档"}</button>
+        <button type="button" data-summary-index={start + offset} title={note.title || "未命名文档"} onClick={() => onOpen(note.id)}>{numbered && <span aria-hidden="true" className="workspace-summary-shortcut">{(start + offset).toString(16)}</span>}{note.title || "未命名文档"}</button>
       </li>)}
       {end < documents.length && <li aria-hidden="true" style={{ height: (documents.length - end) * ROW_HEIGHT }} />}
     </ul> : <p className="workspace-summary-preview-empty">暂无文档</p>}

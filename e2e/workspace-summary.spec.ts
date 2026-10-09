@@ -182,7 +182,7 @@ test("四项摘要悬停预览，最多十五行，长标题省略且滚动后�
     await expect(popup).toBeVisible();
     await expect(page.locator(".workspace-summary-preview")).toHaveCount(1);
     const count = await summary.locator(`.exhibition-summary-${kind} strong`).textContent();
-    await expect(popup.locator(".workspace-summary-preview-heading strong span")).toHaveText(count!);
+    await expect(popup.locator(".workspace-summary-preview-heading strong span")).toHaveText(String(kind === "all" ? Number(count) : Math.min(15, Number(count))));
     const bounds = (await popup.boundingBox())!;
     expect(bounds.y).toBeGreaterThanOrEqual(8);
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(992);
@@ -285,12 +285,13 @@ for (const mode of ["split-open", "split-hidden", "overlay-pinned", "overlay-hid
   });
 }
 
-test("最近打开汇总展示最近编辑十五份，悬停和分栏一致", async ({ page }) => {
+test("最近打开弹层取访问记录，分栏仍展示最近编辑十五份", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
   await seed(page);
   await page.evaluate(async () => {
     const { api } = await import("/src/lib/api.ts");
-    for (let i = 0; i < 20; i++) await api.notes.create({ title: `最近编辑文档 ${i}`, date: "2026-10-10", storagePath: "ideas/recent", content: { ops: [] } });
+    const { rememberRecentNote } = await import("/src/lib/quick-switcher.ts");
+    for (let i = 0; i < 20; i++) { const note = await api.notes.create({ title: `最近编辑文档 ${i}`, date: "2026-10-10", storagePath: "ideas/recent", content: { ops: [] } }); rememberRecentNote(note.id); }
   });
   await page.reload();
   await page.evaluate(async () => { const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts"); saveWorkspaceLayout({ summaryInteraction: "hover" }); });
@@ -399,4 +400,90 @@ test("默认点击显示弹层，悬停不会弹出，也不打开分栏", async
   expect(await page.locator("#workspace-sidebar").getAttribute("class")).toBe(before);
   await button.click();
   await expect(popup).toHaveCount(0);
+});
+
+test("四种弹层最新在下方，十五份以十六进制编号，键入编号直接打开", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await seed(page);
+  await page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    const { withDB } = await import("/src/lib/storage/db.ts");
+    const { rememberRecentNote } = await import("/src/lib/quick-switcher.ts");
+    const { toggleDocumentFavorite } = await import("/src/lib/document-favorites.ts");
+    const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts");
+    const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
+    saveWorkspaceLayout({ summaryInteraction: "click", summaryVisibleRows: 6 });
+    const ids: string[] = [];
+    for (let i = 0; i < 20; i++) {
+      const note = await api.notes.create({ title: `编号文档 ${i}`, date: "2026-10-10", storagePath: "ideas/notes", content: { ops: [{ insert: "保持正文不变\n" }] } });
+      ids.push(note.id);
+      toggleDocumentFavorite(note.id);
+      rememberRecentNote(note.id);
+    }
+    // Edit dates differ from visits: an old, unedited note can be the newest visit.
+    await withDB(db => new Promise<void>((resolve, reject) => {
+      const tx = db.transaction("notes", "readwrite");
+      ids.forEach((id, i) => {
+        const request = tx.objectStore("notes").get(id);
+        request.onsuccess = () => {
+          const timestamp = new Date(); timestamp.setHours(12, i, 0, 0);
+          tx.objectStore("notes").put({ ...request.result, updated_at: timestamp.toISOString() });
+        };
+      });
+      tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
+    }));
+    useNotesStore.getState().selectNote((await api.notes.get(ids[19]))!);
+  });
+  await expect(page.locator(".note-title:visible")).toHaveValue("编号文档 19");
+  for (const [buttonName, title] of [["查看最近打开文档", "最近打开"], ["查看随记", "随记"], ["查看今日修改文档", "今日修改"], ["查看收藏文档", "收藏"]]) {
+    await page.getByRole("button", { name: buttonName, exact: true }).click();
+    const popup = page.getByRole("dialog", { name: `${title}预览`, exact: true });
+    await expect(popup.locator("li button")).toHaveCount(15);
+    await expect(popup.locator("li button").first()).toContainText("编号文档 5");
+    await expect(popup.locator("li button").last()).toContainText("编号文档 19");
+    await expect(popup.locator(".workspace-summary-shortcut")).toHaveText([..."0123456789abcde"]);
+    await page.keyboard.press("f"); // No sixteenth row: leave the popover open.
+    await expect(popup).toBeVisible();
+    await page.keyboard.press("a");
+    await expect(page.locator(".note-title:visible")).toHaveValue("编号文档 15");
+    await expect(popup).toHaveCount(0);
+  }
+  // Open an old unedited document: visit order, not its edit timestamp, wins.
+  await page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
+    const note = (await api.docs.search({})).find(note => note.title === "编号文档 0")!;
+    useNotesStore.getState().selectNote((await api.notes.get(note.id))!);
+  });
+  await expect(page.locator(".note-title:visible")).toHaveValue("编号文档 0");
+  await page.getByRole("button", { name: "查看最近打开文档", exact: true }).click();
+  const popup = page.getByRole("dialog", { name: "最近打开预览", exact: true });
+  await expect(popup.locator("li button").last()).toContainText("编号文档 0");
+  await page.keyboard.press("E");
+  await expect(popup).toHaveCount(0);
+  await expect(page.locator(".note-title:visible")).toHaveValue("编号文档 0");
+});
+
+test("悬停编号弹层不截获正文输入，关闭后编号不再生效", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await seed(page);
+  await page.evaluate(async () => {
+    const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts");
+    saveWorkspaceLayout({ summaryInteraction: "hover" });
+  });
+  const editor = page.locator(".ProseMirror:visible");
+  await editor.click();
+  const id = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+  await page.getByRole("button", { name: "查看随记", exact: true }).hover();
+  const popup = page.getByRole("dialog", { name: "随记预览", exact: true });
+  await expect(popup).toBeVisible();
+  await page.keyboard.type("0");
+  await expect(editor).toContainText("0");
+  expect(await page.evaluate(() => localStorage.getItem("nr:lastNote"))).toBe(id);
+  await page.keyboard.press("Escape");
+  await expect(popup).toHaveCount(0);
+  await editor.click();
+  await page.keyboard.type("a");
+  await expect(editor).toContainText("a");
+  expect(await page.evaluate(() => localStorage.getItem("nr:lastNote"))).toBe(id);
 });

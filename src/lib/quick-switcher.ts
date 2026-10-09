@@ -2,6 +2,7 @@ import type { Note } from "../types/models";
 
 export const RECENT_NOTES_KEY = "nr:recentNotes";
 export const RECENT_NOTES_LIMIT = 20;
+export const RECENT_NOTES_CHANGED_EVENT = "nr:recentNotesChanged";
 
 interface RecentStorage {
   getItem(key: string): string | null;
@@ -24,6 +25,7 @@ export function rememberRecentNote(id: string, storage: RecentStorage = localSto
   const next = [id, ...readRecentNoteIds(storage).filter((candidate) => candidate !== id)]
     .slice(0, RECENT_NOTES_LIMIT);
   storage.setItem(RECENT_NOTES_KEY, JSON.stringify(next));
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(RECENT_NOTES_CHANGED_EVENT));
 }
 
 function searchableText(note: Note): string {

@@ -6,10 +6,10 @@ import { api } from "../lib/api";
 import { INTERFACE_STYLES } from "../lib/interface-style";
 import type { AppConfig } from "../lib/storage/types";
 import { DOCUMENT_FAVORITES_CHANGED_EVENT, readDocumentFavorites } from "../lib/document-favorites";
-import { workspaceDocuments, workspaceCounts, workspaceSummaryDocuments, type WorkspaceDocumentSummary, type WorkspaceSummaryKind } from "../lib/workspace-summary";
+import { workspaceDocuments, workspaceCounts, workspaceSummaryPreviewDocuments, type WorkspaceDocumentSummary, type WorkspaceSummaryKind } from "../lib/workspace-summary";
 import { WorkspaceSummaryPreview } from "./WorkspaceSummaryPreview";
 import { useLocalDay } from "../hooks/useLocalDay";
-import { readRecentNoteIds } from "../lib/quick-switcher";
+import { readRecentNoteIds, RECENT_NOTES_CHANGED_EVENT } from "../lib/quick-switcher";
 import type { Note } from "../types/models";
 import "./ExhibitionWorkspace.css";
 
@@ -78,16 +78,18 @@ export function ExhibitionWorkspace(props: Props) {
     return () => clearTimeout(summaryCloseTimer.current);
   }, [previewEnabled, summaryLayout.summaryInteraction]);
   const previewDocuments = useMemo(() => summaryPreview
-    ? [...workspaceSummaryDocuments(documents, summaryPreview.kind, favorites, day)].sort((a, b) => b.updated_at.localeCompare(a.updated_at))
-    : [], [documents, summaryPreview, favorites, day]);
-  const previewTitle = summaryPreview ? { all: "全部文档", notes: "随记", today: "今日修改", favorites: "收藏", recent: "最近打开（最近编辑的 15 份）" }[summaryPreview.kind] : "";
+    ? workspaceSummaryPreviewDocuments(documents, summaryPreview.kind, favorites, day, recent)
+    : [], [documents, summaryPreview, favorites, day, recent]);
+  const previewTitle = summaryPreview ? { all: "全部文档", notes: "随记", today: "今日修改", favorites: "收藏", recent: "最近打开" }[summaryPreview.kind] : "";
   useEffect(() => {
-    const refresh = () => setFavorites(readDocumentFavorites());
+    const refresh = () => { setFavorites(readDocumentFavorites()); setRecent(readRecentNoteIds()); };
     window.addEventListener("storage", refresh);
     window.addEventListener(DOCUMENT_FAVORITES_CHANGED_EVENT, refresh);
+    window.addEventListener(RECENT_NOTES_CHANGED_EVENT, refresh);
     return () => {
       window.removeEventListener("storage", refresh);
       window.removeEventListener(DOCUMENT_FAVORITES_CHANGED_EVENT, refresh);
+      window.removeEventListener(RECENT_NOTES_CHANGED_EVENT, refresh);
     };
   }, []);
   const latestId = props.latestNote?.id;
@@ -264,7 +266,7 @@ export function ExhibitionWorkspace(props: Props) {
                   if (summaryLayout.summaryInteraction === "click" && summaryPreview?.kind === kind) { closeSummary(); return; }
                   keepSummary(); setSummaryPreview({ kind, trigger: event.currentTarget, keyboard: false });
                 }}>
-                <strong>{loading || error ? "…" : counts[kind]}</strong><span>{label}</span>
+                <strong>{loading || error ? "…" : kind === "recent" && summaryLayout.summaryInteraction !== "sidebar" ? workspaceSummaryPreviewDocuments(documents, "recent", favorites, day, recent).length : counts[kind]}</strong><span>{label}</span>
               </button>)}
             </nav>
             {noteId && (
@@ -373,7 +375,7 @@ export function ExhibitionWorkspace(props: Props) {
         </section>
       )}
       {previewEnabled && summaryPreview && <WorkspaceSummaryPreview key={summaryPreview.kind} title={previewTitle} documents={previewDocuments}
-        trigger={summaryPreview.trigger} keyboard={summaryPreview.keyboard} visibleRows={summaryLayout.summaryVisibleRows} compact={!props.desktop} onEnter={keepSummary} onLeave={leaveSummary} onClose={closeSummary}
+        numbered={summaryPreview.kind !== "all"} trigger={summaryPreview.trigger} keyboard={summaryPreview.keyboard} visibleRows={summaryLayout.summaryVisibleRows} compact={!props.desktop} onEnter={keepSummary} onLeave={leaveSummary} onClose={closeSummary}
         onOpen={id => { closeSummary(); open(id); }} />}
     </div>
   );

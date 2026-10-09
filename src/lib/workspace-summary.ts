@@ -41,3 +41,18 @@ export function workspaceSummaryDocuments(documents: WorkspaceDocumentSummary[],
     }
   }
 }
+
+/** Popovers have their own visit ordering and limit; sidebar queries stay unchanged. */
+export function workspaceSummaryPreviewDocuments(documents: WorkspaceDocumentSummary[], kind: WorkspaceSummaryKind, favorites: string[], day: string, recentIds: string[]) {
+  if (kind === "recent") {
+    const byId = new Map(documents.map(note => [note.id, note]));
+    return [...new Set(recentIds)].flatMap(id => byId.has(id) ? [byId.get(id)!] : []).slice(0, 15).reverse();
+  }
+  const newestFirst = [...workspaceSummaryDocuments(documents, kind, favorites, day)]
+    .sort((a, b) => (Date.parse(b.updated_at) || 0) - (Date.parse(a.updated_at) || 0) || a.id.localeCompare(b.id));
+  return kind === "all" ? newestFirst : newestFirst.slice(0, 15).reverse();
+}
+
+export function workspaceSummaryShortcutIndex(key: string): number | null {
+  return /^[0-9a-f]$/i.test(key) ? Number.parseInt(key, 16) : null;
+}
