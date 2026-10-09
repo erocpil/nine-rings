@@ -27,6 +27,8 @@ import { DocumentStarterKit } from "../extensions/DocumentStarterKit";
 import { AutomaticTOC } from "../extensions/AutomaticTOC";
 import { DocumentOutlineContext } from "./TableOfContentsBlock";
 import { headingLinkTarget } from "../lib/heading-links";
+import { ReferenceAnchors, createReferenceAnchor, referenceAnchorPluginKey } from "../extensions/ReferenceAnchors";
+import { deltaToMarkdown } from "../lib/markdown-serializer";
 import { OrderedListLayout } from "../extensions/OrderedListLayout";
 import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
 import { MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes, HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline } from "../extensions/MarkdownExtras";
@@ -281,7 +283,7 @@ export interface NoteEditorProps {
   securityToolbarTarget?: HTMLElement | null;
   focusToolbarTarget?: HTMLElement | null;
   onFlush?: () => Promise<void>;
-  onOpenLinkedNote?: (note: Note) => Promise<void>;
+  onOpenLinkedNote?: (note: Note, referenceId?: string) => Promise<void>;
   onSecurityChanged?: () => Promise<void>;
   onProtectionBusy?: (busy: boolean) => void;
   onSecurityError?: (message: string) => void;
@@ -310,7 +312,7 @@ export interface NoteEditorProps {
   editorFontSize: number;
   onEditorFontSizeChange: (size: number) => void;
   onTitleChange: (title: string) => void;
-  onContentChange: (readContent: () => DeltaOps) => void;
+  onContentChange: (readContent: () => DeltaOps, options?: { metadataOnly: boolean }) => void;
   onTagsChange: (tags: string[]) => void;
   onVersionOpen?: () => void;
   onFocusModeChange?: (focus: boolean) => void;
@@ -504,6 +506,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const lineJumpInputRef = useRef<HTMLInputElement>(null);
   const outlineListRef = useRef<HTMLDivElement>(null);
   const bookmarksRef = useRef<DocumentBookmark[]>(content.metadata?.bookmarks ?? []);
+  const referenceAnchorsRef = useRef(content.metadata?.referenceAnchors ?? []);
   const bookmarkJumpPulseTimerRef = useRef<number | null>(null);
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
@@ -998,7 +1001,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         onChange: (nextBookmarks, docSnapshot) => {
           bookmarksRef.current = nextBookmarks;
           setBookmarks(nextBookmarks);
-          const currentMetadata = documentMetadataRef.current ?? {};
+          const currentMetadata = { ...documentMetadataRef.current, referenceAnchors: referenceAnchorsRef.current };
           const metadata = nextBookmarks.length > 0
             ? { ...currentMetadata, bookmarks: nextBookmarks }
             : Object.fromEntries(Object.entries(currentMetadata).filter(([key]) => key !== "bookmarks"));
@@ -1008,6 +1011,15 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             cacheEditorDocument(noteId, contentVersionRef.current, editorDocument);
             return Object.keys(metadata).length > 0 ? { ...delta, metadata } : delta;
           });
+        },
+      }),
+      ReferenceAnchors.configure({
+        initial: content.metadata?.referenceAnchors ?? [],
+        onChange: (referenceAnchors, docSnapshot, docChanged) => {
+          referenceAnchorsRef.current = referenceAnchors;
+          const metadata = { ...documentMetadataRef.current, referenceAnchors };
+          documentMetadataRef.current = metadata;
+          contentChangeRef.current(() => ({ ...documentSerializer.read(docSnapshot).delta, metadata }), { metadataOnly: !docChanged });
         },
       }),
     ]);
@@ -1064,7 +1076,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       onContentChange(() => {
         const { json: editorDocument, delta } = documentSerializer.read(docSnapshot);
         cacheEditorDocument(noteId, contentVersionRef.current, editorDocument);
-        const currentMetadata = documentMetadataRef.current ?? {};
+        const currentMetadata = { ...documentMetadataRef.current, referenceAnchors: referenceAnchorsRef.current };
         const metadata = bookmarksRef.current.length > 0
           ? { ...currentMetadata, bookmarks: bookmarksRef.current }
           : Object.fromEntries(Object.entries(currentMetadata).filter(([key]) => key !== "bookmarks"));
@@ -1908,6 +1920,30 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   useEffect(() => {
     if (!editor || !searchTarget || searchTarget.noteId !== noteId) return;
     if (searchTarget.options?.regex && !regexEngine.ready) return;
+    if (searchTarget.referenceId) {
+      const anchor = referenceAnchorPluginKey.getState(editor.state)?.anchors.find(item => item.id === searchTarget.referenceId && !item.deleted);
+      if (anchor) requestAnimationFrame(() => {
+        if (editor.isDestroyed) return;
+        const resolved = editor.state.doc.resolve(anchor.from);
+        const expand = (position: number) => {
+          const node = editor.state.doc.nodeAt(position);
+          const host = editor.view.nodeDOM(position);
+          if (!(host instanceof HTMLElement)) return;
+          if (node?.type.name === "htmlDetails") {
+            const details = host instanceof HTMLDetailsElement ? host : host.querySelector("details");
+            if (details && !details.open) details.querySelector<HTMLElement>(":scope > summary")?.click();
+          } else if (node?.type.name === "codeBlock") host.querySelector<HTMLButtonElement>('button[aria-label="展开代码块"],button[aria-label="展开流程块"]')?.click();
+          else if (node?.type.name === "blockquote") host.querySelector<HTMLButtonElement>('button[aria-label="展开引用块"]')?.click();
+        };
+        expand(anchor.from);
+        for (let depth = 1; depth <= resolved.depth; depth++) expand(resolved.before(depth));
+        jumpToBookmark({ id: anchor.id, position: TextSelection.near(editor.state.doc.resolve(anchor.from)).from, preview: anchor.preview, createdAt: "" });
+        if (anchor.kind === "range") setNavigationSelection(editor, { from: anchor.from, to: anchor.to });
+      });
+      else setCopyBlockNotice("引用目标已删除或不存在");
+      onSearchTargetConsumed?.(searchTarget.requestId);
+      return;
+    }
     if (searchTarget.bookmarkId) {
       const bookmark = bookmarksRef.current.find(item => item.id === searchTarget.bookmarkId);
       if (bookmark) requestAnimationFrame(() => { if (!editor.isDestroyed) jumpToBookmark(bookmark); });
@@ -3076,8 +3112,31 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     if (!useCustomContextMenu) return; // 关闭开关 → 系统原生菜单
     e.preventDefault();
     e.stopPropagation();
+    const at = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
+    const selection = editor.state.selection;
+    if (at && (selection.empty || at.pos < selection.from || at.pos > selection.to)) editor.commands.setTextSelection(at.pos);
     setContextSubmenu(null);
     setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  const copyReference = async (kind: "block" | "position", position?: number) => {
+    const native = document.getSelection();
+    if (kind === "position" && native?.anchorNode && native.focusNode && editor.view.dom.contains(native.anchorNode) && editor.view.dom.contains(native.focusNode)) {
+      try {
+        const from = editor.view.posAtDOM(native.anchorNode, native.anchorOffset);
+        const to = editor.view.posAtDOM(native.focusNode, native.focusOffset);
+        editor.commands.setTextSelection({ from: Math.min(from, to), to: Math.max(from, to) });
+      } catch { /* Non-editable diagram DOM uses the model's block position. */ }
+    }
+    const readingPosition = activeLinePluginKey.getState(editor.state)?.readingBlockPosition;
+    const anchor = createReferenceAnchor(editor, kind, position ?? (kind === "block" && readingPosition != null ? readingPosition : undefined));
+    const href = `nr-note://${noteId}#nr-ref-${anchor.id}`;
+    const markdown = deltaToMarkdown({ ops: [{ insert: anchor.preview, attributes: { link: href } }, { insert: "\n" }] });
+    try {
+      await onFlush?.();
+      await copyToClipboard(markdown, { reportFailure: true });
+      setCopyBlockNotice("已复制引用，可粘贴到任意文档");
+    } catch { setCopyBlockNotice("复制引用失败，请重试"); }
   };
 
   const hasSelection = () => {
@@ -3957,7 +4016,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
                 aria-label="文档目录"
                 aria-expanded={outlineOpen}
                 type="button"
-              >{mobileTitleBar ? <ToolbarIcon name="bullet" /> : "目录"}</button>
+              ><FocusModeIcon name="outline" /></button>
             </div>
           )}
           <button
@@ -3973,7 +4032,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             aria-label="文档书签"
             aria-expanded={bookmarkOpen}
             type="button"
-          >{mobileTitleBar ? <><ToolbarIcon name="bookmark" />{bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}</> : <>书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</>}</button>
+          ><FocusModeIcon name="bookmark" />{bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}</button>
           {unifiedTitleBar && focusMode && !readonly && <button type="button" className="focus-btn" title="更多编辑工具" aria-label="更多编辑工具" aria-expanded={focusToolbarExpanded} onClick={() => setFocusToolbarExpanded(value => !value)}><ToolbarIcon name="annotate" /></button>}
           <NavigationButtons />
           <button
@@ -4086,7 +4145,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
               runToolbarFormat, changeSelectedBlockIndent, handleToggleCodeBlock,
               insertBlankBlockAfterCurrent, hasSelection, convertSelectionFromMarkdown,
               setTableSelection, copySelectedTableCells, clearSelectedTableCells, setTableCellAlignment,
-              handleCopy, handleCopyBlock, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf, openEditorReplace,
+              handleCopy, handleCopyBlock, copyReference, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf, openEditorReplace,
               toggleCurrentBookmark, openDocumentBookmarks, setLinkDialogUrl, setLinkDialog, setImageDialog,
             }}
             editorFontSize={editorFontSize} onEditorFontSizeChange={onEditorFontSizeChange}
@@ -4111,6 +4170,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           return count > 0 ? <div className="block-selection-toolbar" role="toolbar" aria-label="块级操作">
             <strong>{count} 块</strong>
             <button type="button" onClick={() => void copySelectedBlocks()}><ToolbarIcon name="copy" />复制</button>
+            {count === 1 && <button type="button" onClick={() => void copyReference("block", blockRangeAtIndex(selectedIndexes()[0]).from)}><ToolbarIcon name="link" />复制块引用</button>}
             {!readonly && <>
               <button ref={blockEditButtonRef} type="button" onClick={() => editSelectedBlock(blockEditButtonRef.current)}>编辑</button>
               <button type="button" onClick={() => formatSelectedBlocks("bold")}><strong>B</strong></button>
@@ -4186,6 +4246,11 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             onBlockSelect={extendBlockSelection}
             onBlockCountChange={setGutterBlockCount}
             onHeadingFoldToggle={toggleEditorHeadingFromGutter}
+            onReferenceMenu={useCustomContextMenu ? (position, x, y) => {
+              editor.commands.setTextSelection(TextSelection.near(editor.state.doc.resolve(position)).from);
+              setContextSubmenu(null);
+              setContextMenu({ x, y });
+            } : undefined}
           />
           <DocumentEditorContent
             editor={editor}
@@ -4305,6 +4370,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         contextSubmenu={contextSubmenu} setContextSubmenu={setContextSubmenu}
         setContextMenu={setContextMenu}
         hasCurrentBookmark={Boolean(currentBookmark)} bookmarkCount={bookmarks.length}
+        onCopyReference={copyReference}
         actions={{ hasSelection, handleCut, handleClipboardPaste, handleCopy, handleCopyBlock, openDocumentBookmarks,
           toggleCurrentBookmark, convertSelectionFromMarkdown, changeSelectedBlockIndent,
           setLinkDialogUrl, setLinkDialog, setImageDialog }}

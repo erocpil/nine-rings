@@ -73,7 +73,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         setSource(text);
       } else {
         // A bookmark destination takes priority over the source viewport.
-        if (latestProps.current.searchTarget?.bookmarkId) viewPosition.cancelHandoff();
+        if (latestProps.current.searchTarget?.bookmarkId || latestProps.current.searchTarget?.referenceId) viewPosition.cancelHandoff();
         else viewPosition.toRendered(source, deltaToProseMirror(content));
         invalidateEditorDocument(props.noteId);
         setSnapshot({ base: latestProps.current.content, content });
@@ -93,8 +93,8 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     if (restoredView.current) return;
     restoredView.current = true;
     const saved = props.sensitive ? null : readReadingState(props.noteId);
-    if (!useNavigationStore.getState().target && !props.searchTarget?.bookmarkId && supported && saved?.view === "source" && saved.source) void restoreViewRef.current(saved.source.scrollTop);
-  }, [props.noteId, props.sensitive, props.searchTarget?.bookmarkId, supported]);
+    if (!useNavigationStore.getState().target && !props.searchTarget?.bookmarkId && !props.searchTarget?.referenceId && supported && saved?.view === "source" && saved.source) void restoreViewRef.current(saved.source.scrollTop);
+  }, [props.noteId, props.sensitive, props.searchTarget?.bookmarkId, props.searchTarget?.referenceId, supported]);
   const bookmarkViewRequest = useRef<number>();
   const onSearchTargetConsumed = props.onSearchTargetConsumed;
   const jumpSourceRef = useRef<(offset: number, record?: boolean) => void>(() => {});
@@ -116,10 +116,12 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   };
   useEffect(() => {
     const target = props.searchTarget;
-    if (!target?.bookmarkId || source === null || busy || bookmarkViewRequest.current === target.requestId) return;
+    if ((!target?.bookmarkId && !target?.referenceId) || source === null || busy || bookmarkViewRequest.current === target.requestId) return;
     bookmarkViewRequest.current = target.requestId;
     const bookmark = sourceSession.current?.current.bookmarks.find(item => item.id === target.bookmarkId);
-    if (bookmark) jumpSourceRef.current(bookmark.offset);
+    const offset = target.referenceId ? sourceSession.current?.current.referenceOffset(target.referenceId) : bookmark?.offset;
+    if (offset !== undefined) jumpSourceRef.current(offset);
+    else setError("引用目标已删除或不存在");
     onSearchTargetConsumed?.(target.requestId);
   }, [props.searchTarget, onSearchTargetConsumed, source, busy]);
   const historyViewRequest = useRef<number>();
@@ -150,28 +152,33 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   if (!supported) return render(props);
   const toggle = <button type="button" className="markdown-view-toggle" disabled={busy}
     title={source === null ? "切换到 Markdown 源码" : "切换到渲染视图"}
-    aria-busy={busy} onClick={() => void changeView()}>{source === null ? "源码" : "渲染"}</button>;
+    aria-label={source === null ? "源码" : "渲染"}
+    aria-busy={busy} onClick={() => void changeView()}>{source === null ? "源码" : <ToolbarIcon name="document" />}</button>;
   return <div className="markdown-document-view" ref={viewPosition.host}>
     {error && <div role="alert" className="markdown-source-hint">{error}</div>}
     {source === null ? render({
       ...props,
       documentViewToggle: toggle,
       content: snapshot?.base === props.content ? snapshot.content : props.content,
-      onContentChange: reader => {
+      onContentChange: (reader, options) => {
+        const originalSource = options?.metadataOnly
+          ? (latestReader.current?.() ?? latestProps.current.content).metadata?.markdownSource
+          : undefined;
         let cached: DeltaOps | undefined;
         const read = () => {
           if (cached) return cached;
           const content = reader();
           const metadata = { ...content.metadata };
           // Rendered edits invalidate the original spelling/spacing, not other metadata.
-          delete metadata.markdownSource;
+          if (typeof originalSource === "string") metadata.markdownSource = originalSource;
+          else delete metadata.markdownSource;
           cached = { ...content, metadata };
           return cached;
         };
         latestReader.current = read;
         props.onContentChange(read);
       },
-    }) : <MarkdownSourceWorkspace revision={sourceSession.current!.current} areaRef={viewPosition.area} onJump={offset => jumpSourceRef.current(offset)}>{controls => <>
+    }) : <MarkdownSourceWorkspace revision={sourceSession.current!.current} areaRef={viewPosition.area} sourceHandle={viewPosition.sourceHandle} onJump={offset => jumpSourceRef.current(offset)}>{controls => <>
       <div className="note-title-row markdown-source-title-row">
         {props.titleSecurityAction}
         {props.onReadonlyChange && <button type="button" className="note-readonly-badge note-readonly-action" disabled={busy}
@@ -179,7 +186,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           onClick={() => props.onReadonlyChange?.(!props.readonly)}><ToolbarIcon name={props.readonly ? "lock" : "unlock"} /></button>}
         <div className="note-title-field"><DocumentTitlePreview title={props.title || "无标题"} /></div>
         {toggle}
-        {!mobile && <button type="button" className="markdown-view-toggle" aria-pressed={preview} onClick={() => { setPreview(!preview); localStorage.setItem("nr:markdownSplitPreview", String(!preview)); }}>并排预览</button>}
+        {!mobile && <button type="button" className="markdown-view-toggle" title="并排预览" aria-label="并排预览" aria-pressed={preview} onClick={() => { setPreview(!preview); localStorage.setItem("nr:markdownSplitPreview", String(!preview)); }}><ToolbarIcon name="panel" /></button>}
         {controls}
         <NavigationButtons />
         {props.onFocusModeChange && <button type="button" className="focus-btn" aria-label={props.focusMode ? "退出专注模式" : "专注模式"}

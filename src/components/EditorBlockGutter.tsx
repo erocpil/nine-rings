@@ -1,5 +1,6 @@
 import { EditorFoldIcon } from "./EditorFoldIcon";
 import { useDocumentActive } from "./RetainedDocument";
+import { activeLinePluginKey } from "../extensions/EditorHighlights";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
@@ -132,6 +133,7 @@ interface EditorBlockGutterProps {
   onBlockSelect?: (position: number) => void;
   onBlockCountChange?: (count: number) => void;
   onHeadingFoldToggle?: (position: number) => void;
+  onReferenceMenu?: (position: number, x: number, y: number) => void;
 }
 
 /**
@@ -141,7 +143,7 @@ interface EditorBlockGutterProps {
  * 用户意图。IntersectionObserver 只挂载视口及预读区域内的控件；
  * ResizeObserver 只重新测量这部分节点，避免长文档复制一整套 gutter DOM。
  */
-export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, selectedBlockIndexes = [], onBlockSelect, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
+export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, selectedBlockIndexes = [], onBlockSelect, onBlockCountChange, onHeadingFoldToggle, onReferenceMenu }: EditorBlockGutterProps) {
   const documentActive = useDocumentActive();
   const rootRef = useRef<HTMLDivElement>(null);
   const suppressCompatibilityClickUntilRef = useRef(0);
@@ -234,7 +236,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       // DOM 身份没有变化不代表块号没变，编号必须取当前文档中的位置。
       const index = indexedDoc === editor.state.doc && indexedBlock?.pos === pos
         ? indexedBlock.index : editor.state.doc.resolve(pos).index(0) + 1;
-      const selectionPos = editor.state.selection.from;
+      const selectionPos = activeLinePluginKey.getState(editor.state)?.readingBlockPosition ?? editor.state.selection.from;
       const section = node.type.name === "heading"
         ? headingSectionAtPosition(extractHeadingSections(editor.state.doc), pos)
         : null;
@@ -521,7 +523,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
     };
 
     const updateActiveBlock = () => {
-      const selectionPos = editor.state.selection.from;
+      const selectionPos = activeLinePluginKey.getState(editor.state)?.readingBlockPosition ?? editor.state.selection.from;
       let changed = false;
       for (const [dom, block] of measuredBlocks) {
         const active = selectionPos >= block.pos && selectionPos < block.endPos;
@@ -748,6 +750,15 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
     <div
       ref={rootRef}
       className="editor-block-gutter"
+      onContextMenu={event => {
+        if (!onReferenceMenu) return;
+        const item = (event.target as HTMLElement).closest<HTMLElement>("[data-block-index]");
+        const block = blocks.find(block => block.index === Number(item?.dataset.blockIndex));
+        if (!block) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onReferenceMenu(block.pos, event.clientX, event.clientY);
+      }}
       onPointerMove={(event) => {
         if (event.pointerType !== "mouse") return;
         // Keep the pair stable while moving from a number onto its +/- boundary.

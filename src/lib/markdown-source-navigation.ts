@@ -1,4 +1,5 @@
-import type { DeltaOps, DocumentBookmark } from "../types/models";
+import type { DeltaOps, DocumentBookmark, DocumentReferenceAnchor } from "../types/models";
+import type { JSONContent } from "@tiptap/core";
 import { deltaToProseMirror } from "./delta-converter";
 import { diffDocumentLines } from "./document-diff";
 import { mdToDelta, type MarkdownSourceSpan } from "./md-parser";
@@ -132,6 +133,48 @@ function parse(source: string) {
   return { delta, doc, map, blocks, outline };
 }
 
+/** Map precise targets through source edits using rendered text, so Markdown
+ * delimiters do not become part of the coordinate system. */
+export function mapSourceReferences(before: JSONContent, after: JSONContent, anchors: DocumentReferenceAnchor[]): DocumentReferenceAnchor[] {
+  if (!anchors.length) return [];
+  const flatten = (doc: JSONContent) => {
+    const inlineText = (node: JSONContent): string => node.type === "text" ? node.text ?? "" : node.type === "hardBreak" ? "\n" : node.content ? node.content.map(inlineText).join("") : "\ufffc";
+    const textblocks = (node: JSONContent): JSONContent[] => ["paragraph", "heading", "codeBlock"].includes(node.type ?? "") ? [node] : (node.content ?? []).flatMap(textblocks);
+    const roots = (doc.content ?? []).map(textblocks);
+    let offset = 0;
+    const blocks = renderedTextblockMap(doc).map(block => {
+      const node = block.textblock === null ? doc.content?.[block.index] : roots[block.index]?.[block.textblock];
+      const text = node ? inlineText(node) : block.text;
+      const entry = { ...block, text, offset };
+      offset += text.length + 1;
+      return entry;
+    });
+    return { blocks, text: blocks.map(block => block.text).join("\n") };
+  };
+  const old = flatten(before), next = flatten(after);
+  const nextRoots = renderedPositionMap({ type: "doc", content: [...after.content ?? [], { type: "horizontalRule" }] });
+  const mapping = sourceAnchorMapping(old.text, next.text);
+  const toOffset = (position: number) => {
+    const block = old.blocks.find((_block, i) => position < (old.blocks[i + 1]?.position ?? Infinity)) ?? old.blocks[old.blocks.length - 1];
+    return block ? block.offset + Math.max(0, Math.min(block.text.length, position - block.position - 1)) : 0;
+  };
+  const toPosition = (offset: number, blockStart: boolean) => {
+    const block = next.blocks.find((_block, i) => offset < (next.blocks[i + 1]?.offset ?? Infinity)) ?? next.blocks[next.blocks.length - 1];
+    return block ? block.position + (blockStart ? 0 : 1 + Math.min(block.text.length, Math.max(0, offset - block.offset))) : 0;
+  };
+  return anchors.map(anchor => {
+    if (anchor.deleted) return anchor;
+    const oldBlocks = anchor.kind === "block" ? old.blocks.filter(block => block.position >= anchor.from && block.position < anchor.to) : [];
+    const oldStart = oldBlocks[0]?.offset ?? toOffset(anchor.from);
+    const last = oldBlocks[oldBlocks.length - 1];
+    const start = mapping(oldStart), end = mapping(last ? last.offset + last.text.length : toOffset(anchor.to));
+    const from = toPosition(start, anchor.kind === "block");
+    const block = anchor.kind === "block" ? next.blocks.find(block => block.position === from) : undefined;
+    const root = block ? nextRoots[block.index] : undefined;
+    return { ...anchor, from: root?.position ?? from, to: anchor.kind === "position" ? from : root ? nextRoots[root.index + 1].position : Math.max(from, toPosition(end, false)), ...((anchor.kind !== "position" && end <= start && (last?.text.length ?? 1) > 0) || (anchor.kind === "position" && oldStart < old.text.length && mapping(oldStart + 1) <= start) ? { deleted: true } : {}) };
+  });
+}
+
 /** One immutable source revision; autosave and navigation share the lazy parse. */
 export class SourceNavigationDocument {
   private parsed?: ReturnType<typeof parse>;
@@ -141,11 +184,27 @@ export class SourceNavigationDocument {
     private anchors: Anchor[],
     private metadata: DeltaOps["metadata"],
     private unchanged?: DeltaOps,
+    private referenceBase?: DeltaOps,
   ) {}
   private get model() {
     return (this.parsed ??= parse(this.source));
   }
   get document() { return this.model.doc; }
+  get referenceAnchors() {
+    if (this.unchanged) return this.unchanged.metadata?.referenceAnchors ?? [];
+    const base = this.referenceBase ?? this.unchanged;
+    return base ? mapSourceReferences(deltaToProseMirror(base), this.model.doc, base.metadata?.referenceAnchors ?? []) : this.metadata?.referenceAnchors ?? [];
+  }
+  referenceOffset(id: string) {
+    const anchor = this.referenceAnchors.find(item => item.id === id && !item.deleted);
+    if (!anchor) return undefined;
+    const block = this.model.blocks.find((_block, i) => anchor.from < (this.model.blocks[i + 1]?.position ?? Infinity));
+    if (!block) return 0;
+    const span = this.model.map.find(item => item.weightTo > block.from);
+    const raw = span ? this.source.slice(span.from, span.to) : "";
+    const textStart = raw.indexOf(block.text);
+    return textStart >= 0 ? span!.from + textStart + Math.max(0, anchor.from - block.position - 1) : this.offsetAt(anchor.from);
+  }
   get outline() {
     return this.model.outline;
   }
@@ -204,6 +263,7 @@ export class SourceNavigationDocument {
         ...this.metadata,
         sourceFormat: "markdown",
         markdownSource: this.source,
+        referenceAnchors: this.referenceAnchors,
         bookmarks: this.bookmarks.map(
           ({ offset: _offset, blockNumber: _block, ...bookmark }) => bookmark,
         ),
@@ -218,6 +278,8 @@ export class SourceNavigationDocument {
       text,
       this.anchors.map((anchor) => ({ ...anchor, offset: map(anchor.offset) })),
       this.metadata,
+      undefined,
+      this.referenceBase ?? this.unchanged,
     );
   }
   copy() {
@@ -226,6 +288,7 @@ export class SourceNavigationDocument {
       this.anchors,
       this.metadata,
       this.unchanged,
+      this.referenceBase,
     );
   }
   static from(source: string, content: DeltaOps) {

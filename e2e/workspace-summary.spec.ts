@@ -151,3 +151,94 @@ test("本地跨日更新摘要和已打开的今日修改列表", async ({ page 
   await expect(summary.locator(".exhibition-summary-all strong")).toHaveText(String(counts.all));
   await expect(page.getByRole("region", { name: "文档列表", exact: true }).locator(".document-browser-row")).toHaveCount(0);
 });
+
+test("四项摘要悬停预览，最多十五行，长标题省略且滚动后可打开文档", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await seed(page);
+  const longTitle = "摘要预览长标题：" + "保留完整名称但不会撑宽弹层".repeat(12);
+  await page.evaluate(async longTitle => {
+    const { api } = await import("/src/lib/api.ts");
+    const { toggleDocumentFavorite } = await import("/src/lib/document-favorites.ts");
+    for (let i = 0; i < 80; i++) {
+      const note = await api.notes.create({ title: i === 79 ? longTitle : `摘要预览 ${i}`, date: "2026-10-10", storagePath: i % 5 === 0 ? "ideas/notes/group" : "projects/summary", content: { ops: [] } });
+      if (i === 79) toggleDocumentFavorite(note.id);
+    }
+  }, longTitle);
+  await page.reload();
+  const summary = page.getByRole("navigation", { name: "工作区统计" });
+  await expect(summary).toHaveAttribute("aria-busy", "false");
+  const before = await page.locator(".app-main-split").boundingBox();
+  for (const [name, title, kind] of [["查看全部文档", "全部文档", "all"], ["查看随记", "随记", "notes"], ["查看今日修改文档", "今日修改", "today"], ["查看收藏文档", "收藏", "favorites"]]) {
+    await summary.getByRole("button", { name, exact: true }).hover();
+    const popup = page.getByRole("dialog", { name: `${title}预览`, exact: true });
+    await expect(popup).toBeVisible();
+    await expect(page.locator(".workspace-summary-preview")).toHaveCount(1);
+    const count = await summary.locator(`.exhibition-summary-${kind} strong`).textContent();
+    await expect(popup.locator(".workspace-summary-preview-heading strong span")).toHaveText(count!);
+    const bounds = (await popup.boundingBox())!;
+    expect(bounds.y).toBeGreaterThanOrEqual(8);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(992);
+    expect(bounds.height).toBeLessThanOrEqual(466);
+  }
+  await summary.getByRole("button", { name: "查看全部文档", exact: true }).hover();
+  const popup = page.getByRole("dialog", { name: "全部文档预览", exact: true });
+  const long = popup.getByRole("button", { name: longTitle, exact: true });
+  await long.hover();
+  await expect(long).toHaveAttribute("title", longTitle);
+  await expect(long).toHaveCSS("text-overflow", "ellipsis");
+  expect(await long.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+  const list = popup.locator("ul");
+  await expect.poll(() => list.evaluate(element => element.clientHeight)).toBe(428);
+  expect(await long.evaluate(element => element.getBoundingClientRect().height)).toBe(28);
+  expect(await list.evaluate(element => {
+    const box = element.getBoundingClientRect();
+    return [...element.querySelectorAll("li button")].filter(button => { const row = button.getBoundingClientRect(); return row.top >= box.top && row.bottom <= box.bottom; }).length;
+  })).toBeLessThanOrEqual(15);
+  expect(await list.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+  expect(await popup.locator("li button").count()).toBeLessThan(30);
+  expect(await page.locator(".app-main-split").boundingBox()).toEqual(before);
+  await popup.screenshot({ path: test.info().outputPath("summary-hover.png") });
+  await list.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  const last = popup.getByRole("button", { name: "摘要昨日文档", exact: true });
+  await expect(last).toBeInViewport();
+  await last.click();
+  await expect(page.locator(".note-title:visible")).toHaveValue("摘要昨日文档");
+  await expect(popup).toHaveCount(0);
+  await summary.getByRole("button", { name: "查看随记", exact: true }).hover();
+  await expect(page.getByRole("dialog", { name: "随记预览", exact: true })).toBeVisible();
+  await page.locator(".exhibition-overview h2").hover();
+  await expect(page.locator(".workspace-summary-preview")).toHaveCount(0);
+});
+
+test("摘要预览支持键盘到末项和 Escape，不影响统计点击及手机模式", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await seed(page);
+  await page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    for (let i = 0; i < 65; i++) await api.notes.create({ title: `键盘预览 ${i}`, date: "2026-10-10", storagePath: "projects", content: { ops: [] } });
+  });
+  await page.reload();
+  await expect(page.getByRole("navigation", { name: "工作区统计" })).toHaveAttribute("aria-busy", "false");
+  const all = page.getByRole("button", { name: "查看全部文档", exact: true });
+  await all.focus();
+  await page.keyboard.press("ArrowDown");
+  const popup = page.getByRole("dialog", { name: "全部文档预览", exact: true });
+  await expect(popup.locator("li button").first()).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(popup.getByRole("button", { name: "摘要昨日文档", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(popup).toHaveCount(0);
+  await expect(all).toBeFocused();
+  await all.hover();
+  await expect(popup).toBeVisible();
+  await all.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(popup.locator("li button").first()).toBeFocused();
+  await page.keyboard.press("Escape");
+  await all.click();
+  await expect(popup).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "文档列表", exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await all.dispatchEvent("pointerenter", { pointerType: "touch" });
+  await expect(popup).toHaveCount(0);
+});

@@ -22,6 +22,7 @@ export interface VisibleOutlineEntry {
 interface DocumentOutlineListProps {
   entries: VisibleOutlineEntry[];
   activeOutlineIndex: number;
+  followActive?: boolean;
   outlineBaseLevel: number;
   listRef: MutableRefObject<HTMLDivElement | null>;
   onToggleFold: (position: number) => void;
@@ -111,6 +112,7 @@ function initialWindow(entries: VisibleOutlineEntry[], activeOutlineIndex: numbe
 export const DocumentOutlineList = memo(function DocumentOutlineList({
   entries,
   activeOutlineIndex,
+  followActive = false,
   outlineBaseLevel,
   listRef,
   onToggleFold,
@@ -174,6 +176,24 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
     if (!virtualized || frameRef.current) return;
     frameRef.current = requestAnimationFrame(updateWindow);
   }, [updateWindow, virtualized]);
+
+  useLayoutEffect(() => {
+    if (!followActive) return;
+    const index = entries.findIndex(entry => entry.index === activeOutlineIndex);
+    const list = listRef.current;
+    if (!list || index < 0) return;
+    const reveal = () => {
+      const { tops, heights } = rowLayoutRef.current;
+      const top = tops[index], height = heights[index];
+      if (top < list.scrollTop || top + height > list.scrollTop + list.clientHeight) {
+        list.scrollTop = Math.max(0, top - (list.clientHeight - height) / 2);
+        scheduleWindowUpdate();
+      }
+    };
+    reveal();
+    const frame = requestAnimationFrame(reveal);
+    return () => cancelAnimationFrame(frame);
+  }, [activeOutlineIndex, entries, followActive, listRef, scheduleWindowUpdate]);
 
   useLayoutEffect(() => {
     const list = listRef.current;

@@ -34,6 +34,7 @@ export interface SearchNavigationTarget {
   options?: import("../lib/search-matching").SearchOptions;
   /** Navigate to a saved bookmark instead of searching text. */
   bookmarkId?: string;
+  referenceId?: string;
 }
 
 // ── PathNode: 文档树节点 ──
@@ -120,6 +121,8 @@ export interface DocumentMetadata {
   };
   /** 正文书签随文档内容保存；position 会在编辑事务中自动映射。 */
   bookmarks?: DocumentBookmark[];
+  /** Stable internal references, independent of the user's bookmark list. */
+  referenceAnchors?: DocumentReferenceAnchor[];
 }
 
 export interface ExternalMarkdownSource {
@@ -143,6 +146,15 @@ export interface DocumentBookmark {
   key?: string;
   /** 用户可选的显示名称。 */
   label?: string;
+}
+
+export interface DocumentReferenceAnchor {
+  id: string;
+  from: number;
+  to: number;
+  kind: "block" | "position" | "range";
+  preview: string;
+  deleted?: boolean;
 }
 
 export interface DeltaOp {

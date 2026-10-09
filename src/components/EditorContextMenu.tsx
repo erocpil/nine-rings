@@ -14,11 +14,12 @@ interface EditorContextMenuProps {
   setContextSubmenu: Dispatch<SetStateAction<"format" | "paragraph" | "insert" | null>>;
   hasCurrentBookmark: boolean;
   bookmarkCount: number;
+  onCopyReference: (kind: "block" | "position") => Promise<void>;
   actions: Pick<EditorToolbarProps["actions"], "hasSelection" | "handleCut" | "handleClipboardPaste" | "handleCopy" | "handleCopyBlock" | "openDocumentBookmarks" | "toggleCurrentBookmark" | "convertSelectionFromMarkdown" | "changeSelectedBlockIndent" | "setLinkDialogUrl" | "setLinkDialog" | "setImageDialog">;
 }
 
 /** Presentation only; dismissal/positioning and the live selection stay in NoteEditor. */
-export function EditorContextMenu({ editor, readonly, contextMenu, contextMenuRef, setContextMenu, contextSubmenu, setContextSubmenu, hasCurrentBookmark, bookmarkCount, actions }: EditorContextMenuProps) {
+export function EditorContextMenu({ editor, readonly, contextMenu, contextMenuRef, setContextMenu, contextSubmenu, setContextSubmenu, hasCurrentBookmark, bookmarkCount, actions, onCopyReference }: EditorContextMenuProps) {
   const { hasSelection, handleCut, handleClipboardPaste, handleCopy, openDocumentBookmarks, toggleCurrentBookmark, convertSelectionFromMarkdown, changeSelectedBlockIndent, setLinkDialogUrl, setLinkDialog, setImageDialog } = actions;
   return (<>
     {/* ── 正文右键菜单 ── */}
@@ -64,6 +65,8 @@ export function EditorContextMenu({ editor, readonly, contextMenu, contextMenuRe
           onClick={() => { handleCopy(); setContextMenu(null); }}
         >复制</button>
         <button className="editor-context-item" onClick={() => { void actions.handleCopyBlock(); setContextMenu(null); }}>复制块</button>
+        <button className="editor-context-item" onClick={() => { void onCopyReference("block"); setContextMenu(null); }}>复制块引用</button>
+        <button className="editor-context-item" onClick={() => { void onCopyReference("position"); setContextMenu(null); }}>{hasSelection() ? "复制选中文字引用" : "复制此处引用"}</button>
         <button
           className="editor-context-item"
           onClick={() => { selectWholeDocument(editor); setContextMenu(null); }}

@@ -1,4 +1,5 @@
 import { normalizeFootnotes } from "./footnote-model";
+import { bareLinkParts, malformedBareLink } from "./bare-autolinks";
 /**
  * ProseMirror JSON ↔ Quill Delta JSON 双向转换
  *
@@ -48,7 +49,7 @@ function pmMarkToAttr(mark: NonNullable<JSONContent["marks"]>[number]): Record<s
     case "italic":    return { italic: true };
     case "strike":    return { strike: true };
     case "code":      return { code: true };
-    case "link":      return { link: mark.attrs?.href ?? "", ...(mark.attrs?.title ? { linkTitle: mark.attrs.title } : {}) };
+    case "link":      return { link: mark.attrs?.href ?? "", ...(mark.attrs?.explicit ? { linkExplicit: true } : {}), ...(mark.attrs?.title ? { linkTitle: mark.attrs.title } : {}) };
     case "textStyle": {
       const attrs: Record<string, unknown> = {};
       if (mark.attrs?.fontSize) {
@@ -75,7 +76,7 @@ function deltaAttrToMarks(attrs: Record<string, unknown> | undefined): NonNullab
   if (attrs.italic)    marks.push({ type: "italic" });
   if (attrs.strike)    marks.push({ type: "strike" });
   if (attrs.code)      marks.push({ type: "code" });
-  if (typeof attrs.link === "string") marks.push({ type: "link", attrs: { href: attrs.link, title: attrs.linkTitle ?? null } });
+  if (typeof attrs.link === "string") marks.push({ type: "link", attrs: { href: attrs.link, title: attrs.linkTitle ?? null, ...(attrs.linkExplicit ? { explicit: true } : {}) } });
   if (attrs.highlight) marks.push({ type: "inlineHighlight" });
   if (attrs.footnoteRef) marks.push({ type: "footnoteReference", attrs: { id: attrs.footnoteRef, number: attrs.footnoteNumber ?? null, occurrence: attrs.footnoteOccurrence ?? 1 } });
   if (["sub", "sup", "ins"].includes(String(attrs.htmlStyle))) marks.push({ type: "htmlStyle", attrs: { tag: attrs.htmlStyle } });
@@ -586,6 +587,14 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         }
       } else {
         skipEmptyLineAfterBlockEmbed = false;
+        if (!attrs.linkExplicit && malformedBareLink(insert, attrs.link, attrs.linkTitle)) {
+          const { link: _link, linkTitle: _title, ...other } = attrs;
+          for (const part of bareLinkParts(insert)) {
+            const marks = deltaAttrToMarks({ ...other, ...(part.href ? { link: part.href } : {}) });
+            currentParagraph.content.push({ type: "text", text: part.text, ...(marks.length ? { marks } : {}) });
+          }
+          continue;
+        }
         const marks = deltaAttrToMarks(attrs);
         currentParagraph.content.push({
           type: "text",

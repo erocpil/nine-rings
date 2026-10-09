@@ -25,6 +25,48 @@ const makeState = () =>
   });
 
 describe("editor highlight state boundaries", () => {
+  it("shares reading focus with block feedback without changing selection or bookmarks", () => {
+    let state = makeState();
+    const selection = state.selection;
+    const doc = state.doc;
+    state = state.apply(
+      state.tr.setMeta(activeLinePluginKey, { bookmarkJumpPosition: 0 }),
+    );
+    state = state.apply(
+      state.tr.setMeta(activeLinePluginKey, { readingBlockPosition: 7 }),
+    );
+    expect(state.selection).toBe(selection);
+    expect(state.doc).toBe(doc);
+    expect(activeLinePluginKey.getState(state)?.bookmarkJumpPosition).toBe(0);
+    expect(
+      activeLinePluginKey
+        .getState(state)
+        ?.decorations.find()
+        .map((d) => [d.from, d.to]),
+    ).toEqual([
+      [0, 7],
+      [7, 15],
+    ]);
+    state = state.apply(
+      state.tr.setSelection(TextSelection.create(state.doc, 2)),
+    );
+    expect(
+      activeLinePluginKey.getState(state)?.readingBlockPosition,
+    ).toBeNull();
+  });
+
+  it("maps reading focus through edits and clears it when its block is deleted", () => {
+    let state = makeState();
+    state = state.apply(
+      state.tr.setMeta(activeLinePluginKey, { readingBlockPosition: 7 }),
+    );
+    state = state.apply(state.tr.insertText("+", 1));
+    expect(activeLinePluginKey.getState(state)?.readingBlockPosition).toBe(8);
+    state = state.apply(state.tr.delete(8, 16));
+    expect(
+      activeLinePluginKey.getState(state)?.readingBlockPosition,
+    ).toBeNull();
+  });
   it("moves the active line with the selection without modifying the document", () => {
     let state = makeState();
     const doc = state.doc;

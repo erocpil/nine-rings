@@ -1,4 +1,6 @@
 import { DeferredFlowBlock } from "../components/DeferredFlowBlock";
+import { FLOW_BLOCK_FOCUS_EVENT } from "../lib/flow-block-focus";
+import { activeLinePluginKey } from "./EditorHighlights";
 import { TableOfContentsBlock } from "../components/TableOfContentsBlock";
 import { EditorFoldIcon } from "../components/EditorFoldIcon";
 import { NodeViewWrapper, NodeViewContent, type NodeViewProps } from "@tiptap/react";
@@ -222,6 +224,21 @@ function changedCodeBlocks(document: ProseMirrorNode, ranges: ChangedRange[]) {
  */
 function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: NodeViewProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const frame = wrapperRef.current;
+    if (!frame || node.attrs.language !== "flow") return;
+    const focus = (event: Event) => {
+      event.stopPropagation();
+      if (editor.isDestroyed) return;
+      const pos = getPos();
+      if (typeof pos !== "number") return;
+      const active = (event as CustomEvent<boolean>).detail;
+      if (!active && activeLinePluginKey.getState(editor.state)?.readingBlockPosition !== pos) return;
+      editor.view.dispatch(editor.state.tr.setMeta(activeLinePluginKey, { readingBlockPosition: active ? pos : null }));
+    };
+    frame.addEventListener(FLOW_BLOCK_FOCUS_EVENT, focus);
+    return () => frame.removeEventListener(FLOW_BLOCK_FOCUS_EVENT, focus);
+  }, [editor, getPos, node.attrs.language]);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
   const [editable, setEditable] = useState(editor.isEditable);

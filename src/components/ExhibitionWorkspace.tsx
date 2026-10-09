@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState, lazy, Suspense, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, lazy, Suspense, type ReactNode } from "react";
 import { DocumentFilterSelect } from "./DocumentFilterSelect";
 import "./DocumentBrowser.css";
 import { api } from "../lib/api";
 import { INTERFACE_STYLES } from "../lib/interface-style";
 import type { AppConfig } from "../lib/storage/types";
 import { DOCUMENT_FAVORITES_CHANGED_EVENT, readDocumentFavorites } from "../lib/document-favorites";
-import { workspaceDocuments, workspaceCounts, type WorkspaceDocumentSummary, type WorkspaceSummaryKind } from "../lib/workspace-summary";
+import { workspaceDocuments, workspaceCounts, workspaceSummaryDocuments, type WorkspaceDocumentSummary, type WorkspaceSummaryKind } from "../lib/workspace-summary";
+import { WorkspaceSummaryPreview } from "./WorkspaceSummaryPreview";
 import { useLocalDay } from "../hooks/useLocalDay";
 import { readRecentNoteIds } from "../lib/quick-switcher";
 import type { Note } from "../types/models";
@@ -51,6 +52,31 @@ export function ExhibitionWorkspace(props: Props) {
   const [retry, setRetry] = useState(0);
   const day = useLocalDay();
   const counts = useMemo(() => workspaceCounts(documents, favorites, day), [documents, favorites, day]);
+  const [summaryPreview, setSummaryPreview] = useState<{ kind: WorkspaceSummaryKind; trigger: HTMLButtonElement; keyboard: boolean } | null>(null);
+  const summaryCloseTimer = useRef<ReturnType<typeof setTimeout>>();
+  const keepSummary = () => clearTimeout(summaryCloseTimer.current);
+  const closeSummary = (restoreFocus = false) => {
+    keepSummary();
+    if (restoreFocus) summaryPreview?.trigger.focus({ preventScroll: true });
+    setSummaryPreview(null);
+  };
+  const leaveSummary = () => {
+    keepSummary();
+    // Leave enough time to cross the small gap between trigger and portal.
+    summaryCloseTimer.current = setTimeout(() => setSummaryPreview(null), 160);
+  };
+  const previewEnabled = active && props.desktop && !busy && !blocked && !loading && !error;
+  useEffect(() => {
+    if (!previewEnabled) {
+      clearTimeout(summaryCloseTimer.current);
+      setSummaryPreview(null);
+    }
+    return () => clearTimeout(summaryCloseTimer.current);
+  }, [previewEnabled]);
+  const previewDocuments = useMemo(() => summaryPreview
+    ? [...workspaceSummaryDocuments(documents, summaryPreview.kind, favorites, day)].sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+    : [], [documents, summaryPreview, favorites, day]);
+  const previewTitle = summaryPreview ? { all: "全部文档", notes: "随记", today: "今日修改", favorites: "收藏" }[summaryPreview.kind] : "";
   useEffect(() => {
     const refresh = () => setFavorites(readDocumentFavorites());
     window.addEventListener("storage", refresh);
@@ -222,7 +248,13 @@ export function ExhibitionWorkspace(props: Props) {
                 ["favorites", "篇收藏", "查看收藏文档"],
               ] as const).map(([kind, label, name]) => <button key={kind} type="button"
                 className={`exhibition-summary-${kind}`} aria-label={name}
-                disabled={busy || blocked || loading || Boolean(error)} onClick={() => props.onSummary(kind)}>
+                aria-haspopup={props.desktop ? "dialog" : undefined} aria-expanded={props.desktop ? summaryPreview?.kind === kind : undefined}
+                onPointerEnter={event => { if (event.pointerType === "mouse" && previewEnabled) { keepSummary(); setSummaryPreview({ kind, trigger: event.currentTarget, keyboard: false }); } }}
+                onPointerLeave={leaveSummary}
+                onKeyDown={event => {
+                  if (event.key === "ArrowDown" && previewEnabled) { event.preventDefault(); keepSummary(); setSummaryPreview({ kind, trigger: event.currentTarget, keyboard: true }); }
+                }}
+                disabled={busy || blocked || loading || Boolean(error)} onClick={() => { closeSummary(); props.onSummary(kind); }}>
                 <strong>{loading || error ? "…" : counts[kind]}</strong><span>{label}</span>
               </button>)}
             </nav>
@@ -331,6 +363,9 @@ export function ExhibitionWorkspace(props: Props) {
           )}
         </section>
       )}
+      {previewEnabled && summaryPreview && <WorkspaceSummaryPreview key={summaryPreview.kind} title={previewTitle} documents={previewDocuments}
+        trigger={summaryPreview.trigger} keyboard={summaryPreview.keyboard} onEnter={keepSummary} onLeave={leaveSummary} onClose={closeSummary}
+        onOpen={id => { closeSummary(); open(id); }} />}
     </div>
   );
 }

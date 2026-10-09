@@ -36,6 +36,7 @@ import {
 import { mdToDelta } from "../lib/md-parser";
 import { deltaToProseMirror } from "../lib/delta-converter";
 import { flowParts } from "../lib/flow-block";
+import { FLOW_BLOCK_FOCUS_EVENT } from "../lib/flow-block-focus";
 import { renderReadonlyBlock } from "./ReadonlyVirtualNote";
 import type { ReadingBlockState } from "../lib/reading-block-session";
 import {
@@ -99,6 +100,7 @@ export function FlowBlockContent({ source }: { source: string }) {
     if (!root || !result) return;
     const owner = root.ownerDocument;
     const clearLine = () => {
+      if (activeBlock.current) root.dispatchEvent(new CustomEvent(FLOW_BLOCK_FOCUS_EVENT, { bubbles: true, detail: false }));
       activeBlock.current?.classList.remove("flow-active-block");
       activeBlock.current = null;
     };
@@ -215,6 +217,7 @@ export function FlowBlockContent({ source }: { source: string }) {
             activeBlock.current?.classList.remove("flow-active-block");
             block.classList.add("flow-active-block");
             activeBlock.current = block;
+            event.currentTarget.dispatchEvent(new CustomEvent(FLOW_BLOCK_FOCUS_EVENT, { bubbles: true, detail: true }));
           }
           // Inner read-only block positions belong to this projection, not the outer document.
           if (

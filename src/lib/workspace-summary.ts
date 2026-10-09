@@ -19,11 +19,23 @@ export function modifiedOnLocalDay(timestamp: string, day: string): boolean {
 }
 
 export function workspaceCounts(documents: WorkspaceDocumentSummary[], favorites: string[], day: string) {
-  const favoriteIds = new Set(favorites);
   return {
     all: documents.length,
-    notes: documents.filter(note => note.storagePath === QUICK_NOTES_PATH || note.storagePath?.startsWith(`${QUICK_NOTES_PATH}/`)).length,
-    today: documents.filter(note => modifiedOnLocalDay(note.updated_at, day)).length,
-    favorites: documents.filter(note => favoriteIds.has(note.id)).length,
+    notes: workspaceSummaryDocuments(documents, "notes", favorites, day).length,
+    today: workspaceSummaryDocuments(documents, "today", favorites, day).length,
+    favorites: workspaceSummaryDocuments(documents, "favorites", favorites, day).length,
   };
+}
+
+/** Counts and hover previews use the same path, local-day and favorite rules. */
+export function workspaceSummaryDocuments(documents: WorkspaceDocumentSummary[], kind: WorkspaceSummaryKind, favorites: string[], day: string) {
+  switch (kind) {
+    case "all": return documents;
+    case "notes": return documents.filter(note => note.storagePath === QUICK_NOTES_PATH || note.storagePath?.startsWith(`${QUICK_NOTES_PATH}/`));
+    case "today": return documents.filter(note => modifiedOnLocalDay(note.updated_at, day));
+    case "favorites": {
+      const ids = new Set(favorites);
+      return documents.filter(note => ids.has(note.id));
+    }
+  }
 }

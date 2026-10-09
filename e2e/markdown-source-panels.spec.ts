@@ -1,4 +1,6 @@
 import { sourceInfo, selectSource } from "./helpers/source-editor";
+import { createBlankDocument } from "./helpers/document";
+import { replaceSource } from "./helpers/source-editor";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 async function replace(page: Page, area: Locator, old: string, value: string) {
@@ -7,6 +9,41 @@ async function replace(page: Page, area: Locator, old: string, value: string) {
   await selectSource(area, from, from + old.length);
   await page.keyboard.insertText(value);
 }
+
+test("源码目录跟随光标，悬浮与固定面板均显示远处章节，视图按钮统一图标", async ({ page }) => {
+  await createBlankDocument(page, "源码目录跟随");
+  await page.locator(".ProseMirror:visible").evaluate(element => (element as any).editor.commands.setContent("<h2>起始</h2><p>正文</p>", true));
+  const outlineButton = page.getByRole("button", { name: "文档目录", exact: true });
+  const bookmarkButton = page.getByRole("button", { name: "文档书签", exact: true });
+  const icons = await Promise.all([outlineButton, bookmarkButton].map(button => button.locator("svg").evaluate(svg => svg.innerHTML)));
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  await expect(area).toBeVisible();
+  await expect(page.getByRole("button", { name: "渲染", exact: true }).locator("svg")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "并排预览", exact: true }).locator("svg")).toHaveCount(1);
+  for (const [i, button] of [outlineButton, bookmarkButton].entries()) expect(await button.locator("svg").evaluate(svg => svg.innerHTML)).toBe(icons[i]);
+  const source = Array.from({ length: 150 }, (_, i) => `## 章节 ${i}\n\n正文 ${i}`).join("\n\n");
+  await replaceSource(area, source);
+  await outlineButton.hover();
+  const panel = page.getByRole("navigation", { name: "文档目录", exact: true });
+  await expect(panel).toBeVisible();
+  await expect(panel.locator(".document-outline-count")).toHaveText("150 项");
+  const current = panel.locator('[aria-current="location"]');
+  const inList = async () => current.evaluate(item => {
+    const row = item.getBoundingClientRect(), list = item.closest(".document-outline-list")!.getBoundingClientRect();
+    return row.top >= list.top - 1 && row.bottom <= list.bottom + 1;
+  });
+  await selectSource(area, source.indexOf("正文 140"));
+  await expect(current).toContainText("章节 140");
+  await expect.poll(inList).toBe(true);
+  await outlineButton.click();
+  await expect(panel).not.toHaveAttribute("data-document-preview", "true");
+  await selectSource(area, source.indexOf("正文 3"));
+  await expect(current).toContainText("章节 3");
+  await expect.poll(inList).toBe(true);
+  await page.getByRole("button", { name: "渲染", exact: true }).click();
+  for (const [i, button] of [outlineButton, bookmarkButton].entries()) expect(await button.locator("svg").evaluate(svg => svg.innerHTML)).toBe(icons[i]);
+});
 
 for (const virtual of [false, true])
   test(`源码保留固定目录书签，实时更新并保存位置 ${virtual ? "局部只读入口" : "编辑入口"}`, async ({

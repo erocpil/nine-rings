@@ -63,6 +63,7 @@ export interface EditorToolbarProps {
     setTableCellAlignment: (align: "left" | "center" | "right") => void;
     handleCopy: () => Promise<void>;
     handleCopyBlock: () => Promise<void>;
+    copyReference: (kind: "block" | "position") => Promise<void>;
     handleCut: () => Promise<void>;
     handleClipboardPaste: () => Promise<void>;
     handleExportMarkdown: () => Promise<void>;
@@ -152,6 +153,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     <button className="menu-dropdown-item" onClick={() => { handleClipboardPaste(); closeMore(); }} type="button"><ToolbarIcon name="paste" />粘贴</button>
     </>}
     <button className="menu-dropdown-item" onClick={() => { void actions.handleCopyBlock(); closeMore(); }} type="button"><ToolbarIcon name="copy" />复制块</button>
+    <button className="menu-dropdown-item" onClick={() => { void actions.copyReference("block"); closeMore(); }} type="button"><ToolbarIcon name="link" />复制块引用</button>
+    <button className="menu-dropdown-item" onClick={() => { void actions.copyReference("position"); closeMore(); }} type="button"><ToolbarIcon name="link" />{hasSelection() ? "复制选中文字引用" : "复制此处引用"}</button>
     <div className="menu-dropdown-sep" />
     <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button"><ToolbarIcon name="export" />导出 Markdown</button>
     <button className="menu-dropdown-item" onClick={() => { setMoreOpen(false); handleExportPdf(); }} type="button"><ToolbarIcon name="document" />导出 PDF</button>

@@ -71,9 +71,13 @@ test("creates one ideas document and preserves source syntax for viewing", async
   };
   walk(doc);
   const autolinks = doc.content
-    ?.filter((node) => node.type === "bulletList")
-    .flatMap((list) => list.content ?? [])
-    .flatMap((item) => item.content ?? [])
+    ?.filter(
+      (node) =>
+        node.type === "paragraph" &&
+        node.content?.some((child) =>
+          child.text?.startsWith("GFM 扩展自动链接："),
+        ),
+    )
     .flatMap((paragraph) => paragraph.content ?? [])
     .flatMap((node) => node.marks ?? [])
     .filter((mark) => mark.type === "link")

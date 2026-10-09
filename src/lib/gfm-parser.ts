@@ -8,6 +8,7 @@ import { fromHtml } from "hast-util-from-html";
 import type { Root, Nodes, PhrasingContent } from "mdast";
 import type { DeltaOp, DeltaOps } from "../types/models";
 import type { TableEmbed } from "./table-embed";
+import { bareLinkParts, CJK_LINK_BOUNDARY } from "./bare-autolinks";
 
 export function markdownAST(source: string): Root {
   return fromMarkdown(source, {
@@ -182,6 +183,11 @@ function inline(
         break;
       case "link":
       case "linkReference": {
+        const raw = context.source.slice(node.position?.start.offset ?? 0, node.position?.end.offset ?? 0);
+        if (node.type === "link" && !raw.startsWith("[") && !raw.startsWith("<") && CJK_LINK_BOUNDARY.test(raw)) {
+          for (const part of bareLinkParts(raw)) addText(ops, part.text, { ...attributes, ...(part.href ? { link: part.href } : {}) });
+          break;
+        }
         const target =
           node.type === "link"
             ? node
@@ -193,6 +199,7 @@ function inline(
             ? {
                 ...attributes,
                 link: target.url,
+                ...(CJK_LINK_BOUNDARY.test(target.url) ? { linkExplicit: true } : {}),
                 ...(target.title ? { linkTitle: target.title } : {}),
               }
             : attributes,

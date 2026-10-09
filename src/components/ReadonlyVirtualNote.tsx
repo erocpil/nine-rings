@@ -50,6 +50,8 @@ import {
 import { listStyle } from "../extensions/OrderedListLayout";
 import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
 import { copyToClipboard } from "../lib/clipboard";
+import { referenceAnchorAt } from "../extensions/ReferenceAnchors";
+import { deltaToMarkdown } from "../lib/markdown-serializer";
 import { editorGutterWidth } from "../lib/editor-gutter";
 import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
@@ -392,7 +394,13 @@ export function ReadonlyVirtualNote(
   const [query, setQuery] = useState("");
   const [matchIndex, setMatchIndex] = useState(0);
   const matches = useMemo(() => findSearchMatches(doc, query), [doc, query]);
-  const activeMatch = matches[matchIndex];
+  const [referenceMatch, setReferenceMatch] = useState<SearchMatch | undefined>();
+  const activeMatch = referenceMatch ?? matches[matchIndex];
+  useEffect(() => {
+    if (!referenceMatch) return;
+    const timer = window.setTimeout(() => setReferenceMatch(undefined), 1400);
+    return () => window.clearTimeout(timer);
+  }, [referenceMatch]);
   const [selectionWindow, setSelectionWindow] = useState<
     [number, number] | null
   >(null);
@@ -421,14 +429,22 @@ export function ReadonlyVirtualNote(
   const preserve = useCallback(() => {
     pendingAnchor.current = capture();
   }, [capture]);
+  const previousFocus = useRef(props.focusMode);
   useLayoutEffect(() => {
-    preserve();
+    if (previousFocus.current !== props.focusMode) {
+      previousFocus.current = props.focusMode;
+      // Layout classes have already changed here. Capture before reflow via
+      // the last reading anchor, rather than a newly clamped scroll offset.
+      pendingAnchor.current = savedAnchor.current;
+      scrollBusy.current = false;
+    } else preserve();
     heights.current.clear();
     setRevision((value) => value + 1);
   }, [
     props.editorFontSize,
     props.cjkLatinSpacing,
     props.showLineNumbers,
+    props.focusMode,
     preserve,
   ]);
   const jump = useCallback(
@@ -442,8 +458,8 @@ export function ReadonlyVirtualNote(
       doc.descendants((node, pos) => {
         if (position < pos || position >= pos + node.nodeSize) return false;
         if (
-          position > pos &&
-          (node.type.name === "blockquote" || node.type.name === "codeBlock")
+          position >= pos &&
+          (node.type.name === "blockquote" || node.type.name === "codeBlock" || node.type.name === "htmlDetails")
         )
           states.set(pos, { ...states.get(pos), collapsed: false });
         return true;
@@ -607,7 +623,7 @@ export function ReadonlyVirtualNote(
     const resize = new ResizeObserver(() => {
       if (root.clientWidth <= 0 || root.clientHeight <= 0) return;
       if (root.clientWidth !== width) {
-        preserve();
+        if (!pendingAnchor.current) preserve();
         width = root.clientWidth;
         heights.current.clear();
         setRevision((value) => value + 1);
@@ -804,6 +820,18 @@ export function ReadonlyVirtualNote(
   useEffect(() => {
     const target = searchTarget;
     if (!target || target.noteId !== noteId) return;
+    if (target.referenceId) {
+      const anchor = props.content.metadata?.referenceAnchors?.find(item => item.id === target.referenceId && !item.deleted);
+      if (anchor) {
+        const match = anchor.kind === "range" ? { from: anchor.from, to: anchor.to } : undefined;
+        setReferenceMatch(match);
+        pendingBlockJump.current = match ? null : anchor.from;
+        jump(anchor.from, 0, match);
+      }
+      else setNotice("引用目标已删除或不存在");
+      onSearchTargetConsumed?.(target.requestId);
+      return;
+    }
     if (target.bookmarkId) {
       const bookmark = props.content.metadata?.bookmarks?.find(item => item.id === target.bookmarkId);
       if (bookmark) {
@@ -814,12 +842,13 @@ export function ReadonlyVirtualNote(
       return;
     }
     const found = findSearchMatches(doc, target.query);
+    setReferenceMatch(undefined);
     setQuery(target.query);
     setMatchIndex(0);
     openPanel("search");
     if (found[0]) jump(found[0].from, 0, found[0]);
     onSearchTargetConsumed?.(target.requestId);
-  }, [searchTarget, onSearchTargetConsumed, doc, noteId, jump, openPanel, props.content.metadata?.bookmarks]);
+  }, [searchTarget, onSearchTargetConsumed, doc, noteId, jump, openPanel, props.content.metadata?.bookmarks, props.content.metadata?.referenceAnchors]);
 
   const outlineTriggerRef = useRef<HTMLButtonElement>(null);
   const bookmarkTriggerRef = useRef<HTMLButtonElement>(null);
@@ -904,6 +933,18 @@ export function ReadonlyVirtualNote(
           catch { setNotice("复制块失败，请检查剪贴板权限后重试"); }
         }
       }}><ToolbarIcon name="copy" /></button>
+      <button type="button" title="复制块引用" aria-label="复制块引用" onMouseDown={event => event.preventDefault()} onClick={async () => {
+        const anchor = referenceAnchorAt(doc, "block", copyPosition.current ?? capture().position);
+        const existing = props.content.metadata?.referenceAnchors ?? [];
+        const reused = existing.find(item => !item.deleted && item.kind === anchor.kind && item.from === anchor.from && item.to === anchor.to);
+        const target = reused ?? anchor;
+        try {
+          if (!reused) props.onContentChange(() => ({ ...props.content, metadata: { ...props.content.metadata, referenceAnchors: [...existing, anchor] } }), { metadataOnly: true });
+          await props.onFlush?.();
+          await copyToClipboard(deltaToMarkdown({ ops: [{ insert: target.preview, attributes: { link: `nr-note://${noteId}#nr-ref-${target.id}` } }, { insert: "\n" }] }), { reportFailure: true });
+          setNotice("已复制引用，可粘贴到任意文档");
+        } catch { setNotice("复制引用失败，请重试"); }
+      }}><ToolbarIcon name="link" /></button>
       {props.documentViewToggle}
       <button
         ref={outlineTriggerRef}

@@ -131,17 +131,10 @@
   user-select: none;
 }
 
-/* A flow is one outer document block; native text selection remains independent. */
+/* Match other structured blocks: their opaque frame keeps its original color. */
 .flow-active-block { background: var(--activeline-bg); border-radius: 3px; }
-.flow-active-block .flow-block-content,
-.flow-active-block > .code-block-frame > .code-block-toolbar,
-.flow-active-block > .vr-code-toolbar,
-.flow-block-content.flow-active-block {
-  background-image: linear-gradient(var(--activeline-bg), var(--activeline-bg));
-}
+.node-codeBlock .flow-active-block { background: transparent; }
 .no-active-line .flow-active-block { background: transparent; }
-.no-active-line .flow-active-block .flow-block-content,
-.no-active-line .flow-active-block > .code-block-frame > .code-block-toolbar,
-.no-active-line .flow-active-block > .vr-code-toolbar,
-.no-active-line .flow-block-content.flow-active-block { background-image: none; }
-.editor-content:has(.flow-active-block) .ProseMirror-activeline { background: transparent; }
+.flow-block-content.flow-active-block { background: var(--bg); }
+.vr-row:has(.flow-active-block) > .vr-gutter > span { color: var(--accent); }
+.no-active-line .vr-row:has(.flow-active-block) > .vr-gutter > span { color: var(--text-secondary); }

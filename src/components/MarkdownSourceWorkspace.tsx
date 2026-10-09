@@ -24,12 +24,13 @@ import { FocusModeIcon } from "./FocusModeBar";
 
 export function MarkdownSourceWorkspace({
   revision,
-  areaRef,
+  sourceHandle,
   onJump,
   children,
 }: {
   revision: SourceNavigationDocument;
   areaRef: RefObject<SourceEditorHandle>;
+  sourceHandle: SourceEditorHandle | null;
   onJump: (offset: number) => void;
   children: (controls: ReactNode) => ReactNode;
 }) {
@@ -47,9 +48,10 @@ export function MarkdownSourceWorkspace({
     return () => clearTimeout(timer);
   }, [revision, mobile]);
   useEffect(() => {
-    const area = areaRef.current;
+    const area = sourceHandle;
     if (!area || mobile) return;
     const sync = () => setOffset(area.selectionStart);
+    sync();
     area.addEventListener("select", sync);
     area.addEventListener("keyup", sync);
     area.addEventListener("click", sync);
@@ -58,7 +60,7 @@ export function MarkdownSourceWorkspace({
       area.removeEventListener("keyup", sync);
       area.removeEventListener("click", sync);
     };
-  }, [areaRef, mobile]);
+  }, [sourceHandle, mobile]);
   const outline = useMemo(
     () => (mobile ? [] : snapshot.outline),
     [snapshot, mobile],
@@ -155,6 +157,7 @@ export function MarkdownSourceWorkspace({
           outline.length ? (
             <DocumentOutlineList
               entries={entries}
+              followActive
               activeOutlineIndex={active}
               outlineBaseLevel={outline.reduce(
                 (level, item) => Math.min(level, item.level),

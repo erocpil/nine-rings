@@ -5,7 +5,7 @@ import { isTauriRuntime } from "../lib/runtime";
 import { useTransientMessage } from "../hooks/useTransientMessage";
 import { api } from "../lib/api";
 import { isRelativeMarkdownLink, resolveRelativeDocumentLink, type LinkDocument } from "../lib/relative-document-link";
-import { internalNoteId } from "../lib/internal-note-link";
+import { internalNoteId, internalReferenceId } from "../lib/internal-note-link";
 import type { Note } from "../types/models";
 
 function linkAt(target: EventTarget | null): HTMLAnchorElement | null {
@@ -14,7 +14,7 @@ function linkAt(target: EventTarget | null): HTMLAnchorElement | null {
   return link?.closest(".editor-content") ? link : null;
 }
 
-export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { children: ReactNode; noteId: string; onOpenLinkedNote?: (note: Note) => Promise<void> }) {
+export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { children: ReactNode; noteId: string; onOpenLinkedNote?: (note: Note, referenceId?: string) => Promise<void> }) {
   const [menu, setMenu] = useState<{ url: string; x: number; y: number } | null>(null);
   const [suggestion, setSuggestion] = useState<{ path: string; candidates: LinkDocument[]; x: number; y: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -69,13 +69,13 @@ export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { child
       showMessage(`打开文档链接失败：${error instanceof Error ? error.message : String(error)}`);
     }
   };
-  const openInternal = async (id: string) => {
+  const openInternal = async (id: string, referenceId?: string) => {
     if (!onOpenLinkedNote) return;
     try {
       const note = await api.notes.get(id);
       if (!note || note.deleted_at) throw new Error("目标文档已不存在");
       close();
-      await onOpenLinkedNote(note);
+      await onOpenLinkedNote(note, referenceId);
     } catch (error) {
       showMessage(`打开文档链接失败：${error instanceof Error ? error.message : String(error)}`);
     }
@@ -115,7 +115,7 @@ export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { child
     close();
     const id = internalNoteId(url);
     if (id) {
-      await openInternal(id);
+      await openInternal(id, internalReferenceId(url) ?? undefined);
       return;
     }
     if (isRelativeMarkdownLink(url)) {
@@ -172,7 +172,7 @@ export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { child
       const id = internalNoteId(href);
       if (!link || (!id && !isRelativeMarkdownLink(href))) return;
       event.preventDefault(); event.stopPropagation();
-      if (id) { void openInternal(id); return; }
+      if (id) { void openInternal(id, internalReferenceId(href) ?? undefined); return; }
       const rect = link.getBoundingClientRect();
       void openRelative(href, link.textContent ?? "", rect.left, rect.bottom + 4);
     }}>

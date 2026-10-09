@@ -6,12 +6,14 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 // ── 高亮当前行扩展 ──
 
 interface ActiveLinePluginState {
+  readingBlockPosition: number | null;
   bookmarkJumpPosition: number | null;
   decorations: DecorationSet;
 }
 
 export interface ActiveLinePluginMeta {
-  bookmarkJumpPosition: number | null;
+  bookmarkJumpPosition?: number | null;
+  readingBlockPosition?: number | null;
 }
 
 export const activeLinePluginKey = new PluginKey<ActiveLinePluginState>(
@@ -22,9 +24,13 @@ function createActiveLineDecorations(
   document: ProseMirrorNode,
   selection: Selection,
   bookmarkJumpPosition: number | null,
+  readingBlockPosition: number | null = null,
 ): DecorationSet {
   const decorations: Decoration[] = [];
-  if (selection.$from.depth > 0) {
+  if (readingBlockPosition !== null && document.nodeAt(readingBlockPosition)) {
+    const node = document.nodeAt(readingBlockPosition)!;
+    decorations.push(Decoration.node(readingBlockPosition, readingBlockPosition + node.nodeSize, { class: "ProseMirror-activeline" }));
+  } else if (selection.$from.depth > 0) {
     const start = selection.$from.before(1);
     const end = selection.$from.after(1);
     if (start < end) {
@@ -54,6 +60,7 @@ export function createActiveLinePlugin() {
     state: {
       init(_, state): ActiveLinePluginState {
         return {
+          readingBlockPosition: null,
           bookmarkJumpPosition: null,
           decorations: createActiveLineDecorations(
             state.doc,
@@ -66,18 +73,25 @@ export function createActiveLinePlugin() {
         const meta = tr.getMeta(activeLinePluginKey) as
           ActiveLinePluginMeta | undefined;
         let bookmarkJumpPosition = current.bookmarkJumpPosition;
-        if (meta) {
+        let readingBlockPosition = meta?.readingBlockPosition !== undefined ? meta.readingBlockPosition : tr.selectionSet ? null : current.readingBlockPosition;
+        if (readingBlockPosition !== null && tr.docChanged) {
+          const mapped = tr.mapping.mapResult(readingBlockPosition, 1);
+          readingBlockPosition = mapped.deleted ? null : mapped.pos;
+        }
+        if (meta?.bookmarkJumpPosition !== undefined) {
           bookmarkJumpPosition = meta.bookmarkJumpPosition;
         } else if (bookmarkJumpPosition !== null && tr.docChanged) {
           const mapped = tr.mapping.mapResult(bookmarkJumpPosition, -1);
           bookmarkJumpPosition = mapped.deleted ? null : mapped.pos;
         }
         return {
+          readingBlockPosition,
           bookmarkJumpPosition,
           decorations: createActiveLineDecorations(
             tr.doc,
             tr.selection,
             bookmarkJumpPosition,
+            readingBlockPosition,
           ),
         };
       },

@@ -16,7 +16,7 @@ for (const { mode, width } of [
     page,
     browserName,
   }) => {
-    if (mode === "disabled") await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ highlight_active_line: false })));
+    await page.addInitScript(disabled => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true, highlight_active_line: !disabled })), mode === "disabled");
     if (mode === "virtual")
       await page.addInitScript(() =>
         localStorage.setItem("nr:experimentalReadonlyRendering", "true"),
@@ -81,7 +81,12 @@ for (const { mode, width } of [
             ? page.locator(".vr-note .flow-block-content")
             : page.locator(".editor-content-shell .flow-block-content");
     await expect(host).toBeVisible();
+    const originalBackground = await host.evaluate(element => getComputedStyle(element).backgroundColor);
     await host.locator("p").first().scrollIntoViewIfNeeded();
+    if (["edit", "disabled", "full"].includes(mode)) {
+      await page.locator(".note-editor:visible .tiptap.ProseMirror > p").filter({ hasText: "Outside flow." }).click();
+      await expect(page.locator(".note-editor:visible .editor-block-number.active")).toHaveText("2");
+    }
     await host.locator("p").first().click();
     const active = page.locator(".flow-active-block");
     await expect(active).toHaveCount(1);
@@ -91,9 +96,12 @@ for (const { mode, width } of [
     await expect(active).toHaveCount(1);
     await expect(active).toContainText("Alpha selectable text.");
     await expect(host.locator("p.flow-active-block, h2.flow-active-block")).toHaveCount(0);
-    const background = await host.evaluate(element => getComputedStyle(element).backgroundImage);
-    if (mode === "disabled") expect(background).toBe("none");
-    else expect(background).toContain("linear-gradient");
+    expect(await host.evaluate(element => getComputedStyle(element).backgroundImage)).toBe("none");
+    expect(await host.evaluate(element => getComputedStyle(element).backgroundColor)).toBe(originalBackground);
+    if (["edit", "disabled", "full"].includes(mode)) {
+      await expect(page.locator(".note-editor:visible .editor-block-number.active")).toHaveText("1");
+      await expect(page.locator(".note-editor:visible .ProseMirror-activeline")).toHaveAttribute("data-code-language", "flow");
+    }
     const points = await host.evaluate((element) => {
       const paragraphs = element.querySelectorAll("p");
       const point = (paragraph: Element, offset: number) => {
@@ -149,5 +157,10 @@ for (const { mode, width } of [
     }
     expect(copied.text).not.toContain("First stage");
     expect(copied.text).not.toContain("Outside flow");
+    if (["edit", "disabled", "full"].includes(mode)) {
+      await page.locator(".note-editor:visible .tiptap.ProseMirror > p").filter({ hasText: "Outside flow." }).click();
+      await expect(page.locator(".note-editor:visible .editor-block-number.active")).toHaveText("2");
+      await expect(page.locator(".flow-active-block")).toHaveCount(0);
+    }
   });
 }

@@ -1,4 +1,5 @@
 import { mergeDocumentMetadata } from "./lib/document-metadata";
+import { preserveReadingPositions } from "./lib/reading-position";
 import { ReadingTypographyProvider } from "./components/ReadingTypographyProvider";
 import { ensureFlowPresentationSample } from "./lib/flow-presentation-sample";
 import { ensureMarkdownDemo, MARKDOWN_DEMO_KEY } from "./lib/markdown-demo";
@@ -1664,10 +1665,11 @@ function App() {
                       onOpenSettings={() => setSettingsOpen(true)}
                       key={`${selectedNote.id}:${externalReloadKey}`}
                       onFlush={flushAutoSave}
-                      onOpenLinkedNote={async note => {
+                      onOpenLinkedNote={async (note, referenceId) => {
                         await flushAutoSave();
-                        handleSelectNote(note);
+                        handleSelectNote(await api.notes.get(note.id) ?? note);
                         closeSidebarOnNarrowScreen();
+                        if (referenceId) setEditorSearchTarget({ noteId: note.id, referenceId, query: "", requestId: ++searchRequestIdRef.current });
                       }}
                       onProtectionBusy={setProtectionBusy}
                       onSecurityError={message => useNotesStore.setState({ error: message })}
@@ -1763,7 +1765,7 @@ function App() {
                       onContentChange={read => { if (useNotesStore.getState().selectedNote?.id === selectedNote.id) handleContentChange(read); }}
                       onTagsChange={tags => { if (useNotesStore.getState().selectedNote?.id === selectedNote.id) handleTagsChange(tags); }}
                       onVersionOpen={() => setVersionOpen(true)}
-                      onFocusModeChange={setFocusMode}
+                      onFocusModeChange={next => preserveReadingPositions(() => setFocusMode(next))}
                       saveStatus={autoSave.status}
                     />
                   </Suspense>

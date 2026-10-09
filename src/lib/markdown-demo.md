@@ -224,13 +224,9 @@ console.log("内层代码");
 
 标准自动链接：<https://github.github.com/gfm/>、<demo@example.com>。
 
-GFM 扩展自动链接：
+GFM 扩展自动链接：https://github.github.com/gfm/、www.github.com，以及 demo@example.com。
 
-- https://github.github.com/gfm/
-- www.github.com
-- demo@example.com
-
-裸 URL 与周围文字应使用空白分隔。中文顿号、逗号等不会自动结束 URL；需要紧接中文标点时，使用 `<https://github.github.com/gfm/>` 或显式 Markdown 链接。
+Nine Rings 将中文标点及紧邻的中文正文视为裸链接的边界，以上应产生三个独立链接。需要在地址中保留中文路径时，使用 `<https://example.com/中文>` 或显式 Markdown 链接。
 
 ### 文档内标题跳转
 

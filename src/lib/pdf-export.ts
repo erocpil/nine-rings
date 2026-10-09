@@ -2,6 +2,7 @@ import type { DocumentMetadata } from "../types/models";
 import { applyCodeHighlighting } from "./code-highlight";
 import { isTauriRuntime } from "./runtime";
 import { renderMermaid } from "./mermaid-render";
+import { tocLevels, outlineLabel } from "./heading-links";
 
 export interface PdfDocumentInfo extends DocumentMetadata {
   documentType?: string;
@@ -109,6 +110,9 @@ const PRINT_STYLES = `
   .document-content img { display: block; max-width: 100%; height: auto; margin: 1em auto; break-inside: avoid-page; }
   .document-content hr { margin: 1.8em 0; border: 0; border-top: 1px solid #bfc3ca; }
   .document-content li { margin: 0.2em 0; }
+  .document-content .print-toc { margin: 1em 0; padding: 14px 16px; border: 1px solid #bfc3ca; border-radius: 7px; }
+  .document-content .print-toc ol { list-style: none; padding: 0; margin: 8px 0 0; }
+  .document-content .print-toc li { break-inside: avoid-page; }
   .document-content .print-flow { margin: 1em 0; padding: 16px 20px; border: 1px solid #bfc3ca; border-radius: 9px; }
   .document-content .print-flow-stages { margin-left: 13px; }
   .document-content .print-flow-step { position: relative; padding: 0 0 24px 29px; border-left: 1px dashed #aab2c0; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
@@ -336,6 +340,7 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
     }
     heading.id = headingId(heading.textContent ?? "", index, usedIds);
   });
+  renderPrintToc(content);
   })();
 
   wrapper.append(...coverNodes, content);
@@ -377,4 +382,30 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
     else window.alert(`无法导出 PDF：${error.message}`);
   });
   return true;
+}
+
+/** Materialize configured TOCs after all rendered headings have their PDF IDs. */
+export function renderPrintToc(root: HTMLElement): void {
+  const headings = [...root.querySelectorAll<HTMLHeadingElement>("h1,h2,h3,h4,h5,h6")];
+  for (const pre of [...root.querySelectorAll<HTMLPreElement>('pre[data-language="toc"]')]) {
+    const levels = tocLevels(pre.textContent ?? "");
+    const nav = root.ownerDocument.createElement("nav");
+    nav.className = "print-toc";
+    nav.setAttribute("aria-label", "文档目录");
+    const label = root.ownerDocument.createElement("strong");
+    label.textContent = "目录";
+    const list = root.ownerDocument.createElement("ol");
+    for (const heading of headings.filter(heading => levels.includes(Number(heading.tagName.slice(1))))) {
+      const item = root.ownerDocument.createElement("li");
+      item.style.paddingLeft = `${(Number(heading.tagName.slice(1)) - Math.min(...levels)) * 16}px`;
+      const link = root.ownerDocument.createElement("a");
+      link.href = `#${encodeURIComponent(heading.id)}`;
+      link.textContent = outlineLabel(heading.textContent ?? "");
+      item.append(link);
+      list.append(item);
+    }
+    nav.append(label, list);
+    if (!list.childElementCount) list.textContent = "没有符合级别设置的标题";
+    pre.replaceWith(nav);
+  }
 }
