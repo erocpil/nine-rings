@@ -64,6 +64,7 @@ export function MarkdownSplitPreview({
   fontSize,
   enabled,
   flowLevel = 0,
+  highlightActiveLine = true,
 }: {
   revision: SourceNavigationDocument;
   areaRef: RefObject<SourceEditorHandle>;
@@ -71,6 +72,7 @@ export function MarkdownSplitPreview({
   fontSize: number;
   enabled: boolean;
   flowLevel?: number;
+  highlightActiveLine?: boolean;
 }) {
   const [snapshot, setSnapshot] = useState<ReturnType<
     typeof previewDocument
@@ -184,7 +186,7 @@ export function MarkdownSplitPreview({
     element?.scrollIntoView({ block: "start" });
   } }), [snapshot, blocks]);
   return (
-    <DocumentOutlineContext.Provider value={tocContext}><div className="markdown-split-preview">
+    <DocumentOutlineContext.Provider value={tocContext}><div className={`markdown-split-preview${highlightActiveLine ? "" : " no-active-line"}`}>
       <div
         className="markdown-split-source"
         ref={source}

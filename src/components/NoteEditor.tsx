@@ -4298,7 +4298,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         )}
       </div>}
 
-      <BlockWorkspaceHost vimModeEnabled={vimModeEnabled} key={noteId} noteId={noteId} source={editor} readonly={readonly} sensitive={sensitive} saveStatus={saveStatus} onFlush={onFlush} />
+      <BlockWorkspaceHost highlightActiveLine={highlightActiveLine} vimModeEnabled={vimModeEnabled} key={noteId} noteId={noteId} source={editor} readonly={readonly} sensitive={sensitive} saveStatus={saveStatus} onFlush={onFlush} />
       <EditorContextMenu
         editor={editor} readonly={readonly}
         contextMenu={contextMenu} contextMenuRef={contextMenuRef}

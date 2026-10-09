@@ -81,6 +81,7 @@ export function parseFlowDocument(source: string) {
 /** A single read-only projection used by the document, source preview and block workspace. */
 export function FlowBlockContent({ source }: { source: string }) {
   const host = useRef<HTMLDivElement>(null);
+  const activeLine = useRef<HTMLElement | null>(null);
   const depth = useContext(nesting);
   const [states, setStates] = useState(new Map<number, ReadingBlockState>());
   const result = useMemo(() => {
@@ -97,6 +98,14 @@ export function FlowBlockContent({ source }: { source: string }) {
     const root = host.current;
     if (!root || !result) return;
     const owner = root.ownerDocument;
+    const clearLine = () => {
+      activeLine.current?.classList.remove("flow-active-line");
+      activeLine.current = null;
+    };
+    const clearOutside = (event: Event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest(".flow-block-content") !== root || target.closest("button, input, textarea, select")) clearLine();
+    };
     const copy = (event: ClipboardEvent) => {
       if (
         event.target instanceof Element &&
@@ -145,7 +154,14 @@ export function FlowBlockContent({ source }: { source: string }) {
     // Browser copy can target the focused outer editor or body, so bind to
     // document capture and scope by the actual native selection, not focus.
     owner.addEventListener("copy", copy, true);
-    return () => owner.removeEventListener("copy", copy, true);
+    owner.addEventListener("pointerdown", clearOutside, true);
+    owner.addEventListener("focusin", clearOutside, true);
+    return () => {
+      clearLine();
+      owner.removeEventListener("copy", copy, true);
+      owner.removeEventListener("pointerdown", clearOutside, true);
+      owner.removeEventListener("focusin", clearOutside, true);
+    };
   }, [result]);
   if (depth >= 3 || !result)
     return (
@@ -159,7 +175,7 @@ export function FlowBlockContent({ source }: { source: string }) {
   if (!source.trim())
     return (
       <div className="flow-block-empty">
-        在源码或块模式中使用 ## 标题编写流程阶段。
+        在源码或块模式中使用 ### 标题编写流程阶段。
       </div>
     );
   const render = (node: PMNode) => {
@@ -193,6 +209,15 @@ export function FlowBlockContent({ source }: { source: string }) {
         ref={host}
         className="flow-block-content editor-content"
         onClickCapture={(event) => {
+          const element = event.target instanceof Element ? event.target : null;
+          if (element?.closest(".flow-block-content") === event.currentTarget && !element.closest("button, input, textarea, select")) {
+            const line = element.closest<HTMLElement>("p, h1, h2, h3, h4, h5, h6, li, td, th, .vr-code-line, pre, summary, .nr-math-block");
+            if (line && event.currentTarget.contains(line)) {
+              activeLine.current?.classList.remove("flow-active-line");
+              line.classList.add("flow-active-line");
+              activeLine.current = line;
+            }
+          }
           // Inner read-only block positions belong to this projection, not the outer document.
           if (
             event.target instanceof Element &&

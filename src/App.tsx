@@ -1,7 +1,7 @@
 import { mergeDocumentMetadata } from "./lib/document-metadata";
 import { ReadingTypographyProvider } from "./components/ReadingTypographyProvider";
 import { ensureFlowPresentationSample } from "./lib/flow-presentation-sample";
-import { ensureMarkdownDemo } from "./lib/markdown-demo";
+import { ensureMarkdownDemo, MARKDOWN_DEMO_KEY } from "./lib/markdown-demo";
 import { RetainedDocument } from "./components/RetainedDocument";
 import { useWorkspaceLayout } from "./hooks/useWorkspaceLayout";
 import { readDesktopSidebarState, saveDesktopSidebarState, normalizeSidebarOrder, sidebarPanelLabel } from "./lib/desktop-sidebar-state";
@@ -829,6 +829,16 @@ function App() {
     // 延迟一下确保存储就绪
     const timer = setTimeout(async () => {
       try {
+        const upgradeMarkdownDemo = async () => {
+          if (!await ensureMarkdownDemo()) return;
+          refreshNoteViews();
+          const current = useNotesStore.getState().selectedNote;
+          if (current?.readonly && current.id === localStorage.getItem(MARKDOWN_DEMO_KEY)) {
+            // Retained editors deliberately ignore external body replacements.
+            // This guarded, readonly sample upgrade must replace that instance.
+            setExternalReloadKey(key => key + 1);
+          }
+        };
         const today = new Date();
         const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
         // 检查整个工作区，避免误判为全新数据库。
@@ -839,7 +849,7 @@ function App() {
           localStorage.setItem(SEED_KEY, "1");
           if (await ensureAestheticStyleSample()) refreshNoteViews();
           if (await ensureFlowPresentationSample()) refreshNoteViews();
-          if (await ensureMarkdownDemo()) refreshNoteViews();
+          await upgradeMarkdownDemo();
           return;
         }
         // 整个工作区为空 → 写入示例笔记
@@ -858,7 +868,7 @@ function App() {
         refreshNotes(); // 刷新
         if (await ensureAestheticStyleSample()) refreshNoteViews();
         if (await ensureFlowPresentationSample()) refreshNoteViews();
-        if (await ensureMarkdownDemo()) refreshNoteViews();
+        await upgradeMarkdownDemo();
       } catch {
         // 静默忽略——非首次运行或环境问题
       }

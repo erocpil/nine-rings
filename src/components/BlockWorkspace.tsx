@@ -33,7 +33,7 @@ const CodeMirrorBlockEditor = lazy(() => import("./CodeMirrorBlockEditor").then(
 
 type Request = { position: number; trigger: HTMLElement; restoreFocus?: boolean; startInEditMode?: boolean; selectedPositions?: number[] };
 type Navigate = (position: number, selectedPositions: number[] | undefined, startInEditMode: boolean) => void;
-type Props = { source: Editor; vimModeEnabled?: boolean; noteId?: string; readonly?: boolean; sensitive?: boolean; saveStatus?: string; onFlush?: () => Promise<void> };
+type Props = { source: Editor; vimModeEnabled?: boolean; highlightActiveLine?: boolean; noteId?: string; readonly?: boolean; sensitive?: boolean; saveStatus?: string; onFlush?: () => Promise<void> };
 
 export function BlockWorkspaceHost(props: Props) {
   const [request, setRequest] = useState<Request | null>(null);
@@ -78,7 +78,7 @@ export function BlockWorkspaceHost(props: Props) {
 
 /** A scoped view of the original block. Edits are mapped into the source
  * transaction stream; only the source owns undo history and persistence. */
-function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, saveStatus, onFlush, request, onClose, onNavigate }: Props & { request: Request; onClose: () => void; onNavigate: Navigate }) {
+function BlockWorkspace({ source, vimModeEnabled = false, highlightActiveLine = true, readonly, sensitive, saveStatus, onFlush, request, onClose, onNavigate }: Props & { request: Request; onClose: () => void; onNavigate: Navigate }) {
   const initial = useMemo(() => source.state.doc.nodeAt(request.position)!, [source, request]);
   const position = useRef(request.position);
   // Track document positions through every edit, including this workspace's
@@ -396,7 +396,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
   const iconButton = (label: string, icon: Parameters<typeof ToolbarIcon>[0]["name"], run: () => void) =>
     <button type="button" title={label} aria-label={label} onMouseDown={event => event.preventDefault()} onClick={run}><ToolbarIcon name={icon} /></button>;
 
-  return createPortal(<dialog ref={dialog} tabIndex={-1} className="block-workspace" data-block-type={rootType} role="dialog" aria-modal="true" aria-label={`${name}工作区`}
+  return createPortal(<dialog ref={dialog} tabIndex={-1} className={`block-workspace${highlightActiveLine ? "" : " no-active-line"}`} data-block-type={rootType} role="dialog" aria-modal="true" aria-label={`${name}工作区`}
     onCancel={event => { event.preventDefault(); if (!editor?.view.composing) void close(); }}
     onKeyDownCapture={event => {
       // Handle block search before editor keymaps; Mac Control+F stays with

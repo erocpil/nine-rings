@@ -1,12 +1,33 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ search: vi.fn(), create: vi.fn() }));
-vi.mock("../../src/lib/api", () => ({
-  api: { docs: { search: mocks.search }, notes: { create: mocks.create } },
+const mocks = vi.hoisted(() => ({
+  search: vi.fn(),
+  create: vi.fn(),
+  get: vi.fn(),
+  update: vi.fn(),
+  select: vi.fn(),
+  selected: null as { id: string; readonly: boolean } | null,
 }));
+vi.mock("../../src/lib/api", () => ({
+  api: {
+    docs: { search: mocks.search },
+    notes: { create: mocks.create, get: mocks.get, update: mocks.update },
+  },
+}));
+vi.mock("../../src/stores/useNotesStore", () => ({
+  useNotesStore: {
+    getState: () => ({
+      selectedNote: mocks.selected,
+      selectNote: mocks.select,
+    }),
+  },
+}));
+import markdown from "../../src/lib/markdown-demo.md?raw";
+import { buildMarkdownImportInput } from "../../src/lib/markdown-import";
 import {
   ensureMarkdownDemo,
   MARKDOWN_DEMO_KEY,
   MARKDOWN_DEMO_TITLE,
+  MARKDOWN_DEMO_FLOW_KEY,
 } from "../../src/lib/markdown-demo";
 import { deltaToProseMirror } from "../../src/lib/delta-converter";
 
@@ -19,6 +40,12 @@ beforeEach(() => {
   vi.stubGlobal("navigator", {});
   mocks.search.mockReset().mockResolvedValue([]);
   mocks.create.mockReset().mockResolvedValue({ id: "demo" });
+  mocks.get.mockReset().mockResolvedValue(null);
+  mocks.update
+    .mockReset()
+    .mockImplementation(async (id, changes) => ({ id, ...changes }));
+  mocks.select.mockReset();
+  mocks.selected = null;
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -96,5 +123,77 @@ test("failed persistence remains retryable", async () => {
   mocks.create.mockRejectedValueOnce(new Error("disk full"));
   await expect(ensureMarkdownDemo()).rejects.toThrow("disk full");
   expect(localStorage.getItem(MARKDOWN_DEMO_KEY)).toBeNull();
+  expect(await ensureMarkdownDemo()).toBe(true);
+});
+
+function oldDemo(custom = false) {
+  const source =
+    "用户补充，保留原文。\n\n" +
+    markdown.replace(/^### (捕捉|行动|复核)$/gm, "## $1");
+  const content = buildMarkdownImportInput(
+    "markdown-demo.md",
+    custom ? source.replace("## 捕捉", "## 自定义捕捉") : source,
+    { date: "2026-10-10", storagePath: "ideas" },
+  ).content;
+  return {
+    id: "old-demo",
+    title: MARKDOWN_DEMO_TITLE,
+    storagePath: "ideas",
+    content,
+  };
+}
+test("upgrades only the unchanged old flow snippet, preserving other content and original source", async () => {
+  const note = oldDemo();
+  mocks.get.mockResolvedValue(note);
+  localStorage.setItem(MARKDOWN_DEMO_KEY, note.id);
+  expect(await ensureMarkdownDemo()).toBe(true);
+  const updated = mocks.update.mock.calls[0][1].content;
+  expect(updated.metadata.markdownSource).toBe(
+    "用户补充，保留原文。\n\n" + markdown,
+  );
+  expect(deltaToProseMirror(updated)).toEqual(
+    deltaToProseMirror(
+      buildMarkdownImportInput(
+        "markdown-demo.md",
+        updated.metadata.markdownSource,
+        { date: "2026-10-10", storagePath: "ideas" },
+      ).content,
+    ),
+  );
+  expect(
+    updated.ops.filter(
+      (op: unknown, i: number) =>
+        JSON.stringify(op) !== JSON.stringify(note.content.ops[i]),
+    ),
+  ).toHaveLength(1);
+  await ensureMarkdownDemo();
+  expect(mocks.update).toHaveBeenCalledTimes(1);
+});
+test("does not overwrite a customized flow or recreate a deleted demo", async () => {
+  const note = oldDemo(true);
+  mocks.get.mockResolvedValue(note);
+  localStorage.setItem(MARKDOWN_DEMO_KEY, note.id);
+  expect(await ensureMarkdownDemo()).toBe(false);
+  expect(mocks.update).not.toHaveBeenCalled();
+  expect(mocks.create).not.toHaveBeenCalled();
+});
+test("defers an editable mounted demo, but refreshes the readonly one", async () => {
+  const note = oldDemo();
+  mocks.get.mockResolvedValue(note);
+  localStorage.setItem(MARKDOWN_DEMO_KEY, note.id);
+  mocks.selected = { id: note.id, readonly: false };
+  expect(await ensureMarkdownDemo()).toBe(false);
+  expect(localStorage.getItem(MARKDOWN_DEMO_FLOW_KEY)).toBeNull();
+  mocks.selected = { id: note.id, readonly: true };
+  expect(await ensureMarkdownDemo()).toBe(true);
+  expect(mocks.select).toHaveBeenCalledOnce();
+});
+test("failed flow upgrade stays retryable", async () => {
+  const note = oldDemo();
+  mocks.get.mockResolvedValue(note);
+  localStorage.setItem(MARKDOWN_DEMO_KEY, note.id);
+  mocks.update.mockRejectedValueOnce(new Error("disk full"));
+  await expect(ensureMarkdownDemo()).rejects.toThrow("disk full");
+  expect(localStorage.getItem(MARKDOWN_DEMO_FLOW_KEY)).toBeNull();
   expect(await ensureMarkdownDemo()).toBe(true);
 });

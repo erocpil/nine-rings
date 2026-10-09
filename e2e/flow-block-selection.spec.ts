@@ -3,6 +3,8 @@ import type { Editor } from "@tiptap/core";
 import { createBlankDocument, waitForSavedText } from "./helpers/document";
 
 for (const { mode, width } of [
+  { mode: "edit", width: 1280 },
+  { mode: "disabled", width: 1280 },
   { mode: "full", width: 1280 },
   { mode: "virtual", width: 1280 },
   { mode: "workspace", width: 1280 },
@@ -14,6 +16,7 @@ for (const { mode, width } of [
     page,
     browserName,
   }) => {
+    if (mode === "disabled") await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ highlight_active_line: false })));
     if (mode === "virtual")
       await page.addInitScript(() =>
         localStorage.setItem("nr:experimentalReadonlyRendering", "true"),
@@ -52,7 +55,7 @@ for (const { mode, width } of [
         .click({ position: { x: 380, y: 400 } });
       await expect(page.locator(".sidebar-overlay")).toHaveCSS("opacity", "0");
     }
-    await page
+    if (mode !== "edit") await page
       .getByRole("button", { name: "点击设为只读", exact: true })
       .click();
     if (mode === "virtual")
@@ -67,6 +70,7 @@ for (const { mode, width } of [
         await page
           .getByRole("button", { name: "并排预览", exact: true })
           .click();
+      await page.locator(".markdown-preview-scroll .flow-block-wrap").scrollIntoViewIfNeeded();
     }
     const host =
       mode === "workspace"
@@ -78,6 +82,13 @@ for (const { mode, width } of [
             : page.locator(".editor-content-shell .flow-block-content");
     await expect(host).toBeVisible();
     await host.locator("p").first().scrollIntoViewIfNeeded();
+    await host.locator("p").first().click();
+    await expect(host.locator(".flow-active-line")).toHaveText("Alpha selectable text.");
+    await host.locator("p").nth(1).click();
+    await expect(host.locator(".flow-active-line")).toHaveText("Beta copied paragraph.");
+    const background = await host.locator(".flow-active-line").evaluate(element => getComputedStyle(element).backgroundColor);
+    if (mode === "disabled") expect(background).toBe("rgba(0, 0, 0, 0)");
+    else expect(background).not.toBe("rgba(0, 0, 0, 0)");
     const points = await host.evaluate((element) => {
       const paragraphs = element.querySelectorAll("p");
       const point = (paragraph: Element, offset: number) => {

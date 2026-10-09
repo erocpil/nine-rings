@@ -130,3 +130,8 @@
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* Derived flow text uses native selection, so its reading focus is view-only. */
+.flow-active-line { background: var(--activeline-bg); border-radius: 3px; }
+.no-active-line .flow-active-line { background: transparent; }
+.editor-content:has(.flow-active-line) .ProseMirror-activeline { background: transparent; }
