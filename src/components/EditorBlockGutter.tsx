@@ -1,4 +1,5 @@
 import { EditorFoldIcon } from "./EditorFoldIcon";
+import { useDocumentActive } from "./RetainedDocument";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
@@ -141,6 +142,7 @@ interface EditorBlockGutterProps {
  * ResizeObserver 只重新测量这部分节点，避免长文档复制一整套 gutter DOM。
  */
 export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, selectedBlockIndexes = [], onBlockSelect, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
+  const documentActive = useDocumentActive();
   const rootRef = useRef<HTMLDivElement>(null);
   const suppressCompatibilityClickUntilRef = useRef(0);
   const lastTouchActionAtRef = useRef(0);
@@ -156,7 +158,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
   useEffect(() => {
     const root = rootRef.current;
     const scrollRoot = root?.closest<HTMLElement>(".note-editor-scroll");
-    if (!root || !scrollRoot || editor.isDestroyed) return;
+    if (!documentActive || !root || !scrollRoot || editor.isDestroyed) return;
 
     const needsAllBlocks = showNumbers || (showInsertButtons && !readonly) || bookmarkPositions.length > 0 || selectingBlocks;
     const needsHeadings = Boolean(onHeadingFoldToggle);
@@ -634,7 +636,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       if (rebuildFrame) cancelAnimationFrame(rebuildFrame);
       if (windowFrame) cancelAnimationFrame(windowFrame);
     };
-  }, [bookmarkPositions.length, compact, editor, onBlockCountChange, onHeadingFoldToggle, readonly, selectingBlocks, showInsertButtons, showNumbers]);
+  }, [bookmarkPositions.length, compact, documentActive, editor, onBlockCountChange, onHeadingFoldToggle, readonly, selectingBlocks, showInsertButtons, showNumbers]);
 
   const insertParagraph = (pos: number) => {
     const safePos = Math.min(Math.max(0, pos), editor.state.doc.content.size);

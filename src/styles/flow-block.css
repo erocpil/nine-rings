@@ -131,7 +131,17 @@
   user-select: none;
 }
 
-/* Derived flow text uses native selection, so its reading focus is view-only. */
-.flow-active-line { background: var(--activeline-bg); border-radius: 3px; }
-.no-active-line .flow-active-line { background: transparent; }
-.editor-content:has(.flow-active-line) .ProseMirror-activeline { background: transparent; }
+/* A flow is one outer document block; native text selection remains independent. */
+.flow-active-block { background: var(--activeline-bg); border-radius: 3px; }
+.flow-active-block .flow-block-content,
+.flow-active-block > .code-block-frame > .code-block-toolbar,
+.flow-active-block > .vr-code-toolbar,
+.flow-block-content.flow-active-block {
+  background-image: linear-gradient(var(--activeline-bg), var(--activeline-bg));
+}
+.no-active-line .flow-active-block { background: transparent; }
+.no-active-line .flow-active-block .flow-block-content,
+.no-active-line .flow-active-block > .code-block-frame > .code-block-toolbar,
+.no-active-line .flow-active-block > .vr-code-toolbar,
+.no-active-line .flow-block-content.flow-active-block { background-image: none; }
+.editor-content:has(.flow-active-block) .ProseMirror-activeline { background: transparent; }

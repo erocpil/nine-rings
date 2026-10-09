@@ -81,7 +81,7 @@ export function parseFlowDocument(source: string) {
 /** A single read-only projection used by the document, source preview and block workspace. */
 export function FlowBlockContent({ source }: { source: string }) {
   const host = useRef<HTMLDivElement>(null);
-  const activeLine = useRef<HTMLElement | null>(null);
+  const activeBlock = useRef<HTMLElement | null>(null);
   const depth = useContext(nesting);
   const [states, setStates] = useState(new Map<number, ReadingBlockState>());
   const result = useMemo(() => {
@@ -99,8 +99,8 @@ export function FlowBlockContent({ source }: { source: string }) {
     if (!root || !result) return;
     const owner = root.ownerDocument;
     const clearLine = () => {
-      activeLine.current?.classList.remove("flow-active-line");
-      activeLine.current = null;
+      activeBlock.current?.classList.remove("flow-active-block");
+      activeBlock.current = null;
     };
     const clearOutside = (event: Event) => {
       const target = event.target instanceof Element ? event.target : null;
@@ -211,12 +211,10 @@ export function FlowBlockContent({ source }: { source: string }) {
         onClickCapture={(event) => {
           const element = event.target instanceof Element ? event.target : null;
           if (element?.closest(".flow-block-content") === event.currentTarget && !element.closest("button, input, textarea, select")) {
-            const line = element.closest<HTMLElement>("p, h1, h2, h3, h4, h5, h6, li, td, th, .vr-code-line, pre, summary, .nr-math-block");
-            if (line && event.currentTarget.contains(line)) {
-              activeLine.current?.classList.remove("flow-active-line");
-              line.classList.add("flow-active-line");
-              activeLine.current = line;
-            }
+            const block = event.currentTarget.closest<HTMLElement>(".flow-block-wrap") ?? event.currentTarget;
+            activeBlock.current?.classList.remove("flow-active-block");
+            block.classList.add("flow-active-block");
+            activeBlock.current = block;
           }
           // Inner read-only block positions belong to this projection, not the outer document.
           if (

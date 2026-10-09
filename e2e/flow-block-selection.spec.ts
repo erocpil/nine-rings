@@ -83,12 +83,17 @@ for (const { mode, width } of [
     await expect(host).toBeVisible();
     await host.locator("p").first().scrollIntoViewIfNeeded();
     await host.locator("p").first().click();
-    await expect(host.locator(".flow-active-line")).toHaveText("Alpha selectable text.");
+    const active = page.locator(".flow-active-block");
+    await expect(active).toHaveCount(1);
+    await expect(active).toContainText("Alpha selectable text.");
+    await expect(active).toContainText("Final text.");
     await host.locator("p").nth(1).click();
-    await expect(host.locator(".flow-active-line")).toHaveText("Beta copied paragraph.");
-    const background = await host.locator(".flow-active-line").evaluate(element => getComputedStyle(element).backgroundColor);
-    if (mode === "disabled") expect(background).toBe("rgba(0, 0, 0, 0)");
-    else expect(background).not.toBe("rgba(0, 0, 0, 0)");
+    await expect(active).toHaveCount(1);
+    await expect(active).toContainText("Alpha selectable text.");
+    await expect(host.locator("p.flow-active-block, h2.flow-active-block")).toHaveCount(0);
+    const background = await host.evaluate(element => getComputedStyle(element).backgroundImage);
+    if (mode === "disabled") expect(background).toBe("none");
+    else expect(background).toContain("linear-gradient");
     const points = await host.evaluate((element) => {
       const paragraphs = element.querySelectorAll("p");
       const point = (paragraph: Element, offset: number) => {
