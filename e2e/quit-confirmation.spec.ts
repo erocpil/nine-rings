@@ -38,6 +38,10 @@ test("原生退出事件首次提示，超时重新确认，保存完成后才�
   await expect.poll(() => page.evaluate(() => Boolean((window as any).quitListenerReady))).toBe(true);
   await press();
   await expect(page.locator(".quit-confirmation-hint")).toHaveText("再次按下 ⌘Q 退出（2 秒内）");
+  await expect(page.locator(".quit-confirmation-hint")).toHaveCSS("font-size", "16px");
+  const bounds = (await page.locator(".quit-confirmation-hint").boundingBox())!;
+  expect(bounds.y).toBeGreaterThanOrEqual(48);
+  expect(bounds.y + bounds.height).toBeLessThan(140);
   await expect.poll(() => page.evaluate(() => (window as any).quitTestCalls)).toEqual([]);
   await expect(page.locator(".quit-confirmation-hint")).toHaveCount(0);
   await press();

@@ -62,7 +62,7 @@ import { WebStatusBanner } from "./components/WebStatusBanner";
 import { BackupRestoreStatus } from "./components/BackupRestoreStatus";
 import { SearchResultsPanel } from "./components/SearchResultsPanel";
 import { subscribeToDataChanges } from "./lib/tab-coordination";
-import { rememberRecentNote } from "./lib/quick-switcher";
+import { rememberRecentNote, markRecentNoteEdited } from "./lib/quick-switcher";
 import {
   cacheEditorDocument,
   promoteCachedEditorDocument,
@@ -181,6 +181,7 @@ function App() {
     onSave: async (noteId, data) => {
       const updated = await updateNote(noteId, data);
       promoteCachedEditorDocument(noteId, updated.updated_at);
+      markRecentNoteEdited(noteId);
     },
   });
   const flushAutoSave = autoSave.flush;

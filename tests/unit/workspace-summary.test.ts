@@ -99,7 +99,7 @@ describe("workspace summary", () => {
         "2026-10-10",
         visits,
       ).map((note) => note.id),
-    ).toEqual(Array.from({ length: 15 }, (_, i) => String(i + 5)));
+    ).toEqual(Array.from({ length: 16 }, (_, i) => String(i + 4)));
     expect(
       workspaceSummaryPreviewDocuments(
         documents,

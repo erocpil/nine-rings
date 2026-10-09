@@ -2,6 +2,7 @@ import type { Note } from "../types/models";
 
 export const RECENT_NOTES_KEY = "nr:recentNotes";
 export const RECENT_NOTES_LIMIT = 20;
+export const RECENT_NOTE_EDITS_KEY = "nr:recentNoteEdits";
 export const RECENT_NOTES_CHANGED_EVENT = "nr:recentNotesChanged";
 
 interface RecentStorage {
@@ -25,7 +26,28 @@ export function rememberRecentNote(id: string, storage: RecentStorage = localSto
   const next = [id, ...readRecentNoteIds(storage).filter((candidate) => candidate !== id)]
     .slice(0, RECENT_NOTES_LIMIT);
   storage.setItem(RECENT_NOTES_KEY, JSON.stringify(next));
+  try {
+    storage.setItem(RECENT_NOTE_EDITS_KEY, JSON.stringify(readRecentEditedNoteIds(storage).filter(candidate => next.includes(candidate))));
+  } catch { /* Optional presentation metadata must not block navigation. */ }
   if (typeof window !== "undefined") window.dispatchEvent(new Event(RECENT_NOTES_CHANGED_EVENT));
+}
+
+/** Observed successful edits, not inferred from import or filesystem timestamps. */
+export function readRecentEditedNoteIds(storage: RecentStorage = localStorage): string[] {
+  try {
+    const raw: unknown = JSON.parse(storage.getItem(RECENT_NOTE_EDITS_KEY) ?? "[]");
+    return Array.isArray(raw) ? [...new Set(raw.filter((id): id is string => typeof id === "string" && id.length > 0))].slice(0, RECENT_NOTES_LIMIT) : [];
+  } catch { return []; }
+}
+
+export function markRecentNoteEdited(id: string, storage: RecentStorage = localStorage): void {
+  if (!id) return;
+  try {
+    const retained = new Set([id, ...readRecentNoteIds(storage)]);
+    const edited = [id, ...readRecentEditedNoteIds(storage).filter(candidate => candidate !== id && retained.has(candidate))].slice(0, RECENT_NOTES_LIMIT);
+    storage.setItem(RECENT_NOTE_EDITS_KEY, JSON.stringify(edited));
+    if (typeof window !== "undefined") window.dispatchEvent(new Event(RECENT_NOTES_CHANGED_EVENT));
+  } catch { /* Saving content succeeded even when this optional preference fails. */ }
 }
 
 function searchableText(note: Note): string {

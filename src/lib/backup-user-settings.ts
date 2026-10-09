@@ -2,6 +2,8 @@ import { isTauriRuntime } from "./runtime";
 
 const BACKED_UP_LOCAL_SETTINGS = [
   "nr:workspaceLayout",
+  "nr:recentNotes",
+  "nr:recentNoteEdits",
   "nr:desktopSidebar",
   "nr:sidebarOrder",
   "nr:treeSidebarW",

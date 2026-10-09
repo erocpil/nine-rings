@@ -2,7 +2,7 @@
   position: fixed;
   z-index: 10000;
   left: 50%;
-  bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+  top: calc(56px + env(safe-area-inset-top, 0px));
   transform: translateX(-50%);
   max-width: calc(100vw - 32px);
   padding: 10px 16px;
@@ -11,6 +11,7 @@
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--ui-shadow-popover);
-  font-size: 13px;
+  font-size: 16px;
+  font-weight: 500;
   pointer-events: none;
 }

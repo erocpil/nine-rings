@@ -9,7 +9,7 @@ import { DOCUMENT_FAVORITES_CHANGED_EVENT, readDocumentFavorites } from "../lib/
 import { workspaceDocuments, workspaceCounts, workspaceSummaryPreviewDocuments, type WorkspaceDocumentSummary, type WorkspaceSummaryKind } from "../lib/workspace-summary";
 import { WorkspaceSummaryPreview } from "./WorkspaceSummaryPreview";
 import { useLocalDay } from "../hooks/useLocalDay";
-import { readRecentNoteIds, RECENT_NOTES_CHANGED_EVENT } from "../lib/quick-switcher";
+import { readRecentNoteIds, readRecentEditedNoteIds, RECENT_NOTES_CHANGED_EVENT } from "../lib/quick-switcher";
 import type { Note } from "../types/models";
 import "./ExhibitionWorkspace.css";
 
@@ -48,6 +48,7 @@ export function ExhibitionWorkspace(props: Props) {
   const [documents, setDocuments] = useState<Summary[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
+  const [recentEdited, setRecentEdited] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -82,7 +83,7 @@ export function ExhibitionWorkspace(props: Props) {
     : [], [documents, summaryPreview, favorites, day, recent]);
   const previewTitle = summaryPreview ? { all: "全部文档", notes: "随记", today: "今日修改", favorites: "收藏", recent: "最近打开" }[summaryPreview.kind] : "";
   useEffect(() => {
-    const refresh = () => { setFavorites(readDocumentFavorites()); setRecent(readRecentNoteIds()); };
+    const refresh = () => { setFavorites(readDocumentFavorites()); setRecent(readRecentNoteIds()); setRecentEdited(readRecentEditedNoteIds()); };
     window.addEventListener("storage", refresh);
     window.addEventListener(DOCUMENT_FAVORITES_CHANGED_EVENT, refresh);
     window.addEventListener(RECENT_NOTES_CHANGED_EVENT, refresh);
@@ -104,7 +105,7 @@ export function ExhibitionWorkspace(props: Props) {
     let disposed = false;
     setLoading(true);
     setFavorites(readDocumentFavorites());
-    setRecent(readRecentNoteIds());
+    setRecent(readRecentNoteIds()); setRecentEdited(readRecentEditedNoteIds());
     void api.docs
       .tree()
       .then(
@@ -375,7 +376,7 @@ export function ExhibitionWorkspace(props: Props) {
         </section>
       )}
       {previewEnabled && summaryPreview && <WorkspaceSummaryPreview key={summaryPreview.kind} title={previewTitle} documents={previewDocuments}
-        numbered={summaryPreview.kind !== "all"} trigger={summaryPreview.trigger} keyboard={summaryPreview.keyboard} visibleRows={summaryLayout.summaryVisibleRows} compact={!props.desktop} onEnter={keepSummary} onLeave={leaveSummary} onClose={closeSummary}
+        numbered={summaryPreview.kind !== "all"} editedIds={summaryPreview.kind === "recent" ? recentEdited : undefined} trigger={summaryPreview.trigger} keyboard={summaryPreview.keyboard} visibleRows={summaryLayout.summaryVisibleRows} compact={!props.desktop} onEnter={keepSummary} onLeave={leaveSummary} onClose={closeSummary}
         onOpen={id => { closeSummary(); open(id); }} />}
     </div>
   );

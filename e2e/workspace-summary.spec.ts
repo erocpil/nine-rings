@@ -296,9 +296,9 @@ test("最近打开弹层取访问记录，分栏仍展示最近编辑十五份",
   await page.reload();
   await page.evaluate(async () => { const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts"); saveWorkspaceLayout({ summaryInteraction: "hover" }); });
   const button = page.getByRole("button", { name: "查看最近打开文档", exact: true });
-  await expect(button).toContainText("15");
+  await expect(button).toContainText("16");
   await button.hover();
-  await expect(page.locator(".workspace-summary-preview li button")).toHaveCount(15);
+  await expect(page.locator(".workspace-summary-preview li button")).toHaveCount(16);
   await page.evaluate(async () => { const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts"); saveWorkspaceLayout({ summaryInteraction: "sidebar" }); });
   await button.click();
   const list = page.getByRole("region", { name: "文档列表", exact: true });
@@ -402,7 +402,7 @@ test("默认点击显示弹层，悬停不会弹出，也不打开分栏", async
   await expect(popup).toHaveCount(0);
 });
 
-test("四种弹层最新在下方，十五份以十六进制编号，键入编号直接打开", async ({ page }) => {
+test("四种弹层最新在下方，最近打开十六份与其他十五份编号直接打开", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
   await seed(page);
   await page.evaluate(async () => {
@@ -438,14 +438,14 @@ test("四种弹层最新在下方，十五份以十六进制编号，键入编�
   for (const [buttonName, title] of [["查看最近打开文档", "最近打开"], ["查看随记", "随记"], ["查看今日修改文档", "今日修改"], ["查看收藏文档", "收藏"]]) {
     await page.getByRole("button", { name: buttonName, exact: true }).click();
     const popup = page.getByRole("dialog", { name: `${title}预览`, exact: true });
-    await expect(popup.locator("li button")).toHaveCount(15);
-    await expect(popup.locator("li button").first()).toContainText("编号文档 5");
+    const recent = title === "最近打开";
+    await expect(popup.locator("li button")).toHaveCount(recent ? 16 : 15);
+    await expect(popup.locator("li button").first()).toContainText(recent ? "编号文档 4" : "编号文档 5");
     await expect(popup.locator("li button").last()).toContainText("编号文档 19");
-    await expect(popup.locator(".workspace-summary-shortcut")).toHaveText([..."0123456789abcde"]);
-    await page.keyboard.press("f"); // No sixteenth row: leave the popover open.
-    await expect(popup).toBeVisible();
+    await expect(popup.locator(".workspace-summary-shortcut")).toHaveText([...(recent ? "0123456789abcdef" : "0123456789abcde")]);
+    if (!recent) { await page.keyboard.press("f"); await expect(popup).toBeVisible(); }
     await page.keyboard.press("a");
-    await expect(page.locator(".note-title:visible")).toHaveValue("编号文档 15");
+    await expect(page.locator(".note-title:visible")).toHaveValue(recent ? "编号文档 14" : "编号文档 15");
     await expect(popup).toHaveCount(0);
   }
   // Open an old unedited document: visit order, not its edit timestamp, wins.
@@ -459,7 +459,7 @@ test("四种弹层最新在下方，十五份以十六进制编号，键入编�
   await page.getByRole("button", { name: "查看最近打开文档", exact: true }).click();
   const popup = page.getByRole("dialog", { name: "最近打开预览", exact: true });
   await expect(popup.locator("li button").last()).toContainText("编号文档 0");
-  await page.keyboard.press("E");
+  await page.keyboard.press("F");
   await expect(popup).toHaveCount(0);
   await expect(page.locator(".note-title:visible")).toHaveValue("编号文档 0");
 });
@@ -486,4 +486,47 @@ test("悬停编号弹层不截获正文输入，关闭后编号不再生效", as
   await page.keyboard.type("a");
   await expect(editor).toContainText("a");
   expect(await page.evaluate(() => localStorage.getItem("nr:lastNote"))).toBe(id);
+});
+
+test("最近打开区分仅浏览和成功编辑，重新打开及深浅主题均保持状态", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await seed(page);
+  const ids = await page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
+    const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts");
+    saveWorkspaceLayout({ summaryInteraction: "click" });
+    const viewed = await api.notes.create({ title: "仅浏览状态", date: "2026-10-10", storagePath: "ideas", content: { ops: [{ insert: "导入的既有内容\n" }] } });
+    const edited = await api.notes.create({ title: "本机编辑状态", date: "2026-10-10", storagePath: "ideas", content: { ops: [] } });
+    useNotesStore.getState().selectNote(viewed);
+    return { viewed: viewed.id, edited: edited.id };
+  });
+  await expect(page.locator(".note-title:visible")).toHaveValue("仅浏览状态");
+  await page.evaluate(async id => {
+    const { api } = await import("/src/lib/api.ts");
+    const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
+    useNotesStore.getState().selectNote((await api.notes.get(id))!);
+  }, ids.edited);
+  await expect(page.locator(".note-title:visible")).toHaveValue("本机编辑状态");
+  await page.locator(".ProseMirror:visible").fill("这次实际修改正文，并成功保存。");
+  await expect.poll(() => page.evaluate(async () => {
+    const { readRecentEditedNoteIds } = await import("/src/lib/quick-switcher.ts");
+    return readRecentEditedNoteIds();
+  })).toContain(ids.edited);
+  for (const theme of ["light", "dark"] as const) {
+    await page.evaluate(async theme => { const { api } = await import("/src/lib/api.ts"); await api.config.set({ theme }); }, theme);
+    await page.reload();
+    await expect(page.getByRole("navigation", { name: "工作区统计" })).toHaveAttribute("aria-busy", "false");
+    await page.getByRole("button", { name: "查看最近打开文档", exact: true }).click();
+    const popup = page.getByRole("dialog", { name: "最近打开预览", exact: true });
+    const viewed = popup.getByRole("button", { name: "仅浏览状态", exact: true });
+    const edited = popup.getByRole("button", { name: "本机编辑状态", exact: true });
+    await expect(viewed).toHaveAttribute("data-edit-status", "viewed");
+    await expect(edited).toHaveAttribute("data-edit-status", "edited");
+    await expect(viewed).toHaveCSS("font-weight", "400");
+    await expect(edited).toHaveCSS("font-weight", "600");
+    expect(await viewed.evaluate(element => getComputedStyle(element).color)).not.toBe(await edited.evaluate(element => getComputedStyle(element).color));
+    await viewed.click();
+    await expect(page.locator(".note-title:visible")).toHaveValue("仅浏览状态");
+  }
 });

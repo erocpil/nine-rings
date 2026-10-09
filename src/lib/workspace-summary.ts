@@ -46,7 +46,7 @@ export function workspaceSummaryDocuments(documents: WorkspaceDocumentSummary[],
 export function workspaceSummaryPreviewDocuments(documents: WorkspaceDocumentSummary[], kind: WorkspaceSummaryKind, favorites: string[], day: string, recentIds: string[]) {
   if (kind === "recent") {
     const byId = new Map(documents.map(note => [note.id, note]));
-    return [...new Set(recentIds)].flatMap(id => byId.has(id) ? [byId.get(id)!] : []).slice(0, 15).reverse();
+    return [...new Set(recentIds)].flatMap(id => byId.has(id) ? [byId.get(id)!] : []).slice(0, 16).reverse();
   }
   const newestFirst = [...workspaceSummaryDocuments(documents, kind, favorites, day)]
     .sort((a, b) => (Date.parse(b.updated_at) || 0) - (Date.parse(a.updated_at) || 0) || a.id.localeCompare(b.id));

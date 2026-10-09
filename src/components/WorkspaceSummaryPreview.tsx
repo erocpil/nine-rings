@@ -8,12 +8,13 @@ import "./WorkspaceSummaryPreview.css";
 const ROW_HEIGHT = 28;
 
 /** A metadata-only preview, independent of sidebar widths and editor layout. */
-export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, numbered = false, visibleRows = 15, compact = false, onOpen, onClose, onEnter, onLeave }: {
+export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, numbered = false, editedIds, visibleRows = 15, compact = false, onOpen, onClose, onEnter, onLeave }: {
   title: string;
   documents: WorkspaceDocumentSummary[];
   trigger: HTMLButtonElement;
   keyboard: boolean;
   numbered?: boolean;
+  editedIds?: string[];
   visibleRows?: number;
   compact?: boolean;
   onOpen: (id: string) => void;
@@ -109,7 +110,7 @@ export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, n
       }}>
       {start > 0 && <li aria-hidden="true" style={{ height: start * ROW_HEIGHT }} />}
       {documents.slice(start, end).map((note, offset) => <li key={note.id}>
-        <button type="button" data-summary-index={start + offset} title={note.title || "未命名文档"} onClick={() => onOpen(note.id)}>{numbered && <span aria-hidden="true" className="workspace-summary-shortcut">{(start + offset).toString(16)}</span>}{note.title || "未命名文档"}</button>
+        <button type="button" data-summary-index={start + offset} aria-label={note.title || "未命名文档"} data-edit-status={editedIds ? editedIds.includes(note.id) ? "edited" : "viewed" : undefined} aria-description={editedIds ? editedIds.includes(note.id) ? "已记录编辑" : "仅浏览，尚未记录编辑" : undefined} title={`${note.title || "未命名文档"}${editedIds ? editedIds.includes(note.id) ? " — 已记录编辑" : " — 仅浏览，尚未记录编辑" : ""}`} onClick={() => onOpen(note.id)}>{numbered && <span aria-hidden="true" className="workspace-summary-shortcut">{(start + offset).toString(16)}</span>}{note.title || "未命名文档"}</button>
       </li>)}
       {end < documents.length && <li aria-hidden="true" style={{ height: (documents.length - end) * ROW_HEIGHT }} />}
     </ul> : <p className="workspace-summary-preview-empty">暂无文档</p>}
