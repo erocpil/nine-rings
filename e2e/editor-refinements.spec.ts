@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
+import { createBlankDocument } from "./helpers/document";
 
 async function fixture(page: Page, kind = "text", interfaceStyle = "classic") {
   await page.addInitScript(
@@ -14,18 +15,10 @@ async function fixture(page: Page, kind = "text", interfaceStyle = "classic") {
       ),
     interfaceStyle,
   );
-  await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15000 });
-  await page.evaluate(async (kind) => {
-    const load = (p: string) =>
-      import(
-        /* @vite-ignore */ performance
-          .getEntriesByType("resource")
-          .map((e) => e.name)
-          .find((u) => new URL(u).pathname === p) ?? p
-      );
-    const { api } = await load("/src/lib/api.ts");
-    const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
+  const viewport = page.viewportSize()!;
+  await page.setViewportSize({ width: 1280, height: viewport.height });
+  await createBlankDocument(page, "编辑改进验证");
+  await page.locator(".ProseMirror").evaluate((element, kind) => {
     const p = (text: string) => ({
       type: "paragraph",
       content: text ? [{ type: "text", text }] : [],
@@ -50,14 +43,11 @@ async function fixture(page: Page, kind = "text", interfaceStyle = "classic") {
               },
             ]
           : Array.from({ length: 80 }, (_, i) => p(`第 ${i + 1} 段正文`));
-    const note = await api.notes.create({
-      title: "编辑改进验证",
-      date: useNotesStore.getState().currentDate,
-      storagePath: "tests",
-      content: { type: "doc", content },
-    });
-    useNotesStore.getState().selectNote(note);
+    const editor = (element as HTMLElement & { editor: Editor }).editor;
+    editor.commands.setContent({ type: "doc", content });
   }, kind);
+  await page.setViewportSize(viewport);
+  if (viewport.width < 900) await page.locator(".sidebar-tab-hide").click();
   await expect(page.locator(".note-title")).toHaveValue("编辑改进验证");
 }
 

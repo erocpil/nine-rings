@@ -6,6 +6,27 @@ async function selectAppearance(page: Page, label: string, value: string) {
   await page.getByRole("listbox", { name: label, exact: true }).locator(`[role="option"][value="${value}"]`).click();
 }
 
+test("正文恢复滚动不会关闭顶部外观菜单，按钮祖先滚动仍会关闭", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({
+    interface_style: "calm", workspace_layout: "exhibition",
+  })));
+  await page.goto("/");
+  await page.getByRole("button", { name: "物哀、幽玄与侘寂：风格设计与验证", exact: true }).click();
+  const trigger = page.getByRole("button", { name: "紧凑程度", exact: true });
+  const popup = page.getByRole("listbox", { name: "紧凑程度", exact: true });
+  await trigger.click();
+  await expect(popup).toBeVisible();
+  // Scroll restoration publishes this event even when the saved offset is zero.
+  await page.locator(".note-editor-scroll").evaluate(element => element.dispatchEvent(new Event("scroll")));
+  await expect(popup).toBeVisible();
+  await popup.getByRole("option", { name: "紧凑", exact: true }).click();
+  await expect(trigger).toHaveAttribute("data-value", "compact");
+  await trigger.click();
+  await expect(popup).toBeVisible();
+  await trigger.evaluate(element => element.parentElement!.dispatchEvent(new Event("scroll")));
+  await expect(popup).toHaveCount(0);
+});
+
 
 for (const style of ["calm", "mono-aware"] as const) {
   test(`${style} 展陈工作区首页、文档与专注布局`, async ({ page }) => {

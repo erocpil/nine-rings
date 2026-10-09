@@ -61,7 +61,12 @@ export function DocumentFilterSelect({ label, text, icon, disabled = false, clas
       }
     };
     const scroll = (event: Event) => {
-      if (!(event.target instanceof Node) || !menu.current?.contains(event.target)) handlers.current.onOpenChange(false);
+      // Only scrolling an ancestor can move the anchor. Independent editor
+      // scrolls (including delayed restoration notifications) leave it intact.
+      const target = event.target;
+      if (target instanceof Node && trigger.current && target.contains(trigger.current)) {
+        handlers.current.onOpenChange(false);
+      }
     };
     const resize = () => handlers.current.onOpenChange(false);
     // Do not consume the outside event or restore the old trigger's focus:
