@@ -498,8 +498,8 @@
 .editor-content :not(pre) > code {
   font-family: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", monospace;
   font-size: 0.9em;
-  background: color-mix(in srgb, var(--accent) 9%, var(--bg));
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, transparent);
   border-radius: 3px;
   padding: 1px 4px;
 }
