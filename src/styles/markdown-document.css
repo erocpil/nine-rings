@@ -128,3 +128,29 @@
 [data-list-spread="true"] > li > p + p { margin-top: .65em; }
 blockquote[data-alert] { border-left-color: var(--accent); }
 blockquote[data-alert="WARNING"], blockquote[data-alert="CAUTION"] { border-left-color: var(--color-danger, #b66b53); }
+
+/* Both tools occupy CodeMirror's fixed top panel, outside the document scroller. */
+.markdown-cm-host .cm-panels-top { flex-shrink: 0; border-bottom: 0; max-height: min(45dvh, 300px); overflow: auto; }
+.markdown-cm-host .source-tool-panel {
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: 12px/1.5 var(--font);
+  animation: source-tool-enter .14s ease-out;
+}
+.markdown-cm-host .source-tool-panel-title { margin-bottom: 4px; font-weight: 600; color: var(--text-secondary); }
+.markdown-cm-host .source-tool-panel .editor-find-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; }
+.markdown-cm-host .source-tool-panel input:not([type="checkbox"]) { flex: 1; width: 0; min-width: 0; min-height: 30px; box-sizing: border-box; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+.markdown-cm-host .source-tool-panel button { flex-shrink: 0; min-height: 30px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; cursor: pointer; }
+.markdown-cm-host .source-tool-panel button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.markdown-cm-host .source-tool-panel .editor-find-options { display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 4px 0; }
+.markdown-cm-host .source-tool-panel .editor-find-options label { display: inline-flex; align-items: center; gap: 4px; }
+.markdown-cm-host .source-tool-panel input[type="checkbox"] { accent-color: var(--accent); }
+.markdown-cm-host .source-tool-panel-help { margin: 4px 0 0; color: var(--text-secondary); font-size: 11px; }
+@keyframes source-tool-enter { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 768px) {
+  .markdown-cm-host .source-tool-panel { padding: 8px; }
+  .markdown-cm-host .source-tool-panel :is(button, input:not([type="checkbox"])) { min-height: 34px; }
+}

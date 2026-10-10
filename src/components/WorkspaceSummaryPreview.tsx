@@ -1,3 +1,4 @@
+import { DEFAULT_WORKSPACE_LAYOUT } from "../lib/workspace-layout";
 import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -9,7 +10,7 @@ import "./WorkspaceSummaryPreview.css";
 const ROW_HEIGHT = 28;
 
 /** A metadata-only preview, independent of sidebar widths and editor layout. */
-export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, numbered = false, editedIds, visibleRows = 15, compact = false, onOpen, onClose, onEnter, onLeave }: {
+export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, numbered = false, editedIds, visibleRows = DEFAULT_WORKSPACE_LAYOUT.summaryVisibleRows, compact = false, onOpen, onClose, onEnter, onLeave }: {
   title: string;
   documents: WorkspaceDocumentSummary[];
   trigger: HTMLButtonElement;

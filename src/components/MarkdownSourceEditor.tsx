@@ -34,6 +34,11 @@ import {
   indentWithTab,
   undo,
   redo,
+  indentMore,
+  indentLess,
+  undoDepth,
+  redoDepth,
+  isolateHistory,
 } from "@codemirror/commands";
 import {
   markdown,
@@ -46,6 +51,8 @@ import {
   syntaxTree,
   foldGutter,
   foldKeymap,
+  foldAll,
+  unfoldAll,
   indentUnit,
   syntaxHighlighting,
   HighlightStyle,
@@ -53,8 +60,8 @@ import {
 } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
-import { gotoLine } from "@codemirror/search";
-import { sourceSearchExtension, sourceSearchKeymap, openSourceSearch as openSearchPanel } from "../lib/source-search";
+import { sourceSearchExtension, sourceSearchKeymap, sourcePanelOpen, toggleSourcePanel, openSourceGoto } from "../lib/source-search";
+import { formatSourceLines, insertSourceBlock } from "../lib/source-editing";
 import { SourceEditorHandle } from "../lib/source-editor-handle";
 import {
   BLOCK_WORKSPACE_DISPLAY_EVENT,
@@ -64,7 +71,7 @@ import {
 import type { SourceEditRange } from "../lib/markdown-source-navigation";
 
 function wrapSelection(view: EditorView, before: string, after = before) {
-  if (view.state.readOnly) return false;
+  if (view.state.readOnly || view.composing) return false;
   const range = view.state.selection.main;
   if (
     range.from >= before.length &&
@@ -81,6 +88,7 @@ function wrapSelection(view: EditorView, before: string, after = before) {
         head: range.to - before.length,
       },
       userEvent: "input",
+      annotations: isolateHistory.of("full"),
       scrollIntoView: true,
     });
     view.focus();
@@ -101,6 +109,7 @@ function wrapSelection(view: EditorView, before: string, after = before) {
       range.from + insert.length - (unwrap ? 0 : after.length),
     ),
     userEvent: "input",
+    annotations: isolateHistory.of("full"),
     scrollIntoView: true,
   });
   view.focus();
@@ -141,6 +150,11 @@ export function MarkdownSourceEditor({
     display = useRef(new Compartment());
   const [preferences, setPreferences] = useState(blockWorkspacePreferences);
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
+  const [tools, setTools] = useState({ search: false, goto: false, undo: false, redo: false });
+  const syncTools = (state: EditorState) => {
+    const next = { search: sourcePanelOpen(state, "search"), goto: sourcePanelOpen(state, "goto"), undo: undoDepth(state) > 0, redo: redoDepth(state) > 0 };
+    setTools(previous => Object.keys(next).every(key => previous[key as keyof typeof next] === next[key as keyof typeof next]) ? previous : next);
+  };
   const displayExtensions = () => {
     const prefs = blockWorkspacePreferences();
     return [
@@ -262,7 +276,7 @@ export function MarkdownSourceEditor({
         { key: "Mod-i", run: (v) => wrapSelection(v, "*") },
         { key: "Mod-Shift-c", run: (v) => wrapSelection(v, "`") },
         { key: "Mod-k", run: (v) => wrapSelection(v, "[", "](https://)") },
-        { key: "Mod-g", run: gotoLine },
+        { key: "Mod-g", run: openSourceGoto },
         ...closeBracketsKeymap,
         ...defaultKeymap,
         ...historyKeymap,
@@ -285,6 +299,7 @@ export function MarkdownSourceEditor({
         autocapitalize: "off",
       }),
       EditorView.updateListener.of((update) => {
+        syncTools(update.state);
         session.current = update.state;
         if (update.docChanged) {
           const ranges: SourceEditRange[] = [];
@@ -312,6 +327,7 @@ export function MarkdownSourceEditor({
         : EditorState.create({ doc: initial.current.value, extensions });
     const editor = new EditorView({ state, parent: host.current });
     view.current = editor;
+    syncTools(editor.state);
     // Keep subscriptions alive across React StrictMode effect remounts.
     const handle = (handleRef.current ??= new SourceEditorHandle(editor));
     handle.view = editor;
@@ -386,10 +402,10 @@ export function MarkdownSourceEditor({
         role="toolbar"
         aria-label="源码编辑工具"
       >
-        <button type="button" title="查找替换" aria-label="查找替换" onClick={() => run(openSearchPanel)}>
+        <button type="button" title="查找替换" aria-label="查找替换" aria-expanded={tools.search} aria-pressed={tools.search} onClick={() => run(v => toggleSourcePanel(v, "search"))}>
           <ToolbarIcon name="search" />
         </button>
-        <button type="button" title="跳转行" aria-label="跳转行" onClick={() => run(gotoLine)}>
+        <button type="button" title="跳转行" aria-label="跳转行" aria-expanded={tools.goto} aria-pressed={tools.goto} onClick={() => run(v => toggleSourcePanel(v, "goto"))}>
           <ToolbarIcon name="jumpLine" />
         </button>
         <button
@@ -407,10 +423,10 @@ export function MarkdownSourceEditor({
           onClick={() => saveBlockWorkspacePreferences({ sourceMicroRendering: preferences.sourceMicroRendering !== true })}>
           <ToolbarIcon name="font" />
         </button>
-        <button type="button" title="撤销" aria-label="撤销" disabled={readonly} onClick={() => run(undo)}>
+        <button type="button" title="撤销" aria-label="撤销" disabled={readonly || !tools.undo} onClick={() => run(undo)}>
           <ToolbarIcon name="undo" />
         </button>
-        <button type="button" title="重做" aria-label="重做" disabled={readonly} onClick={() => run(redo)}>
+        <button type="button" title="重做" aria-label="重做" disabled={readonly || !tools.redo} onClick={() => run(redo)}>
           <ToolbarIcon name="redo" />
         </button>
         <button
@@ -431,6 +447,8 @@ export function MarkdownSourceEditor({
         >
           <ToolbarIcon name="code" />
         </button>
+        <button type="button" title="斜体" aria-label="斜体" disabled={readonly} onClick={() => run(v => wrapSelection(v, "*"))}><ToolbarIcon name="italic" /></button>
+        <button type="button" title="删除线" aria-label="删除线" disabled={readonly} onClick={() => run(v => wrapSelection(v, "~~"))}><ToolbarIcon name="strike" /></button>
         <button
           type="button"
           title="链接"
@@ -440,6 +458,27 @@ export function MarkdownSourceEditor({
         >
           <ToolbarIcon name="link" />
         </button>
+        {([
+          ["引用", "quote", "quote"], ["无序列表", "bullet", "bullet"],
+          ["有序列表", "ordered", "ordered"], ["待办列表", "task", "check"],
+        ] as const).map(([label, format, icon]) => <button key={format} type="button" title={label} aria-label={label} disabled={readonly} onClick={() => run(v => {
+          if (v.composing) return false;
+          const spec = formatSourceLines(v.state, format);
+          if (!spec) return false;
+          v.dispatch(spec); v.focus(); return true;
+        })}><ToolbarIcon name={icon} /></button>)}
+        {([
+          ["代码块", "code", "codeBlock"], ["表格", "table", "table"], ["分隔线", "rule", "minus"],
+        ] as const).map(([label, kind, icon]) => <button key={kind} type="button" title={label} aria-label={label} disabled={readonly} onClick={() => run(v => {
+          if (v.composing) return false;
+          const spec = insertSourceBlock(v.state, kind);
+          if (!spec) return false;
+          v.dispatch(spec); v.focus(); return true;
+        })}><ToolbarIcon name={icon} /></button>)}
+        <button type="button" title="增加缩进" aria-label="增加缩进" disabled={readonly} onClick={() => run(v => !v.composing && !v.state.readOnly && indentMore(v))}><ToolbarIcon name="indent" /></button>
+        <button type="button" title="减少缩进" aria-label="减少缩进" disabled={readonly} onClick={() => run(v => !v.composing && !v.state.readOnly && indentLess(v))}><ToolbarIcon name="outdent" /></button>
+        <button type="button" title="折叠全部" aria-label="折叠全部" onClick={() => run(foldAll)}><ToolbarIcon name="folderCollapse" /></button>
+        <button type="button" title="展开全部" aria-label="展开全部" onClick={() => run(unfoldAll)}><ToolbarIcon name="folderKeep" /></button>
         {escapeRepair}
         <span className="markdown-source-cursor" aria-label="光标位置">
           行 {cursor.line}，列 {cursor.column}

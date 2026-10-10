@@ -8,7 +8,6 @@ import {
 } from "@codemirror/view";
 import { isolateHistory } from "@codemirror/commands";
 import {
-  gotoLine,
   selectNextOccurrence,
   selectSelectionMatches,
 } from "@codemirror/search";
@@ -23,6 +22,7 @@ import {
 
 interface SourceSearch {
   open: boolean;
+  gotoOpen: boolean;
   query: string;
   replacement: string;
   options: SearchOptions;
@@ -34,6 +34,7 @@ const changeSearch = StateEffect.define<Partial<SourceSearch>>();
 const searchState = StateField.define<SourceSearch>({
   create: () => ({
     open: false,
+    gotoOpen: false,
     query: "",
     replacement: "",
     options: {},
@@ -82,6 +83,7 @@ const searchState = StateField.define<SourceSearch>({
   },
   provide: (field) => [
     showPanel.from(field, (state) => (state.open ? createSearchPanel : null)),
+    showPanel.from(field, (state) => (state.gotoOpen ? createGotoPanel : null)),
     EditorView.decorations.from(field, (state) =>
       Decoration.set(
         state.matches.map((match, index) =>
@@ -111,13 +113,127 @@ export function openSourceSearch(view: EditorView): boolean {
   const query = selection.empty
     ? view.state.field(searchState).query
     : view.state.sliceDoc(selection.from, selection.to);
-  change(view, { open: true, query });
+  change(view, { open: true, gotoOpen: false, query });
   const input = view.dom.querySelector<HTMLInputElement>(
     '.cm-search input[name="search"]',
   );
   input?.focus({ preventScroll: true });
   input?.select();
   return true;
+}
+export function sourcePanelOpen(
+  state: EditorView["state"],
+  panel: "search" | "goto",
+): boolean {
+  const value = state.field(searchState, false);
+  return panel === "search" ? value?.open === true : value?.gotoOpen === true;
+}
+export function closeSourcePanels(view: EditorView): boolean {
+  if (
+    !sourcePanelOpen(view.state, "search") &&
+    !sourcePanelOpen(view.state, "goto")
+  )
+    return false;
+  change(view, { open: false, gotoOpen: false });
+  view.focus();
+  return true;
+}
+export function openSourceGoto(view: EditorView): boolean {
+  change(view, { open: false, gotoOpen: true });
+  const input = view.dom.querySelector<HTMLInputElement>(
+    '.cm-goto-line input[name="line"]',
+  );
+  input?.focus({ preventScroll: true });
+  input?.select();
+  return true;
+}
+export function toggleSourcePanel(
+  view: EditorView,
+  panel: "search" | "goto",
+): boolean {
+  return sourcePanelOpen(view.state, panel)
+    ? closeSourcePanels(view)
+    : panel === "search"
+      ? openSourceSearch(view)
+      : openSourceGoto(view);
+}
+function createGotoPanel(view: EditorView): Panel {
+  const dom = document.createElement("form");
+  dom.className = "cm-goto-line source-tool-panel";
+  dom.setAttribute("aria-label", "源码跳转行");
+  const title = document.createElement("div");
+  title.className = "source-tool-panel-title";
+  title.textContent = "跳转行";
+  const row = document.createElement("div");
+  row.className = "editor-find-row";
+  const input = document.createElement("input");
+  input.name = "line";
+  input.type = "text";
+  input.setAttribute("aria-label", "行号或位置");
+  input.placeholder = "行号[:列]、+10、50%";
+  input.value = String(
+    view.state.doc.lineAt(view.state.selection.main.head).number,
+  );
+  const go = document.createElement("button");
+  go.type = "submit";
+  go.textContent = "跳转";
+  const close = document.createElement("button");
+  close.type = "button";
+  close.textContent = "关闭";
+  close.onclick = () => closeSourcePanels(view);
+  const help = document.createElement("p");
+  help.className = "source-tool-panel-help";
+  help.textContent =
+    "支持行号、相对行数和文档百分比；冒号后为列偏移（从 0 开始）。";
+  const error = document.createElement("p");
+  error.className = "search-pattern-error";
+  error.setAttribute("role", "alert");
+  error.hidden = true;
+  dom.onsubmit = (event) => {
+    event.preventDefault();
+    if (view.composing) return;
+    const match = /^([+-])?(\d+)?(:\d+)?(%)?$/.exec(input.value.trim());
+    if (!match || (!match[2] && !match[3])) {
+      error.textContent = "请输入行号或有效位置，如 12、12:3、+10、50%。";
+      error.hidden = false;
+      return;
+    }
+    const current = view.state.doc.lineAt(
+      view.state.selection.main.head,
+    ).number;
+    const sign = match[1] === "-" ? -1 : 1;
+    let number = match[2] ? Number(match[2]) : current;
+    if (match[2] && match[4])
+      number =
+        Math.round((view.state.doc.lines * number) / 100) * sign +
+        (match[1] ? current : 0);
+    else if (match[2] && match[1]) number = current + sign * number;
+    const line = view.state.doc.line(
+      Math.max(1, Math.min(view.state.doc.lines, number)),
+    );
+    const offset = match[3]
+      ? Math.min(line.length, Number(match[3].slice(1)))
+      : 0;
+    view.contentDOM.dispatchEvent(new Event("nr:editor-navigation"));
+    view.dispatch({
+      selection: EditorSelection.cursor(line.from + offset),
+      effects: [
+        changeSearch.of({ gotoOpen: false }),
+        EditorView.scrollIntoView(line.from + offset, { y: "center" }),
+      ],
+    });
+    view.focus();
+  };
+  dom.onkeydown = (event) => {
+    if (event.isComposing || event.keyCode === 229) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeSourcePanels(view);
+    }
+  };
+  row.append(input, go, close);
+  dom.append(title, row, help, error);
+  return { dom, top: true };
 }
 function navigate(view: EditorView, direction: number) {
   const state = view.state.field(searchState);
@@ -160,7 +276,7 @@ function replace(view: EditorView, all: boolean) {
 }
 function createSearchPanel(view: EditorView): Panel {
   const dom = document.createElement("div");
-  dom.className = "cm-search";
+  dom.className = "cm-search source-tool-panel";
   dom.setAttribute("role", "search");
   dom.setAttribute("aria-label", "源码查找与替换");
   const row = document.createElement("div");
@@ -264,13 +380,29 @@ function createSearchPanel(view: EditorView): Panel {
   const error = document.createElement("p");
   error.className = "search-pattern-error";
   error.setAttribute("role", "alert");
-  dom.append(row, options, replacementRow, error);
+  const title = document.createElement("div");
+  title.className = "source-tool-panel-title";
+  title.textContent = "查找与替换";
+  dom.append(title, row, options, replacementRow, error);
+  dom.onkeydown = (event) => {
+    if (
+      !event.defaultPrevented &&
+      !event.isComposing &&
+      event.key === "Escape"
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeSourcePanels(view);
+    }
+  };
   const update = () => {
     const state = view.state.field(searchState);
     search.value = state.query;
     replacement.value = state.replacement;
     count.textContent = state.query
-      ? `${state.active + 1}/${state.matches.length}`
+      ? state.active >= 0
+        ? `${state.active + 1}/${state.matches.length}`
+        : `${state.matches.length} 处`
       : "";
     for (const [key, input] of optionInputs)
       input.checked = state.options[key] === true;
@@ -295,7 +427,7 @@ export const sourceSearchExtension = searchState;
 export const sourceSearchKeymap = [
   { key: "Mod-f", run: openSourceSearch },
   { key: "Alt-f", run: openSourceSearch },
-  { key: "Escape", run: closeSourceSearch },
+  { key: "Escape", run: closeSourcePanels },
   {
     key: "F3",
     run: (view: EditorView) => {
@@ -311,6 +443,6 @@ export const sourceSearchKeymap = [
     },
   },
   { key: "Mod-Shift-l", run: selectSelectionMatches },
-  { key: "Mod-Alt-g", run: gotoLine },
+  { key: "Mod-Alt-g", run: openSourceGoto },
   { key: "Mod-d", run: selectNextOccurrence, preventDefault: true },
 ];

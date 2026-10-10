@@ -1,6 +1,7 @@
 import { useWorkspaceLayout } from "../hooks/useWorkspaceLayout";
 import {
   saveWorkspaceLayout,
+  DEFAULT_WORKSPACE_LAYOUT,
   type WorkspaceLayout,
 } from "../lib/workspace-layout";
 
@@ -29,7 +30,7 @@ export function SettingsWorkspaceLayout({
           <input className="settings-input" style={{ width: 80, marginLeft: 12 }} type="number" min={1} max={50} step={1} aria-label="弹层最多显示的文档数" value={layout.summaryVisibleRows}
             onChange={event => { if (Number.isFinite(event.currentTarget.valueAsNumber)) save({ summaryVisibleRows: event.currentTarget.valueAsNumber }); }} />
         </label>
-        <p className="sidebar-presentation-description">默认 15 个，可设为 1～50 个；超出后滚动查看，窗口较小时自动减少可见行数。</p>
+        <p className="sidebar-presentation-description">默认 {DEFAULT_WORKSPACE_LAYOUT.summaryVisibleRows} 个，可设为 1～50 个；超出后滚动查看，窗口较小时自动减少可见行数。</p>
       </div>
       {(
         [

@@ -335,6 +335,8 @@ test("布局设置选择点击弹层和六行上限，离开保持、再次点�
   const mode = page.getByRole("group", { name: "汇总项交互方式", exact: true });
   await mode.getByRole("button", { name: "点击显示弹层", exact: true }).click();
   await expect(mode.getByRole("button", { name: "点击显示弹层", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("spinbutton", { name: "弹层最多显示的文档数", exact: true })).toHaveValue("16");
+  await expect(page.getByText("默认 16 个，可设为 1～50 个；超出后滚动查看，窗口较小时自动减少可见行数。", { exact: true })).toBeVisible();
   await page.getByRole("spinbutton", { name: "弹层最多显示的文档数", exact: true }).fill("6");
   await page.reload();
   const button = page.getByRole("button", { name: "查看全部文档", exact: true });
