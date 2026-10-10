@@ -1549,9 +1549,9 @@ function App() {
                 handleSelectNote(null);
                 closeSidebarOnNarrowScreen();
               }}
-              selectedId={selectedNote?.id ?? null}
-              selectedTitle={selectedNote?.title ?? undefined}
-              selectedFolderPath={selectedFolderPath}
+              selectedId={workspaceHome ? null : selectedNote?.id ?? null}
+              selectedTitle={workspaceHome ? undefined : selectedNote?.title ?? undefined}
+              selectedFolderPath={workspaceHome ? null : selectedFolderPath}
               onCreate={() => setDocCreateOpen(true)}
               refreshKey={docTreeKey}
               onRename={(id, title) => updateNote(id, { title })}

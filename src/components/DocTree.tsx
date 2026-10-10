@@ -798,6 +798,7 @@ function DocTree({
           className="btn-icon doc-tree-batch-btn"
           onClick={collapseAll}
           title="折叠所有目录"
+          disabled={!tree.some(node => node.type === "folder")}
         >
           <ToolbarIcon name="folderCollapse" />
         </button>
@@ -805,7 +806,7 @@ function DocTree({
           className="btn-icon doc-tree-batch-btn"
           onClick={collapseOthers}
           title="折叠其它目录（保留当前文档所在目录）"
-          disabled={!selectedDocument && !selectedFolderPath}
+          disabled={!selectedDocument && !selectedFolder}
         >
           <ToolbarIcon name="folderKeep" />
         </button>
@@ -814,6 +815,7 @@ function DocTree({
           onClick={onTogglePropertiesAuto}
           title={propertiesAutoShow ? "隐藏属性面板" : "显示属性面板"}
           aria-pressed={propertiesAutoShow}
+          disabled={(!selectedDocument && !selectedFolder) || !onTogglePropertiesAuto}
         >
           <ToolbarIcon name="panel" />
         </button>
@@ -829,7 +831,7 @@ function DocTree({
                 setMoveSubject({ kind: "documents", noteIds, count: noteIds.length });
               }}
               title="批量移动"
-              disabled={disabled || batchBusy || selectedIds.size === 0}
+              disabled={disabled || batchBusy || selectedIds.size === 0 || !onBatchMoveDocuments}
             >
               <ToolbarIcon name="move" />
             </button>
@@ -844,7 +846,7 @@ function DocTree({
                 }
               }}
               title="批量删除"
-              disabled={disabled || batchBusy || selectedIds.size === 0}
+              disabled={disabled || batchBusy || selectedIds.size === 0 || !onBatchDelete}
             >
               <ToolbarIcon name="trash" />
             </button>
@@ -852,7 +854,7 @@ function DocTree({
               className="btn-icon doc-tree-batch-btn"
               onClick={() => void handleSelectedReadonly(true)}
               title="批量设为只读"
-              disabled={disabled || batchBusy || selectedIds.size === 0}
+              disabled={disabled || batchBusy || selectedIds.size === 0 || !onBatchSetReadonly}
             >
               <ToolbarIcon name="lock" />
             </button>
@@ -860,7 +862,7 @@ function DocTree({
               className="btn-icon doc-tree-batch-btn"
               onClick={() => void handleSelectedReadonly(false)}
               title="批量取消只读"
-              disabled={disabled || batchBusy || selectedIds.size === 0}
+              disabled={disabled || batchBusy || selectedIds.size === 0 || !onBatchSetReadonly}
             >
               <ToolbarIcon name="unlock" />
             </button>
@@ -895,9 +897,9 @@ function DocTree({
         title={selectMode ? "取消选择" : "批量选择"}
         aria-label={selectMode ? "取消选择" : "批量选择"}
         aria-pressed={selectMode}
-        disabled={batchBusy}
+        disabled={disabled || batchBusy || (!selectMode && !tree.some(node => node.type === "document"))}
         onClick={() => {
-          if (batchBusy) return;
+          if (disabled || batchBusy) return;
           if (selectMode) clearSelection();
           else setSelectMode(true);
         }}

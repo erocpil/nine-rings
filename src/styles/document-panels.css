@@ -255,8 +255,21 @@
   display: block;
   width: 18px;
   height: 18px;
+  flex: none;
 }
-.note-title-row .document-bookmark-toggle { min-width: 32px; }
+.note-title-row .document-bookmark-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+}
+.note-title-row .document-bookmark-toggle .focus-bookmark-count {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font: 9px/12px var(--font);
+}
 .document-outline-header > button,
 .document-bookmark-header > button,
 .document-bookmark-header-actions > button {
