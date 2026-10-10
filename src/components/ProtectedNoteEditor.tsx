@@ -94,10 +94,10 @@ export function ProtectedNoteEditor({ props, render }: { props: NoteEditorProps;
     </div>}
     {render({ ...props, readonly: props.readonly || busy, content, sensitive: encrypted, pdfExcerptSource: content.metadata?.pdfExcerpt, epubExcerptSource: content.metadata?.epubExcerpt,
       titleSecurityAction: props.unifiedTitleBar && encrypted ? <button type="button" className="note-readonly-badge note-security-action" disabled={busy} title="正文已加密，点击锁定文档" aria-label="正文已加密，锁定文档" onClick={() => void run(lock)}><ToolbarIcon name="shield" /></button> : undefined,
-      onContentChange: read => props.onContentChange(() => {
+      onContentChange: (read, options) => props.onContentChange(() => {
         const next = read();
         if (encrypted && mounted.current) setPlain(next);
         return next;
-      }), searchTarget: encrypted ? null : props.searchTarget })}
+      }, options), searchTarget: encrypted ? null : props.searchTarget })}
   </div>;
 }

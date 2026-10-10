@@ -53,7 +53,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     const read = () => revision.read();
     invalidateEditorDocument(props.noteId);
     latestReader.current = read;
-    props.onContentChange(read);
+    props.onContentChange(read, { batch: revision });
   };
   const changeView = async (restoreSourceTop?: number) => {
     if (busy) return;
@@ -193,7 +193,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           return cached;
         };
         latestReader.current = read;
-        props.onContentChange(read);
+        props.onContentChange(read, options);
       },
     }) : <MarkdownSourceWorkspace revision={sourceSession.current!.current} areaRef={viewPosition.area} sourceHandle={viewPosition.sourceHandle} onJump={offset => jumpSourceRef.current(offset)}>{controls => <>
       <div className="note-title-row markdown-source-title-row">

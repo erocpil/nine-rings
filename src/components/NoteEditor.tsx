@@ -317,7 +317,7 @@ export interface NoteEditorProps {
   editorFontSize: number;
   onEditorFontSizeChange: (size: number) => void;
   onTitleChange: (title: string) => void;
-  onContentChange: (readContent: () => DeltaOps, options?: { metadataOnly: boolean }) => void;
+  onContentChange: (readContent: () => DeltaOps, options?: { metadataOnly?: boolean; batch?: object }) => void;
   onTagsChange: (tags: string[]) => void;
   onVersionOpen?: () => void;
   onFocusModeChange?: (focus: boolean) => void;
@@ -1021,7 +1021,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       }),
       DocumentBookmarks.configure({
         initialBookmarks: bookmarksRef.current,
-        onChange: (nextBookmarks, docSnapshot) => {
+        onChange: (nextBookmarks, docSnapshot, docChanged) => {
           bookmarksRef.current = nextBookmarks;
           setBookmarks(nextBookmarks);
           const currentMetadata = { ...documentMetadataRef.current, referenceAnchors: referenceAnchorsRef.current };
@@ -1033,7 +1033,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             const { json: editorDocument, delta } = documentSerializer.read(docSnapshot);
             cacheEditorDocument(noteId, contentVersionRef.current, editorDocument);
             return Object.keys(metadata).length > 0 ? { ...delta, metadata } : delta;
-          });
+          }, { metadataOnly: !docChanged, batch: docChanged ? docSnapshot : undefined });
         },
       }),
       ReferenceAnchors.configure({
@@ -1042,7 +1042,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           referenceAnchorsRef.current = referenceAnchors;
           const metadata = { ...documentMetadataRef.current, referenceAnchors };
           documentMetadataRef.current = metadata;
-          contentChangeRef.current(() => ({ ...documentSerializer.read(docSnapshot).delta, metadata }), { metadataOnly: !docChanged });
+          contentChangeRef.current(() => ({ ...documentSerializer.read(docSnapshot).delta, metadata }), { metadataOnly: !docChanged, batch: docChanged ? docSnapshot : undefined });
         },
       }),
     ]);
@@ -1104,7 +1104,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           ? { ...currentMetadata, bookmarks: bookmarksRef.current }
           : Object.fromEntries(Object.entries(currentMetadata).filter(([key]) => key !== "bookmarks"));
         return metadata ? { ...delta, metadata } : delta;
-      });
+      }, { batch: docSnapshot });
       // 节流日志：每秒最多一次
       const now = Date.now();
       if (now - _lastSaveLog > 1000) {

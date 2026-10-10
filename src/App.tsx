@@ -264,6 +264,7 @@ function App() {
           setExternalNoteConflict(true);
           return;
         }
+        discardPending();
         selectNote(note);
         setExternalReloadKey((key) => key + 1);
       }).catch(() => {
@@ -273,7 +274,7 @@ function App() {
       });
     });
     return () => { active = false; unsubscribe(); };
-  }, [getPendingData, selectNote, selectedNoteId]);
+  }, [discardPending, getPendingData, selectNote, selectedNoteId]);
 
   const loadExternalNote = useCallback(async () => {
     const noteId = useNotesStore.getState().selectedNote?.id;
@@ -1010,8 +1011,8 @@ function App() {
     }
   };
 
-  const handleContentChange = (readContent: () => DeltaOps) => {
-    autoSave.markContentDirty(readContent);
+  const handleContentChange = (readContent: () => DeltaOps, batch?: object) => {
+    autoSave.markContentDirty(readContent, batch);
   };
 
   const handleTagsChange = (tags: string[]) => {
@@ -1805,7 +1806,7 @@ function App() {
                       searchTarget={editorSearchTarget?.noteId === selectedNote.id ? editorSearchTarget : null}
                       onSearchTargetConsumed={handleSearchTargetConsumed}
                       onTitleChange={title => { if (useNotesStore.getState().selectedNote?.id === selectedNote.id) handleTitleChange(title); }}
-                      onContentChange={read => { if (useNotesStore.getState().selectedNote?.id === selectedNote.id) handleContentChange(read); }}
+                      onContentChange={(read, options) => { if (useNotesStore.getState().selectedNote?.id === selectedNote.id) handleContentChange(read, options?.batch); }}
                       onTagsChange={tags => { if (useNotesStore.getState().selectedNote?.id === selectedNote.id) handleTagsChange(tags); }}
                       onVersionOpen={() => setVersionOpen(true)}
                       onFocusModeChange={next => preserveReadingPositions(() => setFocusMode(next))}

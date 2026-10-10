@@ -20,7 +20,7 @@ type BookmarkMeta =
 
 interface BookmarkOptions {
   initialBookmarks: DocumentBookmark[];
-  onChange?: (bookmarks: DocumentBookmark[], doc: ProseMirrorNode) => void;
+  onChange?: (bookmarks: DocumentBookmark[], doc: ProseMirrorNode, docChanged: boolean) => void;
 }
 
 export const documentBookmarkPluginKey = new PluginKey<BookmarkState>("nineRingsDocumentBookmarks");
@@ -205,13 +205,16 @@ export const DocumentBookmarks = Extension.create<BookmarkOptions>({
         },
       },
       view(view) {
+        let previousDoc = view.state.doc;
         let previous = documentBookmarkPluginKey.getState(view.state)?.bookmarks ?? [];
         return {
           update(view) {
+            const docChanged = view.state.doc !== previousDoc;
+            previousDoc = view.state.doc;
             const bookmarks = documentBookmarkPluginKey.getState(view.state)?.bookmarks ?? [];
             if (bookmarks === previous) return;
             previous = bookmarks;
-            options.onChange?.(bookmarks, view.state.doc);
+            options.onChange?.(bookmarks, view.state.doc, docChanged);
           },
         };
       },

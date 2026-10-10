@@ -30,7 +30,7 @@ export interface AutoSaveHandle {
   /** 通知内容已变化（自动触发 debounce 保存） */
   markDirty: (content: DeltaOps) => void;
   /** 延迟读取最新内容；只在真正保存或紧急导出时执行昂贵的全文序列化。 */
-  markContentDirty: (readContent: () => DeltaOps) => void;
+  markContentDirty: (readContent: () => DeltaOps, batch?: object) => void;
   /** 通知标题已变化 */
   markTitleDirty: (title: string) => void;
   /** 通知标签已变化 */
@@ -93,10 +93,11 @@ export function useAutoSave({
     <K extends keyof PendingAutoSaveChanges>(
       key: K,
       value: PendingAutoSaveChanges[K],
+      batch?: object,
     ) => {
       const id = noteIdRef.current;
       if (!id) return;
-      queue.mark(id, key, value);
+      queue.mark(id, key, value, batch);
       clearTimer();
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
@@ -113,7 +114,7 @@ export function useAutoSave({
     [mark],
   );
   const markContentDirty = useCallback(
-    (reader: () => DeltaOps) => mark("content", reader),
+    (reader: () => DeltaOps, batch?: object) => mark("content", reader, batch),
     [mark],
   );
   const markTitleDirty = useCallback(
