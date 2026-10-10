@@ -31,6 +31,7 @@ interface ActivationState {
   token: PluginActivation;
   controller: AbortController;
   permissions: ReadonlySet<PluginPermission>;
+  resources: Set<() => void>;
 }
 
 /** Only the host issues activations. Copying a serialized descriptor is not authority. */
@@ -77,6 +78,7 @@ export class PluginRuntime {
       token,
       controller: new AbortController(),
       permissions: new Set(permissions),
+      resources: new Set<() => void>(),
     };
     this.activations.set(pluginId, state);
     this.issued.set(token, state);
@@ -86,7 +88,27 @@ export class PluginRuntime {
     const state = this.activations.get(pluginId);
     this.activations.delete(pluginId);
     state?.controller.abort();
+    // Reverse acquisition order; a failing cleanup must not strand other resources.
+    for (const dispose of [...(state?.resources ?? [])].reverse()) dispose();
   }
+  own(activation: PluginActivation, cleanup: () => void): () => void {
+    this.assert(activation);
+    const state = this.issued.get(activation)!;
+    let disposed = false;
+    const dispose = () => {
+      if (disposed) return;
+      disposed = true;
+      state.resources.delete(dispose);
+      try {
+        cleanup();
+      } catch {
+        /* Cleanup is best effort; continue releasing resources. */
+      }
+    };
+    state.resources.add(dispose);
+    return dispose;
+  }
+
   assert(
     activation: PluginActivation,
     permission?: PluginPermission,

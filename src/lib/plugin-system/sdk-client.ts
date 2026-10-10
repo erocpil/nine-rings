@@ -44,7 +44,31 @@ export function createPortSdkTransport(port: MessagePort): SdkTransport {
     }
   >();
   let closed = false;
+  let closeCode: "PLUGIN_DISABLED" | "CANCELLED" = "CANCELLED";
   const receive = (event: MessageEvent) => {
+    const terminal = event.data;
+    if (
+      terminal &&
+      typeof terminal === "object" &&
+      !Array.isArray(terminal) &&
+      terminal.protocol === 1 &&
+      terminal.lifecycle === "closed" &&
+      ["PLUGIN_DISABLED", "CANCELLED"].includes(terminal.code) &&
+      Object.keys(terminal).length === 3
+    ) {
+      closed = true;
+      closeCode = terminal.code;
+      port.removeEventListener("message", receive);
+      port.close();
+      for (const request of pending.values()) {
+        clearTimeout(request.timer);
+        request.reject(
+          new PluginHostError(closeCode, "宿主连接已关闭，执行状态未确认"),
+        );
+      }
+      pending.clear();
+      return;
+    }
     let response: SdkResponse;
     try {
       response = parseSdkResponse(event.data);
@@ -68,9 +92,7 @@ export function createPortSdkTransport(port: MessagePort): SdkTransport {
   return {
     send(request) {
       if (closed)
-        return Promise.reject(
-          new PluginHostError("CANCELLED", "SDK 连接已关闭"),
-        );
+        return Promise.reject(new PluginHostError(closeCode, "SDK 连接已关闭"));
       if (pending.has(request.requestId) || pending.size >= 64)
         return Promise.reject(
           new PluginHostError("INVALID_ARGUMENT", "SDK 请求超过连接预算"),

@@ -61,3 +61,33 @@ it("preference is device-local, cross-window disabling cancels activations, fail
   expect(pluginRuntime.isEnabled()).toBe(false);
   stop();
 });
+
+it("activation owns resources, releases in reverse order and isolates cleanup failures", () => {
+  const runtime = new PluginRuntime();
+  runtime.setEnabled(true);
+  const activation = runtime.activate("test.owner", []);
+  const order: number[] = [];
+  const first = runtime.own(activation, () => order.push(1));
+  runtime.own(activation, () => {
+    order.push(2);
+    throw new Error("cleanup");
+  });
+  runtime.own(activation, () => order.push(3));
+  runtime.deactivate("test.owner");
+  first();
+  runtime.deactivate("test.owner");
+  expect(order).toEqual([3, 2, 1]);
+  expect(() => runtime.own(activation, () => {})).toThrow("已失效");
+});
+
+it("explicit disposal unregisters ownership and reactivation releases old resources", () => {
+  const runtime = new PluginRuntime();
+  runtime.setEnabled(true);
+  const activation = runtime.activate("test.owner", []);
+  const cleanup = vi.fn();
+  const dispose = runtime.own(activation, cleanup);
+  dispose();
+  dispose();
+  runtime.activate("test.owner", []);
+  expect(cleanup).toHaveBeenCalledTimes(1);
+});

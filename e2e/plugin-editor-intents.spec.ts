@@ -201,11 +201,17 @@ for (const transport of ["loopback", "port"] as const) {
         await import("/src/lib/plugin-system/runtime.ts");
       setPluginsEnabled(false);
     });
-    expect(await execute("test.editor.text", "disabled")).toMatchObject({
-      ok: false,
-      applied: false,
-      error: { code: "PLUGIN_DISABLED" },
+    const disabledCode = await page.evaluate(async () => {
+      try {
+        const response = await (window as any).intentSdk.execute(
+          "test.editor.text",
+        );
+        return response.error?.code;
+      } catch (error) {
+        return (error as { code: string }).code;
+      }
     });
+    expect(disabledCode).toBe("PLUGIN_DISABLED");
     expect((await sourceInfo(source)).value).toBe(before);
     await page.evaluate(() => {
       const host = window as any;

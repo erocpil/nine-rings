@@ -357,10 +357,10 @@ export class HostCommandDispatcher {
       handler,
     };
     this.commands.set(declaration.id, command);
-    return () => {
+    return this.runtime.own(activation, () => {
       if (this.commands.get(declaration.id) === command)
         this.commands.delete(declaration.id);
-    };
+    });
   }
 
   async execute(

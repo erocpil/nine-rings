@@ -331,9 +331,14 @@ for (const kind of ["loopback", "port"] as const) {
     await expect(h.sdk.capabilities()).rejects.toMatchObject({
       code: "PLUGIN_DISABLED",
     });
-    expect(await h.sdk.execute("test.sdk.insert")).toMatchObject({
-      error: { code: "PLUGIN_DISABLED" },
-    });
+    if (kind === "port")
+      await expect(h.sdk.execute("test.sdk.insert")).rejects.toMatchObject({
+        code: "PLUGIN_DISABLED",
+      });
+    else
+      expect(await h.sdk.execute("test.sdk.insert")).toMatchObject({
+        error: { code: "PLUGIN_DISABLED" },
+      });
   });
   it(`${kind}: cancellation reaches an async handler and prevents its late commit`, async () => {
     const h = setup(kind),
@@ -786,3 +791,31 @@ for (const kind of ["loopback", "port"] as const) {
     expect(vi.mocked(api.notes.get).mock.calls.length).toBe(calls);
   });
 }
+
+it("host disposal releases bound port after pending terminal response", async () => {
+  const h = setup("port");
+  const gate = deferred();
+  h.dispatcher.register(
+    h.activation,
+    { id: "test.sdk.lifecycle", scope: "app", risk: "read" },
+    async () => {
+      await gate.promise;
+      return null;
+    },
+  );
+  const response = h.sdk.execute("test.sdk.lifecycle");
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  const cleanup = vi.fn();
+  h.host.onDispose(cleanup);
+  h.host.dispose();
+  expect(await response).toMatchObject({
+    ok: false,
+    error: { code: "CANCELLED" },
+  });
+  await expect(h.sdk.capabilities()).rejects.toMatchObject({
+    code: "CANCELLED",
+  });
+  h.host.dispose();
+  expect(cleanup).toHaveBeenCalledTimes(1);
+  gate.resolve();
+});

@@ -28,12 +28,28 @@ export function createSdkHost(
   const seen = new Set<string>();
   const pending = new Map<string, AbortController>();
   let closed = false;
+  const cleanups = new Set<() => void>();
+  let releaseOwnership = () => {};
   const revoke = () => {
     handles.clear();
     for (const controller of pending.values()) controller.abort();
   };
   runtimeSignal.addEventListener("abort", revoke, { once: true });
-  return {
+  const host = {
+    closeCode: () =>
+      runtimeSignal.aborted
+        ? ("PLUGIN_DISABLED" as const)
+        : ("CANCELLED" as const),
+    onDispose(cleanup: () => void) {
+      if (closed) {
+        cleanup();
+        return () => {};
+      }
+      cleanups.add(cleanup);
+      return () => {
+        cleanups.delete(cleanup);
+      };
+    },
     async receive(input: unknown): Promise<SdkResponse> {
       let requestId = "invalid";
       let applied = false;
@@ -170,35 +186,70 @@ export function createSdkHost(
       }
     },
     dispose() {
+      if (closed) return;
       closed = true;
       runtimeSignal.removeEventListener("abort", revoke);
       revoke();
+      releaseOwnership();
+      for (const cleanup of [...cleanups]) {
+        try {
+          cleanup();
+        } catch {
+          /* Release remaining connection resources. */
+        }
+      }
+      cleanups.clear();
     },
   };
+  releaseOwnership = runtime.own(activation, () => host.dispose());
+  return host;
 }
 
 export function bindSdkHostPort(
   host: ReturnType<typeof createSdkHost>,
   port: MessagePort,
 ): () => void {
+  let closing = false;
   let closed = false;
+  let inFlight = 0;
+  const finish = () => {
+    if (!closing || inFlight || closed) return;
+    closed = true;
+    try {
+      port.postMessage({
+        protocol: 1,
+        lifecycle: "closed",
+        code: host.closeCode(),
+      });
+    } finally {
+      port.close();
+    }
+  };
   const receive = (event: MessageEvent) => {
+    if (closing) return;
+    inFlight += 1;
     void host
       .receive(event.data)
       .then((response) => {
         if (!closed) port.postMessage(response);
       })
-      .catch(() => {
-        closed = true;
-        host.dispose();
+      .catch(() => host.dispose())
+      .finally(() => {
+        inFlight -= 1;
+        finish();
       });
+  };
+  const detach = () => {
+    closing = true;
+    port.removeEventListener("message", receive);
+    finish();
   };
   port.addEventListener("message", receive);
   port.start();
+  const unwatch = host.onDispose(detach);
   return () => {
-    closed = true;
+    unwatch();
     host.dispose();
-    port.removeEventListener("message", receive);
-    port.close();
+    detach();
   };
 }
