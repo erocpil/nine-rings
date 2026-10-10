@@ -13,14 +13,16 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DeltaOps, UpdateNoteInput } from "../types/models";
+import type { DeltaOps } from "../types/models";
 
-export type AutoSaveChanges = Pick<
-  UpdateNoteInput,
-  "content" | "title" | "tags"
->;
-
-export type SaveStatus = "clean" | "dirty" | "saving" | "saved" | "error";
+import { AutoSaveQueue } from "../lib/auto-save-queue";
+import type {
+  AutoSaveChanges,
+  PendingAutoSaveChanges,
+  SaveStatus,
+} from "../lib/auto-save-queue";
+export { materializeAutoSaveChanges } from "../lib/auto-save-queue";
+export type { AutoSaveChanges, SaveStatus } from "../lib/auto-save-queue";
 
 export interface AutoSaveHandle {
   /** 当前保存状态 */
@@ -33,7 +35,7 @@ export interface AutoSaveHandle {
   markTitleDirty: (title: string) => void;
   /** 通知标签已变化 */
   markTagsDirty: (tags: string[]) => void;
-  /** 立即 flush 当前脏数据（不等待 debounce） */
+  /** 等待所有文档的待保存数据（不等待 debounce）；写入失败会拒绝。 */
   flush: () => Promise<void>;
   /** 设置 noteId（切换笔记时调用，自动 flush 旧笔记） */
   setNoteId: (id: string | null) => Promise<void>;
@@ -50,240 +52,98 @@ interface Props {
   debounceMs?: number;
 }
 
-type PendingChanges = Omit<AutoSaveChanges, "content"> & {
-  content?: DeltaOps | (() => DeltaOps);
-};
-
-export function materializeAutoSaveChanges(
-  changes: PendingChanges,
-): AutoSaveChanges {
-  const { content, ...fields } = changes;
-  return {
-    ...fields,
-    ...(content !== undefined
-      ? { content: typeof content === "function" ? content() : content }
-      : {}),
-  };
-}
-
 export function useAutoSave({
   onSave,
   debounceMs = 600,
 }: Props): AutoSaveHandle {
   const [status, setStatus] = useState<SaveStatus>("clean");
-  const [, setNoteIdState] = useState<string | null>(null);
-
-  // 每个笔记的脏数据
-  const dirtyRef = useRef<Map<string, PendingChanges>>(new Map());
-  const revisionsRef = useRef(new Map<string, Record<string, number>>());
-  const queuedRef = useRef(new Map<string, Set<AutoSaveChanges>>());
-  const discardedRef = useRef(new WeakSet<AutoSaveChanges>());
-  // 串行保存队列
-  const queueRef = useRef<Promise<void>>(Promise.resolve());
-  // debounce timer
+  const noteIdRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 保存回调引用
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
-  // noteId 引用（setState 异步，ref 同步）
-  const noteIdRef = useRef<string | null>(null);
+  const queueRef = useRef<AutoSaveQueue | null>(null);
+  if (!queueRef.current) {
+    queueRef.current = new AutoSaveQueue(
+      (id, data) => onSaveRef.current(id, data),
+      () => setStatus(queueRef.current!.status(noteIdRef.current)),
+    );
+  }
+  const queue = queueRef.current;
 
-  // 串行 flush 一个笔记的所有脏数据
-  const flushNote = useCallback((id: string): Promise<void> => {
-    const dirty = dirtyRef.current.get(id);
-    if (!dirty) return queueRef.current;
-
-    // Freeze readers before the editor can switch/destroy its document.
-    let snapshot: AutoSaveChanges;
-    try {
-      snapshot = materializeAutoSaveChanges(dirty);
-    } catch (error) {
-      setStatus("error");
-      return Promise.reject(error);
-    }
-    const revisions = { ...revisionsRef.current.get(id) };
-    const queued = queuedRef.current.get(id) ?? new Set<AutoSaveChanges>();
-    queued.add(snapshot);
-    queuedRef.current.set(id, queued);
-
-    // 清除该笔记的脏数据
-    dirtyRef.current.delete(id);
-
-    // 清除 timer
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-
-    // 加入串行队列
-    setStatus("saving");
-    const savePromise = queueRef.current.then(async () => {
-      try {
-        if (discardedRef.current.has(snapshot)) return;
-        await onSaveRef.current(id, snapshot);
-        if (noteIdRef.current === id && !discardedRef.current.has(snapshot)) {
-          setStatus(
-            dirtyRef.current.has(id)
-              ? "dirty"
-              : queued.size > 1
-                ? "saving"
-                : "saved",
-          );
-        }
-      } catch (e) {
-        if (discardedRef.current.has(snapshot)) throw e;
-        // 保存失败：恢复脏数据（用户新输入优先于本次失败批次）
-        const existing = dirtyRef.current.get(id) ?? {};
-        const currentRevisions = revisionsRef.current.get(id) ?? {};
-        const retry: AutoSaveChanges = {};
-        const retainField = <K extends keyof AutoSaveChanges>(key: K) => {
-          if (key in snapshot && currentRevisions[key] === revisions[key])
-            retry[key] = snapshot[key];
-        };
-        retainField("content");
-        retainField("title");
-        retainField("tags");
-        if (Object.keys(retry).length || Object.keys(existing).length) {
-          dirtyRef.current.set(id, { ...retry, ...existing });
-        }
-        if (noteIdRef.current === id) {
-          setStatus("error");
-        }
-        console.error("[useAutoSave] 保存失败:", e);
-        throw e;
-      } finally {
-        queued.delete(snapshot);
-        if (!queued.size && queuedRef.current.get(id) === queued)
-          queuedRef.current.delete(id);
-      }
-    });
-
-    // 队列本身吞掉 rejection 以便后续任务继续；调用方仍拿到 savePromise 的失败。
-    queueRef.current = savePromise.catch(() => {});
-    return savePromise;
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
   }, []);
 
   const setNoteId = useCallback(
     (id: string | null): Promise<void> => {
       const oldId = noteIdRef.current;
-      if (oldId === id) {
-        return Promise.resolve();
-      }
-
-      // 旧笔记按 id 入队后立即同步切换 ref，确保后续新编辑不会记到旧笔记。
-      const pending =
-        oldId && dirtyRef.current.has(oldId)
-          ? flushNote(oldId)
-          : queueRef.current;
+      if (oldId === id) return Promise.resolve();
+      clearTimer();
+      // Freeze the outgoing editor before synchronously changing the active id.
+      const pending = oldId ? queue.flushNote(oldId) : Promise.resolve();
       noteIdRef.current = id;
-      setNoteIdState(id);
-      setStatus("clean");
+      setStatus(queue.status(id));
       return pending;
     },
-    [flushNote],
+    [clearTimer, queue],
   );
 
-  // 标记脏数据 + 触发 debounce
-  const markDirtyRaw = useCallback(
-    <K extends keyof PendingChanges>(
-      noteId: string,
+  const mark = useCallback(
+    <K extends keyof PendingAutoSaveChanges>(
       key: K,
-      value: PendingChanges[K],
+      value: PendingAutoSaveChanges[K],
     ) => {
-      const revisions = revisionsRef.current.get(noteId) ?? {};
-      revisions[key] = (revisions[key] ?? 0) + 1;
-      revisionsRef.current.set(noteId, revisions);
-      const current = dirtyRef.current.get(noteId) ?? {};
-      current[key] = value;
-      dirtyRef.current.set(noteId, current);
-      setStatus("dirty");
-
-      // 清除旧 timer
-      if (timerRef.current) clearTimeout(timerRef.current);
-
-      // 设置新 debounce
+      const id = noteIdRef.current;
+      if (!id) return;
+      queue.mark(id, key, value);
+      clearTimer();
       timerRef.current = setTimeout(() => {
-        void flushNote(noteId).catch(() => {
-          // flushNote 已恢复脏数据并更新状态；定时器回调不能产生未处理 rejection。
+        timerRef.current = null;
+        void queue.flushNote(id).catch((error) => {
+          console.error("[useAutoSave] 保存失败:", error);
         });
       }, debounceMs);
     },
-    [debounceMs, flushNote],
+    [clearTimer, debounceMs, queue],
   );
 
   const markDirty = useCallback(
-    (content: DeltaOps) => {
-      if (noteIdRef.current)
-        markDirtyRaw(noteIdRef.current, "content", content);
-    },
-    [markDirtyRaw],
+    (content: DeltaOps) => mark("content", content),
+    [mark],
   );
-
   const markContentDirty = useCallback(
-    (readContent: () => DeltaOps) => {
-      if (noteIdRef.current)
-        markDirtyRaw(noteIdRef.current, "content", readContent);
-    },
-    [markDirtyRaw],
+    (reader: () => DeltaOps) => mark("content", reader),
+    [mark],
   );
-
   const markTitleDirty = useCallback(
-    (title: string) => {
-      if (noteIdRef.current) markDirtyRaw(noteIdRef.current, "title", title);
-    },
-    [markDirtyRaw],
+    (title: string) => mark("title", title),
+    [mark],
   );
-
   const markTagsDirty = useCallback(
-    (tags: string[]) => {
-      if (noteIdRef.current) markDirtyRaw(noteIdRef.current, "tags", tags);
-    },
-    [markDirtyRaw],
+    (tags: string[]) => mark("tags", tags),
+    [mark],
   );
-
-  const flush = useCallback(async () => {
-    if (noteIdRef.current) {
-      await flushNote(noteIdRef.current);
-      return;
-    }
-    await queueRef.current;
-  }, [flushNote]);
-
+  const flush = useCallback(() => {
+    clearTimer();
+    return queue.flushAll();
+  }, [clearTimer, queue]);
   const getPendingData = useCallback(() => {
     const noteId = noteIdRef.current;
     if (!noteId) return null;
-    let changes: PendingChanges = {};
-    for (const snapshot of queuedRef.current.get(noteId) ?? [])
-      changes = { ...changes, ...snapshot };
-    changes = { ...changes, ...dirtyRef.current.get(noteId) };
-    return Object.keys(changes).length
-      ? { noteId, changes: materializeAutoSaveChanges(changes) }
-      : null;
-  }, []);
-
+    const changes = queue.pending(noteId);
+    return changes ? { noteId, changes } : null;
+  }, [queue]);
   const discardPending = useCallback(() => {
-    const noteId = noteIdRef.current;
-    if (noteId) {
-      dirtyRef.current.delete(noteId);
-      for (const snapshot of queuedRef.current.get(noteId) ?? [])
-        discardedRef.current.add(snapshot);
-      queuedRef.current.delete(noteId);
-    }
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    setStatus("clean");
-  }, []);
+    clearTimer();
+    if (noteIdRef.current) queue.discard(noteIdRef.current);
+  }, [clearTimer, queue]);
 
-  // 页面隐藏 / 卸载时 flush
   useEffect(() => {
     const onHide = () => {
-      if (noteIdRef.current && dirtyRef.current.has(noteIdRef.current)) {
-        void flushNote(noteIdRef.current).catch(() => {
-          // beforeunload/visibilitychange 无法阻塞等待；错误状态已由 flushNote 记录。
-        });
-      }
+      void flush().catch((error) => {
+        console.error("[useAutoSave] 页面离开前保存失败:", error);
+      });
     };
     const onVisibility = () => {
       if (document.visibilityState === "hidden") onHide();
@@ -293,8 +153,9 @@ export function useAutoSave({
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("beforeunload", onHide);
+      clearTimer();
     };
-  }, [flushNote]);
+  }, [clearTimer, flush]);
 
   return {
     status,

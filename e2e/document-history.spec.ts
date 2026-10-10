@@ -1,7 +1,7 @@
 import { sourceInfo } from "./helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
-import { createBlankDocument } from "./helpers/document";
+import { createBlankDocument, waitForSavedText } from "./helpers/document";
 
 // RetainedDocument keeps the previous editor mounted inside an inert portal.
 // Scope assertions to the active session so a fast document switch cannot
@@ -272,3 +272,49 @@ test("同段落附近点击合并历史，显式跳转仍可后退", async ({ pa
   await page.getByRole("button", { name: "后退", exact: true }).click();
   await expect.poll(() => location(page)).toEqual(previous);
 });
+
+
+for (const view of ["rendered", "source"] as const) {
+  test(`自动保存仍在进行时导航，写入失败不应误报成功：${view}`, async ({ page }) => {
+    const id = await fixture(page);
+    await waitForSavedText(page, "位置 44：");
+    await editor(page).locator("p").nth(12).click();
+    if (view === "source") {
+      await page.getByRole("button", { name: "源码", exact: true }).click();
+      await page.getByRole("textbox", { name: "Markdown 源码", exact: true }).click();
+    }
+    await page.evaluate(async id => {
+      const path = "/src/stores/useNotesStore.ts";
+      const { useNotesStore } = await import(/* @vite-ignore */ path);
+      const original = useNotesStore.getState().updateNote;
+      const state = { started: false, release: () => {}, restore: () => {} };
+      Object.assign(window, { pendingSaveTest: state });
+      state.restore = () => useNotesStore.setState({ updateNote: original });
+      useNotesStore.setState({ updateNote: async (noteId, changes) => {
+        if (noteId === id) {
+          state.started = true;
+          await new Promise<void>((_, reject) => {
+            state.release = () => reject(new Error("delayed-save-failure"));
+          });
+        }
+        return original(noteId, changes);
+      } });
+    }, id);
+    await page.keyboard.type("pending-barrier-edit");
+    await expect.poll(() => page.evaluate(() => (window as any).pendingSaveTest.started)).toBe(true);
+    const beforeIndex = (await history(page)).index;
+    await page.getByRole("button", { name: "后退", exact: true }).click();
+    await page.evaluate(() => (window as any).pendingSaveTest.release());
+    await expect(page.getByRole("dialog", { name: "错误详情", exact: true })).toContainText("delayed-save-failure");
+    expect((await history(page)).index).toBe(beforeIndex);
+    expect(await page.evaluate(() => localStorage.getItem("nr:lastNote"))).toBe(id);
+    if (view === "source") {
+      expect((await sourceInfo(page.getByRole("textbox", { name: "Markdown 源码", exact: true }))).value).toContain("pending-barrier-edit");
+    } else {
+      await expect(editor(page)).toContainText("pending-barrier-edit");
+    }
+    await page.evaluate(() => (window as any).pendingSaveTest.restore());
+    await page.getByRole("button", { name: "重试保存", exact: true }).click();
+    await waitForSavedText(page, "pending-barrier-edit");
+  });
+}
