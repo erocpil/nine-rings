@@ -4,7 +4,7 @@ pub fn quit_application(app: tauri::AppHandle, window: tauri::WebviewWindow) -> 
     if window.label() != "main" {
         return Err("只能从主窗口退出应用".into());
     }
-    crate::graceful_quit(&app);
+    crate::graceful_quit(&app, "confirmed-keyboard");
     Ok(())
 }
 
@@ -99,4 +99,15 @@ pub async fn print_pdf_document(
         let _ = title;
         window.print().map_err(|e| e.to_string())
     }
+}
+
+#[tauri::command]
+pub fn get_desktop_recovery_status(
+    window: tauri::WebviewWindow,
+    state: tauri::State<crate::desktop_lifecycle::DesktopLifecycle>,
+) -> Result<crate::desktop_lifecycle::Status, String> {
+    if window.label() != "main" {
+        return Err("只能从主窗口查看诊断".into());
+    }
+    Ok(state.snapshot())
 }

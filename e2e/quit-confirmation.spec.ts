@@ -13,7 +13,7 @@ test("原生退出事件首次提示，超时重新确认，保存完成后才�
     const { useQuitConfirmation } = await load("/src/hooks/useQuitConfirmation.ts");
     const calls: string[] = [];
     Object.assign(window, { quitTestCalls: calls, isTauri: true });
-    mockIPC((command: string) => { if (command === "quit_application") calls.push("quit"); }, { shouldMockEvents: true });
+    mockIPC(async (command: string) => { if (command === "quit_application") { calls.push("quit"); if ((window as any).delayQuit) await new Promise<void>(resolve => { (window as any).resolveQuit = resolve; }); } }, { shouldMockEvents: true });
     const nativeInvoke = (window as any).__TAURI_INTERNALS__.invoke;
     (window as any).__TAURI_INTERNALS__.invoke = async (command: string, args: any) => {
       const result = await nativeInvoke(command, args);
@@ -23,7 +23,7 @@ test("原生退出事件首次提示，超时重新确认，保存完成后才�
       return result;
     };
     function Harness() {
-      const hint = useQuitConfirmation(async () => { calls.push("save"); });
+      const hint = useQuitConfirmation(async () => { calls.push("save"); if ((window as any).delayQuit) await new Promise<void>(resolve => { (window as any).resolveSave = resolve; }); });
       return hint ? createElement("div", { className: "quit-confirmation-hint", role: "status" }, hint) : null;
     }
     const root = document.createElement("div");
@@ -46,7 +46,13 @@ test("原生退出事件首次提示，超时重新确认，保存完成后才�
   await expect(page.locator(".quit-confirmation-hint")).toHaveCount(0);
   await press();
   await expect(page.locator(".quit-confirmation-hint")).toBeVisible();
+  await page.evaluate(() => { (window as any).delayQuit = true; });
   await press();
+  await expect(page.locator(".quit-confirmation-hint")).toHaveText("正在保存并退出…");
+  await expect.poll(() => page.evaluate(() => (window as any).quitTestCalls)).toEqual(["save"]);
+  await page.evaluate(() => (window as any).resolveSave());
+  await expect(page.locator(".quit-confirmation-hint")).toHaveText("本机已保存，正在清理并退出…");
   await expect.poll(() => page.evaluate(() => (window as any).quitTestCalls)).toEqual(["save", "quit"]);
+  await page.evaluate(() => (window as any).resolveQuit());
   await expect(page.locator(".quit-confirmation-hint")).toHaveCount(0);
 });

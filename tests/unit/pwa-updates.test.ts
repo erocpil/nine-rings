@@ -291,6 +291,107 @@ describe("PWA update lifecycle", () => {
     expect(status).toMatchObject({ checked: true, error: null });
   });
 
+  it("checks again while a downloaded release is waiting and keeps manual checks available", async () => {
+    const previous = new Worker();
+    previous.state = "installed";
+    registration.waiting = previous;
+    start();
+    await settle();
+    expect(status).toMatchObject({ available: true, checking: false });
+    expect(registration.update).toHaveBeenCalledOnce();
+    await updater.check();
+    await updater.check();
+    expect(registration.update).toHaveBeenCalledTimes(3);
+    expect(status).toMatchObject({ available: true, checking: false });
+    expect(previous.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("automatically downloads later deployments while a release waits for refresh", async () => {
+    const previous = new Worker();
+    previous.state = "installed";
+    registration.waiting = previous;
+    start();
+    await settle();
+    const latest = new Worker();
+    registration.update.mockImplementation(async () => {
+      registration.installing = latest;
+      registration.dispatchEvent(new Event("updatefound"));
+    });
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
+    expect(registration.update).toHaveBeenCalledTimes(2);
+    expect(status).toMatchObject({
+      available: true,
+      checking: true,
+      phase: "installing",
+    });
+    expect(pwaUpdateStatusText(status)).toContain("正在下载");
+    installed(latest);
+    previous.change("redundant");
+    await settle();
+    expect(status).toMatchObject({
+      available: true,
+      checking: false,
+      phase: "ready",
+      error: null,
+    });
+    expect(browser.location.reload).not.toHaveBeenCalled();
+    expect(latest.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("applies the latest waiting worker after an in-flight download rather than activating the older release", async () => {
+    const previous = new Worker();
+    previous.state = "installed";
+    registration.waiting = previous;
+    start();
+    await settle();
+    const latest = new Worker();
+    registration.update.mockImplementation(async () => {
+      registration.installing = latest;
+      registration.dispatchEvent(new Event("updatefound"));
+    });
+    const check = updater.check();
+    await settle();
+    const apply = updater.apply();
+    await settle();
+    expect(previous.postMessage).not.toHaveBeenCalled();
+    installed(latest);
+    await check;
+    await settle();
+    expect(latest.postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" });
+    container.controller = latest;
+    container.dispatchEvent(new Event("controllerchange"));
+    await apply;
+    expect(browser.location.reload).toHaveBeenCalledOnce();
+  });
+
+  it("retains the downloaded release if a later deployment fails and permits another check", async () => {
+    const previous = new Worker();
+    previous.state = "installed";
+    registration.waiting = previous;
+    start();
+    await settle();
+    const latest = new Worker();
+    registration.update.mockImplementation(async () => {
+      registration.installing = latest;
+      registration.dispatchEvent(new Event("updatefound"));
+    });
+    const check = updater.check();
+    await settle();
+    registration.installing = null;
+    latest.change("redundant");
+    await check;
+    expect(status).toMatchObject({ available: true, checking: false });
+    expect(status.error).toContain("失败");
+    expect(registration.waiting).toBe(previous);
+    registration.update.mockResolvedValue(undefined);
+    await updater.check();
+    expect(status).toMatchObject({
+      available: true,
+      checking: false,
+      error: null,
+    });
+  });
+
   it("times out activation without reloading, allowing a later retry", async () => {
     const worker = new Worker();
     registration.waiting = worker;

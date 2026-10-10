@@ -4,6 +4,7 @@ export const QUIT_CONFIRMATION_MS = 2000;
 export function createQuitConfirmation(actions: {
   hint: () => void;
   clear: () => void;
+  progress?: (phase: "saving" | "exiting") => void;
   save: () => Promise<void>;
   quit: () => Promise<void>;
   error: (error: unknown) => void;
@@ -24,10 +25,13 @@ export function createQuitConfirmation(actions: {
       }
       reset();
       busy = true;
-      actions.clear();
+      if (actions.progress) actions.progress("saving");
+      else actions.clear();
       try {
         await actions.save();
+        actions.progress?.("exiting");
         await actions.quit();
+        if (actions.progress) actions.clear();
       } catch (error) {
         actions.error(error);
       } finally {

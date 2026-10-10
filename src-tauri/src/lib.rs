@@ -1,7 +1,10 @@
 pub mod commands;
 pub mod db;
+mod desktop_lifecycle;
 pub mod export;
 mod fullscreen;
+static JOB_OBJECT_ENABLED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 #[cfg(target_os = "macos")]
 mod macos_print;
 #[cfg(target_os = "macos")]
@@ -27,7 +30,7 @@ use tauri::{
 fn setup_job_object_kill_on_close() -> Result<(), String> {
     use std::mem::size_of;
     use std::sync::OnceLock;
-    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::Foundation::{CloseHandle, HANDLE};
     use windows::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
         SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
@@ -59,7 +62,8 @@ fn setup_job_object_kill_on_close() -> Result<(), String> {
             &info as *const _ as *const _,
             size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
         ) {
-            log::warn!("[JobObject] SetInformationJobObject: {:?}", e);
+            let _ = CloseHandle(job);
+            return Err(format!("SetInformationJobObject: {:?}", e));
         }
         let r = AssignProcessToJobObject(job, GetCurrentProcess());
         (r, job)
@@ -67,6 +71,7 @@ fn setup_job_object_kill_on_close() -> Result<(), String> {
     match result {
         Ok(()) => {
             let _ = JOB_HANDLE.set(JobHandle { _handle: handle });
+            JOB_OBJECT_ENABLED.store(true, std::sync::atomic::Ordering::Relaxed);
             log::info!("[JobObject] KILL_ON_CLOSE enabled — child processes auto-killed on exit");
             Ok(())
         }
@@ -75,23 +80,24 @@ fn setup_job_object_kill_on_close() -> Result<(), String> {
                 "[JobObject] AssignProcessToJobObject: {:?} — child processes NOT auto-killed",
                 e
             );
+            unsafe {
+                let _ = CloseHandle(handle);
+            }
             Err(format!("{:?}", e))
         }
     }
 }
 
 /// 启动日志：写入 %TEMP%/nine-rings-startup.log（Windows 上 stderr 不可见）。
-/// 格式：`[HH:MM:SS.mmm] message`，使用本地时间。
+/// 格式包含完整日期、时区、PID 和平台，使用本地时间。
 macro_rules! startup_log {
     ($($arg:tt)*) => {{
         let msg = format!($($arg)*);
         log::info!("{}", msg);
-        if let Ok(dir) = std::env::var("TEMP").or_else(|_| std::env::var("TMPDIR")).or_else(|_| std::env::var("TMP")) {
-            let path = std::path::PathBuf::from(dir).join("nine-rings-startup.log");
-            let line = format!("[{}] {}\n", chrono::Local::now().format("%H:%M:%S%.3f"), msg);
-            let _ = std::fs::OpenOptions::new().create(true).append(true).open(&path)
-                .map(|mut f| { let _ = std::io::Write::write_all(&mut f, line.as_bytes()); });
-        }
+        let path = std::env::temp_dir().join("nine-rings-startup.log");
+        let line = format!("[{} pid={} os={}] {}\n", chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%.3f%:z"), std::process::id(), std::env::consts::OS, msg);
+        let _ = std::fs::OpenOptions::new().create(true).append(true).open(&path)
+            .map(|mut f| { let _ = std::io::Write::write_all(&mut f, line.as_bytes()); });
     }};
 }
 
@@ -315,31 +321,56 @@ fn toggle_window_fullscreen(window: &tauri::WebviewWindow) {
 }
 
 /// Shared shutdown path for tray and confirmed keyboard exit.
-fn graceful_quit(app: &tauri::AppHandle) {
-    // ── 优雅退出：先让 WebView2 走正常关闭协议 ──
-    // app.exit(0) 是暴力终止，会留下孤儿 msedgewebview2.exe
-    // 子进程（GPU、渲染、Crashpad）继续持有 EBWebView 文件锁。
-    // cleanup_before_exit() 触发 WebView2/wry 的正常销毁流程，
-    // 释放资源后再退出。
-    startup_log!("quit requested — starting graceful shutdown");
-    // 先隐藏所有窗口，避免用户看到关闭过程
-    for (_, w) in app.webview_windows() {
-        let _ = w.hide();
+fn graceful_quit(app: &tauri::AppHandle, source: &str) {
+    let started = std::time::Instant::now();
+    startup_log!(
+        "quit requested source={} jobObject={}",
+        source,
+        JOB_OBJECT_ENABLED.load(std::sync::atomic::Ordering::Relaxed)
+    );
+    let lifecycle = app.try_state::<desktop_lifecycle::DesktopLifecycle>();
+    if let Some(ref status) = lifecycle {
+        status.phase("checkpoint", None);
     }
-    // WAL checkpoint：把 WAL 中所有已提交事务合并回主 DB 文件。
-    // app.exit(0) 是 std::process::exit，不触发 Rust Drop，
-    // 必须在此处显式 flush，否则未 checkpoint 的数据会丢失。
+    for (_, window) in app.webview_windows() {
+        let _ = window.hide();
+    }
     if let Some(state) = app.try_state::<AppState>() {
-        if let Ok(conn) = state.db.lock() {
-            let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
-            startup_log!("quit: WAL checkpointed to main DB");
+        match state.db.lock() {
+            Ok(conn) => {
+                let result = desktop_lifecycle::checkpoint(&conn, "TRUNCATE");
+                startup_log!(
+                    "quit checkpoint: {} total={}ms",
+                    result,
+                    started.elapsed().as_millis()
+                );
+                if !result.starts_with("busy=0,") {
+                    if let Some(ref status) = lifecycle {
+                        status.phase("checkpoint", Some(result));
+                    }
+                }
+            }
+            Err(e) => {
+                startup_log!("quit database lock failed: {}", e);
+                if let Some(ref status) = lifecycle {
+                    status.phase("checkpoint", Some(e.to_string()));
+                }
+            }
         }
     }
+    if let Some(ref status) = lifecycle {
+        status.phase("cleanup", None);
+    }
+    let cleanup = std::time::Instant::now();
     app.cleanup_before_exit();
-    // 给 WebView2 子进程一点收尾时间（Chromium 多进程架构
-    // 中 GPU/Renderer/Crashpad 可能比主进程晚一拍退出）
-    std::thread::sleep(std::time::Duration::from_millis(500));
-    startup_log!("graceful shutdown complete, exiting");
+    startup_log!(
+        "quit cleanup={}ms total={}ms; requesting native exit",
+        cleanup.elapsed().as_millis(),
+        started.elapsed().as_millis()
+    );
+    if let Some(ref status) = lifecycle {
+        status.phase("exit-requested", None);
+    }
     app.exit(0);
 }
 
@@ -575,19 +606,49 @@ pub fn run() {
                 startup_log!("legacy application data copied to the current identifier directory");
             }
             std::fs::create_dir_all(&app_dir)?;
+            let job = if cfg!(target_os = "windows") {
+                Some(JOB_OBJECT_ENABLED.load(std::sync::atomic::Ordering::Relaxed))
+            } else {
+                None
+            };
+            app.manage(desktop_lifecycle::DesktopLifecycle::begin(&app_dir, job));
+            let lifecycle = app.state::<desktop_lifecycle::DesktopLifecycle>();
+            startup_log!(
+                "session={} previousAbnormal={}",
+                lifecycle.snapshot().current.id,
+                lifecycle.snapshot().recovery.abnormal
+            );
             let db_path = app_dir.join("nine-rings.db");
             log::info!("database path: {:?}", db_path);
 
             startup_log!("opening database...");
             let db_size_before = std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0);
             startup_log!("db file: {:?} ({} bytes)", db_path, db_size_before);
-            let conn = rusqlite::Connection::open(&db_path).expect("failed to open database");
+            let conn = rusqlite::Connection::open(&db_path).map_err(|e| {
+                lifecycle.phase("startup-failed", Some(e.to_string()));
+                startup_log!("database open failed: {}", e);
+                e
+            })?;
+            let healthy = lifecycle.check_database(&conn);
+            let report = lifecycle.snapshot();
+            startup_log!(
+                "startup recovery: {} checkpoint={:?}",
+                report.recovery.message,
+                report.recovery.checkpoint
+            );
             // WAL 模式：写入先到 WAL 文件，定期合并回主 DB。
             // 即使进程被暴力终止，WAL 中的完整事务也不会丢
             // （SQLite 下次打开时自动恢复）。
-            conn.execute_batch("PRAGMA journal_mode=WAL;").ok();
+            if healthy {
+                conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+            }
             startup_log!("running migrations...");
-            db::migrations::run(&conn).expect("failed to run migrations");
+            if healthy {
+                db::migrations::run(&conn).map_err(|e| {
+                    lifecycle.phase("startup-failed", Some(e.to_string()));
+                    e
+                })?;
+            }
             startup_log!("migrations done");
 
             // 加载配置
@@ -656,7 +717,7 @@ pub fn run() {
                             show_main_window(app);
                         }
                         "quit" => {
-                            graceful_quit(app);
+                            graceful_quit(app, "tray");
                         }
                         _ => {}
                     })
@@ -748,6 +809,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::window::quit_application,
+            commands::window::get_desktop_recovery_status,
             commands::window::set_window_fullscreen,
             commands::window::toggle_window_maximize,
             commands::external_link::open_external_link,
@@ -783,7 +845,19 @@ pub fn run() {
             commands::query::db_exec,
             commands::query::db_transaction,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| match event {
+            tauri::RunEvent::ExitRequested { code, .. } => {
+                startup_log!("native ExitRequested code={:?}", code)
+            }
+            tauri::RunEvent::Exit => {
+                startup_log!("native Exit observed; OS child teardown is not yet verified");
+                if let Some(state) = app.try_state::<desktop_lifecycle::DesktopLifecycle>() {
+                    state.phase("exited", None);
+                }
+            }
+            _ => {}
+        });
     startup_log!("=== nine-rings exiting ===");
 }

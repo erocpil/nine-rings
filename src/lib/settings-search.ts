@@ -22,6 +22,7 @@ export interface SettingsSearchEntry {
   page: SearchSettingsPage;
   action?: "typography" | "help" | "update";
   webOnly?: boolean;
+  desktopOnly?: boolean;
   target?: string;
 }
 const entries: SettingsSearchEntry[] = [
@@ -167,6 +168,12 @@ const entries: SettingsSearchEntry[] = [
     webOnly: true,
   },
   {
+    title: "启动与退出诊断",
+    target: '[data-settings-label="启动与退出诊断"]',
+    description: "高级 · 当前会话、前次退出与数据恢复",
+    keywords: "启动 退出 崩溃 恢复 修复 日志 诊断 进程", page: "advanced", desktopOnly: true,
+  },
+  {
     title: "回收站自动清理",
     target: "[data-settings-label=\"回收站自动清理\"]",
     description: "高级 · 回收站自动清理期限",
@@ -214,7 +221,7 @@ export function searchSettings(
   if (!terms.length) return [];
   return entries.filter(
     (entry) =>
-      (!entry.webOnly || options.web) &&
+      (!entry.webOnly || options.web) && (!entry.desktopOnly || !options.web) &&
       (entry.action !== "update" || options.updates) &&
       terms.every((term) =>
         `${entry.title} ${entry.description} ${entry.keywords}`

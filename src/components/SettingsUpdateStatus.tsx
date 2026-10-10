@@ -18,8 +18,8 @@ export function SettingsUpdateStatus({ webUpdate, showMessage }: Props) {
 
   const getUpdateStatusClass = (status: SettingsWebUpdate) => {
     if (status.error) return "is-error";
-    if (status.available) return "is-ready";
     if (status.checking || status.phase === "installing") return "is-checking";
+    if (status.available) return "is-ready";
     if (status.checked) return "is-neutral";
     return "is-idle";
   };

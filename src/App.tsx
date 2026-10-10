@@ -1,3 +1,4 @@
+import { DesktopRecoveryNotice } from "./components/DesktopRecoveryStatus";
 import { useQuitConfirmation } from "./hooks/useQuitConfirmation";
 import type { DocumentOpenOptions } from "./lib/document-open";
 import { useDocumentOpenStore } from "./stores/useDocumentOpenStore";
@@ -1456,6 +1457,7 @@ function App() {
         />
       )}
 
+      <DesktopRecoveryNotice />
       {quitHint && <div className="quit-confirmation-hint" role="status" aria-live="polite">{quitHint}</div>}
       {externalNoteConflict && (
         <div className="tab-conflict-banner" role="alert">

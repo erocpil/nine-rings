@@ -95,6 +95,11 @@ describe("static settings search", () => {
         (entry) => entry.page,
       ),
     ).toEqual(["changelog"]);
-    expect(searchSettings("诊断", { web: false, updates: false })).toEqual([]);
+    expect(
+      searchSettings("诊断", { web: false, updates: false }).map(
+        (entry) => entry.title,
+      ),
+    ).toEqual(["启动与退出诊断"]);
+    expect(searchSettings("启动", { web: true, updates: false })).toEqual([]);
   });
 });

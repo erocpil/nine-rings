@@ -9,7 +9,7 @@
 
 ### 第一层：`app.exit(0)` 暴力终止产生孤儿进程
 
-托盘"退出"功能调用 `app.exit(0)`，直接终止主进程。
+历史实现将托盘"退出"的 `app.exit(0)` 当作直接终止主进程处理。该历史诊断不代表当前 Tauri 版本的退出机制：当前依赖的正常路径先请求退出事件，仅请求失败时才回退到 `std::process::exit`。
 WebView2 的多个子进程（GPU、Renderer、Crashpad）变成孤儿，
 继续持有 `%LOCALAPPDATA%\com.ninerings.desktop\EBWebView\` 下的文件锁。
 
@@ -88,9 +88,9 @@ setup() → 数据库、托盘、快捷键
 
 ```rust
 // 隐藏所有窗口
-// cleanup_before_exit() — 触发 WebView2/wry 正常销毁
-// sleep 500ms — 等待 Chromium 多进程收尾
-// app.exit(0) — Job Object 兜底，清掉残余
+// 保存未提交文档并执行数据库 WAL checkpoint
+// cleanup_before_exit() — 清理 Tauri 管理的资源
+// app.exit(0) — 请求 Tauri 退出事件，Job Object 兜底清理残余子进程
 ```
 
 ## 涉及的 commit
@@ -138,3 +138,16 @@ setup() → 数据库、托盘、快捷键
 5. **PWA Service Worker 不应该在 Tauri 内注册**。Windows 桌面端的
    `http://tauri.localhost` 也是 HTTP origin，会被 Web/PWA 的 fetch handler 接管；
    对入口页使用无超时 `network-first` 会将自定义协议异常放大成数分钟白屏。
+
+
+### 取消固定退出等待（2026-10-10）
+
+当前锁定依赖 Tauri 2.11.6 的 `AppHandle::exit()` 正常情况下调用运行时 `request_exit`，请求失败才执行进程退出回退；`cleanup_before_exit()` 清理托盘及资源表，不提供“WebView2 全部子进程已退出”的完成通知。原来位于退出请求之前的 500ms sleep 只是经验缓冲，无法验证子进程收尾，也可能延后真正的退出事件处理。现已删除，清理后立即请求退出，保留文档保存屏障、WAL checkpoint 和原有 Job Object 兜底。
+
+前端显示保存及清理阶段，不添加等待时间以展示通知。Windows 原生行为仍需在真机反复退出/重启，检查本应用的 WebView2 子进程和用户数据目录文件锁；macOS 编译检查或浏览器 IPC 模拟不能替代该验证。
+
+### 启动与退出诊断（2026-10-10）
+
+设置 → 高级显示当前会话、上次退出和数据库修复结果，详见 [桌面启动与异常恢复](desktop-startup-recovery.md)。日志现在包含完整日期、时区、PID、平台与实际 checkpoint/清理耗时。Job Object 限制设置失败不再继续并误报启用；失败关闭句柄。
+
+Windows 真机检查应记录连续退出/重启的 PID 和会话 ID，核对原主进程、WebView2 子进程是否消失，并尝试重新打开数据库与应用。对照日志中 `ExitRequested`、`Exit observed`、`jobObject` 和 `busy`；任何退出事件均不能单独证明文件锁已释放。Linux 对 WebKitGTK 子进程执行相同的外部观察，macOS 同样保留诊断，系统进程生命周期不同不代表不可能异常。

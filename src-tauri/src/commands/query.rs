@@ -18,22 +18,33 @@ use tauri::State;
 
 /// RAII guard：进入时设置 PRAGMA query_only = ON，离开作用域时恢复。
 ///
-/// 确保即使 db_query 中发生 panic 或提前返回，SQLite 连接也会恢复写入权限。
+/// 确保即使 db_query 中发生 panic 或提前返回，SQLite 连接也会恢复原有只读状态，不解除启动时的数据保护。
 struct QueryOnlyGuard<'a> {
     conn: &'a rusqlite::Connection,
+    was_readonly: bool,
 }
 
 impl<'a> QueryOnlyGuard<'a> {
     fn new(conn: &'a rusqlite::Connection) -> Result<Self, String> {
+        let was_readonly = conn
+            .query_row("PRAGMA query_only", [], |r| r.get::<_, bool>(0))
+            .map_err(|e| e.to_string())?;
         conn.execute("PRAGMA query_only = ON", [])
             .map_err(|e| format!("db_query: failed to set query_only: {}", e))?;
-        Ok(QueryOnlyGuard { conn })
+        Ok(QueryOnlyGuard { conn, was_readonly })
     }
 }
 
 impl<'a> Drop for QueryOnlyGuard<'a> {
     fn drop(&mut self) {
-        let _ = self.conn.execute("PRAGMA query_only = OFF", []);
+        let _ = self.conn.execute(
+            if self.was_readonly {
+                "PRAGMA query_only = ON"
+            } else {
+                "PRAGMA query_only = OFF"
+            },
+            [],
+        );
     }
 }
 
@@ -56,7 +67,7 @@ pub fn db_query(state: State<AppState>, op_json: String) -> Result<Vec<serde_jso
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
     // 纵深防御：即使 Op 类型校验被绕过，SQLite 层面也拒绝写操作。
-    // QueryOnlyGuard 确保连接在函数退出时（包括 panic）恢复写入权限。
+    // QueryOnlyGuard 确保连接在函数退出时（包括 panic）恢复原有只读状态。
     let _guard = QueryOnlyGuard::new(&conn)?;
 
     let mut stmt = conn
@@ -197,4 +208,24 @@ pub fn db_transaction(state: State<AppState>, ops_json: String) -> Result<(), St
         .map_err(|e| format!("db_transaction: COMMIT error: {}", e))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod guard_tests {
+    use super::*;
+    #[test]
+    fn query_does_not_reenable_writes_on_quarantined_connection() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE test(value); PRAGMA query_only=ON")
+            .unwrap();
+        {
+            let _guard = QueryOnlyGuard::new(&conn).unwrap();
+        }
+        assert!(conn.execute("INSERT INTO test VALUES (1)", []).is_err());
+        conn.execute_batch("PRAGMA query_only=OFF").unwrap();
+        {
+            let _guard = QueryOnlyGuard::new(&conn).unwrap();
+        }
+        assert!(conn.execute("INSERT INTO test VALUES (1)", []).is_ok());
+    }
 }

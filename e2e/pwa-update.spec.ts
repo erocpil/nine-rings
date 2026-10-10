@@ -182,3 +182,48 @@ test("图标返回200后正文中断会重试，完整缓存后才能升级", as
     icon.src = "/icon-192.png";
   }))).toBe(192);
 });
+
+async function waitingVersion(page: Page) {
+  return page.evaluate(async () => {
+    const worker = (await navigator.serviceWorker.ready).waiting;
+    if (!worker) return null;
+    return new Promise<number>((resolve) => {
+      const channel = new MessageChannel();
+      channel.port1.onmessage = event => { channel.port1.close(); resolve(event.data as number); };
+      worker.postMessage("TEST_VERSION", [channel.port2]);
+    });
+  });
+}
+
+test("已下载但未刷新时继续检查后续部署，最终保存并启用最新版本", async ({ page }) => {
+  await page.keyboard.press("Alt+,");
+  const check = page.getByRole("button", { name: "检查更新", exact: true });
+  revision = 2;
+  await check.click();
+  await expect.poll(() => waitingVersion(page)).toBe(2);
+  await expect(check).toBeEnabled();
+  await expect.poll(() => activeVersion(page)).toBe(1);
+  revision = 3;
+  blockDownload = true;
+  await check.click();
+  await expect.poll(() => page.evaluate(async () => Boolean((await navigator.serviceWorker.ready).installing))).toBe(true);
+  await expect(page.locator(".settings-web-update [role=status]")).toContainText("正在下载并安装新版");
+  await expect.poll(() => activeVersion(page)).toBe(1);
+  await expect.poll(() => waitingVersion(page)).toBe(2);
+  releaseDownloads();
+  await expect.poll(() => waitingVersion(page)).toBe(3);
+  await expect(check).toBeEnabled();
+  await check.click();
+  await expect(check).toBeEnabled();
+  await expect.poll(() => waitingVersion(page)).toBe(3);
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await page.locator(".note-title").fill("连续部署前的最后修改");
+  await page.locator(".ProseMirror").fill("等待更新不应丢失当前编辑");
+  await Promise.all([
+    page.waitForEvent("load"),
+    page.locator(".web-status-banner").getByRole("button", { name: "保存并刷新" }).click(),
+  ]);
+  await expect.poll(() => activeVersion(page)).toBe(3);
+  await expect(page.locator(".note-title")).toHaveValue("连续部署前的最后修改");
+  await expect(page.locator(".ProseMirror")).toContainText("等待更新不应丢失当前编辑");
+});

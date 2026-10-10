@@ -11,9 +11,9 @@ export interface PwaUpdateStatus {
 
 export function pwaUpdateStatusText(status: PwaUpdateStatus): string {
   if (status.error) return status.error;
-  if (status.available) return "新版本已就绪，保存本机改动后即可刷新";
   if (status.phase === "installing") return "正在下载并安装新版，请保持联网";
-  if (status.checking) return "正在检查新版，请保持联网";
+  if (status.checking) return status.available ? "正在检查后续新版，已下载版本仍保留" : "正在检查新版，请保持联网";
+  if (status.available) return "新版本已就绪，保存本机改动后即可刷新";
   if (status.checked) return "未发现待安装的新版本";
   return "检查已部署的应用版本";
 }
@@ -56,9 +56,9 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
   let failedInstaller: ServiceWorker | null = null;
   const publish = (patch: Partial<PwaUpdateStatus>) => {
     status = { ...status, ...patch };
-    status.phase = status.error ? "error" : status.available ? "ready"
+    status.phase = status.error ? "error"
       : registration?.installing?.state === "installing" ? "installing"
-      : status.checking ? "checking" : status.checked ? "up-to-date" : "idle";
+      : status.checking ? "checking" : status.available ? "ready" : status.checked ? "up-to-date" : "idle";
     if (!disposed) onStatus(status);
   };
   const listen = (target: EventTarget, event: string, callback: () => void) => {
@@ -169,7 +169,10 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
     checking = (async () => {
       try {
         const current = await withTimeout(ensureRegistration(), UPDATE_TIMEOUT, "注册更新服务");
-        if (!current.installing && !current.waiting) await withTimeout(current.update(), UPDATE_TIMEOUT, "获取新版");
+        // A waiting worker is only the last downloaded release, not proof
+        // that the deployment is current. Keep fetching later releases until
+        // the user explicitly saves and reloads.
+        if (!current.installing) await withTimeout(current.update(), UPDATE_TIMEOUT, "获取新版");
         watchInstaller();
         const worker = current.installing;
         if (worker) {
@@ -207,7 +210,10 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
     check: () => check(true),
     /** Caller must flush edits and prevent new edits until this completes. */
     async apply() {
-      if (!controllerChanged && !registration?.waiting) await check(true);
+      // An older waiting release may coexist with a newer download/check.
+      // Finish that attempt before choosing which worker to activate.
+      if (checking) await checking;
+      if (registration?.installing || (!controllerChanged && !registration?.waiting)) await check(true);
       if (disposed) throw new Error("更新已取消");
       if (controllerChanged) { window.location.reload(); return; }
       const worker = registration?.waiting;

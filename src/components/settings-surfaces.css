@@ -42,3 +42,28 @@
   .settings-panel .settings-category-card:hover,
   .settings-panel .editor-appearance-entry:hover { background: var(--settings-card-bg); }
 }
+
+/* Dark settings use the same restrained selected surface as secondary controls.
+   Bright accent fills and white captions are especially harsh in these palettes. */
+:root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) :is(.settings-panel, .editor-appearance-panel) {
+  --settings-selected-bg: color-mix(in srgb, var(--surface) 86%, var(--accent));
+  --settings-selected-text: color-mix(in srgb, var(--text) 85%, var(--surface));
+}
+:root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) :is(.settings-panel, .editor-appearance-panel) :is(.settings-radio.active, .settings-btn-primary, .settings-update-apply) {
+  background: var(--settings-selected-bg);
+  color: var(--settings-selected-text);
+  border-color: color-mix(in srgb, var(--border) 65%, var(--accent));
+}
+:root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) :is(.settings-panel, .editor-appearance-panel) :is(.settings-radio.active, .settings-btn-primary, .settings-update-apply):hover:not(:disabled) {
+  background: color-mix(in srgb, var(--surface) 78%, var(--accent));
+}
+:root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) .settings-panel .toggle-track::after {
+  background: color-mix(in srgb, var(--text-secondary) 75%, var(--surface));
+}
+.desktop-recovery-status dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 16px; font-size: 13px; }
+.desktop-recovery-status dt { color: var(--text-secondary); }
+.desktop-recovery-status dd { margin: 0; overflow-wrap: anywhere; }
+.desktop-recovery-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.desktop-recovery-notice { position: absolute; z-index: 510; top: 50px; left: 50%; transform: translateX(-50%); max-width: min(720px, 94vw); display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); box-shadow: 0 4px 18px color-mix(in srgb, var(--text) 12%, transparent); font-size: 13px; }
+.desktop-recovery-notice button { flex-shrink: 0; border: 0; background: transparent; color: var(--text-secondary); font-size: 20px; cursor: pointer; }
+@media (max-width: 600px) { .desktop-recovery-status dl { grid-template-columns: 1fr; gap: 4px; } .desktop-recovery-status dd { margin-bottom: 8px; } }

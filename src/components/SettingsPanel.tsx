@@ -1,3 +1,4 @@
+import { DesktopRecoveryStatus } from "./DesktopRecoveryStatus";
 import { normalizeSidebarOrder, sidebarPanelLabel } from "../lib/desktop-sidebar-state";
 import { INTERFACE_STYLES, normalizeInterfaceStyle, effectiveWorkspaceLayout } from "../lib/interface-style";
 import { blockWorkspacePreferences, saveBlockWorkspacePreferences, BLOCK_WORKSPACE_DISPLAY_EVENT } from "../lib/block-display-settings";
@@ -789,7 +790,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                     key={v}
                     type="button"
                     className={`${mobileSettingsViewport ? `settings-radio ${config.theme === v ? "active" : ""}` : "settings-theme-option"} ${chk("theme", v)}`}
-                    style={mobileSettingsViewport ? undefined : { backgroundColor: background, color: v === "light" ? "#1f2328" : "#ffffff" }}
+                    style={mobileSettingsViewport ? undefined : { backgroundColor: background, color: v === "light" ? "#1f2328" : "#d5dce2" }}
                     title={name}
                     aria-pressed={config.theme === v}
                     onClick={() => update({ theme: v })}
@@ -1217,6 +1218,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 <span className="toggle-track" /><span className="toggle-label">{localRendering ? "开" : "关"}</span>
               </label>
             </Field>
+
+            {isTauri() && settingsPage === "advanced" && <DesktopRecoveryStatus />}
 
             {/* ── 回收站自动清理：设置项末尾 ── */}
             <Field label="回收站自动清理" desc="打开应用或修改此设置时，永久清理已在回收站超过指定天数的内容。设为 0 关闭自动清理。" visible={settingsPage === "advanced"}>
