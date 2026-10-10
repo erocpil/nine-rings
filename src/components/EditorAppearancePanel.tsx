@@ -198,16 +198,19 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
               </div>
               <h3>块字体与字号</h3>
               <p>默认保持原有排版；代码块默认使用等宽字体，图块设置应用于 Mermaid 图中文字，图中显式设置优先。</p>
-              <div className="editor-appearance-control-grid">
+              <div className="editor-appearance-block-typography">
                 {([['code', '代码块'], ['quote', '引用块'], ['mermaid', '图块'], ['flow', 'flow 块']] as const).map(([kind, label]) => {
                   const family = `editor_${kind}_font_family` as keyof typeof DEFAULT_BLOCK_TYPOGRAPHY;
                   const size = `editor_${kind}_font_size` as keyof typeof DEFAULT_BLOCK_TYPOGRAPHY;
                   return <AppearanceField key={kind} label={label} desc={kind === 'code' ? '默认等宽字体，保留代码列对齐；行内代码不受影响' : '只调整块内容，工具栏保持原样'}>
-                    <select className="settings-input editor-appearance-select" aria-label={`${label}字体`} value={config[family] || "default"} onChange={event => onUpdate({ [family]: event.target.value })}>
-                      <option value="default">默认{kind === 'code' ? '（等宽）' : '（现有字体）'}</option>
-                      <option value="monospace">等宽字体</option><option value="system">系统字体</option><option value="sans">无衬线</option><option value="serif">衬线 / 宋体</option>
-                    </select>
-                    <TypographySize label={`${label}字号`} value={Number(config[size]) || 0} onChange={value => onUpdate({ [size]: value })} />
+                    <div className="block-typography-controls">
+                      <label className="block-typography-font">字体<select className="settings-input editor-appearance-select" aria-label={`${label}字体`} value={config[family] || "default"} onChange={event => onUpdate({ [family]: event.target.value })}>
+                        <option value="default">默认{kind === 'code' ? '（等宽）' : '（现有字体）'}</option>
+                        <option value="monospace">等宽字体</option><option value="system">系统字体</option><option value="sans">无衬线</option><option value="serif">衬线 / 宋体</option>
+                      </select>
+                      </label>
+                      <TypographySize caption="字号" label={`${label}字号`} value={Number(config[size]) || 0} onChange={value => onUpdate({ [size]: value })} />
+                    </div>
                   </AppearanceField>;
                 })}
               </div>
@@ -337,8 +340,8 @@ function AppearanceField({ label, desc, children }: { label: string; desc: strin
   );
 }
 
-function TypographySize({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return <label>{label}<select className="settings-input editor-appearance-select" aria-label={label} value={value} onChange={event => onChange(Number(event.target.value))}>
+function TypographySize({ label, caption = label, value, onChange }: { label: string; caption?: string; value: number; onChange: (value: number) => void }) {
+  return <label>{caption}<select className="settings-input editor-appearance-select" aria-label={label} value={value} onChange={event => onChange(Number(event.target.value))}>
     <option value={0}>默认（现有字号）</option>
     {Array.from({ length: 63 }, (_, index) => index + 10).map(size => <option key={size} value={size}>{size}px</option>)}
   </select></label>;

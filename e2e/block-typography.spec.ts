@@ -68,3 +68,43 @@ for (const style of ["classic", "calm"]) {
     await expect(body.locator("h1").first()).toHaveCSS("font-size", style === "calm" ? "27px" : defaultHeading);
   });
 }
+
+
+test("块字体字号设置在手机和桌面不重叠、不溢出，草稿可应用", async ({ page }) => {
+  await createBlankDocument(page, "块字体设置布局");
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
+  await page.getByRole("button", { name: /打开排版设置/ }).click();
+  const rows = page.locator(".editor-appearance-block-typography .appearance-field");
+  await expect(rows).toHaveCount(4);
+  for (const width of [320, 390, 844, 1280, 1600]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const name of ["代码块", "引用块", "图块", "flow 块"]) {
+      const font = page.getByLabel(`${name}字体`, { exact: true });
+      await font.scrollIntoViewIfNeeded();
+      const geometry = await font.evaluate(element => {
+        const row = element.closest(".appearance-field")!;
+        const selects = [...row.querySelectorAll("select")].map(item => item.getBoundingClientRect());
+        const bounds = row.getBoundingClientRect();
+        const controls = element.closest(".editor-appearance-controls")!;
+        return {
+          inside: selects.every(rect => rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1),
+          separate: selects[0].right <= selects[1].left + 1 || selects[0].bottom <= selects[1].top + 1,
+          overflow: controls.scrollWidth - controls.clientWidth,
+        };
+      });
+      expect(geometry.inside, `${width}px ${name}`).toBe(true);
+      expect(geometry.separate, `${width}px ${name}`).toBe(true);
+      expect(geometry.overflow, `${width}px settings overflow`).toBeLessThanOrEqual(1);
+    }
+    if (width === 390 || width === 1280) {
+      await page.getByRole("heading", { name: "块字体与字号", exact: true }).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: test.info().outputPath(`block-typography-${width}.png`) });
+    }
+  }
+  await page.getByLabel("代码块字体", { exact: true }).selectOption("monospace");
+  await page.getByLabel("代码块字号", { exact: true }).selectOption("20");
+  await page.getByRole("button", { name: "应用到编辑器", exact: true }).click();
+  await expect(page.locator(".editor-appearance-overlay")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config")!).editor_code_font_size)).toBe(20);
+});
