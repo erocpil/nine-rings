@@ -11,6 +11,7 @@ test("源码已在中部时打开或重新开启预览同步，不停留在文�
   const split = page.getByRole("button", { name: "并排预览", exact: true });
   if (await split.getAttribute("aria-pressed") === "true") await split.click();
   await replaceSource(area, Array.from({ length: 80 }, (_, i) => `## 同步章节 ${i}\n\n${"正文用于验证同步。".repeat(8)}`).join("\n\n"));
+  await page.getByRole("button", { name: "源码微渲染", exact: true }).click();
   await scrollSourceTo(area, "## 同步章节 40");
   await split.click();
   const preview = page.locator(".markdown-preview-scroll");

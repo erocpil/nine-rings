@@ -1,4 +1,5 @@
 import { mobileSourceInput } from "../lib/mobile-source-input";
+import { sourceMicroHighlighting, sourceMicroSyntax } from "../lib/source-micro-rendering";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { readonlySourceSelection } from "../lib/readonly-source-selection";
 import {
@@ -8,6 +9,7 @@ import {
   useState,
   type MutableRefObject,
   type ReactNode,
+  type CSSProperties,
 } from "react";
 import {
   Compartment,
@@ -152,6 +154,9 @@ export function MarkdownSourceEditor({
   const displayRef = useRef(displayExtensions);
   displayRef.current = displayExtensions;
   useLayoutEffect(() => {
+    view.current?.requestMeasure();
+  }, [preferences.sourceMicroRendering]);
+  useLayoutEffect(() => {
     if (!host.current) return;
     const extensions = [
       history(),
@@ -164,7 +169,9 @@ export function MarkdownSourceEditor({
         base: markdownLanguage,
         codeLanguages: languages,
         addKeymap: false,
+        extensions: [sourceMicroSyntax],
       }),
+      sourceMicroHighlighting,
       syntaxHighlighting(
         HighlightStyle.define([
           {
@@ -371,7 +378,8 @@ export function MarkdownSourceEditor({
   return (
     <div
       className="markdown-source-input markdown-cm-source"
-      style={{ fontSize }}
+      data-micro-rendering={preferences.sourceMicroRendering === true}
+      style={{ fontSize, "--source-font-size": `${fontSize}px` } as CSSProperties}
     >
       <div
         className="markdown-source-tools"
@@ -394,6 +402,10 @@ export function MarkdownSourceEditor({
           }
         >
           <ToolbarIcon name="wrap" />
+        </button>
+        <button type="button" title="源码微渲染" aria-label="源码微渲染" aria-pressed={preferences.sourceMicroRendering === true}
+          onClick={() => saveBlockWorkspacePreferences({ sourceMicroRendering: preferences.sourceMicroRendering !== true })}>
+          <ToolbarIcon name="font" />
         </button>
         <button type="button" title="撤销" aria-label="撤销" disabled={readonly} onClick={() => run(undo)}>
           <ToolbarIcon name="undo" />

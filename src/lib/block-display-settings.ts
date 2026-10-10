@@ -1,7 +1,7 @@
 const KEY = "nr:codeBlockHeightPercent";
 const EVENT = "nine-rings:block-display-change";
 export const BLOCK_WORKSPACE_DISPLAY_EVENT = "nine-rings:block-workspace-display-change";
-export type WorkspacePreferences = { mermaidDisplay?: "fit" | "scroll"; fontSize?: number; tabSize?: number; whitespace?: "off" | "all" | "abnormal"; lineNumbers?: boolean; wrap?: boolean; listFollowupIndent?: boolean };
+export type WorkspacePreferences = { mermaidDisplay?: "fit" | "scroll"; fontSize?: number; tabSize?: number; whitespace?: "off" | "all" | "abnormal"; lineNumbers?: boolean; wrap?: boolean; listFollowupIndent?: boolean; sourceMicroRendering?: boolean };
 const WORKSPACE_KEY = "nr:blockWorkspaceDisplay";
 const CODE_LINE_NUMBERS_KEY = "nr:codeLineNumbers";
 export function codeLineNumbersEnabled(): boolean {
@@ -24,6 +24,7 @@ export function blockWorkspacePreferences(): WorkspacePreferences {
     if (value.whitespace === "off" || value.whitespace === "all" || value.whitespace === "abnormal") preferences.whitespace = value.whitespace;
     if (value.mermaidDisplay === "fit" || value.mermaidDisplay === "scroll") preferences.mermaidDisplay = value.mermaidDisplay;
     if (typeof value.wrap === "boolean") preferences.wrap = value.wrap;
+    if (typeof value.sourceMicroRendering === "boolean") preferences.sourceMicroRendering = value.sourceMicroRendering;
     if (typeof value.listFollowupIndent === "boolean") preferences.listFollowupIndent = value.listFollowupIndent;
     return preferences;
   } catch { return preferences; }

@@ -87,6 +87,8 @@ test("5000 行源码按视口挂载，末行滚到顶部并保留保存的原文
   test.setTimeout(90000);
   const value = Array.from({ length: 5000 }, (_, i) => `line ${i}`).join("\n");
   await replaceSource(area, value);
+  await page.getByRole("button", { name: "源码微渲染", exact: true }).click();
+  await area.focus();
   await expect
     .poll(() => page.locator(".markdown-cm-host .cm-line").count())
     .toBeLessThan(200);

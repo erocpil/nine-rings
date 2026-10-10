@@ -32,7 +32,7 @@
 .markdown-cm-host .cm-scroller { overflow: auto; font-family: var(--editor-font-family, monospace); line-height: var(--editor-line-height, 1.65); }
 .markdown-cm-host .cm-content { padding: 16px 0; caret-color: var(--text); }
 .markdown-cm-host .cm-line { padding: 0 12px; }
-.markdown-cm-host .cm-gutters { background: var(--bg); color: var(--text-secondary); border-color: var(--border); }
+.markdown-cm-host .cm-gutters { background: var(--bg); color: var(--text-secondary); border-color: var(--border); font-size: min(.85em, 16px); line-height: calc(var(--source-font-size) * var(--editor-line-height, 1.65)); }
 .markdown-cm-host .cm-activeLine, .markdown-cm-host .cm-activeLineGutter { background: var(--activeline-bg); }
 .note-editor.no-active-line .markdown-cm-host .cm-activeLine,
 .note-editor.no-active-line .markdown-cm-host .cm-activeLineGutter { background: transparent; }
@@ -93,6 +93,15 @@
 
 /* Source numbers must not inherit proportional document typography. */
 .markdown-cm-host .cm-lineNumbers { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+
+/* Keep every source character; style parsed tokens without preview widgets. */
+.markdown-cm-source[data-micro-rendering="true"] .source-micro-h1 { font-size: 1.25em; }
+.markdown-cm-source[data-micro-rendering="true"] .source-micro-h2 { font-size: 1.15em; }
+.markdown-cm-source[data-micro-rendering="true"] .source-micro-h3 { font-size: 1.08em; }
+.markdown-cm-source[data-micro-rendering="true"] :is(.source-micro-h1, .source-micro-h2, .source-micro-h3, .source-micro-h4, .source-micro-h5, .source-micro-h6) { font-weight: 600; }
+.markdown-cm-source[data-micro-rendering="true"] .source-micro-link { color: var(--accent); text-decoration: underline; text-underline-offset: .15em; }
+.markdown-cm-source[data-micro-rendering="true"] .source-micro-marker { color: var(--accent); font-weight: 600; font-style: normal; }
+.markdown-cm-source[data-micro-rendering="true"] .source-micro-code { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
 
 /* Standard Markdown additions share the document palette in every view/theme. */
 .nr-raw-html[data-html-comment="true"] { display: none; }
