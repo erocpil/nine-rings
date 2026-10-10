@@ -2,6 +2,7 @@ import {
   DocumentSaveRevisions,
   SaveBarrierError,
   type DocumentSaveRevision,
+  type DocumentRevisionEvent,
 } from "./document-save-revisions";
 import type { DeltaOps, UpdateNoteInput } from "../types/models";
 import {
@@ -58,6 +59,12 @@ export class AutoSaveQueue {
     private save: (id: string, changes: AutoSaveChanges) => Promise<void>,
     private notify: () => void = () => {},
   ) {}
+
+  subscribeRevisions(
+    listener: (event: DocumentRevisionEvent) => void,
+  ): () => void {
+    return this.revisions.subscribe(listener);
+  }
 
   status(id: string | null): SaveStatus {
     return id ? (this.states.get(id) ?? "clean") : "clean";

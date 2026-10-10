@@ -235,3 +235,66 @@ describe("document save revision barriers", () => {
     expect(queue.revisionState("a").confirmedRevision).toBe(1);
   });
 });
+
+it("revision events contain no body and order accepted, actual save and invalidation", async () => {
+  const gate = deferred();
+  const queue = new AutoSaveQueue(async () => gate.promise);
+  const events: import("../../src/lib/document-save-revisions").DocumentRevisionEvent[] =
+    [];
+  const stop = queue.subscribeRevisions((event) => events.push(event));
+  const lazy = vi.fn(() => ({ ops: [{ insert: "private body" }] }));
+  queue.mark("a", "content", lazy);
+  expect(lazy).not.toHaveBeenCalled();
+  expect(events.map((event) => event.kind)).toEqual(["accepted"]);
+  const save = queue.flushNote("a");
+  await Promise.resolve();
+  expect(events.map((event) => event.kind)).toEqual(["accepted"]);
+  gate.resolve();
+  await save;
+  queue.discard("a");
+  expect(events.map((event) => event.kind)).toEqual([
+    "accepted",
+    "saved",
+    "invalidated",
+  ]);
+  expect(events.map((event) => event.sequence)).toEqual([1, 2, 3]);
+  expect(events[1].confirmedRevision).toBe(1);
+  expect(JSON.stringify(events)).not.toContain("private body");
+  expect(Object.isFrozen(events[0])).toBe(true);
+  stop();
+  queue.mark("a", "title", "new");
+  expect(events).toHaveLength(3);
+});
+
+it("failed saves never emit saved; explicit retry does and observer errors do not break saving", async () => {
+  let fails = true;
+  const queue = new AutoSaveQueue(async () => {
+    if (fails) throw new Error("disk");
+  });
+  const events: string[] = [];
+  queue.subscribeRevisions(() => {
+    throw new Error("observer");
+  });
+  queue.subscribeRevisions((event) => events.push(event.kind));
+  queue.mark("a", "title", "first");
+  await expect(queue.flushNote("a")).rejects.toThrow("disk");
+  expect(events).toEqual(["accepted"]);
+  fails = false;
+  await queue.flushNote("a");
+  expect(events).toEqual(["accepted", "saved"]);
+});
+
+it("revision sequences belong to document generations; captures and navigation emit nothing", async () => {
+  const queue = new AutoSaveQueue(async () => {});
+  const events: import("../../src/lib/document-save-revisions").DocumentRevisionEvent[] =
+    [];
+  queue.subscribeRevisions((event) => events.push(event));
+  queue.captureRevision("a");
+  queue.revisionState("a");
+  expect(events).toHaveLength(0);
+  queue.mark("a", "title", "first");
+  queue.discard("a");
+  queue.mark("a", "title", "second");
+  expect(events.map((event) => event.sequence)).toEqual([1, 2, 1]);
+  expect(events[0].documentGeneration).not.toBe(events[2].documentGeneration);
+});

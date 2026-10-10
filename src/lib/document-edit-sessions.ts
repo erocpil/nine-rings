@@ -1,5 +1,8 @@
 import type { AutoSaveQueue } from "./auto-save-queue";
-import type { DocumentSaveRevision } from "./document-save-revisions";
+import type {
+  DocumentRevisionEvent,
+  DocumentSaveRevision,
+} from "./document-save-revisions";
 
 export type DocumentView = "rendered" | "source";
 export interface DocumentSelection {
@@ -49,6 +52,12 @@ export class DocumentEditSessions {
   private residents = new Map<string, object>();
   private residency = new Map<string, object>();
   constructor(private saves: AutoSaveQueue) {}
+
+  subscribeRevisions(
+    listener: (event: DocumentRevisionEvent) => void,
+  ): () => void {
+    return this.saves.subscribeRevisions(listener);
+  }
 
   retain(id: string): () => void {
     this.saves.captureRevision(id);

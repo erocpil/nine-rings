@@ -17,7 +17,16 @@ export class SaveBarrierError extends Error {
     this.name = "SaveBarrierError";
   }
 }
+export interface DocumentRevisionEvent {
+  readonly documentId: string;
+  readonly documentGeneration: string;
+  readonly sequence: number;
+  readonly kind: "accepted" | "saved" | "invalidated";
+  readonly contentRevision: number;
+  readonly confirmedRevision: number;
+}
 type Session = {
+  sequence: number;
   generation: string;
   revision: number;
   confirmed: number;
@@ -32,6 +41,39 @@ type Issued = { session: Session; fields: Fields };
  * opaque wire handles; serializing/reconstructing this object is not authority. */
 export class DocumentSaveRevisions {
   private sessions = new Map<string, Session>();
+  private listeners = new Set<(event: DocumentRevisionEvent) => void>();
+
+  subscribe(listener: (event: DocumentRevisionEvent) => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+  private emit(
+    id: string,
+    state: Session,
+    kind: DocumentRevisionEvent["kind"],
+  ) {
+    const sequence = ++state.sequence;
+    if (!this.listeners.size) return;
+    const event = Object.freeze({
+      documentId: id,
+      documentGeneration: state.generation,
+      sequence,
+      kind,
+      contentRevision: state.revision,
+      confirmedRevision: state.confirmed,
+    });
+    // Host listeners only; failure must never turn an accepted edit into an error.
+    for (const listener of [...this.listeners]) {
+      if (!this.listeners.has(listener)) continue;
+      try {
+        listener(event);
+      } catch {
+        /* Isolate observer failures. */
+      }
+    }
+  }
   private issued = new WeakMap<DocumentSaveRevision, Issued>();
 
   private session(id: string): Session {
@@ -39,6 +81,7 @@ export class DocumentSaveRevisions {
     if (!state) {
       state = {
         generation: crypto.randomUUID(),
+        sequence: 0,
         revision: 0,
         confirmed: 0,
         batches: new WeakMap(),
@@ -57,6 +100,7 @@ export class DocumentSaveRevisions {
       state.revision += 1;
     if (batch) state.batches.set(batch, state.revision);
     state.accepted[field] = state.revision;
+    this.emit(id, state, "accepted");
   }
 
   capture(id: string): DocumentSaveRevision {
@@ -99,9 +143,12 @@ export class DocumentSaveRevisions {
       if (revision !== undefined)
         session.saved[field] = Math.max(session.saved[field] ?? 0, revision);
     }
+    const before = session.confirmed;
     if (this.covered(token.documentId, token)) {
       session.confirmed = Math.max(session.confirmed, token.contentRevision);
     }
+    if (session.confirmed > before)
+      this.emit(token.documentId, session, "saved");
   }
 
   state(id: string) {
@@ -116,6 +163,7 @@ export class DocumentSaveRevisions {
   invalidate(id: string): void {
     const old = this.sessions.get(id);
     this.sessions.delete(id);
+    if (old) this.emit(id, old, "invalidated");
     // Notify after deleting so a late completion cannot acknowledge the old state.
     for (const listener of old?.invalidations ?? []) listener();
     old?.invalidations.clear();
