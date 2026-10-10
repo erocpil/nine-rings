@@ -76,6 +76,15 @@ export function isPathUnder(path: string, parent: string): boolean {
   return path === parent || path.startsWith(`${parent}/`);
 }
 
+/** Deterministic across locales/platforms; never compare or read document bodies. */
+export function compareDocumentMetadata(
+  a: { updated_at?: string; id: string },
+  b: { updated_at?: string; id: string },
+): number {
+  const left = a.updated_at ?? "", right = b.updated_at ?? "";
+  return left < right ? 1 : left > right ? -1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
 export function assertFolderRelocation(sourceInput: string, targetInput: string): { source: string; target: string } {
   const source = normalizeStoragePath(sourceInput);
   const target = normalizeStoragePath(targetInput);

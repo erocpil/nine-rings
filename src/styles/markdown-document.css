@@ -172,3 +172,5 @@ blockquote[data-alert="WARNING"], blockquote[data-alert="CAUTION"] { border-left
 .markdown-source-toolbar-host { flex: 0 0 auto; min-width: 0; }
 
 .source-fold-level-icon { display: block; flex: none; width: 10px; height: 6px; }
+
+.markdown-cm-host .cm-lineNumbers .cm-gutterElement.cm-relative-current { text-align: left; }

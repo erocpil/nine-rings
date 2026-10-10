@@ -708,3 +708,6 @@
 .editor-content .tableWrapper table[data-column-layout="auto"] { table-layout: auto; min-width: 220px !important; }
 .editor-content .tableWrapper table[data-column-layout="manual"] { min-width: 0; max-width: none; }
 .editor-content .tableWrapper th, .editor-content .tableWrapper td { min-width: 48px; }
+
+.editor-block-number.relative-current { text-align: left; }
+.vr-gutter .editor-block-number.relative-current { width: calc(var(--editor-gutter-width) - 24px); margin-left: auto; }

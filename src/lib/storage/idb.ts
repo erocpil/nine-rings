@@ -10,6 +10,7 @@ import {
   buildDocTree,
   extractPlainText,
   isPathUnder,
+  compareDocumentMetadata,
   normalizeStoragePath,
   uuid,
   now,
@@ -408,12 +409,11 @@ export const idbAdapter: StorageAdapter = {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
       const all = await getAll<StoredNote>(store);
-      const notes = all.filter((n) => !n.deleted_at).map(noteFromDB);
-
-
-      return notes
-        .filter((n) => n.storagePath && (n.storagePath === pathPrefix || n.storagePath.startsWith(pathPrefix + "/")))
-        .sort((a, b) => (a.storagePath ?? "").localeCompare(b.storagePath ?? ""));
+      // Filter metadata before deserializing bodies, including embedded image data.
+      return all
+        .filter(n => !n.deleted_at && n.storagePath && isPathUnder(n.storagePath, pathPrefix))
+        .sort(compareDocumentMetadata)
+        .map(noteFromDB);
     });
   },
 
@@ -497,7 +497,7 @@ export const idbAdapter: StorageAdapter = {
       const matches = await filterInChunks(all, (n) => {
         // 文档搜索：按路径和元数据筛选
         if (n.deleted_at || !n.storagePath) return false;
-        if (query.storagePath && !n.storagePath?.startsWith(query.storagePath)) return false;
+        if (query.storagePath && !isPathUnder(n.storagePath, query.storagePath)) return false;
         if (query.docType && n.docType !== query.docType) return false;
         if (query.concept) {
           const concepts: string[] = typeof n.concepts === "string"
@@ -513,7 +513,7 @@ export const idbAdapter: StorageAdapter = {
         return true;
       });
       return matches
-        .sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))
+        .sort(compareDocumentMetadata)
         .map(noteFromDB);
     });
   },

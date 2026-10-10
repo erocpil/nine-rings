@@ -2,6 +2,7 @@ import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-o
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Note } from "../types/models";
 import { api } from "../lib/api";
+import { compareDocumentMetadata } from "../lib/storage/core";
 import { relativeDocumentSubpath } from "../lib/doc-moc";
 import { documentSizeBytes, formatDocumentSize } from "../lib/document-size";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -71,7 +72,7 @@ export function DocMOC({ storagePath, concept, onSelect, onOpenConcept, selected
       .then((docs) => {
         if (!active) return;
         // 按 updated_at 倒序；复制数组，避免修改适配器返回的共享数据。
-        setNotes([...docs].sort((a, b) => b.updated_at.localeCompare(a.updated_at)));
+        setNotes([...docs].sort(compareDocumentMetadata));
       })
       .catch((error) => {
         if (!active) return;

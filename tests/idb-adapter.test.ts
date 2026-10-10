@@ -24,6 +24,8 @@ if (typeof localStorage === "undefined") {
 
 import type { Note, PathNode } from "../src/types/models";
 import { idbAdapter } from "../src/lib/storage/idb";
+import { withDB, getOne, putRecord } from "../src/lib/storage/db";
+import type { StoredNote } from "../src/lib/storage/core";
 
 let passed = 0;
 let failed = 0;
@@ -241,6 +243,21 @@ async function runTests() {
     await idbAdapter.createNote({ date: "2026-07-15", title: "Percent sibling", storagePath: "projects/100X_done/child" });
     const literalPathNotes = await idbAdapter.getNotesByPath("projects/100%_done");
     assert(literalPathNotes.length === 1 && literalPathNotes[0].title === "Percent child", "path metacharacters are matched literally");
+    const sibling = await idbAdapter.createNote({ date: "2026-07-15", title: "Sibling prefix", storagePath: "projects/alpha2" });
+    await idbAdapter.createNote({ date: "2026-07-15", title: "Nested child", storagePath: "projects/alpha/deep" });
+    const pathMatches = await idbAdapter.searchDocs({ storagePath: "projects/alpha" });
+    assert(pathMatches.some(note => note.title === "Nested child"), "metadata path search includes descendants");
+    assert(!pathMatches.some(note => note.title === "Sibling prefix"), "metadata path search excludes prefix siblings");
+    const original = await withDB(db => getOne<StoredNote>(db.transaction("notes", "readonly").objectStore("notes"), sibling.id));
+    if (original) {
+      await withDB(db => putRecord(db.transaction("notes", "readwrite").objectStore("notes"), { ...original, content: "invalid-unrelated-body" }));
+      try {
+        const selected = await idbAdapter.getNotesByPath("projects/alpha");
+        assert(selected.every(note => note.id !== sibling.id), "path listing never deserializes unrelated document bodies");
+      } finally {
+        await withDB(db => putRecord(db.transaction("notes", "readwrite").objectStore("notes"), original));
+      }
+    }
     const howtoDocs = await idbAdapter.searchDocs({ docType: "how-to" });
     assert(howtoDocs.length >= 1, "docType filter works");
     // searchDocs 是文档搜索：返回同 concept 的文档

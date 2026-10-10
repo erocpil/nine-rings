@@ -811,7 +811,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       {!selectingBlocks && showNumbers && blocks.map((block) => (
         <BlockNumber
           key={`number-${block.pos}`}
-          className={`${(relativeBlockNumbers ? block.index === currentNumber : block.active) ? "active" : ""} ${blockHasBookmark(block) ? "bookmarked" : ""} ${block.index === highlightedBlockIndex ? "bookmark-jump-gutter" : ""}`}
+          className={`${relativeBlockNumbers && block.index === currentNumber ? "relative-current" : ""} ${(relativeBlockNumbers ? block.index === currentNumber : block.active) ? "active" : ""} ${blockHasBookmark(block) ? "bookmarked" : ""} ${block.index === highlightedBlockIndex ? "bookmark-jump-gutter" : ""}`}
           style={{ top: block.firstLineCenter }}
           number={block.index} format={block.format}
           displayNumber={relativeBlockNumbers ? relativeNumber(block.index, currentNumber, visibleNumbers) : block.index}

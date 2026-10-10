@@ -34,11 +34,15 @@ function foldedIndex(state: EditorState) {
 }
 
 class NumberMarker extends GutterMarker {
-  constructor(readonly number: string) {
+  constructor(
+    readonly number: string,
+    readonly current = false,
+  ) {
     super();
+    this.elementClass = current ? "cm-relative-current" : "";
   }
   eq(other: NumberMarker) {
-    return this.number === other.number;
+    return this.number === other.number && this.current === other.current;
   }
   toDOM() {
     return document.createTextNode(this.number);
@@ -59,6 +63,7 @@ export function relativeLineNumbers() {
         String(
           relativeFoldedLineNumber(number, current, foldedIndex(view.state)),
         ),
+        number === current,
       );
     },
     lineMarkerChange: (update) =>

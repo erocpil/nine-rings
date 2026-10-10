@@ -9,6 +9,7 @@ import { validateBackup } from "./backup-validation";
 import { assertRestoreContext, withBackupRestore, type RestoreContext } from "./backup-restore-coordination";
 import { coordinateDocumentUpdate, coordinateDocumentReplacement, coordinateStorageReplacement, coordinateStorageMutation, coordinateDocumentCheckpoint } from "./document-write-coordinator";
 import type { SearchOptions } from "./search-matching";
+import { compareDocumentMetadata } from "./storage/core";
 
 /**
  * API 层 — 统一接口，底层自动适配 Tauri IPC / IndexedDB
@@ -233,7 +234,7 @@ export const api = {
       adapter().then((a) => a.getPathTree()),
 
     listByPath: (pathPrefix: string) =>
-      adapter().then((a) => a.getNotesByPath(pathPrefix)),
+      adapter().then((a) => a.getNotesByPath(pathPrefix)).then(notes => [...notes].sort(compareDocumentMetadata)),
 
     renameFolder: (oldPath: string, newPath: string) =>
       withSearchRefresh(coordinateStorageMutation(() => adapter().then((a) => a.renameFolder(oldPath, newPath)))),
@@ -250,7 +251,7 @@ export const api = {
       withSearchRefresh(coordinateStorageMutation(() => adapter().then((a) => a.relocateFolder(sourcePath, targetPath)))),
 
     search: (query: DocSearchQuery) =>
-      adapter().then((a) => a.searchDocs(query)),
+      adapter().then((a) => a.searchDocs(query)).then(notes => [...notes].sort(compareDocumentMetadata)),
 
     searchSummaries: (query: DocSearchQuery) =>
       adapter().then((a) => searchDocumentSummaries(a, query)),

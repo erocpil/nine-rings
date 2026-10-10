@@ -1455,7 +1455,7 @@ export function ReadonlyVirtualNote(
                       <EditorFoldIcon expanded={!folds.has(section.key)} />
                     </button>
                   )}
-                  {props.showLineNumbers && <BlockNumber number={block.number} displayNumber={relativeBlockNumbers ? relativeNumber(block.number, currentNumber, visibleNumbers) : block.number} className={block.number === currentNumber ? "active" : ""} format={block.node.type.name === "heading" ? `H${block.node.attrs.level}` : block.node.type.name} onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />}
+                  {props.showLineNumbers && <BlockNumber number={block.number} displayNumber={relativeBlockNumbers ? relativeNumber(block.number, currentNumber, visibleNumbers) : block.number} className={`${block.number === currentNumber ? "active" : ""} ${relativeBlockNumbers && block.number === currentNumber ? "relative-current" : ""}`} format={block.node.type.name === "heading" ? `H${block.node.attrs.level}` : block.node.type.name} onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />}
                 </div>
                 <div className="ProseMirror vr-block" contentEditable={false}>
                   {decorateFlowBlock(renderReadonlyBlock(

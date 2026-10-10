@@ -68,6 +68,22 @@ for (const width of [390, 1280]) {
     await expect(block(page, 1)).toHaveText("3");
     await expect(block(page, 4)).toHaveText("4");
     await expect(block(page, 7)).toHaveText("3");
+    await expect(block(page, 4)).toHaveCSS("text-align", "left");
+    await expect(block(page, 1)).toHaveCSS("text-align", "right");
+    await page.evaluate(async () => {
+      const { saveBlockWorkspacePreferences } =
+        await import("/src/lib/block-display-settings.ts");
+      saveBlockWorkspacePreferences({ relativeBlockNumbers: false });
+    });
+    await expect(block(page, 1)).toHaveText("1");
+    await expect(block(page, 4)).toHaveCSS("text-align", "right");
+    await page.evaluate(async () => {
+      const { saveBlockWorkspacePreferences } =
+        await import("/src/lib/block-display-settings.ts");
+      saveBlockWorkspacePreferences({ relativeBlockNumbers: true });
+    });
+    await expect(block(page, 1)).toHaveText("3");
+    await expect(block(page, 4)).toHaveCSS("text-align", "left");
     await page.locator(".ProseMirror:visible").evaluate((element) => {
       (
         element as HTMLElement & { editor: Editor }
@@ -86,6 +102,9 @@ for (const width of [390, 1280]) {
     const lines = before.value.split("\n");
     const offset = lines.slice(0, 3).join("\n").length + 1;
     await selectSource(source, offset);
+    await expect(
+      page.locator(".cm-lineNumbers .cm-relative-current"),
+    ).toHaveCSS("text-align", "left");
     await expect
       .poll(() => sourceLabels(page))
       .toEqual(lines.map((_, i) => String(i === 3 ? 4 : Math.abs(i - 3))));
@@ -107,6 +126,23 @@ for (const width of [390, 1280]) {
       selectionStart: offset8,
       selectionEnd: offset8,
     });
+    await expect(
+      page.locator(".cm-lineNumbers .cm-relative-current"),
+    ).toHaveCount(0);
+    await page.evaluate(async () => {
+      const { saveBlockWorkspacePreferences } =
+        await import("/src/lib/block-display-settings.ts");
+      saveBlockWorkspacePreferences({ relativeSourceLineNumbers: true });
+    });
+    await expect
+      .poll(() => sourceLabels(page))
+      .toEqual(lines.map((_, i) => String(i === 7 ? 8 : Math.abs(i - 7))));
+    await expect(
+      page.locator(".cm-lineNumbers .cm-relative-current"),
+    ).toHaveText("8");
+    await expect(
+      page.locator(".cm-lineNumbers .cm-relative-current"),
+    ).toHaveCSS("text-align", "left");
   });
 }
 
@@ -169,6 +205,20 @@ for (const virtual of [false, true]) {
     await expect(block(page, 4)).toHaveText("4");
     await expect(block(page, 1)).toHaveText("3");
     await expect(block(page, 7)).toHaveText("3");
+    await expect(block(page, 4)).toHaveCSS("text-align", "left");
+    await page.evaluate(async () => {
+      const { saveBlockWorkspacePreferences } =
+        await import("/src/lib/block-display-settings.ts");
+      saveBlockWorkspacePreferences({ relativeBlockNumbers: false });
+    });
+    await expect(block(page, 4)).toHaveCSS("text-align", "right");
+    await page.evaluate(async () => {
+      const { saveBlockWorkspacePreferences } =
+        await import("/src/lib/block-display-settings.ts");
+      saveBlockWorkspacePreferences({ relativeBlockNumbers: true });
+    });
+    await expect(block(page, 1)).toHaveText("3");
+    await expect(block(page, 4)).toHaveCSS("text-align", "left");
   });
 }
 
