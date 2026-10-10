@@ -14,6 +14,17 @@ export interface DocumentEditTarget {
   readonly selectionEpoch: number;
   readonly view: DocumentView;
 }
+export interface InsertDocumentContent {
+  type: "text" | "markdown";
+  value: string;
+}
+export interface DocumentEditAdapter {
+  editable(): boolean;
+  insert(
+    selection: Readonly<DocumentSelection>,
+    content: InsertDocumentContent,
+  ): boolean;
+}
 export class StaleEditTargetError extends Error {
   readonly code = "STALE_TARGET";
   constructor() {
@@ -27,6 +38,7 @@ interface ViewSession {
   epoch: number;
   selection?: DocumentSelection;
   active: boolean;
+  adapter?: DocumentEditAdapter;
 }
 
 /** Live host targets, deliberately distinct from serializable SDK handles. */
@@ -78,6 +90,8 @@ export class DocumentEditSessions {
       active,
       session: crypto.randomUUID(),
       epoch: 0,
+      adapter:
+        old?.owner === owner && old.view === view ? old.adapter : undefined,
       selection:
         old?.owner === owner && old.view === view ? old.selection : undefined,
     });
@@ -97,6 +111,36 @@ export class DocumentEditSessions {
       return;
     state.selection = { ...selection };
     state.epoch += 1;
+  }
+  bind(
+    id: string,
+    owner: object,
+    view: DocumentView,
+    adapter: DocumentEditAdapter | null,
+  ): void {
+    const state = this.views.get(id);
+    if (state?.owner === owner && state.view === view)
+      state.adapter = adapter ?? undefined;
+  }
+  active(id: string): boolean {
+    return this.views.get(id)?.active === true;
+  }
+  apply(
+    target: DocumentEditTarget,
+    content: InsertDocumentContent,
+  ): DocumentSaveRevision {
+    const selection = this.validate(target);
+    const adapter = this.views.get(target.documentId)?.adapter;
+    if (!adapter?.editable()) throw new Error("READ_ONLY");
+    if (!adapter.insert(selection, content)) throw new StaleEditTargetError();
+    return this.saves.captureRevision(target.documentId);
+  }
+  whenSaved(
+    id: string,
+    revision: DocumentSaveRevision,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    return this.saves.whenSaved(id, revision, signal);
   }
   capture(id: string): DocumentEditTarget {
     const state = this.views.get(id);

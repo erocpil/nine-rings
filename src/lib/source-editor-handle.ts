@@ -1,6 +1,8 @@
 import { EditorView } from "@codemirror/view";
+import { Transaction } from "@codemirror/state";
+import { isolateHistory } from "@codemirror/commands";
 
-/** Navigation/scroll adapter. The editing surface remains a real CodeMirror view. */
+/** Host navigation and edit adapter. The surface remains a real CodeMirror view. */
 export class SourceEditorHandle extends EventTarget {
   constructor(public view: EditorView) {
     super();
@@ -22,6 +24,14 @@ export class SourceEditorHandle extends EventTarget {
   }
   setSelectionRange(anchor: number, head: number) {
     this.view.dispatch({ selection: { anchor, head } });
+  }
+  /** Host edits form one independent undo step; CodeMirror stays lazily loaded. */
+  insertIsolated(from: number, to: number, value: string) {
+    this.view.dispatch({
+      changes: { from, to, insert: value },
+      selection: { anchor: from + value.length },
+      annotations: [Transaction.userEvent.of("input"), isolateHistory.of("full")],
+    });
   }
   scrollToOffset(offset: number, center = false) {
     this.view.contentDOM.dispatchEvent(new Event("nr:editor-navigation"));

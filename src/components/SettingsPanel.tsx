@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from "react";
+import { pluginRuntime, setPluginsEnabled } from "../lib/plugin-system/runtime";
 import { DesktopRecoveryStatus } from "./DesktopRecoveryStatus";
 import { normalizeSidebarOrder, sidebarPanelLabel } from "../lib/desktop-sidebar-state";
 import { INTERFACE_STYLES, normalizeInterfaceStyle, effectiveWorkspaceLayout } from "../lib/interface-style";
@@ -138,6 +140,7 @@ function normalizeVimConfig(value: string): string {
 
 
 export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onBeforePush, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onOpenBookmark, onNotesChanged, libraryError }: Props) {
+  const pluginsEnabled = useSyncExternalStore(pluginRuntime.subscribe, pluginRuntime.isEnabled);
   const [vimConfig, setVimConfig] = useState(() => normalizeVimConfig(localStorage.getItem(VIM_CONFIG_KEY) ?? "set tabstop=4"));
   const saveVimConfig = (next: string) => {
     try {
@@ -1208,6 +1211,16 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             {settingsPage === "sync" && (
               <SettingsSync onBusyChange={reportSyncBusy} onBeforePush={onBeforePush} onPullDone={onPullDone} />
             )}
+
+            <Field label="启用插件功能" desc="默认关闭，仅在本设备生效。关闭会终止插件任务；不影响内置编辑功能。当前插件仍在适配中，第三方安装尚未开放。" visible={settingsPage === "advanced"}>
+              <label className="settings-toggle">
+                <input type="checkbox" aria-label="启用插件功能" checked={pluginsEnabled} onChange={event => {
+                  try { setPluginsEnabled(event.target.checked); showMessage("已更新"); }
+                  catch { showMessage("无法保存插件开关，请检查本地存储后重试"); }
+                }} />
+                <span className="toggle-track" /><span className="toggle-label">{pluginsEnabled ? "开" : "关"}</span>
+              </label>
+            </Field>
 
             <Field label="只读正文局部渲染（实验）" desc="默认关闭，仅本设备生效。只读时按可见区域挂载正文；图片、表格及超大单块自动回退。跨全文选择、打印、书签管理请切回完整渲染。" visible={settingsPage === "advanced"}>
               <label className="settings-toggle">

@@ -1,10 +1,11 @@
+import { renderedEditAdapter, sourceEditAdapter } from "../lib/plugin-system/editor-adapters";
 import { flowHeadingLevel } from "../lib/flow-presentation";
 import { useDocumentActive } from "./RetainedDocument";
 import { MarkdownSplitPreview } from "./MarkdownSplitPreview";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { NavigationButtons } from "./NavigationButtons";
 import { useNavigationStore } from "../stores/useNavigationStore";
-import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useCallback, useRef, useState, type ReactNode } from "react";
 import type { NoteEditorProps } from "./NoteEditor";
 import type { DeltaOps } from "../types/models";
 import { deltaToMarkdownAsync } from "../lib/data-transform-client";
@@ -36,6 +37,8 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const [source, setSource] = useState<string | null>(null);
   const viewPosition = useMarkdownViewPosition(props.noteId, source !== null, props.sensitive);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const [error, setError] = useState("");
   const [snapshot, setSnapshot] = useState<{ base: DeltaOps; content: DeltaOps } | null>(null);
   const latestProps = useRef(props);
@@ -54,6 +57,11 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const hostSelection = (selection: { from: number; to: number }) => {
     props.documentSessions?.select(props.noteId, hostOwner.current, source === null ? "rendered" : "source", selection);
   };
+  const onSourceReady = viewPosition.onSourceReady;
+  const hostSourceReady = useCallback((handle: import("../lib/source-editor-handle").SourceEditorHandle | null) => {
+    onSourceReady(handle);
+    props.documentSessions?.bind(props.noteId, hostOwner.current, "source", handle ? sourceEditAdapter(handle, () => Boolean(latestProps.current.readonly) || busyRef.current) : null);
+  }, [onSourceReady, props.documentSessions, props.noteId]);
   const supported = props.content.metadata?.sourceFormat !== "text" && !props.pdfExcerptSource && !props.epubExcerptSource;
   const editSource = (text: string, range?: SourceEditRange) => {
     setSource(text);
@@ -175,7 +183,10 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       await latestProps.current.onFlush?.();
     } finally { if (alive.current) setBusy(false); }
   };
-  if (!supported) return render({ ...props, onHostSelection: hostSelection });
+  const hostRenderedReady: NonNullable<NoteEditorProps["onHostEditorReady"]> = editor => {
+    props.documentSessions?.bind(props.noteId, hostOwner.current, "rendered", editor ? renderedEditAdapter(editor, () => Boolean(latestProps.current.readonly)) : null);
+  };
+  if (!supported) return render({ ...props, onHostSelection: hostSelection, onHostEditorReady: hostRenderedReady });
   const toggle = <button type="button" className="markdown-view-toggle" disabled={busy}
     title={source === null ? "切换到 Markdown 源码" : "切换到渲染视图"}
     aria-label={source === null ? "源码" : "渲染"}
@@ -186,6 +197,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       ...props,
       documentViewToggle: toggle,
       onHostSelection: hostSelection,
+      onHostEditorReady: hostRenderedReady,
       content: snapshot?.base === props.content ? snapshot.content : props.content,
       onContentChange: (reader, options) => {
         const originalSource = options?.metadataOnly
@@ -224,7 +236,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
       <MarkdownSourceEditor toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly) || busy}
-        areaRef={viewPosition.area} onReady={viewPosition.onSourceReady} onSelectionChange={hostSelection} session={sourceEditorState} onChange={editSource}
+        areaRef={viewPosition.area} onReady={hostSourceReady} onSelectionChange={hostSelection} session={sourceEditorState} onChange={editSource}
         showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine}
         escapeRepair={<MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={applyEscapeRepair} />} />
       </Suspense>

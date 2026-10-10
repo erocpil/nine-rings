@@ -288,6 +288,7 @@ export interface NoteEditorProps {
   securityToolbarTarget?: HTMLElement | null;
   focusToolbarTarget?: HTMLElement | null;
   documentSessions?: import("../lib/document-edit-sessions").DocumentEditSessions;
+  onHostEditorReady?: (editor: Editor | null) => void;
   onHostSelection?: (selection: { from: number; to: number }) => void;
   onFlush?: () => Promise<void>;
   onOpenLinkedNote?: (note: Note, referenceId?: string, options?: DocumentOpenOptions) => Promise<void>;
@@ -485,7 +486,7 @@ function DocumentEditor(props: NoteEditorProps) {
   return <FullNoteEditor {...props} readingBlockVersion={readingBlockVersion} initialPdfExportRequest={exportRequested} selectAllOnOpen={selectAllOnOpen} />;
 }
 
-function FullNoteEditor({ onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
+function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
   const [documentSerializer] = useState(() => new IncrementalDocumentSerializer());
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
@@ -1051,6 +1052,8 @@ function FullNoteEditor({ onHostSelection, documentViewToggle, unifiedTitleBar =
   // Live preferences/editability are applied explicitly below. A stable session
   // dependency also prevents useEditor from reapplying the old editable value
   // immediately before our readonly effect updates it again.
+  const hostEditorReady = useRef(onHostEditorReady);
+  hostEditorReady.current = onHostEditorReady;
   const editor = useEditor({
     shouldRerenderOnTransaction: false,
     extensions: sessionExtensions,
@@ -1157,6 +1160,11 @@ function FullNoteEditor({ onHostSelection, documentViewToggle, unifiedTitleBar =
       }
     },
   }, [noteId]);
+  useEffect(() => {
+    if (!editor) return;
+    hostEditorReady.current?.(editor);
+    return () => hostEditorReady.current?.(null);
+  }, [editor]);
 
   // Keep the composing paragraph intact until the IME has committed its text.
   // WebKit may write composition updates without ProseMirror's text-input

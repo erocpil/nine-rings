@@ -3,6 +3,7 @@ import { applyInterfaceAppearance, resolveInterfaceConfig } from "../lib/interfa
  * useSettings — 配置加载与主题管理。
  */
 import { useState, useEffect, useRef, useMemo } from "react";
+import { startPluginRuntime } from "../lib/plugin-system/runtime";
 import { api } from "../lib/api";
 import type { AppConfig } from "../lib/storage/types";
 import { addLog } from "../lib/debugLog";
@@ -11,6 +12,7 @@ import { DEFAULT_EDITOR_APPEARANCE, BLOCK_TYPOGRAPHY_KEYS } from "../lib/editor-
 import { preserveReadingPositions } from "../lib/reading-position";
 
 export function useSettings() {
+  useEffect(startPluginRuntime, []);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const configRef = useRef<AppConfig | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
