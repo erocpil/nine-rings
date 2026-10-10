@@ -93,9 +93,9 @@ Web、Tauri 与 Flutter 共享 `schema/note.yaml` 和 `schema/config.yaml` 作�
 
 ### 插件体系规划
 
-插件体系已开始前置实现：试验 schema 与受限参数校验已落地，完整宿主、SDK 和插件安装仍未开放。标准与 SDK 草案见[插件体系设计](docs/plugin-system-design.md)。计划先完成现有功能模块化，用三个内置试点验证最小宿主；第三方扩展作为有实际需求后启动的可选方向。
+首次可信内置插件宿主的前置条件已完成：受限命令、内部 SDK、编辑/保存修订、事件和生命周期已接入并通过[前置审计](docs/plugin-readiness-audit.md)。公开 SDK 和第三方插件安装尚未开放。标准与 SDK 草案见[插件体系设计](docs/plugin-system-design.md)。接下来用日期插入、文档统计及围栏渲染三个内置试点验证贡献点，围栏另需 C4 门禁；第三方扩展作为有实际需求后启动的可选方向。
 
-插件适配前的代码基线为 `v0.1.0`（`05e624a`）。当前 Web/Tauri 产品版本已提升至 `0.2.0`，表示开始插件适配代码，不表示插件前置门禁已全部完成。SDK、插件和内容格式的版本独立管理，执行步骤见[插件适配版本与发布计划](docs/plugin-release-plan.md)，当前状态见[产品完善与插件推进待办](docs/plugin-readiness-todo.md)。
+插件适配前的代码基线为 `v0.1.0`（`05e624a`）。当前 Web/Tauri 产品版本已提升至 `0.2.0`，首次内置宿主的 R1～R6 已完成；第三方安装及具体贡献点仍有独立门禁。SDK、插件和内容格式的版本独立管理，执行步骤见[插件适配版本与发布计划](docs/plugin-release-plan.md)，当前状态见[产品完善与插件推进待办](docs/plugin-readiness-todo.md)。
 
 ---
 
@@ -269,6 +269,7 @@ nine-rings/
 | [`docs/current-design.md`](./docs/current-design.md) | 当前关键设计与约束的统一入口，区分已实现能力与后续计划 |
 | [`docs/editor-authority-and-workspace.md`](./docs/editor-authority-and-workspace.md) | 内容权威、三文档驻留、块工作区同步与源码边界 |
 | [`docs/plugin-system-design.md`](./docs/plugin-system-design.md) | 插件体系草案、宿主/SDK 契约与分阶段验证 |
+| [`docs/plugin-readiness-audit.md`](./docs/plugin-readiness-audit.md) | 首次可信内置宿主前置门禁、调用边界与验证范围 |
 | [`docs/plugin-release-plan.md`](./docs/plugin-release-plan.md) | 插件适配基线与版本提升计划 |
 | [`docs/TAURI_BUILD.md`](./docs/TAURI_BUILD.md) | Tauri 桌面端完整构建指南（macOS / Linux / Windows） |
 | [`docs/FLUTTER_BUILD.md`](./docs/FLUTTER_BUILD.md) | Flutter 移动端 + macOS 桌面构建指南（macOS / iOS） |

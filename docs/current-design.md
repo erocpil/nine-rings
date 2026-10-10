@@ -1,6 +1,6 @@
 # Nine Rings 当前关键设计
 
-更新时间：2026-10-10。本文总结当前 Web/PWA 与 Tauri 的实现和必须保持的约束，作为专题设计的统一入口。Flutter 仅说明现状，不制定新的迁移方案。插件宿主及其统一修订协议仍为草案。
+更新时间：2026-10-11。本文总结当前 Web/PWA 与 Tauri 的实现和必须保持的约束，作为专题设计的统一入口。Flutter 仅说明现状，不制定新的迁移方案。首次可信内置插件宿主与内部修订/消息协议已接入；公开 SDK、第三方安装和其它贡献点仍为后续目标。
 
 ## 1. 定位与核心原则
 
@@ -90,7 +90,7 @@ CommonMark/GFM 是基础语法目标。脚注、公式、Mermaid、GitHub 提示
 
 加密文档备份另含 `protected_versions`，不代表导出了所有普通历史。**提交/推送本项目源码不会备份应用数据库。** 详见[导航历史](document-navigation-history.md)。
 
-autosave 字段计数用于失败恢复，`updated_at` 用于缓存/变更识别，都不是统一公开修订令牌。插件提出的文档代次、内容修订和保存确认水位需后续实现。
+autosave 字段计数用于失败恢复，`updated_at` 用于缓存/变更识别，都不是统一公开修订令牌。内部文档代次、内容修订和保存确认水位已由 DocumentSaveRevisions/AutoSaveQueue 接入；视图/选区代次独立管理，SDK 仅传连接限定的令牌，详见[前置审计](plugin-readiness-audit.md)。
 
 ## 6. 工作区会话与分栏
 
@@ -170,6 +170,6 @@ PWA 下载与激活分开，已有等待版本仍可发现下一部署，下载�
 | 性能 | CI 合成 fixture 与本机代表性文档，同场景对照，编辑/只读分别验证 |
 | 平台和发布 | Rust/IPC 模拟/真机分别报告；锁文件、固定工具链与隔离目录；构建、打包、签名和运行分开验证 |
 
-本轮仅维护文档，不代表重跑完整 E2E 或完成 Windows/Linux/iPhone 原生验收。结果见对应专题与[E2E 进度](e2e-repair-progress.md)，历史批次数字不是当前全部通过保证。
+本轮完成首次内置插件前置适配和相关本地回归，不代表重跑全产品 E2E 或完成 Windows/Linux/iPhone 原生验收。结果见对应专题与[E2E 进度](e2e-repair-progress.md)，历史批次数字不是当前全部通过保证。
 
-插件下一步先落实修订/保存协调器与序列化边界，再用三个内置试点验证。首次代码实现计划升至 `0.2.0`。`src/extensions/` 是编辑器扩展，根目录 `plugins/` 是构建插件，当前没有可安装应用插件宿主。详见[插件草案](plugin-system-design.md)与[版本计划](plugin-release-plan.md)。
+首次内置宿主的修订/保存协调器、受限消息边界、生命周期和诊断已完成[前置审计](plugin-readiness-audit.md)，下一步进行日期插入和文档统计试点；围栏 provider 先完成 C4。产品版本为 `0.2.0`。`src/extensions/` 是编辑器扩展，根目录 `plugins/` 是构建插件，当前没有可安装应用插件宿主。详见[插件草案](plugin-system-design.md)与[版本计划](plugin-release-plan.md)。
