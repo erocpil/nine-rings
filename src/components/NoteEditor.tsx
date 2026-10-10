@@ -19,6 +19,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { CopyBlockNotice } from "./CopyBlockNotice";
 import { BlockActionMenu, type BlockMenuAction } from "./BlockActionMenu";
 import { copyDocumentBlock } from "../lib/block-clipboard";
+import { clearBlockTextStyles, clipboardBlockFragment, clipboardCutBlock, rememberCutBlock } from "../lib/block-editing";
 import { RenderedLinkMenu } from "./RenderedLinkMenu";
 import { filterQuickSwitcherNotes, rankQuickSwitcherNotes, readRecentNoteIds } from "../lib/quick-switcher";
 import { MarkdownDocumentView } from "./MarkdownDocumentView";
@@ -65,7 +66,7 @@ import {
 import { Extension, getSchema, type Editor } from "@tiptap/core";
 import { Fragment, Slice, type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { readClipboardContent, shouldParseClipboardMarkdown } from "../lib/clipboard-content";
-import { Plugin, TextSelection, type Selection, type Transaction } from "@tiptap/pm/state";
+import { Plugin, TextSelection, Selection, type Transaction } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { closeHistory } from "@tiptap/pm/history";
 import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
@@ -158,6 +159,7 @@ import { DocumentTitlePreview } from "./DocumentTitlePreview";
 import { buildReadonlyDocument, handoffReadingAnchor, takeReadingAnchor, readonlyRenderingEnabled, READONLY_RENDERING_EVENT, READONLY_RENDERING_KEY } from "../lib/readonly-rendering";
 import {
   DocumentBookmarks,
+  documentBookmarkPluginKey,
   removeBookmark,
   renameBookmark,
   toggleBookmark,
@@ -498,6 +500,11 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const readonlyRef = useRef(Boolean(readonly));
   readonlyRef.current = Boolean(readonly);
   const documentActive = useDocumentActive();
+  const blockEditContextRef = useRef({ active: documentActive, readonly: Boolean(readonly), noteId, epoch: 0 });
+  const editContext = blockEditContextRef.current;
+  if (editContext.active !== documentActive || editContext.readonly !== Boolean(readonly) || editContext.noteId !== noteId) {
+    blockEditContextRef.current = { active: documentActive, readonly: Boolean(readonly), noteId, epoch: editContext.epoch + 1 };
+  }
   const contentVersionRef = useRef(contentVersion);
   const contentChangeRef = useRef(onContentChange);
   contentChangeRef.current = onContentChange;
@@ -3716,7 +3723,59 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     const editStart = actions.length;
     if (!readonly) {
       const insert = (at: number, content: Record<string, unknown>) => editor.chain().insertContentAt(at, content).focus().run();
+      const epoch = blockEditContextRef.current.epoch;
+      const writable = () => !editor.isDestroyed && blockEditContextRef.current.epoch === epoch && blockEditContextRef.current.active && !readonlyRef.current && editor.isEditable && editor.state.doc === blockMenu.doc;
+      const finishEdit = (tr: Transaction) => {
+        editor.view.dispatch(closeHistory(tr).scrollIntoView());
+        editor.view.dispatch(closeHistory(editor.state.tr));
+        editor.view.focus();
+      };
+      const pasteBlocks = async (at: number) => {
+        try {
+          const { text, html } = await readClipboardContent();
+          if (!writable()) { setCopyBlockNotice("正文状态已变化，请重新粘贴"); return; }
+          const cut = clipboardCutBlock(html);
+          const fragment = cut ? Fragment.from(editor.schema.nodeFromJSON(cut.node.toJSON())) : await clipboardBlockFragment(editor.schema, text, html);
+          if (!writable()) { setCopyBlockNotice("正文状态已变化，请重新粘贴"); return; }
+          if (!fragment.size) { setCopyBlockNotice("剪贴板为空"); return; }
+          const tr = editor.state.tr.insert(at, fragment);
+          // Restore identities only in their original document and only while
+          // the cut targets are still absent. A second paste creates a copy.
+          if (cut?.noteId === noteId) {
+            const currentAnchors = referenceAnchorPluginKey.getState(editor.state)?.anchors ?? [];
+            const anchors = cut.anchors.filter(anchor => currentAnchors.some(item => item.id === anchor.id && item.deleted)).map(anchor => ({ ...anchor, from: at + anchor.from, to: at + anchor.to, deleted: false }));
+            if (anchors.length) tr.setMeta(referenceAnchorPluginKey, anchors);
+            const currentBookmarks = documentBookmarkPluginKey.getState(editor.state)?.bookmarks ?? [];
+            const added = cut.bookmarks.filter(bookmark => !currentBookmarks.some(item => item.id === bookmark.id)).map(bookmark => ({ ...bookmark, position: at + bookmark.position }));
+            if (added.length) tr.setMeta(documentBookmarkPluginKey, { type: "transfer", add: added });
+          }
+          tr.setSelection(Selection.near(tr.doc.resolve(at + fragment.size), -1));
+          finishEdit(tr);
+          setCopyBlockNotice("已粘贴块");
+        } catch { setCopyBlockNotice("粘贴块失败，请检查剪贴板权限后重试"); }
+      };
+      const cut = async () => {
+        const token = crypto.randomUUID();
+        const anchors = (referenceAnchorPluginKey.getState(editor.state)?.anchors ?? []).filter(anchor => !anchor.deleted && anchor.from >= position && anchor.from < end && anchor.to <= end).map(anchor => ({ ...anchor, from: anchor.from - position, to: anchor.to - position }));
+        const cutBookmarks = (documentBookmarkPluginKey.getState(editor.state)?.bookmarks ?? []).filter(bookmark => bookmark.position >= position && bookmark.position < end).map(bookmark => ({ ...bookmark, position: bookmark.position - position }));
+        try {
+          await copyDocumentBlock(blockMenu.doc, position, "formatted", { token });
+          if (!writable()) { setCopyBlockNotice("已复制；正文状态已变化，未删除原块"); return; }
+          const tr = editor.state.tr.delete(position, end).setMeta(documentBookmarkPluginKey, { type: "transfer", removeIds: cutBookmarks.map(bookmark => bookmark.id) });
+          if (anchors.length) tr.setMeta(referenceAnchorPluginKey, anchors.map(anchor => {
+            const from = tr.mapping.map(position + anchor.from, 1);
+            return { ...anchor, from, to: Math.max(from, tr.mapping.map(position + anchor.to, -1)), deleted: true };
+          }));
+          finishEdit(tr);
+          rememberCutBlock({ token, noteId, node, anchors, bookmarks: cutBookmarks });
+          setCopyBlockNotice("已剪切此块");
+        } catch { setCopyBlockNotice("剪切失败，原块已保留，请重试"); }
+      };
       actions.push(
+        { label: "清除文字样式", run: () => finishEdit(clearBlockTextStyles(editor.state.tr, position)) },
+        { label: "在本块前粘贴块", run: () => { void pasteBlocks(position); } },
+        { label: "在本块后粘贴块", run: () => { void pasteBlocks(end); } },
+        { label: "剪切此块", run: () => { void cut(); } },
         { label: "在上方插入段落", run: () => insert(position, { type: "paragraph" }) },
         { label: "在下方插入段落", run: () => insert(end, { type: "paragraph" }) },
         { label: "复制副本", run: () => insert(end, node.toJSON()) },
@@ -3821,6 +3880,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             disabled={readonlyChangeBusy}
             onClick={async () => {
               if (readonlyChangeBusy) return;
+              blockEditContextRef.current.epoch += 1;
               setReadonlyChangeBusy(true);
               try {
                 await onReadonlyChange(!readonly);
@@ -4012,6 +4072,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
               disabled={readonlyChangeBusy}
               onClick={async () => {
                 if (readonlyChangeBusy) return;
+                blockEditContextRef.current.epoch += 1;
                 setReadonlyChangeBusy(true);
                 try {
                   await onReadonlyChange(!readonly);

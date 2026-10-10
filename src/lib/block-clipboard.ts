@@ -3,7 +3,7 @@ import { clipboardSliceToPlainText } from "./clipboard-plain-text";
 import { copyToClipboard } from "./clipboard";
 import { proseMirrorToDelta } from "./delta-converter";
 import { deltaToMarkdown } from "./markdown-serializer";
-export async function copyDocumentBlock(doc: Node, position: number, mode: "formatted" | "markdown" | "text") {
+export async function copyDocumentBlock(doc: Node, position: number, mode: "formatted" | "markdown" | "text", options?: { token: string }) {
   const node = doc.nodeAt(position);
   if (!node) throw new Error("Block no longer exists");
   const slice = doc.slice(position, position + node.nodeSize);
@@ -11,10 +11,14 @@ export async function copyDocumentBlock(doc: Node, position: number, mode: "form
   if (mode === "formatted") {
     try {
       const container = document.createElement("div");
+      if (options) container.dataset.nrCutBlock = options.token;
       container.append(DOMSerializer.fromSchema(doc.type.schema).serializeFragment(slice.content));
-      await navigator.clipboard.write([new ClipboardItem({ "text/plain": new Blob([text], { type: "text/plain" }), "text/html": new Blob([container.innerHTML], { type: "text/html" }) })]);
+      await navigator.clipboard.write([new ClipboardItem({ "text/plain": new Blob([text], { type: "text/plain" }), "text/html": new Blob([options ? container.outerHTML : container.innerHTML], { type: "text/html" }) })]);
       return;
-    } catch { /* Preserve plain text when rich clipboard access is restricted. */ }
+    } catch (error) {
+      // Cutting must preserve the complete block; never delete after a lossy fallback.
+      if (options) throw error;
+    }
   }
   await copyToClipboard(text, { reportFailure: true });
 }

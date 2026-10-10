@@ -13,7 +13,7 @@ export function referenceAnchorPlugin(initial: DocumentReferenceAnchor[], onChan
     state: {
       init: (_, state) => ({ anchors: initial.filter(anchor => Number.isInteger(anchor.from) && Number.isInteger(anchor.to) && anchor.from >= 0 && anchor.to >= anchor.from && anchor.to <= state.doc.content.size), history: [] }),
       apply(tr, previous, old, next) {
-        const added = tr.getMeta(referenceAnchorPluginKey) as DocumentReferenceAnchor | undefined;
+        const added = tr.getMeta(referenceAnchorPluginKey) as DocumentReferenceAnchor | DocumentReferenceAnchor[] | undefined;
         if (!added && previous.anchors.length === 0) return previous;
         if (!tr.docChanged && !added) return previous;
         const restored = tr.docChanged ? previous.history.find(snapshot => snapshot.doc.eq(next.doc)) : undefined;
@@ -35,7 +35,10 @@ export function referenceAnchorPlugin(initial: DocumentReferenceAnchor[], onChan
           }
           return { ...anchor, from: from.pos, to: Math.max(from.pos, to.pos), ...(anchor.deleted || from.deletedAcross || (anchor.to > anchor.from && to.pos <= from.pos) ? { deleted: true } : {}) };
         }) : previous.anchors;
-        if (added) anchors = [...anchors.filter(item => item.id !== added.id), added];
+        if (added) {
+          const additions = Array.isArray(added) ? added : [added];
+          anchors = [...anchors.filter(item => !additions.some(addition => addition.id === item.id)), ...additions];
+        }
         return { anchors, history: tr.docChanged ? [{ doc: old.doc, anchors: previous.anchors }, ...previous.history].slice(0, 12) : previous.history };
       },
     },

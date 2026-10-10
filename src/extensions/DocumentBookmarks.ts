@@ -8,13 +8,15 @@ import { headingFoldPluginKey } from "./HeadingFold";
 interface BookmarkState {
   bookmarks: DocumentBookmark[];
   decorations: DecorationSet;
+  history: { doc: ProseMirrorNode; bookmarks: DocumentBookmark[] }[];
 }
 
 type BookmarkMeta =
   | { type: "toggle"; position: number }
   | { type: "set-named"; key: string; position: number }
   | { type: "remove"; id: string }
-  | { type: "rename"; id: string; label?: string };
+  | { type: "rename"; id: string; label?: string }
+  | { type: "transfer"; removeIds?: string[]; add?: DocumentBookmark[] };
 
 interface BookmarkOptions {
   initialBookmarks: DocumentBookmark[];
@@ -146,14 +148,16 @@ export const DocumentBookmarks = Extension.create<BookmarkOptions>({
       state: {
         init: (_, state) => {
           const bookmarks = normalizeBookmarks(state.doc, options.initialBookmarks);
-          return { bookmarks, decorations: buildDecorations(state.doc) };
+          return { bookmarks, decorations: buildDecorations(state.doc), history: [] };
         },
         apply(transaction, previous, _oldState, nextState) {
           const meta = transaction.getMeta(documentBookmarkPluginKey) as BookmarkMeta | undefined;
-          if (transaction.docChanged && previous.bookmarks.length === 0 && !meta) return previous;
+          if (transaction.docChanged && previous.bookmarks.length === 0 && previous.history.length === 0 && !meta) return previous;
+          const restored = transaction.docChanged ? previous.history.find(snapshot => snapshot.doc.eq(nextState.doc)) : undefined;
+          const history = transaction.docChanged ? [{ doc: _oldState.doc, bookmarks: previous.bookmarks }, ...previous.history].slice(0, 12) : previous.history;
           let bookmarks = previous.bookmarks;
           if (transaction.docChanged) {
-            bookmarks = normalizeBookmarks(nextState.doc, bookmarks.map((bookmark) => {
+            bookmarks = restored?.bookmarks ?? normalizeBookmarks(nextState.doc, bookmarks.map((bookmark) => {
               const position = transaction.mapping.map(bookmark.position, -1);
               return {
                 ...bookmark,
@@ -162,7 +166,10 @@ export const DocumentBookmarks = Extension.create<BookmarkOptions>({
               };
             }));
           }
-          if (meta?.type === "toggle") {
+          if (meta?.type === "transfer") {
+            const additions = meta.add ?? [];
+            bookmarks = [...bookmarks.filter(item => !meta.removeIds?.includes(item.id) && !additions.some(addition => addition.id === item.id)), ...additions];
+          } else if (meta?.type === "toggle") {
             const block = textblockAt(nextState.doc, meta.position);
             if (block) {
               const existing = bookmarks.find((bookmark) => bookmark.position === block.position);
@@ -184,11 +191,12 @@ export const DocumentBookmarks = Extension.create<BookmarkOptions>({
           if (sameBookmarks(bookmarks, previous.bookmarks)) {
             if (!transaction.docChanged) return previous;
             return {
+              history,
               bookmarks: previous.bookmarks,
               decorations: previous.decorations.map(transaction.mapping, transaction.doc),
             };
           }
-          return { bookmarks, decorations: buildDecorations(nextState.doc) };
+          return { bookmarks, decorations: buildDecorations(nextState.doc), history };
         },
       },
       props: {
