@@ -38,7 +38,7 @@ async function upgradeFlow(id: string): Promise<boolean> {
     if (metadata.markdownSource) metadata.markdownSource = metadata.markdownSource.replace(
       `\`\`\`\`flow\n${oldFlowSource}\n\`\`\`\``, `\`\`\`\`flow\n${flowSource}\n\`\`\`\``,
     );
-    const updated = await api.notes.update(id, { content: { ...note.content, ops, metadata } });
+    const updated = await api.notes.replaceContent(id, { ...note.content, ops, metadata });
     invalidateEditorDocument(id);
     // Refresh a currently open readonly demo without touching an editable session.
     if (updated && useNotesStore.getState().selectedNote === selected && selected?.readonly) useNotesStore.getState().selectNote(updated);

@@ -44,6 +44,7 @@ export interface DocumentViewEvent {
 }
 interface ViewSession {
   owner: object;
+  loadedContentGeneration: string;
   view: DocumentView;
   session: string;
   epoch: number;
@@ -132,6 +133,10 @@ export class DocumentEditSessions {
       return;
     this.views.set(id, {
       owner,
+      loadedContentGeneration:
+        old?.owner === owner
+          ? old.loadedContentGeneration
+          : this.saves.loadedContentGeneration(id),
       view,
       active,
       session: crypto.randomUUID(),
@@ -186,6 +191,8 @@ export class DocumentEditSessions {
   readRevision(id: string): DocumentSaveRevision {
     if (
       !this.active(id) ||
+      this.views.get(id)?.loadedContentGeneration !==
+        this.saves.loadedContentGeneration(id) ||
       this.saves.isReplacing() ||
       !this.saves.isStorageCurrent(id)
     )
@@ -205,7 +212,7 @@ export class DocumentEditSessions {
   capture(id: string): DocumentEditTarget {
     const state = this.views.get(id);
     if (!state?.active || !state.selection) throw new StaleEditTargetError();
-    const revision = this.saves.captureRevision(id);
+    const revision = this.readRevision(id);
     const target = Object.freeze({
       ...revision,
       viewSession: state.session,
@@ -221,6 +228,8 @@ export class DocumentEditSessions {
     const revision = this.saves.revisionState(target.documentId);
     if (
       this.saves.isReplacing() ||
+      current?.loadedContentGeneration !==
+        this.saves.loadedContentGeneration(target.documentId) ||
       !issued ||
       !this.saves.isStorageCurrent(target.documentId) ||
       current?.session !== issued ||

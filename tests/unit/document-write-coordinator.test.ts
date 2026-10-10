@@ -2,10 +2,44 @@ import { expect, it } from "vitest";
 import { AutoSaveQueue } from "../../src/lib/auto-save-queue";
 import {
   coordinateDocumentUpdate,
+  coordinateDocumentReplacement,
   coordinateStorageReplacement,
   coordinateStorageMutation,
   registerDocumentWriteCoordinator,
 } from "../../src/lib/document-write-coordinator";
+import { DocumentEditSessions } from "../../src/lib/document-edit-sessions";
+
+it("body replacement rejects fresh targets from retained models until a new editor loads", async () => {
+  const queue = new AutoSaveQueue(async () => {});
+  const sessions = new DocumentEditSessions(queue);
+  const dispose = registerDocumentWriteCoordinator(queue);
+  const owner = {};
+  sessions.retain("a");
+  sessions.activate("a", owner, "rendered", true);
+  sessions.select("a", owner, "rendered", { from: 1, to: 1 });
+  try {
+    await coordinateStorageMutation(async () => {});
+    expect(() => sessions.capture("a")).not.toThrow();
+    await coordinateDocumentReplacement(async () => ({ id: "a" }));
+    expect(() => sessions.capture("a")).toThrow("编辑目标已变化");
+    expect(() => sessions.readRevision("a")).toThrow();
+    sessions.activate("a", owner, "source", true);
+    sessions.select("a", owner, "source", { from: 0, to: 0 });
+    expect(() => sessions.capture("a")).toThrow();
+    const fresh = {};
+    sessions.activate("a", fresh, "rendered", true);
+    sessions.select("a", fresh, "rendered", { from: 1, to: 1 });
+    expect(() => sessions.capture("a")).not.toThrow();
+    await expect(
+      coordinateDocumentReplacement(async () => {
+        throw new Error("replacement failed");
+      }),
+    ).rejects.toThrow("replacement failed");
+    expect(() => sessions.capture("a")).not.toThrow();
+  } finally {
+    dispose();
+  }
+});
 
 function deferred() {
   let resolve!: () => void;

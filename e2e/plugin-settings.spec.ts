@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 async function openPluginSettings(page: Page) {
+  await expect(page.locator(".app")).toBeVisible();
   await page.keyboard.press("Alt+,");
   await page.getByRole("button", { name: "打开设置查找" }).click();
   await page.getByRole("textbox", { name: "查找设置", exact: true }).fill("插件");

@@ -606,7 +606,7 @@ function App() {
         externalSource: { ...source, syncedAt: new Date().toISOString() },
       },
     };
-    const updated = await api.notes.update(latest.id, { content: nextContent });
+    const updated = await api.notes.replaceContent(latest.id, nextContent);
     const editorDocument = await deltaToProseMirrorAsync(nextContent);
     cacheEditorDocument(updated.id, updated.updated_at, editorDocument);
     selectNote(updated);

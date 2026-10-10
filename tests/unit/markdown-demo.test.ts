@@ -10,7 +10,11 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../src/lib/api", () => ({
   api: {
     docs: { search: mocks.search },
-    notes: { create: mocks.create, get: mocks.get, update: mocks.update },
+    notes: {
+      create: mocks.create,
+      get: mocks.get,
+      replaceContent: mocks.update,
+    },
   },
 }));
 vi.mock("../../src/stores/useNotesStore", () => ({
@@ -43,7 +47,7 @@ beforeEach(() => {
   mocks.get.mockReset().mockResolvedValue(null);
   mocks.update
     .mockReset()
-    .mockImplementation(async (id, changes) => ({ id, ...changes }));
+    .mockImplementation(async (id, content) => ({ id, content }));
   mocks.select.mockReset();
   mocks.selected = null;
 });
@@ -151,7 +155,7 @@ test("upgrades only the unchanged old flow snippet, preserving other content and
   mocks.get.mockResolvedValue(note);
   localStorage.setItem(MARKDOWN_DEMO_KEY, note.id);
   expect(await ensureMarkdownDemo()).toBe(true);
-  const updated = mocks.update.mock.calls[0][1].content;
+  const updated = mocks.update.mock.calls[0][1];
   expect(updated.metadata.markdownSource).toBe(
     "用户补充，保留原文。\n\n" + markdown,
   );
@@ -217,7 +221,7 @@ test("Windows CRLF assets can boot, seed and upgrade the built-in demo", async (
     localStorage.setItem(MARKDOWN_DEMO_FLOW_KEY, "");
     mocks.get.mockResolvedValue(oldDemo());
     expect(await demo.ensureMarkdownDemo()).toBe(true);
-    expect(mocks.update.mock.calls[0][1].content.metadata.markdownSource).toBe(
+    expect(mocks.update.mock.calls[0][1].metadata.markdownSource).toBe(
       "用户补充，保留原文。\n\n" + markdown,
     );
   } finally {

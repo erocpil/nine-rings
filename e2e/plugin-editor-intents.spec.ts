@@ -197,7 +197,9 @@ for (const transport of ["loopback", "port"] as const) {
     await expect
       .poll(() =>
         source.evaluate(
-          (el) => (window as any).sourceCM.EditorView.findFromDOM(el).compositionStarted,
+          (el) =>
+            (window as any).sourceCM.EditorView.findFromDOM(el)
+              .compositionStarted,
         ),
       )
       .toBe(false);
@@ -256,6 +258,30 @@ for (const transport of ["loopback", "port"] as const) {
       ),
     ).toBe(true);
     expect(JSON.stringify(revisionEvents)).not.toContain("literal");
+    // Keep the existing source editor mounted after a real storage restore.
+    // New handles must not acquire authority over its pre-restore model.
+    const replaced = await page.evaluate(async () => {
+      const { api } = await import("/src/lib/api.ts");
+      const id = localStorage.getItem("nr:lastNote")!;
+      await api.versions.checkpoint(id);
+      const version = (await api.versions.list(id))[0];
+      await api.versions.restore(version.id);
+      const sdk = (window as any).intentSdk;
+      const codes: string[] = [];
+      for (const call of [
+        () => sdk.editor.captureSelection(),
+        () => sdk.documents.snapshot(),
+      ]) {
+        try {
+          await call();
+          codes.push("unexpected success");
+        } catch (error) {
+          codes.push((error as { code: string }).code);
+        }
+      }
+      return codes;
+    });
+    expect(replaced).toEqual(["STALE_TARGET", "STALE_TARGET"]);
     await page.evaluate(async () => {
       const { setPluginsEnabled } =
         await import("/src/lib/plugin-system/runtime.ts");

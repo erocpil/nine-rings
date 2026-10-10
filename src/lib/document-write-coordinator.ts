@@ -9,6 +9,7 @@ interface DocumentWriteCoordinator {
   withReplacement<T>(task: () => Promise<T>): Promise<T>;
   assertWriteSnapshot(id: string, snapshot: UpdateNoteInput): void;
   withSavedNote<T>(id: string, task: () => Promise<T>): Promise<T>;
+  invalidateLoadedContent(id: string): void;
 }
 let current: DocumentWriteCoordinator | undefined;
 let mutationTail: Promise<void> = Promise.resolve();
@@ -46,6 +47,19 @@ export function coordinateStorageReplacement<T>(
   task: () => Promise<T>,
 ): Promise<T> {
   return coordinateStorageMutation(task);
+}
+
+/** Body replacement is distinct from metadata management. Invalidate while
+ * still holding the mutation barrier, before callers can resume plugin work. */
+export function coordinateDocumentReplacement<T extends { id: string }>(
+  task: () => Promise<T>,
+): Promise<T> {
+  const owner = current;
+  return coordinateStorageMutation(async () => {
+    const result = await task();
+    owner?.invalidateLoadedContent(result.id);
+    return result;
+  });
 }
 
 export function coordinateDocumentCheckpoint<T>(

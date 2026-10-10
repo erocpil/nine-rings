@@ -901,11 +901,14 @@ for (const kind of ["loopback", "port"] as const) {
 
 for (const kind of ["loopback", "port"] as const) {
   it(`${kind}: subscribed events ignore other documents, resync on generation change and stop on disabling`, async () => {
-    const { sdk, queue, runtime } = setup(kind);
+    const { sdk, queue, runtime, sessions } = setup(kind);
     const subscription = await sdk.events.subscribe();
     queue.mark("b", "title", "other");
     expect((await subscription.read()).events).toEqual([]);
     queue.discard("a");
+    const reloaded = {};
+    sessions.activate("a", reloaded, "rendered", true);
+    sessions.select("a", reloaded, "rendered", { from: 1, to: 1 });
     const result = await subscription.read();
     expect(result.resync).toBe(true);
     expect(result.events[0].kind).toBe("invalidated");
@@ -983,6 +986,21 @@ for (const kind of ["loopback", "port"] as const) {
     });
     gate.resolve();
     await mutation;
+  });
+  it(`${kind}: fresh SDK handles and snapshots reject a replaced retained model`, async () => {
+    const { sdk, sessions, owner, queue } = setup(kind);
+    await queue.withReplacement(async () => queue.invalidateLoadedContent("a"));
+    await expect(sdk.editor.captureSelection()).rejects.toMatchObject({
+      code: "STALE_TARGET",
+    });
+    await expect(sdk.documents.snapshot()).rejects.toMatchObject({
+      code: "STALE_TARGET",
+    });
+    sessions.activate("a", owner, "source", true);
+    sessions.select("a", owner, "source", { from: 0, to: 0 });
+    await expect(sdk.editor.captureSelection()).rejects.toMatchObject({
+      code: "STALE_TARGET",
+    });
   });
 }
 

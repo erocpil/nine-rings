@@ -52,6 +52,7 @@ export class AutoSaveQueue {
   private ownedSnapshots = new WeakSet<object>();
   private barriers = new Set<Promise<void>>();
   private storageGenerations = new Map<string, string>();
+  private loadedContentGenerations = new Map<string, string>();
   private snapshotGenerations = new WeakMap<object, string>();
   private checkpoints = new Set<Promise<void>>();
 
@@ -72,6 +73,18 @@ export class AutoSaveQueue {
 
   isReplacing(): boolean {
     return this.replacing;
+  }
+
+  loadedContentGeneration(id: string): string {
+    return this.loadedContentGenerations.get(id) ?? "initial";
+  }
+
+  /** A successful body replacement must not let a retained old model acquire
+   * fresh edit handles. Metadata-only management does not unload its model. */
+  invalidateLoadedContent(id: string): void {
+    if (!this.storageGenerations.has(id)) return;
+    this.loadedContentGenerations.set(id, crypto.randomUUID());
+    this.revisions.invalidate(id);
   }
 
   mark<K extends keyof PendingAutoSaveChanges>(
@@ -213,8 +226,10 @@ export class AutoSaveQueue {
     if (
       stillRetired() &&
       this.revisions.state(id).documentGeneration === generation
-    )
+    ) {
       this.discard(id);
+      this.loadedContentGenerations.delete(id);
+    }
   }
 
   captureRevision(id: string): DocumentSaveRevision {
@@ -441,6 +456,8 @@ export class AutoSaveQueue {
   }
 
   discard(id: string): void {
+    if (this.storageGenerations.has(id))
+      this.loadedContentGenerations.set(id, crypto.randomUUID());
     this.revisions.invalidate(id);
     this.dirty.delete(id);
     this.storageGenerations.delete(id);

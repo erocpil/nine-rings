@@ -28,7 +28,7 @@ export function ensureFlowPresentationSample(): Promise<boolean> {
         delete metadata.presentationMode;
         delete metadata.flowHeadingLevel;
         delete metadata.markdownSource;
-        await api.notes.update(current.id, { content: { ...mdToDelta(markdown), metadata } });
+        await api.notes.replaceContent(current.id, { ...mdToDelta(markdown), metadata });
         localStorage.setItem(FLOW_SAMPLE_KEY, current.id);
         return true;
       }

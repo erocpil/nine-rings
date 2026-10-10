@@ -8,7 +8,11 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../src/lib/api", () => ({
   api: {
     docs: { search: mocks.search },
-    notes: { create: mocks.create, get: mocks.get, update: mocks.update },
+    notes: {
+      create: mocks.create,
+      get: mocks.get,
+      replaceContent: mocks.update,
+    },
   },
 }));
 import {
@@ -79,9 +83,7 @@ test("untouched legacy demo upgrades in place but authored changes and deleted d
   expect(await ensureFlowPresentationSample()).toBe(true);
   expect(mocks.update).toHaveBeenCalledWith(
     "legacy",
-    expect.objectContaining({
-      content: expect.objectContaining({ metadata: {} }),
-    }),
+    expect.objectContaining({ metadata: {} }),
   );
   expect(mocks.create).not.toHaveBeenCalled();
 });

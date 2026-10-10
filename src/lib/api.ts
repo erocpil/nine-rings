@@ -1,13 +1,13 @@
 import type { StorageAdapter, DocSearchQuery } from "./storage/types";
 import { getAdapter } from "./storage";
-import type { AppConfig, CreateNoteInput, UpdateNoteInput } from "../types/models";
+import type { AppConfig, CreateNoteInput, UpdateNoteInput, Note } from "../types/models";
 import { broadcastDataChange } from "./tab-coordination";
 import { invalidateWebSearchIndex, removeFromWebSearchIndex, searchWebNotes, searchWebNoteSummaries, searchDocumentSummaries, updateWebSearchIndex } from "./web-search-index";
 import { addFrontendSettingsToBackup, withFrontendSettings } from "./backup-user-settings";
 import { parseJsonAsync, stringifyJsonAsync } from "./data-transform-client";
 import { validateBackup } from "./backup-validation";
 import { assertRestoreContext, withBackupRestore, type RestoreContext } from "./backup-restore-coordination";
-import { coordinateDocumentUpdate, coordinateStorageReplacement, coordinateStorageMutation, coordinateDocumentCheckpoint } from "./document-write-coordinator";
+import { coordinateDocumentUpdate, coordinateDocumentReplacement, coordinateStorageReplacement, coordinateStorageMutation, coordinateDocumentCheckpoint } from "./document-write-coordinator";
 import type { SearchOptions } from "./search-matching";
 
 /**
@@ -54,7 +54,16 @@ export const api = {
 
     upsert: async (data: CreateNoteInput) => {
       const input = structuredClone(data);
-      const note = await coordinateStorageMutation(() => adapter().then((a) => a.upsertNote(input)));
+      const note = await coordinateDocumentReplacement(() => adapter().then((a) => a.upsertNote(input)));
+      updateWebSearchIndex(note);
+      broadcastDataChange({ type: "note-changed", noteId: note.id });
+      return note;
+    },
+
+    /** Trusted host replacement; deliberately absent from the plugin SDK. */
+    replaceContent: async (id: string, content: Note["content"]) => {
+      const snapshot = structuredClone(content);
+      const note = await coordinateDocumentReplacement(() => adapter().then(a => a.updateNote(id, { content: snapshot })));
       updateWebSearchIndex(note);
       broadcastDataChange({ type: "note-changed", noteId: note.id });
       return note;
@@ -206,7 +215,7 @@ export const api = {
       adapter().then((a) => a.getNoteVersions(noteId)),
 
     restore: (versionId: string) =>
-      withSearchRefresh(coordinateStorageMutation(() => adapter().then((a) => a.restoreNoteVersion(versionId)))),
+      withSearchRefresh(coordinateDocumentReplacement(() => adapter().then((a) => a.restoreNoteVersion(versionId)))),
 
     checkpoint: (noteId: string) =>
       coordinateDocumentCheckpoint(noteId, () => adapter().then((a) => a.createNoteCheckpoint(noteId))),
