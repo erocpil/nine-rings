@@ -278,7 +278,7 @@ SDK 首期是仓库内部、可演进的模块；`@nine-rings/plugin-sdk` 和 `/
 
 #### 已实现的内部消息桥（2026-10-11）
 
-`src/lib/plugin-system/sdk-{protocol,host,client}.ts` 提供内部 protocol 1，当前提供 `capabilities.query`、`commands.execute`、`requests.cancel`、`editor.captureSelection`、`editor.insert`、`editor.insertAtSelection` 、`documents.whenSaved` 和 `documents.snapshot`。调用与响应均校验 JSON 值、协议及键；限制为 128,000 UTF-8 字节、16 层和 4096 值预算。回环也深复制，不保留输入对象引用；MessageChannel 传相同消息。响应使用既有类型化错误和 `applied`，后者只表示编辑已接受，不等于保存完成。返回值超过消息预算时仍保留已接受状态。
+`src/lib/plugin-system/sdk-{protocol,host,client}.ts` 提供内部 protocol 1，当前提供 `capabilities.query`、`commands.execute`、`requests.cancel`、`editor.captureSelection`、`editor.insert`、`editor.insertAtSelection` 、`documents.whenSaved` 、`documents.snapshot`、`events.subscribe`、`events.read` 和 `events.unsubscribe`。调用与响应均校验 JSON 值、协议及键；限制为 128,000 UTF-8 字节、16 层和 4096 值预算。回环也深复制，不保留输入对象引用；MessageChannel 传相同消息。响应使用既有类型化错误和 `applied`，后者只表示编辑已接受，不等于保存完成。返回值超过消息预算时仍保留已接受状态。
 
 宿主 `createSdkHost` 绑定内部激活对象与调用入口，二者不接受客户端自报；另一插件的命令不能经本连接执行。能力查询只展示当前授权、平台、视图和入口允许的命令，不读取正文，也不承诺文档可写；实际执行仍由意图服务检查只读、保护、目标及恢复代次。每连接记录已用请求 ID 并限制并发，取消用独立消息传输，AbortSignal 留在客户端。取消在并发或 ID 预算耗尽时仍可处理；ID 预算耗尽后的幂等取消不继续增加记录，写请求仍不能重复提交。
 
@@ -288,7 +288,9 @@ SDK 首期是仓库内部、可演进的模块；`@nine-rings/plugin-sdk` 和 `/
 
 内部 SDK 已开放活动 Markdown 文档的按需快照：返回文档 ID、标题、结构化 Delta 正文与本连接的保存修订令牌，不返回内部坐标或编辑器对象。先冻结最新待保存数据，再读取存储并校验视图、文档代次与修订，防止保存完成清空队列造成读取旧正文；读取不触发保存，允许只读文档，拒绝加密正文和保护路径。快照经 JSON 消息预算限制，超限明确失败，不截断内容；首期不支持任意文档 ID、分页或全文广播。
 
-内部 SDK 尚不开放订阅、设置持久化或第三方运行器，管理生命周期与全部写入入口仍待核实。当前 MessageChannel 证明序列化行为，不等于第三方沙箱或原生 IPC 来源隔离，R6 仍进行中。
+内部 SDK 已提供当前文档修订的显式读取订阅：客户端 subscribe 后按需 read，dispose 经宿主确认；不传回调、不自动轮询、不推送全文。每连接最多 8 个订阅，每订阅最多 32 条摘要；连续同代次同类事件合并、溢出丢弃最早摘要，返回 resync=true，客户端应按需重新取快照。换代同样标记 resync，序号是事件源序号而非读取次数，不能假定连续。订阅 ID 仅在签发连接有效，读取重新检查授权、当前文档、只读视图与保护；文档变化需重新订阅，停用/关闭连接自动取消全部监听。读取保护校验复用现有存储访问，但不物化待保存正文或传输正文；纯元数据存储查询优化另属 A3。首次通知不回放订阅前事件，客户端需快照建立基线后再按需核对，暂不承诺无缝快照加订阅原子交接。
+
+内部 SDK 尚不开放自动事件推送、设置持久化或第三方运行器，管理生命周期与全部写入入口仍待核实。当前 MessageChannel 证明序列化行为，不等于第三方沙箱或原生 IPC 来源隔离，R6 仍进行中。
 
 #### 修订由宿主统一产生
 
@@ -401,7 +403,7 @@ export async function activate(ctx: PluginContext): Promise<void> {
 
 ### 6.6 事件载荷、快捷键和凭证
 
-当前基础事件源已接入 `DocumentSaveRevisions` → `AutoSaveQueue` → `DocumentEditSessions`，只供内部宿主订阅。accepted/saved/invalidated 事件携带文档 ID、代次、该代次顺序号、内容修订和确认水位；保存失败不发 saved，确认水位推进才发通知，换代通知关联旧代次。注册后的通知不回放历史，读取修订及导航不产生内容事件；取消订阅幂等，观察者异常不影响编辑或保存。没有订阅时不生成载荷，不转换正文。SDK 订阅 ID、权限过滤、合并/背压、原因和范围仍待实现；当前不能让插件直接访问此内部监听器。
+当前基础事件源已接入 `DocumentSaveRevisions` → `AutoSaveQueue` → `DocumentEditSessions`，只供内部宿主订阅。accepted/saved/invalidated 事件携带文档 ID、代次、该代次顺序号、内容修订和确认水位；保存失败不发 saved，确认水位推进才发通知，换代通知关联旧代次。注册后的通知不回放历史，读取修订及导航不产生内容事件；取消订阅幂等，观察者异常不影响编辑或保存。没有订阅时不生成载荷，不转换正文。SDK 已提供连接限定的显式读取订阅、权限过滤和有界合并；自动推送、原因和范围仍待实现；当前不能让插件直接访问此内部监听器。
 
 编辑事件采用宿主计算的轻量摘要：文档代次、基础/结果修订、视图、原因（输入/插件/撤销/重做/元数据）与发生变化的范围或失效区。选择变化独立通知；保存事件关联已确认水位。同一文档代次的事件有顺序号，不承诺跨文档的全局顺序。
 

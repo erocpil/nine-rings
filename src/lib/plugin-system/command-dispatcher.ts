@@ -129,7 +129,13 @@ export class HostCommandDispatcher {
         methods.push("editor.insert", "editor.insertAtSelection");
     }
     if (permissions.includes("documents.current.read"))
-      methods.push("documents.whenSaved", "documents.snapshot");
+      methods.push(
+        "documents.whenSaved",
+        "documents.snapshot",
+        "events.subscribe",
+        "events.read",
+        "events.unsubscribe",
+      );
     return {
       protocol: 1 as const,
       platform: context.platform,
@@ -204,7 +210,11 @@ export class HostCommandDispatcher {
     }
   }
 
-  async snapshot(activation: PluginActivation, signal?: AbortSignal) {
+  async snapshot(
+    activation: PluginActivation,
+    signal?: AbortSignal,
+    metadataOnly = false,
+  ) {
     this.runtime.assert(activation, "documents.current.read");
     const context = this.context();
     if (!["render", "source", "readonly"].includes(context.view))
@@ -241,7 +251,9 @@ export class HostCommandDispatcher {
       return await withProtectionWrite(async () => {
         check();
         // Freeze before storage reads: an in-flight save may finish and clear pending.
-        const pending = structuredClone(this.sessions.pendingChanges(id));
+        const pending = metadataOnly
+          ? null
+          : structuredClone(this.sessions.pendingChanges(id));
         const note = await api.notes.get(id);
         check();
         if (!note) throw new PluginHostError("STALE_TARGET", "文档已不存在");
@@ -263,7 +275,7 @@ export class HostCommandDispatcher {
         const value = structuredClone({
           documentId: id,
           title: pending?.title ?? note.title ?? "",
-          content: pending?.content ?? note.content,
+          content: metadataOnly ? null : (pending?.content ?? note.content),
         });
         check();
         return { value, revision };
@@ -277,6 +289,12 @@ export class HostCommandDispatcher {
         );
       throw new PluginHostError("INTERNAL_ERROR", "读取未完成");
     }
+  }
+
+  subscribeRevisions(
+    listener: Parameters<DocumentEditSessions["subscribeRevisions"]>[0],
+  ) {
+    return this.sessions.subscribeRevisions(listener);
   }
 
   register(

@@ -9,6 +9,7 @@ import {
   type SdkRequest,
   type SdkResponse,
 } from "./sdk-protocol";
+import type { SdkEventBatch } from "./sdk-events";
 import type { createSdkHost } from "./sdk-host";
 import type {
   SdkEditTarget,
@@ -167,6 +168,49 @@ export function createPluginSdk(transport: SdkTransport) {
     }
   };
   return {
+    events: {
+      async subscribe(options?: { signal?: AbortSignal }) {
+        const response = await call("events.subscribe", {}, options);
+        if (!response.ok)
+          throw new PluginHostError(
+            response.error.code,
+            response.error.message,
+          );
+        const id = (response.value as { subscriptionId: string })
+          .subscriptionId;
+        let disposed = false;
+        return {
+          async read(options?: {
+            signal?: AbortSignal;
+          }): Promise<SdkEventBatch> {
+            if (disposed) throw new PluginHostError("CANCELLED", "订阅已关闭");
+            const result = await call(
+              "events.read",
+              { subscriptionId: id },
+              options,
+            );
+            if (!result.ok)
+              throw new PluginHostError(
+                result.error.code,
+                result.error.message,
+              );
+            return result.value as SdkEventBatch;
+          },
+          async dispose() {
+            if (disposed) return;
+            const result = await call("events.unsubscribe", {
+              subscriptionId: id,
+            });
+            if (!result.ok)
+              throw new PluginHostError(
+                result.error.code,
+                result.error.message,
+              );
+            disposed = true;
+          },
+        };
+      },
+    },
     editor: {
       async captureSelection(options?: {
         signal?: AbortSignal;

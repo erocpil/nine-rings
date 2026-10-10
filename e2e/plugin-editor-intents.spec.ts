@@ -74,6 +74,7 @@ for (const transport of ["loopback", "port"] as const) {
         intentDispatcher: dispatcher,
         intentActivation: activation,
         intentSdk: sdk,
+        intentSubscription: await sdk.events.subscribe(),
         disposeIntentHost: disposeHost,
       });
       const snapshot = await sdk.documents.snapshot();
@@ -196,6 +197,15 @@ for (const transport of ["loopback", "port"] as const) {
     ).toContain("SDK");
     await page.getByRole("button", { name: "撤销", exact: true }).click();
     expect((await sourceInfo(source)).value).toBe(before);
+    const revisionEvents = await page.evaluate(async () =>
+      (window as any).intentSubscription.read(),
+    );
+    expect(
+      revisionEvents.events.some(
+        (event: { kind: string }) => event.kind === "accepted",
+      ),
+    ).toBe(true);
+    expect(JSON.stringify(revisionEvents)).not.toContain("literal");
     await page.evaluate(async () => {
       const { setPluginsEnabled } =
         await import("/src/lib/plugin-system/runtime.ts");

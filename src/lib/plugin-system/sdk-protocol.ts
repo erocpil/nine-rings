@@ -11,7 +11,10 @@ export type SdkMethod =
   | "editor.insertAtSelection"
   | "editor.insert"
   | "documents.whenSaved"
-  | "documents.snapshot";
+  | "documents.snapshot"
+  | "events.subscribe"
+  | "events.read"
+  | "events.unsubscribe";
 export interface SdkRequest {
   protocol: 1;
   requestId: string;
@@ -148,14 +151,18 @@ export function parseSdkRequest(value: unknown): SdkRequest {
       "editor.insert",
       "documents.whenSaved",
       "documents.snapshot",
+      "events.subscribe",
+      "events.read",
+      "events.unsubscribe",
     ].includes(request.method) ||
     !request.params ||
     typeof request.params !== "object" ||
     Array.isArray(request.params)
   )
     throw new PluginHostError("INVALID_ARGUMENT", "SDK 请求协议无效");
-  const allowed =
-    request.method === "commands.execute"
+  const allowed = ["events.read", "events.unsubscribe"].includes(request.method)
+    ? ["subscriptionId"]
+    : request.method === "commands.execute"
       ? ["commandId", "args"]
       : request.method === "requests.cancel"
         ? ["requestId"]
@@ -168,6 +175,8 @@ export function parseSdkRequest(value: unknown): SdkRequest {
               : [];
   if (
     Object.keys(request.params).some((key) => !allowed.includes(key)) ||
+    (["events.read", "events.unsubscribe"].includes(request.method) &&
+      !validRequestId(request.params.subscriptionId)) ||
     (request.method === "commands.execute" &&
       typeof request.params.commandId !== "string") ||
     (request.method === "requests.cancel" &&

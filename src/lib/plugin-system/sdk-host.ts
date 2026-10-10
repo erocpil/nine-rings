@@ -13,6 +13,7 @@ import {
   validRequestId,
   type SdkResponse,
 } from "./sdk-protocol";
+import { SdkEvents } from "./sdk-events";
 import { SdkEditorHandles, type SdkInsertContent } from "./sdk-editor-handles";
 
 /** Host-issued connection binds activation and entry. Neither is accepted in JSON.
@@ -25,6 +26,7 @@ export function createSdkHost(
 ) {
   const runtimeSignal = runtime.assert(activation);
   const handles = new SdkEditorHandles(dispatcher, activation);
+  const events = new SdkEvents(dispatcher, activation);
   const seen = new Set<string>();
   const pending = new Map<string, AbortController>();
   let closed = false;
@@ -32,6 +34,7 @@ export function createSdkHost(
   let releaseOwnership = () => {};
   const revoke = () => {
     handles.clear();
+    events.dispose();
     for (const controller of pending.values()) controller.abort();
   };
   runtimeSignal.addEventListener("abort", revoke, { once: true });
@@ -63,10 +66,15 @@ export function createSdkHost(
             "DUPLICATE_REQUEST",
             "SDK 请求不能重复提交",
           );
+        const cleanupRequest = [
+          "requests.cancel",
+          "events.unsubscribe",
+        ].includes(request.method);
         if (
-          (request.method !== "requests.cancel" && seen.size >= 4096) ||
+          (!cleanupRequest && seen.size >= 4096) ||
           (![
             "requests.cancel",
+            "events.unsubscribe",
             "capabilities.query",
             "editor.captureSelection",
           ].includes(request.method) &&
@@ -119,26 +127,40 @@ export function createSdkHost(
           }, 30000);
           try {
             const operation =
-              request.method === "documents.snapshot"
-                ? handles.snapshot(controller.signal)
-                : request.method === "documents.whenSaved"
-                  ? handles
-                      .whenSaved(
-                        request.params.documentId as string,
-                        request.params.revision as string,
-                        controller.signal,
-                      )
-                      .then(() => null)
-                  : handles.insert(
-                      request.method === "editor.insert"
-                        ? (request.params.target as string)
-                        : undefined,
-                      request.params.content as unknown as SdkInsertContent,
+              request.method === "events.subscribe"
+                ? events.subscribe(controller.signal)
+                : request.method === "events.read"
+                  ? events.read(
+                      request.params.subscriptionId as string,
                       controller.signal,
-                      () => {
-                        applied = true;
-                      },
-                    );
+                    )
+                  : request.method === "events.unsubscribe"
+                    ? Promise.resolve(
+                        events.unsubscribe(
+                          request.params.subscriptionId as string,
+                        ),
+                      ).then(() => null)
+                    : request.method === "documents.snapshot"
+                      ? handles.snapshot(controller.signal)
+                      : request.method === "documents.whenSaved"
+                        ? handles
+                            .whenSaved(
+                              request.params.documentId as string,
+                              request.params.revision as string,
+                              controller.signal,
+                            )
+                            .then(() => null)
+                        : handles.insert(
+                            request.method === "editor.insert"
+                              ? (request.params.target as string)
+                              : undefined,
+                            request.params
+                              .content as unknown as SdkInsertContent,
+                            controller.signal,
+                            () => {
+                              applied = true;
+                            },
+                          );
             const value = await Promise.race([operation, aborted]);
             runtime.assert(activation);
             response = { ok: true, requestId, applied, value };

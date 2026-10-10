@@ -819,3 +819,99 @@ it("host disposal releases bound port after pending terminal response", async ()
   expect(cleanup).toHaveBeenCalledTimes(1);
   gate.resolve();
 });
+
+for (const kind of ["loopback", "port"] as const) {
+  it(`${kind}: subscription batches revisions without body and confirms real saves`, async () => {
+    const { sdk, queue } = setup(kind);
+    const subscription = await sdk.events.subscribe();
+    queue.mark("a", "title", "secret one");
+    queue.mark("a", "title", "secret two");
+    const first = await subscription.read();
+    expect(first.resync).toBe(true);
+    expect(first.events).toHaveLength(1);
+    expect(first.events[0]).toMatchObject({
+      kind: "accepted",
+      contentRevision: 2,
+    });
+    expect(JSON.stringify(first)).not.toContain("secret");
+    expect((await subscription.read()).events).toEqual([]);
+    await queue.flushNote("a");
+    expect((await subscription.read()).events[0]).toMatchObject({
+      kind: "saved",
+      confirmedRevision: 2,
+    });
+    await subscription.dispose();
+    await subscription.dispose();
+    queue.mark("a", "title", "later");
+    await expect(subscription.read()).rejects.toMatchObject({
+      code: "CANCELLED",
+    });
+  });
+  it(`${kind}: event buffer and subscription count stay bounded`, async () => {
+    const { sdk, queue } = setup(kind);
+    const subscriptions = await Promise.all(
+      Array.from({ length: 8 }, () => sdk.events.subscribe()),
+    );
+    await expect(sdk.events.subscribe()).rejects.toMatchObject({
+      code: "INVALID_ARGUMENT",
+    });
+    for (let i = 0; i < 20; i++) {
+      queue.mark("a", "title", String(i));
+      await queue.flushNote("a");
+    }
+    const result = await subscriptions[0].read();
+    expect(result.events).toHaveLength(32);
+    expect(result.resync).toBe(true);
+    await subscriptions[0].dispose();
+    await sdk.events.subscribe();
+  });
+  it(`${kind}: event reads recheck protection and cannot use another connection subscription`, async () => {
+    const { sdk, host, queue } = setup(kind);
+    const response = await host.receive({
+      protocol: 1,
+      requestId: "sub",
+      method: "events.subscribe",
+      params: {},
+    });
+    expect(response.response.ok).toBe(true);
+    const subscriptionId = (
+      response.response as { value: { subscriptionId: string } }
+    ).value.subscriptionId;
+    const other = setup(kind);
+    expect(
+      (
+        await other.host.receive({
+          protocol: 1,
+          requestId: "read",
+          method: "events.read",
+          params: { subscriptionId },
+        })
+      ).response,
+    ).toMatchObject({ error: { code: "INVALID_ARGUMENT" } });
+    const subscription = await sdk.events.subscribe();
+    queue.mark("a", "title", "secret");
+    vi.mocked(listProtectedPaths).mockResolvedValue([
+      { path: "ideas" },
+    ] as Awaited<ReturnType<typeof listProtectedPaths>>);
+    await expect(subscription.read()).rejects.toMatchObject({
+      code: "PERMISSION_DENIED",
+    });
+  });
+}
+
+for (const kind of ["loopback", "port"] as const) {
+  it(`${kind}: subscribed events ignore other documents, resync on generation change and stop on disabling`, async () => {
+    const { sdk, queue, runtime } = setup(kind);
+    const subscription = await sdk.events.subscribe();
+    queue.mark("b", "title", "other");
+    expect((await subscription.read()).events).toEqual([]);
+    queue.discard("a");
+    const result = await subscription.read();
+    expect(result.resync).toBe(true);
+    expect(result.events[0].kind).toBe("invalidated");
+    runtime.setEnabled(false);
+    await expect(subscription.read()).rejects.toMatchObject({
+      code: "PLUGIN_DISABLED",
+    });
+  });
+}
