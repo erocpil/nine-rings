@@ -169,7 +169,7 @@ export function MarkdownSourceEditor({
   const displayExtensions = () => {
     const prefs = blockWorkspacePreferences();
     return [
-      showLineNumbers ? (prefs.relativeSourceLineNumbers ? relativeLineNumbers() : lineNumbers()) : [],
+      showLineNumbers ? (prefs.relativeSourceLineNumbers ? relativeLineNumbers(prefs.relativeSourceLineNumberAlignment) : lineNumbers()) : [],
       prefs.wrap !== false ? EditorView.lineWrapping : [],
       EditorState.tabSize.of(prefs.tabSize ?? 4),
       indentUnit.of(" ".repeat(prefs.tabSize ?? 4)),

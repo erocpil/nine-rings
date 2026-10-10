@@ -7,6 +7,10 @@ import {
 function read() {
   const preferences = blockWorkspacePreferences();
   return {
+    relativeBlockNumberAlignment:
+      preferences.relativeBlockNumberAlignment ?? "right",
+    relativeSourceLineNumberAlignment:
+      preferences.relativeSourceLineNumberAlignment ?? "left",
     relativeBlockNumbers: preferences.relativeBlockNumbers === true,
     relativeSourceLineNumbers: preferences.relativeSourceLineNumbers === true,
   };
@@ -18,7 +22,11 @@ export function useRelativeNumbering() {
       const next = read();
       setValue((old) =>
         old.relativeBlockNumbers === next.relativeBlockNumbers &&
-        old.relativeSourceLineNumbers === next.relativeSourceLineNumbers
+        old.relativeSourceLineNumbers === next.relativeSourceLineNumbers &&
+        old.relativeBlockNumberAlignment ===
+          next.relativeBlockNumberAlignment &&
+        old.relativeSourceLineNumberAlignment ===
+          next.relativeSourceLineNumberAlignment
           ? old
           : next,
       );

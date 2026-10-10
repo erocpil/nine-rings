@@ -1004,6 +1004,17 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 <span className="toggle-track" /><span className="toggle-label">{relativeNumbering.relativeSourceLineNumbers ? "开" : "关"}</span>
               </label>
             </Field>
+
+            <Field label="相对块号当前项对齐" desc="仅在相对块号开启时生效，默认右对齐；其它编号仍右对齐" visible={settingsPage === "editor"}>
+              <select aria-label="相对块号当前项对齐" value={relativeNumbering.relativeBlockNumberAlignment} onChange={event => saveBlockWorkspacePreferences({ relativeBlockNumberAlignment: event.target.value as "left" | "right" })}>
+                <option value="left">左对齐</option><option value="right">右对齐</option>
+              </select>
+            </Field>
+            <Field label="相对行号当前项对齐" desc="仅在相对行号开启时生效，默认左对齐；其它编号仍右对齐" visible={settingsPage === "editor"}>
+              <select aria-label="相对行号当前项对齐" value={relativeNumbering.relativeSourceLineNumberAlignment} onChange={event => saveBlockWorkspacePreferences({ relativeSourceLineNumberAlignment: event.target.value as "left" | "right" })}>
+                <option value="left">左对齐</option><option value="right">右对齐</option>
+              </select>
+            </Field>
             <Field label="状态栏块号" desc={config.editor_show_status_bar ? "显示光标所在的绝对块编号；相对编号不改变跳转或操作目标" : "请先开启状态栏；此选项的当前设置会保留"} visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input

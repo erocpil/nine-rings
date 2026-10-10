@@ -37,12 +37,19 @@ class NumberMarker extends GutterMarker {
   constructor(
     readonly number: string,
     readonly current = false,
+    readonly alignment: "left" | "right" = "left",
   ) {
     super();
-    this.elementClass = current ? "cm-relative-current" : "";
+    this.elementClass = current
+      ? `cm-relative-current${alignment === "right" ? " cm-relative-current-right" : ""}`
+      : "";
   }
   eq(other: NumberMarker) {
-    return this.number === other.number && this.current === other.current;
+    return (
+      this.number === other.number &&
+      this.current === other.current &&
+      this.alignment === other.alignment
+    );
   }
   toDOM() {
     return document.createTextNode(this.number);
@@ -51,7 +58,7 @@ class NumberMarker extends GutterMarker {
 
 /** The standard formatNumber hook does not refresh on selection changes.
  * Use the same gutter class and viewport rendering with an explicit trigger. */
-export function relativeLineNumbers() {
+export function relativeLineNumbers(alignment: "left" | "right" = "left") {
   return gutter({
     class: "cm-lineNumbers",
     lineMarker(view, line) {
@@ -64,6 +71,7 @@ export function relativeLineNumbers() {
           relativeFoldedLineNumber(number, current, foldedIndex(view.state)),
         ),
         number === current,
+        alignment,
       );
     },
     lineMarkerChange: (update) =>

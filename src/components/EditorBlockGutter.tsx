@@ -161,7 +161,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
   const [blocks, setBlocks] = useState<GutterBlock[]>([]);
   const [currentNumber, setCurrentNumber] = useState(1);
   const [visibleNumbers, setVisibleNumbers] = useState<readonly number[]>([]);
-  const { relativeBlockNumbers } = useRelativeNumbering();
+  const { relativeBlockNumbers, relativeBlockNumberAlignment } = useRelativeNumbering();
   const selectingBlocks = selectedBlockIndexes.length > 0;
 
   useEffect(() => {
@@ -811,7 +811,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       {!selectingBlocks && showNumbers && blocks.map((block) => (
         <BlockNumber
           key={`number-${block.pos}`}
-          className={`${relativeBlockNumbers && block.index === currentNumber ? "relative-current" : ""} ${(relativeBlockNumbers ? block.index === currentNumber : block.active) ? "active" : ""} ${blockHasBookmark(block) ? "bookmarked" : ""} ${block.index === highlightedBlockIndex ? "bookmark-jump-gutter" : ""}`}
+          className={`${relativeBlockNumbers && block.index === currentNumber ? `relative-current${relativeBlockNumberAlignment === "right" ? " relative-current-right" : ""}` : ""} ${(relativeBlockNumbers ? block.index === currentNumber : block.active) ? "active" : ""} ${blockHasBookmark(block) ? "bookmarked" : ""} ${block.index === highlightedBlockIndex ? "bookmark-jump-gutter" : ""}`}
           style={{ top: block.firstLineCenter }}
           number={block.index} format={block.format}
           displayNumber={relativeBlockNumbers ? relativeNumber(block.index, currentNumber, visibleNumbers) : block.index}

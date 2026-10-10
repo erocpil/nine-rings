@@ -414,7 +414,7 @@ export function ReadonlyVirtualNote(
   const [notice, setNotice] = useState("");
   const [blockMenu, setBlockMenu] = useState<{ position: number; number: number; trigger: HTMLButtonElement; doc: PMNode } | null>(null);
   const [currentNumber, setCurrentNumber] = useState(1);
-  const { relativeBlockNumbers } = useRelativeNumbering();
+  const { relativeBlockNumbers, relativeBlockNumberAlignment } = useRelativeNumbering();
   const visibleNumbers = useMemo(() => relativeBlockNumbers ? blocks.map(block => block.number) : [], [blocks, relativeBlockNumbers]);
   const closeBlockMenu = useCallback(() => setBlockMenu(null), []);
   useEffect(() => { setBlockMenu(null); }, [doc, active]);
@@ -975,6 +975,7 @@ export function ReadonlyVirtualNote(
     window.addEventListener("keydown", keydown, true);
     return () => window.removeEventListener("keydown", keydown, true);
   }, [openPanel, capture, noteId, onFallback, blockJumpValue, doc]);
+  const lastDoubleFold = useRef<{ time: number; number: number } | null>(null);
   const tap = useRef<{
     pos: number;
     time: number;
@@ -1365,8 +1366,21 @@ export function ReadonlyVirtualNote(
               event.preventDefault();
               event.stopPropagation();
               window.getSelection()?.removeAllRanges();
-              if (Date.now() - (tap.current?.time ?? 0) > 500)
+              if (Date.now() - (tap.current?.time ?? 0) > 500) {
+                lastDoubleFold.current = { time: Date.now(), number: Number(row.dataset.blockNumber) };
+                setCurrentNumber(Number(row.dataset.blockNumber));
                 toggleHeading(Number(row.dataset.position));
+              }
+            }
+          }}
+          onMouseDownCapture={(event) => {
+            const folded = lastDoubleFold.current;
+            if (event.button === 0 && event.detail >= 3 && folded && Date.now() - folded.time < 650) {
+              event.preventDefault();
+              event.stopPropagation();
+              pointer.current = null;
+              tap.current = null;
+              setCurrentNumber(folded.number);
             }
           }}
           onPointerDown={(event) => {
@@ -1455,7 +1469,7 @@ export function ReadonlyVirtualNote(
                       <EditorFoldIcon expanded={!folds.has(section.key)} />
                     </button>
                   )}
-                  {props.showLineNumbers && <BlockNumber number={block.number} displayNumber={relativeBlockNumbers ? relativeNumber(block.number, currentNumber, visibleNumbers) : block.number} className={`${block.number === currentNumber ? "active" : ""} ${relativeBlockNumbers && block.number === currentNumber ? "relative-current" : ""}`} format={block.node.type.name === "heading" ? `H${block.node.attrs.level}` : block.node.type.name} onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />}
+                  {props.showLineNumbers && <BlockNumber number={block.number} displayNumber={relativeBlockNumbers ? relativeNumber(block.number, currentNumber, visibleNumbers) : block.number} className={`${block.number === currentNumber ? "active" : ""} ${relativeBlockNumbers && block.number === currentNumber ? `relative-current${relativeBlockNumberAlignment === "right" ? " relative-current-right" : ""}` : ""}`} format={block.node.type.name === "heading" ? `H${block.node.attrs.level}` : block.node.type.name} onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />}
                 </div>
                 <div className="ProseMirror vr-block" contentEditable={false}>
                   {decorateFlowBlock(renderReadonlyBlock(

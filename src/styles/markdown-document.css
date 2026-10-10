@@ -174,3 +174,4 @@ blockquote[data-alert="WARNING"], blockquote[data-alert="CAUTION"] { border-left
 .source-fold-level-icon { display: block; flex: none; width: 10px; height: 6px; }
 
 .markdown-cm-host .cm-lineNumbers .cm-gutterElement.cm-relative-current { text-align: left; }
+.markdown-cm-host .cm-lineNumbers .cm-gutterElement.cm-relative-current-right { text-align: right; }

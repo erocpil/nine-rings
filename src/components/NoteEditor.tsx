@@ -577,11 +577,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   const [headingFoldRevision, setHeadingFoldRevision] = useState(0);
   const headingFoldRenderFrameRef = useRef<number | null>(null);
   const headingFoldViewportFrameRef = useRef<number | null>(null);
-  const readonlyHeadingAnchorTimerRef = useRef<number | null>(null);
   const cancelReadonlyHeadingAnchor = useCallback(() => {
-    if (readonlyHeadingAnchorTimerRef.current === null) return;
-    window.clearTimeout(readonlyHeadingAnchorTimerRef.current);
-    readonlyHeadingAnchorTimerRef.current = null;
     if (headingFoldViewportFrameRef.current !== null) {
       window.cancelAnimationFrame(headingFoldViewportFrameRef.current);
       headingFoldViewportFrameRef.current = null;
@@ -718,6 +714,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   const [readonlyChangeNotice, setReadonlyChangeNotice] = useState(false);
   const [copyBlockNotice, setCopyBlockNotice] = useState("");
   const [selectedBlockIndexes, setSelectedBlockIndexes] = useState<Set<number>>(() => new Set());
+  const selectedBlockIndexesRef = useRef(selectedBlockIndexes);
+  selectedBlockIndexesRef.current = selectedBlockIndexes;
   const selectedBlockIndexList = useMemo(
     () => [...selectedBlockIndexes].sort((left, right) => left - right),
     [selectedBlockIndexes],
@@ -3022,7 +3020,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   };
   const copySelectedBlocks = async () => {
     const indexes = selectedIndexes();
-    if (indexes.length === 0) return;
+    if (indexes.length === 0) return false;
     const selectedDocument = editor.state.doc.type.create(null, indexes.map((index) => editor.state.doc.child(index)));
     const slice = selectedDocument.slice(0);
     const text = clipboardSliceToPlainText(slice);
@@ -3035,8 +3033,37 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       setCopyBlockNotice(`已复制 ${indexes.length} 个块（保留格式）`);
     } catch {
       try { await copyToClipboard(text, { reportFailure: true }); setCopyBlockNotice(`已复制 ${indexes.length} 个块（纯文本）`); }
-      catch { setCopyBlockNotice("复制块失败，请检查剪贴板权限后重试"); }
+      catch { setCopyBlockNotice("复制块失败，请检查剪贴板权限后重试"); return false; }
     }
+    return true;
+  };
+  const removeSelectedBlocks = async (cut = false) => {
+    if (readonlyRef.current || !blockEditContextRef.current.active) return;
+    const sourceDoc = editor.state.doc;
+    const indexes = selectedIndexes();
+    const epoch = blockEditContextRef.current.epoch;
+    if (!indexes.length || (cut && !(await copySelectedBlocks()))) return;
+    if (editor.isDestroyed || readonlyRef.current || !blockEditContextRef.current.active
+      || blockEditContextRef.current.epoch !== epoch || editor.state.doc !== sourceDoc
+      || [...selectedBlockIndexesRef.current].sort((a, b) => a - b).join(",") !== indexes.join(",")) return;
+    const tr = closeHistory(editor.state.tr);
+    for (const index of [...indexes].reverse()) {
+      const range = blockRangeAtIndex(index);
+      tr.delete(range.from, range.to);
+    }
+    setSelectedBlockIndexes(new Set());
+    editor.setEditable(true, false);
+    editor.view.dispatch(tr);
+    editor.view.dispatch(closeHistory(editor.state.tr));
+    editor.view.focus();
+    setCopyBlockNotice(`已${cut ? "剪切" : "删除"} ${indexes.length} 个块`);
+  };
+  const clearSelectedBlockStyles = () => {
+    if (readonlyRef.current) return;
+    const tr = closeHistory(editor.state.tr);
+    for (const index of selectedIndexes()) clearBlockTextStyles(tr, blockRangeAtIndex(index).from);
+    editor.view.dispatch(tr);
+    editor.view.dispatch(closeHistory(editor.state.tr));
   };
   const selectBlockText = (index: number) => {
     const range = blockRangeAtIndex(index);
@@ -3499,7 +3526,11 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
 
     // 双击路径自行保持标题的视口位置，不让 ProseMirror 再围绕旧选区
     // scrollIntoView；后者在折叠长章节时会造成一次多余的同步滚动与布局。
+    window.getSelection()?.removeAllRanges();
     if (!toggleHeadingSectionFold(editor, section, false)) return false;
+    editor.view.dispatch(editor.state.tr.setMeta(activeLinePluginKey, {
+      readingBlockPosition: section.pos,
+    } satisfies ActiveLinePluginMeta));
     if (desiredHeadingTop !== null && scrollRoot) {
       const restoreHeading = () => {
         if (editor.isDestroyed || !scrollRoot.isConnected || !blockEditContextRef.current.active) return;
@@ -3511,16 +3542,10 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       if (headingFoldViewportFrameRef.current !== null) {
         window.cancelAnimationFrame(headingFoldViewportFrameRef.current);
       }
-      headingFoldViewportFrameRef.current = window.requestAnimationFrame(() => {
-        headingFoldViewportFrameRef.current = null;
-        restoreHeading();
-      });
-      // Native selection scrolling can run after the fold's first layout frame.
-      // Reassert the explicit heading anchor after that browser adjustment.
-      readonlyHeadingAnchorTimerRef.current = window.setTimeout(() => {
-        readonlyHeadingAnchorTimerRef.current = null;
-        restoreHeading();
-      }, 100);
+      // ProseMirror applies fold decorations synchronously. Measure the folded
+      // layout and anchor it in the same event, before the browser paints.
+      // A later timer would expose the intermediate clamped scroll position.
+      restoreHeading();
     }
     return true;
   };
@@ -3918,7 +3943,24 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         event.preventDefault();
         event.stopPropagation();
       }}
+      onClickCapture={(event) => {
+        if (readonly && focusMode && event.detail >= 3
+          && performance.now() < suppressReadonlyDoubleClickUntilRef.current
+          && event.target instanceof Node && editor.view.dom.contains(event.target)) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
       onMouseDownCapture={(event) => {
+        if (readonly && focusMode && readonlyHeadingFoldInFocusMode && event.button === 0
+          && event.detail >= 3 && performance.now() < suppressReadonlyDoubleClickUntilRef.current
+          && event.target instanceof Node && editor.view.dom.contains(event.target)) {
+          readonlyTouchPointerRef.current = null;
+          readonlyLastTapRef.current = null;
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
         preventReadonlyTableResize(event);
         // Prevent the second press's native word-selection/scroll before it
         // starts. Clearing selection after folding is too late for WebKit's
@@ -4373,22 +4415,25 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           const count = selectedIndexes().length;
           return count > 0 ? <div className="block-selection-toolbar" role="toolbar" aria-label="块级操作">
             <strong>{count} 块</strong>
-            <button type="button" onClick={() => void copySelectedBlocks()}><ToolbarIcon name="copy" />复制</button>
-            {count === 1 && <button type="button" onClick={() => void copyReference("block", blockRangeAtIndex(selectedIndexes()[0]).from)}><ToolbarIcon name="link" />复制块引用</button>}
+            <div className="block-selection-actions"><button type="button" title="复制" aria-label="复制" onClick={() => void copySelectedBlocks()}><ToolbarIcon name="copy" /></button>
+            {count === 1 && <button type="button" title="复制块引用" aria-label="复制块引用" onClick={() => void copyReference("block", blockRangeAtIndex(selectedIndexes()[0]).from)}><ToolbarIcon name="link" /></button>}
             {!readonly && <>
-              <button ref={blockEditButtonRef} type="button" onClick={() => editSelectedBlock(blockEditButtonRef.current)}>编辑</button>
-              <button type="button" onClick={() => formatSelectedBlocks("bold")}><strong>B</strong></button>
-              <button type="button" onClick={() => formatSelectedBlocks("italic")}><em>I</em></button>
-              <button type="button" onClick={() => formatSelectedBlocks("quote")}>引用</button>
+              <button ref={blockEditButtonRef} type="button" title="编辑" aria-label="编辑" onClick={() => editSelectedBlock(blockEditButtonRef.current)}><ToolbarIcon name="rename" /></button>
+              <button type="button" title="剪切" aria-label="剪切" onClick={() => void removeSelectedBlocks(true)}><ToolbarIcon name="cut" /></button>
+              <button type="button" title="删除所选块" aria-label="删除所选块" onClick={() => void removeSelectedBlocks()}><ToolbarIcon name="trash" /></button>
+              <button type="button" title="清除文字样式" aria-label="清除文字样式" onClick={clearSelectedBlockStyles}><ToolbarIcon name="erase" /></button>
+              <button type="button" title="粗体" aria-label="粗体" onClick={() => formatSelectedBlocks("bold")}><ToolbarIcon name="bold" /></button>
+              <button type="button" title="斜体" aria-label="斜体" onClick={() => formatSelectedBlocks("italic")}><ToolbarIcon name="italic" /></button>
+              <button type="button" title="引用" aria-label="引用" onClick={() => formatSelectedBlocks("quote")}><ToolbarIcon name="quote" /></button>
               <select aria-label="所选块字号" defaultValue="" onChange={(event) => setSelectedBlockFontSize(event.target.value)}>
                 <option value="">字号</option>
                 {[12, 14, 16, 18, 20, 24, 32].map((size) => <option key={size} value={`${size}`}>{size}</option>)}
               </select>
               <label className="block-selection-color" title="所选块文字颜色">
-                颜色<input type="color" aria-label="所选块文字颜色" defaultValue="#333333" onChange={(event) => setSelectedBlockColor(event.target.value)} />
+                <ToolbarIcon name="color" /><input type="color" aria-label="所选块文字颜色" defaultValue="#333333" onChange={(event) => setSelectedBlockColor(event.target.value)} />
               </label>
             </>}
-            <button type="button" aria-label="退出块选择" onClick={() => setSelectedBlockIndexes(new Set())}><ToolbarIcon name="close" /></button>
+            </div><button className="block-selection-close" type="button" title="退出块选择" aria-label="退出块选择" onClick={() => setSelectedBlockIndexes(new Set())}><ToolbarIcon name="close" /></button>
           </div> : null;
         })()}
         {markdownPasteStatus && (

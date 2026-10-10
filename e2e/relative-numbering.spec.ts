@@ -68,6 +68,12 @@ for (const width of [390, 1280]) {
     await expect(block(page, 1)).toHaveText("3");
     await expect(block(page, 4)).toHaveText("4");
     await expect(block(page, 7)).toHaveText("3");
+    await expect(block(page, 4)).toHaveCSS("text-align", "right");
+    await page.evaluate(async () => {
+      const { saveBlockWorkspacePreferences } =
+        await import("/src/lib/block-display-settings.ts");
+      saveBlockWorkspacePreferences({ relativeBlockNumberAlignment: "left" });
+    });
     await expect(block(page, 4)).toHaveCSS("text-align", "left");
     await expect(block(page, 1)).toHaveCSS("text-align", "right");
     await page.evaluate(async () => {
@@ -143,6 +149,17 @@ for (const width of [390, 1280]) {
     await expect(
       page.locator(".cm-lineNumbers .cm-relative-current"),
     ).toHaveCSS("text-align", "left");
+    await page.evaluate(async () => {
+      const { saveBlockWorkspacePreferences } =
+        await import("/src/lib/block-display-settings.ts");
+      saveBlockWorkspacePreferences({
+        relativeSourceLineNumberAlignment: "right",
+      });
+    });
+    await expect(
+      page.locator(".cm-lineNumbers .cm-relative-current"),
+    ).toHaveCSS("text-align", "right");
+    expect((await sourceInfo(source)).selectionStart).toBe(offset8);
   });
 }
 
@@ -205,6 +222,12 @@ for (const virtual of [false, true]) {
     await expect(block(page, 4)).toHaveText("4");
     await expect(block(page, 1)).toHaveText("3");
     await expect(block(page, 7)).toHaveText("3");
+    await expect(block(page, 4)).toHaveCSS("text-align", "right");
+    await page.evaluate(async () => {
+      const { saveBlockWorkspacePreferences } =
+        await import("/src/lib/block-display-settings.ts");
+      saveBlockWorkspacePreferences({ relativeBlockNumberAlignment: "left" });
+    });
     await expect(block(page, 4)).toHaveCSS("text-align", "left");
     await page.evaluate(async () => {
       const { saveBlockWorkspacePreferences } =
@@ -233,12 +256,25 @@ test("设置可分别启用相对块号和行号并在刷新后保留", async ({
       .fill("相对块号");
     await page
       .locator(".settings-search-results")
-      .getByRole("button", { name: /^相对块号/ })
+      .getByRole("button")
+      .filter({ has: page.locator("strong").filter({ hasText: /^相对块号$/ }) })
       .click();
   };
   await openSettings();
   const blocks = page.getByRole("checkbox", { name: "相对块号", exact: true });
   const lines = page.getByRole("checkbox", { name: "相对行号", exact: true });
+  const blockAlignment = page.getByRole("combobox", {
+    name: "相对块号当前项对齐",
+    exact: true,
+  });
+  const lineAlignment = page.getByRole("combobox", {
+    name: "相对行号当前项对齐",
+    exact: true,
+  });
+  await expect(blockAlignment).toHaveValue("right");
+  await expect(lineAlignment).toHaveValue("left");
+  await blockAlignment.selectOption("left");
+  await lineAlignment.selectOption("right");
   await expect(blocks).not.toBeChecked();
   await expect(lines).not.toBeChecked();
   await blocks.check();
@@ -248,6 +284,8 @@ test("设置可分别启用相对块号和行号并在刷新后保留", async ({
   await openSettings();
   await expect(blocks).toBeChecked();
   await expect(lines).toBeChecked();
+  await expect(blockAlignment).toHaveValue("left");
+  await expect(lineAlignment).toHaveValue("right");
 });
 
 test("源码相对行号排除折叠行，展开后恢复距离", async ({ page }) => {

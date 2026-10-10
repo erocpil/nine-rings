@@ -21,6 +21,7 @@ test.describe("手机块级操作", () => {
 
   test("独立选择、取消、格式化并通过按钮编辑，左划不再进入编辑", async ({ page }) => {
     await page.goto("/");
+    await expect(page.locator(".ProseMirror:visible")).toBeVisible();
     await page.evaluate(async () => {
       const load = (path: string) => import(/* @vite-ignore */ path);
       const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
@@ -85,6 +86,7 @@ test.describe("手机块级操作", () => {
 
   test("多选不同类型块按文档顺序切换，编辑长度改变后仍只切换已选块", async ({ page }) => {
     await page.goto("/");
+    await expect(page.locator(".ProseMirror:visible")).toBeVisible();
     await expect(page.locator(".ProseMirror")).toBeVisible();
     const noteId = await page.evaluate(async () => {
       const load = (path: string) => import(/* @vite-ignore */ path);
@@ -107,7 +109,7 @@ test.describe("手机块级操作", () => {
     await page.locator(".ProseMirror > h2").tap();
     const toolbar = page.getByRole("toolbar", { name: "块级操作" });
     await expect(toolbar).toContainText("2 块");
-    expect(await toolbar.getByRole("button", { name: "复制", exact: true }).evaluate(element => element.nextElementSibling?.textContent)).toBe("编辑");
+    expect(await toolbar.getByRole("button", { name: "复制", exact: true }).evaluate(element => element.nextElementSibling?.getAttribute("aria-label"))).toBe("编辑");
     await toolbar.getByRole("button", { name: "编辑", exact: true }).tap();
     const workspace = page.locator(".block-workspace");
     const content = workspace.locator(".ProseMirror");
@@ -144,6 +146,7 @@ test.describe("手机块级操作", () => {
 
   test("只读块点击嵌套正文及控件只切换所属块，块号和折叠区域共同高亮", async ({ page }) => {
     await page.goto("/");
+    await expect(page.locator(".ProseMirror:visible")).toBeVisible();
     const editor = page.locator(".ProseMirror");
     await expect(editor).toBeVisible();
     await editor.evaluate((element) => {
@@ -202,6 +205,7 @@ test.describe("手机块级操作", () => {
 
   test("大文档改成引用后外壳操作仍可响应", async ({ page }) => {
     await page.goto("/");
+    await expect(page.locator(".ProseMirror:visible")).toBeVisible();
     await page.evaluate(async () => {
       const load = (path: string) => import(/* @vite-ignore */ path);
       const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");

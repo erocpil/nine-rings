@@ -1,12 +1,15 @@
 import { expect, test } from "@playwright/test";
 
 for (const virtual of [false, true]) {
-  test(`只读专注双击折叠清除选区，拖选仍可复制 ${virtual ? "virtual" : "full"}`, async ({ page }) => {
+  test(`只读专注三击折叠展开保持当前块，拖选仍可复制 ${virtual ? "virtual" : "full"}`, async ({ page }) => {
     await page.addInitScript(virtual => {
       localStorage.setItem("nr:focusMode", "true");
+      localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true }));
+      localStorage.setItem("nr:blockWorkspaceDisplay", JSON.stringify({ relativeBlockNumbers: true }));
       localStorage.setItem("nr:experimentalReadonlyRendering", String(virtual));
     }, virtual);
     await page.goto("/");
+    await expect(page.locator(".ProseMirror:visible")).toBeVisible();
     await page.evaluate(async () => {
       const { api } = await import("/src/lib/api.ts");
       const { mdToDelta } = await import("/src/lib/md-parser.ts");
@@ -33,11 +36,13 @@ for (const virtual of [false, true]) {
       throw new Error("Missing heading text");
     });
     for (let i = 0; i < 2; i++) {
-      await heading.dblclick({ position: headingPoint });
+      await heading.click({ position: headingPoint, clickCount: 3 });
       await expect(paragraph).toBeHidden();
+      await expect(page.locator(".editor-block-number.relative-current:visible")).toHaveAttribute("data-block-index", "1");
       await expect.poll(selection).toBe("");
-      await heading.dblclick({ position: headingPoint });
+      await heading.click({ position: headingPoint, clickCount: 3 });
       await expect(paragraph).toBeVisible();
+      await expect(page.locator(".editor-block-number.relative-current:visible")).toHaveAttribute("data-block-index", "1");
       await expect.poll(selection).toBe("");
     }
     const points = await paragraph.evaluate(element => {

@@ -19,7 +19,7 @@ function memoryStorage(initial: Record<string, string> = {}) {
 
 const source = memoryStorage({
   "nr:focusMode": "true",
-  "nr:blockWorkspaceDisplay": JSON.stringify({ sourceMicroRendering: true, relativeBlockNumbers: true, relativeSourceLineNumbers: false }),
+  "nr:blockWorkspaceDisplay": JSON.stringify({ sourceMicroRendering: true, relativeBlockNumbers: true, relativeSourceLineNumbers: false, relativeBlockNumberAlignment: "left", relativeSourceLineNumberAlignment: "right" }),
   "nr:sidebarW": "264",
   "nr:currentDate": "2026-08-18",
   "nr:lastNote": "last-document",
@@ -70,7 +70,7 @@ restoreFrontendSettings(favoritesBackup, favoritesTarget);
 assert(favoritesTarget.value("nr:documentFavorites") === '["doc-a","doc-b"]', "document favorites survive backup and restore");
 const restored = restoreFrontendSettings(collected, target);
 assert(restored === 8, "preferences and the last document session are restored");
-assert(target.value("nr:blockWorkspaceDisplay") === '{"sourceMicroRendering":true,"relativeBlockNumbers":true,"relativeSourceLineNumbers":false}', "source enhancement and independent relative numbering survive backup restore");
+assert(target.value("nr:blockWorkspaceDisplay") === '{"sourceMicroRendering":true,"relativeBlockNumbers":true,"relativeSourceLineNumbers":false,"relativeBlockNumberAlignment":"left","relativeSourceLineNumberAlignment":"right"}', "source enhancement and independent relative numbering survive backup restore");
 assert(target.value("nr:focusMode") === "true", "boolean preference restores in localStorage form");
 assert(target.value("nr:sidebarW") === "264", "numeric preference restores in localStorage form");
 assert(!target.value("nr:github-sync")?.includes("token"), "restored GitHub config remains sanitized");

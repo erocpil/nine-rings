@@ -178,6 +178,19 @@ test("只读正文双击折叠后所属标题停留在双击位置附近", async
   await editor.evaluate(element => {
     element.addEventListener("pointerup", event => {
       (element as HTMLElement).dataset.foldClickY = String((event as PointerEvent).clientY);
+      const samples: number[] = [];
+      let frames = 0;
+      const sample = () => {
+        frames++;
+        const heading = Array.from(element.querySelectorAll("h1")).find(node => node.textContent === "待折叠章节");
+        const target = Array.from(element.querySelectorAll("p")).find(node => node.textContent === "目标正文 25");
+        if (heading && target && target.getBoundingClientRect().height === 0)
+          samples.push(heading.getBoundingClientRect().top);
+        if (samples.length < 12 && frames < 60) requestAnimationFrame(sample);
+        else (element as HTMLElement).dataset.foldFrameTops = JSON.stringify(samples);
+      };
+      delete (element as HTMLElement).dataset.foldFrameTops;
+      requestAnimationFrame(sample);
     }, { capture: true });
   });
 
@@ -196,6 +209,9 @@ test("只读正文双击折叠后所属标题停留在双击位置附近", async
       return Math.abs(headingBox.y + headingBox.height / 2 - expectedHeadingY);
     };
     await expect.poll(distance).toBeLessThan(24);
+    await expect.poll(() => editor.getAttribute("data-fold-frame-tops")).not.toBeNull();
+    const frameTops = JSON.parse((await editor.getAttribute("data-fold-frame-tops"))!) as number[];
+    expect(Math.max(...frameTops) - Math.min(...frameTops)).toBeLessThan(2);
     if (cycle === 2) {
       const moved = await editor.evaluate(element => {
         const root = element.closest<HTMLElement>(".note-editor-scroll")!;

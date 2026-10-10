@@ -133,15 +133,16 @@ export function useSidebarHoverPreview({
       if (event.key !== "Escape" || event.defaultPrevented) return;
       if (
         document.querySelector(
-          ".doc-context-menu, .document-filter-options[data-sidebar-owned], [role=menu], [role=dialog][aria-modal=true]",
+          ".doc-context-menu, .document-filter-options[data-sidebar-owned], [role=menu], [role=dialog], .editor-find-bar, .cm-panels",
         )
       )
         return;
+      if (event.target instanceof Element && event.target.closest(".vim-mode-enabled")) return;
       event.preventDefault();
       dismiss();
     };
-    document.addEventListener("keydown", escape);
-    return () => document.removeEventListener("keydown", escape);
+    document.addEventListener("keydown", escape, true);
+    return () => document.removeEventListener("keydown", escape, true);
   }, [enabled, hidden, dismiss]);
 
   const enterButton = (next: Panel, pointerType: string) => {

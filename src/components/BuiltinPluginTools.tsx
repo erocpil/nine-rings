@@ -23,12 +23,14 @@ export function BuiltinPluginTools({
   active,
   disabled,
   readonly,
+  onFocusEditor,
 }: {
   sessions: DocumentEditSessions;
   context: HostCommandContext;
   active: boolean;
   disabled: boolean;
   readonly: boolean;
+  onFocusEditor: () => void;
 }) {
   const enabled = useSyncExternalStore(
     pluginRuntime.subscribe,
@@ -61,6 +63,33 @@ export function BuiltinPluginTools({
     close();
     return close;
   }, [close, active, enabled, context.documentId, context.view]);
+  const showingResult = Boolean(message || statistics);
+  useEffect(() => {
+    if (busy || !showingResult) return;
+    const timer = window.setTimeout(close, 3000);
+    return () => window.clearTimeout(timer);
+  }, [busy, showingResult, close]);
+  useEffect(() => {
+    if (!active || (!busy && !showingResult) || trigger) return;
+    const escape = (event: KeyboardEvent) => {
+      // React may remove the result before passive listener cleanup runs.
+      // A subsequent Esc must already belong to the surrounding workspace.
+      if (!document.querySelector(".builtin-plugin-notice")) return;
+      if (event.key !== "Escape" || event.isComposing || event.defaultPrevented)
+        return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest('[role="dialog"], [role="menu"], dialog')
+      )
+        return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      close();
+    };
+    // Window capture precedes drawer/document listeners, regardless of mount order.
+    window.addEventListener("keydown", escape, true);
+    return () => window.removeEventListener("keydown", escape, true);
+  }, [active, busy, showingResult, trigger, close]);
   const run = async (kind: "date" | "statistics") => {
     if (running.current || !enabled || !active || disabled) return;
     close();
@@ -79,6 +108,9 @@ export function BuiltinPluginTools({
       }
       session.current = current;
       if (kind === "date") {
+        // Menu buttons own focus. Restore the same live view before capturing
+        // its target so native Cmd/Ctrl+Z works without another body click.
+        onFocusEditor();
         await insertBuiltinDate(current.sdk, current.signal);
         if (version === epoch.current) setMessage("日期已插入并保存");
         await current.dispose();
@@ -195,6 +227,7 @@ export function BuiltinPluginTools({
               type="button"
               className="btn-icon"
               aria-label="关闭插件结果"
+              onMouseDown={(event) => event.preventDefault()}
               onClick={close}
             >
               <ToolbarIcon name="close" />

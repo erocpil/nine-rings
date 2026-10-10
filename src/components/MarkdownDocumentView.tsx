@@ -36,6 +36,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const [sourceToolbarTarget, setSourceToolbarTarget] = useState<HTMLDivElement | null>(null);
   const [previewSync, setPreviewSync] = useState(() => localStorage.getItem("nr:markdownPreviewSync") !== "false");
   const hostOwner = useRef({});
+  const renderedHost = useRef<Parameters<NonNullable<NoteEditorProps["onHostEditorReady"]>>[0]>(null);
   const [source, setSource] = useState<string | null>(null);
   const viewPosition = useMarkdownViewPosition(props.noteId, source !== null, props.sensitive);
   const [busy, setBusy] = useState(false);
@@ -186,6 +187,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     } finally { if (alive.current) setBusy(false); }
   };
   const hostRenderedReady: NonNullable<NoteEditorProps["onHostEditorReady"]> = editor => {
+    renderedHost.current = editor;
     props.documentSessions?.bind(props.noteId, hostOwner.current, "rendered", editor ? renderedEditAdapter(editor, () => Boolean(latestProps.current.readonly)) : null);
   };
   if (!supported) return render({ ...props, onHostSelection: hostSelection, onHostEditorReady: hostRenderedReady });
@@ -193,7 +195,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     title={source === null ? "切换到 Markdown 源码" : "切换到渲染视图"}
     aria-label={source === null ? "源码" : "渲染"}
     aria-busy={busy} onClick={() => void changeView()}><ToolbarIcon name={source === null ? "code" : "document"} /></button>
-    {props.documentSessions && <BuiltinPluginTools sessions={props.documentSessions} active={active} disabled={busy} readonly={Boolean(props.readonly)} context={{ platform: runtimeKind(), view: props.readonly ? "readonly" : source === null ? "render" : "source", documentId: props.noteId }} />}</>;
+    {props.documentSessions && <BuiltinPluginTools sessions={props.documentSessions} active={active} disabled={busy} readonly={Boolean(props.readonly)} onFocusEditor={() => { if (source !== null) viewPosition.sourceHandle?.focus(); else renderedHost.current?.view.focus(); }} context={{ platform: runtimeKind(), view: props.readonly ? "readonly" : source === null ? "render" : "source", documentId: props.noteId }} />}</>;
   return <div className="markdown-document-view" ref={viewPosition.host}>
     {error && <div role="alert" className="markdown-source-hint">{error}</div>}
     {source === null ? render({
