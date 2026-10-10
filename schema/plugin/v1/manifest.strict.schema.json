@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nine-rings.example/plugin/v1/manifest.strict.schema.json",
+  "title": "Nine Rings 插件 · manifest（严格模式）",
+  "description": "在 manifest.schema.json 基础上拒绝未知贡献点键，供开发期 lint 与 CI 使用。",
+  "allOf": [
+    {
+      "$ref": "manifest.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "contributes": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "commands",
+              "menus",
+              "keybindings",
+              "templates",
+              "snippets",
+              "macros",
+              "queries",
+              "properties",
+              "importProfiles",
+              "exportProfiles",
+              "themes"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

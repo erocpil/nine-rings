@@ -1,0 +1,949 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nine-rings.example/plugin/v1/query.schema.json",
+  "title": "Nine Rings 插件 · 保存的查询",
+  "description": "只读查询视图定义：条件树 + 排序 + 展示。由宿主在索引上执行，没有正则、联网或关联查询。",
+  "$ref": "#/$defs/Query",
+  "$defs": {
+    "ParamRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "param": {
+          "type": "string",
+          "pattern": "^[a-z][a-zA-Z0-9]{0,31}$"
+        }
+      },
+      "required": [
+        "param"
+      ]
+    },
+    "RelativeDate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "relative": {
+          "type": "string",
+          "pattern": "^(?:today|startOfWeek|startOfMonth|-[1-9][0-9]{0,3}[dwM])$"
+        }
+      },
+      "required": [
+        "relative"
+      ]
+    },
+    "QueryField": {
+      "type": "string",
+      "pattern": "^(?:title|path|tags|docType|concepts|createdAt|updatedAt|property\\.[a-z0-9][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+)$"
+    },
+    "Leaf": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "const": "title"
+            },
+            "op": {
+              "enum": [
+                "eq",
+                "ne",
+                "contains"
+              ]
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                {
+                  "$ref": "#/$defs/ParamRef"
+                }
+              ]
+            }
+          },
+          "required": [
+            "field",
+            "op",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "const": "title"
+            },
+            "op": {
+              "const": "in"
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "minItems": 1,
+                  "maxItems": 50
+                },
+                {
+                  "$ref": "#/$defs/ParamRef"
+                }
+              ]
+            }
+          },
+          "required": [
+            "field",
+            "op",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "const": "docType"
+            },
+            "op": {
+              "enum": [
+                "eq",
+                "ne"
+              ]
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "$ref": "common.schema.json#/$defs/DocType"
+                },
+                {
+                  "$ref": "#/$defs/ParamRef"
+                }
+              ]
+            }
+          },
+          "required": [
+            "field",
+            "op",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "const": "docType"
+            },
+            "op": {
+              "const": "in"
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "common.schema.json#/$defs/DocType"
+                  },
+                  "minItems": 1,
+                  "maxItems": 4,
+                  "uniqueItems": true
+                },
+                {
+                  "$ref": "#/$defs/ParamRef"
+                }
+              ]
+            }
+          },
+          "required": [
+            "field",
+            "op",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "const": "path"
+            },
+            "op": {
+              "const": "under"
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "$ref": "common.schema.json#/$defs/DocPath"
+                },
+                {
+                  "$ref": "#/$defs/ParamRef"
+                }
+              ]
+            }
+          },
+          "required": [
+            "field",
+            "op",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "enum": [
+                "tags",
+                "concepts"
+              ]
+            },
+            "op": {
+              "const": "has"
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "$ref": "common.schema.json#/$defs/Tag"
+                },
+                {
+                  "$ref": "#/$defs/ParamRef"
+                }
+              ]
+            }
+          },
+          "required": [
+            "field",
+            "op",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "enum": [
+                "tags",
+                "concepts"
+              ]
+            },
+            "op": {
+              "enum": [
+                "hasAny",
+                "hasAll"
+              ]
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "common.schema.json#/$defs/Tag"
+                  },
+                  "minItems": 1,
+                  "maxItems": 20
+                },
+                {
+                  "$ref": "#/$defs/ParamRef"
+                }
+              ]
+            }
+          },
+          "required": [
+            "field",
+            "op",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "enum": [
+                "createdAt",
+                "updatedAt"
+              ]
+            },
+            "op": {
+              "enum": [
+                "before",
+                "after",
+                "on"
+              ]
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "$ref": "common.schema.json#/$defs/IsoDate"
+                },
+                {
+                  "$ref": "#/$defs/RelativeDate"
+                },
+                {
+                  "$ref": "#/$defs/ParamRef"
+                }
+              ]
+            }
+          },
+          "required": [
+            "field",
+            "op",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "enum": [
+                "createdAt",
+                "updatedAt"
+              ]
+            },
+            "op": {
+              "const": "between"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "$ref": "common.schema.json#/$defs/IsoDate"
+                  },
+                  {
+                    "$ref": "#/$defs/RelativeDate"
+                  },
+                  {
+                    "$ref": "#/$defs/ParamRef"
+                  }
+                ]
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "field",
+            "op",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "const": "text"
+            },
+            "op": {
+              "const": "contains"
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                {
+                  "$ref": "#/$defs/ParamRef"
+                }
+              ]
+            }
+          },
+          "required": [
+            "field",
+            "op",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string",
+              "pattern": "^property\\.[a-z0-9][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+            },
+            "op": {
+              "enum": [
+                "eq",
+                "ne",
+                "gt",
+                "gte",
+                "lt",
+                "lte",
+                "contains",
+                "has"
+              ]
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ],
+                  "maxLength": 500
+                },
+                {
+                  "$ref": "#/$defs/RelativeDate"
+                },
+                {
+                  "$ref": "#/$defs/ParamRef"
+                }
+              ]
+            }
+          },
+          "required": [
+            "field",
+            "op",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string",
+              "pattern": "^property\\.[a-z0-9][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+            },
+            "op": {
+              "enum": [
+                "in",
+                "hasAny",
+                "hasAll"
+              ]
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ],
+                    "maxLength": 500
+                  },
+                  "minItems": 1,
+                  "maxItems": 50
+                },
+                {
+                  "$ref": "#/$defs/ParamRef"
+                }
+              ]
+            }
+          },
+          "required": [
+            "field",
+            "op",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string",
+              "pattern": "^property\\.[a-z0-9][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+            },
+            "op": {
+              "const": "between"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ],
+                    "maxLength": 500
+                  },
+                  {
+                    "$ref": "#/$defs/RelativeDate"
+                  },
+                  {
+                    "$ref": "#/$defs/ParamRef"
+                  }
+                ]
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "field",
+            "op",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string",
+              "pattern": "^(?:title|path|tags|docType|concepts|createdAt|updatedAt|property\\.[a-z0-9][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+)$"
+            },
+            "op": {
+              "const": "exists"
+            },
+            "value": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "$ref": "#/$defs/ParamRef"
+                }
+              ]
+            }
+          },
+          "required": [
+            "field",
+            "op"
+          ]
+        }
+      ]
+    },
+    "Q1": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Leaf"
+        },
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "all": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Q2"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "all"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "any": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Q2"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "any"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "not": {
+                  "$ref": "#/$defs/Q2"
+                }
+              },
+              "required": [
+                "not"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "Q2": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Leaf"
+        },
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "all": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Q3"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "all"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "any": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Q3"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "any"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "not": {
+                  "$ref": "#/$defs/Q3"
+                }
+              },
+              "required": [
+                "not"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "Q3": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Leaf"
+        },
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "all": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Q4"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "all"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "any": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Q4"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "any"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "not": {
+                  "$ref": "#/$defs/Q4"
+                }
+              },
+              "required": [
+                "not"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "Q4": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Leaf"
+        },
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "all": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Q5"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "all"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "any": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Q5"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "any"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "not": {
+                  "$ref": "#/$defs/Q5"
+                }
+              },
+              "required": [
+                "not"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "Q5": {
+      "$ref": "#/$defs/Leaf"
+    },
+    "QueryCondition": {
+      "$ref": "#/$defs/Q1",
+      "description": "条件树：all/any/not，深度≤4；叶子 {field, op, value}。节点数≤32、text 条件至多 1 个由语义校验检查。"
+    },
+    "Query": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/LocalId"
+        },
+        "name": {
+          "$ref": "common.schema.json#/$defs/LocalizedName"
+        },
+        "description": {
+          "$ref": "common.schema.json#/$defs/LocalizedText"
+        },
+        "icon": {
+          "$ref": "common.schema.json#/$defs/Icon"
+        },
+        "placement": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "sidebar",
+              "home",
+              "commandPalette"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "params": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9]{0,31}$"
+              },
+              "type": {
+                "enum": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "date",
+                  "array"
+                ]
+              },
+              "default": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "array"
+                ],
+                "maxLength": 500,
+                "maxItems": 50,
+                "items": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ],
+                  "maxLength": 500
+                }
+              },
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "string",
+                      "number",
+                      "boolean",
+                      "date"
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "type"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "type": {
+                      "const": "array"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "items"
+                  ]
+                },
+                "else": {
+                  "not": {
+                    "required": [
+                      "items"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "maxItems": 8
+        },
+        "where": {
+          "$ref": "#/$defs/QueryCondition"
+        },
+        "sort": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "field": {
+                "type": "string",
+                "pattern": "^(?:title|path|docType|createdAt|updatedAt|property\\.[a-z0-9][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+)$"
+              },
+              "dir": {
+                "enum": [
+                  "asc",
+                  "desc"
+                ]
+              }
+            },
+            "required": [
+              "field"
+            ]
+          },
+          "maxItems": 3
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 100
+        },
+        "groupBy": {
+          "type": "string",
+          "pattern": "^(?:path|docType|tags|createdAt|updatedAt|property\\.[a-z0-9][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+)$"
+        },
+        "view": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "list",
+                "table",
+                "grouped"
+              ]
+            },
+            "columns": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/QueryField"
+              },
+              "maxItems": 12,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "where"
+      ],
+      "patternProperties": {
+        "^x-": true
+      }
+    }
+  }
+}

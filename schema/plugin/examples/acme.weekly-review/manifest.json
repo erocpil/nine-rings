@@ -1,0 +1,84 @@
+{
+  "$schema": "https://schemas.nine-rings.example/plugin/v1/manifest.schema.json",
+  "manifestVersion": 1,
+  "id": "acme.weekly-review",
+  "name": { "default": "Weekly Review", "zh-CN": "每周回顾" },
+  "version": "1.0.0",
+  "description": "每周回顾模板、查询视图与快捷入口",
+  "license": "MIT",
+  "engines": { "nineRingsPluginApi": "^0.1.0" },
+  "platforms": ["web", "desktop"],
+  "contributes": {
+    "properties": [
+      {
+        "id": "mood",
+        "label": "状态",
+        "type": "select",
+        "options": [
+          { "value": "good", "label": "良好" },
+          { "value": "ok", "label": "一般" },
+          { "value": "bad", "label": "较差" }
+        ],
+        "appliesTo": { "pathUnder": ["areas/review"] }
+      }
+    ],
+    "templates": [
+      {
+        "id": "weekly",
+        "name": "每周回顾",
+        "usage": ["new"],
+        "titlePattern": "{{date:YYYY}}-W{{date:WW}} 回顾",
+        "target": { "path": "areas/review", "tags": ["回顾"] },
+        "variables": [
+          { "name": "focus", "label": "本周重点", "type": "text" }
+        ],
+        "content": { "format": "markdown", "file": "templates/weekly.md" }
+      }
+    ],
+    "queries": [
+      {
+        "id": "recent-reviews",
+        "name": "最近的回顾",
+        "placement": ["sidebar"],
+        "where": {
+          "all": [
+            { "field": "tags", "op": "has", "value": "回顾" },
+            { "field": "updatedAt", "op": "after", "value": { "relative": "-30d" } }
+          ]
+        },
+        "sort": [{ "field": "updatedAt", "dir": "desc" }],
+        "limit": 50,
+        "view": { "type": "list" }
+      }
+    ],
+    "macros": [
+      {
+        "id": "acme.weekly-review.start",
+        "title": "开始本周回顾",
+        "steps": [
+          {
+            "command": "nine-rings.template.new",
+            "args": { "templateId": "acme.weekly-review.weekly" }
+          },
+          {
+            "command": "nine-rings.sidebar.show-query",
+            "args": { "queryId": "acme.weekly-review.recent-reviews" }
+          }
+        ]
+      }
+    ],
+    "keybindings": [
+      { "key": "mod+alt+w", "command": "acme.weekly-review.start" }
+    ],
+    "themes": [
+      {
+        "id": "paper",
+        "name": "纸色",
+        "base": "light",
+        "tokens": {
+          "colors": { "background": "#faf6ee", "text": "#2b2b2b", "accent": "#b4541a" }
+        }
+      }
+    ]
+  }
+}

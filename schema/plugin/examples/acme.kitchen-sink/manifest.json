@@ -1,0 +1,189 @@
+{
+  "$schema": "https://schemas.nine-rings.example/plugin/v1/manifest.schema.json",
+  "manifestVersion": 1,
+  "id": "acme.kitchen-sink",
+  "name": { "default": "Kitchen Sink", "zh-CN": "全功能示例" },
+  "version": "0.1.0-beta.1",
+  "description": "覆盖全部 L0 贡献点的参考包，仅用于演示字段写法",
+  "author": { "name": "Acme", "url": "https://example.com" },
+  "license": "MIT OR Apache-2.0",
+  "engines": { "nineRingsPluginApi": "^0.1.0", "app": ">=0.2.0" },
+  "platforms": ["web", "desktop"],
+  "attributions": [
+    { "subject": "Paper palette", "author": "Someone", "license": "MIT", "url": "https://example.com/paper" }
+  ],
+  "integrity": {
+    "algorithm": "sha256",
+    "files": {
+      "snippets/signature.txt": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "contributes": {
+    "menus": [
+      { "command": "acme.kitchen-sink.start", "placement": "commandPalette", "group": "review", "order": 10 },
+      {
+        "command": "acme.kitchen-sink.start",
+        "placement": "editor/context",
+        "when": {
+          "all": [
+            { "key": "view", "in": ["render", "source"] },
+            { "key": "editable", "is": true },
+            { "not": { "key": "docProtected", "is": true } }
+          ]
+        }
+      }
+    ],
+    "keybindings": [
+      {
+        "key": "mod+alt+k",
+        "mac": "meta+alt+k",
+        "command": "nine-rings.template.insert",
+        "args": { "templateId": "acme.kitchen-sink.meeting" },
+        "when": { "key": "vimMode", "in": ["off", "insert"] }
+      }
+    ],
+    "templates": [
+      {
+        "id": "meeting",
+        "name": "会议纪要",
+        "usage": ["new", "insert"],
+        "titlePattern": "{{date:YYYY-MM-DD}} 会议",
+        "target": {
+          "path": "projects/meetings",
+          "docType": "reference",
+          "tags": ["会议"],
+          "properties": { "acme.kitchen-sink.status": "open" }
+        },
+        "variables": [
+          { "name": "attendees", "label": "参会人", "type": "text", "multiline": true },
+          {
+            "name": "kind", "label": "类型", "type": "choice", "default": "sync",
+            "choices": [
+              { "value": "sync", "label": "同步" },
+              { "value": "review", "label": "评审" }
+            ]
+          },
+          { "name": "count", "label": "议题数", "type": "number", "default": 3 },
+          { "name": "urgent", "label": "紧急", "type": "boolean", "default": false },
+          { "name": "day", "label": "日期", "type": "date", "required": true }
+        ],
+        "content": {
+          "format": "markdown",
+          "text": "# {{title}}\n\n类型：{{kind}}　参会：{{attendees}}\n\n## 议题\n- {{cursor}}\n"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "id": "meeting-header",
+        "trigger": "/mtg",
+        "views": ["render"],
+        "content": { "format": "text", "text": "## 会议 {{date:YYYY-MM-DD}}\n{{cursor}}" }
+      }
+    ],
+    "macros": [
+      {
+        "id": "acme.kitchen-sink.start",
+        "title": "开始一次会议",
+        "category": "meeting",
+        "enablement": { "key": "hasDocument", "is": false },
+        "steps": [
+          { "command": "nine-rings.template.new", "args": { "templateId": "acme.kitchen-sink.meeting" } }
+        ]
+      }
+    ],
+    "queries": [
+      {
+        "id": "open-items",
+        "name": "待办文档",
+        "placement": ["sidebar", "home", "commandPalette"],
+        "params": [
+          { "name": "owner", "type": "string" }
+        ],
+        "where": {
+          "all": [
+            {
+              "any": [
+                { "field": "tags", "op": "hasAny", "value": ["待办", "进行中"] },
+                { "field": "property.acme.kitchen-sink.status", "op": "eq", "value": "open" }
+              ]
+            },
+            { "not": { "field": "path", "op": "under", "value": "archive" } },
+            { "field": "updatedAt", "op": "between", "value": [{ "relative": "-14d" }, { "relative": "today" }] },
+            { "field": "property.acme.kitchen-sink.owner", "op": "exists" },
+            { "field": "title", "op": "contains", "value": { "param": "owner" } }
+          ]
+        },
+        "sort": [
+          { "field": "property.acme.kitchen-sink.priority", "dir": "desc" },
+          { "field": "updatedAt", "dir": "desc" }
+        ],
+        "limit": 100,
+        "groupBy": "docType",
+        "view": {
+          "type": "table",
+          "columns": ["title", "path", "updatedAt", "property.acme.kitchen-sink.owner"]
+        }
+      }
+    ],
+    "properties": [
+      {
+        "id": "status", "label": "状态", "type": "select", "default": "open",
+        "options": [
+          { "value": "open", "label": "进行中", "color": "#2f7d32" },
+          { "value": "closed", "label": "已完成", "color": "#888888" }
+        ],
+        "showIn": ["panel", "table"]
+      },
+      { "id": "owner", "label": "负责人", "type": "text" },
+      { "id": "priority", "label": "优先级", "type": "number", "default": 3 }
+    ],
+    "importProfiles": [
+      {
+        "id": "obsidian-notes",
+        "name": "Obsidian 笔记",
+        "importer": "markdown",
+        "mapping": {
+          "targetPath": "inbox/imported",
+          "docType": "reference",
+          "tags": ["导入"],
+          "titleFrom": "frontMatter.title",
+          "frontMatterMap": [
+            { "from": "tags", "to": "tags" },
+            { "from": "status", "to": "property.acme.kitchen-sink.status" }
+          ],
+          "onConflict": "rename"
+        }
+      }
+    ],
+    "exportProfiles": [
+      {
+        "id": "markdown-bundle",
+        "name": "Markdown 打包",
+        "exporter": "markdown",
+        "options": { "includeAssets": true },
+        "select": { "field": "tags", "op": "has", "value": "发布" },
+        "fileNamePattern": "{{title}}-{{date:YYYYMMDD}}",
+        "frontMatter": { "include": ["title", "tags", "property.acme.kitchen-sink.status"] }
+      }
+    ],
+    "themes": [
+      {
+        "id": "midnight",
+        "name": "午夜",
+        "base": "dark",
+        "targets": ["app", "editor"],
+        "tokens": {
+          "colors": { "background": "#0f1218", "text": "#e6e9ef", "accent": "#e0a030", "border": "rgba(255,255,255,0.12)" },
+          "editor": { "codeBackground": "#11151c", "cursor": "rgb(255 200 0)" },
+          "syntax": { "keyword": "#c678dd", "string": "hsl(95 38% 62%)", "comment": "oklch(0.6 0.02 250)" },
+          "typography": {
+            "body": "PingFang SC, 微软雅黑, system-ui",
+            "heading": "'Noto Serif SC', serif",
+            "mono": "JetBrains Mono, ui-monospace"
+          }
+        }
+      }
+    ]
+  }
+}

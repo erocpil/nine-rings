@@ -1,0 +1,302 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nine-rings.example/plugin/v1/common.schema.json",
+  "title": "Nine Rings 插件 · 公共类型",
+  "description": "被其它 schema 引用的公共定义。正则假定 ECMAScript 的 u 标志（含 \\p{L} 与前瞻断言）。",
+  "$defs": {
+    "PluginId": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-z0-9][a-z0-9-]*(\\.[a-z0-9][a-z0-9-]*)+$",
+      "description": "全局唯一插件 ID，如 acme.weekly-review；nine-rings. 前缀保留给官方。"
+    },
+    "QualifiedId": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9-]*(\\.[a-z0-9][a-z0-9-]*){2,}$",
+      "description": "<pluginId>.<localId> 形式的完整 ID（至少 3 段）。是否以所属插件 ID 为前缀由语义校验检查。"
+    },
+    "CommandId": {
+      "$ref": "#/$defs/QualifiedId",
+      "description": "完整命令 ID。"
+    },
+    "LocalId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,47}$",
+      "description": "贡献项的本地 ID，宿主展开为 <pluginId>.<localId>。"
+    },
+    "Semver": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "SemverRange": {
+      "type": "string",
+      "pattern": "^[^\\u0000-\\u0020\\u007f].{0,63}$",
+      "description": "长度受限的范围字符串；完整合法性与兼容性由 SemVer 解析器判定，允许预发布范围。"
+    },
+    "LocalizedName": {
+      "description": "名称类文本，≤60 字符。字符串，或 {default, 语言标签: 文本}。",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        {
+          "type": "object",
+          "required": [
+            "default"
+          ],
+          "properties": {
+            "default": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            }
+          },
+          "patternProperties": {
+            "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            }
+          },
+          "additionalProperties": false,
+          "maxProperties": 20
+        }
+      ]
+    },
+    "LocalizedTitle": {
+      "description": "标题类文本，≤80 字符。",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        {
+          "type": "object",
+          "required": [
+            "default"
+          ],
+          "properties": {
+            "default": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          },
+          "patternProperties": {
+            "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          },
+          "additionalProperties": false,
+          "maxProperties": 20
+        }
+      ]
+    },
+    "LocalizedText": {
+      "description": "说明类文本，≤300 字符。",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "object",
+          "required": [
+            "default"
+          ],
+          "properties": {
+            "default": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "patternProperties": {
+            "^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "additionalProperties": false,
+          "maxProperties": 20
+        }
+      ]
+    },
+    "PackagePath": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^(?![/.])(?!.*\\.\\.)(?!.*//)[A-Za-z0-9._/-]{1,200}\\.(?:json|md|txt|svg|png)$",
+      "description": "包内相对路径；禁止绝对路径、.. 和 //；L0 仅允许 json/md/txt/svg/png。"
+    },
+    "PackageImagePath": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^(?![/.])(?!.*\\.\\.)(?!.*//)[A-Za-z0-9._/-]{1,200}\\.(?:svg|png)$"
+    },
+    "PackageFilePath": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^(?![/.])(?!.*\\.\\.)(?!.*//)[A-Za-z0-9._/-]{1,200}$",
+      "description": "任意扩展名的包内路径（用于 integrity 清单）。"
+    },
+    "EntryPath": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^(?![/.])(?!.*\\.\\.)(?!.*//)[A-Za-z0-9._/-]{1,200}\\.(?:js|mjs)$",
+      "description": "L1 插件入口。出现 entry 即视为 L1。"
+    },
+    "DocPath": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^(?![/.])(?!.*\\.\\.)(?!.*//)(?!.*\\\\)[^\\u0000-\\u001f]{1,200}$",
+      "description": "文档树路径（相对根路径，用 / 分隔）。宿主仍会做规范化、根路径与保护路径检查。"
+    },
+    "DocType": {
+      "enum": [
+        "tutorial",
+        "how-to",
+        "reference",
+        "explanation"
+      ],
+      "description": "Diátaxis 文档类型【对齐实际枚举】。"
+    },
+    "Tag": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "ScalarValue": {
+      "type": [
+        "string",
+        "number",
+        "boolean"
+      ],
+      "maxLength": 500
+    },
+    "ArgsValue": {
+      "type": "object",
+      "maxProperties": 16,
+      "propertyNames": {
+        "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,31}$"
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean",
+          "array"
+        ],
+        "maxLength": 2000,
+        "maxItems": 50,
+        "items": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "maxLength": 500
+        }
+      },
+      "description": "静态命令参数；是否符合目标命令的 args schema 由宿主校验。"
+    },
+    "ContentSource": {
+      "type": "object",
+      "required": [
+        "format"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "enum": [
+            "markdown",
+            "text"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 262144
+        },
+        "file": {
+          "$ref": "#/$defs/PackagePath"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "text"
+          ]
+        },
+        {
+          "required": [
+            "file"
+          ]
+        }
+      ],
+      "description": "内联文本或包内文件，二选一。L0 只用 markdown / text。"
+    },
+    "Icon": {
+      "description": "内置图标名或包内 svg/png。",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "builtin": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,47}$"
+            }
+          },
+          "required": [
+            "builtin"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "file": {
+              "$ref": "#/$defs/PackageImagePath"
+            }
+          },
+          "required": [
+            "file"
+          ]
+        }
+      ]
+    },
+    "Color": {
+      "type": "string",
+      "pattern": "^(?:#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|(?:rgb|rgba|hsl|hsla|oklch)\\([0-9a-zA-Z.,%/ +-]{1,60}\\))$",
+      "description": "仅允许 #RGB/#RRGGBB/#RRGGBBAA 与 rgb()/hsl()/oklch()；字符集不含括号嵌套、分号，因此 var()/url()/calc() 无法通过。"
+    },
+    "KeyChord": {
+      "type": "string",
+      "pattern": "^(?=.*(?:mod|ctrl|alt|meta)\\+)(?:(?:mod|ctrl|alt|shift|meta)\\+){1,4}(?:[a-z0-9]|f(?:[1-9]|1[0-2])|enter|space|tab|backspace|delete|up|down|left|right|home|end|pageup|pagedown|comma|period|slash|semicolon|quote|bracketleft|bracketright|backslash|minus|equal|backquote)$",
+      "description": "如 mod+alt+w。必须含 mod/ctrl/alt/meta 之一；仅 shift 不算。重复修饰键由语义校验检查。"
+    },
+    "Platform": {
+      "enum": [
+        "web",
+        "desktop"
+      ]
+    },
+    "IsoDate": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2})?(Z|[+-]\\d{2}:\\d{2})?)?$"
+    },
+    "DocField": {
+      "type": "string",
+      "pattern": "^(?:title|tags|docType|concepts|property\\.[a-z0-9][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+)$",
+      "description": "可写入的文档字段。"
+    }
+  }
+}

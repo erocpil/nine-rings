@@ -1,0 +1,497 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nine-rings.example/plugin/v1/predicate.schema.json",
+  "title": "Nine Rings 插件 · 启用条件 Predicate",
+  "description": "结构化条件，用于 when / enablement。组合子 all/any/not，深度≤4（通过展开层级实现），每个 all/any 至多 8 项；总节点数≤16 由语义校验检查。不含任何表达式求值。",
+  "$ref": "#/$defs/P1",
+  "$defs": {
+    "Leaf": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "enum": [
+                "hasDocument",
+                "editable",
+                "hasSelection",
+                "docProtected"
+              ]
+            },
+            "is": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "key",
+            "is"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "const": "view"
+            },
+            "is": {
+              "enum": [
+                "home",
+                "render",
+                "source",
+                "readonly",
+                "pdf",
+                "epub"
+              ]
+            },
+            "in": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "home",
+                  "render",
+                  "source",
+                  "readonly",
+                  "pdf",
+                  "epub"
+                ]
+              },
+              "minItems": 1,
+              "maxItems": 6,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "key"
+          ],
+          "oneOf": [
+            {
+              "required": [
+                "is"
+              ]
+            },
+            {
+              "required": [
+                "in"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "const": "platform"
+            },
+            "is": {
+              "enum": [
+                "web",
+                "desktop"
+              ]
+            },
+            "in": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "web",
+                  "desktop"
+                ]
+              },
+              "minItems": 1,
+              "maxItems": 2,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "key"
+          ],
+          "oneOf": [
+            {
+              "required": [
+                "is"
+              ]
+            },
+            {
+              "required": [
+                "in"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "const": "vimMode"
+            },
+            "is": {
+              "enum": [
+                "off",
+                "normal",
+                "insert",
+                "visual"
+              ]
+            },
+            "in": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "off",
+                  "normal",
+                  "insert",
+                  "visual"
+                ]
+              },
+              "minItems": 1,
+              "maxItems": 4,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "key"
+          ],
+          "oneOf": [
+            {
+              "required": [
+                "is"
+              ]
+            },
+            {
+              "required": [
+                "in"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "const": "focus"
+            },
+            "is": {
+              "enum": [
+                "editor",
+                "tree",
+                "search",
+                "dialog",
+                "other"
+              ]
+            },
+            "in": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "editor",
+                  "tree",
+                  "search",
+                  "dialog",
+                  "other"
+                ]
+              },
+              "minItems": 1,
+              "maxItems": 5,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "key"
+          ],
+          "oneOf": [
+            {
+              "required": [
+                "is"
+              ]
+            },
+            {
+              "required": [
+                "in"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "const": "docType"
+            },
+            "is": {
+              "enum": [
+                "tutorial",
+                "how-to",
+                "reference",
+                "explanation"
+              ]
+            },
+            "in": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "tutorial",
+                  "how-to",
+                  "reference",
+                  "explanation"
+                ]
+              },
+              "minItems": 1,
+              "maxItems": 4,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "key"
+          ],
+          "oneOf": [
+            {
+              "required": [
+                "is"
+              ]
+            },
+            {
+              "required": [
+                "in"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "P1": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Leaf"
+        },
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "all": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/P2"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "all"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "any": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/P2"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "any"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "not": {
+                  "$ref": "#/$defs/P2"
+                }
+              },
+              "required": [
+                "not"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "P2": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Leaf"
+        },
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "all": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/P3"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "all"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "any": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/P3"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "any"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "not": {
+                  "$ref": "#/$defs/P3"
+                }
+              },
+              "required": [
+                "not"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "P3": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Leaf"
+        },
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "all": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/P4"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "all"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "any": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/P4"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "any"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "not": {
+                  "$ref": "#/$defs/P4"
+                }
+              },
+              "required": [
+                "not"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "P4": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Leaf"
+        },
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "all": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/P5"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "all"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "any": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/P5"
+                  },
+                  "minItems": 1,
+                  "maxItems": 8
+                }
+              },
+              "required": [
+                "any"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "not": {
+                  "$ref": "#/$defs/P5"
+                }
+              },
+              "required": [
+                "not"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "P5": {
+      "$ref": "#/$defs/Leaf"
+    }
+  }
+}

@@ -1,0 +1,946 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nine-rings.example/plugin/v1/contributions.schema.json",
+  "title": "Nine Rings 插件 · 贡献点",
+  "description": "L0 贡献点定义：menus、keybindings、templates、snippets、macros、queries、properties、importProfiles、exportProfiles、themes（commands 仅 L1）。同一数组内 id 唯一性由语义校验检查。",
+  "$ref": "#/$defs/Contributes",
+  "$defs": {
+    "Menu": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "$ref": "common.schema.json#/$defs/CommandId"
+        },
+        "placement": {
+          "enum": [
+            "commandPalette",
+            "toolbar",
+            "moreMenu",
+            "editor/context",
+            "tree/context"
+          ]
+        },
+        "group": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,31}$"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": -1000,
+          "maximum": 1000
+        },
+        "when": {
+          "$ref": "predicate.schema.json"
+        }
+      },
+      "required": [
+        "command",
+        "placement"
+      ],
+      "patternProperties": {
+        "^x-": true
+      }
+    },
+    "Keybinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "$ref": "common.schema.json#/$defs/KeyChord"
+        },
+        "mac": {
+          "$ref": "common.schema.json#/$defs/KeyChord"
+        },
+        "win": {
+          "$ref": "common.schema.json#/$defs/KeyChord"
+        },
+        "linux": {
+          "$ref": "common.schema.json#/$defs/KeyChord"
+        },
+        "command": {
+          "$ref": "common.schema.json#/$defs/CommandId"
+        },
+        "args": {
+          "$ref": "common.schema.json#/$defs/ArgsValue"
+        },
+        "when": {
+          "$ref": "predicate.schema.json"
+        }
+      },
+      "required": [
+        "key",
+        "command"
+      ],
+      "patternProperties": {
+        "^x-": true
+      }
+    },
+    "TemplateVariable": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-zA-Z0-9_]{0,31}$",
+          "not": {
+            "enum": [
+              "date",
+              "time",
+              "datetime",
+              "title",
+              "uuid",
+              "cursor",
+              "selection"
+            ]
+          }
+        },
+        "label": {
+          "$ref": "common.schema.json#/$defs/LocalizedName"
+        },
+        "type": {
+          "enum": [
+            "text",
+            "choice",
+            "date",
+            "number",
+            "boolean"
+          ]
+        },
+        "default": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ],
+          "maxLength": 500
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "value": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "label": {
+                "$ref": "common.schema.json#/$defs/LocalizedName"
+              }
+            },
+            "required": [
+              "value",
+              "label"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 50
+        },
+        "multiline": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "label",
+        "type"
+      ],
+      "patternProperties": {
+        "^x-": true
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "choice"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "choices"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "choices"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "Template": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/LocalId"
+        },
+        "name": {
+          "$ref": "common.schema.json#/$defs/LocalizedName"
+        },
+        "description": {
+          "$ref": "common.schema.json#/$defs/LocalizedText"
+        },
+        "icon": {
+          "$ref": "common.schema.json#/$defs/Icon"
+        },
+        "usage": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "new",
+              "insert"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true
+        },
+        "titlePattern": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "$ref": "common.schema.json#/$defs/DocPath"
+            },
+            "docType": {
+              "$ref": "common.schema.json#/$defs/DocType"
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Tag"
+              },
+              "maxItems": 20,
+              "uniqueItems": true
+            },
+            "properties": {
+              "type": "object",
+              "maxProperties": 20,
+              "propertyNames": {
+                "pattern": "^[a-z0-9][a-z0-9-]*(\\.[a-z0-9][a-z0-9-]*){2,}$"
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "array"
+                ],
+                "maxLength": 500,
+                "maxItems": 50,
+                "items": {
+                  "type": "string",
+                  "maxLength": 40
+                }
+              }
+            }
+          }
+        },
+        "variables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TemplateVariable"
+          },
+          "maxItems": 20
+        },
+        "content": {
+          "$ref": "common.schema.json#/$defs/ContentSource"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "content"
+      ],
+      "patternProperties": {
+        "^x-": true
+      }
+    },
+    "Snippet": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/LocalId"
+        },
+        "trigger": {
+          "type": "string",
+          "pattern": "^\\S{2,24}$"
+        },
+        "description": {
+          "$ref": "common.schema.json#/$defs/LocalizedText"
+        },
+        "views": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "render",
+              "source"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true
+        },
+        "content": {
+          "$ref": "common.schema.json#/$defs/ContentSource"
+        }
+      },
+      "required": [
+        "id",
+        "trigger",
+        "content"
+      ],
+      "patternProperties": {
+        "^x-": true
+      }
+    },
+    "Macro": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/CommandId"
+        },
+        "title": {
+          "$ref": "common.schema.json#/$defs/LocalizedTitle"
+        },
+        "description": {
+          "$ref": "common.schema.json#/$defs/LocalizedText"
+        },
+        "category": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,31}$"
+        },
+        "icon": {
+          "$ref": "common.schema.json#/$defs/Icon"
+        },
+        "enablement": {
+          "$ref": "predicate.schema.json"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "command": {
+                "$ref": "common.schema.json#/$defs/CommandId"
+              },
+              "args": {
+                "$ref": "common.schema.json#/$defs/ArgsValue"
+              }
+            },
+            "required": [
+              "command"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 20
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "steps"
+      ],
+      "patternProperties": {
+        "^x-": true
+      },
+      "description": "首版宏不得调用其它宏；宿主安装时检查命令引用、风险及平台，运行时仍走完整调度。"
+    },
+    "Property": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/LocalId"
+        },
+        "label": {
+          "$ref": "common.schema.json#/$defs/LocalizedName"
+        },
+        "description": {
+          "$ref": "common.schema.json#/$defs/LocalizedText"
+        },
+        "type": {
+          "enum": [
+            "text",
+            "number",
+            "boolean",
+            "date",
+            "select",
+            "multiselect"
+          ]
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "value": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,40}$"
+              },
+              "label": {
+                "$ref": "common.schema.json#/$defs/LocalizedName"
+              },
+              "color": {
+                "$ref": "common.schema.json#/$defs/Color"
+              }
+            },
+            "required": [
+              "value",
+              "label"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 50
+        },
+        "default": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "array"
+          ],
+          "maxLength": 500,
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "maxLength": 40
+          }
+        },
+        "appliesTo": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "docTypes": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/DocType"
+              },
+              "minItems": 1,
+              "maxItems": 4,
+              "uniqueItems": true
+            },
+            "pathUnder": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/DocPath"
+              },
+              "minItems": 1,
+              "maxItems": 10,
+              "uniqueItems": true
+            }
+          }
+        },
+        "showIn": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "panel",
+              "table"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "type"
+      ],
+      "patternProperties": {
+        "^x-": true
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "select",
+                  "multiselect"
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "options"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "options"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "ImportProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/LocalId"
+        },
+        "name": {
+          "$ref": "common.schema.json#/$defs/LocalizedName"
+        },
+        "description": {
+          "$ref": "common.schema.json#/$defs/LocalizedText"
+        },
+        "importer": {
+          "const": "markdown"
+        },
+        "mapping": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "targetPath": {
+              "$ref": "common.schema.json#/$defs/DocPath"
+            },
+            "docType": {
+              "$ref": "common.schema.json#/$defs/DocType"
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/Tag"
+              },
+              "maxItems": 20,
+              "uniqueItems": true
+            },
+            "titleFrom": {
+              "enum": [
+                "frontMatter.title",
+                "firstHeading",
+                "filename"
+              ]
+            },
+            "frontMatterMap": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_.-]{0,63}$"
+                  },
+                  "to": {
+                    "$ref": "common.schema.json#/$defs/DocField"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ]
+              },
+              "maxItems": 30
+            },
+            "onConflict": {
+              "enum": [
+                "skip",
+                "rename",
+                "ask"
+              ],
+              "default": "ask"
+            }
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "importer"
+      ],
+      "patternProperties": {
+        "^x-": true
+      }
+    },
+    "ExportProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/LocalId"
+        },
+        "name": {
+          "$ref": "common.schema.json#/$defs/LocalizedName"
+        },
+        "description": {
+          "$ref": "common.schema.json#/$defs/LocalizedText"
+        },
+        "exporter": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)*$",
+          "description": "内置导出器 ID【对齐实际导出器清单】。"
+        },
+        "options": {
+          "type": "object",
+          "maxProperties": 20,
+          "description": "由所选导出器自己的选项 schema 校验。"
+        },
+        "select": {
+          "$ref": "query.schema.json#/$defs/QueryCondition"
+        },
+        "fileNamePattern": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "^(?:[^/\\\\:*?\"<>|{}]|\\{\\{[a-zA-Z][a-zA-Z0-9_+-]{0,31}(?::[A-Za-z0-9_.+-]{1,32})?\\}\\})+$",
+          "description": "文件名模板：字面部分不得含路径分隔符与 Windows 非法字符；{{变量}} / {{变量:格式}} 中的冒号除外。展开结果由宿主再校验。"
+        },
+        "frontMatter": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "include": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/DocField"
+              },
+              "maxItems": 30,
+              "uniqueItems": true
+            }
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "exporter"
+      ],
+      "patternProperties": {
+        "^x-": true
+      }
+    },
+    "Theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/LocalId"
+        },
+        "name": {
+          "$ref": "common.schema.json#/$defs/LocalizedName"
+        },
+        "description": {
+          "$ref": "common.schema.json#/$defs/LocalizedText"
+        },
+        "base": {
+          "enum": [
+            "light",
+            "dark"
+          ]
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "app",
+              "editor",
+              "epub"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "tokens": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "colors": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "background": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "surface": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "surfaceAlt": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "text": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "textMuted": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "border": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "accent": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "accentText": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "link": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "selection": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "danger": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "warning": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "success": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                }
+              },
+              "required": [
+                "background",
+                "text",
+                "accent"
+              ]
+            },
+            "editor": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "codeBackground": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "inlineCodeBackground": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "quote": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "highlight": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "lineNumber": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "cursor": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                }
+              }
+            },
+            "syntax": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "keyword": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "string": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "number": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "comment": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "function": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "variable": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "type": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "operator": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "tag": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                },
+                "attribute": {
+                  "$ref": "common.schema.json#/$defs/Color"
+                }
+              }
+            },
+            "typography": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "body": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[\\p{L}\\p{N} ,'\"-]+$",
+                  "allOf": [
+                    {
+                      "pattern": "(^|,\\s*)(?:serif|sans-serif|monospace|system-ui|ui-serif|ui-sans-serif|ui-monospace)\\s*$"
+                    }
+                  ],
+                  "description": "字体栈：仅字母数字、空格、逗号、引号与连字符（不可能出现 URL），且必须以通用族结尾。"
+                },
+                "heading": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[\\p{L}\\p{N} ,'\"-]+$",
+                  "allOf": [
+                    {
+                      "pattern": "(^|,\\s*)(?:serif|sans-serif|monospace|system-ui|ui-serif|ui-sans-serif|ui-monospace)\\s*$"
+                    }
+                  ],
+                  "description": "字体栈：仅字母数字、空格、逗号、引号与连字符（不可能出现 URL），且必须以通用族结尾。"
+                },
+                "mono": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "pattern": "^[\\p{L}\\p{N} ,'\"-]+$",
+                  "allOf": [
+                    {
+                      "pattern": "(^|,\\s*)(?:serif|sans-serif|monospace|system-ui|ui-serif|ui-sans-serif|ui-monospace)\\s*$"
+                    }
+                  ],
+                  "description": "字体栈：仅字母数字、空格、逗号、引号与连字符（不可能出现 URL），且必须以通用族结尾。"
+                }
+              }
+            }
+          },
+          "required": [
+            "colors"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "base",
+        "tokens"
+      ],
+      "patternProperties": {
+        "^x-": true
+      }
+    },
+    "Contributes": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "贡献点集合。未知的键为向前兼容而放行（宿主给出警告并跳过）；严格模式见 manifest.strict.schema.json。",
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "command.schema.json"
+          },
+          "maxItems": 100,
+          "description": "仅 L1（有 entry）可用。"
+        },
+        "menus": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Menu"
+          },
+          "maxItems": 50,
+          "contains": {
+            "type": "object",
+            "required": [
+              "placement"
+            ],
+            "properties": {
+              "placement": {
+                "const": "toolbar"
+              }
+            }
+          },
+          "minContains": 0,
+          "maxContains": 3
+        },
+        "keybindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Keybinding"
+          },
+          "maxItems": 50
+        },
+        "templates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Template"
+          },
+          "maxItems": 50
+        },
+        "snippets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Snippet"
+          },
+          "maxItems": 100
+        },
+        "macros": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Macro"
+          },
+          "maxItems": 20
+        },
+        "queries": {
+          "type": "array",
+          "items": {
+            "$ref": "query.schema.json"
+          },
+          "maxItems": 20
+        },
+        "properties": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Property"
+          },
+          "maxItems": 30
+        },
+        "importProfiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ImportProfile"
+          },
+          "maxItems": 10
+        },
+        "exportProfiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExportProfile"
+          },
+          "maxItems": 10
+        },
+        "themes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Theme"
+          },
+          "maxItems": 10
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nine-rings.example/plugin/v1/manifest.schema.json",
+  "title": "Nine Rings 插件 · manifest",
+  "description": "插件清单。无 entry 即 L0 数据包：不得声明 permissions / activationEvents / contributes.commands。出现 entry 即视为 L1 插件（执行隔离阶段才对第三方开放）。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "maxLength": 300
+    },
+    "manifestVersion": {
+      "const": 1
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/PluginId"
+    },
+    "name": {
+      "$ref": "common.schema.json#/$defs/LocalizedName"
+    },
+    "version": {
+      "$ref": "common.schema.json#/$defs/Semver"
+    },
+    "description": {
+      "$ref": "common.schema.json#/$defs/LocalizedText"
+    },
+    "author": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://\\S{1,300}$"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "license": {
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[A-Za-z0-9.+-]+( (AND|OR|WITH) [A-Za-z0-9.+-]+)*$"
+    },
+    "engines": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "nineRingsPluginApi": {
+          "$ref": "common.schema.json#/$defs/SemverRange"
+        },
+        "app": {
+          "$ref": "common.schema.json#/$defs/SemverRange"
+        }
+      },
+      "required": [
+        "nineRingsPluginApi"
+      ]
+    },
+    "platforms": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/Platform"
+      },
+      "minItems": 1,
+      "maxItems": 2,
+      "uniqueItems": true
+    },
+    "entry": {
+      "$ref": "common.schema.json#/$defs/EntryPath"
+    },
+    "activationEvents": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^onCommand:[a-z0-9][a-z0-9.-]{0,127}$"
+      },
+      "maxItems": 100,
+      "uniqueItems": true
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z]+(\\.[a-z]+)+$"
+      },
+      "maxItems": 50,
+      "uniqueItems": true
+    },
+    "contributes": {
+      "$ref": "contributions.schema.json"
+    },
+    "attributions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "author": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "license": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^https://\\S{1,300}$"
+          }
+        },
+        "required": [
+          "subject",
+          "author",
+          "license"
+        ]
+      },
+      "maxItems": 20
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "const": "sha256"
+        },
+        "files": {
+          "type": "object",
+          "maxProperties": 200,
+          "propertyNames": {
+            "$ref": "common.schema.json#/$defs/PackageFilePath"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "required": [
+        "algorithm",
+        "files"
+      ]
+    }
+  },
+  "required": [
+    "manifestVersion",
+    "id",
+    "name",
+    "version",
+    "engines",
+    "contributes"
+  ],
+  "patternProperties": {
+    "^x-": true
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "entry"
+        ]
+      },
+      "else": {
+        "properties": {
+          "permissions": {
+            "type": "array",
+            "maxItems": 0
+          },
+          "activationEvents": false,
+          "contributes": {
+            "type": "object",
+            "not": {
+              "required": [
+                "commands"
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

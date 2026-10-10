@@ -1,0 +1,755 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.nine-rings.example/plugin/v1/command.schema.json",
+  "title": "Nine Rings 插件 · 命令",
+  "description": "命令声明；L0 只通过宏注册命令。受限 args 由宿主无动态求值地解释；缺省 additionalProperties=false、maxItems=50。关系与默认值需语义校验。",
+  "$ref": "#/$defs/Command",
+  "$defs": {
+    "ArgItem": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "string"
+            },
+            "enum": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "minItems": 1,
+              "maxItems": 50,
+              "uniqueItems": true
+            },
+            "minLength": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            },
+            "maxLength": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            },
+            "format": {
+              "enum": [
+                "date",
+                "time",
+                "date-time",
+                "nr-document-id",
+                "nr-tag",
+                "nr-path"
+              ]
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "number"
+            },
+            "enum": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 1,
+              "maxItems": 50,
+              "uniqueItems": true
+            },
+            "minimum": {
+              "type": "number"
+            },
+            "maximum": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "integer"
+            },
+            "enum": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 1,
+              "maxItems": 50,
+              "uniqueItems": true
+            },
+            "minimum": {
+              "type": "number"
+            },
+            "maximum": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "boolean"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "ArgProperty": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "string"
+            },
+            "description": {
+              "$ref": "common.schema.json#/$defs/LocalizedText"
+            },
+            "default": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "enum": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "minItems": 1,
+              "maxItems": 50,
+              "uniqueItems": true
+            },
+            "minLength": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            },
+            "maxLength": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            },
+            "format": {
+              "enum": [
+                "date",
+                "time",
+                "date-time",
+                "nr-document-id",
+                "nr-tag",
+                "nr-path"
+              ]
+            },
+            "x-nr": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "prompt": {
+                  "enum": [
+                    "always",
+                    "ifMissing",
+                    "never"
+                  ]
+                },
+                "label": {
+                  "$ref": "common.schema.json#/$defs/LocalizedName"
+                },
+                "placeholder": {
+                  "$ref": "common.schema.json#/$defs/LocalizedName"
+                },
+                "choices": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "value": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ],
+                        "maxLength": 500
+                      },
+                      "label": {
+                        "$ref": "common.schema.json#/$defs/LocalizedName"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "label"
+                    ]
+                  },
+                  "maxItems": 50
+                }
+              }
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "number"
+            },
+            "description": {
+              "$ref": "common.schema.json#/$defs/LocalizedText"
+            },
+            "default": {
+              "type": "number"
+            },
+            "enum": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 1,
+              "maxItems": 50,
+              "uniqueItems": true
+            },
+            "minimum": {
+              "type": "number"
+            },
+            "maximum": {
+              "type": "number"
+            },
+            "x-nr": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "prompt": {
+                  "enum": [
+                    "always",
+                    "ifMissing",
+                    "never"
+                  ]
+                },
+                "label": {
+                  "$ref": "common.schema.json#/$defs/LocalizedName"
+                },
+                "placeholder": {
+                  "$ref": "common.schema.json#/$defs/LocalizedName"
+                },
+                "choices": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "value": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ],
+                        "maxLength": 500
+                      },
+                      "label": {
+                        "$ref": "common.schema.json#/$defs/LocalizedName"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "label"
+                    ]
+                  },
+                  "maxItems": 50
+                }
+              }
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "integer"
+            },
+            "description": {
+              "$ref": "common.schema.json#/$defs/LocalizedText"
+            },
+            "default": {
+              "type": "integer"
+            },
+            "enum": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 1,
+              "maxItems": 50,
+              "uniqueItems": true
+            },
+            "minimum": {
+              "type": "number"
+            },
+            "maximum": {
+              "type": "number"
+            },
+            "x-nr": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "prompt": {
+                  "enum": [
+                    "always",
+                    "ifMissing",
+                    "never"
+                  ]
+                },
+                "label": {
+                  "$ref": "common.schema.json#/$defs/LocalizedName"
+                },
+                "placeholder": {
+                  "$ref": "common.schema.json#/$defs/LocalizedName"
+                },
+                "choices": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "value": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ],
+                        "maxLength": 500
+                      },
+                      "label": {
+                        "$ref": "common.schema.json#/$defs/LocalizedName"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "label"
+                    ]
+                  },
+                  "maxItems": 50
+                }
+              }
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "boolean"
+            },
+            "description": {
+              "$ref": "common.schema.json#/$defs/LocalizedText"
+            },
+            "default": {
+              "type": "boolean"
+            },
+            "x-nr": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "prompt": {
+                  "enum": [
+                    "always",
+                    "ifMissing",
+                    "never"
+                  ]
+                },
+                "label": {
+                  "$ref": "common.schema.json#/$defs/LocalizedName"
+                },
+                "placeholder": {
+                  "$ref": "common.schema.json#/$defs/LocalizedName"
+                },
+                "choices": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "value": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ],
+                        "maxLength": 500
+                      },
+                      "label": {
+                        "$ref": "common.schema.json#/$defs/LocalizedName"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "label"
+                    ]
+                  },
+                  "maxItems": 50
+                }
+              }
+            },
+            "enum": {
+              "type": "array",
+              "items": {
+                "type": "boolean"
+              },
+              "minItems": 1,
+              "maxItems": 2,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "array"
+            },
+            "description": {
+              "$ref": "common.schema.json#/$defs/LocalizedText"
+            },
+            "items": {
+              "$ref": "#/$defs/ArgItem"
+            },
+            "minItems": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 50
+            },
+            "maxItems": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 50
+            },
+            "default": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ],
+                "maxLength": 500
+              },
+              "maxItems": 50
+            },
+            "x-nr": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "prompt": {
+                  "enum": [
+                    "always",
+                    "ifMissing",
+                    "never"
+                  ]
+                },
+                "label": {
+                  "$ref": "common.schema.json#/$defs/LocalizedName"
+                },
+                "placeholder": {
+                  "$ref": "common.schema.json#/$defs/LocalizedName"
+                },
+                "choices": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "value": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ],
+                        "maxLength": 500
+                      },
+                      "label": {
+                        "$ref": "common.schema.json#/$defs/LocalizedName"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "label"
+                    ]
+                  },
+                  "maxItems": 50
+                }
+              }
+            }
+          },
+          "required": [
+            "type",
+            "items"
+          ]
+        }
+      ]
+    },
+    "Args": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "object"
+        },
+        "description": {
+          "$ref": "common.schema.json#/$defs/LocalizedText"
+        },
+        "properties": {
+          "type": "object",
+          "maxProperties": 16,
+          "propertyNames": {
+            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,31}$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ArgProperty"
+          }
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 16,
+          "uniqueItems": true
+        },
+        "additionalProperties": {
+          "const": false
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "Command": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "common.schema.json#/$defs/CommandId"
+        },
+        "title": {
+          "$ref": "common.schema.json#/$defs/LocalizedTitle"
+        },
+        "shortTitle": {
+          "$ref": "common.schema.json#/$defs/LocalizedName"
+        },
+        "description": {
+          "$ref": "common.schema.json#/$defs/LocalizedText"
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "maxItems": 10,
+          "uniqueItems": true
+        },
+        "category": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,31}$"
+        },
+        "icon": {
+          "$ref": "common.schema.json#/$defs/Icon"
+        },
+        "scope": {
+          "enum": [
+            "app",
+            "workspace",
+            "document",
+            "selection"
+          ]
+        },
+        "views": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "render",
+              "source",
+              "readonly",
+              "pdf",
+              "epub"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 5,
+          "uniqueItems": true
+        },
+        "platforms": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/Platform"
+          },
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true
+        },
+        "enablement": {
+          "$ref": "predicate.schema.json"
+        },
+        "args": {
+          "$ref": "#/$defs/Args"
+        },
+        "risk": {
+          "enum": [
+            "read",
+            "write",
+            "destructive"
+          ]
+        },
+        "confirm": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "required": {
+              "type": "boolean"
+            },
+            "message": {
+              "$ref": "common.schema.json#/$defs/LocalizedText"
+            }
+          }
+        },
+        "undo": {
+          "enum": [
+            "view",
+            "none"
+          ]
+        },
+        "idempotent": {
+          "type": "boolean"
+        },
+        "exposure": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "palette": {
+              "type": "boolean"
+            },
+            "keybinding": {
+              "type": "boolean"
+            },
+            "menu": {
+              "type": "boolean"
+            },
+            "macro": {
+              "type": "boolean"
+            },
+            "ai": {
+              "type": "boolean"
+            }
+          }
+        },
+        "since": {
+          "$ref": "common.schema.json#/$defs/Semver"
+        },
+        "stability": {
+          "enum": [
+            "stable",
+            "unstable",
+            "internal"
+          ],
+          "description": "仅宿主内置命令使用；包声明的命令必须缺省（语义校验）。"
+        },
+        "deprecated": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "message": {
+              "$ref": "common.schema.json#/$defs/LocalizedText"
+            },
+            "replacedBy": {
+              "$ref": "common.schema.json#/$defs/CommandId"
+            }
+          },
+          "required": [
+            "message"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "scope",
+        "risk"
+      ],
+      "patternProperties": {
+        "^x-": true
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "risk": {
+                "const": "destructive"
+              }
+            },
+            "required": [
+              "risk"
+            ]
+          },
+          "then": {
+            "properties": {
+              "exposure": {
+                "type": "object",
+                "properties": {
+                  "macro": {
+                    "const": false
+                  }
+                }
+              },
+              "confirm": {
+                "type": "object",
+                "properties": {
+                  "required": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
