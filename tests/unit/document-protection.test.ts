@@ -62,6 +62,49 @@ const create = (title = "公开标题", storagePath = "areas/private") =>
   adapter.createNote({ date: "2026-09-08", title, storagePath, content: body });
 
 describe("document encryption", () => {
+  it("normalizes direct property updates while preserving Unicode and document identity", async () => {
+    const note = await create();
+    const updated = await adapter.updateNote(note.id, {
+      storagePath: "  projects\\ C++ // 日本語 / C#  ",
+    });
+    expect(updated.storagePath).toBe("projects/C++/日本語/C#");
+    expect(updated.id).toBe(note.id);
+    expect(updated.content).toEqual(body);
+    expect((await adapter.getNote(note.id))!.storagePath).toBe(
+      updated.storagePath,
+    );
+  });
+  it("rejects invalid paths before changing any fields in a direct update", async () => {
+    const note = await create();
+    const before = await adapter.getNote(note.id);
+    for (const storagePath of [
+      "",
+      " / ",
+      "projects/../private",
+      "projects/./private",
+      "projects/\u0000private",
+      "projects/" + "x".repeat(129),
+      Array(33).fill("a").join("/"),
+    ]) {
+      await expect(
+        adapter.updateNote(note.id, { storagePath, title: "不得写入" }),
+      ).rejects.toThrow();
+      expect(await adapter.getNote(note.id)).toEqual(before);
+    }
+  });
+  it("direct normalized path updates still encrypt before entering a protected folder", async () => {
+    await setPathPassword("areas/private");
+    const note = await create("公开文档", "projects/public");
+    const updated = await adapter.updateNote(note.id, {
+      storagePath: " areas\\private // child ",
+    });
+    expect(updated.storagePath).toBe("areas/private/child");
+    expect(isEncrypted(updated.content)).toBe(true);
+    expect((await unlockDocument(updated.content, password)).content).toEqual(
+      body,
+    );
+    expect((await adapter.exportData()).includes("secret-body")).toBe(false);
+  });
   it("encrypting a document removes persisted reading data and stale session writers", async () => {
     const values = new Map<string, string>();
     vi.stubGlobal("localStorage", {

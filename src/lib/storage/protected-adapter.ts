@@ -22,7 +22,12 @@ export function protectedAdapter(raw: StorageAdapter): StorageAdapter {
     return { ...data, storagePath: normalizeStoragePath(data.storagePath!), content: await sealContent(content, key) };
   };
   const update = async (id: string, data: UpdateNoteInput): Promise<Note> => {
-    const note = await raw.getNote(id);
+    // Property/API updates must validate the same path that is checked for
+    // protection and finally persisted, even when they do not use the move UI.
+    if (data.storagePath !== undefined) {
+      data = { ...data, storagePath: normalizeStoragePath(data.storagePath) };
+    }
+    let note = await raw.getNote(id);
     if (!note) throw new Error("文档不存在");
     if (data.storagePath !== undefined && data.storagePath !== note.storagePath) {
       const before = await readProtectionState();
@@ -30,6 +35,10 @@ export function protectedAdapter(raw: StorageAdapter): StorageAdapter {
         // Property editing must use the same atomic boundary transition as DnD.
         if (data.content !== undefined) throw new Error("请先保存正文，再单独移动加密文档");
         await moveProtectedDocuments([id], data.storagePath, before);
+        // The atomic move can encrypt/re-key the body. Continuing against the
+        // pre-move record would report failure after the move already committed.
+        note = await raw.getNote(id);
+        if (!note) throw new Error("文档不存在");
       }
     }
     let content = data.content;
