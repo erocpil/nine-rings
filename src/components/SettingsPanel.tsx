@@ -1,4 +1,5 @@
 import { PluginRuntimeStatus } from "./PluginRuntimeStatus";
+import { useRelativeNumbering } from "../hooks/useRelativeNumbering";
 import { useSyncExternalStore } from "react";
 import { pluginRuntime, setPluginsEnabled } from "../lib/plugin-system/runtime";
 import { DesktopRecoveryStatus } from "./DesktopRecoveryStatus";
@@ -142,6 +143,7 @@ function normalizeVimConfig(value: string): string {
 
 export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onBeforePush, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onOpenBookmark, onNotesChanged, libraryError }: Props) {
   const pluginsEnabled = useSyncExternalStore(pluginRuntime.subscribe, pluginRuntime.isEnabled);
+  const relativeNumbering = useRelativeNumbering();
   const [vimConfig, setVimConfig] = useState(() => normalizeVimConfig(localStorage.getItem(VIM_CONFIG_KEY) ?? "set tabstop=4"));
   const saveVimConfig = (next: string) => {
     try {
@@ -990,7 +992,19 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="状态栏块号" desc={config.editor_show_status_bar ? "显示光标所在的顶层块编号；与正文左侧块号使用同一套编号" : "请先开启状态栏；此选项的当前设置会保留"} visible={settingsPage === "editor"}>
+            <Field label="相对块号" desc="当前块显示绝对块号，其余显示可见块距离；需开启显示块编号，折叠隐藏的块不计数" visible={settingsPage === "editor"}>
+              <label className="settings-toggle">
+                <input type="checkbox" aria-label="相对块号" checked={relativeNumbering.relativeBlockNumbers} onChange={event => saveBlockWorkspacePreferences({ relativeBlockNumbers: event.target.checked })} />
+                <span className="toggle-track" /><span className="toggle-label">{relativeNumbering.relativeBlockNumbers ? "开" : "关"}</span>
+              </label>
+            </Field>
+            <Field label="相对行号" desc="Markdown 源码当前行显示绝对行号，其余显示可见行距；需开启显示块编号，折叠隐藏行和软换行不另计行数" visible={settingsPage === "editor"}>
+              <label className="settings-toggle">
+                <input type="checkbox" aria-label="相对行号" checked={relativeNumbering.relativeSourceLineNumbers} onChange={event => saveBlockWorkspacePreferences({ relativeSourceLineNumbers: event.target.checked })} />
+                <span className="toggle-track" /><span className="toggle-label">{relativeNumbering.relativeSourceLineNumbers ? "开" : "关"}</span>
+              </label>
+            </Field>
+            <Field label="状态栏块号" desc={config.editor_show_status_bar ? "显示光标所在的绝对块编号；相对编号不改变跳转或操作目标" : "请先开启状态栏；此选项的当前设置会保留"} visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input
                   type="checkbox"

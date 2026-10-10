@@ -87,6 +87,8 @@ const entries: SettingsSearchEntry[] = [
   ...[
     ["高亮当前行", "光标 当前行 高亮 背景 Markdown 源码"],
     ["显示块编号", "块号 编号 行号 顶层 段落 Markdown 源码"],
+    ["相对块号", "相对 块号 编号 relativenumber rnu 距离"],
+    ["相对行号", "相对 行号 Markdown 源码 relativenumber rnu 距离"],
     ["编辑器状态栏", "底部 状态栏 位置 字数 版本"],
     ["状态栏块号", "状态栏 块号 编号"],
     ["只读文档双击标题折叠", "只读 双击 标题 章节 正文 折叠"],

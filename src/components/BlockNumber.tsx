@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 
 /** A tap opens actions; a right swipe previews the type until release. */
-export function BlockNumber({ number, format, className = "", style, onOpen }: {
-  number: number; format: string; className?: string; style?: React.CSSProperties;
+export function BlockNumber({ number, displayNumber = number, format, className = "", style, onOpen }: {
+  number: number; displayNumber?: number; format: string; className?: string; style?: React.CSSProperties;
   onOpen: (trigger: HTMLButtonElement) => void;
 }) {
   const gesture = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
@@ -40,5 +40,5 @@ export function BlockNumber({ number, format, className = "", style, onOpen }: {
       if (Date.now() < suppressClick.current || (event.nativeEvent as MouseEvent & { sourceCapabilities?: { firesTouchEvents?: boolean } }).sourceCapabilities?.firesTouchEvents) return;
       onOpen(event.currentTarget);
     }}
-  >{number}</button>;
+  >{displayNumber}</button>;
 }

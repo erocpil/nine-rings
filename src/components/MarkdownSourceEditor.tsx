@@ -1,4 +1,5 @@
 import { createPortal } from "react-dom";
+import { relativeLineNumbers } from "../lib/source-relative-line-numbers";
 import { BlockActionMenu } from "./BlockActionMenu";
 import { sourceHeadingFoldEffects } from "../lib/source-heading-fold";
 import { mobileSourceInput } from "../lib/mobile-source-input";
@@ -168,7 +169,7 @@ export function MarkdownSourceEditor({
   const displayExtensions = () => {
     const prefs = blockWorkspacePreferences();
     return [
-      showLineNumbers ? lineNumbers() : [],
+      showLineNumbers ? (prefs.relativeSourceLineNumbers ? relativeLineNumbers() : lineNumbers()) : [],
       prefs.wrap !== false ? EditorView.lineWrapping : [],
       EditorState.tabSize.of(prefs.tabSize ?? 4),
       indentUnit.of(" ".repeat(prefs.tabSize ?? 4)),

@@ -1,4 +1,6 @@
 import { BlockNumber } from "./BlockNumber";
+import { useRelativeNumbering } from "../hooks/useRelativeNumbering";
+import { relativeNumber } from "../lib/relative-numbering";
 import { BlockActionMenu, groupBlockMenuActions, type BlockMenuAction } from "./BlockActionMenu";
 import { copyDocumentBlock } from "../lib/block-clipboard";
 import { DeferredFlowBlock } from "./DeferredFlowBlock";
@@ -411,6 +413,9 @@ export function ReadonlyVirtualNote(
   const copyPosition = useRef<number | null>(null);
   const [notice, setNotice] = useState("");
   const [blockMenu, setBlockMenu] = useState<{ position: number; number: number; trigger: HTMLButtonElement; doc: PMNode } | null>(null);
+  const [currentNumber, setCurrentNumber] = useState(1);
+  const { relativeBlockNumbers } = useRelativeNumbering();
+  const visibleNumbers = useMemo(() => relativeBlockNumbers ? blocks.map(block => block.number) : [], [blocks, relativeBlockNumbers]);
   const closeBlockMenu = useCallback(() => setBlockMenu(null), []);
   useEffect(() => { setBlockMenu(null); }, [doc, active]);
   useEffect(() => {
@@ -432,6 +437,11 @@ export function ReadonlyVirtualNote(
       offset: (root?.scrollTop ?? 0) - current.offsets[index],
     };
   }, []);
+  useEffect(() => {
+    if (!relativeBlockNumbers) return;
+    const position = Math.min(doc.content.size, copyPosition.current ?? capture().position);
+    setCurrentNumber(Math.min(doc.childCount, doc.resolve(position).index(0) + 1));
+  }, [relativeBlockNumbers, doc, capture]);
   const preserve = useCallback(() => {
     pendingAnchor.current = capture();
   }, [capture]);
@@ -456,6 +466,7 @@ export function ReadonlyVirtualNote(
   const jump = useCallback(
     (position: number, offset = 0, match?: SearchMatch) => {
       useNavigationStore.getState().record({ noteId, from: position, to: position }, true);
+      setCurrentNumber(Math.min(doc.childCount, doc.resolve(position).index(0) + 1));
       // Explicit navigation supersedes an earlier scroll-settle timer. Native
       // inertia tracking must not swallow search/bookmark/button requests.
       scrollBusy.current = false;
@@ -785,6 +796,10 @@ export function ReadonlyVirtualNote(
     // anchor/focus DOM; expanding a selection grows this pinned contiguous range.
     const select = () => {
       const selection = window.getSelection();
+      const node = selection?.focusNode;
+      const element = node instanceof Element ? node : node?.parentElement;
+      const row = element?.closest<HTMLElement>("[data-reading-row]");
+      if (relativeBlockNumbers && row && bodyRef.current?.contains(row)) setCurrentNumber(Number(row.dataset.blockNumber));
       const inside =
         selection &&
         !selection.isCollapsed &&
@@ -804,7 +819,7 @@ export function ReadonlyVirtualNote(
     };
     document.addEventListener("selectionchange", select);
     return () => document.removeEventListener("selectionchange", select);
-  }, [start, end]);
+  }, [start, end, relativeBlockNumbers]);
   useEffect(() => {
     if (!selectionWindow) return;
     if (start < selectionWindow[0] || end > selectionWindow[1]) {
@@ -1356,7 +1371,10 @@ export function ReadonlyVirtualNote(
           }}
           onPointerDown={(event) => {
             const row = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-reading-row]") : null;
-            if (row) copyPosition.current = Number(row.dataset.position);
+            if (row) {
+              copyPosition.current = Number(row.dataset.position);
+              if (relativeBlockNumbers) setCurrentNumber(Number(row.dataset.blockNumber));
+            }
             pointer.current = {
               x: event.clientX,
               y: event.clientY,
@@ -1437,7 +1455,7 @@ export function ReadonlyVirtualNote(
                       <EditorFoldIcon expanded={!folds.has(section.key)} />
                     </button>
                   )}
-                  {props.showLineNumbers && <BlockNumber number={block.number} format={block.node.type.name === "heading" ? `H${block.node.attrs.level}` : block.node.type.name} onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />}
+                  {props.showLineNumbers && <BlockNumber number={block.number} displayNumber={relativeBlockNumbers ? relativeNumber(block.number, currentNumber, visibleNumbers) : block.number} className={block.number === currentNumber ? "active" : ""} format={block.node.type.name === "heading" ? `H${block.node.attrs.level}` : block.node.type.name} onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />}
                 </div>
                 <div className="ProseMirror vr-block" contentEditable={false}>
                   {decorateFlowBlock(renderReadonlyBlock(

@@ -1,5 +1,7 @@
 import { EditorFoldIcon } from "./EditorFoldIcon";
 import { BlockNumber } from "./BlockNumber";
+import { useRelativeNumbering } from "../hooks/useRelativeNumbering";
+import { relativeNumber } from "../lib/relative-numbering";
 import { useDocumentActive } from "./RetainedDocument";
 import { activeLinePluginKey } from "../extensions/EditorHighlights";
 import { useEffect, useRef, useState } from "react";
@@ -157,6 +159,9 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
     moved: boolean;
   } | null>(null);
   const [blocks, setBlocks] = useState<GutterBlock[]>([]);
+  const [currentNumber, setCurrentNumber] = useState(1);
+  const [visibleNumbers, setVisibleNumbers] = useState<readonly number[]>([]);
+  const { relativeBlockNumbers } = useRelativeNumbering();
   const selectingBlocks = selectedBlockIndexes.length > 0;
 
   useEffect(() => {
@@ -202,6 +207,9 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
     const layoutElements = new Set<HTMLElement>();
 
     const publishBlocks = () => {
+      const selection = editor.state.selection;
+      const position = activeLinePluginKey.getState(editor.state)?.readingBlockPosition ?? ("node" in selection ? selection.from : selection.head);
+      if (relativeBlockNumbers) setCurrentNumber(Math.min(editor.state.doc.childCount, editor.state.doc.resolve(position).index(0) + 1));
       setBlocks([...measuredBlocks.values()].sort((left, right) => left.index - right.index));
     };
 
@@ -421,6 +429,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
         topLevelBlocks.push({ pos, index: index + 1, heading: node.type.name === "heading", node });
       });
       layoutBlocks = topLevelBlocks.filter((block) => !hiddenFoldBlockPositions.has(block.pos));
+      if (relativeBlockNumbers) setVisibleNumbers(layoutBlocks.map(block => block.index));
       layoutIndexByPosition.clear();
       layoutBlocks.forEach((block, index) => layoutIndexByPosition.set(block.pos, index));
       return true;
@@ -526,6 +535,9 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
 
     const updateActiveBlock = () => {
       const selectionPos = activeLinePluginKey.getState(editor.state)?.readingBlockPosition ?? editor.state.selection.from;
+      const selection = editor.state.selection;
+      const cursorPos = activeLinePluginKey.getState(editor.state)?.readingBlockPosition ?? ("node" in selection ? selection.from : selection.head);
+      if (relativeBlockNumbers) setCurrentNumber(Math.min(editor.state.doc.childCount, editor.state.doc.resolve(cursorPos).index(0) + 1));
       let changed = false;
       for (const [dom, block] of measuredBlocks) {
         const active = selectionPos >= block.pos && selectionPos < block.endPos;
@@ -640,7 +652,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       if (rebuildFrame) cancelAnimationFrame(rebuildFrame);
       if (windowFrame) cancelAnimationFrame(windowFrame);
     };
-  }, [bookmarkPositions.length, compact, documentActive, editor, onBlockCountChange, onHeadingFoldToggle, readonly, selectingBlocks, showInsertButtons, showNumbers]);
+  }, [bookmarkPositions.length, compact, documentActive, editor, onBlockCountChange, onHeadingFoldToggle, readonly, relativeBlockNumbers, selectingBlocks, showInsertButtons, showNumbers]);
 
   const insertParagraph = (pos: number) => {
     const safePos = Math.min(Math.max(0, pos), editor.state.doc.content.size);
@@ -793,15 +805,16 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           onClick={(event) => runGutterActionFromClick(event, () => onBlockSelect(block.pos))}
         >
           <span className="editor-block-select-fold" aria-hidden="true">{block.heading && <EditorFoldIcon expanded={!block.folded} />}</span>
-          <span className={blockHasBookmark(block) ? "bookmarked" : ""} aria-hidden="true">{block.index}</span>
+          <span className={blockHasBookmark(block) ? "bookmarked" : ""} aria-hidden="true">{relativeBlockNumbers ? relativeNumber(block.index, currentNumber, visibleNumbers) : block.index}</span>
         </button>
       ))}
       {!selectingBlocks && showNumbers && blocks.map((block) => (
         <BlockNumber
           key={`number-${block.pos}`}
-          className={`${block.active ? "active" : ""} ${blockHasBookmark(block) ? "bookmarked" : ""} ${block.index === highlightedBlockIndex ? "bookmark-jump-gutter" : ""}`}
+          className={`${(relativeBlockNumbers ? block.index === currentNumber : block.active) ? "active" : ""} ${blockHasBookmark(block) ? "bookmarked" : ""} ${block.index === highlightedBlockIndex ? "bookmark-jump-gutter" : ""}`}
           style={{ top: block.firstLineCenter }}
           number={block.index} format={block.format}
+          displayNumber={relativeBlockNumbers ? relativeNumber(block.index, currentNumber, visibleNumbers) : block.index}
           onOpen={trigger => onBlockMenu?.(block.pos, trigger)}
         />
       ))}
