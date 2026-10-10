@@ -64,7 +64,7 @@ test("桌面设置首页与子页使用相同居中弹层", async ({ page }) => 
 });
 
 for (const width of [390, 1280]) {
-  test(`设置分类与子页切换从顶部显示 ${width}`, async ({ page }) => {
+  test(`设置子页从顶部显示，返回恢复父页位置 ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 380 });
     await page.goto("/");
     await expect(page.locator(".note-editor")).toBeVisible();
@@ -73,15 +73,23 @@ for (const width of [390, 1280]) {
     const root = page.locator('.settings-body[data-settings-page="root"]');
     await root.evaluate(element => { element.scrollTop = element.scrollHeight; });
     await expect.poll(() => root.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+    await page.getByRole("button", { name: /^外观与布局/ }).scrollIntoViewIfNeeded();
+    const rootPosition = await root.evaluate(element => element.scrollTop);
     await page.getByRole("button", { name: /^外观与布局/ }).click();
     const appearance = page.locator('.settings-body[data-settings-page="appearance"]');
     await expect.poll(() => appearance.evaluate(element => element.scrollTop)).toBe(0);
     await appearance.evaluate(element => { element.scrollTop = element.scrollHeight; });
     await expect.poll(() => appearance.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+    await page.getByRole("button", { name: /^层次展示/ }).scrollIntoViewIfNeeded();
+    const appearancePosition = await appearance.evaluate(element => element.scrollTop);
     await page.getByRole("button", { name: /^层次展示/ }).click();
     const hierarchy = page.locator('.settings-body[data-settings-page="hierarchy"]');
     await expect.poll(() => hierarchy.evaluate(element => element.scrollTop)).toBe(0);
     await page.getByLabel("返回外观与布局").click();
+    await expect.poll(() => appearance.evaluate(element => element.scrollTop)).toBe(appearancePosition);
+    await page.getByLabel("返回设置分类").click();
+    await expect.poll(() => root.evaluate(element => element.scrollTop)).toBe(rootPosition);
+    await page.getByRole("button", { name: /^外观与布局/ }).click();
     await expect.poll(() => appearance.evaluate(element => element.scrollTop)).toBe(0);
   });
 }

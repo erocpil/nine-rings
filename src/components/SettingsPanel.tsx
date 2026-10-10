@@ -180,6 +180,19 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [editorAppearanceOpen, setEditorAppearanceOpen] = useState(false);
   const [editorAppearanceDraft, setEditorAppearanceDraft] = useState<AppConfig | null>(null);
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("root");
+  const settingsBodyRef = useRef<HTMLDivElement | null>(null);
+  const pageScrollPositions = useRef<Partial<Record<SettingsPage, number>>>({});
+  const restoreScrollPage = useRef<SettingsPage | null>(null);
+  const bindSettingsBody = useCallback((body: HTMLDivElement | null) => {
+    if (!body) {
+      if (settingsBodyRef.current) pageScrollPositions.current[settingsPage] = settingsBodyRef.current.scrollTop;
+      settingsBodyRef.current = null;
+      return;
+    }
+    settingsBodyRef.current = body;
+    body.scrollTop = restoreScrollPage.current === settingsPage ? pageScrollPositions.current[settingsPage] ?? 0 : 0;
+    restoreScrollPage.current = null;
+  }, [settingsPage]);
   const [settingsQuery, setSettingsQuery] = useState("");
   const [settingsSearchOpen, setSettingsSearchOpen] = useState(false);
   const parentPage: SettingsPage = settingsPage === "vim" ? "editor"
@@ -205,6 +218,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const goBack = useCallback(() => { void guardLeave(() => {
     if (settingsPage === "root") onClose();
     else {
+      restoreScrollPage.current = parentPage;
       setSettingsPage(parentPage);
       if (parentPage === "root" && settingsQuery.trim()) setSettingsSearchOpen(true);
     }
@@ -350,6 +364,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   useEffect(() => {
     clearMessage();
     if (open) {
+      pageScrollPositions.current = {};
+      restoreScrollPage.current = null;
       setSettingsPage("root");
       setSettingsQuery("");
       setSettingsSearchOpen(false);
@@ -684,7 +700,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             <button className="settings-retry" onClick={loadSettings}>重试</button>
           </div>
         ) : (
-          <div key={settingsPage} className={`settings-body${!["root", "data", "sync"].includes(settingsPage) ? " settings-content-page" : ""}`} data-settings-page={settingsPage}>
+          <div key={settingsPage} ref={bindSettingsBody} className={`settings-body${!["root", "data", "sync"].includes(settingsPage) ? " settings-content-page" : ""}`} data-settings-page={settingsPage}>
             {libraryError && <div className="reading-library-message" role="alert">{libraryError}</div>}
             {settingsPage === "root" && settingsSearchOpen && settingsQuery.trim() && (
               <div className="settings-search-results" aria-label="设置查找结果">
