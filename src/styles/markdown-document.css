@@ -161,10 +161,10 @@ blockquote[data-alert="WARNING"], blockquote[data-alert="CAUTION"] { border-left
 .markdown-source-tools::-webkit-scrollbar { display: none; height: 0; width: 0; }
 .markdown-source-tools::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-secondary) 35%, transparent); border-radius: 3px; }
 .markdown-source-tools::-webkit-scrollbar-track { background: transparent; }
-.source-fold-tool { display: flex; flex-direction: column; align-items: center; flex: 0 0 28px; height: 30px; }
-.markdown-source-tools .source-fold-tool > button { display: flex; align-items: center; justify-content: center; width: 28px; height: 18px; min-height: 18px; flex: 0 0 18px; box-sizing: border-box; padding: 0; }
+.source-fold-tool { display: inline-flex; align-items: center; flex: 0 0 44px; height: 28px; }
+.markdown-source-tools .source-fold-tool > button { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 28px; flex: 0 0 28px; box-sizing: border-box; padding: 0; }
 .markdown-source-tools .source-fold-tool .toolbar-icon { width: 16px; height: 16px; }
-.markdown-source-tools .source-fold-tool > .source-fold-level-trigger { height: 12px; min-height: 12px; flex-basis: 12px; border: 0; background: transparent; }
+.markdown-source-tools .source-fold-tool > .source-fold-level-trigger { width: 16px; height: 28px; min-height: 28px; flex-basis: 16px; border: 0; background: transparent; }
 
 .markdown-preview-sync { display: inline-flex; align-items: center; flex-shrink: 0; gap: 4px; margin: 0 4px; color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
 .markdown-preview-sync input { accent-color: var(--accent); margin: 0; }

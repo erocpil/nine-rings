@@ -10,7 +10,22 @@ test("源码标题级别菜单保留源码与只读保护，并排工具栏无�
   const text = "# One\nintro\n## Two\nbody\n### Three\nnested\n## Four\nbody\n# Five\ntail\n```\n# not a heading\n```";
   await replaceSource(area, text);
   const toolbar = page.getByRole("toolbar", { name: "源码编辑工具" });
+  for (const [action, menu] of [["折叠全部", "选择折叠标题级别"], ["展开全部", "选择展开标题级别"]]) {
+    const arrow = toolbar.getByRole("button", { name: menu, exact: true });
+    await arrow.scrollIntoViewIfNeeded();
+    const main = (await toolbar.getByRole("button", { name: action, exact: true }).boundingBox())!;
+    const arrowBox = (await arrow.boundingBox())!;
+    const toolbarBox = (await toolbar.boundingBox())!;
+    expect(arrowBox.x).toBeGreaterThanOrEqual(main.x + main.width - 1);
+    expect(Math.abs(arrowBox.y - main.y)).toBeLessThanOrEqual(1);
+    expect(arrowBox.y + arrowBox.height).toBeLessThanOrEqual(toolbarBox.y + toolbarBox.height);
+    expect(await arrow.locator("svg").evaluate(el => {
+      const rect = el.getBoundingClientRect();
+      return document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)?.closest("button") === el.closest("button");
+    })).toBe(true);
+  }
   const triangle = toolbar.getByRole("button", { name: "选择折叠标题级别", exact: true });
+  await triangle.scrollIntoViewIfNeeded();
   await expect(triangle.locator("svg")).toBeVisible();
   const glyph = (await triangle.locator("svg").boundingBox())!;
   const triangleBox = (await triangle.boundingBox())!;
