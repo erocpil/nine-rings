@@ -4312,7 +4312,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             highlightedBlockIndex={bookmarkJumpBlockIndex}
             selectedBlockIndexes={selectedBlockIndexList}
             onBlockSelect={extendBlockSelection}
-            onBlockMenu={(position, trigger) => { closeToolbarDropdowns(); setContextMenu(null); setBlockMenu({ position, trigger, doc: editor.state.doc }); }}
+            onBlockMenu={(position, trigger) => { closeToolbarDropdowns(); setContextMenu(null); setBlockMenu(current => current?.position === position && current.doc === editor.state.doc ? null : { position, trigger, doc: editor.state.doc }); }}
             onBlockCountChange={setGutterBlockCount}
             onHeadingFoldToggle={toggleEditorHeadingFromGutter}
             onReferenceMenu={useCustomContextMenu ? (position, x, y) => {

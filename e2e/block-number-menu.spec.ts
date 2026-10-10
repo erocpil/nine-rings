@@ -67,6 +67,13 @@ test("块号菜单针对点击块操作，复制副本、删除、转换可撤�
   const before = await root.evaluate(element => (element as any).editor.state.selection.from);
   await open(page);
   expect(await root.evaluate(element => (element as any).editor.state.selection.from)).toBe(before);
+  await page.getByRole("button", { name: "第 1 块操作", exact: true }).click();
+  await expect(menu(page)).toHaveCount(0);
+  await open(page);
+  await page.getByRole("button", { name: "第 3 块操作", exact: true }).click();
+  await expect(page.getByRole("menu", { name: "第 3 块", exact: true })).toBeVisible();
+  await expect(menu(page)).toHaveCount(0);
+  await open(page);
   await menu(page).getByRole("menuitem", { name: "复制副本", exact: true }).click();
   await expect(root.locator(":scope > p")).toHaveText(["first", "first", "second", "third"]);
   await root.evaluate(element => (element as any).editor.commands.undo());
@@ -87,6 +94,9 @@ test("块号菜单针对点击块操作，复制副本、删除、转换可撤�
 
 for (const virtual of [false, true]) test(`只读块号菜单可复制和添加书签，不显示正文修改，局部=${virtual}`, async ({ page }) => {
   await setup(page, true, virtual);
+  await open(page);
+  await page.getByRole("button", { name: "第 1 块操作", exact: true }).click();
+  await expect(menu(page)).toHaveCount(0);
   await open(page);
   await expect(menu(page).getByRole("menuitem", { name: "复制块引用", exact: true })).toBeVisible();
   await expect(menu(page).getByRole("menuitem", { name: "删除此块", exact: true })).toHaveCount(0);
@@ -128,5 +138,9 @@ test.describe("手机块类型预览", () => {
     expect(rect.x).toBeGreaterThanOrEqual(8);
     expect(rect.x + rect.width).toBeLessThanOrEqual(382);
     expect(rect.y + rect.height).toBeLessThanOrEqual(836);
+    await number.tap();
+    await expect(menu(page)).toHaveCount(0);
+    await number.tap();
+    await expect(menu(page)).toBeVisible();
   });
 });
