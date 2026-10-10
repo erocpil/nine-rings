@@ -401,19 +401,19 @@ test("外部替换目标块后旧弹层失效，不覆盖新正文", async ({ pa
   await expect(page.locator(".note-editor .ProseMirror")).toContainText("外部替换的新正文");
 });
 
-test("桌面块选择入口随专注模式和只读状态显示", async ({ page }) => {
+test("桌面标题栏块级操作复用菜单并遵循只读状态", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: false })));
   await fixture(page);
   const entry = page.getByRole("button", { name: "块级操作", exact: true });
-  await expect(entry).toHaveCount(0);
-  await page.getByRole("button", { name: "点击设为只读" }).click();
   await expect(entry).toBeVisible();
   await entry.click();
-  const toolbar = page.getByRole("toolbar", { name: "块级操作" });
-  await expect(toolbar).toBeVisible();
-  await expect(toolbar.getByRole("button", { name: "切换到编辑模式", exact: true })).toHaveCount(0);
-  await toolbar.getByRole("button", { name: "退出块选择" }).click();
-  await page.getByRole("button", { name: "点击设为可编辑" }).click();
-  await expect(entry).toHaveCount(0);
+  await expect(page.locator(".block-action-menu").getByRole("menuitem", { name: "粗体", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "点击设为只读" }).click();
+  await entry.click();
+  await expect(page.locator(".block-action-menu")).toBeVisible();
+  await expect(page.locator(".block-action-menu").getByRole("menuitem", { name: "粗体", exact: true })).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "专注模式", exact: true }).click();
   await expect(entry).toBeVisible();
 });

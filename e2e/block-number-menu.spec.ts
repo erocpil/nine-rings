@@ -2,13 +2,13 @@ import { expect, test, type Page } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 import { closeDocumentSidebar } from "./helpers/workspace";
 
-async function setup(page: Page, readonly = false, virtual = false, exhibition = false) {
+async function setup(page: Page, readonly = false, virtual = false, exhibition = false, showNumbers = true) {
   const viewport = page.viewportSize()!;
   await page.setViewportSize({ width: 1280, height: 1000 });
-  await page.addInitScript(({ virtual, exhibition }) => {
-    localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true, ...(exhibition ? { workspace_layout: "exhibition", interface_style: "calm" } : {}) }));
+  await page.addInitScript(({ virtual, exhibition, showNumbers }) => {
+    localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: showNumbers, ...(exhibition ? { workspace_layout: "exhibition", interface_style: "calm" } : {}) }));
     localStorage.setItem("nr:experimentalReadonlyRendering", String(virtual));
-  }, { virtual, exhibition });
+  }, { virtual, exhibition, showNumbers });
   await createBlankDocument(page, "块号菜单");
   await closeDocumentSidebar(page);
   await page.locator(".ProseMirror:visible").evaluate((element) => {
@@ -21,7 +21,7 @@ async function setup(page: Page, readonly = false, virtual = false, exhibition =
     if (virtual) await expect(page.locator("[data-virtual-reader]")).toBeVisible();
   }
   await page.setViewportSize(viewport);
-  await expect(page.locator(".editor-block-number").first()).toBeVisible();
+  if (showNumbers) await expect(page.locator(".editor-block-number").first()).toBeVisible();
 }
 const menu = (page: Page) => page.getByRole("menu", { name: "第 1 块", exact: true });
 async function open(page: Page) { await page.getByRole("button", { name: "第 1 块操作", exact: true }).click(); await expect(menu(page)).toBeVisible(); }
@@ -99,7 +99,7 @@ for (const virtual of [false, true]) test(`只读块号菜单可复制和添加�
   await expect(menu(page)).toHaveCount(0);
   await open(page);
   await expect(menu(page).getByRole("menuitem", { name: "复制块引用", exact: true })).toBeVisible();
-  for (const name of ["删除此块", "清除文字样式", "剪切此块", "在本块前粘贴块", "在本块后粘贴块"]) await expect(menu(page).getByRole("menuitem", { name, exact: true })).toHaveCount(0);
+  for (const name of ["粗体", "斜体", "文字字号", "文字颜色", "删除此块", "清除文字样式", "剪切此块", "在本块前粘贴块", "在本块后粘贴块"]) await expect(menu(page).getByRole("menuitem", { name, exact: true })).toHaveCount(0);
   await menu(page).getByRole("menuitem", { name: "添加块书签", exact: true }).click();
   await open(page);
   await expect(menu(page).getByRole("menuitem", { name: "取消块书签", exact: true })).toBeVisible();
@@ -317,4 +317,72 @@ test("剪切重复内容块时引用不会跳到副本，第二次粘贴也不�
   await menu(page).getByRole("menuitem", { name: "在本块前粘贴块", exact: true }).click();
   await expect(root.locator(":scope > p")).toHaveText(["same", "same", "tail", "same"]);
   expect(await anchor()).toMatchObject({ from: 18, to: 24, deleted: false });
+});
+
+
+test("分组菜单整块排版保留其它块、选区与单步撤销", async ({ page }) => {
+  await setup(page);
+  const root = page.locator(".ProseMirror:visible");
+  const selection = await root.evaluate(element => (element as any).editor.state.selection.from);
+  await expect(page.getByRole("button", { name: "块级操作", exact: true })).toHaveCount(0);
+  await open(page);
+  await expect(menu(page).locator(".block-action-menu-group")).toHaveText(["复制与引用", "阅读与导航", "文字样式", "编辑与结构", "选择", "剪切与删除"]);
+  await menu(page).getByRole("menuitem", { name: "粗体", exact: true }).click();
+  await expect(root.locator(":scope > p").first().locator("strong")).toHaveText("first");
+  expect(await root.evaluate(element => (element as any).editor.state.selection.from)).toBe(selection);
+  await expect(root.locator(":scope > p").nth(1).locator("strong")).toHaveCount(0);
+  await root.evaluate(element => (element as any).editor.commands.undo());
+  await expect(root.locator("strong")).toHaveCount(0);
+  await open(page);
+  await menu(page).getByRole("menuitem", { name: "斜体", exact: true }).click();
+  await expect(root.locator(":scope > p").first().locator("em")).toHaveText("first");
+  await open(page);
+  await menu(page).getByRole("menuitem", { name: "文字字号", exact: false }).click();
+  await menu(page).getByRole("menuitem", { name: "24px", exact: true }).click();
+  await open(page);
+  await menu(page).getByRole("menuitem", { name: "文字颜色", exact: false }).click();
+  await menu(page).getByRole("menuitem", { name: "默认颜色", exact: true }).focus();
+  await page.keyboard.press("Tab");
+  await expect(menu(page).getByLabel("自定义颜色", { exact: true })).toBeFocused();
+  await menu(page).getByLabel("自定义颜色", { exact: true }).fill("#247f7b");
+  await menu(page).getByRole("menuitem", { name: "应用颜色", exact: true }).click();
+  const marks = await root.evaluate(element => (element as any).editor.state.doc.child(0).firstChild.marks.map((mark: any) => ({ name: mark.type.name, attrs: mark.attrs })));
+  expect(marks).toEqual(expect.arrayContaining([{ name: "textStyle", attrs: { color: "#247f7b", fontSize: "24" } }, { name: "italic", attrs: {} }]));
+  await open(page);
+  await menu(page).getByRole("menuitem", { name: "文字颜色", exact: false }).click();
+  await menu(page).getByRole("menuitem", { name: "默认颜色", exact: true }).click();
+  expect(await root.evaluate(element => (element as any).editor.state.doc.child(0).firstChild.marks.find((mark: any) => mark.type.name === "textStyle").attrs)).toEqual({ color: null, fontSize: "24" });
+});
+
+for (const [readonly, virtual] of [[false, false], [true, false], [true, true]]) test(`隐藏块号时标题栏复用菜单，readonly=${readonly}，virtual=${virtual}`, async ({ page }) => {
+  await setup(page, readonly, virtual, false, false);
+  const button = page.getByRole("button", { name: "块级操作", exact: true });
+  await expect(button).toBeVisible();
+  await button.click();
+  const popup = page.locator(".block-action-menu");
+  await expect(popup).toBeVisible();
+  await expect(popup.getByRole("menuitem", { name: "复制 Markdown", exact: true })).toBeVisible();
+  await expect(page.getByRole("toolbar", { name: "块级操作" })).toHaveCount(0);
+  if (readonly) await expect(popup.getByRole("menuitem", { name: "粗体", exact: true })).toHaveCount(0);
+  else {
+    await expect(popup).toHaveAttribute("aria-label", "第 3 块");
+    await popup.getByRole("menuitem", { name: "粗体", exact: true }).click();
+    await expect(page.locator(".ProseMirror:visible > p").nth(2).locator("strong")).toHaveText("third");
+    await button.click();
+  }
+  await button.click();
+  await expect(popup).toHaveCount(0);
+});
+
+
+test("子菜单打开后切换块号，重新定位到新块且不沿用旧样式操作", async ({ page }) => {
+  await setup(page);
+  await open(page);
+  await menu(page).getByRole("menuitem", { name: "文字字号", exact: false }).click();
+  await page.getByRole("button", { name: "第 2 块操作", exact: true }).click();
+  const popup = page.getByRole("menu", { name: "第 2 块", exact: true });
+  await expect(popup.locator(".block-action-menu-group")).toHaveCount(6);
+  await popup.getByRole("menuitem", { name: "粗体", exact: true }).click();
+  await expect(page.locator(".ProseMirror:visible > p").nth(1).locator("strong")).toHaveText("second");
+  await expect(page.locator(".ProseMirror:visible > p").first().locator("strong")).toHaveCount(0);
 });

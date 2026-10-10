@@ -40,6 +40,7 @@ test.describe("手机块级操作", () => {
     await expect(editor.locator(":scope > p")).toHaveCount(3);
 
     await page.getByRole("button", { name: "块级操作", exact: true }).first().tap();
+    await page.locator(".block-action-menu").getByRole("menuitem", { name: "选择多个块", exact: true }).tap();
     const selectionToolbar = page.getByRole("toolbar", { name: "块级操作" });
     await expect(selectionToolbar).toContainText("1 块");
     await expect(editor).toHaveAttribute("contenteditable", "false");
@@ -61,6 +62,7 @@ test.describe("手机块级操作", () => {
     await expect(selectionToolbar).toHaveCount(0);
     await expect(editor).toHaveAttribute("contenteditable", "true");
     await page.getByRole("button", { name: "块级操作", exact: true }).first().tap();
+    await page.locator(".block-action-menu").getByRole("menuitem", { name: "选择多个块", exact: true }).tap();
     await expect(selectionToolbar).toContainText("1 块");
     const second = editor.locator(":scope > p").nth(1);
     const box = await second.boundingBox();
@@ -101,6 +103,7 @@ test.describe("手机块级操作", () => {
     });
     await expect(page.locator(".note-title")).toHaveValue("多块编辑测试");
     await page.getByRole("button", { name: "块级操作", exact: true }).tap();
+    await page.locator(".block-action-menu").getByRole("menuitem", { name: "选择多个块", exact: true }).tap();
     await page.locator(".ProseMirror > h2").tap();
     const toolbar = page.getByRole("toolbar", { name: "块级操作" });
     await expect(toolbar).toContainText("2 块");
@@ -158,6 +161,7 @@ test.describe("手机块级操作", () => {
     });
     await page.getByRole("button", { name: "点击设为只读" }).tap();
     await page.getByRole("button", { name: "块级操作", exact: true }).first().tap();
+    await page.locator(".block-action-menu").getByRole("menuitem", { name: "选择多个块", exact: true }).tap();
     const toolbar = page.getByRole("toolbar", { name: "块级操作" });
     const headingGutter = page.getByRole("button", { name: "选择第 2 块" });
     await expect(headingGutter).toHaveText("2");

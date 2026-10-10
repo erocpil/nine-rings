@@ -37,10 +37,10 @@ for (const [width, height] of [[390, 800], [844, 390], [1280, 800]]) {
       await expect(page.locator(".editor-menu")).toBeHidden();
       await page.locator(".ProseMirror h1, .ProseMirror p").first().click();
       await copy.click();
-      const blockToolbar = page.getByRole("toolbar", { name: "块级操作" });
-      await expect(blockToolbar).toBeVisible();
-      await blockToolbar.getByRole("button", { name: "复制", exact: true }).click();
-      await expect(page.getByText(/^已复制 1 个块/)).toBeVisible({ timeout: 5000 });
+      const blockMenu = page.locator(".block-action-menu");
+      await expect(blockMenu).toBeVisible();
+      await blockMenu.getByRole("menuitem", { name: "复制内容", exact: true }).click();
+      await expect(page.getByText("已复制此块", { exact: true })).toBeVisible({ timeout: 5000 });
       await bar.getByRole("button", { name: "点击设为只读" }).click();
       await expect(tools).toHaveCount(0);
       await expect(copy).toBeVisible();

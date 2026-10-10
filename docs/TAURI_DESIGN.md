@@ -1,193 +1,69 @@
-# Tauri 桌面版设计文档
+# Tauri 桌面版当前设计
 
-> 兼顾未来 Flutter 移动版，统一数据层与同步策略
-> 参考案例：Obsidian / Logseq / Bear / Standard Notes
+更新时间：2026-10-10。当前实现面向 macOS、Windows、Linux，共用 React 前端，通过 Rust/SQLite 提供桌面存储和原生能力。系统设计入口见[关键设计总览](current-design.md)，工具链与产物见[构建指南](TAURI_BUILD.md)。
 
----
+## 1. 分层与所有权
 
-## 1. 参考案例
+| 层 | 当前职责 | 主要入口 |
+| --- | --- | --- |
+| React 工作区 | 编辑器、文档树、首页、分栏、设置、阅读器 | `src/App.tsx`、`src/components/` |
+| 前端数据与保护 | 统一 API、模型转换、保护边界、保存队列、缓存与通知 | `src/lib/api.ts`、`src/lib/storage/`、`src/hooks/useAutoSave.ts` |
+| Tauri 适配 | 把公共数据操作映射到 IPC；Markdown 与 Web 共用序列化 | `src/lib/storage/tauri.ts`、`tauri-driver.ts` |
+| Rust 服务 | 受控命令、数据库查询与迁移、导入导出、窗口及生命周期 | `src-tauri/src/commands/`、`db/`、`service/` |
+| 本机持久化 | SQLite 数据库、WAL、应用数据目录中的会话诊断 | `src-tauri/src/db/mod.rs`、`desktop_lifecycle.rs` |
 
-| 产品 | 架构 | 存储 | 同步 | 借鉴点 |
-|------|------|------|------|--------|
-| **Obsidian** | Electron + 本地文件 | 文件系统 .md | Obsidian Sync / iCloud | 本地优先+插件体系，文件即数据 |
-| **Logseq** | Electron + Clojure | 文件系统 .md/.org | Git / iCloud | 开源、大纲式编辑、Git 同步 |
-| **Bear** | 原生 macOS/iOS | SQLite | CloudKit | 原生体验+静默同步 |
-| **Standard Notes** | Electron/RN | IndexedDB/SQLite | 加密同步 | 多层架构、端到端加密 |
-| **Notion** | Electron/RN | 云端 block store | 自带后端 | 协作编辑、block 模型 |
+组件通过前端数据门面操作文档，不直接依赖 SQLite 或完整 IPC 透传。存储适配器已实现，不是占位桩。Web 对应 IndexedDB；Flutter 独立使用 Dart/SQLite，不假设共用一个已实现的 Rust FFI 同步引擎。
 
-**Nine Rings 的定位**：本地优先 + 可选云端同步，与 Obsidian/Logseq 一致，但用富文本+SQLite 替代 markdown 文件。
+## 2. 模型与保存
 
----
+`schema/note.yaml` 与 `schema/config.yaml` 定义共享字段和默认值，生成物与各端契约测试共同防止漂移，不能将 TypeScript 模型单独视为全部端的数据真相源。
 
-## 2. 分层架构
+持久正文为扩展 Quill Delta JSON，活动富文本是 ProseMirror、活动源码是 CodeMirror。保存通过前端会话边界生成投影，再调用存储接口；数据库回执不能直接替换活动会话。富文本与整篇源码撤销历史独立，块工作区写回主事务。详见[编辑权威协议](editor-authority-and-workspace.md)。
 
-```
-┌─────────────────────────────────────────────────┐
-│                  UI Layer                        │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │
-│  │  React   │  │  Flutter  │  │   React       │  │
-│  │  (Web)   │  │ (Mobile)  │  │  (Tauri Web)  │  │
-│  └────┬─────┘  └────┬─────┘  └──────┬───────┘  │
-│       │             │              │            │
-├───────┼─────────────┼──────────────┼────────────┤
-│       │        API Layer (TypeScript / Dart)     │
-│       │   笔记 CRUD / 搜索 / 导出 / 配置管理      │
-│       │             │              │            │
-├───────┼─────────────┼──────────────┼────────────┤
-│       │       Storage Adapter (接口抽象)         │
-│  ┌────┴─────┐  ┌────┴─────┐  ┌────┴───────┐    │
-│  │IndexedDB │  │  SQLite   │  │   SQLite   │    │
-│  │ (Browser)│  │ (Tauri)   │  │ (Flutter)  │    │
-│  └──────────┘  └──────────┘  └────────────┘    │
-│                                                 │
-├─────────────────────────────────────────────────┤
-│               Sync Engine (Rust core)            │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │
-│  │  GitHub  │  │ WebDAV   │  │  Local File  │  │
-│  │  Gist    │  │          │  │  Sync        │  │
-│  └──────────┘  └──────────┘  └──────────────┘  │
-│                                                 │
-├─────────────────────────────────────────────────┤
-│            Native Features (Tauri)               │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │
-│  │  System  │  │  Global  │  │  Notifications│  │
-│  │  Tray    │  │ Hotkeys  │  │  (native)    │  │
-│  └──────────┘  └──────────┘  └──────────────┘  │
-└─────────────────────────────────────────────────┘
-```
+Rust 操作在其事务范围内保证一致性，数据库提交与前端设置保存不是一个跨系统原子事务。通用查询有验证边界；软删除、显式 null、路径规范化及受保护状态均需保留既有契约。字段失败恢复的计数与缓存时间戳不等于公开插件修订号。
 
-## 3. 各层详解
+## 3. 窗口与布局
 
-### 3.1 数据 Schema（跨端共享）
+主窗口关闭到托盘；真正退出是独立动作。原生全屏、应用专注模式和块/阅读器全屏分别管理，不能只用一个布尔值互相覆盖。
 
-```
-所有平台共享同一 TypeScript 类型定义，Rust/Dart 侧分别维护对应 struct/class。
+桌面工作区、悬停/固定分栏和三文档驻留与 Web 共用。进入首页保留当前文档和阅读器实例，返回按是否打开新文件决定恢复原记录或使用新内容；悬停打开不自动固定。详见[工作区恢复](web-workspace-chrome.md)和[布局](workspace-layout.md)。
 
-当前 types/models.ts 即为单一真相源。Rust 侧在 src-tauri/src/models.rs
-中维护等价 struct，Dart 侧在 lib/models/ 中维护等价 class。
+手机 PWA 的抽屉、边缘手势与安全区由响应式前端负责，不从桌面固定状态推导。当前没有在此设计 iOS Tauri 迁移或 Flutter 插件适配。
 
-同步时使用 JSON 序列化，版本号标记 schema version。
-```
+## 4. 启动、退出和恢复
 
-### 3.2 Storage Adapter（已有基础）
+应用数据目录的 `desktop-session.json` 保存主实例阶段，不包含正文。single-instance 防止第二实例覆盖主记录；异常终止后下次启动仍能检查未完成阶段。
 
-```
-当前已有 IndexedDB 适配器（idb.ts），Tauri 适配器桩代码（tauri.ts）。
+SQLite 打开时恢复可用的已提交 WAL，执行 `quick_check` 与非阻塞 checkpoint；完整性失败进入只读保护，保留原文件，不创建空数据库替代用户数据。严重打开错误可能阻止界面初始化，必须保留诊断信息。
 
-Tauri 版实现：
-  - Rust 侧：使用 rusqlite 管理 SQLite，与 IndexedDB schema 对齐
-  - IPC 通信：tauri::command 暴露 CRUD 接口
-  - JS 侧：tauriAdapter 调用 invoke() 而非 IndexedDB API
+macOS 两次 Command+Q 的确认退出路径先等待前端保存，再进行数据库和资源清理，没有额外固定延时；托盘退出不是前端保存握手完成的证据。Windows Job Object 只有配置与分配成功才报告生效。所有端记录阶段与耗时，但正常退出事件不证明子进程或文件锁已经释放，仍需相应平台真机观察。
 
-Flutter 版实现：
-  - Dart 侧：使用 sqflite 包管理 SQLite
-  - 实现与 StorageAdapter 接口对等的 Dart abstract class
-  - 数据迁移脚本与 Tauri 版共享 SQL 逻辑
-```
+设置 → 高级可查看当前状态、前次退出与恢复结果。日志位于系统临时目录，持久检测依赖应用数据记录。详见[启动与退出诊断](desktop-startup-recovery.md)。
 
-### 3.3 Sync Engine
+## 5. 原生 PDF 打印与 IPC
 
-```
-设计为独立 Rust crate，Tauri 直接调用，Flutter 通过 FFI 调用。
+文档 PDF 导出先准备独立渲染正文，等待字体、图片和图表，再打开应用自带 `pdf-print.html` 的 `pdf-print-*` WebView。预览通过 `print_pdf_document` 调用原生打印，失败可重试，不依赖隐藏 iframe 的 `window.print()`。
 
-三阶段：
-  Phase 1 — GitHub Backend
-    方案 A（已完成设计）：全量 JSON 备份/恢复到 GitHub 仓库
-    - 手动触发 push/pull
-    - 按 updated_at 时间戳合并冲突
+打印窗口限制调用来源与导航，不继承主窗口完整文件/网络权限；普通关闭销毁它，只有主窗口关闭到托盘。正文预处理、系统打印对话框、PDF 实际保存与查看器书签支持分别验证。实现见 `src/lib/pdf-export.ts`、`src/pdf-print.ts` 与 `src-tauri/src/commands/window.rs`。
 
-  Phase 2 — WebDAV / 本地文件
-    增量同步，类似 Obsidian Sync：
-    - 每篇笔记独立 JSON 文件
-    - 目录结构映射 P.A.R.A. 文档树
-    - 冲突策略：last-write-wins + 版本历史
+`src-tauri/capabilities/` 提供窗口能力范围，应用自定义 IPC 命令也必须校验调用方及参数；不能把窗口能力声明等同于逐插件授权。应用插件隔离仍是[插件草案](plugin-system-design.md)的后续方向。
 
-  Phase 3 — 实时同步
-    CRDT 或操作日志（op-log）：
-    - 每条编辑记录为操作事件
-    - 按 Lamport 时间戳排序合并
-    - 支持离线编辑后自动合并
-```
+## 6. 备份与保护边界
 
-### 3.4 Native Features
+GitHub 是应用 JSON 快照备份服务，不是项目源码 Git 操作或实时协作引擎。当前普通版本历史不进入全量备份，加密版本使用独立 `protected_versions`。PDF/EPUB 原文件和设备阅读数据另有单书阅读备份，不进入应用 JSON。
 
-```
-┌──────────────────────────────────────────────┐
-│ System Tray                                  │
-│  ┌────────────────┐                          │
-│  │ 📝 新建随笔     │  Ctrl+N                 │
-│  │ 🔍 快速搜索     │  Ctrl+Shift+F            │
-│  │ ─────────────  │                          │
-│  │ 📊 今日统计     │                          │
-│  │ ⚙ 设置         │                          │
-│  │ ❌ 退出         │                          │
-│  └────────────────┘                          │
-│                                              │
-│ Global Hotkeys（即使窗口在后台也响应）         │
-│  Ctrl+Shift+N   → 新建随笔（全局弹出小窗口）   │
-│  Ctrl+Shift+F   → 全局搜索（弹出搜索浮窗）     │
-│  Ctrl+Shift+T   → 快速待办（弹出输入框）       │
-│                                              │
-│ Quick Capture 浮窗                           │
-│  类似 Apple Notes 的 Quick Note / Drafts 的   │
-│  快速捕获：全局热键 → 小窗口 → 输入 → Enter   │
-│  保存 → 窗口消失，不打断当前工作流             │
-└──────────────────────────────────────────────┘
-```
+前端恢复协调使用同源 Web Lock 与中断记录，不能阻止其他原生进程或普通编辑写入，也不能宣称多库恢复原子性。详见[恢复协调](backup-restore-coordination.md)与[阅读数据备份](reading-data-backup.md)。
 
-## 4. 实施路线
+文档/路径密码保护已实现，SQLite 保存密文与必要保护记录；标题、路径等定位信息保持公开，解锁正文不进入全局索引。密码/密钥不进入备份，也不追溯清除旧明文副本。详见[保护设计](document-encryption.md)。
 
-| 阶段 | 内容 | 预估 | 产出 |
-|------|------|------|------|
-| **Phase 0** | PWA + GitHub 备份 | 已完成 | Web 端可安装+备份 |
-| **Phase 1** | Tauri 壳 + SQLite | 1-2 周 | 桌面窗口 + SQLite 替代 IndexedDB |
-| **Phase 2** | 系统托盘 + 全局热键 | 1 周 | 托盘菜单 + 快捷新建/搜索 |
-| **Phase 3** | Quick Capture | 3 天 | 全局热键弹出小窗口快速记录 |
-| **Phase 4** | 增量同步 (GitHub) | 1-2 周 | 多设备同步 |
-| **Phase 5** | Flutter 移动端 | 3-4 周 | iOS/Android 原生 App |
-| **Phase 6** | 实时同步 | 2-3 周 | 多人协作 |
+## 7. 构建与验收
 
-## 5. 关键技术选型
+使用仓库 `.node-version`、`rust-toolchain.toml`、锁文件与当前平台 workflow；隔离工具和产物优先放稳定的 `.local-tools/`，避免全局安装与依赖 `/tmp` 长期保留。版本和命令以[本地工具链](local-toolchain.md)及[构建指南](TAURI_BUILD.md)为准。
 
-| 层 | Tauri | Flutter |
-|----|-------|---------|
-| 存储 | rusqlite + SQLite | sqflite + SQLite |
-| 同步 | Rust crate (共享) | Rust FFI 调用同一 crate |
-| 富文本 | Quill Delta → TipTap (React) | Quill Delta → flutter_quill |
-| 通知 | tauri-plugin-notification | flutter_local_notifications |
-| 热键 | tauri-plugin-global-shortcut | —（移动端无此需求） |
+前端构建、Rust 编译、`.app`/安装包生成、签名/公证和真实运行是不同阶段。Tauri IPC 模拟与 Playwright WebKit 不能代替 macOS 原生输入法/打印，CI 编译不能代替 Windows/Linux 的进程退出与安装版测试。
 
-## 6. 跨端数据流
+## 8. 计划与当前实现的分界
 
-```
-          ┌─────────┐
-          │ GitHub  │  ← 同步后端
-          │  Repo   │
-          └────┬────┘
-               │ JSON
-    ┌──────────┼──────────┐
-    │          │          │
-┌───┴───┐ ┌───┴───┐ ┌───┴───┐
-│Tauri  │ │  Web  │ │Flutter│
-│SQLite │ │ IDB   │ │SQLite │
-└───────┘ └───────┘ └───────┘
+旧版文档中的共享 Rust Sync Engine、WebDAV/本地文件增量同步、CRDT 实时协作与 Quick Capture 阶段图属于早期设想，不能作为已实现能力。本文用当前职责取代该阶段图；演进方向另见[未来演进](future-evolution.md)。
 
-- 所有端共享同一 schema (types/models.ts)
-- 同步格式：JSON + 版本号
-- 图片：blob 引用 + 独立同步
-```
-
-## 7. 不做的事情
-
-- 不追求自建同步服务器（成本高，GitHub/WebDAV 够用）
-- 不复制 Obsidian 的插件市场（过早优化）
-- 不实现端到端加密（Phase 1 不做，GitHub 私有仓库已够用）
-- Flutter 不做全局热键（移动端无此概念）
-
----
-
-> 参考：
-> - Obsidian 架构：https://obsidian.md/about
-> - Logseq 同步设计：https://docs.logseq.com
-> - Tauri v2 插件体系：https://v2.tauri.app
-> - Standard Notes 架构：https://standardnotes.com/help
+插件重构当前仅有草案；统一修订协调器、SDK、安装器和第三方隔离均未实施，首次宿主代码实现计划提升产品版本，不在文档更新时改版本。

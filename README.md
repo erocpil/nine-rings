@@ -56,6 +56,8 @@
 
 手动 JSON 导出、紧急恢复文件和 GitHub 全量快照共用相同备份格式，包含文档、Markdown 任务列表、正文书签、应用配置、界面相关的非敏感用户设置，以及最后打开的文档与其光标/滚动位置。恢复成功后应用会自动重新载入并立即应用这些设置。本地 PDF、EPUB 原文件及其设备阅读进度、批注和书签不进入备份；由阅读器创建的摘录笔记会正常进入备份。GitHub Token、密码、密钥和授权凭据始终排除，恢复后需要在当前设备重新提供。
 
+普通回收站文档与普通文档版本历史不进入上述备份；加密版本通过 `protected_versions` 单独保留。PDF/EPUB 阅读数据可另行导出单书 `*.reading.json`。提交/推送本项目源码不会备份应用数据库。完整边界见[当前设计总览](docs/current-design.md#11-备份保护与多窗口)。
+
 ---
 
 ## 技术栈
@@ -79,11 +81,21 @@
 
 ### 数据契约
 
-两端共享 `schema/note.yaml` 和 `schema/config.yaml` 作为数据格式与配置字段的单一事实来源。Tauri（Rust）和 Flutter（Dart）各自按 Schema 实现持久化，保证跨端兼容。
+Web、Tauri 与 Flutter 共享 `schema/note.yaml` 和 `schema/config.yaml` 作为字段与默认值的事实来源。共享字段需同步生成物并验证导入导出；这不代表各端已支持全部正文扩展或相同的 Markdown 呈现。
 
 ### 内容格式
 
-所有富文本统一为 [Quill Delta](https://quilljs.com/docs/delta/) JSON。Web 端用 TipTap 原生 Delta，Flutter 端通过 Delta ↔ ProseMirror 转换层互转。
+持久化与 JSON 交换使用应用扩展的 [Quill Delta](https://quilljs.com/docs/delta/) JSON。React 富文本编辑使用 TipTap / ProseMirror，通过转换器生成 Delta；源码编辑使用 CodeMirror，解析与预览由源码派生。Flutter 使用 flutter_quill 直接读写 Delta，尚未迁移 React 的 CommonMark/GFM 内核。富文本与整篇源码的撤销历史目前独立。
+
+### 当前关键设计
+
+[当前设计总览](docs/current-design.md)汇总内容权威、保存与恢复、三文档驻留、首页与分栏、Markdown、搜索、大文档性能、阅读资料库和平台边界，并链接各专题。历史设计与未实现计划不作为当前功能承诺。
+
+### 插件体系规划
+
+插件体系目前处于设计阶段，标准与 SDK 草案见[插件体系设计](docs/plugin-system-design.md)。计划先完成现有功能模块化，用三个内置试点验证最小宿主；第三方扩展作为有实际需求后启动的可选方向。
+
+插件适配前的代码基线为 `v0.1.0`（`05e624a`）。当前产品版本保持 `0.1.0`；首次实现插件宿主代码时，计划同步提升 Web/Tauri 产品版本至 `0.2.0`。SDK、插件和内容格式的版本独立管理，执行步骤见[插件适配版本与发布计划](docs/plugin-release-plan.md)。
 
 ---
 
@@ -254,6 +266,10 @@ nine-rings/
 
 | 文档 | 说明 |
 |------|------|
+| [`docs/current-design.md`](./docs/current-design.md) | 当前关键设计与约束的统一入口，区分已实现能力与后续计划 |
+| [`docs/editor-authority-and-workspace.md`](./docs/editor-authority-and-workspace.md) | 内容权威、三文档驻留、块工作区同步与源码边界 |
+| [`docs/plugin-system-design.md`](./docs/plugin-system-design.md) | 插件体系草案、宿主/SDK 契约与分阶段验证 |
+| [`docs/plugin-release-plan.md`](./docs/plugin-release-plan.md) | 插件适配基线与版本提升计划 |
 | [`docs/TAURI_BUILD.md`](./docs/TAURI_BUILD.md) | Tauri 桌面端完整构建指南（macOS / Linux / Windows） |
 | [`docs/FLUTTER_BUILD.md`](./docs/FLUTTER_BUILD.md) | Flutter 移动端 + macOS 桌面构建指南（macOS / iOS） |
 | [`docs/TAURI_DESIGN.md`](./docs/TAURI_DESIGN.md) | Tauri 架构设计文档 |

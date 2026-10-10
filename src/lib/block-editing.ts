@@ -9,6 +9,33 @@ import type { DocumentBookmark, DocumentReferenceAnchor } from "../types/models"
 
 const VISUAL_MARKS = new Set(["bold", "italic", "strike", "underline", "textStyle", "inlineHighlight", "highlight"]);
 
+export type BlockTextFormat = "bold" | "italic" | "fontSize" | "color";
+
+/** Format all eligible text in one block, preserving semantic marks and the selection. */
+export function formatBlockText(tr: Transaction, position: number, format: BlockTextFormat, value?: string): Transaction {
+  const block = tr.doc.nodeAt(position);
+  const markType = tr.doc.type.schema.marks[format === "bold" || format === "italic" ? format : "textStyle"];
+  if (!block || !markType) return tr;
+  const ranges: { node: Node; from: number; to: number }[] = [];
+  block.descendants((node, offset, parent) => {
+    if (!node.isText || !parent?.type.allowsMarkType(markType) || node.marks.some(mark => mark.type.name === "code")) return;
+    ranges.push({ node, from: position + 1 + offset, to: position + 1 + offset + node.nodeSize });
+  });
+  const toggle = format === "bold" || format === "italic";
+  const remove = toggle && ranges.every(({ node }) => markType.isInSet(node.marks));
+  for (const { node, from, to } of ranges) {
+    if (toggle) {
+      if (remove) tr.removeMark(from, to, markType);
+      else tr.addMark(from, to, markType.create());
+    } else {
+      const attrs = { ...markType.isInSet(node.marks)?.attrs, [format]: value || null };
+      tr.removeMark(from, to, markType);
+      if (Object.values(attrs).some(attr => attr != null && attr !== "")) tr.addMark(from, to, markType.create(attrs));
+    }
+  }
+  return tr;
+}
+
 /** Clear visual overrides throughout a compound block without removing semantic marks/nodes. */
 export function clearBlockTextStyles(tr: Transaction, position: number): Transaction {
   const block = tr.doc.nodeAt(position);

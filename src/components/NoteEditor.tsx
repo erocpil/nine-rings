@@ -17,9 +17,9 @@ import { findTextMatches, searchPatternError } from "../lib/search-matching";
 import { useSearchRegex } from "../hooks/useSearchRegex";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CopyBlockNotice } from "./CopyBlockNotice";
-import { BlockActionMenu, type BlockMenuAction } from "./BlockActionMenu";
+import { BlockActionMenu, groupBlockMenuActions, type BlockMenuAction } from "./BlockActionMenu";
 import { copyDocumentBlock } from "../lib/block-clipboard";
-import { clearBlockTextStyles, clipboardBlockFragment, clipboardCutBlock, rememberCutBlock } from "../lib/block-editing";
+import { clearBlockTextStyles, formatBlockText, type BlockTextFormat, clipboardBlockFragment, clipboardCutBlock, rememberCutBlock } from "../lib/block-editing";
 import { RenderedLinkMenu } from "./RenderedLinkMenu";
 import { filterQuickSwitcherNotes, rankQuickSwitcherNotes, readRecentNoteIds } from "../lib/quick-switcher";
 import { MarkdownDocumentView } from "./MarkdownDocumentView";
@@ -2981,11 +2981,13 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   };
   const selectedIndexes = () => selectedBlockIndexList
     .filter((index) => index >= 0 && index < editor.state.doc.childCount);
-  const beginBlockSelection = () => {
-    if (selectedBlockIndexes.size > 0) { setSelectedBlockIndexes(new Set()); return; }
-    const block = topLevelBlockAt(editor.state.selection.from);
-    setSelectedBlockIndexes(new Set([block.index]));
+  const openCurrentBlockMenu = (trigger: HTMLButtonElement) => {
+    const position = activeLinePluginKey.getState(editor.state)?.readingBlockPosition
+      ?? (readonly && readonlyCopyPosition.current !== null ? readonlyCopyPosition.current : editor.state.selection.from);
+    const block = topLevelBlockAt(position);
     closeToolbarDropdowns();
+    setContextMenu(null);
+    setBlockMenu(current => current?.trigger === trigger && current.doc === editor.state.doc ? null : { position: block.pos, trigger, doc: editor.state.doc });
   };
   const copySelectedBlocks = async () => {
     const indexes = selectedIndexes();
@@ -3771,7 +3773,29 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           setCopyBlockNotice("已剪切此块");
         } catch { setCopyBlockNotice("剪切失败，原块已保留，请重试"); }
       };
+      const applyFormat = (format: BlockTextFormat, value?: string) => {
+        if (!writable()) return;
+        const tr = formatBlockText(editor.state.tr, position, format, value);
+        if (tr.docChanged) preserveReadingPositions(() => finishEdit(tr));
+      };
+      const canFormat = (() => {
+        let eligible = false;
+        node.descendants((child, _offset, parent) => {
+          if (child.isText && parent?.type.allowsMarkType(editor.schema.marks.textStyle) && !child.marks.some(mark => mark.type.name === "code")) eligible = true;
+        });
+        return eligible;
+      })();
       actions.push(
+        { label: "粗体", disabled: !canFormat, run: () => applyFormat("bold") },
+        { label: "斜体", disabled: !canFormat, run: () => applyFormat("italic") },
+        { label: "文字字号", disabled: !canFormat, run: () => {}, children: [
+          { label: "默认字号", run: () => applyFormat("fontSize", "") },
+          ...[12, 14, 16, 18, 20, 24, 28, 32].map(size => ({ label: `${size}px`, run: () => applyFormat("fontSize", `${size}`) })),
+        ] },
+        { label: "文字颜色", disabled: !canFormat, run: () => {}, children: [
+          { label: "默认颜色", run: () => applyFormat("color", "") },
+          { label: "自定义颜色", run: () => {}, colorControl: { value: "#333333", apply: value => applyFormat("color", value) } },
+        ] },
         { label: "清除文字样式", run: () => finishEdit(clearBlockTextStyles(editor.state.tr, position)) },
         { label: "在本块前粘贴块", run: () => { void pasteBlocks(position); } },
         { label: "在本块后粘贴块", run: () => { void pasteBlocks(end); } },
@@ -3801,7 +3825,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         editor.view.dispatch(closeHistory(editor.state.tr));
       },
     });
-    return actions.map((action, index) => index >= editStart ? isolate(action) : action);
+    return groupBlockMenuActions(actions.map((action, index) => index >= editStart ? isolate(action) : action));
   };
   const bookmarkPanel = bookmarkOpen && (
         <nav
@@ -3934,7 +3958,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
             aria-label={bookmarks.length > 0 ? `文档书签，共 ${bookmarks.length} 项` : "文档书签"}
           ><FocusModeIcon name="bookmark" />{bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}</button>
-          <button type="button" title="块级操作" aria-label="块级操作" aria-pressed={selectedBlockIndexes.size > 0} onMouseDown={(event) => event.preventDefault()} onClick={beginBlockSelection}><ToolbarIcon name="copy" /></button>
+          {!showLineNumbers && selectedBlockIndexes.size === 0 && <button type="button" title="块级操作" aria-label="块级操作" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>}
           {!readonly && (
             <button
               type="button"
@@ -4114,8 +4138,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             )}
           </div>
           {saveIssue && <button type="button" className="focus-btn workspace-error-indicator" aria-label="查看保存错误详情" title="查看保存错误详情" onClick={onOpenSaveIssue}><ToolbarIcon name="warning" /></button>}
-          {(isMobileToolbarViewport || readonly || (unifiedTitleBar && focusMode)) && (
-            <button type="button" className="focus-btn readonly-copy-block" title="块级操作" aria-label="块级操作" aria-pressed={selectedBlockIndexes.size > 0} onMouseDown={(event) => event.preventDefault()} onClick={beginBlockSelection}><ToolbarIcon name="copy" /></button>
+          {!showLineNumbers && selectedBlockIndexes.size === 0 && (
+            <button type="button" className="focus-btn readonly-copy-block" title="块级操作" aria-label="块级操作" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>
           )}
           {pdfExcerptSource && onOpenPdfExcerpt && (
             <button
@@ -4293,7 +4317,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
 
         {/* ── 编辑器内容 ── */}
         <CopyBlockNotice message={copyBlockNotice} onClose={() => setCopyBlockNotice("")} />
-        {blockMenu && documentActive && editor.state.doc === blockMenu.doc && <BlockActionMenu trigger={blockMenu.trigger} title={`第 ${editor.state.doc.resolve(blockMenu.position).index(0) + 1} 块`} actions={blockMenuActions()} onClose={closeBlockMenu} />}
+        {blockMenu && documentActive && editor.state.doc === blockMenu.doc && <BlockActionMenu key={blockMenu.position} trigger={blockMenu.trigger} title={`第 ${editor.state.doc.resolve(blockMenu.position).index(0) + 1} 块`} actions={blockMenuActions()} onClose={closeBlockMenu} />}
         {selectedBlockIndexes.size > 0 && (() => {
           const count = selectedIndexes().length;
           return count > 0 ? <div className="block-selection-toolbar" role="toolbar" aria-label="块级操作">

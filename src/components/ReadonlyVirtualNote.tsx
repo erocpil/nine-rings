@@ -1,5 +1,5 @@
 import { BlockNumber } from "./BlockNumber";
-import { BlockActionMenu, type BlockMenuAction } from "./BlockActionMenu";
+import { BlockActionMenu, groupBlockMenuActions, type BlockMenuAction } from "./BlockActionMenu";
 import { copyDocumentBlock } from "../lib/block-clipboard";
 import { DeferredFlowBlock } from "./DeferredFlowBlock";
 import { flowBlockAttributes, flowHeadingLevel } from "../lib/flow-presentation";
@@ -24,7 +24,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import { CopyBlockNotice } from "./CopyBlockNotice";
 import { BLOCK_WORKSPACE_DISPLAY_EVENT, codeLineNumbersEnabled, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
 import { CODE_LANGUAGE_OPTIONS, normalizeCodeLanguage } from "../lib/code-highlight";
-import { DOMSerializer, Slice } from "@tiptap/pm/model";
+import { Slice } from "@tiptap/pm/model";
 import type { NoteEditorProps } from "./NoteEditor";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -943,40 +943,19 @@ export function ReadonlyVirtualNote(
     ];
     if (sectionByPos.has(pos)) actions.push({ label: "折叠 / 展开本节", run: () => toggleHeading(pos) });
     else if (["codeBlock", "blockquote", "htmlDetails"].includes(node.type.name)) actions.push({ label: "折叠 / 展开此块", run: () => updateBlock(pos, { collapsed: !(states.get(pos)?.collapsed ?? (node.type.name === "htmlDetails" ? node.attrs.open !== true : node.attrs.collapsed === true)) }) });
-    return actions;
+    return groupBlockMenuActions(actions);
   };
   const toolbar = (
     <>
-      <button type="button" title="复制块" aria-label="复制块" onMouseDown={(event) => event.preventDefault()} onClick={async () => {
-        const pos = copyPosition.current ?? capture().position;
-        const node = doc.nodeAt(pos);
-        if (!node) return;
-        const slice = doc.slice(pos, pos + node.nodeSize);
-        const text = clipboardSliceToPlainText(slice);
-        try {
-          const container = document.createElement("div");
-          container.append(DOMSerializer.fromSchema(doc.type.schema).serializeFragment(slice.content));
-          await navigator.clipboard.write([new ClipboardItem({
-            "text/plain": new Blob([text], { type: "text/plain" }),
-            "text/html": new Blob([container.innerHTML], { type: "text/html" }),
-          })]);
-          setNotice("已复制当前块（保留格式）");
-        } catch {
-          try { await copyToClipboard(text, { reportFailure: true }); setNotice("已复制当前块（纯文本）"); }
-          catch { setNotice("复制块失败，请检查剪贴板权限后重试"); }
-        }
-      }}><ToolbarIcon name="copy" /></button>
-      <button type="button" title="复制块引用" aria-label="复制块引用" onMouseDown={event => event.preventDefault()} onClick={async () => {
-        const anchor = referenceAnchorAt(doc, "block", copyPosition.current ?? capture().position);
-        const existing = props.content.metadata?.referenceAnchors ?? [];
-        const reused = existing.find(item => !item.deleted && item.kind === anchor.kind && item.from === anchor.from && item.to === anchor.to);
-        const target = reused ?? anchor;
-        try {
-          if (!reused) props.onContentChange(() => ({ ...props.content, metadata: { ...props.content.metadata, referenceAnchors: [...existing, anchor] } }), { metadataOnly: true });
-          await copyToClipboard(deltaToMarkdown({ ops: [{ insert: target.preview, attributes: { link: `nr-note://${noteId}#nr-ref-${target.id}` } }, { insert: "\n" }] }), { reportFailure: true, beforeCopy: () => props.onFlush?.() ?? Promise.resolve() });
-          setNotice("已复制引用，可粘贴到任意文档");
-        } catch { setNotice("复制引用失败，请重试"); }
-      }}><ToolbarIcon name="link" /></button>
+      {!props.showLineNumbers && <button type="button" title="块级操作" aria-label="块级操作" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={event => event.preventDefault()} onClick={event => {
+        const currentPosition = copyPosition.current ?? capture().position;
+        const resolved = doc.resolve(Math.max(0, Math.min(currentPosition, doc.content.size)));
+        const index = Math.min(doc.childCount - 1, resolved.index(0));
+        let position = 0;
+        for (let i = 0; i < index; i++) position += doc.child(i).nodeSize;
+        const trigger = event.currentTarget;
+        setBlockMenu(current => current?.trigger === trigger && current.doc === doc ? null : { position, number: index + 1, trigger, doc });
+      }}><ToolbarIcon name="copy" /></button>}
       {props.documentViewToggle}
       <button
         ref={outlineTriggerRef}
@@ -1160,7 +1139,7 @@ export function ReadonlyVirtualNote(
   const tocContext = useMemo(() => ({ items: extractDocumentOutline(doc), navigate: navigateHeading }), [doc, navigateHeading]);
   return (
     <DocumentOutlineContext.Provider value={tocContext}>
-    {blockMenu && active && doc === blockMenu.doc && <BlockActionMenu title={`第 ${blockMenu.number} 块`} trigger={blockMenu.trigger} actions={blockMenuActions()} onClose={closeBlockMenu} />}
+    {blockMenu && active && doc === blockMenu.doc && <BlockActionMenu key={blockMenu.position} title={`第 ${blockMenu.number} 块`} trigger={blockMenu.trigger} actions={blockMenuActions()} onClose={closeBlockMenu} />}
     <div
       className={`note-editor note-editor-readonly vr-note ${desktopPanelClass(desktopPanels, sections.length > 0)} ${props.cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${props.focusMode ? "focus-mode" : ""} ${props.showLineNumbers ? "show-line-numbers" : ""} ${props.highlightActiveLine ? "" : "no-active-line"}`}
       data-virtual-reader="true"

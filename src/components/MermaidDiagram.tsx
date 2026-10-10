@@ -2,7 +2,7 @@ import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, 
 import { MermaidTypographyContext } from "./ReadingTypographyProvider";
 import { createPortal } from "react-dom";
 import { BLOCK_WORKSPACE_DISPLAY_EVENT } from "../lib/block-display-settings";
-import { pinchScale, pinchView, touchCenter } from "../lib/diagram-gesture";
+import { diagramWheelDelta, pinchScale, pinchView, touchCenter, wheelZoomFactor } from "../lib/diagram-gesture";
 import { renderMermaid } from "../lib/mermaid-render";
 
 export type MermaidViewTransform = { scale: number; x: number; y: number };
@@ -26,6 +26,7 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
   const [toolbar, setToolbar] = useState<Element | null>(null);
   const inlineBaseWidth = useRef(0);
   const pointerPinch = useRef<PinchStart | null>(null);
+  const directTouchActive = useRef(false);
   const inlineAnchor = useRef<{ x: number; y: number; center: PointerPosition } | null>(null);
   const pointers = useRef(new Map<number, PointerPosition>());
   const viewRef = useRef<MermaidViewTransform>(initialView);
@@ -55,6 +56,10 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
   const zoomAt = useCallback((factor: number, point?: PointerPosition) => {
     if (!interactive) {
       const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, viewRef.current.scale * factor));
+      const bounds = rootRef.current?.querySelector("svg")?.getBoundingClientRect();
+      if (point && bounds?.width && bounds.height) {
+        inlineAnchor.current = { x: (point.x - bounds.left) / bounds.width, y: (point.y - bounds.top) / bounds.height, center: point };
+      }
       applyView({ scale, x: 0, y: 0 });
       return;
     }
@@ -71,14 +76,60 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
   useEffect(() => {
     const viewport = interactive ? viewportRef.current : rootRef.current;
     if (!viewport) return;
+    let nativeGesture: { scale: number; point: PointerPosition } | null = null;
     const wheel = (event: WheelEvent) => {
-      if (!interactive && !event.ctrlKey && !event.metaKey) return;
+      const delta = diagramWheelDelta(event, { width: viewport.clientWidth, height: viewport.clientHeight });
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!nativeGesture && !directTouchActive.current && pointers.current.size === 0 && delta.y !== 0) {
+          zoomAt(wheelZoomFactor(delta.y), { x: event.clientX, y: event.clientY });
+        }
+        return;
+      }
+      if (interactive) {
+        const before = viewRef.current;
+        applyView({ ...before, x: before.x - delta.x, y: before.y - delta.y });
+        event.preventDefault();
+        event.stopPropagation();
+      } else {
+        // Consume only when the diagram can move. At its boundary, leave the
+        // native wheel available to scroll the document instead of trapping it.
+        const left = viewport.scrollLeft, top = viewport.scrollTop;
+        viewport.scrollLeft += delta.x;
+        viewport.scrollTop += delta.y;
+        if (viewport.scrollLeft !== left || viewport.scrollTop !== top) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }
+    };
+    // Safari/WKWebView can report native GestureEvents instead of ctrl+wheel.
+    // Touchscreen pinch already has its own handler; do not apply it twice.
+    const gesture = (event: Event) => {
+      if (directTouchActive.current || pointers.current.size > 0 || !result.svg) return;
+      const native = event as Event & { scale?: number; clientX?: number; clientY?: number };
+      const bounds = viewport.getBoundingClientRect();
+      const point = {
+        x: native.clientX !== undefined && native.clientX >= bounds.left && native.clientX <= bounds.right ? native.clientX : bounds.left + bounds.width / 2,
+        y: native.clientY !== undefined && native.clientY >= bounds.top && native.clientY <= bounds.bottom ? native.clientY : bounds.top + bounds.height / 2,
+      };
+      if (event.type === "gesturestart") nativeGesture = { scale: viewRef.current.scale, point };
+      if (!nativeGesture) return;
       event.preventDefault();
-      zoomAt(event.deltaY > 0 ? 1 / ZOOM_STEP : ZOOM_STEP, { x: event.clientX, y: event.clientY });
+      event.stopPropagation();
+      if (event.type === "gestureend") { nativeGesture = null; return; }
+      if (event.type === "gesturechange" && native.scale !== undefined && Number.isFinite(native.scale) && native.scale > 0) {
+        zoomAt(nativeGesture.scale * native.scale / viewRef.current.scale, nativeGesture.point);
+      }
     };
     viewport.addEventListener("wheel", wheel, { passive: false });
-    return () => viewport.removeEventListener("wheel", wheel);
-  }, [interactive, result.svg, zoomAt]);
+    for (const type of ["gesturestart", "gesturechange", "gestureend"]) viewport.addEventListener(type, gesture, { passive: false });
+    return () => {
+      viewport.removeEventListener("wheel", wheel);
+      for (const type of ["gesturestart", "gesturechange", "gestureend"]) viewport.removeEventListener(type, gesture);
+    };
+  }, [interactive, result.svg, zoomAt, applyView]);
 
   useEffect(() => {
     if (interactive) return;
@@ -87,6 +138,7 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
     let gesture: (PinchStart & { anchorX: number; anchorY: number }) | null = null;
     let consumed = false;
     const pinch = (event: TouchEvent) => {
+      directTouchActive.current = event.type !== "touchcancel" && event.touches.length > 0;
       if (event.touches.length >= 2 || consumed) {
         if (event.cancelable) event.preventDefault();
         event.stopPropagation();
@@ -124,6 +176,7 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
     root.addEventListener("touchend", pinch, { passive: false });
     root.addEventListener("touchcancel", pinch, { passive: false });
     return () => {
+      directTouchActive.current = false;
       inlineAnchor.current = null;
       root.removeEventListener("touchstart", pinch);
       root.removeEventListener("touchmove", pinch);

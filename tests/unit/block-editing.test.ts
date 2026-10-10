@@ -3,6 +3,7 @@ import { Schema } from "@tiptap/pm/model";
 import { EditorState } from "@tiptap/pm/state";
 import {
   clearBlockTextStyles,
+  formatBlockText,
   clipboardBlockFragment,
 } from "../../src/lib/block-editing";
 import {
@@ -27,12 +28,15 @@ const schema = new Schema({
       atom: true,
       attrs: { id: { default: "" } },
     },
+    codeBlock: { group: "block", content: "text*", marks: "" },
     text: { group: "inline" },
   },
   marks: {
     bold: {},
     italic: {},
-    textStyle: { attrs: { color: { default: null } } },
+    textStyle: {
+      attrs: { color: { default: null }, fontSize: { default: null } },
+    },
     link: { attrs: { href: {} } },
     code: {},
   },
@@ -155,5 +159,87 @@ describe("block editing", () => {
         deleted: false,
       })),
     );
+  });
+});
+
+describe("whole-block text formatting", () => {
+  it("normalizes mixed nested text in one transaction, preserving neighbours, links and selection", () => {
+    const first = schema.node("blockquote", null, [
+      schema.node("paragraph", null, [
+        schema.text("first", [
+          schema.marks.bold.create(),
+          schema.marks.link.create({ href: "https://example.com" }),
+        ]),
+        schema.text("second"),
+      ]),
+      schema.node("paragraph", null, schema.text("third")),
+    ]);
+    const doc = schema.node("doc", null, [
+      first,
+      schema.node("paragraph", null, schema.text("after")),
+    ]);
+    const state = EditorState.create({ doc });
+    const next = state.apply(formatBlockText(state.tr, 0, "bold"));
+    expect(next.selection.eq(state.selection)).toBe(true);
+    expect(next.doc.child(1).eq(doc.child(1))).toBe(true);
+    expect(
+      next.doc
+        .child(0)
+        .child(0)
+        .firstChild!.marks.some((mark) => mark.type.name === "link"),
+    ).toBe(true);
+    const marks: string[][] = [];
+    next.doc.child(0).descendants((node) => {
+      if (node.isText) marks.push(node.marks.map((mark) => mark.type.name));
+    });
+    expect(marks.every((item) => item.includes("bold"))).toBe(true);
+    const cleared = next.apply(formatBlockText(next.tr, 0, "bold"));
+    cleared.doc.child(0).descendants((node) => {
+      expect(node.marks.some((mark) => mark.type.name === "bold")).toBe(false);
+    });
+  });
+
+  it("changes and resets one textStyle attribute without losing the other", () => {
+    const doc = schema.node(
+      "doc",
+      null,
+      schema.node(
+        "paragraph",
+        null,
+        schema.text("text", [
+          schema.marks.textStyle.create({ color: "#247f7b", fontSize: "16" }),
+        ]),
+      ),
+    );
+    let state = EditorState.create({ doc });
+    state = state.apply(formatBlockText(state.tr, 0, "fontSize", "24"));
+    expect(state.doc.firstChild!.firstChild!.marks[0].attrs).toEqual({
+      color: "#247f7b",
+      fontSize: "24",
+    });
+    state = state.apply(formatBlockText(state.tr, 0, "color", ""));
+    expect(state.doc.firstChild!.firstChild!.marks[0].attrs).toEqual({
+      color: null,
+      fontSize: "24",
+    });
+    state = state.apply(formatBlockText(state.tr, 0, "fontSize", ""));
+    expect(state.doc.firstChild!.firstChild!.marks).toEqual([]);
+  });
+
+  it("does not format code text or atomic content inside a compound block", () => {
+    const doc = schema.node(
+      "doc",
+      null,
+      schema.node("blockquote", null, [
+        schema.node("paragraph", null, [
+          schema.text("literal", [schema.marks.code.create()]),
+          schema.node("mathInline", { latex: "x" }),
+        ]),
+        schema.node("codeBlock", null, schema.text("const x = 1;")),
+      ]),
+    );
+    const state = EditorState.create({ doc });
+    for (const format of ["bold", "italic", "fontSize", "color"] as const)
+      expect(formatBlockText(state.tr, 0, format, "24").docChanged).toBe(false);
   });
 });

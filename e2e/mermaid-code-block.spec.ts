@@ -138,7 +138,7 @@ test("PDF 打印视图将 Mermaid 源码绘制成图形", async ({ page }) => {
   expect(rendered).toBe(true);
 });
 
-test("Mermaid 弹层支持滚轮缩放、拖动和适应窗口", async ({ page }) => {
+test("Mermaid 弹层支持 Ctrl 滚轮缩放、拖动和适应窗口", async ({ page }) => {
   await createBlankDocument(page);
   await page.locator(".note-editor .ProseMirror").evaluate(element => {
     const editor = (element as HTMLElement & { editor: Editor }).editor;
@@ -158,7 +158,9 @@ test("Mermaid 弹层支持滚轮缩放、拖动和适应窗口", async ({ page }
   const x = box!.x + box!.width / 2;
   const y = box!.y + box!.height / 2;
   await page.mouse.move(x, y);
-  await page.mouse.wheel(0, -300);
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -5);
+  await page.keyboard.up("Control");
   await expect(dialog.getByRole("status").filter({ hasText: "100%" })).toHaveCount(0);
   const beforeDrag = await viewport.locator(".mermaid-diagram-canvas").getAttribute("style");
   await page.mouse.down();
@@ -168,7 +170,7 @@ test("Mermaid 弹层支持滚轮缩放、拖动和适应窗口", async ({ page }
   await expect(viewport.locator(".mermaid-diagram-canvas")).toHaveAttribute("style", beforeDrag!);
   await viewport.evaluate(el => {
     const box = el.getBoundingClientRect();
-    for (let i = 0; i < 45; i++) el.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2, cancelable: true }));
+    for (let i = 0; i < 45; i++) el.dispatchEvent(new WheelEvent("wheel", { ctrlKey: true, deltaY: -100, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2, cancelable: true }));
   });
   await expect(dialog.locator(".mermaid-diagram-controls [role=status]")).toHaveText("800%");
   for (const direction of [1, -1]) {
@@ -318,10 +320,7 @@ test("多行分组标题与跨分组连线标签不被图形遮挡", async ({ pa
   const workspace = page.getByRole("dialog", { name: "图像工作区" });
   await expect(workspace.locator("svg .cluster")).toHaveCount(3);
   const viewport = workspace.locator(".mermaid-diagram-viewport");
-  await viewport.dispatchEvent("wheel", { deltaY: -100 });
-  for (let step = 0; step < 32; step++) {
-    await viewport.dispatchEvent("wheel", { deltaY: -100 });
-  }
+  await viewport.dispatchEvent("wheel", { ctrlKey: true, deltaY: -Math.log(5) * 100 });
   await expect(workspace.locator(".mermaid-diagram-controls [role=status]")).toHaveText("500%");
   expect(await checkCollisions(workspace)).toEqual([]);
 });

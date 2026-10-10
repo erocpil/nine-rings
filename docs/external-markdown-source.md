@@ -65,6 +65,6 @@ interface ExternalMarkdownSource {
 
 1. 打开文档时使用 ETag/Last-Modified低频检查，只提示“有更新”，仍不自动覆盖。
 2. 支持私有 GitHub 文件，并将授权严格限制到用户确认的仓库。
-3. 改用懒加载的完整 GFM AST解析器，继续补齐任务列表、脚注、引用式链接和受控 HTML。
+3. 现已接入共享 CommonMark/GFM 内核；后续新增语法仍须保持来源刷新、导入和编辑器的共同契约，详见[Markdown 兼容范围](markdown-compatibility.md)。
 4. 提供结构化差异预览、选择性合并和定时同步。
 5. 若来源功能稳定且需求明确，再将来源状态迁移为独立的文档字段和同步任务模型。

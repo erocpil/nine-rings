@@ -1,7 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { pinchScale, pinchView } from "../../src/lib/diagram-gesture";
+import {
+  diagramWheelDelta,
+  pinchScale,
+  pinchView,
+  wheelZoomFactor,
+} from "../../src/lib/diagram-gesture";
 
 describe("diagram two-finger gestures", () => {
+  it("normalizes pixel, line and page scrolling on both axes", () => {
+    const viewport = { width: 300, height: 200 };
+    expect(
+      diagramWheelDelta({ deltaX: 2, deltaY: -3, deltaMode: 0 }, viewport),
+    ).toEqual({ x: 2, y: -3 });
+    expect(
+      diagramWheelDelta({ deltaX: 2, deltaY: -3, deltaMode: 1 }, viewport),
+    ).toEqual({ x: 32, y: -48 });
+    expect(
+      diagramWheelDelta({ deltaX: 2, deltaY: -3, deltaMode: 2 }, viewport),
+    ).toEqual({ x: 600, y: -600 });
+  });
+  it("scales continuously and reversibly without jumping on zero delta", () => {
+    expect(wheelZoomFactor(0)).toBe(1);
+    expect(wheelZoomFactor(10) * wheelZoomFactor(-10)).toBeCloseTo(1);
+    expect(wheelZoomFactor(-2)).toBeLessThan(wheelZoomFactor(-20));
+    expect(wheelZoomFactor(-10000)).toBe(wheelZoomFactor(-200));
+  });
   const center = { x: 200, y: 150 };
   const a = { x: 130, y: 130 },
     b = { x: 230, y: 130 };
