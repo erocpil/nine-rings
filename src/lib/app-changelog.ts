@@ -1,6 +1,13 @@
 /** User-facing highlights shipped with the app, newest first. Keep dates in ISO format. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-11",
+    title: "插件编辑目标与保存确认",
+    changes: [
+      "内部插件接口支持捕获选区目标、插入文本或 Markdown，并等待实际保存完成；拒绝失效或跨连接目标，保存失败允许显式重试，取消等待保留已接受的编辑。第三方安装尚未开放。",
+    ],
+  },
+  {
     date: "2026-10-10",
     title: "Markdown 语义与导出统一",
     changes: [
@@ -192,7 +199,9 @@ export const APP_CHANGELOG = [
   {
     date: "2026-10-08",
     title: "收紧宽幅正文左侧留白",
-    changes: ["桌面宽幅展示时，折叠按钮左侧的外部留白缩小一半，保留块号与正文间距。"],
+    changes: [
+      "桌面宽幅展示时，折叠按钮左侧的外部留白缩小一半，保留块号与正文间距。",
+    ],
   },
   {
     date: "2026-10-08",
@@ -212,9 +221,7 @@ export const APP_CHANGELOG = [
   {
     date: "2026-10-01",
     title: "选择路径后收起手机文档树",
-    changes: [
-      "在手机目录树中选择路径后自动收起侧栏，直接查看该路径内容。",
-    ],
+    changes: ["在手机目录树中选择路径后自动收起侧栏，直接查看该路径内容。"],
   },
   {
     date: "2026-10-01",
@@ -397,9 +404,7 @@ export const APP_CHANGELOG = [
   {
     date: "2026-09-28",
     title: "关闭搜索后恢复键盘焦点",
-    changes: [
-      "打开全局搜索时先保留触发按钮焦点；关闭后键盘焦点会返回该按钮。",
-    ],
+    changes: ["打开全局搜索时先保留触发按钮焦点；关闭后键盘焦点会返回该按钮。"],
   },
   {
     date: "2026-09-28",

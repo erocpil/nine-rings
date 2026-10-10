@@ -44,10 +44,8 @@ interface ViewSession {
 /** Live host targets, deliberately distinct from serializable SDK handles. */
 export class DocumentEditSessions {
   private views = new Map<string, ViewSession>();
-  private issued = new WeakMap<
-    DocumentEditTarget,
-    { session: ViewSession; revision: DocumentSaveRevision }
-  >();
+  // Handles may outlive a view; retain its identity, never its editor adapter.
+  private issued = new WeakMap<DocumentEditTarget, string>();
   private residents = new Map<string, object>();
   private residency = new Map<string, object>();
   constructor(private saves: AutoSaveQueue) {}
@@ -153,7 +151,7 @@ export class DocumentEditSessions {
       selectionEpoch: state.epoch,
       view: state.view,
     });
-    this.issued.set(target, { session: state, revision });
+    this.issued.set(target, state.session);
     return target;
   }
   validate(target: DocumentEditTarget): Readonly<DocumentSelection> {
@@ -163,7 +161,7 @@ export class DocumentEditSessions {
     if (
       !issued ||
       !this.saves.isStorageCurrent(target.documentId) ||
-      current !== issued.session ||
+      current?.session !== issued ||
       !current?.active ||
       !current.selection ||
       current.epoch !== target.selectionEpoch ||

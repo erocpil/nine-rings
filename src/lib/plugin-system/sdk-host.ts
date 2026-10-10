@@ -13,6 +13,7 @@ import {
   validRequestId,
   type SdkResponse,
 } from "./sdk-protocol";
+import { SdkEditorHandles, type SdkInsertContent } from "./sdk-editor-handles";
 
 /** Host-issued connection binds activation and entry. Neither is accepted in JSON.
  * This is an internal trusted-module bridge, not a third-party script sandbox. */
@@ -22,10 +23,16 @@ export function createSdkHost(
   dispatcher: HostCommandDispatcher,
   entry: "palette" | "keybinding" | "menu" | "macro" = "palette",
 ) {
-  runtime.assert(activation);
+  const runtimeSignal = runtime.assert(activation);
+  const handles = new SdkEditorHandles(dispatcher, activation);
   const seen = new Set<string>();
   const pending = new Map<string, AbortController>();
   let closed = false;
+  const revoke = () => {
+    handles.clear();
+    for (const controller of pending.values()) controller.abort();
+  };
+  runtimeSignal.addEventListener("abort", revoke, { once: true });
   return {
     async receive(input: unknown): Promise<SdkResponse> {
       let requestId = "invalid";
@@ -42,7 +49,12 @@ export function createSdkHost(
           );
         if (
           (request.method !== "requests.cancel" && seen.size >= 4096) ||
-          (request.method === "commands.execute" && pending.size >= 32)
+          (![
+            "requests.cancel",
+            "capabilities.query",
+            "editor.captureSelection",
+          ].includes(request.method) &&
+            pending.size >= 32)
         )
           throw new PluginHostError("INVALID_ARGUMENT", "SDK 请求超过连接预算");
         // Cancellation is idempotent and must remain possible after the ID budget.
@@ -58,6 +70,65 @@ export function createSdkHost(
         } else if (request.method === "requests.cancel") {
           pending.get(request.params.requestId as string)?.abort();
           response = { ok: true, requestId, applied: false, value: null };
+        } else if (request.method === "editor.captureSelection") {
+          response = {
+            ok: true,
+            requestId,
+            applied: false,
+            value: handles.capture(),
+          };
+        } else if (request.method !== "commands.execute") {
+          const controller = new AbortController();
+          pending.set(requestId, controller);
+          let timedOut = false;
+          let rejectAbort!: (error: PluginHostError) => void;
+          const aborted = new Promise<never>((_, reject) => {
+            rejectAbort = reject;
+          });
+          const abort = () =>
+            rejectAbort(
+              new PluginHostError(
+                timedOut
+                  ? "TIMEOUT"
+                  : runtimeSignal.aborted
+                    ? "PLUGIN_DISABLED"
+                    : "CANCELLED",
+                "SDK 操作已取消或失效",
+              ),
+            );
+          controller.signal.addEventListener("abort", abort, { once: true });
+          const timer = setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+          }, 30000);
+          try {
+            const operation =
+              request.method === "documents.whenSaved"
+                ? handles
+                    .whenSaved(
+                      request.params.documentId as string,
+                      request.params.revision as string,
+                      controller.signal,
+                    )
+                    .then(() => null)
+                : handles.insert(
+                    request.method === "editor.insert"
+                      ? (request.params.target as string)
+                      : undefined,
+                    request.params.content as unknown as SdkInsertContent,
+                    controller.signal,
+                    () => {
+                      applied = true;
+                    },
+                  );
+            const value = await Promise.race([operation, aborted]);
+            runtime.assert(activation);
+            response = { ok: true, requestId, applied, value };
+          } finally {
+            clearTimeout(timer);
+            controller.signal.removeEventListener("abort", abort);
+            pending.delete(requestId);
+          }
         } else {
           const controller = new AbortController();
           pending.set(requestId, controller);
@@ -98,7 +169,8 @@ export function createSdkHost(
     },
     dispose() {
       closed = true;
-      for (const controller of pending.values()) controller.abort();
+      runtimeSignal.removeEventListener("abort", revoke);
+      revoke();
     },
   };
 }

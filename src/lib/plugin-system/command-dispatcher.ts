@@ -4,6 +4,10 @@ import {
 } from "./command-arguments";
 import { DocumentIntentService } from "./document-intents";
 import {
+  SaveBarrierError,
+  type DocumentSaveRevision,
+} from "../document-save-revisions";
+import {
   PluginHostError,
   type PluginActivation,
   type PluginErrorCode,
@@ -71,20 +75,126 @@ export class HostCommandDispatcher {
     this.intents = new DocumentIntentService(runtime, sessions);
   }
 
-  capabilities(activation: PluginActivation, entry: "palette" | "keybinding" | "menu" | "macro" = "palette") {
+  capabilities(
+    activation: PluginActivation,
+    entry: "palette" | "keybinding" | "menu" | "macro" = "palette",
+  ) {
     const permissions = this.runtime.permissions(activation);
     const context = this.context();
-    const commands = [...this.commands.values()].filter(command => {
-      const definition = command.definition;
-      if (command.activation !== activation || !definition.exposure![entry] ||
-          !definition.platforms!.includes(context.platform) || !definition.views!.includes(context.view)) return false;
-      if (["document", "selection"].includes(definition.scope)) {
-        if (!context.documentId || !this.sessions.active(context.documentId)) return false;
-        if (!permissions.includes(definition.risk === "read" ? "documents.current.read" : "editor.selection.write")) return false;
-      }
-      return true;
-    }).map(({ definition }) => ({ id: definition.id, scope: definition.scope, risk: definition.risk }));
-    return { protocol: 1 as const, platform: context.platform, view: context.view, permissions, commands };
+    const commands = [...this.commands.values()]
+      .filter((command) => {
+        const definition = command.definition;
+        if (
+          command.activation !== activation ||
+          !definition.exposure![entry] ||
+          !definition.platforms!.includes(context.platform) ||
+          !definition.views!.includes(context.view)
+        )
+          return false;
+        if (["document", "selection"].includes(definition.scope)) {
+          if (!context.documentId || !this.sessions.active(context.documentId))
+            return false;
+          if (
+            !permissions.includes(
+              definition.risk === "read"
+                ? "documents.current.read"
+                : "editor.selection.write",
+            )
+          )
+            return false;
+        }
+        return true;
+      })
+      .map(({ definition }) => ({
+        id: definition.id,
+        scope: definition.scope,
+        risk: definition.risk,
+      }));
+    const methods = [
+      "capabilities.query",
+      "commands.execute",
+      "requests.cancel",
+    ];
+    if (["render", "source"].includes(context.view)) {
+      if (permissions.includes("editor.selection.read"))
+        methods.push("editor.captureSelection");
+      if (permissions.includes("editor.selection.write"))
+        methods.push("editor.insert", "editor.insertAtSelection");
+    }
+    if (permissions.includes("documents.current.read"))
+      methods.push("documents.whenSaved");
+    return {
+      protocol: 1 as const,
+      platform: context.platform,
+      view: context.view,
+      permissions,
+      commands,
+      methods,
+    };
+  }
+
+  private currentEditor() {
+    const context = this.context();
+    if (!["render", "source"].includes(context.view))
+      throw new PluginHostError("UNSUPPORTED_VIEW", "当前视图不支持编辑目标");
+    if (!context.documentId || !this.sessions.active(context.documentId))
+      throw new PluginHostError("STALE_TARGET", "没有活动文档");
+    return context.documentId;
+  }
+  captureSelection(activation: PluginActivation) {
+    this.runtime.assert(activation, "editor.selection.read");
+    return this.intents.captureSelection(activation, this.currentEditor());
+  }
+  insertTarget(
+    activation: PluginActivation,
+    target: DocumentEditTarget,
+    content: InsertDocumentContent,
+    signal?: AbortSignal,
+    accepted?: () => void,
+  ) {
+    this.runtime.assert(activation, "editor.selection.write");
+    if (this.currentEditor() !== target.documentId)
+      throw new PluginHostError("STALE_TARGET", "活动文档已变化");
+    return this.intents.insert(activation, target, content, signal, accepted);
+  }
+  insertAtSelection(
+    activation: PluginActivation,
+    content: InsertDocumentContent,
+    signal?: AbortSignal,
+    accepted?: () => void,
+  ) {
+    this.runtime.assert(activation, "editor.selection.write");
+    let target: DocumentEditTarget;
+    try {
+      target = this.sessions.capture(this.currentEditor());
+    } catch (error) {
+      if (error instanceof PluginHostError) throw error;
+      throw new PluginHostError("STALE_TARGET", "当前选区不可用");
+    }
+    return this.insertTarget(activation, target, content, signal, accepted);
+  }
+  async whenSaved(
+    activation: PluginActivation,
+    revision: DocumentSaveRevision,
+    signal?: AbortSignal,
+  ) {
+    this.runtime.assert(activation, "documents.current.read");
+    try {
+      await this.sessions.whenSaved(revision.documentId, revision, signal);
+      this.runtime.assert(activation, "documents.current.read");
+    } catch (error) {
+      if (error instanceof PluginHostError) throw error;
+      if (error instanceof SaveBarrierError)
+        throw new PluginHostError(
+          error.code,
+          error.code === "STALE_REVISION"
+            ? "文档已换代，保存确认失效"
+            : error.code === "CANCELLED"
+              ? "保存等待已取消"
+              : "文档保存失败，请显式重试",
+        );
+      throw new PluginHostError("SAVE_FAILED", "文档保存失败，请显式重试");
+    }
   }
 
   register(

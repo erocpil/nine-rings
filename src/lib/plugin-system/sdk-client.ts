@@ -10,6 +10,11 @@ import {
   type SdkResponse,
 } from "./sdk-protocol";
 import type { createSdkHost } from "./sdk-host";
+import type {
+  SdkEditTarget,
+  SdkEditResult,
+  SdkInsertContent,
+} from "./sdk-editor-handles";
 
 export interface SdkTransport {
   send(request: SdkRequest): Promise<SdkResponse>;
@@ -140,6 +145,53 @@ export function createPluginSdk(transport: SdkTransport) {
     }
   };
   return {
+    editor: {
+      async captureSelection(options?: {
+        signal?: AbortSignal;
+      }): Promise<SdkEditTarget> {
+        const response = await call("editor.captureSelection", {}, options);
+        if (!response.ok)
+          throw new PluginHostError(
+            response.error.code,
+            response.error.message,
+          );
+        return response.value as SdkEditTarget;
+      },
+      insert(
+        target: SdkEditTarget,
+        content: SdkInsertContent,
+        options?: { signal?: AbortSignal },
+      ) {
+        return call(
+          "editor.insert",
+          { target: target.token, content },
+          options,
+        );
+      },
+      insertAtSelection(
+        content: SdkInsertContent,
+        options?: { signal?: AbortSignal },
+      ) {
+        return call("editor.insertAtSelection", { content }, options);
+      },
+    },
+    documents: {
+      async whenSaved(
+        result: SdkEditResult,
+        options?: { signal?: AbortSignal },
+      ): Promise<void> {
+        const response = await call(
+          "documents.whenSaved",
+          { documentId: result.documentId, revision: result.revision },
+          options,
+        );
+        if (!response.ok)
+          throw new PluginHostError(
+            response.error.code,
+            response.error.message,
+          );
+      },
+    },
     async capabilities(options?: { signal?: AbortSignal }) {
       const response = await call("capabilities.query", {}, options);
       if (!response.ok)

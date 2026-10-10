@@ -4,7 +4,13 @@ import type { CommandResponse } from "./command-dispatcher";
 export const SDK_PROTOCOL = 1;
 export const SDK_MESSAGE_BYTES = 128000;
 export type SdkMethod =
-  "capabilities.query" | "commands.execute" | "requests.cancel";
+  | "capabilities.query"
+  | "commands.execute"
+  | "requests.cancel"
+  | "editor.captureSelection"
+  | "editor.insertAtSelection"
+  | "editor.insert"
+  | "documents.whenSaved";
 export interface SdkRequest {
   protocol: 1;
   requestId: string;
@@ -77,6 +83,7 @@ export function parseSdkResponse(input: unknown): SdkResponse {
     "PERMISSION_DENIED",
     "READ_ONLY",
     "STALE_TARGET",
+    "STALE_REVISION",
     "INVALID_ARGUMENT",
     "UNSUPPORTED_PLATFORM",
     "UNSUPPORTED_VIEW",
@@ -131,9 +138,15 @@ export function parseSdkRequest(value: unknown): SdkRequest {
     ) ||
     request.protocol !== SDK_PROTOCOL ||
     !validRequestId(request.requestId) ||
-    !["capabilities.query", "commands.execute", "requests.cancel"].includes(
-      request.method,
-    ) ||
+    ![
+      "capabilities.query",
+      "commands.execute",
+      "requests.cancel",
+      "editor.captureSelection",
+      "editor.insertAtSelection",
+      "editor.insert",
+      "documents.whenSaved",
+    ].includes(request.method) ||
     !request.params ||
     typeof request.params !== "object" ||
     Array.isArray(request.params)
@@ -144,14 +157,40 @@ export function parseSdkRequest(value: unknown): SdkRequest {
       ? ["commandId", "args"]
       : request.method === "requests.cancel"
         ? ["requestId"]
-        : [];
+        : request.method === "editor.insert"
+          ? ["target", "content"]
+          : request.method === "editor.insertAtSelection"
+            ? ["content"]
+            : request.method === "documents.whenSaved"
+              ? ["documentId", "revision"]
+              : [];
   if (
     Object.keys(request.params).some((key) => !allowed.includes(key)) ||
     (request.method === "commands.execute" &&
       typeof request.params.commandId !== "string") ||
     (request.method === "requests.cancel" &&
-      !validRequestId(request.params.requestId))
+      !validRequestId(request.params.requestId)) ||
+    (request.method === "editor.insert" &&
+      !validRequestId(request.params.target)) ||
+    (request.method === "documents.whenSaved" &&
+      (typeof request.params.documentId !== "string" ||
+        !request.params.documentId ||
+        request.params.documentId.length > 1024 ||
+        !validRequestId(request.params.revision)))
   )
     throw new PluginHostError("INVALID_ARGUMENT", "SDK 请求参数无效");
+  if (["editor.insert", "editor.insertAtSelection"].includes(request.method)) {
+    const content = request.params.content as
+      Record<string, unknown> | undefined;
+    if (
+      !content ||
+      typeof content !== "object" ||
+      Array.isArray(content) ||
+      Object.keys(content).some((key) => !["format", "value"].includes(key)) ||
+      !["text", "markdown"].includes(content.format as string) ||
+      typeof content.value !== "string"
+    )
+      throw new PluginHostError("INVALID_ARGUMENT", "SDK 插入内容无效");
+  }
   return request;
 }

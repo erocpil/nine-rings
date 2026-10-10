@@ -1,5 +1,8 @@
-import { afterEach, expect, it, vi } from "vitest";
-import { AutoSaveQueue } from "../../src/lib/auto-save-queue";
+import { beforeEach, afterEach, expect, it, vi } from "vitest";
+import {
+  AutoSaveQueue,
+  type AutoSaveChanges,
+} from "../../src/lib/auto-save-queue";
 import { DocumentEditSessions } from "../../src/lib/document-edit-sessions";
 import { HostCommandDispatcher } from "../../src/lib/plugin-system/command-dispatcher";
 import { PluginRuntime } from "../../src/lib/plugin-system/runtime";
@@ -16,23 +19,38 @@ import {
   cloneSdkValue,
   parseSdkResponse,
 } from "../../src/lib/plugin-system/sdk-protocol";
+import type { SdkEditResult } from "../../src/lib/plugin-system/sdk-editor-handles";
 vi.mock("../../src/lib/api", () => ({
   api: {
     notes: {
-      get: async () => ({
+      get: vi.fn(async () => ({
         id: "a",
         readonly: false,
         content: { ops: [] },
         storagePath: "ideas",
-      }),
+      })),
     },
   },
 }));
 vi.mock("../../src/lib/storage/protection-state", () => ({
   withProtectionWrite: async (task: () => unknown) => task(),
-  listProtectedPaths: async () => [],
+  listProtectedPaths: vi.fn(async () => []),
 }));
 const cleanup: Array<() => void> = [];
+import { api } from "../../src/lib/api";
+import { listProtectedPaths } from "../../src/lib/storage/protection-state";
+beforeEach(() => {
+  vi.mocked(listProtectedPaths).mockResolvedValue([]);
+  vi.mocked(api.notes.get).mockImplementation(
+    async () =>
+      ({
+        id: "a",
+        readonly: false,
+        content: { ops: [] },
+        storagePath: "ideas",
+      }) as Awaited<ReturnType<typeof api.notes.get>>,
+  );
+});
 afterEach(() => {
   for (const dispose of cleanup.splice(0)) dispose();
 });
@@ -43,8 +61,15 @@ function deferred() {
   });
   return { promise, resolve };
 }
-function setup(kind: "loopback" | "port", writable = true) {
-  const queue = new AutoSaveQueue(async () => {});
+function setup(
+  kind: "loopback" | "port",
+  writable = true,
+  save: (
+    id: string,
+    changes: AutoSaveChanges,
+  ) => Promise<void> = async () => {},
+) {
+  const queue = new AutoSaveQueue(save);
   const sessions = new DocumentEditSessions(queue);
   const owner = {};
   sessions.retain("a");
@@ -95,6 +120,161 @@ function setup(kind: "loopback" | "port", writable = true) {
 }
 
 for (const kind of ["loopback", "port"] as const) {
+  it(`${kind}: a captured target returns an opaque revision confirmed only by actual storage`, async () => {
+    const entered = deferred(),
+      gate = deferred();
+    const save = vi.fn(async () => {
+      entered.resolve();
+      await gate.promise;
+    });
+    const h = setup(kind, true, save);
+    const target = await h.sdk.editor.captureSelection();
+    expect(Object.keys(target)).toEqual(["token"]);
+    const response = await h.sdk.editor.insert(target, {
+      format: "text",
+      value: "accepted",
+    });
+    expect(response).toMatchObject({ ok: true, applied: true });
+    if (!response.ok) throw new Error("edit failed");
+    const result = response.value as SdkEditResult;
+    expect(result).toMatchObject({
+      documentId: "a",
+      revision: expect.any(String),
+    });
+    const waiting = h.sdk.documents.whenSaved(result);
+    await entered.promise;
+    expect(h.queue.revisionState("a").confirmedRevision).toBe(0);
+    gate.resolve();
+    await waiting;
+    expect(h.queue.revisionState("a").confirmedRevision).toBe(1);
+    expect(save).toHaveBeenCalledOnce();
+  });
+  it(`${kind}: moving selection rejects a previously captured target without retargeting`, async () => {
+    const h = setup(kind);
+    const target = await h.sdk.editor.captureSelection();
+    h.sessions.select("a", h.owner, "rendered", { from: 2, to: 2 });
+    expect(
+      await h.sdk.editor.insert(target, { format: "text", value: "old" }),
+    ).toMatchObject({ error: { code: "STALE_TARGET" }, applied: false });
+    expect(h.insert).not.toHaveBeenCalled();
+    const fresh = await h.sdk.editor.captureSelection();
+    expect(
+      await h.sdk.editor.insert(fresh, { format: "text", value: "new" }),
+    ).toMatchObject({ applied: true });
+    expect(
+      await h.sdk.editor.insert(fresh, { format: "text", value: "duplicate" }),
+    ).toMatchObject({ error: { code: "STALE_TARGET" }, applied: false });
+    expect(h.insert).toHaveBeenCalledOnce();
+  });
+  it(`${kind}: targets and revisions cannot cross connections or documents`, async () => {
+    const h = setup(kind),
+      other = setup(kind);
+    const target = await h.sdk.editor.captureSelection();
+    expect(
+      await other.sdk.editor.insert(target, {
+        format: "text",
+        value: "foreign",
+      }),
+    ).toMatchObject({ error: { code: "STALE_TARGET" } });
+    expect(
+      await h.sdk.editor.insert(
+        { token: "forged" },
+        { format: "text", value: "forged" },
+      ),
+    ).toMatchObject({ error: { code: "STALE_TARGET" } });
+    const response = await h.sdk.editor.insert(target, {
+      format: "text",
+      value: "owned",
+    });
+    if (!response.ok) throw new Error("edit failed");
+    const result = response.value as SdkEditResult;
+    await expect(other.sdk.documents.whenSaved(result)).rejects.toMatchObject({
+      code: "STALE_REVISION",
+    });
+    await expect(
+      h.sdk.documents.whenSaved({ ...result, documentId: "another" }),
+    ).rejects.toMatchObject({ code: "STALE_REVISION" });
+    expect(other.insert).not.toHaveBeenCalled();
+  });
+  it(`${kind}: read-only and missing grants are checked even outside commands`, async () => {
+    const limited = setup(kind, false);
+    await expect(limited.sdk.editor.captureSelection()).rejects.toMatchObject({
+      code: "PERMISSION_DENIED",
+    });
+    expect(
+      await limited.sdk.editor.insertAtSelection({
+        format: "text",
+        value: "blocked",
+      }),
+    ).toMatchObject({ error: { code: "PERMISSION_DENIED" }, applied: false });
+    const h = setup(kind);
+    const target = await h.sdk.editor.captureSelection();
+    vi.mocked(api.notes.get).mockResolvedValue({
+      id: "a",
+      readonly: true,
+      content: { ops: [] },
+    } as Awaited<ReturnType<typeof api.notes.get>>);
+    expect(
+      await h.sdk.editor.insert(target, { format: "text", value: "blocked" }),
+    ).toMatchObject({ error: { code: "READ_ONLY" }, applied: false });
+    expect(h.insert).not.toHaveBeenCalled();
+  });
+  it(`${kind}: save failure keeps the revision pending until explicit retry`, async () => {
+    const save = vi.fn(async () => {});
+    save.mockRejectedValueOnce(new Error("private storage details"));
+    const h = setup(kind, true, save);
+    const response = await h.sdk.editor.insertAtSelection({
+      format: "text",
+      value: "pending",
+    });
+    if (!response.ok) throw new Error("edit failed");
+    const result = response.value as SdkEditResult;
+    await expect(h.sdk.documents.whenSaved(result)).rejects.toMatchObject({
+      code: "SAVE_FAILED",
+      message: "文档保存失败，请显式重试",
+    });
+    expect(save).toHaveBeenCalledOnce();
+    expect(h.queue.revisionState("a").confirmedRevision).toBe(0);
+    expect(h.queue.pending("a")).not.toBeNull();
+    await h.sdk.documents.whenSaved(result);
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(h.queue.revisionState("a").confirmedRevision).toBe(1);
+  });
+  it(`${kind}: waiting survives view hiding, but discarded generations invalidate revisions`, async () => {
+    const h = setup(kind);
+    const response = await h.sdk.editor.insertAtSelection({
+      format: "text",
+      value: "original",
+    });
+    if (!response.ok) throw new Error("edit failed");
+    const result = response.value as SdkEditResult;
+    h.sessions.activate("a", h.owner, "rendered", false);
+    await h.sdk.documents.whenSaved(result);
+    h.queue.discard("a");
+    await expect(h.sdk.documents.whenSaved(result)).rejects.toMatchObject({
+      code: "STALE_REVISION",
+    });
+  });
+  it(`${kind}: disabling during save stops plugin waiting without undoing accepted storage`, async () => {
+    const entered = deferred(),
+      gate = deferred();
+    const h = setup(kind, true, async () => {
+      entered.resolve();
+      await gate.promise;
+    });
+    const response = await h.sdk.editor.insertAtSelection({
+      format: "text",
+      value: "accepted",
+    });
+    if (!response.ok) throw new Error("edit failed");
+    const waiting = h.sdk.documents.whenSaved(response.value as SdkEditResult);
+    await entered.promise;
+    h.runtime.setEnabled(false);
+    await expect(waiting).rejects.toMatchObject({ code: "PLUGIN_DISABLED" });
+    gate.resolve();
+    await h.queue.flushAll();
+    expect(h.queue.revisionState("a").confirmedRevision).toBe(1);
+  });
   it(`${kind}: capabilities and execution use host identity and a frozen request`, async () => {
     const h = setup(kind);
     h.dispatcher.register(
@@ -444,4 +624,75 @@ it("closing a client port reports uncertain execution; the host owner cancels la
   gate.resolve();
   await Promise.resolve();
   expect(h.insert).not.toHaveBeenCalled();
+});
+
+it("opaque target handles expire and are bounded without retaining editor objects", async () => {
+  const h = setup("loopback");
+  const clock = vi.spyOn(Date, "now");
+  try {
+    clock.mockReturnValue(1000);
+    const old = await h.sdk.editor.captureSelection();
+    clock.mockReturnValue(1000 + 5 * 60000 + 1);
+    expect(
+      await h.sdk.editor.insert(old, { format: "text", value: "expired" }),
+    ).toMatchObject({ error: { code: "STALE_TARGET" } });
+    const evicted = await h.sdk.editor.captureSelection();
+    for (let index = 0; index < 256; index++)
+      await h.sdk.editor.captureSelection();
+    expect(
+      await h.sdk.editor.insert(evicted, { format: "text", value: "evicted" }),
+    ).toMatchObject({ error: { code: "STALE_TARGET" } });
+    expect(h.insert).not.toHaveBeenCalled();
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+it("direct SDK editing denies encrypted documents and protected parent paths", async () => {
+  const h = setup("loopback");
+  vi.mocked(api.notes.get).mockResolvedValueOnce({
+    id: "a",
+    readonly: false,
+    content: { encrypted: {} },
+  } as Awaited<ReturnType<typeof api.notes.get>>);
+  expect(
+    await h.sdk.editor.insertAtSelection({
+      format: "text",
+      value: "encrypted",
+    }),
+  ).toMatchObject({ error: { code: "PERMISSION_DENIED" }, applied: false });
+  vi.mocked(listProtectedPaths).mockResolvedValueOnce([
+    { path: "ideas" },
+  ] as Awaited<ReturnType<typeof listProtectedPaths>>);
+  expect(
+    await h.sdk.editor.insertAtSelection({
+      format: "text",
+      value: "protected",
+    }),
+  ).toMatchObject({ error: { code: "PERMISSION_DENIED" }, applied: false });
+  expect(h.insert).not.toHaveBeenCalled();
+});
+
+it("cancelling save waiting does not cancel an already executing persistence write", async () => {
+  const entered = deferred(),
+    gate = deferred();
+  const h = setup("port", true, async () => {
+    entered.resolve();
+    await gate.promise;
+  });
+  const response = await h.sdk.editor.insertAtSelection({
+    format: "text",
+    value: "accepted",
+  });
+  if (!response.ok) throw new Error("edit failed");
+  const controller = new AbortController();
+  const waiting = h.sdk.documents.whenSaved(response.value as SdkEditResult, {
+    signal: controller.signal,
+  });
+  await entered.promise;
+  controller.abort();
+  await expect(waiting).rejects.toMatchObject({ code: "CANCELLED" });
+  gate.resolve();
+  await h.queue.flushAll();
+  expect(h.queue.revisionState("a").confirmedRevision).toBe(1);
 });
