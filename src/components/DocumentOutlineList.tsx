@@ -177,12 +177,18 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
     frameRef.current = requestAnimationFrame(updateWindow);
   }, [updateWindow, virtualized]);
 
+  const followedIndexRef = useRef(activeOutlineIndex);
   useLayoutEffect(() => {
     if (!followActive) return;
+    if (followedIndexRef.current !== activeOutlineIndex) {
+      navigationTargetRef.current = null;
+      followedIndexRef.current = activeOutlineIndex;
+    }
     const index = entries.findIndex(entry => entry.index === activeOutlineIndex);
     const list = listRef.current;
     if (!list || index < 0) return;
     const reveal = () => {
+      if (navigationTargetRef.current) return;
       const { tops, heights } = rowLayoutRef.current;
       const top = tops[index], height = heights[index];
       if (top < list.scrollTop || top + height > list.scrollTop + list.clientHeight) {

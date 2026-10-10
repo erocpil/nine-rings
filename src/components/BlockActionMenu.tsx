@@ -28,8 +28,8 @@ function ColorControl({ action, onClose }: { action: BlockMenuAction; onClose: (
     <button type="button" role="menuitem" className="editor-context-item" disabled={action.disabled} onClick={() => { action.colorControl!.apply(value); onClose(); }}>应用颜色</button>
   </div>;
 }
-export function BlockActionMenu({ trigger, title, actions, onClose }: {
-  trigger: HTMLElement; title: string; actions: BlockMenuAction[]; onClose: () => void;
+export function BlockActionMenu({ trigger, title, actions, onClose, placement = "side" }: {
+  trigger: HTMLElement; title: string; actions: BlockMenuAction[]; onClose: () => void; placement?: "side" | "below";
 }) {
   const root = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x: 8, y: 8 });
@@ -38,12 +38,18 @@ export function BlockActionMenu({ trigger, title, actions, onClose }: {
   useLayoutEffect(() => {
     const rect = trigger.getBoundingClientRect();
     const menu = root.current!.getBoundingClientRect();
-    setPosition({ x: Math.max(8, Math.min(rect.right + 6, window.innerWidth - menu.width - 8)), y: Math.max(8, Math.min(rect.top, window.innerHeight - menu.height - 8)) });
+    setPosition({ x: Math.max(8, Math.min(placement === "below" ? rect.left : rect.right + 6, window.innerWidth - menu.width - 8)), y: Math.max(8, Math.min(placement === "below" ? rect.bottom + 6 : rect.top, window.innerHeight - menu.height - 8)) });
     root.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
-  }, [trigger, submenu]);
+  }, [trigger, submenu, placement]);
   useEffect(() => {
     const outside = (event: Event) => { if (!root.current?.contains(event.target as Node) && !trigger.contains(event.target as Node)) onClose(); };
-    const scroll = (event: Event) => { if (!root.current?.contains(event.target as Node)) onClose(); };
+    const scroll = (event: Event) => {
+      if (root.current?.contains(event.target as Node)) return;
+      if (placement !== "below" || !root.current || !trigger.isConnected) { onClose(); return; }
+      const rect = trigger.getBoundingClientRect(), menu = root.current.getBoundingClientRect();
+      const next = { x: Math.max(8, Math.min(rect.left, window.innerWidth - menu.width - 8)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - menu.height - 8)) };
+      setPosition(previous => previous.x === next.x && previous.y === next.y ? previous : next);
+    };
     document.addEventListener("pointerdown", outside, true);
     window.addEventListener("scroll", scroll, true);
     window.addEventListener("resize", onClose);
@@ -54,7 +60,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose }: {
       window.removeEventListener("resize", onClose);
       window.removeEventListener("blur", onClose);
     };
-  }, [onClose, trigger]);
+  }, [onClose, trigger, placement]);
   return createPortal(<div ref={root} role="menu" aria-label={title} className="editor-context-menu block-action-menu"
     style={{ left: position.x, top: position.y }} onMouseDown={event => event.stopPropagation()}
     onKeyDown={event => {

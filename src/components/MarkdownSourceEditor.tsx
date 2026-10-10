@@ -1,3 +1,5 @@
+import { BlockActionMenu } from "./BlockActionMenu";
+import { sourceHeadingFoldEffects } from "../lib/source-heading-fold";
 import { mobileSourceInput } from "../lib/mobile-source-input";
 import { sourceMicroHighlighting, sourceMicroSyntax } from "../lib/source-micro-rendering";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -60,7 +62,7 @@ import {
 } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
-import { sourceSearchExtension, sourceSearchKeymap, sourcePanelOpen, toggleSourcePanel, openSourceGoto } from "../lib/source-search";
+import { sourceSearchExtension, sourceSearchKeymap, sourcePanelOpen, toggleSourcePanel } from "../lib/source-search";
 import { formatSourceLines, insertSourceBlock } from "../lib/source-editing";
 import { SourceEditorHandle } from "../lib/source-editor-handle";
 import {
@@ -150,6 +152,7 @@ export function MarkdownSourceEditor({
     display = useRef(new Compartment());
   const [preferences, setPreferences] = useState(blockWorkspacePreferences);
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
+  const [foldMenu, setFoldMenu] = useState<{ trigger: HTMLButtonElement; collapse: boolean } | null>(null);
   const [tools, setTools] = useState({ search: false, goto: false, undo: false, redo: false });
   const syncTools = (state: EditorState) => {
     const next = { search: sourcePanelOpen(state, "search"), goto: sourcePanelOpen(state, "goto"), undo: undoDepth(state) > 0, redo: redoDepth(state) > 0 };
@@ -276,7 +279,7 @@ export function MarkdownSourceEditor({
         { key: "Mod-i", run: (v) => wrapSelection(v, "*") },
         { key: "Mod-Shift-c", run: (v) => wrapSelection(v, "`") },
         { key: "Mod-k", run: (v) => wrapSelection(v, "[", "](https://)") },
-        { key: "Mod-g", run: openSourceGoto },
+        { key: "Mod-g", run: v => toggleSourcePanel(v, "goto") },
         ...closeBracketsKeymap,
         ...defaultKeymap,
         ...historyKeymap,
@@ -477,8 +480,11 @@ export function MarkdownSourceEditor({
         })}><ToolbarIcon name={icon} /></button>)}
         <button type="button" title="增加缩进" aria-label="增加缩进" disabled={readonly} onClick={() => run(v => !v.composing && !v.state.readOnly && indentMore(v))}><ToolbarIcon name="indent" /></button>
         <button type="button" title="减少缩进" aria-label="减少缩进" disabled={readonly} onClick={() => run(v => !v.composing && !v.state.readOnly && indentLess(v))}><ToolbarIcon name="outdent" /></button>
-        <button type="button" title="折叠全部" aria-label="折叠全部" onClick={() => run(foldAll)}><ToolbarIcon name="folderCollapse" /></button>
-        <button type="button" title="展开全部" aria-label="展开全部" onClick={() => run(unfoldAll)}><ToolbarIcon name="folderKeep" /></button>
+        {[true, false].map(collapse => <span className="source-fold-tool" key={String(collapse)}>
+          <button type="button" title={collapse ? "折叠全部" : "展开全部"} aria-label={collapse ? "折叠全部" : "展开全部"} onClick={() => run(collapse ? foldAll : unfoldAll)}><ToolbarIcon name={collapse ? "folderCollapse" : "folderKeep"} /></button>
+          <button type="button" className="source-fold-level-trigger" title={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-label={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-haspopup="menu" aria-expanded={foldMenu?.collapse === collapse} onClick={event => { const trigger = event.currentTarget; setFoldMenu(previous => previous?.collapse === collapse ? null : { trigger, collapse }); }}>▾</button>
+        </span>)}
+        {foldMenu && <BlockActionMenu trigger={foldMenu.trigger} placement="below" title={foldMenu.collapse ? "折叠标题级别" : "展开标题级别"} onClose={() => setFoldMenu(null)} actions={Array.from({ length: 6 }, (_, i) => ({ label: foldMenu.collapse ? `折叠 H${i + 1} 及更深标题` : `展开至 H${i + 1}`, run: () => run(view => { const effects = sourceHeadingFoldEffects(view.state, i + 1, foldMenu.collapse); if (!effects) return false; view.dispatch({ effects }); return true; }) }))} />}
         {escapeRepair}
         <span className="markdown-source-cursor" aria-label="光标位置">
           行 {cursor.line}，列 {cursor.column}

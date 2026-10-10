@@ -15,6 +15,8 @@ for (const width of [390, 1440]) {
     const toolbar = page.getByRole("toolbar", { name: "源码编辑工具" });
     const find = toolbar.getByRole("button", { name: "查找替换", exact: true });
     const jump = toolbar.getByRole("button", { name: "跳转行", exact: true });
+    const viewport = page.locator(".markdown-cm-host .cm-scroller");
+    const initialViewport = await viewport.boundingBox();
     await find.click();
     await expect(find).toHaveAttribute("aria-expanded", "true");
     const search = page.getByRole("search", { name: "源码查找与替换" });
@@ -35,7 +37,9 @@ for (const width of [390, 1440]) {
     await expect(form).toBeVisible();
     await expect(form).toHaveCSS("background-color", panelColor);
     await expect(jump).toHaveAttribute("aria-expanded", "true");
-    await expect.poll(async () => (await form.boundingBox())!.y + (await form.boundingBox())!.height - (await page.locator(".markdown-cm-host .cm-scroller").boundingBox())!.y).toBeLessThanOrEqual(1);
+    await expect.poll(async () => (await viewport.boundingBox())!.height).toBeCloseTo(initialViewport!.height, 0);
+    await expect.poll(async () => (await viewport.boundingBox())!.y).toBeCloseTo(initialViewport!.y, 0);
+    await expect.poll(async () => (await form.boundingBox())!.y - initialViewport!.y).toBeGreaterThanOrEqual(0);
     await page.screenshot({ path: test.info().outputPath("source-jump.png") });
     const input = form.getByRole("textbox", { name: "行号或位置" });
     await input.fill("oops");
@@ -48,7 +52,11 @@ for (const width of [390, 1440]) {
     await jump.click();
     await jump.click();
     await expect(form).toHaveCount(0);
-    await jump.click();
+    await area.press("Meta+g");
+    await expect(form).toBeVisible();
+    await input.press("Meta+g");
+    await expect(form).toHaveCount(0);
+    await area.press("Meta+g");
     await input.press("Escape");
     await expect(form).toHaveCount(0);
     expect((await sourceInfo(area)).value).toBe(text);

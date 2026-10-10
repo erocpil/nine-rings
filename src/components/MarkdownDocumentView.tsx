@@ -30,6 +30,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const navigationTarget = useNavigationStore(state => state.target?.noteId === props.noteId ? state.target : null);
   const mobile = useMobileViewport();
   const [preview, setPreview] = useState(() => localStorage.getItem("nr:markdownSplitPreview") === "true");
+  const [previewSync, setPreviewSync] = useState(() => localStorage.getItem("nr:markdownPreviewSync") !== "false");
   const [source, setSource] = useState<string | null>(null);
   const viewPosition = useMarkdownViewPosition(props.noteId, source !== null, props.sensitive);
   const [busy, setBusy] = useState(false);
@@ -202,12 +203,13 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         <div className="note-title-field"><DocumentTitlePreview title={props.title || "无标题"} /></div>
         {toggle}
         {!mobile && <button type="button" className="markdown-view-toggle" title="并排预览" aria-label="并排预览" aria-pressed={preview} onClick={() => { setPreview(!preview); localStorage.setItem("nr:markdownSplitPreview", String(!preview)); }}><ToolbarIcon name="panel" /></button>}
+        {!mobile && preview && <label className="markdown-preview-sync"><input type="checkbox" checked={previewSync} onChange={event => { setPreviewSync(event.target.checked); localStorage.setItem("nr:markdownPreviewSync", String(event.target.checked)); }} />同步滚动</label>}
         {controls}
         <NavigationButtons />
         {props.onFocusModeChange && <button type="button" className="focus-btn" aria-label={props.focusMode ? "退出专注模式" : "专注模式"}
           onClick={() => props.onFocusModeChange?.(!props.focusMode)}><ToolbarIcon name={props.focusMode ? "compress" : "expand"} /></button>}
       </div>
-      <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={preview && !mobile} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
+      <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
       <MarkdownSourceEditor value={source} readonly={Boolean(props.readonly) || busy}
         areaRef={viewPosition.area} onReady={viewPosition.onSourceReady} session={sourceEditorState} onChange={editSource}

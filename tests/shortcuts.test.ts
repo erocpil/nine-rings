@@ -139,5 +139,14 @@ assert(shouldIgnoreShortcut(key({ key: "n" }), editable) === true, "无修饰 n 
 assert(shouldIgnoreShortcut(key({ key: "e" }), plain) === false, "无修饰 e 在非编辑态不忽略");
 assert(shouldIgnoreShortcut(key({ key: "n" }), { tagName: "INPUT" }) === true, "无修饰 n 在 input 内忽略");
 
+
+assert(isEditorLineJumpShortcut("Command + G"), "Command+G 保留给编辑器跳转");
+assert(isEditorLineJumpKeyEvent(key({ key: "g", metaKey: true })), "Command+G 切换跳转面板");
+assert(!isEditorLineJumpKeyEvent(key({ key: "g", metaKey: true, shiftKey: true })), "不抢占 Command+Shift+G");
+
+assert(isEditorLineJumpKeyEvent(key({ key: "g", ctrlKey: true }), "Win32"), "Windows Ctrl+G 跳转");
+assert(!isEditorLineJumpKeyEvent(key({ key: "g", ctrlKey: true }), "MacIntel"), "macOS 保留原生 Ctrl+G");
+assert(isEditorLineJumpShortcut("CommandOrControl+G"), "跨平台跳转快捷键不得注册为全局热键");
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

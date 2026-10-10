@@ -58,7 +58,7 @@ import { deltaToMarkdown } from "../lib/markdown-serializer";
 import { editorGutterWidth } from "../lib/editor-gutter";
 import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
-import { isDocumentFindKeyEvent, isPrimaryShortcutModifier } from "../lib/shortcuts";
+import { isDocumentFindKeyEvent, isEditorLineJumpKeyEvent, isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { readingBlockSession, type ReadingBlockState as BlockState } from "../lib/reading-block-session";
 import { patchReadingState, readReadingState } from "../lib/reading-state";
 import { centerSearchMatch } from "../lib/search-scroll";
@@ -881,15 +881,66 @@ export function ReadonlyVirtualNote(
       }),
     [active, mobileDrawerViewport, sections.length, openPanel, onOpenSettings],
   );
+  const [blockJumpValue, setBlockJumpValue] = useState<string | null>(null);
+  const [blockJumpError, setBlockJumpError] = useState("");
+  const blockJumpInput = useRef<HTMLInputElement>(null);
+  const blockJumpOpen = blockJumpValue !== null;
+  useEffect(() => {
+    if (blockJumpOpen) {
+      blockJumpInput.current?.focus({ preventScroll: true });
+      blockJumpInput.current?.select();
+    }
+  }, [blockJumpOpen]);
+  const closeBlockJump = () => {
+    setBlockJumpValue(null);
+    bodyRef.current?.focus({ preventScroll: true });
+  };
+  const submitBlockJump = () => {
+    const number = Number(blockJumpValue);
+    if (!/^\d+$/.test(blockJumpValue?.trim() ?? "") || number < 1 || number > doc.childCount) {
+      setBlockJumpError(`请输入 1–${doc.childCount}`);
+      return;
+    }
+    doc.forEach((_node, pos, index) => {
+      if (index === number - 1) navigateHeading({ pos });
+    });
+    closeBlockJump();
+  };
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (rootRef.current?.closest("[inert]")) return;
+      if (event.isComposing || event.keyCode === 229) return;
+      if (event.target instanceof Element && event.target.closest(".settings-overlay, .block-workspace, .pdf-reader")) return;
+      if (isEditorLineJumpKeyEvent(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (blockJumpValue !== null) {
+          setBlockJumpValue(null);
+          bodyRef.current?.focus({ preventScroll: true });
+        } else {
+          const position = capture().position;
+          let number = 1;
+          doc.forEach((_node, pos, index) => { if (pos <= position) number = index + 1; });
+          setPanel(null);
+          setBlockJumpError("");
+          setBlockJumpValue(String(number));
+        }
+        return;
+      }
       if (isDocumentFindKeyEvent(event)) {
+        setBlockJumpValue(null);
         event.preventDefault();
         event.stopPropagation();
         openPanel("search");
       }
-      if (event.key === "Escape") setPanel(null);
+      if (event.key === "Escape") {
+        setPanel(null);
+        if (blockJumpValue !== null) {
+          event.preventDefault();
+          setBlockJumpValue(null);
+          bodyRef.current?.focus({ preventScroll: true });
+        }
+      }
       if (
         isPrimaryShortcutModifier(event) &&
         !event.altKey && !event.shiftKey && !event.isComposing &&
@@ -908,7 +959,7 @@ export function ReadonlyVirtualNote(
     };
     window.addEventListener("keydown", keydown, true);
     return () => window.removeEventListener("keydown", keydown, true);
-  }, [openPanel, capture, noteId, onFallback]);
+  }, [openPanel, capture, noteId, onFallback, blockJumpValue, doc]);
   const tap = useRef<{
     pos: number;
     time: number;
@@ -1223,6 +1274,13 @@ export function ReadonlyVirtualNote(
           </button>
         </div>
       )}
+      {blockJumpValue !== null && <form className="editor-line-jump" role="dialog" aria-label="跳转块" onSubmit={event => { event.preventDefault(); submitBlockJump(); }}>
+        <label htmlFor={`block-jump-${noteId}`}>块号</label>
+        <input ref={blockJumpInput} id={`block-jump-${noteId}`} aria-label="跳转到块号" inputMode="numeric" value={blockJumpValue} aria-invalid={Boolean(blockJumpError)} onChange={event => { setBlockJumpValue(event.target.value); setBlockJumpError(""); }} />
+        <span role="status" className={blockJumpError ? "editor-line-jump-error" : "editor-line-jump-range"}>{blockJumpError || `/ ${doc.childCount}`}</span>
+        <button type="submit" aria-label="跳转" title="跳转">↵</button>
+        <button type="button" aria-label="关闭跳转" title="关闭跳转" onClick={closeBlockJump}>×</button>
+      </form>}
       <DocumentPanelDrawer
         enabled={mobileDrawerViewport}
         presentation={presentation}

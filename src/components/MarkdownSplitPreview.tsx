@@ -63,6 +63,7 @@ export function MarkdownSplitPreview({
   children,
   fontSize,
   enabled,
+  sync,
   flowLevel = 0,
   highlightActiveLine = true,
 }: {
@@ -71,6 +72,7 @@ export function MarkdownSplitPreview({
   children: ReactNode;
   fontSize: number;
   enabled: boolean;
+  sync: boolean;
   flowLevel?: number;
   highlightActiveLine?: boolean;
 }) {
@@ -79,9 +81,6 @@ export function MarkdownSplitPreview({
   > | null>(null);
   const flowAttributes = useMemo(() => snapshot ? flowBlockAttributes(snapshot.doc, flowLevel) : new Map<number, Record<string, string>>(), [snapshot, flowLevel]);
   const [error, setError] = useState("");
-  const [sync, setSync] = useState(
-    () => localStorage.getItem("nr:markdownPreviewSync") !== "false",
-  );
   const [states, setStates] = useState(new Map<number, ReadingBlockState>());
   const preview = useRef<HTMLDivElement>(null),
     source = useRef<HTMLDivElement>(null);
@@ -210,23 +209,6 @@ export function MarkdownSplitPreview({
           className="markdown-preview-pane"
           aria-label="Markdown 实时预览"
         >
-          <div className="markdown-preview-header">
-            预览{" "}
-            <label>
-              <input
-                type="checkbox"
-                checked={sync}
-                onChange={(e) => {
-                  setSync(e.target.checked);
-                  localStorage.setItem(
-                    "nr:markdownPreviewSync",
-                    String(e.target.checked),
-                  );
-                }}
-              />
-              同步滚动
-            </label>
-          </div>
           {error && <div role="status">{error}</div>}
           <div
             ref={preview}

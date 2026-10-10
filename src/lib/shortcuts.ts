@@ -69,15 +69,18 @@ export function isDocumentFindKeyEvent(e: ShortcutKeyEvent): boolean {
   return (e.metaKey && !e.ctrlKey && !e.altKey) || (e.altKey && !e.ctrlKey && !e.metaKey);
 }
 
-/** Alt+G 固定留给当前编辑器的块行号跳转。 */
+/** 跳转快捷键固定留给当前编辑器，避免全局快捷键抢占。 */
 export function isEditorLineJumpShortcut(shortcut: string): boolean {
-  return shortcut.replace(/\s+/g, "").toLowerCase() === "alt+g";
+  return /^(alt|cmd|command|meta|ctrl|control|commandorcontrol)\+g$/.test(shortcut.replace(/\s+/g, "").toLowerCase());
 }
 
 /** 识别编辑器内跳转行号按键；code 可规避 Windows 键盘布局差异。 */
-export function isEditorLineJumpKeyEvent(e: ShortcutKeyEvent): boolean {
+export function isEditorLineJumpKeyEvent(e: ShortcutKeyEvent, platform?: string): boolean {
   const isG = e.code === "KeyG" || e.key.toLocaleLowerCase() === "g";
-  return isG && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+  return isG && !e.shiftKey && (
+    (e.altKey && !e.ctrlKey && !e.metaKey)
+    || (!e.altKey && !(e.ctrlKey && e.metaKey) && isPrimaryShortcutModifier(e, platform))
+  );
 }
 
 /**

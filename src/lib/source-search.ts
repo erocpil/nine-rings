@@ -20,6 +20,8 @@ import {
   type TextMatch,
 } from "./search-matching";
 
+import { isEditorLineJumpKeyEvent } from "./shortcuts";
+
 interface SourceSearch {
   open: boolean;
   gotoOpen: boolean;
@@ -226,8 +228,9 @@ function createGotoPanel(view: EditorView): Panel {
   };
   dom.onkeydown = (event) => {
     if (event.isComposing || event.keyCode === 229) return;
-    if (event.key === "Escape") {
+    if (isEditorLineJumpKeyEvent(event) || event.key === "Escape") {
       event.preventDefault();
+      event.stopPropagation();
       closeSourcePanels(view);
     }
   };
@@ -443,6 +446,7 @@ export const sourceSearchKeymap = [
     },
   },
   { key: "Mod-Shift-l", run: selectSelectionMatches },
-  { key: "Mod-Alt-g", run: openSourceGoto },
+  { key: "Alt-g", run: (view: EditorView) => toggleSourcePanel(view, "goto") },
+  { key: "Mod-Alt-g", run: (view: EditorView) => toggleSourcePanel(view, "goto") },
   { key: "Mod-d", run: selectNextOccurrence, preventDefault: true },
 ];

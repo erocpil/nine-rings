@@ -16,14 +16,14 @@
 .markdown-source-input { flex: 1; min-height: 0; position: relative; }
 
 .markdown-cm-source { display: flex; flex-direction: column; overflow: hidden; }
-.markdown-source-tools { position: relative; display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; overflow-x: auto; height: 36px; min-height: 36px; max-height: 36px; box-sizing: border-box; padding: 4px 8px; flex: 0 0 auto; border-bottom: 1px solid var(--border); font-size: 12px; }
+.markdown-source-tools { position: relative; display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; height: 36px; min-height: 36px; max-height: 36px; box-sizing: border-box; padding: 1px 8px; flex: 0 0 auto; border-bottom: 1px solid var(--border); font-size: 12px; }
 .markdown-source-tools button { padding: 4px 7px; border: 1px solid transparent; border-radius: 4px; background: var(--bg-secondary); color: var(--text); }
 .markdown-source-tools > button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 4px; }
 .markdown-source-tools button:hover, .markdown-source-tools button[aria-pressed="true"] { border-color: var(--border); background: var(--bg-active, var(--bg-secondary)); }
 .markdown-source-tools button:disabled { opacity: .45; }
 .markdown-source-cursor { margin-left: auto; color: var(--text-secondary); white-space: nowrap; }
 .markdown-source-tools > .markdown-escape-repair { display: contents; }
-.markdown-source-tools .markdown-escape-repair-trigger { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 4px; }
+.markdown-source-tools .markdown-escape-repair-trigger { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 28px; margin: 0; padding: 4px; }
 .markdown-source-tools .markdown-escape-repair-trigger .toolbar-icon { width: 16px; height: 16px; }
 .markdown-source-tools .markdown-escape-repair > section { position: absolute; z-index: 20; top: 100%; left: 0; right: 0; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--bg); box-shadow: 0 6px 16px color-mix(in srgb, var(--text) 10%, transparent); }
 .markdown-cm-host { flex: 1; min-height: 0; overflow: hidden; }
@@ -85,7 +85,6 @@
 .markdown-split-preview { display: flex; flex: 1; min-width: 0; min-height: 0; }
 .markdown-split-source { display: flex; flex-direction: column; flex: 1 1 50%; min-width: 0; min-height: 0; }
 .markdown-preview-pane { display: flex; flex-direction: column; flex: 1 1 50%; min-width: 0; min-height: 0; border-left: 1px solid var(--border); }
-.markdown-preview-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; font-size: 12px; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
 .markdown-preview-scroll { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px 55dvh; background: var(--bg); }
 .markdown-preview-block { overflow-wrap: anywhere; }
 .markdown-preview-pane .block-workspace-open { display: none; }
@@ -129,7 +128,7 @@
 blockquote[data-alert] { border-left-color: var(--accent); }
 blockquote[data-alert="WARNING"], blockquote[data-alert="CAUTION"] { border-left-color: var(--color-danger, #b66b53); }
 
-/* Both tools occupy CodeMirror's fixed top panel, outside the document scroller. */
+/* Search occupies a top panel; goto floats above the unchanged source viewport. */
 .markdown-cm-host .cm-panels-top { flex-shrink: 0; border-bottom: 0; max-height: min(45dvh, 300px); overflow: auto; }
 .markdown-cm-host .source-tool-panel {
   padding: 10px 12px;
@@ -154,3 +153,18 @@ blockquote[data-alert="WARNING"], blockquote[data-alert="CAUTION"] { border-left
   .markdown-cm-host .source-tool-panel { padding: 8px; }
   .markdown-cm-host .source-tool-panel :is(button, input:not([type="checkbox"])) { min-height: 34px; }
 }
+
+.markdown-cm-host .cm-editor { position: relative; }
+.markdown-cm-host .cm-panels-top:has(.cm-goto-line) { position: absolute; top: 6px; left: 8px; right: 8px; z-index: 70; width: min(440px, calc(100% - 16px)); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 16px var(--shadow-color, rgba(0, 0, 0, .15)); }
+.markdown-cm-host .cm-goto-line { border-bottom: 0; }
+
+.markdown-source-tools::-webkit-scrollbar { display: none; height: 0; width: 0; }
+.markdown-source-tools::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-secondary) 35%, transparent); border-radius: 3px; }
+.markdown-source-tools::-webkit-scrollbar-track { background: transparent; }
+.source-fold-tool { display: flex; flex-direction: column; align-items: center; flex: 0 0 28px; height: 28px; }
+.markdown-source-tools .source-fold-tool > button { display: flex; align-items: center; justify-content: center; width: 28px; height: 19px; min-height: 0; padding: 0; }
+.markdown-source-tools .source-fold-tool .toolbar-icon { width: 16px; height: 16px; }
+.markdown-source-tools .source-fold-tool > .source-fold-level-trigger { height: 9px; min-height: 9px; line-height: 9px; font-size: 11px; }
+
+.markdown-preview-sync { display: inline-flex; align-items: center; flex-shrink: 0; gap: 4px; margin: 0 4px; color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
+.markdown-preview-sync input { accent-color: var(--accent); margin: 0; }

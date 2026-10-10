@@ -58,9 +58,14 @@ test.describe("编辑器块级 gutter", () => {
     const editor = await createBlankNote(page);
     await editor.fill(Array.from({ length: 36 }, (_, index) => `第 ${index + 1} 块`).join("\n"));
     const editorTopBefore = await editor.evaluate((element) => element.getBoundingClientRect().top);
+    await editor.press("Meta+g");
+    const dialog = page.getByRole("dialog", { name: "跳转块" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel("跳转到块号").press("Meta+g");
+    await expect(dialog).toHaveCount(0);
     await editor.press("Alt+g");
 
-    const jumpInput = page.getByRole("dialog", { name: "跳转行号" }).getByLabel("跳转到行号");
+    const jumpInput = page.getByRole("dialog", { name: "跳转块" }).getByLabel("跳转到块号");
     await expect(jumpInput).toBeVisible();
     await expect(page.locator(".editor-line-jump")).toHaveCSS("position", "absolute");
     const editorTopAfter = await editor.evaluate((element) => element.getBoundingClientRect().top);
@@ -81,7 +86,7 @@ test.describe("编辑器块级 gutter", () => {
     await editor.press("Alt+g");
     await jumpInput.fill("99");
     await jumpInput.press("Enter");
-    await expect(page.getByRole("dialog", { name: "跳转行号" }).getByRole("status")).toHaveText("请输入 1–36");
+    await expect(page.getByRole("dialog", { name: "跳转块" }).getByRole("status")).toHaveText("请输入 1–36");
     await jumpInput.press("Escape");
     await expect(jumpInput).toHaveCount(0);
   });
@@ -94,8 +99,8 @@ test.describe("编辑器块级 gutter", () => {
         await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
         await expect(editor).toHaveAttribute("contenteditable", "false");
       }
-      await editor.press("Alt+g");
-      const jumpInput = page.getByRole("dialog", { name: "跳转行号" }).getByLabel("跳转到行号");
+      await editor.press("Meta+g");
+      const jumpInput = page.getByRole("dialog", { name: "跳转块" }).getByLabel("跳转到块号");
       // Confirm within the same event turn, while native selection updates
       // from the input may still be pending.
       await jumpInput.evaluate((input: HTMLInputElement) => {
@@ -522,4 +527,29 @@ test.describe("编辑器块级 gutter", () => {
     await page.reload();
     await expect(page.locator(".editor-status-block")).toHaveCount(0);
   });
+});
+
+test("局部只读块号跳转保留虚拟渲染，快捷键可收回浮层", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nr:experimentalReadonlyRendering", "true"));
+  const editor = await createBlankNote(page);
+  await editor.fill(Array.from({ length: 100 }, (_, i) => `跳转测试 ${i + 1}`).join("\n"));
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  const body = page.locator(".vr-body");
+  await expect(body).toBeVisible();
+  const root = page.locator(".note-editor-scroll");
+  const before = await root.boundingBox();
+  await page.keyboard.press("Meta+g");
+  const dialog = page.getByRole("dialog", { name: "跳转块" });
+  const input = dialog.getByLabel("跳转到块号");
+  await expect(input).toBeFocused();
+  expect((await root.boundingBox())!.height).toBeCloseTo(before!.height, 0);
+  await input.press("Meta+g");
+  await expect(dialog).toHaveCount(0);
+  await page.keyboard.press("Meta+g");
+  await input.fill("90");
+  await input.press("Enter");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".vr-note")).toBeVisible();
+  await expect.poll(() => root.evaluate(el => el.scrollTop)).toBeGreaterThan(500);
+  await expect(page.getByText("跳转测试 90", { exact: true })).toBeVisible();
 });

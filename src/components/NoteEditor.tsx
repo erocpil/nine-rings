@@ -1874,7 +1874,10 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       if (isEditorLineJumpKeyEvent(event)) {
         event.preventDefault();
         event.stopPropagation();
-        openLineJump();
+        if (lineJumpOpen) {
+          closeLineJump();
+          editor.view.focus();
+        } else openLineJump();
         return;
       }
       if (event.key === "Escape" && lineJumpOpen) {
@@ -4037,15 +4040,15 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         </div>
       )}
       {lineJumpOpen && (
-        <div className="editor-line-jump" role="dialog" aria-label="跳转行号" onClick={(event) => event.stopPropagation()}>
-          <label htmlFor={`line-jump-${noteId}`}>行号</label>
+        <div className="editor-line-jump" role="dialog" aria-label="跳转块" onClick={(event) => event.stopPropagation()}>
+          <label htmlFor={`line-jump-${noteId}`}>块号</label>
           <input
             ref={lineJumpInputRef}
             id={`line-jump-${noteId}`}
             value={lineJumpValue}
             inputMode="numeric"
             pattern="[0-9]*"
-            aria-label="跳转到行号"
+            aria-label="跳转到块号"
             aria-invalid={lineJumpError ? "true" : "false"}
             onChange={(event) => {
               setLineJumpValue(event.target.value);
