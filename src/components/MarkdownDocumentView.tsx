@@ -4,7 +4,7 @@ import { MarkdownSplitPreview } from "./MarkdownSplitPreview";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { NavigationButtons } from "./NavigationButtons";
 import { useNavigationStore } from "../stores/useNavigationStore";
-import { Suspense, lazy, useEffect, useRef, useState, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { NoteEditorProps } from "./NoteEditor";
 import type { DeltaOps } from "../types/models";
 import { deltaToMarkdownAsync } from "../lib/data-transform-client";
@@ -32,6 +32,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const [preview, setPreview] = useState(() => localStorage.getItem("nr:markdownSplitPreview") === "true");
   const [sourceToolbarTarget, setSourceToolbarTarget] = useState<HTMLDivElement | null>(null);
   const [previewSync, setPreviewSync] = useState(() => localStorage.getItem("nr:markdownPreviewSync") !== "false");
+  const hostOwner = useRef({});
   const [source, setSource] = useState<string | null>(null);
   const viewPosition = useMarkdownViewPosition(props.noteId, source !== null, props.sensitive);
   const [busy, setBusy] = useState(false);
@@ -45,6 +46,14 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const sourceEditorState = useRef<EditorState | null>(null);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  useEffect(() => props.documentSessions?.retain(props.noteId), [props.documentSessions, props.noteId]);
+  const hostView = source === null ? "rendered" : "source";
+  useLayoutEffect(() => {
+    props.documentSessions?.activate(props.noteId, hostOwner.current, hostView, active);
+  }, [props.documentSessions, props.noteId, hostView, active]);
+  const hostSelection = (selection: { from: number; to: number }) => {
+    props.documentSessions?.select(props.noteId, hostOwner.current, source === null ? "rendered" : "source", selection);
+  };
   const supported = props.content.metadata?.sourceFormat !== "text" && !props.pdfExcerptSource && !props.epubExcerptSource;
   const editSource = (text: string, range?: SourceEditRange) => {
     setSource(text);
@@ -166,7 +175,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       await latestProps.current.onFlush?.();
     } finally { if (alive.current) setBusy(false); }
   };
-  if (!supported) return render(props);
+  if (!supported) return render({ ...props, onHostSelection: hostSelection });
   const toggle = <button type="button" className="markdown-view-toggle" disabled={busy}
     title={source === null ? "切换到 Markdown 源码" : "切换到渲染视图"}
     aria-label={source === null ? "源码" : "渲染"}
@@ -176,6 +185,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     {source === null ? render({
       ...props,
       documentViewToggle: toggle,
+      onHostSelection: hostSelection,
       content: snapshot?.base === props.content ? snapshot.content : props.content,
       onContentChange: (reader, options) => {
         const originalSource = options?.metadataOnly
@@ -214,7 +224,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
       <MarkdownSourceEditor toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly) || busy}
-        areaRef={viewPosition.area} onReady={viewPosition.onSourceReady} session={sourceEditorState} onChange={editSource}
+        areaRef={viewPosition.area} onReady={viewPosition.onSourceReady} onSelectionChange={hostSelection} session={sourceEditorState} onChange={editSource}
         showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine}
         escapeRepair={<MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={applyEscapeRepair} />} />
       </Suspense>

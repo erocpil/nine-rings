@@ -58,3 +58,58 @@ test("真实双视图编辑共享保存修订，书签重映射不重复计数�
   expect((await state()).documentGeneration).toBe(before.documentGeneration);
   expect((await state()).contentRevision).toBe(8);
 });
+
+
+test("属性 API 与正文共享修订，真实选区和双视图切换使旧目标失效", async ({ page }) => {
+  await createBlankDocument(page);
+  await page.evaluate(async () => {
+    const queues = await import("/src/lib/auto-save-queue.ts");
+    const sessions = await import("/src/lib/document-edit-sessions.ts");
+    const mark = queues.AutoSaveQueue.prototype.mark;
+    queues.AutoSaveQueue.prototype.mark = function (...args) {
+      mark.apply(this, args);
+      Object.assign(window, { hostQueue: this, hostId: args[0] });
+    };
+    const select = sessions.DocumentEditSessions.prototype.select;
+    sessions.DocumentEditSessions.prototype.select = function (...args) {
+      select.apply(this, args);
+      Object.assign(window, { hostSessions: this });
+    };
+  });
+  await page.locator(".ProseMirror:visible").evaluate(el => {
+    const editor = (el as HTMLElement & { editor: Editor }).editor;
+    editor.commands.setContent("<p>host targets</p>", true);
+    editor.commands.setTextSelection(3);
+  });
+  const state = () => page.evaluate(() => (window as any).hostQueue.revisionState((window as any).hostId));
+  await page.evaluate(() => {
+    const host = window as any;
+    host.hostTarget = host.hostSessions.capture(host.hostId);
+  });
+  const before = await state();
+  await page.locator(".ProseMirror:visible").evaluate(el => (el as HTMLElement & { editor: Editor }).editor.commands.setTextSelection(5));
+  expect((await state()).contentRevision).toBe(before.contentRevision);
+  expect(await page.evaluate(() => {
+    try { (window as any).hostSessions.validate((window as any).hostTarget); return false; }
+    catch { return true; }
+  })).toBe(true);
+  await page.evaluate(async () => {
+    const host = window as any;
+    const { api } = await import("/src/lib/api.ts");
+    await api.notes.update(host.hostId, { pinned: true, concepts: ["host-property"] });
+  });
+  expect((await state()).contentRevision).toBe(before.contentRevision + 1);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  await page.getByRole("textbox", { name: "Markdown 源码", exact: true }).click();
+  await page.evaluate(() => {
+    const host = window as any;
+    host.hostTarget = host.hostSessions.capture(host.hostId);
+    if (host.hostTarget.view !== "source") throw new Error("source session missing");
+  });
+  await page.getByRole("button", { name: "渲染", exact: true }).click();
+  expect(await page.evaluate(() => {
+    try { (window as any).hostSessions.validate((window as any).hostTarget); return false; }
+    catch { return true; }
+  })).toBe(true);
+  expect((await state()).documentGeneration).toBe(before.documentGeneration);
+});

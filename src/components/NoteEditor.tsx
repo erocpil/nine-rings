@@ -287,6 +287,8 @@ export interface NoteEditorProps {
   hideDocumentPasswordControls?: boolean;
   securityToolbarTarget?: HTMLElement | null;
   focusToolbarTarget?: HTMLElement | null;
+  documentSessions?: import("../lib/document-edit-sessions").DocumentEditSessions;
+  onHostSelection?: (selection: { from: number; to: number }) => void;
   onFlush?: () => Promise<void>;
   onOpenLinkedNote?: (note: Note, referenceId?: string, options?: DocumentOpenOptions) => Promise<void>;
   onSecurityChanged?: () => Promise<void>;
@@ -483,7 +485,7 @@ function DocumentEditor(props: NoteEditorProps) {
   return <FullNoteEditor {...props} readingBlockVersion={readingBlockVersion} initialPdfExportRequest={exportRequested} selectAllOnOpen={selectAllOnOpen} />;
 }
 
-function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
+function FullNoteEditor({ onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
   const [documentSerializer] = useState(() => new IncrementalDocumentSerializer());
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
@@ -1056,12 +1058,14 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     editable: !readonly,
     onCreate: ({ editor: ed }) => {
       syncNativeCodeInputBehavior(ed);
+      onHostSelection?.({ from: ed.state.selection.from, to: ed.state.selection.to });
       scheduleDocumentStats(ed, true);
     },
     editorProps: documentEditorProps,
     onSelectionUpdate: ({ editor: ed }) => {
       syncNativeCodeInputBehavior(ed);
       const { from, to } = ed.state.selection;
+      onHostSelection?.({ from, to });
       if (ed.isFocused && !toolbarInteractingRef.current) {
         // Touch focus can collapse the native range after a toolbar action.
         // Keep its saved selection until an explicit editor pointer/key event.

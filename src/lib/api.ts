@@ -7,6 +7,7 @@ import { addFrontendSettingsToBackup, withFrontendSettings } from "./backup-user
 import { parseJsonAsync, stringifyJsonAsync } from "./data-transform-client";
 import { validateBackup } from "./backup-validation";
 import { assertRestoreContext, withBackupRestore, type RestoreContext } from "./backup-restore-coordination";
+import { coordinateDocumentUpdate, coordinateStorageReplacement } from "./document-write-coordinator";
 import type { SearchOptions } from "./search-matching";
 
 /**
@@ -59,14 +60,14 @@ export const api = {
     },
 
     update: async (id: string, data: UpdateNoteInput) => {
-      const note = await adapter().then((a) => a.updateNote(id, data));
+      const note = await coordinateDocumentUpdate(id, data, snapshot => adapter().then((a) => a.updateNote(id, snapshot)));
       updateWebSearchIndex(note);
       broadcastDataChange({ type: "note-changed", noteId: id });
       return note;
     },
 
     updateOrder: (id: string, sort_order: number) =>
-      adapter().then((a) => a.updateNoteOrder(id, sort_order)),
+      coordinateDocumentUpdate(id, { sort_order }, snapshot => adapter().then((a) => a.updateNote(id, snapshot))).then(() => {}),
 
     delete: async (id: string) => {
       await adapter().then((a) => a.deleteNote(id));
@@ -96,7 +97,7 @@ export const api = {
         const updatedTags = n.tags
           .filter((t) => t !== oldName)
           .concat(newName);
-        const updated = await ad.updateNote(n.id, { tags: updatedTags });
+        const updated = await coordinateDocumentUpdate(n.id, { tags: updatedTags }, snapshot => ad.updateNote(n.id, snapshot));
         updateWebSearchIndex(updated);
         broadcastDataChange({ type: "note-changed", noteId: n.id });
         affected++;
@@ -114,7 +115,7 @@ export const api = {
         const updatedTags = n.tags
           .filter((t) => t !== sourceName)
           .concat(targetName);
-        const updated = await ad.updateNote(n.id, { tags: updatedTags });
+        const updated = await coordinateDocumentUpdate(n.id, { tags: updatedTags }, snapshot => ad.updateNote(n.id, snapshot));
         updateWebSearchIndex(updated);
         broadcastDataChange({ type: "note-changed", noteId: n.id });
         affected++;
@@ -130,7 +131,7 @@ export const api = {
       let affected = 0;
       for (const n of notes) {
         const updatedTags = n.tags.filter((t) => t !== name);
-        const updated = await ad.updateNote(n.id, { tags: updatedTags });
+        const updated = await coordinateDocumentUpdate(n.id, { tags: updatedTags }, snapshot => ad.updateNote(n.id, snapshot));
         updateWebSearchIndex(updated);
         broadcastDataChange({ type: "note-changed", noteId: n.id });
         affected++;
@@ -154,7 +155,7 @@ export const api = {
       }
       // Templates belong to the adapter transaction, including legacy Web→Tauri imports.
       if (settings?.values && bundle.templates !== undefined) delete settings.values["nine-rings:templates"];
-      const commit = async (operation: RestoreContext) => {
+      const commit = async (operation: RestoreContext) => coordinateStorageReplacement(async () => {
         assertRestoreContext(operation);
         operation.setPhase("applying");
         const result = await withFrontendSettings(settings, async (settingsImported) => {
@@ -166,7 +167,7 @@ export const api = {
         invalidateWebSearchIndex();
         broadcastDataChange({ type: "data-imported" });
         return result;
-      };
+      });
       return context ? commit(context) : withBackupRestore("file", mode, commit);
     },
 

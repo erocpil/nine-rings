@@ -169,6 +169,7 @@ function App() {
   const docSearchRequestIdRef = useRef(0);
   const [editorSearchTarget, setEditorSearchTarget] = useState<SearchNavigationTarget | null>(null);
   const [externalNoteConflict, setExternalNoteConflict] = useState(false);
+  const [externalReloading, setExternalReloading] = useState(false);
   const [externalReloadKey, setExternalReloadKey] = useState(0);
   const searchRequestIdRef = useRef(0);
 
@@ -279,7 +280,9 @@ function App() {
   const loadExternalNote = useCallback(async () => {
     const noteId = useNotesStore.getState().selectedNote?.id;
     if (!noteId) return;
-    discardPending();
+    setExternalReloading(true);
+    try {
+    await discardPending();
     const note = await api.notes.get(noteId);
     setExternalNoteConflict(false);
     if (note) {
@@ -289,6 +292,9 @@ function App() {
       selectNote(null);
       void refreshNotes();
     }
+    } catch (error) {
+      useNotesStore.setState({ error: `载入外部版本失败：${error instanceof Error ? error.message : String(error)}` });
+    } finally { setExternalReloading(false); }
   }, [discardPending, selectNote, refreshNotes]);
 
   const keepLocalNote = useCallback(() => {
@@ -1438,7 +1444,7 @@ function App() {
       data-hierarchy-path-mode={config?.hierarchy_path_mode ?? "default"}
       data-hierarchy-outline-mode={config?.hierarchy_outline_mode ?? "default"}
       {...(mobileReadingLibraryOpen ? { inert: "", "aria-hidden": true } : {})}
-      {...(protectionBusy || applyingWebUpdate ? { inert: "", "aria-busy": true } : {})}
+      {...(protectionBusy || applyingWebUpdate || externalReloading ? { inert: "", "aria-busy": true } : {})}
       {...(searchExpanded || errorDetailsOpen ? { inert: "" } : {})}
     >
       {/* 展陈桌面窗口操作位于外围；专注模式恢复紧凑标题栏。 */}
@@ -1705,6 +1711,7 @@ function App() {
                 {!workspaceHome && (selectedNote && (editorReadyNoteId === selectedNote.id || !isTauriRuntime()) ? (
                   <Suspense fallback={<div className="empty-state">正在打开文档...</div>}>
                     <NoteEditor
+                    documentSessions={autoSave.documentSessions}
                       onOpenProperties={() => setPropertiesOpen(open => !open)}
                       onOpenSettings={() => setSettingsOpen(true)}
                       key={`${selectedNote.id}:${externalReloadKey}`}

@@ -124,6 +124,7 @@ export function MarkdownSourceEditor({
   readonly,
   areaRef,
   onReady,
+  onSelectionChange,
   session,
   onChange,
   fontSize,
@@ -135,6 +136,7 @@ export function MarkdownSourceEditor({
   value: string;
   readonly: boolean;
   areaRef: MutableRefObject<SourceEditorHandle | null>;
+  onSelectionChange?: (selection: { from: number; to: number }) => void;
   onReady?: (handle: SourceEditorHandle | null) => void;
   session: MutableRefObject<EditorState | null>;
   onChange: (value: string, range?: SourceEditRange) => void;
@@ -148,6 +150,8 @@ export function MarkdownSourceEditor({
   const view = useRef<EditorView | null>(null);
   const handleRef = useRef<SourceEditorHandle | null>(null);
   const callback = useRef(onChange);
+  const selectionCallback = useRef(onSelectionChange);
+  selectionCallback.current = onSelectionChange;
   callback.current = onChange;
   const initial = useRef({ value, readonly });
   const lastValue = useRef(value);
@@ -318,6 +322,7 @@ export function MarkdownSourceEditor({
           );
         }
         if (update.selectionSet || update.docChanged) {
+          selectionCallback.current?.({ from: update.state.selection.main.from, to: update.state.selection.main.to });
           const pos = update.state.selection.main.head,
             line = update.state.doc.lineAt(pos);
           setCursor({ line: line.number, column: pos - line.from + 1 });
@@ -344,6 +349,7 @@ export function MarkdownSourceEditor({
     });
     areaRef.current = handle;
     onReady?.(handle);
+    selectionCallback.current?.({ from: editor.state.selection.main.from, to: editor.state.selection.main.to });
     const scroll = () => handle.dispatchEvent(new Event("scroll"));
     editor.scrollDOM.addEventListener("scroll", scroll, { passive: true });
     return () => {

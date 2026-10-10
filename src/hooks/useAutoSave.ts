@@ -15,6 +15,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DeltaOps } from "../types/models";
 
+import { DocumentEditSessions } from "../lib/document-edit-sessions";
+import { registerDocumentWriteCoordinator } from "../lib/document-write-coordinator";
 import { AutoSaveQueue } from "../lib/auto-save-queue";
 import type {
   AutoSaveChanges,
@@ -25,6 +27,7 @@ export { materializeAutoSaveChanges } from "../lib/auto-save-queue";
 export type { AutoSaveChanges, SaveStatus } from "../lib/auto-save-queue";
 
 export interface AutoSaveHandle {
+  documentSessions: DocumentEditSessions;
   /** 当前保存状态 */
   status: SaveStatus;
   /** 通知内容已变化（自动触发 debounce 保存） */
@@ -42,7 +45,7 @@ export interface AutoSaveHandle {
   /** 返回当前笔记尚未持久化的变更，供紧急备份合并。 */
   getPendingData: () => { noteId: string; changes: AutoSaveChanges } | null;
   /** 放弃当前笔记尚未持久化的变更（仅用于用户确认载入外部版本）。 */
-  discardPending: () => void;
+  discardPending: () => Promise<void>;
 }
 
 interface Props {
@@ -69,6 +72,9 @@ export function useAutoSave({
     );
   }
   const queue = queueRef.current;
+  const documentSessionsRef = useRef<DocumentEditSessions | null>(null);
+  if (!documentSessionsRef.current) documentSessionsRef.current = new DocumentEditSessions(queue);
+  useEffect(() => registerDocumentWriteCoordinator(queue), [queue]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -137,7 +143,7 @@ export function useAutoSave({
   }, [queue]);
   const discardPending = useCallback(() => {
     clearTimer();
-    if (noteIdRef.current) queue.discard(noteIdRef.current);
+    return noteIdRef.current ? queue.discardAndDrain(noteIdRef.current) : Promise.resolve();
   }, [clearTimer, queue]);
 
   useEffect(() => {
@@ -159,6 +165,7 @@ export function useAutoSave({
   }, [clearTimer, flush]);
 
   return {
+    documentSessions: documentSessionsRef.current,
     status,
     markDirty,
     markContentDirty,

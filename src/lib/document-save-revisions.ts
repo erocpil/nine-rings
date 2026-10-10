@@ -121,6 +121,10 @@ export class DocumentSaveRevisions {
     old?.invalidations.clear();
   }
 
+  invalidateAll(): void {
+    for (const id of this.sessions.keys()) this.invalidate(id);
+  }
+
   watch(
     id: string,
     token: DocumentSaveRevision,

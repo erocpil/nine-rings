@@ -5,10 +5,7 @@ import {
 } from "./document-save-revisions";
 import type { DeltaOps, UpdateNoteInput } from "../types/models";
 
-export type AutoSaveChanges = Pick<
-  UpdateNoteInput,
-  "content" | "title" | "tags"
->;
+export type AutoSaveChanges = UpdateNoteInput;
 export type SaveStatus = "clean" | "dirty" | "saving" | "saved" | "error";
 export type PendingAutoSaveChanges = Omit<AutoSaveChanges, "content"> & {
   content?: DeltaOps | (() => DeltaOps);
@@ -45,6 +42,9 @@ export class AutoSaveQueue {
   private states = new Map<string, SaveStatus>();
   // Only scheduling uses the recovered tail. Callers await the actual jobs.
   private tail: Promise<void> = Promise.resolve();
+  private replacing = false;
+  private ownedSnapshots = new WeakSet<object>();
+  private barriers = new Set<Promise<void>>();
 
   constructor(
     private save: (id: string, changes: AutoSaveChanges) => Promise<void>,
@@ -61,6 +61,11 @@ export class AutoSaveQueue {
     value: PendingAutoSaveChanges[K],
     batch?: object,
   ): void {
+    if (this.replacing)
+      throw new SaveBarrierError(
+        "STALE_REVISION",
+        "正在恢复文档，暂不能接受编辑",
+      );
     this.revisions.accept(id, key, batch);
     const revisions = this.fieldRevisions.get(id) ?? {};
     revisions[key] = (revisions[key] ?? 0) + 1;
@@ -98,6 +103,7 @@ export class AutoSaveQueue {
       discarded: false,
       revision: this.revisions.capture(id),
     };
+    this.ownedSnapshots.add(snapshot);
     jobs.add(job);
     this.queued.set(id, jobs);
     this.dirty.delete(id);
@@ -126,9 +132,8 @@ export class AutoSaveQueue {
             if (key in snapshot && currentRevisions[key] === revisions[key])
               retry[key] = snapshot[key];
           };
-          retain("content");
-          retain("title");
-          retain("tags");
+          for (const key of Object.keys(snapshot) as (keyof AutoSaveChanges)[])
+            retain(key);
           const pending = { ...retry, ...this.dirty.get(id) };
           if (Object.keys(pending).length) this.dirty.set(id, pending);
           this.setStatus(id, "error");
@@ -150,7 +155,9 @@ export class AutoSaveQueue {
       id,
       revision: this.captureRevision(id),
     }));
-    return Promise.all(targets.map(({ id }) => this.flushNote(id))).then(() => {
+    const barrier = Promise.all(
+      targets.map(({ id }) => this.flushNote(id)),
+    ).then(() => {
       for (const { id, revision } of targets) {
         if (!this.revisions.covered(id, revision)) {
           throw new SaveBarrierError(
@@ -160,10 +167,117 @@ export class AutoSaveQueue {
         }
       }
     });
+    this.barriers.add(barrier);
+    void barrier.then(
+      () => this.barriers.delete(barrier),
+      () => this.barriers.delete(barrier),
+    );
+    return barrier;
+  }
+
+  async retireDocument(id: string, stillRetired: () => boolean): Promise<void> {
+    const generation = this.revisions.state(id).documentGeneration;
+    await this.flushNote(id);
+    await Promise.all([...this.barriers]);
+    if (
+      stillRetired() &&
+      this.revisions.state(id).documentGeneration === generation
+    )
+      this.discard(id);
   }
 
   captureRevision(id: string): DocumentSaveRevision {
     return this.revisions.capture(id);
+  }
+
+  /** Property/API updates share ordering and revision confirmation with body saves.
+   * A queue-owned snapshot is already scheduled; routing it again would deadlock. */
+  writeThrough<T>(
+    id: string,
+    changes: UpdateNoteInput,
+    persist: (snapshot: UpdateNoteInput) => Promise<T>,
+  ): Promise<T> {
+    if (this.ownedSnapshots.has(changes)) return persist(changes);
+    if (this.replacing)
+      return Promise.reject(
+        new SaveBarrierError("STALE_REVISION", "正在恢复文档，暂不能写入属性"),
+      );
+    const snapshot = structuredClone(changes);
+    const fields = (Object.keys(snapshot) as (keyof UpdateNoteInput)[]).filter(
+      (key) => snapshot[key] !== undefined,
+    );
+    if (!fields.length) return persist(snapshot);
+    const batch = {};
+    const counters = this.fieldRevisions.get(id) ?? {};
+    const pending = { ...this.dirty.get(id) };
+    for (const key of fields) {
+      this.revisions.accept(id, key, batch);
+      counters[key] = (counters[key] ?? 0) + 1;
+      delete pending[key];
+    }
+    this.fieldRevisions.set(id, counters);
+    if (Object.keys(pending).length) this.dirty.set(id, pending);
+    else this.dirty.delete(id);
+    const acceptedCounters = { ...counters };
+    const job: SaveJob = {
+      snapshot,
+      completion: Promise.resolve(),
+      discarded: false,
+      revision: this.captureRevision(id),
+    };
+    const jobs = this.queued.get(id) ?? new Set<SaveJob>();
+    jobs.add(job);
+    this.queued.set(id, jobs);
+    this.setStatus(id, "saving");
+    const result = this.tail.then(async () => {
+      if (job.discarded)
+        throw new SaveBarrierError("STALE_REVISION", "属性写入已被放弃");
+      try {
+        const value = await persist(snapshot);
+        if (!job.discarded) {
+          this.revisions.acknowledge(job.revision, fields);
+          this.setStatus(
+            id,
+            this.dirty.has(id) ? "dirty" : jobs.size > 1 ? "saving" : "saved",
+          );
+        }
+        return value;
+      } catch (error) {
+        if (!job.discarded) {
+          const retry: UpdateNoteInput = {};
+          const retain = <K extends keyof UpdateNoteInput>(key: K) => {
+            if (this.fieldRevisions.get(id)?.[key] === acceptedCounters[key])
+              retry[key] = snapshot[key];
+          };
+          for (const key of fields) retain(key);
+          this.dirty.set(id, { ...retry, ...this.dirty.get(id) });
+          this.setStatus(id, "error");
+        }
+        throw error;
+      } finally {
+        jobs.delete(job);
+        if (!jobs.size && this.queued.get(id) === jobs) this.queued.delete(id);
+      }
+    });
+    job.completion = result.then(() => {});
+    this.tail = job.completion.catch(() => {});
+    return result;
+  }
+
+  /** Drain every accepted write before replacing storage. No old completion can
+   * write over the restored state or confirm a newly loaded generation. */
+  async withReplacement<T>(task: () => Promise<T>): Promise<T> {
+    if (this.replacing)
+      throw new SaveBarrierError("STALE_REVISION", "已有文档恢复正在进行");
+    this.replacing = true;
+    try {
+      await this.flushAll();
+      await this.tail;
+      this.revisions.invalidateAll();
+      return await task();
+    } finally {
+      this.replacing = false;
+    }
   }
 
   revisionState(id: string) {
@@ -232,5 +346,15 @@ export class AutoSaveQueue {
     this.queued.delete(id);
     // An already executing storage write cannot be cancelled by this queue.
     this.setStatus(id, "clean");
+  }
+
+  async discardAndDrain(id: string): Promise<void> {
+    const active = [...(this.queued.get(id) ?? [])].map(
+      (job) => job.completion,
+    );
+    this.discard(id);
+    // A user-confirmed reload may abandon failures, but must wait for writes
+    // already inside the adapter before reading the replacement snapshot.
+    await Promise.allSettled(active);
   }
 }
