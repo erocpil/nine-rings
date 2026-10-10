@@ -30,6 +30,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const navigationTarget = useNavigationStore(state => state.target?.noteId === props.noteId ? state.target : null);
   const mobile = useMobileViewport();
   const [preview, setPreview] = useState(() => localStorage.getItem("nr:markdownSplitPreview") === "true");
+  const [sourceToolbarTarget, setSourceToolbarTarget] = useState<HTMLDivElement | null>(null);
   const [previewSync, setPreviewSync] = useState(() => localStorage.getItem("nr:markdownPreviewSync") !== "false");
   const [source, setSource] = useState<string | null>(null);
   const viewPosition = useMarkdownViewPosition(props.noteId, source !== null, props.sensitive);
@@ -209,9 +210,10 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         {props.onFocusModeChange && <button type="button" className="focus-btn" aria-label={props.focusMode ? "退出专注模式" : "专注模式"}
           onClick={() => props.onFocusModeChange?.(!props.focusMode)}><ToolbarIcon name={props.focusMode ? "compress" : "expand"} /></button>}
       </div>
+      <div className="markdown-source-toolbar-host" ref={setSourceToolbarTarget} />
       <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
-      <MarkdownSourceEditor value={source} readonly={Boolean(props.readonly) || busy}
+      <MarkdownSourceEditor toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly) || busy}
         areaRef={viewPosition.area} onReady={viewPosition.onSourceReady} session={sourceEditorState} onChange={editSource}
         showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine}
         escapeRepair={<MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={applyEscapeRepair} />} />
