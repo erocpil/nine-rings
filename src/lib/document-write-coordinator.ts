@@ -9,6 +9,8 @@ interface DocumentWriteCoordinator {
   withReplacement<T>(task: () => Promise<T>): Promise<T>;
 }
 let current: DocumentWriteCoordinator | undefined;
+let mutationTail: Promise<void> = Promise.resolve();
+let mutationsInFlight = 0;
 
 /** Internal host ownership, never a plugin capability. Headless storage callers
  * have no editing session and retain the ordinary adapter path. */
@@ -34,5 +36,25 @@ export function coordinateDocumentUpdate<T>(
 export function coordinateStorageReplacement<T>(
   task: () => Promise<T>,
 ): Promise<T> {
-  return current ? current.withReplacement(task) : task();
+  return coordinateStorageMutation(task);
+}
+
+/** Opaque bulk/protection operations cannot safely be represented as a property
+ * patch. Drain edits before reading their snapshot and serialize concurrent
+ * management operations, preserving adapter atomicity and failure behavior. */
+export function coordinateStorageMutation<T>(
+  task: () => Promise<T>,
+): Promise<T> {
+  const owner = current;
+  const run = async () => (owner ? owner.withReplacement(task) : task());
+  const result = mutationsInFlight++ === 0 ? run() : mutationTail.then(run);
+  mutationTail = result.then(
+    () => {
+      mutationsInFlight--;
+    },
+    () => {
+      mutationsInFlight--;
+    },
+  );
+  return result;
 }

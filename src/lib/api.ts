@@ -7,7 +7,7 @@ import { addFrontendSettingsToBackup, withFrontendSettings } from "./backup-user
 import { parseJsonAsync, stringifyJsonAsync } from "./data-transform-client";
 import { validateBackup } from "./backup-validation";
 import { assertRestoreContext, withBackupRestore, type RestoreContext } from "./backup-restore-coordination";
-import { coordinateDocumentUpdate, coordinateStorageReplacement } from "./document-write-coordinator";
+import { coordinateDocumentUpdate, coordinateStorageReplacement, coordinateStorageMutation } from "./document-write-coordinator";
 import type { SearchOptions } from "./search-matching";
 
 /**
@@ -53,7 +53,8 @@ export const api = {
     },
 
     upsert: async (data: CreateNoteInput) => {
-      const note = await adapter().then((a) => a.upsertNote(data));
+      const input = structuredClone(data);
+      const note = await coordinateStorageMutation(() => adapter().then((a) => a.upsertNote(input)));
       updateWebSearchIndex(note);
       broadcastDataChange({ type: "note-changed", noteId: note.id });
       return note;
@@ -70,7 +71,7 @@ export const api = {
       coordinateDocumentUpdate(id, { sort_order }, snapshot => adapter().then((a) => a.updateNote(id, snapshot))).then(() => {}),
 
     delete: async (id: string) => {
-      await adapter().then((a) => a.deleteNote(id));
+      await coordinateStorageMutation(() => adapter().then((a) => a.deleteNote(id)));
       removeFromWebSearchIndex(id);
       broadcastDataChange({ type: "note-deleted", noteId: id });
     },
@@ -179,20 +180,24 @@ export const api = {
     list: () => adapter().then((a) => a.getDeletedNotes()),
 
     restore: (id: string) =>
-      withSearchRefresh(adapter().then((a) => a.restoreNote(id))),
+      withSearchRefresh(coordinateStorageMutation(() => adapter().then((a) => a.restoreNote(id)))),
 
     permanentlyDelete: (id: string) =>
-      adapter().then((a) => a.permanentlyDeleteNote(id)),
+      coordinateStorageMutation(() => adapter().then((a) => a.permanentlyDeleteNote(id))),
 
     cleanOld: (older_than_days: number) =>
-      adapter().then((a) => a.cleanOldDeleted(older_than_days)),
+      coordinateStorageMutation(() => adapter().then((a) => a.cleanOldDeleted(older_than_days))),
 
     batch: {
-      delete: (ids: string[]) =>
-        withSearchRefresh(adapter().then((a) => a.batchDelete(ids))),
+      delete: (ids: string[]) => {
+        const targets = [...ids];
+        return withSearchRefresh(coordinateStorageMutation(() => adapter().then((a) => a.batchDelete(targets))));
+      },
 
-      setReadonly: (ids: string[], readonly: boolean) =>
-        withSearchRefresh(adapter().then((a) => a.batchSetReadonly(ids, readonly))),
+      setReadonly: (ids: string[], readonly: boolean) => {
+        const targets = [...ids];
+        return withSearchRefresh(coordinateStorageMutation(() => adapter().then((a) => a.batchSetReadonly(targets, readonly))));
+      },
     },
   },
 
@@ -201,7 +206,7 @@ export const api = {
       adapter().then((a) => a.getNoteVersions(noteId)),
 
     restore: (versionId: string) =>
-      withSearchRefresh(adapter().then((a) => a.restoreNoteVersion(versionId))),
+      withSearchRefresh(coordinateStorageMutation(() => adapter().then((a) => a.restoreNoteVersion(versionId)))),
 
     checkpoint: (noteId: string) =>
       adapter().then((a) => a.createNoteCheckpoint(noteId)),
@@ -222,16 +227,18 @@ export const api = {
       adapter().then((a) => a.getNotesByPath(pathPrefix)),
 
     renameFolder: (oldPath: string, newPath: string) =>
-      withSearchRefresh(adapter().then((a) => a.renameFolder(oldPath, newPath))),
+      withSearchRefresh(coordinateStorageMutation(() => adapter().then((a) => a.renameFolder(oldPath, newPath)))),
 
     moveDocument: (noteId: string, targetFolderPath: string) =>
-      withSearchRefresh(adapter().then((a) => a.moveDocument(noteId, targetFolderPath))),
+      withSearchRefresh(coordinateStorageMutation(() => adapter().then((a) => a.moveDocument(noteId, targetFolderPath)))),
 
-    batchMoveDocuments: (noteIds: string[], targetFolderPath: string) =>
-      withSearchRefresh(adapter().then((a) => a.batchMoveDocuments(noteIds, targetFolderPath))),
+    batchMoveDocuments: (noteIds: string[], targetFolderPath: string) => {
+      const targets = [...noteIds];
+      return withSearchRefresh(coordinateStorageMutation(() => adapter().then((a) => a.batchMoveDocuments(targets, targetFolderPath))));
+    },
 
     relocateFolder: (sourcePath: string, targetPath: string) =>
-      withSearchRefresh(adapter().then((a) => a.relocateFolder(sourcePath, targetPath))),
+      withSearchRefresh(coordinateStorageMutation(() => adapter().then((a) => a.relocateFolder(sourcePath, targetPath)))),
 
     search: (query: DocSearchQuery) =>
       adapter().then((a) => a.searchDocs(query)),

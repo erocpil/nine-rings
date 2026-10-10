@@ -1,3 +1,4 @@
+import { coordinateStorageMutation } from "./document-write-coordinator";
 import type { DeltaOps, Note } from "../types/models";
 import { createDocumentKey, decryptDocument, documentSessionKey, encryptDocument, isEncrypted, unlockDocument, type DocumentKey, type ProtectedPath } from "./document-crypto";
 import { requestPassword } from "./password-request";
@@ -65,7 +66,7 @@ async function rewriteNotes(state: ProtectionState, ids: Set<string>, nextKey: D
 }
 
 export async function setDocumentPassword(noteId: string, remove = false): Promise<void> {
-  return withProtectionWrite(async () => {
+  return coordinateStorageMutation(() => withProtectionWrite(async () => {
     const before = await readProtectionState();
     const current = before.notes.find(n => n.id === noteId && !n.deleted_at);
     if (!current) throw new Error("文档不存在");
@@ -82,12 +83,12 @@ export async function setDocumentPassword(noteId: string, remove = false): Promi
     const after = structuredClone(before);
     await rewriteNotes(after, new Set([noteId]), key, keys);
     await commitProtectedChanges(before, after);
-  });
+  }));
 }
 
 export async function setPathPassword(input: string, remove = false): Promise<void> {
   const path = normalizeStoragePath(input);
-  return withProtectionWrite(async () => {
+  return coordinateStorageMutation(() => withProtectionWrite(async () => {
     const before = await readProtectionState();
     const existing = before.paths.find(p => p.path === path);
     if (before.paths.some(p => p !== existing && (isPathUnder(path, p.path) || isPathUnder(p.path, path)))) throw new Error("暂不支持父子路径分别设置密码，请在已有加密路径上管理");
@@ -101,17 +102,17 @@ export async function setPathPassword(input: string, remove = false): Promise<vo
     after.paths = after.paths.filter(p => p.path !== path);
     if (key) after.paths.push({ id: key.protectionId, path, createdAt: existing?.createdAt ?? now(), updatedAt: now(), verifier: await encryptDocument({ ops: [{ insert: "nine-rings:path-verifier:v1" }] }, key) });
     await commitProtectedChanges(before, after);
-  });
+  }));
 }
 export async function removeEmptyProtectedPath(input: string): Promise<void> {
-  return withProtectionWrite(async () => {
+  return coordinateStorageMutation(() => withProtectionWrite(async () => {
     const before = await readProtectionState();
     const existing = before.paths.find(p => p.path === normalizeStoragePath(input));
     if (!existing) throw new Error("加密路径不存在");
     if (before.notes.some(n => !n.deleted_at && n.storagePath && isPathUnder(n.storagePath, existing.path))) throw new Error("请先移走或删除此路径下的文档");
     await requestPathKey(existing);
     await commitProtectedChanges(before, { ...before, paths: before.paths.filter(p => p.id !== existing.id) });
-  });
+  }));
 }
 
 export async function moveProtectedDocuments(ids: string[], target: string, before: ProtectionSnapshot): Promise<void> {

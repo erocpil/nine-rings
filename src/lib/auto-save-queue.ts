@@ -43,6 +43,7 @@ export class AutoSaveQueue {
   // Only scheduling uses the recovered tail. Callers await the actual jobs.
   private tail: Promise<void> = Promise.resolve();
   private replacing = false;
+  private mutationCompletion?: Promise<void>;
   private ownedSnapshots = new WeakSet<object>();
   private barriers = new Set<Promise<void>>();
 
@@ -53,6 +54,10 @@ export class AutoSaveQueue {
 
   status(id: string | null): SaveStatus {
     return id ? (this.states.get(id) ?? "clean") : "clean";
+  }
+
+  isReplacing(): boolean {
+    return this.replacing;
   }
 
   mark<K extends keyof PendingAutoSaveChanges>(
@@ -150,6 +155,12 @@ export class AutoSaveQueue {
 
   /** Exit/update barriers also include failed or pending background documents. */
   flushAll(): Promise<void> {
+    if (this.mutationCompletion)
+      return this.mutationCompletion.then(() => this.flushAll());
+    return this.flushWrites();
+  }
+
+  private flushWrites(): Promise<void> {
     const ids = new Set([...this.dirty.keys(), ...this.queued.keys()]);
     const targets = [...ids].map((id) => ({
       id,
@@ -266,18 +277,30 @@ export class AutoSaveQueue {
 
   /** Drain every accepted write before replacing storage. No old completion can
    * write over the restored state or confirm a newly loaded generation. */
-  async withReplacement<T>(task: () => Promise<T>): Promise<T> {
+  withReplacement<T>(task: () => Promise<T>): Promise<T> {
     if (this.replacing)
-      throw new SaveBarrierError("STALE_REVISION", "已有文档恢复正在进行");
+      return Promise.reject(
+        new SaveBarrierError("STALE_REVISION", "已有文档恢复正在进行"),
+      );
     this.replacing = true;
-    try {
-      await this.flushAll();
-      await this.tail;
-      this.revisions.invalidateAll();
-      return await task();
-    } finally {
-      this.replacing = false;
-    }
+    this.notify();
+    const run = async () => {
+      try {
+        await this.flushWrites();
+        await this.tail;
+        this.revisions.invalidateAll();
+        return await task();
+      } finally {
+        this.replacing = false;
+        this.mutationCompletion = undefined;
+        this.notify();
+      }
+    };
+    const result = run();
+    this.mutationCompletion = result.then(() => {});
+    // The caller observes the result; the tracked barrier may have no waiter.
+    void this.mutationCompletion.catch(() => {});
+    return result;
   }
 
   revisionState(id: string) {

@@ -27,6 +27,7 @@ export { materializeAutoSaveChanges } from "../lib/auto-save-queue";
 export type { AutoSaveChanges, SaveStatus } from "../lib/auto-save-queue";
 
 export interface AutoSaveHandle {
+  storageBusy: boolean;
   documentSessions: DocumentEditSessions;
   /** 当前保存状态 */
   status: SaveStatus;
@@ -60,6 +61,7 @@ export function useAutoSave({
   debounceMs = 600,
 }: Props): AutoSaveHandle {
   const [status, setStatus] = useState<SaveStatus>("clean");
+  const [storageBusy, setStorageBusy] = useState(false);
   const noteIdRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onSaveRef = useRef(onSave);
@@ -68,7 +70,10 @@ export function useAutoSave({
   if (!queueRef.current) {
     queueRef.current = new AutoSaveQueue(
       (id, data) => onSaveRef.current(id, data),
-      () => setStatus(queueRef.current!.status(noteIdRef.current)),
+      () => {
+        setStatus(queueRef.current!.status(noteIdRef.current));
+        setStorageBusy(queueRef.current!.isReplacing());
+      },
     );
   }
   const queue = queueRef.current;
@@ -165,6 +170,7 @@ export function useAutoSave({
   }, [clearTimer, flush]);
 
   return {
+    storageBusy,
     documentSessions: documentSessionsRef.current,
     status,
     markDirty,

@@ -1444,7 +1444,7 @@ function App() {
       data-hierarchy-path-mode={config?.hierarchy_path_mode ?? "default"}
       data-hierarchy-outline-mode={config?.hierarchy_outline_mode ?? "default"}
       {...(mobileReadingLibraryOpen ? { inert: "", "aria-hidden": true } : {})}
-      {...(protectionBusy || applyingWebUpdate || externalReloading ? { inert: "", "aria-busy": true } : {})}
+      {...(protectionBusy || applyingWebUpdate || externalReloading || autoSave.storageBusy ? { inert: "", "aria-busy": true } : {})}
       {...(searchExpanded || errorDetailsOpen ? { inert: "" } : {})}
     >
       {/* 展陈桌面窗口操作位于外围；专注模式恢复紧凑标题栏。 */}

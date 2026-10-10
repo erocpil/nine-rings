@@ -3,6 +3,7 @@ import { AutoSaveQueue } from "../../src/lib/auto-save-queue";
 import {
   coordinateDocumentUpdate,
   coordinateStorageReplacement,
+  coordinateStorageMutation,
   registerDocumentWriteCoordinator,
 } from "../../src/lib/document-write-coordinator";
 
@@ -41,6 +42,48 @@ it("property batches are frozen, ordered, confirmed once and cover failed older 
       { title: "new", concepts: ["one"] },
     ]);
     expect(queue.revisionState("a").confirmedRevision).toBe(2);
+  } finally {
+    dispose();
+  }
+});
+
+it("bulk and protection mutations drain edits, serialize concurrent requests and release the editing guard", async () => {
+  const gate = deferred();
+  const order: string[] = [];
+  const queue = new AutoSaveQueue(async () => {
+    order.push("saved");
+  });
+  const dispose = registerDocumentWriteCoordinator(queue);
+  try {
+    queue.mark("a", "content", { ops: [{ insert: "latest" }] });
+    const token = queue.captureRevision("a");
+    const first = coordinateStorageMutation(async () => {
+      order.push("first");
+      await gate.promise;
+    });
+    const second = coordinateStorageMutation(async () => {
+      order.push("second");
+    });
+    expect(queue.isReplacing()).toBe(true);
+    expect(() => queue.mark("a", "title", "late")).toThrow("正在恢复");
+    await Promise.resolve();
+    gate.resolve();
+    await Promise.all([first, second]);
+    expect(order).toEqual(["saved", "first", "second"]);
+    expect(queue.isReplacing()).toBe(false);
+    await expect(queue.whenSaved("a", token)).rejects.toMatchObject({
+      code: "STALE_REVISION",
+    });
+    await expect(
+      coordinateStorageMutation(async () => {
+        throw new Error("cancelled password");
+      }),
+    ).rejects.toThrow("cancelled password");
+    expect(queue.isReplacing()).toBe(false);
+    await coordinateStorageMutation(async () => {
+      order.push("after failure");
+    });
+    expect(order.at(-1)).toBe("after failure");
   } finally {
     dispose();
   }
@@ -156,4 +199,27 @@ it("explicit discard waits for an already executing write before reading a repla
     code: "STALE_REVISION",
   });
   expect(queue.status("a")).toBe("clean");
+});
+
+it("exit and update flush wait for the actual management operation, including failure", async () => {
+  const queue = new AutoSaveQueue(async () => {});
+  const gate = deferred();
+  const mutation = queue.withReplacement(async () => {
+    await gate.promise;
+  });
+  let flushed = false;
+  const waiting = queue.flushAll().then(() => {
+    flushed = true;
+  });
+  await Promise.resolve();
+  expect(flushed).toBe(false);
+  gate.resolve();
+  await Promise.all([mutation, waiting]);
+  expect(flushed).toBe(true);
+  const failure = queue.withReplacement(async () => {
+    throw new Error("management failed");
+  });
+  const failedWait = queue.flushAll();
+  await expect(failure).rejects.toThrow("management failed");
+  await expect(failedWait).rejects.toThrow("management failed");
 });
