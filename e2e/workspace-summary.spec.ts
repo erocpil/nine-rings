@@ -162,7 +162,7 @@ test("本地跨日更新摘要和已打开的今日修改列表", async ({ page 
 test("四项摘要悬停预览，最多十五行，长标题省略且滚动后可打开文档", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
   await seed(page);
-  await page.evaluate(async () => { const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts"); saveWorkspaceLayout({ summaryInteraction: "hover" }); });
+  await page.evaluate(async () => { const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts"); saveWorkspaceLayout({ summaryInteraction: "hover", summaryVisibleRows: 15 }); });
   const longTitle = "摘要预览长标题：" + "保留完整名称但不会撑宽弹层".repeat(12);
   await page.evaluate(async longTitle => {
     const { api } = await import("/src/lib/api.ts");

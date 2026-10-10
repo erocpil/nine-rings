@@ -3134,8 +3134,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     const href = `nr-note://${noteId}#nr-ref-${anchor.id}`;
     const markdown = deltaToMarkdown({ ops: [{ insert: anchor.preview, attributes: { link: href } }, { insert: "\n" }] });
     try {
-      await onFlush?.();
-      await copyToClipboard(markdown, { reportFailure: true });
+      await copyToClipboard(markdown, { reportFailure: true, beforeCopy: () => onFlush?.() ?? Promise.resolve() });
       setCopyBlockNotice("已复制引用，可粘贴到任意文档");
     } catch { setCopyBlockNotice("复制引用失败，请重试"); }
   };

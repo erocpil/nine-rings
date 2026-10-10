@@ -80,7 +80,7 @@ describe("workspace layout preferences", () => {
   it("normalizes summary modes and whole visible rows, with backwards-compatible defaults", () => {
     expect(normalizeWorkspaceLayout({})).toMatchObject({
       summaryInteraction: "click",
-      summaryVisibleRows: 15,
+      summaryVisibleRows: 16,
     });
     expect(
       normalizeWorkspaceLayout({
@@ -93,7 +93,7 @@ describe("workspace layout preferences", () => {
         summaryInteraction: "bad",
         summaryVisibleRows: Infinity,
       }),
-    ).toMatchObject({ summaryInteraction: "click", summaryVisibleRows: 15 });
+    ).toMatchObject({ summaryInteraction: "click", summaryVisibleRows: 16 });
     expect(
       normalizeWorkspaceLayout({ summaryVisibleRows: -1 }).summaryVisibleRows,
     ).toBe(1);

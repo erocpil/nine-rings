@@ -157,9 +157,15 @@ test("源码行号与当前行高亮跟随编辑器设置，独立于代码行�
     await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
     for (const name of ["显示块编号", "高亮当前行"]) {
       const input = page.getByRole("checkbox", { name, exact: true });
-      await input.locator("..").click();
+      await input.setChecked(enabled);
       await expect(input).toBeChecked({ checked: enabled });
     }
+    // Closing/reopening the panel reloads persisted settings; wait for the
+    // debounced save rather than racing the previous optimistic checkbox state.
+    await expect.poll(() => page.evaluate(() => {
+      const config = JSON.parse(localStorage.getItem("nine_rings_config") || "{}");
+      return [config.editor_show_line_numbers, config.highlight_active_line];
+    })).toEqual([enabled, enabled]);
     await page.getByRole("button", { name: "关闭设置", exact: true }).click();
     await selectSource(area, 6);
     await expect(page.locator(".markdown-cm-host .cm-lineNumbers")).toHaveCount(

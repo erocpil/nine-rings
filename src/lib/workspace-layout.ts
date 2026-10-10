@@ -14,7 +14,7 @@ export interface WorkspaceLayout {
 }
 export const DEFAULT_WORKSPACE_LAYOUT: WorkspaceLayout = {
   summaryInteraction: "click",
-  summaryVisibleRows: 15,
+  summaryVisibleRows: 16,
   sidebarSide: "left",
   panelsSide: "right",
   panelsArrangement: "vertical",
@@ -35,7 +35,7 @@ export function normalizeWorkspaceLayout(value: unknown): WorkspaceLayout {
       : {};
   return {
     summaryInteraction: v.summaryInteraction === "click" || v.summaryInteraction === "hover" ? v.summaryInteraction : v.summaryInteraction === "sidebar" ? "sidebar" : "click",
-    summaryVisibleRows: Math.round(number(v.summaryVisibleRows, 15, 1, 50)),
+    summaryVisibleRows: Math.round(number(v.summaryVisibleRows, DEFAULT_WORKSPACE_LAYOUT.summaryVisibleRows, 1, 50)),
     sidebarSide: v.sidebarSide === "right" ? "right" : "left",
     panelsSide: v.panelsSide === "left" ? "left" : "right",
     panelsArrangement:

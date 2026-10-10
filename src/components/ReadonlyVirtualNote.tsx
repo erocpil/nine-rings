@@ -942,8 +942,7 @@ export function ReadonlyVirtualNote(
         const target = reused ?? anchor;
         try {
           if (!reused) props.onContentChange(() => ({ ...props.content, metadata: { ...props.content.metadata, referenceAnchors: [...existing, anchor] } }), { metadataOnly: true });
-          await props.onFlush?.();
-          await copyToClipboard(deltaToMarkdown({ ops: [{ insert: target.preview, attributes: { link: `nr-note://${noteId}#nr-ref-${target.id}` } }, { insert: "\n" }] }), { reportFailure: true });
+          await copyToClipboard(deltaToMarkdown({ ops: [{ insert: target.preview, attributes: { link: `nr-note://${noteId}#nr-ref-${target.id}` } }, { insert: "\n" }] }), { reportFailure: true, beforeCopy: () => props.onFlush?.() ?? Promise.resolve() });
           setNotice("已复制引用，可粘贴到任意文档");
         } catch { setNotice("复制引用失败，请重试"); }
       }}><ToolbarIcon name="link" /></button>

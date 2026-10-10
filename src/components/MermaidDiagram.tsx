@@ -2,6 +2,7 @@ import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, 
 import { MermaidTypographyContext } from "./ReadingTypographyProvider";
 import { createPortal } from "react-dom";
 import { BLOCK_WORKSPACE_DISPLAY_EVENT } from "../lib/block-display-settings";
+import { pinchScale, pinchView, touchCenter } from "../lib/diagram-gesture";
 import { renderMermaid } from "../lib/mermaid-render";
 
 export type MermaidViewTransform = { scale: number; x: number; y: number };
@@ -11,9 +12,7 @@ const MIN_SCALE = 0.25;
 const MAX_SCALE = 8;
 const ZOOM_STEP = 1.05;
 
-function distance(a: PointerPosition, b: PointerPosition) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
+type PinchStart = { ids: number[]; points: PointerPosition[]; view: MermaidViewTransform };
 
 export function MermaidDiagram({ source, interactive = false, initialView = defaultView, onViewChange }: {
   source: string;
@@ -26,6 +25,8 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
   const viewportRef = useRef<HTMLDivElement>(null);
   const [toolbar, setToolbar] = useState<Element | null>(null);
   const inlineBaseWidth = useRef(0);
+  const pointerPinch = useRef<PinchStart | null>(null);
+  const inlineAnchor = useRef<{ x: number; y: number; center: PointerPosition } | null>(null);
   const pointers = useRef(new Map<number, PointerPosition>());
   const viewRef = useRef<MermaidViewTransform>(initialView);
   const initialViewRef = useRef(initialView);
@@ -83,26 +84,53 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
     if (interactive) return;
     const root = rootRef.current;
     if (!root) return;
-    let previousDistance: number | null = null;
+    let gesture: (PinchStart & { anchorX: number; anchorY: number }) | null = null;
+    let consumed = false;
     const pinch = (event: TouchEvent) => {
-      if (event.touches.length !== 2) { previousDistance = null; return; }
-      event.preventDefault();
-      const [a, b] = [event.touches[0], event.touches[1]];
-      const nextDistance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-      if (previousDistance && event.type === "touchmove") zoomAt(nextDistance / previousDistance);
-      previousDistance = nextDistance;
+      if (event.touches.length >= 2 || consumed) {
+        if (event.cancelable) event.preventDefault();
+        event.stopPropagation();
+      }
+      if (event.type === "touchcancel" || event.touches.length !== 2) {
+        gesture = null;
+        consumed = event.touches.length > 0 && consumed;
+        return;
+      }
+      const touches = [...event.touches];
+      const points = touches.map(touch => ({ x: touch.clientX, y: touch.clientY }));
+      if (!gesture || !gesture.ids.every(id => touches.some(touch => touch.identifier === id))) {
+        const svg = root.querySelector("svg");
+        const bounds = svg?.getBoundingClientRect();
+        if (!bounds?.width || !bounds.height) return;
+        const center = touchCenter(points[0], points[1]);
+        gesture = {
+          ids: touches.map(touch => touch.identifier), points, view: viewRef.current,
+          anchorX: (center.x - bounds.left) / bounds.width,
+          anchorY: (center.y - bounds.top) / bounds.height,
+        };
+        consumed = true;
+        return;
+      }
+      if (event.type !== "touchmove") return;
+      const next = gesture.ids.map(id => {
+        const touch = touches.find(touch => touch.identifier === id)!;
+        return { x: touch.clientX, y: touch.clientY };
+      });
+      inlineAnchor.current = { x: gesture.anchorX, y: gesture.anchorY, center: touchCenter(next[0], next[1]) };
+      applyView({ scale: pinchScale(gesture.view.scale, gesture.points[0], gesture.points[1], next[0], next[1]), x: 0, y: 0 });
     };
     root.addEventListener("touchstart", pinch, { passive: false });
     root.addEventListener("touchmove", pinch, { passive: false });
-    root.addEventListener("touchend", pinch);
-    root.addEventListener("touchcancel", pinch);
+    root.addEventListener("touchend", pinch, { passive: false });
+    root.addEventListener("touchcancel", pinch, { passive: false });
     return () => {
+      inlineAnchor.current = null;
       root.removeEventListener("touchstart", pinch);
       root.removeEventListener("touchmove", pinch);
       root.removeEventListener("touchend", pinch);
       root.removeEventListener("touchcancel", pinch);
     };
-  }, [interactive, zoomAt]);
+  }, [interactive, result.svg, applyView]);
 
   useLayoutEffect(() => {
     if (!interactive) setToolbar(rootRef.current?.closest(".code-block-wrap")?.querySelector("[data-mermaid-controls]") ?? null);
@@ -113,34 +141,38 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
     event.preventDefault();
     event.stopPropagation();
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if (pointers.current.size === 2) {
+      pointerPinch.current = { ids: [...pointers.current.keys()], points: [...pointers.current.values()], view: viewRef.current };
+    } else pointerPinch.current = null;
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Synthetic or expired pointer. */ }
   };
   const pointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "mouse" && event.buttons === 0) {
       pointers.current.clear();
+      pointerPinch.current = null;
       return;
     }
     const previous = pointers.current.get(event.pointerId);
     if (!previous) return;
     event.preventDefault();
     const next = { x: event.clientX, y: event.clientY };
-    const positions = [...pointers.current.entries()];
     pointers.current.set(event.pointerId, next);
-    if (positions.length === 1) {
+    if (pointers.current.size === 1) {
       const current = viewRef.current;
       applyView({ ...current, x: current.x + next.x - previous.x, y: current.y + next.y - previous.y });
       return;
     }
-    const other = positions.find(([id]) => id !== event.pointerId)?.[1];
-    if (!other) return;
-    const oldMiddle = { x: (previous.x + other.x) / 2, y: (previous.y + other.y) / 2 };
-    const newMiddle = { x: (next.x + other.x) / 2, y: (next.y + other.y) / 2 };
-    zoomAt(distance(next, other) / Math.max(1, distance(previous, other)), oldMiddle);
-    const current = viewRef.current;
-    applyView({ ...current, x: current.x + newMiddle.x - oldMiddle.x, y: current.y + newMiddle.y - oldMiddle.y });
+    const gesture = pointerPinch.current;
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!gesture || !rect || pointers.current.size !== 2) return;
+    const nextPoints = gesture.ids.map(id => pointers.current.get(id)!);
+    applyView(pinchView(gesture.view, gesture.points[0], gesture.points[1], nextPoints[0], nextPoints[1], { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }));
   };
   const pointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
     pointers.current.delete(event.pointerId);
+    pointerPinch.current = pointers.current.size === 2
+      ? { ids: [...pointers.current.keys()], points: [...pointers.current.values()], view: viewRef.current }
+      : null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
@@ -188,9 +220,19 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
   }, [interactive, result.svg]);
 
   useLayoutEffect(() => {
-    if (!interactive && inlineBaseWidth.current > 0)
-      rootRef.current?.style.setProperty("--mermaid-zoom-width", `${inlineBaseWidth.current * view.scale}px`);
-  }, [interactive, view.scale]);
+    if (interactive || inlineBaseWidth.current <= 0) return;
+    const root = rootRef.current;
+    root?.style.setProperty("--mermaid-zoom-width", `${inlineBaseWidth.current * view.scale}px`);
+    const anchor = inlineAnchor.current;
+    const bounds = root?.querySelector("svg")?.getBoundingClientRect();
+    if (root && anchor && bounds) {
+      // Use the final SVG geometry after React applies the zoom class. Scrolling
+      // keeps the touch anchor visible without translating content out of reach.
+      root.scrollLeft += bounds.left + anchor.x * bounds.width - anchor.center.x;
+      root.scrollTop += bounds.top + anchor.y * bounds.height - anchor.center.y;
+      inlineAnchor.current = null;
+    }
+  }, [interactive, view]);
 
   useLayoutEffect(() => {
     if (!interactive || !viewportRef.current || !result.svg) return;
@@ -210,7 +252,7 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
     {result.svg && result.error && <div className="mermaid-diagram-error" role="status">图表无法更新，保留上一次图形：{result.error}</div>}
     {result.svg
       ? interactive
-        ? <div ref={viewportRef} className="mermaid-diagram-viewport" aria-label="可拖动图表" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd}>
+        ? <div ref={viewportRef} className="mermaid-diagram-viewport" aria-label="可拖动图表" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd}>
             <div className="mermaid-diagram-canvas mermaid-diagram-svg" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }} dangerouslySetInnerHTML={{ __html: result.svg }} />
           </div>
         : <div className="mermaid-diagram-svg" dangerouslySetInnerHTML={{ __html: result.svg }} />
