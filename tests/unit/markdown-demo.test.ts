@@ -201,3 +201,27 @@ test("failed flow upgrade stays retryable", async () => {
   expect(localStorage.getItem(MARKDOWN_DEMO_FLOW_KEY)).toBeNull();
   expect(await ensureMarkdownDemo()).toBe(true);
 });
+
+test("Windows CRLF assets can boot, seed and upgrade the built-in demo", async () => {
+  vi.resetModules();
+  vi.doMock("../../src/lib/markdown-demo.md?raw", () => ({
+    default: markdown.replace(/\r?\n/g, "\r\n"),
+  }));
+  try {
+    const demo = await import("../../src/lib/markdown-demo");
+    expect(await demo.ensureMarkdownDemo()).toBe(true);
+    expect(mocks.create.mock.calls[0][0].content.metadata.markdownSource).toBe(
+      markdown,
+    );
+    localStorage.setItem(MARKDOWN_DEMO_KEY, "old-demo");
+    localStorage.setItem(MARKDOWN_DEMO_FLOW_KEY, "");
+    mocks.get.mockResolvedValue(oldDemo());
+    expect(await demo.ensureMarkdownDemo()).toBe(true);
+    expect(mocks.update.mock.calls[0][1].content.metadata.markdownSource).toBe(
+      "用户补充，保留原文。\n\n" + markdown,
+    );
+  } finally {
+    vi.doUnmock("../../src/lib/markdown-demo.md?raw");
+    vi.resetModules();
+  }
+});

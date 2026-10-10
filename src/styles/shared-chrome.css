@@ -881,12 +881,14 @@
 /* Keep the title tappable when the focus toolbar adds its editing toggle. */
 @media (max-width: 360px) {
   .app.app-mobile-workspace .note-title-row { gap: 1px; }
+  .app-mobile-workspace .vr-title { gap: 1px; }
   .app.app-mobile-workspace .note-title-field { min-width: 24px; }
   .app.app-mobile-workspace .note-title-row :is(.focus-btn, .document-outline-toggle) {
     flex-basis: 28px;
     width: 28px;
     min-width: 28px;
   }
+  .app-mobile-workspace .vr-title > button { flex-basis: 28px; width: 28px; min-width: 28px; }
 }
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
   .app.app-mobile-workspace .note-title-row > .focus-btn,

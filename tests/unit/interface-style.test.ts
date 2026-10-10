@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from "vitest";
 import {
   applyInterfaceStyle,
+  effectiveWorkspaceLayout,
   normalizeInterfaceStyle,
   resolveInterfaceConfig,
   normalizeInterfaceColorMode,
@@ -10,6 +11,18 @@ import { editorAppearanceVariables } from "../../src/lib/editor-appearance";
 import { DEFAULT_CONFIG } from "../../src/lib/storage/types";
 
 afterEach(() => vi.unstubAllGlobals());
+test("classic displays standard layout without replacing the saved layout for other styles", () => {
+  for (const workspace_layout of ["standard", "exhibition"] as const) {
+    const saved = { workspace_layout, interface_style: "classic" as const };
+    expect(effectiveWorkspaceLayout(saved)).toBe("standard");
+    expect(saved.workspace_layout).toBe(workspace_layout);
+    for (const interface_style of ["calm", "paper", "wabi-sabi"] as const) {
+      expect(effectiveWorkspaceLayout({ ...saved, interface_style })).toBe(
+        workspace_layout,
+      );
+    }
+  }
+});
 test("legacy and unknown styles use classic, known styles remain independent of theme", () => {
   expect(normalizeInterfaceStyle(undefined)).toBe("classic");
   expect(normalizeInterfaceStyle("unknown")).toBe("classic");

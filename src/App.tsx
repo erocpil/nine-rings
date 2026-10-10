@@ -1,4 +1,5 @@
 import { useQuitConfirmation } from "./hooks/useQuitConfirmation";
+import { effectiveWorkspaceLayout } from "./lib/interface-style";
 import "./components/QuitConfirmation.css";
 import { mergeDocumentMetadata } from "./lib/document-metadata";
 import { preserveReadingPositions } from "./lib/reading-position";
@@ -1303,7 +1304,7 @@ function App() {
     </div>
   ) : null;
 
-  const exhibitionEnabled = config?.workspace_layout === "exhibition" && config.interface_style !== "classic";
+  const exhibitionEnabled = Boolean(config && effectiveWorkspaceLayout(config) === "exhibition");
   const readerWasOpenBeforeHome = Boolean(
     exhibitionReturnTarget?.pdfReaderDocumentId || exhibitionReturnTarget?.epubReaderDocumentId,
   );

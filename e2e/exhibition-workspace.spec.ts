@@ -197,9 +197,9 @@ test("手机展陈首页竖屏方形欢迎区、横屏并排且展开概览节�
   await expect(overview.locator(":scope > .exhibition-overview-heading .exhibition-eyebrow")).toBeHidden();
 });
 
-test("布局设置可切换，经典暂时停用且保留展陈选择", async ({ page }) => {
+test("经典自动显示标准布局，其他风格恢复之前的布局选择并跨刷新保留", async ({ page }) => {
   await page.addInitScript(() =>
-    localStorage.setItem(
+    !localStorage.getItem("nine_rings_config") && localStorage.setItem(
       "nine_rings_config",
       JSON.stringify({
         interface_style: "calm",
@@ -218,12 +218,28 @@ test("布局设置可切换，经典暂时停用且保留展陈选择", async ({
   const styles = page.getByRole("group", { name: "界面风格", exact: true });
   await styles.getByRole("button", { name: /^经典/ }).click();
   await expect(page.locator(".exhibition-masthead")).toHaveCount(0);
+  await expect(layout.getByRole("button", { name: "标准", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(layout.getByRole("button", { name: "展陈", exact: true })).toHaveAttribute("aria-pressed", "false");
   await expect(
     layout.getByRole("button", { name: "展陈", exact: true }),
   ).toBeDisabled();
+  await expect.poll(() => page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    return (await api.config.get()).interface_style;
+  })).toBe("classic");
+  await page.reload();
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  await expect(layout.getByRole("button", { name: "标准", exact: true })).toHaveAttribute("aria-pressed", "true");
   await styles.getByRole("button", { name: /^纸页/ }).click();
   await expect(page.locator(".exhibition-masthead")).toBeVisible();
+  await expect(layout.getByRole("button", { name: "展陈", exact: true })).toHaveAttribute("aria-pressed", "true");
   await layout.getByRole("button", { name: "标准", exact: true }).click();
+  await expect(page.locator(".exhibition-masthead")).toHaveCount(0);
+  await styles.getByRole("button", { name: /^经典/ }).click();
+  await expect(layout.getByRole("button", { name: "标准", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await styles.getByRole("button", { name: /^清雅/ }).click();
+  await expect(layout.getByRole("button", { name: "标准", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".exhibition-masthead")).toHaveCount(0);
 });
 

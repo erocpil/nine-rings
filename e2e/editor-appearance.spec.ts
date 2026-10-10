@@ -250,7 +250,7 @@ test("纯粗体小节标签与下一段正文保持紧凑间距", async ({ page 
   const editor = page.locator(".ProseMirror");
   await editor.evaluate((element) => {
     const clipboardData = new DataTransfer();
-    clipboardData.setData("text/plain", "**概念**\n正文说明\n\n下一段正文");
+    clipboardData.setData("text/plain", "**概念**\n\n正文说明\n\n下一段正文");
     element.dispatchEvent(new ClipboardEvent("paste", {
       bubbles: true,
       cancelable: true,

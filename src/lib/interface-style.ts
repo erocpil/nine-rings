@@ -72,6 +72,10 @@ export function normalizeInterfaceStyle(value: unknown): InterfaceStyle {
     ? value
     : "classic";
 }
+/** Classic uses standard chrome while retaining the other styles' layout choice. */
+export function effectiveWorkspaceLayout(config: Pick<AppConfig, "interface_style" | "workspace_layout">): AppConfig["workspace_layout"] {
+  return normalizeInterfaceStyle(config.interface_style) === "classic" ? "standard" : config.workspace_layout;
+}
 /** Root style marker; classic preferences are never rewritten. */
 export function applyInterfaceStyle(value: unknown): void {
   document.documentElement.dataset.interfaceStyle =

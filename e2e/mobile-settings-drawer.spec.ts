@@ -1,3 +1,4 @@
+import { settingsBackdropFilter } from "./helpers/settings";
 import { expect, test } from "@playwright/test";
 import { openMobileSettings } from "./helpers/mobile-settings";
 
@@ -13,6 +14,7 @@ test.describe("手机设置抽屉方向", () => {
       const animation = await page.addStyleTag({ content: ".settings-panel { animation-duration: 1s !important; animation-delay: -.5s !important; animation-timing-function: linear !important; animation-play-state: paused !important; }" });
       await openMobileSettings(page);
       const panel = page.getByRole("dialog", { name: "设置", exact: true });
+      await expect.poll(() => settingsBackdropFilter(page.locator(".settings-overlay"))).toBe("none");
       expect(await panel.evaluate(el => new DOMMatrixReadOnly(getComputedStyle(el).transform).m41)).toBeGreaterThan(0);
       await animation.evaluate(el => el.remove());
       const rightGap = () => panel.evaluate(el => Math.abs(innerWidth - el.getBoundingClientRect().right));
@@ -56,5 +58,30 @@ test("桌面设置首页与子页使用相同居中弹层", async ({ page }) => 
   await page.getByLabel("返回设置分类").click();
   expect(await panel.boundingBox()).toEqual(box);
   await page.mouse.click(20, 20);
+  await expect(panel).toBeVisible();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await expect(panel).toHaveCount(0);
 });
+
+for (const width of [390, 1280]) {
+  test(`设置分类与子页切换从顶部显示 ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 380 });
+    await page.goto("/");
+    await expect(page.locator(".note-editor")).toBeVisible();
+    if (width === 390) await openMobileSettings(page);
+    else await page.getByRole("button", { name: "设置", exact: true }).click();
+    const root = page.locator('.settings-body[data-settings-page="root"]');
+    await root.evaluate(element => { element.scrollTop = element.scrollHeight; });
+    await expect.poll(() => root.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+    await page.getByRole("button", { name: /^外观与布局/ }).click();
+    const appearance = page.locator('.settings-body[data-settings-page="appearance"]');
+    await expect.poll(() => appearance.evaluate(element => element.scrollTop)).toBe(0);
+    await appearance.evaluate(element => { element.scrollTop = element.scrollHeight; });
+    await expect.poll(() => appearance.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+    await page.getByRole("button", { name: /^层次展示/ }).click();
+    const hierarchy = page.locator('.settings-body[data-settings-page="hierarchy"]');
+    await expect.poll(() => hierarchy.evaluate(element => element.scrollTop)).toBe(0);
+    await page.getByLabel("返回外观与布局").click();
+    await expect.poll(() => appearance.evaluate(element => element.scrollTop)).toBe(0);
+  });
+}

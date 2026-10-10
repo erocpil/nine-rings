@@ -104,6 +104,8 @@ test("历史任务转义必须确认并保存快照，快照失败不改正文",
   const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
   const polluted = String.raw`- \[ \] 待修复`;
   await replaceSource(source, polluted);
+  await page.keyboard.press("Escape");
+  await page.mouse.move(1100, 700);
   await page.getByRole("button", { name: "扫描历史任务转义" }).click();
   const preview = page.getByRole("region", { name: "转义修复预览" });
   const apply = page.getByRole("button", { name: "保存快照并修复所选项" });

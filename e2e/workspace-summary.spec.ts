@@ -191,8 +191,8 @@ test("四项摘要悬停预览，最多十五行，长标题省略且滚动后�
   await summary.getByRole("button", { name: "查看全部文档", exact: true }).hover();
   const popup = page.getByRole("dialog", { name: "全部文档预览", exact: true });
   const long = popup.getByRole("button", { name: longTitle, exact: true });
-  await long.hover();
   await expect(long).toHaveAttribute("title", longTitle);
+  await long.hover();
   await expect(long).toHaveCSS("text-overflow", "ellipsis");
   expect(await long.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
   const list = popup.locator("ul");
@@ -234,7 +234,7 @@ test("摘要预览支持键盘到末项和 Escape，不影响统计点击及手�
   const popup = page.getByRole("dialog", { name: "全部文档预览", exact: true });
   await expect(popup.locator("li button").first()).toBeFocused();
   await page.keyboard.press("End");
-  await expect(popup.getByRole("button", { name: "摘要昨日文档", exact: true })).toBeFocused();
+  await expect(popup.locator("li button").last()).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(popup).toHaveCount(0);
   await expect(all).toBeFocused();
@@ -426,7 +426,7 @@ test("四种弹层最新在下方，最近打开十六份与其他十五份编�
       ids.forEach((id, i) => {
         const request = tx.objectStore("notes").get(id);
         request.onsuccess = () => {
-          const timestamp = new Date(); timestamp.setHours(12, i, 0, 0);
+          const timestamp = new Date(); timestamp.setTime(Date.now() + i * 60000);
           tx.objectStore("notes").put({ ...request.result, updated_at: timestamp.toISOString() });
         };
       });

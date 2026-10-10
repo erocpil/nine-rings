@@ -114,9 +114,14 @@ test("切换文档后右键菜单和链接对话框只更新当前文档", async
     await page.locator(".doc-tree-doc").filter({ hasText: title }).click();
     await expect(editor).toHaveText(`${title}正文`);
     await selectLine(page, `${title}正文`);
-    await editor.evaluate((element) => element.dispatchEvent(new MouseEvent("contextmenu", {
-      clientX: 500, clientY: 260, bubbles: true, cancelable: true, view: window,
-    })));
+    await editor.evaluate((element) => {
+      const range = window.getSelection()!.getRangeAt(0);
+      const rect = range.getClientRects()[0];
+      element.dispatchEvent(new MouseEvent("contextmenu", {
+        clientX: rect.left + 2, clientY: rect.top + rect.height / 2,
+        bubbles: true, cancelable: true, view: window,
+      }));
+    });
     const menu = page.locator(".editor-context-menu");
     await menu.getByRole("button", { name: "插入", exact: true }).click();
     await menu.getByRole("button", { name: "链接", exact: true }).click();

@@ -20,10 +20,10 @@ for (const [width, height] of [[390, 800], [844, 390], [1280, 800]]) {
         .filter(button => button.getBoundingClientRect().width > 0)
         .map(button => {
           const rect = button.getBoundingClientRect();
-          return { left: rect.left, right: rect.right, width: rect.width };
+          return { name: button.getAttribute("aria-label") || button.title, left: rect.left, right: rect.right, width: rect.width };
         }));
       expect(geometry.length).toBeGreaterThanOrEqual(4);
-      expect(geometry.every(box => box.width >= 24 && box.width <= 40)).toBe(true);
+      expect(geometry.every(box => box.width >= 24 && box.width <= 40), JSON.stringify(geometry)).toBe(true);
       const row = (await bar.boundingBox())!;
       for (const box of geometry) {
         expect(box.left).toBeGreaterThanOrEqual(row.x);

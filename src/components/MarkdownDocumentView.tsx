@@ -153,7 +153,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const toggle = <button type="button" className="markdown-view-toggle" disabled={busy}
     title={source === null ? "切换到 Markdown 源码" : "切换到渲染视图"}
     aria-label={source === null ? "源码" : "渲染"}
-    aria-busy={busy} onClick={() => void changeView()}>{source === null ? "源码" : <ToolbarIcon name="document" />}</button>;
+    aria-busy={busy} onClick={() => void changeView()}><ToolbarIcon name={source === null ? "code" : "document"} /></button>;
   return <div className="markdown-document-view" ref={viewPosition.host}>
     {error && <div role="alert" className="markdown-source-hint">{error}</div>}
     {source === null ? render({

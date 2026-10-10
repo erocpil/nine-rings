@@ -250,11 +250,13 @@
 .vr-title [data-document-panel-trigger] {
   flex: 0 0 auto;
 }
-.vr-title .focus-mode-icon {
+.vr-title .focus-mode-icon,
+.note-title-row .focus-mode-icon {
   display: block;
   width: 18px;
   height: 18px;
 }
+.note-title-row .document-bookmark-toggle { min-width: 32px; }
 .document-outline-header > button,
 .document-bookmark-header > button,
 .document-bookmark-header-actions > button {

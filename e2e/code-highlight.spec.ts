@@ -51,37 +51,21 @@ test("常用代码语言增量高亮并同步到 PDF 打印视图", async ({ pag
   await expect(printPage.locator(".code-block-language, .code-block-copy, [data-pdf-exclude]")).toHaveCount(0);
   await printPage.close();
 
-  // Tauri/WebView2 禁止 window.open；桌面导出必须通过同一 WebView 内的
-  // 隔离打印文档调用 window.print。
+  // Native export uses a dedicated print WebView, with the same prepared HTML.
   await page.evaluate(() => {
-    const target = window as typeof window & {
-      isTauri?: boolean;
-      __desktopPrintCalled?: boolean;
-      __desktopWindowOpenCalled?: boolean;
-    };
-    target.isTauri = true;
-    target.__desktopPrintCalled = false;
-    target.__desktopWindowOpenCalled = false;
-    window.open = () => {
-      target.__desktopWindowOpenCalled = true;
-      return null;
-    };
-    const observer = new MutationObserver((_records, instance) => {
-      const frame = document.querySelector<HTMLIFrameElement>('iframe[title="PDF 打印文档"]');
-      if (!frame?.contentWindow) return;
-      instance.disconnect();
-      frame.contentWindow.print = () => {
-        target.__desktopPrintCalled = true;
-        frame.contentWindow?.dispatchEvent(new Event("afterprint"));
-      };
-    });
-    observer.observe(document.body, { childList: true });
+    const host = window as typeof window & { __TAURI_INTERNALS__?: unknown; nativePrintHtml?: string };
+    host.__TAURI_INTERNALS__ = { invoke: async (command: string, args: { html?: string }) => {
+      if (command === "open_pdf_print_preview") host.nativePrintHtml = args.html;
+    } };
+    window.open = () => { throw new Error("native export must not use window.open"); };
   });
   await page.locator(".properties-panel").getByRole("button", { name: "导出 PDF（书签大纲）" }).click();
   await expect.poll(() => page.evaluate(() => (
-    window as typeof window & { __desktopPrintCalled?: boolean }
-  ).__desktopPrintCalled)).toBe(true);
-  expect(await page.evaluate(() => (
-    window as typeof window & { __desktopWindowOpenCalled?: boolean }
-  ).__desktopWindowOpenCalled)).toBe(false);
+    window as typeof window & { nativePrintHtml?: string }
+  ).nativePrintHtml ?? "")).toContain("hljs-keyword");
+  const html = await page.evaluate(() => (
+    window as typeof window & { nativePrintHtml?: string }
+  ).nativePrintHtml!);
+  expect(html).toContain("hljs-string");
+  expect(html).not.toContain("code-block-copy");
 });

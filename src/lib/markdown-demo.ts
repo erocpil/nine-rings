@@ -1,4 +1,4 @@
-import markdown from "./markdown-demo.md?raw";
+import rawMarkdown from "./markdown-demo.md?raw";
 import { api } from "./api";
 import { localDateKey } from "./local-date";
 import { buildMarkdownImportInput } from "./markdown-import";
@@ -8,11 +8,14 @@ import { invalidateEditorDocument } from "./editor-session-cache";
 export const MARKDOWN_DEMO_TITLE = "Markdown 全景：GFM、GitHub 与 Nine Rings";
 export const MARKDOWN_DEMO_KEY = "nr:builtin-markdown-demo:v1";
 export const MARKDOWN_DEMO_FLOW_KEY = "nr:builtin-markdown-demo:flow-h3:v1";
-const flowSource = markdown.match(/````flow\n([\s\S]*?)\n````/)![1];
-const oldFlowSource = flowSource.replace(/^### (捕捉|行动|复核)$/gm, "## $1");
+// Git can check out raw assets with CRLF on Windows.
+const markdown = rawMarkdown.replace(/\r\n?/g, "\n");
+const flowSource = markdown.match(/````flow\n([\s\S]*?)\n````/)?.[1];
+const oldFlowSource = flowSource?.replace(/^### (捕捉|行动|复核)$/gm, "## $1");
 let pending: Promise<boolean> | undefined;
 
 async function upgradeFlow(id: string): Promise<boolean> {
+  if (!flowSource || !oldFlowSource) return false;
   if (localStorage.getItem(MARKDOWN_DEMO_FLOW_KEY)) return false;
   const note = await api.notes.get(id);
   if (note?.content.encrypted) return false;

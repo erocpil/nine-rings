@@ -108,6 +108,8 @@ test("固定的分栏、目录书签及布局在重载和手机布局往返后�
   await expect(page.locator(".app-sidebar")).not.toHaveClass(/sidebar-hidden/);
   await page.keyboard.press("Escape");
   await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
+  // A reload preserves the pointer location; leave the preview trigger first.
+  await page.mouse.move(1200, 700);
   await page.reload();
   await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
   expect(

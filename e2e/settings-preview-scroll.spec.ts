@@ -1,3 +1,4 @@
+import { settingsBackdropFilter } from "./helpers/settings";
 import { expect, test } from "@playwright/test";
 import { createBlankDocument, waitForSavedText } from "./helpers/document";
 import { replaceSource, scrollSourceTo } from "./helpers/source-editor";
@@ -36,15 +37,19 @@ test("桌面设置外部点击不关闭，按住查看正文，释放和失焦�
   await page.getByTitle("设置", { exact: true }).click();
   const overlay = page.locator(".settings-overlay");
   await expect(page.getByRole("dialog", { name: "设置", exact: true })).toBeVisible();
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(6px)");
+  await expect(overlay).toHaveCSS("transition-duration", "0.18s, 0.18s, 0.18s");
   await page.mouse.click(8, 500);
   await expect(overlay).toHaveCount(1);
   await page.mouse.move(8, 500);
   await page.mouse.down();
   await expect(overlay).toHaveCSS("opacity", "0");
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(0px)");
   await page.mouse.move(800, 500);
   await expect(overlay).toHaveCSS("opacity", "0");
   await page.mouse.up();
   await expect(overlay).toHaveCSS("opacity", "1");
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(6px)");
   await expect(page.locator(".note-title:visible")).toHaveValue("设置效果预览");
   await page.mouse.move(8, 500);
   await page.mouse.down();
@@ -54,6 +59,23 @@ test("桌面设置外部点击不关闭，按住查看正文，释放和失焦�
   await page.mouse.up();
   await page.keyboard.press("Escape");
   await expect(overlay).toHaveCount(0);
+});
+
+test("减少动态效果时设置预览关闭过渡，按住和松开仍可使用", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await createBlankDocument(page);
+  await page.getByTitle("设置", { exact: true }).click();
+  const overlay = page.locator(".settings-overlay");
+  await expect.poll(() => overlay.evaluate(element =>
+    Math.max(...getComputedStyle(element).transitionDuration.split(",").map(parseFloat)),
+  )).toBeLessThan(0.001);
+  await page.mouse.move(8, 500);
+  await page.mouse.down();
+  await expect(overlay).toHaveCSS("opacity", "0");
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(0px)");
+  await page.mouse.up();
+  await expect(overlay).toHaveCSS("opacity", "1");
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(6px)");
 });
 
 test("源码预览同步在同一滚动事件内更新，双向连续映射并可关闭", async ({ page }) => {

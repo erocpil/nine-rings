@@ -542,7 +542,9 @@ export function ReadonlyVirtualNote(
         /* malformed or unavailable browser storage */
       }
     }
-    if (initial) jump(initial.position, initial.offset);
+    // Restoring a viewport is not explicit navigation into a folded block.
+    // Preserve code/quote/details state; only user-requested jumps reveal it.
+    if (initial) pendingAnchor.current = initial;
   }, [anchorKey, jump, noteId, props.sensitive]);
 
   useLayoutEffect(() => {

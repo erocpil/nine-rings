@@ -1,16 +1,9 @@
 import { pressLineBoundary } from "./helpers/keyboard";
+import { createBlankDocument } from "./helpers/document";
 import { test, expect, type Page } from "@playwright/test";
 
 async function createDocument(page: Page, title: string) {
-  await page.goto("/");
-  const previousNoteId = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
-  await page.getByTitle("新建文档").click();
-  await page.getByPlaceholder("文档标题...").fill(title);
-  await page.getByRole("button", { name: "创建", exact: true }).click();
-  await expect(page.locator(".note-title")).toHaveValue(title);
-  await expect(page.locator(".ProseMirror")).toBeEditable();
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:lastNote")))
-    .not.toBe(previousNoteId);
+  await createBlankDocument(page, title);
 }
 
 test.describe("搜索定位与编辑器布局锚点", () => {

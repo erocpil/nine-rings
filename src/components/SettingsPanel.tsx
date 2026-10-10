@@ -1,5 +1,5 @@
 import { normalizeSidebarOrder, sidebarPanelLabel } from "../lib/desktop-sidebar-state";
-import { INTERFACE_STYLES, normalizeInterfaceStyle } from "../lib/interface-style";
+import { INTERFACE_STYLES, normalizeInterfaceStyle, effectiveWorkspaceLayout } from "../lib/interface-style";
 import { blockWorkspacePreferences, saveBlockWorkspacePreferences, BLOCK_WORKSPACE_DISPLAY_EVENT } from "../lib/block-display-settings";
 import { useConfirmation } from "./ConfirmationDialog";
 import { useGitHubPushJob } from "../lib/sync/push-job";
@@ -680,7 +680,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             <button className="settings-retry" onClick={loadSettings}>重试</button>
           </div>
         ) : (
-          <div className={`settings-body${!["root", "data", "sync"].includes(settingsPage) ? " settings-content-page" : ""}`} data-settings-page={settingsPage}>
+          <div key={settingsPage} className={`settings-body${!["root", "data", "sync"].includes(settingsPage) ? " settings-content-page" : ""}`} data-settings-page={settingsPage}>
             {libraryError && <div className="reading-library-message" role="alert">{libraryError}</div>}
             {settingsPage === "root" && settingsSearchOpen && settingsQuery.trim() && (
               <div className="settings-search-results" aria-label="设置查找结果">
@@ -755,9 +755,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             </Field>
 
             {/* ── 主题 ── */}
-            <Field label="工作区布局" desc={config.interface_style === "classic" ? "经典风格使用标准布局；切换其他风格后可启用展陈布局" : "展陈布局增加工作区标识、中央外框与四栏概览；专注模式隐藏外围区域"} visible={settingsPage === "appearance"}>
+            <Field label="工作区布局" desc={config.interface_style === "classic" ? "经典风格自动使用标准布局；切换其他风格后恢复此前的布局选择" : "展陈布局增加工作区标识、中央外框与四栏概览；专注模式隐藏外围区域"} visible={settingsPage === "appearance"}>
               <div className="settings-radio-group">
-                {([["standard", "标准"], ["exhibition", "展陈"]] as const).map(([value, label]) => <button type="button" key={value} className={`settings-radio${config.workspace_layout === value ? " active" : ""}`} aria-pressed={config.workspace_layout === value} disabled={config.interface_style === "classic"} onClick={() => update({ workspace_layout: value })}>{label}</button>)}
+                {([["standard", "标准"], ["exhibition", "展陈"]] as const).map(([value, label]) => <button type="button" key={value} className={`settings-radio${effectiveWorkspaceLayout(config) === value ? " active" : ""}`} aria-pressed={effectiveWorkspaceLayout(config) === value} disabled={config.interface_style === "classic"} onClick={() => update({ workspace_layout: value })}>{label}</button>)}
               </div>
             </Field>
             <Field label="风格配色" desc="当前风格的浅色、深色或跟随系统配色，不改变经典主题。" visible={settingsPage === "appearance" && config.interface_style !== "classic"}>

@@ -134,6 +134,19 @@
 /* Keep the backdrop intercepting input while the live workspace is revealed. */
 .settings-overlay.settings-peeking { opacity: 0 !important; }
 
+.settings-overlay:not(.settings-overlay-mobile) {
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  transition: opacity 180ms ease, backdrop-filter 180ms ease, -webkit-backdrop-filter 180ms ease;
+}
+.settings-overlay:not(.settings-overlay-mobile).settings-peeking {
+  -webkit-backdrop-filter: blur(0px);
+  backdrop-filter: blur(0px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-overlay:not(.settings-overlay-mobile) { transition: none; }
+}
+
 .dialog-overlay {
   position: fixed;
   inset: 0;

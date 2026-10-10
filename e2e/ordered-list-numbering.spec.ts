@@ -37,15 +37,19 @@ test("包含段落和代码块的松散有序列表保持连续编号", async ({
     }));
   }, markdown);
 
-  const listStarts = () => editor.locator("ol").evaluateAll(
-    (lists) => lists.map((list) => (list as HTMLOListElement).start),
-  );
-  await expect.poll(listStarts).toEqual([1, 2, 3]);
+  const assertList = async () => {
+    // GFM keeps loose-list paragraphs and code inside their owning item.
+    await expect(editor.locator(":scope > ol")).toHaveCount(1);
+    expect(await editor.locator(":scope > ol").evaluate(element => (element as HTMLOListElement).start)).toBe(1);
+    await expect(editor.locator(":scope > ol > li")).toHaveCount(3);
+    await expect(editor.locator(":scope > ol > li").first().locator(".code-block-wrap")).toContainText("BAR0 memory resource");
+  };
+  await assertList();
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
 
   await page.reload();
   await expect(page.locator(".note-title")).toHaveValue("有序列表编号测试");
-  await expect.poll(listStarts).toEqual([1, 2, 3]);
+  await assertList();
 });
 
 test("有序列表的续行和后续列表项保持同一正文缩进", async ({ page }) => {
@@ -144,8 +148,10 @@ test("粘贴 Markdown 时列表 lazy continuation 保留为对齐的续行", asy
 
   const listItems = editor.locator("ol > li");
   await expect(listItems).toHaveCount(2);
-  await expect(listItems.nth(0).locator("br")).toHaveCount(1);
-  await expect(listItems.nth(1).locator("br")).toHaveCount(1);
+  // A single source newline is a CommonMark soft break, not a forced <br>.
+  await expect(listItems.nth(0)).toContainText("aaa bbb");
+  await expect(listItems.nth(1)).toContainText("ccc ddd");
+  await expect(listItems.locator("br")).toHaveCount(0);
 
   const lefts = await listItems.evaluateAll((items) => items.flatMap((item) => {
     const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
@@ -162,6 +168,6 @@ test("粘贴 Markdown 时列表 lazy continuation 保留为对齐的续行", asy
     }
     return values;
   }));
-  expect(lefts).toHaveLength(4);
+  expect(lefts).toHaveLength(2);
   lefts.forEach((left) => expect(Math.abs(left - lefts[0])).toBeLessThan(1));
 });
