@@ -88,10 +88,13 @@ export class SdkEditorHandles {
     );
     if (this.closed || signal.aborted)
       throw new PluginHostError("CANCELLED", "读取已取消");
+    return { ...value, revision: this.issueRevision(revision) };
+  }
+  issueRevision(revision: DocumentSaveRevision) {
     const token = crypto.randomUUID();
     this.bound(this.revisions);
     this.revisions.set(token, revision);
-    return { ...value, revision: token };
+    return token;
   }
   async whenSaved(
     documentId: string,

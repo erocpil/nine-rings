@@ -1,4 +1,6 @@
 import type { DocumentRevisionEvent } from "../document-save-revisions";
+import type { SdkEditorHandles } from "./sdk-editor-handles";
+import { cloneSdkValue } from "./sdk-protocol";
 import type { HostCommandDispatcher } from "./command-dispatcher";
 import { PluginHostError, type PluginActivation } from "./runtime";
 
@@ -21,47 +23,62 @@ export class SdkEvents {
   constructor(
     private dispatcher: HostCommandDispatcher,
     private activation: PluginActivation,
+    private handles: SdkEditorHandles,
   ) {}
   async subscribe(signal: AbortSignal) {
     if (this.subscriptions.size >= 8)
       throw new PluginHostError("INVALID_ARGUMENT", "订阅超过连接预算");
-    const { value } = await this.dispatcher.snapshot(
-      this.activation,
-      signal,
-      true,
-    );
-    if (this.closed || signal.aborted)
-      throw new PluginHostError("CANCELLED", "订阅已取消");
-    // Recheck after async authorization: concurrent subscriptions share the same budget.
-    if (this.subscriptions.size >= 8)
-      throw new PluginHostError("INVALID_ARGUMENT", "订阅超过连接预算");
     const subscriptionId = crypto.randomUUID();
     const state = {
-      documentId: value.documentId,
+      documentId: "",
       events: [] as DocumentRevisionEvent[],
       resync: false,
       stop: () => {},
     };
-    state.stop = this.dispatcher.subscribeRevisions((event) => {
-      if (event.documentId !== state.documentId) return;
-      if (event.kind === "invalidated") state.resync = true;
-      const last = state.events[state.events.length - 1];
-      if (
-        last?.kind === event.kind &&
-        last.documentGeneration === event.documentGeneration
-      ) {
-        state.events[state.events.length - 1] = event;
-        state.resync = true;
-      } else {
-        if (state.events.length >= 32) {
-          state.events.shift();
-          state.resync = true;
-        }
-        state.events.push(event);
-      }
-    });
-    this.subscriptions.set(subscriptionId, state);
-    return { subscriptionId };
+    try {
+      const { value, revision } = await this.dispatcher.snapshot(
+        this.activation,
+        signal,
+        false,
+        (documentId) => {
+          state.documentId = documentId;
+          if (this.closed || signal.aborted)
+            throw new PluginHostError("CANCELLED", "订阅已取消");
+          if (this.subscriptions.size >= 8)
+            throw new PluginHostError("INVALID_ARGUMENT", "订阅超过连接预算");
+          // Registered synchronously with the frozen snapshot, before another edit can run.
+          state.stop = this.dispatcher.subscribeRevisions((event) => {
+            if (event.documentId !== state.documentId) return;
+            if (event.kind === "invalidated") state.resync = true;
+            const last = state.events[state.events.length - 1];
+            if (
+              last?.kind === event.kind &&
+              last.documentGeneration === event.documentGeneration
+            ) {
+              state.events[state.events.length - 1] = event;
+              state.resync = true;
+            } else {
+              if (state.events.length >= 32) {
+                state.events.shift();
+                state.resync = true;
+              }
+              state.events.push(event);
+            }
+          });
+          this.subscriptions.set(subscriptionId, state);
+        },
+      );
+      state.documentId = value.documentId;
+      if (this.closed || signal.aborted)
+        throw new PluginHostError("CANCELLED", "订阅已取消");
+      return cloneSdkValue({
+        subscriptionId,
+        snapshot: { ...value, revision: this.handles.issueRevision(revision) },
+      });
+    } catch (error) {
+      this.unsubscribe(subscriptionId);
+      throw error;
+    }
   }
   async read(id: string, signal: AbortSignal): Promise<SdkEventBatch> {
     const state = this.subscriptions.get(id);

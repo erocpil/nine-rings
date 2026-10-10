@@ -915,3 +915,35 @@ for (const kind of ["loopback", "port"] as const) {
     });
   });
 }
+
+for (const kind of ["loopback", "port"] as const) {
+  it(`${kind}: subscription returns a frozen baseline and captures the next edit without a gap`, async () => {
+    const { sdk, queue } = setup(kind);
+    queue.mark("a", "content", { ops: [{ insert: "baseline" }] });
+    const subscription = await sdk.events.subscribe();
+    expect(subscription.snapshot.content).toEqual({
+      ops: [{ insert: "baseline" }],
+    });
+    queue.mark("a", "content", { ops: [{ insert: "next" }] });
+    expect(subscription.snapshot.content).toEqual({
+      ops: [{ insert: "baseline" }],
+    });
+    expect((await subscription.read()).events[0]).toMatchObject({
+      kind: "accepted",
+      contentRevision: 2,
+    });
+    await sdk.documents.whenSaved(subscription.snapshot);
+    await subscription.dispose();
+  });
+  it(`${kind}: oversized subscription baseline fails without consuming a subscription slot`, async () => {
+    const { sdk, queue } = setup(kind);
+    queue.mark("a", "content", { ops: [{ insert: "x".repeat(129000) }] });
+    for (let i = 0; i < 9; i++)
+      await expect(sdk.events.subscribe()).rejects.toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+    queue.mark("a", "content", { ops: [] });
+    const subscription = await sdk.events.subscribe();
+    await subscription.dispose();
+  });
+}

@@ -91,3 +91,28 @@ it("explicit disposal unregisters ownership and reactivation releases old resour
   runtime.activate("test.owner", []);
   expect(cleanup).toHaveBeenCalledTimes(1);
 });
+
+it("management status is stable, immutable and records only safe cleanup diagnostics", () => {
+  const runtime = new PluginRuntime();
+  const notify = vi.fn();
+  const stop = runtime.subscribe(notify);
+  expect(runtime.getStatus()).toBe(runtime.getStatus());
+  runtime.setEnabled(true);
+  const activation = runtime.activate("test.status", [
+    "documents.current.read",
+  ]);
+  runtime.own(activation, () => {
+    throw new Error("secret document text");
+  });
+  expect(runtime.getStatus().activations[0]).toMatchObject({
+    pluginId: "test.status",
+    resources: 1,
+  });
+  expect(Object.isFrozen(runtime.getStatus().activations)).toBe(true);
+  runtime.deactivate("test.status");
+  expect(runtime.getStatus().activations).toEqual([]);
+  expect(runtime.getStatus().cleanupFailures).toBe(1);
+  expect(JSON.stringify(runtime.getStatus())).not.toContain("secret");
+  expect(notify).toHaveBeenCalled();
+  stop();
+});

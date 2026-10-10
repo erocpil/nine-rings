@@ -27,6 +27,16 @@ export interface PluginActivation {
   readonly pluginId: string;
   readonly generation: string;
 }
+export interface PluginRuntimeStatus {
+  enabled: boolean;
+  activations: readonly {
+    pluginId: string;
+    generation: string;
+    permissions: readonly PluginPermission[];
+    resources: number;
+  }[];
+  cleanupFailures: number;
+}
 interface ActivationState {
   token: PluginActivation;
   controller: AbortController;
@@ -37,6 +47,30 @@ interface ActivationState {
 /** Only the host issues activations. Copying a serialized descriptor is not authority. */
 export class PluginRuntime {
   private enabled = false;
+  private cleanupFailures = 0;
+  private status: PluginRuntimeStatus = Object.freeze({
+    enabled: false,
+    activations: [],
+    cleanupFailures: 0,
+  });
+  getStatus = () => this.status;
+  private changed() {
+    this.status = Object.freeze({
+      enabled: this.enabled,
+      cleanupFailures: this.cleanupFailures,
+      activations: Object.freeze(
+        [...this.activations.values()].map((state) =>
+          Object.freeze({
+            pluginId: state.token.pluginId,
+            generation: state.token.generation,
+            permissions: Object.freeze([...state.permissions].sort()),
+            resources: state.resources.size,
+          }),
+        ),
+      ),
+    });
+    for (const listener of this.listeners) listener();
+  }
   private activations = new Map<string, ActivationState>();
   private issued = new WeakMap<PluginActivation, ActivationState>();
   private listeners = new Set<() => void>();
@@ -52,7 +86,7 @@ export class PluginRuntime {
     this.enabled = enabled;
     if (!enabled)
       for (const id of [...this.activations.keys()]) this.deactivate(id);
-    for (const listener of this.listeners) listener();
+    this.changed();
   }
   activate(
     pluginId: string,
@@ -82,6 +116,7 @@ export class PluginRuntime {
     };
     this.activations.set(pluginId, state);
     this.issued.set(token, state);
+    this.changed();
     return token;
   }
   deactivate(pluginId: string): void {
@@ -90,6 +125,7 @@ export class PluginRuntime {
     state?.controller.abort();
     // Reverse acquisition order; a failing cleanup must not strand other resources.
     for (const dispose of [...(state?.resources ?? [])].reverse()) dispose();
+    if (state) this.changed();
   }
   own(activation: PluginActivation, cleanup: () => void): () => void {
     this.assert(activation);
@@ -102,10 +138,12 @@ export class PluginRuntime {
       try {
         cleanup();
       } catch {
-        /* Cleanup is best effort; continue releasing resources. */
+        this.cleanupFailures += 1;
       }
+      this.changed();
     };
     state.resources.add(dispose);
+    this.changed();
     return dispose;
   }
 

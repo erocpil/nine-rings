@@ -176,10 +176,14 @@ export function createPluginSdk(transport: SdkTransport) {
             response.error.code,
             response.error.message,
           );
-        const id = (response.value as { subscriptionId: string })
-          .subscriptionId;
+        const registration = response.value as {
+          subscriptionId: string;
+          snapshot: SdkEditResult & { title: string; content: unknown };
+        };
+        const id = registration.subscriptionId;
         let disposed = false;
         return {
+          snapshot: registration.snapshot,
           async read(options?: {
             signal?: AbortSignal;
           }): Promise<SdkEventBatch> {

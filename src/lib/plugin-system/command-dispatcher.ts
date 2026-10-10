@@ -214,6 +214,7 @@ export class HostCommandDispatcher {
     activation: PluginActivation,
     signal?: AbortSignal,
     metadataOnly = false,
+    captured?: (documentId: string) => void,
   ) {
     this.runtime.assert(activation, "documents.current.read");
     const context = this.context();
@@ -278,6 +279,7 @@ export class HostCommandDispatcher {
           content: metadataOnly ? null : (pending?.content ?? note.content),
         });
         check();
+        captured?.(id);
         return { value, revision };
       });
     } catch (error) {

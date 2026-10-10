@@ -26,7 +26,7 @@ export function createSdkHost(
 ) {
   const runtimeSignal = runtime.assert(activation);
   const handles = new SdkEditorHandles(dispatcher, activation);
-  const events = new SdkEvents(dispatcher, activation);
+  const events = new SdkEvents(dispatcher, activation, handles);
   const seen = new Set<string>();
   const pending = new Map<string, AbortController>();
   let closed = false;

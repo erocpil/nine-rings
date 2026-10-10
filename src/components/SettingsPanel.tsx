@@ -1,3 +1,4 @@
+import { PluginRuntimeStatus } from "./PluginRuntimeStatus";
 import { useSyncExternalStore } from "react";
 import { pluginRuntime, setPluginsEnabled } from "../lib/plugin-system/runtime";
 import { DesktopRecoveryStatus } from "./DesktopRecoveryStatus";
@@ -1237,6 +1238,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 <span className="toggle-track" /><span className="toggle-label">{pluginsEnabled ? "开" : "关"}</span>
               </label>
             </Field>
+
+            {settingsPage === "advanced" && <PluginRuntimeStatus />}
 
             <Field label="只读正文局部渲染（实验）" desc="默认关闭，仅本设备生效。只读时按可见区域挂载正文；图片、表格及超大单块自动回退。跨全文选择、打印、书签管理请切回完整渲染。" visible={settingsPage === "advanced"}>
               <label className="settings-toggle">
