@@ -12,6 +12,17 @@ test("源码编辑高亮、列表续写、Tab、搜索替换和视图切换撤�
 }) => {
   await createBlankDocument(page);
   await page.getByRole("button", { name: "源码", exact: true }).click();
+  const toolbar = page.getByRole("toolbar", { name: "源码编辑工具", exact: true });
+  await page.mouse.move(600, 600);
+  for (const name of ["查找替换", "跳转行", "软换行", "撤销", "重做", "加粗", "行内代码", "链接"]) {
+    const button = toolbar.getByRole("button", { name, exact: true });
+    await expect(button).toHaveText("");
+    await expect(button.locator("svg")).toBeVisible();
+    await expect(button).toHaveAttribute("title", name);
+  }
+  await toolbar.getByRole("button", { name: "查找替换", exact: true }).hover();
+  await expect(page.getByRole("tooltip")).toHaveText("查找替换");
+  await page.mouse.move(600, 600);
   const area = page.getByRole("textbox", {
     name: "Markdown 源码",
     exact: true,

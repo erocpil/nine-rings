@@ -18,6 +18,7 @@
 .markdown-cm-source { display: flex; flex-direction: column; overflow: hidden; }
 .markdown-source-tools { position: relative; display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; overflow-x: auto; height: 36px; min-height: 36px; max-height: 36px; box-sizing: border-box; padding: 4px 8px; flex: 0 0 auto; border-bottom: 1px solid var(--border); font-size: 12px; }
 .markdown-source-tools button { padding: 4px 7px; border: 1px solid transparent; border-radius: 4px; background: var(--bg-secondary); color: var(--text); }
+.markdown-source-tools > button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 4px; }
 .markdown-source-tools button:hover, .markdown-source-tools button[aria-pressed="true"] { border-color: var(--border); background: var(--bg-active, var(--bg-secondary)); }
 .markdown-source-tools button:disabled { opacity: .45; }
 .markdown-source-cursor { margin-left: auto; color: var(--text-secondary); white-space: nowrap; }

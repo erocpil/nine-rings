@@ -1,4 +1,5 @@
 import { mobileSourceInput } from "../lib/mobile-source-input";
+import { ToolbarIcon } from "./ToolbarIcon";
 import { readonlySourceSelection } from "../lib/readonly-source-selection";
 import {
   useLayoutEffect,
@@ -179,6 +180,13 @@ export function MarkdownSourceEditor({
             tag: [tags.comment, tags.meta],
             color: "var(--text-secondary)",
             fontStyle: "italic",
+          },
+          // Markdown hard-break and delimiter marks inherit meta's tag.
+          // Italic skew can make a backslash look like a vertical bar.
+          {
+            tag: [tags.processingInstruction, tags.escape],
+            color: "var(--text-secondary)",
+            fontStyle: "normal",
           },
           { tag: tags.strong, fontWeight: "bold" },
           { tag: tags.emphasis, fontStyle: "italic" },
@@ -370,47 +378,55 @@ export function MarkdownSourceEditor({
         role="toolbar"
         aria-label="源码编辑工具"
       >
-        <button type="button" onClick={() => run(openSearchPanel)}>
-          查找替换
+        <button type="button" title="查找替换" aria-label="查找替换" onClick={() => run(openSearchPanel)}>
+          <ToolbarIcon name="search" />
         </button>
-        <button type="button" onClick={() => run(gotoLine)}>
-          跳转行
+        <button type="button" title="跳转行" aria-label="跳转行" onClick={() => run(gotoLine)}>
+          <ToolbarIcon name="jumpLine" />
         </button>
         <button
           type="button"
+          title="软换行"
+          aria-label="软换行"
           aria-pressed={preferences.wrap !== false}
           onClick={() =>
             saveBlockWorkspacePreferences({ wrap: preferences.wrap === false })
           }
         >
-          软换行
+          <ToolbarIcon name="wrap" />
         </button>
-        <button type="button" disabled={readonly} onClick={() => run(undo)}>
-          撤销
+        <button type="button" title="撤销" aria-label="撤销" disabled={readonly} onClick={() => run(undo)}>
+          <ToolbarIcon name="undo" />
         </button>
-        <button type="button" disabled={readonly} onClick={() => run(redo)}>
-          重做
+        <button type="button" title="重做" aria-label="重做" disabled={readonly} onClick={() => run(redo)}>
+          <ToolbarIcon name="redo" />
         </button>
         <button
           type="button"
+          title="加粗"
+          aria-label="加粗"
           disabled={readonly}
           onClick={() => run((v) => wrapSelection(v, "**"))}
         >
-          加粗
+          <ToolbarIcon name="bold" />
         </button>
         <button
           type="button"
+          title="行内代码"
+          aria-label="行内代码"
           disabled={readonly}
           onClick={() => run((v) => wrapSelection(v, "`"))}
         >
-          行内代码
+          <ToolbarIcon name="code" />
         </button>
         <button
           type="button"
+          title="链接"
+          aria-label="链接"
           disabled={readonly}
           onClick={() => run((v) => wrapSelection(v, "[", "](https://)"))}
         >
-          链接
+          <ToolbarIcon name="link" />
         </button>
         {escapeRepair}
         <span className="markdown-source-cursor" aria-label="光标位置">
