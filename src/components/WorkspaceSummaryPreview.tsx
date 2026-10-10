@@ -1,3 +1,4 @@
+import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDocumentPanelPosition } from "../hooks/useDocumentPanelPosition";
@@ -17,7 +18,7 @@ export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, n
   editedIds?: string[];
   visibleRows?: number;
   compact?: boolean;
-  onOpen: (id: string) => void;
+  onOpen: (id: string, options?: DocumentOpenOptions) => void;
   onClose: (restoreFocus?: boolean) => void;
   onEnter: () => void;
   onLeave: () => void;
@@ -110,7 +111,7 @@ export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, n
       }}>
       {start > 0 && <li aria-hidden="true" style={{ height: start * ROW_HEIGHT }} />}
       {documents.slice(start, end).map((note, offset) => <li key={note.id}>
-        <button type="button" data-summary-index={start + offset} aria-label={note.title || "未命名文档"} data-edit-status={editedIds ? editedIds.includes(note.id) ? "edited" : "viewed" : undefined} aria-description={editedIds ? editedIds.includes(note.id) ? "已记录编辑" : "仅浏览，尚未记录编辑" : undefined} title={`${note.title || "未命名文档"}${editedIds ? editedIds.includes(note.id) ? " — 已记录编辑" : " — 仅浏览，尚未记录编辑" : ""}`} onClick={() => onOpen(note.id)}>{numbered && <span aria-hidden="true" className="workspace-summary-shortcut">{(start + offset).toString(16)}</span>}{note.title || "未命名文档"}</button>
+        <button type="button" data-summary-index={start + offset} aria-label={note.title || "未命名文档"} data-edit-status={editedIds ? editedIds.includes(note.id) ? "edited" : "viewed" : undefined} aria-description={editedIds ? editedIds.includes(note.id) ? "已记录编辑" : "仅浏览，尚未记录编辑" : undefined} title={`${note.title || "未命名文档"}${editedIds ? editedIds.includes(note.id) ? " — 已记录编辑" : " — 仅浏览，尚未记录编辑" : ""}`} onClick={event => onOpen(note.id, documentOpenOptions(event))}>{numbered && <span aria-hidden="true" className="workspace-summary-shortcut">{(start + offset).toString(16)}</span>}{note.title || "未命名文档"}</button>
       </li>)}
       {end < documents.length && <li aria-hidden="true" style={{ height: (documents.length - end) * ROW_HEIGHT }} />}
     </ul> : <p className="workspace-summary-preview-empty">暂无文档</p>}

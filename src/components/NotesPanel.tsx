@@ -1,3 +1,4 @@
+import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Note } from "../types/models";
 import { api } from "../lib/api";
@@ -13,7 +14,7 @@ interface Props {
   refreshKey: number;
   disabled: boolean;
   beforeChange: () => Promise<void>;
-  onSelect: (note: Note) => void;
+  onSelect: (note: Note, options?: DocumentOpenOptions) => void;
   onChanged: () => void;
   onMove: (ids: string[], path: string) => Promise<void>;
   onRenameGroup: (path: string, name: string) => Promise<void>;
@@ -133,7 +134,7 @@ export function NotesPanel(props: Props) {
         </div>
         {(!collapsed.has(group) || query.trim()) && documents.map(note => <div className={`notes-panel-row${note.id === props.selectedNote?.id ? " is-selected" : ""}`} key={note.id}>
           {multi && <input type="checkbox" aria-label={`选择随记 ${note.title ?? "无标题"}`} checked={selected.has(note.id)} disabled={busy || props.disabled} onChange={() => setSelected(current => { const next = new Set(current); if (next.has(note.id)) next.delete(note.id); else next.add(note.id); return next; })} />}
-          <button type="button" className="notes-panel-open" disabled={busy || props.disabled} aria-current={note.id === props.selectedNote?.id ? "page" : undefined} title={note.title ?? "无标题"} onClick={() => void run(async () => { const full = await api.notes.get(note.id); if (!full || full.deleted_at) throw new Error("随记已删除，请刷新列表"); props.onSelect(full); }, false)}><ToolbarIcon name="note" /><span>{note.title ?? "无标题"}</span></button>
+          <button type="button" className="notes-panel-open" disabled={busy || props.disabled} aria-current={note.id === props.selectedNote?.id ? "page" : undefined} title={note.title ?? "无标题"} onClick={event => { const options = documentOpenOptions(event); void run(async () => { const full = await api.notes.get(note.id); if (!full || full.deleted_at) throw new Error("随记已删除，请刷新列表"); props.onSelect(full, options); }, false); }}><ToolbarIcon name="note" /><span>{note.title ?? "无标题"}</span></button>
           <button type="button" className="btn-icon" aria-label={`重命名随记 ${note.title ?? "无标题"}`} disabled={busy || props.disabled} onClick={() => setRename({ kind: "renameNote", target: note.id, value: note.title ?? "" })}><ToolbarIcon name="rename" /></button>
           <button type="button" className="btn-icon" aria-label={`删除随记 ${note.title ?? "无标题"}`} disabled={busy || props.disabled} onClick={() => void run(() => props.onDelete(note.id))}><ToolbarIcon name="trash" /></button>
         </div>)}

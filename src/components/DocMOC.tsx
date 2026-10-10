@@ -1,3 +1,4 @@
+import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Note } from "../types/models";
 import { api } from "../lib/api";
@@ -24,7 +25,7 @@ interface DocMOCProps {
   storagePath?: string;
   /** 概念模式：列出关联某概念的所有文档（与 storagePath 互斥） */
   concept?: string;
-  onSelect: (note: Note) => void;
+  onSelect: (note: Note, options?: DocumentOpenOptions) => void;
   /** 点击某个概念 chip 时跳转到该概念的聚合页 */
   onOpenConcept?: (concept: string) => void;
   selectedId: string | null;
@@ -157,7 +158,7 @@ export function DocMOC({ storagePath, concept, onSelect, onOpenConcept, selected
               <tr
                 key={note.id}
                 className={`moc-row ${note.id === selectedId ? "moc-row-selected" : ""}`}
-                onClick={() => onSelect(note)}
+                onClick={event => onSelect(note, documentOpenOptions(event))}
               >
                 <td className="moc-col-title">
                   <span

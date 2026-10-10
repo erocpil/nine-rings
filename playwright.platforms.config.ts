@@ -7,6 +7,7 @@ export default defineConfig({
   testMatch: [
     "**/platform-editing.spec.ts",
     "**/document-memory.spec.ts",
+    "**/document-open-source.spec.ts",
     "**/document-history.spec.ts",
     "**/create-edit-save.spec.ts",
     "**/exhibition-workspace.spec.ts",

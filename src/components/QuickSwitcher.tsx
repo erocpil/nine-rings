@@ -1,3 +1,4 @@
+import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import {
@@ -14,7 +15,7 @@ interface QuickSwitcherProps {
   open: boolean;
   activeNoteId: string | null;
   onClose: () => void;
-  onSelect: (note: Note) => void | Promise<void>;
+  onSelect: (note: Note, options?: DocumentOpenOptions) => void | Promise<void>;
 }
 
 export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }: QuickSwitcherProps) {
@@ -64,9 +65,9 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
 
   if (!open) return null;
 
-  const choose = (note: Note) => {
+  const choose = (note: Note, options?: DocumentOpenOptions) => {
     onClose();
-    void onSelect(note);
+    void onSelect(note, options);
   };
 
   return (
@@ -138,7 +139,7 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
               data-switch-index={index}
               className={`quick-switcher-item${index === activeIndex ? " active" : ""}`}
               onMouseEnter={() => setActiveIndex(index)}
-              onClick={() => choose(note)}
+              onClick={event => choose(note, documentOpenOptions(event))}
             >
               <span className="quick-switcher-kind" aria-hidden="true"><ToolbarIcon name={note.storagePath ? "document" : "note"} /></span>
               <DocumentListContent variant="quick-switcher" title={note.title?.trim() || "无标题"} path={note.storagePath}

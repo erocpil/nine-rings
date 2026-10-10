@@ -1,4 +1,5 @@
 import { FootnoteNumbering } from "../extensions/FootnoteNumbering";
+import type { DocumentOpenOptions } from "../lib/document-open";
 import { markdownContentFingerprint } from "../lib/external-markdown-source";
 import { FlowPresentation, flowPresentationKey } from "../extensions/FlowPresentation";
 import { flowHeadingLevel } from "../lib/flow-presentation";
@@ -283,7 +284,7 @@ export interface NoteEditorProps {
   securityToolbarTarget?: HTMLElement | null;
   focusToolbarTarget?: HTMLElement | null;
   onFlush?: () => Promise<void>;
-  onOpenLinkedNote?: (note: Note, referenceId?: string) => Promise<void>;
+  onOpenLinkedNote?: (note: Note, referenceId?: string, options?: DocumentOpenOptions) => Promise<void>;
   onSecurityChanged?: () => Promise<void>;
   onProtectionBusy?: (busy: boolean) => void;
   onSecurityError?: (message: string) => void;

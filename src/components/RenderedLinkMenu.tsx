@@ -7,6 +7,7 @@ import { api } from "../lib/api";
 import { isRelativeMarkdownLink, resolveRelativeDocumentLink, type LinkDocument } from "../lib/relative-document-link";
 import { internalNoteId, internalReferenceId } from "../lib/internal-note-link";
 import type { Note } from "../types/models";
+import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 
 function linkAt(target: EventTarget | null): HTMLAnchorElement | null {
   if (!(target instanceof Element) || target.closest(".block-selection-active")) return null;
@@ -14,9 +15,9 @@ function linkAt(target: EventTarget | null): HTMLAnchorElement | null {
   return link?.closest(".editor-content") ? link : null;
 }
 
-export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { children: ReactNode; noteId: string; onOpenLinkedNote?: (note: Note, referenceId?: string) => Promise<void> }) {
+export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { children: ReactNode; noteId: string; onOpenLinkedNote?: (note: Note, referenceId?: string, options?: DocumentOpenOptions) => Promise<void> }) {
   const [menu, setMenu] = useState<{ url: string; x: number; y: number } | null>(null);
-  const [suggestion, setSuggestion] = useState<{ path: string; candidates: LinkDocument[]; x: number; y: number } | null>(null);
+  const [suggestion, setSuggestion] = useState<{ path: string; candidates: LinkDocument[]; x: number; y: number; options?: DocumentOpenOptions } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const focus = useRef<HTMLElement | null>(null);
   const press = useRef<{ x: number; y: number; timer: ReturnType<typeof setTimeout> } | null>(null);
@@ -38,7 +39,7 @@ export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { child
     setSuggestion(null);
     setMenu({ url: link.getAttribute("href") ?? link.href, x, y });
   };
-  const openRelative = async (href: string, label: string, x: number, y: number) => {
+  const openRelative = async (href: string, label: string, x: number, y: number, options?: DocumentOpenOptions) => {
     if (!onOpenLinkedNote) return;
     try {
       const [source, notes] = await Promise.all([api.notes.get(noteId), api.notes.all()]);
@@ -60,22 +61,22 @@ export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { child
         const note = await api.notes.get(target.exact.id);
         if (!note) throw new Error("目标文档已不存在");
         close();
-        await onOpenLinkedNote(note);
+        await onOpenLinkedNote(note, undefined, options);
         return;
       }
       setMenu(null);
-      setSuggestion({ path: `${target.folder}/${target.fileName}`, candidates: target.suggestions, x, y });
+      setSuggestion({ path: `${target.folder}/${target.fileName}`, candidates: target.suggestions, x, y, options });
     } catch (error) {
       showMessage(`打开文档链接失败：${error instanceof Error ? error.message : String(error)}`);
     }
   };
-  const openInternal = async (id: string, referenceId?: string) => {
+  const openInternal = async (id: string, referenceId?: string, options?: DocumentOpenOptions) => {
     if (!onOpenLinkedNote) return;
     try {
       const note = await api.notes.get(id);
       if (!note || note.deleted_at) throw new Error("目标文档已不存在");
       close();
-      await onOpenLinkedNote(note, referenceId);
+      await onOpenLinkedNote(note, referenceId, options);
     } catch (error) {
       showMessage(`打开文档链接失败：${error instanceof Error ? error.message : String(error)}`);
     }
@@ -172,9 +173,10 @@ export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { child
       const id = internalNoteId(href);
       if (!link || (!id && !isRelativeMarkdownLink(href))) return;
       event.preventDefault(); event.stopPropagation();
-      if (id) { void openInternal(id, internalReferenceId(href) ?? undefined); return; }
+      const options = documentOpenOptions(event);
+      if (id) { void openInternal(id, internalReferenceId(href) ?? undefined, options); return; }
       const rect = link.getBoundingClientRect();
-      void openRelative(href, link.textContent ?? "", rect.left, rect.bottom + 4);
+      void openRelative(href, link.textContent ?? "", rect.left, rect.bottom + 4, options);
     }}>
     {children}
     {menu && createPortal(<div ref={ref} role="menu" aria-label="链接操作" className="rendered-link-menu" style={{ left: menu.x, top: menu.y }}
@@ -208,7 +210,7 @@ export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { child
           const note = await api.notes.get(candidate.id);
           if (!note) throw new Error("目标文档已不存在");
           close();
-          await onOpenLinkedNote?.(note);
+          await onOpenLinkedNote?.(note, undefined, suggestion.options);
         } catch (error) { showMessage(`打开文档链接失败：${error instanceof Error ? error.message : String(error)}`); }
       })()}>{candidate.title || candidate.originalFileName || "无标题"}<small>{candidate.storagePath}</small></button>)
         : <div className="rendered-link-address">未找到对应文档。重新导入目标文件可记录原始文件名。</div>}

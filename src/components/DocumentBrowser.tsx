@@ -1,3 +1,4 @@
+import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { api } from "../lib/api";
@@ -24,7 +25,7 @@ interface Props {
   initialPath: string;
   refreshKey: number;
   disabled: boolean;
-  onSelect: (note: Note) => void;
+  onSelect: (note: Note, options?: DocumentOpenOptions) => void;
   onCreate: (path: string) => void;
   request?: DocumentBrowserRequest;
   latestNote?: Pick<Note, "id" | "updated_at"> | null;
@@ -264,12 +265,13 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
       </div> : visible.map(note => <div
         key={note.id} className={`document-browser-row${note.id === selectedId ? " selected" : ""}`}>
         <button data-drawer-swipe-item className="document-browser-open"
-        disabled={disabled || opening} onClick={async () => {
+        disabled={disabled || opening} onClick={async event => {
+          const options = documentOpenOptions(event);
           setOpening(true);
           try {
             const current = await api.notes.get(note.id);
             if (!current || current.deleted_at) throw new Error("文档已删除，请重新打开列表");
-            onSelect(current);
+            onSelect(current, options);
           } catch (reason) { setError(String(reason)); }
           finally { setOpening(false); }
         }} aria-label={note.title || "未命名文档"} aria-current={note.id === selectedId ? "page" : undefined}>

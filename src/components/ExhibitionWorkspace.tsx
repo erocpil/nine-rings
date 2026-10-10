@@ -1,3 +1,4 @@
+import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { useWorkspaceLayout } from "../hooks/useWorkspaceLayout";
 import { useEffect, useMemo, useRef, useState, lazy, Suspense, type ReactNode } from "react";
 import { DocumentFilterSelect } from "./DocumentFilterSelect";
@@ -27,7 +28,7 @@ interface Props {
   noteId?: string;
   refreshKey: number;
   onAppearance: (patch: Partial<AppConfig>) => Promise<void>;
-  onOpen: (note: Note) => Promise<void>;
+  onOpen: (note: Note, options?: DocumentOpenOptions) => Promise<void>;
   onHome: () => Promise<void>;
   canReturn: boolean;
   onCreate: () => void;
@@ -138,11 +139,11 @@ export function ExhibitionWorkspace(props: Props) {
       setBusy(false);
     }
   };
-  const open = (id: string) =>
+  const open = (id: string, options?: DocumentOpenOptions) =>
     void run(async () => {
       const note = await api.notes.get(id);
       if (!note) throw new Error("文档已不存在，请刷新概览。");
-      await props.onOpen(note);
+      await props.onOpen(note, options);
       setExpanded(false);
     });
   const rows = (notes: Summary[], empty: string) =>
@@ -154,7 +155,7 @@ export function ExhibitionWorkspace(props: Props) {
               type="button"
               title={note.title || "未命名文档"}
               disabled={busy || blocked}
-              onClick={() => open(note.id)}
+              onClick={event => open(note.id, documentOpenOptions(event))}
             >
               {note.title || "未命名文档"}
             </button>
@@ -377,7 +378,7 @@ export function ExhibitionWorkspace(props: Props) {
       )}
       {previewEnabled && summaryPreview && <WorkspaceSummaryPreview key={summaryPreview.kind} title={previewTitle} documents={previewDocuments}
         numbered={summaryPreview.kind !== "all"} editedIds={summaryPreview.kind === "recent" ? recentEdited : undefined} trigger={summaryPreview.trigger} keyboard={summaryPreview.keyboard} visibleRows={summaryLayout.summaryVisibleRows} compact={!props.desktop} onEnter={keepSummary} onLeave={leaveSummary} onClose={closeSummary}
-        onOpen={id => { closeSummary(); open(id); }} />}
+        onOpen={(id, options) => { closeSummary(); open(id, options); }} />}
     </div>
   );
 }

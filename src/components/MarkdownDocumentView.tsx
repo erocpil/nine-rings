@@ -19,12 +19,14 @@ import { MarkdownEscapeRepair } from "./MarkdownEscapeRepair";
 import { api } from "../lib/api";
 import { useMarkdownViewPosition } from "../hooks/useMarkdownViewPosition";
 import { patchReadingState, readReadingState } from "../lib/reading-state";
+import { useDocumentOpenStore } from "../stores/useDocumentOpenStore";
 
 const MarkdownSourceEditor = lazy(() => import("./MarkdownSourceEditor").then(module => ({ default: module.MarkdownSourceEditor })));
 
 /** One visible editing surface, one canonical autosave stream for both views. */
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
   const active = useDocumentActive();
+  const sourceOpenTarget = useDocumentOpenStore(state => state.target?.noteId === props.noteId ? state.target : null);
   const navigationTarget = useNavigationStore(state => state.target?.noteId === props.noteId ? state.target : null);
   const mobile = useMobileViewport();
   const [preview, setPreview] = useState(() => localStorage.getItem("nr:markdownSplitPreview") === "true");
@@ -93,8 +95,21 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     if (restoredView.current) return;
     restoredView.current = true;
     const saved = props.sensitive ? null : readReadingState(props.noteId);
+    if (useDocumentOpenStore.getState().target?.noteId === props.noteId) return;
     if (!useNavigationStore.getState().target && !props.searchTarget?.bookmarkId && !props.searchTarget?.referenceId && supported && saved?.view === "source" && saved.source) void restoreViewRef.current(saved.source.scrollTop);
   }, [props.noteId, props.sensitive, props.searchTarget?.bookmarkId, props.searchTarget?.referenceId, supported]);
+  const handledSourceOpen = useRef<number>();
+  useEffect(() => {
+    if (!active || !sourceOpenTarget || busy) return;
+    const { requestId } = sourceOpenTarget;
+    if (!supported || source !== null) {
+      useDocumentOpenStore.getState().consumed(requestId);
+    } else if (handledSourceOpen.current !== requestId) {
+      handledSourceOpen.current = requestId;
+      // Reuse the normal save/conversion boundary, including cached instances.
+      void restoreViewRef.current().finally(() => useDocumentOpenStore.getState().consumed(requestId));
+    }
+  }, [active, sourceOpenTarget, busy, source, supported]);
   const bookmarkViewRequest = useRef<number>();
   const onSearchTargetConsumed = props.onSearchTargetConsumed;
   const jumpSourceRef = useRef<(offset: number, record?: boolean) => void>(() => {});

@@ -1,3 +1,4 @@
+import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { createPortal } from "react-dom";
@@ -17,7 +18,7 @@ import {
 
 interface DocTreeProps {
   beforeExport?: () => Promise<void>;
-  onSelect: (note: Note) => void;
+  onSelect: (note: Note, options?: DocumentOpenOptions) => void;
   onFolderSelect?: (path: string) => void;
   selectedId: string | null;
   selectedTitle?: string;
@@ -336,7 +337,7 @@ function DocTree({
     });
   };
 
-  const handleDocClick = async (node: PathNode) => {
+  const handleDocClick = async (node: PathNode, options?: DocumentOpenOptions) => {
     if (disabled || !node.noteId) return;
     const request = ++selectionRequestRef.current;
     setSelectionError(null);
@@ -356,7 +357,7 @@ function DocTree({
     try {
       const note = await api.notes.get(node.noteId);
       if (request !== selectionRequestRef.current) return;
-      if (note) onSelect(note);
+      if (note) onSelect(note, options);
       else setSelectionError("文档不存在或已删除，请刷新文档树");
     } catch (error) {
       if (request === selectionRequestRef.current) setSelectionError(`打开文档失败，请再次点击重试：${String(error)}`);
@@ -738,7 +739,7 @@ function DocTree({
         key={node.path}
         className={`doc-tree-node doc-tree-doc ${isSelected ? "doc-tree-selected" : ""}`}
         style={{ paddingLeft: 6 + Math.max(0, depth - 1) * 12 }}
-        onClick={() => handleDocClick(node)}
+        onClick={event => handleDocClick(node, documentOpenOptions(event))}
         onContextMenu={(e) => handleContextMenu(e, node)}
         onPointerDown={(event) => handleTreePointerDown(event, node)}
         onPointerMove={handleTreePointerMove}

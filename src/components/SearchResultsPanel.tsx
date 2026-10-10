@@ -1,3 +1,4 @@
+import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { useEffect, useState } from "react";
 import { snippetParts } from "../lib/storage/idb-snippet";
 import type { SearchNote } from "../lib/search-index-core";
@@ -14,7 +15,7 @@ interface Props {
   searching: boolean;
   options?: SearchOptions;
   onClose: () => void;
-  onSelectNote: (note: SearchNote | Note, keepSearch: boolean, searchTerm: string) => void;
+  onSelectNote: (note: SearchNote | Note, keepSearch: boolean, searchTerm: string, options?: DocumentOpenOptions) => void;
 }
 
 export function SearchResultsPanel({
@@ -46,7 +47,7 @@ export function SearchResultsPanel({
             type="button"
             key={note.id}
             className="search-hit"
-            onClick={(event) => onSelectNote(note, event.ctrlKey || event.metaKey, searchTerm)}
+            onClick={(event) => { const openOptions = documentOpenOptions(event); onSelectNote(note, !openOptions && (event.ctrlKey || event.metaKey), searchTerm, openOptions); }}
           >
             <DocumentListContent variant="search-hit" title={note.title || "无标题"}
               path={note.storagePath} metadata={`文档 · ${note.date}`}

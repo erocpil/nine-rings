@@ -1,4 +1,6 @@
 import { useQuitConfirmation } from "./hooks/useQuitConfirmation";
+import type { DocumentOpenOptions } from "./lib/document-open";
+import { useDocumentOpenStore } from "./stores/useDocumentOpenStore";
 import { effectiveWorkspaceLayout } from "./lib/interface-style";
 import "./components/QuitConfirmation.css";
 import { mergeDocumentMetadata } from "./lib/document-metadata";
@@ -295,7 +297,8 @@ function App() {
   const [workspaceHomeRequested, setWorkspaceHomeRequested] = useState(false);
   const [exhibitionReaderActive, setExhibitionReaderActive] = useState(false);
 
-  const handleSelectNote = useCallback((note: Note | null) => {
+  const handleSelectNote = useCallback((note: Note | null, options?: DocumentOpenOptions) => {
+    useDocumentOpenStore.getState().open(note?.id ?? null, options);
     setWorkspaceHomeRequested(false);
     setExhibitionReaderActive(false);
     if (note) {
@@ -484,13 +487,13 @@ function App() {
     }
   }, []);
 
-  const handleQuickSwitch = useCallback(async (note: Note) => {
+  const handleQuickSwitch = useCallback(async (note: Note, options?: DocumentOpenOptions) => {
     setQuery("");
     setDocResults(null);
     setDocSearchText("");
     setDocSearching(false);
     setQuickSwitcherOpen(false);
-    handleSelectNote(note);
+    handleSelectNote(note, options);
     closeSidebarOnNarrowScreen();
   }, [closeSidebarOnNarrowScreen, handleSelectNote, setQuery]);
   const [docCreateOpen, setDocCreateOpen] = useState(false);
@@ -1015,7 +1018,7 @@ function App() {
   };
 
   // ── 清除搜索状态（搜索结果点击 / 侧栏选择时调用）──
-  const clearSearchAndSelect = useCallback((note: Note, keepSearch = false, searchTerm = "", options?: import("./lib/search-matching").SearchOptions) => {
+  const clearSearchAndSelect = useCallback((note: Note, keepSearch = false, searchTerm = "", options?: import("./lib/search-matching").SearchOptions, openOptions?: DocumentOpenOptions) => {
     if (options?.regex ? searchTerm : searchTerm.trim()) {
       searchRequestIdRef.current += 1;
       setEditorSearchTarget({
@@ -1038,7 +1041,7 @@ function App() {
       // 再次搜索当前文档也要展开其路径，但无需重新加载或重建整棵树。
       revealDocTreePath(note.storagePath);
     }
-    handleSelectNote(note);
+    handleSelectNote(note, openOptions);
   }, [
     setQuery,
     handleSelectNote,
@@ -1352,7 +1355,7 @@ function App() {
       blocked={protectionBusy || applyingWebUpdate || syncBusy || searchExpanded || errorDetailsOpen || settingsOpen || mobileReadingLibraryOpen || docCreateOpen || quickSwitcherOpen || (mobileDrawerViewport && !sidebarHidden)}
       path={workspaceHome ? "" : selectedFolderPath ?? selectedNote?.storagePath ?? ""} noteId={workspaceHome ? undefined : selectedNote?.id} refreshKey={docTreeKey}
       onAppearance={async patch => handleConfigChange(await api.config.set(patch))}
-      onOpen={async note => { await flushAutoSave(); setQuery(""); setDocResults(null); handleSelectNote(note); closeSidebarOnNarrowScreen(); }}
+      onOpen={async (note, options) => { await flushAutoSave(); setQuery(""); setDocResults(null); handleSelectNote(note, options); closeSidebarOnNarrowScreen(); }}
       canReturn={workspaceHome && Boolean(exhibitionReturnTarget)}
       onHome={async () => {
         const editorViewport = !workspaceHome && desktopWorkspace
@@ -1536,10 +1539,10 @@ function App() {
               setCollapsed={setDocTreeCollapsed}
               disabled={syncBusy}
               toolbarHost={docTreeToolbarHost}
-              onSelect={(note) => {
+              onSelect={(note, options) => {
                 setQuery("");
                 setDocResults(null);
-                handleSelectNote(note);
+                handleSelectNote(note, options);
                 closeSidebarOnNarrowScreen();
               }}
               onFolderSelect={(path) => {
@@ -1581,7 +1584,7 @@ function App() {
             refreshKey={docTreeKey}
             disabled={syncBusy}
             beforeChange={flushAutoSave}
-            onSelect={note => { setQuery(""); setDocResults(null); handleSelectNote(note); closeSidebarOnNarrowScreen(); }}
+            onSelect={(note, options) => { setQuery(""); setDocResults(null); handleSelectNote(note, options); closeSidebarOnNarrowScreen(); }}
             onChanged={() => { void refreshNotes(); setDocTreeKey(key => key + 1); }}
             onMove={handleBatchMoveDocuments}
             onRenameGroup={handleRenameFolder}
@@ -1606,10 +1609,10 @@ function App() {
                 toolbarHost={sidebarBrowserToolbarHost}
                 disabled={syncBusy}
                 initialPath={selectedFolderPath ?? ""}
-                onSelect={(note) => {
+                onSelect={(note, options) => {
                   setQuery("");
                   setDocResults(null);
-                  handleSelectNote(note);
+                  handleSelectNote(note, options);
                   }}
                 selectedId={selectedNote?.id ?? null}
                 onCreate={(path) => { setSelectedFolderPath(path); setDocCreateOpen(true); }}
@@ -1653,8 +1656,8 @@ function App() {
             <DocMOC
               concept={selectedConcept}
               refreshKey={docTreeKey}
-              onSelect={(note) => {
-                setQuery(""); setDocResults(null); handleSelectNote(note); setSelectedConcept(null);
+              onSelect={(note, options) => {
+                setQuery(""); setDocResults(null); handleSelectNote(note, options); setSelectedConcept(null);
               }}
               onOpenConcept={(c) => setSelectedConcept(c)} selectedId={null}
             />
@@ -1662,10 +1665,10 @@ function App() {
             <DocMOC
               storagePath={selectedFolderPath}
               refreshKey={docTreeKey}
-              onSelect={(note) => {
+              onSelect={(note, options) => {
                 setQuery("");
                 setDocResults(null);
-                handleSelectNote(note);
+                handleSelectNote(note, options);
                 setSelectedFolderPath(null);
               }}
               onOpenConcept={(c) => {
@@ -1703,9 +1706,9 @@ function App() {
                       onOpenSettings={() => setSettingsOpen(true)}
                       key={`${selectedNote.id}:${externalReloadKey}`}
                       onFlush={flushAutoSave}
-                      onOpenLinkedNote={async (note, referenceId) => {
+                      onOpenLinkedNote={async (note, referenceId, options) => {
                         await flushAutoSave();
-                        handleSelectNote(await api.notes.get(note.id) ?? note);
+                        handleSelectNote(await api.notes.get(note.id) ?? note, options);
                         closeSidebarOnNarrowScreen();
                         if (referenceId) setEditorSearchTarget({ noteId: note.id, referenceId, query: "", requestId: ++searchRequestIdRef.current });
                       }}
@@ -1931,10 +1934,10 @@ function App() {
                 toolbarHost={browserToolbarHost}
                 disabled={syncBusy}
                 initialPath={selectedFolderPath ?? ""}
-                onSelect={(note) => {
+                onSelect={(note, options) => {
                   setQuery("");
                   setDocResults(null);
-                  handleSelectNote(note);
+                  handleSelectNote(note, options);
                     setDocTreePopupOpen(false);
                 }}
                 selectedId={selectedNote?.id ?? null}
@@ -2009,12 +2012,12 @@ function App() {
       {(searchError || docSearchError) && <p className="search-pattern-error" role="alert">{searchError || docSearchError}</p>}
       {query || docResults ? <SearchResultsPanel notes={docResults ?? results.notes}
         searchTerm={docResults ? docSearchText : query} options={globalSearchQueryRef.current.options} searching={docSearching} onClose={dismissSearchResults}
-        onSelectNote={(summary, keepSearch, term) => {
+        onSelectNote={(summary, keepSearch, term, openOptions) => {
           if (!keepSearch) { setSearchCancelRequestId(id => id + 1); docSearchRequestIdRef.current += 1; }
           const request = ++searchRequestIdRef.current;
           const options = { ...globalSearchQueryRef.current.options };
           void api.notes.get(summary.id).then(note => {
-            if (note && searchRequestIdRef.current === request) clearSearchAndSelect(note, keepSearch, term, options);
+            if (note && searchRequestIdRef.current === request) clearSearchAndSelect(note, keepSearch, term, options, openOptions);
           }).catch(reason => useNotesStore.setState({ error: `打开搜索结果失败：${String(reason)}` }));
         }} />
         : <p className="workspace-dialog-empty">搜索全部文档；加密正文不会出现在结果中。</p>}
