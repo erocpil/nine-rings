@@ -1,4 +1,6 @@
 import { renderedEditAdapter, sourceEditAdapter } from "../lib/plugin-system/editor-adapters";
+import { BuiltinPluginTools } from "./BuiltinPluginTools";
+import { runtimeKind } from "../lib/runtime";
 import { flowHeadingLevel } from "../lib/flow-presentation";
 import { useDocumentActive } from "./RetainedDocument";
 import { MarkdownSplitPreview } from "./MarkdownSplitPreview";
@@ -187,10 +189,11 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     props.documentSessions?.bind(props.noteId, hostOwner.current, "rendered", editor ? renderedEditAdapter(editor, () => Boolean(latestProps.current.readonly)) : null);
   };
   if (!supported) return render({ ...props, onHostSelection: hostSelection, onHostEditorReady: hostRenderedReady });
-  const toggle = <button type="button" className="markdown-view-toggle" disabled={busy}
+  const toggle = <><button type="button" className="markdown-view-toggle" disabled={busy}
     title={source === null ? "切换到 Markdown 源码" : "切换到渲染视图"}
     aria-label={source === null ? "源码" : "渲染"}
-    aria-busy={busy} onClick={() => void changeView()}><ToolbarIcon name={source === null ? "code" : "document"} /></button>;
+    aria-busy={busy} onClick={() => void changeView()}><ToolbarIcon name={source === null ? "code" : "document"} /></button>
+    {props.documentSessions && <BuiltinPluginTools sessions={props.documentSessions} active={active} disabled={busy} readonly={Boolean(props.readonly)} context={{ platform: runtimeKind(), view: props.readonly ? "readonly" : source === null ? "render" : "source", documentId: props.noteId }} />}</>;
   return <div className="markdown-document-view" ref={viewPosition.host}>
     {error && <div role="alert" className="markdown-source-hint">{error}</div>}
     {source === null ? render({
