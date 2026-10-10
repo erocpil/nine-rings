@@ -1,3 +1,4 @@
+import { OrderedListNumberingMenu } from "./OrderedListNumberingMenu";
 import { selectWholeDocument } from "../extensions/BlockSelectAll";
 import { DisclosureIcon } from "./DisclosureIcon";
 import type { Dispatch, RefObject, SetStateAction } from "react";
@@ -154,6 +155,7 @@ export function EditorContextMenu({ editor, readonly, contextMenu, contextMenuRe
                   className="editor-context-item editor-context-subitem"
                   onClick={() => { editor.chain().focus().toggleOrderedList().run(); setContextMenu(null); }}
                 >有序列表</button>
+                {editor.isActive("orderedList") && <OrderedListNumberingMenu editor={editor} onDone={() => setContextMenu(null)} itemClass="editor-context-item editor-context-subitem" />}
                 <button
                   className="editor-context-item editor-context-subitem"
                   onClick={() => { changeSelectedBlockIndent(1); setContextMenu(null); }}

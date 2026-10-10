@@ -1,3 +1,4 @@
+import { OrderedListNumberingMenu } from "./OrderedListNumberingMenu";
 import { FLOW_BLOCK_TEMPLATE } from "../lib/flow-block";
 import { resetTableColumnWidths } from "../extensions/ContentSizedTable";
 import { DisclosureIcon } from "./DisclosureIcon";
@@ -31,6 +32,8 @@ export interface EditorToolbarProps {
     setSizeOpen: (open: boolean) => void;
     headingOpen: boolean;
     setHeadingOpen: (open: boolean) => void;
+    orderedOpen: boolean;
+    setOrderedOpen: (open: boolean) => void;
     blockOpen: boolean;
     setBlockOpen: (open: boolean) => void;
     styleOpen: boolean;
@@ -116,7 +119,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
   const {
     colorOpen, setColorOpen, sizeOpen, setSizeOpen,
     headingOpen, setHeadingOpen, headingPage, setHeadingPage,
-    blockOpen, setBlockOpen, styleOpen, setStyleOpen,
+    orderedOpen, setOrderedOpen, blockOpen, setBlockOpen, styleOpen, setStyleOpen,
     clipOpen, setClipOpen, tableOpen, setTableOpen,
     moreOpen, setMoreOpen, closeMore,
     toggleMobileToolbarMenu,
@@ -315,7 +318,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
           aria-expanded={blockOpen}
         >块{dropdownCaret}</button>
         {blockOpen && (
-          <div className="menu-dropdown-list">
+          <div className={`menu-dropdown-list ${editor.isActive("orderedList") ? "list-numbering-block-menu" : ""}`}>
             <button
               className={`menu-dropdown-item ${editor.isActive("blockquote") ? "active" : ""}`}
               onClick={() => { toggleBlockquote(); setBlockOpen(false); }}
@@ -331,6 +334,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
               onClick={() => { editor.chain().focus().toggleOrderedList().run(); setBlockOpen(false); }}
               type="button"
             >1. 有序列表</button>
+            {editor.isActive("orderedList") && <OrderedListNumberingMenu editor={editor} onDone={() => setBlockOpen(false)} />}
             <button
               className="menu-dropdown-item"
               onClick={() => { changeSelectedBlockIndent(1); setBlockOpen(false); }}
@@ -397,7 +401,12 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     ) : (<>
     {btn(<ToolbarIcon name="quote" />, toggleBlockquote, editor.isActive("blockquote"), "引用 (Ctrl+Shift+B)", readonly)}
     {btn(<ToolbarIcon name="bullet" />, () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly)}
+    <div className="menu-dropdown ordered-list-toolbar">
     {btn(<ToolbarIcon name="ordered" />, () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"), "有序列表 (Ctrl+Shift+7)", readonly)}
+      <button type="button" className="menu-btn menu-btn-sm" aria-label="有序列表编号" title="有序列表编号" disabled={readonly || !editor.isActive("orderedList")}
+        aria-expanded={orderedOpen} onClick={event => { event.stopPropagation(); toggleMobileToolbarMenu("ordered", orderedOpen); }}>{dropdownCaret}</button>
+      {orderedOpen && <div className="menu-dropdown-list"><OrderedListNumberingMenu editor={editor} onDone={() => setOrderedOpen(false)} /></div>}
+    </div>
     {btn(<ToolbarIcon name="indent" />, () => changeSelectedBlockIndent(1), false, editor.isActive("codeBlock") ? "增加代码块缩进（代码内 Tab 仅缩进代码）" : "增加块缩进 (Tab)", readonly)}
     {btn(<ToolbarIcon name="outdent" />, () => changeSelectedBlockIndent(-1), false, editor.isActive("codeBlock") ? "减少代码块缩进（代码内 Shift+Tab 仅减少代码缩进）" : "减少块缩进 (Shift+Tab)", readonly)}
     {btn(<ToolbarIcon name="code" />, handleToggleCodeBlock, editor.isActive("codeBlock"), "代码块 (Ctrl+Alt+C)", readonly)}

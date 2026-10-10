@@ -608,7 +608,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const {
     colorOpen, setColorOpen, sizeOpen, setSizeOpen,
     headingOpen, setHeadingOpen, headingPage, setHeadingPage,
-    blockOpen, setBlockOpen, styleOpen, setStyleOpen,
+    orderedOpen, setOrderedOpen, blockOpen, setBlockOpen, styleOpen, setStyleOpen,
     clipOpen, setClipOpen, tableOpen, setTableOpen,
     moreOpen, setMoreOpen, closeMore, linkOpen, setLinkOpen, linkUrl, setLinkUrl,
     closeToolbarDropdowns, toggleMobileToolbarMenu,
@@ -850,7 +850,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
 
   // 点击外部关闭下拉框
   useEffect(() => {
-    if (!sizeOpen && !colorOpen && !headingOpen && !blockOpen && !styleOpen && !clipOpen && !linkOpen && !tableOpen && !moreOpen && !outlineOpen && !bookmarkOpen) return;
+    if (!sizeOpen && !colorOpen && !headingOpen && !blockOpen && !orderedOpen && !styleOpen && !clipOpen && !linkOpen && !tableOpen && !moreOpen && !outlineOpen && !bookmarkOpen) return;
     const handler = () => {
       closeToolbarDropdowns();
       setOutlineOpen(false);
@@ -858,7 +858,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     };
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
-  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen, outlineOpen, bookmarkOpen, closeToolbarDropdowns, setOutlineOpen, setBookmarkOpen]);
+  }, [sizeOpen, colorOpen, headingOpen, blockOpen, orderedOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen, outlineOpen, bookmarkOpen, closeToolbarDropdowns, setOutlineOpen, setBookmarkOpen]);
 
   // 关闭编辑器右键菜单（点击外部 / Escape / 滚动 / 失焦）
   useEffect(() => {
@@ -4137,7 +4137,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             menus={{
               colorOpen, setColorOpen, sizeOpen, setSizeOpen,
               headingOpen, setHeadingOpen, headingPage, setHeadingPage,
-              blockOpen, setBlockOpen, styleOpen, setStyleOpen,
+              orderedOpen, setOrderedOpen, blockOpen, setBlockOpen, styleOpen, setStyleOpen,
               clipOpen, setClipOpen, tableOpen, setTableOpen,
               moreOpen, setMoreOpen, closeMore,
               linkOpen, setLinkOpen, linkUrl, setLinkUrl, toggleMobileToolbarMenu,

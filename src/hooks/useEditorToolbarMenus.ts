@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 
-export type EditorToolbarMenu = "style" | "heading" | "block" | "table" | "clip" | "link" | "size" | "color" | "more";
+export type EditorToolbarMenu = "style" | "heading" | "block" | "ordered" | "table" | "clip" | "link" | "size" | "color" | "more";
 
 /** Session-owned menu state only. Selection, commands and outside-dismiss
  * coordination with document panels stay in NoteEditor. Keep the individual
@@ -10,6 +10,7 @@ export function useEditorToolbarMenus() {
   const [sizeOpen, setSizeOpen] = useState(false);
   const [headingOpen, setHeadingOpen] = useState(false);
   const [headingPage, setHeadingPage] = useState(0); // 0=H3-5, 1=H1-2/6
+  const [orderedOpen, setOrderedOpen] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
   const [styleOpen, setStyleOpen] = useState(false);
   const [clipOpen, setClipOpen] = useState(false);
@@ -23,6 +24,7 @@ export function useEditorToolbarMenus() {
     setColorOpen(false);
     setHeadingOpen(false);
     setBlockOpen(false);
+    setOrderedOpen(false);
     setStyleOpen(false);
     setClipOpen(false);
     setLinkOpen(false);
@@ -33,7 +35,7 @@ export function useEditorToolbarMenus() {
     closeToolbarDropdowns();
     if (isOpen) return;
     const setters = {
-      style: setStyleOpen, heading: setHeadingOpen, block: setBlockOpen,
+      style: setStyleOpen, heading: setHeadingOpen, block: setBlockOpen, ordered: setOrderedOpen,
       table: setTableOpen, clip: setClipOpen, link: setLinkOpen,
       size: setSizeOpen, color: setColorOpen, more: setMoreOpen,
     };
@@ -43,7 +45,7 @@ export function useEditorToolbarMenus() {
   return {
     colorOpen, setColorOpen, sizeOpen, setSizeOpen,
     headingOpen, setHeadingOpen, headingPage, setHeadingPage,
-    blockOpen, setBlockOpen, styleOpen, setStyleOpen,
+    orderedOpen, setOrderedOpen, blockOpen, setBlockOpen, styleOpen, setStyleOpen,
     clipOpen, setClipOpen, tableOpen, setTableOpen,
     moreOpen, setMoreOpen, closeMore, linkOpen, setLinkOpen, linkUrl, setLinkUrl,
     closeToolbarDropdowns, toggleMobileToolbarMenu,

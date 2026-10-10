@@ -261,11 +261,11 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 .markdown-cm-host .cm-search .cm-searchMatch { background: var(--editor-search-highlight-color, #ffd54f); }
 .markdown-cm-host .cm-searchMatch { background: var(--editor-search-highlight-color, #ffd54f); color: var(--text); }
 .markdown-cm-host .cm-searchMatch-selected { outline: 1px solid var(--accent); }
-.editor-find-options label { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; color: var(--text-muted); font-size: 12px; }
+.editor-find-options label { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; color: var(--text-secondary); font-size: 12px; }
 .editor-find-bar .editor-find-options input { flex: none; width: 16px; min-width: 16px; height: 16px; margin: 0; padding: 0; }
 .editor-find-bar .editor-find-replace-toggle { width: auto; padding-inline: 4px; white-space: nowrap; }
 .editor-find-bar .editor-replace-action { width: auto; padding-inline: 6px; white-space: nowrap; }
-.editor-replace-status { display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 11px; color: var(--text-muted); padding: 3px 6px; }
+.editor-replace-status { display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 11px; color: var(--text-secondary); padding: 3px 6px; }
 
 .editor-find-bar input {
   flex: 1;
@@ -1442,3 +1442,11 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
   opacity: .32;
   cursor: default;
 }
+
+/* Numbering shares the existing list button; no additional full-size tool. */
+.ordered-list-toolbar { display: inline-flex; align-items: center; }
+.list-numbering-block-menu { overflow-y: auto; }
+.ordered-list-start-form { padding: 6px 10px; }
+.ordered-list-start-form label { display: flex; align-items: center; gap: 8px; }
+.ordered-list-start-form input { width: 9ch; min-height: 32px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 4px 6px; }
+.ordered-list-start-hint, .ordered-list-start-form small { display: block; max-width: 240px; white-space: normal; padding: 4px 10px; color: var(--text-secondary); font-size: 12px; }

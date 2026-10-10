@@ -32,7 +32,7 @@
 .markdown-cm-host .cm-scroller { overflow: auto; font-family: var(--editor-font-family, monospace); line-height: var(--editor-line-height, 1.65); }
 .markdown-cm-host .cm-content { padding: 16px 0; caret-color: var(--text); }
 .markdown-cm-host .cm-line { padding: 0 12px; }
-.markdown-cm-host .cm-gutters { background: var(--bg); color: var(--text-secondary); border-color: var(--border); font-size: min(.85em, 16px); line-height: calc(var(--source-font-size) * var(--editor-line-height, 1.65)); }
+.markdown-cm-host .cm-gutters { background: var(--bg); color: var(--text-secondary); border-color: var(--border); font-size: min(.85em, 16px); line-height: calc(var(--source-font-size, 16px) * var(--editor-line-height, 1.65)); }
 .markdown-cm-host .cm-activeLine, .markdown-cm-host .cm-activeLineGutter { background: var(--activeline-bg); }
 .note-editor.no-active-line .markdown-cm-host .cm-activeLine,
 .note-editor.no-active-line .markdown-cm-host .cm-activeLineGutter { background: transparent; }
