@@ -574,6 +574,17 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const [headingFoldRevision, setHeadingFoldRevision] = useState(0);
   const headingFoldRenderFrameRef = useRef<number | null>(null);
   const headingFoldViewportFrameRef = useRef<number | null>(null);
+  const readonlyHeadingAnchorTimerRef = useRef<number | null>(null);
+  const cancelReadonlyHeadingAnchor = useCallback(() => {
+    if (readonlyHeadingAnchorTimerRef.current === null) return;
+    window.clearTimeout(readonlyHeadingAnchorTimerRef.current);
+    readonlyHeadingAnchorTimerRef.current = null;
+    if (headingFoldViewportFrameRef.current !== null) {
+      window.cancelAnimationFrame(headingFoldViewportFrameRef.current);
+      headingFoldViewportFrameRef.current = null;
+    }
+  }, []);
+  useEffect(() => cancelReadonlyHeadingAnchor, [cancelReadonlyHeadingAnchor, noteId, readonly, focusMode, documentActive]);
   const allHeadingFoldRoundTripRef = useRef<AllHeadingFoldRoundTrip | null>(null);
   const readonlyTouchPointerRef = useRef<{
     pointerId: number;
@@ -1220,6 +1231,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     const root = scrollRef.current;
     if (!root || !editor) return;
     const markUserMove = () => {
+      cancelReadonlyHeadingAnchor();
       const roundTrip = allHeadingFoldRoundTripRef.current;
       if (
         roundTrip
@@ -1234,12 +1246,14 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     // 在移动端滚动热路径中增加逐帧 JavaScript 工作。
     root.addEventListener("pointerdown", markUserMove, { passive: true });
     root.addEventListener("keydown", markUserMove);
+    root.addEventListener(EDITOR_NAVIGATION_EVENT, markUserMove);
     return () => {
       root.removeEventListener("wheel", markUserMove);
       root.removeEventListener("pointerdown", markUserMove);
       root.removeEventListener("keydown", markUserMove);
+      root.removeEventListener(EDITOR_NAVIGATION_EVENT, markUserMove);
     };
-  }, [editor, noteId]);
+  }, [editor, noteId, cancelReadonlyHeadingAnchor]);
 
   useEffect(() => {
     if (editor && showStatusBar) scheduleDocumentStats(editor, true);
@@ -2700,6 +2714,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   }, [editor, headingFoldRevision]);
   const toggleEditorHeadingFromGutter = useCallback((position: number) => {
     if (!editor || editor.isDestroyed) return;
+    cancelReadonlyHeadingAnchor();
     // `shouldRerenderOnTransaction` 被关闭后，React 中缓存的章节数组可能比
     // ProseMirror 当前文档旧一拍（尤其是隐藏状态栏的移动端）。操作入口
     // 必须以当前 state.doc 为准，否则编辑过正文后会拿着旧 end/pos 静默失败。
@@ -2733,9 +2748,10 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       headingFoldViewportFrameRef.current = null;
       restore();
     });
-  }, [editor]);
+  }, [editor, cancelReadonlyHeadingAnchor]);
   const setAllHeadingFoldsKeepingViewport = useCallback((folded: boolean) => {
     if (!editor || editor.isDestroyed) return;
+    cancelReadonlyHeadingAnchor();
     const root = scrollRef.current;
     if (!root) {
       setAllHeadingFolds(editor, folded);
@@ -2795,7 +2811,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       headingFoldViewportFrameRef.current = null;
       restore();
     });
-  }, [editor, noteId]);
+  }, [editor, noteId, cancelReadonlyHeadingAnchor]);
 
   const setAllOutlineFolds = useCallback((folded: boolean) => {
     const currentSections = editor && !editor.isDestroyed
@@ -2945,7 +2961,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         return {
           item,
           index,
-          foldable: Boolean(section && section.end > section.headingEnd),
+          foldable: documentOutline[index + 1]?.level > item.level,
           folded: Boolean(section && outlineCollapsedHeadingKeys.has(section.key)),
         };
       })
@@ -3447,6 +3463,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   };
 
   const toggleReadonlyHeadingSection = (section: HeadingSection, clientY: number): boolean => {
+    cancelReadonlyHeadingAnchor();
     allHeadingFoldRoundTripRef.current = null;
     const heading = editor.view.nodeDOM(section.pos);
     const scrollRoot = scrollRef.current;
@@ -3473,7 +3490,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     if (!toggleHeadingSectionFold(editor, section, false)) return false;
     if (desiredHeadingTop !== null && scrollRoot) {
       const restoreHeading = () => {
-        if (editor.isDestroyed || !scrollRoot.isConnected) return;
+        if (editor.isDestroyed || !scrollRoot.isConnected || !blockEditContextRef.current.active) return;
         const foldedHeading = editor.view.nodeDOM(section.pos);
         if (foldedHeading instanceof HTMLElement) {
           scrollRoot.scrollTop += foldedHeading.getBoundingClientRect().top - desiredHeadingTop!;
@@ -3488,7 +3505,10 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       });
       // Native selection scrolling can run after the fold's first layout frame.
       // Reassert the explicit heading anchor after that browser adjustment.
-      window.setTimeout(restoreHeading, 100);
+      readonlyHeadingAnchorTimerRef.current = window.setTimeout(() => {
+        readonlyHeadingAnchorTimerRef.current = null;
+        restoreHeading();
+      }, 100);
     }
     return true;
   };
@@ -3505,6 +3525,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const handleReadonlyHeadingDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!readonly || !focusMode || !readonlyHeadingFoldInFocusMode) return;
     if (performance.now() < suppressReadonlyDoubleClickUntilRef.current) {
+      // A native dblclick can select text after the pointer gesture folded it.
+      window.getSelection()?.removeAllRanges();
       event.preventDefault();
       event.stopPropagation();
       return;
@@ -3633,6 +3655,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     // WebKit 和 WebView2 都可能在 pointer 事件后补发 dblclick，必须吞掉一次，
     // 否则章节会立即折叠后再展开，看起来像完全没有响应。
     suppressReadonlyDoubleClickUntilRef.current = now + 650;
+    window.getSelection()?.removeAllRanges();
     event.preventDefault();
     event.stopPropagation();
   };
@@ -3883,7 +3906,20 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         event.preventDefault();
         event.stopPropagation();
       }}
-      onMouseDownCapture={preventReadonlyTableResize}
+      onMouseDownCapture={(event) => {
+        preventReadonlyTableResize(event);
+        // Prevent the second press's native word-selection/scroll before it
+        // starts. Clearing selection after folding is too late for WebKit's
+        // deferred selection scroll, which can override a new reading gesture.
+        // The first press remains native, including drag selection and copy.
+        if (!event.defaultPrevented && readonly && focusMode && readonlyHeadingFoldInFocusMode
+          && event.button === 0 && event.detail === 2
+          && event.target instanceof Element
+          && !event.target.closest("a,button,input,textarea,select,.flow-block-content")) {
+          const section = readonlyHeadingSectionAtPoint(event.target, event.clientX, event.clientY);
+          if (section && section.end > section.headingEnd) event.preventDefault();
+        }
+      }}
       onKeyDownCapture={(event) => {
         if (!(event.target instanceof Node) || !editor.view.dom.contains(event.target)) return;
         toolbarSelectionRef.current = null;

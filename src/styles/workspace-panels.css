@@ -1617,6 +1617,7 @@
 .block-selection-toolbar .toolbar-icon { width: 16px; height: 16px; }
 
 .doc-tree-toolbar {
+  --workspace-panel-action-color: var(--navigation-tree-text, var(--navigation-text, var(--text)));
   display: flex;
   width: max-content;
   max-width: 100%;

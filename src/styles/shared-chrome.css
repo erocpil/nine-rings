@@ -743,7 +743,7 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--workspace-panel-action-color, var(--text-secondary));
 }
 .doc-tree-toolbar .toolbar-icon,
 .sidebar-tabs > .btn-icon .toolbar-icon { width: 18px; height: 18px; }

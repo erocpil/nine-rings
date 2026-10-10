@@ -534,7 +534,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
     .app-desktop-workspace
     header.workspace-panel-heading {
     --panel-action-height: var(--style-control-height);
-    background-color: var(--surface);
+    background-color: var(--workspace-panel-bg, var(--surface));
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .app-desktop-workspace
@@ -543,7 +543,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
     border: 1px solid transparent;
     border-radius: 6px;
     background-color: transparent;
-    color: var(--text-secondary);
+    color: var(--workspace-panel-action-color, var(--text-secondary));
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .app-desktop-workspace

@@ -173,19 +173,47 @@ test("只读正文双击折叠后所属标题停留在双击位置附近", async
   await page.locator(".note-title-row").getByTitle("专注模式").click();
 
   const target = editor.getByText("目标正文 25", { exact: true });
-  await target.evaluate((element) => element.scrollIntoView({ block: "center" }));
-  const targetBox = await target.boundingBox();
-  expect(targetBox).not.toBeNull();
-  const doubleClickY = targetBox!.y + targetBox!.height / 2;
+  // Native scrollIntoView and Playwright's click can use different nested
+  // scroll offsets. Assert against the actual gesture, not a pre-click box.
+  await editor.evaluate(element => {
+    element.addEventListener("pointerup", event => {
+      (element as HTMLElement).dataset.foldClickY = String((event as PointerEvent).clientY);
+    }, { capture: true });
+  });
 
-  await target.dblclick();
-  await expect(target).toBeHidden();
   const heading = editor.getByText("待折叠章节", { exact: true });
-  await expect.poll(async () => {
-    const headingBox = await heading.boundingBox();
-    if (!headingBox) return Number.POSITIVE_INFINITY;
-    return Math.abs(headingBox.y + headingBox.height / 2 - doubleClickY);
-  }).toBeLessThan(24);
+  for (let cycle = 0; cycle < 3; cycle++) {
+    await target.scrollIntoViewIfNeeded();
+    await expect(target).toBeInViewport();
+    await target.dblclick();
+    const doubleClickY = Number(await editor.getAttribute("data-fold-click-y"));
+    expect(doubleClickY).toBeGreaterThan(0);
+    let expectedHeadingY = doubleClickY;
+    await expect(target).toBeHidden();
+    const distance = async () => {
+      const headingBox = await heading.boundingBox();
+      if (!headingBox) return Number.POSITIVE_INFINITY;
+      return Math.abs(headingBox.y + headingBox.height / 2 - expectedHeadingY);
+    };
+    await expect.poll(distance).toBeLessThan(24);
+    if (cycle === 2) {
+      const moved = await editor.evaluate(element => {
+        const root = element.closest<HTMLElement>(".note-editor-scroll")!;
+        const before = root.scrollTop;
+        root.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 96 }));
+        root.scrollTop += 96;
+        return root.scrollTop - before;
+      });
+      expect(moved).toBeGreaterThan(80);
+      expectedHeadingY -= moved;
+      // Cross the old 100ms reanchor window: explicit scrolling must win.
+      await page.waitForTimeout(160);
+      await expect.poll(distance).toBeLessThan(24);
+    }
+    await heading.dblclick();
+    await expect(target).toBeVisible();
+    await expect.poll(distance).toBeLessThan(24);
+  }
 });
 
 test("手机 PWA 只读专注模式可通过触摸双击折叠展开并受开关控制", async ({ page }) => {

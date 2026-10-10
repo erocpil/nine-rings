@@ -9,7 +9,22 @@ header.workspace-panel-heading {
   padding: 4px 6px;
   gap: 4px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, var(--bg));
-  background: var(--bg);
+  background: var(--workspace-panel-bg, var(--bg));
+}
+header.workspace-panel-heading.sidebar-tabs {
+  --workspace-panel-bg: transparent;
+  --workspace-panel-action-color: var(--navigation-tree-text, var(--navigation-text, var(--text)));
+  color: var(--workspace-panel-action-color);
+}
+header.workspace-panel-heading.sidebar-tabs .workspace-switch {
+  background: transparent;
+  color: inherit;
+}
+header.workspace-panel-heading.sidebar-tabs .workspace-switch .toolbar-icon:last-child {
+  color: inherit;
+}
+header.workspace-panel-heading.sidebar-tabs > .btn-icon {
+  color: var(--workspace-panel-action-color);
 }
 .workspace-panel-title {
   min-width: 0;

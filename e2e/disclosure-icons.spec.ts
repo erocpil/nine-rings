@@ -13,6 +13,12 @@ for (const width of [1280, 390]) {
       clipboardData.setData("text/plain", "# 一级标题\n\n正文\n\n## 二级标题\n\n> 引用\n\n### 三级标题\n\n正文");
       element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
     });
+    // Pasting leaves the caret at the end; WebKit may scroll the first heading
+    // beneath the sticky toolbar. Test gutter hit targets from the document top.
+    await page.locator(".note-editor-scroll").evaluate(root => {
+      root.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+      root.scrollTop = 0;
+    });
     const aligned = async () => {
       await expect.poll(() => page.evaluate(() => {
         const controls = [...document.querySelectorAll<HTMLElement>(".editor-heading-fold")];
@@ -30,14 +36,15 @@ for (const width of [1280, 390]) {
     };
     await aligned();
     if (width === 1280) {
-      const hitTest = await page.getByRole("button", { name: "折叠第 1 块章节", exact: true }).evaluate(button => {
+      const hitTest = () => page.getByRole("button", { name: "折叠第 1 块章节", exact: true }).evaluate(button => {
         const fold = button.getBoundingClientRect();
         const number = document.querySelector<HTMLElement>('.editor-block-number[data-block-index="1"]')!.getBoundingClientRect();
         const target = document.elementFromPoint(fold.right - 1, fold.top + fold.height / 2);
         return { gap: number.left - fold.right, targetIsFold: target === button || button.contains(target) };
       });
-      expect(hitTest.gap).toBeGreaterThanOrEqual(2);
-      expect(hitTest.targetIsFold).toBe(true);
+      // Wait until the gutter reflects the explicit scroll position.
+      await expect.poll(async () => (await hitTest()).targetIsFold).toBe(true);
+      expect((await hitTest()).gap).toBeGreaterThanOrEqual(2);
     }
     await page.locator(".ProseMirror").evaluate(element => {
       const editor = element as HTMLElement;
@@ -57,7 +64,7 @@ test("章节目录默认小三角，正文默认箭头，可独立设置并持�
   await createBlankDocument(page);
   await page.locator(".ProseMirror").evaluate(element => {
     const clipboardData = new DataTransfer();
-    clipboardData.setData("text/plain", "# 标题\n\n正文\n\n> 引用\n\n```text\n代码\n```");
+    clipboardData.setData("text/plain", "# 标题\n\n正文\n\n> 引用\n\n```text\n代码\n```\n\n## 子标题");
     element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
   });
   const body = page.getByRole("button", { name: "折叠第 1 块章节", exact: true });
@@ -91,7 +98,7 @@ test("文本区折叠箭头与文档树一致，方向跟随折叠状态", async
   const editor = page.locator(".ProseMirror");
   await editor.evaluate(element => {
     const clipboardData = new DataTransfer();
-    clipboardData.setData("text/plain", "# 标题\n\n正文\n\n> 引用\n\n```text\n代码\n```");
+    clipboardData.setData("text/plain", "# 标题\n\n正文\n\n> 引用\n\n```text\n代码\n```\n\n## 子标题");
     element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
   });
   const treePath = await page.locator(".doc-tree-folder-chevron path").first().getAttribute("d");
@@ -138,7 +145,7 @@ test("编辑器折叠标识支持预设、自定义、立即应用及重启保�
   const editor = page.locator(".ProseMirror");
   await editor.evaluate(element => {
     const clipboardData = new DataTransfer();
-    clipboardData.setData("text/plain", "# 标题\n\n正文\n\n> 引用\n\n```text\n代码\n```");
+    clipboardData.setData("text/plain", "# 标题\n\n正文\n\n> 引用\n\n```text\n代码\n```\n\n## 子标题");
     element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
   });
   const openSettings = async () => {
@@ -191,6 +198,7 @@ test("手机自定义折叠符号在只读正文和目录中生效", async ({ pa
     const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");
     const note = await api.notes.create({ title: "手机折叠符号", date: "2026-09-17", content: { ops: [
       { insert: "标题" }, { insert: "\n", attributes: { header: 1 } }, { insert: "正文\n" },
+      { insert: "子标题" }, { insert: "\n", attributes: { header: 2 } },
     ] } });
     useNotesStore.getState().selectNote(await api.notes.update(note.id, { readonly: true }));
   });

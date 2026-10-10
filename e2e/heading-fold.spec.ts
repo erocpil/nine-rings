@@ -112,7 +112,7 @@ test("手机 H1 到 H6 的连续层级紧凑，正文与章节标题仍有分隔
   expect(rhythm.headingMargins[0].top).toBe("0px");
 });
 
-test("只有 H1 与普通正文时正文和目录都能折叠章节", async ({ page }) => {
+test("只有 H1 与普通正文时正文可折叠，目录不显示叶子折叠三角", async ({ page }) => {
   await createBlankDocument(page);
   const editor = page.locator(".ProseMirror");
   await editor.evaluate(element => {
@@ -125,8 +125,9 @@ test("只有 H1 与普通正文时正文和目录都能折叠章节", async ({ p
   await page.getByRole("button", { name: "展开第 1 块章节", exact: true }).click();
   await page.getByTitle("文档目录").click();
   const outline = page.getByRole("navigation", { name: "文档目录" });
-  await outline.getByRole("button", { name: "折叠章节 第一章", exact: true }).click();
-  await expect(editor.getByText("普通正文", { exact: true })).toBeHidden();
+  await expect(outline.locator(".document-outline-fold")).toHaveCount(0);
+  await expect(outline.locator(".document-outline-link")).toHaveCount(2);
+  await expect(editor.getByText("普通正文", { exact: true })).toBeVisible();
 });
 
 test("没有下属块的 H1 不显示无法操作的折叠箭头", async ({ page }) => {
@@ -145,8 +146,8 @@ test("没有下属块的 H1 不显示无法操作的折叠箭头", async ({ page
   const outline = page.getByRole("navigation", { name: "文档目录" });
   await expect(outline.getByRole("button", { name: "折叠章节 空章节", exact: true })).toHaveCount(0);
   await expect(outline.getByRole("button", { name: "折叠章节 末章", exact: true })).toHaveCount(0);
-  await outline.getByRole("button", { name: "折叠章节 有内容", exact: true }).click();
-  await expect(editor.getByText("普通正文", { exact: true })).toBeHidden();
+  await expect(outline.getByRole("button", { name: "折叠章节 有内容", exact: true })).toHaveCount(0);
+  await expect(editor.getByText("普通正文", { exact: true })).toBeVisible();
 });
 
 test("标题章节可按层级折叠，并从目录统一展开", async ({ page }) => {
@@ -156,7 +157,7 @@ test("标题章节可按层级折叠，并从目录统一展开", async ({ page 
   await editor.click();
   await editor.evaluate((element) => {
     const clipboardData = new DataTransfer();
-    clipboardData.setData("text/plain", "# 总览\n\n总览正文\n\n## 子节\n\n子节正文\n\n# 第二部分\n\n末尾正文");
+    clipboardData.setData("text/plain", "# 总览\n\n总览正文\n\n## 子节\n\n子节正文\n\n### 细节\n\n细节正文\n\n# 第二部分\n\n末尾正文");
     element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
   });
   await page.getByRole("button", { name: "折叠第 1 块章节" }).click();
@@ -198,7 +199,7 @@ test("标题章节可按层级折叠，并从目录统一展开", async ({ page 
       expand.click();
     }
   });
-  await expect(outline.locator(".document-outline-item")).toHaveCount(3);
+  await expect(outline.locator(".document-outline-item")).toHaveCount(4);
   await expect(editor.getByText("子节正文", { exact: true })).toBeHidden();
 });
 

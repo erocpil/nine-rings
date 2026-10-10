@@ -1095,14 +1095,14 @@ export function ReadonlyVirtualNote(
                     全部展开
                   </button>
                 </div>
-                {sections.map((section) => (
+                {sections.map((section, index) => (
                   <div
                     className="vr-outline-row"
                     key={section.key}
                     title={outlineLabel(section.text, 500)}
                     style={{ paddingLeft: (section.level - 1) * 12 }}
                   >
-                    {section.end > section.headingEnd ? <button
+                    {sections[index + 1]?.level > section.level ? <button
                       type="button"
                       aria-label={`折叠切换 ${outlineLabel(section.text)}`}
                       aria-expanded={!folds.has(section.key)}
@@ -1346,9 +1346,12 @@ export function ReadonlyVirtualNote(
               return;
             const heading = event.target.closest("h1,h2,h3,h4,h5,h6");
             const row = heading?.closest<HTMLElement>("[data-reading-row]");
-            if (row && Date.now() - (tap.current?.time ?? 0) > 500) {
+            if (row) {
+              event.preventDefault();
+              event.stopPropagation();
               window.getSelection()?.removeAllRanges();
-              toggleHeading(Number(row.dataset.position));
+              if (Date.now() - (tap.current?.time ?? 0) > 500)
+                toggleHeading(Number(row.dataset.position));
             }
           }}
           onPointerDown={(event) => {
