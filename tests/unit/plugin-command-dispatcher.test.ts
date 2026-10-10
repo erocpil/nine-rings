@@ -2,17 +2,21 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { AutoSaveQueue } from "../../src/lib/auto-save-queue";
 import { DocumentEditSessions } from "../../src/lib/document-edit-sessions";
 import { PluginRuntime } from "../../src/lib/plugin-system/runtime";
+import { SaveBarrierError } from "../../src/lib/document-save-revisions";
 import {
   HostCommandDispatcher,
   type HostCommandContext,
 } from "../../src/lib/plugin-system/command-dispatcher";
 vi.mock("../../src/lib/api", () => ({ api: { notes: { get: vi.fn() } } }));
 vi.mock("../../src/lib/storage/protection-state", () => ({
-  withProtectionWrite: (task: () => unknown) => task(),
+  withProtectionWrite: vi.fn(async (task: () => unknown) => task()),
   listProtectedPaths: vi.fn(async () => []),
 }));
 import { api } from "../../src/lib/api";
-import { listProtectedPaths } from "../../src/lib/storage/protection-state";
+import {
+  listProtectedPaths,
+  withProtectionWrite,
+} from "../../src/lib/storage/protection-state";
 function deferred() {
   let resolve!: () => void;
   const promise = new Promise<void>((yes) => {
@@ -20,6 +24,94 @@ function deferred() {
   });
   return { promise, resolve };
 }
+
+it.each(["STALE_REVISION", "SAVE_FAILED", "CANCELLED"] as const)(
+  "write barrier %s produces a typed response without accepting an edit",
+  async (code) => {
+    const host = setup();
+    vi.mocked(withProtectionWrite).mockRejectedValueOnce(
+      new SaveBarrierError(code, "private storage detail"),
+    );
+    host.dispatcher.register(
+      host.activation,
+      { id: "test.demo.insert", scope: "selection", risk: "write" },
+      (ctx) => ctx.commit({ type: "text", value: "blocked" }),
+    );
+    const response = await host.dispatcher.execute(host.activation, {
+      requestId: "one",
+      commandId: "test.demo.insert",
+    });
+    expect(response).toMatchObject({
+      ok: false,
+      applied: false,
+      error: { code: code === "STALE_REVISION" ? "STALE_TARGET" : code },
+    });
+    expect(JSON.stringify(response)).not.toContain("private storage detail");
+    expect(host.insert).not.toHaveBeenCalled();
+    expect(host.queue.revisionState("a").contentRevision).toBe(0);
+  },
+);
+
+it("captureSelection rejects a resident editor from before an external restore", async () => {
+  const items = new Map<string, string>();
+  vi.stubGlobal("window", {});
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => items.get(key) ?? null,
+    setItem: (key: string, value: string) => items.set(key, value),
+  });
+  try {
+    const host = setup();
+    const { DocumentIntentService } =
+      await import("../../src/lib/plugin-system/document-intents");
+    const { advanceDocumentStorageGeneration } =
+      await import("../../src/lib/document-storage-generation");
+    const intents = new DocumentIntentService(host.runtime, host.sessions);
+    expect(intents.captureSelection(host.activation, "a").documentId).toBe("a");
+    advanceDocumentStorageGeneration("external-restore");
+    expect(() => intents.captureSelection(host.activation, "a")).toThrow(
+      expect.objectContaining({ code: "STALE_TARGET" }),
+    );
+    expect(host.insert).not.toHaveBeenCalled();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+it("direct intents sanitize storage failures and cancellation during protection lookup", async () => {
+  const host = setup();
+  const { DocumentIntentService } =
+    await import("../../src/lib/plugin-system/document-intents");
+  const intents = new DocumentIntentService(host.runtime, host.sessions);
+  const target = intents.captureSelection(host.activation, "a");
+  vi.mocked(withProtectionWrite).mockRejectedValueOnce(
+    new Error("private token and body"),
+  );
+  await expect(
+    intents.insert(host.activation, target, { type: "text", value: "blocked" }),
+  ).rejects.toMatchObject({
+    code: "INTERNAL_ERROR",
+    message: "编辑操作未完成",
+  });
+  const gate = deferred();
+  const entered = deferred();
+  vi.mocked(listProtectedPaths).mockImplementationOnce(async () => {
+    entered.resolve();
+    await gate.promise;
+    return [];
+  });
+  const controller = new AbortController();
+  const work = intents.insert(
+    host.activation,
+    target,
+    { type: "text", value: "blocked" },
+    controller.signal,
+  );
+  await entered.promise;
+  controller.abort();
+  gate.resolve();
+  await expect(work).rejects.toMatchObject({ code: "CANCELLED" });
+  expect(host.insert).not.toHaveBeenCalled();
+});
 
 it("a completed command cannot retain a callback and commit later", async () => {
   const host = setup();
@@ -69,6 +161,8 @@ it("direct intent calls cannot bypass disabled runtime, missing grant or a prote
   expect(host.insert).not.toHaveBeenCalled();
 });
 beforeEach(() => {
+  vi.mocked(withProtectionWrite).mockReset();
+  vi.mocked(withProtectionWrite).mockImplementation(async (task) => task());
   vi.mocked(api.notes.get).mockReset();
   vi.mocked(api.notes.get).mockResolvedValue({
     id: "a",

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   acknowledgeBackupRestore,
   assertRestoreContext,
+  assertRestoreWriteAllowed,
   CorruptRestoreRecordError,
   inspectBackupRestore,
   RESTORE_JOURNAL_KEY,
@@ -13,6 +14,24 @@ import {
 
 let items: Map<string, string>;
 let held: boolean;
+it("another window's pending restore blocks writes with a stale revision error", () => {
+  const timestamp = new Date().toISOString();
+  items.set(
+    RESTORE_JOURNAL_KEY,
+    JSON.stringify({
+      version: 1,
+      id: "another-window",
+      source: "file",
+      mode: "merge",
+      phase: "preparing",
+      startedAt: timestamp,
+      updatedAt: timestamp,
+    }),
+  );
+  expect(assertRestoreWriteAllowed).toThrow(
+    expect.objectContaining({ code: "STALE_REVISION" }),
+  );
+});
 beforeEach(() => {
   items = new Map();
   held = false;

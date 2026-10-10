@@ -4,6 +4,7 @@ import type {
   InsertDocumentContent,
 } from "../document-edit-sessions";
 import { StaleEditTargetError } from "../document-edit-sessions";
+import { SaveBarrierError } from "../document-save-revisions";
 import { isEncrypted } from "../document-crypto";
 import { isPathUnder, normalizeStoragePath } from "../storage/core";
 import {
@@ -30,7 +31,9 @@ export class DocumentIntentService {
   ): DocumentEditTarget {
     this.runtime.assert(activation, "editor.selection.read");
     try {
-      return this.sessions.capture(id);
+      const target = this.sessions.capture(id);
+      this.sessions.validate(target);
+      return target;
     } catch {
       throw new PluginHostError("STALE_TARGET", "当前编辑选区不可用");
     }
@@ -88,8 +91,16 @@ export class DocumentIntentService {
           throw new PluginHostError("STALE_TARGET", "编辑目标已变化");
         if (error instanceof Error && error.message === "READ_ONLY")
           throw new PluginHostError("READ_ONLY", "编辑视图不可写入");
-        throw new PluginHostError("INTERNAL_ERROR", "编辑操作未完成");
+        throw error;
       }
+    }).catch((error: unknown) => {
+      if (error instanceof PluginHostError) throw error;
+      if (error instanceof SaveBarrierError)
+        throw new PluginHostError(
+          error.code === "STALE_REVISION" ? "STALE_TARGET" : error.code,
+          error.code === "STALE_REVISION" ? "文档正在恢复或编辑目标已失效" : "编辑操作未完成",
+        );
+      throw new PluginHostError("INTERNAL_ERROR", "编辑操作未完成");
     });
   }
 }

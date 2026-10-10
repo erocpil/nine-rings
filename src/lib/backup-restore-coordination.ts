@@ -1,5 +1,6 @@
 /** Restore-to-restore exclusion and durable, content-free interruption records. */
 import { advanceDocumentStorageGeneration } from "./document-storage-generation";
+import { SaveBarrierError } from "./document-save-revisions";
 export const RESTORE_LOCK_NAME = "nine-rings:backup-restore:v1";
 export const RESTORE_JOURNAL_KEY = "nr:backup-restore-journal:v1";
 export const RESTORE_CHANGED_EVENT = "nr:backup-restore-changed";
@@ -61,7 +62,7 @@ export function assertRestoreWriteAllowed(): void {
   if (typeof window === "undefined") return;
   const record = readRecord();
   if (pending(record) && record?.id !== localRecordId)
-    throw new Error("另一个窗口正在恢复备份，已暂停写入并保留待保存修改");
+    throw new SaveBarrierError("STALE_REVISION", "另一个窗口正在恢复备份，已暂停写入并保留待保存修改");
 }
 
 function createContext(persist: (phase: Phase) => void): RestoreContext {
