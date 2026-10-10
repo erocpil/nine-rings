@@ -53,6 +53,7 @@ export class DocumentEditSessions {
   constructor(private saves: AutoSaveQueue) {}
 
   retain(id: string): () => void {
+    this.saves.captureRevision(id);
     const owner = {};
     this.residents.set(id, owner);
     this.residency.set(id, owner);
@@ -161,6 +162,7 @@ export class DocumentEditSessions {
     const revision = this.saves.revisionState(target.documentId);
     if (
       !issued ||
+      !this.saves.isStorageCurrent(target.documentId) ||
       current !== issued.session ||
       !current?.active ||
       !current.selection ||

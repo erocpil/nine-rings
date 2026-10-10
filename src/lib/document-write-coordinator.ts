@@ -7,6 +7,8 @@ interface DocumentWriteCoordinator {
     persist: (snapshot: UpdateNoteInput) => Promise<T>,
   ): Promise<T>;
   withReplacement<T>(task: () => Promise<T>): Promise<T>;
+  assertWriteSnapshot(id: string, snapshot: UpdateNoteInput): void;
+  withSavedNote<T>(id: string, task: () => Promise<T>): Promise<T>;
 }
 let current: DocumentWriteCoordinator | undefined;
 let mutationTail: Promise<void> = Promise.resolve();
@@ -33,10 +35,24 @@ export function coordinateDocumentUpdate<T>(
     ? current.writeThrough(id, changes, persist)
     : persist(changes);
 }
+
+export function assertCoordinatedWriteSnapshot(
+  id: string,
+  snapshot: UpdateNoteInput,
+): void {
+  current?.assertWriteSnapshot(id, snapshot);
+}
 export function coordinateStorageReplacement<T>(
   task: () => Promise<T>,
 ): Promise<T> {
   return coordinateStorageMutation(task);
+}
+
+export function coordinateDocumentCheckpoint<T>(
+  id: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  return current ? current.withSavedNote(id, task) : task();
 }
 
 /** Opaque bulk/protection operations cannot safely be represented as a property

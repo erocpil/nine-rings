@@ -261,7 +261,7 @@ export function noteToDB<T extends { content?: unknown; tags?: unknown; concepts
 export function noteFromDB(d: StoredNote): Note {
   return {
     ...d,
-    tags: typeof d.tags === "string" ? JSON.parse(d.tags) : d.tags,
+    tags: (typeof d.tags === "string" ? JSON.parse(d.tags) : d.tags) ?? [],
     concepts: typeof d.concepts === "string" ? JSON.parse(d.concepts) : d.concepts ?? undefined,
     linkedDocIds: typeof d.linkedDocIds === "string" ? JSON.parse(d.linkedDocIds) : d.linkedDocIds ?? undefined,
     pinned: d.pinned === 1 || d.pinned === true,

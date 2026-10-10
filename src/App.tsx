@@ -64,6 +64,7 @@ import { resolveFolderRename } from "./lib/folder-rename";
 import { useWebPlatform } from "./hooks/useWebPlatform";
 import { WebStatusBanner } from "./components/WebStatusBanner";
 import { BackupRestoreStatus } from "./components/BackupRestoreStatus";
+import { withBackupRestoreReadLock } from "./lib/backup-restore-coordination";
 import { SearchResultsPanel } from "./components/SearchResultsPanel";
 import { subscribeToDataChanges } from "./lib/tab-coordination";
 import { rememberRecentNote, markRecentNoteEdited } from "./lib/quick-switcher";
@@ -209,7 +210,7 @@ function App() {
 
   const exportEmergencyBackup = useCallback(async () => {
     try {
-      const json = await api.export.data();
+      const json = await withBackupRestoreReadLock(() => api.export.data());
       const pending = getPendingData();
       let backup = json;
       if (pending) {
@@ -248,13 +249,13 @@ function App() {
     let request = 0;
     const unsubscribe = subscribeToDataChanges((event) => {
       const current = useNotesStore.getState().selectedNote;
-      if (!event.noteId || event.noteId !== current?.id) return;
+      if (!current || (event.type !== "data-imported" && event.noteId !== current.id)) return;
       const generation = ++request;
       if (event.type === "note-deleted" || getPendingData()) {
         setExternalNoteConflict(true);
         return;
       }
-      void api.notes.get(event.noteId).then((note) => {
+      void api.notes.get(current.id).then((note) => {
         if (!active || generation !== request) return;
         const latest = useNotesStore.getState().selectedNote;
         if (latest?.id !== current.id) return;
@@ -298,8 +299,9 @@ function App() {
   }, [discardPending, selectNote, refreshNotes]);
 
   const keepLocalNote = useCallback(() => {
-    setExternalNoteConflict(false);
-    void flushAutoSave().catch((saveError) => console.error("[Tabs] 覆盖外部版本失败:", saveError));
+    void flushAutoSave().then(() => setExternalNoteConflict(false)).catch((saveError) => {
+      useNotesStore.setState({ error: `覆盖未完成，待保存修改仍保留：${saveError instanceof Error ? saveError.message : String(saveError)}` });
+    });
   }, [flushAutoSave]);
 
   const [workspaceHomeRequested, setWorkspaceHomeRequested] = useState(false);
@@ -1468,9 +1470,10 @@ function App() {
       {quitHint && <div className="quit-confirmation-hint" role="status" aria-live="polite">{quitHint}</div>}
       {externalNoteConflict && (
         <div className="tab-conflict-banner" role="alert">
-          <span>此笔记已在另一个标签页修改。请选择要保留的版本。</span>
+          <span>此文档已在另一个标签页修改或恢复。载入前可先导出本页待保存修改。</span>
           <button type="button" onClick={() => void loadExternalNote()}>载入其他标签页版本</button>
-          <button type="button" onClick={keepLocalNote}>保留本页并覆盖</button>
+          <button type="button" onClick={keepLocalNote} disabled={!autoSave.canOverwriteExternal()} title={!autoSave.canOverwriteExternal() ? "工作区已恢复，请先导出本页修改，再载入新版本" : undefined}>保留本页并覆盖</button>
+          <button type="button" onClick={() => void exportEmergencyBackup()}>导出本页待保存修改</button>
         </div>
       )}
 

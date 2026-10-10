@@ -2,6 +2,22 @@ import { pressDocumentBoundary } from "./helpers/keyboard";
 import { expect, test } from "@playwright/test";
 import { createBlankNote } from "./helpers/editor-fixtures";
 
+async function holdNextUpdate(page: import("@playwright/test").Page) {
+  await page.evaluate(async () => {
+    const { getAdapter } = await import("/src/lib/storage/index.ts");
+    const adapter = await getAdapter();
+    const original = adapter.updateNote;
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    adapter.updateNote = async (...args) => {
+      await gate;
+      adapter.updateNote = original;
+      return original(...args);
+    };
+    Object.assign(window, { releaseTabUpdate: release });
+  });
+}
+
 test("跨标签读取期间的新输入不会被迟到的外部快照覆盖", async ({ context }) => {
   test.slow();
   const first = await context.newPage();
@@ -69,6 +85,11 @@ test("多标签页自动刷新并在本地编辑时提示冲突", async ({ conte
   await expect(secondEditor).toContainText(autoRefreshText, { timeout: 30000 });
 
   const externalText = `外部修改-${Date.now()}`;
+  // Hold both actual writes so the broadcast arrives while the other editor
+  // still owns pending changes. A brief saved badge can disappear again after
+  // that window's own save and automatic refresh; it is not a reliable clock.
+  await holdNextUpdate(first);
+  await holdNextUpdate(second);
   await firstEditor.click();
   await pressDocumentBoundary(first, "end");
   await first.keyboard.type(externalText);
@@ -79,6 +100,7 @@ test("多标签页自动刷新并在本地编辑时提示冲突", async ({ conte
   await pressDocumentBoundary(second, "end");
   await second.keyboard.type("本页未保存修改");
   await expect(second.locator(".save-status-dirty")).toBeVisible();
+  await first.evaluate(() => (window as unknown as { releaseTabUpdate: () => void }).releaseTabUpdate());
   await expect(first.locator(".save-status-saved")).toBeVisible({ timeout: 30000 });
 
   await expect(second.locator(".tab-conflict-banner")).toContainText("另一个标签页修改", {
@@ -86,4 +108,5 @@ test("多标签页自动刷新并在本地编辑时提示冲突", async ({ conte
   });
   await expect(second.getByRole("button", { name: "载入其他标签页版本" })).toBeVisible();
   await expect(second.getByRole("button", { name: "保留本页并覆盖" })).toBeVisible();
+  await second.evaluate(() => (window as unknown as { releaseTabUpdate: () => void }).releaseTabUpdate());
 });

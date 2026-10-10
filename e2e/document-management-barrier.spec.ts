@@ -2,6 +2,30 @@ import { expect, test } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
 
+test("版本检查点包含最新正文，保存失败时不创建历史，显式重试后才创建", async ({ page }) => {
+  await createBlankDocument(page);
+  const outcome = await page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    const { getAdapter } = await import("/src/lib/storage/index.ts");
+    const id = localStorage.getItem("nr:lastNote")!;
+    const editor = (document.querySelector(".ProseMirror") as HTMLElement & { editor: Editor }).editor;
+    const adapter = await getAdapter();
+    const before = (await api.versions.list(id)).length;
+    const original = adapter.updateNote;
+    adapter.updateNote = async () => { adapter.updateNote = original; throw new Error("simulated save failure"); };
+    editor.commands.setContent("<p>checkpoint latest body</p>", true);
+    let failed = false;
+    try { await api.versions.checkpoint(id); } catch { failed = true; }
+    const afterFailure = (await api.versions.list(id)).length;
+    await api.versions.checkpoint(id);
+    const versions = await api.versions.list(id);
+    return { failed, before, afterFailure, bodies: versions.map(version => version.content.ops.map(op => op.insert).join("")) };
+  });
+  expect(outcome.failed).toBe(true);
+  expect(outcome.afterFailure).toBe(outcome.before);
+  expect(outcome.bodies).toContain("checkpoint latest body\n");
+});
+
 test("批量管理先保存待编辑正文，暂停编辑并使旧目标失效，目标数组在调用时冻结", async ({ page }) => {
   await createBlankDocument(page);
   await page.evaluate(async () => {

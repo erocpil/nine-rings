@@ -28,6 +28,7 @@ export type { AutoSaveChanges, SaveStatus } from "../lib/auto-save-queue";
 
 export interface AutoSaveHandle {
   storageBusy: boolean;
+  canOverwriteExternal: () => boolean;
   documentSessions: DocumentEditSessions;
   /** 当前保存状态 */
   status: SaveStatus;
@@ -150,6 +151,7 @@ export function useAutoSave({
     clearTimer();
     return noteIdRef.current ? queue.discardAndDrain(noteIdRef.current) : Promise.resolve();
   }, [clearTimer, queue]);
+  const canOverwriteExternal = useCallback(() => !noteIdRef.current || queue.isStorageCurrent(noteIdRef.current), [queue]);
 
   useEffect(() => {
     const onHide = () => {
@@ -171,6 +173,7 @@ export function useAutoSave({
 
   return {
     storageBusy,
+    canOverwriteExternal,
     documentSessions: documentSessionsRef.current,
     status,
     markDirty,

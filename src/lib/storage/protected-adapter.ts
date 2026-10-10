@@ -1,4 +1,5 @@
 import type { StorageAdapter } from "./types";
+import { assertCoordinatedWriteSnapshot } from "../document-write-coordinator";
 import type { CreateNoteInput, Note, UpdateNoteInput, PathNode, NoteVersion } from "../../types/models";
 import { decryptDocument, isEncrypted, validateEncryptedContent, type ProtectedPath } from "../document-crypto";
 import { listProtectedPaths, readProtectionState, withProtectionWrite, validateProtectionState } from "./protection-state";
@@ -22,6 +23,8 @@ export function protectedAdapter(raw: StorageAdapter): StorageAdapter {
     return { ...data, storagePath: normalizeStoragePath(data.storagePath!), content: await sealContent(content, key) };
   };
   const update = async (id: string, data: UpdateNoteInput): Promise<Note> => {
+    const snapshot = data;
+    assertCoordinatedWriteSnapshot(id, snapshot);
     // Property/API updates must validate the same path that is checked for
     // protection and finally persisted, even when they do not use the move UI.
     if (data.storagePath !== undefined) {
@@ -50,6 +53,7 @@ export function protectedAdapter(raw: StorageAdapter): StorageAdapter {
     }
     const path = pathProtection(await listProtectedPaths(), data.storagePath ?? note.storagePath);
     if (path && !isEncrypted(content ?? note.content)) throw new Error("此文档位于加密路径，请重新打开后保存");
+    assertCoordinatedWriteSnapshot(id, snapshot);
     return raw.updateNote(id, { ...data, ...(content ? { content } : {}) });
   };
 
@@ -80,7 +84,10 @@ export function protectedAdapter(raw: StorageAdapter): StorageAdapter {
     }),
     permanentlyDeleteNote: id => withProtectionWrite(() => raw.permanentlyDeleteNote(id)),
     cleanOldDeleted: days => withProtectionWrite(() => raw.cleanOldDeleted(days)),
-    createNoteCheckpoint: id => withProtectionWrite(() => raw.createNoteCheckpoint(id)),
+    createNoteCheckpoint: id => withProtectionWrite(() => {
+      assertCoordinatedWriteSnapshot(id, {});
+      return raw.createNoteCheckpoint(id);
+    }),
     restoreNoteVersion: id => withProtectionWrite(async () => {
       const before = await readProtectionState();
       const v = before.versions.find(v => v.id === id);

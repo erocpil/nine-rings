@@ -1,4 +1,5 @@
 import type { Note, NoteVersion } from "../../types/models";
+import { assertRestoreWriteAllowed } from "../backup-restore-coordination";
 import type { ProtectedPath } from "../document-crypto";
 import { isEncrypted, validateEncryptedContent } from "../document-crypto";
 import { isTauriRuntime } from "../runtime";
@@ -10,8 +11,9 @@ export interface ProtectionSnapshot extends ProtectionState { revision: string }
 export const PROTECTION_WRITE_LOCK = "nine-rings:document-protection-write:v1";
 let queue: Promise<unknown> = Promise.resolve();
 export function withProtectionWrite<T>(task: () => Promise<T>): Promise<T> {
+  const guarded = async () => { assertRestoreWriteAllowed(); return task(); };
   const run = async (): Promise<T> => globalThis.navigator?.locks
-    ? await navigator.locks.request(PROTECTION_WRITE_LOCK, task) : await task();
+    ? await navigator.locks.request(PROTECTION_WRITE_LOCK, guarded) : await guarded();
   const result = queue.then(run, run);
   queue = result.catch(() => {});
   return result;

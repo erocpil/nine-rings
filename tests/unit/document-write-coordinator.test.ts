@@ -201,6 +201,32 @@ it("explicit discard waits for an already executing write before reading a repla
   expect(queue.status("a")).toBe("clean");
 });
 
+it("checkpoints read saved content before later writes, and exit waits for them", async () => {
+  let stored = "";
+  const gate = deferred();
+  const queue = new AutoSaveQueue(async (_id, changes) => {
+    stored = changes.title!;
+  });
+  queue.mark("a", "title", "checkpoint body");
+  const checkpoint = queue.withSavedNote("a", async () => {
+    await gate.promise;
+    return stored;
+  });
+  queue.mark("a", "title", "later body");
+  const later = queue.flushNote("a");
+  let exited = false;
+  const exit = queue.flushAll().then(() => {
+    exited = true;
+  });
+  await Promise.resolve();
+  expect(exited).toBe(false);
+  gate.resolve();
+  expect(await checkpoint).toBe("checkpoint body");
+  await Promise.all([later, exit]);
+  expect(stored).toBe("later body");
+  expect(exited).toBe(true);
+});
+
 it("exit and update flush wait for the actual management operation, including failure", async () => {
   const queue = new AutoSaveQueue(async () => {});
   const gate = deferred();

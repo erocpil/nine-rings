@@ -4,6 +4,10 @@ import {
   type DocumentSaveRevision,
 } from "./document-save-revisions";
 import type { DeltaOps, UpdateNoteInput } from "../types/models";
+import {
+  assertDocumentStorageGeneration,
+  readDocumentStorageGeneration,
+} from "./document-storage-generation";
 
 export type AutoSaveChanges = UpdateNoteInput;
 export type SaveStatus = "clean" | "dirty" | "saving" | "saved" | "error";
@@ -46,6 +50,9 @@ export class AutoSaveQueue {
   private mutationCompletion?: Promise<void>;
   private ownedSnapshots = new WeakSet<object>();
   private barriers = new Set<Promise<void>>();
+  private storageGenerations = new Map<string, string>();
+  private snapshotGenerations = new WeakMap<object, string>();
+  private checkpoints = new Set<Promise<void>>();
 
   constructor(
     private save: (id: string, changes: AutoSaveChanges) => Promise<void>,
@@ -71,6 +78,7 @@ export class AutoSaveQueue {
         "STALE_REVISION",
         "正在恢复文档，暂不能接受编辑",
       );
+    this.rememberStorageGeneration(id);
     this.revisions.accept(id, key, batch);
     const revisions = this.fieldRevisions.get(id) ?? {};
     revisions[key] = (revisions[key] ?? 0) + 1;
@@ -109,6 +117,7 @@ export class AutoSaveQueue {
       revision: this.revisions.capture(id),
     };
     this.ownedSnapshots.add(snapshot);
+    this.snapshotGenerations.set(snapshot, this.rememberStorageGeneration(id));
     jobs.add(job);
     this.queued.set(id, jobs);
     this.dirty.delete(id);
@@ -117,7 +126,9 @@ export class AutoSaveQueue {
     job.completion = this.tail.then(async () => {
       try {
         if (job.discarded) return;
+        this.assertWriteSnapshot(id, snapshot);
         await this.save(id, snapshot);
+        this.assertWriteSnapshot(id, snapshot);
         if (!job.discarded) {
           this.revisions.acknowledge(
             job.revision,
@@ -161,14 +172,16 @@ export class AutoSaveQueue {
   }
 
   private flushWrites(): Promise<void> {
+    const checkpoints = [...this.checkpoints];
     const ids = new Set([...this.dirty.keys(), ...this.queued.keys()]);
     const targets = [...ids].map((id) => ({
       id,
       revision: this.captureRevision(id),
     }));
-    const barrier = Promise.all(
-      targets.map(({ id }) => this.flushNote(id)),
-    ).then(() => {
+    const barrier = Promise.all([
+      ...targets.map(({ id }) => this.flushNote(id)),
+      ...checkpoints,
+    ]).then(() => {
       for (const { id, revision } of targets) {
         if (!this.revisions.covered(id, revision)) {
           throw new SaveBarrierError(
@@ -198,7 +211,57 @@ export class AutoSaveQueue {
   }
 
   captureRevision(id: string): DocumentSaveRevision {
+    this.rememberStorageGeneration(id);
     return this.revisions.capture(id);
+  }
+
+  private rememberStorageGeneration(id: string): string {
+    let generation = this.storageGenerations.get(id);
+    if (generation === undefined) {
+      generation = readDocumentStorageGeneration();
+      this.storageGenerations.set(id, generation);
+    }
+    return generation;
+  }
+  isStorageCurrent(id: string): boolean {
+    return (
+      this.rememberStorageGeneration(id) === readDocumentStorageGeneration()
+    );
+  }
+  /** Save the outgoing snapshot and reserve the checkpoint before later writes. */
+  withSavedNote<T>(id: string, task: () => Promise<T>): Promise<T> {
+    if (this.replacing)
+      return Promise.reject(
+        new SaveBarrierError(
+          "STALE_REVISION",
+          "正在恢复文档，暂不能创建检查点",
+        ),
+      );
+    const saved = this.flushNote(id);
+    const result = this.tail.then(async () => {
+      await saved;
+      if (!this.isStorageCurrent(id))
+        throw new SaveBarrierError(
+          "STALE_REVISION",
+          "另一窗口已恢复文档，旧检查点已取消",
+        );
+      return task();
+    });
+    const completion = result.then(() => {});
+    this.checkpoints.add(completion);
+    void completion.then(
+      () => this.checkpoints.delete(completion),
+      () => this.checkpoints.delete(completion),
+    );
+    this.tail = completion.catch(() => {});
+    return result;
+  }
+
+  assertWriteSnapshot(id: string, snapshot: UpdateNoteInput): void {
+    assertDocumentStorageGeneration(
+      this.snapshotGenerations.get(snapshot) ??
+        this.rememberStorageGeneration(id),
+    );
   }
 
   /** Property/API updates share ordering and revision confirmation with body saves.
@@ -214,6 +277,7 @@ export class AutoSaveQueue {
         new SaveBarrierError("STALE_REVISION", "正在恢复文档，暂不能写入属性"),
       );
     const snapshot = structuredClone(changes);
+    this.snapshotGenerations.set(snapshot, this.rememberStorageGeneration(id));
     const fields = (Object.keys(snapshot) as (keyof UpdateNoteInput)[]).filter(
       (key) => snapshot[key] !== undefined,
     );
@@ -244,7 +308,9 @@ export class AutoSaveQueue {
       if (job.discarded)
         throw new SaveBarrierError("STALE_REVISION", "属性写入已被放弃");
       try {
+        this.assertWriteSnapshot(id, snapshot);
         const value = await persist(snapshot);
+        this.assertWriteSnapshot(id, snapshot);
         if (!job.discarded) {
           this.revisions.acknowledge(job.revision, fields);
           this.setStatus(
@@ -316,6 +382,11 @@ export class AutoSaveQueue {
   ): Promise<void> {
     if (signal?.aborted)
       throw new SaveBarrierError("CANCELLED", "保存等待已取消");
+    if (!this.isStorageCurrent(id))
+      throw new SaveBarrierError(
+        "STALE_REVISION",
+        "另一窗口已恢复文档，旧保存确认失效",
+      );
     if (this.revisions.covered(id, revision)) return;
     let unwatch = () => {};
     let onAbort = () => {};
@@ -365,6 +436,7 @@ export class AutoSaveQueue {
   discard(id: string): void {
     this.revisions.invalidate(id);
     this.dirty.delete(id);
+    this.storageGenerations.delete(id);
     for (const job of this.queued.get(id) ?? []) job.discarded = true;
     this.queued.delete(id);
     // An already executing storage write cannot be cancelled by this queue.

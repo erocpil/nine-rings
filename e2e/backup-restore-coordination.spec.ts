@@ -33,6 +33,12 @@ test("同源两个窗口不能同时导入，忙碌的 GitHub Pull 不读远程�
   expect(outcome.errors).toHaveLength(2);
   expect(outcome.errors.every((error) => error.includes("另一个窗口"))).toBe(true);
   expect(outcome.note).toBeNull(); expect(requests).toBe(0);
+  const writeError = await other.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    try { await api.notes.create({ title: "不得在恢复期间写入", date: "2026-10-10" }); return null; }
+    catch (error) { return String(error); }
+  });
+  expect(writeError).toContain("另一个窗口正在恢复");
   await expect(other.locator(".web-status-banner").filter({ hasText: "有窗口正在恢复" })).toBeVisible();
   await page.evaluate(async () => { (window as any).finishRestore(); await (window as any).restoreTask; });
   await expect(other.locator(".web-status-banner").filter({ hasText: "有窗口正在恢复" })).toHaveCount(0);

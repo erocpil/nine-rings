@@ -7,7 +7,7 @@ import { addFrontendSettingsToBackup, withFrontendSettings } from "./backup-user
 import { parseJsonAsync, stringifyJsonAsync } from "./data-transform-client";
 import { validateBackup } from "./backup-validation";
 import { assertRestoreContext, withBackupRestore, type RestoreContext } from "./backup-restore-coordination";
-import { coordinateDocumentUpdate, coordinateStorageReplacement, coordinateStorageMutation } from "./document-write-coordinator";
+import { coordinateDocumentUpdate, coordinateStorageReplacement, coordinateStorageMutation, coordinateDocumentCheckpoint } from "./document-write-coordinator";
 import type { SearchOptions } from "./search-matching";
 
 /**
@@ -209,7 +209,7 @@ export const api = {
       withSearchRefresh(coordinateStorageMutation(() => adapter().then((a) => a.restoreNoteVersion(versionId)))),
 
     checkpoint: (noteId: string) =>
-      adapter().then((a) => a.createNoteCheckpoint(noteId)),
+      coordinateDocumentCheckpoint(noteId, () => adapter().then((a) => a.createNoteCheckpoint(noteId))),
   },
 
   // ── Config ──

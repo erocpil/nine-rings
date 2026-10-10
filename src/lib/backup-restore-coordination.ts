@@ -1,4 +1,5 @@
 /** Restore-to-restore exclusion and durable, content-free interruption records. */
+import { advanceDocumentStorageGeneration } from "./document-storage-generation";
 export const RESTORE_LOCK_NAME = "nine-rings:backup-restore:v1";
 export const RESTORE_JOURNAL_KEY = "nr:backup-restore-journal:v1";
 export const RESTORE_CHANGED_EVENT = "nr:backup-restore-changed";
@@ -53,6 +54,15 @@ function readRecord(): RestoreRecord | null {
   return { version: 1, id: r.id, source: r.source!, mode: r.mode!, phase: r.phase!, startedAt: r.startedAt, updatedAt: r.updatedAt };
 }
 const pending = (record: RestoreRecord | null) => !!record && !["completed", "failed", "needs-review", "acknowledged"].includes(record.phase);
+
+/** Check under the protection/write lock. The restoring window must be able to
+ * drain its own writes and import, while other windows retain their retry data. */
+export function assertRestoreWriteAllowed(): void {
+  if (typeof window === "undefined") return;
+  const record = readRecord();
+  if (pending(record) && record?.id !== localRecordId)
+    throw new Error("另一个窗口正在恢复备份，已暂停写入并保留待保存修改");
+}
 
 function createContext(persist: (phase: Phase) => void): RestoreContext {
   let mutationStarted = false;
@@ -113,6 +123,7 @@ export async function withBackupRestore<T>(
     const update = (phase: Phase) => {
       record = { ...record, phase, updatedAt: new Date().toISOString() };
       writeRecord(record);
+      if (phase === "applying") advanceDocumentStorageGeneration(record.id);
     };
     update("preparing");
     const context = createContext(update);

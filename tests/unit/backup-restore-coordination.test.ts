@@ -133,7 +133,8 @@ it("日志写失败或缺少锁支持时，数据操作不启动", async () => {
 it("数据已提交但完成记录写失败时，保留待检查状态，不再次执行", async () => {
   const set = localStorage.setItem;
   vi.spyOn(localStorage, "setItem").mockImplementation((key, value) => {
-    if (JSON.parse(value).phase === "completed") throw new Error("quota");
+    if (key === RESTORE_JOURNAL_KEY && JSON.parse(value).phase === "completed")
+      throw new Error("quota");
     set(key, value);
   });
   const write = vi.fn();
@@ -200,7 +201,8 @@ it("写入阶段记录失败不算开始数据写入，提交标志先于收尾�
   const spy = vi
     .spyOn(localStorage, "setItem")
     .mockImplementation((key, value) => {
-      if (JSON.parse(value).phase === "applying") throw new Error("quota");
+      if (key === RESTORE_JOURNAL_KEY && JSON.parse(value).phase === "applying")
+        throw new Error("quota");
       set(key, value);
     });
   let context!: RestoreContext;
@@ -213,7 +215,8 @@ it("写入阶段记录失败不算开始数据写入，提交标志先于收尾�
   expect(context.mutationStarted).toBe(false);
   expect((await inspectBackupRestore()).record?.phase).toBe("failed");
   spy.mockImplementation((key, value) => {
-    if (JSON.parse(value).phase === "finalizing") throw new Error("quota");
+    if (key === RESTORE_JOURNAL_KEY && JSON.parse(value).phase === "finalizing")
+      throw new Error("quota");
     set(key, value);
   });
   await expect(
