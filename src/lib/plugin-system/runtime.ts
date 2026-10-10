@@ -105,6 +105,10 @@ export class PluginRuntime {
       throw new PluginHostError("PERMISSION_DENIED", "插件未获得此项能力");
     return state.controller.signal;
   }
+  permissions(activation: PluginActivation): readonly PluginPermission[] {
+    this.assert(activation);
+    return Object.freeze([...this.issued.get(activation)!.permissions].sort());
+  }
 }
 export const PLUGINS_ENABLED_KEY = "nr:pluginsEnabled";
 function readPreference(): boolean {

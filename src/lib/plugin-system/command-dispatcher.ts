@@ -71,6 +71,22 @@ export class HostCommandDispatcher {
     this.intents = new DocumentIntentService(runtime, sessions);
   }
 
+  capabilities(activation: PluginActivation, entry: "palette" | "keybinding" | "menu" | "macro" = "palette") {
+    const permissions = this.runtime.permissions(activation);
+    const context = this.context();
+    const commands = [...this.commands.values()].filter(command => {
+      const definition = command.definition;
+      if (command.activation !== activation || !definition.exposure![entry] ||
+          !definition.platforms!.includes(context.platform) || !definition.views!.includes(context.view)) return false;
+      if (["document", "selection"].includes(definition.scope)) {
+        if (!context.documentId || !this.sessions.active(context.documentId)) return false;
+        if (!permissions.includes(definition.risk === "read" ? "documents.current.read" : "editor.selection.write")) return false;
+      }
+      return true;
+    }).map(({ definition }) => ({ id: definition.id, scope: definition.scope, risk: definition.risk }));
+    return { protocol: 1 as const, platform: context.platform, view: context.view, permissions, commands };
+  }
+
   register(
     activation: PluginActivation,
     declaration: HostCommandDeclaration,

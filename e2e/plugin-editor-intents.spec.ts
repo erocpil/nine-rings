@@ -3,7 +3,8 @@ import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
 import { selectSource, sourceInfo } from "./helpers/source-editor";
 
-test("宿主命令通过真实渲染/源码会话编辑，保留格式、保存修订和单步撤销", async ({ page }) => {
+for (const transport of ["loopback", "port"] as const) {
+test(`SDK ${transport} 通过真实渲染/源码会话编辑，保留格式、保存修订和单步撤销`, async ({ page }) => {
   await createBlankDocument(page);
   await page.evaluate(async () => {
     const { DocumentEditSessions } = await import("/src/lib/document-edit-sessions.ts");
@@ -19,9 +20,11 @@ test("宿主命令通过真实渲染/源码会话编辑，保留格式、保存�
     ed.commands.insertContent("base");
     ed.commands.setTextSelection(1);
   });
-  await page.evaluate(async () => {
+  await page.evaluate(async transport => {
     const { pluginRuntime, setPluginsEnabled } = await import("/src/lib/plugin-system/runtime.ts");
     const { HostCommandDispatcher } = await import("/src/lib/plugin-system/command-dispatcher.ts");
+    const { createSdkHost, bindSdkHostPort } = await import("/src/lib/plugin-system/sdk-host.ts");
+    const { createPluginSdk, createLoopbackSdkTransport, createPortSdkTransport } = await import("/src/lib/plugin-system/sdk-client.ts");
     setPluginsEnabled(true);
     const activation = pluginRuntime.activate("test.editor", ["editor.selection.read", "editor.selection.write", "documents.current.read"]);
     const host = window as any;
@@ -31,11 +34,22 @@ test("宿主命令通过真实渲染/源码会话编辑，保留格式、保存�
     }));
     dispatcher.register(activation, { id: "test.editor.text", scope: "selection", risk: "write" }, ctx => ctx.commit({ type: "text", value: "**literal**" }));
     dispatcher.register(activation, { id: "test.editor.markdown", scope: "selection", risk: "write" }, ctx => ctx.commit({ type: "markdown", value: "**formatted**" }));
-    Object.assign(window, { intentDispatcher: dispatcher, intentActivation: activation });
-  });
+    const sdkHost = createSdkHost(pluginRuntime, activation, dispatcher);
+    let connection;
+    let disposeHost = () => sdkHost.dispose();
+    if (transport === "port") {
+      const channel = new MessageChannel();
+      disposeHost = bindSdkHostPort(sdkHost, channel.port1);
+      connection = createPortSdkTransport(channel.port2);
+    } else connection = createLoopbackSdkTransport(sdkHost);
+    const sdk = createPluginSdk(connection);
+    Object.assign(window, { intentDispatcher: dispatcher, intentActivation: activation, intentSdk: sdk, disposeIntentHost: disposeHost });
+    const capabilities = await sdk.capabilities();
+    if (capabilities.commands.length !== 2) throw new Error("SDK capabilities missing commands");
+  }, transport);
   const execute = (commandId: string, requestId: string) => page.evaluate(async request => {
     const host = window as any;
-    return host.intentDispatcher.execute(host.intentActivation, request);
+    return host.intentSdk.execute(request.commandId);
   }, { commandId, requestId });
   expect(await execute("test.editor.text", "render-text")).toMatchObject({ ok: true, applied: true });
   await expect(editor).toHaveText("**literal**base");
@@ -61,4 +75,10 @@ test("宿主命令通过真实渲染/源码会话编辑，保留格式、保存�
   });
   expect(await execute("test.editor.text", "disabled")).toMatchObject({ ok: false, applied: false, error: { code: "PLUGIN_DISABLED" } });
   expect((await sourceInfo(source)).value).toBe(before);
+  await page.evaluate(() => {
+    const host = window as any;
+    host.intentSdk.dispose();
+    host.disposeIntentHost();
+  });
 });
+}
