@@ -176,6 +176,18 @@ export function createPluginSdk(transport: SdkTransport) {
       },
     },
     documents: {
+      async snapshot(options?: { signal?: AbortSignal }) {
+        const response = await call("documents.snapshot", {}, options);
+        if (!response.ok)
+          throw new PluginHostError(
+            response.error.code,
+            response.error.message,
+          );
+        return response.value as SdkEditResult & {
+          title: string;
+          content: unknown;
+        };
+      },
       async whenSaved(
         result: SdkEditResult,
         options?: { signal?: AbortSignal },

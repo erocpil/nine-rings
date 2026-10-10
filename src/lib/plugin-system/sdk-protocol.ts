@@ -10,7 +10,8 @@ export type SdkMethod =
   | "editor.captureSelection"
   | "editor.insertAtSelection"
   | "editor.insert"
-  | "documents.whenSaved";
+  | "documents.whenSaved"
+  | "documents.snapshot";
 export interface SdkRequest {
   protocol: 1;
   requestId: string;
@@ -146,6 +147,7 @@ export function parseSdkRequest(value: unknown): SdkRequest {
       "editor.insertAtSelection",
       "editor.insert",
       "documents.whenSaved",
+      "documents.snapshot",
     ].includes(request.method) ||
     !request.params ||
     typeof request.params !== "object" ||

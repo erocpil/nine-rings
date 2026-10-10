@@ -278,7 +278,7 @@ SDK 首期是仓库内部、可演进的模块；`@nine-rings/plugin-sdk` 和 `/
 
 #### 已实现的内部消息桥（2026-10-11）
 
-`src/lib/plugin-system/sdk-{protocol,host,client}.ts` 提供内部 protocol 1，当前提供 `capabilities.query`、`commands.execute`、`requests.cancel`、`editor.captureSelection`、`editor.insert`、`editor.insertAtSelection` 和 `documents.whenSaved`。调用与响应均校验 JSON 值、协议及键；限制为 128,000 UTF-8 字节、16 层和 4096 值预算。回环也深复制，不保留输入对象引用；MessageChannel 传相同消息。响应使用既有类型化错误和 `applied`，后者只表示编辑已接受，不等于保存完成。返回值超过消息预算时仍保留已接受状态。
+`src/lib/plugin-system/sdk-{protocol,host,client}.ts` 提供内部 protocol 1，当前提供 `capabilities.query`、`commands.execute`、`requests.cancel`、`editor.captureSelection`、`editor.insert`、`editor.insertAtSelection` 、`documents.whenSaved` 和 `documents.snapshot`。调用与响应均校验 JSON 值、协议及键；限制为 128,000 UTF-8 字节、16 层和 4096 值预算。回环也深复制，不保留输入对象引用；MessageChannel 传相同消息。响应使用既有类型化错误和 `applied`，后者只表示编辑已接受，不等于保存完成。返回值超过消息预算时仍保留已接受状态。
 
 宿主 `createSdkHost` 绑定内部激活对象与调用入口，二者不接受客户端自报；另一插件的命令不能经本连接执行。能力查询只展示当前授权、平台、视图和入口允许的命令，不读取正文，也不承诺文档可写；实际执行仍由意图服务检查只读、保护、目标及恢复代次。每连接记录已用请求 ID 并限制并发，取消用独立消息传输，AbortSignal 留在客户端。取消在并发或 ID 预算耗尽时仍可处理；ID 预算耗尽后的幂等取消不继续增加记录，写请求仍不能重复提交。
 
@@ -286,7 +286,9 @@ SDK 首期是仓库内部、可演进的模块；`@nine-rings/plugin-sdk` 和 `/
 
 编辑目标由宿主签发为本连接的不透明字符串，五分钟有效且仅可尝试使用一次；插入时再次检查选区、视图、内容修订、恢复代次和保护状态，不重新捕获替代旧目标。目标与保存修订各缓存最多 256 项，超出淘汰最早项；目标记录不保留编辑器适配器引用。直接插入当前选区只需写权限，显式读取目标另需选区读取权限。成功插入返回文档 ID 和保存修订字符串，`documents.whenSaved` 需当前文档读取权限并等待实际保存队列确认；切换文档后仍可等待原文档。保存失败可显式重试同一修订，失效代次返回 STALE_REVISION；取消等待不撤销已接受的编辑或正在执行的持久化。停用或销毁连接清除全部令牌，拒绝跨连接使用。
 
-内部 SDK 尚不开放正文读取、快照、订阅、设置持久化或第三方运行器，管理生命周期与全部写入入口仍待核实。当前 MessageChannel 证明序列化行为，不等于第三方沙箱或原生 IPC 来源隔离，R6 仍进行中。
+内部 SDK 已开放活动 Markdown 文档的按需快照：返回文档 ID、标题、结构化 Delta 正文与本连接的保存修订令牌，不返回内部坐标或编辑器对象。先冻结最新待保存数据，再读取存储并校验视图、文档代次与修订，防止保存完成清空队列造成读取旧正文；读取不触发保存，允许只读文档，拒绝加密正文和保护路径。快照经 JSON 消息预算限制，超限明确失败，不截断内容；首期不支持任意文档 ID、分页或全文广播。
+
+内部 SDK 尚不开放订阅、设置持久化或第三方运行器，管理生命周期与全部写入入口仍待核实。当前 MessageChannel 证明序列化行为，不等于第三方沙箱或原生 IPC 来源隔离，R6 仍进行中。
 
 #### 修订由宿主统一产生
 

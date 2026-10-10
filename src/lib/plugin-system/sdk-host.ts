@@ -103,24 +103,26 @@ export function createSdkHost(
           }, 30000);
           try {
             const operation =
-              request.method === "documents.whenSaved"
-                ? handles
-                    .whenSaved(
-                      request.params.documentId as string,
-                      request.params.revision as string,
+              request.method === "documents.snapshot"
+                ? handles.snapshot(controller.signal)
+                : request.method === "documents.whenSaved"
+                  ? handles
+                      .whenSaved(
+                        request.params.documentId as string,
+                        request.params.revision as string,
+                        controller.signal,
+                      )
+                      .then(() => null)
+                  : handles.insert(
+                      request.method === "editor.insert"
+                        ? (request.params.target as string)
+                        : undefined,
+                      request.params.content as unknown as SdkInsertContent,
                       controller.signal,
-                    )
-                    .then(() => null)
-                : handles.insert(
-                    request.method === "editor.insert"
-                      ? (request.params.target as string)
-                      : undefined,
-                    request.params.content as unknown as SdkInsertContent,
-                    controller.signal,
-                    () => {
-                      applied = true;
-                    },
-                  );
+                      () => {
+                        applied = true;
+                      },
+                    );
             const value = await Promise.race([operation, aborted]);
             runtime.assert(activation);
             response = { ok: true, requestId, applied, value };

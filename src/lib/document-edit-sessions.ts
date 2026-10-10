@@ -134,6 +134,14 @@ export class DocumentEditSessions {
     if (!adapter.insert(selection, content)) throw new StaleEditTargetError();
     return this.saves.captureRevision(target.documentId);
   }
+  readRevision(id: string): DocumentSaveRevision {
+    if (!this.active(id) || !this.saves.isStorageCurrent(id))
+      throw new StaleEditTargetError();
+    return this.saves.captureRevision(id);
+  }
+  pendingChanges(id: string) {
+    return this.saves.pending(id);
+  }
   whenSaved(
     id: string,
     revision: DocumentSaveRevision,

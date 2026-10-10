@@ -81,6 +81,18 @@ export class SdkEditorHandles {
     this.revisions.set(savedToken, revision);
     return { documentId: revision.documentId, revision: savedToken };
   }
+  async snapshot(signal: AbortSignal) {
+    const { value, revision } = await this.dispatcher.snapshot(
+      this.activation,
+      signal,
+    );
+    if (this.closed || signal.aborted)
+      throw new PluginHostError("CANCELLED", "读取已取消");
+    const token = crypto.randomUUID();
+    this.bound(this.revisions);
+    this.revisions.set(token, revision);
+    return { ...value, revision: token };
+  }
   async whenSaved(
     documentId: string,
     token: string,

@@ -696,3 +696,93 @@ it("cancelling save waiting does not cancel an already executing persistence wri
   await h.queue.flushAll();
   expect(h.queue.revisionState("a").confirmedRevision).toBe(1);
 });
+
+for (const kind of ["loopback", "port"] as const) {
+  it(`${kind}: snapshot includes pending content, is detached and can await persistence`, async () => {
+    const { sdk, queue } = setup(kind);
+    queue.mark("a", "content", { ops: [{ insert: "unsaved" }] });
+    const snapshot = await sdk.documents.snapshot();
+    expect(snapshot.content).toEqual({ ops: [{ insert: "unsaved" }] });
+    (snapshot.content as { ops: { insert: string }[] }).ops[0].insert =
+      "mutated";
+    expect((await sdk.documents.snapshot()).content).toEqual({
+      ops: [{ insert: "unsaved" }],
+    });
+    await sdk.documents.whenSaved(snapshot);
+    expect(queue.pending("a")).toBeNull();
+  });
+  it(`${kind}: snapshot rejects revision changes during storage read`, async () => {
+    const { sdk, queue } = setup(kind);
+    vi.mocked(api.notes.get).mockImplementationOnce(async () => {
+      queue.mark("a", "title", "changed");
+      return { id: "a", title: "old", content: { ops: [] } } as Awaited<
+        ReturnType<typeof api.notes.get>
+      >;
+    });
+    await expect(sdk.documents.snapshot()).rejects.toMatchObject({
+      code: "STALE_TARGET",
+    });
+  });
+  it(`${kind}: snapshot rejects protected content`, async () => {
+    const { sdk } = setup(kind);
+    vi.mocked(listProtectedPaths).mockResolvedValue([
+      { path: "ideas" },
+    ] as Awaited<ReturnType<typeof listProtectedPaths>>);
+    await expect(sdk.documents.snapshot()).rejects.toMatchObject({
+      code: "PERMISSION_DENIED",
+    });
+  });
+  it(`${kind}: snapshot checks permission before accessing storage`, async () => {
+    const { sdk, runtime } = setup(kind);
+    runtime.activate("test.sdk", []);
+    const calls = vi.mocked(api.notes.get).mock.calls.length;
+    await expect(sdk.documents.snapshot()).rejects.toMatchObject({
+      code: "PLUGIN_DISABLED",
+    });
+    expect(vi.mocked(api.notes.get).mock.calls.length).toBe(calls);
+  });
+}
+
+for (const kind of ["loopback", "port"] as const) {
+  it(`${kind}: snapshot retains live content when saving completes during storage read`, async () => {
+    const { sdk, queue } = setup(kind);
+    queue.mark("a", "content", { ops: [{ insert: "latest" }] });
+    vi.mocked(api.notes.get).mockImplementationOnce(async () => {
+      await queue.flushNote("a");
+      return { id: "a", content: { ops: [{ insert: "old" }] } } as Awaited<
+        ReturnType<typeof api.notes.get>
+      >;
+    });
+    expect((await sdk.documents.snapshot()).content).toEqual({
+      ops: [{ insert: "latest" }],
+    });
+  });
+  it(`${kind}: snapshot rejects encrypted bodies`, async () => {
+    const { sdk } = setup(kind);
+    vi.mocked(api.notes.get).mockResolvedValue({
+      id: "a",
+      content: { encrypted: {} },
+    } as unknown as Awaited<ReturnType<typeof api.notes.get>>);
+    await expect(sdk.documents.snapshot()).rejects.toMatchObject({
+      code: "PERMISSION_DENIED",
+    });
+  });
+  it(`${kind}: ungranted read cannot access storage`, async () => {
+    const { dispatcher, runtime } = setup(kind);
+    const activation = runtime.activate("other.reader", []);
+    const denied = createSdkHost(runtime, activation, dispatcher);
+    cleanup.push(() => denied.dispose());
+    const calls = vi.mocked(api.notes.get).mock.calls.length;
+    expect(
+      (
+        await denied.receive({
+          protocol: 1,
+          requestId: "read",
+          method: "documents.snapshot",
+          params: {},
+        })
+      ).response,
+    ).toMatchObject({ ok: false, error: { code: "PERMISSION_DENIED" } });
+    expect(vi.mocked(api.notes.get).mock.calls.length).toBe(calls);
+  });
+}

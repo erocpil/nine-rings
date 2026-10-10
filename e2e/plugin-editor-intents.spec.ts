@@ -76,6 +76,9 @@ for (const transport of ["loopback", "port"] as const) {
         intentSdk: sdk,
         disposeIntentHost: disposeHost,
       });
+      const snapshot = await sdk.documents.snapshot();
+      if (!JSON.stringify(snapshot.content).includes("base"))
+        throw new Error("SDK snapshot missing live editor content");
       const capabilities = await sdk.capabilities();
       if (capabilities.commands.length !== 2)
         throw new Error("SDK capabilities missing commands");

@@ -2,6 +2,13 @@ import {
   compileCommandArguments,
   type CommandArguments,
 } from "./command-arguments";
+import { api } from "../api";
+import { isEncrypted } from "../document-crypto";
+import {
+  listProtectedPaths,
+  withProtectionWrite,
+} from "../storage/protection-state";
+import { isPathUnder, normalizeStoragePath } from "../storage/core";
 import { DocumentIntentService } from "./document-intents";
 import {
   SaveBarrierError,
@@ -122,7 +129,7 @@ export class HostCommandDispatcher {
         methods.push("editor.insert", "editor.insertAtSelection");
     }
     if (permissions.includes("documents.current.read"))
-      methods.push("documents.whenSaved");
+      methods.push("documents.whenSaved", "documents.snapshot");
     return {
       protocol: 1 as const,
       platform: context.platform,
@@ -194,6 +201,81 @@ export class HostCommandDispatcher {
               : "文档保存失败，请显式重试",
         );
       throw new PluginHostError("SAVE_FAILED", "文档保存失败，请显式重试");
+    }
+  }
+
+  async snapshot(activation: PluginActivation, signal?: AbortSignal) {
+    this.runtime.assert(activation, "documents.current.read");
+    const context = this.context();
+    if (!["render", "source", "readonly"].includes(context.view))
+      throw new PluginHostError(
+        "UNSUPPORTED_VIEW",
+        "当前视图没有 Markdown 正文",
+      );
+    const id = context.documentId;
+    if (!id) throw new PluginHostError("STALE_TARGET", "没有活动文档");
+    let revision: DocumentSaveRevision;
+    try {
+      revision = this.sessions.readRevision(id);
+    } catch {
+      throw new PluginHostError("STALE_TARGET", "文档状态已失效");
+    }
+    const check = () => {
+      this.runtime.assert(activation, "documents.current.read");
+      if (signal?.aborted) throw new PluginHostError("CANCELLED", "读取已取消");
+      const current = this.context();
+      try {
+        const next = this.sessions.readRevision(id);
+        if (
+          current.documentId !== id ||
+          current.view !== context.view ||
+          next.documentGeneration !== revision.documentGeneration ||
+          next.contentRevision !== revision.contentRevision
+        )
+          throw new Error();
+      } catch {
+        throw new PluginHostError("STALE_TARGET", "读取期间文档已变化");
+      }
+    };
+    try {
+      return await withProtectionWrite(async () => {
+        check();
+        // Freeze before storage reads: an in-flight save may finish and clear pending.
+        const pending = structuredClone(this.sessions.pendingChanges(id));
+        const note = await api.notes.get(id);
+        check();
+        if (!note) throw new PluginHostError("STALE_TARGET", "文档已不存在");
+        const paths = await listProtectedPaths();
+        check();
+        if (
+          isEncrypted(note.content) ||
+          paths.some((item) =>
+            isPathUnder(
+              normalizeStoragePath(note.storagePath || "references"),
+              item.path,
+            ),
+          )
+        )
+          throw new PluginHostError(
+            "PERMISSION_DENIED",
+            "首期插件不开放受保护正文读取",
+          );
+        const value = structuredClone({
+          documentId: id,
+          title: pending?.title ?? note.title ?? "",
+          content: pending?.content ?? note.content,
+        });
+        check();
+        return { value, revision };
+      });
+    } catch (error) {
+      if (error instanceof PluginHostError) throw error;
+      if (error instanceof SaveBarrierError)
+        throw new PluginHostError(
+          error.code === "STALE_REVISION" ? "STALE_TARGET" : error.code,
+          "读取未完成",
+        );
+      throw new PluginHostError("INTERNAL_ERROR", "读取未完成");
     }
   }
 
