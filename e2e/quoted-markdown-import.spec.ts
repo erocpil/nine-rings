@@ -72,7 +72,7 @@ for (const virtual of [false, true]) {
     if (virtual) {
       const row = root.locator('.vr-row[data-block-type="codeBlock"]');
       await expect.poll(() => row.evaluate(element => {
-        const number = element.querySelector(".vr-gutter span")!.getBoundingClientRect();
+        const number = element.querySelector(".vr-gutter .editor-block-number")!.getBoundingClientRect();
         const toolbar = element.querySelector(".vr-code-toolbar .structured-block-caption")!.getBoundingClientRect();
         return Math.abs(number.top + number.height / 2 - toolbar.top - toolbar.height / 2);
       })).toBeLessThan(2);

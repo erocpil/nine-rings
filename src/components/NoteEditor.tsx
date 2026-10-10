@@ -17,6 +17,8 @@ import { findTextMatches, searchPatternError } from "../lib/search-matching";
 import { useSearchRegex } from "../hooks/useSearchRegex";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CopyBlockNotice } from "./CopyBlockNotice";
+import { BlockActionMenu, type BlockMenuAction } from "./BlockActionMenu";
+import { copyDocumentBlock } from "../lib/block-clipboard";
 import { RenderedLinkMenu } from "./RenderedLinkMenu";
 import { filterQuickSwitcherNotes, rankQuickSwitcherNotes, readRecentNoteIds } from "../lib/quick-switcher";
 import { MarkdownDocumentView } from "./MarkdownDocumentView";
@@ -639,6 +641,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextSubmenu, setContextSubmenu] = useState<"format" | "paragraph" | "insert" | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const [blockMenu, setBlockMenu] = useState<{ position: number; trigger: HTMLButtonElement; doc: ProseMirrorNode } | null>(null);
+  const closeBlockMenu = useCallback(() => setBlockMenu(null), []);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [linkDialog, setLinkDialog] = useState(false);
   const [linkDialogUrl, setLinkDialogUrl] = useState("");
@@ -1292,6 +1296,14 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       editor.off("update", refresh);
     };
   }, [editor]);
+
+  useEffect(() => {
+    if (!editor || !blockMenu) return;
+    const changed = () => { if (editor.state.doc !== blockMenu.doc) setBlockMenu(null); };
+    editor.on("transaction", changed);
+    if (!documentActive) setBlockMenu(null);
+    return () => { editor.off("transaction", changed); };
+  }, [editor, blockMenu, documentActive]);
 
   // Markdown 导入和手动标题最终都会成为 heading 节点，因此目录直接读取
   // 编辑器结构即可，并在正文变化时同步更新而无需改写文档内容。
@@ -3677,6 +3689,61 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           />
         </nav>
       );
+  const blockMenuActions = (): BlockMenuAction[] => {
+    if (!blockMenu || editor.state.doc !== blockMenu.doc) return [];
+    const { position, trigger } = blockMenu;
+    const node = editor.state.doc.nodeAt(position);
+    if (!node) return [];
+    const end = position + node.nodeSize;
+    const target = () => node.isLeaf ? editor.commands.setNodeSelection(position) : editor.commands.setTextSelection(TextSelection.near(editor.state.doc.resolve(position + 1)).from);
+    const bookmark = bookmarks.find(item => item.position >= position && item.position < end);
+    const actions: BlockMenuAction[] = [
+      ...(["formatted", "markdown", "text"] as const).map((mode, index) => ({ label: ["复制内容", "复制 Markdown", "复制纯文本"][index], run: () => {
+        void copyDocumentBlock(editor.state.doc, position, mode).then(() => setCopyBlockNotice("已复制此块"), () => setCopyBlockNotice("复制块失败，请重试"));
+      } })),
+      { label: "复制块引用", run: () => { void copyReference("block", position); } },
+      { label: bookmark ? "取消块书签" : "添加块书签", disabled: !bookmark && node.isLeaf, run: () => { if (bookmark) removeBookmark(editor, bookmark.id); else { target(); toggleBookmark(editor); } } },
+      { label: "打开块模式", run: () => openBlockWorkspace(editor, position, trigger) },
+      { label: "选择多个块", run: () => setSelectedBlockIndexes(new Set([editor.state.doc.resolve(position).index(0)])) },
+    ];
+    if (node.type.name === "heading") actions.push({ label: "折叠 / 展开本节", run: () => toggleEditorHeadingFromGutter(position) });
+    else if (["codeBlock", "blockquote", "htmlDetails"].includes(node.type.name)) actions.push({ label: "折叠 / 展开此块", run: () => {
+      const dom = editor.view.nodeDOM(position);
+      if (!(dom instanceof HTMLElement)) return;
+      const toggle = node.type.name === "htmlDetails" ? dom.querySelector<HTMLElement>(".nr-details-summary") : dom.querySelector<HTMLElement>('.code-block-toolbar button[aria-label^="折叠"], .code-block-toolbar button[aria-label^="展开"], .blockquote-toolbar button[aria-label^="折叠"], .blockquote-toolbar button[aria-label^="展开"]');
+      toggle?.click();
+    } });
+    const editStart = actions.length;
+    if (!readonly) {
+      const insert = (at: number, content: Record<string, unknown>) => editor.chain().insertContentAt(at, content).focus().run();
+      actions.push(
+        { label: "在上方插入段落", run: () => insert(position, { type: "paragraph" }) },
+        { label: "在下方插入段落", run: () => insert(end, { type: "paragraph" }) },
+        { label: "复制副本", run: () => insert(end, node.toJSON()) },
+        { label: "增加缩进", run: () => { target(); changeSelectedBlockIndent(1); } },
+        { label: "减少缩进", run: () => { target(); changeSelectedBlockIndent(-1); } },
+      );
+      if (["paragraph", "heading"].includes(node.type.name)) {
+        const conversions: BlockMenuAction[] = [{ label: "普通段落", run: () => { target(); editor.chain().focus().setParagraph().run(); } }];
+        for (const level of [1, 2, 3, 4, 5, 6] as const) conversions.push({ label: `H${level}`, run: () => { target(); editor.chain().focus().setHeading({ level }).run(); } });
+        conversions.push({ label: "引用块", run: () => { target(); editor.chain().focus().wrapIn("blockquote").run(); } });
+        conversions.push({ label: "无序列表", run: () => { target(); editor.chain().focus().toggleBulletList().run(); } });
+        conversions.push({ label: "有序列表", run: () => { target(); editor.chain().focus().toggleOrderedList().run(); } });
+        actions.push({ label: "转换类型", run: () => {}, children: conversions });
+      }
+      actions.push({ label: "删除此块", danger: true, run: () => { editor.chain().deleteRange({ from: position, to: end }).focus().run(); } });
+    }
+    const isolate = (action: BlockMenuAction): BlockMenuAction => ({ ...action,
+      children: action.children?.map(isolate),
+      run: () => {
+        if (readonly || !editor.isEditable || editor.state.doc !== blockMenu.doc) return;
+        editor.view.dispatch(closeHistory(editor.state.tr));
+        action.run();
+        editor.view.dispatch(closeHistory(editor.state.tr));
+      },
+    });
+    return actions.map((action, index) => index >= editStart ? isolate(action) : action);
+  };
   const bookmarkPanel = bookmarkOpen && (
         <nav
           ref={bookmarkPanelRef}
@@ -4165,6 +4232,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
 
         {/* ── 编辑器内容 ── */}
         <CopyBlockNotice message={copyBlockNotice} onClose={() => setCopyBlockNotice("")} />
+        {blockMenu && documentActive && editor.state.doc === blockMenu.doc && <BlockActionMenu trigger={blockMenu.trigger} title={`第 ${editor.state.doc.resolve(blockMenu.position).index(0) + 1} 块`} actions={blockMenuActions()} onClose={closeBlockMenu} />}
         {selectedBlockIndexes.size > 0 && (() => {
           const count = selectedIndexes().length;
           return count > 0 ? <div className="block-selection-toolbar" role="toolbar" aria-label="块级操作">
@@ -4244,6 +4312,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             highlightedBlockIndex={bookmarkJumpBlockIndex}
             selectedBlockIndexes={selectedBlockIndexList}
             onBlockSelect={extendBlockSelection}
+            onBlockMenu={(position, trigger) => { closeToolbarDropdowns(); setContextMenu(null); setBlockMenu({ position, trigger, doc: editor.state.doc }); }}
             onBlockCountChange={setGutterBlockCount}
             onHeadingFoldToggle={toggleEditorHeadingFromGutter}
             onReferenceMenu={useCustomContextMenu ? (position, x, y) => {

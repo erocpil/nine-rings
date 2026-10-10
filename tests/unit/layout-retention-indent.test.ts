@@ -5,7 +5,12 @@ import {
   BlockIndent,
   changeBlockIndent,
 } from "../../src/extensions/BlockIndent";
-import { EditorState, TextSelection } from "@tiptap/pm/state";
+import {
+  EditorState,
+  NodeSelection,
+  TextSelection,
+  AllSelection,
+} from "@tiptap/pm/state";
 import { listFollowupBlocks } from "../../src/lib/list-followup-blocks";
 import {
   readDesktopSidebarState,
@@ -21,6 +26,39 @@ import {
 } from "../../src/lib/delta-converter";
 
 const schema = getSchema([StarterKit, BlockIndent]);
+
+it("indents an atomic block without changing the next block, while all-selection includes the last block", () => {
+  const doc = schema.nodeFromJSON({
+    type: "doc",
+    content: [
+      { type: "paragraph" },
+      { type: "horizontalRule" },
+      { type: "paragraph" },
+    ],
+  });
+  const state = EditorState.create({
+    doc,
+    selection: NodeSelection.create(doc, doc.child(0).nodeSize),
+  });
+  let next = doc;
+  changeBlockIndent(
+    state,
+    (transaction) => {
+      next = transaction.doc;
+    },
+    1,
+  );
+  expect(next.child(1).attrs.indent).toBe(1);
+  expect(next.child(2).attrs.indent).toBe(0);
+  changeBlockIndent(
+    EditorState.create({ doc, selection: new AllSelection(doc) }),
+    (transaction) => {
+      next = transaction.doc;
+    },
+    1,
+  );
+  expect(next.child(2).attrs.indent).toBe(1);
+});
 
 describe("desktop layout and list continuation presentation", () => {
   let values: Map<string, string>;

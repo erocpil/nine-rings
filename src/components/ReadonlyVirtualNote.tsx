@@ -1,3 +1,6 @@
+import { BlockNumber } from "./BlockNumber";
+import { BlockActionMenu, type BlockMenuAction } from "./BlockActionMenu";
+import { copyDocumentBlock } from "../lib/block-clipboard";
 import { DeferredFlowBlock } from "./DeferredFlowBlock";
 import { flowBlockAttributes, flowHeadingLevel } from "../lib/flow-presentation";
 import { useDocumentActive } from "./RetainedDocument";
@@ -407,6 +410,9 @@ export function ReadonlyVirtualNote(
   const selectedBlocks = useRef<[number, number] | null>(null);
   const copyPosition = useRef<number | null>(null);
   const [notice, setNotice] = useState("");
+  const [blockMenu, setBlockMenu] = useState<{ position: number; number: number; trigger: HTMLButtonElement; doc: PMNode } | null>(null);
+  const closeBlockMenu = useCallback(() => setBlockMenu(null), []);
+  useEffect(() => { setBlockMenu(null); }, [doc, active]);
   useEffect(() => {
     if (!notice.startsWith("已复制")) return;
     const timer = window.setTimeout(() => setNotice(""), 2200);
@@ -914,6 +920,31 @@ export function ReadonlyVirtualNote(
   const { onBookmarkCountChange } = props;
   useEffect(() => { onBookmarkCountChange?.(bookmarks.length); }, [onBookmarkCountChange, bookmarks.length]);
   useEffect(() => () => onBookmarkCountChange?.(0), [onBookmarkCountChange]);
+  const blockMenuActions = (): BlockMenuAction[] => {
+    if (!blockMenu || blockMenu.doc !== doc) return [];
+    const pos = blockMenu.position, node = doc.nodeAt(pos);
+    if (!node) return [];
+    const bookmark = bookmarks.find(item => item.position >= pos && item.position < pos + node.nodeSize);
+    const actions: BlockMenuAction[] = [
+      ...(["formatted", "markdown", "text"] as const).map((mode, index) => ({ label: ["复制内容", "复制 Markdown", "复制纯文本"][index], run: () => { void copyDocumentBlock(doc, pos, mode).then(() => setNotice("已复制此块"), () => setNotice("复制块失败，请重试")); } })),
+      { label: "复制块引用", run: () => {
+        const anchor = referenceAnchorAt(doc, "block", pos);
+        const existing = props.content.metadata?.referenceAnchors ?? [];
+        const reused = existing.find(item => !item.deleted && item.kind === anchor.kind && item.from === anchor.from && item.to === anchor.to);
+        const target = reused ?? anchor;
+        if (!reused) props.onContentChange(() => ({ ...props.content, metadata: { ...props.content.metadata, referenceAnchors: [...existing, anchor] } }), { metadataOnly: true });
+        void copyToClipboard(deltaToMarkdown({ ops: [{ insert: target.preview, attributes: { link: `nr-note://${noteId}#nr-ref-${target.id}` } }, { insert: "\n" }] }), { reportFailure: true, beforeCopy: () => props.onFlush?.() ?? Promise.resolve() }).then(() => setNotice("已复制引用，可粘贴到任意文档"), () => setNotice("复制引用失败，请重试"));
+      } },
+      { label: bookmark ? "取消块书签" : "添加块书签", disabled: !bookmark && node.isLeaf, run: () => {
+        const next = bookmark ? bookmarks.filter(item => item.id !== bookmark.id) : [...bookmarks, { id: crypto.randomUUID(), position: pos + (node.isTextblock ? 1 : 0), preview: node.textContent.slice(0, 120), createdAt: new Date().toISOString() }];
+        props.onContentChange(() => ({ ...props.content, metadata: { ...props.content.metadata, bookmarks: next } }), { metadataOnly: true });
+      } },
+      { label: "打开块模式", run: () => { queueBlockWorkspace(noteId, pos); fallback(); } },
+    ];
+    if (sectionByPos.has(pos)) actions.push({ label: "折叠 / 展开本节", run: () => toggleHeading(pos) });
+    else if (["codeBlock", "blockquote", "htmlDetails"].includes(node.type.name)) actions.push({ label: "折叠 / 展开此块", run: () => updateBlock(pos, { collapsed: !(states.get(pos)?.collapsed ?? (node.type.name === "htmlDetails" ? node.attrs.open !== true : node.attrs.collapsed === true)) }) });
+    return actions;
+  };
   const toolbar = (
     <>
       <button type="button" title="复制块" aria-label="复制块" onMouseDown={(event) => event.preventDefault()} onClick={async () => {
@@ -1128,7 +1159,9 @@ export function ReadonlyVirtualNote(
   );
   const tocContext = useMemo(() => ({ items: extractDocumentOutline(doc), navigate: navigateHeading }), [doc, navigateHeading]);
   return (
-    <DocumentOutlineContext.Provider value={tocContext}><div
+    <DocumentOutlineContext.Provider value={tocContext}>
+    {blockMenu && active && doc === blockMenu.doc && <BlockActionMenu title={`第 ${blockMenu.number} 块`} trigger={blockMenu.trigger} actions={blockMenuActions()} onClose={closeBlockMenu} />}
+    <div
       className={`note-editor note-editor-readonly vr-note ${desktopPanelClass(desktopPanels, sections.length > 0)} ${props.cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${props.focusMode ? "focus-mode" : ""} ${props.showLineNumbers ? "show-line-numbers" : ""} ${props.highlightActiveLine ? "" : "no-active-line"}`}
       data-virtual-reader="true"
       onClick={event => {
@@ -1364,7 +1397,7 @@ export function ReadonlyVirtualNote(
                       <EditorFoldIcon expanded={!folds.has(section.key)} />
                     </button>
                   )}
-                  {props.showLineNumbers && <span>{block.number}</span>}
+                  {props.showLineNumbers && <BlockNumber number={block.number} format={block.node.type.name === "heading" ? `H${block.node.attrs.level}` : block.node.type.name} onOpen={trigger => setBlockMenu({ position: block.pos, number: block.number, trigger, doc })} />}
                 </div>
                 <div className="ProseMirror vr-block" contentEditable={false}>
                   {decorateFlowBlock(renderReadonlyBlock(

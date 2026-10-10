@@ -140,13 +140,22 @@ test.describe("桌面加号状态", () => {
 });
 
 for (const width of [1280, 390]) {
-  test(`单块文档的悬停类型标签完整显示且不遮挡正文（${width}px）`, async ({ page }) => {
+  test(`单块文档的类型预览标签完整显示且不遮挡正文（${width}px）`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
     await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true })));
     await page.goto("/");
     await openTestNote(page, ["正文边界"]);
     const number = page.locator(".editor-block-number").first();
-    await number.hover();
+    // This group emulates a touch device, even at desktop width. Exercise
+    // the retained right-swipe preview rather than a synthetic sticky hover.
+    await number.evaluate(element => {
+      for (const [type, x] of [["touchstart", 20], ["touchmove", 65]] as const) {
+        const event = new Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperty(event, "touches", { value: [{ identifier: 1, clientX: x, clientY: 200 }] });
+        element.dispatchEvent(event);
+      }
+    });
+    await expect(number).toHaveClass(/block-type-preview/);
     // Exercise every label against the smallest possible (one-digit) gutter.
     for (const format of ["Text", "H1", "Quote", "UL", "OL", "Task", "Code", "HR", "Table", "Image", "Block"]) {
       const bounds = await number.evaluate((element, label) => {

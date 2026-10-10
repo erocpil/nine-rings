@@ -47,7 +47,7 @@ test.describe("编辑器块级 gutter", () => {
     await expect(page.locator(".vr-note .vr-row")).toHaveCount(1);
     await expect(page.locator(".vr-note .vr-body")).toHaveCSS("--editor-gutter-text-gap", "8px");
     const virtualGap = await page.evaluate(() => {
-      const number = document.querySelector(".vr-gutter span")!.getBoundingClientRect();
+      const number = document.querySelector(".vr-gutter .editor-block-number")!.getBoundingClientRect();
       const text = document.querySelector(".vr-row .vr-block")!.getBoundingClientRect();
       return text.left - number.right;
     });

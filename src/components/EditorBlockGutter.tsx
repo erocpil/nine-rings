@@ -1,4 +1,5 @@
 import { EditorFoldIcon } from "./EditorFoldIcon";
+import { BlockNumber } from "./BlockNumber";
 import { useDocumentActive } from "./RetainedDocument";
 import { activeLinePluginKey } from "../extensions/EditorHighlights";
 import { useEffect, useRef, useState } from "react";
@@ -131,6 +132,7 @@ interface EditorBlockGutterProps {
   highlightedBlockIndex?: number | null;
   selectedBlockIndexes?: readonly number[];
   onBlockSelect?: (position: number) => void;
+  onBlockMenu?: (position: number, trigger: HTMLButtonElement) => void;
   onBlockCountChange?: (count: number) => void;
   onHeadingFoldToggle?: (position: number) => void;
   onReferenceMenu?: (position: number, x: number, y: number) => void;
@@ -143,7 +145,7 @@ interface EditorBlockGutterProps {
  * 用户意图。IntersectionObserver 只挂载视口及预读区域内的控件；
  * ResizeObserver 只重新测量这部分节点，避免长文档复制一整套 gutter DOM。
  */
-export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, selectedBlockIndexes = [], onBlockSelect, onBlockCountChange, onHeadingFoldToggle, onReferenceMenu }: EditorBlockGutterProps) {
+export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, selectedBlockIndexes = [], onBlockSelect, onBlockMenu, onBlockCountChange, onHeadingFoldToggle, onReferenceMenu }: EditorBlockGutterProps) {
   const documentActive = useDocumentActive();
   const rootRef = useRef<HTMLDivElement>(null);
   const suppressCompatibilityClickUntilRef = useRef(0);
@@ -795,16 +797,13 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
         </button>
       ))}
       {!selectingBlocks && showNumbers && blocks.map((block) => (
-        <span
+        <BlockNumber
           key={`number-${block.pos}`}
-          className={`editor-block-number ${block.active ? "active" : ""} ${blockHasBookmark(block) ? "bookmarked" : ""} ${block.index === highlightedBlockIndex ? "bookmark-jump-gutter" : ""}`}
+          className={`${block.active ? "active" : ""} ${blockHasBookmark(block) ? "bookmarked" : ""} ${block.index === highlightedBlockIndex ? "bookmark-jump-gutter" : ""}`}
           style={{ top: block.firstLineCenter }}
-          aria-hidden="true"
-          data-block-index={block.index}
-          data-block-format={block.format}
-        >
-          {block.index}
-        </span>
+          number={block.index} format={block.format}
+          onOpen={trigger => onBlockMenu?.(block.pos, trigger)}
+        />
       ))}
       {!selectingBlocks && !showNumbers && blocks.filter(blockHasBookmark).map((block) => (
         <span

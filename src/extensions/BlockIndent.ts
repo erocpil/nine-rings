@@ -33,6 +33,9 @@ function selectedTopLevelRange(state: EditorState): { from: number; to: number }
   let to = Math.min(selection.$to.index(0), Math.max(0, doc.childCount - 1));
   const toNodeStart = selection.$to.depth > 0 ? selection.$to.before(1) : selection.to;
   if (selection.$to.depth > 0 && to > from && selection.to <= toNodeStart + 1) to -= 1;
+  // A selected atomic block ends at the next top-level boundary. Exclude
+  // that following block, while retaining the final block at document end.
+  if (selection.$to.depth === 0 && selection.$to.index(0) < doc.childCount && to > from) to -= 1;
   return { from, to: Math.max(from, to) };
 }
 

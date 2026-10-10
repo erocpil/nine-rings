@@ -117,6 +117,11 @@
 }
 
 .editor-block-number {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
   position: absolute;
   left: 0;
   width: calc(var(--editor-gutter-width) - 8px);
@@ -184,6 +189,7 @@
   opacity: 0.95;
 }
 
+@media (hover: hover) {
 .editor-block-number:hover,
 .editor-block-number.active:hover,
 .no-active-line .editor-block-number:hover {
@@ -195,6 +201,17 @@
   opacity: 1;
   visibility: visible;
 }
+}
+.editor-block-number.block-type-preview { color: transparent; opacity: 1; }
+.editor-block-number.block-type-preview::after { opacity: 1; visibility: visible; }
+.editor-block-number:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.block-action-menu { min-width: 200px; max-width: calc(100vw - 16px); max-height: min(480px, calc(100dvh - 16px)); }
+.block-action-menu-title { padding: 6px 12px; color: var(--text-secondary); font-size: 12px; border-bottom: 1px solid var(--border); }
+.block-action-menu .block-action-danger { color: var(--danger, #b54b46); }
+.vr-gutter .editor-block-number { position: relative; top: auto; left: auto; transform: none; width: auto; margin-left: auto; padding: 0 1px; }
+.vr-gutter { z-index: 4; pointer-events: none; }
+.vr-gutter button { pointer-events: auto; }
+@media (max-width: 768px) { .block-action-menu .editor-context-item { min-height: 40px; font-size: 14px; } }
 
 .editor-block-insert {
   position: absolute;

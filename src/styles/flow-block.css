@@ -136,5 +136,5 @@
 .node-codeBlock .flow-active-block { background: transparent; }
 .no-active-line .flow-active-block { background: transparent; }
 .flow-block-content.flow-active-block { background: var(--bg); }
-.vr-row:has(.flow-active-block) > .vr-gutter > span { color: var(--accent); }
-.no-active-line .vr-row:has(.flow-active-block) > .vr-gutter > span { color: var(--text-secondary); }
+.vr-row:has(.flow-active-block) > .vr-gutter > .editor-block-number { color: var(--accent); }
+.no-active-line .vr-row:has(.flow-active-block) > .vr-gutter > .editor-block-number { color: var(--text-secondary); }
