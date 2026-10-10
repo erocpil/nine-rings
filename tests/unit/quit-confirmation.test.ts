@@ -131,3 +131,30 @@ it("does not announce successful save or exit when saving fails", async () => {
   expect(s.actions.quit).not.toHaveBeenCalled();
   expect(s.actions.error).toHaveBeenCalledOnce();
 });
+
+it("quiesces plugin work only on confirmed exit and resumes it if final saving fails", async () => {
+  const resume = vi.fn(),
+    order: string[] = [];
+  const confirmation = createQuitConfirmation({
+    now: () => 0,
+    hint: () => {},
+    clear: () => {},
+    error: () => {},
+    prepare: () => {
+      order.push("suspend");
+      return resume;
+    },
+    save: async () => {
+      order.push("save");
+      throw new Error("disk");
+    },
+    quit: async () => {
+      order.push("quit");
+    },
+  });
+  await confirmation.request();
+  expect(order).toEqual([]);
+  await confirmation.request();
+  expect(order).toEqual(["suspend", "save"]);
+  expect(resume).toHaveBeenCalledTimes(1);
+});

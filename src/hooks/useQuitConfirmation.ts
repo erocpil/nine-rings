@@ -1,3 +1,4 @@
+import { suspendPluginWork } from "../lib/plugin-system/runtime";
 import { useEffect, useRef } from "react";
 import { isTauriRuntime } from "../lib/runtime";
 import { createQuitConfirmation, QUIT_CONFIRMATION_MS } from "../lib/quit-confirmation";
@@ -15,6 +16,7 @@ export function useQuitConfirmation(save: () => Promise<void>) {
       hint: () => showMessage("再次按下 ⌘Q 退出（2 秒内）", QUIT_CONFIRMATION_MS),
       clear: clearMessage,
       progress: phase => showMessage(phase === "saving" ? "正在保存并退出…" : "本机已保存，正在清理并退出…", 0),
+      prepare: suspendPluginWork,
       save: () => saveRef.current(),
       quit: async () => {
         const { invoke } = await import("@tauri-apps/api/core");

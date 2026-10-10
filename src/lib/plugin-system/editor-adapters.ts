@@ -10,7 +10,11 @@ export function renderedEditAdapter(
   readonly: () => boolean,
 ): DocumentEditAdapter {
   return {
-    editable: () => !editor.isDestroyed && editor.isEditable && !readonly(),
+    editable: () =>
+      !editor.isDestroyed &&
+      editor.isEditable &&
+      !editor.view.composing &&
+      !readonly(),
     insert: (range, content) => {
       let nodes;
       if (content.type === "markdown")
@@ -51,7 +55,10 @@ export function sourceEditAdapter(
   readonly: () => boolean,
 ): DocumentEditAdapter {
   return {
-    editable: () => !readonly() && !handle.view.state.readOnly,
+    editable: () =>
+      !readonly() &&
+      !handle.view.state.readOnly &&
+      !handle.view.compositionStarted,
     insert: (range, content) => {
       handle.insertIsolated(range.from, range.to, content.value);
       return true;

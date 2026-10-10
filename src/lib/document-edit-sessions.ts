@@ -34,6 +34,14 @@ export class StaleEditTargetError extends Error {
     super("编辑目标已变化，请重新获取选区");
   }
 }
+export interface DocumentViewEvent {
+  readonly documentId: string;
+  readonly kind: "view" | "selection";
+  readonly view: DocumentView;
+  readonly viewSession: string;
+  readonly selectionEpoch: number;
+  readonly active: boolean;
+}
 interface ViewSession {
   owner: object;
   view: DocumentView;
@@ -47,6 +55,36 @@ interface ViewSession {
 /** Live host targets, deliberately distinct from serializable SDK handles. */
 export class DocumentEditSessions {
   private views = new Map<string, ViewSession>();
+  private viewListeners = new Set<(event: DocumentViewEvent) => void>();
+  subscribeViews(listener: (event: DocumentViewEvent) => void): () => void {
+    this.viewListeners.add(listener);
+    return () => {
+      this.viewListeners.delete(listener);
+    };
+  }
+  private emitView(
+    id: string,
+    state: ViewSession,
+    kind: DocumentViewEvent["kind"],
+  ) {
+    if (!this.viewListeners.size) return;
+    const event = Object.freeze({
+      documentId: id,
+      kind,
+      view: state.view,
+      viewSession: state.session,
+      selectionEpoch: state.epoch,
+      active: state.active,
+    });
+    for (const listener of [...this.viewListeners]) {
+      if (!this.viewListeners.has(listener)) continue;
+      try {
+        listener(event);
+      } catch {
+        /* Observers cannot interrupt navigation or selection. */
+      }
+    }
+  }
   // Handles may outlive a view; retain its identity, never its editor adapter.
   private issued = new WeakMap<DocumentEditTarget, string>();
   private residents = new Map<string, object>();
@@ -103,6 +141,7 @@ export class DocumentEditSessions {
       selection:
         old?.owner === owner && old.view === view ? old.selection : undefined,
     });
+    this.emitView(id, this.views.get(id)!, "view");
   }
   select(
     id: string,
@@ -119,6 +158,7 @@ export class DocumentEditSessions {
       return;
     state.selection = { ...selection };
     state.epoch += 1;
+    this.emitView(id, state, "selection");
   }
   bind(
     id: string,
@@ -144,7 +184,11 @@ export class DocumentEditSessions {
     return this.saves.captureRevision(target.documentId);
   }
   readRevision(id: string): DocumentSaveRevision {
-    if (!this.active(id) || !this.saves.isStorageCurrent(id))
+    if (
+      !this.active(id) ||
+      this.saves.isReplacing() ||
+      !this.saves.isStorageCurrent(id)
+    )
       throw new StaleEditTargetError();
     return this.saves.captureRevision(id);
   }
@@ -176,6 +220,7 @@ export class DocumentEditSessions {
     const current = this.views.get(target.documentId);
     const revision = this.saves.revisionState(target.documentId);
     if (
+      this.saves.isReplacing() ||
       !issued ||
       !this.saves.isStorageCurrent(target.documentId) ||
       current?.session !== issued ||

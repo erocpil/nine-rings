@@ -64,13 +64,14 @@ test("插件运行状态显示授权资源并支持单独停用", async ({ page 
   await page.goto("/");
   await (await openPluginSettings(page)).check();
   await page.evaluate(async () => {
-    const { pluginRuntime } = await import("/src/lib/plugin-system/runtime.ts");
-    const activation = pluginRuntime.activate("test.management", ["documents.current.read"]);
-    pluginRuntime.own(activation, () => { throw new Error("private diagnostic"); });
+    const { pluginLifecycle } = await import("/src/lib/plugin-system/lifecycle.ts");
+    await pluginLifecycle.activate("test.management", ["documents.current.read"], {
+      activate(ctx) { ctx.own(() => { throw new Error("private diagnostic"); }); },
+    });
   });
   const status = page.getByRole("group", { name: "插件运行状态", exact: true });
   await expect(status).toContainText("documents.current.read");
-  await expect(status).toContainText("托管资源：1");
+  await expect(status).toContainText("托管资源：2");
   await status.getByRole("button", { name: "停用 test.management" }).click();
   await expect(status).toContainText("0 个活动插件");
   await expect(status).toContainText("1 次资源清理异常");

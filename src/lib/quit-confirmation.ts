@@ -6,13 +6,16 @@ export function createQuitConfirmation(actions: {
   clear: () => void;
   progress?: (phase: "saving" | "exiting") => void;
   save: () => Promise<void>;
+  prepare?: () => () => void;
   quit: () => Promise<void>;
   error: (error: unknown) => void;
   now?: () => number;
 }) {
   let firstPress: number | null = null;
   let busy = false;
-  const reset = () => { firstPress = null; };
+  const reset = () => {
+    firstPress = null;
+  };
   return {
     reset,
     async request() {
@@ -27,12 +30,15 @@ export function createQuitConfirmation(actions: {
       busy = true;
       if (actions.progress) actions.progress("saving");
       else actions.clear();
+      let resume: (() => void) | undefined;
       try {
+        resume = actions.prepare?.();
         await actions.save();
         actions.progress?.("exiting");
         await actions.quit();
         if (actions.progress) actions.clear();
       } catch (error) {
+        resume?.();
         actions.error(error);
       } finally {
         busy = false;

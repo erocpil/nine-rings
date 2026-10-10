@@ -39,6 +39,8 @@ export function createSdkHost(
   };
   runtimeSignal.addEventListener("abort", revoke, { once: true });
   const host = {
+    onEvents: (listener: (subscriptionId: string) => void) =>
+      events.onAvailable(listener),
     closeCode: () =>
       runtimeSignal.aborted
         ? ("PLUGIN_DISABLED" as const)
@@ -268,9 +270,17 @@ export function bindSdkHostPort(
   };
   port.addEventListener("message", receive);
   port.start();
-  const unwatch = host.onDispose(detach);
+  const stopEvents = host.onEvents((subscriptionId) => {
+    if (!closing && !closed)
+      port.postMessage({ protocol: 1, event: "available", subscriptionId });
+  });
+  const unwatch = host.onDispose(() => {
+    stopEvents();
+    detach();
+  });
   return () => {
     unwatch();
+    stopEvents();
     host.dispose();
     detach();
   };

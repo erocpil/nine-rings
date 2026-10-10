@@ -20,12 +20,14 @@ import type {
 export interface SdkTransport {
   send(request: SdkRequest): Promise<SdkResponse>;
   dispose(): void;
+  onEvents?(listener: (subscriptionId: string) => void): () => void;
 }
 
 export function createLoopbackSdkTransport(
   host: ReturnType<typeof createSdkHost>,
 ): SdkTransport {
   return {
+    onEvents: (listener) => host.onEvents((id) => listener(cloneSdkValue(id))),
     async send(request) {
       const snapshot = cloneSdkValue(request);
       await Promise.resolve();
@@ -44,10 +46,28 @@ export function createPortSdkTransport(port: MessagePort): SdkTransport {
       timer: ReturnType<typeof setTimeout>;
     }
   >();
+  const eventListeners = new Set<(subscriptionId: string) => void>();
   let closed = false;
   let closeCode: "PLUGIN_DISABLED" | "CANCELLED" = "CANCELLED";
   const receive = (event: MessageEvent) => {
     const terminal = event.data;
+    if (
+      terminal &&
+      terminal.protocol === 1 &&
+      terminal.event === "available" &&
+      typeof terminal.subscriptionId === "string" &&
+      /^[a-zA-Z0-9:_-]{1,128}$/.test(terminal.subscriptionId) &&
+      Object.keys(terminal).length === 3
+    ) {
+      for (const listener of eventListeners) {
+        try {
+          listener(terminal.subscriptionId);
+        } catch {
+          /* Isolate client observers. */
+        }
+      }
+      return;
+    }
     if (
       terminal &&
       typeof terminal === "object" &&
@@ -68,6 +88,7 @@ export function createPortSdkTransport(port: MessagePort): SdkTransport {
         );
       }
       pending.clear();
+      eventListeners.clear();
       return;
     }
     let response: SdkResponse;
@@ -91,6 +112,12 @@ export function createPortSdkTransport(port: MessagePort): SdkTransport {
   port.addEventListener("message", receive);
   port.start();
   return {
+    onEvents(listener) {
+      eventListeners.add(listener);
+      return () => {
+        eventListeners.delete(listener);
+      };
+    },
     send(request) {
       if (closed)
         return Promise.reject(new PluginHostError(closeCode, "SDK 连接已关闭"));
@@ -130,6 +157,7 @@ export function createPortSdkTransport(port: MessagePort): SdkTransport {
         );
       }
       pending.clear();
+      eventListeners.clear();
     },
   };
 }
@@ -137,6 +165,17 @@ export function createPortSdkTransport(port: MessagePort): SdkTransport {
 /** Internal SDK: activation objects, callbacks and editor references stay in host. */
 export function createPluginSdk(transport: SdkTransport) {
   let closed = false;
+  const available = new Set<string>();
+  const observers = new Map<string, () => void>();
+  const stopEvents = transport.onEvents?.((id) => {
+    if (closed) return;
+    if (available.size < 8) available.add(id);
+    try {
+      observers.get(id)?.();
+    } catch {
+      /* Isolate plugin callbacks. */
+    }
+  });
   const call = async (
     method: SdkRequest["method"],
     params: Record<string, unknown>,
@@ -169,7 +208,10 @@ export function createPluginSdk(transport: SdkTransport) {
   };
   return {
     events: {
-      async subscribe(options?: { signal?: AbortSignal }) {
+      async subscribe(options?: {
+        signal?: AbortSignal;
+        onAvailable?: () => void;
+      }) {
         const response = await call("events.subscribe", {}, options);
         if (!response.ok)
           throw new PluginHostError(
@@ -181,6 +223,19 @@ export function createPluginSdk(transport: SdkTransport) {
           snapshot: SdkEditResult & { title: string; content: unknown };
         };
         const id = registration.subscriptionId;
+        if (options?.onAvailable) {
+          observers.set(id, options.onAvailable);
+          if (available.has(id))
+            queueMicrotask(() => {
+              if (!closed && observers.has(id)) {
+                try {
+                  options.onAvailable?.();
+                } catch {
+                  /* Isolate callbacks. */
+                }
+              }
+            });
+        }
         let disposed = false;
         return {
           snapshot: registration.snapshot,
@@ -198,6 +253,7 @@ export function createPluginSdk(transport: SdkTransport) {
                 result.error.code,
                 result.error.message,
               );
+            available.delete(id);
             return result.value as SdkEventBatch;
           },
           async dispose() {
@@ -211,6 +267,8 @@ export function createPluginSdk(transport: SdkTransport) {
                 result.error.message,
               );
             disposed = true;
+            observers.delete(id);
+            available.delete(id);
           },
         };
       },
@@ -291,6 +349,9 @@ export function createPluginSdk(transport: SdkTransport) {
     },
     dispose() {
       closed = true;
+      stopEvents?.();
+      observers.clear();
+      available.clear();
       transport.dispose();
     },
   };

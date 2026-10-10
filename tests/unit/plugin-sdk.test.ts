@@ -947,3 +947,61 @@ for (const kind of ["loopback", "port"] as const) {
     await subscription.dispose();
   });
 }
+
+for (const kind of ["loopback", "port"] as const) {
+  it(`${kind}: selected views notify invalidation without exposing editor coordinates`, async () => {
+    const { sdk, sessions, owner } = setup(kind);
+    const subscription = await sdk.events.subscribe();
+    sessions.select("a", owner, "rendered", { from: 4, to: 9 });
+    const selection = (await subscription.read()).events[0];
+    expect(selection).toMatchObject({
+      kind: "selection",
+      view: "rendered",
+      selectionEpoch: 2,
+    });
+    expect(selection).not.toHaveProperty("from");
+    expect(selection).not.toHaveProperty("to");
+    sessions.activate("a", owner, "source", true);
+    const views = await subscription.read();
+    expect(views.resync).toBe(true);
+    expect(views.events[0]).toMatchObject({ kind: "view", view: "source" });
+  });
+  it(`${kind}: current-read alone cannot observe selection and management replacement blocks snapshots`, async () => {
+    const { sdk, sessions, owner, queue } = setup(kind, false);
+    const subscription = await sdk.events.subscribe();
+    sessions.select("a", owner, "rendered", { from: 4, to: 9 });
+    expect((await subscription.read()).events).toEqual([]);
+    const gate = deferred(),
+      entered = deferred();
+    const mutation = queue.withReplacement(async () => {
+      entered.resolve();
+      await gate.promise;
+    });
+    await entered.promise;
+    await expect(sdk.documents.snapshot()).rejects.toMatchObject({
+      code: "STALE_TARGET",
+    });
+    gate.resolve();
+    await mutation;
+  });
+}
+
+for (const kind of ["loopback", "port"] as const) {
+  it(`${kind}: availability signals are coalesced until read and released on unsubscribe`, async () => {
+    const { sdk, queue } = setup(kind);
+    const notify = vi.fn();
+    const subscription = await sdk.events.subscribe({ onAvailable: notify });
+    for (let i = 0; i < 100; i++) queue.mark("a", "title", String(i));
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledTimes(1));
+    queue.mark("a", "title", "pending");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(notify).toHaveBeenCalledTimes(1);
+    await subscription.read();
+    queue.mark("a", "title", "after read");
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledTimes(2));
+    await subscription.dispose();
+    queue.mark("a", "title", "after dispose");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(notify).toHaveBeenCalledTimes(2);
+  });
+}

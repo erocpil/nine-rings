@@ -1,3 +1,4 @@
+import { suspendPluginWork } from "./lib/plugin-system/runtime";
 import { DesktopRecoveryNotice } from "./components/DesktopRecoveryStatus";
 import { useQuitConfirmation } from "./hooks/useQuitConfirmation";
 import type { DocumentOpenOptions } from "./lib/document-open";
@@ -197,9 +198,11 @@ function App() {
     if (webUpdateInFlight.current) return;
     webUpdateInFlight.current = true;
     setApplyingWebUpdate(true);
+    const resumePlugins = suspendPluginWork();
     void flushAutoSave()
       .then(webPlatform.applyUpdate)
       .catch((error) => {
+        resumePlugins();
         useNotesStore.setState({ error: `更新未完成，已保留本地数据：${error instanceof Error ? error.message : String(error)}` });
       })
       .finally(() => {
@@ -255,7 +258,7 @@ function App() {
         setExternalNoteConflict(true);
         return;
       }
-      void api.notes.get(current.id).then((note) => {
+      void api.notes.get(current.id).then(async (note) => {
         if (!active || generation !== request) return;
         const latest = useNotesStore.getState().selectedNote;
         if (latest?.id !== current.id) return;
@@ -266,7 +269,9 @@ function App() {
           setExternalNoteConflict(true);
           return;
         }
-        discardPending();
+        await discardPending();
+        if (!active || generation !== request || useNotesStore.getState().selectedNote !== current) return;
+        if (getPendingData()) { setExternalNoteConflict(true); return; }
         selectNote(note);
         setExternalReloadKey((key) => key + 1);
       }).catch(() => {
@@ -285,6 +290,7 @@ function App() {
     try {
     await discardPending();
     const note = await api.notes.get(noteId);
+    if (useNotesStore.getState().selectedNote?.id !== noteId) return;
     setExternalNoteConflict(false);
     if (note) {
       selectNote(note);

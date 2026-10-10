@@ -122,20 +122,25 @@ export class HostCommandDispatcher {
       "commands.execute",
       "requests.cancel",
     ];
-    if (["render", "source"].includes(context.view)) {
+    if (
+      ["render", "source"].includes(context.view) &&
+      context.documentId &&
+      this.sessions.active(context.documentId)
+    ) {
       if (permissions.includes("editor.selection.read"))
         methods.push("editor.captureSelection");
       if (permissions.includes("editor.selection.write"))
         methods.push("editor.insert", "editor.insertAtSelection");
     }
-    if (permissions.includes("documents.current.read"))
-      methods.push(
-        "documents.whenSaved",
-        "documents.snapshot",
-        "events.subscribe",
-        "events.read",
-        "events.unsubscribe",
-      );
+    if (permissions.includes("documents.current.read")) {
+      methods.push("documents.whenSaved", "events.unsubscribe");
+      if (
+        ["render", "source", "readonly"].includes(context.view) &&
+        context.documentId &&
+        this.sessions.active(context.documentId)
+      )
+        methods.push("documents.snapshot", "events.subscribe", "events.read");
+    }
     return {
       protocol: 1 as const,
       platform: context.platform,
@@ -168,7 +173,23 @@ export class HostCommandDispatcher {
     this.runtime.assert(activation, "editor.selection.write");
     if (this.currentEditor() !== target.documentId)
       throw new PluginHostError("STALE_TARGET", "活动文档已变化");
-    return this.intents.insert(activation, target, content, signal, accepted);
+    const platform = this.context().platform;
+    return this.intents.insert(
+      activation,
+      target,
+      content,
+      signal,
+      accepted,
+      () => {
+        const current = this.context();
+        if (
+          current.documentId !== target.documentId ||
+          current.platform !== platform ||
+          current.view !== (target.view === "source" ? "source" : "render")
+        )
+          throw new PluginHostError("STALE_TARGET", "活动文档或视图已变化");
+      },
+    );
   }
   insertAtSelection(
     activation: PluginActivation,
@@ -240,6 +261,7 @@ export class HostCommandDispatcher {
         if (
           current.documentId !== id ||
           current.view !== context.view ||
+          current.platform !== context.platform ||
           next.documentGeneration !== revision.documentGeneration ||
           next.contentRevision !== revision.contentRevision
         )
@@ -291,6 +313,20 @@ export class HostCommandDispatcher {
         );
       throw new PluginHostError("INTERNAL_ERROR", "读取未完成");
     }
+  }
+
+  subscribeViews(
+    activation: PluginActivation,
+    listener: Parameters<DocumentEditSessions["subscribeViews"]>[0],
+  ) {
+    return this.sessions.subscribeViews((event) => {
+      try {
+        this.runtime.assert(activation, "editor.selection.read");
+        listener(event);
+      } catch {
+        /* No selection notification without a live grant. */
+      }
+    });
   }
 
   subscribeRevisions(
@@ -525,6 +561,13 @@ export class HostCommandDispatcher {
               if (finished)
                 throw new PluginHostError("CANCELLED", "命令已结束");
               this.runtime.assert(activation, "editor.selection.write");
+              const current = this.context();
+              if (
+                current.documentId !== host.documentId ||
+                current.view !== host.view ||
+                current.platform !== host.platform
+              )
+                throw new PluginHostError("STALE_TARGET", "命令上下文已变化");
               if (
                 !target ||
                 command.definition.risk === "read" ||
@@ -535,7 +578,7 @@ export class HostCommandDispatcher {
                   "此命令不能执行该编辑批次",
                 );
               commitRequested = true;
-              pendingCommit = this.intents.insert(
+              pendingCommit = this.insertTarget(
                 activation,
                 target,
                 content,

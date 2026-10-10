@@ -419,3 +419,39 @@ it("permission revocation while reading storage and a changed protection path re
   expect(await work).toMatchObject({ error: { code: "STALE_TARGET" } });
   expect(host.queue.revisionState("a").contentRevision).toBe(0);
 });
+
+it.each(["document", "view"])(
+  "async commit rechecks %s context before React has updated session visibility",
+  async (change) => {
+    const host = setup();
+    vi.mocked(api.notes.get).mockImplementationOnce(async () => {
+      host.setContext({
+        platform: "web",
+        view: change === "view" ? "source" : "render",
+        documentId: change === "document" ? "b" : "a",
+      });
+      return {
+        id: "a",
+        readonly: false,
+        content: { ops: [] },
+        storagePath: "ideas",
+      } as Awaited<ReturnType<typeof api.notes.get>>;
+    });
+    host.dispatcher.register(
+      host.activation,
+      { id: "test.demo.context", scope: "selection", risk: "write" },
+      (ctx) => ctx.commit({ type: "text", value: "must not apply" }),
+    );
+    expect(
+      await host.dispatcher.execute(host.activation, {
+        requestId: "context",
+        commandId: "test.demo.context",
+      }),
+    ).toMatchObject({
+      ok: false,
+      applied: false,
+      error: { code: "STALE_TARGET" },
+    });
+    expect(host.insert).not.toHaveBeenCalled();
+  },
+);

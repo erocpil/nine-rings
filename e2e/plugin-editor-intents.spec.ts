@@ -74,7 +74,11 @@ for (const transport of ["loopback", "port"] as const) {
         intentDispatcher: dispatcher,
         intentActivation: activation,
         intentSdk: sdk,
-        intentSubscription: await sdk.events.subscribe(),
+        intentSubscription: await sdk.events.subscribe({
+          onAvailable: () => {
+            host.intentAvailability = (host.intentAvailability || 0) + 1;
+          },
+        }),
         disposeIntentHost: disposeHost,
       });
       const snapshot = await sdk.documents.snapshot();
@@ -84,6 +88,28 @@ for (const transport of ["loopback", "port"] as const) {
       if (capabilities.commands.length !== 2)
         throw new Error("SDK capabilities missing commands");
     }, transport);
+    await editor.evaluate((el) => {
+      (
+        (el as HTMLElement & { editor: Editor }).editor.view as any
+      ).input.composing = true;
+    });
+    const imeResult = await page.evaluate(async () =>
+      (window as any).intentSdk.editor.insertAtSelection({
+        format: "text",
+        value: "must not insert during IME",
+      }),
+    );
+    expect(imeResult).toMatchObject({
+      ok: false,
+      applied: false,
+      error: { code: "READ_ONLY" },
+    });
+    await expect(editor).toHaveText("base");
+    await editor.evaluate((el) => {
+      (
+        (el as HTMLElement & { editor: Editor }).editor.view as any
+      ).input.composing = false;
+    });
     const execute = (commandId: string, requestId: string) =>
       page.evaluate(
         async (request) => {
@@ -154,6 +180,27 @@ for (const transport of ["loopback", "port"] as const) {
     await expect(source).toBeEditable();
     await selectSource(source, 0);
     const before = (await sourceInfo(source)).value;
+    await source.dispatchEvent("compositionstart", { data: "" });
+    const composingSourceResult = await page.evaluate(async () =>
+      (window as any).intentSdk.editor.insertAtSelection({
+        format: "text",
+        value: "IME blocked",
+      }),
+    );
+    expect(composingSourceResult).toMatchObject({
+      ok: false,
+      applied: false,
+      error: { code: "READ_ONLY" },
+    });
+    expect((await sourceInfo(source)).value).toBe(before);
+    await source.dispatchEvent("compositionend", { data: "" });
+    await expect
+      .poll(() =>
+        source.evaluate(
+          (el) => (window as any).sourceCM.EditorView.findFromDOM(el).compositionStarted,
+        ),
+      )
+      .toBe(false);
     expect(await execute("test.editor.text", "source-text")).toMatchObject({
       ok: true,
       applied: true,
@@ -197,6 +244,9 @@ for (const transport of ["loopback", "port"] as const) {
     ).toContain("SDK");
     await page.getByRole("button", { name: "撤销", exact: true }).click();
     expect((await sourceInfo(source)).value).toBe(before);
+    await expect
+      .poll(() => page.evaluate(() => (window as any).intentAvailability || 0))
+      .toBeGreaterThan(0);
     const revisionEvents = await page.evaluate(async () =>
       (window as any).intentSubscription.read(),
     );

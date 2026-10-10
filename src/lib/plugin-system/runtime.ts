@@ -36,6 +36,11 @@ export interface PluginRuntimeStatus {
     resources: number;
   }[];
   cleanupFailures: number;
+  lastFailure?: Readonly<{
+    pluginId: string;
+    phase: "activate" | "deactivate";
+    code: PluginErrorCode;
+  }>;
 }
 interface ActivationState {
   token: PluginActivation;
@@ -48,16 +53,30 @@ interface ActivationState {
 export class PluginRuntime {
   private enabled = false;
   private cleanupFailures = 0;
+  private lastFailure?: PluginRuntimeStatus["lastFailure"];
+  recordLifecycleFailure(
+    pluginId: string,
+    phase: "activate" | "deactivate",
+    code: PluginErrorCode,
+  ) {
+    this.lastFailure = Object.freeze({ pluginId, phase, code });
+    this.changed();
+  }
   private status: PluginRuntimeStatus = Object.freeze({
     enabled: false,
     activations: [],
     cleanupFailures: 0,
   });
   getStatus = () => this.status;
+  recordCleanupFailure() {
+    this.cleanupFailures += 1;
+    this.changed();
+  }
   private changed() {
     this.status = Object.freeze({
       enabled: this.enabled,
       cleanupFailures: this.cleanupFailures,
+      ...(this.lastFailure ? { lastFailure: this.lastFailure } : {}),
       activations: Object.freeze(
         [...this.activations.values()].map((state) =>
           Object.freeze({
@@ -69,7 +88,13 @@ export class PluginRuntime {
         ),
       ),
     });
-    for (const listener of this.listeners) listener();
+    for (const listener of this.listeners) {
+      try {
+        listener();
+      } catch {
+        /* Status observers cannot interrupt permission revocation. */
+      }
+    }
   }
   private activations = new Map<string, ActivationState>();
   private issued = new WeakMap<PluginActivation, ActivationState>();
@@ -136,7 +161,13 @@ export class PluginRuntime {
       disposed = true;
       state.resources.delete(dispose);
       try {
-        cleanup();
+        const result: unknown = cleanup();
+        if (
+          result &&
+          typeof (result as PromiseLike<unknown>).then === "function"
+        ) {
+          void Promise.resolve(result).catch(() => this.recordCleanupFailure());
+        }
       } catch {
         this.cleanupFailures += 1;
       }
@@ -196,5 +227,32 @@ export function startPluginRuntime(): () => void {
   return () => {
     window.removeEventListener("storage", changed);
     pluginRuntime.setEnabled(false);
+  };
+}
+
+/** Freeze plugin work before final save/refresh; restore only after failure, never old authority. */
+export function suspendPluginWork(): () => void {
+  const enabled = pluginRuntime.isEnabled();
+  let preference: string | null | undefined;
+  try {
+    preference = localStorage.getItem(PLUGINS_ENABLED_KEY);
+  } catch {
+    /* Memory-only host. */
+  }
+  pluginRuntime.setEnabled(false);
+  let resumed = false;
+  return () => {
+    if (resumed || !enabled) return;
+    resumed = true;
+    try {
+      if (
+        preference !== undefined &&
+        localStorage.getItem(PLUGINS_ENABLED_KEY) !== preference
+      )
+        return;
+    } catch {
+      /* Preserve memory-only state. */
+    }
+    pluginRuntime.setEnabled(true);
   };
 }

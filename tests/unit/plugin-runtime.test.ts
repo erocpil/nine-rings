@@ -116,3 +116,41 @@ it("management status is stable, immutable and records only safe cleanup diagnos
   expect(notify).toHaveBeenCalled();
   stop();
 });
+
+it("status observer exceptions cannot interrupt revocation or leave owned resources", async () => {
+  const runtime = new PluginRuntime();
+  runtime.setEnabled(true);
+  runtime.subscribe(() => {
+    throw new Error("observer");
+  });
+  const activation = runtime.activate("test.status", []);
+  const cleanup = vi.fn();
+  runtime.own(activation, cleanup);
+  runtime.own(activation, async () => {
+    throw new Error("async private cleanup");
+  });
+  runtime.setEnabled(false);
+  expect(cleanup).toHaveBeenCalledTimes(1);
+  expect(() => runtime.assert(activation)).toThrow("已失效");
+  await vi.waitFor(() => expect(runtime.getStatus().cleanupFailures).toBe(1));
+});
+
+it("final save suspension revokes old work and never overrides another window's disabled preference", async () => {
+  const { suspendPluginWork } =
+    await import("../../src/lib/plugin-system/runtime");
+  const values = new Map([[PLUGINS_ENABLED_KEY, "true"]]);
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => values.get(key) ?? null,
+  });
+  pluginRuntime.setEnabled(true);
+  const activation = pluginRuntime.activate("test.suspend", []);
+  const resume = suspendPluginWork();
+  expect(pluginRuntime.isEnabled()).toBe(false);
+  resume();
+  expect(pluginRuntime.isEnabled()).toBe(true);
+  expect(() => pluginRuntime.assert(activation)).toThrow("已失效");
+  const other = suspendPluginWork();
+  values.set(PLUGINS_ENABLED_KEY, "false");
+  other();
+  expect(pluginRuntime.isEnabled()).toBe(false);
+});

@@ -1,3 +1,4 @@
+import { pluginLifecycle } from "../lib/plugin-system/lifecycle";
 import { Field } from "./SettingsFields";
 import { useSyncExternalStore } from "react";
 import { pluginRuntime } from "../lib/plugin-system/runtime";
@@ -12,6 +13,13 @@ export function PluginRuntimeStatus() {
       label="插件运行状态"
       desc={`${status.enabled ? "已开启" : "已关闭"} · ${status.activations.length} 个活动插件。当前仅支持可信内置宿主，第三方安装尚未开放。`}
     >
+      {status.lastFailure && (
+        <p role="status">
+          最近异常：{status.lastFailure.pluginId} ·{" "}
+          {status.lastFailure.phase === "activate" ? "激活" : "停用"} ·{" "}
+          {status.lastFailure.code}
+        </p>
+      )}
       {status.cleanupFailures > 0 && (
         <p role="status">
           {status.cleanupFailures}{" "}
@@ -29,7 +37,9 @@ export function PluginRuntimeStatus() {
           <button
             type="button"
             className="btn"
-            onClick={() => pluginRuntime.deactivate(item.pluginId)}
+            onClick={() => {
+              void pluginLifecycle.deactivate(item.pluginId).catch(() => {});
+            }}
           >
             停用 {item.pluginId}
           </button>

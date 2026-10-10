@@ -44,10 +44,12 @@ export class DocumentIntentService {
     content: InsertDocumentContent,
     signal?: AbortSignal,
     accepted?: () => void,
+    checkContext?: () => void,
   ) {
     const check = () => {
       this.runtime.assert(activation, "editor.selection.write");
       if (signal?.aborted) throw new PluginHostError("CANCELLED", "命令已取消");
+      checkContext?.();
       try {
         this.sessions.validate(target);
       } catch {
@@ -98,7 +100,9 @@ export class DocumentIntentService {
       if (error instanceof SaveBarrierError)
         throw new PluginHostError(
           error.code === "STALE_REVISION" ? "STALE_TARGET" : error.code,
-          error.code === "STALE_REVISION" ? "文档正在恢复或编辑目标已失效" : "编辑操作未完成",
+          error.code === "STALE_REVISION"
+            ? "文档正在恢复或编辑目标已失效"
+            : "编辑操作未完成",
         );
       throw new PluginHostError("INTERNAL_ERROR", "编辑操作未完成");
     });
