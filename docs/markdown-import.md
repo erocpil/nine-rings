@@ -4,6 +4,8 @@
 
 Web/PWA/Tauri 与 CLI 共用 CommonMark/GFM 解析和结构化导出，保留原始源码；支持范围、GitHub 补充功能及受限 HTML 边界见 [Markdown 兼容范围与内容契约](markdown-compatibility.md)。
 
+CLI 参数和批量导入操作见[导入工具使用指南](md-import.md)。本文侧重应用导入流程与内容契约。
+
 ## 外部 URL来源
 
 文档属性页可绑定公开 `.md` URL，支持 GitHub 文件页自动转换为 raw 地址。应用先获取并预览，用户确认后创建版本快照并更新本地正文；详细边界见 [外部 Markdown 来源](external-markdown-source.md)。

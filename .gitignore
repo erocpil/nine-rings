@@ -56,3 +56,7 @@ test-results/
 playwright-report/
 coverage/
 /.nine-rings-import-queue.json*
+
+# Editor undo files and manual backups
+*.un~
+*.bak

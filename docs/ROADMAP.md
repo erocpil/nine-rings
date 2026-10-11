@@ -1,5 +1,7 @@
 # Nine Rings 优化路线图
 
+> 历史路线快照：表中早期 DailyPage、每日随笔和独立待办功能已退役，不能作为当前能力清单。当前实现见[功能说明](features.md)和[关键设计](current-design.md)，未完成任务统一见[推进待办](plugin-readiness-todo.md)。
+
 > 最后复核：2026-09-05（实现与真机验收分开记录） · 当前功能状态的唯一入口；Web 专项见 [Web / PWA 优化计划](web-optimization-plan.md)，长期研究见 [未来演进方向](future-evolution.md)
 
 ---

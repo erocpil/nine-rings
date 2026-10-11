@@ -26,4 +26,15 @@ pass, not a claim that every component's CSS is isolated. Further moves must
 preserve cascade order or explicitly test the intended change.
 
 Theme and platform contracts use `tests/css-source.ts` to follow local imports;
-new source-based checks should not inspect only the ten-line entry file.
+new source-based checks should not inspect only the entry file.
+
+## Later modules
+
+The entry also imports `edge-scrollbars.css`, `sidebar-presentation.css` and
+`document-panels.css` for shared scrollbars and navigation panels; the
+`interface-style.css`, `calm-*.css`, `additional-interface-styles.css`,
+`literary-interface-styles.css` and `nine-rings-interface-style.css` modules
+provide style-specific surfaces. `shared-reading-typography.css` follows them
+and supplies the common reading typography contract. Finally,
+`flow-presentation.css` and `flow-block.css` provide flow presentation and blocks.
+These are ordered layers, not duplicate stylesheets to concatenate or remove.
