@@ -255,7 +255,7 @@ export function ExhibitionWorkspace(props: Props) {
                 ["today", "篇今日修改", "查看今日修改文档"],
                 ["favorites", "篇收藏", "查看收藏文档"],
                 ["recent", "最近打开", "查看最近打开文档"],
-              ] as const).map(([kind, label, name]) => <button key={kind} type="button"
+              ] as const).filter(([kind]) => props.desktop || kind === "recent").map(([kind, label, name]) => <button key={kind} type="button"
                 className={`exhibition-summary-${kind}`} aria-label={name} aria-pressed={summaryLayout.summaryInteraction === "sidebar" ? props.activeSummary === kind : summaryPreview?.kind === kind}
                 aria-haspopup={summaryLayout.summaryInteraction !== "sidebar" ? "dialog" : undefined} aria-expanded={summaryLayout.summaryInteraction !== "sidebar" ? summaryPreview?.kind === kind : undefined}
                 onPointerEnter={event => { if (event.pointerType === "mouse" && previewEnabled && summaryLayout.summaryInteraction === "hover") { keepSummary(); setSummaryPreview({ kind, trigger: event.currentTarget, keyboard: false }); } }}

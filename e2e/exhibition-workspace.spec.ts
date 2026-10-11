@@ -169,6 +169,10 @@ test("手机展陈首页竖屏方形欢迎区、横屏并排且展开概览节�
   await expect(page.locator(".exhibition-welcome")).toBeVisible();
   await expect(page.locator(".exhibition-columns")).toBeVisible();
 
+  const summary = page.getByRole("navigation", { name: "工作区统计" });
+  await expect(summary.getByRole("button")).toHaveCount(1);
+  await expect(summary.getByRole("button", { name: "查看最近打开文档" })).toBeVisible();
+
   const app = page.locator(".is-exhibition > .app");
   const overview = page.locator(".exhibition-overview");
   const portrait = (await app.boundingBox())!;
