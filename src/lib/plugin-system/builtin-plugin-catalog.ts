@@ -14,7 +14,8 @@ export const BUILTIN_PLUGIN_CATALOG = Object.freeze([
     id: "nine-rings.builtin-date",
     name: "插入日期",
     type: "文档工具 · 编辑命令",
-    description: "在当前光标位置插入多种格式的本地日期与时间，支持单步撤销，并等待保存确认。",
+    description:
+      "在当前光标位置插入多种格式的本地日期与时间，支持单步撤销，并等待保存确认。",
     configuration: "none" as const,
   }),
   Object.freeze({
@@ -22,6 +23,14 @@ export const BUILTIN_PLUGIN_CATALOG = Object.freeze([
     name: "实时文档统计",
     type: "文档工具 · 实时统计",
     description: "统计当前文档字符数、非空白字符数和文本行数，随编辑更新。",
+    configuration: "none" as const,
+  }),
+  Object.freeze({
+    id: "nine-rings.builtin-image",
+    name: "插入图片",
+    type: "文档工具 · 编辑命令",
+    description:
+      "通过参数表单插入独立、行内、引用式或带链接的图片，保留替代文本与标题。",
     configuration: "none" as const,
   }),
 ]);

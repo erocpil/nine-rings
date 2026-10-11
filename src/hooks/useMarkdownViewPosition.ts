@@ -1,9 +1,13 @@
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import { useLayoutEffect, useRef, useState } from "react";
+import { TextSelection, NodeSelection } from "@tiptap/pm/state";
+import type { Editor } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/core";
 import { handoffReadingAnchor } from "../lib/readonly-rendering";
 import { patchReadingState } from "../lib/reading-state";
 import {
+  renderedPositionToWeight,
+  sourceOffsetToRenderedPosition,
   renderedTextblockMap,
   renderedTextblockSelector,
   sourcePositionMap,
@@ -47,7 +51,9 @@ export function useMarkdownViewPosition(
 ) {
   const host = useRef<HTMLDivElement>(null);
   const area = useRef<SourceEditorHandle | null>(null);
-  const [sourceHandle, onSourceReady] = useState<SourceEditorHandle | null>(null);
+  const [sourceHandle, onSourceReady] = useState<SourceEditorHandle | null>(
+    null,
+  );
   const stopHandoff = useRef<() => void>();
   // One mapping per mounted document, never a global cache of private text.
   const sourceMapRef = useRef<{
@@ -65,6 +71,8 @@ export function useMarkdownViewPosition(
     doc: JSONContent;
     sourceMap?: ReturnType<typeof sourcePositionMap>;
     sourceTop?: number;
+    selection?: number;
+    selectionApplied?: boolean;
   } | null>(null);
   const lastSource = useRef<{
     source: string;
@@ -72,7 +80,12 @@ export function useMarkdownViewPosition(
     weight: number;
   } | null>(null);
 
-  const toSource = (source: string, doc: JSONContent, sourceTop?: number) => {
+  const toSource = (
+    source: string,
+    doc: JSONContent,
+    sourceTop?: number,
+    selection?: number,
+  ) => {
     const container = host.current;
     const root = container?.querySelector<HTMLElement>(".note-editor-scroll");
     let weight = 0;
@@ -122,6 +135,14 @@ export function useMarkdownViewPosition(
       doc,
       sourceMap: mapFor(source),
       sourceTop,
+      selection:
+        selection === undefined
+          ? undefined
+          : weightToSourceOffset(
+              source,
+              renderedPositionToWeight(doc, selection),
+              mapFor(source),
+            ),
     };
   };
   const toRendered = (source: string, doc: JSONContent) => {
@@ -136,11 +157,27 @@ export function useMarkdownViewPosition(
     const blocks = renderedTextblockMap(doc);
     const target =
       blocks.find((block) => block.to > weight) ?? blocks[blocks.length - 1];
+    const selection = input
+      ? sourceOffsetToRenderedPosition(
+          source,
+          doc,
+          input.selectionStart,
+          mapFor(source),
+        )
+      : undefined;
     // Both complete and windowed renderers consume this before their normal
     // persisted-position restore. Windowed rows must mount before refinement.
     if (target)
-      handoffReadingAnchor(noteId, { position: target.position, offset: 0 });
-    pending.current = { weight, doc };
+      handoffReadingAnchor(noteId, {
+        position: target.position,
+        offset: 0,
+        selection,
+      });
+    pending.current = {
+      weight,
+      doc,
+      selection,
+    };
   };
 
   useLayoutEffect(() => {
@@ -161,9 +198,19 @@ export function useMarkdownViewPosition(
       stopped = false,
       settled = 0;
     let lastTop = -1;
+    let observed: HTMLElement | null = null;
+    const observer = new ResizeObserver(() => {
+      if (stopped) return;
+      settled = 0;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(restore);
+    });
+    const deadline = window.setTimeout(() => stop(), 10000);
     const stop = () => {
       stopped = true;
       cancelAnimationFrame(frame);
+      window.clearTimeout(deadline);
+      observer.disconnect();
     };
     stopHandoff.current = stop;
     // Never fight user scrolling or move focus to make a viewport visible.
@@ -171,9 +218,23 @@ export function useMarkdownViewPosition(
       container.addEventListener(event, stop, { passive: true });
     const restore = () => {
       if (stopped) return;
+      const content = container.querySelector<HTMLElement>(
+        showingSource
+          ? ".cm-content"
+          : ".editor-content .ProseMirror, .vr-body",
+      );
+      if (content && content !== observed) {
+        observer.disconnect();
+        observer.observe(content);
+        observed = content;
+      }
       let top: number | undefined;
       if (showingSource && area.current && anchor.source !== undefined) {
         const input = area.current;
+        if (!anchor.selectionApplied && anchor.selection !== undefined) {
+          input.setSelectionRange(anchor.selection, anchor.selection);
+          anchor.selectionApplied = true;
+        }
         if (anchor.sourceTop !== undefined) input.scrollTop = anchor.sourceTop;
         else input.scrollToOffset(sourceOffset);
         top = input.scrollTop;
@@ -211,11 +272,14 @@ export function useMarkdownViewPosition(
       settled =
         top !== undefined && Math.abs(top - lastTop) < 1 ? settled + 1 : 0;
       lastTop = top ?? -1;
-      if (
-        (settled >= 3 && performance.now() - started > 150) ||
-        performance.now() - started > 1500
-      ) {
+      if (performance.now() - started > 10000) {
         stop();
+        return;
+      }
+      // Pause once stable, but keep observing late TOC/image/NodeView layout.
+      // User input cancels both the refinement and the observer immediately.
+      if (settled >= 6 && performance.now() - started > 800) {
+        frame = 0;
         return;
       }
       frame = requestAnimationFrame(restore);
@@ -264,5 +328,40 @@ export function useMarkdownViewPosition(
       flush();
     };
   }, [noteId, showingSource, sensitive, sourceHandle]);
-  return { host, area, sourceHandle, onSourceReady, toSource, toRendered, cancelHandoff: () => { pending.current = null; stopHandoff.current?.(); } };
+  const onRenderedReady = (editor: Editor | null) => {
+    const anchor = pending.current;
+    if (
+      !editor ||
+      !anchor ||
+      anchor.selection === undefined ||
+      anchor.selectionApplied
+    )
+      return;
+    const position = Math.max(
+      0,
+      Math.min(editor.state.doc.content.size, anchor.selection),
+    );
+    const node = editor.state.doc.nodeAt(position);
+    const selection =
+      node?.isAtom && NodeSelection.isSelectable(node)
+        ? NodeSelection.create(editor.state.doc, position)
+        : TextSelection.near(editor.state.doc.resolve(position));
+    editor.view.dispatch(
+      editor.state.tr.setSelection(selection).setMeta("addToHistory", false),
+    );
+    anchor.selectionApplied = true;
+  };
+  return {
+    host,
+    area,
+    sourceHandle,
+    onSourceReady,
+    onRenderedReady,
+    toSource,
+    toRendered,
+    cancelHandoff: () => {
+      pending.current = null;
+      stopHandoff.current?.();
+    },
+  };
 }

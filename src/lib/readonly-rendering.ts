@@ -87,6 +87,7 @@ export interface ReadingBlock {
   number: number;
 }
 export interface ReadingAnchor {
+  selection?: number;
   position: number;
   offset: number;
 }

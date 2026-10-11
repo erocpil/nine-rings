@@ -1,5 +1,5 @@
 /** Host-owned presentation policy, independent of plugin permissions and commands. */
-export type DocumentTool = "date" | "statistics";
+export type DocumentTool = "date" | "statistics" | "image";
 export interface ResultPresentation {
   surface: "status" | "popup";
   position: "top" | "center" | "bottom";
@@ -8,8 +8,8 @@ export const RESULT_PRESENTATION_KEY = "nr:pluginResultPresentation";
 const CHANGE = "nr:plugin-result-presentation-change";
 export function readResultPresentation(tool: DocumentTool): ResultPresentation {
   const fallback: ResultPresentation = {
-    surface: tool === "date" ? "status" : "popup",
-    position: tool === "date" ? "bottom" : "center",
+    surface: tool === "statistics" ? "popup" : "status",
+    position: tool === "statistics" ? "center" : "bottom",
   };
   try {
     const value = JSON.parse(
@@ -38,6 +38,7 @@ export function saveResultPresentation(
   const settings = {
     date: readResultPresentation("date"),
     statistics: readResultPresentation("statistics"),
+    image: readResultPresentation("image"),
     [tool]: value,
   };
   localStorage.setItem(RESULT_PRESENTATION_KEY, JSON.stringify(settings));

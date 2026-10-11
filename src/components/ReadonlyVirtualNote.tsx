@@ -561,8 +561,15 @@ export function ReadonlyVirtualNote(
     }
     // Restoring a viewport is not explicit navigation into a folded block.
     // Preserve code/quote/details state; only user-requested jumps reveal it.
-    if (initial) pendingAnchor.current = initial;
-  }, [anchorKey, jump, noteId, props.sensitive]);
+    if (initial) {
+      pendingAnchor.current = initial;
+      if (initial.selection !== undefined) {
+        const position = Math.max(0, Math.min(doc.content.size, initial.selection));
+        copyPosition.current = position;
+        setCurrentNumber(Math.min(doc.childCount, doc.resolve(position).index(0) + 1));
+      }
+    }
+  }, [anchorKey, jump, noteId, props.sensitive, doc]);
 
   useLayoutEffect(() => {
     const root = rootRef.current;

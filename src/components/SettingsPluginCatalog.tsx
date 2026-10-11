@@ -47,7 +47,12 @@ function PluginConfigurationDialog({
   trigger: RefObject<HTMLElement | null>;
 }) {
   useSyncExternalStore(subscribeResultPresentation, resultPresentationSnapshot);
-  const tool = plugin.id === "nine-rings.builtin-date" ? "date" : "statistics";
+  const tool =
+    plugin.id === "nine-rings.builtin-date"
+      ? "date"
+      : plugin.id === "nine-rings.builtin-image"
+        ? "image"
+        : "statistics";
   const presentation = readResultPresentation(tool);
   const dialog = useRef<HTMLDialogElement>(null);
   const close = useRef<HTMLButtonElement>(null);
@@ -155,6 +160,15 @@ function PluginConfigurationDialog({
               >
                 <p>只读文档不能插入日期。</p>
               </Field>
+            ) : plugin.id === "nine-rings.builtin-image" ? (
+              <Field
+                label="图片参数"
+                desc="在 + 菜单选择插入图片，设置类型、地址、替代文本、标题及链接等参数。"
+              >
+                <p>
+                  只读文档不能插入图片；引用名称自动加唯一后缀，避免覆盖已有定义。
+                </p>
+              </Field>
             ) : (
               <Field
                 label="统计范围"
@@ -181,7 +195,7 @@ function PluginConfigurationDialog({
               ? active.permissions.join("、")
               : plugin.configuration === "tree-display"
                 ? "无需文档读写权限"
-                : plugin.id === "nine-rings.builtin-date"
+                : plugin.id !== "nine-rings.builtin-statistics"
                   ? "当前选区读写、当前文档读取"
                   : "当前文档读取"}
           </p>
@@ -221,7 +235,11 @@ export function SettingsPluginCatalog() {
             (item) => item.pluginId === plugin.id,
           );
           const tool =
-            plugin.id === "nine-rings.builtin-date" ? "date" : "statistics";
+            plugin.id === "nine-rings.builtin-date"
+              ? "date"
+              : plugin.id === "nine-rings.builtin-image"
+                ? "image"
+                : "statistics";
           const enabled =
             plugin.configuration === "tree-display"
               ? treeEnabled

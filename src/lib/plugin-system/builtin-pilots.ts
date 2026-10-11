@@ -16,7 +16,7 @@ import { createSdkHost } from "./sdk-host";
 import { createLoopbackSdkTransport, createPluginSdk } from "./sdk-client";
 import type { SdkEditResult } from "./sdk-editor-handles";
 
-export type BuiltinPilot = "date" | "statistics";
+export type BuiltinPilot = "date" | "statistics" | "image";
 export const builtinPilotId = (kind: BuiltinPilot) =>
   `nine-rings.builtin-${kind}`;
 
@@ -30,7 +30,7 @@ export async function activateBuiltinPilot(
     throw new PluginHostError("PLUGIN_DISABLED", "此插件已停用");
   const id = builtinPilotId(kind);
   const permissions: PluginPermission[] =
-    kind === "date"
+    kind !== "statistics"
       ? [
           "editor.selection.read",
           "editor.selection.write",
@@ -89,4 +89,20 @@ export function builtinDocumentStatistics(content: unknown) {
     nonWhitespace: Array.from(text.replace(/\s/g, "")).length,
     lines: text ? text.split("\n").length : 0,
   };
+}
+
+export async function insertBuiltinMarkdown(
+  sdk: ReturnType<typeof createPluginSdk>,
+  signal: AbortSignal,
+  markdown: string,
+) {
+  const target = await sdk.editor.captureSelection({ signal });
+  const result = await sdk.editor.insert(
+    target,
+    { format: "markdown", value: markdown },
+    { signal },
+  );
+  if (!result.ok)
+    throw new PluginHostError(result.error.code, result.error.message);
+  await sdk.documents.whenSaved(result.value as SdkEditResult, { signal });
 }

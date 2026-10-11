@@ -13,6 +13,7 @@ import {
   activateBuiltinPilot,
   builtinDocumentStatistics,
   insertBuiltinDate,
+  insertBuiltinMarkdown,
 } from "../lib/plugin-system/builtin-pilots";
 import {
   readResultPresentation,
@@ -26,6 +27,11 @@ import {
   documentToolsSnapshot,
 } from "../lib/plugin-system/builtin-tool-preferences";
 import { pluginRuntime } from "../lib/plugin-system/runtime";
+import {
+  IMAGE_FIELDS,
+  imageCommandMarkdown,
+} from "../lib/plugin-system/image-command";
+import type { ParameterValues } from "../lib/plugin-system/command-parameters";
 import { PluginCommandMenu } from "./PluginCommandMenu";
 import {
   DATE_FORMATS,
@@ -125,8 +131,9 @@ export function BuiltinPluginTools({
     return () => window.removeEventListener("keydown", escape, true);
   }, [active, busy, showingResult, trigger, close]);
   const run = async (
-    kind: "date" | "statistics",
+    kind: DocumentTool,
     format: DateFormat = "date",
+    markdown?: string,
   ) => {
     if (
       running.current ||
@@ -152,19 +159,26 @@ export function BuiltinPluginTools({
         return;
       }
       session.current = current;
-      if (kind === "date") {
+      if (kind !== "statistics") {
         // Menu buttons own focus. Restore the same live view before capturing
         // its target so native Cmd/Ctrl+Z works without another body click.
         onFocusEditor();
-        await insertBuiltinDate(
-          current.sdk,
-          current.signal,
-          new Date(),
-          format,
-        );
+        if (kind === "image")
+          await insertBuiltinMarkdown(current.sdk, current.signal, markdown!);
+        else
+          await insertBuiltinDate(
+            current.sdk,
+            current.signal,
+            new Date(),
+            format,
+          );
         if (version === epoch.current)
           setMessage(
-            format === "date" ? "日期已插入并保存" : "时间已插入并保存",
+            kind === "image"
+              ? "图片已插入并保存"
+              : format === "date"
+                ? "日期已插入并保存"
+                : "时间已插入并保存",
           );
         await current.dispose();
         if (session.current === current) session.current = null;
@@ -303,25 +317,40 @@ export function BuiltinPluginTools({
         <PluginCommandMenu
           trigger={trigger}
           onClose={() => setTrigger(null)}
-          actions={[
+          commands={[
             {
               label: "插入日期与时间",
-              children: DATE_FORMATS.map((option) => ({
-                label: `${option.label} · ${formatPluginDate(new Date(), option.id)}`,
-                run: () => {
-                  void run("date", option.id);
-                },
-              })),
+              parameters: {
+                kind: "choices",
+                choices: DATE_FORMATS.map((option) => ({
+                  label: `${option.label} · ${formatPluginDate(new Date(), option.id)}`,
+                  values: { format: option.id },
+                })),
+              },
               disabled: readonly || !documentToolEnabled("date"),
-              run: () => {
-                void run("date");
+              run: (values) => {
+                void run("date", values.format as DateFormat);
               },
             },
             {
               label: "当前文档统计",
+              parameters: { kind: "none" },
               disabled: !documentToolEnabled("statistics"),
               run: () => {
                 void run("statistics");
+              },
+            },
+            {
+              label: "插入图片",
+              disabled: readonly || !documentToolEnabled("image"),
+              parameters: { kind: "form", fields: IMAGE_FIELDS },
+              run: (values: ParameterValues) => {
+                const id =
+                  values.kind === "reference"
+                    ? `${String(values.reference)}-${crypto.randomUUID().slice(0, 8)}`
+                    : undefined;
+                const markdown = imageCommandMarkdown(values, id);
+                void run("image", "date", markdown);
               },
             },
           ]}

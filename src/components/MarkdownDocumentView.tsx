@@ -93,7 +93,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         if ((latestReader.current?.() ?? latestProps.current.content) !== raw) throw new Error("转换期间正文已变化，请再次切换");
         initial.current = { text, content };
         sourceSession.current = new SourceNavigationSession(text, content);
-        viewPosition.toSource(text, deltaToProseMirror(content), restoreSourceTop);
+        viewPosition.toSource(text, deltaToProseMirror(content), restoreSourceTop, renderedHost.current?.state.selection.from);
         setSource(text);
       } else {
         // A bookmark destination takes priority over the source viewport.
@@ -188,6 +188,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   };
   const hostRenderedReady: NonNullable<NoteEditorProps["onHostEditorReady"]> = editor => {
     renderedHost.current = editor;
+    viewPosition.onRenderedReady(editor);
     props.documentSessions?.bind(props.noteId, hostOwner.current, "rendered", editor ? renderedEditAdapter(editor, () => Boolean(latestProps.current.readonly)) : null);
   };
   if (!supported) return render({ ...props, onHostSelection: hostSelection, onHostEditorReady: hostRenderedReady });

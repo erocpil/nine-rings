@@ -6,7 +6,19 @@ import { getTableEmbed } from "./table-embed";
 import { deltaOpWeight as opWeight, textWeight } from "./delta-content-weight";
 export function nodeWeight(node: JSONContent): number {
   if (node.type === "text") return textWeight(node.text ?? "");
-  if (["image", "resizableImage", "markdownImage", "rawHtml", "rawHtmlInline", "mathInline", "mathBlock", "htmlAnchor", "horizontalRule"].includes(node.type ?? ""))
+  if (
+    [
+      "image",
+      "resizableImage",
+      "markdownImage",
+      "rawHtml",
+      "rawHtmlInline",
+      "mathInline",
+      "mathBlock",
+      "htmlAnchor",
+      "horizontalRule",
+    ].includes(node.type ?? "")
+  )
     return 1;
   const weight = (node.content ?? []).reduce(
     (sum, child) => sum + nodeWeight(child),
@@ -17,9 +29,18 @@ export function nodeWeight(node: JSONContent): number {
 function nodeSize(node: JSONContent): number {
   if (node.type === "text") return node.text?.length ?? 0;
   if (
-    ["image", "resizableImage", "markdownImage", "rawHtml", "rawHtmlInline", "mathInline", "mathBlock", "htmlAnchor", "horizontalRule", "hardBreak"].includes(
-      node.type ?? "",
-    )
+    [
+      "image",
+      "resizableImage",
+      "markdownImage",
+      "rawHtml",
+      "rawHtmlInline",
+      "mathInline",
+      "mathBlock",
+      "htmlAnchor",
+      "horizontalRule",
+      "hardBreak",
+    ].includes(node.type ?? "")
   )
     return 1;
   return (
@@ -104,7 +125,10 @@ export function renderedTextblockMap(doc: JSONContent) {
   });
   return entries;
 }
-export function sourcePositionMap(source: string, parsed?: { delta: DeltaOps; spans: MarkdownSourceSpan[] }) {
+export function sourcePositionMap(
+  source: string,
+  parsed?: { delta: DeltaOps; spans: MarkdownSourceSpan[] },
+) {
   const spans: MarkdownSourceSpan[] = parsed?.spans ?? [];
   const delta = parsed?.delta ?? mdToDelta(source, spans);
   const lines = source.split(/\r\n|\r|\n/);
@@ -239,4 +263,41 @@ export function textareaPosition(
   } finally {
     mirror.remove();
   }
+}
+
+/** Caret mapping is independent of the viewport handoff. Syntax has no rendered width. */
+export function renderedPositionToWeight(
+  doc: JSONContent,
+  position: number,
+): number {
+  const blocks = renderedTextblockMap(doc);
+  const block =
+    blocks.find(
+      (_entry, index) => position < (blocks[index + 1]?.position ?? Infinity),
+    ) ?? blocks[blocks.length - 1];
+  return block
+    ? block.from +
+        textWeight(
+          block.text.slice(0, Math.max(0, position - block.position - 1)),
+        )
+    : 0;
+}
+export function sourceOffsetToRenderedPosition(
+  source: string,
+  doc: JSONContent,
+  offset: number,
+  map = sourcePositionMap(source),
+): number {
+  const weight = sourceOffsetToWeight(source, offset, map);
+  const blocks = renderedTextblockMap(doc);
+  const block =
+    blocks.find((entry) => entry.to > weight) ?? blocks[blocks.length - 1];
+  if (!block) return 0;
+  let length = 0,
+    count = 0;
+  while (length < block.text.length && count < weight - block.from) {
+    if (!/\s/.test(block.text[length])) count++;
+    length++;
+  }
+  return block.position + (block.textblock === null ? 0 : 1 + length);
 }

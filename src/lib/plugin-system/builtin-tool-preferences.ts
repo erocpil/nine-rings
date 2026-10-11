@@ -14,6 +14,7 @@ export function saveDocumentToolEnabled(tool: DocumentTool, enabled: boolean) {
     JSON.stringify({
       date: documentToolEnabled("date"),
       statistics: documentToolEnabled("statistics"),
+      image: documentToolEnabled("image"),
       [tool]: enabled,
     }),
   );

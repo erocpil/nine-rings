@@ -1,17 +1,33 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { PluginParameterDialog } from "./PluginParameterDialog";
+import type { PluginInvocation } from "../lib/plugin-system/command-parameters";
 import type { BlockMenuAction } from "./BlockActionMenu";
 
 /** Parameter menus are host-owned; plugins contribute labels and actions, not DOM. */
 export function PluginCommandMenu({
   trigger,
-  actions,
+  commands,
   onClose,
 }: {
   trigger: HTMLElement;
-  actions: BlockMenuAction[];
+  commands: PluginInvocation[];
   onClose: () => void;
 }) {
+  const [form, setForm] = useState<PluginInvocation | null>(null);
+  const actions: BlockMenuAction[] = commands.map((command) => ({
+    label: command.label,
+    disabled: command.disabled,
+    run: () =>
+      command.parameters.kind === "form" ? setForm(command) : command.run({}),
+    children:
+      command.parameters.kind === "choices"
+        ? command.parameters.choices.map((choice) => ({
+            label: choice.label,
+            run: () => command.run(choice.values),
+          }))
+        : undefined,
+  }));
   const root = useRef<HTMLDivElement>(null);
   const child = useRef<HTMLDivElement>(null);
   const parent = useRef<HTMLButtonElement | null>(null);
@@ -64,6 +80,7 @@ export function PluginCommandMenu({
     });
   }, [selected, position]);
   useEffect(() => {
+    if (form) return;
     const outside = (event: Event) => {
       if (
         !root.current?.contains(event.target as Node) &&
@@ -84,8 +101,16 @@ export function PluginCommandMenu({
       window.removeEventListener("scroll", scroll, true);
       window.removeEventListener("blur", onClose);
     };
-  }, [trigger, onClose]);
+  }, [trigger, onClose, form]);
+  useEffect(() => {
+    if (
+      form &&
+      commands.find((command) => command.label === form.label)?.disabled
+    )
+      onClose();
+  }, [commands, form, onClose]);
   const keyboard = (event: React.KeyboardEvent) => {
+    if (form) return;
     if (event.key === "Escape" || event.key === "Tab") {
       event.stopPropagation();
       if (event.key === "Escape") {
@@ -153,7 +178,14 @@ export function PluginCommandMenu({
           type="button"
           role="menuitem"
           aria-label={action.label}
-          aria-haspopup={action.children ? "menu" : undefined}
+          aria-haspopup={
+            action.children
+              ? "menu"
+              : commands.find((command) => command.label === action.label)
+                    ?.parameters.kind === "form"
+                ? "dialog"
+                : undefined
+          }
           aria-expanded={
             action.children ? selected?.label === action.label : undefined
           }
@@ -169,14 +201,37 @@ export function PluginCommandMenu({
             if (action.children) open(action, event.currentTarget, true);
             else {
               action.run();
-              onClose();
+              if (
+                commands.find((command) => command.label === action.label)
+                  ?.parameters.kind !== "form"
+              )
+                onClose();
             }
           }}
         >
           <span>{action.label}</span>
-          {action.children && <span aria-hidden="true">▸</span>}
+          {action.children ? (
+            <span aria-hidden="true">▸</span>
+          ) : commands.find((command) => command.label === action.label)
+              ?.parameters.kind === "form" ? (
+            <span aria-hidden="true">…</span>
+          ) : null}
         </button>
       ))}
+      {form && (
+        <PluginParameterDialog
+          command={form}
+          onCancel={() => {
+            setForm(null);
+            trigger.focus({ preventScroll: true });
+            onClose();
+          }}
+          onSubmit={(values) => {
+            form.run(values);
+            onClose();
+          }}
+        />
+      )}
       {selected?.children && (
         <div
           ref={child}

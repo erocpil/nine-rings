@@ -1,6 +1,14 @@
 /** User-facing highlights shipped with the app, newest first. Keep dates in ISO format. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-12",
+    title: "插件调用参数与视图位置",
+    changes: [
+      "插件统一支持无参数直接执行、预设二级菜单与多参数表单；新增插入图片插件，支持独立、行内、引用式和带链接图片，保留替代文本和标题，取消不编辑，插入可单步撤销。",
+      "源码与渲染视图分别传递光标块和可视区位置，光标在可视区外时也保持对应高亮；延长含自动目录、图片及慢加载编辑器的位置恢复窗口。",
+    ],
+  },
+  {
     date: "2026-10-11",
     title: "插件编辑目标与保存确认",
     changes: [

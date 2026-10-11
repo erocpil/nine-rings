@@ -1200,3 +1200,13 @@ body.app-sidebar-dragging .desktop-reader-panel:not([hidden]) {
 .plugin-command-menu > .editor-context-item { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .plugin-parameter-menu { max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; }
 .plugin-parameter-menu .editor-context-item { white-space: normal; }
+
+.plugin-parameter-dialog { position: fixed; inset: 0; margin: auto; width: min(540px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.plugin-parameter-dialog::backdrop { background: rgb(24 32 30 / .38); backdrop-filter: blur(10px) brightness(.85); }
+.plugin-parameter-dialog header, .plugin-parameter-dialog footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.plugin-parameter-dialog h2 { margin: 0; font-size: 18px; }
+.plugin-parameter-fields { display: grid; gap: 12px; margin-top: 16px; }
+.plugin-parameter-fields label { display: grid; gap: 4px; font-size: 13px; }
+.plugin-parameter-fields input, .plugin-parameter-fields select { min-width: 0; width: 100%; box-sizing: border-box; background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 8px; border-radius: 6px; }
+.plugin-parameter-dialog footer { justify-content: flex-end; }
+.plugin-parameter-dialog [role="alert"] { color: var(--text-secondary); font-size: 13px; }

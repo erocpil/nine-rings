@@ -59,3 +59,36 @@ it("handles table embeds, blank text and empty documents without NaN", () => {
     expect(Number.isFinite(weightToSourceOffset(source, 1000))).toBe(true);
   }
 });
+
+it("maps caret blocks independently from a viewport at the document start, including a toc fence", async () => {
+  const { sourceOffsetToRenderedPosition, renderedPositionToWeight } =
+    await import("../../src/lib/markdown-view-position");
+  const source =
+    "# 开始\n\n```toc\nlevels: 1,2,3\n```\n\n## 中间\n\n普通正文\n\n### 远处标题\n\n结束";
+  const doc = deltaToProseMirror(mdToDelta(source));
+  const position = sourceOffsetToRenderedPosition(
+    source,
+    doc,
+    source.indexOf("### 远处标题"),
+  );
+  const block = renderedTextblockMap(doc).find(
+    (entry) => entry.text === "远处标题",
+  )!;
+  expect(position).toBe(block.position + 1);
+  expect(renderedPositionToWeight(doc, position)).toBe(block.from);
+});
+
+it("the full Markdown demo retains the image-section caret after all preceding GFM extensions", async () => {
+  const { default: source } =
+    await import("../../src/lib/markdown-demo.md?raw");
+  const { sourceOffsetToRenderedPosition } =
+    await import("../../src/lib/markdown-view-position");
+  const doc = deltaToProseMirror(mdToDelta(source));
+  const offset = source.indexOf("### 图片与替代文本");
+  const target = renderedTextblockMap(doc).find(
+    (block) => block.text === "图片与替代文本",
+  )!;
+  expect(sourceOffsetToRenderedPosition(source, doc, offset)).toBe(
+    target.position + 1,
+  );
+});
