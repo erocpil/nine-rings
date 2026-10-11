@@ -1,5 +1,5 @@
 /// A visible window may still be minimized or behind another application.
-/// Only a confirmed foreground window should hide on a tray click.
+/// Only a confirmed foreground window should hide on a tray click or toggle shortcut.
 pub fn should_hide(visible: bool, minimized: bool, focused: bool) -> bool {
     visible && !minimized && focused
 }

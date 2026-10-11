@@ -27,6 +27,18 @@ for (const style of ["classic", "calm"]) {
     };
     await open();
     await expect(page.getByLabel("H1 字号", { exact: true })).toHaveValue("0");
+    for (let level = 1; level <= 6; level++) {
+      const size = await body.locator(`h${level}`).first().evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize));
+      const control = page.getByLabel(`H${level} 字号`, { exact: true });
+      await expect(control.locator('option[value="0"]')).toHaveText(`默认（${Number(size.toFixed(2))}px）`);
+      const field = control.locator("xpath=ancestor::*[contains(@class, 'appearance-field')][1]");
+      expect((await field.innerText()).match(new RegExp(`H${level} 字号`, "g"))).toHaveLength(1);
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    const mobileHeadingSize = await body.locator("h1").first().evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize));
+    await expect(page.getByLabel("H1 字号", { exact: true }).locator('option[value="0"]'))
+      .toHaveText(`默认（${Number(mobileHeadingSize.toFixed(2))}px）`);
+    await page.setViewportSize({ width: 1600, height: 1000 });
     for (let level = 1; level <= 6; level++) await page.getByLabel(`H${level} 字号`, { exact: true }).selectOption(String(36 - level));
     for (const [name, family, size] of [["代码块", "monospace", "20"], ["引用块", "serif", "22"], ["图块", "sans", "24"], ["flow 块", "serif", "21"]]) {
       await page.getByLabel(`${name}字体`, { exact: true }).selectOption(family);

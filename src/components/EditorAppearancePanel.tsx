@@ -2,7 +2,7 @@ import { resolveInterfaceConfig } from "../lib/interface-style";
 import { ReadingTypographyProvider } from "./ReadingTypographyProvider";
 import { DeferredMermaidDiagram } from "./DeferredMermaidDiagram";
 import { DeferredFlowBlock } from "./DeferredFlowBlock";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
 import type { AppConfig } from "../types/models";
 import { DEFAULT_EDITOR_APPEARANCE, DEFAULT_BLOCK_TYPOGRAPHY, editorAppearanceVariables } from "../lib/editor-appearance";
 import { blockWorkspacePreferences, codeBlockHeightPercent } from "../lib/block-display-settings";
@@ -50,6 +50,19 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
   const managed = config.interface_style !== "classic";
   const displayConfig = resolveInterfaceConfig(config);
   const variables = editorAppearanceVariables(displayConfig) as React.CSSProperties;
+  const headingProbeRef = useRef<HTMLDivElement>(null);
+  const [defaultHeadingSizes, setDefaultHeadingSizes] = useState<number[]>([]);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const sizes = [...(headingProbeRef.current?.children ?? [])]
+        .map(element => Number.parseFloat(getComputedStyle(element).fontSize));
+      setDefaultHeadingSizes(previous => previous.every((size, index) => size === sizes[index])
+        && previous.length === sizes.length ? previous : sizes);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [config]);
   const [blockDisplay, setBlockDisplay] = useState(blockWorkspacePreferences);
   const [codeHeight, setCodeHeight] = useState(codeBlockHeightPercent);
   const [blockDirty, setBlockDirty] = useState(false);
@@ -77,6 +90,11 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
       }}
     >
       <div ref={panelRef} className="editor-appearance-panel" onClick={(event) => event.stopPropagation()}>
+        <div ref={headingProbeRef} className="editor-content" aria-hidden="true"
+          style={{ ...variables, fontSize: "var(--editor-font-size)", position: "absolute", visibility: "hidden", height: 0, overflow: "hidden", pointerEvents: "none",
+            ...Object.fromEntries(Array.from({ length: 6 }, (_, index) => [`--editor-h${index + 1}-size`, "initial"])) } as React.CSSProperties}>
+          <h1 /><h2 /><h3 /><h4 /><h5 /><h6 />
+        </div>
         <header className="editor-appearance-header">
           <div>
             <div className="editor-appearance-kicker">编辑器</div>
@@ -192,7 +210,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                 {Array.from({ length: 6 }, (_, index) => {
                   const key = `editor_h${index + 1}_font_size` as keyof typeof DEFAULT_BLOCK_TYPOGRAPHY;
                   return <AppearanceField key={key} label={`H${index + 1} 字号`} desc="默认随正文和屏幕宽度适配">
-                    <TypographySize label={`H${index + 1} 字号`} value={Number(config[key]) || 0} onChange={value => onUpdate({ [key]: value })} />
+                    <TypographySize caption="" label={`H${index + 1} 字号`} defaultSize={defaultHeadingSizes[index]} value={Number(config[key]) || 0} onChange={value => onUpdate({ [key]: value })} />
                   </AppearanceField>;
                 })}
               </div>
@@ -340,9 +358,9 @@ function AppearanceField({ label, desc, children }: { label: string; desc: strin
   );
 }
 
-function TypographySize({ label, caption = label, value, onChange }: { label: string; caption?: string; value: number; onChange: (value: number) => void }) {
+function TypographySize({ label, caption = label, defaultSize, value, onChange }: { label: string; caption?: string; defaultSize?: number; value: number; onChange: (value: number) => void }) {
   return <label>{caption}<select className="settings-input editor-appearance-select" aria-label={label} value={value} onChange={event => onChange(Number(event.target.value))}>
-    <option value={0}>默认（现有字号）</option>
+    <option value={0}>{defaultSize ? `默认（${Number(defaultSize.toFixed(2))}px）` : "默认（现有字号）"}</option>
     {Array.from({ length: 63 }, (_, index) => index + 10).map(size => <option key={size} value={size}>{size}px</option>)}
   </select></label>;
 }

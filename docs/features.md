@@ -399,7 +399,7 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 |--------|-----------|---------|
 | focus_search | Alt+E | JS `registerShortcuts` |
 | open_settings | Alt+, | JS `registerShortcuts` |
-| show_window | Alt+Y | **Rust 端注册**（系统级，WebView 不可见时也能响应） |
+| show_window | macOS: Option+Y；Windows/Linux: Alt+Y | **Rust 端注册**（系统级）；隐藏、最小化或在其它应用后面时召回置前，仅前台窗口收回托盘 |
 | toggle_fullscreen | Windows/Linux: F11；macOS: `⌃⌘F` | 浏览器 `keydown`；Web 版交还浏览器原生处理，Tauri 另提供标题栏按钮 |
 
 ### 主题系统

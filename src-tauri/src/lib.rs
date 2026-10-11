@@ -439,19 +439,19 @@ fn install_macos_fullscreen_menu(app: &tauri::App) -> tauri::Result<()> {
 fn toggle_main_window(app: &tauri::AppHandle) {
     startup_log!("toggle_main_window called");
     if let Some(window) = app.get_webview_window("main") {
-        if window.is_visible().unwrap_or(false) {
+        let visible = window.is_visible().unwrap_or(false);
+        let minimized = window.is_minimized().unwrap_or(true);
+        let focused = window.is_focused().unwrap_or(false);
+        let hide = tray_window::should_hide(visible, minimized, focused);
+        startup_log!(
+            "toggle_main_window: visible={} minimized={} focused={} action={}",
+            visible, minimized, focused, if hide { "hide" } else { "recall" }
+        );
+        if hide {
             startup_log!("toggle_main_window: hiding");
             let _ = window.hide();
         } else {
-            startup_log!(
-                "toggle_main_window: showing (visible={})",
-                window.is_visible().unwrap_or(false)
-            );
-            let _ = window.show();
-            let _ = window.unminimize();
-            let _ = window.set_focus();
-            #[cfg(target_os = "windows")]
-            bump_webview2(&window);
+            show_main_window(app);
         }
     }
 }
