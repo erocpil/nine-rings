@@ -1,5 +1,15 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-10-11：最新界面改动的验证收尾
+
+基线 `4d935a3bbbdb089a63890221a75656fc86e9eed9` 的 macOS ARM64、Windows、Linux Tauri 构建通过；[跨平台 E2E](https://github.com/erocpil/nine-rings/actions/runs/38145227624) 的 macOS/Windows/Linux × Chromium/WebKit 六组通过。该工作流使用浏览器，并不替代原生 GUI 验收。
+
+[Test 工作流](https://github.com/erocpil/nine-rings/actions/runs/38145227621) 的 Frontend Tests、Reading workspace (chromium)、IPC 已通过；Rust Tests 因格式检查失败，Reading workspace (webkit) 在浮层方向键进入后的焦点断言失败。修正 Rust 格式，并清理严格 Clippy 检查发现的测试模块位置、默认结构初始化及等价错误观察/Option 判断写法。本机 macOS ARM64 的 Rust 92 项、cargo fmt、全目标/全特性 Clippy（禁止警告）与完整前端 lint 通过。
+
+原生退出协议模拟回归 Chromium/WebKit 各 1 项通过，涵盖首次提示、确认超时及保存完成后退出；它们使用模拟 IPC，不证明 OS 子进程已退出。分栏 WebKit 原用例重复 3 轮共 18 项通过，仍补充初始浮层收起的就绪断言，避免启动状态与方向键进入交错；补充就绪断言后的分栏回归 WebKit 连续 3 轮/18 项、Chromium 6 项通过。远端完整 E2E 仍在执行，修复后的远端结果待核对，不将暂未结束的任务记为通过。
+
+仍需原生真机验收：macOS 后台/隐藏/最小化窗口的 Option+Y 与托盘召回、前台窗口隐藏及 Command+W/双击 Command+Q；Windows/Linux 反复退出重启后的残留子进程、文件锁与异常退出恢复。自动测试和打包成功不能替代上述验证。本批没有启动用户原生应用或操作其真实数据库。
+
 ## 2026-10-11：数据边界、完整扫描与原生交付验证
 
 A2～A7 当前范围已实现：设备本地文档摘要、NFC 路径冲突检查、概念规范键/显式合并、文本导入去重和冲突保留、版本化派生搜索重建。摘要性能与真实混合文档生产包 A/B 见[大文档性能记录](large-document-performance.md)。局部渲染仍默认关闭，不把首次打开优化等同于手机持续滚动或峰值内存已达标。

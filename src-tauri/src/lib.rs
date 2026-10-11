@@ -163,7 +163,7 @@ fn copy_missing_files(
         if file_type.is_dir() {
             if existing_destination
                 .as_ref()
-                .map_or(true, |metadata| metadata.is_dir())
+                .is_none_or(|metadata| metadata.is_dir())
             {
                 copy_missing_files(&source_path, &destination_path)?;
             }
@@ -194,93 +194,6 @@ fn copy_missing_files(
         }
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod app_data_migration_tests {
-    use super::{
-        copy_missing_files, migrate_legacy_app_data, APP_IDENTIFIER, LEGACY_APP_IDENTIFIER,
-    };
-    use std::path::PathBuf;
-
-    fn test_root() -> PathBuf {
-        std::env::temp_dir().join(format!("nine-rings-migration-{}", uuid::Uuid::new_v4()))
-    }
-
-    #[test]
-    fn bundle_identifier_avoids_the_macos_app_extension_and_migration_tracks_it() {
-        let config: serde_json::Value =
-            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
-        let identifier = config["identifier"].as_str().unwrap();
-        assert_eq!(identifier, APP_IDENTIFIER);
-        assert!(!identifier.ends_with(".app"));
-        assert_ne!(APP_IDENTIFIER, LEGACY_APP_IDENTIFIER);
-    }
-
-    #[test]
-    fn copies_legacy_data_without_overwriting_and_keeps_legacy_copy() {
-        let root = test_root();
-        let legacy = root.join("com.ninerings.app");
-        let current = root.join("com.ninerings.desktop");
-        std::fs::create_dir_all(legacy.join("reader")).unwrap();
-        std::fs::write(legacy.join("nine-rings.db"), b"legacy-db").unwrap();
-        std::fs::write(legacy.join("config.json"), b"legacy-config").unwrap();
-        std::fs::write(legacy.join("reader/progress.json"), b"reader-progress").unwrap();
-        std::fs::create_dir_all(&current).unwrap();
-        std::fs::write(current.join("config.json"), b"current-config").unwrap();
-
-        assert!(migrate_legacy_app_data(&current).unwrap());
-        assert_eq!(
-            std::fs::read(current.join("nine-rings.db")).unwrap(),
-            b"legacy-db"
-        );
-        assert_eq!(
-            std::fs::read(current.join("config.json")).unwrap(),
-            b"current-config"
-        );
-        assert_eq!(
-            std::fs::read(current.join("reader/progress.json")).unwrap(),
-            b"reader-progress"
-        );
-        assert_eq!(
-            std::fs::read(legacy.join("nine-rings.db")).unwrap(),
-            b"legacy-db"
-        );
-        std::fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn does_not_copy_legacy_data_over_an_existing_current_database() {
-        let root = test_root();
-        let legacy = root.join("com.ninerings.app");
-        let current = root.join("com.ninerings.desktop");
-        std::fs::create_dir_all(&legacy).unwrap();
-        std::fs::create_dir_all(&current).unwrap();
-        std::fs::write(legacy.join("nine-rings.db"), b"legacy-db").unwrap();
-        std::fs::write(current.join("nine-rings.db"), b"current-db").unwrap();
-
-        assert!(!migrate_legacy_app_data(&current).unwrap());
-        assert_eq!(
-            std::fs::read(current.join("nine-rings.db")).unwrap(),
-            b"current-db"
-        );
-        std::fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn copies_nested_files_and_creates_missing_directories() {
-        let root = test_root();
-        let source = root.join("source");
-        let destination = root.join("destination");
-        std::fs::create_dir_all(source.join("nested")).unwrap();
-        std::fs::write(source.join("nested/value"), b"value").unwrap();
-        copy_missing_files(&source, &destination).unwrap();
-        assert_eq!(
-            std::fs::read(destination.join("nested/value")).unwrap(),
-            b"value"
-        );
-        std::fs::remove_dir_all(root).unwrap();
-    }
 }
 
 /// 统一切换主窗口全屏。macOS 的 frameless 窗口不能依赖 Cocoa 原生
@@ -445,7 +358,10 @@ fn toggle_main_window(app: &tauri::AppHandle) {
         let hide = tray_window::should_hide(visible, minimized, focused);
         startup_log!(
             "toggle_main_window: visible={} minimized={} focused={} action={}",
-            visible, minimized, focused, if hide { "hide" } else { "recall" }
+            visible,
+            minimized,
+            focused,
+            if hide { "hide" } else { "recall" }
         );
         if hide {
             startup_log!("toggle_main_window: hiding");
@@ -645,9 +561,8 @@ pub fn run() {
             }
             startup_log!("running migrations...");
             if healthy {
-                db::migrations::run(&conn).map_err(|e| {
+                db::migrations::run(&conn).inspect_err(|e| {
                     lifecycle.phase("startup-failed", Some(e.to_string()));
-                    e
                 })?;
             }
             startup_log!("migrations done");
@@ -872,4 +787,91 @@ pub fn run() {
             _ => {}
         });
     startup_log!("=== nine-rings exiting ===");
+}
+
+#[cfg(test)]
+mod app_data_migration_tests {
+    use super::{
+        copy_missing_files, migrate_legacy_app_data, APP_IDENTIFIER, LEGACY_APP_IDENTIFIER,
+    };
+    use std::path::PathBuf;
+
+    fn test_root() -> PathBuf {
+        std::env::temp_dir().join(format!("nine-rings-migration-{}", uuid::Uuid::new_v4()))
+    }
+
+    #[test]
+    fn bundle_identifier_avoids_the_macos_app_extension_and_migration_tracks_it() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let identifier = config["identifier"].as_str().unwrap();
+        assert_eq!(identifier, APP_IDENTIFIER);
+        assert!(!identifier.ends_with(".app"));
+        assert_ne!(APP_IDENTIFIER, LEGACY_APP_IDENTIFIER);
+    }
+
+    #[test]
+    fn copies_legacy_data_without_overwriting_and_keeps_legacy_copy() {
+        let root = test_root();
+        let legacy = root.join("com.ninerings.app");
+        let current = root.join("com.ninerings.desktop");
+        std::fs::create_dir_all(legacy.join("reader")).unwrap();
+        std::fs::write(legacy.join("nine-rings.db"), b"legacy-db").unwrap();
+        std::fs::write(legacy.join("config.json"), b"legacy-config").unwrap();
+        std::fs::write(legacy.join("reader/progress.json"), b"reader-progress").unwrap();
+        std::fs::create_dir_all(&current).unwrap();
+        std::fs::write(current.join("config.json"), b"current-config").unwrap();
+
+        assert!(migrate_legacy_app_data(&current).unwrap());
+        assert_eq!(
+            std::fs::read(current.join("nine-rings.db")).unwrap(),
+            b"legacy-db"
+        );
+        assert_eq!(
+            std::fs::read(current.join("config.json")).unwrap(),
+            b"current-config"
+        );
+        assert_eq!(
+            std::fs::read(current.join("reader/progress.json")).unwrap(),
+            b"reader-progress"
+        );
+        assert_eq!(
+            std::fs::read(legacy.join("nine-rings.db")).unwrap(),
+            b"legacy-db"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn does_not_copy_legacy_data_over_an_existing_current_database() {
+        let root = test_root();
+        let legacy = root.join("com.ninerings.app");
+        let current = root.join("com.ninerings.desktop");
+        std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::create_dir_all(&current).unwrap();
+        std::fs::write(legacy.join("nine-rings.db"), b"legacy-db").unwrap();
+        std::fs::write(current.join("nine-rings.db"), b"current-db").unwrap();
+
+        assert!(!migrate_legacy_app_data(&current).unwrap());
+        assert_eq!(
+            std::fs::read(current.join("nine-rings.db")).unwrap(),
+            b"current-db"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn copies_nested_files_and_creates_missing_directories() {
+        let root = test_root();
+        let source = root.join("source");
+        let destination = root.join("destination");
+        std::fs::create_dir_all(source.join("nested")).unwrap();
+        std::fs::write(source.join("nested/value"), b"value").unwrap();
+        copy_missing_files(&source, &destination).unwrap();
+        assert_eq!(
+            std::fs::read(destination.join("nested/value")).unwrap(),
+            b"value"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

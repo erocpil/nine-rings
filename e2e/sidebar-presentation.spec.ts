@@ -8,6 +8,7 @@ test("面板边缘事件缺失时正文指针移动仍收起，阅读预览不�
   await expect(page.locator(".ProseMirror")).toBeVisible();
   const reader = page.locator('[data-sidebar-panel="reader"]');
   const sidebar = page.locator(".app-sidebar");
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
   const editor = page.locator(".ProseMirror");
   await editor.focus();
   await reader.dispatchEvent("pointerover", { pointerType: "mouse" });
@@ -31,6 +32,8 @@ test("浮层键盘进入、Esc 返回按钮、固定标记与输入焦点边界"
   await expect(page.locator(".ProseMirror")).toBeVisible();
   const tree = page.locator('[data-sidebar-panel="tree"]');
   const sidebar = page.locator(".app-sidebar");
+  // Wait for the initial overlay dismissal before requesting keyboard entry.
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
   await tree.focus();
   await tree.press("ArrowRight");
   await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
@@ -72,6 +75,7 @@ test("树内右键菜单优先处理 Esc，菜单操作期间浮层不收起", a
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
   const sidebar = page.locator(".app-sidebar");
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
   await page.locator('[data-sidebar-panel="tree"]').hover();
   await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
   await sidebar.locator(".doc-tree .doc-tree-node").first().click({ button: "right" });

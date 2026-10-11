@@ -658,21 +658,23 @@ mod tests {
 
     #[test]
     fn hierarchy_palette_migration_reorders_only_the_old_default_palette() {
-        let mut config = AppConfig::default();
-        config.hierarchy_path_custom_colors = [
-            "#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1",
-        ]
-        .into_iter()
-        .map(String::from)
-        .collect();
-        config.hierarchy_outline_custom_colors = vec![
-            "#010101".into(),
-            "#020202".into(),
-            "#030303".into(),
-            "#040404".into(),
-            "#050505".into(),
-            "#060606".into(),
-        ];
+        let mut config = AppConfig {
+            hierarchy_path_custom_colors: [
+                "#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect(),
+            hierarchy_outline_custom_colors: vec![
+                "#010101".into(),
+                "#020202".into(),
+                "#030303".into(),
+                "#040404".into(),
+                "#050505".into(),
+                "#060606".into(),
+            ],
+            ..AppConfig::default()
+        };
 
         migrate_hierarchy_palette(&mut config);
 
