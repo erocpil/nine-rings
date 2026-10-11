@@ -1,5 +1,3 @@
-import { pluginLifecycle } from "../lib/plugin-system/lifecycle";
-import { Field } from "./SettingsFields";
 import { useSyncExternalStore } from "react";
 import { pluginRuntime } from "../lib/plugin-system/runtime";
 
@@ -9,10 +7,11 @@ export function PluginRuntimeStatus() {
     pluginRuntime.getStatus,
   );
   return (
-    <Field
-      label="插件运行状态"
-      desc={`${status.enabled ? "已开启" : "已关闭"} · ${status.activations.length} 个活动插件。当前仅支持可信内置宿主，第三方安装尚未开放。`}
-    >
+    <div role="group" aria-label="插件运行状态">
+      <p className="settings-desc">
+        {status.enabled ? "已开启" : "已关闭"} · {status.activations.length}{" "}
+        个活动插件
+      </p>
       {status.lastFailure && (
         <p role="status">
           最近异常：{status.lastFailure.pluginId} ·{" "}
@@ -34,17 +33,8 @@ export function PluginRuntimeStatus() {
             {item.permissions.length ? item.permissions.join("、") : "无"} ·
             托管资源：{item.resources}
           </p>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              void pluginLifecycle.deactivate(item.pluginId).catch(() => {});
-            }}
-          >
-            停用 {item.pluginId}
-          </button>
         </div>
       ))}
-    </Field>
+    </div>
   );
 }

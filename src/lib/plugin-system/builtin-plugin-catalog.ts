@@ -14,7 +14,7 @@ export const BUILTIN_PLUGIN_CATALOG = Object.freeze([
     id: "nine-rings.builtin-date",
     name: "插入日期",
     type: "文档工具 · 编辑命令",
-    description: "在当前光标位置插入本地日期，支持单步撤销，并等待保存确认。",
+    description: "在当前光标位置插入多种格式的本地日期与时间，支持单步撤销，并等待保存确认。",
     configuration: "none" as const,
   }),
   Object.freeze({

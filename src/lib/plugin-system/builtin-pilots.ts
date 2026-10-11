@@ -1,4 +1,5 @@
-import { localDateKey } from "../local-date";
+import { documentToolEnabled } from "./builtin-tool-preferences";
+import { formatPluginDate, type DateFormat } from "./date-formats";
 import { extractPlainText } from "../storage/core";
 import type { DocumentEditSessions } from "../document-edit-sessions";
 import {
@@ -25,6 +26,8 @@ export async function activateBuiltinPilot(
   sessions: DocumentEditSessions,
   context: () => HostCommandContext,
 ) {
+  if (!documentToolEnabled(kind))
+    throw new PluginHostError("PLUGIN_DISABLED", "此插件已停用");
   const id = builtinPilotId(kind);
   const permissions: PluginPermission[] =
     kind === "date"
@@ -59,6 +62,7 @@ export async function insertBuiltinDate(
   sdk: ReturnType<typeof createPluginSdk>,
   signal: AbortSignal,
   date = new Date(),
+  format: DateFormat = "date",
 ) {
   const capabilities = await sdk.capabilities({ signal });
   if (
@@ -69,7 +73,7 @@ export async function insertBuiltinDate(
   const target = await sdk.editor.captureSelection({ signal });
   const result = await sdk.editor.insert(
     target,
-    { format: "text", value: localDateKey(date) },
+    { format: "text", value: formatPluginDate(date, format) },
     { signal },
   );
   if (!result.ok)

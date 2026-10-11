@@ -44,10 +44,8 @@ function DisplayNumber({
 }
 
 export function SettingsTreeDisplay({
-  pluginsEnabled,
   onMessage,
 }: {
-  pluginsEnabled: boolean;
   onMessage: (message: string) => void;
 }) {
   useSyncExternalStore(
@@ -70,24 +68,6 @@ export function SettingsTreeDisplay({
       title="文档树展示扩展"
       desc="展示插件只改变外观和工具入口，文档及分栏仍由宿主管理。"
     >
-      <Field
-        label="内置文档树展示插件"
-        desc="仅本设备生效。关闭后恢复原有展示，保留选中、折叠与分栏状态。需先开启插件功能。"
-      >
-        <label className="settings-toggle">
-          <input
-            type="checkbox"
-            aria-label="内置文档树展示插件"
-            disabled={!pluginsEnabled}
-            checked={preference.enabled}
-            onChange={(event) => save(event.target.checked)}
-          />
-          <span className="toggle-track" />
-          <span className="toggle-label">
-            {preference.enabled ? "开" : "关"}
-          </span>
-        </label>
-      </Field>
       <>
         <Field label="文档树字体" desc="">
           <select

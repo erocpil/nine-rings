@@ -43,7 +43,10 @@ for (const width of [390, 1280]) {
     });
     await expect(dialog).toBeVisible();
     await expect(
-      dialog.getByRole("checkbox", { name: "内置文档树展示插件", exact: true }),
+      dialog.getByRole("button", { name: "关闭插件配置", exact: true }),
+    ).not.toHaveAttribute("title");
+    await expect(
+      list.getByRole("checkbox", { name: "启用文档树展示", exact: true }),
     ).not.toBeChecked();
     // All options are available even before enabling the extension.
     await expect(
@@ -52,16 +55,24 @@ for (const width of [390, 1280]) {
     await dialog
       .getByRole("spinbutton", { name: "文档树字号", exact: true })
       .fill("18");
-    await dialog
-      .getByRole("checkbox", { name: "内置文档树展示插件", exact: true })
-      .check();
-    await expect(dialog.getByRole("status")).toHaveText("已更新");
+
+    await expect(
+      dialog.locator(".plugin-config-heading").getByRole("status"),
+    ).toHaveText("已更新");
+    expect(
+      await dialog
+        .getByRole("status")
+        .evaluate((element) => element.closest("header") !== null),
+    ).toBe(true);
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
     await expect(
       page.getByRole("dialog", { name: "高级", exact: true }),
     ).toBeVisible();
     await expect(name).toBeFocused();
+    await list
+      .getByRole("checkbox", { name: "启用文档树展示", exact: true })
+      .check();
     await name.click();
     await expect(
       dialog.getByRole("spinbutton", { name: "文档树字号", exact: true }),
@@ -139,4 +150,49 @@ test("另一窗口关闭插件撤销配置弹层，Tab 留在弹层且背景设�
   await expect(
     page.getByRole("dialog", { name: "高级", exact: true }),
   ).toBeVisible();
+});
+
+test("列表停用统计立即关闭结果，独立开关跨刷新保留并禁止调用", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await openAdvanced(page);
+  await page
+    .getByRole("checkbox", { name: "启用插件功能", exact: true })
+    .check();
+  await page.locator(".settings-close").click();
+  await page.getByRole("button", { name: "内置插件", exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: "当前文档统计", exact: true })
+    .click();
+  const result = page.getByLabel("内置插件结果", { exact: true });
+  await expect(result).toBeVisible();
+  await openAdvanced(page);
+  const status = page.getByRole("group", { name: "插件运行状态", exact: true });
+  await expect(status).toContainText("nine-rings.builtin-statistics");
+  await expect(status.getByRole("button")).toHaveCount(0);
+  await page
+    .getByRole("checkbox", { name: "启用实时文档统计", exact: true })
+    .uncheck();
+  await expect(result).toHaveCount(0);
+  await expect(status).toContainText("0 个活动插件");
+  await page
+    .getByRole("checkbox", { name: "启用插入日期", exact: true })
+    .uncheck();
+  await page.reload();
+  await openAdvanced(page);
+  await expect(
+    page.getByRole("checkbox", { name: "启用实时文档统计", exact: true }),
+  ).not.toBeChecked();
+  await expect(
+    page.getByRole("checkbox", { name: "启用插入日期", exact: true }),
+  ).not.toBeChecked();
+  await page.locator(".settings-close").click();
+  await page.getByRole("button", { name: "内置插件", exact: true }).click();
+  await expect(
+    page.getByRole("menuitem", { name: "当前文档统计", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("menuitem", { name: "插入日期与时间", exact: true }),
+  ).toBeDisabled();
 });

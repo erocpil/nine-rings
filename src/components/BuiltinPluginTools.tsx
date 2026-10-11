@@ -20,8 +20,18 @@ import {
   resultPresentationSnapshot,
   type DocumentTool,
 } from "../lib/plugin-system/result-presentation";
+import {
+  documentToolEnabled,
+  subscribeDocumentTools,
+  documentToolsSnapshot,
+} from "../lib/plugin-system/builtin-tool-preferences";
 import { pluginRuntime } from "../lib/plugin-system/runtime";
-import { BlockActionMenu } from "./BlockActionMenu";
+import { PluginCommandMenu } from "./PluginCommandMenu";
+import {
+  DATE_FORMATS,
+  formatPluginDate,
+  type DateFormat,
+} from "../lib/plugin-system/date-formats";
 import { ToolbarIcon } from "./ToolbarIcon";
 
 export function BuiltinPluginTools({
@@ -53,6 +63,10 @@ export function BuiltinPluginTools({
     top: number;
     width: number;
   }>({ target: null, left: 0, top: 0, width: 0 });
+  const toolsPreference = useSyncExternalStore(
+    subscribeDocumentTools,
+    documentToolsSnapshot,
+  );
   const latest = useRef(context);
   latest.current = context;
   const [trigger, setTrigger] = useState<HTMLElement | null>(null);
@@ -80,6 +94,9 @@ export function BuiltinPluginTools({
     close();
     return close;
   }, [close, active, enabled, context.documentId, context.view]);
+  useEffect(() => {
+    if (!documentToolEnabled(kind)) close();
+  }, [toolsPreference, kind, close]);
   const showingResult = Boolean(message || statistics);
   useEffect(() => {
     if (busy || !showingResult || statistics) return;
@@ -107,8 +124,18 @@ export function BuiltinPluginTools({
     window.addEventListener("keydown", escape, true);
     return () => window.removeEventListener("keydown", escape, true);
   }, [active, busy, showingResult, trigger, close]);
-  const run = async (kind: "date" | "statistics") => {
-    if (running.current || !enabled || !active || disabled) return;
+  const run = async (
+    kind: "date" | "statistics",
+    format: DateFormat = "date",
+  ) => {
+    if (
+      running.current ||
+      !enabled ||
+      !active ||
+      disabled ||
+      !documentToolEnabled(kind)
+    )
+      return;
     close();
     setKind(kind);
     const version = epoch.current;
@@ -129,8 +156,16 @@ export function BuiltinPluginTools({
         // Menu buttons own focus. Restore the same live view before capturing
         // its target so native Cmd/Ctrl+Z works without another body click.
         onFocusEditor();
-        await insertBuiltinDate(current.sdk, current.signal);
-        if (version === epoch.current) setMessage("日期已插入并保存");
+        await insertBuiltinDate(
+          current.sdk,
+          current.signal,
+          new Date(),
+          format,
+        );
+        if (version === epoch.current)
+          setMessage(
+            format === "date" ? "日期已插入并保存" : "时间已插入并保存",
+          );
         await current.dispose();
         if (session.current === current) session.current = null;
       } else {
@@ -265,21 +300,26 @@ export function BuiltinPluginTools({
         <ToolbarIcon name="plus" />
       </button>
       {trigger && (
-        <BlockActionMenu
+        <PluginCommandMenu
           trigger={trigger}
-          placement="below"
-          title="内置插件"
           onClose={() => setTrigger(null)}
           actions={[
             {
-              label: "插入当前日期",
-              disabled: readonly,
+              label: "插入日期与时间",
+              children: DATE_FORMATS.map((option) => ({
+                label: `${option.label} · ${formatPluginDate(new Date(), option.id)}`,
+                run: () => {
+                  void run("date", option.id);
+                },
+              })),
+              disabled: readonly || !documentToolEnabled("date"),
               run: () => {
                 void run("date");
               },
             },
             {
               label: "当前文档统计",
+              disabled: !documentToolEnabled("statistics"),
               run: () => {
                 void run("statistics");
               },

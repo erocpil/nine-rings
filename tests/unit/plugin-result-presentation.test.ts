@@ -45,3 +45,15 @@ describe("host plugin result preferences", () => {
     ).toThrow();
   });
 });
+
+it("document tools remember independent enablement without changing presentation", async () => {
+  const { documentToolEnabled, saveDocumentToolEnabled } =
+    await import("../../src/lib/plugin-system/builtin-tool-preferences");
+  expect(documentToolEnabled("date")).toBe(true);
+  saveDocumentToolEnabled("statistics", false);
+  expect(documentToolEnabled("statistics")).toBe(false);
+  expect(documentToolEnabled("date")).toBe(true);
+  expect(readResultPresentation("statistics").surface).toBe("popup");
+  saveDocumentToolEnabled("statistics", true);
+  expect(documentToolEnabled("statistics")).toBe(true);
+});

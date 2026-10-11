@@ -37,8 +37,9 @@ for (const sourceMode of [false, true]) {
     };
     await open();
     await page
-      .getByRole("menuitem", { name: "插入当前日期", exact: true })
+      .getByRole("menuitem", { name: "插入日期与时间", exact: true })
       .click();
+    await page.getByRole("menuitem", { name: /^日期 · YYYY-MM-DD ·/ }).click();
     await expect(
       page.getByRole("status").filter({ hasText: "日期已插入并保存" }),
     ).toBeVisible();
@@ -133,7 +134,7 @@ for (const virtual of [false, true]) {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole("button", { name: "内置插件", exact: true }).click();
     await expect(
-      page.getByRole("menuitem", { name: "插入当前日期", exact: true }),
+      page.getByRole("menuitem", { name: "插入日期与时间", exact: true }),
     ).toBeDisabled();
     await page
       .getByRole("menuitem", { name: "当前文档统计", exact: true })
@@ -200,8 +201,9 @@ test("Esc 优先关闭插件结果，第二次才收起固定分栏", async ({ p
   await expect(page.locator(".app-body")).toHaveClass(/sidebar-hover-enabled/);
   await page.getByRole("button", { name: "内置插件", exact: true }).click();
   await page
-    .getByRole("menuitem", { name: "插入当前日期", exact: true })
+    .getByRole("menuitem", { name: "插入日期与时间", exact: true })
     .click();
+  await page.getByRole("menuitem", { name: /^日期 · YYYY-MM-DD ·/ }).click();
   await expect(page.getByLabel("内置插件结果", { exact: true })).toContainText(
     "日期已插入并保存",
   );
@@ -235,6 +237,18 @@ test("结果展示配置持久化，统计状态栏与居中弹层即时切换",
     .click();
   const result = page.getByLabel("内置插件结果", { exact: true });
   await expect(result).toHaveClass(/builtin-plugin-status/);
+  const textBounds = await result.getByRole("status").boundingBox();
+  const closeBounds = await result
+    .getByRole("button", { name: "关闭插件结果" })
+    .boundingBox();
+  expect(
+    Math.abs(
+      textBounds!.y +
+        textBounds!.height / 2 -
+        closeBounds!.y -
+        closeBounds!.height / 2,
+    ),
+  ).toBeLessThan(2);
   await page.evaluate(async () => {
     const { saveResultPresentation, readResultPresentation } =
       await import("/src/lib/plugin-system/result-presentation.ts");
@@ -261,16 +275,58 @@ test("日期通知三秒关闭，不改变编辑器焦点", async ({ page }) => 
   await createBlankDocument(page);
   await closeDocumentSidebar(page);
   await page.evaluate(async () => {
-    const { setPluginsEnabled } = await import("/src/lib/plugin-system/runtime.ts");
+    const { setPluginsEnabled } =
+      await import("/src/lib/plugin-system/runtime.ts");
     setPluginsEnabled(true);
   });
   const editor = page.locator(".ProseMirror:visible");
   await editor.click();
   await page.getByRole("button", { name: "内置插件", exact: true }).click();
-  await page.getByRole("menuitem", { name: "插入当前日期", exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: "插入日期与时间", exact: true })
+    .click();
+  await page.getByRole("menuitem", { name: /^日期 · YYYY-MM-DD ·/ }).click();
   const result = page.getByLabel("内置插件结果", { exact: true });
   await expect(result).toContainText("日期已插入并保存");
   await expect(editor).toBeFocused();
   await expect(result).toHaveCount(0, { timeout: 4500 });
   await expect(editor).toBeFocused();
+});
+
+test("日期时间参数菜单支持悬停、键盘进入和含秒格式，仍可一步撤销", async ({
+  page,
+}) => {
+  await createBlankDocument(page);
+  await closeDocumentSidebar(page);
+  await page.evaluate(async () => {
+    const { setPluginsEnabled } =
+      await import("/src/lib/plugin-system/runtime.ts");
+    setPluginsEnabled(true);
+  });
+  const editor = page.locator(".ProseMirror:visible");
+  await editor.click();
+  await page.getByRole("button", { name: "内置插件", exact: true }).click();
+  const parent = page.getByRole("menuitem", {
+    name: "插入日期与时间",
+    exact: true,
+  });
+  await parent.hover();
+  const submenu = page.getByRole("menu", {
+    name: "插入日期与时间参数",
+    exact: true,
+  });
+  await expect(submenu).toBeVisible();
+  await expect(parent).toHaveAttribute("aria-expanded", "true");
+  await parent.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(submenu.getByRole("menuitem").first()).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(submenu).toHaveCount(0);
+  await expect(parent).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await submenu.getByRole("menuitem", { name: /^日期与时间（含秒）/ }).click();
+  await expect(editor).toHaveText(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
+  await expect(editor).toBeFocused();
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(editor).not.toContainText(/\d{4}-\d{2}/);
 });

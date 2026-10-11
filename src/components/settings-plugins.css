@@ -15,10 +15,11 @@
 .settings-plugin-state { flex: none; }
 .settings-plugin-catalog li p { margin: 8px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .settings-panel.plugin-config-dialog { position: fixed; inset: 0; margin: auto; width: min(720px, calc(100vw - 32px)); height: auto; max-height: calc(100dvh - 40px); max-width: none; padding: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 16px 64px color-mix(in srgb, var(--text) 18%, transparent); overflow: hidden; }
-.plugin-config-dialog::backdrop { background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(4px); }
-.plugin-config-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex: none; padding: 16px 20px 8px; }
-.plugin-config-heading h2 { margin: 0; font-size: 18px; }
-.plugin-config-feedback { min-height: 20px; padding: 0 20px 8px; color: var(--text-secondary); font-size: 12px; flex: none; }
+.plugin-config-dialog::backdrop { background: color-mix(in srgb, #18201e 38%, transparent); backdrop-filter: blur(10px) brightness(.85); }
+.plugin-config-heading { display: flex; align-items: center; gap: 12px; flex: none; padding: 16px 20px 12px; }
+.plugin-config-heading h2 { margin: 0; font-size: 18px; flex: none; }
+.plugin-config-heading > button { margin-left: auto; flex: none; }
+.plugin-config-feedback { min-width: 0; color: var(--text-secondary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plugin-config-body { overflow-y: auto; min-height: 0; padding: 0 20px 20px; overscroll-behavior: contain; }
 .plugin-config-body .settings-field { margin-block: 16px; }
 .plugin-config-body .settings-control { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }

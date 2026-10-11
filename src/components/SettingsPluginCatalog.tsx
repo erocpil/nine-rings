@@ -13,6 +13,7 @@ import {
 import { pluginRuntime } from "../lib/plugin-system/runtime";
 import { pluginLifecycle } from "../lib/plugin-system/lifecycle";
 import {
+  saveTreeDisplayPreference,
   readTreeDisplayPreference,
   subscribeTreeDisplayPreference,
   treeDisplayPreferenceSnapshot,
@@ -28,6 +29,12 @@ import {
   subscribeResultPresentation,
   resultPresentationSnapshot,
 } from "../lib/plugin-system/result-presentation";
+import {
+  documentToolEnabled,
+  saveDocumentToolEnabled,
+  subscribeDocumentTools,
+  documentToolsSnapshot,
+} from "../lib/plugin-system/builtin-tool-preferences";
 import "./settings-plugins.css";
 
 function PluginConfigurationDialog({
@@ -77,29 +84,29 @@ function PluginConfigurationDialog({
     >
       <header className="plugin-config-heading">
         <h2>{plugin.name}</h2>
+        <span
+          className="plugin-config-feedback"
+          role="status"
+          aria-live="polite"
+        >
+          {message}
+        </span>
         <button
           ref={close}
           type="button"
           className="btn-icon"
-          title="关闭插件配置"
           aria-label="关闭插件配置"
           onClick={onClose}
         >
           <ToolbarIcon name="close" />
         </button>
       </header>
-      <div className="plugin-config-feedback" role="status" aria-live="polite">
-        {message}
-      </div>
       <div className="plugin-config-body">
         <p className="settings-desc">
           内置 · {plugin.type} · {plugin.description}
         </p>
         {plugin.configuration === "tree-display" ? (
-          <SettingsTreeDisplay
-            pluginsEnabled={status.enabled}
-            onMessage={showMessage}
-          />
+          <SettingsTreeDisplay onMessage={showMessage} />
         ) : (
           <>
             <Field
@@ -144,7 +151,7 @@ function PluginConfigurationDialog({
             {plugin.id === "nine-rings.builtin-date" ? (
               <Field
                 label="日期格式"
-                desc="使用本机日期，格式固定为 YYYY-MM-DD；插入在当前编辑器中形成一次撤销。"
+                desc="使用本机日期与时间；在 + 菜单的二级选项选择格式，插入在当前编辑器中形成一次撤销。"
               >
                 <p>只读文档不能插入日期。</p>
               </Field>
@@ -162,7 +169,7 @@ function PluginConfigurationDialog({
           label="运行与权限"
           desc={
             active
-              ? "插件当前已激活。停用后释放所属资源，保留文档数据。"
+              ? "插件当前已激活。开启与停用请在插件列表操作。"
               : plugin.configuration === "tree-display"
                 ? "未激活；开启展示选项后自动激活。"
                 : "未激活；从文档菜单调用时按需激活。"
@@ -178,22 +185,6 @@ function PluginConfigurationDialog({
                   ? "当前选区读写、当前文档读取"
                   : "当前文档读取"}
           </p>
-          {active && (
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                void pluginLifecycle
-                  .deactivate(plugin.id)
-                  .then(() => showMessage("插件已停用"))
-                  .catch(() =>
-                    showMessage("插件停用失败，请关闭插件功能后重试"),
-                  );
-              }}
-            >
-              停用插件
-            </button>
-          )}
         </Field>
       </div>
     </dialog>,
@@ -202,6 +193,7 @@ function PluginConfigurationDialog({
 }
 
 export function SettingsPluginCatalog() {
+  const { message, showMessage } = useTransientMessage();
   const [selected, setSelected] = useState<BuiltinPluginDescription | null>(
     null,
   );
@@ -214,6 +206,7 @@ export function SettingsPluginCatalog() {
     subscribeTreeDisplayPreference,
     treeDisplayPreferenceSnapshot,
   );
+  useSyncExternalStore(subscribeDocumentTools, documentToolsSnapshot);
   const treeEnabled = readTreeDisplayPreference().enabled;
   return (
     <aside className="settings-plugin-catalog" aria-label="插件列表">
@@ -221,18 +214,27 @@ export function SettingsPluginCatalog() {
       <p className="settings-desc">
         {BUILTIN_PLUGIN_CATALOG.length} 个内置插件 · 点击名称查看配置
       </p>
+      {message && <p role="status">{message}</p>}
       <ul>
         {BUILTIN_PLUGIN_CATALOG.map((plugin) => {
           const active = status.activations.some(
             (item) => item.pluginId === plugin.id,
           );
-          const state = active
-            ? "运行中"
-            : plugin.configuration === "tree-display"
+          const tool =
+            plugin.id === "nine-rings.builtin-date" ? "date" : "statistics";
+          const enabled =
+            plugin.configuration === "tree-display"
               ? treeEnabled
-                ? "已停用"
-                : "未启用"
-              : "按需调用";
+              : documentToolEnabled(tool);
+          const state = !enabled
+            ? "已停用"
+            : active
+              ? "运行中"
+              : plugin.configuration === "tree-display"
+                ? treeEnabled
+                  ? "等待激活"
+                  : "未启用"
+                : "按需调用";
           return (
             <li key={plugin.id} data-plugin-id={plugin.id}>
               <div className="settings-plugin-summary">
@@ -249,6 +251,31 @@ export function SettingsPluginCatalog() {
                 </button>
                 <span className="settings-plugin-state">{state}</span>
               </div>
+              <label className="settings-toggle">
+                <input
+                  type="checkbox"
+                  aria-label={`启用${plugin.name}`}
+                  checked={enabled}
+                  onChange={(event) => {
+                    try {
+                      if (plugin.configuration === "tree-display")
+                        saveTreeDisplayPreference({
+                          ...readTreeDisplayPreference(),
+                          enabled: event.target.checked,
+                        });
+                      else saveDocumentToolEnabled(tool, event.target.checked);
+                      if (!event.target.checked)
+                        void pluginLifecycle
+                          .deactivate(plugin.id)
+                          .catch(() => {});
+                    } catch {
+                      showMessage("无法保存插件开关，请检查本地存储后重试");
+                    }
+                  }}
+                />
+                <span className="toggle-track" />
+                <span className="toggle-label">{enabled ? "开" : "关"}</span>
+              </label>
               <span className="settings-plugin-type">内置 · {plugin.type}</span>
               <p>{plugin.description}</p>
             </li>
