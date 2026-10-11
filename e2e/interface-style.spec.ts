@@ -147,7 +147,7 @@ test("清雅采用完整预设，跟随系统；经典配置在切回后恢复",
     "background-color",
     "rgb(232, 240, 227)",
   );
-  await expect(editor.locator("h2")).toHaveCSS("font-size", "21px");
+  await expect(editor.locator("h2")).toHaveCSS("font-size", "24px");
   await page.screenshot({ path: test.info().outputPath("nr-preset-desktop.png") });
   await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^编辑器 / }).click();

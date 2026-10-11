@@ -18,6 +18,12 @@ for (const style of ["classic", "calm"]) {
     await waitForSavedText(page, "标题 6");
     const body = page.locator(".note-editor:visible .editor-content").first();
     const defaultHeading = await body.locator("h1").first().evaluate(element => getComputedStyle(element).fontSize);
+    const headingScale = style === "classic" ? [1.6, 1.5, 1.375, 1.25, 1.125, 1] : [1.75, 1.5, 1.375, 1.25, 1.125, 1];
+    const bodySize = await body.locator(".ProseMirror").first().evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize));
+    for (let level = 1; level <= 6; level++) {
+      const size = await body.locator(`h${level}`).first().evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize));
+      expect(size).toBeCloseTo(bodySize * headingScale[level - 1], 1);
+    }
     const defaultCode = await body.locator(".code-block-inner").first().evaluate(element => ({ size: getComputedStyle(element).fontSize, family: getComputedStyle(element).fontFamily }));
     expect(defaultCode.family).toContain("monospace");
     const open = async () => {
@@ -77,7 +83,7 @@ for (const style of ["classic", "calm"]) {
     await expect(body.locator(".code-block-inner").first()).toHaveCSS("font-size", defaultCode.size);
     await expect(body.locator(".code-block-inner").first()).toHaveCSS("font-family", defaultCode.family);
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(body.locator("h1").first()).toHaveCSS("font-size", style === "calm" ? "27px" : defaultHeading);
+    await expect(body.locator("h1").first()).toHaveCSS("font-size", style === "calm" ? "26px" : defaultHeading);
   });
 }
 

@@ -62,6 +62,38 @@ test("桌面设置外部点击不关闭，按住查看正文，释放和失焦�
   await expect(overlay).toHaveCount(0);
 });
 
+test("排版设置按住外部预览，释放恢复且保留草稿", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await createBlankDocument(page, "排版临时预览");
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
+  await page.getByRole("button", { name: /打开排版设置/ }).click();
+  const appearance = page.getByRole("dialog", { name: "排版设置", exact: true });
+  const overlay = page.locator(".settings-overlay");
+  const size = appearance.getByLabel("H1 字号", { exact: true });
+  await size.selectOption("40");
+  await page.mouse.click(8, 500);
+  await expect(appearance).toBeVisible();
+  await expect(size).toHaveValue("40");
+  await page.mouse.move(8, 500);
+  await page.mouse.down();
+  await expect(overlay).toHaveCSS("opacity", "0");
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(0px)");
+  await page.mouse.move(800, 500);
+  await page.mouse.up();
+  await expect(overlay).toHaveCSS("opacity", "1");
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(6px)");
+  await expect(appearance).toBeVisible();
+  await expect(size).toHaveValue("40");
+  await page.mouse.move(8, 500);
+  await page.mouse.down();
+  await expect(overlay).toHaveCSS("opacity", "0");
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  await expect(overlay).toHaveCSS("opacity", "1");
+  await page.mouse.up();
+  await expect(size).toHaveValue("40");
+});
+
 test("减少动态效果时设置预览关闭过渡，按住和松开仍可使用", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await createBlankDocument(page);

@@ -42,7 +42,7 @@ test("长文档在编辑、源码和局部只读中随实际分栏宽度调整",
     setTimeout(() => useNotesStore.getState().selectNote(note), 0);
   }, markdown);
   const editor = page.locator(".note-editor .ProseMirror");
-  await expect(editor.locator("h1").first()).toHaveCSS("font-size", "34px");
+  await expect(editor.locator("h1").first()).toHaveCSS("font-size", "28px");
   await expect(editor.locator("h2").first()).toHaveCSS("margin-top", "0px");
   await expect(editor.locator("p").first()).toHaveCSS("margin-bottom", "28px");
   const snapshot = await editor.evaluate((el) =>
@@ -53,7 +53,7 @@ test("长文档在编辑、源码和局部只读中随实际分栏宽度调整",
     .evaluate((el) =>
       Object.assign((el as HTMLElement).style, { maxWidth: "440px" }),
     );
-  await expect(editor.locator("h1").first()).toHaveCSS("font-size", "27px");
+  await expect(editor.locator("h1").first()).toHaveCSS("font-size", "26px");
   await expect(editor.locator("p").first()).toHaveCSS("font-size", "16px");
   await page.getByRole("button", { name: "源码", exact: true }).click();
   await expect(page.locator(".markdown-cm-host")).toBeVisible();
@@ -95,7 +95,7 @@ test("长文档在编辑、源码和局部只读中随实际分栏宽度调整",
     );
   await expect(page.locator(".vr-block h1").first()).toHaveCSS(
     "font-size",
-    "27px",
+    "26px",
   );
   await expect(
     page.locator('.vr-row[data-next-heading="true"] p').first(),

@@ -100,7 +100,8 @@
       )
       .editor-content
       :is(h1) {
-      font-size: calc(var(--editor-font-size) * 1.6875);
+      --editor-h1-scale: 1.625;
+      font-size: var(--editor-heading-size, calc(var(--editor-font-size) * var(--editor-h1-scale)));
       letter-spacing: 0;
     }
     html:is(
@@ -108,14 +109,14 @@
       )
       .editor-content
       :is(h2) {
-      font-size: calc(var(--editor-font-size) * 1.1875);
+      font-size: var(--editor-heading-size, calc(var(--editor-font-size) * var(--editor-h2-scale)));
     }
     html:is(
         [data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]
       )
       .editor-content
       :is(h3) {
-      font-size: calc(var(--editor-font-size) * 1.0625);
+      font-size: var(--editor-heading-size, calc(var(--editor-font-size) * var(--editor-h3-scale)));
     }
     html:is(
         [data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]

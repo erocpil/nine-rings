@@ -487,16 +487,16 @@
 }
 
 .editor-appearance-document h1 {
-  font-size: var(--editor-heading-size, 1.65em);
+  font-size: var(--editor-heading-size, calc(var(--editor-font-size) * var(--editor-h1-scale)));
   line-height: 1.25;
 }
 
 .editor-appearance-document h2 {
-  font-size: var(--editor-heading-size, 1.25em);
+  font-size: var(--editor-heading-size, calc(var(--editor-font-size) * var(--editor-h2-scale)));
 }
 
 .editor-appearance-document h3 {
-  font-size: var(--editor-heading-size, 1.1em);
+  font-size: var(--editor-heading-size, calc(var(--editor-font-size) * var(--editor-h3-scale)));
 }
 
 .editor-appearance-document :is(h1, h2, h3) {

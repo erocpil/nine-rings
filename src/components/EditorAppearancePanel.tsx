@@ -17,9 +17,11 @@ interface Props {
   dirty: boolean;
   onUpdate: (partial: Partial<AppConfig>) => void;
   initialSearch?: string;
+  mobile: boolean;
+  onPreviewChange: (previewing: boolean) => void;
 }
 
-export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdate, initialSearch }: Props) {
+export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdate, initialSearch, mobile, onPreviewChange }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [applying, setApplying] = useState(false);
   const applyingRef = useRef(false);
@@ -86,8 +88,18 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
       aria-labelledby="editor-appearance-title"
       onClick={(event) => {
         event.stopPropagation();
-        if (event.target === event.currentTarget) close();
+        if (mobile && event.target === event.currentTarget) close();
       }}
+      onPointerDown={event => {
+        if (mobile || event.pointerType !== "mouse" || event.button !== 0 || event.target !== event.currentTarget) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        onPreviewChange(true);
+      }}
+      onPointerUp={() => onPreviewChange(false)}
+      onPointerCancel={() => onPreviewChange(false)}
+      onLostPointerCapture={() => onPreviewChange(false)}
     >
       <div ref={panelRef} className="editor-appearance-panel" onClick={(event) => event.stopPropagation()}>
         <div ref={headingProbeRef} className="editor-content" aria-hidden="true"

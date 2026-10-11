@@ -16,7 +16,7 @@ async function expectTypography(root: Locator, size: number, gap: number, before
   });
   expect(metrics.first.bottom).toBeCloseTo(gap, 1);
   expect(metrics.second.bottom).toBeCloseTo(mobile ? before * 4 / 7 : before, 1);
-  const ratios = mobile ? [1.6875, 1.1875, 1.125, 1, 1, 1] : [2.125, 1.3125, 1.125, 1, 1, 1];
+  const ratios = mobile ? [1.625, 1.5, 1.375, 1.25, 1.125, 1] : [1.75, 1.5, 1.375, 1.25, 1.125, 1];
   metrics.headings.forEach((heading, index) => {
     expect(heading.size).toBeCloseTo(size * ratios[index], 1);
     expect(heading.weight).toBe("600");
@@ -43,7 +43,7 @@ test("切换七种风格保留共享设置，设置预览展示相同排版", as
     await expect(page.locator(".note-editor .ProseMirror")).toHaveCSS("font-size", "20px");
     await page.getByRole("button", { name: /打开排版设置/ }).click();
     const preview = page.getByLabel("编辑器排版预览");
-    await expect(preview.locator("h1")).toHaveCSS("font-size", "42.5px");
+    await expect(preview.locator("h1")).toHaveCSS("font-size", "35px");
     await expect(preview.locator("h1")).toHaveCSS("font-weight", "600");
     await expect(preview.locator("h1")).toHaveCSS("margin-bottom", "14px");
     await expect(preview.locator("p").first()).toHaveCSS("margin-bottom", "34px");

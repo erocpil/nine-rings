@@ -40,6 +40,23 @@ html:not([data-interface-style="classic"]) .editor-appearance-document > :has(+ 
   }
 }
 
+/* Shared heading scale; explicit pixel overrides remain authoritative. */
+:root {
+  --editor-h1-scale: 1.6;
+  --editor-h2-scale: 1.5;
+  --editor-h3-scale: 1.375;
+  --editor-h4-scale: 1.25;
+  --editor-h5-scale: 1.125;
+  --editor-h6-scale: 1;
+}
+html:not([data-interface-style="classic"]) {
+  --editor-h1-scale: 1.75;
+}
+@media (max-width: 768px) {
+  html:not([data-interface-style="classic"]) {
+    --editor-h1-scale: 1.625;
+  }
+}
 /* A missing override keeps each style and viewport’s existing defaults. */
 :root {
   --editor-h1-size: initial;
@@ -51,21 +68,27 @@ html:not([data-interface-style="classic"]) .editor-appearance-document > :has(+ 
 }
 :is(.editor-content, .vr-block, .editor-appearance-document) h1 {
   --editor-heading-size: var(--editor-h1-size);
+  font-size: var(--editor-heading-size, calc(var(--editor-font-size) * var(--editor-h1-scale)));
 }
 :is(.editor-content, .vr-block, .editor-appearance-document) h2 {
   --editor-heading-size: var(--editor-h2-size);
+  font-size: var(--editor-heading-size, calc(var(--editor-font-size) * var(--editor-h2-scale)));
 }
 :is(.editor-content, .vr-block, .editor-appearance-document) h3 {
   --editor-heading-size: var(--editor-h3-size);
+  font-size: var(--editor-heading-size, calc(var(--editor-font-size) * var(--editor-h3-scale)));
 }
 :is(.editor-content, .vr-block, .editor-appearance-document) h4 {
   --editor-heading-size: var(--editor-h4-size);
+  font-size: var(--editor-heading-size, calc(var(--editor-font-size) * var(--editor-h4-scale)));
 }
 :is(.editor-content, .vr-block, .editor-appearance-document) h5 {
   --editor-heading-size: var(--editor-h5-size);
+  font-size: var(--editor-heading-size, calc(var(--editor-font-size) * var(--editor-h5-scale)));
 }
 :is(.editor-content, .vr-block, .editor-appearance-document) h6 {
   --editor-heading-size: var(--editor-h6-size);
+  font-size: var(--editor-heading-size, calc(var(--editor-font-size) * var(--editor-h6-scale)));
 }
 
 .editor-content .blockquote-content,
