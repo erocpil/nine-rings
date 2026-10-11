@@ -132,7 +132,7 @@
 }
 
 /* Match other structured blocks: their opaque frame keeps its original color. */
-.flow-active-block { background: var(--activeline-bg); border-radius: 3px; }
+.flow-active-block { background: color-mix(in srgb, var(--activeline-bg) 55%, transparent); border-radius: 3px; }
 .node-codeBlock .flow-active-block { background: transparent; }
 .no-active-line .flow-active-block { background: transparent; }
 .flow-block-content.flow-active-block { background: var(--bg); }

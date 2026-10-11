@@ -1,7 +1,7 @@
 /* ──── 高亮当前行 ──── */
 
 .ProseMirror-activeline {
-  background: var(--activeline-bg);
+  background: color-mix(in srgb, var(--activeline-bg) 55%, transparent);
   border-radius: 3px;
 }
 
@@ -379,7 +379,7 @@
 }
 .show-line-numbers .ProseMirror > pre.ProseMirror-activeline,
 .show-line-numbers .ProseMirror .code-block-wrap.ProseMirror-activeline .code-block-inner pre {
-  background: var(--activeline-bg);
+  background: color-mix(in srgb, var(--activeline-bg) 55%, transparent);
 }
 .show-line-numbers .ProseMirror > pre code,
 .show-line-numbers .ProseMirror > .code-block-wrap .code-block-inner pre code {
