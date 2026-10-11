@@ -96,10 +96,13 @@ test("设置入口、浅深主题、独立停用及恢复默认", async ({ page 
     name: "内置文档树展示插件",
     exact: true,
   });
-  await expect(enabled).toBeDisabled();
+  await expect(
+    page.getByRole("complementary", { name: "插件列表" }),
+  ).toHaveCount(0);
   await page
     .getByRole("checkbox", { name: "启用插件功能", exact: true })
     .check();
+  await page.getByRole("button", { name: "文档树展示", exact: true }).click();
   await enabled.check();
   await page
     .getByRole("spinbutton", { name: "文档树字号", exact: true })
@@ -117,7 +120,7 @@ test("设置入口、浅深主题、独立停用及恢复默认", async ({ page 
     page.getByRole("spinbutton", { name: "文档树字号", exact: true }),
   ).toHaveValue("14");
   const stop = page.getByRole("button", {
-    name: "停用 nine-rings.builtin-tree-display",
+    name: "停用插件",
     exact: true,
   });
   await stop.click();
@@ -128,6 +131,7 @@ test("设置入口、浅深主题、独立停用及恢复默认", async ({ page 
   await enabled.uncheck();
   await enabled.check();
   await expect(stop).toBeVisible();
+  await page.getByRole("button", { name: "关闭插件配置", exact: true }).click();
   await page.locator(".settings-close").click();
   await openDocumentSidebar(page);
   const resolved: string[] = [];

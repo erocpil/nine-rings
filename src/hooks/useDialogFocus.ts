@@ -6,6 +6,7 @@ export function useDialogFocus(
   active: boolean,
   initialFocusRef: RefObject<HTMLElement>,
   restoreFocusRef?: RefObject<HTMLElement | null>,
+  cycleAllControls = false,
 ) {
   const restoreFrameRef = useRef<number | null>(null);
   const previousFocusRef = useRef<Element | null>(null);
@@ -46,7 +47,15 @@ export function useDialogFocus(
         event.preventDefault();
         return;
       }
-      if (event.shiftKey && document.activeElement === first) {
+      // Native WebKit Tab navigation can omit buttons unless full keyboard
+      // access is enabled. Native plugin dialogs opt into explicit cycling.
+      if (cycleAllControls) {
+        event.preventDefault();
+        const index = controls.indexOf(document.activeElement as HTMLElement);
+        const next = index < 0 ? (event.shiftKey ? controls.length - 1 : 0)
+          : (index + (event.shiftKey ? -1 : 1) + controls.length) % controls.length;
+        controls[next].focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
@@ -73,5 +82,5 @@ export function useDialogFocus(
           restoreTarget.focus({ preventScroll: true });
       });
     };
-  }, [active, containerRef, initialFocusRef, restoreFocusRef]);
+  }, [active, containerRef, initialFocusRef, restoreFocusRef, cycleAllControls]);
 }

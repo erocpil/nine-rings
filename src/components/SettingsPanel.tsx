@@ -1,4 +1,4 @@
-import { SettingsTreeDisplay } from "./SettingsTreeDisplay";
+import { SettingsPluginCatalog } from "./SettingsPluginCatalog";
 import { PluginRuntimeStatus } from "./PluginRuntimeStatus";
 import { useRelativeNumbering } from "../hooks/useRelativeNumbering";
 import { useSyncExternalStore } from "react";
@@ -1255,6 +1255,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <SettingsSync onBusyChange={reportSyncBusy} onBeforePush={onBeforePush} onPullDone={onPullDone} />
             )}
 
+            <div className={`settings-advanced-main${pluginsEnabled ? " has-plugin-catalog" : ""}`}>
             <Field label="启用插件功能" desc="默认关闭，仅在本设备生效。关闭会终止插件任务；不影响内置编辑功能。当前插件仍在适配中，第三方安装尚未开放。" visible={settingsPage === "advanced"}>
               <label className="settings-toggle">
                 <input type="checkbox" aria-label="启用插件功能" checked={pluginsEnabled} onChange={event => {
@@ -1265,10 +1266,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            {settingsPage === "advanced" && <>
-              <SettingsTreeDisplay pluginsEnabled={pluginsEnabled} onMessage={showMessage} />
-              <PluginRuntimeStatus />
-            </>}
+            {settingsPage === "advanced" && <PluginRuntimeStatus />}
 
             <Field label="只读正文局部渲染（实验）" desc="默认关闭，仅本设备生效。只读时按可见区域挂载正文；图片、表格及超大单块自动回退。跨全文选择、打印、书签管理请切回完整渲染。" visible={settingsPage === "advanced"}>
               <label className="settings-toggle">
@@ -1325,6 +1323,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </SettingsSection>
             )}
 
+
+            </div>
+            {settingsPage === "advanced" && pluginsEnabled && <SettingsPluginCatalog />}
 
             {settingsPage === "changelog" && <SettingsChangelog />}
 
