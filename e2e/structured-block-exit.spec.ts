@@ -46,7 +46,7 @@ test.describe("结构块退出行为", () => {
           const textNode = span.firstChild!;
           const range = document.createRange();
           range.selectNodeContents(textNode);
-          const rect = range.getBoundingClientRect();
+          const rect = Array.from(range.getClientRects()).find(rect => rect.width > 0 && rect.height > 0)!;
           return rect.top + rect.height / 2;
         });
       const codeElement = block.querySelector("code");
@@ -60,7 +60,7 @@ test.describe("结构块退出行为", () => {
           const range = document.createRange();
           range.setStart(codeText, offset);
           range.setEnd(codeText, Math.min(offset + 1, text.length));
-          const rect = range.getBoundingClientRect();
+          const rect = Array.from(range.getClientRects()).find(rect => rect.width > 0 && rect.height > 0)!;
           return rect.top + rect.height / 2;
         });
       return { gutterWidth: gutterElement.getBoundingClientRect().width, numberCenters, codeCenters };
@@ -196,13 +196,13 @@ test.describe("触屏代码块退出行为", () => {
         const range = document.createRange();
         range.setStart(textNode, start);
         range.setEnd(textNode, Math.min(start + 1, textNode.length));
-        const rect = range.getBoundingClientRect();
+        const rect = Array.from(range.getClientRects()).find(rect => rect.width > 0 && rect.height > 0)!;
         return rect.top + rect.height / 2;
       });
       const numberCenters = numberElements.map((number) => {
         const range = document.createRange();
         range.selectNodeContents(number);
-        const rect = range.getBoundingClientRect();
+        const rect = Array.from(range.getClientRects()).find(rect => rect.width > 0 && rect.height > 0)!;
         return rect.top + rect.height / 2;
       });
       const firstLine = document.createRange();

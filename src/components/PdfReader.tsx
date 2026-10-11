@@ -291,7 +291,9 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
   const [zoom, setZoom] = useState(1);
   const [lockedWidthRatio, setLockedWidthRatio] = useState<number | null>(null);
   const [fitWidth, setFitWidthValue] = useState(true);
+  const zoomIntentRevisionRef = useRef(0);
   const setFitWidth = useCallback((value: boolean) => {
+    zoomIntentRevisionRef.current += 1;
     setLockedWidthRatio(null);
     setFitWidthValue(value);
   }, []);
@@ -915,6 +917,7 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
     const renderTasks = renderTaskRefs.current;
     const textLayers = textLayerRefs.current;
     const documentGeneration = documentRenderGenerationRef.current;
+    const zoomIntentRevision = zoomIntentRevisionRef.current;
     const currentPages = [...renderedPages];
     // 适宽/适高时实际比例只由视口决定。此时 setZoom 只用于记录计算结果，
     // 不应改变渲染签名，否则会紧接着重复渲染同一尺寸。
@@ -1161,7 +1164,10 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
                 restorePdfZoomAnchor(scrollViewport, anchorSurface, zoomAnchor);
               });
             }
-            if (!isStale() && (fitWidth || fitHeight || lockedWidthRatio !== null) && pageNumber === page) setZoom(clampZoom(displayScale));
+            // A completed fit raster must not overwrite a newer explicit zoom
+            // before React runs this effect's cleanup.
+            if (!isStale() && zoomIntentRevisionRef.current === zoomIntentRevision
+              && (fitWidth || fitHeight || lockedWidthRatio !== null) && pageNumber === page) setZoom(clampZoom(displayScale));
           } finally {
             stagedCanvas.width = stagedCanvas.height = 0;
           }

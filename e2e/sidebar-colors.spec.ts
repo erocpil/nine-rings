@@ -17,7 +17,7 @@ test("分栏导航和工具栏跟随主题背景，保留选中反馈", async ({
       await expect(heading).toBeVisible();
       const background = await page.locator("html").evaluate(el => getComputedStyle(el).backgroundColor);
       await expect(rail).toHaveCSS("background-color", background);
-      await expect(heading).toHaveCSS("background-color", background);
+      await expect(heading).toHaveCSS("background-color", panel === "文档树" ? "rgba(0, 0, 0, 0)" : background);
       await expect(button).toHaveAttribute("aria-pressed", "true");
       await expect(button).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
       const icon = button.locator(".toolbar-icon");

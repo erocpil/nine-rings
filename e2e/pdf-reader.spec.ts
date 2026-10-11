@@ -72,6 +72,12 @@ test("本地 PDF 从阅读资料库导入后在独立阅读器打开并可再次
   await expect(reader).toBeVisible();
 
   const doubleClickSurface = page.locator(".pdf-page-surface").first();
+  // Leaving fullscreen schedules a new raster. Capture the zoom baseline only
+  // when its canvas matches the restored surface, rather than the old frame.
+  await expect.poll(() => doubleClickSurface.evaluate(element => {
+    const canvas = element.querySelector("canvas")!;
+    return Math.abs(canvas.width - element.clientWidth * (window.devicePixelRatio || 1));
+  })).toBeLessThan(2);
   const doubleClickPoint = { x: 120, y: 70 };
   const anchorBeforeZoom = await doubleClickSurface.evaluate((element, point) => {
     const bounds = element.getBoundingClientRect();

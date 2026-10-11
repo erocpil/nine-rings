@@ -200,7 +200,8 @@ test("局部只读工具栏复制块引用也保留点击权限", async ({ page 
   await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   const root = page.locator("[data-virtual-reader]");
   await expect(root).toBeVisible();
-  await root.getByRole("button", { name: "复制块引用", exact: true }).click();
+  await page.getByRole("button", { name: "块级操作", exact: true }).click();
+  await page.getByRole("menuitem", { name: "复制块引用", exact: true }).click();
   await expect
     .poll(() => page.evaluate(() => (window as any).copiedReference))
     .toMatch(/nr-note:\/\/.+#nr-ref-/);

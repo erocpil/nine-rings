@@ -137,6 +137,18 @@ test("虚拟目录实测行高变化后更新后续行的位置", async ({ page 
   await expect.poll(() => second.evaluate((element: HTMLElement) => parseFloat(element.style.top))).toBe(26);
   const scroller = list.locator(".document-outline-list");
   await scroller.evaluate((el: HTMLElement) => { el.style.height = "320px"; });
+  // First visits legitimately replace estimates with natural row heights.
+  // Let the resized scrollbar/width settle and measure the route once; the
+  // following pass verifies that revisiting measured rows does not drift.
+  await scroller.evaluate(async (el) => {
+    await document.fonts.ready;
+    for (let i = 0; i < 4; i++) await new Promise(requestAnimationFrame);
+    for (let top = 0; top < el.scrollHeight; top += el.clientHeight / 2) {
+      el.scrollTop = top;
+      el.dispatchEvent(new Event("scroll"));
+      for (let i = 0; i < 4; i++) await new Promise(requestAnimationFrame);
+    }
+  });
   for (const fraction of [0.8, 0.4, 0.9, 0.2]) {
     const drift = await scroller.evaluate(async (el, ratio) => {
       const beforeHeight = el.scrollHeight;

@@ -124,7 +124,9 @@ test("文本区折叠箭头与文档树一致，方向跟随折叠状态", async
 
 test("设置原生详情项使用统一箭头，点击与键盘仍可展开收起", async ({ page }) => {
   await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
   await page.getByTitle("设置", { exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "设置", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /^编辑器/ }).click();
   await page.getByRole("button", { name: /^Vim 设置/ }).click();
   const summary = page.locator("summary").filter({ hasText: "高级 set 配置" });

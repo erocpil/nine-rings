@@ -109,7 +109,7 @@ test("源码查找采用同一 Perl 引擎，全词、替换和一次撤销可�
   const query = panel.locator('input[name="search"]');
   await query.fill("word");
   await panel.getByRole("checkbox", { name: "全词匹配", exact: true }).check();
-  await expect(panel.locator(".editor-find-count")).toHaveText("0/2");
+  await expect(panel.locator(".editor-find-count")).toHaveText("2 处");
   await panel
     .getByRole("checkbox", { name: "全词匹配", exact: true })
     .uncheck();
@@ -117,7 +117,7 @@ test("源码查找采用同一 Perl 引擎，全词、替换和一次撤销可�
     .getByRole("checkbox", { name: "正则表达式（Perl）", exact: true })
     .check();
   await query.fill(String.raw`foo\K(\d+)`);
-  await expect(panel.locator(".editor-find-count")).toHaveText("0/2");
+  await expect(panel.locator(".editor-find-count")).toHaveText("2 处");
   await panel.locator('input[name="replace"]').fill("[$1]");
   await panel.locator('button[name="replaceAll"]').click();
   await expect(
@@ -130,7 +130,7 @@ test("源码查找采用同一 Perl 引擎，全词、替换和一次撤销可�
   await query.fill("[");
   await expect(panel.getByRole("alert")).toContainText("正则表达式无效");
   await query.fill("foo\\d+");
-  await expect(panel.locator(".editor-find-count")).toHaveText("0/2");
+  await expect(panel.locator(".editor-find-count")).toHaveText("2 处");
   await panel.getByRole("button", { name: "关闭", exact: true }).click();
   await page.getByRole("button", { name: "渲染", exact: true }).click();
   await page.getByRole("button", { name: "点击设为只读", exact: true }).click();

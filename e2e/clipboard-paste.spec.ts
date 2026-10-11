@@ -918,6 +918,7 @@ test.describe("编辑器复制粘贴", () => {
 test.describe("文档树移动", () => {
   test("可新建自定义多级目录", async ({ page }) => {
     await page.goto("/");
+    await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
     await page.getByTitle("新建文档").click();
 
     await page.getByPlaceholder("文档标题...").fill("自定义目录文档");
@@ -931,6 +932,7 @@ test.describe("文档树移动", () => {
 
   test("目录与属性面板共用移动对话框，重载后路径仍正确", async ({ page }) => {
     await page.goto("/");
+    await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
     await page.getByTitle("新建文档").click();
 
     await page.getByPlaceholder("文档标题...").fill("移动回归文档");

@@ -1254,6 +1254,11 @@ test.describe("PWA 窄屏应用外壳", () => {
     await pressDocumentBoundary(editor, "start");
     await page.locator(".note-title-row").getByTitle("专注模式").click();
     const body = page.locator(".note-editor-scroll");
+    await expect.poll(() => body.evaluate(async (element) => {
+      const path = "/src/lib/reading-position.ts";
+      const { isReadingPositionRestoring } = await import(/* @vite-ignore */ path);
+      return isReadingPositionRestoring(element as HTMLElement);
+    })).toBe(false);
     await body.evaluate((element) => { element.scrollTop = 500; });
     const drawer = page.getByRole("dialog", { name: "阅读侧栏" });
     await swipeNoteEditor(page.locator(".note-editor"), { startX: 370, startY: 190, endX: 270, endY: 200 });
@@ -2182,13 +2187,19 @@ test.describe("PWA 窄屏应用外壳", () => {
     });
     expect(geometry.menuTop).toBeGreaterThanOrEqual(geometry.viewportTop);
     expect(geometry.menuBottom).toBeLessThanOrEqual(geometry.viewportBottom);
-    expect(geometry.menuTop).toBeGreaterThanOrEqual(geometry.toolbarBottom);
+    // fitContent deliberately uses the space above the anchor for a modal sheet.
+    expect(geometry.menuTop).toBeGreaterThanOrEqual(geometry.viewportTop + 8);
     await expect(sheet.getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
     const lastAction = sheet.getByRole("button", { name: "放大编辑器字号" });
     await expect(lastAction).toBeVisible();
-    expect(await sheet.locator(".mobile-action-sheet-content").evaluate((content) =>
-      content.scrollHeight - content.clientHeight)).toBeLessThanOrEqual(2);
-    await expect(sheet.locator(".mobile-action-sheet-scroll-hint")).toHaveCount(0);
+    // Additional commands can exceed the reduced keyboard viewport. The last
+    // action must remain reachable inside the sheet rather than force overflow.
+    await lastAction.scrollIntoViewIfNeeded();
+    await expect.poll(() => lastAction.evaluate((action) => {
+      const bounds = action.closest(".mobile-action-sheet-content")!.getBoundingClientRect();
+      const rect = action.getBoundingClientRect();
+      return rect.top >= bounds.top && rect.bottom <= bounds.bottom + 1;
+    })).toBe(true);
   });
 
   test("更多弹层触摸由面板处理，滑动不会被工具栏提前转为点击", async ({ page }) => {
@@ -2240,7 +2251,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       { width: 760, height: 390 },
       { width: 390, height: 760 },
     ]) {
-      await page.keyboard.press("Escape");
+      if (await sheet.isVisible()) await page.keyboard.press("Escape");
       await page.setViewportSize(viewport);
       await page.getByTitle("更多编辑操作").click();
       // New reference actions can exceed a short viewport. Keep full touch

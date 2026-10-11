@@ -4,6 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function createDocument(page: Page, title: string, root?: string) {
   await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
   const previousNoteId = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
   await page.getByTitle("新建文档").click();
   await page.getByPlaceholder("文档标题...").fill(title);

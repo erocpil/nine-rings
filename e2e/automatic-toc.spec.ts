@@ -95,7 +95,8 @@ test("手机自动目录级别可点选，超长标签不撑宽竖屏或横屏",
     }
     await expect(toc).toBeVisible();
     await expect(toc.locator("ol")).toHaveCSS("list-style-type", "none");
-    expect(await toc.locator("li").first().evaluate(element => getComputedStyle(element, "::before").content)).toBe("none");
+    // WebKit serializes an absent pseudo-element as an empty string.
+    expect(["none", "", "normal"]).toContain(await toc.locator("li").first().evaluate(element => getComputedStyle(element, "::before").content));
     const bounds = (await toc.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
