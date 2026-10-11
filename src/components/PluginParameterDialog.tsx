@@ -13,7 +13,10 @@ export function PluginParameterDialog({
 }: {
   command: PluginInvocation;
   onCancel: () => void;
-  onSubmit: (values: ParameterValues) => void;
+  onSubmit: (
+    values: ParameterValues,
+    files: Readonly<Record<string, File>>,
+  ) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
@@ -22,6 +25,7 @@ export function PluginParameterDialog({
   const [values, setValues] = useState<ParameterValues>(() =>
     Object.fromEntries(fields.map((field) => [field.id, field.default])),
   );
+  const [files, setFiles] = useState<Record<string, File>>({});
   const [error, setError] = useState("");
   useLayoutEffect(() => {
     const element = dialog.current!;
@@ -56,7 +60,7 @@ export function PluginParameterDialog({
         onSubmit={(event) => {
           event.preventDefault();
           try {
-            onSubmit(validateParameterValues(fields, values));
+            onSubmit(validateParameterValues(fields, values), files);
           } catch (cause) {
             setError(cause instanceof Error ? cause.message : "参数无效");
           }
@@ -110,7 +114,12 @@ export function PluginParameterDialog({
                         ? undefined
                         : String(values[field.id])
                     }
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      setFiles((current) => {
+                        const next = { ...current };
+                        delete next[field.id];
+                        return next;
+                      });
                       setValues({
                         ...values,
                         [field.id]:
@@ -121,9 +130,49 @@ export function PluginParameterDialog({
                                 ? ""
                                 : Number(event.target.value)
                               : event.target.value,
-                      })
-                    }
+                      });
+                    }}
                   />
+                )}
+                {field.filePicker && (
+                  <>
+                    <input
+                      type="file"
+                      aria-label="选择图片文件"
+                      accept={field.filePicker.accept}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) return;
+                        if (
+                          !file.size ||
+                          file.size > field.filePicker!.maxBytes ||
+                          !field
+                            .filePicker!.accept.split(",")
+                            .includes(file.type)
+                        ) {
+                          setError(
+                            "请选择不超过 10 MB 的 PNG、JPEG、GIF、WebP、AVIF 或 BMP 图片",
+                          );
+                          event.target.value = "";
+                          return;
+                        }
+                        setFiles({ ...files, [field.id]: file });
+                        setValues({
+                          ...values,
+                          [field.id]: file.name.slice(
+                            0,
+                            field.maxLength ?? 2048,
+                          ),
+                        });
+                        setError("");
+                      }}
+                    />
+                    {files[field.id] && (
+                      <small>
+                        已选择：{files[field.id].name}；执行后保存到文档图片存储
+                      </small>
+                    )}
+                  </>
                 )}
               </label>
             ))}

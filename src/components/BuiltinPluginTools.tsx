@@ -38,6 +38,7 @@ import {
   formatPluginDate,
   type DateFormat,
 } from "../lib/plugin-system/date-formats";
+import { storePluginImage } from "../lib/plugin-system/local-image";
 import { ToolbarIcon } from "./ToolbarIcon";
 
 export function BuiltinPluginTools({
@@ -133,7 +134,7 @@ export function BuiltinPluginTools({
   const run = async (
     kind: DocumentTool,
     format: DateFormat = "date",
-    markdown?: string,
+    markdown?: string | ((signal: AbortSignal) => Promise<string>),
   ) => {
     if (
       running.current ||
@@ -344,12 +345,27 @@ export function BuiltinPluginTools({
               label: "插入图片",
               disabled: readonly || !documentToolEnabled("image"),
               parameters: { kind: "form", fields: IMAGE_FIELDS },
-              run: (values: ParameterValues) => {
+              run: (values: ParameterValues, files) => {
                 const id =
                   values.kind === "reference"
                     ? `${String(values.reference)}-${crypto.randomUUID().slice(0, 8)}`
                     : undefined;
-                const markdown = imageCommandMarkdown(values, id);
+                // Validate non-file parameters before closing the form. Only the host
+                // creates local references; typed executable URLs remain rejected.
+                imageCommandMarkdown(
+                  files?.src ? { ...values, src: "/icon-192.svg" } : values,
+                  id,
+                );
+                const markdown = files?.src
+                  ? async (signal: AbortSignal) => {
+                      const ref = await storePluginImage(
+                        files.src,
+                        context.documentId!,
+                        signal,
+                      );
+                      return imageCommandMarkdown(values, id, ref);
+                    }
+                  : imageCommandMarkdown(values, id);
                 void run("image", "date", markdown);
               },
             },

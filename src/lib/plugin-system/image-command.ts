@@ -15,6 +15,10 @@ export const IMAGE_FIELDS: readonly ParameterField[] = [
   {
     id: "src",
     label: "图片地址",
+    filePicker: {
+      accept: "image/png,image/jpeg,image/gif,image/webp,image/avif,image/bmp",
+      maxBytes: 10 * 1024 * 1024,
+    },
     type: "text",
     default: "/icon-192.svg",
     required: true,
@@ -88,8 +92,11 @@ function destination(value: string): string {
 export function imageCommandMarkdown(
   values: ParameterValues,
   referenceId = String(values.reference),
+  localRef?: string,
 ): string {
-  const src = destination(String(values.src));
+  if (localRef && !/^nr-image:\/\/[a-zA-Z0-9-]+$/.test(localRef))
+    throw new Error("无效的本地图片引用");
+  const src = localRef ? `<${localRef}>` : destination(String(values.src));
   const alt = text(String(values.alt));
   const title = String(values.title)
     .replace(/[\r\n]/g, " ")

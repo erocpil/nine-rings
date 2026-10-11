@@ -311,6 +311,9 @@ describe("backup failure boundaries", () => {
     const first = await storeImage(new Blob(["first"]));
     const second = await storeImage(new Blob(["second"]));
     const content = {
+      metadata: {
+        markdownSource: `![first](<${first}>)\n![second](<${second}>)\n\`nr-image://literal-example\``,
+      },
       ops: [
         { insert: { image: first } },
         { insert: { resizableImage: { src: second } } },
@@ -327,11 +330,22 @@ describe("backup failure boundaries", () => {
         },
       ],
     };
+    const resolved = await resolveImageRefs(content);
+    expect(resolved.metadata.markdownSource).toContain(
+      "data:image/png;base64,",
+    );
+    expect(resolved.metadata.markdownSource).not.toContain(first);
+    expect(resolved.metadata.markdownSource).not.toContain(second);
+    expect(resolved.metadata.markdownSource).toContain(
+      "nr-image://literal-example",
+    );
+    expect(content.metadata.markdownSource).toContain(first);
     await importData(
       JSON.stringify({ notes: [{ ...note("images"), content }] }),
     );
     const exported = await exportData();
-    expect(exported).not.toContain("nr-image://");
+    expect(exported).not.toContain(first);
+    expect(exported).not.toContain(second);
     const { tauriAdapter } = await import("../../src/lib/storage/tauri");
     const invoke = vi.fn(async (command: string) => {
       expect(command).toBe("export_data");
@@ -343,7 +357,8 @@ describe("backup failure boundaries", () => {
     });
     vi.stubGlobal("window", { __TAURI_INTERNALS__: { invoke } });
     const nativeExport = await tauriAdapter.exportData();
-    expect(nativeExport).not.toContain("nr-image://");
+    expect(nativeExport).not.toContain(first);
+    expect(nativeExport).not.toContain(second);
     expect(JSON.parse(nativeExport).notes[0].content).toEqual(
       JSON.parse(exported).notes[0].content,
     );
@@ -357,7 +372,7 @@ describe("backup failure boundaries", () => {
     await importData(exported, "replace");
     expect(
       JSON.stringify((await idbAdapter.getNote("images"))?.content),
-    ).not.toContain("nr-image://");
+    ).not.toContain(first);
     await expect(resolveImageRefs({ attrs: { src: first } })).rejects.toThrow(
       "缺少本地图片",
     );

@@ -66,3 +66,42 @@ it("rejects executable/unsafe addresses and malformed reference labels before ed
     ),
   ).toThrow();
 });
+
+it("keeps host-created local image references for all image kinds", () => {
+  for (const kind of ["block", "inline", "reference", "linked"]) {
+    const values = validateParameterValues(IMAGE_FIELDS, {
+      kind,
+      src: "photo.png",
+    });
+    const markdown = imageCommandMarkdown(
+      values,
+      "photo",
+      "nr-image://test-123",
+    );
+    expect(JSON.stringify(mdToDelta(markdown))).toContain(
+      "nr-image://test-123",
+    );
+  }
+  expect(() =>
+    imageCommandMarkdown(
+      validateParameterValues(IMAGE_FIELDS, {}),
+      "image",
+      "data:text/html,evil",
+    ),
+  ).toThrow();
+});
+
+it("limits local image imports to supported raster files and 10 MB", async () => {
+  const { validateLocalImage } =
+    await import("../../src/lib/plugin-system/local-image");
+  expect(() =>
+    validateLocalImage({ type: "image/png", size: 10 * 1024 * 1024 }),
+  ).not.toThrow();
+  for (const file of [
+    { type: "image/svg+xml", size: 100 },
+    { type: "text/plain", size: 100 },
+    { type: "image/png", size: 0 },
+    { type: "image/jpeg", size: 10 * 1024 * 1024 + 1 },
+  ])
+    expect(() => validateLocalImage(file)).toThrow();
+});

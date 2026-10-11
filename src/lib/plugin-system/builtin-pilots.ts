@@ -94,12 +94,15 @@ export function builtinDocumentStatistics(content: unknown) {
 export async function insertBuiltinMarkdown(
   sdk: ReturnType<typeof createPluginSdk>,
   signal: AbortSignal,
-  markdown: string,
+  markdown: string | ((signal: AbortSignal) => Promise<string>),
 ) {
   const target = await sdk.editor.captureSelection({ signal });
   const result = await sdk.editor.insert(
     target,
-    { format: "markdown", value: markdown },
+    {
+      format: "markdown",
+      value: typeof markdown === "string" ? markdown : await markdown(signal),
+    },
     { signal },
   );
   if (!result.ok)

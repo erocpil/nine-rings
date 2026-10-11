@@ -101,6 +101,7 @@ function buildMissingImageError(
 export async function resolveImageRefs<T>(value: T): Promise<T> {
   const copy = structuredClone(value);
   const locations = new Map<string, ImageRefLocation[]>();
+  const sources: ImageRefLocation[] = [];
   function visit(node: unknown, currentNote: NoteContext | null = null): void {
     if (!node || typeof node !== "object") return;
     const nextNote = noteContextOf(node) ?? currentNote;
@@ -117,10 +118,13 @@ export async function resolveImageRefs<T>(value: T): Promise<T> {
         const items = locations.get(child) ?? [];
         items.push({ object: node as Record<string, unknown>, key, note: nextNote });
         locations.set(child, items);
+      } else if (key === "markdownSource" && typeof child === "string") {
+        sources.push({ object: node as Record<string, unknown>, key, note: nextNote });
       } else visit(child, nextNote);
     }
   }
   visit(copy);
+  const encodedRefs = new Map<string, string>();
   const missing = new Map<string, Set<NoteContext>>();
   for (const [ref, items] of locations) {
     const blob = await getImageBlob(ref);
@@ -134,7 +138,13 @@ export async function resolveImageRefs<T>(value: T): Promise<T> {
       continue;
     }
     const encoded = await blobToBase64(blob);
+    encodedRefs.set(ref, encoded);
     for (const { object, key } of items) object[key] = encoded;
+  }
+  // Resolve only real attachments, leaving literal examples untouched. Scan
+  // each preserved source once instead of once per image in a large backup.
+  for (const { object, key } of sources) {
+    object[key] = String(object[key]).replace(/nr-image:\/\/[a-zA-Z0-9-]+/g, ref => encodedRefs.get(ref) ?? ref);
   }
   if (missing.size > 0) throw new Error(buildMissingImageError(missing));
   return copy;

@@ -65,3 +65,40 @@ it("date reports completion only after persistence; save failure never repeats i
   await expect(insertBuiltinDate(sdk, signal)).rejects.toThrow("保存失败");
   expect(insert).toHaveBeenCalledTimes(2);
 });
+
+it("captures the editing target before asynchronous image materialization", async () => {
+  const { insertBuiltinMarkdown } =
+    await import("../../src/lib/plugin-system/builtin-pilots");
+  const target = { documentId: "original" };
+  const calls: string[] = [];
+  let ready!: (value: string) => void;
+  const resource = new Promise<string>((resolve) => {
+    ready = resolve;
+  });
+  const insert = vi.fn(async () => ({ ok: true, value: {} }));
+  const sdk = {
+    editor: {
+      captureSelection: async () => {
+        calls.push("capture");
+        return target;
+      },
+      insert,
+    },
+    documents: { whenSaved: vi.fn(async () => {}) },
+  } as unknown as ReturnType<typeof createPluginSdk>;
+  const signal = new AbortController().signal;
+  const operation = insertBuiltinMarkdown(sdk, signal, async (received) => {
+    expect(received).toBe(signal);
+    calls.push("read-file");
+    return resource;
+  });
+  await vi.waitFor(() => expect(calls).toEqual(["capture", "read-file"]));
+  expect(insert).not.toHaveBeenCalled();
+  ready("![image](<nr-image://original>)");
+  await operation;
+  expect(insert).toHaveBeenCalledWith(
+    target,
+    { format: "markdown", value: "![image](<nr-image://original>)" },
+    { signal },
+  );
+});

@@ -7,6 +7,7 @@ export interface ParameterField {
   type: "text" | "number" | "boolean" | "select";
   default: ParameterValue;
   required?: boolean;
+  filePicker?: { accept: string; maxBytes: number };
   visibleWhen?: { field: string; equals: ParameterValue };
   maxLength?: number;
   min?: number;
@@ -24,7 +25,10 @@ export interface PluginInvocation {
   label: string;
   disabled?: boolean;
   parameters: CommandParameters;
-  run: (values: ParameterValues) => void;
+  run: (
+    values: ParameterValues,
+    files?: Readonly<Record<string, File>>,
+  ) => void;
 }
 export function validateParameterValues(
   fields: readonly ParameterField[],

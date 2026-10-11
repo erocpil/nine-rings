@@ -226,8 +226,8 @@ export function PluginCommandMenu({
             trigger.focus({ preventScroll: true });
             onClose();
           }}
-          onSubmit={(values) => {
-            form.run(values);
+          onSubmit={(values, files) => {
+            form.run(values, files);
             onClose();
           }}
         />
