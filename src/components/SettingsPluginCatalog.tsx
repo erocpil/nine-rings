@@ -22,6 +22,12 @@ import { useTransientMessage } from "../hooks/useTransientMessage";
 import { SettingsTreeDisplay } from "./SettingsTreeDisplay";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { Field } from "./SettingsFields";
+import {
+  readResultPresentation,
+  saveResultPresentation,
+  subscribeResultPresentation,
+  resultPresentationSnapshot,
+} from "../lib/plugin-system/result-presentation";
 import "./settings-plugins.css";
 
 function PluginConfigurationDialog({
@@ -33,6 +39,9 @@ function PluginConfigurationDialog({
   onClose: () => void;
   trigger: RefObject<HTMLElement | null>;
 }) {
+  useSyncExternalStore(subscribeResultPresentation, resultPresentationSnapshot);
+  const tool = plugin.id === "nine-rings.builtin-date" ? "date" : "statistics";
+  const presentation = readResultPresentation(tool);
   const dialog = useRef<HTMLDialogElement>(null);
   const close = useRef<HTMLButtonElement>(null);
   const status = useSyncExternalStore(
@@ -93,8 +102,44 @@ function PluginConfigurationDialog({
           />
         ) : (
           <>
-            <Field label="配置项" desc="此插件目前没有可调整的配置项。">
-              <p>在文档标题栏的「内置插件」菜单中调用。</p>
+            <Field
+              label="结果展示"
+              desc="在文档标题栏的内置插件菜单中调用；展示方式不改变插件权限。"
+            >
+              <select
+                aria-label="结果展示"
+                value={presentation.surface}
+                onChange={(event) => {
+                  saveResultPresentation(tool, {
+                    ...presentation,
+                    surface: event.target.value as "status" | "popup",
+                  });
+                  showMessage("已更新");
+                }}
+              >
+                <option value="status">状态栏</option>
+                <option value="popup">弹层</option>
+              </select>
+            </Field>
+            <Field
+              label="弹层位置"
+              desc="相对于文本编辑区定位；状态栏隐藏时使用弹层。"
+            >
+              <select
+                aria-label="弹层位置"
+                value={presentation.position}
+                onChange={(event) => {
+                  saveResultPresentation(tool, {
+                    ...presentation,
+                    position: event.target.value as "top" | "center" | "bottom",
+                  });
+                  showMessage("已更新");
+                }}
+              >
+                <option value="top">上方</option>
+                <option value="center">中央</option>
+                <option value="bottom">下方</option>
+              </select>
             </Field>
             {plugin.id === "nine-rings.builtin-date" ? (
               <Field

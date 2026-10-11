@@ -152,7 +152,7 @@ for (const virtual of [false, true]) {
   });
 }
 
-test("插件结果三秒自动关闭，关闭后释放统计订阅", async ({ page }) => {
+test("统计持续显示，Esc 关闭后释放订阅", async ({ page }) => {
   await createBlankDocument(page);
   await closeDocumentSidebar(page);
   await page.evaluate(async () => {
@@ -167,9 +167,10 @@ test("插件结果三秒自动关闭，关闭后释放统计订阅", async ({ pa
     .click();
   const result = page.getByLabel("内置插件结果", { exact: true });
   await expect(result).toContainText("非空白字符");
-  const start = Date.now();
-  await expect(result).toHaveCount(0, { timeout: 4500 });
-  expect(Date.now() - start).toBeGreaterThan(2400);
+  await page.waitForTimeout(3300); // Prove statistics outlive the one-shot notification timer.
+  await expect(result).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(result).toHaveCount(0);
   await expect
     .poll(() =>
       page.evaluate(async () => {
@@ -184,7 +185,8 @@ test("插件结果三秒自动关闭，关闭后释放统计订阅", async ({ pa
 test("Esc 优先关闭插件结果，第二次才收起固定分栏", async ({ page }) => {
   await createBlankDocument(page);
   await page.evaluate(async () => {
-    const { saveSidebarPresentation } = await import("/src/hooks/useSidebarPresentation.ts");
+    const { saveSidebarPresentation } =
+      await import("/src/hooks/useSidebarPresentation.ts");
     saveSidebarPresentation("overlay");
   });
   await closeDocumentSidebar(page);
@@ -206,7 +208,69 @@ test("Esc 优先关闭插件结果，第二次才收起固定分栏", async ({ p
   await page.keyboard.press("Escape");
   await expect(page.getByLabel("内置插件结果", { exact: true })).toHaveCount(0);
   await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
-  await expect(page.locator("[role=menu], [role=dialog][aria-modal=true]")).toHaveCount(0);
+  await expect(
+    page.locator("[role=menu], [role=dialog][aria-modal=true]"),
+  ).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(sidebar).toHaveClass(/sidebar-hidden/);
+});
+
+test("结果展示配置持久化，统计状态栏与居中弹层即时切换", async ({ page }) => {
+  await createBlankDocument(page);
+  await closeDocumentSidebar(page);
+  await page.evaluate(async () => {
+    const { setPluginsEnabled } =
+      await import("/src/lib/plugin-system/runtime.ts");
+    const { saveResultPresentation } =
+      await import("/src/lib/plugin-system/result-presentation.ts");
+    setPluginsEnabled(true);
+    saveResultPresentation("statistics", {
+      surface: "status",
+      position: "center",
+    });
+  });
+  await page.getByRole("button", { name: "内置插件", exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: "当前文档统计", exact: true })
+    .click();
+  const result = page.getByLabel("内置插件结果", { exact: true });
+  await expect(result).toHaveClass(/builtin-plugin-status/);
+  await page.evaluate(async () => {
+    const { saveResultPresentation, readResultPresentation } =
+      await import("/src/lib/plugin-system/result-presentation.ts");
+    saveResultPresentation("statistics", {
+      surface: "popup",
+      position: "center",
+    });
+    if (readResultPresentation("statistics").surface !== "popup")
+      throw new Error("not persisted");
+  });
+  await expect(result).not.toHaveClass(/builtin-plugin-status/);
+  await expect(result).toHaveAttribute("data-position", "center");
+  const root = page.locator(".note-editor:visible").first();
+  const a = await root.boundingBox();
+  const b = await result.boundingBox();
+  expect(Math.abs(b!.x + b!.width / 2 - (a!.x + a!.width / 2))).toBeLessThan(
+    20,
+  );
+  await page.keyboard.press("Escape");
+  await expect(result).toHaveCount(0);
+});
+
+test("日期通知三秒关闭，不改变编辑器焦点", async ({ page }) => {
+  await createBlankDocument(page);
+  await closeDocumentSidebar(page);
+  await page.evaluate(async () => {
+    const { setPluginsEnabled } = await import("/src/lib/plugin-system/runtime.ts");
+    setPluginsEnabled(true);
+  });
+  const editor = page.locator(".ProseMirror:visible");
+  await editor.click();
+  await page.getByRole("button", { name: "内置插件", exact: true }).click();
+  await page.getByRole("menuitem", { name: "插入当前日期", exact: true }).click();
+  const result = page.getByLabel("内置插件结果", { exact: true });
+  await expect(result).toContainText("日期已插入并保存");
+  await expect(editor).toBeFocused();
+  await expect(result).toHaveCount(0, { timeout: 4500 });
+  await expect(editor).toBeFocused();
 });

@@ -75,7 +75,18 @@ for (const width of [390, 1280]) {
         name: `${plugin}配置`,
         exact: true,
       });
-      await expect(details).toContainText("目前没有可调整的配置项");
+      await expect(
+        details.getByRole("combobox", { name: "结果展示", exact: true }),
+      ).toBeVisible();
+      await details
+        .getByRole("combobox", { name: "结果展示", exact: true })
+        .selectOption("popup");
+      await details
+        .getByRole("combobox", { name: "弹层位置", exact: true })
+        .selectOption("top");
+      await expect(
+        details.getByRole("combobox", { name: "弹层位置", exact: true }),
+      ).toHaveValue("top");
       await expect(details).toContainText("当前文档");
       await details
         .getByRole("button", { name: "关闭插件配置", exact: true })

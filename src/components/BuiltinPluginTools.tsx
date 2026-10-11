@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -13,6 +14,12 @@ import {
   builtinDocumentStatistics,
   insertBuiltinDate,
 } from "../lib/plugin-system/builtin-pilots";
+import {
+  readResultPresentation,
+  subscribeResultPresentation,
+  resultPresentationSnapshot,
+  type DocumentTool,
+} from "../lib/plugin-system/result-presentation";
 import { pluginRuntime } from "../lib/plugin-system/runtime";
 import { BlockActionMenu } from "./BlockActionMenu";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -36,6 +43,16 @@ export function BuiltinPluginTools({
     pluginRuntime.subscribe,
     pluginRuntime.isEnabled,
   );
+  useSyncExternalStore(subscribeResultPresentation, resultPresentationSnapshot);
+  const button = useRef<HTMLButtonElement>(null);
+  const [kind, setKind] = useState<DocumentTool>("date");
+  const presentation = readResultPresentation(kind);
+  const [placement, setPlacement] = useState<{
+    target: HTMLElement | null;
+    left: number;
+    top: number;
+    width: number;
+  }>({ target: null, left: 0, top: 0, width: 0 });
   const latest = useRef(context);
   latest.current = context;
   const [trigger, setTrigger] = useState<HTMLElement | null>(null);
@@ -65,10 +82,10 @@ export function BuiltinPluginTools({
   }, [close, active, enabled, context.documentId, context.view]);
   const showingResult = Boolean(message || statistics);
   useEffect(() => {
-    if (busy || !showingResult) return;
+    if (busy || !showingResult || statistics) return;
     const timer = window.setTimeout(close, 3000);
     return () => window.clearTimeout(timer);
-  }, [busy, showingResult, close]);
+  }, [busy, showingResult, statistics, close]);
   useEffect(() => {
     if (!active || (!busy && !showingResult) || trigger) return;
     const escape = (event: KeyboardEvent) => {
@@ -93,6 +110,7 @@ export function BuiltinPluginTools({
   const run = async (kind: "date" | "statistics") => {
     if (running.current || !enabled || !active || disabled) return;
     close();
+    setKind(kind);
     const version = epoch.current;
     running.current = true;
     setBusy(true);
@@ -181,10 +199,59 @@ export function BuiltinPluginTools({
       if (version === epoch.current) setBusy(false);
     }
   };
+  useLayoutEffect(() => {
+    if (!active || (!busy && !showingResult)) return;
+    const root = button.current?.closest<HTMLElement>(".note-editor");
+    const update = () => {
+      const bounds = root?.getBoundingClientRect();
+      const left = Math.max(16, bounds?.left ?? 16);
+      const right = Math.min(
+        window.innerWidth - 16,
+        bounds?.right ?? window.innerWidth - 16,
+      );
+      const top = Math.max(16, bounds?.top ?? 16);
+      const bottom = Math.min(
+        window.innerHeight - 32,
+        bounds?.bottom ?? window.innerHeight - 32,
+      );
+      const status = root?.querySelector<HTMLElement>(".editor-stats");
+      setPlacement({
+        target:
+          presentation.surface === "status" &&
+          status &&
+          status.getBoundingClientRect().height > 0
+            ? status
+            : null,
+        left: (left + right) / 2,
+        top:
+          presentation.position === "top"
+            ? top + 16
+            : presentation.position === "center"
+              ? (top + bottom) / 2
+              : bottom - 16,
+        width: Math.max(0, right - left),
+      });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    if (root) observer.observe(root);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [
+    active,
+    busy,
+    showingResult,
+    presentation.surface,
+    presentation.position,
+  ]);
   if (!enabled || !active) return null;
   return (
     <>
       <button
+        ref={button}
         type="button"
         className="markdown-view-toggle"
         title="内置插件"
@@ -222,7 +289,22 @@ export function BuiltinPluginTools({
       )}
       {(busy || message || statistics) &&
         createPortal(
-          <aside className="builtin-plugin-notice" aria-label="内置插件结果">
+          <aside
+            className={`builtin-plugin-notice${placement.target ? " builtin-plugin-status" : ""}`}
+            aria-label="内置插件结果"
+            data-position={presentation.position}
+            style={
+              placement.target
+                ? undefined
+                : {
+                    left: placement.left,
+                    top: placement.top,
+                    bottom: "auto",
+                    maxWidth: placement.width,
+                    transform: `translate(-50%, ${presentation.position === "top" ? "0" : presentation.position === "center" ? "-50%" : "-100%"})`,
+                  }
+            }
+          >
             <button
               type="button"
               className="btn-icon"
@@ -239,11 +321,11 @@ export function BuiltinPluginTools({
                   ? `正文字符 ${statistics.characters} · 非空白字符 ${statistics.nonWhitespace} · 文本行 ${statistics.lines}`
                   : message}
             </div>
-            {statistics && (
+            {statistics && !placement.target && (
               <small>统计当前正文，包含未保存修改；不含文档标题。</small>
             )}
           </aside>,
-          document.body,
+          placement.target || document.body,
         )}
     </>
   );
