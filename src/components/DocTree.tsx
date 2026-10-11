@@ -1,3 +1,6 @@
+import { panelDisplays } from "../lib/plugin-system/panel-display";
+import { usePanelDisplay } from "../hooks/usePanelDisplay";
+import type { CSSProperties } from "react";
 import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
@@ -131,6 +134,7 @@ function DocTree({
   propertiesAutoShow, onTogglePropertiesAuto,
   disabled, toolbarHost, collapsed, setCollapsed,
 }: DocTreeProps) {
+  const display = usePanelDisplay("document-tree");
   const [tree, setTree] = useState<PathNode[]>([]);
   const exportBusy = useRef(false);
   const [exportProgress, setExportProgress] = useState<string | null>(null);
@@ -712,11 +716,11 @@ function DocTree({
                 <span
                   className="doc-tree-name"
                   data-hierarchy-level={(depth % 6) + 1}
-                  title={node.name}
+                  title={display?.tooltip === "path" ? node.path : node.name}
                 >
                   {node.name}
                 </span>
-                <span className="doc-tree-count">{node.count ?? 0}</span>
+                {(!display || display.showCounts) && <span className="doc-tree-count">{node.count ?? 0}</span>}
               </>
             )}
           </div>
@@ -766,9 +770,9 @@ function DocTree({
             onCancel={() => setRenamingId(null)}
           />
         ) : (
-          <button type="button" className="doc-tree-name doc-tree-open" disabled={disabled} aria-current={isSelected ? "page" : undefined} title={node.name}>{node.name}</button>
+          <button type="button" className="doc-tree-name doc-tree-open" disabled={disabled} aria-current={isSelected ? "page" : undefined} title={display?.tooltip === "path" ? node.path : node.name}>{node.name}</button>
         )}
-        {node.docType && !isRenaming && (
+        {node.docType && !isRenaming && (!display || display.showMetadata) && (
           <span className="doc-tree-type">{DOC_TYPE_LABELS[node.docType] ?? node.docType}</span>
         )}
       </div>
@@ -795,6 +799,18 @@ function DocTree({
   const toolbar = (
     <div className="doc-tree-toolbar">
       <div ref={setToolbarScroller} className="doc-tree-toolbar-actions" role="group" aria-label="文档树工具，滚轮可横向浏览">
+        {display?.toolbar.map(command => <button key={command} type="button" className="btn-icon doc-tree-batch-btn" data-panel-display-command={command}
+          disabled={disabled || (command === "tree.expand-all" && !tree.some(node => node.type === "folder"))}
+          title={command === "tree.expand-all" ? "展开所有目录" : "刷新文档树"}
+          aria-label={command === "tree.expand-all" ? "展开所有目录" : "刷新文档树"}
+          onClick={() => {
+            // Only host-known commands; no plugin callbacks or model access.
+            if (disabled) return;
+            panelDisplays.run("document-tree", display, command, {
+              "tree.expand-all": () => { setContextMenu(null); setCollapsed(new Set()); },
+              "tree.refresh": () => { setContextMenu(null); loadTree(); },
+            });
+          }}><ToolbarIcon name={command === "tree.expand-all" ? "plus" : "refresh"} /></button>)}
         <button
           className="btn-icon doc-tree-batch-btn"
           onClick={collapseAll}
@@ -926,6 +942,13 @@ function DocTree({
           : null}
       <div
         className="doc-tree"
+        data-panel-display={display ? "plugin" : undefined}
+        style={display ? {
+          "--panel-display-font": display.font === "mono" ? "var(--font-mono)" : display.font === "sans" ? "var(--font)" : "inherit",
+          "--panel-display-font-size": `${display.fontSize}px`,
+          "--panel-display-row-height": `${display.rowHeight}px`,
+          "--panel-display-document-color": display.labelColor === "accent" ? "var(--accent)" : display.labelColor === "secondary" ? "var(--text-secondary)" : "var(--text)",
+        } as CSSProperties : undefined}
         ref={treeScrollRef}
         onScroll={(event) => localStorage.setItem(DOC_TREE_SCROLL_KEY, String(event.currentTarget.scrollTop))}
       >

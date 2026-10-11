@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 const paths = {
+  refresh: <path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M18 17a7 7 0 0 1-12 1l-2-3" />,
   shield: <path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6ZM8 12l3 3 5-6" />,
   exit: <path d="M10 4H4v16h6M10 12h11m-4-4 4 4-4 4" />,
   filter: <path d="M3 4h18l-7 8v7l-4 2v-9Z" />,

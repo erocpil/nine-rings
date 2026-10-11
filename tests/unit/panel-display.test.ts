@@ -1,0 +1,166 @@
+import { describe, expect, it } from "vitest";
+import { PluginRuntime } from "../../src/lib/plugin-system/runtime";
+import {
+  PanelDisplayRegistry,
+  validatePanelDisplay,
+} from "../../src/lib/plugin-system/panel-display";
+import { DEFAULT_TREE_DISPLAY } from "../../src/lib/plugin-system/builtin-tree-display";
+
+describe("panel display authority and fallback", () => {
+  it("rejects forged identities, competing presenters, invalid tokens and commands", () => {
+    const runtime = new PluginRuntime();
+    runtime.setEnabled(true);
+    const token = runtime.activate("test.presenter", []);
+    const registry = new PanelDisplayRegistry(runtime);
+    expect(() =>
+      registry.register({ ...token }, DEFAULT_TREE_DISPLAY),
+    ).toThrow();
+    registry.register(token, DEFAULT_TREE_DISPLAY);
+    expect(() => registry.register(token, DEFAULT_TREE_DISPLAY)).toThrow(
+      "已有",
+    );
+    for (const patch of [
+      { fontSize: 11 },
+      { rowHeight: 49 },
+      { labelColor: "#fff" },
+      { toolbar: ["tree.refresh", "tree.refresh"] },
+      { target: "notes" },
+      { css: "body{}" },
+    ])
+      expect(() =>
+        validatePanelDisplay({
+          ...DEFAULT_TREE_DISPLAY,
+          ...patch,
+        } as typeof DEFAULT_TREE_DISPLAY),
+      ).toThrow();
+  });
+  it("freezes contributions, revokes commands and restores host fallback synchronously", () => {
+    const runtime = new PluginRuntime();
+    runtime.setEnabled(true);
+    const token = runtime.activate("test.presenter", []);
+    const registry = new PanelDisplayRegistry(runtime);
+    registry.register(token, DEFAULT_TREE_DISPLAY);
+    const current = registry.get("document-tree")!;
+    expect(Object.isFrozen(current)).toBe(true);
+    expect(Object.isFrozen(current.toolbar)).toBe(true);
+    let calls = 0;
+    const handlers = {
+      "tree.refresh": () => {
+        calls++;
+      },
+    };
+    expect(
+      registry.run("document-tree", current, "tree.refresh", handlers),
+    ).toBe(true);
+    runtime.deactivate(token.pluginId);
+    expect(registry.get("document-tree")).toBeNull();
+    expect(
+      registry.run("document-tree", current, "tree.refresh", handlers),
+    ).toBe(false);
+    registry.register(
+      runtime.activate("test.presenter", []),
+      DEFAULT_TREE_DISPLAY,
+    );
+    expect(
+      registry.run("document-tree", current, "tree.refresh", handlers),
+    ).toBe(false);
+    runtime.setEnabled(false);
+    expect(registry.get("document-tree")).toBeNull();
+    expect(calls).toBe(1);
+  });
+  it("non-tree slots can register presentation but cannot borrow tree commands", () => {
+    const runtime = new PluginRuntime();
+    runtime.setEnabled(true);
+    const registry = new PanelDisplayRegistry(runtime);
+    registry.register(runtime.activate("test.notes", []), {
+      ...DEFAULT_TREE_DISPLAY,
+      target: "notes",
+      toolbar: [],
+    });
+    expect(registry.get("notes")?.target).toBe("notes");
+    expect(registry.get("document-tree")).toBeNull();
+    expect(
+      registry.run("notes", registry.get("notes")!, "tree.refresh", {
+        "tree.refresh": () => {
+          throw new Error("must not run");
+        },
+      }),
+    ).toBe(false);
+  });
+});
+
+// Real lifecycle and local/cross-window preferences, without exposing document data.
+import { afterEach, vi } from "vitest";
+import { pluginRuntime } from "../../src/lib/plugin-system/runtime";
+import { pluginLifecycle } from "../../src/lib/plugin-system/lifecycle";
+import { panelDisplays } from "../../src/lib/plugin-system/panel-display";
+import {
+  readTreeDisplayPreference,
+  saveTreeDisplayPreference,
+  startBuiltinTreeDisplay,
+  TREE_DISPLAY_PLUGIN_ID,
+  TREE_DISPLAY_SETTINGS_KEY,
+} from "../../src/lib/plugin-system/builtin-tree-display";
+let stop: (() => void) | undefined;
+afterEach(async () => {
+  stop?.();
+  stop = undefined;
+  pluginRuntime.setEnabled(false);
+  await pluginLifecycle.deactivate(TREE_DISPLAY_PLUGIN_ID);
+  vi.unstubAllGlobals();
+});
+it("invalid saved preferences fall back and rapid changes keep only the latest activation", async () => {
+  const values = new Map<string, string>();
+  const events = new EventTarget();
+  vi.stubGlobal("window", events);
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+  });
+  values.set(
+    TREE_DISPLAY_SETTINGS_KEY,
+    '{"enabled":true,"display":{"css":"unsafe"}}',
+  );
+  expect(readTreeDisplayPreference().enabled).toBe(false);
+  pluginRuntime.setEnabled(true);
+  stop = startBuiltinTreeDisplay();
+  saveTreeDisplayPreference({ enabled: true, display: DEFAULT_TREE_DISPLAY });
+  saveTreeDisplayPreference({ enabled: false, display: DEFAULT_TREE_DISPLAY });
+  saveTreeDisplayPreference({
+    enabled: true,
+    display: { ...DEFAULT_TREE_DISPLAY, fontSize: 18 },
+  });
+  await vi.waitFor(() =>
+    expect(panelDisplays.get("document-tree")?.fontSize).toBe(18),
+  );
+  await pluginLifecycle.deactivate(TREE_DISPLAY_PLUGIN_ID);
+  expect(panelDisplays.get("document-tree")).toBeNull();
+  // Status/resource notifications must not undo manual deactivation.
+  pluginRuntime.recordCleanupFailure();
+  await Promise.resolve();
+  expect(panelDisplays.get("document-tree")).toBeNull();
+  values.set(
+    TREE_DISPLAY_SETTINGS_KEY,
+    JSON.stringify({
+      enabled: true,
+      display: { ...DEFAULT_TREE_DISPLAY, fontSize: 16 },
+    }),
+  );
+  const storage = new Event("storage");
+  Object.assign(storage, { key: TREE_DISPLAY_SETTINGS_KEY });
+  events.dispatchEvent(storage);
+  await vi.waitFor(() =>
+    expect(panelDisplays.get("document-tree")?.fontSize).toBe(16),
+  );
+  pluginRuntime.setEnabled(false);
+  expect(panelDisplays.get("document-tree")).toBeNull();
+  pluginRuntime.setEnabled(true);
+  await vi.waitFor(() =>
+    expect(panelDisplays.get("document-tree")?.fontSize).toBe(16),
+  );
+  stop();
+  stop = undefined;
+  await vi.waitFor(() =>
+    expect(pluginRuntime.getStatus().activations).toHaveLength(0),
+  );
+});

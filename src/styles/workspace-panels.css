@@ -3364,3 +3364,23 @@ button.doc-tree-toggle:focus-visible {
 .doc-tree-open:disabled { cursor: default; }
 
 .block-selection-hint { padding: 5px 8px; font-size: 12px; color: var(--text-secondary); background: var(--surface); border-bottom: 1px solid var(--border); }
+
+/* Host-scoped presentation slot. Path hierarchy and selection stay host-owned. */
+.doc-tree[data-panel-display="plugin"] {
+  --panel-display-font: inherit;
+  --panel-display-font-size: 14px;
+  --panel-display-row-height: 30px;
+  --panel-display-document-color: var(--text);
+}
+.doc-tree[data-panel-display="plugin"] .doc-tree-node {
+  font-family: var(--panel-display-font);
+  font-size: var(--panel-display-font-size);
+  min-height: var(--panel-display-row-height);
+  box-sizing: border-box;
+}
+.doc-tree[data-panel-display="plugin"] .doc-tree-name { font-size: inherit; font-family: inherit; }
+.doc-tree[data-panel-display="plugin"] .doc-tree-doc .doc-tree-name { color: var(--panel-display-document-color); }
+.doc-tree[data-panel-display="plugin"] .doc-tree-doc.doc-tree-selected .doc-tree-name { color: var(--accent); }
+@media (pointer: coarse) {
+  .doc-tree[data-panel-display="plugin"] .doc-tree-node { min-height: max(36px, var(--panel-display-row-height)); }
+}

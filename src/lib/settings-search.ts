@@ -26,6 +26,7 @@ export interface SettingsSearchEntry {
   target?: string;
 }
 const entries: SettingsSearchEntry[] = [
+  { title: "内置文档树展示插件", description: "高级 · 文档树字体、字号、行高、路径提示和工具栏", keywords: "插件 文档树 字体 字号 颜色 提示 工具栏 展示", page: "advanced", target: '[data-settings-label="内置文档树展示插件"]' },
   { title: "启用插件功能", description: "高级 · 插件总开关，仅本设备生效，默认关闭", keywords: "插件 plugin 扩展 启用 禁用 开关", page: "advanced", target: '[data-settings-label="启用插件功能"]' },
   { title: "标题与块排版", description: "编辑器 › 排版设置 · H1～H6、代码、引用、Mermaid、flow 字体字号", keywords: "h1 h2 h3 h4 h5 h6 标题 字号 代码 引用 图块 mermaid flow 字体 等宽", page: "editor", action: "typography" },
   { title: "层次展示", description: "外观与布局 › 层次展示 · 文档树路径和目录标题分别设置层级配色", keywords: "层级 层次 路径 目录 标题 琥珀 砖红 苔绿 青蓝 靛蓝 紫藤 配色", page: "hierarchy", target: ".hierarchy-style-card" },

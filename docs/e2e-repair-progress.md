@@ -1,12 +1,18 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-10-11：内置文档树展示扩展
+
+共同展示槽位、不可变声明校验、激活身份与资源撤销、受限工具命令已接入文档树。高级设置可调整字体/字号/最小行高/语义配色/提示/辅助信息，工具栏可展开全部及刷新；关闭、单独停用或设置损坏恢复宿主展示。保留树数据、折叠、选中及分栏控制器；触控最小行高 36 px。目录、书签、随记预留目标标识但尚未接入，风格资源另有阶段，详见[分栏展示规划](plugin-panel-presentation.md)。
+
+验证：Vitest 102 文件/1390 项、npm test（含 schema 56 项）、typecheck、完整 lint、format:check 和生产构建通过。最终 Chromium 展示/原有文档树 13 项通过，WebKit 展示/插件管理 7 项通过；首轮 Chromium 7 项不与后续重复项相加。构建无 chunk 警告。未执行全产品 E2E、原生 GUI 或其它分栏贡献；共享数据格式不变，展示偏好仅本设备，不进入备份。
+
 ## 2026-10-11：最新界面改动的验证收尾
 
 基线 `4d935a3bbbdb089a63890221a75656fc86e9eed9` 的 macOS ARM64、Windows、Linux Tauri 构建通过；[跨平台 E2E](https://github.com/erocpil/nine-rings/actions/runs/38145227624) 的 macOS/Windows/Linux × Chromium/WebKit 六组通过。该工作流使用浏览器，并不替代原生 GUI 验收。
 
 [Test 工作流](https://github.com/erocpil/nine-rings/actions/runs/38145227621) 的 Frontend Tests、Reading workspace (chromium)、IPC 已通过；Rust Tests 因格式检查失败，Reading workspace (webkit) 在浮层方向键进入后的焦点断言失败。修正 Rust 格式，并清理严格 Clippy 检查发现的测试模块位置、默认结构初始化及等价错误观察/Option 判断写法。本机 macOS ARM64 的 Rust 92 项、cargo fmt、全目标/全特性 Clippy（禁止警告）与完整前端 lint 通过。
 
-原生退出协议模拟回归 Chromium/WebKit 各 1 项通过，涵盖首次提示、确认超时及保存完成后退出；它们使用模拟 IPC，不证明 OS 子进程已退出。分栏 WebKit 原用例重复 3 轮共 18 项通过，仍补充初始浮层收起的就绪断言，避免启动状态与方向键进入交错；补充就绪断言后的分栏回归 WebKit 连续 3 轮/18 项、Chromium 6 项通过。远端完整 E2E 仍在执行，修复后的远端结果待核对，不将暂未结束的任务记为通过。
+原生退出协议模拟回归 Chromium/WebKit 各 1 项通过，涵盖首次提示、确认超时及保存完成后退出；它们使用模拟 IPC，不证明 OS 子进程已退出。分栏 WebKit 原用例重复 3 轮共 18 项通过，仍补充初始浮层收起的就绪断言，避免启动状态与方向键进入交错；补充就绪断言后的分栏回归 WebKit 连续 3 轮/18 项、Chromium 6 项通过。提交 `08745a1fb3c37d0b1b6d8c81f68f7dfa8073f42f` 的[远端 Test](https://github.com/erocpil/nine-rings/actions/runs/38146223579) 已确认 Rust Tests（含格式/严格 Clippy）、Reading workspace (webkit/chromium)、Frontend Tests 和 IPC 通过；当次核对时完整 E2E 仍在执行，不将暂未结束的任务记为通过。
 
 仍需原生真机验收：macOS 后台/隐藏/最小化窗口的 Option+Y 与托盘召回、前台窗口隐藏及 Command+W/双击 Command+Q；Windows/Linux 反复退出重启后的残留子进程、文件锁与异常退出恢复。自动测试和打包成功不能替代上述验证。本批没有启动用户原生应用或操作其真实数据库。
 

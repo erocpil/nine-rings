@@ -19,6 +19,7 @@ function memoryStorage(initial: Record<string, string> = {}) {
 
 const source = memoryStorage({
   "nr:focusMode": "true",
+  "nr:pluginTreeDisplay": '{"enabled":true,"display":{"fontSize":18}}',
   "nr:blockWorkspaceDisplay": JSON.stringify({ sourceMicroRendering: true, relativeBlockNumbers: true, relativeSourceLineNumbers: false, relativeBlockNumberAlignment: "left", relativeSourceLineNumberAlignment: "right" }),
   "nr:sidebarW": "264",
   "nr:currentDate": "2026-08-18",
@@ -40,6 +41,7 @@ const source = memoryStorage({
 const collected = collectFrontendSettings(source);
 const serialized = JSON.stringify(collected);
 assert(serialized.includes('"sourceMicroRendering":true'), "source enhancement preference is backed up");
+assert(!serialized.includes("nr:pluginTreeDisplay"), "panel display activation and preferences stay device-local");
 assert(!serialized.includes("nr:currentDate"), "retired daily preference is excluded");
 assert(serialized.includes("example"), "non-sensitive GitHub settings are included");
 assert(!serialized.includes("ghp_should_not_leave_device"), "nested token is removed");
