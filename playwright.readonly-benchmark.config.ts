@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: "readonly-rendering-benchmark.spec.ts",
+  testMatch: ["readonly-rendering-benchmark.spec.ts", "document-metadata-benchmark.spec.ts", "readonly-mixed-benchmark.spec.ts"],
   timeout: 180000,
   workers: 1,
   use: {

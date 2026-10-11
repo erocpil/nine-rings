@@ -4413,7 +4413,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         {blockMenu && documentActive && editor.state.doc === blockMenu.doc && <BlockActionMenu key={blockMenu.position} trigger={blockMenu.trigger} title={`第 ${editor.state.doc.resolve(blockMenu.position).index(0) + 1} 块`} actions={blockMenuActions()} onClose={closeBlockMenu} />}
         {selectedBlockIndexes.size > 0 && (() => {
           const count = selectedIndexes().length;
-          return count > 0 ? <div className="block-selection-toolbar" role="toolbar" aria-label="块级操作">
+          return count > 0 ? <><div className="block-selection-toolbar" role="toolbar" aria-label="块级操作">
             <strong>{count} 块</strong>
             <div className="block-selection-actions"><button type="button" title="复制" aria-label="复制" onClick={() => void copySelectedBlocks()}><ToolbarIcon name="copy" /></button>
             {count === 1 && <button type="button" title="复制块引用" aria-label="复制块引用" onClick={() => void copyReference("block", blockRangeAtIndex(selectedIndexes()[0]).from)}><ToolbarIcon name="link" /></button>}
@@ -4430,11 +4430,13 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
                 {[12, 14, 16, 18, 20, 24, 32].map((size) => <option key={size} value={`${size}`}>{size}</option>)}
               </select>
               <label className="block-selection-color" title="所选块文字颜色">
-                <ToolbarIcon name="color" /><input type="color" aria-label="所选块文字颜色" defaultValue="#333333" onChange={(event) => setSelectedBlockColor(event.target.value)} />
+                <ToolbarIcon name="palette" /><input type="color" aria-label="所选块文字颜色" defaultValue="#333333" onChange={(event) => setSelectedBlockColor(event.target.value)} />
               </label>
             </>}
             </div><button className="block-selection-close" type="button" title="退出块选择" aria-label="退出块选择" onClick={() => setSelectedBlockIndexes(new Set())}><ToolbarIcon name="close" /></button>
-          </div> : null;
+          </div>
+          {selectedIndexes().some(index => editor.state.doc.child(index).type.name === "heading") && <div className="block-selection-hint" role="status">标题块仅包含标题本身，章节正文（包括折叠内容）需单独选择。</div>}
+          </> : null;
         })()}
         {markdownPasteStatus && (
           <div className="markdown-paste-notice markdown-paste-status" role="status">

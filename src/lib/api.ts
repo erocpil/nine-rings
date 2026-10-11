@@ -1,3 +1,7 @@
+import { normalizeStoragePath } from "./storage/core";
+import { conceptSearchKey } from "./concept-identity";
+import { mergeDocumentConcepts } from "./document-protection";
+import { pathNormalizationCollisions } from "./path-normalization";
 import type { StorageAdapter, DocSearchQuery } from "./storage/types";
 import { getAdapter } from "./storage";
 import type { AppConfig, CreateNoteInput, UpdateNoteInput, Note } from "../types/models";
@@ -52,6 +56,24 @@ export const api = {
       broadcastDataChange({ type: "note-changed", noteId: note.id });
       return note;
     },
+
+    /** Repeated source imports never silently replace an edited document. */
+    importText: (data: CreateNoteInput) => coordinateStorageMutation(async () => {
+      const input = structuredClone(data);
+      input.storagePath = normalizeStoragePath(input.storagePath || "references");
+      const filename = input.content?.metadata?.originalFileName;
+      const rows = await adapter().then(a => a.getDocumentSummaries());
+      const candidates = rows.filter(note => note.storagePath === input.storagePath &&
+        (filename && note.originalFileName ? note.originalFileName === filename : note.title === input.title));
+      if (candidates.length > 1) throw new Error("存在多份同来源或同名文档，请先明确导入目标");
+      if (candidates.length === 1) {
+        const existing = await api.notes.get(candidates[0].id);
+        if (!existing) throw new Error("导入目标已变化，请重试");
+        if (JSON.stringify(existing.content) === JSON.stringify(input.content)) return { status: "skipped" as const, note: existing };
+        throw new Error(`来源或同名文档冲突：${existing.title || filename}，现有内容已保留，请另选路径或明确替换`);
+      }
+      return { status: "created" as const, note: await api.notes.create(input) };
+    }),
 
     upsert: async (data: CreateNoteInput) => {
       const input = structuredClone(data);
@@ -230,6 +252,14 @@ export const api = {
 
   // ── Doc Tree（v2 文档分类系统）──
   docs: {
+    mergeConcepts: (sources: string[], target: string) => withSearchRefresh(mergeDocumentConcepts(sources, target)),
+    pathNormalizationReport: () => adapter().then(a => a.getPathTree()).then(nodes => pathNormalizationCollisions(nodes.filter(node => node.type === "folder").map(node => node.path))),
+    summaries: (query: Pick<DocSearchQuery, "storagePath" | "docType" | "concept" | "staleBefore"> = {}) =>
+      adapter().then(a => a.getDocumentSummaries()).then(notes => notes.filter(note =>
+        (!query.storagePath || note.storagePath === query.storagePath || note.storagePath?.startsWith(`${query.storagePath}/`))
+        && (!query.docType || note.docType === query.docType)
+        && (!query.concept || note.concepts?.some(value => conceptSearchKey(value) === conceptSearchKey(query.concept!)))
+        && (!query.staleBefore || Date.parse(note.updated_at) < Date.parse(query.staleBefore)))),
     tree: () =>
       adapter().then((a) => a.getPathTree()),
 
@@ -251,7 +281,7 @@ export const api = {
       withSearchRefresh(coordinateStorageMutation(() => adapter().then((a) => a.relocateFolder(sourcePath, targetPath)))),
 
     search: (query: DocSearchQuery) =>
-      adapter().then((a) => a.searchDocs(query)).then(notes => [...notes].sort(compareDocumentMetadata)),
+      adapter().then((a) => a.searchDocs({ ...query, concept: undefined })).then(notes => notes.filter(note => !query.concept || note.concepts?.some(value => conceptSearchKey(value) === conceptSearchKey(query.concept!))).sort(compareDocumentMetadata)),
 
     searchSummaries: (query: DocSearchQuery) =>
       adapter().then((a) => searchDocumentSummaries(a, query)),

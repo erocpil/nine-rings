@@ -17,6 +17,8 @@ interface TextImportResult {
   mode: "document";
   interrupted: boolean;
   error?: string;
+  failures?: string[];
+  duplicates?: number;
 }
 function yieldToNextFrame(): Promise<void> {
   if (typeof window === "undefined") {
@@ -94,6 +96,7 @@ export function useSettingsTextImport(
     setMdImportCurrentFile("");
     const today = localDateKey();
     let count = 0;
+    let duplicates = 0;
     const failures: string[] = [];
     try {
       const options = {
@@ -140,8 +143,9 @@ export function useSettingsTextImport(
           setMdImportCurrentFile(label);
           try {
             if (!result.input) throw new Error(result.error ?? "文本转换失败");
-            await api.notes.create(result.input);
-            count++;
+            const imported = await api.notes.importText(result.input);
+            if (imported.status === "created") count++;
+            else duplicates++;
           } catch (error) {
             failures.push(
               `${label}: ${error instanceof Error ? error.message : String(error)}`,
@@ -158,12 +162,14 @@ export function useSettingsTextImport(
         mode,
         interrupted: false,
         error: failures[0],
+        failures: [...failures],
+        duplicates,
       });
       if (count > 0) onMarkdownImport?.();
       showMessage(
         failures.length > 0
           ? `已导入 ${count} 篇，跳过 ${skipped} 个非支持类型文件，失败 ${failures.length} 篇：${failures[0]}`
-          : `文本导入完成：${count} 篇，路径 ${options.storagePath}${skipped ? `，跳过 ${skipped} 个非支持类型文件` : ""}`,
+          : `文本导入完成：${count} 篇，重复跳过 ${duplicates} 篇，路径 ${options.storagePath}${skipped ? `，跳过 ${skipped} 个非支持类型文件` : ""}`,
       );
     } catch (err) {
       setMdImportResult({
@@ -173,6 +179,8 @@ export function useSettingsTextImport(
         mode,
         interrupted: true,
         error: err instanceof Error ? err.message : String(err),
+        failures: [...failures],
+        duplicates,
       });
       if (count > 0) onMarkdownImport?.();
       showMessage(`导入中断，已导入 ${count} 篇（已导入的文档会保留）: ${err}`);

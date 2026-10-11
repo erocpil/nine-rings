@@ -16,6 +16,7 @@ const paths = {
   codeBlock: <><rect x="2" y="3" width="20" height="18" rx="2" /><path d="m8 8-4 4 4 4m8-8 4 4-4 4m-3-9-2 10" /></>,
   export: <path d="M12 15V3m-4 4 4-4 4 4M4 14v7h16v-7" />,
   font: <path d="m5 20 7-16 7 16M8 14h8" />,
+  palette: <><circle cx="12" cy="12" r="9" /><circle cx="8" cy="8" r="1" /><circle cx="15" cy="7" r="1" /><circle cx="17" cy="13" r="1" /><path d="M8 16h4" /></>,
   color: <><path d="m7 16 5-13 5 13M9 11h6M4 21h16" /></>,
   erase: <><path d="m4 14 10-10 7 7-10 10H7ZM10 8l7 7M11 21h10" /></>,
   switchViews: <path d="M4 8h16m-4-4 4 4-4 4M20 16H4m4-4-4 4 4 4" />,

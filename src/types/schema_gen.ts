@@ -83,7 +83,7 @@ export interface SchemaTemplate {
 
 // ── IndexedDB 运行时契约 ──
 
-export const IDB_DATABASE_VERSION = 5;
+export const IDB_DATABASE_VERSION = 6;
 
 export const IDB_STORES = {
   notes: {
@@ -94,6 +94,7 @@ export const IDB_STORES = {
       { name: 'tags', keyPath: 'tags' },
       { name: 'pinned_sort', keyPath: ['pinned', 'sort_order'] },
       { name: 'storagePath', keyPath: 'storagePath' },
+      { name: 'document_summary', keyPath: ['updated_at', 'document_summary'] },
     ],
   },
   note_versions: {

@@ -312,7 +312,8 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
                 {!!mdImportResult.failed && (
                   <span>{mdImportResult.failed} 个文件导入失败。</span>
                 )}
-                {mdImportResult.error && <small>{mdImportResult.error}</small>}
+                {!!mdImportResult.duplicates && <span>相同内容重复导入已跳过 {mdImportResult.duplicates} 篇。</span>}
+                {mdImportResult.failures?.length ? <details><summary>查看失败及冲突详情</summary><ul>{mdImportResult.failures.map((failure, index) => <li key={index}>{failure}</li>)}</ul></details> : mdImportResult.error && <small>{mdImportResult.error}</small>}
                 {(mdImportResult.failed > 0 || mdImportResult.interrupted) && (
                   <small>
                     已导入的内容会保留；重新选择文件会再次创建内容，建议只重试失败的文件。
@@ -333,7 +334,7 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
                   不转换为表格。
                 </li>
                 <li>
-                  每个文件新建一篇内容，重复导入不会自动去重。目录中的空文件夹和不支持的文件类型会跳过。
+                  首次导入创建文档；同路径、同来源的相同内容会跳过，内容不同则报告冲突并保留已有编辑。目录中的空文件夹和不支持的文件类型会跳过。
                 </li>
                 <li>
                   目录示例：资料/网络/a.txt →

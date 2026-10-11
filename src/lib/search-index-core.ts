@@ -5,6 +5,9 @@ import { isEncrypted } from "./document-crypto";
 import { findTextMatches, type SearchOptions } from "./search-matching";
 import type { SnippetPart } from "./storage/idb-snippet";
 
+/** Increment when extractPlainText semantics change; worker state is rebuilt each launch/import. */
+export const SEARCH_TEXT_FORMAT_VERSION = 1;
+
 function normalize(value: string): string {
   return value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
 }
@@ -19,7 +22,7 @@ export type SearchNote = Omit<Note, "content"> & { search_text: string; search_p
 export function toSearchNote(note: Note | SearchNote): SearchNote {
   const { content, ...metadata } = note as Note;
   if (isEncrypted(content)) return { ...metadata, tags: [], concepts: [], search_text: "" };
-  return { ...metadata, search_text: (note as SearchNote).search_text ?? extractPlainText(content) };
+  return { ...metadata, search_text: content !== undefined ? extractPlainText(content) : (note as SearchNote).search_text ?? "" };
 }
 
 /** Shared cross-platform in-memory index. Raw notes remain in the storage adapter. */

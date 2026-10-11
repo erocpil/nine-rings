@@ -38,3 +38,31 @@ for (const width of [390, 1280]) {
     await expect(editor).toHaveText("firstmiddlelast");
   });
 }
+
+test("选中折叠标题明确排除章节正文，文字颜色使用调色盘图标", async ({ page }) => {
+  await createBlankDocument(page);
+  await closeDocumentSidebar(page);
+  const editor = page.locator(".ProseMirror:visible");
+  await editor.evaluate(element => {
+    const instance = (element as HTMLElement & { editor: Editor }).editor;
+    instance.commands.setContent({ type: "doc", content: [
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Selected heading" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Unselected body" }] },
+    ] }, true);
+    instance.commands.setTextSelection(1);
+  });
+  await editor.evaluate(async element => {
+    const path = "/src/extensions/HeadingFold.ts";
+    const { toggleHeadingFold } = await import(/* @vite-ignore */ path);
+    toggleHeadingFold((element as HTMLElement & { editor: Editor }).editor, 0);
+  });
+  await expect(editor.locator("p")).toBeHidden();
+  await page.getByRole("button", { name: "块级操作", exact: true }).first().click();
+  await page.getByRole("menuitem", { name: "选择多个块", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "标题块仅包含标题本身" })).toBeVisible();
+  const color = page.getByRole("toolbar", { name: "块级操作" }).locator('.block-selection-color');
+  await expect(color.locator("svg")).toHaveCount(1);
+  await expect(color).not.toContainText("A");
+  await page.getByRole("toolbar", { name: "块级操作" }).getByRole("button", { name: "复制", exact: true }).click();
+  await expect(page.locator(".ProseMirror:visible")).toContainText("Unselected body");
+});

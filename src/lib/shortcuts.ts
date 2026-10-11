@@ -104,10 +104,10 @@ export function resolveShortcut(e: ShortcutKeyEvent, platform?: string): Shortcu
     return "fullscreen";
   }
   // Alt+, ：设置（在 Ctrl 守卫之前，不依赖 ctrlKey）
-  if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key === ",") {
+  if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.code === "Comma" || e.key === ",")) {
     return "openSettings";
   }
-  if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === "e") {
+  if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.code === "KeyE" || e.key.toLowerCase() === "e")) {
     return "focusSearch"; // Alt+E 搜索
   }
   const ctrl = isPrimaryShortcutModifier(e, platform);

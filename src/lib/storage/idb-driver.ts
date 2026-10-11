@@ -1,3 +1,4 @@
+import { withDocumentSummary } from "./document-summary";
 /**
  * idb-driver.ts — IndexedDB Op 编译器。
  *
@@ -221,7 +222,7 @@ async function compileInsert(db: IDBDatabase, op: IdbInsertOp): Promise<void> {
   }
 
   await new Promise<void>((resolve, reject) => {
-    const req = store.put(record);
+    const req = store.put(store.name === "notes" ? withDocumentSummary(record) : record);
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });
@@ -272,7 +273,7 @@ async function compileUpdate(db: IDBDatabase, op: IdbUpdateOp): Promise<void> {
   }
 
   await new Promise<void>((resolve, reject) => {
-    const req = store.put(existing);
+    const req = store.put(store.name === "notes" ? withDocumentSummary(existing) : existing);
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });

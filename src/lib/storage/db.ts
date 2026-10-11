@@ -1,3 +1,4 @@
+import { withDocumentSummary } from "./document-summary";
 /**
  * db.ts — IndexedDB 底层基础设施：连接管理 + Promise 化原语。
  *
@@ -30,6 +31,9 @@ function openDB(): Promise<IDBDatabase> {
     const attachRequestHandlers = (request: IDBOpenDBRequest) => {
       req = request;
       req.onupgradeneeded = () => {
+        // An active atomic upgrade is progress, not a hung open. Large legacy
+        // corpora must not time out halfway through rebuilding derived keys.
+        clearTimeout(timeout);
         const db = req.result;
         const tx = req.transaction!;
         // Retired, unreleased daily/todo storage; document stores stay intact.
@@ -44,6 +48,14 @@ function openDB(): Promise<IDBDatabase> {
             }
           }
         }
+        // Populate the new derived index inside the upgrade transaction.
+        const cursor = tx.objectStore("notes").openCursor();
+        cursor.onsuccess = () => {
+          const row = cursor.result;
+          if (!row) return;
+          row.update(withDocumentSummary(row.value));
+          row.continue();
+        };
       };
       req.onsuccess = () => {
         clearTimeout(timeout);
@@ -185,7 +197,7 @@ export function getAllFromIndex<T>(
 
 export function putRecord(store: IDBObjectStore, value: unknown): Promise<void> {
   return new Promise((resolve, reject) => {
-    const req = store.put(value);
+    const req = store.put(store.name === "notes" ? withDocumentSummary(value) : value);
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });

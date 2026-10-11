@@ -1,10 +1,11 @@
+import type { DocumentSummary } from "../lib/storage/document-summary";
 import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Note } from "../types/models";
 import { api } from "../lib/api";
 import { compareDocumentMetadata } from "../lib/storage/core";
 import { relativeDocumentSubpath } from "../lib/doc-moc";
-import { documentSizeBytes, formatDocumentSize } from "../lib/document-size";
+import { formatDocumentSize } from "../lib/document-size";
 import { ToolbarIcon } from "./ToolbarIcon";
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -34,11 +35,12 @@ interface DocMOCProps {
 }
 
 export function DocMOC({ storagePath, concept, onSelect, onOpenConcept, selectedId, refreshKey }: DocMOCProps) {
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [notes, setNotes] = useState<DocumentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filter, setFilter] = useState("");
+  const loadGeneration = useRef(0);
   const filterInputRef = useRef<HTMLInputElement>(null);
 
   const isConcept = concept != null;
@@ -49,7 +51,7 @@ export function DocMOC({ storagePath, concept, onSelect, onOpenConcept, selected
   }, [filter, isConcept, notes, storagePath]);
   const displayNotes = useMemo(() => matchingNotes.map((note) => ({
     note,
-    size: formatDocumentSize(documentSizeBytes(note.content)),
+    size: formatDocumentSize(note.contentBytes),
   })), [matchingNotes]);
 
   useEffect(() => {
@@ -63,11 +65,12 @@ export function DocMOC({ storagePath, concept, onSelect, onOpenConcept, selected
 
   useEffect(() => {
     let active = true;
+    const generation = ++loadGeneration.current;
     setLoading(true);
     setLoadError(null);
     const req = concept != null
-      ? api.docs.search({ concept })
-      : api.docs.listByPath(storagePath ?? "");
+      ? api.docs.summaries({ concept })
+      : api.docs.summaries({ storagePath: storagePath ?? "" });
     req
       .then((docs) => {
         if (!active) return;
@@ -82,7 +85,7 @@ export function DocMOC({ storagePath, concept, onSelect, onOpenConcept, selected
       .finally(() => {
         if (active) setLoading(false);
       });
-    return () => { active = false; };
+    return () => { active = false; loadGeneration.current = generation + 1; };
   }, [storagePath, concept, refreshKey]);
 
   if (loading) {
@@ -159,7 +162,11 @@ export function DocMOC({ storagePath, concept, onSelect, onOpenConcept, selected
               <tr
                 key={note.id}
                 className={`moc-row ${note.id === selectedId ? "moc-row-selected" : ""}`}
-                onClick={event => onSelect(note, documentOpenOptions(event))}
+                onClick={event => {
+                  const options = documentOpenOptions(event);
+                  const generation = loadGeneration.current;
+                  void api.notes.get(note.id).then(full => { if (full && generation === loadGeneration.current) onSelect(full, options); }).catch(error => { if (generation === loadGeneration.current) setLoadError(String(error)); });
+                }}
               >
                 <td className="moc-col-title">
                   <span

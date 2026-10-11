@@ -1,3 +1,5 @@
+import { compareDocumentMetadata, extractPlainText } from "./core";
+import { rebuildNativeSearchText } from "./native-search-rebuild";
 import { noteToMarkdown } from "../markdown-serializer";
 /**
  * TauriAdapter — 通过 IPC 调 Rust 后端。
@@ -39,6 +41,17 @@ async function invokeNotes(cmd: string, args: Record<string, unknown> = {}): Pro
   return raw.map(snakeNoteToCamel);
 }
 
+let searchProjectionReady: Promise<void> | null = null;
+function ensureSearchProjection(): Promise<void> {
+  if (!searchProjectionReady) {
+    searchProjectionReady = rebuildNativeSearchText(invoke).catch(error => {
+      searchProjectionReady = null;
+      throw error;
+    });
+  }
+  return searchProjectionReady;
+}
+
 /** TauriAdapter — 通过 IPC invoke 调 Rust 后端 */
 export const tauriAdapter: StorageAdapter = {
   ...tauriTemplates,
@@ -51,6 +64,14 @@ export const tauriAdapter: StorageAdapter = {
   upsertNote: (data) => tauriDriver.upsertNote(data),
   getRecentDates: () => tauriDriver.getRecentDates(),
   getAllNotes: () => tauriDriver.getAllNotes(),
+  getDocumentSummaries: async () => {
+    const rows = await invoke<(SnakeNoteRow & { contentBytes: number; sourceFormat?: "text" | "markdown"; originalFileName?: string })[]>("get_document_summaries");
+    return rows.map(row => {
+      const { content: _content, ...summary } = snakeNoteToCamel({ ...row, content: '{"ops":[]}' });
+      void _content;
+      return { ...summary, contentBytes: row.contentBytes, sourceFormat: row.sourceFormat ?? undefined, originalFileName: row.originalFileName ?? undefined };
+    }).sort(compareDocumentMetadata);
+  },
   batchDelete: (ids) => tauriDriver.batchDelete(ids),
   batchSetReadonly: (ids, readonly) => tauriDriver.batchSetReadonly(ids, readonly),
   getNoteVersions: (noteId) => tauriDriver.getNoteVersions(noteId),
@@ -61,7 +82,7 @@ export const tauriAdapter: StorageAdapter = {
   getNote: (id) => invokeNoteNullable("get_note", { id }),
   updateNoteOrder: (id, sort_order) => invokeNote("update_note_order", { id, sort_order }),
   // FTS5 全文搜索 — 有意不纳入 Op 抽象，保留独立命令
-  searchNotes: (query) => invokeNotes("search_notes", { query }),
+  searchNotes: async (query) => { await ensureSearchProjection(); return invokeNotes("search_notes", { query }); },
   getNotesByTag: (tag) => invokeNotes("get_notes_by_tag", { tag }),
 
   // ── Tags ──
@@ -84,7 +105,7 @@ export const tauriAdapter: StorageAdapter = {
       }
       // Legacy SQLite exports store content as JSON text. Redact only after
       // decoding so both representations receive the same protection.
-      if (note.content && typeof note.content === "object" && "encrypted" in note.content) note.search_text = "";
+      note.search_text = extractPlainText(note.content);
       for (const key of ["tags", "concepts", "linked_doc_ids"]) if (note[key] === null) note[key] = [];
       if (note.linkedDocIds === null) note.linkedDocIds = [];
     }
@@ -138,6 +159,6 @@ export const tauriAdapter: StorageAdapter = {
     return count;
   },
 
-  searchDocs: (query) => invokeNotes("search_docs", { query }),
+  searchDocs: async (query) => { if (query.text) await ensureSearchProjection(); return invokeNotes("search_docs", { query }); },
   getAllConcepts: () => invoke<string[]>("get_all_concepts"),
 };

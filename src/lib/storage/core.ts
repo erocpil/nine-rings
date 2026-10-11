@@ -268,8 +268,10 @@ export function noteToDB<T extends { content?: unknown; tags?: unknown; concepts
 
 /** IDB 存储格式 → Note（解析 JSON 序列化字段） */
 export function noteFromDB(d: StoredNote): Note {
+  const { document_summary: _summary, ...record } = d as StoredNote & { document_summary?: string };
+  void _summary;
   return {
-    ...d,
+    ...record,
     tags: (typeof d.tags === "string" ? JSON.parse(d.tags) : d.tags) ?? [],
     concepts: typeof d.concepts === "string" ? JSON.parse(d.concepts) : d.concepts ?? undefined,
     linkedDocIds: typeof d.linkedDocIds === "string" ? JSON.parse(d.linkedDocIds) : d.linkedDocIds ?? undefined,

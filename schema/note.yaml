@@ -21,7 +21,7 @@
 
 _meta:
   version: 9
-  idb_version: 5
+  idb_version: 6
   # IndexedDB 只持久化浏览器运行时实际使用的数据；templates 使用
   # localStorage，sync_changes 属于尚未实现的增量同步设计。
   idb_stores:
@@ -33,6 +33,7 @@ _meta:
         - { name: tags, key_path: tags }
         - { name: pinned_sort, key_path: [pinned, sort_order] }
         - { name: storagePath, key_path: storagePath }
+        - { name: document_summary, key_path: [updated_at, document_summary] }
     note_versions:
       key_path: id
       indexes:

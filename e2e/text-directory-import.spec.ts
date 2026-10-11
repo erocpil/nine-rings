@@ -78,5 +78,12 @@ test("多选纯文本允许个别失败，UTF-16 正确解码且同一批文件�
   await expect(page.locator(".data-import-feedback")).toContainText("1 个文件导入失败");
   await expect(page.locator(".data-import-feedback")).toContainText("建议只重试失败的文件");
   await input.setInputFiles(files);
-  await expect(page.getByText("已导入 2 篇文档")).toBeVisible();
+  await expect(page.getByText("已导入 0 篇文档")).toBeVisible();
+  await expect(page.locator(".data-import-feedback")).toContainText("相同内容重复导入已跳过 2 篇");
+  const count = await page.evaluate(async () => {
+    const path = "/src/lib/api.ts";
+    const { api } = await import(/* @vite-ignore */ path);
+    return (await api.docs.summaries()).filter(note => ["literal", "中文"].includes(note.title ?? "")).length;
+  });
+  expect(count).toBe(2);
 });

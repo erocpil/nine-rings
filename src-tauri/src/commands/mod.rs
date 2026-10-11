@@ -7,3 +7,5 @@ pub mod protection;
 pub mod query;
 pub mod template;
 pub mod window;
+
+pub mod search_projection;

@@ -1,3 +1,5 @@
+import { mergedConcepts } from "./concept-identity";
+import { assertNoPathNormalizationCollision } from "./path-normalization";
 import { coordinateStorageMutation } from "./document-write-coordinator";
 import type { DeltaOps, Note } from "../types/models";
 import { createDocumentKey, decryptDocument, documentSessionKey, encryptDocument, isEncrypted, unlockDocument, type DocumentKey, type ProtectedPath } from "./document-crypto";
@@ -90,6 +92,7 @@ export async function setPathPassword(input: string, remove = false): Promise<vo
   const path = normalizeStoragePath(input);
   return coordinateStorageMutation(() => withProtectionWrite(async () => {
     const before = await readProtectionState();
+    if (!remove) assertNoPathNormalizationCollision(path, [...before.notes.flatMap(note => note.storagePath ? [note.storagePath] : []), ...before.paths.map(path => path.path)]);
     const existing = before.paths.find(p => p.path === path);
     if (before.paths.some(p => p !== existing && (isPathUnder(path, p.path) || isPathUnder(p.path, path)))) throw new Error("暂不支持父子路径分别设置密码，请在已有加密路径上管理");
     if (remove && !existing) throw new Error("路径尚未加密");
@@ -134,6 +137,7 @@ export async function moveProtectedDocuments(ids: string[], target: string, befo
     if (key && (!isEncrypted(note.content) || note.content.encrypted.protectionId !== key.protectionId)) await rewriteNotes(after, new Set([id]), key, keys);
     // Moving outside protection retains the document's ciphertext/password.
     note.storagePath = path;
+    note.updated_at = now();
   }
   await commitProtectedChanges(before, after);
 }
@@ -143,6 +147,9 @@ export async function relocateProtectedFolder(source: string, target: string): P
     const from = normalizeStoragePath(source), to = normalizeStoragePath(target);
     if (isPathUnder(to, from)) throw new Error("不能移动到自身或子目录");
     const before = await readProtectionState();
+    const paths = [...before.notes.flatMap(note => note.storagePath ? [note.storagePath] : []), ...before.paths.map(path => path.path)];
+    const destinations = [to, ...paths.filter(path => isPathUnder(path, from)).map(path => to + path.slice(from.length))];
+    for (const destination of destinations) assertNoPathNormalizationCollision(destination, [...paths, ...destinations], from);
     const after = structuredClone(before);
     const keys = new Map<string, DocumentKey>();
     const movedPaths = after.paths.filter(p => isPathUnder(p.path, from));
@@ -163,8 +170,28 @@ export async function relocateProtectedFolder(source: string, target: string): P
         await rewriteNotes(after, new Set([note.id]), key, keys);
       }
       note.storagePath = next;
+      note.updated_at = now();
     }
     await commitProtectedChanges(before, after);
     return moved.length;
   });
+}
+
+/** Host management operation: never implicitly invoked by search or import. */
+export async function mergeDocumentConcepts(sources: string[], target: string): Promise<number> {
+  const sourceNames = [...sources];
+  mergedConcepts([], sourceNames, target); // Validate before entering a mutation.
+  return coordinateStorageMutation(() => withProtectionWrite(async () => {
+    const before = await readProtectionState();
+    const after = structuredClone(before);
+    let count = 0;
+    for (const note of after.notes) {
+      if (note.deleted_at || !note.concepts?.some(value => sourceNames.includes(value))) continue;
+      note.concepts = mergedConcepts(note.concepts, sourceNames, target);
+      note.updated_at = now();
+      count++;
+    }
+    if (count) await commitProtectedChanges(before, after);
+    return count;
+  }));
 }

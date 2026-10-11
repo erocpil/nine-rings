@@ -1,6 +1,7 @@
 import type { Note } from "../types/models";
 import type { StorageAdapter, DocSearchQuery } from "./storage/types";
 import { isPathUnder } from "./storage/core";
+import { conceptSearchKey } from "./concept-identity";
 import { isTauriRuntime } from "./runtime";
 import { subscribeToDataChanges } from "./tab-coordination";
 import { getAdapter } from "./storage";
@@ -122,7 +123,7 @@ export async function searchDocumentSummaries(adapter: StorageAdapter, query: Do
     if (!note.storagePath || note.deleted_at) return false;
     if (query.storagePath && !isPathUnder(note.storagePath, query.storagePath)) return false;
     if (query.docType && note.docType !== query.docType) return false;
-    if (query.concept && !note.concepts?.includes(query.concept)) return false;
+    if (query.concept && !note.concepts?.some(value => conceptSearchKey(value) === conceptSearchKey(query.concept!))) return false;
     if (before !== null && !(Date.parse(note.updated_at) < before)) return false;
     return true;
   });

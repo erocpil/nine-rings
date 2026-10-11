@@ -1,3 +1,4 @@
+import { withDocumentSummary } from "./document-summary";
 import { withDB, getAll, getOne } from "./db";
 import { noteFromDB, noteToDB, now, type StoredNote } from "./core";
 import { snakeImportToCamel } from "./normalize";
@@ -96,7 +97,7 @@ export async function importData(
         tx.objectStore("note_versions").clear();
         tx.objectStore("protected_paths").clear();
       }
-      for (const note of notes) tx.objectStore("notes").put(note);
+      for (const note of notes) tx.objectStore("notes").put(withDocumentSummary(note));
       for (const path of data.protected_paths ?? []) tx.objectStore("protected_paths").put(path);
       for (const version of data.protected_versions ?? []) tx.objectStore("note_versions").put(version);
     });

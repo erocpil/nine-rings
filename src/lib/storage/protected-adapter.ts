@@ -1,3 +1,4 @@
+import { assertNoPathNormalizationCollision } from "../path-normalization";
 import type { StorageAdapter } from "./types";
 import { assertCoordinatedWriteSnapshot } from "../document-write-coordinator";
 import type { CreateNoteInput, Note, UpdateNoteInput, PathNode, NoteVersion } from "../../types/models";
@@ -10,8 +11,13 @@ import { snakeImportToCamel } from "./normalize";
 
 /** All normal reads stay ciphertext, including when an editor is unlocked. */
 export function protectedAdapter(raw: StorageAdapter): StorageAdapter {
+  const checkPath = async (target: string, excludedSource?: string) => {
+    const [nodes, paths] = await Promise.all([raw.getPathTree(), listProtectedPaths()]);
+    assertNoPathNormalizationCollision(target, [...nodes.filter(node => node.type === "folder").map(node => node.path), ...paths.map(path => path.path)], excludedSource);
+  };
   const prepareCreate = async (data: CreateNoteInput): Promise<CreateNoteInput> => {
     data = { ...data, storagePath: normalizeStoragePath(data.storagePath || "references") };
+    await checkPath(data.storagePath!);
     const path = pathProtection(await listProtectedPaths(), data.storagePath);
     if (!path) return data;
     const key = await requestPathKey(path);
@@ -33,6 +39,7 @@ export function protectedAdapter(raw: StorageAdapter): StorageAdapter {
     let note = await raw.getNote(id);
     if (!note) throw new Error("文档不存在");
     if (data.storagePath !== undefined && data.storagePath !== note.storagePath) {
+      await checkPath(data.storagePath);
       const before = await readProtectionState();
       if (isEncrypted(note.content) || pathProtection(before.paths, data.storagePath) || pathProtection(before.paths, note.storagePath)) {
         // Property editing must use the same atomic boundary transition as DnD.
@@ -119,10 +126,14 @@ export function protectedAdapter(raw: StorageAdapter): StorageAdapter {
       return nodes.map(n => ({ ...n, protected: paths.some(p => isPathUnder(n.path, p.path)), protectionRoot: paths.some(p => n.path === p.path) }));
     },
     moveDocument: (id, target) => withProtectionWrite(async () => {
+      await checkPath(normalizeStoragePath(target));
       const before = await readProtectionState();
       await moveProtectedDocuments([id], target, before); return 1;
     }),
-    batchMoveDocuments: (ids, target) => withProtectionWrite(async () => moveProtectedDocuments(ids, target, await readProtectionState())),
+    batchMoveDocuments: (ids, target) => withProtectionWrite(async () => {
+      await checkPath(normalizeStoragePath(target));
+      return moveProtectedDocuments(ids, target, await readProtectionState());
+    }),
     relocateFolder: relocateProtectedFolder,
     renameFolder: relocateProtectedFolder,
     exportNoteMarkdown: async id => {

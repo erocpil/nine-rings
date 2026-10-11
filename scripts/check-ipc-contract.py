@@ -19,6 +19,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 TAURI_TS = os.path.join(PROJECT_ROOT, "src", "lib", "storage", "tauri.ts")
 TAURI_DRIVER_TS = os.path.join(PROJECT_ROOT, "src", "lib", "storage", "tauri-driver.ts")
+NATIVE_SEARCH_TS = os.path.join(PROJECT_ROOT, "src", "lib", "storage", "native-search-rebuild.ts")
 TEMPLATE_TAURI_TS = os.path.join(PROJECT_ROOT, "src", "lib", "storage", "template-tauri.ts")
 LIB_RS = os.path.join(PROJECT_ROOT, "src-tauri", "src", "lib.rs")
 COMMANDS_DIR = os.path.join(PROJECT_ROOT, "src-tauri", "src", "commands")
@@ -86,6 +87,7 @@ def main():
     tauri_invokes = extract_invoke_commands(TAURI_TS)
     driver_invokes = extract_invoke_commands(TAURI_DRIVER_TS)
     template_invokes = extract_invoke_commands(TEMPLATE_TAURI_TS)
+    native_search_invokes = extract_invoke_commands(NATIVE_SEARCH_TS)
 
     # 4.2 提取后端注册列表
     registered = extract_registered_commands(LIB_RS)
@@ -104,6 +106,11 @@ def main():
         if cmd not in registered:
             unregistered.append((cmd, line, "template-tauri.ts", raw))
 
+    for cmd, line, raw in native_search_invokes:
+        if cmd not in registered:
+            unregistered.append((cmd, line, "native-search-rebuild.ts", raw))
+
+    print(f"搜索重建 invoke 调用: {len(native_search_invokes)}")
     print(f"\n前端 invoke 调用: {len(tauri_invokes)} (tauri.ts) + {len(driver_invokes)} (tauri-driver.ts)")
     print(f"模板 invoke 调用: {len(template_invokes)} (template-tauri.ts)")
     print(f"lib.rs 注册命令:  {len(registered)}")

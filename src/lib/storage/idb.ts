@@ -1,3 +1,4 @@
+import { withDocumentSummary, type DocumentSummary } from "./document-summary";
 /**
  * IndexedDBAdapter — 纯浏览器端存储，零依赖
  * 实现 StorageAdapter 全部接口，与 Tauri (SQLite) 后端语义对齐
@@ -378,31 +379,63 @@ export const idbAdapter: StorageAdapter = {
 
   // ══════ Doc Tree（v2 文档分类系统）══════
 
-  /** 构建文档树: 查询 IDB → 映射为 FlatRecord → 委托 core.ts buildDocTree */
-  async getPathTree(): Promise<PathNode[]> {
+  async getDocumentSummaries(): Promise<DocumentSummary[]> {
     return withDB(async (db) => {
-      const store = db.transaction("notes", "readonly").objectStore("notes");
-      const all = await getAll<StoredNote>(store);
-      const notes = all.filter((n) => !n.deleted_at).map(noteFromDB);
-
-      // 映射为 core.ts 的输入类型（snake_case）
-      const docs: FlatDocRecord[] = [];
-      for (const n of notes) {
-        if (n.storagePath) {
-          docs.push({
-            id: n.id,
-            title: n.title,
-            storage_path: n.storagePath,
-            doc_type: n.docType,
-            sourceFormat: n.content.metadata?.sourceFormat,
-            updated_at: n.updated_at,
-            readonly: n.readonly ?? false,
-          });
-        }
-      }
-
-      return buildDocTree(docs);
+      // Compatibility repair for direct/older writes missing the projection.
+      const tx = db.transaction("notes", "readwrite");
+      const store = tx.objectStore("notes");
+      const [total, indexed] = await Promise.all([
+        new Promise<number>((resolve, reject) => { const request = store.count(); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); }),
+        new Promise<number>((resolve, reject) => { const request = store.index("document_summary").count(); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); }),
+      ]);
+      if (total !== indexed) await new Promise<void>((resolve, reject) => {
+        const request = store.openCursor();
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) { resolve(); return; }
+          if (typeof cursor.value.document_summary !== "string" || typeof cursor.value.updated_at !== "string") cursor.update(withDocumentSummary(cursor.value));
+          cursor.continue();
+        };
+      });
+      return new Promise<DocumentSummary[]>((resolve, reject) => {
+        const results: DocumentSummary[] = [];
+        const request = store.index("document_summary").openKeyCursor();
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) { resolve([...new Map(results.map(note => [note.id, note])).values()].sort(compareDocumentMetadata)); return; }
+          const [updatedAt, encoded] = cursor.key as [string, string];
+          let summary: DocumentSummary | null = null;
+          try { summary = JSON.parse(encoded) as DocumentSummary; } catch { /* Rebuild a corrupt derived key from its owner. */ }
+          if (!summary || typeof summary !== "object" || summary.id !== cursor.primaryKey || updatedAt !== summary.updated_at) {
+            // Older bundles may retain a projection when editing its owner.
+            // Read only that changed body and refresh its derived key.
+            const request = store.get(cursor.primaryKey);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => {
+              const record = withDocumentSummary(request.result) as { document_summary: string };
+              const refreshed = JSON.parse(record.document_summary) as DocumentSummary;
+              store.put(record);
+              if (!refreshed.deleted_at && refreshed.storagePath) results.push(refreshed);
+              cursor.continue();
+            };
+            return;
+          }
+          if (!summary.deleted_at && summary.storagePath) results.push(summary);
+          cursor.continue();
+        };
+      });
     });
+  },
+
+  async getPathTree(): Promise<PathNode[]> {
+    const summaries = await this.getDocumentSummaries();
+    const docs: FlatDocRecord[] = summaries.map(n => ({
+      id: n.id, title: n.title, storage_path: n.storagePath!, doc_type: n.docType,
+      sourceFormat: n.sourceFormat, updated_at: n.updated_at, readonly: n.readonly,
+    }));
+    return buildDocTree(docs);
   },
 
   async getNotesByPath(pathPrefix: string): Promise<Note[]> {

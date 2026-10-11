@@ -60,6 +60,8 @@ assert(resolveShortcut(key({ key: "f", metaKey: true })) === null, "Cmd+F 不误
 assert(resolveShortcut(key({ key: "f", ctrlKey: true, metaKey: true, shiftKey: true })) !== "fullscreen",
   "Ctrl+Cmd+Shift+F 不误触全屏");
 assert(resolveShortcut(key({ key: ",", altKey: true })) === "openSettings", "Alt+, → openSettings");
+assert(resolveShortcut({ ...key({ key: "≤", altKey: true }), code: "Comma" }, "MacIntel") === "openSettings", "macOS Option+逗号按物理键识别");
+assert(resolveShortcut({ ...key({ key: "Dead", altKey: true }), code: "KeyE" }, "MacIntel") === "focusSearch", "macOS Option+E 死键仍打开搜索");
 assert(resolveShortcut(key({ key: ",", ctrlKey: true })) === null, "Ctrl+, 不映射");
 assert(resolveShortcut(key({ key: "p", ctrlKey: true })) === "openQuickSwitcher", "Ctrl+P → openQuickSwitcher");
 assert(resolveShortcut(key({ key: "P", metaKey: true })) === "openQuickSwitcher", "Cmd+P → openQuickSwitcher");

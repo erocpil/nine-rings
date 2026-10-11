@@ -18,6 +18,32 @@ pub fn get_document_source_formats(
     rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
 }
 
+/// One SQL snapshot; no document bodies cross IPC.
+pub fn document_summaries(conn: &rusqlite::Connection) -> rusqlite::Result<Vec<serde_json::Value>> {
+    let mut stmt = conn.prepare("SELECT id, date, title, tags, pinned, readonly, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, length(CAST(content AS BLOB)), CASE WHEN json_valid(content) THEN CASE WHEN json_type(content, '$.metadata.sourceFormat') = 'text' THEN json_extract(content, '$.metadata.sourceFormat') END END, CASE WHEN json_valid(content) THEN CASE WHEN json_type(content, '$.metadata.originalFileName') = 'text' THEN json_extract(content, '$.metadata.originalFileName') END END FROM notes WHERE deleted_at IS NULL AND storage_path IS NOT NULL ORDER BY updated_at DESC, id ASC")?;
+    let rows = stmt.query_map([], |row| {
+        let format = row.get::<_, Option<String>>(14)?;
+        Ok(serde_json::json!({
+            "id": row.get::<_, String>(0)?, "date": row.get::<_, String>(1)?,
+            "title": row.get::<_, Option<String>>(2)?, "tags": row.get::<_, String>(3)?,
+            "pinned": row.get::<_, bool>(4)?, "readonly": row.get::<_, bool>(5)?,
+            "sort_order": row.get::<_, i64>(6)?, "created_at": row.get::<_, String>(7)?,
+            "updated_at": row.get::<_, String>(8)?, "storage_path": row.get::<_, String>(9)?,
+            "doc_type": row.get::<_, Option<String>>(10)?, "concepts": row.get::<_, String>(11)?,
+            "linked_doc_ids": row.get::<_, String>(12)?, "contentBytes": row.get::<_, i64>(13)?,
+            "sourceFormat": format.filter(|value| value == "text" || value == "markdown"),
+            "originalFileName": row.get::<_, Option<String>>(15)?
+        }))
+    })?;
+    rows.collect()
+}
+
+#[tauri::command]
+pub fn get_document_summaries(state: State<AppState>) -> Result<Vec<serde_json::Value>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    document_summaries(&conn).map_err(|e| e.to_string())
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct DocSearchQuery {
     pub text: Option<String>,
@@ -131,6 +157,31 @@ pub fn get_notes_by_path(
 mod tests {
     use super::{escape_like, EXACT_CONCEPT_FILTER};
     use rusqlite::{params, Connection};
+
+    #[test]
+    fn summaries_omit_body_and_track_live_metadata_and_utf8_size() {
+        let conn = Connection::open_in_memory().unwrap();
+        crate::db::migrations::run(&conn).unwrap();
+        let body = r#"{"ops":[{"insert":"中文正文"}],"metadata":{"sourceFormat":"markdown","originalFileName":"source.md"}}"#;
+        conn.execute("INSERT INTO notes(id,date,title,content,created_at,updated_at,storage_path) VALUES ('a','2026-10-11','title',?1,'created','updated','ideas/path')", [body]).unwrap();
+        let rows = super::document_summaries(&conn).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert!(rows[0].get("content").is_none());
+        assert_eq!(rows[0]["contentBytes"], body.len());
+        assert_eq!(rows[0]["originalFileName"], "source.md");
+        conn.execute(
+            "UPDATE notes SET title='renamed', storage_path='projects/path' WHERE id='a'",
+            [],
+        )
+        .unwrap();
+        assert_eq!(
+            super::document_summaries(&conn).unwrap()[0]["title"],
+            "renamed"
+        );
+        conn.execute("UPDATE notes SET deleted_at='deleted' WHERE id='a'", [])
+            .unwrap();
+        assert!(super::document_summaries(&conn).unwrap().is_empty());
+    }
 
     #[test]
     fn escapes_sql_like_metacharacters_in_folder_paths() {

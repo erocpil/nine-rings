@@ -141,11 +141,9 @@ python3 scripts/md-to-nine-rings.py --serve ~/notes/*.md
 | `[链接](url)` | link |
 | `![图片](url)` | image |
 | GFM 管道表格 | table |
-| `---` 分割线 | 删除线分隔符 |
+| `---` 分割线 | 水平分隔线 |
 
-**未支持（后续可加）：**
-- HTML 标签
-- 脚注
+支持 GFM 扩展、脚注、数学公式及受限 `<mark>`/`<details>` 呈现；任意 HTML、脚本或样式不作为无条件支持。完整范围见 [Markdown 兼容范围与内容契约](markdown-compatibility.md)。
 
 任务状态支持撤销/重做和源码往返；只读及块选择状态禁止修改。
 历史版本造成的任务标记转义可以在源码视图中“扫描历史任务转义”：逐项预览、选择并确认后修复，先保存版本快照。只处理当前文档，不自动判断所有反斜杠都是错误，不扫描代码块；快照失败不改写正文。
@@ -158,3 +156,7 @@ python3 scripts/md-to-nine-rings.py --serve ~/notes/*.md
 | `plugins/vite-import-plugin.ts` | Vite 插件 | 开发模式导入端点（POST/GET /__import） |
 | `src/hooks/useDevImport.ts` | React Hook | 浏览器端轮询拉取并创建笔记 |
 | `src/lib/md-parser.ts` | TypeScript 模块 | Markdown → Quill Delta 解析器 |
+
+## 重复执行与冲突报告
+
+设置中的文本/Markdown 导入按目标逻辑路径及原文件名寻找来源；旧文档没有原文件名时按标题回退。完全相同内容跳过，正文不同或多个候选拒绝自动覆盖，并在结果中显示全部失败/冲突。UUID 仍是文档身份；原文件名只是来源辅助。目录导入逐文件提交，重试完整目录不会为已成功的相同内容创建副本。JSON 备份恢复按 UUID 合并，开发队列及内置示例的显式 upsert 不使用这个去重接口。

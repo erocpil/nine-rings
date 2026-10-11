@@ -1,3 +1,4 @@
+import type { DocumentSummary } from "./document-summary";
 import type { Note, NoteVersion, CreateNoteInput, UpdateNoteInput, PathNode, DocType } from "../../types/models";
 import type { TemplateStorage } from "./template-service";
 
@@ -187,6 +188,7 @@ export interface StorageAdapter extends TemplateStorage {
   getNotesByDate(date: string): Promise<Note[]>;
   getNote(id: string): Promise<Note | null>;
   getAllNotes(): Promise<Note[]>;
+  getDocumentSummaries(): Promise<DocumentSummary[]>;
   createNote(data: CreateNoteInput): Promise<Note>;
   /** upsertNote: 文档按 storagePath+title 匹配，存在则更新，否则新建。
    *  用于 .md 导入等批量场景，防止重复。保持本地 ID 不变。 */

@@ -53,6 +53,7 @@ jobs:
               - 'src/lib/storage/tauri.ts'
               - 'src/lib/storage/tauri-driver.ts'
               - 'src/lib/storage/template-tauri.ts'
+              - 'src/lib/storage/native-search-rebuild.ts'
               - 'scripts/check-ipc-contract.py'
 
   frontend:
