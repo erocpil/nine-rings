@@ -20,6 +20,7 @@ const DESKTOP_ACTIVITY_BAR_WIDTH = 44;
 const SIDEBAR_MIN_WIDTH = 360;
 const SIDEBAR_MOBILE_MIN_WIDTH = 240;
 const READER_SIDEBAR_MIN_WIDTH = 240;
+const READER_EDGE_SNAP_DISTANCE = 64;
 const READER_SIDEBAR_WIDTH_KEY = "nr:readerSidebarW";
 const READER_SIDEBAR_RATIO_KEY = "nr:readerSidebarRatio";
 export const RESET_READER_SIDEBAR_BOUNDARY_EVENT = "nr:reset-reader-sidebar-boundary";
@@ -100,6 +101,8 @@ export function useWorkspaceSidebar({
         : computePanelSidebarWidth(panel);
       sideDragWidthRef.current = nextWidth;
       setSidebarWidth(nextWidth);
+      if (panel === "reader")
+        setReaderCompanionCollapsed(nextWidth >= readerAvailableWidth() - 1);
     },
     [clampSidebarWidth, computePanelSidebarWidth],
   );
@@ -271,7 +274,8 @@ export function useWorkspaceSidebar({
       );
       const edgeLimit = Math.max(240, window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH - 4);
       if (sideDragPanelRef.current === "reader") {
-        const nearEdge = rawWidth >= edgeLimit - 18;
+        const nearEdge = !window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
+          && rawWidth >= edgeLimit - READER_EDGE_SNAP_DISTANCE;
         setReaderCompanionCollapsed(nearEdge);
       }
       // Once the handle is dragged clearly past the usable edge, collapse the
@@ -285,7 +289,10 @@ export function useWorkspaceSidebar({
       }
       if (sideDragPanelRef.current === "reader" && rawWidth < minimum)
         showSidebarWidthHint();
-      const newW = clampSidebarWidth(rawWidth, minimum);
+      const snapToEdge = sideDragPanelRef.current === "reader"
+        && !window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
+        && rawWidth >= edgeLimit - READER_EDGE_SNAP_DISTANCE;
+      const newW = clampSidebarWidth(snapToEdge ? edgeLimit : rawWidth, minimum);
       sideDragWidthRef.current = Math.round(newW);
       if (!widthFrame)
         widthFrame = window.requestAnimationFrame(() => {

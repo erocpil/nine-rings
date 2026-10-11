@@ -108,10 +108,14 @@ for (const format of ["pdf", "epub"] as const) {
       }
     };
     for (let cycle = 0; cycle < 3; cycle++) {
-      await drag(1278, cycle === 1 ? "capture" : cycle === 2 ? "blur" : undefined);
+      // Snap before the pointer reaches the edge, leaving a handle at the edge.
+      await drag(1230, cycle === 1 ? "capture" : cycle === 2 ? "blur" : undefined);
       await expect.poll(width).toBeGreaterThan(1200);
       expect(await page.locator(".app-main").evaluate(el => el.getBoundingClientRect().width)).toBe(0);
       expect(await page.locator(".app-body").evaluate(el => el.scrollLeft)).toBe(0);
+      const edgeHandle = (await divider.boundingBox())!;
+      expect(edgeHandle.x + edgeHandle.width).toBeLessThanOrEqual(1280);
+      expect(edgeHandle.x + edgeHandle.width).toBeGreaterThanOrEqual(1278);
       await drag(700);
       await expect.poll(width).toBeLessThan(700);
       await expect.poll(width).toBeGreaterThan(600);

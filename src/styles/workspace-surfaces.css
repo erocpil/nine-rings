@@ -2049,6 +2049,11 @@
   opacity: 0.58;
 }
 
+.app.reader-companion-collapsed .sidebar-divider::after {
+  background: var(--accent);
+  opacity: 0.58;
+}
+
 /* 侧栏完全隐藏 */
 .sidebar-collapsed {
   border-right: none !important;
