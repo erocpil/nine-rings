@@ -130,8 +130,7 @@ test.describe("编辑器块级 gutter", () => {
     await expect(editor.locator(":scope > p")).toHaveCount(2);
 
     await openEditorSettings(page);
-    const lineNumberField = page.locator(".settings-field").filter({ hasText: "显示块编号" });
-    const lineNumberToggle = lineNumberField.locator('input[type="checkbox"]');
+    const lineNumberToggle = page.getByRole("checkbox", { name: "显示块编号", exact: true });
     await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
     await expect(lineNumberToggle).toBeChecked();
     await page.locator(".settings-close").click();
@@ -163,8 +162,7 @@ test.describe("编辑器块级 gutter", () => {
     await editor.type("正文");
 
     await openEditorSettings(page);
-    const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
-      .locator('input[type="checkbox"]');
+    const lineNumberToggle = page.getByRole("checkbox", { name: "显示块编号", exact: true });
     if (!(await lineNumberToggle.isChecked())) {
       await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
     }
@@ -241,8 +239,7 @@ test.describe("编辑器块级 gutter", () => {
     }
 
     await openEditorSettings(page);
-    const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
-      .locator('input[type="checkbox"]');
+    const lineNumberToggle = page.getByRole("checkbox", { name: "显示块编号", exact: true });
     if (!(await lineNumberToggle.isChecked())) {
       await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
     }
@@ -280,8 +277,7 @@ test.describe("编辑器块级 gutter", () => {
     await expect(editor.locator(":scope > p")).toHaveCount(2);
 
     await openEditorSettings(page);
-    const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
-      .locator('input[type="checkbox"]');
+    const lineNumberToggle = page.getByRole("checkbox", { name: "显示块编号", exact: true });
     if (!(await lineNumberToggle.isChecked())) {
       await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
     }
@@ -318,8 +314,7 @@ test.describe("编辑器块级 gutter", () => {
     await editor.type("下一块");
 
     await openEditorSettings(page);
-    const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
-      .locator('input[type="checkbox"]');
+    const lineNumberToggle = page.getByRole("checkbox", { name: "显示块编号", exact: true });
     if (!(await lineNumberToggle.isChecked())) {
       await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
     }
@@ -416,8 +411,7 @@ test.describe("编辑器块级 gutter", () => {
     expect(withoutNumbers.orderedNativeMarker).toBe('""');
 
     await openEditorSettings(page);
-    const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
-      .locator('input[type="checkbox"]');
+    const lineNumberToggle = page.getByRole("checkbox", { name: "显示块编号", exact: true });
     if (!(await lineNumberToggle.isChecked())) {
       await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
     }
@@ -460,8 +454,7 @@ test.describe("编辑器块级 gutter", () => {
     await expect(ordered.locator(":scope > li")).toHaveCount(105);
 
     await openEditorSettings(page);
-    const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
-      .locator('input[type="checkbox"]');
+    const lineNumberToggle = page.getByRole("checkbox", { name: "显示块编号", exact: true });
     if (!(await lineNumberToggle.isChecked())) {
       await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
     }

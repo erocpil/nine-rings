@@ -1,5 +1,7 @@
+import { openSaveHarness } from "./helpers/save-harness";
 import { createDocumentInWorkspace } from "./helpers/document";
 import { test, expect } from "@playwright/test";
+
 
 test("打开笔记和切换只读不产生正文保存，真实编辑仍正常保存", async ({ page }) => {
   await page.goto("/");
@@ -63,7 +65,7 @@ test("搜索摘要中的 HTML 只显示为文字", async ({ page }) => {
 
 for (const secondFails of [false, true]) {
   test(`自动保存失败不会恢复已被新批次取代的字段（后续失败=${secondFails}）`, async ({ page }) => {
-    await page.goto("/");
+    await openSaveHarness(page);
     const result = await page.evaluate(async (secondFails) => {
       const load = (path: string) => import(/* @vite-ignore */ path);
       const React = (await load("/node_modules/.vite/deps/react.js")).default;
@@ -105,7 +107,7 @@ for (const secondFails of [false, true]) {
 }
 
 test("自动保存入队时固定正文快照，不读到切换后的文档", async ({ page }) => {
-  await page.goto("/");
+  await openSaveHarness(page);
   const writes = await page.evaluate(async () => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const React = (await load("/node_modules/.vite/deps/react.js")).default;

@@ -1,8 +1,9 @@
+import { openSaveHarness } from "./helpers/save-harness";
 import { expect, test } from "@playwright/test";
 import type { AutoSaveChanges, AutoSaveHandle } from "../src/hooks/useAutoSave";
 
 test("自动保存回调跨渲染稳定且定时保存调用最新处理器", async ({ page }) => {
-  await page.goto("/");
+  await openSaveHarness(page);
   const result = await page.evaluate(async () => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const React: typeof import("react") = (await load("/node_modules/.vite/deps/react.js")).default;

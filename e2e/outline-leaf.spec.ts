@@ -4,6 +4,7 @@ for (const mode of ["editable", "readonly", "virtual"] as const) {
   test(`目录只为有下级标题的条目提供三角 ${mode}`, async ({ page }) => {
     await page.addInitScript(virtual => localStorage.setItem("nr:experimentalReadonlyRendering", String(virtual)), mode === "virtual");
     await page.goto("/");
+    await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
     await page.evaluate(async mode => {
       const { api } = await import("/src/lib/api.ts");
       const { mdToDelta } = await import("/src/lib/md-parser.ts");

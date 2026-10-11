@@ -128,7 +128,9 @@ export default defineConfig(async () => {
       ? { protocol: "ws", host, port: port + 1 }
       : undefined,
     watch: {
-      ignored: ["**/src-tauri/**"],
+      // Trace snapshots contain HTML. Watching them broadcasts full-reload
+      // during E2E, destroying otherwise valid editor/browser contexts.
+      ignored: ["**/src-tauri/**", "**/.local-tools/**", "**/test-results/**", "**/playwright-report/**"],
     },
   },
   });

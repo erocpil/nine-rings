@@ -123,3 +123,7 @@ Node CI 读取 `.node-version`，Rust CI 固定 1.98.1，与 `rust-toolchain.tom
 - [Tauri 前置环境](https://v2.tauri.app/start/prerequisites/)
 - [Tauri CLI 与项目安装](https://v2.tauri.app/start/create-project/)
 - [Node 22.23.3 发布记录](https://nodejs.org/en/blog/release/v22.23.3)
+
+## 2026-10-11：摘要与插件前置适配后的桌面构建
+
+继续使用上述隔离工具链，未安装新系统软件。完整 Rust 回归 59 库测试及 33 集成测试通过。macOS ARM64 release/.app 构建与 DMG 打包通过；最低系统版本继续使用 11.0 配置，运行命令见既有构建步骤。产物为 `.local-tools/target/aarch64-apple-darwin/release/bundle/dmg/Nine Rings_0.2.0_aarch64.dmg`，`hdiutil verify` 返回 0。日志为 `.local-tools/native-build-20261011.log`、`.local-tools/native-dmg-20261011.log`。未安装进 Applications，也未对用户数据库启动 GUI；这不替代 Windows/Linux 退出后进程与文件锁验证。

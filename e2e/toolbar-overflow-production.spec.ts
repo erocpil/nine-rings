@@ -115,6 +115,8 @@ test.describe("桌面工具栏重新挂载", () => {
     const toolbar = page.locator(".editor-menu");
     await expect(toolbar).toHaveClass(/toolbar-full/);
     await page.setViewportSize({ width: 900, height: 900 });
+    await expect(toolbar).toHaveClass(/toolbar-compact/);
+    await page.setViewportSize({ width: 780, height: 900 });
     await expect(toolbar).toHaveClass(/toolbar-minimal/);
     await expect
       .poll(() => toolbar.evaluate((el) => el.scrollWidth - el.clientWidth))

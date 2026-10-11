@@ -234,7 +234,8 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(virtual).toBeVisible();
     await virtual.getByRole("button", { name: "显示代码行号", exact: true }).click();
     await expect(virtual.locator(".vr-code-line-number")).toHaveCount(101);
-    await virtual.getByRole("button", { name: "复制块", exact: true }).click();
+    await page.getByRole("button", { name: "块级操作", exact: true }).click();
+    await page.getByRole("menuitem", { name: "复制内容", exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("data-copied-block-html", /<pre[\s\S]*const n100 = 100;/);
     await virtual.getByRole("button", { name: "隐藏代码行号", exact: true }).click();
     expect(await virtual.locator("pre code").textContent()).toBe(before);
@@ -1599,8 +1600,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await page.goto("/");
     await openMobileSettings(page);
     await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
-    const lineNumberSetting = page.locator(".settings-field").filter({ hasText: "显示块编号" });
-    await lineNumberSetting.locator(".settings-toggle").click();
+    await page.getByRole("checkbox", { name: "显示块编号", exact: true }).check();
     await page.getByLabel("关闭设置").click();
 
     await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "38px");
@@ -1647,7 +1647,7 @@ test.describe("PWA 窄屏应用外壳", () => {
         await page.setViewportSize({ width: 390, height: 760 });
         await openMobileSettings(page);
         await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
-        await page.locator(".settings-field").filter({ hasText: "显示块编号" }).locator(".settings-toggle").click();
+        await page.getByRole("checkbox", { name: "显示块编号", exact: true }).check();
         await page.getByLabel("关闭设置").click();
         await expect(page.getByRole("dialog", { name: "设置", exact: true })).toBeHidden();
       }
@@ -1958,8 +1958,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     });
     await openMobileSettings(page);
     await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
-    const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
-      .locator('input[type="checkbox"]');
+    const lineNumberToggle = page.getByRole("checkbox", { name: "显示块编号", exact: true });
     if (!(await lineNumberToggle.isChecked())) {
       await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
     }

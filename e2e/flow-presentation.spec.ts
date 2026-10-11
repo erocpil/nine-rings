@@ -27,6 +27,9 @@ for (const width of [1280, 390]) {
       return { id: legacy.id, document: deltaToProseMirror(legacy.content), path: legacy.storagePath };
     });
     expect(seed.path).toBe("ideas");
+    // Direct fixture creation bypasses the tree refresh used by user creation.
+    await page.reload();
+    await expect(page.locator(".note-title")).toHaveValue("旧版流程兼容");
     if (width < 769 && await page.locator(".sidebar-overlay.active").count()) {
       await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 420 } });
     }

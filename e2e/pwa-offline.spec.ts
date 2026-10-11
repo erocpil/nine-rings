@@ -29,7 +29,8 @@ test('应用脚本尚未完成时也立即显示启动界面', async ({ page }) 
   await expect(page.locator('.ProseMirror')).toBeVisible();
 });
 
-test('生产 PWA 安装后可以离线冷启动并恢复本地编辑', async ({ page, context }) => {
+test('生产 PWA 安装后可以离线冷启动并恢复本地编辑', async ({ page, context, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Playwright 的离线 Service Worker 网络模拟仅支持 Chromium；Safari 离线冷启动需真机验证。');
   await page.goto('/');
   await page.evaluate(() => navigator.serviceWorker.ready);
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
