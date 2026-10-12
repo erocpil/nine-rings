@@ -91,8 +91,10 @@ export default function TitleBar({
     void (async () => {
       const appWindow = getCurrentWindow();
       // 已在原生全屏时不改变 Space，也不修改退出全屏后的窗口状态。
-      if (!(await appWindow.isFullscreen()))
+      if (!(await appWindow.isFullscreen())) {
+        window.dispatchEvent(new Event(FULLSCREEN_WILL_CHANGE_EVENT));
         await invoke("toggle_window_maximize");
+      }
     })()
       .catch((error) => {
         console.error("[TitleBar] 最大化/还原窗口失败:", error);
@@ -115,6 +117,8 @@ export default function TitleBar({
     const appWindow = getCurrentWindow();
     let disposed = false;
     let unlistenResize: (() => void) | undefined;
+    let unlistenFocus: (() => void) | undefined;
+    let focusRevision = 0;
 
     const syncFullscreen = async () => {
       const next = await appWindow.isFullscreen();
@@ -122,6 +126,20 @@ export default function TitleBar({
     };
 
     void syncFullscreen().catch(() => {});
+    void appWindow.onFocusChanged(event => {
+      const revision = ++focusRevision;
+      if (disposed) return;
+      if (event.payload) {
+        window.dispatchEvent(new Event("nine-rings:main-window-show"));
+      } else {
+        void appWindow.isVisible().then(visible => {
+          if (!disposed && revision === focusRevision && !visible)
+            window.dispatchEvent(new Event("nine-rings:main-window-hide"));
+        }).catch(() => {});
+      }
+    }).then(unlisten => {
+      if (disposed) unlisten(); else unlistenFocus = unlisten;
+    }).catch(() => {});
     void appWindow
       .onResized(() => {
         // macOS 原生全屏会经过异步 Space 动画；读取真实状态，避免按钮
@@ -139,6 +157,7 @@ export default function TitleBar({
       if (maximizeGuardTimer.current !== null)
         window.clearTimeout(maximizeGuardTimer.current);
       unlistenResize?.();
+      unlistenFocus?.();
     };
   }, [native]);
 

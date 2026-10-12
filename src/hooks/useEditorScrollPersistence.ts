@@ -191,7 +191,7 @@ export function useEditorScrollPersistence({
     const handler = () => {
       // Mounting may clamp the target while NodeViews are still taking shape.
       // Never replace the saved target with those intermediate positions.
-      if (state.pending || !el.isConnected || el.closest("[inert]")) return;
+      if (state.pending || !el.isConnected || el.closest("[inert]") || document.visibilityState === "hidden" || el.clientWidth === 0 || el.clientHeight === 0) return;
       lastKnownScrollTop = el.scrollTop;
       scheduleStatusPosition();
       if (persistTimer) window.clearTimeout(persistTimer);

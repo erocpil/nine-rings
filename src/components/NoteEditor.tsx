@@ -2048,10 +2048,14 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     let scrollGestureActive = false;
     let adjusting = false;
     let lastObservedWidth = root.clientWidth;
+    let lastObservedHeight = root.clientHeight;
     let lastWindowWidth = window.innerWidth;
+    let lastWindowHeight = window.innerHeight;
+    let windowHidden = document.visibilityState === "hidden";
+    let resumeRequested = false;
     const isMobileViewport = () => window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
     let anchor: {
-      kind: "caret" | "block";
+      kind: "caret" | "block" | "text";
       pos: number;
       viewportTop: number;
       viewportHeight: number;
@@ -2069,7 +2073,10 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
 
     const capture = () => {
       frame = 0;
-      if (adjusting || editor.isDestroyed || !root.isConnected) return;
+      if (adjusting || windowHidden || document.visibilityState === "hidden" || editor.isDestroyed || !root.isConnected || root.clientWidth === 0 || root.clientHeight === 0 || root.closest("[inert]")) return;
+      // Native reflow can emit scroll before ResizeObserver. Keep the last
+      // valid anchor until the resize path has compensated that new geometry.
+      if (!isMobileViewport() && anchor && (Math.abs(root.clientWidth - lastObservedWidth) >= 24 || Math.abs(root.clientHeight - lastObservedHeight) >= 24)) return;
       // Navigation invalidates the old anchor synchronously, but geometry reads
       // belong to this coalesced frame. Reading clientWidth in selectionUpdate
       // forces layout of newly pasted content before the transaction returns.
@@ -2111,6 +2118,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       const editorRect = editor.view.dom.getBoundingClientRect();
       const probeX = Math.min(editorRect.right - 1, Math.max(editorRect.left + 1, editorRect.left + 48));
       let block: HTMLElement | null = null;
+      let textPosition: number | null = null;
+      let readingTextBlock: HTMLElement | null = null;
       for (const offset of [1, 8, 24, 48]) {
         const coords = { left: probeX, top: Math.min(viewport.bottom - 1, viewport.top + offset) };
         const mapped = editor.view.posAtCoords(coords)?.pos;
@@ -2122,6 +2131,14 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         const rect = candidate.getBoundingClientRect();
         if (rect.height > 0 && rect.bottom > viewport.top + 0.5 && rect.top < viewport.bottom) {
           block = candidate;
+          if ($mapped.parent.isTextblock) {
+            const mappedCoords = editor.view.coordsAtPos(mapped);
+            if (mappedCoords.bottom > viewport.top && mappedCoords.top < viewport.bottom) {
+              textPosition = mapped;
+              const textDom = editor.view.nodeDOM($mapped.before($mapped.depth));
+              if (textDom instanceof HTMLElement) readingTextBlock = textDom;
+            }
+          }
           break;
         }
       }
@@ -2129,11 +2146,34 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         anchor = null;
         return;
       }
+      if (textPosition !== null) {
+        // Hit-testing can select a later character in the same wrapped line.
+        // Anchor its first visible character, so widening that line cannot
+        // move the saved character onto an earlier row.
+        const texts = document.createTreeWalker(readingTextBlock ?? block, NodeFilter.SHOW_TEXT);
+        let node: Node | null;
+        while ((node = texts.nextNode())) {
+          if (!(node instanceof Text) || !node.textContent?.trim() || node.parentElement?.closest("button, .code-block-toolbar, .blockquote-toolbar, .code-line-number")) continue;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const rect = range.getBoundingClientRect();
+          if (!rect.height || rect.bottom <= viewport.top || rect.top >= viewport.bottom) continue;
+          let low = 0, high = node.length - 1;
+          while (low < high) {
+            const mid = (low + high) >>> 1;
+            range.setStart(node, mid); range.setEnd(node, mid + 1);
+            if (range.getBoundingClientRect().bottom <= viewport.top) low = mid + 1;
+            else high = mid;
+          }
+          textPosition = editor.view.posAtDOM(node, low);
+          break;
+        }
+      }
       const blockRect = block.getBoundingClientRect();
       anchor = {
-        kind: "block",
-        pos: blockPosition(block),
-        viewportTop: blockRect.top - viewport.top,
+        kind: textPosition === null ? "block" : "text",
+        pos: textPosition ?? blockPosition(block),
+        viewportTop: (textPosition === null ? blockRect.top : editor.view.coordsAtPos(textPosition).top) - viewport.top,
         viewportHeight: viewport.height,
         relativeRatio: 0,
         width: root.clientWidth,
@@ -2149,7 +2189,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       scrollCaptureTimer = 0;
     };
     const captureAfterScrollSettles = () => {
-      if (adjusting) return;
+      if (adjusting || windowHidden || root.clientWidth === 0 || root.clientHeight === 0) return;
       // 每段连续滚动只在开始时取一次锚点，确保用户刚停下便旋转屏幕时
       // 仍有较新的位置；后续滚动帧只重置静止定时器，不再做布局读取。
       if (!scrollGestureActive) {
@@ -2181,6 +2221,10 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         return;
       }
       const nextTop = editor.view.coordsAtPos(pos).top;
+      if (previous.kind === "text") {
+        root.scrollTop += nextTop - viewport.top - previous.viewportTop;
+        return;
+      }
       const heightChanged = Math.abs(viewport.height - previous.viewportHeight) > 24;
       const unclampedTarget = heightChanged
         ? viewport.top + previous.relativeRatio * viewport.height
@@ -2205,6 +2249,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
 
     const stabilizeWidthChange = (force = false) => {
       const nextWidth = root.clientWidth;
+      const nextHeight = root.clientHeight;
+      if (windowHidden || document.visibilityState === "hidden" || nextWidth === 0 || nextHeight === 0 || root.closest("[inert]")) return false;
       // iOS/WKWebView changes a nested scroller's width by fractional pixels
       // while opening or dismissing the keyboard. That is not a document
       // reflow to compensate: restoring this anchor can pull a reader back to
@@ -2215,7 +2261,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         lastObservedWidth = nextWidth;
         return false;
       }
-      if ((!force && Math.abs(nextWidth - lastObservedWidth) < 24) || !anchor) return false;
+      if ((!force && Math.abs(nextWidth - lastObservedWidth) < 24 && Math.abs(nextHeight - lastObservedHeight) < 24) || !anchor) return false;
+      lastObservedHeight = nextHeight;
       if (Math.abs(nextWidth - lastObservedWidth) >= 24) lastObservedWidth = nextWidth;
       const previous = anchor;
       adjusting = true;
@@ -2236,6 +2283,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     };
 
     const observer = new ResizeObserver((entries) => {
+      if (windowHidden && resumeRequested && document.visibilityState !== "hidden" && root.clientWidth > 0 && root.clientHeight > 0) onWindowShown();
+      if (windowHidden || document.visibilityState === "hidden" || root.clientWidth === 0 || root.clientHeight === 0 || root.closest("[inert]")) return;
       if (isReadingPositionRestoring(root)) {
         clearSettleTimers();
         adjusting = false;
@@ -2274,8 +2323,10 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     });
 
     const onWindowResize = () => {
-      const windowWidthChanged = Math.abs(window.innerWidth - lastWindowWidth) >= 24;
+      if (windowHidden || document.visibilityState === "hidden" || root.clientWidth === 0 || root.clientHeight === 0) return;
+      const windowWidthChanged = Math.abs(window.innerWidth - lastWindowWidth) >= 24 || Math.abs(window.innerHeight - lastWindowHeight) >= 24;
       lastWindowWidth = window.innerWidth;
+      lastWindowHeight = window.innerHeight;
       if (isMobileViewport()) {
         lastObservedWidth = root.clientWidth;
         clearSettleTimers();
@@ -2292,8 +2343,30 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       frame = 0;
       capture();
     };
+    const onWindowHidden = () => {
+      captureBeforeFullscreen();
+      windowHidden = true;
+      resumeRequested = false;
+      clearSettleTimers();
+      adjusting = false;
+    };
+    const onWindowShown = () => {
+      if (!windowHidden || document.visibilityState === "hidden") return;
+      resumeRequested = true;
+      if (!root.clientWidth || !root.clientHeight) return;
+      windowHidden = false;
+      resumeRequested = false;
+      lastWindowWidth = window.innerWidth;
+      lastWindowHeight = window.innerHeight;
+      if (!stabilizeWidthChange(true)) scheduleCapture();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") onWindowHidden();
+      else onWindowShown();
+    };
 
     const userNavigation = () => {
+      if (windowHidden) return;
       // A pending layout restore belongs to the old caret. Never apply it after
       // the user clicks, drags, wheels or explicitly moves to a new selection.
       clearSettleTimers();
@@ -2313,6 +2386,10 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     root.addEventListener("scroll", captureAfterScrollSettles, { passive: true });
     window.addEventListener("resize", onWindowResize);
     window.addEventListener(FULLSCREEN_WILL_CHANGE_EVENT, captureBeforeFullscreen);
+    window.addEventListener("nine-rings:main-window-hide", onWindowHidden);
+    window.addEventListener("nine-rings:main-window-show", onWindowShown);
+    window.addEventListener("focus", onWindowShown);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     observer.observe(root);
     observer.observe(editor.view.dom);
     scheduleCapture();
@@ -2325,6 +2402,10 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       root.removeEventListener("scroll", captureAfterScrollSettles);
       window.removeEventListener("resize", onWindowResize);
       window.removeEventListener(FULLSCREEN_WILL_CHANGE_EVENT, captureBeforeFullscreen);
+      window.removeEventListener("nine-rings:main-window-hide", onWindowHidden);
+      window.removeEventListener("nine-rings:main-window-show", onWindowShown);
+      window.removeEventListener("focus", onWindowShown);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       observer.disconnect();
       clearSettleTimers();
       if (frame) cancelAnimationFrame(frame);

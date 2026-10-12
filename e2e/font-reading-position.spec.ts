@@ -87,6 +87,31 @@ async function expectPreserved(
     .toBeLessThanOrEqual(2);
 }
 
+test("长段落窗口放大与恢复保留可见文字，隐藏零尺寸不覆盖锚点", async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 700 });
+  await prepare(page);
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  await expect(page.locator(".note-editor .ProseMirror")).toHaveAttribute("contenteditable", "false");
+  await page.waitForTimeout(180);
+  const before = await measureTop(page);
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await expectPreserved(page, before);
+  await page.setViewportSize({ width: 1500, height: 950 });
+  await expectPreserved(page, before);
+  await page.setViewportSize({ width: 1000, height: 700 });
+  await expectPreserved(page, before);
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("nine-rings:main-window-hide"));
+    document.querySelector<HTMLElement>(".note-editor-scroll")!.style.display = "none";
+  });
+  await page.setViewportSize({ width: 1400, height: 800 });
+  await page.evaluate(() => {
+    document.querySelector<HTMLElement>(".note-editor-scroll")!.style.display = "";
+    window.dispatchEvent(new Event("nine-rings:main-window-show"));
+  });
+  await expectPreserved(page, before);
+});
+
 for (const mobile of [false, true]) {
   test.describe(mobile ? "touch" : "mouse", () => {
     test.use({ hasTouch: mobile });
