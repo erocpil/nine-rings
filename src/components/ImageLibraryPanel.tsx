@@ -11,7 +11,10 @@ import {
   useMemo,
   useSyncExternalStore,
   useLayoutEffect,
+  type MouseEvent,
 } from "react";
+import { createPortal } from "react-dom";
+import { copyToClipboard } from "../lib/clipboard";
 import {
   imageDirectoryService,
   type ImageRoot,
@@ -26,6 +29,129 @@ import { WorkspacePanelHeading } from "./WorkspacePanelHeading";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { useNearViewport } from "../hooks/useNearViewport";
 import { imagePreview } from "../lib/image-library/preview-resource";
+interface TreeMenu {
+  name: string;
+  path: string;
+  actionLabel: string;
+  action: () => void;
+  trigger: HTMLElement;
+  x: number;
+  y: number;
+}
+type OpenTreeMenu = (
+  event: MouseEvent<HTMLButtonElement>,
+  target: Omit<TreeMenu, "trigger" | "x" | "y">,
+) => void;
+
+function ImageTreeMenu({
+  menu,
+  close,
+  onError,
+}: {
+  menu: TreeMenu;
+  close: () => void;
+  onError: (error: unknown) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    el.style.left = `${Math.max(8, Math.min(menu.x, innerWidth - box.width - 8))}px`;
+    el.style.top = `${Math.max(8, Math.min(menu.y, innerHeight - box.height - 8))}px`;
+    el.querySelector<HTMLButtonElement>("button")?.focus({
+      preventScroll: true,
+    });
+  }, [menu]);
+  useEffect(() => {
+    const outside = (event: Event) => {
+      if (!ref.current?.contains(event.target as Node)) close();
+    };
+    document.addEventListener("pointerdown", outside, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("pointerdown", outside, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [close]);
+  const dismiss = () => {
+    close();
+    if (menu.trigger.isConnected) menu.trigger.focus({ preventScroll: true });
+  };
+  const copy = (value: string) => {
+    void copyToClipboard(value, { reportFailure: true })
+      .then(dismiss)
+      .catch((error) => {
+        onError(error);
+        dismiss();
+      });
+  };
+  return createPortal(
+    <div
+      ref={ref}
+      className="doc-context-menu image-tree-context-menu"
+      role="menu"
+      aria-label="图片树菜单"
+      data-sidebar-owned
+      style={{ left: menu.x, top: menu.y }}
+      onContextMenu={(event) => event.preventDefault()}
+      onKeyDown={(event) => {
+        if (event.key === "Tab") close();
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          dismiss();
+        }
+        if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+          event.preventDefault();
+          event.stopPropagation();
+          const buttons = Array.from(
+            ref.current?.querySelectorAll<HTMLButtonElement>("button") ?? [],
+          );
+          const index = buttons.indexOf(
+            document.activeElement as HTMLButtonElement,
+          );
+          const next =
+            event.key === "Home"
+              ? 0
+              : event.key === "End"
+                ? buttons.length - 1
+                : (index +
+                    (event.key === "ArrowDown" ? 1 : -1) +
+                    buttons.length) %
+                  buttons.length;
+          buttons[next]?.focus();
+        }
+      }}
+    >
+      <button
+        className="doc-context-item"
+        role="menuitem"
+        onClick={() => {
+          dismiss();
+          menu.action();
+        }}
+      >
+        {menu.actionLabel}
+      </button>
+      <button
+        className="doc-context-item"
+        role="menuitem"
+        onClick={() => copy(menu.name)}
+      >
+        复制名称
+      </button>
+      <button
+        className="doc-context-item"
+        role="menuitem"
+        onClick={() => copy(menu.path)}
+      >
+        复制相对路径
+      </button>
+    </div>,
+    document.body,
+  );
+}
 function Thumbnail({ image }: { image: ViewedImage }) {
   const { src, name, rootId, nodeId } = image;
   const target = useMemo(
@@ -62,11 +188,13 @@ function Directory({
   path,
   name,
   onError,
+  onMenu,
 }: {
   root: ImageRoot;
   path: string;
   name: string;
   onError: (error: unknown) => void;
+  onMenu: OpenTreeMenu;
 }) {
   const key = `${root.id}:${path}`;
   const selected = useSyncExternalStore(
@@ -151,6 +279,14 @@ function Directory({
           setOpen(!open);
         }}
         title={name}
+        onContextMenu={(event) =>
+          onMenu(event, {
+            name,
+            path: path || ".",
+            actionLabel: open ? "收起目录" : "展开目录",
+            action: () => setOpen(!open),
+          })
+        }
       >
         <ToolbarIcon name={open ? "chevronDown" : "chevronRight"} />
         <ToolbarIcon name="folder" />
@@ -167,6 +303,7 @@ function Directory({
                 path={node.id}
                 name={node.name}
                 onError={onError}
+                onMenu={onMenu}
               />
             ) : (
               <li
@@ -191,6 +328,14 @@ function Directory({
                   }
                   title={`${node.name}${node.size ? ` · ${Math.ceil(node.size / 1024)} KB` : ""}`}
                   onClick={() => view(node)}
+                  onContextMenu={(event) =>
+                    onMenu(event, {
+                      name: node.name,
+                      path: node.id,
+                      actionLabel: "查看图片",
+                      action: () => view(node),
+                    })
+                  }
                 >
                   <Thumbnail
                     image={{
@@ -235,6 +380,17 @@ export function ImageLibraryPanel({
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [menu, setMenu] = useState<TreeMenu | null>(null);
+  const openMenu: OpenTreeMenu = (event, target) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenu({
+      ...target,
+      trigger: event.currentTarget,
+      x: event.clientX,
+      y: event.clientY,
+    });
+  };
   const scroll = useRef<HTMLDivElement>(null);
   const restoreScroll = useRef(imageLibrarySession.scrollTop);
   useLayoutEffect(() => {
@@ -396,11 +552,15 @@ export function ImageLibraryPanel({
                 path=""
                 name={`${root.name}${root.transient ? "（临时）" : ""}`}
                 onError={fail}
+                onMenu={openMenu}
               />
             </ul>
           </div>
         ))}
       </div>
+      {menu && (
+        <ImageTreeMenu menu={menu} close={() => setMenu(null)} onError={fail} />
+      )}
     </section>
   );
 }

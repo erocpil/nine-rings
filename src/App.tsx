@@ -489,8 +489,6 @@ function App() {
       .catch((error) => console.error("[App] 保存编辑器字号失败:", error));
   }, [handleConfigChange, config]);
   const FOCUS_KEY = "nr:focusMode";
-  const [imageFocusMode,setImageFocusMode] = useState(false);
-  useEffect(() => { if(!pluginMainView) setImageFocusMode(false); },[pluginMainView]);
   const [focusMode, setFocusMode] = useState(() => {
     return localStorage.getItem(FOCUS_KEY) === "true";
   });
@@ -1358,7 +1356,7 @@ function App() {
     </div>
   ) : null;
 
-  const effectiveFocusMode = focusMode || (pluginMainActive && imageFocusMode);
+  const effectiveFocusMode = focusMode;
   const exhibitionEnabled = Boolean(config && effectiveWorkspaceLayout(config) === "exhibition");
   const readerWasOpenBeforeHome = Boolean(
     exhibitionReturnTarget?.pdfReaderDocumentId || exhibitionReturnTarget?.epubReaderDocumentId,
@@ -1489,7 +1487,7 @@ function App() {
       onCreate={() => setDocCreateOpen(true)} onSearch={openGlobalSearch} onSettings={() => setSettingsOpen(true)}>
 
       <div
-      className={`app app-unified-workspace ${effectiveFocusMode ? "app-focus-mode" : ""}${pluginMainActive && imageFocusMode ? " app-image-focus" : ""}${desktopWorkspace ? " app-desktop-workspace" : " app-mobile-workspace"}${homeReaderOpen || readerPrimaryView ? " app-home-reader" : ""}${readerCompanionCollapsed ? " reader-companion-collapsed" : ""}${mobileReaderOpen ? " app-mobile-reader" : ""}`}
+      className={`app app-unified-workspace ${effectiveFocusMode ? "app-focus-mode" : ""}${pluginMainActive && focusMode ? " app-image-focus" : ""}${desktopWorkspace ? " app-desktop-workspace" : " app-mobile-workspace"}${homeReaderOpen || readerPrimaryView ? " app-home-reader" : ""}${readerCompanionCollapsed ? " reader-companion-collapsed" : ""}${mobileReaderOpen ? " app-mobile-reader" : ""}`}
       style={editorAppearanceVariables(config ?? undefined)}
       data-hierarchy-path-mode={config?.hierarchy_path_mode ?? "default"}
       data-hierarchy-outline-mode={config?.hierarchy_outline_mode ?? "default"}
@@ -1755,7 +1753,7 @@ function App() {
           </div>
           {pluginMainView && <div className="plugin-main-view-host" hidden={!pluginMainActive} {...(!pluginMainActive ? { inert: "", "aria-hidden": true } : {})}>
             <Suspense fallback={<div className="empty-state">正在打开图片…</div>}>
-              <ImageViewer key={`${pluginMainView.owner.generation}:${pluginMainView.view.id}`} presentation="main" focusMode={imageFocusMode} onFocusChange={setImageFocusMode} active={pluginMainActive} initial={pluginMainView.data.image} images={pluginMainView.data.images}
+              <ImageViewer key={`${pluginMainView.owner.generation}:${pluginMainView.view.id}`} presentation="main" focusMode={focusMode} onFocusChange={next => preserveReadingPositions(() => setFocusMode(next))} active={pluginMainActive} initial={pluginMainView.data.image} images={pluginMainView.data.images}
                 canInsert={Boolean(selectedNote && !selectedNote.readonly && !syncBusy && documentToolEnabled("image"))}
                 onClose={() => mainViews.close(pluginMainView.id)}
                 onInsert={image => {

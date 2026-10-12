@@ -42,6 +42,8 @@
   text-align: left;
   padding: 4px;
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .image-tree-folder {
   padding-right: 32px;

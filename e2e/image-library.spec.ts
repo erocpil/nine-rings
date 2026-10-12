@@ -570,6 +570,123 @@ test("图片按钮与文档树切换视图，返回原视图仍可结束查看",
   await expect(viewer).toBeHidden();
 });
 
+test("图片树名称连续点击和右键不选中文本，图片仍正常打开", async ({ page }) => {
+  const { panel, viewer } = await openTwoPictures(page);
+  const name = panel
+    .getByRole("button", { name: "icon-192.png", exact: true })
+    .locator("span")
+    .last();
+  await name.dblclick();
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const { mainViews } =
+          await import("/src/lib/plugin-system/main-view-registry.ts");
+        return mainViews.getSnapshot().pending;
+      }),
+    )
+    .toBeNull();
+  await expect
+    .poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ""))
+    .toBe("");
+  await expect(viewer.getByRole("heading")).toHaveText("icon-192.png");
+  await panel
+    .getByRole("button", { name: "ragdoll-32.png", exact: true })
+    .click();
+  await expect(viewer.getByRole("heading")).toHaveText("ragdoll-32.png");
+  await panel
+    .getByRole("button", { name: "ragdoll-32.png", exact: true })
+    .locator("span")
+    .last()
+    .click({ button: "right" });
+  const menu = page.getByRole("menu", { name: "图片树菜单" });
+  await expect(menu).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ""))
+    .toBe("");
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(viewer).toBeVisible();
+  await name.click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "查看图片", exact: true }).click();
+  await expect(menu).toBeHidden();
+  await expect(viewer.getByRole("heading")).toHaveText("icon-192.png");
+  await name.click({ button: "right" });
+  await viewer.getByRole("heading").click();
+  await expect(menu).toBeHidden();
+});
+
+test("图片树菜单复制名称路径及目录收起，键盘不会切换图片", async ({ page }) => {
+  const { panel, viewer } = await openTwoPictures(page);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (text: string) => {
+          document.body.dataset.copiedImageText = text;
+        },
+      },
+    });
+  });
+  const picture = panel.getByRole("button", {
+    name: "icon-192.png",
+    exact: true,
+  });
+  const menu = page.getByRole("menu", { name: "图片树菜单" });
+  await picture.click({ button: "right" });
+  await page.keyboard.press("ArrowDown");
+  await expect(
+    menu.getByRole("menuitem", { name: "复制名称", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("body")).toHaveAttribute(
+    "data-copied-image-text",
+    "icon-192.png",
+  );
+  await expect(menu).toBeHidden();
+  await picture.click({ button: "right" });
+  await menu
+    .getByRole("menuitem", { name: "复制相对路径", exact: true })
+    .click();
+  await expect(page.locator("body")).toHaveAttribute(
+    "data-copied-image-text",
+    "icon-192.png",
+  );
+  await expect(viewer.getByRole("heading")).toHaveText("icon-192.png");
+  await panel
+    .getByRole("button", { name: "已选择图片（临时）", exact: true })
+    .click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "收起目录", exact: true }).click();
+  await expect(picture).toBeHidden();
+  await expect(viewer).toBeVisible();
+});
+
+test("图片与文档共享专注状态，切换和返回不会重置", async ({ page }) => {
+  const { viewer } = await openTwoPictures(page);
+  await viewer.getByRole("button", { name: "进入图片专注模式" }).click();
+  await page.getByRole("button", { name: "文档树", exact: true }).click();
+  await expect(page.locator(".note-editor:visible")).toHaveClass(/focus-mode/);
+  await page.getByRole("button", { name: "图片", exact: true }).click();
+  await viewer.getByRole("button", { name: "退出图片专注模式" }).click();
+  await page.getByRole("button", { name: "文档树", exact: true }).click();
+  await expect(page.locator(".note-editor:visible")).not.toHaveClass(
+    /focus-mode/,
+  );
+  await page
+    .locator(".note-editor:visible")
+    .getByTitle("专注模式", { exact: true })
+    .click();
+  await page.getByRole("button", { name: "图片", exact: true }).click();
+  await expect(
+    viewer.getByRole("button", { name: "退出图片专注模式" }),
+  ).toBeVisible();
+  await viewer.getByRole("button", { name: "返回原视图" }).click();
+  await expect(page.locator(".note-editor:visible")).toHaveClass(/focus-mode/);
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("nr:focusMode")))
+    .toBe("true");
+});
+
 test("原生 WebKit 捏合累计缩放，缩放锚定且不触发页面缩放", async ({ page }) => {
   const { viewer } = await openTwoPictures(page);
   const result = await viewer
@@ -668,7 +785,9 @@ test("图片专注模式保持查看器和分栏状态，属性可浮动和固�
     .getByRole("button", { name: "icon-192.png", exact: true })
     .click();
   await expect(properties).toContainText("192 × 192");
-  await expect(viewer.getByRole("button", { name: "退出图片专注模式" })).toBeVisible();
+  await expect(
+    viewer.getByRole("button", { name: "退出图片专注模式" }),
+  ).toBeVisible();
   await viewer.getByRole("button", { name: "退出图片专注模式" }).click();
   await expect(panel).toBeVisible();
   await panel
@@ -688,19 +807,17 @@ test("正文图片弹层支持专注与属性，Esc 依次关闭属性、退出�
   await createBlankDocument(page);
   await closeDocumentSidebar(page);
   await enable(page);
-  await page
-    .locator(".ProseMirror:visible")
-    .evaluate((element: any) =>
-      element.editor.commands.setContent({
-        type: "doc",
-        content: [
-          {
-            type: "resizableImage",
-            attrs: { src: "/icon-192.png", alt: "属性示例" },
-          },
-        ],
-      }),
-    );
+  await page.locator(".ProseMirror:visible").evaluate((element: any) =>
+    element.editor.commands.setContent({
+      type: "doc",
+      content: [
+        {
+          type: "resizableImage",
+          attrs: { src: "/icon-192.png", alt: "属性示例" },
+        },
+      ],
+    }),
+  );
   await page
     .getByRole("button", { name: "查看图片", exact: true })
     .click({ force: true });
