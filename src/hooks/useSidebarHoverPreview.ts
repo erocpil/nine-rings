@@ -44,6 +44,12 @@ export function useSidebarHoverPreview({
     if (!enabled || pinned || resizing) return;
     const check = () => {
       if (pointerInside.current) return;
+      // Keep the requested panel available until keyboard entry finishes.
+      // Slow WebKit layout can outlast the hover dismissal delay.
+      if (cancelFocusEntry.current) {
+        timer.current = setTimeout(check, 180);
+        return;
+      }
       const root = document.getElementById("workspace-sidebar");
       const active = document.activeElement;
       const editing =
