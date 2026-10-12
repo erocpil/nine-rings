@@ -902,7 +902,7 @@ function DocTree({
             >
               <ToolbarIcon name="rename" />
             </button>
-            <button className="btn-icon doc-tree-add" onClick={disabled ? undefined : onCreate} disabled={disabled} title="新建文档">
+            <button className="btn-icon doc-tree-add" onClick={disabled ? undefined : onCreate} disabled={disabled} title="新建文档" aria-label="新建文档">
               <ToolbarIcon name="plus" />
             </button>
           </>

@@ -448,6 +448,9 @@ for (const format of ["pdf", "epub"] as const) {
       await expect(page.getByLabel("PDF 页码", { exact: true })).toHaveValue(
         "2",
       );
+      // The input reflects a request before the raster batch commits.
+      // Wait for the actual second page before testing view preservation.
+      await expect(reader.locator('.pdf-page-surface[data-pdf-page="2"] canvas')).toHaveAttribute("data-pdf-ready", "true");
     } else {
       await expect(
         page

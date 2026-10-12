@@ -20,7 +20,8 @@ test("属性页可预览、版本化更新并解除外部 Markdown 来源", asyn
   });
 
   await page.goto("/");
-  await page.getByTitle("新建文档").click();
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await page.getByRole("button", { name: "新建文档", exact: true }).click();
   await page.getByPlaceholder("文档标题...").fill("外部来源测试");
   await page.getByRole("button", { name: "创建", exact: true }).click();
 

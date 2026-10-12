@@ -238,7 +238,7 @@ test("键盘进入等待浮层解除暂时 inert，Esc 仍返回分栏按钮", a
       // Simulate a delayed editor autofocus while the requested panel is
       // still unavailable. The user's keyboard entry must remain authoritative.
       document.querySelector<HTMLElement>(".ProseMirror")?.focus();
-      window.setTimeout(() => element.removeAttribute("inert"), 500);
+      window.setTimeout(() => element.removeAttribute("inert"), 1200);
     });
     observer.observe(element, { attributes: true, attributeFilter: ["class"] });
   });

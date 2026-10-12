@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { sourceInfo } from "./helpers/source-editor";
 import { scrollEditorBlockTo } from "./helpers/editor-scroll";
+import { openDocumentSidebar } from "./helpers/workspace";
 import { createBlankDocument } from "./helpers/document";
 import type { Editor } from "@tiptap/core";
 test.use({ serviceWorkers: "block" });
@@ -11,16 +12,15 @@ for (const width of [390, 1280]) test(`内置 Markdown 全景演示 ${width}`, a
   await page.goto("/");
   await page.waitForLoadState("load");
   await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:builtin-markdown-demo:v1"))).not.toBeNull();
-  await page.evaluate(async () => {
-    const apiPath = "/src/lib/api.ts";
-    const storePath = "/src/stores/useNotesStore.ts";
-    const { api } = await import(/* @vite-ignore */ apiPath);
-    const { useNotesStore } = await import(/* @vite-ignore */ storePath);
-    let note = await api.notes.get(localStorage.getItem("nr:builtin-markdown-demo:v1")!);
-    if (note.storagePath !== "ideas") throw new Error("demo path");
-    note = await api.notes.update(note.id, { readonly: true });
-    await useNotesStore.getState().selectNote(note);
-  });
+  await expect(page.locator(".note-editor")).toBeVisible();
+  await openDocumentSidebar(page);
+  await page.getByRole("button", { name: "Markdown 全景：GFM、GitHub 与 Nine Rings", exact: true }).click();
+  await expect.poll(() => page.evaluate(async () => {
+    const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
+    return useNotesStore.getState().selectedNote?.storagePath;
+  })).toBe("ideas");
+  const readonlyToggle = page.getByRole("button", { name: "点击设为只读", exact: true });
+  if (await readonlyToggle.isVisible()) await readonlyToggle.click();
   const root = page.locator(".note-editor:visible .editor-content").first();
   await expect(root.locator("table").first()).toBeAttached();
   await expect(root.locator(".nr-footnote-reference")).toHaveCount(3);

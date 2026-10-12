@@ -125,7 +125,8 @@ test("正文书签可切换、跳转并随文档保存", async ({ page }) => {
 
 test("设置中的书签列表包含文档书签", async ({ page }) => {
   await page.goto("/");
-  await page.getByTitle("新建文档").click();
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await page.getByRole("button", { name: "新建文档", exact: true }).click();
   await page.getByPlaceholder("文档标题...").fill("书签集中管理测试");
   await page.getByRole("button", { name: "创建", exact: true }).click();
 

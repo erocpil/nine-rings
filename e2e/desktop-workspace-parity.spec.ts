@@ -49,6 +49,9 @@ for (const native of [false, true]) {
     const toolSizes = () => tools.evaluateAll(buttons => buttons.map(button => {
       const rect = button.getBoundingClientRect(); return [rect.width, rect.height];
     }));
+    // The toolbar portal can briefly unmount while startup config settles.
+    // Capture the full controls, not an empty intermediate baseline.
+    await expect.poll(() => tools.count()).toBe(9);
     const ordinaryToolSizes = await toolSizes();
     for (let i = 0; i < 2; i++) {
       await page.getByRole("button", { name: "专注模式", exact: true }).click();

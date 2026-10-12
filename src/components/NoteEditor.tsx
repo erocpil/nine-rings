@@ -2047,6 +2047,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     let scrollGestureActive = false;
     let adjusting = false;
     let preserveResizeAnchor = false;
+    let restoredScrollTop = root.scrollTop;
     let lastObservedWidth = root.clientWidth;
     let lastObservedHeight = root.clientHeight;
     let lastWindowWidth = window.innerWidth;
@@ -2191,6 +2192,12 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     };
     const captureAfterScrollSettles = () => {
       if (adjusting || windowHidden || root.clientWidth === 0 || root.clientHeight === 0) return;
+      // Native scrollbars and programmatic reading navigation may not emit
+      // wheel/pointer events. A new scroll at settled geometry supersedes the
+      // saved resize anchor; delayed events from our own restore keep it.
+      if (preserveResizeAnchor && Math.abs(root.scrollTop - restoredScrollTop) > 2
+        && Math.abs(root.clientWidth - lastObservedWidth) < 0.5
+        && Math.abs(root.clientHeight - lastObservedHeight) < 0.5) preserveResizeAnchor = false;
       // 每段连续滚动只在开始时取一次锚点，确保用户刚停下便旋转屏幕时
       // 仍有较新的位置；后续滚动帧只重置静止定时器，不再做布局读取。
       if (!scrollGestureActive) {
@@ -2277,6 +2284,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           followupRestoreFrame = 0;
           restoreAnchor(previous);
           adjusting = false;
+          restoredScrollTop = root.scrollTop;
           preserveResizeAnchor = true;
           anchor = { ...previous, width: root.clientWidth, viewportHeight: editorReadingViewport(root).height,
             viewportTop: previous.kind === "caret" ? editor.view.coordsAtPos(previous.pos).top : previous.viewportTop };
@@ -2322,6 +2330,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         if (editor.isDestroyed || !root.isConnected || isReadingPositionRestoring(root)) return;
         adjusting = true;
         restoreAnchor(previous);
+        restoredScrollTop = root.scrollTop;
         adjusting = false;
         scheduleCapture();
       });

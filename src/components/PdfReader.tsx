@@ -2237,6 +2237,7 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
           <button type="button" onClick={() => changePage(page - 1)} aria-label="上一页" disabled={!pdf || page <= 1}>‹</button>
           <input
             aria-label="PDF 页码"
+            disabled={!pdf || loading}
             inputMode="numeric"
             value={pageInput}
             onChange={(event) => setPageInput(event.target.value.replace(/\D/g, ""))}

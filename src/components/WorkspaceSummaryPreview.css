@@ -42,6 +42,8 @@
   min-height: 0;
 
   overflow: auto;
+  /* Spacer replacement must not anchor scrolling to the removed row. */
+  overflow-anchor: none;
   overscroll-behavior: contain;
   scrollbar-width: thin;
 }

@@ -95,6 +95,7 @@ async function mountTitlebar(
         }
       });
       const host = document.createElement("div");
+      host.id = "titlebar-test-host";
       Object.assign(host.style, {
         position: "fixed",
         inset: "0 0 auto",
@@ -126,7 +127,7 @@ async function mountTitlebar(
     },
     { platform, failOnce, hangOnce, exhibition },
   );
-  await expect(page.locator(".titlebar")).toBeVisible();
+  await expect(page.locator("#titlebar-test-host .titlebar")).toBeVisible();
 }
 
 async function commands(page: Page) {
@@ -139,11 +140,11 @@ test("macOS 双击标题文字和空白只最大化/还原，不进入全屏或�
   page,
 }) => {
   await mountTitlebar(page);
-  await page.locator(".titlebar-title").dblclick();
+  await page.locator("#titlebar-test-host .titlebar-title").dblclick();
   await expect
     .poll(() => page.evaluate(() => document.body.dataset.maximized))
     .toBe("true");
-  await page.locator(".titlebar").dblclick({ position: { x: 500, y: 18 } });
+  await page.locator("#titlebar-test-host .titlebar").dblclick({ position: { x: 500, y: 18 } });
   await expect
     .poll(() => page.evaluate(() => document.body.dataset.maximized))
     .toBe("false");
@@ -160,7 +161,7 @@ test("macOS 双击容许轻微移动，拖动、右键及窗口按钮不触发�
   page,
 }) => {
   await mountTitlebar(page);
-  const bar = page.locator(".titlebar");
+  const bar = page.locator("#titlebar-test-host .titlebar");
   const gesture = async (distance: number, button = 0) => {
     await bar.dispatchEvent("mousedown", {
       detail: 2,
@@ -201,7 +202,7 @@ test("macOS 双击容许轻微移动，拖动、右键及窗口按钮不触发�
 
 test("macOS 最大化请求失败后仍可再次双击", async ({ page }) => {
   await mountTitlebar(page, "MacIntel", true);
-  await page.locator(".titlebar-title").dblclick();
+  await page.locator("#titlebar-test-host .titlebar-title").dblclick();
   await expect
     .poll(
       async () =>
@@ -210,7 +211,7 @@ test("macOS 最大化请求失败后仍可再次双击", async ({ page }) => {
         ).length,
     )
     .toBe(1);
-  await page.locator(".titlebar-title").dblclick();
+  await page.locator("#titlebar-test-host .titlebar-title").dblclick();
   await expect
     .poll(() => page.evaluate(() => document.body.dataset.maximized))
     .toBe("true");
@@ -218,9 +219,9 @@ test("macOS 最大化请求失败后仍可再次双击", async ({ page }) => {
 
 test("macOS 最大化回复丢失后不会永久禁用双击", async ({ page }) => {
   await mountTitlebar(page, "MacIntel", false, true);
-  await page.locator(".titlebar-title").dblclick();
+  await page.locator("#titlebar-test-host .titlebar-title").dblclick();
   await page.waitForTimeout(1600);
-  await page.locator(".titlebar-title").dblclick();
+  await page.locator("#titlebar-test-host .titlebar-title").dblclick();
   await expect
     .poll(() => page.evaluate(() => document.body.dataset.maximized))
     .toBe("true");
@@ -228,7 +229,7 @@ test("macOS 最大化回复丢失后不会永久禁用双击", async ({ page }) 
 
 test("Windows 保留原来的默认标题栏处理", async ({ page }) => {
   await mountTitlebar(page, "Win32");
-  await page.locator(".titlebar-title").dblclick();
+  await page.locator("#titlebar-test-host .titlebar-title").dblclick();
   await expect
     .poll(() => page.evaluate(() => document.body.dataset.maximized))
     .toBe("true");
@@ -257,7 +258,7 @@ test("Windows 双击最大化后的全屏按钮通过原生统一入口进入和
   page,
 }) => {
   await mountTitlebar(page, "Win32");
-  await page.locator(".titlebar-title").dblclick();
+  await page.locator("#titlebar-test-host .titlebar-title").dblclick();
   await expect
     .poll(() => page.evaluate(() => document.body.dataset.maximized))
     .toBe("true");
@@ -275,7 +276,7 @@ test("Windows 双击最大化后的全屏按钮通过原生统一入口进入和
 
 test("macOS 放大后进入/退出全屏，仍可双击还原", async ({ page }) => {
   await mountTitlebar(page);
-  const title = page.locator(".titlebar-title");
+  const title = page.locator("#titlebar-test-host .titlebar-title");
   await title.dblclick();
   await expect
     .poll(() => page.evaluate(() => document.body.dataset.maximized))
@@ -297,8 +298,8 @@ test("展陈标题栏保留窗口操作，工作区和配色控件不触发最�
   page,
 }) => {
   await mountTitlebar(page, "MacIntel", false, false, true);
-  await page.locator(".titlebar-exhibition").dispatchEvent("mousedown", { button: 0, detail: 2 });
-  await page.locator(".titlebar-exhibition").dispatchEvent("mouseup", { button: 0, detail: 2 });
+  await page.locator("#titlebar-test-host .titlebar-exhibition").dispatchEvent("mousedown", { button: 0, detail: 2 });
+  await page.locator("#titlebar-test-host .titlebar-exhibition").dispatchEvent("mouseup", { button: 0, detail: 2 });
   expect(
     (await commands(page)).filter(
       (command) => command === "toggle_window_maximize",

@@ -172,7 +172,6 @@ export function useSidebarHoverPreview({
     keyboardInside.current = true;
     openPanel(next);
     cancelAnimationFrame(focusFrame.current);
-    const started = performance.now();
     cancelFocusEntry.current?.();
     keyboardInside.current = true;
     const finishEntry = () => {
@@ -209,9 +208,9 @@ export function useSidebarHoverPreview({
         (first ?? root).focus({ preventScroll: true });
         if (root.contains(document.activeElement)) { finishEntry(); return; }
       }
-      if (performance.now() - started < 1000)
-        focusFrame.current = requestAnimationFrame(focusPanel);
-      else finishEntry();
+      // Readiness, not a wall-clock deadline, owns entry. Slow startup/layout
+      // can exceed a second; real input, dismissal, restore and unmount cancel.
+      focusFrame.current = requestAnimationFrame(focusPanel);
     };
     focusFrame.current = requestAnimationFrame(focusPanel);
   };
