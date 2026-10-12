@@ -48,3 +48,9 @@
 ## 验证
 
 重点覆盖 `mobile-unified-title`、`workspace-chrome`、`desktop-navigation`、`desktop-workspace-parity`、`platform-presentation`、`encrypted-header`、`search-navigation` 和 `reader-sidebar-resize` E2E。手机专项覆盖完整编辑/只读/局部阅读、320px 窄屏、横竖屏往返与安全区、标题预览、正文滚动、键盘视口、左右分区手势及反向关闭。`desktop-workspace-parity` 使用 Tauri SDK 的窗口/IPC 模拟验证共享展示层及全屏按钮调用，不代表 Rust/SQLite 或 Windows WebView2 安装版实测。Windows 原生外观和 iOS 虚拟键盘仍需实机验收。
+
+### 编辑器输入弹层
+
+书签重命名使用应用内输入弹层，不依赖 Tauri WebView 的原生 `window.prompt`；保存写入原有书签元数据链路，留空恢复正文摘要，取消和 Esc 不改变名称。插入图片、插入链接和书签重命名的遮罩通过 portal 挂在 body，覆盖活动栏与分栏，避免编辑区父级的层叠上下文把分栏留在遮罩上方。
+
+键盘方向键进入分栏时，等待浮层解除 inert 并出现真正可见的焦点目标；延迟编辑器自动聚焦不取消已明确请求的进入。新的指针或键盘操作、恢复布局和关闭浮层会取消待执行的焦点重试。

@@ -9,6 +9,7 @@ export interface MermaidPalette {
   nodeBackground: string;
   nodeBackgroundAlt: string;
   nodeBackgroundTertiary: string;
+  edgeLabelBackground?: string;
 }
 
 let mermaidPromise: Promise<typeof mermaidType> | undefined;
@@ -33,6 +34,7 @@ export const MERMAID_PALETTE: MermaidPalette = {
   nodeBackground: "#e4edff",
   nodeBackgroundAlt: "#d1e0ff",
   nodeBackgroundTertiary: "#eef4ff",
+  edgeLabelBackground: "#f3f6fa",
 };
 
 /** Mermaid has global configuration and a shared temporary DOM. Serialize renders. */
@@ -81,7 +83,8 @@ export function renderMermaid(source: string, palette: MermaidPalette = MERMAID_
         mainBkg: palette.nodeBackground,
         clusterBkg: palette.nodeBackgroundTertiary,
         clusterBorder: palette.border,
-        edgeLabelBackground: palette.background,
+        // A quiet label surface clears the line behind text without looking like a node.
+        edgeLabelBackground: palette.edgeLabelBackground ?? palette.background,
         noteBkgColor: palette.nodeBackgroundAlt,
         noteTextColor: palette.text,
         titleColor: palette.text,

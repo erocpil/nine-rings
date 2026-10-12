@@ -32,3 +32,37 @@ test("Tauri CSP 允许 Mermaid 动态样式，节点颜色和时序图连线完�
   await expect(page.locator("#sequence .messageLine0").first()).not.toHaveCSS("stroke", "none");
   expect(violations.filter(value => value.startsWith("style-src"))).toEqual([]);
 });
+
+for (const theme of ["light", "dark"]) test(`Mermaid 连线标签使用灰蓝底色并区别于节点 ${theme}`, async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(async theme => {
+    document.documentElement.setAttribute("data-theme", theme);
+    const { renderMermaid } = await import("/src/lib/mermaid-render.ts");
+    const host = document.createElement("div");
+    host.id = "edge-label-palette-test";
+    host.innerHTML = await renderMermaid(`flowchart TB
+    subgraph NIC["NIC 硬件层 / ConnectX-6 Dx"]
+        RX["RX Queue"]
+        TX["TX Queue"]
+    end
+    subgraph USERSPACE["用户态 / DPDK + DPVS"]
+        DPVS["DPVS L4 Gateway"]
+        SESSION["Session Sync"]
+        VXLAN["VXLAN Tunneling"]
+    end
+    subgraph SCALE["规模上下文"]
+        S1["7 Clusters / 1000 EIPs"]
+        S2["90% Line Rate Validated"]
+    end
+    RX -->|"Zero-copy DMA"| DPVS
+    DPVS --> SESSION
+    SESSION --> VXLAN
+    VXLAN --> TX
+    USERSPACE -.- SCALE`);
+    document.body.append(host);
+  }, theme);
+  const diagram = page.locator("#edge-label-palette-test");
+  const label = diagram.locator(".edgeLabel .labelBkg").filter({ hasText: "Zero-copy DMA" });
+  await expect(label).toHaveCSS("background-color", "rgba(243, 246, 250, 0.5)");
+  await expect(diagram.locator(".node rect").first()).toHaveCSS("fill", "rgb(228, 237, 255)");
+});

@@ -315,6 +315,7 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
       const svg = await renderMermaid(pre.textContent ?? "", {
         background: "#fff", text: "#202124", accent: "#356ae6", border: "#bfc3ca", darkMode: false,
         nodeBackground: "#e4edff", nodeBackgroundAlt: "#d1e0ff", nodeBackgroundTertiary: "#eef4ff",
+        edgeLabelBackground: "#f3f6fa",
       });
       const figure = printDocument.createElement("div");
       figure.className = "print-mermaid";

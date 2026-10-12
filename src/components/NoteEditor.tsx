@@ -54,6 +54,7 @@ import {
 } from "../extensions/NormalizeSingleParagraphPaste";
 import CharacterCount from "@tiptap/extension-character-count";
 import type { DeltaOps, DocumentBookmark, DocumentMetadata, Note, SearchNavigationTarget } from "../types/models";
+import { BookmarkRenameDialog } from "./BookmarkRenameDialog";
 import { DocumentBookmarkRow } from "./DocumentBookmarkRow";
 import {
   proseMirrorToDelta,
@@ -564,6 +565,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   useEffect(() => { onBookmarkCountChange?.(bookmarks.length); }, [bookmarks.length, onBookmarkCountChange]);
   useEffect(() => () => onBookmarkCountChange?.(0), [onBookmarkCountChange]);
   const [bookmarkJumpBlockIndex, setBookmarkJumpBlockIndex] = useState<number | null>(null);
+  const [renamingBookmark, setRenamingBookmark] = useState<DocumentBookmark | null>(null);
   const [openBookmarkActionsId, setOpenBookmarkActionsId] = useState<string | null>(null);
   const [activeOutlineIndex, setActiveOutlineIndex] = useState(-1);
   const [outlineOverflow, setOutlineOverflow] = useState(false);
@@ -1644,11 +1646,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   }, []);
 
   const editBookmarkLabel = useCallback((bookmark: DocumentBookmark) => {
-    if (!editor) return;
-    const label = window.prompt("书签名称（留空恢复正文摘要）", bookmark.label ?? "");
-    if (label === null) return;
-    renameBookmark(editor, bookmark.id, label);
-  }, [editor]);
+    setRenamingBookmark(bookmark);
+  }, []);
 
   // 专注模式下正文标题滚出视口后，App 顶栏中的文件名成为目录入口。
   // request id 只表达一次切换动作，避免普通重渲染反复开关面板。
@@ -4724,6 +4723,12 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           setLinkDialogUrl, setLinkDialog, setImageDialog }}
       />
 
+      {renamingBookmark && <BookmarkRenameDialog key={renamingBookmark.id} bookmark={renamingBookmark}
+        onClose={() => setRenamingBookmark(null)}
+        onSave={label => {
+          if (editor) renameBookmark(editor, renamingBookmark.id, label);
+          setRenamingBookmark(null);
+        }} />}
       <EditorInsertDialogs
         linkDialog={linkDialog} linkDialogUrl={linkDialogUrl}
         setLinkDialog={setLinkDialog} setLinkDialogUrl={setLinkDialogUrl} insertLink={insertLink}

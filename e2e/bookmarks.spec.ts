@@ -333,8 +333,9 @@ test.describe("移动端书签操作", () => {
     expect(geometry.gap).toBe(4);
     expect(geometry.actionsRevealed).toBe(true);
     expect(geometry.verticallyContained).toBe(true);
-    page.once("dialog", dialog => dialog.accept("改名后的书签"));
     await page.getByTitle("重命名书签", { exact: true }).tap();
+    await page.getByRole("textbox", { name: "书签名称" }).fill("改名后的书签");
+    await page.getByRole("button", { name: "保存", exact: true }).click();
     await expect(row).toContainText("改名后的书签");
     await page.getByTitle("删除书签", { exact: true }).tap();
     await expect(row).toHaveCount(0);

@@ -22,7 +22,8 @@ test("手机书签紧凑行和左划操作保持可用", async ({ page }) => {
   const edit = row.getByRole("button", { name: /重命名书签/ });
   await expect(edit).toHaveCSS("width", "28px");
   await expect(edit).toHaveCSS("height", "28px");
-  page.once("dialog", dialog => dialog.accept("紧凑书签"));
   await edit.tap();
+  await page.getByRole("textbox", { name: "书签名称" }).fill("紧凑书签");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
   await expect(row.locator(".document-bookmark-jump")).toContainText("紧凑书签");
 });

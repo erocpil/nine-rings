@@ -50,7 +50,8 @@ jobs:
               nine-rings-flutter-windows-x64 | \
               nine-rings-flutter-linux-x64 | \
               nine-rings-flutter-macos-arm64 | \
-              e2e-*)
+              e2e-* | \
+              reading-workspace-*)
                 ;;
               *)
                 if gh api \

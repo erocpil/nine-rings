@@ -1244,3 +1244,13 @@ Chromium 与 WebKit 图片/分栏导航各 20 项通过，覆盖两种查看入�
 - 修复窗口放大后重新捕获宽行行首、恢复窄窗口时偏移的问题：连续布局变化保留同一字符锚点，直到真实用户滚动、触摸或键盘导航再重新采集。位置断言仍为 2px，不放宽。
 
 本地验证：12 项失败/重试相关场景在 WebKit 全部通过；Chromium 针对性复测通过，窗口往返场景 2 workers 连续重复 6 次全部通过；typecheck、完整 lint 通过。远端结果将在推送后按提交 SHA 核对，以上不是远端通过声明。
+
+## 2026-10-12：1b255a2 后续检查与弹层修复
+
+[远端 Native Platforms](https://github.com/erocpil/nine-rings/actions/runs/38234013745) 六个系统/浏览器组合成功，macOS ARM64、Windows 和 Linux Tauri 构建成功；[Test](https://github.com/erocpil/nine-rings/actions/runs/38234013741) 前端与 Chromium 阅读通过，WebKit 阅读的键盘进入分栏失败，完整 E2E 尚在运行。
+
+分栏进入不再因延迟的正文 autofocus 提前终止，并排除 visibility:hidden 或零尺寸焦点目标；真实新输入仍取消重试。修改已有 inert 延迟用例，确定性模拟上述竞争。清理任务原先只保留 `e2e-*` 诊断资料，导致 `reading-workspace-webkit` 的已上传 trace 在其他构建结束后被删除；增加 `reading-workspace-*` 保留规则，沿用每类最新一份的政策。
+
+同时修复 Tauri 书签重命名依赖 window.prompt、编辑器插入图片/链接遮罩未覆盖分栏、Mermaid 连线标签突兀的白底问题（改为区别于节点的淡灰蓝，PDF 导出一致）。新增验证书签保存/取消/清空/刷新（可编辑及只读）、固定分栏上方遮罩命中与取消不修改正文，以及用户提供的 Mermaid 连线标签实际配色。
+
+本地最终针对性验证：Chromium 书签/插入弹层/分栏/图表共 23 项通过；灰蓝配色调整后另复核 Chromium Mermaid 3 项通过。WebKit 完整书签及 Mermaid 13 项通过，最终弹层/分栏/灰蓝图表 12 项通过；上述有重复，不相加为全产品总数。完整 npm test（schema 56/56）、typecheck、lint 和生产构建通过。原生 Tauri 重命名与硬件交互未在 GUI 中人工验证。

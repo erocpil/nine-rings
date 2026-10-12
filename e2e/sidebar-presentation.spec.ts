@@ -235,6 +235,9 @@ test("键盘进入等待浮层解除暂时 inert，Esc 仍返回分栏按钮", a
       if (element.classList.contains("sidebar-hidden")) return;
       observer.disconnect();
       element.setAttribute("inert", "");
+      // Simulate a delayed editor autofocus while the requested panel is
+      // still unavailable. The user's keyboard entry must remain authoritative.
+      document.querySelector<HTMLElement>(".ProseMirror")?.focus();
       window.setTimeout(() => element.removeAttribute("inert"), 150);
     });
     observer.observe(element, { attributes: true, attributeFilter: ["class"] });

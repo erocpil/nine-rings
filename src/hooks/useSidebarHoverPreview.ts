@@ -33,6 +33,7 @@ export function useSidebarHoverPreview({
   const pointerInside = useRef(false);
   const keyboardInside = useRef(false);
   const focusFrame = useRef(0);
+  const cancelFocusEntry = useRef<(() => void) | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const cancel = useCallback(() => {
     clearTimeout(timer.current);
@@ -78,6 +79,7 @@ export function useSidebarHoverPreview({
     return () => {
       cancel();
       cancelAnimationFrame(focusFrame.current);
+      cancelFocusEntry.current?.();
     };
   }, [enabled, cancel, setHidden]);
   useEffect(() => {
@@ -119,6 +121,7 @@ export function useSidebarHoverPreview({
   const dismiss = useCallback(() => {
     cancel();
     cancelAnimationFrame(focusFrame.current);
+    cancelFocusEntry.current?.();
     keyboardInside.current = false;
     setPinned(false);
     saveDesktopSidebarState({ ...(pinned ? { panel } : {}), hidden: true, pinned: false });
@@ -164,12 +167,26 @@ export function useSidebarHoverPreview({
     openPanel(next);
     cancelAnimationFrame(focusFrame.current);
     const started = performance.now();
-    const trigger = event.currentTarget;
+    cancelFocusEntry.current?.();
+    keyboardInside.current = true;
+    const finishEntry = () => {
+      document.removeEventListener("pointerdown", interruptEntry, true);
+      document.removeEventListener("keydown", interruptEntry, true);
+      cancelFocusEntry.current = null;
+    };
+    const interruptEntry = () => {
+      keyboardInside.current = false;
+      cancelAnimationFrame(focusFrame.current);
+      finishEntry();
+    };
+    cancelFocusEntry.current = interruptEntry;
+    document.addEventListener("pointerdown", interruptEntry, true);
+    document.addEventListener("keydown", interruptEntry, true);
     const focusPanel = () => {
-      if (!keyboardInside.current) return;
+      if (!keyboardInside.current) { finishEntry(); return; }
       const root = document.getElementById("workspace-sidebar");
-      const active = document.activeElement;
-      if (active && active !== trigger && active !== document.body && !root?.contains(active)) return;
+      // Opening the panel can race a delayed editor autofocus in WebKit.
+      // Genuine user input interrupts entry; incidental focus changes do not.
       // Opening can commit after the first animation frame on a busy page.
       // Native focus silently fails while the panel is still inert/hidden.
       if (root && !root.closest("[inert]") && !root.classList.contains("sidebar-hidden")) {
@@ -178,13 +195,17 @@ export function useSidebarHoverPreview({
             'button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]',
           ),
         ].find(
-          (el) => el.getClientRects().length && !el.closest("[hidden], [inert]"),
+          (el) => {
+            const box = el.getBoundingClientRect();
+            return box.width > 0 && box.height > 0 && getComputedStyle(el).visibility !== "hidden" && !el.closest('[hidden], [inert], [aria-hidden="true"]');
+          },
         );
         (first ?? root).focus({ preventScroll: true });
-        if (root.contains(document.activeElement)) return;
+        if (root.contains(document.activeElement)) { finishEntry(); return; }
       }
       if (performance.now() - started < 1000)
         focusFrame.current = requestAnimationFrame(focusPanel);
+      else finishEntry();
     };
     focusFrame.current = requestAnimationFrame(focusPanel);
   };
@@ -211,6 +232,7 @@ export function useSidebarHoverPreview({
   // Home navigation restores a complete layout, including the live pin state.
   // Storage alone cannot cancel a pending preview or keep the restored pane open.
   const restore = (state: DesktopSidebarState, width?: number) => {
+    cancelFocusEntry.current?.();
     cancel();
     cancelAnimationFrame(focusFrame.current);
     pointerInside.current = false;

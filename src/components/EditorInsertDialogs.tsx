@@ -1,3 +1,5 @@
+import { createPortal } from "react-dom";
+
 interface EditorInsertDialogsProps {
   linkDialog: boolean;
   linkDialogUrl: string;
@@ -11,9 +13,9 @@ interface EditorInsertDialogsProps {
   insertImageUrl: () => void;
 }
 
-/** Controlled dialogs retain their original DOM location, autofocus and selection behavior. */
+/** Global overlays cover both the editor and workspace sidebars. */
 export function EditorInsertDialogs({ linkDialog, linkDialogUrl, setLinkDialog, setLinkDialogUrl, insertLink, imageDialog, imageUrl, setImageDialog, setImageUrl, insertImageUrl }: EditorInsertDialogsProps) {
-  return (<>
+  return createPortal(<>
     {/* ── 插入链接对话框（复用图片对话框样式）── */}
     {linkDialog && (
       <div className="image-dialog-overlay" onClick={() => setLinkDialog(false)}>
@@ -63,5 +65,5 @@ export function EditorInsertDialogs({ linkDialog, linkDialogUrl, setLinkDialog, 
         </div>
       </div>
     )}
-  </>);
+  </>, document.body);
 }
