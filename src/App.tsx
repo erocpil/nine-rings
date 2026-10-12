@@ -1551,13 +1551,23 @@ function App() {
             aria-expanded={!sidebarHidden && desktopPanel === panel} aria-controls="workspace-sidebar"
             onKeyDown={event => sidebarHover.keyDown(panel, event)}
             onPointerEnter={event => sidebarHover.enterButton(panel, event.pointerType)} onPointerLeave={sidebarHover.leave}
-            onClick={() => {
+            onClick={async () => {
+              if (!workspaceHome && panel === "images" && pluginViewState.suspended) {
+                try { await flushAutoSave(); }
+                catch (saveError) { useNotesStore.setState({ error: `保存失败，未切换图片视图：${String(saveError)}` }); return; }
+              }
               if (workspaceHome) {
                 setWorkspaceHomePanelActivated(true);
                 setWorkspaceHomeChromeHidden(false);
               } else setExhibitionReaderActive(false);
               summarySidebarSnapshot.current = null;
               setActiveWorkspaceSummary(null);
+              // Switching navigation panels parks the image session rather than
+              // closing it, so the image button can restore its current position.
+              if (!workspaceHome) {
+                if (panel === "tree") mainViews.suspend();
+                else if (panel === "images") mainViews.resume();
+              }
               sidebarHover.click(panel);
             }}>
             <ToolbarIcon name={icon} />

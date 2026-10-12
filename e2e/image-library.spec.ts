@@ -530,7 +530,10 @@ test("图片树切换与隐藏后保持展开和选中，方向键不依赖树�
     panel.getByRole("button", { name: "icon-192.png", exact: true }),
   ).toHaveAttribute("aria-current", "true");
   await page.getByRole("button", { name: "文档树", exact: true }).click();
+  await expect(viewer).toBeHidden();
+  await expect(page.locator(".tiptap:visible")).toBeVisible();
   await page.getByRole("button", { name: "图片", exact: true }).click();
+  await expect(viewer).toBeVisible();
   await expect(
     panel.getByRole("button", { name: "icon-192.png", exact: true }),
   ).toBeVisible();
@@ -546,6 +549,25 @@ test("图片树切换与隐藏后保持展开和选中，方向键不依赖树�
   await expect(
     panel.getByRole("button", { name: "icon-192.png", exact: true }),
   ).toHaveAttribute("aria-current", "true");
+});
+
+test("图片按钮与文档树切换视图，返回原视图仍可结束查看", async ({ page }) => {
+  const { panel, viewer } = await openTwoPictures(page);
+  await viewer.getByRole("button", { name: "下一张" }).click();
+  await page.getByRole("button", { name: "文档树", exact: true }).click();
+  await expect(viewer).toBeHidden();
+  await expect(page.locator(".tiptap:visible")).toBeVisible();
+  await page.getByRole("button", { name: "图片", exact: true }).click();
+  await expect(panel).toBeVisible();
+  await expect(viewer).toBeVisible();
+  await expect(viewer.getByRole("heading")).toHaveText("ragdoll-32.png");
+  await viewer.getByRole("button", { name: "返回原视图" }).click();
+  await expect(viewer).toBeHidden();
+  await expect(page.locator(".tiptap:visible")).toBeVisible();
+  await page.getByRole("button", { name: "文档树", exact: true }).click();
+  await page.getByRole("button", { name: "图片", exact: true }).click();
+  await expect(panel).toBeVisible();
+  await expect(viewer).toBeHidden();
 });
 
 test("原生 WebKit 捏合累计缩放，缩放锚定且不触发页面缩放", async ({ page }) => {
