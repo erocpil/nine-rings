@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { BLOCK_WORKSPACE_DISPLAY_EVENT } from "../lib/block-display-settings";
 import { diagramWheelDelta, pinchScale, pinchView, touchCenter, wheelZoomFactor } from "../lib/diagram-gesture";
 import { renderMermaid } from "../lib/mermaid-render";
+import { constrainPanAxis } from "../lib/pan-boundary";
 
 export type MermaidViewTransform = { scale: number; x: number; y: number };
 type PointerPosition = { x: number; y: number };
@@ -45,7 +46,7 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
         const height = svg.clientHeight * next.scale;
         const limitX = Math.max(0, (width - viewport.clientWidth) / 2);
         const limitY = Math.max(0, (height - viewport.clientHeight) / 2);
-        next = { ...next, x: Math.max(-limitX, Math.min(limitX, next.x)), y: Math.max(-limitY, Math.min(limitY, next.y)) };
+        next = { ...next, x: constrainPanAxis(viewRef.current.x, next.x, limitX), y: constrainPanAxis(viewRef.current.y, next.y, limitY) };
       }
     }
     viewRef.current = next;

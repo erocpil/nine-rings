@@ -20,6 +20,15 @@ import {
 } from "../lib/image-library/viewer-request";
 import { workspacePanels } from "../lib/plugin-system/panel-registry";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { ImageThumbnail } from "./ImageThumbnail";
+import { constrainPanAxis, visiblePanLimit } from "../lib/pan-boundary";
+import {
+  applyImageTransform,
+  DEFAULT_IMAGE_RECIPE,
+  imageFitScale,
+  imageRecipeCss,
+  type ImageTransformOperation,
+} from "../lib/image-library/view-transform";
 export function ImageViewer({
   images,
   initial,
@@ -88,7 +97,29 @@ export function ImageViewer({
   const [error, setError] = useState("");
   const [original, setOriginal] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const [rotation, setRotation] = useState(0);
+  const [recipe, setRecipe] = useState({ ...DEFAULT_IMAGE_RECIPE });
+  const rotation = recipe.quarterTurns * 90;
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const fitScale = imageFitScale(
+    dimensions.width,
+    dimensions.height,
+    viewportSize.width,
+    viewportSize.height,
+    recipe.quarterTurns,
+  );
+  const [stripOpen, setStripOpen] = useState(
+    () => localStorage.getItem("nr:imageFilmstrip") !== "false",
+  );
+  const [background, setBackground] = useState(() => {
+    const saved = localStorage.getItem("nr:imageBackground");
+    return saved === "checker" || saved === "dark" || saved === "light"
+      ? saved
+      : "theme";
+  });
+  const editPreview = (operation: ImageTransformOperation) => {
+    setRecipe((value) => applyImageTransform(value, operation));
+    setPan({ x: 0, y: 0 });
+  };
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const container = useRef<HTMLElement | null>(null);
   const close = useRef<HTMLButtonElement>(null);
@@ -105,14 +136,82 @@ export function ImageViewer({
     else onClose();
   };
   const viewport = useRef<HTMLDivElement>(null);
+  const filmstrip = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const strip = filmstrip.current;
+    const current = strip?.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!strip || !current || !active) return;
+    const bounds = strip.getBoundingClientRect();
+    const item = current.getBoundingClientRect();
+    strip.scrollLeft += item.left - bounds.left - (bounds.width - item.width) / 2;
+  }, [index, stripOpen, active]);
   const img = useRef<HTMLImageElement>(null);
   const transform = useRef({ zoom, pan });
   transform.current = { zoom, pan };
+  const recipeRef = useRef(recipe);
+  recipeRef.current = recipe;
+  const movePan = useCallback(
+    (
+      next:
+        | { x: number; y: number }
+        | ((value: { x: number; y: number }) => { x: number; y: number }),
+      nextZoom = transform.current.zoom,
+    ) => {
+      setPan((previous) => {
+        const requested = typeof next === "function" ? next(previous) : next;
+        const element = viewport.current;
+        const picture = img.current;
+        if (!element || !picture?.naturalWidth) return previous;
+        const sideways = recipeRef.current.quarterTurns % 2 !== 0;
+        return {
+          x: constrainPanAxis(
+            previous.x,
+            requested.x,
+            visiblePanLimit(
+              (sideways ? picture.clientHeight : picture.clientWidth) *
+                nextZoom,
+              element.clientWidth,
+            ),
+          ),
+          y: constrainPanAxis(
+            previous.y,
+            requested.y,
+            visiblePanLimit(
+              (sideways ? picture.clientWidth : picture.clientHeight) *
+                nextZoom,
+              element.clientHeight,
+            ),
+          ),
+        };
+      });
+    },
+    [],
+  );
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const reset = () => {
+    setOriginal(false);
     setZoom(1);
     setPan({ x: 0, y: 0 });
   };
+  useEffect(() => {
+    setRecipe({ ...DEFAULT_IMAGE_RECIPE });
+  }, [image]);
+  useLayoutEffect(() => {
+    const element = viewport.current;
+    if (!element || !active) return;
+    const measure = () =>
+      setViewportSize({
+        width: element.clientWidth,
+        height: element.clientHeight,
+      });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [active]);
+  useEffect(() => {
+    if (original && dimensions.width) setZoom(1 / fitScale);
+  }, [original, fitScale, dimensions.width]);
   useLayoutEffect(() => {
     if (presentation !== "modal") return;
     const element = container.current as HTMLDialogElement;
@@ -143,8 +242,8 @@ export function ImageViewer({
     setDimensions({ width: 0, height: 0 });
     setDecodedDimensions({ width: 0, height: 0 });
     setError("");
-    reset();
-    setRotation(0);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
     void imagePreview(image, controller.signal, original ? 0 : 2048)
       .then((value) => {
         release = value.release;
@@ -181,10 +280,13 @@ export function ImageViewer({
     ) => {
       const next = Math.max(0.1, Math.min(12, zoom));
       setZoom(next);
-      setPan({
-        x: point.x - ((point.x - before.pan.x) * next) / before.zoom,
-        y: point.y - ((point.y - before.pan.y) * next) / before.zoom,
-      });
+      movePan(
+        {
+          x: point.x - ((point.x - before.pan.x) * next) / before.zoom,
+          y: point.y - ((point.y - before.pan.y) * next) / before.zoom,
+        },
+        next,
+      );
     };
     const wheel = (event: WheelEvent) => {
       event.preventDefault();
@@ -202,7 +304,7 @@ export function ImageViewer({
           y: event.clientY - bounds.top - bounds.height / 2,
         });
       } else if (!native)
-        setPan((value) => ({
+        movePan((value) => ({
           x: value.x - event.deltaX,
           y: value.y - event.deltaY,
         }));
@@ -254,7 +356,7 @@ export function ImageViewer({
       for (const name of ["gesturestart", "gesturechange", "gestureend"])
         element.removeEventListener(name, gesture);
     };
-  }, [active]);
+  }, [active, movePan]);
   const change = useCallback(
     (step: number) => {
       setOriginal(false);
@@ -311,9 +413,25 @@ export function ImageViewer({
         }
         try {
           const canvas = document.createElement("canvas");
-          canvas.width = element.naturalWidth;
-          canvas.height = element.naturalHeight;
-          canvas.getContext("2d")!.drawImage(element, 0, 0);
+          const sideways = recipe.quarterTurns % 2 !== 0;
+          canvas.width = sideways
+            ? element.naturalHeight
+            : element.naturalWidth;
+          canvas.height = sideways
+            ? element.naturalWidth
+            : element.naturalHeight;
+          const context = canvas.getContext("2d")!;
+          context.translate(canvas.width / 2, canvas.height / 2);
+          context.rotate((recipe.quarterTurns * Math.PI) / 2);
+          context.scale(
+            recipe.flipHorizontal ? -1 : 1,
+            recipe.flipVertical ? -1 : 1,
+          );
+          context.drawImage(
+            element,
+            -element.naturalWidth / 2,
+            -element.naturalHeight / 2,
+          );
           canvas.toBlob(
             (blob) =>
               blob ? resolve(blob) : reject(new Error("无法复制图片")),
@@ -364,7 +482,8 @@ export function ImageViewer({
           event.ctrlKey ||
           event.altKey ||
           event.shiftKey ||
-          (event.target as HTMLElement).closest(".image-properties-panel")
+          (event.target as HTMLElement).closest(".image-properties-panel") ||
+          (event.target as HTMLElement).closest("input,select,textarea")
         )
           return;
         if (
@@ -474,7 +593,9 @@ export function ImageViewer({
         >
           <ToolbarIcon name="minus" />
         </button>
-        <span>{Math.round(zoom * 100)}%</span>
+        <span title="相对于原始像素的显示比例">
+          {Math.round(zoom * fitScale * 100)}%
+        </span>
         <button
           className="btn-icon"
           aria-label="放大图片"
@@ -491,10 +612,7 @@ export function ImageViewer({
           title="当前预览的原始像素尺寸"
           onClick={() => {
             setOriginal(true);
-            if (img.current?.naturalWidth && original)
-              setZoom(
-                img.current.naturalWidth / Math.max(1, img.current.clientWidth),
-              );
+            if (original) setZoom(1 / fitScale);
             setPan({ x: 0, y: 0 });
           }}
         >
@@ -505,12 +623,60 @@ export function ImageViewer({
           aria-label="旋转预览"
           title="旋转预览，不修改原图"
           onClick={() => {
-            setRotation((value) => (value + 90) % 360);
-            setPan({ x: 0, y: 0 });
+            editPreview("rotate-right");
           }}
         >
           <ToolbarIcon name="rotate" />
         </button>
+        <button
+          className="btn"
+          title="水平翻转，仅影响预览"
+          aria-pressed={recipe.flipHorizontal}
+          onClick={() => editPreview("flip-horizontal")}
+        >
+          水平翻转
+        </button>
+        <button
+          className="btn"
+          title="垂直翻转，仅影响预览"
+          aria-pressed={recipe.flipVertical}
+          onClick={() => editPreview("flip-vertical")}
+        >
+          垂直翻转
+        </button>
+        <button
+          className="btn"
+          title="复位旋转、翻转、缩放和平移"
+          onClick={() => {
+            editPreview("reset");
+            reset();
+          }}
+        >
+          复位预览
+        </button>
+        <button
+          className="btn"
+          aria-pressed={stripOpen}
+          onClick={() => {
+            setStripOpen((value) => !value);
+            localStorage.setItem("nr:imageFilmstrip", String(!stripOpen));
+          }}
+        >
+          缩略图
+        </button>
+        <select
+          aria-label="图片查看背景"
+          value={background}
+          onChange={(event) => {
+            setBackground(event.target.value);
+            localStorage.setItem("nr:imageBackground", event.target.value);
+          }}
+        >
+          <option value="theme">主题背景</option>
+          <option value="checker">透明棋盘格</option>
+          <option value="dark">深色背景</option>
+          <option value="light">浅色背景</option>
+        </select>
         <button
           className="btn-icon"
           aria-label="复制图片"
@@ -568,6 +734,15 @@ export function ImageViewer({
         <div
           ref={viewport}
           className="image-viewer-viewport"
+          data-background={background}
+          onDoubleClick={() => {
+            if (original) reset();
+            else {
+              setOriginal(true);
+              setZoom(1 / fitScale);
+              setPan({ x: 0, y: 0 });
+            }
+          }}
           onPointerDown={(event) => {
             if (event.button !== 0) return;
             event.preventDefault();
@@ -594,12 +769,12 @@ export function ImageViewer({
                     Math.min(12, (value * after.distance) / pair.distance),
                   ),
                 );
-              setPan((value) => ({
+              movePan((value) => ({
                 x: value.x + after.x - pair.x,
                 y: value.y + after.y - pair.y,
               }));
             } else
-              setPan((value) => ({
+              movePan((value) => ({
                 x: value.x + event.clientX - before.x,
                 y: value.y + event.clientY - before.y,
               }));
@@ -627,15 +802,18 @@ export function ImageViewer({
                     width: img.current.naturalWidth,
                     height: img.current.naturalHeight,
                   });
-                if (original && img.current)
-                  setZoom(
-                    img.current.naturalWidth /
-                      Math.max(1, img.current.clientWidth),
-                  );
               }}
               onError={() => setError("图片无法解码或文件已不可访问")}
               style={{
-                transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+                width: dimensions.width
+                  ? dimensions.width * fitScale
+                  : undefined,
+                height: dimensions.height
+                  ? dimensions.height * fitScale
+                  : undefined,
+                maxWidth: dimensions.width ? "none" : undefined,
+                maxHeight: dimensions.height ? "none" : undefined,
+                transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom}) ${imageRecipeCss(recipe)}`,
               }}
             />
           ) : (
@@ -650,14 +828,40 @@ export function ImageViewer({
             onClose={closeProperties}
             dimensions={dimensions}
             decodedDimensions={decodedDimensions}
-            zoom={zoom}
+            zoom={zoom * fitScale}
             rotation={rotation}
           />
         )}
       </div>
+      {stripOpen && images.length > 1 && (
+        <nav ref={filmstrip} className="image-viewer-filmstrip" aria-label="图片缩略图导航">
+          {images
+            .slice(Math.max(0, index - 7), Math.max(0, index - 7) + 15)
+            .map((item, offset) => {
+              const itemIndex = Math.max(0, index - 7) + offset;
+              return (
+                <button
+                  key={`${item.rootId}:${item.nodeId}:${item.src}`}
+                  type="button"
+                  title={item.name}
+                  aria-label={`查看图片 ${item.name}`}
+                  aria-current={itemIndex === index ? "true" : undefined}
+                  onClick={() => {
+                    setOriginal(false);
+                    setIndex(itemIndex);
+                  }}
+                >
+                  <ImageThumbnail image={item} />
+                  <span>{item.name}</span>
+                </button>
+              );
+            })}
+        </nav>
+      )}
       <footer>
         <span role="status">
-          {error || "双指平移 · 捏合缩放 · 旋转仅影响预览"}
+          {error ||
+            `${decodedDimensions.width || dimensions.width} × ${decodedDimensions.height || dimensions.height} · 双击切换原始尺寸/适窗 · 变换仅影响预览`}
         </span>
       </footer>
     </Surface>

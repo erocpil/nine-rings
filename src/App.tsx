@@ -1648,7 +1648,7 @@ function App() {
             />
           )}
           </div>
-          {desktopPanel === 'images' && contributedPanels.some(panel => panel.renderer === "image-library") && <Suspense fallback={<p>正在加载图片分栏…</p>}><ImageLibraryPanel onClose={() => setSidebarHidden(true)} onBack={mobileDrawerViewport ? () => setDesktopPanel("tree") : undefined} /></Suspense>}
+          {contributedPanels.some(panel => panel.renderer === "image-library") && <div className="image-library-retained" hidden={desktopPanel !== "images"} {...(desktopPanel !== "images" ? { inert: "", "aria-hidden": true } : {})}><Suspense fallback={desktopPanel === "images" ? <p>正在加载图片分栏…</p> : null}><ImageLibraryPanel active={desktopPanel === "images" && !sidebarHidden} onClose={() => setSidebarHidden(true)} onBack={mobileDrawerViewport ? () => setDesktopPanel("tree") : undefined} /></Suspense></div>}
           {desktopPanel === 'notes' && <NotesPanel
             session={notesPanelSession.current}
             selectedNote={selectedNote}

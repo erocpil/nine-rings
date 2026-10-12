@@ -526,6 +526,14 @@ test("图片树切换与隐藏后保持展开和选中，方向键不依赖树�
   page,
 }) => {
   const { panel, viewer } = await openTwoPictures(page);
+  const thumbnail = panel
+    .getByRole("button", { name: "icon-192.png", exact: true })
+    .locator("img");
+  await expect(thumbnail).toBeVisible();
+  const thumbnailSource = await thumbnail.getAttribute("src");
+  await panel.evaluate((el) => {
+    (el as HTMLElement).dataset.retainedImageTree = "yes";
+  });
   await expect(
     panel.getByRole("button", { name: "icon-192.png", exact: true }),
   ).toHaveAttribute("aria-current", "true");
@@ -534,6 +542,8 @@ test("图片树切换与隐藏后保持展开和选中，方向键不依赖树�
   await expect(page.locator(".tiptap:visible")).toBeVisible();
   await page.getByRole("button", { name: "图片", exact: true }).click();
   await expect(viewer).toBeVisible();
+  await expect(panel).toHaveAttribute("data-retained-image-tree", "yes");
+  await expect(thumbnail).toHaveAttribute("src", thumbnailSource!);
   await expect(
     panel.getByRole("button", { name: "icon-192.png", exact: true }),
   ).toBeVisible();
@@ -685,6 +695,104 @@ test("图片与文档共享专注状态，切换和返回不会重置", async ({
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("nr:focusMode")))
     .toBe("true");
+});
+
+test("图片导航带、背景与非破坏变换可复位", async ({ page }) => {
+  const { viewer } = await openTwoPictures(page);
+  await expect(
+    viewer.getByRole("navigation", { name: "图片缩略图导航" }),
+  ).toBeVisible();
+  await viewer
+    .getByRole("button", { name: "查看图片 ragdoll-32.png", exact: true })
+    .click();
+  await expect(viewer.getByRole("heading")).toHaveText("ragdoll-32.png");
+  await viewer.getByRole("button", { name: "水平翻转", exact: true }).click();
+  await viewer.getByRole("button", { name: "旋转预览", exact: true }).click();
+  const picture = viewer.locator(".image-viewer-viewport img");
+  await expect(picture).toHaveAttribute(
+    "style",
+    /rotate\(90deg\) scale\(-1,\s*1\)/,
+  );
+  await viewer.getByLabel("图片查看背景").selectOption("checker");
+  await expect(viewer.locator(".image-viewer-viewport")).toHaveAttribute(
+    "data-background",
+    "checker",
+  );
+  await viewer.getByRole("button", { name: "复位预览", exact: true }).click();
+  await expect(picture).toHaveAttribute(
+    "style",
+    /rotate\(0deg\) scale\(1,\s*1\)/,
+  );
+  await viewer.getByRole("button", { name: "缩略图", exact: true }).click();
+  await expect(
+    viewer.getByRole("navigation", { name: "图片缩略图导航" }),
+  ).toBeHidden();
+});
+
+test("大图原始尺寸和适窗可切换，旋转后完整适窗", async ({ page }) => {
+  await createBlankDocument(page);
+  await closeDocumentSidebar(page);
+  await enable(page);
+  await page.getByRole("button", { name: "图片", exact: true }).click();
+  const data = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1600;
+    canvas.height = 800;
+    canvas.getContext("2d")!.fillRect(0, 0, 1600, 800);
+    return canvas.toDataURL("image/png").split(",")[1];
+  });
+  const panel = page.getByRole("region", { name: "图片目录分栏" });
+  await panel
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles({
+      name: "wide.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(data, "base64"),
+    });
+  await panel
+    .getByRole("button", { name: "已选择图片（临时）", exact: true })
+    .click();
+  await panel.getByRole("button", { name: "wide.png", exact: true }).click();
+  const viewer = page.getByRole("region", { name: "图片查看器" });
+  const viewport = viewer.locator(".image-viewer-viewport");
+  const picture = viewport.locator("img");
+  await expect(picture).toBeVisible();
+  await viewer.getByRole("button", { name: "原始尺寸", exact: true }).click();
+  await expect
+    .poll(() =>
+      picture.evaluate((el) => Math.round(el.getBoundingClientRect().width)),
+    )
+    .toBe(1600);
+  await viewer.getByRole("button", { name: "适窗", exact: true }).click();
+  await viewer.getByRole("button", { name: "旋转预览", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const frame = (await viewport.boundingBox())!;
+      const image = (await picture.boundingBox())!;
+      return image.width <= frame.width + 1 && image.height <= frame.height + 1;
+    })
+    .toBe(true);
+});
+
+test("图片平移边界阻止继续外移，两轴均可返回", async ({ page }) => {
+  const { viewer } = await openTwoPictures(page);
+  const viewport = viewer.locator(".image-viewer-viewport");
+  const picture = viewport.locator("img");
+  await viewport.dispatchEvent("wheel", { deltaX: 100000, deltaY: 100000 });
+  const edge = (await picture.boundingBox())!;
+  await viewport.dispatchEvent("wheel", { deltaX: 100000, deltaY: 100000 });
+  await expect.poll(() => picture.boundingBox()).toEqual(edge);
+  const frame = (await viewport.boundingBox())!;
+  expect(edge.x + edge.width).toBeGreaterThanOrEqual(frame.x + 23);
+  expect(edge.y + edge.height).toBeGreaterThanOrEqual(frame.y + 23);
+  await viewport.dispatchEvent("wheel", { deltaX: -50, deltaY: -50 });
+  await expect
+    .poll(async () => {
+      const next = (await picture.boundingBox())!;
+      return next.x > edge.x && next.y > edge.y;
+    })
+    .toBe(true);
 });
 
 test("原生 WebKit 捏合累计缩放，缩放锚定且不触发页面缩放", async ({ page }) => {

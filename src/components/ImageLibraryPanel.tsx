@@ -8,7 +8,6 @@ import {
   useEffect,
   useRef,
   useState,
-  useMemo,
   useSyncExternalStore,
   useLayoutEffect,
   type MouseEvent,
@@ -21,14 +20,10 @@ import {
   type ImageNode,
   type ImagePage,
 } from "../lib/image-library/directory-service";
-import {
-  requestMainImageView,
-  type ViewedImage,
-} from "../lib/image-library/viewer-request";
+import { requestMainImageView } from "../lib/image-library/viewer-request";
 import { WorkspacePanelHeading } from "./WorkspacePanelHeading";
 import { ToolbarIcon } from "./ToolbarIcon";
-import { useNearViewport } from "../hooks/useNearViewport";
-import { imagePreview } from "../lib/image-library/preview-resource";
+import { ImageThumbnail } from "./ImageThumbnail";
 interface TreeMenu {
   name: string;
   path: string;
@@ -152,44 +147,15 @@ function ImageTreeMenu({
     document.body,
   );
 }
-function Thumbnail({ image }: { image: ViewedImage }) {
-  const { src, name, rootId, nodeId } = image;
-  const target = useMemo(
-    () => ({ src, name, rootId, nodeId }),
-    [src, name, rootId, nodeId],
-  );
-  const host = useRef<HTMLSpanElement>(null);
-  const near = useNearViewport(host);
-  const [url, setUrl] = useState("");
-  useEffect(() => {
-    if (!near) return;
-    const controller = new AbortController();
-    let release = () => {};
-    void imagePreview(target, controller.signal, 128)
-      .then((resource) => {
-        release = resource.release;
-        if (!controller.signal.aborted) setUrl(resource.url);
-        else release();
-      })
-      .catch(() => {});
-    return () => {
-      controller.abort();
-      release();
-    };
-  }, [near, target]);
-  return (
-    <span ref={host} className="image-tree-thumbnail">
-      {url ? <img src={url} alt="" /> : <ToolbarIcon name="image" />}
-    </span>
-  );
-}
 function Directory({
+  active,
   root,
   path,
   name,
   onError,
   onMenu,
 }: {
+  active: boolean;
   root: ImageRoot;
   path: string;
   name: string;
@@ -298,6 +264,7 @@ function Directory({
           {page?.nodes.map((node) =>
             node.directory ? (
               <Directory
+                active={active}
                 key={node.id}
                 root={root}
                 path={node.id}
@@ -337,7 +304,8 @@ function Directory({
                     })
                   }
                 >
-                  <Thumbnail
+                  <ImageThumbnail
+                    active={active}
                     image={{
                       src: "",
                       name: node.name,
@@ -370,9 +338,11 @@ function Directory({
   );
 }
 export function ImageLibraryPanel({
+  active = true,
   onClose,
   onBack,
 }: {
+  active?: boolean;
   onClose: () => void;
   onBack?: () => void;
 }) {
@@ -547,6 +517,7 @@ export function ImageLibraryPanel({
             </button>
             <ul role="tree" aria-label={root.name}>
               <Directory
+                active={active}
                 key={`${root.id}:${revision}`}
                 root={root}
                 path=""
