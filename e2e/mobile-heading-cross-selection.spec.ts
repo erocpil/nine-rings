@@ -14,8 +14,9 @@ test("跨标题选区不包含折叠控件和块号", async ({ page }) => {
       date: useNotesStore.getState().currentDate,
       content: { ops: [{ insert: "First heading\nSecond heading\n" }] },
     });
-    useNotesStore.getState().selectNote(note);
+    await useNotesStore.getState().selectNote(note);
   });
+  await expect(page.locator(".note-title")).toHaveValue("跨标题选择");
   const root = page.locator(".note-editor .ProseMirror");
   await root.evaluate((element) => {
     const editor = (element as HTMLElement & { editor: Editor }).editor;
@@ -26,9 +27,10 @@ test("跨标题选区不包含折叠控件和块号", async ({ page }) => {
         { type: "paragraph", content: [{ type: "text", text: "Body text" }] },
         { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Second heading" }] },
       ],
-    });
+    }, true);
   });
 
+  await expect(root.locator("h1").first().locator(".editor-heading-fold")).toBeVisible();
   await expect(root.locator(".editor-fold-host")).toHaveCount(2);
   const result = await root.evaluate((element) => {
     const headings = element.querySelectorAll("h1");
@@ -57,7 +59,7 @@ test("跨标题选区不包含折叠控件和块号", async ({ page }) => {
   });
 
   // The reported case has adjacent headings and a wrapped first title.
-  const adjacent = await root.evaluate((element) => {
+  await root.evaluate((element) => {
     const editor = (element as HTMLElement & { editor: Editor }).editor;
     const first = "Part XI. Performance Diagnosis Playbook";
     const second = "第十一部分：性能诊断手册";
@@ -67,7 +69,11 @@ test("跨标题选区不包含折叠控件和块号", async ({ page }) => {
         { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: first }] },
         { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: second }] },
       ],
-    });
+    }, true);
+  });
+  await expect(root.locator("h1").first().locator(".editor-fold-host")).toBeAttached();
+  const adjacent = await root.evaluate((element) => {
+    const second = "第十一部分：性能诊断手册";
     const headings = element.querySelectorAll("h1");
     const range = document.createRange();
     range.setStart(headings[0].lastChild!, 0);

@@ -20,7 +20,7 @@ async function fixture(page: Page, readonly = false, virtual = false) {
     useNotesStore.getState().selectNote(saved);
   }, { title, readonly, virtual });
   const row = page.locator(virtual ? ".vr-title" : ".note-title-row");
-  if (readonly) await expect(row.getByRole("button", { name: "查看完整标题" })).toHaveText(title);
+  if (readonly) await expect(row.getByRole("button", { name: "文档属性" })).toHaveText(title);
   else await expect(row.getByRole("textbox", { name: "文档标题" })).toHaveValue(title);
   return row;
 }
@@ -72,14 +72,20 @@ for (const mode of ["edit", "readonly", "virtual"] as const) {
       await row.getByRole("button", { name: "专注模式", exact: true }).click();
       await assertRow();
       await expect(page.locator(".mobile-focus-bar")).toHaveCount(0);
-      const preview = row.getByRole("button", { name: "查看完整标题" });
+      const preview = row.getByRole("button", { name: mode === "edit" ? "查看完整标题" : "文档属性" });
       await expect(preview).toBeVisible();
       expect((await preview.boundingBox())!.width).toBeGreaterThanOrEqual(24);
       await preview.click();
-      await expect(row.getByRole("tooltip")).toHaveText(title);
-      await expect(page.locator(".properties-panel")).toHaveCount(0);
-      await preview.click();
+      if (mode === "edit") {
+        await expect(row.getByRole("tooltip")).toHaveText(title);
+        await expect(page.locator(".properties-panel")).toHaveCount(0);
+      } else {
+        await expect(page.locator(".properties-panel")).toBeVisible();
+      }
+      if (mode === "edit") await preview.click();
+      else await page.getByTitle("关闭属性面板", { exact: true }).click();
       await expect(row.getByRole("tooltip")).toHaveCount(0);
+      await expect(page.locator(".properties-panel")).toHaveCount(0);
       const scroll = page.locator(mode === "virtual" ? ".vr-scroll" : ".note-editor-scroll");
       const top = (await row.boundingBox())!.y;
       await scroll.evaluate(node => { node.scrollTop = 400; });

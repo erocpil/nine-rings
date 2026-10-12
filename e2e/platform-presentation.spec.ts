@@ -17,7 +17,7 @@ for (const width of [390, 1280]) {
       await api.notes.update(note.id, { readonly: true });
       useNotesStore.getState().selectNote((await api.notes.get(note.id))!);
     });
-    if (width === 390) await expect(page.getByRole("button", { name: "查看完整标题" })).toHaveText("跨端工具验证");
+    if (width === 390) await expect(page.getByRole("button", { name: "文档属性" })).toHaveText("跨端工具验证");
     else await expect(page.locator(".note-title")).toHaveValue("跨端工具验证");
     await expect(page.locator(".header-clock, .document-security-bar")).toHaveCount(0);
     await expect(page.locator(".note-title-row").getByTitle("专注模式").locator("svg")).toHaveCount(1);
@@ -36,23 +36,15 @@ for (const width of [390, 1280]) {
     const focus = page.locator(".vr-title");
     await expect(focus.getByRole("button", { name: "退出专注模式" })).toBeVisible();
     await expect(focus.getByRole("button", { name: "文档书签" })).toContainText("1");
-    // Desktop titles toggle document properties; mobile titles intentionally
-    // reveal the full name without opening a properties panel.
-    const desktop = width > 600;
-    const focusTitle = focus.getByRole("button", { name: desktop ? "文档属性" : "查看完整标题", exact: true });
-    const titlePanel = desktop ? page.locator(".properties-panel") : focus.getByRole("tooltip");
+    // Read-only titles toggle properties on both desktop and mobile.
+    const focusTitle = focus.getByRole("button", { name: "文档属性", exact: true });
+    const titlePanel = page.locator(".properties-panel");
     await focusTitle.click();
     await expect(titlePanel).toBeVisible();
-    if (desktop) {
-      await expect(focus.getByRole("tooltip")).toHaveCount(0);
-    } else {
-      await expect(titlePanel).toHaveText("跨端工具验证");
-      await expect(focusTitle).toHaveAttribute("aria-expanded", "true");
-      await expect(page.locator(".properties-panel")).toHaveCount(0);
-    }
-    await focusTitle.click();
+    await expect(focus.getByRole("tooltip")).toHaveCount(0);
+    if (width === 390) await page.getByTitle("关闭属性面板", { exact: true }).click();
+    else await focusTitle.click();
     await expect(titlePanel).toBeHidden();
-    if (!desktop) await expect(focusTitle).toHaveAttribute("aria-expanded", "false");
     await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
     await focus.getByRole("button", { name: "退出专注模式" }).click();
     await expect(titlebar).toBeVisible();

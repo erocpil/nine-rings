@@ -35,12 +35,12 @@ export function FocusModeBar({ title, leading, children, target, onOpenPropertie
         <button
           type="button"
           className="mobile-focus-title"
-          aria-label={target ? "文档属性" : "查看完整标题"}
-          aria-expanded={target ? undefined : titleOpen}
+          aria-label={onOpenProperties ? "文档属性" : "查看完整标题"}
+          aria-expanded={onOpenProperties ? undefined : titleOpen}
           aria-describedby={titleOpen ? tooltipId : undefined}
-          onClick={() => target ? onOpenProperties?.() : setTitleOpen((open) => !open)}
+          onClick={() => onOpenProperties ? onOpenProperties?.() : setTitleOpen((open) => !open)}
         >{title}</button>
-        {!target && titleOpen && <div className="mobile-focus-full-title" id={tooltipId} role="tooltip">{title}</div>}
+        {!onOpenProperties && titleOpen && <div className="mobile-focus-full-title" id={tooltipId} role="tooltip">{title}</div>}
       </div>
       {children}
     </div>

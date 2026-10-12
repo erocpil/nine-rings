@@ -12,7 +12,6 @@ export function BlockquoteToolbar({ text, collapsed, toggle, onOpen, position, a
   alert?: string;
 }) {
   const suppressClickUntilRef = useRef(0);
-  const lastTouchActionAtRef = useRef(0);
   const touchRef = useRef<{ identifier: number; x: number; y: number; moved: boolean } | null>(null);
   return (
       <div className="blockquote-toolbar" data-pdf-exclude contentEditable={false}>
@@ -52,14 +51,8 @@ export function BlockquoteToolbar({ text, collapsed, toggle, onOpen, position, a
               .find((item) => item.identifier === gesture.identifier);
             if (!touch || Math.hypot(touch.clientX - gesture.x, touch.clientY - gesture.y) > 12) return;
             const now = Date.now();
-            if (now - lastTouchActionAtRef.current < 32) {
-              event.preventDefault();
-              event.stopPropagation();
-              return;
-            }
             event.preventDefault();
             event.stopPropagation();
-            lastTouchActionAtRef.current = now;
             suppressClickUntilRef.current = now + 500;
             toggle();
           }}
@@ -67,11 +60,11 @@ export function BlockquoteToolbar({ text, collapsed, toggle, onOpen, position, a
             if (event.pointerType !== "touch") return;
             const gesture = touchRef.current;
             if (!gesture || gesture.moved || Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 12) return;
+            // Consume this gesture so its subsequent touchend cannot toggle again.
+            touchRef.current = null;
             event.preventDefault();
             event.stopPropagation();
             const now = Date.now();
-            if (now - lastTouchActionAtRef.current < 32) return;
-            lastTouchActionAtRef.current = now;
             suppressClickUntilRef.current = now + 500;
             toggle();
           }}

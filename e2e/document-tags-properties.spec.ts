@@ -60,3 +60,32 @@ test("属性页管理普通标签，无标签时隐藏标题下标签栏", async
   await expect(tags.getByRole("textbox", { name: "添加文档标签" })).toHaveCount(0);
   await expect(tags).toContainText("切换为可编辑后可修改标签");
 });
+
+test("属性开关跨文档保持，只读标题在普通与专注模式切换属性", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  const panel = page.locator(".properties-panel");
+  await page.getByRole("button", { name: "显示属性面板", exact: true }).click();
+  await expect(panel).toBeVisible();
+  const create = async (name: string) => {
+    await page.getByRole("button", { name: "新建文档", exact: true }).click();
+    await page.getByPlaceholder("文档标题...").fill(name);
+    await page.getByRole("button", { name: "创建", exact: true }).click();
+    await expect(page.locator(".note-title")).toHaveValue(name);
+  };
+  await create("属性保持开启");
+  await expect(panel).toBeVisible();
+  await page.getByRole("button", { name: "隐藏属性面板", exact: true }).click();
+  await create("属性保持关闭");
+  await expect(panel).toHaveCount(0);
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  await page.getByLabel("文档属性", { exact: true }).click();
+  await expect(panel).toBeVisible();
+  await page.getByLabel("文档属性", { exact: true }).click();
+  await expect(panel).toHaveCount(0);
+  await page.getByTitle("专注模式", { exact: true }).click();
+  await page.getByLabel("文档属性", { exact: true }).click();
+  await expect(panel).toBeVisible();
+  await page.getByLabel("文档属性", { exact: true }).click();
+  await expect(panel).toHaveCount(0);
+});

@@ -151,7 +151,6 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
   const documentActive = useDocumentActive();
   const rootRef = useRef<HTMLDivElement>(null);
   const suppressCompatibilityClickUntilRef = useRef(0);
-  const lastTouchActionAtRef = useRef(0);
   const touchGestureRef = useRef<{
     identifier: number;
     startX: number;
@@ -731,16 +730,11 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       .find((item) => item.identifier === gesture.identifier);
     if (!touch || Math.hypot(touch.clientX - gesture.startX, touch.clientY - gesture.startY) > 12) return;
     const now = Date.now();
-    if (now - lastTouchActionAtRef.current < 32) {
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
+    // 每个 touchstart 对应一次操作；不要用时间阈值吞掉新的快速触摸。
     // iOS 安装版在可滚动编辑器内可能把 pointerup 改派为 pointercancel，
     // 但仍会可靠地产生 touchend。直接在 touchend 完成操作并吞掉合成 click。
     event.preventDefault();
     event.stopPropagation();
-    lastTouchActionAtRef.current = now;
     suppressCompatibilityClickUntilRef.current = now + 2000;
     action();
   };

@@ -4104,7 +4104,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       }}
     >
       {focusMode && !unifiedTitleBar && (
-        <FocusModeBar key={noteId} target={focusToolbarTarget} onOpenProperties={onOpenProperties} title={localTitle || "无标题"} leading={onReadonlyChange && (
+        <FocusModeBar key={noteId} target={focusToolbarTarget} onOpenProperties={readonly || focusToolbarTarget ? onOpenProperties : undefined} title={localTitle || "无标题"} leading={onReadonlyChange && (
           <button type="button" className={`focus-readonly-toggle${readonlyChangeNotice ? " readonly-change-confirmed" : ""}`} aria-pressed={readonly}
             title={readonly ? "点击设为可编辑" : "点击设为只读"}
             aria-label={readonly ? "点击设为可编辑" : "点击设为只读"}
@@ -4322,15 +4322,15 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           ) : null}
           <div className="note-title-field">
             {mobileTitleBar && (focusMode || readonly) ? <DocumentTitlePreview key={noteId} title={localTitle || "无标题"}
-              className={saveIssue ? `note-title-save-${saveIssue}` : ""} /> : <input
+              className={saveIssue ? `note-title-save-${saveIssue}` : ""} onOpenProperties={readonly ? onOpenProperties : undefined} /> : <input
               ref={titleInputRef}
               type="text"
               className={`note-title${saveIssue ? ` note-title-save-${saveIssue}` : ""}`}
-              aria-label={unifiedTitleBar && focusMode ? "文档属性" : "文档标题"}
+              aria-label={(readonly || (unifiedTitleBar && focusMode)) ? "文档属性" : "文档标题"}
               title={saveIssue ? "修改尚未保存，点击旁边的警告图标查看详情" : undefined}
-              onClick={unifiedTitleBar && focusMode ? onOpenProperties : undefined}
-              aria-haspopup={unifiedTitleBar && focusMode ? "dialog" : undefined}
-              onKeyDown={unifiedTitleBar && focusMode ? event => {
+              onClick={readonly || (unifiedTitleBar && focusMode) ? onOpenProperties : undefined}
+              aria-haspopup={readonly || (unifiedTitleBar && focusMode) ? "dialog" : undefined}
+              onKeyDown={readonly || (unifiedTitleBar && focusMode) ? event => {
                 if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpenProperties?.(); }
               } : undefined}
               placeholder="输入文档标题"

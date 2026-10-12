@@ -795,10 +795,7 @@ function App() {
     else if (autoSave.status === "clean" || autoSave.status === "saved") setFailedSaveNoteId(null);
   }, [autoSave.status, getPendingData]);
 
-  // 文档切换后保持正文优先；属性面板仅由用户针对当前文档主动打开。
-  useEffect(() => {
-    setPropertiesOpen(false);
-  }, [selectedNoteId]);
+  // 属性面板是工作区级开关，切换文档沿用用户最后选择的显示状态。
   const LAST_NOTE_KEY = "nr:lastNote";
   const startupRestoreCompleteRef = useRef(false);
   useEffect(() => {

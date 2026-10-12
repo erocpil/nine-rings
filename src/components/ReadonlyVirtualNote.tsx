@@ -1255,7 +1255,7 @@ export function ReadonlyVirtualNote(
           >
             <ToolbarIcon name="lock" />
           </button>
-          {props.mobileTitleBar ? <DocumentTitlePreview key={noteId} title={props.title || "无标题"} className={props.saveIssue ? `note-title-save-${props.saveIssue}` : ""} /> : props.unifiedTitleBar && props.focusMode ? <button type="button" className={`vr-properties-title${props.saveIssue ? ` note-title-save-${props.saveIssue}` : ""}`} aria-label="文档属性" onClick={props.onOpenProperties}>{props.title || "无标题"}</button> : <strong className={props.saveIssue ? `note-title-save-${props.saveIssue}` : undefined}>{props.title || "无标题"}</strong>}
+          {props.mobileTitleBar ? <DocumentTitlePreview key={noteId} title={props.title || "无标题"} className={props.saveIssue ? `note-title-save-${props.saveIssue}` : ""} onOpenProperties={props.onOpenProperties} /> : props.onOpenProperties ? <button type="button" className={`vr-properties-title${props.saveIssue ? ` note-title-save-${props.saveIssue}` : ""}`} aria-label="文档属性" onClick={props.onOpenProperties}>{props.title || "无标题"}</button> : <strong className={props.saveIssue ? `note-title-save-${props.saveIssue}` : undefined}>{props.title || "无标题"}</strong>}
           {props.saveIssue && <button type="button" className="workspace-error-indicator" onClick={props.onOpenSaveIssue} aria-label="查看保存错误详情"><ToolbarIcon name="warning" /></button>}
           {toolbar}
         </div>
