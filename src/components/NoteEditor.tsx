@@ -2536,7 +2536,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     }
   }, [editor, noteId]);
 
-  useEditorScrollPersistence({ noteId, sensitive, scrollRef, scrollPositionRef, rendererHandoffRef, showStatusBar, isMobileToolbarViewport });
+  useEditorScrollPersistence({ editor, noteId, sensitive, scrollRef, scrollPositionRef, rendererHandoffRef, showStatusBar, isMobileToolbarViewport });
 
   useEditorNavigation(editor, noteId, scrollRef);
 

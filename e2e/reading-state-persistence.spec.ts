@@ -184,3 +184,36 @@ test("源码模式和源码视口跨刷新恢复，显式返回渲染后不再�
   await expect(page.locator(".ProseMirror")).toContainText("阅读段落 89");
   await expect(source).toHaveCount(0);
 });
+
+for (const readonly of [false, true]) {
+  test(`关闭前立即滚动，重新打开并改变宽度仍恢复相同文字位置 readonly=${readonly}`, async ({ page, context }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    const { a } = await seedReadingDocuments(page, readonly);
+    const scroll = page.locator(".note-editor-scroll");
+    // Settle startup before simulating the final scroll just before shutdown.
+    await scroll.dispatchEvent("wheel");
+    const before = await scroll.evaluate((element) => {
+      element.scrollTop = 1850;
+      // Scroll events can still be queued when pagehide/beforeunload fires.
+      window.dispatchEvent(new Event("pagehide"));
+      return element.scrollTop;
+    });
+    const saved = await page.evaluate(id => JSON.parse(localStorage.getItem(`nr:readingState:${id}`)!).rendered, a);
+    expect(saved.scrollTop).toBe(before);
+    expect(saved.anchor?.position).toBeGreaterThan(0);
+    await page.close();
+    const reopened = await context.newPage();
+    await reopened.setViewportSize({ width: 960, height: 800 });
+    await reopened.goto("/");
+    await expect(reopened.locator(".ProseMirror")).toContainText("阅读段落 89");
+    await expect.poll(() => reopened.locator(".ProseMirror").evaluate((element, anchor) => {
+      const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      const root = element.closest(".note-editor-scroll")!;
+      const sticky = root.querySelector(".note-editor-sticky")!;
+      const top = Math.max(root.getBoundingClientRect().top, sticky.getBoundingClientRect().bottom);
+      return Math.abs(editor.view.coordsAtPos(anchor.position).top - top - anchor.offset);
+    }, saved.anchor)).toBeLessThanOrEqual(2);
+    await reopened.close();
+  });
+}

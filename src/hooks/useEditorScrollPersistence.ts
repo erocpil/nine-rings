@@ -1,11 +1,14 @@
+import type { Editor } from "@tiptap/core";
+import { captureRenderedReadingAnchor, restoreRenderedReadingAnchor } from "../lib/editor-reading-position";
 import { useDocumentActive } from "../components/RetainedDocument";
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { addLog } from "../lib/debugLog";
 import type { ReadingAnchor } from "../lib/readonly-rendering";
-import { patchReadingState, readRenderedScrollTop } from "../lib/reading-state";
+import { patchReadingState, readReadingState, readRenderedScrollTop } from "../lib/reading-state";
 export const EDITOR_NAVIGATION_EVENT = "nr:editor-navigation";
 
 interface Options {
+  editor: Editor | null;
   noteId: string;
   sensitive?: boolean;
   scrollRef: RefObject<HTMLElement>;
@@ -17,6 +20,7 @@ interface Options {
 
 /** Own only persistent scroll/position status; renderer handoffs take priority. */
 export function useEditorScrollPersistence({
+  editor,
   noteId,
   sensitive = false,
   scrollRef,
@@ -43,6 +47,7 @@ export function useEditorScrollPersistence({
       return;
     }
     state.pending = true;
+    const savedAnchor = sensitive ? undefined : readReadingState(noteId).rendered?.anchor;
     const scrollTop = Math.max(0, Number(saved) || 0);
     const startedAt = performance.now();
     const deadline = performance.now() + 10000;
@@ -93,8 +98,9 @@ export function useEditorScrollPersistence({
       if (stopped || !el.isConnected) return;
       const maximum = Math.max(0, el.scrollHeight - el.clientHeight);
       el.scrollTop = Math.min(scrollTop, maximum);
-      const targetIsReachable = maximum >= scrollTop;
-      const targetIsApplied = Math.abs(el.scrollTop - scrollTop) <= 1;
+      const anchored = !!editor && !!savedAnchor && restoreRenderedReadingAnchor(editor, el, savedAnchor);
+      const targetIsReachable = anchored || maximum >= scrollTop;
+      const targetIsApplied = anchored || Math.abs(el.scrollTop - scrollTop) <= 1;
       settledFrames =
         targetIsReachable && targetIsApplied ? settledFrames + 1 : 0;
       const minimumRestoreWindowElapsed = performance.now() - startedAt >= 600;
@@ -127,7 +133,7 @@ export function useEditorScrollPersistence({
     mutationObserver?.observe(el, { childList: true, subtree: true });
     frame = requestAnimationFrame(restore);
     return stop;
-  }, [noteId, sensitive, rendererHandoffRef, scrollRef, active]);
+  }, [editor, noteId, sensitive, rendererHandoffRef, scrollRef, active]);
 
   // 滚动时保存位置 & 更新位置显示
   // 出处：TipTap #2342 https://github.com/ueberdosis/tiptap/issues/2342
@@ -144,10 +150,11 @@ export function useEditorScrollPersistence({
       ? 0
       : (readRenderedScrollTop(noteId) ?? 0);
     const showLivePosition = showStatusBar && !isMobileToolbarViewport;
+    let lastAnchor = sensitive ? undefined : readReadingState(noteId).rendered?.anchor;
     const persistPosition = () => {
       if (sensitive) return;
       patchReadingState(noteId, {
-        rendered: { scrollTop: lastKnownScrollTop },
+        rendered: { scrollTop: lastKnownScrollTop, anchor: lastAnchor },
       });
       try {
         localStorage.setItem(`scrollPos:${noteId}`, String(lastKnownScrollTop));
@@ -183,9 +190,15 @@ export function useEditorScrollPersistence({
       maximumScroll = Math.max(0, el.scrollHeight - el.clientHeight);
       if (showLivePosition) scheduleStatusPosition();
     };
+    const capturePosition = () => {
+      if (state.pending || !el.isConnected || el.closest("[inert]") || !el.clientWidth || !el.clientHeight) return;
+      lastKnownScrollTop = el.scrollTop;
+      if (!sensitive && editor) lastAnchor = captureRenderedReadingAnchor(editor, el);
+    };
     const flushPosition = () => {
       if (persistTimer) window.clearTimeout(persistTimer);
       persistTimer = 0;
+      capturePosition();
       persistPosition();
     };
     const handler = () => {
@@ -210,21 +223,27 @@ export function useEditorScrollPersistence({
     if (contentShell) resizeObserver?.observe(contentShell);
     el.addEventListener("scroll", handler, { passive: true });
     window.addEventListener("pagehide", flushPosition);
+    window.addEventListener("beforeunload", flushPosition);
     window.addEventListener("nine-rings:main-window-hide", flushPosition);
     document.addEventListener("visibilitychange", persistWhenHidden);
     return () => {
       el.removeEventListener("scroll", handler);
       window.removeEventListener("pagehide", flushPosition);
+      window.removeEventListener("beforeunload", flushPosition);
       window.removeEventListener("nine-rings:main-window-hide", flushPosition);
       document.removeEventListener("visibilitychange", persistWhenHidden);
       resizeObserver?.disconnect();
       // 快速切换可能早于 220ms 防抖；必须提交最后一次已捕获的位置。
       // 不从 DOM 重读，避免卸载时高度收缩把正确位置覆盖成零。
-      if (persistTimer) flushPosition();
+      if (persistTimer) {
+        window.clearTimeout(persistTimer);
+        persistPosition();
+      }
       addLog(`[离开] ${noteId.slice(0, 8)} 保存位置=${lastKnownScrollTop}`);
       if (statusTimer) window.clearTimeout(statusTimer);
     };
   }, [
+    editor,
     active,
     isMobileToolbarViewport,
     noteId,

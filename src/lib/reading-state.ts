@@ -1,3 +1,5 @@
+import type { RenderedReadingAnchor } from "./editor-reading-position";
+
 /** Device-local view state, not canonical content or a sync conflict source.
  * Heading identities may contain text: callers must exclude protected documents.
  */
@@ -11,7 +13,7 @@ export interface ReadingState {
       { collapsed?: boolean; wrap?: boolean; lineNumbers?: boolean },
     ][];
   };
-  rendered?: { scrollTop: number };
+  rendered?: { scrollTop: number; anchor?: RenderedReadingAnchor };
   source?: { scrollTop: number };
   virtual?: { revision: string; position: number; offset: number };
   view?: "rendered" | "source";
@@ -53,6 +55,10 @@ export function readReadingState(noteId: string): ReadingState {
       state.blocks = raw.blocks;
     if (finite(raw.rendered?.scrollTop) && raw.rendered.scrollTop >= 0)
       state.rendered = { scrollTop: raw.rendered.scrollTop };
+    const anchor = raw.rendered?.anchor;
+    if (state.rendered && anchor && Number.isSafeInteger(anchor.position) && anchor.position >= 0
+      && finite(anchor.offset) && typeof anchor.text === "string" && anchor.text.length <= 32)
+      state.rendered.anchor = { position: anchor.position, offset: anchor.offset, text: anchor.text };
     if (finite(raw.source?.scrollTop) && raw.source.scrollTop >= 0)
       state.source = { scrollTop: raw.source.scrollTop };
     if (
