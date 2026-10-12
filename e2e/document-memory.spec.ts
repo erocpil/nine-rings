@@ -1,3 +1,4 @@
+import { waitForSavedText } from "./helpers/document";
 import { pressDocumentBoundary, pressLineBoundary } from "./helpers/keyboard";
 import { expect, test } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
@@ -72,6 +73,9 @@ test("最近三份文档保留实例和撤销历史，首页往返不卸载，�
   await source.click();
   await pressDocumentBoundary(page, "end");
   await page.keyboard.type("source retained");
+  // This fixture selects the store directly rather than navigating through a
+  // save gate. Wait for its source write before fetching another note snapshot.
+  await waitForSavedText(page, "source retained");
   await open(3);
   await open(2);
   expect(await source.evaluate((node, original) => node === original, sourceNode)).toBe(true);

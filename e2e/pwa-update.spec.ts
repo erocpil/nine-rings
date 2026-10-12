@@ -227,3 +227,19 @@ test("已下载但未刷新时继续检查后续部署，最终保存并启用�
   await expect(page.locator(".note-title")).toHaveValue("连续部署前的最后修改");
   await expect(page.locator(".ProseMirror")).toContainText("等待更新不应丢失当前编辑");
 });
+
+for (const width of [390, 1280]) {
+  test(`无新版检查后保持设置内焦点，Esc 直接退出 ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.keyboard.press("Alt+,");
+    const settings = page.locator(".settings-panel");
+    await expect(settings).toBeVisible();
+    const check = settings.locator(".settings-update-check");
+    await check.click();
+    await expect(settings.locator(".settings-web-update [role=status]")).toContainText("未发现待安装的新版本");
+    await expect(check).toBeEnabled();
+    await expect(check).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(settings).toHaveCount(0);
+  });
+}

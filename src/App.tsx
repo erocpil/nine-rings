@@ -1,3 +1,7 @@
+import { mainViews } from "./lib/plugin-system/main-view-registry";
+import { usePluginMainView } from "./hooks/usePluginMainView";
+import { IMAGE_INSERT_EVENT } from "./lib/image-library/viewer-request";
+import { documentToolEnabled } from "./lib/plugin-system/builtin-tool-preferences";
 import { workspacePanels } from "./lib/plugin-system/panel-registry";
 import { pluginRuntime } from "./lib/plugin-system/runtime";
 import { imageViewerEnabled } from "./lib/plugin-system/builtin-image-viewer";
@@ -89,6 +93,7 @@ const PDF_DOC_TYPE_LABELS: Record<DocType, string> = {
 };
 
 const ImageLibraryPanel = lazy(() => import("./components/ImageLibraryPanel").then(module => ({ default: module.ImageLibraryPanel })));
+const ImageViewer = lazy(() => import("./components/ImageViewerDialog").then(module => ({ default: module.ImageViewer })));
 const ImageViewerHost = lazy(() => import("./components/ImageViewerDialog").then(module => ({ default: module.ImageViewerHost })));
 const RecycleBin = lazy(() => import("./components/RecycleBin").then((module) => ({ default: module.RecycleBin })));
 const VersionHistory = lazy(() => import("./components/VersionHistory").then((module) => ({ default: module.VersionHistory })));
@@ -198,6 +203,16 @@ function App() {
     },
   });
   const flushAutoSave = autoSave.flush;
+  const pluginViewState = usePluginMainView(flushAutoSave, saveError => {
+    useNotesStore.setState({ error: `无法切换视图，当前内容已保留：${saveError instanceof Error ? saveError.message : String(saveError)}` });
+  });
+  const pluginMainView = pluginViewState.current;
+  const pluginMainActive = Boolean(pluginMainView && !pluginViewState.suspended);
+  const pluginViewDocument = useRef(selectedNote?.id ?? null);
+  useEffect(() => {
+    const id = selectedNote?.id ?? null;
+    if (pluginViewDocument.current !== id) { pluginViewDocument.current = id; mainViews.close(); }
+  }, [selectedNote?.id]);
   const quitHint = useQuitConfirmation(flushAutoSave);
   const { getPendingData, discardPending, setNoteId: setAutoSaveNoteId } = autoSave;
   const applyWebUpdate = useCallback(() => {
@@ -319,7 +334,8 @@ function App() {
   const [workspaceHomeRequested, setWorkspaceHomeRequested] = useState(false);
   const [exhibitionReaderActive, setExhibitionReaderActive] = useState(false);
 
-  const handleSelectNote = useCallback((note: Note | null, options?: DocumentOpenOptions) => {
+  const handleSelectNote = useCallback((note: Note | null, options?: DocumentOpenOptions, preserveMainView = false) => {
+    if (!preserveMainView) mainViews.close();
     useDocumentOpenStore.getState().open(note?.id ?? null, options);
     setWorkspaceHomeRequested(false);
     setExhibitionReaderActive(false);
@@ -942,6 +958,9 @@ function App() {
   // All platforms use the editor title row. Desktop retains an activity rail;
   // mobile retains edge drawers and its full-title preview interaction.
   const desktopWorkspace = !mobileDrawerViewport;
+  useEffect(() => {
+    if (pluginMainActive && mobileDrawerViewport) setSidebarHidden(true);
+  }, [pluginMainView?.id, pluginMainActive, mobileDrawerViewport]);
   const workspaceLayout = useWorkspaceLayout();
   const sidebarOnRight = desktopWorkspace && workspaceLayout.sidebarSide === "right";
   const activeReaderFullscreen = activeReaderFormat === "epub"
@@ -956,6 +975,7 @@ function App() {
   const workspaceHome = workspaceHomeRequested || (!selectedNote && !selectedFolderPath && !selectedConcept);
   useEffect(() => { summarySidebarSnapshot.current = null; setActiveWorkspaceSummary(null); }, [workspaceHome]);
   const closeHomeReaderSidebar = useCallback((format: "pdf" | "epub", documentId: string) => {
+    mainViews.close();
     if (!desktopWorkspace || !workspaceHome) return;
     // The home reader takes over the main area. Cancel both pinned and hover
     // sidebar state so neither an empty split nor a delayed hover remains.
@@ -1347,7 +1367,7 @@ function App() {
     : pdfReaderPanel ?? epubReaderPanel;
   const readerPrimaryView = desktopWorkspace && !workspaceHome && exhibitionReaderActive && Boolean(activeReaderPanel);
   const retainEditorLayoutAtHome = desktopWorkspace && exhibitionEnabled && workspaceHome && Boolean(selectedNote);
-  const hideEditorSplit = homeReaderOpen || readerPrimaryView || (exhibitionEnabled && workspaceHome) || (!selectedNote && Boolean(selectedConcept || selectedFolderPath));
+  const hideEditorSplit = pluginMainActive || homeReaderOpen || readerPrimaryView || (exhibitionEnabled && workspaceHome) || (!selectedNote && Boolean(selectedConcept || selectedFolderPath));
   return (
     <ReadingTypographyProvider config={config}><EditorFoldIconContext.Provider value={config}>
     <ExhibitionWorkspace desktop={desktopWorkspace} enabled={exhibitionEnabled && !mobileReaderOpen} focus={focusMode} config={config}
@@ -1385,21 +1405,26 @@ function App() {
       path={workspaceHome ? "" : selectedFolderPath ?? selectedNote?.storagePath ?? ""} noteId={workspaceHome ? undefined : selectedNote?.id} refreshKey={docTreeKey}
       onAppearance={async patch => handleConfigChange(await api.config.set(patch))}
       onOpen={async (note, options) => { await flushAutoSave(); setQuery(""); setDocResults(null); handleSelectNote(note, options); closeSidebarOnNarrowScreen(); }}
-      canReturn={workspaceHome && Boolean(exhibitionReturnTarget)}
+      canReturn={workspaceHome && Boolean(exhibitionReturnTarget || (pluginMainView && pluginViewState.suspended))}
       onHome={async () => {
         const editorViewport = !workspaceHome && desktopWorkspace
           ? document.querySelector<HTMLElement>(".app-main-split")?.getBoundingClientRect() ?? null
           : null;
         await flushAutoSave();
         if (workspaceHome) {
-          if (!exhibitionReturnTarget) return;
+          if (!exhibitionReturnTarget) {
+            if (pluginViewState.suspended) mainViews.resume();
+            else mainViews.suspend();
+            return;
+          }
           const target = exhibitionReturnTarget;
           const note = target.noteId ? await api.notes.get(target.noteId) : null;
           if (target.noteId && !note) {
             setExhibitionReturnTarget(null);
             throw new Error("之前的文档已不存在，请从工作区选择其他文档。");
           }
-          handleSelectNote(note);
+          handleSelectNote(note, undefined, true);
+          mainViews.resume();
           setSelectedFolderPath(target.folder);
           setSelectedConcept(target.concept);
           if (desktopWorkspace) {
@@ -1407,7 +1432,7 @@ function App() {
             if (target.homeOpenedReader) {
               setDesktopPanel("reader");
               sidebarHover.restore({ panel: "reader", hidden: true, pinned: false });
-            } else {
+            } else if (!pluginMainActive) {
               setDesktopPanel(target.desktopSidebar.panel);
               sidebarHover.restore(target.desktopSidebar, target.sidebarWidthOverride);
             }
@@ -1427,6 +1452,7 @@ function App() {
           closeSidebarOnNarrowScreen();
           return;
         }
+        mainViews.suspend();
         setExhibitionReturnTarget({
           noteId: selectedNote?.id ?? null,
           folder: selectedFolderPath,
@@ -1679,13 +1705,14 @@ function App() {
 
         {!sidebarHidden && <div className="sidebar-divider" style={sidebarHoverEnabled ? { [sidebarOnRight ? "right" : "left"]: 44 + sidebarWidth } : undefined} onPointerEnter={sidebarHover.enterPanel} onPointerLeave={sidebarHover.leave} onPointerDown={handleSidePointerDown} />}
 
-        <main className={`app-main${!mobileDrawerViewport && !sidebarOverlay && !sidebarHidden && desktopPanel === "reader" ? " reader-companion-editor" : ""}${retainEditorLayoutAtHome ? " app-main-retaining-editor" : ""}`}>
+        <main className={`app-main${pluginMainView ? " plugin-main-view-container" : ""}${!mobileDrawerViewport && !sidebarOverlay && !sidebarHidden && desktopPanel === "reader" ? " reader-companion-editor" : ""}${retainEditorLayoutAtHome ? " app-main-retaining-editor" : ""}`}>
           {mobileDrawerViewport && !selectedNote && !selectedFolderPath && !selectedConcept && <div className="mobile-workspace-empty-actions" aria-label="工作区工具">
             <button type="button" className="btn-icon" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
             <button type="button" className="btn-icon" aria-label="设置" onClick={() => setSettingsOpen(true)}><ToolbarIcon name="sliders" /></button>
           </div>}
+          <div className={`plugin-main-view-underlay${pluginMainActive ? " is-parked" : ""}`} style={{ display: "contents" }} {...(pluginMainActive ? { inert: "", "aria-hidden": true } : {})}>
           {homeReaderOpen || readerPrimaryView ? activeReaderPanel : exhibitionEnabled && workspaceHome ? (
-            <ExhibitionWelcome disabled={syncBusy} onCreate={() => setDocCreateOpen(true)} onSearch={openGlobalSearch} />
+            !pluginMainActive && <ExhibitionWelcome disabled={syncBusy} onCreate={() => setDocCreateOpen(true)} onSearch={openGlobalSearch} />
           ) : selectedConcept && !selectedNote ? (
             <DocMOC
               concept={selectedConcept}
@@ -1712,10 +1739,23 @@ function App() {
               selectedId={null}
             />
           ) : null}
+          </div>
+          {pluginMainView && <div className="plugin-main-view-host" hidden={!pluginMainActive} {...(!pluginMainActive ? { inert: "", "aria-hidden": true } : {})}>
+            <Suspense fallback={<div className="empty-state">正在打开图片…</div>}>
+              <ImageViewer key={pluginMainView.id} presentation="main" active={pluginMainActive} initial={pluginMainView.data.image} images={pluginMainView.data.images}
+                canInsert={Boolean(selectedNote && !selectedNote.readonly && !syncBusy && documentToolEnabled("image"))}
+                onClose={() => mainViews.close(pluginMainView.id)}
+                onInsert={image => {
+                  mainViews.close(pluginMainView.id);
+                  setWorkspaceHomeRequested(false);
+                  requestAnimationFrame(() => window.dispatchEvent(new CustomEvent(IMAGE_INSERT_EVENT, { detail: image })));
+                }} />
+            </Suspense>
+          </div>}
             <div
               className="app-main-split"
               style={{
-                display: hideEditorSplit && !retainEditorLayoutAtHome ? "none" : undefined,
+                display: hideEditorSplit && (!retainEditorLayoutAtHome || pluginMainActive) ? "none" : undefined,
                 ...(retainEditorLayoutAtHome && exhibitionReturnTarget?.editorViewportWidth ? {
                   width: exhibitionReturnTarget.editorViewportWidth,
                   height: exhibitionReturnTarget.editorViewportHeight ?? undefined,
@@ -1732,8 +1772,8 @@ function App() {
                 className="app-main-editor"
                 style={{ flex: 1 }}
               >
-                <RetainedDocument key={externalReloadKey} ready={editorReadyNoteId === selectedNote?.id || !isTauriRuntime()} revision={selectedNote?.updated_at ?? ""} sessionKey={!workspaceHome && selectedNote ? `${selectedNote.id}:${externalReloadKey}` : null} sensitive={selectedNote ? isEncrypted(selectedNote.content) : false}>
-                {!workspaceHome && (selectedNote && (editorReadyNoteId === selectedNote.id || !isTauriRuntime()) ? (
+                <RetainedDocument key={externalReloadKey} ready={editorReadyNoteId === selectedNote?.id || !isTauriRuntime()} revision={selectedNote?.updated_at ?? ""} sessionKey={!workspaceHome && !pluginMainActive && selectedNote ? `${selectedNote.id}:${externalReloadKey}` : null} sensitive={selectedNote ? isEncrypted(selectedNote.content) : false}>
+                {!workspaceHome && !pluginMainActive && (selectedNote && (editorReadyNoteId === selectedNote.id || !isTauriRuntime()) ? (
                   <Suspense fallback={<div className="empty-state">正在打开文档...</div>}>
                     <NoteEditor
                     documentSessions={autoSave.documentSessions}
@@ -1859,7 +1899,7 @@ function App() {
             </div>
         </main>
 
-        {secondaryUiReady && !workspaceHome && selectedNote?.storagePath && propertiesOpen && (
+        {secondaryUiReady && !workspaceHome && !pluginMainActive && selectedNote?.storagePath && propertiesOpen && (
           <Suspense fallback={null}>
             <PropertiesPanel
               onRename={async title => {
@@ -1916,7 +1956,7 @@ function App() {
           </Suspense>
         )}
 
-        {secondaryUiReady && !selectedNote?.storagePath && selectedFolderPath && propertiesOpen && (
+        {secondaryUiReady && !pluginMainActive && !selectedNote?.storagePath && selectedFolderPath && propertiesOpen && (
           <Suspense fallback={null}>
             <FolderPropertiesPanel
               path={selectedFolderPath}

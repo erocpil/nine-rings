@@ -534,3 +534,5 @@ flowchart TD
 ## 2026-10-12 内置图片分栏能力
 
 宿主增加受限 WorkspacePanelRegistry、panels.present 与 filesystem.images.read 内部权限；当前只有 images/image-library 认可模板，激活所有权负责撤销贡献与资源。目录来源与文档图片共用查看器，插入继续通过文档编辑权限和附件存储。授权保持设备本地；不开放第三方文件系统调用、任意 DOM 或写盘权限。详见[图片分栏及后续处理契约](plugin-local-image-panel.md)。
+
+可信内置模块新增[主区域视图贡献](plugin-main-area-views.md)：绑定到激活的 views.register/open/close，展示权限与编辑权限分离，宿主负责保存与导航。当前仅宿主认可的 image renderer；公开 SDK JSON 方法和第三方自定义 renderer 未开放。

@@ -581,7 +581,7 @@
   width: auto;
 }
 
-.settings-update-check:hover:not(:disabled),
+.settings-update-check:hover:not(:disabled):not([aria-disabled="true"]),
 .settings-update-apply:hover:not(:disabled) {
   background: var(--hover);
 }
@@ -590,7 +590,8 @@
   color: var(--text-secondary);
 }
 
-.settings-update-check:disabled {
+.settings-update-check:disabled,
+.settings-update-check[aria-disabled="true"] {
   opacity: 0.8;
   cursor: not-allowed;
 }

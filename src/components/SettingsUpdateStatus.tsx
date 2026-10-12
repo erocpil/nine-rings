@@ -66,12 +66,15 @@ export function SettingsUpdateStatus({ webUpdate, showMessage }: Props) {
           <button
             type="button"
             className={`settings-update-check${webUpdate.checking ? " is-loading" : ""}`}
-            disabled={webUpdate.checking}
-            onClick={() =>
-              void webUpdate
-                .onCheck()
-                .catch((error) => showMessage(String(error)))
-            }
+            // Native disabled buttons can lose focus to body while checking;
+            // retain focus so Escape still reaches the settings dialog.
+            aria-disabled={webUpdate.checking}
+            aria-busy={webUpdate.checking}
+            onClick={(event) => {
+              if (webUpdate.checking) return;
+              event.currentTarget.focus({ preventScroll: true });
+              void webUpdate.onCheck().catch((error) => showMessage(String(error)));
+            }}
           >
             {webUpdate.checking ? (
               <span className="settings-update-spinner" aria-hidden="true" />

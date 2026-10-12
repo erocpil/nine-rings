@@ -22,7 +22,7 @@ export class PluginHostError extends Error {
   }
 }
 export type PluginPermission =
-  "editor.selection.read" | "editor.selection.write" | "documents.current.read" | "panels.present" | "filesystem.images.read";
+  "editor.selection.read" | "editor.selection.write" | "documents.current.read" | "panels.present" | "filesystem.images.read" | "views.present";
 export interface PluginActivation {
   readonly pluginId: string;
   readonly generation: string;
@@ -129,6 +129,7 @@ export class PluginRuntime {
       "editor.selection.write",
       "documents.current.read",
       "panels.present",
+      "views.present",
       "filesystem.images.read",
     ]);
     if (permissions.some((permission) => !allowed.has(permission)))

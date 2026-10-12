@@ -4,6 +4,7 @@ import { useDialogFocus } from "../hooks/useDialogFocus";
 import { imagePreview } from "../lib/image-library/preview-resource";
 import {
   IMAGE_VIEW_EVENT,
+  requestMainImageView,
   pendingImageView,
   clearImageView,
   IMAGE_INSERT_EVENT,
@@ -11,14 +12,22 @@ import {
 } from "../lib/image-library/viewer-request";
 import { workspacePanels } from "../lib/plugin-system/panel-registry";
 import { ToolbarIcon } from "./ToolbarIcon";
-function Viewer({
+export function ImageViewer({
   images,
   initial,
   onClose,
+  presentation = "modal",
+  active = true,
+  canInsert,
+  onInsert,
 }: {
   images: readonly ViewedImage[];
   initial: ViewedImage;
   onClose: () => void;
+  presentation?: "modal" | "main";
+  active?: boolean;
+  canInsert?: boolean;
+  onInsert?: (image: ViewedImage) => void;
 }) {
   const [index, setIndex] = useState(
     Math.max(
@@ -38,7 +47,7 @@ function Viewer({
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const dialog = useRef<HTMLDialogElement>(null);
+  const container = useRef<HTMLElement | null>(null);
   const close = useRef<HTMLButtonElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const img = useRef<HTMLImageElement>(null);
@@ -48,11 +57,27 @@ function Viewer({
     setPan({ x: 0, y: 0 });
   };
   useLayoutEffect(() => {
-    const element = dialog.current!;
+    if (presentation !== "modal") return;
+    const element = container.current as HTMLDialogElement;
     element.showModal();
     return () => element.close();
-  }, []);
-  useDialogFocus(dialog, true, close, undefined, true);
+  }, [presentation]);
+  useDialogFocus(container, presentation === "modal", close, undefined, true);
+  useEffect(() => {
+    if (presentation !== "main" || !active) return;
+    const previous = document.activeElement;
+    close.current?.focus({ preventScroll: true });
+    return () => {
+      requestAnimationFrame(() => {
+        if (
+          previous instanceof HTMLElement &&
+          previous.isConnected &&
+          (!document.activeElement || document.activeElement === document.body)
+        )
+          previous.focus({ preventScroll: true });
+      });
+    };
+  }, [presentation, active]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -141,17 +166,33 @@ function Viewer({
       ),
     };
   };
-  return createPortal(
-    <dialog
-      ref={dialog}
-      className="image-viewer-dialog"
+  const Surface = presentation === "modal" ? "dialog" : "section";
+  const content = (
+    <Surface
+      ref={(element) => {
+        container.current = element;
+      }}
+      className={
+        presentation === "modal" ? "image-viewer-dialog" : "image-viewer-main"
+      }
+      tabIndex={-1}
       aria-label="图片查看器"
       onCancel={(event) => {
         event.preventDefault();
         onClose();
       }}
       onKeyDown={(event) => {
-        event.stopPropagation();
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        if (
+          ["Escape", "ArrowLeft", "ArrowRight", "+", "=", "-", "0"].includes(
+            event.key,
+          )
+        )
+          event.stopPropagation();
+        if (event.key === "Escape") {
+          event.preventDefault();
+          onClose();
+        }
         if (event.key === "ArrowLeft") {
           event.preventDefault();
           change(-1);
@@ -179,11 +220,15 @@ function Viewer({
         <button
           ref={close}
           className="btn-icon"
-          aria-label="关闭图片查看器"
-          title="关闭图片查看器"
+          aria-label={presentation === "main" ? "返回原视图" : "关闭图片查看器"}
+          title={
+            presentation === "main" ? "返回原视图（Esc）" : "关闭图片查看器"
+          }
           onClick={onClose}
         >
-          <ToolbarIcon name="close" />
+          <ToolbarIcon
+            name={presentation === "main" ? "chevronLeft" : "close"}
+          />
         </button>
       </header>
       <div
@@ -273,9 +318,18 @@ function Viewer({
         <button
           className="btn"
           title="需有可编辑文档且启用插入图片插件"
-          disabled={!document.querySelector('[data-can-insert-image="true"]')}
+          disabled={
+            canInsert !== undefined
+              ? !canInsert
+              : !document.querySelector('[data-can-insert-image="true"]')
+          }
           onClick={() => {
-            dialog.current?.close();
+            if (onInsert) {
+              onInsert(image);
+              return;
+            }
+            if (presentation === "modal")
+              (container.current as HTMLDialogElement)?.close();
             onClose();
             requestAnimationFrame(() =>
               window.dispatchEvent(
@@ -286,6 +340,20 @@ function Viewer({
         >
           插入当前文档
         </button>
+        {presentation === "modal" && (
+          <button
+            type="button"
+            className="btn-icon"
+            aria-label="在主区域打开"
+            title="在主区域打开"
+            onClick={() => {
+              requestMainImageView(image, images);
+              onClose();
+            }}
+          >
+            <ToolbarIcon name="expand" />
+          </button>
+        )}
       </div>
       <div
         ref={viewport}
@@ -359,9 +427,11 @@ function Viewer({
           {error || "双指平移 · 捏合缩放 · 旋转仅影响预览"}
         </span>
       </footer>
-    </dialog>,
-    document.body,
+    </Surface>
   );
+  return presentation === "modal"
+    ? createPortal(content, document.body)
+    : content;
 }
 export function ImageViewerHost() {
   const [request, setRequest] = useState<{
@@ -402,7 +472,7 @@ export function ImageViewerHost() {
     };
   }, []);
   return request ? (
-    <Viewer
+    <ImageViewer
       key={`${request.image.rootId}:${request.image.nodeId}:${request.image.src}`}
       images={request.images}
       initial={request.image}

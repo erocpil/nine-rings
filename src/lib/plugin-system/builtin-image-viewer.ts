@@ -3,6 +3,8 @@ import { pluginLifecycle } from "./lifecycle";
 import { workspacePanels } from "./panel-registry";
 import { imageDirectoryService } from "../image-library/directory-service";
 import { clearImageView } from "../image-library/viewer-request";
+import { mainViews } from "./main-view-registry";
+export const IMAGE_VIEW_ID = "builtin.image-viewer";
 export const IMAGE_VIEWER_ID = "nine-rings.builtin-image-viewer";
 const KEY = "nr:pluginImageViewer";
 const CHANGE = "nr:plugin-image-viewer-change";
@@ -49,9 +51,14 @@ export function startBuiltinImageViewer() {
           return;
         await pluginLifecycle.activate(
           IMAGE_VIEWER_ID,
-          ["panels.present", "filesystem.images.read"],
+          ["panels.present", "filesystem.images.read", "views.present"],
           {
             activate(owner) {
+              mainViews.bind(owner.activation).register({
+                id: IMAGE_VIEW_ID,
+                label: "图片查看",
+                renderer: "image",
+              });
               workspacePanels.register(owner.activation, {
                 id: "images",
                 label: "图片",

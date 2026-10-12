@@ -6,7 +6,7 @@ import {
   type ImagePage,
 } from "../lib/image-library/directory-service";
 import {
-  requestImageView,
+  requestMainImageView,
   type ViewedImage,
 } from "../lib/image-library/viewer-request";
 import { WorkspacePanelHeading } from "./WorkspacePanelHeading";
@@ -91,11 +91,16 @@ function Directory({
         rootId: root.id,
         nodeId: node.id,
       })) ?? [];
-  const view = (node: ImageNode) =>
-    requestImageView(
-      { src: "", name: node.name, rootId: root.id, nodeId: node.id },
-      images,
-    );
+  const view = (node: ImageNode) => {
+    try {
+      requestMainImageView(
+        { src: "", name: node.name, rootId: root.id, nodeId: node.id },
+        images,
+      );
+    } catch (error) {
+      onError(error);
+    }
+  };
   return (
     <li role="treeitem" aria-expanded={open}>
       <button

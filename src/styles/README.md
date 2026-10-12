@@ -40,3 +40,5 @@ and supplies the common reading typography contract. Finally,
 These are ordered layers, not duplicate stylesheets to concatenate or remove.
 
 `image-library.css` supplies the contributed image tree, document image viewer entry and themed modal viewer. It uses shared semantic tokens and keeps viewer content scrolling independent of fixed controls.
+
+The image viewer content supports both a modal dialog and a host-owned main-area view. Native workspace content remains mounted in a display-contents underlay; the home PDF selector explicitly supports that wrapper.
