@@ -250,3 +250,46 @@ test("new workspaces default to light, wide and comfortable presentation", async
     exhibition_density: "comfortable",
   });
 });
+
+test("shared typography resolves identically across managed styles and color modes", () => {
+  for (const interface_style of [
+    "calm",
+    "paper",
+    "minimal",
+    "nine-rings",
+    "mono-aware",
+    "yugen",
+    "wabi-sabi",
+  ] as const) {
+    for (const interface_color_mode of ["light", "dark"] as const) {
+      for (const size of [16, 20, 28]) {
+        const saved = {
+          ...DEFAULT_CONFIG,
+          interface_style,
+          interface_color_mode,
+          interface_font_size: size,
+          interface_line_height: 1.9,
+          interface_block_spacing_px: 22,
+          interface_heading_margin_top_px: 34,
+          interface_heading_margin_bottom_px: 14,
+          interface_content_width: 740,
+        };
+        const resolved = resolveInterfaceConfig(saved);
+        expect(resolved.note_font_size).toBe(size);
+        expect(resolved.editor_line_height).toBe(1.9);
+        expect(resolved.editor_block_spacing).toBeCloseTo(22 / size);
+        expect(resolved.editor_heading_margin_top).toBeCloseTo(34 / size);
+        expect(resolved.editor_heading_margin_bottom).toBeCloseTo(14 / size);
+        expect(resolved.interface_style).toBe(interface_style);
+        expect(resolved.interface_color_mode).toBe(interface_color_mode);
+        expect(editorAppearanceVariables(resolved)).toMatchObject({
+          "--style-block-gap": "22px",
+          "--style-heading-gap": "34px",
+          "--style-heading-bottom": "14px",
+          "--style-content-width": "740px",
+        });
+        expect(saved.interface_font_size).toBe(size);
+      }
+    }
+  }
+});

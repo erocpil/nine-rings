@@ -1,8 +1,9 @@
 import { defineConfig } from '@playwright/test';
+import { productionOnlyFiles } from './scripts/e2e-suites.mjs';
 
 export default defineConfig({
   testDir: './e2e',
-  testIgnore: ['**/pwa-offline.spec.ts', '**/pwa-update.spec.ts', '**/settings-search-production.spec.ts', '**/toolbar-overflow-production.spec.ts', '**/search-production.spec.ts'],
+  testIgnore: productionOnlyFiles.map(file => `**/${file}`),
   timeout: 30000,
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : 4,

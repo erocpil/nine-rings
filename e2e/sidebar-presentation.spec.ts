@@ -38,6 +38,10 @@ test("浮层键盘进入、Esc 返回按钮、固定标记与输入焦点边界"
   await tree.press("ArrowRight");
   await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
   await expect.poll(() => sidebar.evaluate(el => el.contains(document.activeElement))).toBe(true);
+  // A delayed editor autofocus after successful entry must not undo the
+  // user's keyboard request. Explicit pointer/key input releases ownership.
+  await page.locator(".ProseMirror").evaluate(element => (element as HTMLElement).focus());
+  await expect.poll(() => sidebar.evaluate(el => el.contains(document.activeElement))).toBe(true);
   await page.mouse.move(1200, 650);
   await page.waitForTimeout(350);
   await expect(sidebar).not.toHaveClass(/sidebar-hidden/);

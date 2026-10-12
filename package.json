@@ -32,7 +32,11 @@
     "test:pwa": "npm run build && npx playwright test --config playwright.pwa.config.ts",
     "test:e2e:ui": "npx playwright test --ui",
     "test:editor:regression": "playwright test e2e/document-history.spec.ts e2e/font-reading-position.spec.ts e2e/mobile-caret-scroll.spec.ts e2e/deferred-heading-input.spec.ts --workers=1 && playwright test e2e/clipboard-paste.spec.ts e2e/structured-block-exit.spec.ts --grep \"富文本粘贴|异步读取剪贴板|原始纯文本|复制有序列表|引用段落之间|撤销退出|第三次 Enter\" --workers=1 && playwright test e2e/document-history.spec.ts e2e/font-reading-position.spec.ts e2e/mobile-caret-scroll.spec.ts e2e/deferred-heading-input.spec.ts --browser=webkit --workers=1 && playwright test e2e/structured-block-exit.spec.ts --grep \"撤销退出|第三次 Enter\" --browser=webkit --workers=1",
-    "test:plugin-schema": "node schema/plugin/test/validate.mjs"
+    "test:plugin-schema": "node schema/plugin/test/validate.mjs",
+    "test:e2e:ci": "node scripts/run-e2e-ci.mjs",
+    "test:e2e:reading": "playwright test --config=playwright.reading.config.ts",
+    "test:e2e:webkit": "playwright test --config=playwright.webkit.config.ts",
+    "test:e2e:core": "playwright test --config=playwright.core.config.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

@@ -55,3 +55,7 @@ WebKit 自动化离线重载内部错误已在独立 Service Worker 页面复现
 - 项目类型检查、新增 E2E/配置类型检查、全套测试发现、工作流 YAML 解析及差异检查通过。
 
 本轮未重跑全部 850 项默认用例；Linux/Windows CI 尚未执行，不标记为已通过。
+
+## 日常门禁与完整回归
+
+Native Platforms 六组合范围保持不变。Test 工作流的日常核心/受影响选择、双浏览器阅读专项、集中 WebKit 风险专项及每日完整/生产回归，参见 [E2E 分层与精简](e2e-suite-policy.md)。本地 `npm run test:e2e` 仍运行完整默认套件。

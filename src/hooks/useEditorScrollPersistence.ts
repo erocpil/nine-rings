@@ -4,7 +4,7 @@ import { useDocumentActive } from "../components/RetainedDocument";
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { addLog } from "../lib/debugLog";
 import type { ReadingAnchor } from "../lib/readonly-rendering";
-import { patchReadingState, readReadingState, readRenderedScrollTop } from "../lib/reading-state";
+import { READING_POSITION_FLUSH_EVENT, patchReadingState, readReadingState, readRenderedScrollTop } from "../lib/reading-state";
 export const EDITOR_NAVIGATION_EVENT = "nr:editor-navigation";
 
 interface Options {
@@ -206,6 +206,9 @@ export function useEditorScrollPersistence({
       // Never replace the saved target with those intermediate positions.
       if (state.pending || !el.isConnected || el.closest("[inert]") || document.visibilityState === "hidden" || el.clientWidth === 0 || el.clientHeight === 0) return;
       lastKnownScrollTop = el.scrollTop;
+      // A new pixel position must never be paired with an older text anchor.
+      // Fast switches flush this pixel fallback before the idle capture runs.
+      lastAnchor = undefined;
       scheduleStatusPosition();
       if (persistTimer) window.clearTimeout(persistTimer);
       persistTimer = window.setTimeout(flushPosition, 220);
@@ -224,12 +227,14 @@ export function useEditorScrollPersistence({
     el.addEventListener("scroll", handler, { passive: true });
     window.addEventListener("pagehide", flushPosition);
     window.addEventListener("beforeunload", flushPosition);
+    window.addEventListener(READING_POSITION_FLUSH_EVENT, flushPosition);
     window.addEventListener("nine-rings:main-window-hide", flushPosition);
     document.addEventListener("visibilitychange", persistWhenHidden);
     return () => {
       el.removeEventListener("scroll", handler);
       window.removeEventListener("pagehide", flushPosition);
       window.removeEventListener("beforeunload", flushPosition);
+      window.removeEventListener(READING_POSITION_FLUSH_EVENT, flushPosition);
       window.removeEventListener("nine-rings:main-window-hide", flushPosition);
       document.removeEventListener("visibilitychange", persistWhenHidden);
       resizeObserver?.disconnect();

@@ -25,6 +25,7 @@ async function seed(page: Page, virtual: boolean, legacyTarget = false) {
 test("导入的 Markdown 相对路径在编辑视图中打开同目录和上级目录文档", async ({ page }) => {
   const ids = await seed(page, false);
   await expect(page.locator(".note-title")).toHaveValue("第 1 章：启动");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:lastNote"))).toBe(ids.boot);
   const editor = page.locator(".note-editor .ProseMirror");
   await expect(editor.locator('a[href="02-memory-zh.md"]')).toHaveText("内存");
   await editor.locator('a[href="02-memory-zh.md"]').click();
@@ -37,6 +38,7 @@ test("导入的 Markdown 相对路径在编辑视图中打开同目录和上级�
     const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");
     useNotesStore.getState().selectNote(await api.notes.get(id));
   }, ids.boot);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:lastNote"))).toBe(ids.boot);
   await expect(editor.locator('a[href="../design/boot/boot-arch-zh.md"]')).toHaveText("启动架构");
   await editor.locator('a[href="../design/boot/boot-arch-zh.md"]').click();
   await expect(page.locator(".note-title")).toHaveValue("启动架构");

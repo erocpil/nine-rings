@@ -1,5 +1,20 @@
 name: Test
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '23 18 * * *'
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Full E2E including production/PWA, or affected tests"
+        type: choice
+        options: [full, affected]
+        default: full
+      base:
+        description: "Optional base commit SHA for affected mode; unavailable history falls back to full"
+        type: string
+        required: false
 
 jobs:
   changes:
@@ -7,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
+      production: ${{ steps.filter.outputs.production }}
       flutter: ${{ steps.filter.outputs.flutter }}
       rust: ${{ steps.filter.outputs.rust }}
       schema: ${{ steps.filter.outputs.schema }}
@@ -16,6 +32,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: dorny/paths-filter@v3
+        if: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' }}
         id: filter
         with:
           filters: |
@@ -23,6 +40,8 @@ jobs:
               - '.node-version'
               - 'src/**'
               - 'e2e/**'
+              - 'scripts/e2e-suites.mjs'
+              - 'scripts/run-e2e-ci.mjs'
               - 'tests/**'
               - 'public/**'
               - 'plugins/**'
@@ -34,6 +53,26 @@ jobs:
               - 'vite.config.*'
               - 'tsconfig*.json'
               - 'index.html'
+              - '.github/workflows/test.yml'
+            production:
+              - 'public/**'
+              - 'vite.config.*'
+              - 'index.html'
+              - 'package*.json'
+              - 'src/App.tsx'
+              - 'src/lib/runtime.ts'
+              - 'src/lib/pwa*'
+              - 'src/hooks/usePwa*'
+              - 'src/hooks/usePWA*'
+              - 'src/components/Pwa*'
+              - 'src/components/PWA*'
+              - 'e2e/pwa-offline.spec.ts'
+              - 'e2e/pwa-update.spec.ts'
+              - 'e2e/settings-search-production.spec.ts'
+              - 'e2e/toolbar-overflow-production.spec.ts'
+              - 'e2e/search-production.spec.ts'
+              - 'playwright.pwa.config.ts'
+              - 'scripts/e2e-suites.mjs'
               - '.github/workflows/test.yml'
             flutter:
               - 'flutter_app/**'
@@ -59,7 +98,7 @@ jobs:
   frontend:
     name: Frontend Tests
     needs: changes
-    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -146,7 +185,7 @@ jobs:
   reading-workspace-regressions:
     name: Reading workspace (${{ matrix.browser }})
     needs: changes
-    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -160,10 +199,8 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npx playwright install ${{ matrix.browser }} --with-deps
-      - name: Reading state, navigation, hover panels and edge scrollbars
-        run: npx playwright test e2e/document-fold-session.spec.ts e2e/reading-state-persistence.spec.ts e2e/sidebar-presentation.spec.ts e2e/edge-scrollbars.spec.ts e2e/markdown-view-position.spec.ts e2e/markdown-nested-position.spec.ts --browser=${{ matrix.browser }} --workers=1 --trace=retain-on-failure
-      - name: Virtual reader navigation preserves real scroll position
-        run: npx playwright test e2e/readonly-rendering.spec.ts --grep "切换文档后" --browser=${{ matrix.browser }} --workers=1 --trace=retain-on-failure
+      - name: Reading state, navigation and complete virtual reader coverage
+        run: npm run test:e2e:reading -- --browser=${{ matrix.browser }} --reporter=line
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -174,18 +211,26 @@ jobs:
   e2e:
     name: E2E (Playwright)
     needs: changes
-    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version-file: '.node-version'
           cache: 'npm'
       - run: npm ci
-      - run: npx playwright install chromium webkit --with-deps
-      - run: npm run test:e2e -- --reporter=line,json --trace=retain-on-failure --output=test-results/default
+      - name: Install browsers
+        id: browsers
+        run: npx playwright install chromium webkit --with-deps
+      - name: Core and affected E2E (full on schedule, manual request or unknown paths)
+        run: npm run test:e2e:ci -- --reporter=line,json --output=test-results/default
         env:
+          NR_E2E_CHANGED_BASE: ${{ inputs.base || github.event.pull_request.base.sha || github.event.before }}
+          NR_E2E_FULL: ${{ github.event_name == 'schedule' || inputs.suite == 'full' }}
+          NR_E2E_READING_SEPARATE: 'true'
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/default.json
       - name: Preserve default E2E failure diagnostics
         uses: actions/upload-artifact@v4
@@ -196,23 +241,21 @@ jobs:
             test-results/default/
             test-results/default.json
           retention-days: 7
-      - name: Cross-platform touch interaction smoke tests (WebKit)
-        run: npm run test:e2e:cross-platform
-      - name: Full folding regression tests (WebKit)
-        run: npm run test:e2e:folding:webkit
-      - name: Mobile block gutter editing regression tests (WebKit)
-        run: npx playwright test e2e/block-gutter-edit.spec.ts --browser=webkit --workers=1
-      - name: Block jump focus regression tests (WebKit)
-        run: npx playwright test e2e/line-numbers.spec.ts --browser=webkit --grep "Alt-G|输入后立即确认" --workers=1
-      - name: Data safety regression tests (WebKit)
-        run: npx playwright test e2e/data-safety.spec.ts e2e/hook-lifecycle.spec.ts e2e/multi-tab.spec.ts e2e/image-readonly.spec.ts e2e/recycle-bin.spec.ts --browser=webkit --workers=1
-      - name: Native clipboard parsing regression tests (WebKit)
-        run: npx playwright test e2e/clipboard-paste.spec.ts --browser=webkit --grep "代码块内原生粘贴|Windows 风格段内|Windows Office|HTML 表格粘贴为|同时携带 HTML 的 Markdown 仍完整|引用段落之间" --workers=1
-      - name: EPUB focus controls regression tests (WebKit)
-        run: npx playwright test e2e/epub-reader.spec.ts --browser=webkit --grep "计时器|兼容 click|本地 EPUB 可导入" --workers=1
-      - name: Mobile drag and keyboard recovery regression tests (WebKit)
-        run: npx playwright test e2e/mobile-interaction-recovery.spec.ts --browser=webkit --workers=1
-      - name: Experimental readonly rendering regression tests (WebKit)
-        run: npx playwright test e2e/readonly-rendering.spec.ts --browser=webkit --workers=1
-      - name: Edge drawers and mobile toolbar regression tests (WebKit)
-        run: npx playwright test e2e/pwa-layout.spec.ts e2e/toolbar-responsive.spec.ts --browser=webkit --grep "边缘|侧栏.*同宽|点击目录书签|非专注模式书签与目录弹层|目录快速滚动按钮显隐|手机目录长标题|同一可视视口|更多菜单|更多弹层|再次点按更多|手机端可从更多|选择文字后工具栏|待办输入框与|手机向上拖动 splitter|专注模式.*待办|响应式编辑器工具栏" --workers=1
+      - name: WebKit risk gates (one invocation, no duplicate reading cases)
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        run: npm run test:e2e:webkit -- --reporter=line,json --output=test-results/webkit
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/webkit.json
+      - name: Full production/PWA gate
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' && (github.event_name == 'schedule' || inputs.suite == 'full' || needs.changes.outputs.production == 'true') }}
+        run: |
+          npm run build
+          npx playwright test --config=playwright.pwa.config.ts --browser=chromium --workers=1 --reporter=line,json --output=test-results/production
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/production.json
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-gates
+          path: test-results/
+          retention-days: 7

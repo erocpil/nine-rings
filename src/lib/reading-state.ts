@@ -18,6 +18,8 @@ export interface ReadingState {
   virtual?: { revision: string; position: number; offset: number };
   view?: "rendered" | "source";
 }
+export const READING_POSITION_FLUSH_EVENT = "nine-rings:flush-reading-position";
+
 const prefix = "nr:readingState:";
 const finite = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);

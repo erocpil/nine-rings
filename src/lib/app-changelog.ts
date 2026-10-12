@@ -1,6 +1,14 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-13",
+    title: "阅读位置与分栏焦点",
+    changes: [
+      "键盘进入分栏后保持焦点，避免随后到达的编辑器自动聚焦将其抢走；真实输入和应用模态弹层仍可转移焦点。",
+      "确认退出时先保存渲染、源码和局部只读的阅读位置，再保存正文并退出；快速切换时避免旧文字锚点覆盖刚滚动到的新位置。",
+    ],
+  },
+  {
     date: "2026-10-12",
     title: "图片分栏、插件调用与视图位置",
     changes: [

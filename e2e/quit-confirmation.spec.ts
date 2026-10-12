@@ -12,6 +12,7 @@ test("原生退出事件首次提示，超时重新确认，保存完成后才�
     const { createRoot } = client.default ?? client;
     const { useQuitConfirmation } = await load("/src/hooks/useQuitConfirmation.ts");
     const calls: string[] = [];
+    window.addEventListener("nine-rings:flush-reading-position", () => calls.push("reading"));
     Object.assign(window, { quitTestCalls: calls, isTauri: true });
     mockIPC(async (command: string) => { if (command === "quit_application") { calls.push("quit"); if ((window as any).delayQuit) await new Promise<void>(resolve => { (window as any).resolveQuit = resolve; }); } }, { shouldMockEvents: true });
     const nativeInvoke = (window as any).__TAURI_INTERNALS__.invoke;
@@ -49,10 +50,10 @@ test("原生退出事件首次提示，超时重新确认，保存完成后才�
   await page.evaluate(() => { (window as any).delayQuit = true; });
   await press();
   await expect(page.locator(".quit-confirmation-hint")).toHaveText("正在保存并退出…");
-  await expect.poll(() => page.evaluate(() => (window as any).quitTestCalls)).toEqual(["save"]);
+  await expect.poll(() => page.evaluate(() => (window as any).quitTestCalls)).toEqual(["reading", "save"]);
   await page.evaluate(() => (window as any).resolveSave());
   await expect(page.locator(".quit-confirmation-hint")).toHaveText("本机已保存，正在清理并退出…");
-  await expect.poll(() => page.evaluate(() => (window as any).quitTestCalls)).toEqual(["save", "quit"]);
+  await expect.poll(() => page.evaluate(() => (window as any).quitTestCalls)).toEqual(["reading", "save", "quit"]);
   await page.evaluate(() => (window as any).resolveQuit());
   await expect(page.locator(".quit-confirmation-hint")).toHaveCount(0);
 });

@@ -27,7 +27,7 @@ for (const width of [1280, 390]) {
           useNotesStore.getState().selectNote(selectedNote);
         }, readonly);
         if (readonly && width === 390) {
-          await expect(page.getByRole("button", { name: "查看完整标题" })).toHaveText("书签布局验证");
+          await expect(page.getByRole("button", { name: "文档属性" })).toHaveText("书签布局验证");
         } else await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("书签布局验证");
         await editor.getByText("第二条书签", { exact: true }).click();
         if (readonly) {

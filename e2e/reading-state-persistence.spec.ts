@@ -157,9 +157,16 @@ test("源码模式和源码视口跨刷新恢复，显式返回渲染后不再�
   await expect.poll(async () => (await sourceInfo(source)).value).toContain("阅读段落 89");
   await page.waitForTimeout(250);
   await scrollSourceTo(source, "阅读段落 40");
-  const before = (await sourceInfo(source)).scrollTop;
+  // Confirmed native exit must flush the final source position even before
+  // CodeMirror's queued scroll event and the persistence debounce have run.
+  const before = await source.evaluate(element => {
+    const scroller = element.closest(".cm-editor")!.querySelector<HTMLElement>(".cm-scroller")!;
+    scroller.scrollTop += 75;
+    window.dispatchEvent(new Event("nine-rings:flush-reading-position"));
+    return scroller.scrollTop;
+  });
   expect(before).toBeGreaterThan(1000);
-  await expect.poll(() => page.evaluate(id => JSON.parse(localStorage.getItem(`nr:readingState:${id}`) ?? "null")?.source?.scrollTop, a)).toBe(before);
+  expect(await page.evaluate(id => JSON.parse(localStorage.getItem(`nr:readingState:${id}`) ?? "null")?.source?.scrollTop, a)).toBe(before);
   await page.reload();
   await expect(source).toBeVisible();
   await expect

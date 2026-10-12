@@ -51,50 +51,61 @@ test("切换七种风格保留共享设置，设置预览展示相同排版", as
   }
 });
 
-for (const style of styles) {
-  for (const mode of ["light", "dark"]) {
-    test(`${style} ${mode} 共用排版在编辑、手机、只读和源码预览生效`, async ({ page }) => {
-      await page.setViewportSize({ width: 1600, height: 1000 });
-      await page.addInitScript(({ style, mode }) => {
-        if (!localStorage.getItem("nine_rings_config")) localStorage.setItem("nine_rings_config", JSON.stringify({
-          interface_style: style, interface_color_mode: mode, workspace_layout: "exhibition", exhibition_text_width: "wide",
-        }));
-      }, { style, mode });
-      await createBlankDocument(page, "统一排版验证");
-      const editor = page.locator(".note-editor .ProseMirror");
-      await editor.evaluate(element => {
-        (element as HTMLElement & { editor: Editor }).editor.commands.setContent(
-          '<p>统一排版起始正文 <code>inline</code></p><p>标题之前</p>' +
-          [1, 2, 3, 4, 5, 6].map(level => `<h${level}>标题 ${level}</h${level}><p>正文 ${level}</p>`).join("") +
-          '<blockquote><p>引用正文</p></blockquote><pre><code>const value = 1;</code></pre>', true,
-        );
-      });
-      await expectTypography(editor, 16, 16, 28, 12);
-      await waitForSavedText(page, "统一排版起始正文");
-      // Persist customized shared settings, then load through the real startup path.
-      await page.evaluate(async () => {
-        const { api } = await import("/src/lib/api.ts");
-        await api.config.set({ interface_font_size: 20, interface_line_height: 1.9,
-          interface_block_spacing_px: 22, interface_heading_margin_top_px: 34,
-          interface_heading_margin_bottom_px: 14, interface_content_width: 740 });
-      });
-      await page.reload();
-      await expectTypography(editor, 20, 22, 34, 14);
-      await expect(editor).toHaveCSS("line-height", "38px");
-      await expect.poll(async () => (await page.locator(".editor-content-shell").boundingBox())!.width).toBeLessThanOrEqual(740);
-      await page.setViewportSize({ width: 390, height: 850 });
-      await expectTypography(editor, 20, 22, 34, 14, true);
-      await page.setViewportSize({ width: 1600, height: 1000 });
-      await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
-      await expectTypography(editor, 20, 22, 34, 14);
-      await page.evaluate(() => {
-        localStorage.setItem("nr:experimentalReadonlyRendering", "true");
-        window.dispatchEvent(new Event("nine-rings:readonly-rendering-change"));
-      });
-      await expectTypography(page.locator(".vr-body"), 20, 22, 34, 14);
-      await page.getByRole("button", { name: "源码", exact: true }).click();
-      if (!await page.locator(".markdown-preview-scroll").count()) await page.getByRole("button", { name: "并排预览", exact: true }).click();
-      await expectTypography(page.locator(".markdown-preview-scroll .ProseMirror"), 20, 22, 34, 14);
+for (const mode of ["light", "dark"]) {
+  test(`七种风格 ${mode} 共用排版在编辑、手机、只读和源码预览生效`, async ({ page }) => {
+    test.setTimeout(60000);
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.addInitScript(mode => {
+      if (!localStorage.getItem("nine_rings_config")) localStorage.setItem("nine_rings_config", JSON.stringify({
+        interface_style: "calm", interface_color_mode: mode, workspace_layout: "exhibition", exhibition_text_width: "wide",
+      }));
+    }, mode);
+    await createBlankDocument(page, "统一排版验证");
+    const editor = page.locator(".note-editor .ProseMirror");
+    await editor.evaluate(element => {
+      (element as HTMLElement & { editor: Editor }).editor.commands.setContent(
+        '<p>统一排版起始正文 <code>inline</code></p><p>标题之前</p>' +
+        [1, 2, 3, 4, 5, 6].map(level => `<h${level}>标题 ${level}</h${level}><p>正文 ${level}</p>`).join("") +
+        '<blockquote><p>引用正文</p></blockquote><pre><code>const value = 1;</code></pre>', true,
+      );
     });
-  }
+    // UI-driven persistence/style switching is covered above. Sweep every CSS
+    // style in each renderer without repeating document creation and reloads.
+    const sweep = async (root: Locator, size: number, gap: number, before: number, after: number, mobile = false) => {
+      for (const style of styles) {
+        await test.step(`${style}: ${size}px${mobile ? " mobile" : ""}`, async () => {
+          await page.evaluate(async style => {
+            const { applyInterfaceStyle } = await import("/src/lib/interface-style.ts");
+            applyInterfaceStyle(style);
+          }, style);
+          await expectTypography(root, size, gap, before, after, mobile);
+        });
+      }
+    };
+    await sweep(editor, 16, 16, 28, 12);
+    await waitForSavedText(page, "统一排版起始正文");
+    await page.evaluate(async () => {
+      const { api } = await import("/src/lib/api.ts");
+      await api.config.set({ interface_font_size: 20, interface_line_height: 1.9,
+        interface_block_spacing_px: 22, interface_heading_margin_top_px: 34,
+        interface_heading_margin_bottom_px: 14, interface_content_width: 740 });
+    });
+    await page.reload();
+    await sweep(editor, 20, 22, 34, 14);
+    await expect(editor).toHaveCSS("line-height", "38px");
+    await expect.poll(async () => (await page.locator(".editor-content-shell").boundingBox())!.width).toBeLessThanOrEqual(740);
+    await page.setViewportSize({ width: 390, height: 850 });
+    await sweep(editor, 20, 22, 34, 14, true);
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+    await sweep(editor, 20, 22, 34, 14);
+    await page.evaluate(() => {
+      localStorage.setItem("nr:experimentalReadonlyRendering", "true");
+      window.dispatchEvent(new Event("nine-rings:readonly-rendering-change"));
+    });
+    await sweep(page.locator(".vr-body"), 20, 22, 34, 14);
+    await page.getByRole("button", { name: "源码", exact: true }).click();
+    if (!await page.locator(".markdown-preview-scroll").count()) await page.getByRole("button", { name: "并排预览", exact: true }).click();
+    await sweep(page.locator(".markdown-preview-scroll .ProseMirror"), 20, 22, 34, 14);
+  });
 }

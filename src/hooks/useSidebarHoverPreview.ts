@@ -44,7 +44,7 @@ export function useSidebarHoverPreview({
     if (!enabled || pinned || resizing) return;
     const check = () => {
       if (pointerInside.current) return;
-      // Keep the requested panel available until keyboard entry finishes.
+      // Keep the requested panel available while keyboard focus owns it.
       // Slow WebKit layout can outlast the hover dismissal delay.
       if (cancelFocusEntry.current) {
         timer.current = setTimeout(check, 180);
@@ -177,6 +177,7 @@ export function useSidebarHoverPreview({
     const finishEntry = () => {
       document.removeEventListener("pointerdown", interruptEntry, true);
       document.removeEventListener("keydown", interruptEntry, true);
+      document.removeEventListener("focusin", reclaimFocus, true);
       cancelFocusEntry.current = null;
     };
     const interruptEntry = () => {
@@ -206,12 +207,26 @@ export function useSidebarHoverPreview({
           },
         );
         (first ?? root).focus({ preventScroll: true });
-        if (root.contains(document.activeElement)) { finishEntry(); return; }
+        // Keep ownership after entry too: a late editor autofocus can arrive
+        // after this frame. The next real pointer/key input releases it.
+        if (root.contains(document.activeElement)) return;
       }
       // Readiness, not a wall-clock deadline, owns entry. Slow startup/layout
       // can exceed a second; real input, dismissal, restore and unmount cancel.
       focusFrame.current = requestAnimationFrame(focusPanel);
     };
+    const reclaimFocus = () => {
+      const root = document.getElementById("workspace-sidebar");
+      if (!keyboardInside.current || root?.contains(document.activeElement)) return;
+      // An application modal can take focus deliberately without a pointer.
+      if (document.activeElement instanceof Element && document.activeElement.closest('[role="dialog"][aria-modal="true"]')) {
+        interruptEntry();
+        return;
+      }
+      cancelAnimationFrame(focusFrame.current);
+      focusFrame.current = requestAnimationFrame(focusPanel);
+    };
+    document.addEventListener("focusin", reclaimFocus, true);
     focusFrame.current = requestAnimationFrame(focusPanel);
   };
   const click = (next: Panel) => {

@@ -4,7 +4,7 @@ import { TextSelection, NodeSelection } from "@tiptap/pm/state";
 import type { Editor } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/core";
 import { handoffReadingAnchor } from "../lib/readonly-rendering";
-import { patchReadingState } from "../lib/reading-state";
+import { READING_POSITION_FLUSH_EVENT, patchReadingState } from "../lib/reading-state";
 import {
   renderedPositionToWeight,
   sourceOffsetToRenderedPosition,
@@ -306,6 +306,11 @@ export function useMarkdownViewPosition(
       timer = 0;
       patchReadingState(noteId, { view: "source", source: { scrollTop: top } });
     };
+    const captureAndFlush = () => {
+      if (host.current?.isConnected && !host.current.closest("[inert]") && host.current.clientHeight > 0)
+        top = input.scrollTop;
+      flush();
+    };
     const scroll = () => {
       if (!host.current?.isConnected || host.current.closest("[inert]")) return;
       top = input.scrollTop;
@@ -317,12 +322,16 @@ export function useMarkdownViewPosition(
     };
     flush();
     input.addEventListener("scroll", scroll, { passive: true });
-    window.addEventListener("pagehide", flush);
+    window.addEventListener("pagehide", captureAndFlush);
+    window.addEventListener("beforeunload", captureAndFlush);
+    window.addEventListener(READING_POSITION_FLUSH_EVENT, captureAndFlush);
     window.addEventListener("nine-rings:main-window-hide", flush);
     document.addEventListener("visibilitychange", hidden);
     return () => {
       input.removeEventListener("scroll", scroll);
-      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("pagehide", captureAndFlush);
+      window.removeEventListener("beforeunload", captureAndFlush);
+      window.removeEventListener(READING_POSITION_FLUSH_EVENT, captureAndFlush);
       window.removeEventListener("nine-rings:main-window-hide", flush);
       document.removeEventListener("visibilitychange", hidden);
       flush();

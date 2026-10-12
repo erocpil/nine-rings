@@ -140,8 +140,18 @@ test("rendered text anchors survive patches and reject malformed locations", () 
   patchReadingState("a", { rendered: { scrollTop: 600, anchor } });
   patchReadingState("a", { headings: ["chapter"] });
   expect(readReadingState("a").rendered).toEqual({ scrollTop: 600, anchor });
-  for (const invalid of [{ ...anchor, position: -1 }, { ...anchor, offset: "4" }, { ...anchor, text: "x".repeat(33) }]) {
-    values.set("nr:readingState:a", JSON.stringify({ version: 1, rendered: { scrollTop: 600, anchor: invalid } }));
+  for (const invalid of [
+    { ...anchor, position: -1 },
+    { ...anchor, offset: "4" },
+    { ...anchor, text: "x".repeat(33) },
+  ]) {
+    values.set(
+      "nr:readingState:a",
+      JSON.stringify({
+        version: 1,
+        rendered: { scrollTop: 600, anchor: invalid },
+      }),
+    );
     expect(readReadingState("a").rendered).toEqual({ scrollTop: 600 });
   }
 });

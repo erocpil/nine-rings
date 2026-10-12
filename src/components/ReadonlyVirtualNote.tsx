@@ -62,7 +62,7 @@ import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { isDocumentFindKeyEvent, isEditorLineJumpKeyEvent, isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { readingBlockSession, type ReadingBlockState as BlockState } from "../lib/reading-block-session";
-import { patchReadingState, readReadingState } from "../lib/reading-state";
+import { READING_POSITION_FLUSH_EVENT, patchReadingState, readReadingState } from "../lib/reading-state";
 import { centerSearchMatch } from "../lib/search-scroll";
 import { KaTeXFormula } from "../extensions/MarkdownExtras";
 import { findFootnoteElement, footnoteBlockPosition, footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
@@ -611,6 +611,11 @@ export function ReadonlyVirtualNote(
         /* best effort */
       }
     };
+    const captureAndPersist = () => {
+      if (root.isConnected && !root.closest("[inert]") && root.clientHeight > 0 && !pendingAnchor.current)
+        savedAnchor.current = capture();
+      persist();
+    };
     const settle = () => {
       if (touchDown.current || !root.isConnected || root.closest("[inert]")) return;
       scrollBusy.current = false;
@@ -662,7 +667,9 @@ export function ReadonlyVirtualNote(
     root.addEventListener("touchstart", start, { passive: true });
     root.addEventListener("touchend", end, { passive: true });
     root.addEventListener("touchcancel", end, { passive: true });
-    window.addEventListener("pagehide", persist);
+    window.addEventListener("pagehide", captureAndPersist);
+    window.addEventListener("beforeunload", captureAndPersist);
+    window.addEventListener(READING_POSITION_FLUSH_EVENT, captureAndPersist);
     document.addEventListener("visibilitychange", persist);
     return () => {
       persist();
@@ -674,7 +681,9 @@ export function ReadonlyVirtualNote(
       root.removeEventListener("touchstart", start);
       root.removeEventListener("touchend", end);
       root.removeEventListener("touchcancel", end);
-      window.removeEventListener("pagehide", persist);
+      window.removeEventListener("pagehide", captureAndPersist);
+      window.removeEventListener("beforeunload", captureAndPersist);
+      window.removeEventListener(READING_POSITION_FLUSH_EVENT, captureAndPersist);
       document.removeEventListener("visibilitychange", persist);
     };
   }, [anchorKey, contentVersion, capture, preserve, noteId, props.sensitive]);

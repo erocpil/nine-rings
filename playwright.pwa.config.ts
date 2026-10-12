@@ -1,8 +1,9 @@
 import { defineConfig } from '@playwright/test';
+import { productionOnlyFiles } from './scripts/e2e-suites.mjs';
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['**/pwa-offline.spec.ts', '**/pwa-update.spec.ts', '**/settings-search-production.spec.ts', '**/toolbar-overflow-production.spec.ts', '**/search-production.spec.ts'],
+  testMatch: productionOnlyFiles.map(file => `**/${file}`),
   timeout: 45000,
   use: {
     baseURL: 'http://localhost:8001',
