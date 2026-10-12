@@ -304,6 +304,37 @@ export const imageDirectoryService = {
       throw new Error("图片授权已变更");
     return new Blob([bytes], { type });
   },
+  async stat(
+    rootId: string,
+    path: string,
+  ): Promise<{ size: number; modified?: number; created?: number }> {
+    const owner = assert();
+    const version = generation;
+    imageSegments(path);
+    if (!imageMime(path)) throw new Error("不支持的图片格式");
+    let result: { size: number; modified?: number; created?: number };
+    if (isTauriRuntime() && !browserRoots.has(rootId))
+      result = await native("image_library_stat", { rootId, node: path });
+    else {
+      const entry = browserRoots.get(rootId);
+      if (!entry) throw new Error("目录授权已撤销");
+      let file = entry.files?.get(path);
+      if (entry.handle) {
+        let directory = entry.handle;
+        const parts = imageSegments(path);
+        for (const part of parts.slice(0, -1))
+          directory = await directory.getDirectoryHandle(part);
+        file = await (
+          await directory.getFileHandle(parts[parts.length - 1])
+        ).getFile();
+      }
+      if (!file) throw new Error("图片不可访问");
+      result = { size: file.size, modified: file.lastModified };
+    }
+    if (assert() !== owner || version !== generation)
+      throw new Error("图片授权已变更");
+    return result;
+  },
   release() {
     generation++;
     browserRoots.clear();

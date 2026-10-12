@@ -16,7 +16,7 @@ export async function storeImage(blob: Blob): Promise<string> {
   return `nr-image://${id}`;
 }
 
-async function getImageBlob(ref: string): Promise<Blob | null> {
+export async function getImageBlob(ref: string): Promise<Blob | null> {
   return withDB(
     async (db) =>
       (

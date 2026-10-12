@@ -738,6 +738,7 @@ pub fn run() {
             commands::image_library::image_library_remove,
             commands::image_library::image_library_list,
             commands::image_library::image_library_read,
+            commands::image_library::image_library_stat,
             commands::window::quit_application,
             commands::window::get_desktop_recovery_status,
             commands::window::set_window_fullscreen,

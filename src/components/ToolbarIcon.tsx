@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 
 const paths = {
+  info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7h.01" /></>,
+  pin: <path d="M8 3h8l-1 6 4 4H5l4-4ZM12 13v8" />,
   rotate: <path d="M20 7v5h-5M6 7a7 7 0 1 1-1 8M18 6l2 3" />,
   chevronDown: <path d="m5 9 7 7 7-7" />,
   refresh: <path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M18 17a7 7 0 0 1-12 1l-2-3" />,

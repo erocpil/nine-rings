@@ -493,3 +493,203 @@ for (const format of ["pdf", "epub"] as const) {
       ).toBeVisible();
   });
 }
+
+async function openTwoPictures(page: import("@playwright/test").Page) {
+  await createBlankDocument(page);
+  await closeDocumentSidebar(page);
+  await enable(page);
+  await page.getByRole("button", { name: "图片", exact: true }).click();
+  const panel = page.getByRole("region", { name: "图片目录分栏" });
+  await panel
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles(["public/icon-192.png", "public/ragdoll-32.png"]);
+  await panel
+    .getByRole("button", { name: "已选择图片（临时）", exact: true })
+    .click();
+  await panel
+    .getByRole("button", { name: "icon-192.png", exact: true })
+    .click();
+  const viewer = page.getByRole("region", { name: "图片查看器" });
+  await expect(viewer).toBeVisible();
+  await expect
+    .poll(() =>
+      viewer
+        .locator(".image-viewer-viewport img")
+        .evaluate((image: HTMLImageElement) => image.naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  return { panel, viewer };
+}
+
+test("图片树切换与隐藏后保持展开和选中，方向键不依赖树的焦点", async ({
+  page,
+}) => {
+  const { panel, viewer } = await openTwoPictures(page);
+  await expect(
+    panel.getByRole("button", { name: "icon-192.png", exact: true }),
+  ).toHaveAttribute("aria-current", "true");
+  await page.getByRole("button", { name: "文档树", exact: true }).click();
+  await page.getByRole("button", { name: "图片", exact: true }).click();
+  await expect(
+    panel.getByRole("button", { name: "icon-192.png", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("ArrowRight");
+  await expect(viewer.getByRole("heading")).toHaveText("ragdoll-32.png");
+  await expect(
+    panel.getByRole("button", { name: "ragdoll-32.png", exact: true }),
+  ).toHaveAttribute("aria-current", "true");
+  await panel.getByRole("button", { name: "收起图片分栏" }).click();
+  await page.keyboard.press("ArrowLeft");
+  await expect(viewer.getByRole("heading")).toHaveText("icon-192.png");
+  await page.getByRole("button", { name: "图片", exact: true }).click();
+  await expect(
+    panel.getByRole("button", { name: "icon-192.png", exact: true }),
+  ).toHaveAttribute("aria-current", "true");
+});
+
+test("原生 WebKit 捏合累计缩放，缩放锚定且不触发页面缩放", async ({ page }) => {
+  const { viewer } = await openTwoPictures(page);
+  const result = await viewer
+    .locator(".image-viewer-viewport")
+    .evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      return [
+        ["gesturestart", 1],
+        ["gesturechange", 1.2],
+        ["gesturechange", 1.5],
+        ["gestureend", 1.5],
+      ].map(([name, scale]) => {
+        const event = new Event(String(name), {
+          bubbles: true,
+          cancelable: true,
+        });
+        Object.defineProperties(event, {
+          scale: { value: scale },
+          clientX: { value: bounds.left + bounds.width / 2 + 20 },
+          clientY: { value: bounds.top + bounds.height / 2 + 20 },
+        });
+        element.dispatchEvent(event);
+        return event.defaultPrevented;
+      });
+    });
+  expect(result).toEqual([true, true, true, true]);
+  await expect(viewer.getByRole("toolbar")).toContainText("150%");
+  const picture = viewer.locator(".image-viewer-viewport img");
+  await expect(picture).toHaveAttribute(
+    "style",
+    /translate\(-10px,\s*-10px\).*scale\(1.5\)/,
+  );
+  await viewer.locator(".image-viewer-viewport").evaluate((element) =>
+    element.dispatchEvent(
+      new WheelEvent("wheel", {
+        ctrlKey: true,
+        deltaY: -100,
+        bubbles: true,
+        cancelable: true,
+      }),
+    ),
+  );
+  await expect(viewer.getByRole("toolbar")).toContainText("150%"); // Do not apply a duplicate wheel stream.
+});
+
+test("图片专注模式保持查看器和分栏状态，属性可浮动和固定且切图后更新", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nine_rings_config",
+      JSON.stringify({
+        workspace_layout: "exhibition",
+        interface_style: "calm",
+      }),
+    ),
+  );
+  const { panel, viewer } = await openTwoPictures(page);
+  const before = await viewer.boundingBox();
+  await viewer.getByRole("button", { name: "进入图片专注模式" }).click();
+  await expect(page.locator(".exhibition-masthead")).toBeHidden();
+  await expect(panel).toBeHidden();
+  expect((await viewer.boundingBox())!.height).toBeGreaterThan(before!.height);
+  await viewer.getByRole("button", { name: "图片属性", exact: true }).click();
+  const properties = viewer.getByRole("region", {
+    name: "图片属性",
+    exact: true,
+  });
+  await expect(properties).toContainText("192 × 192");
+  await expect(properties).toContainText("image/png");
+  const propertyButton = viewer.getByRole("button", {
+    name: "图片属性",
+    exact: true,
+  });
+  const back = viewer.getByRole("button", { name: "返回原视图" });
+  const focus = viewer.getByRole("button", { name: "退出图片专注模式" });
+  expect((await propertyButton.boundingBox())!.x).toBeLessThan(
+    (await back.boundingBox())!.x,
+  );
+  expect((await focus.boundingBox())!.x).toBeGreaterThan(
+    (await back.boundingBox())!.x,
+  );
+  await properties
+    .getByRole("button", { name: "固定图片属性", exact: true })
+    .click();
+  await expect(properties).toHaveClass(/is-pinned/);
+  const area = await viewer.locator(".image-viewer-viewport").boundingBox();
+  const props = await properties.boundingBox();
+  expect(Math.abs(area!.x + area!.width - props!.x)).toBeLessThan(3);
+  await viewer.getByRole("button", { name: "下一张图片" }).click();
+  await expect(properties).toContainText("ragdoll-32.png");
+  await expect(properties).toContainText("32 × 32");
+  await viewer.getByRole("button", { name: "退出图片专注模式" }).click();
+  await expect(panel).toBeVisible();
+  await panel
+    .getByRole("button", { name: "icon-192.png", exact: true })
+    .click();
+  await expect(properties).toHaveClass(/is-pinned/);
+  await expect(properties).toContainText("192 × 192");
+  await properties.getByRole("button", { name: "取消固定图片属性" }).click();
+  await expect(properties).not.toHaveClass(/is-pinned/);
+  await properties.getByRole("button", { name: "关闭图片属性" }).click();
+  await expect(properties).toHaveCount(0);
+});
+
+test("正文图片弹层支持专注与属性，Esc 依次关闭属性、退出专注和关闭查看器", async ({
+  page,
+}) => {
+  await createBlankDocument(page);
+  await closeDocumentSidebar(page);
+  await enable(page);
+  await page
+    .locator(".ProseMirror:visible")
+    .evaluate((element: any) =>
+      element.editor.commands.setContent({
+        type: "doc",
+        content: [
+          {
+            type: "resizableImage",
+            attrs: { src: "/icon-192.png", alt: "属性示例" },
+          },
+        ],
+      }),
+    );
+  await page
+    .getByRole("button", { name: "查看图片", exact: true })
+    .click({ force: true });
+  const viewer = page.getByRole("dialog", { name: "图片查看器" });
+  await viewer.getByRole("button", { name: "进入图片专注模式" }).click();
+  await expect(viewer).toHaveClass(/image-viewer-focus/);
+  await viewer.getByRole("button", { name: "图片属性", exact: true }).click();
+  const props = viewer.getByRole("region", { name: "图片属性" });
+  await expect(props).toContainText("192 × 192");
+  await expect(props).toContainText("应用资源");
+  await props
+    .getByRole("button", { name: "固定图片属性", exact: true })
+    .click();
+  await page.keyboard.press("Escape");
+  await expect(props).toHaveCount(0);
+  await expect(viewer).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(viewer).not.toHaveClass(/image-viewer-focus/);
+  await page.keyboard.press("Escape");
+  await expect(viewer).toHaveCount(0);
+});

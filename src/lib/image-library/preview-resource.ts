@@ -2,19 +2,29 @@ import { getImageUrl } from "../storage/db-images";
 import { readonlyImageSource } from "../readonly-image-source";
 import { imageDirectoryService } from "./directory-service";
 import type { ViewedImage } from "./viewer-request";
+export interface ImagePreviewResource {
+  url: string;
+  release: () => void;
+  width?: number;
+  height?: number;
+}
 async function makePreview(
   image: ViewedImage,
   signal: AbortSignal,
   maxEdge = 2048,
-): Promise<{ url: string; release: () => void }> {
+): Promise<ImagePreviewResource> {
   let url: string;
   let owned = false;
+  let width: number | undefined;
+  let height: number | undefined;
   if (image.rootId && image.nodeId) {
     const blob = await imageDirectoryService.read(image.rootId, image.nodeId);
     if (signal.aborted) throw new DOMException("Cancelled", "AbortError");
     // Decode to a bounded preview where supported. Original remains unchanged.
     if (maxEdge > 0 && typeof createImageBitmap === "function") {
       const bitmap = await createImageBitmap(blob);
+      width = bitmap.width;
+      height = bitmap.height;
       try {
         const canvas = document.createElement("canvas");
         const ratio = Math.min(
@@ -55,6 +65,8 @@ async function makePreview(
   }
   return {
     url,
+    width,
+    height,
     release: () => {
       if (owned) URL.revokeObjectURL(url);
     },
@@ -81,7 +93,7 @@ export function imagePreview(
   image: ViewedImage,
   signal: AbortSignal,
   maxEdge = 2048,
-): Promise<{ url: string; release: () => void }> {
+): Promise<ImagePreviewResource> {
   return new Promise((resolve, reject) => {
     const job = {
       signal,

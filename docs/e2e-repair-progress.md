@@ -1223,3 +1223,11 @@ WebKit 首轮旧文档缓存用例源码节点身份失败，在上一提交 99c
 已用生产构建和真实 Service Worker 复现：按钮检查中变为 native disabled 导致焦点落到 body，检查结束后 Esc 无法传到设置弹层。改为 aria-disabled/aria-busy 与点击守卫，检查时保留焦点；点击时明确聚焦按钮，覆盖 WebKit 不自动聚焦鼠标点击按钮的行为。忙碌期间仍阻止重复调用，保持原禁用视觉。
 
 Chromium 全部 PWA 更新回归 7 项通过，WebKit 无新版检查后 Esc 关闭设置的手机/桌面 2 项通过，相关 Vitest 2 文件/26 项、typecheck、lint、生产构建及 diff 检查通过。没有修改全局 Esc 优先级，也没有重新运行全产品 E2E；之前主区域视图的未提交改动保留。
+
+## 2026-10-12 图片手势、树状态、专注与属性
+
+补 Safari/WKWebView 原生 gesturestart/change/end，使用累计 scale 与缩放锚点，并避免同一手势叠加 wheel 或触屏双指缩放。图片树展开/分页/滚动会话保留及当前图片选中广播，主区域方向键跨分栏焦点生效，设置/菜单/输入框保留优先级。图片专注独立于文档配置；标题按钮按属性、返回、专注排列。属性支持浮动/右侧固定、切图更新、文本选中及分层 Esc；Tauri 增加授权范围内的只读 stat。
+
+Chromium 与 WebKit 图片/分栏导航各 20 项通过，覆盖两种查看入口、源码/渲染历史、手机抽屉、PDF/EPUB 返回，以及原生合成手势、缩放锚点/重复流、分栏隐藏与切换、树高亮、专注/属性固定和 Esc 顺序。完整 Vitest 109 文件/1417 项、typecheck、lint、format:check、生产构建/bundle-size、IPC 契约检查通过；Rust 图片边界、分页/读取/属性 2 项通过。没有新安装全局依赖，没有修改共享文档/备份 schema。
+
+真实 macOS Tauri 触控板手势、Windows/Linux 文件创建时间差异和真实手机双指输入未真机验证；合成 GestureEvent 不作为硬件验证结论。元信息解析只承诺文档列出的格式/常用字段，损坏或未识别信息不阻止看图。

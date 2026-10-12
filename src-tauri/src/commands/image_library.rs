@@ -299,6 +299,47 @@ fn read_image(root: &Path, node: &str) -> Result<Vec<u8>, String> {
     }
     Ok(bytes)
 }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageFileInfo {
+    size: u64,
+    modified: Option<u64>,
+    created: Option<u64>,
+}
+#[tauri::command]
+pub async fn image_library_stat(
+    window: tauri::WebviewWindow,
+    library: State<'_, ImageLibrary>,
+    root_id: String,
+    node: String,
+) -> Result<ImageFileInfo, String> {
+    caller(&window)?;
+    let root = library.root(&root_id)?;
+    tauri::async_runtime::spawn_blocking(move || stat_image(&root, &node))
+        .await
+        .map_err(|e| e.to_string())?
+}
+fn stat_image(root: &Path, node: &str) -> Result<ImageFileInfo, String> {
+    let path = checked_path(root, node)?;
+    if !supported(&path) {
+        return Err("不是支持的图片类型".into());
+    }
+    let metadata = fs::metadata(path).map_err(|_| "无法读取图片属性")?;
+    if !metadata.is_file() {
+        return Err("不是图片文件".into());
+    }
+    let stamp = |time: std::io::Result<std::time::SystemTime>| {
+        time.ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as u64)
+    };
+    Ok(ImageFileInfo {
+        size: metadata.len(),
+        modified: stamp(metadata.modified()),
+        created: stamp(metadata.created()),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -341,6 +382,9 @@ mod tests {
         assert!(page.nodes[0].directory);
         assert_eq!(list_images(&root, "", 200).unwrap().nodes.len(), 6);
         assert!(read_image(&root, "private.txt").is_err());
+        assert!(stat_image(&root, "../private.txt").is_err());
+        assert!(stat_image(&root, "private.txt").is_err());
+        assert_eq!(stat_image(&root, "photo000.png").unwrap().size, 5);
         assert_eq!(read_image(&root, "photo000.png").unwrap(), b"image");
         fs::write(root.join("large.png"), vec![0; 10 * 1024 * 1024 + 1]).unwrap();
         assert!(read_image(&root, "large.png").is_err());

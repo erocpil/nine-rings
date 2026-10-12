@@ -1,4 +1,17 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import {
+  imageLibrarySession,
+  selectedImageSnapshot,
+  subscribeSelectedImage,
+  imageKey,
+} from "../lib/image-library/session";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useSyncExternalStore,
+  useLayoutEffect,
+} from "react";
 import {
   imageDirectoryService,
   type ImageRoot,
@@ -55,8 +68,31 @@ function Directory({
   name: string;
   onError: (error: unknown) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [page, setPage] = useState<ImagePage | null>(null);
+  const key = `${root.id}:${path}`;
+  const selected = useSyncExternalStore(
+    subscribeSelectedImage,
+    selectedImageSnapshot,
+  );
+  const [open, setOpen] = useState(
+    () => imageLibrarySession.directories.get(key)?.open ?? false,
+  );
+  const [page, setPage] = useState<ImagePage | null>(
+    () => imageLibrarySession.directories.get(key)?.page ?? null,
+  );
+  useEffect(() => {
+    imageLibrarySession.directories.set(key, { open, page });
+  }, [key, open, page]);
+  useEffect(() => {
+    if (
+      selected?.rootId === root.id &&
+      selected.nodeId &&
+      (!path || selected.nodeId.startsWith(path + "/"))
+    ) {
+      setOpen(true);
+    }
+    // A deliberate user collapse remains until the selected image changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.rootId, selected?.nodeId, key]);
   const [busy, setBusy] = useState(false);
   const alive = useRef(true);
   useEffect(() => {
@@ -82,6 +118,11 @@ function Directory({
       if (alive.current) setBusy(false);
     }
   };
+  useEffect(() => {
+    if (open && !page) void load();
+    // Loading is driven by opening a directory, not by its error/busy state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, key]);
   const images =
     page?.nodes
       .filter((node) => !node.directory)
@@ -108,7 +149,6 @@ function Directory({
         disabled={busy}
         onClick={() => {
           setOpen(!open);
-          if (!open && !page) void load();
         }}
         title={name}
       >
@@ -129,9 +169,26 @@ function Directory({
                 onError={onError}
               />
             ) : (
-              <li role="treeitem" key={node.id}>
+              <li
+                role="treeitem"
+                key={node.id}
+                aria-selected={
+                  imageKey(selected) ===
+                  imageKey({
+                    src: "",
+                    name: node.name,
+                    rootId: root.id,
+                    nodeId: node.id,
+                  })
+                }
+              >
                 <button
-                  className="image-tree-file"
+                  className={`image-tree-file${selected?.rootId === root.id && selected.nodeId === node.id ? " is-selected" : ""}`}
+                  aria-current={
+                    selected?.rootId === root.id && selected.nodeId === node.id
+                      ? "true"
+                      : undefined
+                  }
                   title={`${node.name}${node.size ? ` · ${Math.ceil(node.size / 1024)} KB` : ""}`}
                   onClick={() => view(node)}
                 >
@@ -178,6 +235,12 @@ export function ImageLibraryPanel({
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   const [busy, setBusy] = useState(false);
+  const scroll = useRef<HTMLDivElement>(null);
+  const restoreScroll = useRef(imageLibrarySession.scrollTop);
+  useLayoutEffect(() => {
+    if (roots.length && scroll.current)
+      scroll.current.scrollTop = restoreScroll.current;
+  }, [roots]);
   const files = useRef<HTMLInputElement>(null);
   const folders = useRef<HTMLInputElement>(null);
   const fail = (cause: unknown) =>
@@ -255,7 +318,11 @@ export function ImageLibraryPanel({
           className="btn-icon"
           aria-label="刷新图片目录"
           title="刷新图片目录"
-          onClick={() => setRevision((value) => value + 1)}
+          onClick={() => {
+            for (const entry of imageLibrarySession.directories.values())
+              entry.page = null;
+            setRevision((value) => value + 1);
+          }}
         >
           <ToolbarIcon name="refresh" />
         </button>
@@ -295,7 +362,14 @@ export function ImageLibraryPanel({
           {error}
         </p>
       )}
-      <div className="image-library-scroll">
+      <div
+        ref={scroll}
+        className="image-library-scroll"
+        onScroll={(event) => {
+          imageLibrarySession.scrollTop = event.currentTarget.scrollTop;
+          restoreScroll.current = event.currentTarget.scrollTop;
+        }}
+      >
         <p className="settings-desc">
           选择目录浏览本机图片；原文件保持不变。临时选择的图片在关闭插件或重启后需重新选择。
         </p>

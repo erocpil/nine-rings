@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { selectImage } from "../lib/image-library/session";
+import { ImagePropertiesPanel } from "./ImagePropertiesPanel";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import { createPortal } from "react-dom";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { imagePreview } from "../lib/image-library/preview-resource";
@@ -20,6 +28,8 @@ export function ImageViewer({
   active = true,
   canInsert,
   onInsert,
+  focusMode,
+  onFocusChange,
 }: {
   images: readonly ViewedImage[];
   initial: ViewedImage;
@@ -28,6 +38,8 @@ export function ImageViewer({
   active?: boolean;
   canInsert?: boolean;
   onInsert?: (image: ViewedImage) => void;
+  focusMode?: boolean;
+  onFocusChange?: (focus: boolean) => void;
 }) {
   const [index, setIndex] = useState(
     Math.max(
@@ -40,7 +52,38 @@ export function ImageViewer({
       ),
     ),
   );
+  const [request, setRequest] = useState({ images, initial });
+  if (request.images !== images || request.initial !== initial) {
+    setRequest({ images, initial });
+    setIndex(
+      Math.max(
+        0,
+        images.findIndex(
+          (value) =>
+            value.src === initial.src &&
+            value.rootId === initial.rootId &&
+            value.nodeId === initial.nodeId,
+        ),
+      ),
+    );
+  }
   const image = images[index] ?? initial;
+  const [localFocus, setLocalFocus] = useState(false);
+  const focused = focusMode ?? localFocus;
+  const toggleFocus = () => {
+    if (onFocusChange) onFocusChange(!focused);
+    else setLocalFocus(!focused);
+  };
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [propertiesPinned, setPropertiesPinned] = useState(false);
+  const [decodedDimensions, setDecodedDimensions] = useState({
+    width: 0,
+    height: 0,
+  });
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    if (active) selectImage(image);
+  }, [image, active]);
   const [resource, setResource] = useState("");
   const [error, setError] = useState("");
   const [original, setOriginal] = useState(false);
@@ -49,8 +92,22 @@ export function ImageViewer({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const container = useRef<HTMLElement | null>(null);
   const close = useRef<HTMLButtonElement>(null);
+  const propertyTrigger = useRef<HTMLButtonElement>(null);
+  const closeProperties = () => {
+    setPropertiesOpen(false);
+    requestAnimationFrame(() =>
+      propertyTrigger.current?.focus({ preventScroll: true }),
+    );
+  };
+  const dismiss = () => {
+    if (propertiesOpen) closeProperties();
+    else if (focused) toggleFocus();
+    else onClose();
+  };
   const viewport = useRef<HTMLDivElement>(null);
   const img = useRef<HTMLImageElement>(null);
+  const transform = useRef({ zoom, pan });
+  transform.current = { zoom, pan };
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const reset = () => {
     setZoom(1);
@@ -83,6 +140,8 @@ export function ImageViewer({
     const controller = new AbortController();
     let release = () => {};
     setResource("");
+    setDimensions({ width: 0, height: 0 });
+    setDecodedDimensions({ width: 0, height: 0 });
     setError("");
     reset();
     setRotation(0);
@@ -90,7 +149,11 @@ export function ImageViewer({
       .then((value) => {
         release = value.release;
         if (controller.signal.aborted) release();
-        else setResource(value.url);
+        else {
+          setResource(value.url);
+          if (value.width && value.height)
+            setDecodedDimensions({ width: value.width, height: value.height });
+        }
       })
       .catch((cause) => {
         if (!controller.signal.aborted)
@@ -103,25 +166,141 @@ export function ImageViewer({
   }, [image, original]);
   useEffect(() => {
     const element = viewport.current!;
+    if (!active) return;
+    let native: {
+      zoom: number;
+      pan: { x: number; y: number };
+      x: number;
+      y: number;
+    } | null = null;
+    let lastGesture = -Infinity;
+    const zoomAt = (
+      zoom: number,
+      point: { x: number; y: number },
+      before = transform.current,
+    ) => {
+      const next = Math.max(0.1, Math.min(12, zoom));
+      setZoom(next);
+      setPan({
+        x: point.x - ((point.x - before.pan.x) * next) / before.zoom,
+        y: point.y - ((point.y - before.pan.y) * next) / before.zoom,
+      });
+    };
     const wheel = (event: WheelEvent) => {
       event.preventDefault();
-      if (event.ctrlKey || event.metaKey)
-        setZoom((value) =>
-          Math.max(0.1, Math.min(12, value * Math.exp(-event.deltaY * 0.01))),
-        );
-      else
+      event.stopPropagation();
+      const bounds = element.getBoundingClientRect();
+      if (event.ctrlKey || event.metaKey) {
+        if (
+          native ||
+          performance.now() - lastGesture < 120 ||
+          pointers.current.size >= 2
+        )
+          return;
+        zoomAt(transform.current.zoom * Math.exp(-event.deltaY * 0.01), {
+          x: event.clientX - bounds.left - bounds.width / 2,
+          y: event.clientY - bounds.top - bounds.height / 2,
+        });
+      } else if (!native)
         setPan((value) => ({
           x: value.x - event.deltaX,
           y: value.y - event.deltaY,
         }));
     };
+    const gesture = (event: Event) => {
+      if (pointers.current.size >= 2 || !img.current?.naturalWidth) return;
+      const value = event as Event & {
+        scale?: number;
+        clientX?: number;
+        clientY?: number;
+      };
+      const bounds = element.getBoundingClientRect();
+      if (event.type === "gesturestart")
+        native = {
+          ...transform.current,
+          x:
+            typeof value.clientX === "number" &&
+            value.clientX >= bounds.left &&
+            value.clientX <= bounds.right
+              ? value.clientX - bounds.left - bounds.width / 2
+              : 0,
+          y:
+            typeof value.clientY === "number" &&
+            value.clientY >= bounds.top &&
+            value.clientY <= bounds.bottom
+              ? value.clientY - bounds.top - bounds.height / 2
+              : 0,
+        };
+      if (!native) return;
+      event.preventDefault();
+      event.stopPropagation();
+      lastGesture = performance.now();
+      if (event.type === "gestureend") {
+        native = null;
+        return;
+      }
+      if (
+        event.type === "gesturechange" &&
+        Number.isFinite(value.scale) &&
+        value.scale! > 0
+      )
+        zoomAt(native.zoom * value.scale!, native, native);
+    };
     element.addEventListener("wheel", wheel, { passive: false });
-    return () => element.removeEventListener("wheel", wheel);
-  }, []);
-  const change = (step: number) => {
-    setOriginal(false);
-    setIndex((value) => Math.max(0, Math.min(images.length - 1, value + step)));
-  };
+    for (const name of ["gesturestart", "gesturechange", "gestureend"])
+      element.addEventListener(name, gesture, { passive: false });
+    return () => {
+      element.removeEventListener("wheel", wheel);
+      for (const name of ["gesturestart", "gesturechange", "gestureend"])
+        element.removeEventListener(name, gesture);
+    };
+  }, [active]);
+  const change = useCallback(
+    (step: number) => {
+      setOriginal(false);
+      setIndex((value) =>
+        Math.max(0, Math.min(images.length - 1, value + step)),
+      );
+    },
+    [images.length],
+  );
+  useEffect(() => {
+    if (!active || presentation !== "main") return;
+    const keydown = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.altKey ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        !["ArrowLeft", "ArrowRight"].includes(event.key)
+      )
+        return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".image-viewer-main")) return;
+      if (
+        target?.closest(
+          "input,textarea,select,[contenteditable=true],[role=dialog],[role=menu],[role=slider]",
+        )
+      )
+        return;
+      if (
+        [
+          ...document.querySelectorAll<HTMLElement>(
+            'dialog[open], [aria-modal="true"], [role="menu"]',
+          ),
+        ].some(
+          (node) => node.getClientRects().length && !node.closest("[inert]"),
+        )
+      )
+        return;
+      event.preventDefault();
+      event.stopPropagation();
+      change(event.key === "ArrowRight" ? 1 : -1);
+    };
+    document.addEventListener("keydown", keydown, true);
+    return () => document.removeEventListener("keydown", keydown, true);
+  }, [active, presentation, change]);
   const copy = () => {
     try {
       const promise = new Promise<Blob>((resolve, reject) => {
@@ -172,17 +351,22 @@ export function ImageViewer({
       ref={(element) => {
         container.current = element;
       }}
-      className={
-        presentation === "modal" ? "image-viewer-dialog" : "image-viewer-main"
-      }
+      className={`${presentation === "modal" ? "image-viewer-dialog" : "image-viewer-main"}${focused ? " image-viewer-focus" : ""}`}
       tabIndex={-1}
       aria-label="图片查看器"
       onCancel={(event) => {
         event.preventDefault();
-        onClose();
+        dismiss();
       }}
       onKeyDown={(event) => {
-        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        if (
+          event.metaKey ||
+          event.ctrlKey ||
+          event.altKey ||
+          event.shiftKey ||
+          (event.target as HTMLElement).closest(".image-properties-panel")
+        )
+          return;
         if (
           ["Escape", "ArrowLeft", "ArrowRight", "+", "=", "-", "0"].includes(
             event.key,
@@ -191,7 +375,7 @@ export function ImageViewer({
           event.stopPropagation();
         if (event.key === "Escape") {
           event.preventDefault();
-          onClose();
+          dismiss();
         }
         if (event.key === "ArrowLeft") {
           event.preventDefault();
@@ -217,19 +401,44 @@ export function ImageViewer({
     >
       <header>
         <h2 title={image.name}>{image.name || "文档图片"}</h2>
-        <button
-          ref={close}
-          className="btn-icon"
-          aria-label={presentation === "main" ? "返回原视图" : "关闭图片查看器"}
-          title={
-            presentation === "main" ? "返回原视图（Esc）" : "关闭图片查看器"
-          }
-          onClick={onClose}
-        >
-          <ToolbarIcon
-            name={presentation === "main" ? "chevronLeft" : "close"}
-          />
-        </button>
+        <div className="image-viewer-header-actions">
+          <button
+            type="button"
+            className="btn-icon"
+            ref={propertyTrigger}
+            aria-label="图片属性"
+            aria-expanded={propertiesOpen}
+            title="图片属性"
+            onClick={() => setPropertiesOpen((value) => !value)}
+          >
+            <ToolbarIcon name="info" />
+          </button>
+          <button
+            ref={close}
+            className="btn-icon"
+            aria-label={
+              presentation === "main" ? "返回原视图" : "关闭图片查看器"
+            }
+            title={
+              presentation === "main" ? "返回原视图（Esc）" : "关闭图片查看器"
+            }
+            onClick={onClose}
+          >
+            <ToolbarIcon
+              name={presentation === "main" ? "chevronLeft" : "close"}
+            />
+          </button>
+          <button
+            type="button"
+            className="btn-icon"
+            aria-label={focused ? "退出图片专注模式" : "进入图片专注模式"}
+            aria-pressed={focused}
+            title={focused ? "退出专注模式" : "专注模式"}
+            onClick={toggleFocus}
+          >
+            <ToolbarIcon name={focused ? "compress" : "expand"} />
+          </button>
+        </div>
       </header>
       <div
         className="image-viewer-toolbar"
@@ -355,71 +564,95 @@ export function ImageViewer({
           </button>
         )}
       </div>
-      <div
-        ref={viewport}
-        className="image-viewer-viewport"
-        onPointerDown={(event) => {
-          if (event.button !== 0) return;
-          event.preventDefault();
-          event.currentTarget.setPointerCapture(event.pointerId);
-          pointers.current.set(event.pointerId, {
-            x: event.clientX,
-            y: event.clientY,
-          });
-        }}
-        onPointerMove={(event) => {
-          const before = pointers.current.get(event.pointerId);
-          if (!before) return;
-          const pair = points(pointers.current);
-          pointers.current.set(event.pointerId, {
-            x: event.clientX,
-            y: event.clientY,
-          });
-          const after = points(pointers.current);
-          if (pair && after) {
-            if (pair.distance > 1)
-              setZoom((value) =>
-                Math.max(
-                  0.1,
-                  Math.min(12, (value * after.distance) / pair.distance),
-                ),
-              );
-            setPan((value) => ({
-              x: value.x + after.x - pair.x,
-              y: value.y + after.y - pair.y,
-            }));
-          } else
-            setPan((value) => ({
-              x: value.x + event.clientX - before.x,
-              y: value.y + event.clientY - before.y,
-            }));
-        }}
-        onPointerUp={(event) => pointers.current.delete(event.pointerId)}
-        onPointerCancel={(event) => pointers.current.delete(event.pointerId)}
-        onLostPointerCapture={(event) =>
-          pointers.current.delete(event.pointerId)
-        }
-      >
-        {resource ? (
-          <img
-            ref={img}
-            src={resource}
-            alt={image.name}
-            draggable={false}
-            onLoad={() => {
-              if (original && img.current)
-                setZoom(
-                  img.current.naturalWidth /
-                    Math.max(1, img.current.clientWidth),
+      <div className="image-viewer-body">
+        <div
+          ref={viewport}
+          className="image-viewer-viewport"
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            event.currentTarget.setPointerCapture(event.pointerId);
+            pointers.current.set(event.pointerId, {
+              x: event.clientX,
+              y: event.clientY,
+            });
+          }}
+          onPointerMove={(event) => {
+            const before = pointers.current.get(event.pointerId);
+            if (!before) return;
+            const pair = points(pointers.current);
+            pointers.current.set(event.pointerId, {
+              x: event.clientX,
+              y: event.clientY,
+            });
+            const after = points(pointers.current);
+            if (pair && after) {
+              if (pair.distance > 1)
+                setZoom((value) =>
+                  Math.max(
+                    0.1,
+                    Math.min(12, (value * after.distance) / pair.distance),
+                  ),
                 );
-            }}
-            onError={() => setError("图片无法解码或文件已不可访问")}
-            style={{
-              transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom}) rotate(${rotation}deg)`,
-            }}
+              setPan((value) => ({
+                x: value.x + after.x - pair.x,
+                y: value.y + after.y - pair.y,
+              }));
+            } else
+              setPan((value) => ({
+                x: value.x + event.clientX - before.x,
+                y: value.y + event.clientY - before.y,
+              }));
+          }}
+          onPointerUp={(event) => pointers.current.delete(event.pointerId)}
+          onPointerCancel={(event) => pointers.current.delete(event.pointerId)}
+          onLostPointerCapture={(event) =>
+            pointers.current.delete(event.pointerId)
+          }
+        >
+          {resource ? (
+            <img
+              ref={img}
+              src={resource}
+              alt={image.name}
+              draggable={false}
+              onLoad={() => {
+                if (img.current)
+                  setDimensions({
+                    width: img.current.naturalWidth,
+                    height: img.current.naturalHeight,
+                  });
+                if (!decodedDimensions.width && img.current)
+                  setDecodedDimensions({
+                    width: img.current.naturalWidth,
+                    height: img.current.naturalHeight,
+                  });
+                if (original && img.current)
+                  setZoom(
+                    img.current.naturalWidth /
+                      Math.max(1, img.current.clientWidth),
+                  );
+              }}
+              onError={() => setError("图片无法解码或文件已不可访问")}
+              style={{
+                transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+              }}
+            />
+          ) : (
+            !error && <p>正在加载图片…</p>
+          )}
+        </div>
+        {propertiesOpen && (
+          <ImagePropertiesPanel
+            image={image}
+            pinned={propertiesPinned}
+            onPin={() => setPropertiesPinned((value) => !value)}
+            onClose={closeProperties}
+            dimensions={dimensions}
+            decodedDimensions={decodedDimensions}
+            zoom={zoom}
+            rotation={rotation}
           />
-        ) : (
-          !error && <p>正在加载图片…</p>
         )}
       </div>
       <footer>
