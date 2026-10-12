@@ -283,6 +283,9 @@ export function useWorkspaceSidebar({
       const collapseThreshold =
         sideDragPanelRef.current === "reader" ? minimum - 32 : 24;
       if (rawWidth <= collapseThreshold) {
+        // Collapsing is a visibility action, not a new width preference.
+        // Restore the width at pointer-down before the normal finish saves it.
+        sideDragWidthRef.current = sideStartWRef.current;
         setSidebarHidden(true);
         finishSideDrag();
         return;

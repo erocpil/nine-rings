@@ -631,7 +631,9 @@ test("图片专注模式保持查看器和分栏状态，属性可浮动和固�
   const before = await viewer.boundingBox();
   await viewer.getByRole("button", { name: "进入图片专注模式" }).click();
   await expect(page.locator(".exhibition-masthead")).toBeHidden();
-  await expect(panel).toBeHidden();
+  await expect(panel).toBeVisible();
+  await expect(page.locator(".desktop-activity-bar")).toBeVisible();
+  await expect(page.locator(".sidebar-divider")).toBeVisible();
   expect((await viewer.boundingBox())!.height).toBeGreaterThan(before!.height);
   await viewer.getByRole("button", { name: "图片属性", exact: true }).click();
   const properties = viewer.getByRole("region", {
@@ -662,6 +664,11 @@ test("图片专注模式保持查看器和分栏状态，属性可浮动和固�
   await viewer.getByRole("button", { name: "下一张图片" }).click();
   await expect(properties).toContainText("ragdoll-32.png");
   await expect(properties).toContainText("32 × 32");
+  await panel
+    .getByRole("button", { name: "icon-192.png", exact: true })
+    .click();
+  await expect(properties).toContainText("192 × 192");
+  await expect(viewer.getByRole("button", { name: "退出图片专注模式" })).toBeVisible();
   await viewer.getByRole("button", { name: "退出图片专注模式" }).click();
   await expect(panel).toBeVisible();
   await panel

@@ -299,11 +299,6 @@
   max-height: 100dvh;
   border-radius: 0;
 }
-.app-image-focus .desktop-activity-bar,
-.app-image-focus .app-sidebar,
-.app-image-focus .sidebar-divider {
-  display: none !important;
-}
 .app-image-focus .app-main {
   min-width: 0;
 }
