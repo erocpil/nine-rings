@@ -14,6 +14,26 @@
 .settings-plugin-type, .settings-plugin-state { font-size: 12px; color: var(--text-secondary); }
 .settings-plugin-state { flex: none; }
 .settings-plugin-catalog li p { margin: 8px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+@media (min-width: 769px) {
+  .settings-panel .settings-body[data-settings-page="advanced"]:has(> .settings-plugin-catalog) {
+    min-height: 0;
+    overflow: hidden;
+    grid-template-rows: minmax(0, 1fr);
+    align-content: stretch;
+  }
+  .settings-content-page[data-settings-page="advanced"] .settings-advanced-main.has-plugin-catalog,
+  .settings-content-page[data-settings-page="advanced"] .settings-plugin-catalog {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-gutter: stable;
+  }
+  .settings-content-page[data-settings-page="advanced"] .settings-plugin-catalog {
+    position: static;
+    align-self: stretch;
+  }
+}
 .settings-panel.plugin-config-dialog { position: fixed; inset: 0; margin: auto; width: min(720px, calc(100vw - 32px)); height: auto; max-height: calc(100dvh - 40px); max-width: none; padding: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 16px 64px color-mix(in srgb, var(--text) 18%, transparent); overflow: hidden; }
 .plugin-config-dialog::backdrop { background: color-mix(in srgb, #18201e 38%, transparent); backdrop-filter: blur(10px) brightness(.85); }
 .plugin-config-heading { display: flex; align-items: center; gap: 12px; flex: none; padding: 16px 20px 12px; }

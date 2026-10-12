@@ -196,3 +196,24 @@ test("列表停用统计立即关闭结果，独立开关跨刷新保留并禁�
     page.getByRole("menuitem", { name: "插入日期与时间", exact: true }),
   ).toBeDisabled();
 });
+
+test("桌面高级设置插件列表与左侧独立滚动", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 640 });
+  await page.goto("/");
+  await openAdvanced(page);
+  await page.getByRole("checkbox", { name: "启用插件功能", exact: true }).check();
+  const list = page.getByRole("complementary", { name: "插件列表", exact: true });
+  const main = page.locator(".settings-advanced-main");
+  await expect(list).toBeVisible();
+  const listBounds = (await list.boundingBox())!;
+  const leftBounds = (await main.boundingBox())!;
+  expect(Math.abs(listBounds.height - leftBounds.height)).toBeLessThan(2);
+  await main.evaluate(el => { el.scrollTop = 150; });
+  await expect.poll(() => main.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+  expect((await list.boundingBox())!.y).toBe(listBounds.y);
+  expect(await list.evaluate(el => el.scrollTop)).toBe(0);
+  const leftScroll = await main.evaluate(el => el.scrollTop);
+  await list.evaluate(el => { el.scrollTop = 150; });
+  await expect.poll(() => list.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+  expect(await main.evaluate(el => el.scrollTop)).toBe(leftScroll);
+});

@@ -189,12 +189,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const restoreScrollPage = useRef<SettingsPage | null>(null);
   const bindSettingsBody = useCallback((body: HTMLDivElement | null) => {
     if (!body) {
-      if (settingsBodyRef.current) pageScrollPositions.current[settingsPage] = settingsBodyRef.current.scrollTop;
+      if (settingsBodyRef.current) {
+        const main = settingsBodyRef.current.querySelector<HTMLElement>(".settings-advanced-main");
+        const scroller = main && getComputedStyle(main).overflowY === "auto" ? main : settingsBodyRef.current;
+        pageScrollPositions.current[settingsPage] = scroller.scrollTop;
+      }
       settingsBodyRef.current = null;
       return;
     }
     settingsBodyRef.current = body;
-    body.scrollTop = restoreScrollPage.current === settingsPage ? pageScrollPositions.current[settingsPage] ?? 0 : 0;
+    const main = body.querySelector<HTMLElement>(".settings-advanced-main");
+    const scroller = main && getComputedStyle(main).overflowY === "auto" ? main : body;
+    scroller.scrollTop = restoreScrollPage.current === settingsPage ? pageScrollPositions.current[settingsPage] ?? 0 : 0;
     restoreScrollPage.current = null;
   }, [settingsPage]);
   const [settingsQuery, setSettingsQuery] = useState("");
