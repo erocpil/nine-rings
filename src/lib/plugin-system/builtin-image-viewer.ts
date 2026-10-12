@@ -1,4 +1,5 @@
 import { resetImageLibrarySession } from "../image-library/session";
+import { imageResourceCache } from "../image-library/resource-cache";
 import { pluginRuntime } from "./runtime";
 import { pluginLifecycle } from "./lifecycle";
 import { workspacePanels } from "./panel-registry";
@@ -67,6 +68,7 @@ export function startBuiltinImageViewer() {
                 renderer: "image-library",
               });
               owner.own(() => {
+                imageResourceCache.clear();
                 resetImageLibrarySession();
                 clearImageView();
                 imageDirectoryService.release();

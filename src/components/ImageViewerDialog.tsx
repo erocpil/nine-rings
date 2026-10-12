@@ -1,4 +1,4 @@
-import { selectImage } from "../lib/image-library/session";
+import { selectImage, imageKey } from "../lib/image-library/session";
 import { ImagePropertiesPanel } from "./ImagePropertiesPanel";
 import {
   useEffect,
@@ -9,7 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useDialogFocus } from "../hooks/useDialogFocus";
-import { imagePreview } from "../lib/image-library/preview-resource";
+import { imageResourceCache } from "../lib/image-library/resource-cache";
 import {
   IMAGE_VIEW_EVENT,
   requestMainImageView,
@@ -20,7 +20,7 @@ import {
 } from "../lib/image-library/viewer-request";
 import { workspacePanels } from "../lib/plugin-system/panel-registry";
 import { ToolbarIcon } from "./ToolbarIcon";
-import { ImageThumbnail } from "./ImageThumbnail";
+import { ImageFilmstrip } from "./ImageFilmstrip";
 import { constrainPanAxis, visiblePanLimit } from "../lib/pan-boundary";
 import {
   applyImageTransform,
@@ -94,6 +94,8 @@ export function ImageViewer({
     if (active) selectImage(image);
   }, [image, active]);
   const [resource, setResource] = useState("");
+  const [resourceKey, setResourceKey] = useState("");
+  const visibleResource = resourceKey === imageKey(image) ? resource : "";
   const [error, setError] = useState("");
   const [original, setOriginal] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -136,15 +138,6 @@ export function ImageViewer({
     else onClose();
   };
   const viewport = useRef<HTMLDivElement>(null);
-  const filmstrip = useRef<HTMLElement>(null);
-  useLayoutEffect(() => {
-    const strip = filmstrip.current;
-    const current = strip?.querySelector<HTMLElement>('[aria-current="true"]');
-    if (!strip || !current || !active) return;
-    const bounds = strip.getBoundingClientRect();
-    const item = current.getBoundingClientRect();
-    strip.scrollLeft += item.left - bounds.left - (bounds.width - item.width) / 2;
-  }, [index, stripOpen, active]);
   const img = useRef<HTMLImageElement>(null);
   const transform = useRef({ zoom, pan });
   transform.current = { zoom, pan };
@@ -244,12 +237,14 @@ export function ImageViewer({
     setError("");
     setZoom(1);
     setPan({ x: 0, y: 0 });
-    void imagePreview(image, controller.signal, original ? 0 : 2048)
+    void imageResourceCache
+      .acquire(image, controller.signal, original ? 0 : 2048)
       .then((value) => {
         release = value.release;
         if (controller.signal.aborted) release();
         else {
           setResource(value.url);
+          setResourceKey(imageKey(image));
           if (value.width && value.height)
             setDecodedDimensions({ width: value.width, height: value.height });
         }
@@ -524,6 +519,20 @@ export function ImageViewer({
           <button
             type="button"
             className="btn-icon"
+            aria-label="缩略图"
+            aria-pressed={stripOpen}
+            aria-expanded={stripOpen && images.length > 1}
+            title={stripOpen ? "隐藏缩略图导航" : "显示缩略图导航"}
+            onClick={() => {
+              setStripOpen((value) => !value);
+              localStorage.setItem("nr:imageFilmstrip", String(!stripOpen));
+            }}
+          >
+            <ToolbarIcon name="image" />
+          </button>
+          <button
+            type="button"
+            className="btn-icon"
             ref={propertyTrigger}
             aria-label="图片属性"
             aria-expanded={propertiesOpen}
@@ -654,16 +663,6 @@ export function ImageViewer({
         >
           复位预览
         </button>
-        <button
-          className="btn"
-          aria-pressed={stripOpen}
-          onClick={() => {
-            setStripOpen((value) => !value);
-            localStorage.setItem("nr:imageFilmstrip", String(!stripOpen));
-          }}
-        >
-          缩略图
-        </button>
         <select
           aria-label="图片查看背景"
           value={background}
@@ -682,7 +681,7 @@ export function ImageViewer({
           aria-label="复制图片"
           title="复制当前预览图片"
           disabled={
-            !resource ||
+            !visibleResource ||
             !navigator.clipboard?.write ||
             typeof ClipboardItem === "undefined"
           }
@@ -785,10 +784,10 @@ export function ImageViewer({
             pointers.current.delete(event.pointerId)
           }
         >
-          {resource ? (
+          {visibleResource ? (
             <img
               ref={img}
-              src={resource}
+              src={visibleResource}
               alt={image.name}
               draggable={false}
               onLoad={() => {
@@ -817,7 +816,11 @@ export function ImageViewer({
               }}
             />
           ) : (
-            !error && <p>正在加载图片…</p>
+            !error && (
+              <p className="image-viewer-loading" role="status">
+                正在加载图片…
+              </p>
+            )
           )}
         </div>
         {propertiesOpen && (
@@ -834,29 +837,15 @@ export function ImageViewer({
         )}
       </div>
       {stripOpen && images.length > 1 && (
-        <nav ref={filmstrip} className="image-viewer-filmstrip" aria-label="图片缩略图导航">
-          {images
-            .slice(Math.max(0, index - 7), Math.max(0, index - 7) + 15)
-            .map((item, offset) => {
-              const itemIndex = Math.max(0, index - 7) + offset;
-              return (
-                <button
-                  key={`${item.rootId}:${item.nodeId}:${item.src}`}
-                  type="button"
-                  title={item.name}
-                  aria-label={`查看图片 ${item.name}`}
-                  aria-current={itemIndex === index ? "true" : undefined}
-                  onClick={() => {
-                    setOriginal(false);
-                    setIndex(itemIndex);
-                  }}
-                >
-                  <ImageThumbnail image={item} />
-                  <span>{item.name}</span>
-                </button>
-              );
-            })}
-        </nav>
+        <ImageFilmstrip
+          images={images}
+          index={index}
+          active={active}
+          onSelect={(next) => {
+            setOriginal(false);
+            setIndex(next);
+          }}
+        />
       )}
       <footer>
         <span role="status">

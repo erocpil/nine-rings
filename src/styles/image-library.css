@@ -341,15 +341,42 @@
   background-size: 20px 20px;
 }
 .image-viewer-filmstrip {
-  display: flex;
-  gap: 6px;
+  --filmstrip-height: 70px;
+  display: block;
   padding: 6px 12px;
   flex: none;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
   background: var(--bg);
 }
+.image-viewer-filmstrip:hover,
+.image-viewer-filmstrip:focus-within {
+  scrollbar-color: var(--text-secondary) transparent;
+}
+.image-viewer-filmstrip::-webkit-scrollbar {
+  height: 4px;
+}
+.image-viewer-filmstrip::-webkit-scrollbar-track {
+  background: transparent;
+}
+.image-viewer-filmstrip::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+}
+.image-viewer-filmstrip:hover::-webkit-scrollbar-thumb,
+.image-viewer-filmstrip:focus-within::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-secondary) 45%, transparent);
+}
+.image-filmstrip-items {
+  position: relative;
+  height: var(--filmstrip-height);
+}
 .image-viewer-filmstrip button {
+  position: absolute;
+  top: 0;
+  box-sizing: border-box;
   width: 86px;
   flex: none;
   display: flex;
@@ -370,6 +397,29 @@
 .image-viewer-filmstrip .image-tree-thumbnail {
   width: 72px;
   height: 44px;
+  min-height: 0;
+  flex: none;
+  overflow: hidden;
+}
+.image-viewer-filmstrip .image-tree-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.image-viewer-filmstrip button > span:last-child {
+  flex: none;
+}
+.image-viewer-loading {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+.image-viewer-viewport {
+  position: relative;
 }
 .image-viewer-filmstrip button > span:last-child {
   width: 100%;
@@ -387,6 +437,7 @@
 }
 @media (max-width: 768px) {
   .image-viewer-filmstrip {
+    --filmstrip-height: 58px;
     padding: 3px 8px;
   }
   .image-viewer-filmstrip .image-tree-thumbnail {

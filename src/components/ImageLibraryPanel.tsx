@@ -24,6 +24,7 @@ import { requestMainImageView } from "../lib/image-library/viewer-request";
 import { WorkspacePanelHeading } from "./WorkspacePanelHeading";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { ImageThumbnail } from "./ImageThumbnail";
+import { imageResourceCache } from "../lib/image-library/resource-cache";
 interface TreeMenu {
   name: string;
   path: string;
@@ -445,6 +446,7 @@ export function ImageLibraryPanel({
           aria-label="刷新图片目录"
           title="刷新图片目录"
           onClick={() => {
+            imageResourceCache.clear();
             for (const entry of imageLibrarySession.directories.values())
               entry.page = null;
             setRevision((value) => value + 1);
@@ -507,6 +509,7 @@ export function ImageLibraryPanel({
               aria-label={`移除图片目录 ${root.name}`}
               title="撤销目录授权，不删除文件"
               onClick={() => {
+                imageResourceCache.clear();
                 void imageDirectoryService
                   .remove(root.id)
                   .then(() => setRevision((value) => value + 1))

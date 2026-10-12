@@ -795,6 +795,70 @@ test("图片平移边界阻止继续外移，两轴均可返回", async ({ page 
     .toBe(true);
 });
 
+test("缩略图带可滚动全部图片、支持双轴触控板且竖图不覆盖名称", async ({
+  page,
+}) => {
+  await createBlankDocument(page);
+  await closeDocumentSidebar(page);
+  await enable(page);
+  await page.getByRole("button", { name: "图片", exact: true }).click();
+  const data = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 24;
+    canvas.height = 128;
+    canvas.getContext("2d")!.fillRect(0, 0, 24, 128);
+    return canvas.toDataURL("image/png").split(",")[1];
+  });
+  const panel = page.getByRole("region", { name: "图片目录分栏" });
+  await panel
+    .locator("input[type=file]")
+    .first()
+    .setInputFiles(
+      Array.from({ length: 30 }, (_, index) => ({
+        name: `${String(index).padStart(2, "0")}.png`,
+        mimeType: "image/png",
+        buffer: Buffer.from(data, "base64"),
+      })),
+    );
+  await panel
+    .getByRole("button", { name: "已选择图片（临时）", exact: true })
+    .click();
+  await panel.getByRole("button", { name: "00.png", exact: true }).click();
+  const viewer = page.getByRole("region", { name: "图片查看器" });
+  const strip = viewer.getByRole("navigation", { name: "图片缩略图导航" });
+  await expect(strip).toBeVisible();
+  expect(await strip.getByRole("button").count()).toBeLessThan(30);
+  await strip.dispatchEvent("wheel", { deltaX: 0, deltaY: 300 });
+  await expect
+    .poll(() => strip.evaluate((el) => el.scrollLeft))
+    .toBeGreaterThan(0);
+  const before = await strip.evaluate((el) => el.scrollLeft);
+  await strip.dispatchEvent("wheel", { deltaX: 300, deltaY: 0 });
+  await expect
+    .poll(() => strip.evaluate((el) => el.scrollLeft))
+    .toBeGreaterThan(before);
+  await strip.evaluate((el) => {
+    el.scrollLeft = el.scrollWidth;
+  });
+  const last = strip.getByRole("button", {
+    name: "查看图片 29.png",
+    exact: true,
+  });
+  await expect(last).toBeVisible();
+  await expect(last.locator("img")).toBeVisible();
+  const thumb = (await last.locator(".image-tree-thumbnail").boundingBox())!;
+  const label = (await last.locator("span").last().boundingBox())!;
+  expect(thumb.y + thumb.height).toBeLessThanOrEqual(label.y);
+  await last.click();
+  const picture = viewer.locator(".image-viewer-viewport img");
+  await expect(picture).toBeVisible();
+  const source = await picture.getAttribute("src");
+  await viewer.getByRole("button", { name: "上一张图片", exact: true }).click();
+  await expect(viewer.getByRole("heading")).toHaveText("28.png");
+  await viewer.getByRole("button", { name: "下一张图片", exact: true }).click();
+  await expect(picture).toHaveAttribute("src", source!);
+});
+
 test("原生 WebKit 捏合累计缩放，缩放锚定且不触发页面缩放", async ({ page }) => {
   const { viewer } = await openTwoPictures(page);
   const result = await viewer

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNearViewport } from "../hooks/useNearViewport";
-import { imagePreview } from "../lib/image-library/preview-resource";
+import { imageResourceCache } from "../lib/image-library/resource-cache";
 import type { ViewedImage } from "../lib/image-library/viewer-request";
 import { ToolbarIcon } from "./ToolbarIcon";
 
@@ -24,7 +24,7 @@ export function ImageThumbnail({
     if (!near) return;
     const controller = new AbortController();
     let release = () => {};
-    void imagePreview(target, controller.signal, 128)
+    void imageResourceCache.acquire(target, controller.signal, 128)
       .then((resource) => {
         release = resource.release;
         if (!controller.signal.aborted) setUrl(resource.url);
