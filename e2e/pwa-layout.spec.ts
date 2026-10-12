@@ -1,4 +1,4 @@
-import { createDocumentInWorkspace, waitForSavedText } from "./helpers/document";
+import { createBlankDocument, createDocumentInWorkspace, waitForSavedText } from "./helpers/document";
 import { scrollEditorBlockTo } from "./helpers/editor-scroll";
 import type { Editor } from "@tiptap/core";
 import { closeDocumentSidebar, openDocumentSidebar, openMobileDocumentPopup } from "./helpers/workspace";
@@ -2239,7 +2239,9 @@ test.describe("PWA 窄屏应用外壳", () => {
   });
 
   test("更多菜单在窄屏和横屏不越界，空间不足时所有操作仍可滚动访问", async ({ page }) => {
-    await page.goto("/");
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await createBlankDocument(page, "更多菜单边界回归");
+    await closeDocumentSidebar(page);
     await expect.poll(() => page.evaluate(async () => {
       const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
       return useNotesStore.getState().startupReady;
@@ -2253,7 +2255,8 @@ test.describe("PWA 窄屏应用外壳", () => {
     ]) {
       if (await sheet.isVisible()) await page.keyboard.press("Escape");
       await page.setViewportSize(viewport);
-      await page.getByTitle("更多编辑操作").click();
+      await closeDocumentSidebar(page);
+      await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
       // New reference actions can exceed a short viewport. Keep full touch
       // targets and check access to the last action rather than require no scroll.
       await expect.poll(() => sheet.evaluate(element =>
@@ -2272,7 +2275,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     }
     await page.keyboard.press("Escape");
     await page.setViewportSize({ width: 390, height: 280 });
-    await page.getByTitle("更多编辑操作").click();
+    await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
     await sheet.locator(".mobile-action-sheet-content").evaluate(content => { content.scrollTop = 0; });
     await expect(sheet.locator(".mobile-action-sheet-scroll-hint")).toBeVisible();
     const lastAction = sheet.locator("button.menu-dropdown-item").last();

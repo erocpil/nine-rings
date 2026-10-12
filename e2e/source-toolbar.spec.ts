@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 import { replaceSource, selectSource, sourceInfo } from "./helpers/source-editor";
 
+const jumpShortcut = process.platform === "darwin" ? "Meta+g" : "Control+g";
+
 for (const width of [390, 1440]) {
   test(`源码顶部工具面板互斥、按钮收回及跳转校验 ${width}`, async ({ page }) => {
     await page.addInitScript(width => localStorage.setItem("nine_rings_config", JSON.stringify({ theme: width === 1440 ? "dark" : "light", interface_style: "paper", interface_color_mode: width === 1440 ? "dark" : "light" })), width);
@@ -52,11 +54,11 @@ for (const width of [390, 1440]) {
     await jump.click();
     await jump.click();
     await expect(form).toHaveCount(0);
-    await area.press("Meta+g");
+    await area.press(jumpShortcut);
     await expect(form).toBeVisible();
-    await input.press("Meta+g");
+    await input.press(jumpShortcut);
     await expect(form).toHaveCount(0);
-    await area.press("Meta+g");
+    await area.press(jumpShortcut);
     await input.press("Escape");
     await expect(form).toHaveCount(0);
     expect((await sourceInfo(area)).value).toBe(text);

@@ -5,6 +5,7 @@ async function prepare(page: Page) {
   await page.goto("/");
   const body = page.locator(".note-editor .ProseMirror");
   await expect(body).toBeVisible({ timeout: 15000 });
+  await page.evaluate(() => document.fonts.ready);
   await body.evaluate((element) => {
     const editor = (element as HTMLElement & { editor: Editor }).editor;
     editor.commands.setContent({
@@ -66,6 +67,9 @@ async function expectPreserved(
   page: Page,
   anchor: { pos: number; offset: number },
 ) {
+  // Do not accept a coincidentally correct position before the two-frame
+  // resize restore has completed, then immediately start another resize.
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))));
   await expect
     .poll(() =>
       page.locator(".note-editor .ProseMirror").evaluate((element, saved) => {

@@ -479,9 +479,8 @@ test("手机端重新展开后标题三角不采用观察器的陈旧坐标", as
     const editor = document.querySelector<HTMLElement>(".ProseMirror");
     if (!heading || !editor) throw new Error("heading missing");
     const buttonRect = button.getBoundingClientRect();
-    const headingRect = heading.getBoundingClientRect();
-    const editorLineHeight = Number.parseFloat(getComputedStyle(editor).lineHeight) || 24;
-    const expectedCenter = headingRect.top + editorLineHeight * 1.3 / 2;
+    const line = heading.querySelector<HTMLElement>(".editor-fold-host")!.getBoundingClientRect();
+    const expectedCenter = line.top + line.height / 2;
     return Math.abs(buttonRect.top + buttonRect.height / 2 - expectedCenter);
   }, nestedIndex);
   expect(offset).toBeLessThan(1);

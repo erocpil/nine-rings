@@ -3,11 +3,13 @@ import { sourceInfo } from "./helpers/source-editor";
 import { scrollEditorBlockTo } from "./helpers/editor-scroll";
 import { createBlankDocument } from "./helpers/document";
 import type { Editor } from "@tiptap/core";
+test.use({ serviceWorkers: "block" });
 
 for (const width of [390, 1280]) test(`内置 Markdown 全景演示 ${width}`, async ({ page }) => {
   await page.setViewportSize({ width, height: 850 });
   await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true })));
   await page.goto("/");
+  await page.waitForLoadState("load");
   await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:builtin-markdown-demo:v1"))).not.toBeNull();
   await page.evaluate(async () => {
     const apiPath = "/src/lib/api.ts";

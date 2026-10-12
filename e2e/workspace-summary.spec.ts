@@ -128,23 +128,24 @@ for (const mode of ["split", "pinned", "hidden", "hover"] as const) {
   });
 }
 
-test("手机摘要保留文档、今日修改和最近打开，点击使用文档列表弹层", async ({ page }) => {
-  const counts = await seed(page);
+test("手机摘要仅保留最近打开，点击使用文档列表弹层", async ({ page }) => {
+  await seed(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator(".sidebar-tab-hide").click();
   const summary = page.getByRole("navigation", { name: "工作区统计" });
-  await expect(summary.getByRole("button")).toHaveCount(3);
+  await expect(summary.getByRole("button")).toHaveCount(1);
   await expect(summary.getByRole("button", { name: "查看随记" })).toBeHidden();
   await expect(summary.getByRole("button", { name: "查看收藏文档" })).toBeHidden();
-  await expect(summary.locator(".exhibition-summary-all strong")).toHaveText(String(counts.all));
+  await expect(summary.getByRole("button", { name: "查看全部文档" })).toHaveCount(0);
+  await expect(summary.getByRole("button", { name: "查看今日修改文档" })).toHaveCount(0);
   const bounds = (await summary.boundingBox())!;
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
   await page.screenshot({ path: test.info().outputPath("summary-mobile.png"), animations: "disabled" });
-  await summary.getByRole("button", { name: "查看今日修改文档" }).click();
+  await summary.getByRole("button", { name: "查看最近打开文档" }).click();
   const dialog = page.getByRole("dialog", { name: "文档视图", exact: true });
-  await expect(dialog.getByRole("button", { name: "清除今日修改筛选" })).toBeVisible();
-  await expect(dialog).not.toContainText("摘要昨日文档");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("摘要当前文档");
 });
 
 test("本地跨日更新摘要和已打开的今日修改列表", async ({ page }) => {
@@ -249,7 +250,8 @@ test("摘要预览支持键盘到末项和 Escape，不影响统计点击及手�
   await expect(popup).toHaveCount(0);
   await expect(page.getByRole("region", { name: "文档列表", exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
-  await all.dispatchEvent("pointerenter", { pointerType: "touch" });
+  await expect(all).toHaveCount(0);
+  await page.getByRole("button", { name: "查看最近打开文档", exact: true }).dispatchEvent("pointerenter", { pointerType: "touch" });
   await expect(popup).toHaveCount(0);
 });
 
@@ -369,18 +371,18 @@ test.describe("触屏汇总", () => {
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator(".sidebar-tab-hide").click();
-  const button = page.getByRole("button", { name: "查看全部文档", exact: true });
+  const button = page.getByRole("button", { name: "查看最近打开文档", exact: true });
   await button.tap();
-  const popup = page.getByRole("dialog", { name: "全部文档预览", exact: true });
+  const popup = page.getByRole("dialog", { name: "最近打开预览", exact: true });
   await expect(popup).toBeVisible();
   await expect(popup.locator("ul")).toHaveCSS("max-height", "148px");
   const bounds = (await popup.boundingBox())!;
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
   await expect(page.getByRole("dialog", { name: "文档视图", exact: true })).toHaveCount(0);
-  await popup.getByRole("button", { name: "摘要昨日文档", exact: true }).tap();
+  await popup.getByRole("button", { name: "摘要当前文档", exact: true }).tap();
   await expect(popup).toHaveCount(0);
-  await expect(page.locator(".note-title:visible")).toHaveValue("摘要昨日文档");
+  await expect(page.locator(".note-title:visible")).toHaveValue("摘要当前文档");
 });
 
 });

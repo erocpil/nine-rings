@@ -161,6 +161,8 @@ test("手机设置保持点击外部关闭的行为", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const overlay = page.locator(".settings-overlay-mobile");
   await expect(overlay).toBeVisible();
-  await page.mouse.click(8, 8);
+  await expect.poll(async () => (await overlay.locator(".settings-panel").boundingBox())!.x).toBeGreaterThan(16);
+  const box = (await overlay.locator(".settings-panel").boundingBox())!;
+  await page.mouse.click(box.x / 2, 8);
   await expect(overlay).toHaveCount(0);
 });

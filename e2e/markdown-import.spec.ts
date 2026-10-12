@@ -59,11 +59,12 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
     const box = heading.getBoundingClientRect();
     return {
       before: previous ? box.top - previous.bottom : 0,
+      expectedBefore: Number.parseFloat(getComputedStyle(heading).marginTop),
       after: next ? next.top - box.bottom : 0,
     };
   });
   expect(headingGaps.before).toBeGreaterThanOrEqual(8);
-  expect(headingGaps.before).toBeLessThanOrEqual(14);
+  expect(Math.abs(headingGaps.before - headingGaps.expectedBefore)).toBeLessThanOrEqual(1);
   expect(headingGaps.after).toBeGreaterThanOrEqual(4);
   expect(headingGaps.after).toBeLessThanOrEqual(9);
 

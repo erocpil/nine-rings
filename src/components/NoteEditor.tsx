@@ -2047,6 +2047,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     let scrollCaptureTimer = 0;
     let scrollGestureActive = false;
     let adjusting = false;
+    let preserveResizeAnchor = false;
     let lastObservedWidth = root.clientWidth;
     let lastObservedHeight = root.clientHeight;
     let lastWindowWidth = window.innerWidth;
@@ -2074,6 +2075,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     const capture = () => {
       frame = 0;
       if (adjusting || windowHidden || document.visibilityState === "hidden" || editor.isDestroyed || !root.isConnected || root.clientWidth === 0 || root.clientHeight === 0 || root.closest("[inert]")) return;
+      if (preserveResizeAnchor && anchor) return;
       // Native reflow can emit scroll before ResizeObserver. Keep the last
       // valid anchor until the resize path has compensated that new geometry.
       if (!isMobileViewport() && anchor && (Math.abs(root.clientWidth - lastObservedWidth) >= 24 || Math.abs(root.clientHeight - lastObservedHeight) >= 24)) return;
@@ -2276,6 +2278,9 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           followupRestoreFrame = 0;
           restoreAnchor(previous);
           adjusting = false;
+          preserveResizeAnchor = true;
+          anchor = { ...previous, width: root.clientWidth, viewportHeight: editorReadingViewport(root).height,
+            viewportTop: previous.kind === "caret" ? editor.view.coordsAtPos(previous.pos).top : previous.viewportTop };
           scheduleCapture();
         });
       });
@@ -2286,6 +2291,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       if (windowHidden && resumeRequested && document.visibilityState !== "hidden" && root.clientWidth > 0 && root.clientHeight > 0) onWindowShown();
       if (windowHidden || document.visibilityState === "hidden" || root.clientWidth === 0 || root.clientHeight === 0 || root.closest("[inert]")) return;
       if (isReadingPositionRestoring(root)) {
+        preserveResizeAnchor = false;
         clearSettleTimers();
         adjusting = false;
         anchor = null;
@@ -2367,6 +2373,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
 
     const userNavigation = () => {
       if (windowHidden) return;
+      preserveResizeAnchor = false;
       // A pending layout restore belongs to the old caret. Never apply it after
       // the user clicks, drags, wheels or explicitly moves to a new selection.
       clearSettleTimers();
@@ -2375,14 +2382,20 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       scheduleCapture();
     };
     const wheelNavigation = () => {
+      preserveResizeAnchor = false;
       // Ordinary continuous scrolling keeps the existing throttled capture.
       if (adjusting || restoreFrame || followupRestoreFrame || smallRestoreFrame) userNavigation();
+    };
+    const keyboardNavigation = (event: KeyboardEvent) => {
+      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) userNavigation();
     };
     editor.on("selectionUpdate", userNavigation);
     editor.on("focus", scheduleCapture);
     root.addEventListener(EDITOR_NAVIGATION_EVENT, userNavigation);
     root.addEventListener("pointerdown", userNavigation, { passive: true });
     root.addEventListener("wheel", wheelNavigation, { passive: true });
+    root.addEventListener("touchstart", userNavigation, { passive: true });
+    root.addEventListener("keydown", keyboardNavigation);
     root.addEventListener("scroll", captureAfterScrollSettles, { passive: true });
     window.addEventListener("resize", onWindowResize);
     window.addEventListener(FULLSCREEN_WILL_CHANGE_EVENT, captureBeforeFullscreen);
@@ -2399,6 +2412,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       root.removeEventListener(EDITOR_NAVIGATION_EVENT, userNavigation);
       root.removeEventListener("pointerdown", userNavigation);
       root.removeEventListener("wheel", wheelNavigation);
+      root.removeEventListener("touchstart", userNavigation);
+      root.removeEventListener("keydown", keyboardNavigation);
       root.removeEventListener("scroll", captureAfterScrollSettles);
       window.removeEventListener("resize", onWindowResize);
       window.removeEventListener(FULLSCREEN_WILL_CHANGE_EVENT, captureBeforeFullscreen);
