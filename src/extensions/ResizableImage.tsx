@@ -1,9 +1,13 @@
+import { documentImages } from "../lib/image-library/document-images";
+import { requestImageView } from "../lib/image-library/viewer-request";
+import { workspacePanels } from "../lib/plugin-system/panel-registry";
+import { ToolbarIcon } from "../components/ToolbarIcon";
 /**
  * ResizableImage — TipTap 图片扩展，支持拖拽右下角调整大小
  * 双击恢复原始尺寸
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Node } from "@tiptap/core";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
@@ -25,6 +29,7 @@ declare module "@tiptap/core" {
 // ── React NodeView 组件 ──
 
 function ResizableImageView({ node, updateAttributes, selected, editor }: NodeViewProps) {
+  const imagePanels = useSyncExternalStore(workspacePanels.subscribe, workspacePanels.getSnapshot);
   const imgRef = useRef<HTMLImageElement>(null);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const dragStart = useRef<{ pointerId: number; x: number; w: number } | null>(null);
@@ -156,6 +161,7 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: NodeVi
         onPointerUp={onImagePointerUp}
         draggable={false}
       />
+      {imagePanels.length > 0 && <button type="button" contentEditable={false} className="btn-icon document-image-view-button" aria-label="查看图片" title="查看图片" onClick={event => {event.preventDefault();event.stopPropagation();requestImageView({src:String(node.attrs.src||""),name:String(node.attrs.alt||node.attrs.title||"文档图片")}, documentImages(editor.getJSON()));}}><ToolbarIcon name="image" /></button>}
       <span
         className="resize-handle"
         onPointerDown={onResizePointerDown}

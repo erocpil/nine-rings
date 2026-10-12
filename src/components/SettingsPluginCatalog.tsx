@@ -1,4 +1,10 @@
 import {
+  imageViewerEnabled,
+  saveImageViewerEnabled,
+  subscribeImageViewer,
+  imageViewerSnapshot,
+} from "../lib/plugin-system/builtin-image-viewer";
+import {
   useLayoutEffect,
   useRef,
   useState,
@@ -110,7 +116,11 @@ function PluginConfigurationDialog({
         <p className="settings-desc">
           内置 · {plugin.type} · {plugin.description}
         </p>
-        {plugin.configuration === "tree-display" ? (
+        {plugin.configuration === "image-viewer" ? (
+          <p className="settings-desc">
+            在左侧「图片」分栏选择目录；手机从文档树工具栏进入。目录授权仅保存在本机，不进入备份。浏览器能力不足时，文件选择仅在当前会话有效。预览旋转不修改原图，图片处理功能将在后续独立接入。
+          </p>
+        ) : plugin.configuration === "tree-display" ? (
           <SettingsTreeDisplay onMessage={showMessage} />
         ) : (
           <>
@@ -193,11 +203,13 @@ function PluginConfigurationDialog({
             权限：
             {active?.permissions.length
               ? active.permissions.join("、")
-              : plugin.configuration === "tree-display"
-                ? "无需文档读写权限"
-                : plugin.id !== "nine-rings.builtin-statistics"
-                  ? "当前选区读写、当前文档读取"
-                  : "当前文档读取"}
+              : plugin.configuration === "image-viewer"
+                ? "分栏展示、授权图片目录读取；插入文档另经编辑插件命令"
+                : plugin.configuration === "tree-display"
+                  ? "无需文档读写权限"
+                  : plugin.id !== "nine-rings.builtin-statistics"
+                    ? "当前选区读写、当前文档读取"
+                    : "当前文档读取"}
           </p>
         </Field>
       </div>
@@ -221,6 +233,7 @@ export function SettingsPluginCatalog() {
     treeDisplayPreferenceSnapshot,
   );
   useSyncExternalStore(subscribeDocumentTools, documentToolsSnapshot);
+  useSyncExternalStore(subscribeImageViewer, imageViewerSnapshot);
   const treeEnabled = readTreeDisplayPreference().enabled;
   return (
     <aside className="settings-plugin-catalog" aria-label="插件列表">
@@ -241,9 +254,11 @@ export function SettingsPluginCatalog() {
                 ? "image"
                 : "statistics";
           const enabled =
-            plugin.configuration === "tree-display"
-              ? treeEnabled
-              : documentToolEnabled(tool);
+            plugin.configuration === "image-viewer"
+              ? imageViewerEnabled()
+              : plugin.configuration === "tree-display"
+                ? treeEnabled
+                : documentToolEnabled(tool);
           const state = !enabled
             ? "已停用"
             : active
@@ -276,7 +291,9 @@ export function SettingsPluginCatalog() {
                   checked={enabled}
                   onChange={(event) => {
                     try {
-                      if (plugin.configuration === "tree-display")
+                      if (plugin.configuration === "image-viewer")
+                        saveImageViewerEnabled(event.target.checked);
+                      else if (plugin.configuration === "tree-display")
                         saveTreeDisplayPreference({
                           ...readTreeDisplayPreference(),
                           enabled: event.target.checked,

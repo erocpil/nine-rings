@@ -3,6 +3,13 @@ import { TREE_DISPLAY_PLUGIN_ID } from "./builtin-tree-display";
 /** Installed trusted modules, independent of whether an invocation is currently active. */
 export const BUILTIN_PLUGIN_CATALOG = Object.freeze([
   Object.freeze({
+    id: "nine-rings.builtin-image-viewer",
+    name: "图片查看",
+    type: "分栏 · 图片查看",
+    description: "浏览授权本机目录或文档内图片，支持适窗、缩放、平移、切换和预览旋转，原文件保持不变。",
+    configuration: "image-viewer" as const,
+  }),
+  Object.freeze({
     id: TREE_DISPLAY_PLUGIN_ID,
     name: "文档树展示",
     type: "分栏展示",

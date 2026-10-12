@@ -21,6 +21,7 @@ TAURI_TS = os.path.join(PROJECT_ROOT, "src", "lib", "storage", "tauri.ts")
 TAURI_DRIVER_TS = os.path.join(PROJECT_ROOT, "src", "lib", "storage", "tauri-driver.ts")
 NATIVE_SEARCH_TS = os.path.join(PROJECT_ROOT, "src", "lib", "storage", "native-search-rebuild.ts")
 TEMPLATE_TAURI_TS = os.path.join(PROJECT_ROOT, "src", "lib", "storage", "template-tauri.ts")
+IMAGE_LIBRARY_TS = os.path.join(PROJECT_ROOT, "src", "lib", "image-library", "directory-service.ts")
 LIB_RS = os.path.join(PROJECT_ROOT, "src-tauri", "src", "lib.rs")
 COMMANDS_DIR = os.path.join(PROJECT_ROOT, "src-tauri", "src", "commands")
 
@@ -89,6 +90,13 @@ def main():
     template_invokes = extract_invoke_commands(TEMPLATE_TAURI_TS)
     native_search_invokes = extract_invoke_commands(NATIVE_SEARCH_TS)
 
+    with open(IMAGE_LIBRARY_TS) as source:
+        image_source = source.read()
+    image_invokes = [
+        (match.group(1), image_source[:match.start()].count("\n") + 1, match.group(0))
+        for match in re.finditer(r'native(?:<[^;]*?>)?\("(image_library_[^"]+)"', image_source)
+    ]
+
     # 4.2 提取后端注册列表
     registered = extract_registered_commands(LIB_RS)
 
@@ -109,6 +117,11 @@ def main():
     for cmd, line, raw in native_search_invokes:
         if cmd not in registered:
             unregistered.append((cmd, line, "native-search-rebuild.ts", raw))
+
+    for cmd, line, raw in image_invokes:
+        if cmd not in registered:
+            unregistered.append((cmd, line, "directory-service.ts", raw))
+    print(f"图片目录调用: {len(image_invokes)}")
 
     print(f"搜索重建 invoke 调用: {len(native_search_invokes)}")
     print(f"\n前端 invoke 调用: {len(tauri_invokes)} (tauri.ts) + {len(driver_invokes)} (tauri-driver.ts)")

@@ -1,4 +1,10 @@
 import {
+  IMAGE_INSERT_EVENT,
+  type ViewedImage,
+} from "../lib/image-library/viewer-request";
+import { imageDirectoryService } from "../lib/image-library/directory-service";
+import { validateParameterValues } from "../lib/plugin-system/command-parameters";
+import {
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -249,6 +255,51 @@ export function BuiltinPluginTools({
       if (version === epoch.current) setBusy(false);
     }
   };
+  const imageRun = useRef(run);
+  imageRun.current = run;
+  useEffect(() => {
+    if (!active || !enabled || readonly || disabled) return;
+    const insert = (event: Event) => {
+      const image = (event as CustomEvent<ViewedImage>).detail;
+      if (!image || !documentToolEnabled("image")) return;
+      const values = validateParameterValues(IMAGE_FIELDS, {
+        alt: image.name || "图片",
+        title: "",
+        src: "/icon-192.svg",
+      });
+      if (image.rootId && image.nodeId) {
+        void imageRun.current("image", "date", async (signal) => {
+          const blob = await imageDirectoryService.read(
+            image.rootId!,
+            image.nodeId!,
+          );
+          const ref = await storePluginImage(
+            new File([blob], image.name, { type: blob.type }),
+            context.documentId!,
+            signal,
+          );
+          return imageCommandMarkdown(values, undefined, ref);
+        });
+      } else if (/^data:image\/(png|jpeg|gif|webp|avif|bmp);base64,/i.test(image.src)) {
+        void imageRun.current("image", "date", async (signal) => {
+          const blob = await (await fetch(image.src, { signal })).blob();
+          const ref = await storePluginImage(new File([blob], image.name, { type: blob.type }), context.documentId!, signal);
+          return imageCommandMarkdown(values, undefined, ref);
+        });
+      } else {
+        try {
+          const markdown = image.src.startsWith("nr-image://")
+            ? imageCommandMarkdown(values, undefined, image.src)
+            : imageCommandMarkdown({ ...values, src: image.src });
+          void imageRun.current("image", "date", markdown);
+        } catch (cause) {
+          setMessage(cause instanceof Error ? cause.message : "无法插入图片");
+        }
+      }
+    };
+    window.addEventListener(IMAGE_INSERT_EVENT, insert);
+    return () => window.removeEventListener(IMAGE_INSERT_EVENT, insert);
+  }, [active, enabled, readonly, disabled, context.documentId]);
   useLayoutEffect(() => {
     if (!active || (!busy && !showingResult)) return;
     const root = button.current?.closest<HTMLElement>(".note-editor");
@@ -305,6 +356,11 @@ export function BuiltinPluginTools({
         type="button"
         className="markdown-view-toggle"
         title="内置插件"
+        data-can-insert-image={
+          !readonly && !disabled && !busy && documentToolEnabled("image")
+            ? "true"
+            : undefined
+        }
         aria-label="内置插件"
         aria-haspopup="menu"
         aria-expanded={Boolean(trigger)}

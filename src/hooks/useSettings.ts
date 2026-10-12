@@ -3,6 +3,7 @@ import { applyInterfaceAppearance, resolveInterfaceConfig } from "../lib/interfa
  * useSettings — 配置加载与主题管理。
  */
 import { useState, useEffect, useRef, useMemo } from "react";
+import { startBuiltinImageViewer } from "../lib/plugin-system/builtin-image-viewer";
 import { startBuiltinTreeDisplay } from "../lib/plugin-system/builtin-tree-display";
 import { startPluginRuntime } from "../lib/plugin-system/runtime";
 import { api } from "../lib/api";
@@ -15,6 +16,7 @@ import { preserveReadingPositions } from "../lib/reading-position";
 export function useSettings() {
   useEffect(startPluginRuntime, []);
   useEffect(startBuiltinTreeDisplay, []);
+  useEffect(startBuiltinImageViewer, []);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const configRef = useRef<AppConfig | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);

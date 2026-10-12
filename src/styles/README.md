@@ -38,3 +38,5 @@ provide style-specific surfaces. `shared-reading-typography.css` follows them
 and supplies the common reading typography contract. Finally,
 `flow-presentation.css` and `flow-block.css` provide flow presentation and blocks.
 These are ordered layers, not duplicate stylesheets to concatenate or remove.
+
+`image-library.css` supplies the contributed image tree, document image viewer entry and themed modal viewer. It uses shared semantic tokens and keeps viewer content scrolling independent of fixed controls.

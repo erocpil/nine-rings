@@ -1203,3 +1203,9 @@ Chromium、WebKit 相关各 5 项通过；几何回归同时确认两个三角�
 插入图片表单增加宿主文件选择，支持不超过 10 MB 的 PNG/JPEG/GIF/WebP/AVIF/BMP；执行时复制字节、检查可解码性和保护状态后存入现有 images 存储。编辑目标在异步资源读取前捕获，仍由 SDK 验证代次并等待保存。备份同时转换真实图片节点和保留 Markdown 源码中的引用，字面量示例不触发缺图失败。共享文档/数据库 schema 不变。
 
 最终 Vitest 106 文件/1405 项、完整 npm test（含 schema 56 项）、typecheck、完整 lint、生产构建和 diff 检查通过。Chromium/WebKit 参数表单各 4 项通过，覆盖原有四种调用图片类型及两种编辑视图的本机图片取消、撤销、刷新与备份；重复调试运行不累加。WebKit 隐私上下文无法写入 IndexedDB Blob，沿用仓库 reader-test 的独立持久化 profile 验证真实存储。未执行全产品 E2E 或原生 Tauri 文件选择真机验证。图片树分栏仅完成设计建议，尚未实现。
+
+## 2026-10-12 图片分栏与目录服务
+
+可信内置图片查看首版完成。Chromium 图片/内置调用/参数表单/导航 19 项通过，另有插件列表 4 项通过；WebKit 图片/内置调用/插件列表 16 项及图片/参数表单 7 项通过。最终手机返回文档树补验两浏览器各 3 项通过。以上存在重复，不相加为全量覆盖；目录文件使用真实选择文件快照，不能替代原生系统目录授权测试。
+
+完整 Vitest 107 文件/1411 项通过，完整 npm test（含参数 schema 56 项）、typecheck、lint、format:check、生产构建、bundle-size 与 IPC 检查通过。Rust 图片路径、分页/排序及读取预算 2 项通过（并完成 macOS 原生编译）；未执行本次全产品 E2E、原生选择器 GUI、Windows/Linux 真机或大目录峰值内存验证。设备本地图片授权使用独立文件/IndexedDB，不改共享文档、SQL schema 或 GitHub 备份格式。

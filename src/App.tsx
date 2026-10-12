@@ -1,3 +1,7 @@
+import { workspacePanels } from "./lib/plugin-system/panel-registry";
+import { pluginRuntime } from "./lib/plugin-system/runtime";
+import { imageViewerEnabled } from "./lib/plugin-system/builtin-image-viewer";
+
 import { suspendPluginWork } from "./lib/plugin-system/runtime";
 import { DesktopRecoveryNotice } from "./components/DesktopRecoveryStatus";
 import { useQuitConfirmation } from "./hooks/useQuitConfirmation";
@@ -22,7 +26,7 @@ import { useWorkspaceSidebar } from "./hooks/useWorkspaceSidebar";
 import { useSidebarPresentation } from "./hooks/useSidebarPresentation";
 import { useSidebarHoverPreview } from "./hooks/useSidebarHoverPreview";
 import { useEditorStartup } from "./hooks/useEditorStartup";
-import { Suspense, lazy, useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent } from "react";
 import { useNoteSessionBoundary } from "./hooks/useNoteSessionBoundary";
 import { flushSync } from "react-dom";
 import { useNotes } from "./hooks/useNotes";
@@ -84,6 +88,8 @@ const PDF_DOC_TYPE_LABELS: Record<DocType, string> = {
   tutorial: "教程",
 };
 
+const ImageLibraryPanel = lazy(() => import("./components/ImageLibraryPanel").then(module => ({ default: module.ImageLibraryPanel })));
+const ImageViewerHost = lazy(() => import("./components/ImageViewerDialog").then(module => ({ default: module.ImageViewerHost })));
 const RecycleBin = lazy(() => import("./components/RecycleBin").then((module) => ({ default: module.RecycleBin })));
 const VersionHistory = lazy(() => import("./components/VersionHistory").then((module) => ({ default: module.VersionHistory })));
 const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((module) => ({ default: module.SettingsPanel })));
@@ -421,7 +427,14 @@ function App() {
 
   const notesPanelSession = useRef<NotesPanelSession>({});
   const [browserToolbarHost, setBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
+  const contributedPanels = useSyncExternalStore(workspacePanels.subscribe, workspacePanels.getSnapshot);
   const [desktopPanel, setDesktopPanel] = useState(() => readDesktopSidebarState().panel);
+  useEffect(() => {
+    if (desktopPanel === "images" && !contributedPanels.length && (!pluginRuntime.isEnabled() || !imageViewerEnabled())) {
+      setDesktopPanel("tree");
+      setSidebarHidden(true);
+    }
+  }, [contributedPanels, desktopPanel]);
   const [sidebarBrowserToolbarHost, setSidebarBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
   const [docTreeToolbarHost, setDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
   const [undo, setUndo] = useState<UndoState | null>(null);
@@ -1487,6 +1500,7 @@ function App() {
       {readingLibraryError && <div role="alert" className="reading-library-message">{readingLibraryError}</div>}
 
       <div className={`app-body${sidebarOnRight ? " workspace-sidebar-right" : ""}${readerFocus ? " app-reader-focus" : ""}${sidebarHoverEnabled ? " sidebar-hover-enabled" : ""}${sidebarOverlay ? " sidebar-presentation-overlay" : ""}`} style={sidebarHoverEnabled ? { "--sidebar-pane-width": `${sidebarWidth}px` } as React.CSSProperties : undefined}>
+        {contributedPanels.length > 0 && <Suspense fallback={null}><ImageViewerHost /></Suspense>}
         {sidebarWidthHint && <div className="sidebar-width-hint" role="status" aria-live="polite">{sidebarWidthHint}</div>}
         {!mobileDrawerViewport && <nav
           className={`desktop-activity-bar${workspaceHomeChromeHidden ? " desktop-activity-bar-home-hidden" : ""}`}
@@ -1499,9 +1513,9 @@ function App() {
         >
           {(error || autoSave.status === "error") && <button type="button" className="btn-icon workspace-error-indicator" aria-label="查看错误详情" title="查看错误详情" onClick={() => setErrorDetailsOpen(true)}><ToolbarIcon name="warning" /></button>}
           {((() => {
-            return normalizeSidebarOrder(localStorage.getItem('nr:sidebarOrder')?.split(',') ?? []).map((panel) => [panel,
+            return normalizeSidebarOrder(localStorage.getItem('nr:sidebarOrder')?.split(',') ?? [], contributedPanels.map(panel => panel.id)).map((panel) => [panel,
               sidebarPanelLabel(panel),
-              panel === 'tree' ? 'folder' : panel === 'list' ? 'bullet' : panel === 'notes' ? 'note' : 'document'] as const);
+              panel === 'tree' ? 'folder' : panel === 'list' ? 'bullet' : panel === 'notes' ? 'note' : panel === 'images' ? 'image' : 'document'] as const);
           })()).map(([panel, label, icon]) => <button key={panel} type="button" className="btn-icon"
             title={`${label}${sidebarHoverEnabled ? sidebarHover.pinned && !sidebarHidden && desktopPanel === panel ? "（已固定并排，点击收起）" : "（悬停预览，点击固定，方向键进入）" : ""}`} aria-label={label} aria-pressed={!sidebarHidden && desktopPanel === panel}
             data-sidebar-panel={panel} data-pinned={sidebarHoverEnabled && sidebarHover.pinned && !sidebarHidden && desktopPanel === panel || undefined}
@@ -1536,9 +1550,10 @@ function App() {
           aria-modal={mobileDrawerViewport && !mobileReaderOpen && !sidebarHidden || undefined}
           aria-hidden={(mobileDrawerViewport || sidebarOverlay) && sidebarHidden && !mobileReaderOpen || undefined}
           {...((mobileDrawerViewport || sidebarOverlay) && sidebarHidden && !mobileReaderOpen ? { inert: "" } : {})}>
-          <div className="desktop-panel-content" style={mobileDrawerViewport ? { display: desktopPanel === 'notes' ? 'none' : 'contents' } : undefined} hidden={desktopPanel === 'notes' || (!mobileDrawerViewport && desktopPanel !== 'tree')}>
+          <div className="desktop-panel-content" style={mobileDrawerViewport ? { display: desktopPanel === 'notes' || desktopPanel === 'images' ? 'none' : 'contents' } : undefined} hidden={desktopPanel === 'notes' || desktopPanel === 'images' || (!mobileDrawerViewport && desktopPanel !== 'tree')}>
           <WorkspacePanelHeading className="sidebar-tabs" title={mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : null}>
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
+            {mobileDrawerViewport && contributedPanels.length > 0 && <button type="button" className="btn-icon" aria-label="图片" title="图片" onClick={() => setDesktopPanel("images")}><ToolbarIcon name="image" /></button>}
             {mobileDrawerViewport && <button type="button" className="btn-icon" aria-label="随记" title="随记（Notes）" onClick={() => setDesktopPanel("notes")}><ToolbarIcon name="note" /></button>}
             {!desktopWorkspace && <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏" aria-label="隐藏侧栏">
               <ToolbarIcon name="chevronLeft" />
@@ -1596,6 +1611,7 @@ function App() {
             />
           )}
           </div>
+          {desktopPanel === 'images' && contributedPanels.some(panel => panel.renderer === "image-library") && <Suspense fallback={<p>正在加载图片分栏…</p>}><ImageLibraryPanel onClose={() => setSidebarHidden(true)} onBack={mobileDrawerViewport ? () => setDesktopPanel("tree") : undefined} /></Suspense>}
           {desktopPanel === 'notes' && <NotesPanel
             session={notesPanelSession.current}
             selectedNote={selectedNote}

@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { requestImageView } from "../lib/image-library/viewer-request";
+import { workspacePanels } from "../lib/plugin-system/panel-registry";
+import { ToolbarIcon } from "./ToolbarIcon";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { getImageUrl } from "../lib/storage/db-images";
 import { useNearViewport } from "../hooks/useNearViewport";
 import { readonlyImageSource } from "../lib/readonly-image-source";
@@ -14,6 +17,7 @@ export function ReadonlyImage({
   title?: string;
   width?: string | null;
 }) {
+  const imagePanels = useSyncExternalStore(workspacePanels.subscribe, workspacePanels.getSnapshot);
   const host = useRef<HTMLSpanElement>(null);
   const near = useNearViewport(host);
   const [resolved, setResolved] = useState("");
@@ -43,7 +47,7 @@ export function ReadonlyImage({
     };
   }, [src, near]);
   return (
-    <span ref={host}>
+    <span ref={host} className="document-image-view-host">
       {resolved ? (
         <img
           src={resolved}
@@ -56,6 +60,7 @@ export function ReadonlyImage({
       ) : (
         <span>{alt || "图片"}</span>
       )}
+      {resolved && imagePanels.length > 0 && <button type="button" className="btn-icon document-image-view-button" aria-label="查看图片" title="查看图片" onClick={event => {event.preventDefault();event.stopPropagation();requestImageView({src,name:alt||title||"文档图片"});}}><ToolbarIcon name="image" /></button>}
     </span>
   );
 }

@@ -1,3 +1,5 @@
+import { IMAGE_VIEW_EVENT } from "../lib/image-library/viewer-request";
+import { documentImages } from "../lib/image-library/document-images";
 import { renderedEditAdapter, sourceEditAdapter } from "../lib/plugin-system/editor-adapters";
 import { BuiltinPluginTools } from "./BuiltinPluginTools";
 import { runtimeKind } from "../lib/runtime";
@@ -191,6 +193,17 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     viewPosition.onRenderedReady(editor);
     props.documentSessions?.bind(props.noteId, hostOwner.current, "rendered", editor ? renderedEditAdapter(editor, () => Boolean(latestProps.current.readonly)) : null);
   };
+  useEffect(() => {
+    if (!active) return;
+    const enrich = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail?.image || detail.image.rootId || detail.images?.length > 1) return;
+      const images = documentImages(renderedHost.current && !renderedHost.current.isDestroyed ? renderedHost.current.getJSON() : latestReader.current?.() ?? latestProps.current.content);
+      if (images.length) detail.images = images;
+    };
+    window.addEventListener(IMAGE_VIEW_EVENT, enrich, true);
+    return () => window.removeEventListener(IMAGE_VIEW_EVENT, enrich, true);
+  }, [active]);
   if (!supported) return render({ ...props, onHostSelection: hostSelection, onHostEditorReady: hostRenderedReady });
   const toggle = <><button type="button" className="markdown-view-toggle" disabled={busy}
     title={source === null ? "切换到 Markdown 源码" : "切换到渲染视图"}

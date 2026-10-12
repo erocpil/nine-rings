@@ -177,7 +177,7 @@ test("统计持续显示，Esc 关闭后释放订阅", async ({ page }) => {
       page.evaluate(async () => {
         const { pluginRuntime } =
           await import("/src/lib/plugin-system/runtime.ts");
-        return pluginRuntime.getStatus().activations.length;
+        return pluginRuntime.getStatus().activations.filter(item => item.pluginId === "nine-rings.builtin-statistics").length;
       }),
     )
     .toBe(0);

@@ -579,6 +579,7 @@ pub fn run() {
             startup_log!("config loaded (theme: {})", user_config.theme);
             app.manage(Mutex::new(user_config));
             app.manage(DataDir(app_dir.clone()));
+            app.manage(commands::image_library::ImageLibrary::load(&app_dir));
             startup_log!("state managed (config)");
 
             app.manage(AppState {
@@ -732,6 +733,11 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::image_library::image_library_choose,
+            commands::image_library::image_library_roots,
+            commands::image_library::image_library_remove,
+            commands::image_library::image_library_list,
+            commands::image_library::image_library_read,
             commands::window::quit_application,
             commands::window::get_desktop_recovery_status,
             commands::window::set_window_fullscreen,

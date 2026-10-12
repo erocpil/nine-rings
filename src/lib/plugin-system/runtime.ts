@@ -22,7 +22,7 @@ export class PluginHostError extends Error {
   }
 }
 export type PluginPermission =
-  "editor.selection.read" | "editor.selection.write" | "documents.current.read";
+  "editor.selection.read" | "editor.selection.write" | "documents.current.read" | "panels.present" | "filesystem.images.read";
 export interface PluginActivation {
   readonly pluginId: string;
   readonly generation: string;
@@ -128,6 +128,8 @@ export class PluginRuntime {
       "editor.selection.read",
       "editor.selection.write",
       "documents.current.read",
+      "panels.present",
+      "filesystem.images.read",
     ]);
     if (permissions.some((permission) => !allowed.has(permission)))
       throw new PluginHostError("PERMISSION_DENIED", "插件能力尚未开放");

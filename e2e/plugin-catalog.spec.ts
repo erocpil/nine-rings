@@ -23,7 +23,7 @@ for (const width of [390, 1280]) {
       exact: true,
     });
     await global.check();
-    await expect(list.getByRole("listitem")).toHaveCount(4);
+    await expect(list.getByRole("listitem")).toHaveCount(5);
     await expect(list).toContainText("分栏展示");
     await expect(list).toContainText("编辑命令");
     await expect(list).toContainText("文档统计");
@@ -175,7 +175,7 @@ test("列表停用统计立即关闭结果，独立开关跨刷新保留并禁�
     .getByRole("checkbox", { name: "启用实时文档统计", exact: true })
     .uncheck();
   await expect(result).toHaveCount(0);
-  await expect(status).toContainText("0 个活动插件");
+  await expect(status).not.toContainText("nine-rings.builtin-statistics");
   await page
     .getByRole("checkbox", { name: "启用插入日期", exact: true })
     .uncheck();
