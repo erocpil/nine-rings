@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 
 test("包含段落和代码块的松散有序列表保持连续编号", async ({ page }) => {
   await page.goto("/");
-  await page.getByTitle("新建文档").click();
+  await page.getByRole("button", { name: "新建文档", exact: true }).click();
   await page.getByPlaceholder("文档标题...").fill("有序列表编号测试");
   await page.getByRole("button", { name: "创建", exact: true }).click();
 

@@ -31,7 +31,7 @@ test("属性页可预览、版本化更新并解除外部 Markdown 来源", asyn
   await expect(editor).toHaveAttribute("contenteditable", "true");
   await editor.fill("更新前的本地正文");
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
-  await page.getByTitle("显示属性面板").click();
+  await page.getByRole("button", { name: "显示属性面板", exact: true }).click();
 
   const properties = page.locator(".properties-panel");
   const sourceInput = properties.getByLabel("外部 Markdown URL");
@@ -73,7 +73,7 @@ test("属性页可预览、版本化更新并解除外部 Markdown 来源", asyn
 
   await page.reload();
   await expect(editor.locator("h1")).toHaveText("Remote README");
-  await page.getByTitle("显示属性面板").click();
+  await page.getByRole("button", { name: "显示属性面板", exact: true }).click();
   await expect(properties.locator(".prop-source-status")).toContainText("GitHub");
   await properties.getByRole("button", { name: "获取并预览" }).click();
   await expect(properties.locator(".prop-source-message")).toContainText("远端内容与上次同步一致");
@@ -82,7 +82,7 @@ test("属性页可预览、版本化更新并解除外部 Markdown 来源", asyn
   await page.getByTitle("关闭属性面板").click();
   await editor.fill("同步后的本地修改");
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
-  await page.getByTitle("显示属性面板").click();
+  await page.getByRole("button", { name: "显示属性面板", exact: true }).click();
   await properties.getByRole("button", { name: "获取并预览" }).click();
   await expect(properties.locator(".prop-source-warning")).toContainText("本地正文在上次同步后已修改");
   await expect(properties.getByRole("button", { name: "恢复远端内容" })).toBeVisible();

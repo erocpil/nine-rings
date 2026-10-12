@@ -25,9 +25,9 @@ for (const viewport of [
         }, theme);
         if (viewport.width === 390) {
           await openMobileDocumentPopup(page);
-          await page.locator(".doc-tree-popup-overlay").getByTitle("新建文档").click();
+          await page.locator(".doc-tree-popup-overlay").getByRole("button", { name: "新建文档", exact: true }).click();
         } else {
-          await page.getByTitle("新建文档").click();
+          await page.getByRole("button", { name: "新建文档", exact: true }).click();
         }
         const dialog = page.getByRole("dialog", {
           name: "新建文档",

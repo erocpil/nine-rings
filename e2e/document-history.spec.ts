@@ -38,7 +38,7 @@ async function history(page: Page) {
   });
 }
 async function newDocument(page: Page, title: string) {
-  await page.getByTitle("新建文档").click();
+  await page.getByRole("button", { name: "新建文档", exact: true }).click();
   await page.getByPlaceholder("文档标题...").fill(title);
   await page.getByRole("button", { name: "创建", exact: true }).click();
   await expect(page.locator(".note-title")).toHaveValue(title);

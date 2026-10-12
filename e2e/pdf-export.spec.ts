@@ -97,10 +97,10 @@ test("PDF 六级标题字号完整，H3 流程步骤与 H4 分支保持层级", 
 
 test("PDF 打印视图用语义标题生成侧栏书签且不在正文插入目录", async ({ page, browserName }) => {
   await page.goto("/");
-  await page.getByTitle("新建文档").click();
+  await page.getByRole("button", { name: "新建文档", exact: true }).click();
   await page.getByPlaceholder("文档标题...").fill("书签大纲导出测试");
   await page.getByRole("button", { name: "创建", exact: true }).click();
-  await page.getByTitle("显示属性面板").click();
+  await page.getByRole("button", { name: "显示属性面板", exact: true }).click();
 
   const editor = page.locator(".ProseMirror");
   await editor.fill("导出标题");

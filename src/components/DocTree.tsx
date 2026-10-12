@@ -831,6 +831,7 @@ function DocTree({
           className={`btn-icon doc-tree-batch-btn ${propertiesAutoShow ? "" : "doc-tree-btn-off"}`}
           onClick={onTogglePropertiesAuto}
           title={propertiesAutoShow ? "隐藏属性面板" : "显示属性面板"}
+          aria-label={propertiesAutoShow ? "隐藏属性面板" : "显示属性面板"}
           aria-pressed={propertiesAutoShow}
           disabled={(!selectedDocument && !selectedFolder) || !onTogglePropertiesAuto}
         >

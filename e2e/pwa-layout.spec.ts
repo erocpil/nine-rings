@@ -2329,7 +2329,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await openMobileDocumentPopup(page);
     const popup = page.locator(".doc-tree-popup-overlay");
     await expect(popup).toBeVisible();
-    await popup.getByTitle("新建文档").click();
+    await popup.getByRole("button", { name: "新建文档", exact: true }).click();
 
     await expect(popup).toHaveCount(0);
     const dialog = page.locator(".doc-create-dialog");
@@ -2345,7 +2345,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(page.locator(".note-editor")).toBeVisible();
     await openMobileDocumentPopup(page);
     const popup = page.locator(".doc-tree-popup-overlay");
-    await popup.getByTitle("新建文档").click();
+    await popup.getByRole("button", { name: "新建文档", exact: true }).click();
 
     const dialog = page.locator(".doc-create-dialog");
     const body = dialog.locator(".dialog-body");
@@ -2377,7 +2377,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await page.goto("/");
     await expect(page.locator(".note-editor")).toBeVisible();
     await openMobileDocumentPopup(page);
-    await page.locator(".doc-tree-popup-overlay").getByTitle("新建文档").click();
+    await page.locator(".doc-tree-popup-overlay").getByRole("button", { name: "新建文档", exact: true }).click();
 
     const overlay = page.locator(".doc-create-overlay");
     const dialog = page.locator(".doc-create-dialog");
@@ -2798,11 +2798,11 @@ test("横屏手机保持单行工具栏且正文可滚动", async ({ page }) => 
 test("属性面板在窄屏中覆盖显示而不挤压正文", async ({ page }) => {
   await page.setViewportSize({ width: 1020, height: 640 });
   await page.goto("/");
-  await page.getByTitle("新建文档").click();
+  await page.getByRole("button", { name: "新建文档", exact: true }).click();
   await page.getByPlaceholder("文档标题...").fill("移动属性面板测试");
   await page.getByRole("button", { name: "创建", exact: true }).click();
   await expect(page.locator(".properties-panel")).toHaveCount(0);
-  await page.getByTitle("显示属性面板").click();
+  await page.getByRole("button", { name: "显示属性面板", exact: true }).click();
   await expect(page.locator(".properties-panel")).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 760 });

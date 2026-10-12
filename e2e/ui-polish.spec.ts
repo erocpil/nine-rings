@@ -17,7 +17,7 @@ test("新建表单校验路径，添加标签不提交，创建失败可重试",
       return create(...args);
     };
   });
-  await page.getByTitle("新建文档").click();
+  await page.getByRole("button", { name: "新建文档", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "新建文档", exact: true });
   await dialog.getByPlaceholder("文档标题...").fill("表单优化验证");
   await dialog.getByPlaceholder("输入概念名后按 Enter 添加...").fill("交互");

@@ -80,7 +80,7 @@ export async function openMobileDocumentPopup(page: Page) {
 }
 
 export async function addDocumentTag(page: Page, tag: string) {
-  await page.getByTitle("显示属性面板").click();
+  await page.getByRole("button", { name: "显示属性面板", exact: true }).click();
   const input = page.getByRole("textbox", {
     name: "添加文档标签",
     exact: true,
@@ -88,5 +88,5 @@ export async function addDocumentTag(page: Page, tag: string) {
   await input.fill(tag);
   await input.press("Enter");
   await expect(page.locator(".tag-bar")).toContainText(tag);
-  await page.getByTitle("隐藏属性面板").click();
+  await page.getByRole("button", { name: "隐藏属性面板", exact: true }).click();
 }

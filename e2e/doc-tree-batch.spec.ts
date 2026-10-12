@@ -27,7 +27,7 @@ async function openDocumentView(page: Page) {
 }
 
 async function createDocument(page: Page, title: string, path: string) {
-  await page.getByTitle("新建文档").click();
+  await page.getByRole("button", { name: "新建文档", exact: true }).click();
   await page.getByPlaceholder("文档标题...").fill(title);
   await page.getByPlaceholder("子路径 (如 nine-rings)").fill(path);
   await page.getByRole("button", { name: "创建", exact: true }).click();

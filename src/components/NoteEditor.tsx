@@ -576,6 +576,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   const [outlineCollapsedHeadingKeys, setOutlineCollapsedHeadingKeys] = useState<Set<string>>(
     () => new Set(),
   );
+  const outlineFoldIntentRef = useRef(0);
+  const pendingOutlineFoldSyncRef = useRef<{ keys: string[]; intent: number } | null>(null);
   const [headingFoldRevision, setHeadingFoldRevision] = useState(0);
   const headingFoldRenderFrameRef = useRef<number | null>(null);
   const headingFoldViewportFrameRef = useRef<number | null>(null);
@@ -1014,9 +1016,15 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         initialCollapsedKeys: sensitive ? [] : sessionHeadingFoldStore.load(noteId)?.collapsedKeys ?? [],
         onChange: (collapsedKeys) => {
           if (!sensitive) sessionHeadingFoldStore.save(noteId, { version: 1, collapsedKeys });
+          pendingOutlineFoldSyncRef.current = { keys: collapsedKeys, intent: outlineFoldIntentRef.current };
           if (headingFoldRenderFrameRef.current === null) {
             headingFoldRenderFrameRef.current = window.requestAnimationFrame(() => {
               headingFoldRenderFrameRef.current = null;
+              // A later directory-only action takes precedence over this
+              // coalesced notification from an earlier body fold.
+              const sync = pendingOutlineFoldSyncRef.current;
+              pendingOutlineFoldSyncRef.current = null;
+              if (sync?.intent === outlineFoldIntentRef.current) setOutlineCollapsedHeadingKeys(new Set(sync.keys));
               setHeadingFoldRevision((revision) => revision + 1);
             });
           }
@@ -2825,7 +2833,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
     setOutlineCollapsedHeadingKeys(new Set(getCollapsedHeadingKeys(editor)));
-  }, [editor, headingFoldRevision]);
+  }, [editor]);
   const toggleEditorHeadingFromGutter = useCallback((position: number) => {
     if (!editor || editor.isDestroyed) return;
     cancelReadonlyHeadingAnchor();
@@ -2928,6 +2936,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   }, [editor, noteId, cancelReadonlyHeadingAnchor]);
 
   const setAllOutlineFolds = useCallback((folded: boolean) => {
+    outlineFoldIntentRef.current += 1;
     const currentSections = editor && !editor.isDestroyed
       ? extractHeadingSections(editor.state.doc)
       : headingSections;
@@ -3050,6 +3059,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     const section = extractHeadingSections(editor.state.doc)
       .find((candidate) => candidate.pos === position);
     if (!section || section.end <= section.headingEnd) return;
+    outlineFoldIntentRef.current += 1;
     toggleEditorHeadingFromGutter(position);
     setOutlineCollapsedHeadingKeys((current) => {
       const next = new Set(current);

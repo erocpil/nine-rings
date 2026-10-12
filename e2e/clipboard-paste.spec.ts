@@ -157,7 +157,7 @@ test.describe("编辑器复制粘贴", () => {
         await expect(editor).toHaveAttribute("contenteditable", "false");
       } else {
         const previous = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
-        await page.getByTitle("新建文档").click();
+        await page.getByRole("button", { name: "新建文档", exact: true }).click();
         await page.getByPlaceholder("文档标题...").fill("异步粘贴的新文档");
         await page.getByRole("button", { name: "创建", exact: true }).click();
         await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:lastNote"))).not.toBe(previous);
@@ -919,7 +919,7 @@ test.describe("文档树移动", () => {
   test("可新建自定义多级目录", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
-    await page.getByTitle("新建文档").click();
+    await page.getByRole("button", { name: "新建文档", exact: true }).click();
 
     await page.getByPlaceholder("文档标题...").fill("自定义目录文档");
     await page.locator("select.dialog-select").selectOption("__custom_root__");
@@ -933,7 +933,7 @@ test.describe("文档树移动", () => {
   test("目录与属性面板共用移动对话框，重载后路径仍正确", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
-    await page.getByTitle("新建文档").click();
+    await page.getByRole("button", { name: "新建文档", exact: true }).click();
 
     await page.getByPlaceholder("文档标题...").fill("移动回归文档");
     await page.locator("select.dialog-select").selectOption("references");
@@ -941,7 +941,7 @@ test.describe("文档树移动", () => {
     await expect(page.locator(".dialog-path-preview code")).toHaveText("references/move-e2e");
     await page.getByRole("button", { name: "创建" }).click();
     await expect(page.locator(".properties-panel")).toHaveCount(0);
-    await page.getByTitle("显示属性面板").click();
+    await page.getByRole("button", { name: "显示属性面板", exact: true }).click();
     await expect(page.locator(".properties-panel")).toBeVisible();
 
     const sourceFolder = page.locator(".doc-tree-folder").filter({ hasText: "move-e2e" });

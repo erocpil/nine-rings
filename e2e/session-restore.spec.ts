@@ -6,7 +6,7 @@ async function createDocument(page: Page, title: string, root?: string) {
   await page.goto("/");
   await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
   const previousNoteId = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
-  await page.getByTitle("新建文档").click();
+  await page.getByRole("button", { name: "新建文档", exact: true }).click();
   await page.getByPlaceholder("文档标题...").fill(title);
   if (root) await page.getByRole("combobox", { name: "顶级目录", exact: true }).selectOption(root);
   await page.getByRole("button", { name: "创建", exact: true }).click();
@@ -24,7 +24,7 @@ test.describe("移动端视图切换", () => {
     // 先用桌面宽度创建嵌套文档，再模拟手机安装版冷启动时侧栏默认隐藏。
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/");
-    await page.getByTitle("新建文档").click();
+    await page.getByRole("button", { name: "新建文档", exact: true }).click();
     await page.getByPlaceholder("文档标题...").fill("手机启动恢复文档");
     await page.getByRole("combobox", { name: "顶级目录", exact: true }).selectOption("references");
     await page.getByPlaceholder("子路径 (如 nine-rings)").fill("mobile-startup/deep");

@@ -64,10 +64,10 @@ test.describe("正文右键菜单：作用范围", () => {
 
   test("右键标签输入框不弹出自定义菜单", async ({ page }) => {
     await createBlankNote(page);
-    await page.getByTitle("显示属性面板").click();
+    await page.getByRole("button", { name: "显示属性面板", exact: true }).click();
     await page.getByRole("textbox", { name: "添加文档标签" }).fill("右键标签");
     await page.getByRole("textbox", { name: "添加文档标签" }).press("Enter");
-    await page.getByTitle("隐藏属性面板").click();
+    await page.getByRole("button", { name: "隐藏属性面板", exact: true }).click();
     await page.locator(".tag-input").click({ button: "right" });
     await expect(menu(page)).toHaveCount(0);
   });

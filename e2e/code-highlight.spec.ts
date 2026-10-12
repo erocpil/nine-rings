@@ -3,10 +3,10 @@ import { expect, test } from "@playwright/test";
 
 test("常用代码语言增量高亮并同步到 PDF 打印视图", async ({ page }) => {
   await page.goto("/");
-  await page.getByTitle("新建文档").click();
+  await page.getByRole("button", { name: "新建文档", exact: true }).click();
   await page.getByPlaceholder("文档标题...").fill("代码高亮 PDF");
   await page.getByRole("button", { name: "创建", exact: true }).click();
-  await page.getByTitle("显示属性面板").click();
+  await page.getByRole("button", { name: "显示属性面板", exact: true }).click();
 
   const markdown = "```ts\nconst answer: number = 42;\n```";
   const editor = page.locator(".ProseMirror");
