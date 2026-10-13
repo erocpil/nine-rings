@@ -1,3 +1,5 @@
+import { bookmarkTooltip } from "../lib/panel-display-view";
+import type { PanelDisplayContribution } from "../lib/plugin-system/panel-display";
 import { useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { DocumentBookmark } from "../types/models";
@@ -8,6 +10,7 @@ const SWIPE_DECISION_DISTANCE = 10;
 
 interface Props {
   bookmark: DocumentBookmark;
+  display?: PanelDisplayContribution | null;
   blockNumber: number;
   current: boolean;
   mobile: boolean;
@@ -29,6 +32,7 @@ interface SwipeGesture {
 
 export function DocumentBookmarkRow({
   bookmark,
+  display = null,
   blockNumber,
   current,
   mobile,
@@ -98,6 +102,7 @@ export function DocumentBookmarkRow({
 
   return (
     <div
+      data-bookmark-id={bookmark.id}
       className={`document-bookmark-item${current ? " is-current" : ""}${open ? " swipe-open" : ""}${dragOffset !== null ? " swiping" : ""}`}
       style={{ "--bookmark-swipe-offset": `${offset}px` } as CSSProperties}
       onPointerDown={handlePointerDown}
@@ -117,11 +122,11 @@ export function DocumentBookmarkRow({
           }
           onJump();
         }}
-        title={bookmark.label ? `${bookmark.label}\n${bookmark.preview}` : bookmark.preview}
+        title={bookmarkTooltip(bookmark, display)}
       >
-        <span className="document-bookmark-index" title={`第 ${blockNumber} 块${current ? "（当前书签）" : ""}`}>
+        {display?.showMetadata !== false && <span className="document-bookmark-index" title={`第 ${blockNumber} 块${current ? "（当前书签）" : ""}`}>
           {blockNumber}
-        </span>
+        </span>}
         <span>{label}</span>
       </button>
       <span className="document-bookmark-actions">

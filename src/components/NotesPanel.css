@@ -25,3 +25,11 @@
 .notes-panel-open span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notes-panel .btn-icon { flex-shrink: 0; width: 28px; height: 32px; }
 .notes-panel-empty { color: var(--text-secondary); padding: 12px 8px; line-height: 1.7; }
+.notes-panel[data-panel-display="plugin"] :is(.notes-group-toggle, .notes-panel-open) { font-family: var(--list-display-font); font-size: var(--list-display-font-size); }
+.notes-panel[data-panel-display="plugin"] :is(.notes-group-heading, .notes-panel-row) { min-height: var(--list-display-row-height); }
+.notes-panel[data-panel-display="plugin"] .notes-panel-open { color: var(--list-display-color); }
+.notes-panel[data-panel-display="plugin"] .is-selected .notes-panel-open { color: var(--accent); }
+.notes-panel-date { flex-shrink: 0; font: 10px/1.35 var(--font-mono); color: var(--text-secondary); }
+@media (max-width: 768px), (pointer: coarse) {
+  .notes-panel[data-panel-display="plugin"] :is(.notes-group-heading, .notes-panel-row) { min-height: max(36px, var(--list-display-row-height)); }
+}

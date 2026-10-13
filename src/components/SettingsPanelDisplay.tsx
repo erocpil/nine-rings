@@ -1,7 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Field, SettingsSection } from "./SettingsFields";
-import { treeDisplay } from "../lib/plugin-system/builtin-tree-display";
-import { outlineDisplay } from "../lib/plugin-system/builtin-outline-display";
+import { panelPresenter } from "../lib/plugin-system/builtin-panel-presenters";
 import type { PanelDisplayContribution } from "../lib/plugin-system/panel-display";
 
 function DisplayNumber({
@@ -40,13 +39,16 @@ function DisplayNumber({
 
 export function SettingsPanelDisplay({
   onMessage,
-  outline = false,
+  configuration = "tree-display",
 }: {
   onMessage: (message: string) => void;
-  outline?: boolean;
+  configuration?: string;
 }) {
-  const controller = outline ? outlineDisplay : treeDisplay;
-  const name = outline ? "目录" : "文档树";
+  const controller = panelPresenter(configuration)!;
+  const outline = configuration === "outline-display";
+  const bookmark = configuration === "bookmark-display";
+  const notes = configuration === "notes-display";
+  const name = outline ? "目录" : bookmark ? "书签" : notes ? "随记" : "文档树";
   useSyncExternalStore(controller.subscribe, controller.snapshot);
   const preference = controller.read();
   const save = (enabled: boolean, display = preference.display) => {
@@ -101,11 +103,15 @@ export function SettingsPanelDisplay({
           px
         </Field>
         <Field
-          label={outline ? "标题颜色" : "文档名称颜色"}
+          label={
+            outline ? "标题颜色" : bookmark ? "书签名称颜色" : "文档名称颜色"
+          }
           desc="使用当前浅色或深色主题的语义配色；层次配色及当前标题高亮优先。"
         >
           <select
-            aria-label={outline ? "标题颜色" : "文档名称颜色"}
+            aria-label={
+              outline ? "标题颜色" : bookmark ? "书签名称颜色" : "文档名称颜色"
+            }
             value={preference.display.labelColor}
             onChange={(event) =>
               update({
@@ -130,7 +136,9 @@ export function SettingsPanelDisplay({
               })
             }
           >
-            <option value="path">{outline ? "章节路径" : "完整路径"}</option>
+            <option value="path">
+              {outline ? "章节路径" : bookmark ? "名称与正文预览" : "完整路径"}
+            </option>
             <option value="name">名称</option>
           </select>
         </Field>
@@ -141,7 +149,13 @@ export function SettingsPanelDisplay({
               checked={preference.display.showCounts}
               onChange={(event) => update({ showCounts: event.target.checked })}
             />
-            {outline ? "目录标题数" : "路径文档数"}
+            {outline
+              ? "目录标题数"
+              : bookmark
+                ? "书签数"
+                : notes
+                  ? "分组文档数"
+                  : "路径文档数"}
           </label>
           <label>
             <input
@@ -151,9 +165,40 @@ export function SettingsPanelDisplay({
                 update({ showMetadata: event.target.checked })
               }
             />
-            {outline ? "标题级别（H1～H6）" : "文档类型"}
+            {outline
+              ? "标题级别（H1～H6）"
+              : bookmark
+                ? "对应块号"
+                : notes
+                  ? "最近修改日期"
+                  : "文档类型"}
           </label>
         </Field>
+        {(bookmark || notes) && (
+          <Field
+            label="展示排序"
+            desc="只改变列表顺序，不改写书签锚点、随记分组或文档属性。"
+          >
+            <select
+              aria-label={`${name}展示排序`}
+              value={preference.display.order ?? "host"}
+              onChange={(event) =>
+                update({
+                  order: event.target
+                    .value as PanelDisplayContribution["order"],
+                })
+              }
+            >
+              <option value="host">
+                {bookmark ? "正文位置" : "默认（最近修改）"}
+              </option>
+              <option value="name">名称</option>
+              <option value="recent">
+                {bookmark ? "最近创建" : "最近修改"}
+              </option>
+            </select>
+          </Field>
+        )}
         <Field label="扩展工具栏" desc="">
           <label>
             <input
@@ -167,7 +212,13 @@ export function SettingsPanelDisplay({
                 })
               }
             />
-            {outline ? "定位当前标题" : "展开所有目录、刷新文档树"}
+            {outline
+              ? "定位当前标题"
+              : bookmark
+                ? "定位当前书签"
+                : notes
+                  ? "展开所有分组、刷新随记"
+                  : "展开所有目录、刷新文档树"}
           </label>
         </Field>
         <button

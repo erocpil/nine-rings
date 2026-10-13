@@ -401,3 +401,21 @@
 
 .vr-outline-row[data-panel-display="plugin"] > button { font: inherit; color: inherit; }
 @media (max-width: 768px), (pointer: coarse) { .vr-outline-row[data-panel-display="plugin"] { min-height: 36px; } }
+
+.document-bookmark-list[data-panel-display="plugin"], .notes-panel[data-panel-display="plugin"] {
+  --list-display-font: inherit;
+  --list-display-font-size: 13px;
+  --list-display-row-height: 32px;
+  --list-display-color: var(--text);
+}
+.app .document-bookmark-list[data-panel-display="plugin"] .document-bookmark-item,
+.app .document-bookmark-list[data-panel-display="plugin"] .vr-bookmark {
+  height: auto; min-height: var(--list-display-row-height);
+}
+.app .document-bookmark-list[data-panel-display="plugin"] :is(.document-bookmark-jump, .vr-bookmark) {
+  font-family: var(--list-display-font); font-size: var(--list-display-font-size); color: var(--list-display-color);
+}
+.app .document-bookmark-list[data-panel-display="plugin"] .is-current .document-bookmark-jump { color: var(--accent); }
+@media (max-width: 768px), (pointer: coarse) {
+  .app .document-bookmark-list[data-panel-display="plugin"] :is(.document-bookmark-item, .vr-bookmark) { min-height: max(36px, var(--list-display-row-height)); }
+}

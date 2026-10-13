@@ -1,3 +1,5 @@
+import { bookmarkDisplay } from "../lib/plugin-system/builtin-bookmark-display";
+import { notesDisplay } from "../lib/plugin-system/builtin-notes-display";
 import { applyInterfaceAppearance, resolveInterfaceConfig } from "../lib/interface-style";
 /**
  * useSettings — 配置加载与主题管理。
@@ -18,6 +20,8 @@ export function useSettings() {
   useEffect(startPluginRuntime, []);
   useEffect(startBuiltinTreeDisplay, []);
   useEffect(() => outlineDisplay.start(), []);
+  useEffect(() => bookmarkDisplay.start(), []);
+  useEffect(() => notesDisplay.start(), []);
   useEffect(startBuiltinImageViewer, []);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const configRef = useRef<AppConfig | null>(null);

@@ -1,3 +1,5 @@
+import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
+import { panelDisplayStyle, bookmarkTooltip, sortedBookmarks } from "../lib/panel-display-view";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import { panelDisplays } from "../lib/plugin-system/panel-display";
 import { BlockNumber } from "./BlockNumber";
@@ -343,6 +345,8 @@ export function ReadonlyVirtualNote(
   } = props;
   const active = useDocumentActive();
   const outlineDisplayConfig = usePanelDisplay("document-outline");
+  const bookmarkDisplayConfig = usePanelDisplay("bookmarks");
+  const bookmarkDisplayListRef = useRef<HTMLDivElement>(null);
   const documentHover = useDocumentHoverPreview(() => doc);
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -1180,12 +1184,16 @@ export function ReadonlyVirtualNote(
             {kind === "bookmarks" && (
               <>
                 <h3>书签</h3>
+                {bookmarkDisplayConfig?.showCounts && <span>{bookmarks.length} 项</span>}
+                <PanelDisplayTools target="bookmarks" disabled={!bookmarks.length} handlers={{ "bookmarks.reveal-current": () => { const position = capture().position; const nearest = bookmarks.reduce<(typeof bookmarks)[number] | undefined>((current, item) => !current || Math.abs(item.position - position) < Math.abs(current.position - position) ? item : current, undefined); revealPanelItem(bookmarkDisplayListRef.current, nearest?.id); } }} />
                 {bookmarks.length === 0 && <p>暂无书签</p>}
-                {bookmarks.map((bookmark) => (
+                <div className="document-bookmark-list" ref={bookmarkDisplayListRef} data-panel-display={bookmarkDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(bookmarkDisplayConfig) as React.CSSProperties}>
+                {sortedBookmarks(bookmarks, bookmarkDisplayConfig).map((bookmark) => (
                   <button
                     type="button"
                     className="vr-bookmark"
-                    title={bookmark.label ? `${bookmark.label}\n${bookmark.preview}` : bookmark.preview}
+                    data-bookmark-id={bookmark.id}
+                    title={bookmarkTooltip(bookmark, bookmarkDisplayConfig)}
                     data-drawer-swipe-item
                     key={bookmark.id}
                     onClick={() => {
@@ -1193,9 +1201,11 @@ export function ReadonlyVirtualNote(
                       setPanel(null); dismissPreview();
                     }}
                   >
+                    {bookmarkDisplayConfig?.showMetadata && <span className="document-bookmark-index">{doc.resolve(Math.min(doc.content.size, Math.max(0, bookmark.position))).index(0) + 1}</span>}
                     {bookmark.label || bookmark.preview || "书签"}
                   </button>
                 ))}
+                </div>
                 <button type="button" onClick={fallback}>
                   管理书签（完整渲染）
                 </button>

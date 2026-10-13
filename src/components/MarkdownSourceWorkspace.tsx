@@ -1,3 +1,6 @@
+import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
+import { panelDisplayStyle, bookmarkTooltip, sortedBookmarks } from "../lib/panel-display-view";
+import type { CSSProperties } from "react";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import {
   useEffect,
@@ -37,6 +40,8 @@ export function MarkdownSourceWorkspace({
 }) {
   const mobile = useMobileViewport();
   const outlineDisplayConfig = usePanelDisplay("document-outline");
+  const bookmarkDisplayConfig = usePanelDisplay("bookmarks");
+  const bookmarkDisplayListRef = useRef<HTMLDivElement>(null);
   const [snapshot, setSnapshot] = useState(revision);
   const [offset, setOffset] = useState(0);
   const [folds, setFolds] = useState<Set<number>>(() => new Set());
@@ -71,6 +76,7 @@ export function MarkdownSourceWorkspace({
     () => (mobile ? [] : snapshot.bookmarks),
     [snapshot, mobile],
   );
+  const nearestBookmark = bookmarks.reduce<(typeof bookmarks)[number] | undefined>((current, item) => !current || Math.abs(item.offset - offset) < Math.abs(current.offset - offset) ? item : current, undefined);
   const controller = useDesktopDocumentPanels(!mobile, outline, bookmarks);
   const outlineTrigger = useRef<HTMLButtonElement>(null),
     bookmarkTrigger = useRef<HTMLButtonElement>(null);
@@ -155,8 +161,9 @@ export function MarkdownSourceWorkspace({
             </>}
           </div>
           <div className="document-outline-header-actions">
+          {!isOutline && <PanelDisplayTools target="bookmarks" disabled={!nearestBookmark} handlers={{ "bookmarks.reveal-current": () => revealPanelItem(bookmarkDisplayListRef.current, nearestBookmark?.id) }} />}
           {isOutline && <div className="document-outline-jumps" aria-label="目录快速滚动">{(["top", "middle", "bottom"] as const).map((target, i) => <button type="button" key={target} title={["滚动至顶部", "滚动至中部", "滚动至底部"][i]} onClick={() => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: target }))}>{["Top", "Mid", "Bot"][i]}</button>)}</div>}
-          {(!isOutline || outlineDisplayConfig?.showCounts !== false) && <span className="document-outline-count">
+          {(isOutline ? outlineDisplayConfig?.showCounts !== false : bookmarkDisplayConfig?.showCounts !== false) && <span className="document-outline-count">
             {isOutline ? outline.length : bookmarks.length} 项
           </span>}
           <button type="button" onClick={() => controller.toggle(kind)}>
@@ -193,19 +200,19 @@ export function MarkdownSourceWorkspace({
             <div className="document-bookmark-empty">当前文档还没有标题</div>
           )
         ) : (
-          <div className="document-bookmark-list">
+          <div className="document-bookmark-list" ref={bookmarkDisplayListRef} data-panel-display={bookmarkDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(bookmarkDisplayConfig) as CSSProperties}>
             {bookmarks.length ? (
-              bookmarks.map((bookmark) => (
-                <div key={bookmark.id} className="document-bookmark-item">
+              sortedBookmarks(bookmarks, bookmarkDisplayConfig).map((bookmark) => (
+                <div key={bookmark.id} className={`document-bookmark-item${bookmarkDisplayConfig && nearestBookmark?.id === bookmark.id ? " is-current" : ""}`} data-bookmark-id={bookmark.id}>
                   <button
                     type="button"
                     className="document-bookmark-jump"
-                    title={bookmark.label ? `${bookmark.label}\n${bookmark.preview}` : bookmark.preview}
+                    title={bookmarkTooltip(bookmark, bookmarkDisplayConfig)}
                     onClick={() => jump(bookmark.offset)}
                   >
-                    <span className="document-bookmark-index">
+                    {bookmarkDisplayConfig?.showMetadata !== false && <span className="document-bookmark-index">
                       {bookmark.blockNumber}
-                    </span>
+                    </span>}
                     <span>{bookmark.label || bookmark.preview}</span>
                   </button>
                 </div>

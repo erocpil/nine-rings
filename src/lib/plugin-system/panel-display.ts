@@ -9,15 +9,21 @@ import {
 export type PanelDisplayTarget =
   "document-tree" | "document-outline" | "bookmarks" | "notes";
 export type PanelDisplayCommand =
-  "tree.expand-all" | "tree.refresh" | "outline.reveal-current";
+  | "tree.expand-all"
+  | "tree.refresh"
+  | "outline.reveal-current"
+  | "bookmarks.reveal-current"
+  | "notes.expand-all"
+  | "notes.refresh";
 const COMMANDS: Record<PanelDisplayTarget, readonly PanelDisplayCommand[]> = {
   "document-tree": ["tree.expand-all", "tree.refresh"],
   "document-outline": ["outline.reveal-current"],
-  bookmarks: [],
-  notes: [],
+  bookmarks: ["bookmarks.reveal-current"],
+  notes: ["notes.expand-all", "notes.refresh"],
 };
 export interface PanelDisplayContribution {
   readonly target: PanelDisplayTarget;
+  readonly order?: "host" | "name" | "recent";
   readonly font: "inherit" | "sans" | "mono";
   readonly fontSize: number;
   readonly rowHeight: number;
@@ -35,6 +41,7 @@ const TARGETS = new Set<PanelDisplayTarget>([
 ]);
 const KEYS = new Set([
   "target",
+  "order",
   "font",
   "fontSize",
   "rowHeight",
@@ -51,6 +58,9 @@ export function validatePanelDisplay(
     !value ||
     Object.keys(value).some((key) => !KEYS.has(key)) ||
     !TARGETS.has(value.target) ||
+    (value.order !== undefined &&
+      (!["bookmarks", "notes"].includes(value.target) ||
+        !["host", "name", "recent"].includes(value.order))) ||
     !["inherit", "sans", "mono"].includes(value.font) ||
     !Number.isInteger(value.fontSize) ||
     value.fontSize < 12 ||

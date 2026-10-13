@@ -26,7 +26,7 @@
 .markdown-source-tools .markdown-escape-repair-trigger { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 28px; margin: 0; padding: 4px; }
 .markdown-source-tools .markdown-escape-repair-trigger .toolbar-icon { width: 16px; height: 16px; }
 .markdown-source-tools .markdown-escape-repair > section { position: absolute; z-index: 20; top: 100%; left: 0; right: 0; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--bg); box-shadow: 0 6px 16px color-mix(in srgb, var(--text) 10%, transparent); }
-.markdown-cm-host { flex: 1; min-height: 0; overflow: hidden; }
+.markdown-cm-host { --source-selection-bg: color-mix(in srgb, var(--accent) 20%, transparent); flex: 1; min-height: 0; overflow: hidden; }
 .markdown-cm-host .cm-editor { height: 100%; color: var(--text); background: var(--bg); font-size: inherit; }
 .markdown-cm-host .cm-editor.cm-focused { outline: none; }
 .markdown-cm-host .cm-scroller { overflow: auto; font-family: var(--editor-font-family, monospace); line-height: var(--editor-line-height, 1.65); }
@@ -37,7 +37,11 @@
 .note-editor.no-active-line .markdown-cm-host .cm-activeLine,
 .note-editor.no-active-line .markdown-cm-host .cm-activeLineGutter { background: transparent; }
 .markdown-cm-host .cm-cursor { border-left-color: var(--text); }
-.markdown-cm-host .cm-selectionBackground, .markdown-cm-host .cm-focused .cm-selectionBackground { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+/* Override CodeMirror's more specific focused selection rule, which otherwise
+   paints its light default over every host dark style. */
+.markdown-cm-host .cm-selectionBackground,
+.markdown-cm-host .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground { background: var(--source-selection-bg); }
+:root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) .markdown-cm-host { --source-selection-bg: color-mix(in srgb, var(--accent) 16%, transparent); }
 .markdown-cm-host .cm-panels { background: var(--bg-secondary); color: var(--text); }
 .markdown-cm-host .cm-textfield, .markdown-cm-host .cm-button { color: var(--text); background: var(--bg); border-color: var(--border); }
 @media (max-width: 768px) {
@@ -73,7 +77,7 @@
 }
 .markdown-cm-host .cm-content[aria-readonly="true"]::selection,
 .markdown-cm-host .cm-content[aria-readonly="true"] ::selection {
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  background: var(--source-selection-bg);
 }
 .markdown-cm-host .cm-gutters {
   -webkit-user-select: none;

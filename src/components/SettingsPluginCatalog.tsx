@@ -18,12 +18,10 @@ import {
 } from "../lib/plugin-system/builtin-plugin-catalog";
 import { pluginRuntime } from "../lib/plugin-system/runtime";
 import { pluginLifecycle } from "../lib/plugin-system/lifecycle";
-import {
-  saveTreeDisplayPreference,
-  readTreeDisplayPreference,
-  subscribeTreeDisplayPreference,
-  treeDisplayPreferenceSnapshot,
-} from "../lib/plugin-system/builtin-tree-display";
+import { treeDisplay } from "../lib/plugin-system/builtin-tree-display";
+import { bookmarkDisplay } from "../lib/plugin-system/builtin-bookmark-display";
+import { notesDisplay } from "../lib/plugin-system/builtin-notes-display";
+import { panelPresenter } from "../lib/plugin-system/builtin-panel-presenters";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useTransientMessage } from "../hooks/useTransientMessage";
 import { outlineDisplay } from "../lib/plugin-system/builtin-outline-display";
@@ -61,6 +59,7 @@ function PluginConfigurationDialog({
         ? "image"
         : "statistics";
   const presentation = readResultPresentation(tool);
+  const presenter = panelPresenter(plugin.configuration);
   const dialog = useRef<HTMLDialogElement>(null);
   const close = useRef<HTMLButtonElement>(null);
   const status = useSyncExternalStore(
@@ -121,10 +120,9 @@ function PluginConfigurationDialog({
           <p className="settings-desc">
             在左侧「图片」分栏选择目录；手机从文档树工具栏进入。目录授权仅保存在本机，不进入备份。浏览器能力不足时，文件选择仅在当前会话有效。预览旋转不修改原图，图片处理功能将在后续独立接入。
           </p>
-        ) : plugin.configuration === "tree-display" ||
-          plugin.configuration === "outline-display" ? (
+        ) : presenter ? (
           <SettingsPanelDisplay
-            outline={plugin.configuration === "outline-display"}
+            configuration={plugin.configuration}
             onMessage={showMessage}
           />
         ) : (
@@ -199,8 +197,7 @@ function PluginConfigurationDialog({
           desc={
             active
               ? "插件当前已激活。开启与停用请在插件列表操作。"
-              : plugin.configuration === "tree-display" ||
-                  plugin.configuration === "outline-display"
+              : presenter
                 ? "未激活；开启展示选项后自动激活。"
                 : "未激活；从文档菜单调用时按需激活。"
           }
@@ -211,8 +208,7 @@ function PluginConfigurationDialog({
               ? active.permissions.join("、")
               : plugin.configuration === "image-viewer"
                 ? "分栏展示、授权图片目录读取；插入文档另经编辑插件命令"
-                : plugin.configuration === "tree-display" ||
-                    plugin.configuration === "outline-display"
+                : presenter
                   ? "无需文档读写权限"
                   : plugin.id !== "nine-rings.builtin-statistics"
                     ? "当前选区读写、当前文档读取"
@@ -235,15 +231,12 @@ export function SettingsPluginCatalog() {
     pluginRuntime.subscribe,
     pluginRuntime.getStatus,
   );
-  useSyncExternalStore(
-    subscribeTreeDisplayPreference,
-    treeDisplayPreferenceSnapshot,
-  );
+  useSyncExternalStore(treeDisplay.subscribe, treeDisplay.snapshot);
   useSyncExternalStore(subscribeDocumentTools, documentToolsSnapshot);
   useSyncExternalStore(subscribeImageViewer, imageViewerSnapshot);
   useSyncExternalStore(outlineDisplay.subscribe, outlineDisplay.snapshot);
-  const treeEnabled = readTreeDisplayPreference().enabled;
-  const outlineEnabled = outlineDisplay.read().enabled;
+  useSyncExternalStore(bookmarkDisplay.subscribe, bookmarkDisplay.snapshot);
+  useSyncExternalStore(notesDisplay.subscribe, notesDisplay.snapshot);
   return (
     <aside className="settings-plugin-catalog" aria-label="插件列表">
       <h3>插件列表</h3>
@@ -262,28 +255,19 @@ export function SettingsPluginCatalog() {
               : plugin.id === "nine-rings.builtin-image"
                 ? "image"
                 : "statistics";
+          const presenter = panelPresenter(plugin.configuration);
           const enabled =
             plugin.configuration === "image-viewer"
               ? imageViewerEnabled()
-              : plugin.configuration === "tree-display" ||
-                  plugin.configuration === "outline-display"
-                ? plugin.configuration === "outline-display"
-                  ? outlineEnabled
-                  : treeEnabled
+              : presenter
+                ? presenter.read().enabled
                 : documentToolEnabled(tool);
           const state = !enabled
             ? "已停用"
             : active
               ? "运行中"
-              : plugin.configuration === "tree-display" ||
-                  plugin.configuration === "outline-display"
-                ? (
-                    plugin.configuration === "outline-display"
-                      ? outlineEnabled
-                      : treeEnabled
-                  )
-                  ? "等待激活"
-                  : "未启用"
+              : presenter
+                ? "等待激活"
                 : "按需调用";
           return (
             <li key={plugin.id} data-plugin-id={plugin.id}>
@@ -310,16 +294,9 @@ export function SettingsPluginCatalog() {
                       try {
                         if (plugin.configuration === "image-viewer")
                           saveImageViewerEnabled(event.target.checked);
-                        else if (
-                          plugin.configuration === "tree-display" ||
-                          plugin.configuration === "outline-display"
-                        )
-                          (plugin.configuration === "outline-display"
-                            ? outlineDisplay.save
-                            : saveTreeDisplayPreference)({
-                            ...(plugin.configuration === "outline-display"
-                              ? outlineDisplay.read()
-                              : readTreeDisplayPreference()),
+                        else if (presenter)
+                          presenter.save({
+                            ...presenter.read(),
                             enabled: event.target.checked,
                           });
                         else

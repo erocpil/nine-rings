@@ -1,3 +1,5 @@
+import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
+import { panelDisplayStyle, sortedBookmarks } from "../lib/panel-display-view";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import { FootnoteNumbering } from "../extensions/FootnoteNumbering";
 import type { DocumentOpenOptions } from "../lib/document-open";
@@ -507,6 +509,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   readonlyRef.current = Boolean(readonly);
   const documentActive = useDocumentActive();
   const outlineDisplayConfig = usePanelDisplay("document-outline");
+  const bookmarkDisplayConfig = usePanelDisplay("bookmarks");
+  const bookmarkDisplayListRef = useRef<HTMLDivElement>(null);
   const blockEditContextRef = useRef({ active: documentActive, readonly: Boolean(readonly), noteId, epoch: 0 });
   const editContext = blockEditContextRef.current;
   if (editContext.active !== documentActive || editContext.readonly !== Boolean(readonly) || editContext.noteId !== noteId) {
@@ -3987,20 +3991,22 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           onClick={(event) => event.stopPropagation()}
         >
           <div className="document-bookmark-header">
-            <div className="document-bookmark-heading"><span>书签</span><span>{bookmarks.length} 项</span></div>
+            <div className="document-bookmark-heading"><span>书签</span>{bookmarkDisplayConfig?.showCounts !== false && <span>{bookmarks.length} 项</span>}</div>
             <div className="document-bookmark-header-actions">
+              <PanelDisplayTools target="bookmarks" disabled={!currentBookmark} handlers={{ "bookmarks.reveal-current": () => revealPanelItem(bookmarkDisplayListRef.current, currentBookmark?.id) }} />
               <button className="document-bookmark-add" type="button" onClick={toggleCurrentBookmark}
                 aria-label={currentBookmark ? "取消当前位置书签" : "添加当前位置书签"}>{currentBookmark ? "取消" : "添加"}</button>
               {!isMobileToolbarViewport && <button type="button" onClick={() => togglePinnedPanel("bookmark")} aria-label={desktopPanels.pinned("bookmark") ? "收起固定书签" : "固定书签"}>{desktopPanels.pinned("bookmark") ? "收起" : "固定"}</button>}
             </div>
           </div>
-          <div className="document-bookmark-list">
+          <div className="document-bookmark-list" ref={bookmarkDisplayListRef} data-panel-display={bookmarkDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(bookmarkDisplayConfig) as React.CSSProperties}>
             {bookmarks.length === 0 ? (
               <div className="document-bookmark-empty">当前文档还没有书签</div>
-            ) : bookmarks.map((bookmark) => (
+            ) : sortedBookmarks(bookmarks, bookmarkDisplayConfig).map((bookmark) => (
               <DocumentBookmarkRow
                 key={bookmark.id}
                 bookmark={bookmark}
+                display={bookmarkDisplayConfig}
                 blockNumber={bookmarkBlockNumber(bookmark)}
                 current={currentBookmark?.id === bookmark.id}
                 mobile={isMobileToolbarViewport}

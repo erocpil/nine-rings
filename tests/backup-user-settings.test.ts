@@ -19,6 +19,8 @@ function memoryStorage(initial: Record<string, string> = {}) {
 
 const source = memoryStorage({
   "nr:focusMode": "true",
+  "nr:pluginBookmarkDisplay": '{"enabled":true}',
+  "nr:pluginNotesDisplay": '{"enabled":true}',
   "nr:pluginOutlineDisplay": '{"enabled":true,"display":{"fontSize":18}}',
   "nr:pluginTreeDisplay": '{"enabled":true,"display":{"fontSize":18}}',
   "nr:blockWorkspaceDisplay": JSON.stringify({ sourceMicroRendering: true, relativeBlockNumbers: true, relativeSourceLineNumbers: false, relativeBlockNumberAlignment: "left", relativeSourceLineNumberAlignment: "right" }),
@@ -86,3 +88,5 @@ assert(target.value("selectionPos:older-document") === undefined, "positions fro
 console.log("backup user settings tests passed");
 
 assert(!serialized.includes("nr:pluginOutlineDisplay"), "outline display preferences stay device-local");
+
+assert(!serialized.includes("nr:pluginBookmarkDisplay") && !serialized.includes("nr:pluginNotesDisplay"), "bookmark and notes display preferences stay device-local");
