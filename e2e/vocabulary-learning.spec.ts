@@ -15,6 +15,8 @@ const markdown = `# sample
 
 An example.
 
+例子，样本。
+
 例句：
 
 - This is an example.
@@ -72,11 +74,20 @@ for (const width of [1280, 390]) {
     await expect(view.getByRole("heading", { name: "剑桥词典", exact: true })).toBeVisible();
     await expect(view.getByRole("heading", { name: "FreeCollocation 搭配词典", exact: true })).toBeVisible();
     await expect(view.getByText("这是例句。", { exact: true })).not.toBeVisible();
-    await view.locator("summary").filter({ hasText: /^例句$/ }).click();
-    await expect(view.getByText("这是例句。", { exact: true })).toBeVisible();
-    await view.locator("summary").filter({ hasText: /^例句$/ }).click();
+    const examples = view.locator(".vocabulary-category").filter({ has: page.locator('summary[data-vocabulary-fold-label="例句"]') }).first();
+    await examples.locator('summary[data-vocabulary-fold-label="例句"]').click();
+    await expect(view.getByText("This is an example.", { exact: true })).toBeVisible();
     await expect(view.getByText("这是例句。", { exact: true })).not.toBeVisible();
-    await view.locator("summary").filter({ hasText: /^例句$/ }).click();
+    await examples.locator('summary[data-vocabulary-fold-label="译文"]').click();
+    await expect(view.getByText("这是例句。", { exact: true })).toBeVisible();
+    await examples.locator('summary[data-vocabulary-fold-label="例句"]').click();
+    await expect(view.getByText("这是例句。", { exact: true })).not.toBeVisible();
+    await examples.locator('summary[data-vocabulary-fold-label="例句"]').click();
+    await expect(view.getByText("这是例句。", { exact: true })).toBeVisible();
+    await examples.locator('summary[data-vocabulary-fold-label="译文"]').click();
+    await expect(view.getByText("This is an example.", { exact: true })).toBeVisible();
+    await expect(view.getByText("这是例句。", { exact: true })).not.toBeVisible();
+    await expect(view.getByText("完整 Markdown 原文", { exact: true })).toHaveCount(0);
     await view.getByText("small, large | random", { exact: true }).evaluate(element => {
       const range = document.createRange(); range.selectNodeContents(element);
       const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range);
@@ -122,4 +133,48 @@ test("词汇插件的路径和折叠选项可配置且刷新保留", async ({ pa
   await catalog.getByRole("button", { name: "词汇学习", exact: true }).click();
   await expect(path).toHaveValue("references/english");
   await expect(dialog.getByRole("checkbox", { name: "例句默认折叠", exact: true })).not.toBeChecked();
+});
+
+
+test("学习视图真实拖选不包含折叠按钮，卡片与控件不使用文本选区", async ({ page }) => {
+  await seed(page);
+  await page.getByRole("button", { name: "词汇学习", exact: true }).click();
+  await page.getByRole("region", { name: "词汇学习分栏" }).getByRole("button", { name: "sample", exact: true }).click();
+  const view = page.getByRole("region", { name: "词汇学习视图" });
+  const english = view.getByText("An example.", { exact: true });
+  const examples = view.locator('.vocabulary-category summary[data-vocabulary-fold-label="例句"]').first();
+  const start = (await english.boundingBox())!;
+  const end = (await examples.boundingBox())!;
+  await page.mouse.move(start.x + 1, start.y + start.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(end.x + 80, end.y + end.height / 2, { steps: 15 });
+  await page.mouse.up();
+  await page.screenshot({ path: test.info().outputPath("vocabulary-selection.png") });
+  const selected = await page.evaluate(() => window.getSelection()?.toString());
+  expect(selected).toContain("An example.");
+  expect(selected).toContain("例子，样本。");
+  expect(selected).not.toContain("例句");
+  expect(selected).not.toContain("This is an example.");
+  expect(await examples.evaluate(element => getComputedStyle(element).getPropertyValue("user-select") || getComputedStyle(element).getPropertyValue("-webkit-user-select"))).toBe("none");
+  expect(await english.evaluate(element => getComputedStyle(element).getPropertyValue("user-select") || getComputedStyle(element).getPropertyValue("-webkit-user-select"))).toBe("text");
+});
+
+
+test("例句默认展开时译文仍收起，搭配例句与剑桥译文独立控制", async ({ page }) => {
+  await seed(page);
+  await page.evaluate(async () => {
+    const { saveVocabularyPreference, readVocabularyPreference } = await import("/src/lib/plugin-system/builtin-vocabulary.ts");
+    saveVocabularyPreference({ ...readVocabularyPreference(), collapseExamples: false });
+  });
+  await page.getByRole("button", { name: "词汇学习", exact: true }).click();
+  await page.getByRole("region", { name: "词汇学习分栏" }).getByRole("button", { name: "sample", exact: true }).click();
+  const view = page.getByRole("region", { name: "词汇学习视图" });
+  await expect(view.getByText("This is an example.", { exact: true })).toBeVisible();
+  await expect(view.getByText("A random sample.", { exact: true })).toBeVisible();
+  await expect(view.getByText("这是例句。", { exact: true })).not.toBeVisible();
+  await view.locator('summary[data-vocabulary-fold-label="译文"]').click();
+  await expect(view.getByText("这是例句。", { exact: true })).toBeVisible();
+  await view.locator(".vocabulary-examples summary").first().click();
+  await expect(view.getByText("A random sample.", { exact: true })).not.toBeVisible();
+  await expect(view.getByText("这是例句。", { exact: true })).toBeVisible();
 });

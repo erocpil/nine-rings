@@ -54,9 +54,11 @@ function inline(node: Nodes, index = 0): ReactNode {
 function VocabularyBlocks({
   nodes,
   collapse,
+  listRole = "collocations",
 }: {
   nodes: RootContent[];
   collapse: boolean;
+  listRole?: "collocations" | "examples" | "translations";
 }) {
   return (
     <>
@@ -71,7 +73,7 @@ function VocabularyBlocks({
           return (
             <ul key={index} className="vocabulary-items">
               {node.children.map((item, i) => {
-                const examples = item.children.filter(
+                const nested = item.children.filter(
                   (child) => child.type === "list",
                 );
                 const body = item.children.filter(
@@ -79,13 +81,40 @@ function VocabularyBlocks({
                 );
                 return (
                   <li key={i}>
-                    <VocabularyBlocks nodes={body} collapse={collapse} />
-                    {examples.length > 0 && (
-                      <details open={collapse ? undefined : true}>
-                        <summary>例句 / 译文</summary>
+                    <VocabularyBlocks
+                      nodes={body}
+                      collapse={collapse}
+                      listRole={listRole}
+                    />
+                    {nested.length > 0 && (
+                      <details
+                        className={
+                          listRole === "collocations"
+                            ? "vocabulary-examples"
+                            : "vocabulary-translations"
+                        }
+                        open={
+                          listRole === "collocations" && !collapse
+                            ? true
+                            : undefined
+                        }
+                      >
+                        <summary
+                          aria-label={
+                            listRole === "collocations" ? "例句" : "译文"
+                          }
+                          data-vocabulary-fold-label={
+                            listRole === "collocations" ? "例句" : "译文"
+                          }
+                        />
                         <VocabularyBlocks
-                          nodes={examples}
+                          nodes={nested}
                           collapse={collapse}
+                          listRole={
+                            listRole === "collocations"
+                              ? "examples"
+                              : "translations"
+                          }
                         />
                       </details>
                     )}
@@ -222,10 +251,14 @@ export function VocabularyLearningView({
                           >
                             {section.examples ? (
                               <details open={collapse ? undefined : true}>
-                                <summary>{section.title}</summary>
+                                <summary
+                                  aria-label={section.title}
+                                  data-vocabulary-fold-label={section.title}
+                                />
                                 <VocabularyBlocks
                                   nodes={section.nodes}
-                                  collapse={false}
+                                  collapse={collapse}
+                                  listRole="examples"
                                 />
                               </details>
                             ) : (
@@ -247,10 +280,6 @@ export function VocabularyLearningView({
             ))}
           </>
         )}
-        <details className="vocabulary-original">
-          <summary>完整 Markdown 原文</summary>
-          <pre>{data.source}</pre>
-        </details>
         <section className="vocabulary-context-placeholder">
           <h3>阅读语境</h3>
           <p>

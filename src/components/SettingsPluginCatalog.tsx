@@ -124,7 +124,7 @@ function PluginConfigurationDialog({
               try { saveVocabularyPreference({ ...readVocabularyPreference(), path: event.target.value }); showMessage("已更新"); } catch (error) { showMessage(String(error)); }
             }} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
           </Field>
-          <Field label="例句默认折叠" desc="控制学习视图的例句和译文，折叠状态仅用于本次查看。"><input type="checkbox" aria-label="例句默认折叠" checked={readVocabularyPreference().collapseExamples} onChange={event => { saveVocabularyPreference({ ...readVocabularyPreference(), collapseExamples: event.target.checked }); showMessage("已更新"); }} /></Field>
+          <Field label="例句默认折叠" desc="控制学习视图的例句；译文单独控制并默认折叠，展开状态仅用于本次查看。"><input type="checkbox" aria-label="例句默认折叠" checked={readVocabularyPreference().collapseExamples} onChange={event => { saveVocabularyPreference({ ...readVocabularyPreference(), collapseExamples: event.target.checked }); showMessage("已更新"); }} /></Field>
           <p className="settings-desc">首版不联网抓取、不改写正文；受保护正文不交给插件。普通文档入口用于编辑和导出，阅读语境关联将在后续接入。</p>
         </> : plugin.configuration === "image-viewer" ? (
           <p className="settings-desc">

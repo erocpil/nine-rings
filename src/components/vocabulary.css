@@ -78,7 +78,8 @@
 .vocabulary-study-scroll {
   overflow-y: auto;
   padding: 24px clamp(16px, 4vw, 64px) 48px;
-  user-select: text;
+  -webkit-user-select: none;
+  user-select: none;
   line-height: 1.7;
   min-height: 0;
 }
@@ -148,16 +149,6 @@
   color: var(--text-secondary);
   padding: 5px 0;
 }
-.vocabulary-original {
-  margin-top: 24px;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-}
-.vocabulary-original pre {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 0.85em;
-}
 .vocabulary-context-placeholder {
   margin-top: 24px;
   color: var(--text-secondary);
@@ -181,4 +172,28 @@
 /* WebKit can expose an open nested details subtree inside a closed parent. */
 .vocabulary-learning-view details:not([open]) > :not(summary) {
   display: none;
+}
+
+/* Select content, not the surrounding layout or disclosure controls. */
+.vocabulary-study-scroll :is(p, h1, h2, h3, h4, h5, h6, pre, small) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+.vocabulary-study-scroll summary {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.vocabulary-study-scroll ::selection {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--text);
+}
+
+/* Generated labels stay accessible without entering a cross-paragraph copied range. */
+.vocabulary-study-scroll summary::after {
+  content: attr(data-vocabulary-fold-label);
+}
+:root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula)
+  .vocabulary-study-scroll
+  ::selection {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
