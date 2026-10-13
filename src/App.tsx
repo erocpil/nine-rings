@@ -1357,7 +1357,9 @@ function App() {
   const [focusActivityRevealed, setFocusActivityRevealed] = useState(false);
   useEffect(() => {
     setFocusActivityRevealed(false);
-    if (!effectiveFocusMode || mobileDrawerViewport || !sidebarHidden) return;
+    if (!effectiveFocusMode || mobileDrawerViewport) return;
+    // Track the pointer while the pane is open too: closing it must not
+    // discard the hover that keeps the activity bar visible.
     const move = (event: PointerEvent) => {
       if (event.pointerType === "touch") return;
       const body = document.querySelector(".app-body")?.getBoundingClientRect();
@@ -1368,7 +1370,7 @@ function App() {
     };
     document.addEventListener("pointermove", move, { passive: true });
     return () => document.removeEventListener("pointermove", move);
-  }, [effectiveFocusMode, mobileDrawerViewport, sidebarHidden, sidebarOnRight]);
+  }, [effectiveFocusMode, mobileDrawerViewport, sidebarOnRight]);
 
   const exhibitionEnabled = Boolean(config && effectiveWorkspaceLayout(config) === "exhibition");
   const readerWasOpenBeforeHome = Boolean(

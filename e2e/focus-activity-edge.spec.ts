@@ -22,5 +22,12 @@ for (const side of ["left", "right"]) {
     await page.mouse.move(body.x + body.width / 2, body.y + 200);
     await expect(nav).not.toHaveClass(/desktop-activity-bar-focus-hidden/);
     await expect(page.locator("#workspace-sidebar")).toBeVisible();
+    await nav.locator('[data-sidebar-panel="tree"]').click();
+    await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
+    await expect(nav).not.toHaveClass(/desktop-activity-bar-focus-hidden/);
+    await expect(nav).toHaveCSS("opacity", "1");
+    await page.mouse.move(body.x + body.width / 2, body.y + 200);
+    await expect(nav).toHaveClass(/desktop-activity-bar-focus-hidden/);
+    await expect(nav).toHaveCSS("opacity", "0");
   });
 }

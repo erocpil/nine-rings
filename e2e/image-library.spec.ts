@@ -716,6 +716,8 @@ test("图片导航带、背景与非破坏变换可复位", async ({ page }) => 
     "style",
     /rotate\(90deg\) scale\(-1,\s*1\)/,
   );
+  await viewer.getByLabel("图片查看背景").hover();
+  await expect(page.locator(".quick-tooltip")).toHaveText("选择图片查看背景", { timeout: 1000 });
   await viewer.getByLabel("图片查看背景").selectOption("checker");
   await expect(viewer.locator(".image-viewer-viewport")).toHaveAttribute(
     "data-background",

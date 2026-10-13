@@ -662,7 +662,8 @@ export function ImageViewer({
         >
           <ToolbarIcon name="refresh" />
         </button>
-        <label className="image-background-control" title="选择图片查看背景"><ToolbarIcon name="palette" /><select
+        <label className="image-background-control"><ToolbarIcon name="palette" /><select
+          title="选择图片查看背景"
           aria-label="图片查看背景"
           value={background}
           onChange={(event) => {
