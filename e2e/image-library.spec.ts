@@ -829,7 +829,8 @@ test("缩略图带可滚动全部图片、支持双轴触控板且竖图不覆�
   await panel.getByRole("button", { name: "00.png", exact: true }).click();
   const viewer = page.getByRole("region", { name: "图片查看器" });
   const strip = viewer.getByRole("navigation", { name: "图片缩略图导航" });
-  await viewer.locator(".image-filmstrip-dock").hover({ position: { x: 30, y: 10 } });
+  const viewerBounds = (await viewer.boundingBox())!;
+  await page.mouse.move(viewerBounds.x + 30, viewerBounds.y + viewerBounds.height - 3);
   await viewer.getByRole("button", { name: "固定缩略图", exact: true }).click();
   await expect(strip).toBeVisible();
   expect(await strip.getByRole("button").count()).toBeLessThan(30);
@@ -1052,7 +1053,9 @@ test("竖图缩略图完整容纳，图片属性窄幅且可拖动调宽", async
   const bounds = (await viewer.boundingBox())!;
   await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 80);
   await expect.poll(async () => (await strip.boundingBox())!.y).toBeGreaterThanOrEqual(bounds.y + bounds.height - 1);
-  await dock.hover({ position: { x: 30, y: 10 } });
+  await expect.poll(async () => (await dock.boundingBox())!.y).toBeGreaterThanOrEqual(bounds.y + bounds.height - 1);
+  await expect.poll(async () => (await viewer.getByRole("button", { name: "固定缩略图", exact: true }).boundingBox())!.y).toBeGreaterThanOrEqual(bounds.y + bounds.height - 1);
+  await page.mouse.move(bounds.x + 30, bounds.y + bounds.height - 3);
   await expect.poll(async () => { const box = (await strip.boundingBox())!; return box.y + box.height; }).toBeLessThanOrEqual(bounds.y + bounds.height + 1);
   await viewer.getByRole("button", { name: "固定缩略图", exact: true }).click();
   await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 80);

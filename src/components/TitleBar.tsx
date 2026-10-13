@@ -5,6 +5,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "../lib/runtime";
@@ -44,7 +45,7 @@ export default function TitleBar({
     );
 
   const isTopEdge = (event: MouseEvent<HTMLDivElement>) =>
-    event.clientY - event.currentTarget.getBoundingClientRect().top <= 6;
+    event.clientY >= 0 && event.clientY <= 8;
 
   const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
     if (!native || (!macOS && !isTopEdge(event))) return;
@@ -195,6 +196,19 @@ export default function TitleBar({
   };
 
   return (
+    <>
+      {native && createPortal(<div
+        className="window-top-edge"
+        aria-hidden="true"
+        onMouseDownCapture={event => {
+          // The first press must not start native dragging: that can consume
+          // the second click before the WebView receives its double-click.
+          event.preventDefault();
+          event.stopPropagation();
+          handleMouseDown(event);
+        }}
+        onMouseUpCapture={handleMouseUp}
+      />, document.body)}
     <div
       className={`titlebar${exhibition ? " titlebar-exhibition" : ""}`}
       data-tauri-drag-region={native ? "deep" : undefined}
@@ -301,5 +315,6 @@ export default function TitleBar({
         )}
       </div>
     </div>
+    </>
   );
 }

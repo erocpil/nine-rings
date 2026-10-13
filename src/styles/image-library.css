@@ -468,7 +468,8 @@
 .image-filmstrip-handle { height: 20px; display: flex; justify-content: flex-end; align-items: center; border-top: 1px solid var(--border); }
 .image-filmstrip-handle .btn-icon { height: 20px; width: 26px; padding: 2px; }
 @media (min-width: 769px) and (hover: hover) and (pointer: fine) {
-  .image-filmstrip-dock:not([data-pinned="true"]) { position: absolute; bottom: 0; left: 0; right: 0; transform: translateY(calc(100% - 20px)); transition: transform 160ms ease; }
+  .image-filmstrip-dock:not([data-pinned="true"]) { position: absolute; bottom: 0; left: 0; right: 0; transform: translateY(100%); transition: transform 160ms ease; }
+  .image-filmstrip-dock:not([data-pinned="true"])::before { content: ""; position: absolute; top: -12px; left: 0; right: 0; height: 12px; background: transparent; }
   .image-filmstrip-dock:not([data-pinned="true"]):hover,
   .image-filmstrip-dock:not([data-pinned="true"]):has(:focus-visible) { transform: translateY(0); }
 }

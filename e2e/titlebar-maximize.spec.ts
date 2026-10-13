@@ -326,15 +326,20 @@ test("展陈标题栏保留窗口操作，工作区和配色控件不触发最�
 });
 
 for (const platform of ["MacIntel", "Win32", "Linux x86_64"]) {
-  test(`${platform} 双击上边缘只切换纵向撑满，再次双击恢复`, async ({ page }) => {
-    await mountTitlebar(page, platform);
-    const bar = page.locator("#titlebar-test-host .titlebar");
-    const rect = (await bar.boundingBox())!;
+  test(`${platform} 窗口上沿留白双击纵向撑满，不启动拖动，再次双击恢复`, async ({ page }) => {
+    await mountTitlebar(page, platform, false, false, true);
+    // Reproduce the exhibition inset: the titlebar is not at the window edge.
+    await page.locator("#titlebar-test-host").evaluate(host => { host.style.top = "40px"; });
+    const edge = page.locator(".window-top-edge");
+    await expect(edge).toBeVisible();
+    expect((await edge.boundingBox())!.y).toBe(0);
     for (let i = 0; i < 2; i++) {
-      await bar.dispatchEvent("mousedown", { button: 0, detail: 2, clientX: rect.x + 10, clientY: rect.y + 2 });
-      await bar.dispatchEvent("mouseup", { button: 0, detail: 2, clientX: rect.x + 10, clientY: rect.y + 2 });
+      await page.mouse.dblclick(200, 3);
       await expect.poll(async () => (await commands(page)).filter(c => c === "toggle_window_vertical_extent").length).toBe(i + 1);
     }
     expect(await commands(page)).not.toContain("toggle_window_maximize");
+    expect(await commands(page)).not.toContain("start_dragging");
+    await page.locator("#titlebar-test-host .titlebar").dblclick({ position: { x: 500, y: 16 } });
+    await expect.poll(async () => (await commands(page)).filter(c => c === "toggle_window_maximize").length).toBe(platform === "MacIntel" ? 1 : 0);
   });
 }

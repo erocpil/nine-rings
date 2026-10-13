@@ -11,6 +11,7 @@ use std::{cell::RefCell, collections::HashMap};
 struct WindowState {
     placement: WindowPlacement<NSRect>,
     style: Option<NSWindowStyleMask>,
+    vertical_restore: Option<NSRect>,
     // The main window hides to the tray and lives until process exit, as does
     // its observer. Retain exactly one token per window, not per transition.
     observer: Option<Retained<ProtocolObject<dyn NSObjectProtocol>>>,
@@ -54,6 +55,39 @@ pub fn toggle_maximize(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     if let Some(frame) = target {
         // Synchronous geometry avoids Tao's queued zoom overwriting its saved
         // standard frame after the temporary fullscreen titlebar is installed.
+        native.setFrame_display(frame, true);
+    }
+    Ok(())
+}
+
+/// Preserve horizontal geometry and use Cocoa's work area in native coordinates.
+pub fn toggle_vertical_extent(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    // SAFETY: this command is dispatched to the UI thread, as is toggle_maximize.
+    let native = unsafe { &*window.ns_window()?.cast::<NSWindow>() };
+    if window.is_fullscreen()? || native.styleMask().contains(NSWindowStyleMask::FullScreen) {
+        return Ok(());
+    }
+    let Some(screen) = native.screen() else {
+        return Ok(());
+    };
+    let current = native.frame();
+    let area = screen.visibleFrame();
+    let frame = STATES.with(|states| {
+        let mut states = states.borrow_mut();
+        let state = states.entry(window.label().to_owned()).or_default();
+        if state.placement.transitioning() {
+            return None;
+        }
+        if let Some(previous) = state.vertical_restore.take() {
+            return Some(previous);
+        }
+        state.vertical_restore = Some(current);
+        let mut expanded = current;
+        expanded.origin.y = area.origin.y;
+        expanded.size.height = area.size.height;
+        Some(expanded)
+    });
+    if let Some(frame) = frame {
         native.setFrame_display(frame, true);
     }
     Ok(())

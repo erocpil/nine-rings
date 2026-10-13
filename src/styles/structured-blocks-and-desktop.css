@@ -723,3 +723,6 @@
   padding: 2px 4px;
   font-size: 11px;
 }
+
+/* Separate from the inset exhibition masthead and native drag regions. */
+.window-top-edge { position: fixed; top: 0; left: 0; right: 0; height: 8px; z-index: 70; cursor: ns-resize; }
