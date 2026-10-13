@@ -148,6 +148,7 @@ interface EditorBlockGutterProps {
  * ResizeObserver 只重新测量这部分节点，避免长文档复制一整套 gutter DOM。
  */
 export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, selectedBlockIndexes = [], onBlockSelect, onBlockMenu, onBlockCountChange, onHeadingFoldToggle, onReferenceMenu }: EditorBlockGutterProps) {
+  const hasBlockMenu = Boolean(onBlockMenu);
   const documentActive = useDocumentActive();
   const rootRef = useRef<HTMLDivElement>(null);
   const suppressCompatibilityClickUntilRef = useRef(0);
@@ -168,7 +169,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
     const scrollRoot = root?.closest<HTMLElement>(".note-editor-scroll");
     if (!documentActive || !root || !scrollRoot || editor.isDestroyed) return;
 
-    const needsAllBlocks = showNumbers || (showInsertButtons && !readonly) || bookmarkPositions.length > 0 || selectingBlocks;
+    const needsAllBlocks = hasBlockMenu || showNumbers || (showInsertButtons && !readonly) || bookmarkPositions.length > 0 || selectingBlocks;
     const needsHeadings = Boolean(onHeadingFoldToggle);
     if (!needsAllBlocks && !needsHeadings) {
       setBlocks((current) => current.length === 0 ? current : []);
@@ -651,7 +652,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       if (rebuildFrame) cancelAnimationFrame(rebuildFrame);
       if (windowFrame) cancelAnimationFrame(windowFrame);
     };
-  }, [bookmarkPositions.length, compact, documentActive, editor, onBlockCountChange, onHeadingFoldToggle, readonly, relativeBlockNumbers, selectingBlocks, showInsertButtons, showNumbers]);
+  }, [hasBlockMenu, bookmarkPositions.length, compact, documentActive, editor, onBlockCountChange, onHeadingFoldToggle, readonly, relativeBlockNumbers, selectingBlocks, showInsertButtons, showNumbers]);
 
   const insertParagraph = (pos: number) => {
     const safePos = Math.min(Math.max(0, pos), editor.state.doc.content.size);
@@ -780,7 +781,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
         setHoveredBlockIndex(nearest && y >= blocks[0].top - 10 && y <= blocks[blocks.length - 1].bottom + 10 ? nearest.index : null);
       }}
       onPointerLeave={() => setHoveredBlockIndex(null)}
-      aria-hidden={readonly && !showNumbers && !onHeadingFoldToggle && selectedBlockIndexes.length === 0}
+      aria-hidden={readonly && !showNumbers && !onHeadingFoldToggle && !onBlockMenu && selectedBlockIndexes.length === 0}
     >
       {selectedBlockIndexes.length > 0 && onBlockSelect && blocks.map((block) => (
         <button
@@ -801,6 +802,16 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           <span className="editor-block-select-fold" aria-hidden="true">{block.heading && <EditorFoldIcon expanded={!block.folded} />}</span>
           <span className={blockHasBookmark(block) ? "bookmarked" : ""} aria-hidden="true">{relativeBlockNumbers ? relativeNumber(block.index, currentNumber, visibleNumbers) : block.index}</span>
         </button>
+      ))}
+      {!selectingBlocks && !showNumbers && onBlockMenu && blocks.map(block => (
+        <button key={`menu-${block.pos}`} type="button" className="editor-block-menu-target"
+          style={{ top: block.top, height: Math.max(24, block.bottom - block.top) }}
+          data-block-index={block.index} aria-label={`第 ${block.index} 块操作`} aria-haspopup="menu"
+          onMouseDown={event => event.preventDefault()}
+          onTouchStart={startGutterTouch} onTouchMove={moveGutterTouch} onTouchCancel={cancelGutterTouch}
+          onTouchEnd={event => { const trigger = event.currentTarget; runGutterActionFromTouch(event, () => onBlockMenu(block.pos, trigger)); }}
+          onClick={event => { const trigger = event.currentTarget; runGutterActionFromClick(event, () => onBlockMenu(block.pos, trigger)); }}
+        />
       ))}
       {!selectingBlocks && showNumbers && blocks.map((block) => (
         <BlockNumber

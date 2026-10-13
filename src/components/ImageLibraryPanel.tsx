@@ -25,6 +25,7 @@ import { WorkspacePanelHeading } from "./WorkspacePanelHeading";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { ImageThumbnail } from "./ImageThumbnail";
 import { imageResourceCache } from "../lib/image-library/resource-cache";
+import { imageDirectoryMonitor } from "../lib/image-library/directory-monitor";
 interface TreeMenu {
   name: string;
   path: string;
@@ -201,13 +202,15 @@ function Directory({
     setBusy(true);
     try {
       const next = await imageDirectoryService.list(root.id, path, offset);
-      if (alive.current)
+      if (alive.current) {
+        onError(null);
         setPage((current) => ({
           nodes: offset
             ? [...(current?.nodes ?? []), ...next.nodes]
             : next.nodes,
           next: next.next,
         }));
+      }
     } catch (error) {
       if (alive.current) onError(error);
     } finally {
@@ -219,6 +222,14 @@ function Directory({
     // Loading is driven by opening a directory, not by its error/busy state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, key]);
+  useEffect(() => {
+    if (!open || root.transient) return;
+    return imageDirectoryMonitor.subscribe(root.id, path, {
+      active, changed: setPage, error: onError, ready: () => onError(null),
+    });
+    // Callbacks are presentation-only; ownership follows the opened directory.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, root.id, root.transient, path, active]);
   const images =
     page?.nodes
       .filter((node) => !node.directory)
@@ -372,7 +383,7 @@ export function ImageLibraryPanel({
   const files = useRef<HTMLInputElement>(null);
   const folders = useRef<HTMLInputElement>(null);
   const fail = (cause: unknown) =>
-    setError(cause instanceof Error ? cause.message : String(cause));
+    setError(cause == null ? "" : cause instanceof Error ? cause.message : String(cause));
   useEffect(() => {
     let cancelled = false;
     void imageDirectoryService

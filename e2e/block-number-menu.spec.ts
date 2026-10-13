@@ -386,3 +386,24 @@ test("子菜单打开后切换块号，重新定位到新块且不沿用旧样�
   await expect(page.locator(".ProseMirror:visible > p").nth(1).locator("strong")).toHaveText("second");
   await expect(page.locator(".ProseMirror:visible > p").first().locator("strong")).toHaveCount(0);
 });
+
+for (const [readonly, virtual] of [[false, false], [true, false], [true, true]]) {
+  test(`隐藏块号后控制列可打开和收回块菜单 readonly=${readonly} virtual=${virtual}`, async ({ page }) => {
+    await setup(page, readonly, virtual, false, false);
+    await expect(page.locator(".editor-block-number")).toHaveCount(0);
+    const trigger = page.getByRole("button", { name: "第 1 块操作", exact: true });
+    await expect(trigger).toBeVisible();
+    await trigger.click({ position: { x: 10, y: 16 } });
+    await expect(menu(page)).toBeVisible();
+    await expect(menu(page).getByRole("menuitem", { name: "复制 Markdown", exact: true })).toBeVisible();
+    await trigger.click({ position: { x: 10, y: 16 } });
+    await expect(menu(page)).toHaveCount(0);
+    const text = page.locator(virtual ? ".vr-block p" : ".ProseMirror:visible > p");
+    await expect(text.first()).toHaveText("first");
+    if (!readonly) {
+      const insert = page.getByRole("button", { name: "在第一块前插入段落", exact: true });
+      // Existing boundary insertion stays independent of the new block hit area.
+      await insert.click(); await expect(text).toHaveCount(4);
+    }
+  });
+}

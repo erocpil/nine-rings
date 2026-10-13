@@ -35,6 +35,14 @@ for (const width of [390, 1280]) {
       const left = await main.boundingBox();
       expect(bounds!.x).toBeGreaterThan(left!.x + left!.width);
     }
+    if (width > 768) {
+      for (const row of await list.locator(".settings-plugin-metadata").all()) {
+        const geometry = await row.evaluate(element => [...element.children].map(child => {
+          const rect = child.getBoundingClientRect(); return rect.y + rect.height / 2;
+        }));
+        expect(Math.max(...geometry) - Math.min(...geometry)).toBeLessThan(2);
+      }
+    }
     const name = list.getByRole("button", { name: "文档树展示", exact: true });
     await name.click();
     const dialog = page.getByRole("dialog", {

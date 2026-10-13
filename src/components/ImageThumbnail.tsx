@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNearViewport } from "../hooks/useNearViewport";
 import { imageResourceCache } from "../lib/image-library/resource-cache";
 import type { ViewedImage } from "../lib/image-library/viewer-request";
+import { useImageFileChange } from "../hooks/useImageFileChange";
 import { ToolbarIcon } from "./ToolbarIcon";
 
 export function ImageThumbnail({
@@ -16,12 +17,13 @@ export function ImageThumbnail({
     () => ({ src, name, rootId, nodeId }),
     [src, name, rootId, nodeId],
   );
+  const change = useImageFileChange(target);
   const host = useRef<HTMLSpanElement>(null);
   const near = useNearViewport(host, active);
   const [url, setUrl] = useState("");
   useEffect(() => {
     setUrl("");
-    if (!near) return;
+    if (!near || change.missing) return;
     const controller = new AbortController();
     let release = () => {};
     void imageResourceCache.acquire(target, controller.signal, 128)
@@ -35,7 +37,7 @@ export function ImageThumbnail({
       controller.abort();
       release();
     };
-  }, [near, target]);
+  }, [near, target, change.revision, change.missing]);
   return (
     <span ref={host} className="image-tree-thumbnail">
       {url ? (

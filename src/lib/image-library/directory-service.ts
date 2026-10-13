@@ -110,6 +110,7 @@ async function savedRoots(
   }
 }
 let generation = 0;
+const watches = new Set<() => void>();
 const assert = () => workspacePanels.assert("images");
 export const imageDirectoryService = {
   async roots(): Promise<ImageRoot[]> {
@@ -199,7 +200,7 @@ export const imageDirectoryService = {
       browserRoots.delete(id);
     }
   },
-  async list(rootId: string, path = "", offset = 0): Promise<ImagePage> {
+  async list(rootId: string, path = "", offset = 0, requestPermission = true): Promise<ImagePage> {
     const owner = assert();
     imageSegments(path);
     if (!Number.isInteger(offset) || offset < 0)
@@ -216,10 +217,11 @@ export const imageDirectoryService = {
     const entry = browserRoots.get(rootId);
     if (!entry) throw new Error("请重新选择图片目录");
     const nodes: ImageNode[] = [];
+    const handles = new Map<string, ImageFileHandle>();
     if (entry.handle) {
       if (
         (await entry.handle.queryPermission({ mode: "read" })) !== "granted" &&
-        (await entry.handle.requestPermission({ mode: "read" })) !== "granted"
+        (!requestPermission || (await entry.handle.requestPermission({ mode: "read" })) !== "granted")
       )
         throw new Error("目录读取未授权，请重新授权");
       let directory = entry.handle;
@@ -231,6 +233,7 @@ export const imageDirectoryService = {
           throw new Error("单目录超过 10000 项，请选择更具体的子目录");
         if (child.kind === "file" && !imageMime(child.name)) continue;
         imageSegments(child.name);
+        if (child.kind === "file") handles.set(child.name, child);
         nodes.push({
           id: path ? `${path}/${child.name}` : child.name,
           name: child.name,
@@ -263,8 +266,17 @@ export const imageDirectoryService = {
         Number(b.directory) - Number(a.directory) ||
         a.name.localeCompare(b.name),
     );
+    const page = nodes.slice(offset, offset + 200);
+    for (const node of page) {
+      const handle = handles.get(node.name);
+      if (!handle) continue;
+      const file = await handle.getFile();
+      node.size = file.size;
+      node.modified = file.lastModified;
+    }
+    if (assert() !== owner) throw new Error("图片插件已换代");
     return {
-      nodes: nodes.slice(offset, offset + 200),
+      nodes: page,
       next: offset + 200 < nodes.length ? offset + 200 : null,
     };
   },
@@ -338,8 +350,38 @@ export const imageDirectoryService = {
       throw new Error("图片授权已变更");
     return result;
   },
+  monitorable(rootId: string) {
+    return Boolean(browserRoots.get(rootId)?.handle) || (isTauriRuntime() && !browserRoots.has(rootId));
+  },
+  async watch(rootId: string, path: string, changed: () => void): Promise<(() => void) | null> {
+    const owner = assert();
+    const version = generation;
+    imageSegments(path);
+    if (!isTauriRuntime() || browserRoots.has(rootId)) return null;
+    const watchId = crypto.randomUUID();
+    const { listen } = await import("@tauri-apps/api/event");
+    let disposed = false;
+    const unlisten = await listen<string>("nr:image-directory-changed", event => {
+      if (event.payload === watchId && !disposed) changed();
+    });
+    const dispose = () => {
+      if (disposed) return;
+      disposed = true;
+      unlisten();
+      watches.delete(dispose);
+      void native("image_library_unwatch", { watchId }).catch(() => {});
+    };
+    try {
+      if (version !== generation || assert() !== owner) throw new Error("图片授权已变更");
+      await native("image_library_watch", { rootId, node: path, watchId });
+      if (version !== generation || assert() !== owner) throw new Error("图片授权已变更");
+      watches.add(dispose);
+      return dispose;
+    } catch (error) { dispose(); throw error; }
+  },
   release() {
     generation++;
+    for (const dispose of watches) dispose();
     browserRoots.clear();
   },
 };

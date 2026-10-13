@@ -55,3 +55,6 @@
   .plugin-config-dialog[open] { animation: plugin-config-appear .14s ease-out; }
   @keyframes plugin-config-appear { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 }
+.settings-plugin-metadata { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.settings-plugin-metadata .settings-toggle { flex: none; margin: 0; }
+.settings-plugin-metadata .settings-plugin-state { margin-left: auto; }

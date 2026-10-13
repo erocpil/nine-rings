@@ -39,6 +39,15 @@ export class ImageResourceCache {
       this.dispose(entry);
     }
   }
+  invalidate(image: ViewedImage) {
+    const suffix = `:${imageKey(image)}`;
+    for (const [key, entry] of this.entries) {
+      if (key.endsWith(suffix)) {
+        this.entries.delete(key);
+        this.dispose(entry);
+      }
+    }
+  }
   clear() {
     for (const entry of this.entries.values()) this.dispose(entry);
     this.entries.clear();

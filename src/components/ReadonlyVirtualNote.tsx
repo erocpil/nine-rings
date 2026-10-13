@@ -1474,6 +1474,11 @@ export function ReadonlyVirtualNote(
                 data-position={block.pos}
                 data-block-number={block.number}
               >
+                {!props.showLineNumbers && <button type="button" className="editor-block-menu-target"
+                  aria-label={`第 ${block.number} 块操作`} aria-haspopup="menu"
+                  onMouseDown={event => event.preventDefault()}
+                  onClick={event => { event.stopPropagation(); const trigger = event.currentTarget; setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc }); }}
+                />}
                 <div className="vr-gutter" contentEditable={false}>
                   {section && section.end > section.headingEnd && (
                     <button

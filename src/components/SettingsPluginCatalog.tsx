@@ -282,8 +282,8 @@ export function SettingsPluginCatalog() {
                 >
                   {plugin.name}
                 </button>
-                <span className="settings-plugin-state">{state}</span>
               </div>
+              <div className="settings-plugin-metadata">
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -312,6 +312,8 @@ export function SettingsPluginCatalog() {
                 <span className="toggle-label">{enabled ? "开" : "关"}</span>
               </label>
               <span className="settings-plugin-type">内置 · {plugin.type}</span>
+              <span className="settings-plugin-state">{state}</span>
+              </div>
               <p>{plugin.description}</p>
             </li>
           );

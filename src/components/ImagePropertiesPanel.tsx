@@ -4,6 +4,7 @@ import {
   type ImagePropertyRows,
 } from "../lib/image-library/image-properties";
 import type { ViewedImage } from "../lib/image-library/viewer-request";
+import { useImageFileChange } from "../hooks/useImageFileChange";
 import { ToolbarIcon } from "./ToolbarIcon";
 export function ImagePropertiesPanel({
   image,
@@ -37,6 +38,7 @@ export function ImagePropertiesPanel({
       return 260;
     }
   });
+  const change = useImageFileChange(image);
   const [rows, setRows] = useState<ImagePropertyRows>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -57,7 +59,7 @@ export function ImagePropertiesPanel({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [image]);
+  }, [image, change.revision, change.missing]);
   const content: ImagePropertyRows = [
     ...rows,
     ...(decodedDimensions.width

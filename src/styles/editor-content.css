@@ -714,3 +714,10 @@
 .editor-block-number.relative-current.relative-current-right { text-align: right; }
 
 .block-action-menu-group.first-group { border-top: 0; margin-top: 0; }
+
+/* The control column opens block actions even when numbers are hidden.
+   Boundary insertion and heading-fold controls remain above this hit area. */
+.editor-block-menu-target { position: absolute; left: 0; width: var(--editor-gutter-control-width, 22px); margin: 0; padding: 0; border: 0; background: transparent; cursor: context-menu; pointer-events: auto; z-index: 1; }
+.editor-block-menu-target:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.editor-block-insert { z-index: 2; }
+.vr-row > .editor-block-menu-target { top: 0; bottom: 0; height: auto; border: 0; padding: 0; background: transparent; border-radius: 0; }

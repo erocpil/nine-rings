@@ -4,6 +4,7 @@ import { pluginRuntime } from "./runtime";
 import { pluginLifecycle } from "./lifecycle";
 import { workspacePanels } from "./panel-registry";
 import { imageDirectoryService } from "../image-library/directory-service";
+import { imageDirectoryMonitor } from "../image-library/directory-monitor";
 import { clearImageView } from "../image-library/viewer-request";
 import { mainViews } from "./main-view-registry";
 export const IMAGE_VIEW_ID = "builtin.image-viewer";
@@ -68,6 +69,7 @@ export function startBuiltinImageViewer() {
                 renderer: "image-library",
               });
               owner.own(() => {
+                imageDirectoryMonitor.reset();
                 imageResourceCache.clear();
                 resetImageLibrarySession();
                 clearImageView();

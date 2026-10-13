@@ -1,3 +1,4 @@
+use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -6,7 +7,7 @@ use std::{
     path::{Component, Path, PathBuf},
     sync::Mutex,
 };
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -17,6 +18,7 @@ struct Grant {
 #[derive(Default)]
 pub struct ImageLibrary {
     roots: Mutex<HashMap<String, PathBuf>>,
+    watchers: Mutex<HashMap<String, (String, notify::RecommendedWatcher)>>,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -96,6 +98,7 @@ impl ImageLibrary {
             .unwrap_or_default();
         Self {
             roots: Mutex::new(grants.into_iter().map(|g| (g.id, g.path)).collect()),
+            watchers: Mutex::default(),
         }
     }
     fn root(&self, id: &str) -> Result<PathBuf, String> {
@@ -203,8 +206,76 @@ pub fn image_library_remove(
         .lock()
         .map_err(|_| "目录状态不可用")?
         .remove(&root_id);
+    library
+        .watchers
+        .lock()
+        .map_err(|_| "目录监听状态不可用")?
+        .retain(|_, (id, _)| id != &root_id);
     library.save(&app)
 }
+fn watch_directory(
+    path: &Path,
+    mut changed: impl FnMut(notify::Result<notify::Event>) + Send + 'static,
+) -> Result<notify::RecommendedWatcher, String> {
+    let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
+        if matches!(&event, Ok(event) if event.kind.is_access()) {
+            return;
+        }
+        changed(event);
+    })
+    .map_err(|e| e.to_string())?;
+    watcher
+        .watch(path, notify::RecursiveMode::NonRecursive)
+        .map_err(|e| e.to_string())?;
+    Ok(watcher)
+}
+
+#[tauri::command]
+pub fn image_library_watch(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    library: State<'_, ImageLibrary>,
+    root_id: String,
+    node: String,
+    watch_id: String,
+) -> Result<(), String> {
+    caller(&window)?;
+    if uuid::Uuid::parse_str(&watch_id).is_err() {
+        return Err("无效的监听ID".into());
+    }
+    let roots = library.roots.lock().map_err(|_| "目录状态不可用")?;
+    let root = roots.get(&root_id).ok_or("目录授权已撤销")?;
+    let path = checked_path(root, &node)?;
+    if !path.is_dir() {
+        return Err("请选择目录".into());
+    }
+    let mut watchers = library.watchers.lock().map_err(|_| "目录监听状态不可用")?;
+    if watchers.len() >= 256 || watchers.contains_key(&watch_id) {
+        return Err("目录监听数量已达上限".into());
+    }
+    let token = watch_id.clone();
+    let watcher = watch_directory(&path, move |_| {
+        // No absolute paths or file contents leave the authorized watcher.
+        let _ = app.emit_to("main", "nr:image-directory-changed", &token);
+    })?;
+    watchers.insert(watch_id, (root_id, watcher));
+    Ok(())
+}
+#[tauri::command]
+pub fn image_library_unwatch(
+    window: tauri::WebviewWindow,
+    library: State<'_, ImageLibrary>,
+    watch_id: String,
+) -> Result<(), String> {
+    caller(&window)?;
+    library
+        .watchers
+        .lock()
+        .map_err(|_| "目录监听状态不可用")?
+        .remove(&watch_id);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn image_library_list(
     window: tauri::WebviewWindow,
@@ -348,6 +419,54 @@ fn stat_image(root: &Path, node: &str) -> Result<ImageFileInfo, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_watcher_detects_file_changes_and_releases() {
+        let root = std::env::temp_dir().join(format!("nr-image-watch-{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&root).unwrap();
+        let root = fs::canonicalize(root).unwrap();
+        let (send, receive) = std::sync::mpsc::channel();
+        let watcher = watch_directory(&root, move |event| {
+            let _ = send.send(event);
+        })
+        .unwrap();
+        let wait = |path: &Path| {
+            let end = std::time::Instant::now() + std::time::Duration::from_secs(8);
+            loop {
+                let remaining = end.saturating_duration_since(std::time::Instant::now());
+                let event = receive
+                    .recv_timeout(remaining)
+                    .expect("no filesystem notification")
+                    .unwrap();
+                if event.paths.iter().any(|candidate| candidate == path) {
+                    break;
+                }
+            }
+        };
+        let first = root.join("one.png");
+        fs::write(&first, b"one").unwrap();
+        wait(&first);
+        assert_eq!(list_images(&root, "", 0).unwrap().nodes.len(), 1);
+        fs::write(&first, b"updated image").unwrap();
+        wait(&first);
+        assert_eq!(stat_image(&root, "one.png").unwrap().size, 13);
+        let renamed = root.join("renamed.png");
+        fs::rename(&first, &renamed).unwrap();
+        wait(&renamed);
+        assert_eq!(
+            list_images(&root, "", 0).unwrap().nodes[0].name,
+            "renamed.png"
+        );
+        fs::remove_file(&renamed).unwrap();
+        wait(&renamed);
+        assert!(list_images(&root, "", 0).unwrap().nodes.is_empty());
+        drop(watcher);
+        while receive.try_recv().is_ok() {}
+        fs::write(root.join("after-stop.png"), b"stop").unwrap();
+        assert!(receive
+            .recv_timeout(std::time::Duration::from_millis(500))
+            .is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn rejects_escaped_nodes_and_non_images() {
         let root = std::env::temp_dir().join(format!("nr-image-path-{}", uuid::Uuid::new_v4()));

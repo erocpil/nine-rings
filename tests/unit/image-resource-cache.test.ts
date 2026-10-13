@@ -64,3 +64,32 @@ it("evicts unused least-recent resources under the capacity limit", async () => 
   cache.clear();
   expect(dispose).toHaveBeenCalledTimes(2);
 });
+it("invalidates all sizes of one image without revoking active previews or unrelated resources", async () => {
+  const dispose = vi.fn();
+  const load = vi.fn(async () => ({
+    url: "blob:preview",
+    width: 128,
+    release: dispose,
+  }));
+  const cache = new ImageResourceCache(load);
+  const first = await cache.acquire(image, new AbortController().signal, 128);
+  const large = await cache.acquire(image, new AbortController().signal, 2048);
+  const other = { src: "/other.png", name: "other" };
+  const unrelated = await cache.acquire(
+    other,
+    new AbortController().signal,
+    128,
+  );
+  cache.invalidate(image);
+  expect(dispose).not.toHaveBeenCalled();
+  const fresh = await cache.acquire(image, new AbortController().signal, 128);
+  const reused = await cache.acquire(other, new AbortController().signal, 128);
+  expect(load).toHaveBeenCalledTimes(4);
+  first.release();
+  large.release();
+  expect(dispose).toHaveBeenCalledTimes(2);
+  fresh.release();
+  unrelated.release();
+  reused.release();
+  cache.clear();
+});

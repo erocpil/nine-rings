@@ -1077,3 +1077,62 @@ test("竖图缩略图完整容纳，图片属性窄幅且可拖动调宽", async
   await page.mouse.down(); await page.mouse.move(grip!.x - 60, grip!.y + 30); await page.mouse.up();
   await expect.poll(async () => (await properties.boundingBox())!.width).toBeGreaterThan(before + 40);
 });
+
+test("已授权目录自动检测新增、改名、修改和删除，保留当前预览与选中", async ({ page, browserName }) => {
+  test.skip(browserName !== "chromium", "真实可持久化目录句柄测试使用 Chromium OPFS，WebKit通过监听与生命周期单元测试覆盖");
+  await createBlankDocument(page);
+  await closeDocumentSidebar(page);
+  await enable(page);
+  await page.evaluate(async () => {
+    const parent = await navigator.storage.getDirectory();
+    const handle = await parent.getDirectoryHandle(`nr-live-${Date.now()}`, { create: true });
+    const write = async (name: string, width: number) => {
+      const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = 32;
+      const blob = await new Promise<Blob>(resolve => canvas.toBlob(value => resolve(value!)));
+      const file = await handle.getFileHandle(name, { create: true });
+      const stream = await file.createWritable(); await stream.write(blob); await stream.close();
+    };
+    await write("one.png", 32);
+    (window as any).showDirectoryPicker = async () => handle;
+    (window as any).changeLiveImage = async (action: string) => {
+      if (action === "add") await write("two.png", 48);
+      if (action === "modify") await write("one.png", 80);
+      if (action === "rename") { await write("renamed.png", 48); await handle.removeEntry("two.png"); }
+      if (action === "delete") await handle.removeEntry("one.png");
+      if (action === "restore") await write("one.png", 96);
+      window.dispatchEvent(new Event("focus"));
+    };
+  });
+  await page.getByRole("button", { name: "图片", exact: true }).click();
+  const panel = page.getByRole("region", { name: "图片目录分栏" });
+  await panel.getByRole("button", { name: "选择图片目录", exact: true }).click();
+  await panel.locator(".image-tree-folder").first().click();
+  await expect(panel.getByRole("button", { name: "one.png", exact: true })).toBeVisible();
+  await panel.getByRole("button", { name: "one.png", exact: true }).click();
+  const viewer = page.getByRole("region", { name: "图片查看器" });
+  const picture = viewer.locator(".image-viewer-viewport img");
+  await expect(picture).toBeVisible();
+  const mutate = (action: string) => page.evaluate(action => (window as any).changeLiveImage(action), action);
+  await viewer.getByRole("button", { name: "放大图片", exact: true }).click();
+  await mutate("add");
+  await expect(panel.getByRole("button", { name: "two.png", exact: true })).toBeVisible();
+  await expect(viewer.getByRole("heading")).toHaveText("one.png");
+  await expect(viewer.getByRole("button", { name: "下一张图片", exact: true })).toBeEnabled();
+  await expect(viewer.getByRole("toolbar")).toContainText("125%");
+  await mutate("rename");
+  await expect(panel.getByRole("button", { name: "renamed.png", exact: true })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "two.png", exact: true })).toHaveCount(0);
+  await mutate("modify");
+  await expect(viewer.locator(".image-viewer-dimensions")).toHaveText("80 × 32");
+  const previousUrl = await picture.getAttribute("src");
+  await mutate("delete");
+  await expect(panel.getByRole("button", { name: "one.png", exact: true })).toHaveCount(0);
+  await expect(viewer.getByRole("alert")).toContainText("保留当前预览");
+  await expect(picture).toHaveAttribute("src", previousUrl!);
+  await expect(viewer.getByRole("heading")).toHaveText("one.png");
+  await expect(viewer.getByRole("button", { name: "插入当前文档", exact: true })).toBeDisabled();
+  await mutate("restore");
+  await expect(viewer.getByRole("alert")).toHaveCount(0);
+  await expect(viewer.locator(".image-viewer-dimensions")).toHaveText("96 × 32");
+  await expect(panel.locator(".image-tree-file.is-selected")).toContainText("one.png");
+});

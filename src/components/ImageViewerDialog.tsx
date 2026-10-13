@@ -1,3 +1,6 @@
+import { imageDirectoryService } from "../lib/image-library/directory-service";
+import { imageDirectoryMonitor } from "../lib/image-library/directory-monitor";
+import { useImageFileChange } from "../hooks/useImageFileChange";
 import { selectImage, imageKey } from "../lib/image-library/session";
 import { ImagePropertiesPanel } from "./ImagePropertiesPanel";
 import {
@@ -30,7 +33,7 @@ import {
   type ImageTransformOperation,
 } from "../lib/image-library/view-transform";
 export function ImageViewer({
-  images,
+  images: initialImages,
   initial,
   onClose,
   presentation = "modal",
@@ -50,6 +53,7 @@ export function ImageViewer({
   focusMode?: boolean;
   onFocusChange?: (focus: boolean) => void;
 }) {
+  const [images, setImages] = useState(initialImages);
   const [index, setIndex] = useState(
     Math.max(
       0,
@@ -61,13 +65,14 @@ export function ImageViewer({
       ),
     ),
   );
-  const [request, setRequest] = useState({ images, initial });
-  if (request.images !== images || request.initial !== initial) {
-    setRequest({ images, initial });
+  const [request, setRequest] = useState({ images: initialImages, initial });
+  if (request.images !== initialImages || request.initial !== initial) {
+    setRequest({ images: initialImages, initial });
+    setImages(initialImages);
     setIndex(
       Math.max(
         0,
-        images.findIndex(
+        initialImages.findIndex(
           (value) =>
             value.src === initial.src &&
             value.rootId === initial.rootId &&
@@ -77,6 +82,26 @@ export function ImageViewer({
     );
   }
   const image = images[index] ?? initial;
+  const fileChange = useImageFileChange(image);
+  const currentImage = useRef(image);
+  const currentIndex = useRef(index);
+  currentIndex.current = index;
+  currentImage.current = image;
+  useEffect(() => {
+    if (!image.rootId || !image.nodeId || !active || !imageDirectoryService.monitorable(image.rootId)) return;
+    return imageDirectoryMonitor.subscribe(image.rootId, image.nodeId.split("/").slice(0, -1).join("/"), {
+      active: true,
+      changed: page => {
+        const current = currentImage.current;
+        const next: ViewedImage[] = page.nodes.filter(node => !node.directory).slice(0, 5000).map(node => node.id === current.nodeId ? current : ({ src: "", name: node.name, rootId: image.rootId, nodeId: node.id }));
+        let position = next.findIndex(item => imageKey(item) === imageKey(current));
+        // Keep a deleted current image as an explicit unavailable entry until
+        // the user chooses another, instead of silently changing the selection.
+        if (position < 0) { position = Math.min(currentIndex.current, next.length); next.splice(position, 0, current); }
+        setImages(next); setIndex(position);
+      }, error: () => {},
+    });
+  }, [image.rootId, image.nodeId, active]);
   const [localFocus, setLocalFocus] = useState(false);
   const focused = focusMode ?? localFocus;
   const toggleFocus = () => {
@@ -93,6 +118,7 @@ export function ImageViewer({
   useEffect(() => {
     if (active) selectImage(image);
   }, [image, active]);
+  const loadedIdentity = useRef("");
   const [resource, setResource] = useState("");
   const [resourceKey, setResourceKey] = useState("");
   const visibleResource = resourceKey === imageKey(image) ? resource : "";
@@ -183,7 +209,7 @@ export function ImageViewer({
   );
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const reset = () => {
-    setOriginal(false);
+    if (!fileChange.missing) setOriginal(false);
     setZoom(1);
     setPan({ x: 0, y: 0 });
   };
@@ -236,8 +262,11 @@ export function ImageViewer({
     setDimensions({ width: 0, height: 0 });
     setDecodedDimensions({ width: 0, height: 0 });
     setError("");
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
+    const identity = `${imageKey(image)}:${original}`;
+    if (loadedIdentity.current !== identity) {
+      loadedIdentity.current = identity;
+      setZoom(1); setPan({ x: 0, y: 0 });
+    }
     void imageResourceCache
       .acquire(image, controller.signal, original ? 0 : 2048)
       .then((value) => {
@@ -258,7 +287,7 @@ export function ImageViewer({
       controller.abort();
       release();
     };
-  }, [image, original]);
+  }, [image, original, fileChange.revision]);
   useEffect(() => {
     const element = viewport.current!;
     if (!active) return;
@@ -618,6 +647,7 @@ export function ImageViewer({
         <button
           className="btn-icon" aria-label="原始尺寸"
           title="原始像素尺寸"
+          disabled={fileChange.missing}
           onClick={() => {
             setOriginal(true);
             if (original) setZoom(1 / fitScale);
@@ -692,11 +722,11 @@ export function ImageViewer({
         <button
           className="btn-icon" aria-label="插入当前文档"
           title="需有可编辑文档且启用插入图片插件"
-          disabled={
+          disabled={fileChange.missing || (
             canInsert !== undefined
               ? !canInsert
               : !document.querySelector('[data-can-insert-image="true"]')
-          }
+          )}
           onClick={() => {
             if (onInsert) {
               onInsert(image);
@@ -735,6 +765,7 @@ export function ImageViewer({
           className="image-viewer-viewport"
           data-background={background}
           onDoubleClick={() => {
+            if (fileChange.missing) return;
             if (original) reset();
             else {
               setOriginal(true);
@@ -852,7 +883,7 @@ export function ImageViewer({
         />
         </div>
       )}
-      {error && <footer><span role="status">{error}</span></footer>}
+      {(error || fileChange.missing) && <footer><span role={fileChange.missing ? "alert" : "status"}>{fileChange.missing ? "图片已删除、移动或暂不可访问；保留当前预览，可切换其它图片。" : error}</span></footer>}
     </Surface>
   );
   return presentation === "modal"
