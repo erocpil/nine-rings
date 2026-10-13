@@ -42,6 +42,9 @@ export function restoreRenderedReadingAnchor(editor: Editor, root: HTMLElement, 
   const coords = editor.view.coordsAtPos(anchor.position);
   // A folded/hidden text node has no usable line box; retain the pixel fallback.
   if (coords.bottom <= coords.top) return false;
-  root.scrollTop += coords.top - viewportTop(root) - anchor.offset;
-  return true;
+  const target = root.scrollTop + coords.top - viewportTop(root) - anchor.offset;
+  root.scrollTop = target;
+  // A slow NodeView or temporarily clamped shell may prevent reaching this
+  // anchor. Keep restoration pending instead of publishing the clamped value.
+  return Math.abs(root.scrollTop - target) <= 1;
 }

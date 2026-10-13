@@ -461,10 +461,16 @@ mod tests {
         assert!(list_images(&root, "", 0).unwrap().nodes.is_empty());
         drop(watcher);
         while receive.try_recv().is_ok() {}
-        fs::write(root.join("after-stop.png"), b"stop").unwrap();
-        assert!(receive
-            .recv_timeout(std::time::Duration::from_millis(500))
-            .is_err());
+        let after_stop = root.join("after-stop.png");
+        fs::write(&after_stop, b"stop").unwrap();
+        // Linux may deliver already queued notifications after drop. Only a
+        // notification for the new post-release file would indicate a leak.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(500);
+        while let Ok(event) =
+            receive.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
+        {
+            assert!(!event.unwrap().paths.iter().any(|path| path == &after_stop));
+        }
         fs::remove_dir_all(root).unwrap();
     }
     #[test]

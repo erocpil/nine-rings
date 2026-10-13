@@ -208,12 +208,12 @@ test("局部阅读默认关闭，1500 块搜索与折叠末章，再回退完整
   const last = page.locator('[data-reading-row][data-block-number="1471"]');
   await expect(last.getByRole("heading")).toHaveText("章节 50");
   await last.getByRole("button", { name: "折叠切换 章节 50" }).click();
-  await expect(last.getByRole("button")).toHaveAttribute(
+  await expect(last.getByRole("button", { name: /^折叠切换 / })).toHaveAttribute(
     "aria-expanded",
     "true",
   );
-  await last.getByRole("button").click();
-  await expect(last.getByRole("button")).toHaveAttribute(
+  await last.getByRole("button", { name: /^折叠切换 / }).click();
+  await expect(last.getByRole("button", { name: /^折叠切换 / })).toHaveAttribute(
     "aria-expanded",
     "false",
   );
@@ -368,7 +368,7 @@ test.describe("触屏局部阅读", () => {
     const last = page.locator('[data-block-number="271"]');
     await last.getByRole("heading").tap();
     await last.getByRole("heading").tap();
-    await expect(last.getByRole("button")).toHaveAttribute(
+    await expect(last.getByRole("button", { name: /^折叠切换 / })).toHaveAttribute(
       "aria-expanded",
       "true",
     );

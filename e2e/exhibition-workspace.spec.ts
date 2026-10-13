@@ -454,12 +454,15 @@ test("首页快速往返不保存恢复期间的临时滚动位置", async ({ pa
     return element.scrollTop;
   });
   expect(target).toBeGreaterThan(2000);
+  // Include a persisted text anchor, as a slower runner does before clicking home.
+  await page.evaluate(() => window.dispatchEvent(new Event("nine-rings:flush-reading-position")));
   await page.getByRole("button", {name: "返回工作区首页", exact: true}).click();
   // Simulate a slow NodeView: the target cannot be reached on initial mount.
   await page.addStyleTag({content: ".note-editor-scroll > .editor-content-shell { max-height: 150px !important; overflow: hidden !important; }"});
   await page.getByRole("button", {name: "返回上一页面", exact: true}).click();
   await expect(page.locator(".ProseMirror")).toBeVisible();
-  await page.waitForTimeout(300);
+  // Keep the content clamped beyond the normal 600ms restore window.
+  await page.waitForTimeout(900);
   await page.locator(".note-editor-scroll").evaluate(element => {
     // A queued native scroll notification may arrive after the height clamp.
     element.dispatchEvent(new Event("scroll"));
