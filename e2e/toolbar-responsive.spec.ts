@@ -218,3 +218,18 @@ test.describe("响应式编辑器工具栏", () => {
     await expect(page.locator(".ProseMirror table th").first()).toHaveAttribute("colwidth", savedWidth!);
   });
 });
+
+test("桌面字号菜单避开编辑区裁剪且选项可点击", async ({ page }) => {
+  await createBlankNote(page);
+  await page.locator(".editor-menu").evaluate(el => { el.style.transform = "translateZ(0)"; });
+  const size = page.getByTitle("字号", { exact: true });
+  await size.click();
+  const option = page.locator(".editor-menu .menu-dropdown-list").getByRole("button", { name: "20px", exact: true });
+  await expect(option).toBeVisible();
+  await option.click({ timeout: 5000 });
+  await expect(size).toContainText("20");
+  await size.click();
+  await expect(option).toBeVisible();
+  await size.click();
+  await expect(option).toHaveCount(0);
+});

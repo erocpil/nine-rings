@@ -480,6 +480,7 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 }
 
 .menu-dropdown-list {
+  color: var(--text);
   position: absolute;
   top: 100%;
   left: 0;

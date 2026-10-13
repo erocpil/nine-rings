@@ -139,8 +139,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
   const clearTextFormatting = () => {
     editor.chain().focus().unsetAllMarks().run();
   };
-  // Fixed menus escape the horizontal scroll viewport while retaining the
-  // owning toolbar's DOM containment and focus/dismissal behavior.
+  // Top-layer menus escape scroll clipping and transformed ancestors while
+  // retaining toolbar DOM containment, selection and dismissal handlers.
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
     if (!toolbar) return;
@@ -148,6 +148,13 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       toolbar.querySelectorAll<HTMLElement>(".menu-dropdown-list").forEach(menu => {
         const anchor = menu.parentElement?.getBoundingClientRect();
         if (!anchor) return;
+        if (typeof menu.showPopover === "function") {
+          menu.setAttribute("popover", "manual");
+          if (!menu.matches(":popover-open")) menu.showPopover();
+          menu.style.margin = "2px 0 0";
+          menu.style.right = "auto";
+          menu.style.bottom = "auto";
+        }
         menu.style.position = "fixed";
         menu.style.top = `${anchor.bottom}px`;
         menu.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - menu.offsetWidth - 8))}px`;
@@ -158,6 +165,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     position();
     toolbar.addEventListener("scroll", position);
     window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
     const resize = new ResizeObserver(position);
     resize.observe(toolbar);
     const changes = new MutationObserver(position);
@@ -165,6 +173,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     return () => {
       toolbar.removeEventListener("scroll", position);
       window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
       resize.disconnect();
       changes.disconnect();
     };
