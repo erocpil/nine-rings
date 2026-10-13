@@ -1,3 +1,4 @@
+import { EditorBackgroundMenu } from "./EditorBackgroundMenu";
 import { OrderedListNumberingMenu } from "./OrderedListNumberingMenu";
 import { FLOW_BLOCK_TEMPLATE } from "../lib/flow-block";
 import { resetTableColumnWidths } from "../extensions/ContentSizedTable";
@@ -232,6 +233,10 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       type="button"
     >#</button>
     </>)}
+    {editor.isActive("table") && <>
+      {btn(<ToolbarIcon name="tableRow" />, () => setTableSelection("row"), false, "选择当前行", readonly)}
+      {btn(<ToolbarIcon name="tableColumn" />, () => setTableSelection("column"), false, "选择当前列", readonly)}
+    </>}
     {editor.isActive("table") && (
       <div className="menu-dropdown toolbar-table-menu">
         <button
@@ -257,6 +262,9 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
                 <button className="menu-dropdown-item" onClick={() => { clearSelectedTableCells(); setTableOpen(false); }} type="button">清空所选单元格</button>
               </>
             )}
+            <div className="menu-dropdown-sep" />
+            <button className="menu-dropdown-item" disabled={readonly || !editor.can().mergeCells()} onClick={() => { editor.chain().focus().mergeCells().run(); setTableOpen(false); }} type="button">合并所选单元格</button>
+            <button className="menu-dropdown-item" disabled={readonly || !editor.can().splitCell()} onClick={() => { editor.chain().focus().splitCell().run(); setTableOpen(false); }} type="button">拆分单元格</button>
             <div className="menu-dropdown-sep" />
             <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addRowBefore().run(); setTableOpen(false); }} type="button">在上方添加行</button>
             <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addRowAfter().run(); setTableOpen(false); }} type="button">在下方添加行</button>
@@ -321,6 +329,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
         </div>
       )}
     </div>
+
+    <EditorBackgroundMenu editor={editor} readonly={readonly} />
 
     {/* 文字颜色 */}
     <div className="menu-dropdown" data-toolbar-tool="color">

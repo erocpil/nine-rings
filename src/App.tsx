@@ -1,3 +1,5 @@
+import { FocusDocumentTabs } from "./components/FocusDocumentTabs";
+import { SelectionHoverToolbar } from "./components/SelectionHoverToolbar";
 import { mainViews } from "./lib/plugin-system/main-view-registry";
 import { usePluginMainView } from "./hooks/usePluginMainView";
 import { IMAGE_INSERT_EVENT } from "./lib/image-library/viewer-request";
@@ -1511,9 +1513,13 @@ function App() {
       {...(searchExpanded || errorDetailsOpen ? { inert: "" } : {})}
     >
       {/* 展陈桌面窗口操作位于外围；专注模式恢复紧凑标题栏。 */}
-      {(isTauriRuntime() ? !(exhibitionEnabled && desktopWorkspace && !effectiveFocusMode) : exhibitionEnabled && desktopWorkspace && effectiveFocusMode) && (
+      {(isTauriRuntime() ? !(exhibitionEnabled && desktopWorkspace && !effectiveFocusMode) : desktopWorkspace && effectiveFocusMode) && (
         <Suspense fallback={null}>
-          <TitleBar wordmark={desktopWorkspace && effectiveFocusMode} />
+          <TitleBar wordmark={desktopWorkspace && effectiveFocusMode} focusTabs={desktopWorkspace && effectiveFocusMode ? <FocusDocumentTabs
+            noteId={workspaceHome ? undefined : selectedNote?.id} refreshKey={docTreeKey}
+            onOpen={async note => { await flushAutoSave(); setQuery(""); setDocResults(null); handleSelectNote(note); }}
+            onCloseLast={async () => { await flushAutoSave(); handleSelectNote(null); setSelectedFolderPath(null); setSelectedConcept(null); }}
+          /> : undefined} />
         </Suspense>
       )}
       {!isTauriRuntime() && (
@@ -2141,6 +2147,7 @@ function App() {
         <p role="status">{errorCopyNotice}</p>
       </div>
     </WorkspaceDialog>}
+    <SelectionHoverToolbar />
     </EditorFoldIconContext.Provider></ReadingTypographyProvider>
   );
 }

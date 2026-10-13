@@ -1,3 +1,5 @@
+import { tocClipboardSerializer } from "../lib/toc-clipboard";
+import { Plugin } from "@tiptap/pm/state";
 import { Extension, InputRule } from "@tiptap/core";
 import { TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state";
 
@@ -15,6 +17,7 @@ function insertTOC(state: EditorState, tr: Transaction): boolean {
 export const AutomaticTOC = Extension.create({
   name: "automaticTOC",
   priority: 1100,
+  addProseMirrorPlugins() { return [new Plugin({ props: { clipboardSerializer: tocClipboardSerializer(this.editor.schema, () => this.editor.state.doc) } })]; },
   addInputRules() {
     return [new InputRule({ find: /^\/toc[ \u00a0]$/, handler: ({ state }) => {
       if (this.editor.view.composing) return null;

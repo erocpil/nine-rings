@@ -194,7 +194,7 @@ test.describe("响应式编辑器工具栏", () => {
 
     await table.locator("td").first().click();
     await page.getByTitle("表格操作").click();
-    await page.getByRole("button", { name: "选择当前行" }).click();
+    await page.locator(".table-context-menu").getByRole("button", { name: "选择当前行", exact: true }).click();
     await expect(table.locator(".selectedCell")).toHaveCount(3);
 
     const headerBox = await firstCell.boundingBox();

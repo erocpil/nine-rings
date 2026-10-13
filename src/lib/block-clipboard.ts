@@ -1,4 +1,5 @@
-import { DOMSerializer, type Node } from "@tiptap/pm/model";
+import { tocClipboardSerializer } from "./toc-clipboard";
+import { type Node } from "@tiptap/pm/model";
 import { clipboardSliceToPlainText } from "./clipboard-plain-text";
 import { copyToClipboard } from "./clipboard";
 import { proseMirrorToDelta } from "./delta-converter";
@@ -7,12 +8,12 @@ export async function copyDocumentBlock(doc: Node, position: number, mode: "form
   const node = doc.nodeAt(position);
   if (!node) throw new Error("Block no longer exists");
   const slice = doc.slice(position, position + node.nodeSize);
-  const text = mode === "markdown" ? deltaToMarkdown(proseMirrorToDelta({ type: "doc", content: [node.toJSON()] })) : clipboardSliceToPlainText(slice);
+  const text = mode === "markdown" ? deltaToMarkdown(proseMirrorToDelta({ type: "doc", content: [node.toJSON()] })) : clipboardSliceToPlainText(slice, doc);
   if (mode === "formatted") {
     try {
       const container = document.createElement("div");
       if (options) container.dataset.nrCutBlock = options.token;
-      container.append(DOMSerializer.fromSchema(doc.type.schema).serializeFragment(slice.content));
+      container.append(tocClipboardSerializer(doc.type.schema, () => doc).serializeFragment(slice.content));
       await navigator.clipboard.write([new ClipboardItem({ "text/plain": new Blob([text], { type: "text/plain" }), "text/html": new Blob([options ? container.outerHTML : container.innerHTML], { type: "text/html" }) })]);
       return;
     } catch (error) {

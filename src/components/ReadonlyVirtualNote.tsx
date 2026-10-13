@@ -1,3 +1,4 @@
+import { editorBackgroundStyle } from "../lib/editor-color";
 import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
 import { panelDisplayStyle, bookmarkTooltip, sortedBookmarks } from "../lib/panel-display-view";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
@@ -145,7 +146,7 @@ export function renderReadonlyBlock(
           rendered = React.createElement(["sub", "sup", "ins"].includes(mark.attrs.tag) ? mark.attrs.tag : "ins", null, rendered);
           break;
         case "inlineHighlight":
-          rendered = <mark>{rendered}</mark>;
+          rendered = <mark style={{ backgroundColor: editorBackgroundStyle(mark.attrs.backgroundColor) }}>{rendered}</mark>;
           break;
         case "footnoteReference": {
           const id = String(mark.attrs.id ?? "");
@@ -244,8 +245,8 @@ export function renderReadonlyBlock(
     case "table":
       return <div {...attrs} className="tableWrapper"><table><tbody>{children}</tbody></table></div>;
     case "tableRow": return <tr>{children}</tr>;
-    case "tableHeader": return <th colSpan={node.attrs.colspan} rowSpan={node.attrs.rowspan} style={{ textAlign: node.attrs.textAlign || undefined }}>{children}</th>;
-    case "tableCell": return <td colSpan={node.attrs.colspan} rowSpan={node.attrs.rowspan} style={{ textAlign: node.attrs.textAlign || undefined }}>{children}</td>;
+    case "tableHeader": return <th colSpan={node.attrs.colspan} rowSpan={node.attrs.rowspan} style={{ textAlign: node.attrs.textAlign || undefined, backgroundColor: editorBackgroundStyle(node.attrs.backgroundColor) }}>{children}</th>;
+    case "tableCell": return <td colSpan={node.attrs.colspan} rowSpan={node.attrs.rowspan} style={{ textAlign: node.attrs.textAlign || undefined, backgroundColor: editorBackgroundStyle(node.attrs.backgroundColor) }}>{children}</td>;
     case "listItem":
       return <li data-task-checked={typeof node.attrs.taskChecked === "boolean" ? String(node.attrs.taskChecked) : undefined}>{children}</li>;
     case "blockquote": {
@@ -1318,7 +1319,7 @@ export function ReadonlyVirtualNote(
           type="button"
           onClick={() =>
             void copyToClipboard(
-              clipboardSliceToPlainText(new Slice(doc.content, 0, 0)),
+              clipboardSliceToPlainText(new Slice(doc.content, 0, 0), doc),
             )
           }
         >

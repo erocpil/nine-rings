@@ -1,3 +1,5 @@
+import { normalizeEditorColor } from "./editor-color";
+import { isTableEmbed, type TableCellEmbed } from "./table-embed";
 import { deltaOpWeight } from "./delta-content-weight";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfm } from "micromark-extension-gfm";
@@ -240,7 +242,7 @@ function inline(
           break;
         }
         if (tag && !token?.[1] && inlineTags[tag]) {
-          htmlStack.push({ tag, attrs: inlineTags[tag] });
+          htmlStack.push({ tag, attrs: { ...inlineTags[tag], ...(tag === "mark" && normalizeEditorColor(htmlAttributes(node.value).dataBackgroundColor) ? { background: normalizeEditorColor(htmlAttributes(node.value).dataBackgroundColor) } : {}) } });
           break;
         }
         if (tag === "br" && !token?.[1]) {
@@ -425,6 +427,10 @@ function listLines(
 function safeHTML(source: string): DeltaOp[] | null {
   if (/^\s*<\?|^\s*<![^-]/.test(source)) return null;
   const root = fromHtml(source, { fragment: true });
+  return safeHTMLNodes(root.children);
+}
+function safeHTMLNodes(children: ReturnType<typeof fromHtml>["children"]): DeltaOp[] | null {
+  const root = { children };
   if (
     root.children.every(
       (child) =>
@@ -474,6 +480,7 @@ function safeHTML(source: string): DeltaOp[] | null {
       const next = {
         ...attributes,
         ...inlineTags[node.tagName],
+        ...(node.tagName === "mark" && normalizeEditorColor(p.dataBackgroundColor) ? { background: normalizeEditorColor(p.dataBackgroundColor) } : {}),
         ...(node.tagName === "a" && typeof p.href === "string"
           ? { link: p.href, ...(p.title ? { linkTitle: p.title } : {}) }
           : {}),
@@ -688,6 +695,8 @@ function blocks(
         ops.push({ insert: { table: table(node, context) } }, { insert: "\n" });
         break;
       case "html": {
+        const htmlTable = parseHTMLTable(node.value);
+        if (htmlTable) { ops.push({ insert: { table: htmlTable } }, { insert: "\n" }); break; }
         const start = node.position?.start.offset ?? 0;
         const end = /^<details\b/i.test(node.value.trimStart())
           ? detailsEnd(context.source, start)
@@ -789,4 +798,45 @@ export function parseGFMTable(source: string): TableEmbed | null {
         references: new Map(),
       })
     : null;
+}
+
+/** Parse only known table structure and inline tags into data, never execute HTML. */
+function parseHTMLTable(source: string): TableEmbed | null {
+  if (!/^\s*<table[\s>]/i.test(source)) return null;
+  const root = fromHtml(source, { fragment: true });
+  const tables = root.children.filter(node => node.type !== "text" || node.value.trim());
+  const table = tables[0];
+  if (tables.length !== 1 || table?.type !== "element" || table.tagName !== "table") return null;
+  const rows: TableEmbed["rows"] = [], aligns: TableEmbed["columns"] = [];
+  let valid = true;
+  const covered: number[] = [];
+  const visit = (node: ReturnType<typeof fromHtml>["children"][number]) => {
+    if (node.type === "text" && !node.value.trim()) return;
+    if (node.type !== "element") { valid = false; return; }
+    if (["table", "thead", "tbody", "tfoot"].includes(node.tagName)) { node.children.forEach(visit); return; }
+    if (node.tagName !== "tr") { valid = false; return; }
+    const cells: TableCellEmbed[] = []; let column = 0;
+    for (const child of node.children) {
+      if (child.type === "text" && !child.value.trim()) continue;
+      if (child.type !== "element" || !["td", "th"].includes(child.tagName)) { valid = false; continue; }
+      while ((covered[column] ?? 0) > rows.length) column++;
+      const colspan = Number(child.properties.colSpan ?? 1), rowspan = Number(child.properties.rowSpan ?? 1);
+      if (!Number.isInteger(colspan) || colspan < 1 || colspan > 100 || !Number.isInteger(rowspan) || rowspan < 1 || rowspan > 10000) { valid = false; continue; }
+      const paragraphs: DeltaOps[] = [];
+      const content = child.children.filter(item => item.type !== "text" || item.value.trim());
+      if (content.every(item => item.type === "element" && item.tagName === "p")) {
+        for (const paragraph of content) { if (paragraph.type !== "element") continue; const ops = safeHTMLNodes(paragraph.children); if (ops === null && paragraph.children.length) valid = false; paragraphs.push({ ops: ops ?? [] }); }
+      } else { const ops = safeHTMLNodes(child.children); if (ops === null && content.length) valid = false; paragraphs.push({ ops: ops ?? [] }); }
+      const ops: DeltaOp[] = [];
+      paragraphs.forEach((paragraph, index) => { if (index) ops.push({ insert: "\n" }); ops.push(...paragraph.ops); });
+      const color = normalizeEditorColor(child.properties.dataBackgroundColor);
+      const align = ["left", "center", "right"].includes(String(child.properties.align)) ? child.properties.align as "left" | "center" | "right" : null;
+      cells.push({ content: { ops }, ...(child.tagName === "th" ? { header: true } : {}), ...(colspan > 1 ? { colspan } : {}), ...(rowspan > 1 ? { rowspan } : {}), ...(color ? { background: color } : {}), ...(paragraphs.length > 1 ? { paragraphs } : {}) });
+      for (let i = 0; i < colspan; i++) { if ((covered[column] ?? 0) > rows.length) valid = false; covered[column] = rows.length + rowspan; aligns[column] ??= { align }; column++; }
+    }
+    rows.push({ cells });
+  };
+  visit(table);
+  const result: TableEmbed = { version: 1, columns: aligns, rows };
+  return valid && rows.length > 0 && isTableEmbed(result) ? result : null;
 }

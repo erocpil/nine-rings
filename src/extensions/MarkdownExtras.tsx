@@ -1,3 +1,4 @@
+import { normalizeEditorColor, editorBackgroundStyle } from "../lib/editor-color";
 import { useEffect, useState } from "react";
 import { Mark, Node, mergeAttributes } from "@tiptap/core";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
@@ -45,7 +46,9 @@ export const MathBlock = Node.create({
 });
 
 export const InlineHighlight = Mark.create({
-  name: "inlineHighlight", parseHTML: () => [{ tag: "mark" }],
+  name: "inlineHighlight",
+  addAttributes: () => ({ backgroundColor: { default: null, parseHTML: element => normalizeEditorColor(element.getAttribute("data-background-color") ?? element.style.backgroundColor), renderHTML: attributes => normalizeEditorColor(attributes.backgroundColor) ? { "data-background-color": normalizeEditorColor(attributes.backgroundColor), style: `background-color: ${editorBackgroundStyle(attributes.backgroundColor)}` } : {} } }),
+  parseHTML: () => [{ tag: "mark" }],
   renderHTML: ({ HTMLAttributes }) => ["mark", HTMLAttributes, 0],
 });
 

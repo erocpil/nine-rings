@@ -1,3 +1,4 @@
+import { normalizeEditorColor } from "./editor-color";
 import type { JSONContent } from "@tiptap/core";
 import { toMarkdown } from "mdast-util-to-markdown";
 import { gfmToMarkdown } from "mdast-util-gfm";
@@ -156,7 +157,7 @@ function inline(content: JSONContent[]): PhrasingContent[] {
             : ["sub", "sup", "ins"].includes(chosen.attrs?.tag)
               ? String(chosen.attrs?.tag)
               : "ins";
-        output.push({ type: "html", value: `<${tag}>` }, ...children, {
+        output.push({ type: "html", value: `<${tag}${chosen.type === "inlineHighlight" && normalizeEditorColor(chosen.attrs?.backgroundColor) ? ` data-background-color="${normalizeEditorColor(chosen.attrs?.backgroundColor)}"` : ""}>` }, ...children, {
           type: "html",
           value: `</${tag}>`,
         });
@@ -251,6 +252,13 @@ function block(node: JSONContent): RootContent[] {
     case "horizontalRule":
       return [{ type: "thematicBreak" }];
     case "table": {
+      const extended = content.some(row => (row.content ?? []).some(cell => Number(cell.attrs?.colspan) > 1 || Number(cell.attrs?.rowspan) > 1 || cell.attrs?.backgroundColor || (cell.content?.length ?? 0) > 1));
+      if (extended) return [{ type: "html", value: `<table>\n${content.map(row => `<tr>${(row.content ?? []).map(cell => {
+        const tag = cell.type === "tableHeader" ? "th" : "td";
+        const color = normalizeEditorColor(cell.attrs?.backgroundColor);
+        const attrs = `${Number(cell.attrs?.colspan) > 1 ? ` colspan="${Number(cell.attrs?.colspan)}"` : ""}${Number(cell.attrs?.rowspan) > 1 ? ` rowspan="${Number(cell.attrs?.rowspan)}"` : ""}${color ? ` data-background-color="${color}"` : ""}${["left", "center", "right"].includes(cell.attrs?.textAlign) ? ` align="${cell.attrs?.textAlign}"` : ""}`;
+        return `<${tag}${attrs}>${(cell.content ?? []).map(paragraph => `<p>${tableInlineHTML(paragraph.content ?? [])}</p>`).join("")}</${tag}>`;
+      }).join("")}</tr>`).join("\n")}\n</table>` }];
       const first = content[0];
       const table: Table = {
         type: "table",
@@ -383,4 +391,16 @@ export function noteToMarkdown(
     : body
       ? `${heading}\n\n${body}`
       : heading;
+}
+
+function tableInlineHTML(nodes: readonly JSONContent[]): string {
+  return nodes.map(node => {
+    let html = node.type === "hardBreak" ? "<br>" : node.type === "text" ? escapeHTML(node.text ?? "") : node.type === "markdownImage" || node.type === "image" ? `<img src="${escapeHTML(String(node.attrs?.src ?? ""))}" alt="${escapeHTML(String(node.attrs?.alt ?? ""))}">` : tableInlineHTML(node.content ?? []);
+    for (const mark of node.marks ?? []) {
+      const tag = ({ bold: "strong", italic: "em", strike: "del", code: "code", inlineHighlight: "mark" } as Record<string, string>)[mark.type];
+      if (tag) html = `<${tag}${mark.type === "inlineHighlight" && normalizeEditorColor(mark.attrs?.backgroundColor) ? ` data-background-color="${normalizeEditorColor(mark.attrs?.backgroundColor)}"` : ""}>${html}</${tag}>`;
+      else if (mark.type === "link") html = `<a href="${escapeHTML(String(mark.attrs?.href ?? ""))}">${html}</a>`;
+    }
+    return html;
+  }).join("");
 }

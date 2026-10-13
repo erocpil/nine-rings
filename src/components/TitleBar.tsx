@@ -1,3 +1,4 @@
+import { useFocusTabs, saveFocusTabs } from "../lib/focus-tabs";
 import {
   useEffect,
   useRef,
@@ -25,13 +26,16 @@ export default function TitleBar({
   wordmark = false,
   workspace,
   children,
+  focusTabs,
 }: {
   exhibition?: boolean;
   wordmark?: boolean;
   workspace?: ReactNode;
   children?: ReactNode;
+  focusTabs?: ReactNode;
 }) {
   const native = isTauriRuntime();
+  const tabs = useFocusTabs();
   const [fullscreen, setFullscreen] = useState(false);
   const macOS = /Mac/i.test(navigator.platform);
   const maximizePress = useRef<{ x: number; y: number; vertical: boolean } | null>(null);
@@ -41,7 +45,7 @@ export default function TitleBar({
   const isTitlebarBackground = (event: MouseEvent<HTMLDivElement>) =>
     event.target instanceof Element &&
     !event.target.closest(
-      ".titlebar-controls, button, a, input, select, textarea, [contenteditable]",
+      ".titlebar-controls, button, a, input, select, textarea, [contenteditable], .titlebar-title[title]",
     );
 
   const isTopEdge = (event: MouseEvent<HTMLDivElement>) =>
@@ -218,6 +222,8 @@ export default function TitleBar({
       <div className="titlebar-leading">
         {!exhibition && (
           <span
+            onDoubleClick={focusTabs ? event => { event.preventDefault(); event.stopPropagation(); saveFocusTabs({ visible: !tabs.visible }); } : undefined}
+            title={focusTabs ? "双击显示或隐藏最近文档标签" : undefined}
             className={`titlebar-title${wordmark ? " titlebar-wordmark" : ""}`}
           >
             {wordmark ? (
@@ -244,6 +250,8 @@ export default function TitleBar({
           </div>
         )}
       </div>
+      {focusTabs}
+      {native && focusTabs && <div className="focus-tabs-window-space" data-tauri-drag-region="deep" aria-hidden="true" />}
       {children && (
         <div className="titlebar-controls titlebar-appearance">{children}</div>
       )}

@@ -1,3 +1,5 @@
+import { Fragment } from "@tiptap/pm/model";
+import { tocLevels } from "../lib/heading-links";
 import { DeferredFlowBlock } from "../components/DeferredFlowBlock";
 import { FLOW_BLOCK_FOCUS_EVENT } from "../lib/flow-block-focus";
 import { activeLinePluginKey } from "./EditorHighlights";
@@ -551,7 +553,8 @@ export const CodeBlockLineNumbers = Node.create<CodeBlockLineNumberOptions>({
   },
 
   parseHTML() {
-    return [{ tag: "pre" }];
+    return [
+      { tag: "div[data-nr-toc]", getAttrs: () => ({ language: "toc" }), getContent: (element, schema) => Fragment.from(schema.text(`levels: ${tocLevels((element as HTMLElement).getAttribute("data-nr-toc") ?? "").join(",")}`)) },{ tag: "pre" }];
   },
 
   renderHTML({ HTMLAttributes }) {

@@ -439,7 +439,7 @@ const documentEditorProps = {
       .some((name) => name === "codeBlock" || name === "blockquote");
     return flattenPartialStructuredClipboard(slice, view.state.schema, structuredContext);
   },
-  clipboardTextSerializer: clipboardSliceToPlainText,
+  clipboardTextSerializer: (slice: Slice, view: EditorView) => clipboardSliceToPlainText(slice, view.state.doc),
 };
 
 let readonlySchema: ReturnType<typeof getSchema> | undefined;
@@ -3103,7 +3103,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     if (indexes.length === 0) return false;
     const selectedDocument = editor.state.doc.type.create(null, indexes.map((index) => editor.state.doc.child(index)));
     const slice = selectedDocument.slice(0);
-    const text = clipboardSliceToPlainText(slice);
+    const text = clipboardSliceToPlainText(slice, editor.state.doc);
     const { dom } = editor.view.serializeForClipboard(slice);
     try {
       await navigator.clipboard.write([new ClipboardItem({
@@ -3192,7 +3192,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     const node = editor.state.doc.nodeAt(start);
     if (!node) return;
     const slice = editor.state.doc.slice(start, start + node.nodeSize);
-    const text = clipboardSliceToPlainText(slice);
+    const text = clipboardSliceToPlainText(slice, editor.state.doc);
     const { dom } = editor.view.serializeForClipboard(slice);
     try {
       await navigator.clipboard.write([new ClipboardItem({
@@ -3211,7 +3211,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     const { from, to } = editor.state.selection;
     if (from === to) return;
     const slice = editor.state.selection.content();
-    const text = clipboardSliceToPlainText(slice);
+    const text = clipboardSliceToPlainText(slice, editor.state.doc);
     const { dom: htmlContainer } = editor.view.serializeForClipboard(slice);
 
     try {
@@ -3230,7 +3230,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     const { from, to } = editor.state.selection;
     if (from === to) return;
     const slice = editor.state.selection.content();
-    const text = clipboardSliceToPlainText(slice);
+    const text = clipboardSliceToPlainText(slice, editor.state.doc);
     const { dom: htmlContainer } = editor.view.serializeForClipboard(slice);
 
     try {

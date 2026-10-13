@@ -185,7 +185,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, highlightActiveLine = 
     extensions,
     content: { type: "doc", content: [initial.toJSON()] },
     editable: false,
-    editorProps: { attributes: { "aria-label": "块内容", tabindex: "0" }, clipboardTextSerializer: clipboardSliceToPlainText, transformCopied: (slice, view) => { const { $from } = view.state.selection; const structuredContext = $from.parent.type.name === "codeBlock" || Array.from({ length: $from.depth + 1 }, (_, depth) => $from.node(depth).type.name).includes("blockquote"); return flattenPartialStructuredClipboard(slice, view.state.schema, structuredContext); }, transformPastedHTML: normalizePastedHTML, transformPasted: normalizeSingleParagraphPaste },
+    editorProps: { attributes: { "aria-label": "块内容", tabindex: "0" }, clipboardTextSerializer: (slice, view) => clipboardSliceToPlainText(slice, view.state.doc), transformCopied: (slice, view) => { const { $from } = view.state.selection; const structuredContext = $from.parent.type.name === "codeBlock" || Array.from({ length: $from.depth + 1 }, (_, depth) => $from.node(depth).type.name).includes("blockquote"); return flattenPartialStructuredClipboard(slice, view.state.schema, structuredContext); }, transformPastedHTML: normalizePastedHTML, transformPasted: normalizeSingleParagraphPaste },
     onUpdate: ({ editor: local, transaction }) => {
       if (!transaction.docChanged || bridging.current || !editableRef.current || !source.isEditable) return;
       const sourceNode = source.state.doc.nodeAt(position.current);

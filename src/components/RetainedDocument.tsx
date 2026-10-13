@@ -18,7 +18,9 @@ export function RetainedDocument({ sessionKey, revision, ready = true, sensitive
   const generation = useRef(0);
   const host = useRef<HTMLDivElement>(null);
   let visibleSessions = sessions;
-  if (previousKey !== sessionKey) {
+  // A save notification can rebase the session state during navigation. Keep
+  // the active entry invariant even when previousKey was already advanced.
+  if (previousKey !== sessionKey || (sessionKey !== null && !sessions.some(entry => entry.key === sessionKey))) {
     visibleSessions = sessions.filter(entry => !entry.sensitive && entry.key !== sessionKey);
     const existing = sessions.find(entry => entry.key === sessionKey && entry.revision === revision);
     if (sessionKey) visibleSessions = [...visibleSessions, existing ?? { key: sessionKey, node: children, sensitive, revision, generation: ++generation.current }].slice(-3);
@@ -41,7 +43,7 @@ export function RetainedDocument({ sessionKey, revision, ready = true, sensitive
     const entry = sessions.find(item => item.key === sessionKey);
     if (entry && ready) { entry.node = children; entry.sensitive = sensitive; entry.revision = revision; }
   }, [children, sensitive, sessionKey, sessions, revision, ready]);
-  return <div ref={host} className="retained-document-host">
+  return <div ref={host} className="retained-document-host" data-active-document={sessionKey ?? undefined} data-retained-document-count={visibleSessions.length}>
     {sessionKey === null ? children : null}
     {visibleSessions.map(entry => <ParkedDocument key={`${entry.key}:${entry.generation}`} active={entry.key === sessionKey} host={host}>
       {entry.key === sessionKey && ready ? children : entry.node}

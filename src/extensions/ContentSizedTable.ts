@@ -1,3 +1,4 @@
+import { normalizeEditorColor, editorBackgroundStyle } from "../lib/editor-color";
 import TableHeader from "@tiptap/extension-table-header";
 import TableCell from "@tiptap/extension-table-cell";
 import Table, { TableView } from "@tiptap/extension-table";
@@ -63,10 +64,15 @@ export function resetTableColumnWidths(editor: Editor): boolean {
 }
 
 export const AlignedTableCell = TableCell.extend({
-  content: "paragraph",
+  content: "paragraph+",
   addAttributes() {
     return {
       ...this.parent?.(),
+      backgroundColor: {
+        default: null,
+        parseHTML: (element) => normalizeEditorColor(element.getAttribute("data-background-color") ?? element.style.backgroundColor),
+        renderHTML: attributes => normalizeEditorColor(attributes.backgroundColor) ? { "data-background-color": normalizeEditorColor(attributes.backgroundColor), style: `background-color: ${editorBackgroundStyle(attributes.backgroundColor)}` } : {},
+      },
       textAlign: {
         default: null,
         parseHTML: (element) => element.style.textAlign || null,
@@ -80,10 +86,15 @@ export const AlignedTableCell = TableCell.extend({
 });
 
 export const AlignedTableHeader = TableHeader.extend({
-  content: "paragraph",
+  content: "paragraph+",
   addAttributes() {
     return {
       ...this.parent?.(),
+      backgroundColor: {
+        default: null,
+        parseHTML: (element) => normalizeEditorColor(element.getAttribute("data-background-color") ?? element.style.backgroundColor),
+        renderHTML: attributes => normalizeEditorColor(attributes.backgroundColor) ? { "data-background-color": normalizeEditorColor(attributes.backgroundColor), style: `background-color: ${editorBackgroundStyle(attributes.backgroundColor)}` } : {},
+      },
       textAlign: {
         default: null,
         parseHTML: (element) => element.style.textAlign || null,

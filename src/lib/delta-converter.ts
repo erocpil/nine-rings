@@ -1,3 +1,4 @@
+import { normalizeEditorColor } from "./editor-color";
 import { normalizeFootnotes } from "./footnote-model";
 import { bareLinkParts, malformedBareLink } from "./bare-autolinks";
 /**
@@ -13,7 +14,7 @@ import type { JSONContent } from "@tiptap/core";
 import type { DeltaOp, DeltaOps } from "../types/models";
 import { splitDeltaLines } from "./plain-text-delta";
 
-import { getTableEmbed, normalizeTableAlignment, normalizeTableColumnWidth, type TableEmbed } from "./table-embed";
+import { hasTableSpans, tableCellColumns, getTableEmbed, normalizeTableAlignment, normalizeTableColumnWidth, type TableEmbed } from "./table-embed";
 import { markdownTableToEmbed } from "./md-parser";
 
 // ── 字体大小映射 ──
@@ -60,7 +61,7 @@ function pmMarkToAttr(mark: NonNullable<JSONContent["marks"]>[number]): Record<s
       }
       return Object.keys(attrs).length > 0 ? attrs : null;
     }
-    case "inlineHighlight": return { highlight: true };
+    case "inlineHighlight": return { highlight: true, ...(normalizeEditorColor(mark.attrs?.backgroundColor) ? { background: normalizeEditorColor(mark.attrs?.backgroundColor) } : {}) };
     case "footnoteReference": return { footnoteRef: mark.attrs?.id ?? "", ...(mark.attrs?.number ? { footnoteNumber: mark.attrs.number } : {}), ...(mark.attrs?.occurrence ? { footnoteOccurrence: mark.attrs.occurrence } : {}) };
     case "htmlStyle": return { htmlStyle: mark.attrs?.tag };
     default:
@@ -77,7 +78,7 @@ function deltaAttrToMarks(attrs: Record<string, unknown> | undefined): NonNullab
   if (attrs.strike)    marks.push({ type: "strike" });
   if (attrs.code)      marks.push({ type: "code" });
   if (typeof attrs.link === "string") marks.push({ type: "link", attrs: { href: attrs.link, title: attrs.linkTitle ?? null, ...(attrs.linkExplicit ? { explicit: true } : {}) } });
-  if (attrs.highlight) marks.push({ type: "inlineHighlight" });
+  if (attrs.highlight) marks.push({ type: "inlineHighlight", attrs: { backgroundColor: normalizeEditorColor(attrs.background) } });
   if (attrs.footnoteRef) marks.push({ type: "footnoteReference", attrs: { id: attrs.footnoteRef, number: attrs.footnoteNumber ?? null, occurrence: attrs.footnoteOccurrence ?? 1 } });
   if (["sub", "sup", "ins"].includes(String(attrs.htmlStyle))) marks.push({ type: "htmlStyle", attrs: { tag: attrs.htmlStyle } });
   if (attrs.color)     marks.push({ type: "textStyle", attrs: { color: attrs.color } });
@@ -213,17 +214,23 @@ function tableNodeToEmbed(tableNode: JSONContent): TableEmbed {
       });
       return {
         ...(cell.type === "tableHeader" ? { header: true } : {}),
+        ...(Number(cell.attrs?.colspan) > 1 ? { colspan: Number(cell.attrs?.colspan) } : {}),
+        ...(Number(cell.attrs?.rowspan) > 1 ? { rowspan: Number(cell.attrs?.rowspan) } : {}),
+        ...(normalizeEditorColor(cell.attrs?.backgroundColor) ? { background: normalizeEditorColor(cell.attrs?.backgroundColor)! } : {}),
+        ...(blocks.length > 1 ? { paragraphs: blocks.map(block => { const ops: DeltaOp[] = []; extractInlineOps(block, ops); return { ops }; }) } : {}),
         content: { ops: cellOps },
       };
     }),
   }));
-  const columnCount = Math.max(0, ...rows.map((row) => row.cells.length));
+  const grid = tableCellColumns({ version: 1, columns: [], rows });
+  const columnCount = Math.max(0, ...rows.map((row, index) => row.cells.reduce((maximum, cell, cellIndex) => Math.max(maximum, grid[index][cellIndex] + (cell.colspan ?? 1)), 0)));
   const columns = Array.from({ length: columnCount }, (_, column) => {
     let width: number | null = null;
-    for (const row of tableNode.content ?? []) {
-      const cell = row.content?.[column];
+    for (const [index, row] of (tableNode.content ?? []).entries()) {
+      const cellIndex = grid[index].findIndex((start, cell) => start <= column && start + (rows[index].cells[cell].colspan ?? 1) > column);
+      const cell = row.content?.[cellIndex];
       const align = normalizeTableAlignment(cell?.attrs?.textAlign);
-      width ??= normalizeTableColumnWidth(cell?.attrs?.colwidth?.[0]);
+      width ??= normalizeTableColumnWidth(cell?.attrs?.colwidth?.[column - (grid[index][cellIndex] ?? column)]);
       if (align) return { align, ...(width ? { width } : {}) };
     }
     return { align: null, ...(width ? { width } : {}) };
@@ -797,21 +804,25 @@ function tableEmbedToProseMirror(table: TableEmbed): JSONContent {
     ...table.rows.map((row) => Array.isArray(row.cells) ? row.cells.length : 0),
   );
   const sourceRows = table.rows.length > 0 ? table.rows : [{ cells: [] }];
-  const rows = sourceRows.map((row) => ({
+  const spans = hasTableSpans(table);
+  const grid = tableCellColumns(table);
+  const rows = sourceRows.map((row, rowIndex) => ({
     type: "tableRow",
-    content: Array.from({ length: columnCount }, (_, column) => {
-      const cell = row.cells?.[column];
+    content: Array.from({ length: spans ? row.cells.length : columnCount }, (_, cellIndex) => {
+      const column = spans ? grid[rowIndex][cellIndex] : cellIndex;
+      const cell = row.cells?.[cellIndex];
       const ops = Array.isArray(cell?.content?.ops) ? cell.content.ops : [];
       const width = normalizeTableColumnWidth(table.columns[column]?.width);
       return {
         type: cell?.header ? "tableHeader" : "tableCell",
         attrs: {
-          colspan: 1,
-          rowspan: 1,
-          colwidth: width ? [width] : null,
+          colspan: cell?.colspan ?? 1,
+          rowspan: cell?.rowspan ?? 1,
+          backgroundColor: normalizeEditorColor(cell?.background),
+          colwidth: width ? Array.from({length: cell?.colspan ?? 1}, (_, offset) => normalizeTableColumnWidth(table.columns[column + offset]?.width) ?? width) : null,
           textAlign: normalizeTableAlignment(table.columns[column]?.align),
         },
-        content: [{ type: "paragraph", content: inlineDeltaToProseMirror(ops) }],
+        content: (cell?.paragraphs ?? [{ ops }]).map(paragraph => ({ type: "paragraph", content: inlineDeltaToProseMirror(paragraph.ops) })),
       };
     }),
   }));

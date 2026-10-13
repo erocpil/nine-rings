@@ -1,3 +1,4 @@
+import { tocPlainFragment } from "./toc-clipboard";
 import { Fragment, Slice, type Node as ProseMirrorNode, type Schema } from "@tiptap/pm/model";
 
 function inlineText(node: ProseMirrorNode): string {
@@ -127,11 +128,11 @@ function renderFragment(fragment: Fragment, includeBlockSyntax: boolean): string
  * 面向 Notepad、终端等纯文本目标的紧凑剪贴板格式。
  * 顶层段落保留空行；列表项仅换行一次，避免嵌套块节点重复制造空行。
  */
-export function clipboardSliceToPlainText(slice: Slice): string {
+export function clipboardSliceToPlainText(slice: Slice, document?: ProseMirrorNode): string {
   // openStart/openEnd > 0 表示选区只截取了块内部的一部分。此时列表圆点、
   // 序号和引用符并不属于实际选中文本，不应由序列化器额外合成。
   const includeBlockSyntax = slice.openStart === 0 && slice.openEnd === 0;
-  return renderFragment(slice.content, includeBlockSyntax);
+  return renderFragment(tocPlainFragment(slice.content, document), includeBlockSyntax);
 }
 
 /**

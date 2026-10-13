@@ -1453,3 +1453,19 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 .ordered-list-start-form label { display: flex; align-items: center; gap: 8px; }
 .ordered-list-start-form input { width: 9ch; min-height: 32px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 4px 6px; }
 .ordered-list-start-hint, .ordered-list-start-form small { display: block; max-width: 240px; white-space: normal; padding: 4px 10px; color: var(--text-secondary); font-size: 12px; }
+.selection-hover-toolbar.editor-menu.toolbar-full {
+  position: fixed;
+  z-index: 100;
+  box-sizing: border-box;
+  width: min(900px, calc(100vw - 16px));
+  min-height: 36px;
+  padding: 4px;
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--text) 18%, transparent);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.selection-hover-toolbar .selection-hover-action { flex-shrink: 0; }

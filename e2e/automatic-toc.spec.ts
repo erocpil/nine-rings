@@ -106,3 +106,41 @@ test("手机自动目录级别可点选，超长标签不撑宽竖屏或横屏",
     await page.screenshot({ path: testInfo.outputPath(`toc-mobile-${viewport.width}.png`) });
   }
 });
+
+test("自动目录普通复制不暴露levels，内部富文本粘贴仍保留独立目录块及链接下划线", async ({ page }) => {
+  await createBlankDocument(page);
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate(element => {
+    const instance = (element as HTMLElement & {editor: import("@tiptap/core").Editor}).editor;
+    instance.commands.setContent({ type:"doc",content:[
+      {type:"codeBlock",attrs:{language:"toc"},content:[{type:"text",text:"levels: 1,2,3,4,5,6"}]},
+      {type:"heading",attrs:{level:1},content:[{type:"text",text:"开始"}]},
+      {type:"heading",attrs:{level:6},content:[{type:"text",text:"结束"}]},
+      {type:"paragraph",content:[{type:"text",text:"链接",marks:[{type:"link",attrs:{href:"https://example.com"}}]}]},
+    ]},true);
+  });
+  const toc = page.getByRole("navigation",{name:"文档内目录",exact:true});
+  await expect(toc.getByRole("link")).toHaveCount(2);
+  const result = await editor.evaluate(element => {
+    const instance = (element as HTMLElement & {editor: import("@tiptap/core").Editor}).editor;
+    instance.commands.setNodeSelection(0); instance.view.focus();
+    const clipboardData = new DataTransfer();
+    instance.view.dom.dispatchEvent(new ClipboardEvent("copy",{clipboardData,bubbles:true,cancelable:true}));
+    const html = clipboardData.getData("text/html");
+    const container=document.createElement("div"); container.innerHTML=html;
+    return {text:clipboardData.getData("text/plain"),html,visibleHTML:container.textContent};
+  });
+  expect(result.text).toBe("开始\n结束");
+  expect(result.visibleHTML).not.toContain("levels:");
+  expect(result.html).toContain("data-nr-toc");
+  await editor.evaluate((element,html) => {
+    const instance = (element as HTMLElement & {editor: import("@tiptap/core").Editor}).editor;
+    instance.commands.setTextSelection(instance.state.doc.content.size - 1);
+    instance.commands.insertContent(html);
+  }, result.html);
+  await expect(page.getByRole("navigation",{name:"文档内目录",exact:true})).toHaveCount(2);
+  for (const selector of [".document-toc-block a", ".ProseMirror p a"]) {
+    const link=page.locator(selector).first();
+    expect(await link.evaluate(el => getComputedStyle(el).textDecorationColor)).not.toBe(await link.evaluate(el => getComputedStyle(el).color));
+  }
+});
