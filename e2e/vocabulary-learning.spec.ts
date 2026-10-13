@@ -32,6 +32,7 @@ An example.
 
 - **small, large | random**
   - A random sample.
+  - Another random sample.
 
 ### sample verb
 
@@ -178,3 +179,42 @@ test("例句默认展开时译文仍收起，搭配例句与剑桥译文独立�
   await expect(view.getByText("A random sample.", { exact: true })).not.toBeVisible();
   await expect(view.getByText("这是例句。", { exact: true })).toBeVisible();
 });
+
+
+for (const width of [1280, 390]) {
+  test(`例句和译文展开保持紧凑，搭配下连续例句无重复卡片 ${width}`, async ({ page }) => {
+    await seed(page);
+    await page.setViewportSize({ width, height: 844 });
+    if (width < 768) await openDocumentSidebar(page);
+    await page.getByRole("button", { name: "词汇学习", exact: true }).click();
+    await page.getByRole("region", { name: "词汇学习分栏" }).getByRole("button", { name: "sample", exact: true }).click();
+    const view = page.getByRole("region", { name: "词汇学习视图" });
+    const examples = view.locator('.vocabulary-category summary[data-vocabulary-fold-label="例句"]').first();
+    await examples.click();
+    const english = view.getByText("This is an example.", { exact: true });
+    const gap = async (before: typeof english, after: typeof english) => {
+      const first = (await before.boundingBox())!, second = (await after.boundingBox())!;
+      return second.y - (first.y + first.height);
+    };
+    expect(await gap(examples, english)).toBeLessThanOrEqual(10);
+    const translations = view.locator('summary[data-vocabulary-fold-label="译文"]');
+    await translations.click();
+    const chinese = view.getByText("这是例句。", { exact: true });
+    await expect(chinese).toBeVisible();
+    expect(await gap(translations, chinese)).toBeLessThanOrEqual(6);
+    const collocationExamples = view.locator(".vocabulary-examples summary").first();
+    await collocationExamples.click();
+    const first = view.getByText("A random sample.", { exact: true });
+    const second = view.getByText("Another random sample.", { exact: true });
+    await expect(second).toBeVisible();
+    expect(await gap(collocationExamples, first)).toBeLessThanOrEqual(10);
+    expect(await gap(first, second)).toBeLessThanOrEqual(12);
+    expect(await gap(english, translations)).toBeLessThanOrEqual(6);
+    await expect(english.locator("..")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    for (const text of [chinese, first]) {
+      const content = (await text.boundingBox())!, item = (await text.locator("..").boundingBox())!;
+      expect(item.height - content.height).toBeLessThanOrEqual(8);
+      await expect(text.locator("..")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    }
+  });
+}

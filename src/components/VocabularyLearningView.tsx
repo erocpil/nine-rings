@@ -71,7 +71,10 @@ function VocabularyBlocks({
           );
         if (node.type === "list")
           return (
-            <ul key={index} className="vocabulary-items">
+            <ul
+              key={index}
+              className={`vocabulary-items vocabulary-items--${listRole}`}
+            >
               {node.children.map((item, i) => {
                 const nested = item.children.filter(
                   (child) => child.type === "list",
