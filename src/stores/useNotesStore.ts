@@ -15,8 +15,8 @@ interface NotesStore {
   refreshNotes: () => Promise<void>;
   selectNote: (note: Note | null) => void;
   updateNote: (id: string, changes: NotePatch) => Promise<Note>;
-  deleteNote: (id: string) => Promise<void>;
-  batchDelete: (ids: string[]) => Promise<void>;
+  deleteNote: (id: string, replacement?: Note | null) => Promise<void>;
+  batchDelete: (ids: string[], replacement?: Note | null) => Promise<void>;
   search: (query: string) => Promise<void>;
   clearError: () => void;
 }
@@ -91,12 +91,12 @@ export const useNotesStore = create<NotesStore>((set) => ({
     }
   },
 
-  deleteNote: async (id) => {
+  deleteNote: async (id, replacement) => {
     try {
       await api.notes.delete(id);
       set((s) => ({
         notes: s.notes.filter((n) => n.id !== id),
-        selectedNote: s.selectedNote?.id === id ? null : s.selectedNote,
+        selectedNote: s.selectedNote?.id === id ? replacement ?? null : s.selectedNote,
         error: null,
       }));
     } catch (e) {
@@ -105,7 +105,7 @@ export const useNotesStore = create<NotesStore>((set) => ({
     }
   },
 
-  batchDelete: async (ids) => {
+  batchDelete: async (ids, replacement) => {
     const uniqueIds = [...new Set(ids)];
     if (uniqueIds.length === 0) return;
     try {
@@ -113,7 +113,7 @@ export const useNotesStore = create<NotesStore>((set) => ({
       const deletedIds = new Set(uniqueIds);
       set((s) => ({
         notes: s.notes.filter((note) => !deletedIds.has(note.id)),
-        selectedNote: s.selectedNote && deletedIds.has(s.selectedNote.id) ? null : s.selectedNote,
+        selectedNote: s.selectedNote && deletedIds.has(s.selectedNote.id) ? replacement ?? null : s.selectedNote,
         error: null,
       }));
     } catch (e) {

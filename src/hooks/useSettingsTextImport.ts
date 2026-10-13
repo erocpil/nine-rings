@@ -33,7 +33,8 @@ function yieldToNextFrame(): Promise<void> {
 export function useSettingsTextImport(
   open: boolean,
   showMessage: (message: string) => void,
-  onMarkdownImport?: () => void,
+  onMarkdownImport?: (firstNoteId?: string) => Promise<void> | void,
+  onImportSettled?: () => void,
 ) {
   // ── Markdown 导入状态 ──
   const mdInputRef = useRef<HTMLInputElement>(null);
@@ -41,6 +42,7 @@ export function useSettingsTextImport(
   const [directoryImportSupported] = useState(
     () => "webkitdirectory" in document.createElement("input"),
   );
+  const [mdImportOpen, setMdImportOpen] = useState(false);
   const [mdImporting, setMdImporting] = useState(false);
   const [mdImportResult, setMdImportResult] = useState<TextImportResult | null>(
     null,
@@ -67,6 +69,7 @@ export function useSettingsTextImport(
     const mode = "document" as const;
     if (!mdImportPath.trim()) {
       showMessage("请先填写目标路径，再选择文件或目录");
+      onImportSettled?.();
       return;
     }
     setMdImportResult(null);
@@ -87,6 +90,7 @@ export function useSettingsTextImport(
         interrupted: false,
       });
       showMessage(`未发现支持的文本文件，已跳过 ${skipped} 个非支持类型的文件`);
+      onImportSettled?.();
       return;
     }
     setMdImporting(true);
@@ -95,9 +99,19 @@ export function useSettingsTextImport(
     setMdImportProgress(0);
     setMdImportCurrentFile("");
     const today = localDateKey();
+    const openFirst = mdImportOpen;
+    let firstNoteId: string | undefined;
     let count = 0;
     let duplicates = 0;
     const failures: string[] = [];
+    let notified = false;
+    let openError = "";
+    const notify = async () => {
+      if (notified || !(count > 0 || (openFirst && firstNoteId))) return;
+      notified = true;
+      try { await onMarkdownImport?.(openFirst ? firstNoteId : undefined); }
+      catch (error) { openError = `；文档已保留，打开或刷新失败：${String(error)}`; }
+    };
     try {
       const options = {
         date: today,
@@ -144,6 +158,7 @@ export function useSettingsTextImport(
           try {
             if (!result.input) throw new Error(result.error ?? "文本转换失败");
             const imported = await api.notes.importText(result.input);
+            firstNoteId ??= imported.note.id;
             if (imported.status === "created") count++;
             else duplicates++;
           } catch (error) {
@@ -165,12 +180,10 @@ export function useSettingsTextImport(
         failures: [...failures],
         duplicates,
       });
-      if (count > 0) onMarkdownImport?.();
-      showMessage(
-        failures.length > 0
+      await notify();
+      showMessage((failures.length > 0
           ? `已导入 ${count} 篇，跳过 ${skipped} 个非支持类型文件，失败 ${failures.length} 篇：${failures[0]}`
-          : `文本导入完成：${count} 篇，重复跳过 ${duplicates} 篇，路径 ${options.storagePath}${skipped ? `，跳过 ${skipped} 个非支持类型文件` : ""}`,
-      );
+          : `文本导入完成：${count} 篇，重复跳过 ${duplicates} 篇，路径 ${options.storagePath}${skipped ? `，跳过 ${skipped} 个非支持类型文件` : ""}`) + openError);
     } catch (err) {
       setMdImportResult({
         count,
@@ -182,8 +195,8 @@ export function useSettingsTextImport(
         failures: [...failures],
         duplicates,
       });
-      if (count > 0) onMarkdownImport?.();
-      showMessage(`导入中断，已导入 ${count} 篇（已导入的文档会保留）: ${err}`);
+      await notify();
+      showMessage(`导入中断，已导入 ${count} 篇（已导入的文档会保留）: ${err}${openError}`);
     } finally {
       setMdImporting(false);
       setMdImportCurrentFile("");
@@ -191,6 +204,7 @@ export function useSettingsTextImport(
       setMdImportProgress(0);
       // 无论成功失败都允许再次选择同一批文件。
       input.value = "";
+      onImportSettled?.();
     }
   };
 
@@ -199,6 +213,8 @@ export function useSettingsTextImport(
     directoryInputRef,
     directoryImportSupported,
     mdImporting,
+    mdImportOpen,
+    setMdImportOpen,
     mdImportResult,
     mdImportTotal,
     mdImportProgress,

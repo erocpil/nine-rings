@@ -8,14 +8,15 @@ export function useSettingsData(
   open: boolean,
   showMessage: (message: string) => void,
   onImport?: () => void,
-  onMarkdownImport?: () => void,
+  onMarkdownImport?: (firstNoteId?: string) => Promise<void> | void,
+  onImportSettled?: () => void,
 ) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const operationRef = useRef(false);
 
-  const textImport = useSettingsTextImport(open, showMessage, onMarkdownImport);
+  const textImport = useSettingsTextImport(open, showMessage, onMarkdownImport, onImportSettled);
   const handleExport = async () => {
     if (operationRef.current || textImport.mdImporting) return;
     operationRef.current = true;
@@ -61,6 +62,7 @@ export function useSettingsData(
     } finally {
       operationRef.current = false;
       setImporting(false);
+      onImportSettled?.();
     }
   };
 
@@ -87,6 +89,7 @@ export function useSettingsData(
       input.value = "";
       operationRef.current = false;
       setImporting(false);
+      onImportSettled?.();
     }
   };
 

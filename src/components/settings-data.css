@@ -292,3 +292,8 @@
     padding: 16px;
   }
 }
+.data-import-open { display: grid; gap: 4px; }
+.data-import-open > span { display: inline-flex; align-items: center; gap: 7px; }
+.data-import-open input { margin: 0; accent-color: var(--accent); }
+.data-import-open small { font-size: 12px; color: var(--text-secondary); }
+.settings-body[data-settings-page="data"]:focus { outline: none; }

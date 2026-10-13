@@ -1,3 +1,6 @@
+import { documentAfterDelete } from "./lib/document-after-delete";
+import { readRecentNoteIds } from "./lib/quick-switcher";
+import { workspaceDocuments } from "./lib/workspace-summary";
 import { FocusDocumentTabs } from "./components/FocusDocumentTabs";
 import { SelectionHoverToolbar } from "./components/SelectionHoverToolbar";
 import { mainViews } from "./lib/plugin-system/main-view-registry";
@@ -710,9 +713,13 @@ function App() {
       ?? (current.selectedNote?.id === id ? current.selectedNote : null);
     if (current.selectedNote?.id === id) await flushAutoSave();
     try {
-      await deleteNote(id);
+      const replacing = current.selectedNote?.id === id;
+      const next = replacing ? await documentAfterDelete([id], readRecentNoteIds(), api.notes.get, async () => workspaceDocuments(await api.docs.tree())) : null;
+      await deleteNote(id, next);
+      if (replacing && useNotesStore.getState().selectedNote === next) handleSelectNote(next);
     } catch (error) {
       console.error("[App] 删除笔记失败:", error);
+      useNotesStore.setState({ error: `删除失败：${error instanceof Error ? error.message : String(error)}` });
       return;
     }
     refreshNoteViews();
@@ -726,7 +733,7 @@ function App() {
         refreshNoteViews();
       },
     });
-  }, [deleteNote, flushAutoSave, refreshNoteViews, refreshNotes, showUndo]);
+  }, [deleteNote, flushAutoSave, refreshNoteViews, refreshNotes, showUndo, handleSelectNote]);
 
   const handleBatchDeleteWithUndo = useCallback(async (ids: string[], folderPath?: string) => {
     const uniqueIds = [...new Set(ids)];
@@ -734,9 +741,13 @@ function App() {
     const current = useNotesStore.getState().selectedNote;
     if (current && uniqueIds.includes(current.id)) await flushAutoSave();
     try {
-      await batchDelete(uniqueIds);
+      const replacing = Boolean(current && uniqueIds.includes(current.id));
+      const next = replacing ? await documentAfterDelete(uniqueIds, readRecentNoteIds(), api.notes.get, async () => workspaceDocuments(await api.docs.tree())) : null;
+      await batchDelete(uniqueIds, next);
+      if (replacing && useNotesStore.getState().selectedNote === next) handleSelectNote(next);
     } catch (error) {
       console.error("[App] 批量删除笔记失败:", error);
+      useNotesStore.setState({ error: `批量删除失败：${error instanceof Error ? error.message : String(error)}` });
       return;
     }
     refreshNoteViews();
@@ -752,7 +763,7 @@ function App() {
         refreshNoteViews();
       },
     });
-  }, [batchDelete, flushAutoSave, refreshNoteViews, refreshNotes, showUndo]);
+  }, [batchDelete, flushAutoSave, refreshNoteViews, refreshNotes, showUndo, handleSelectNote]);
 
   const handleMoveFolder = useCallback(async (sourcePath: string, targetPath: string) => {
     const currentSelected = useNotesStore.getState().selectedNote;
@@ -1331,9 +1342,15 @@ function App() {
       // Restore replaces both database and local workspace configuration.
       window.setTimeout(() => window.location.reload(), 1000);
     }}
-    onMarkdownImport={() => {
+    onMarkdownImport={async firstNoteId => {
       setDocTreeKey((key) => key + 1);
-      void refreshNotes();
+      await refreshNotes();
+      if (firstNoteId) {
+        await flushAutoSave();
+        const imported = await api.notes.get(firstNoteId);
+        if (!imported) throw new Error("导入的首份文档已不存在，无法打开");
+        handleSelectNote(imported);
+      }
     }}
     onPullDone={() => window.location.reload()}
   />;

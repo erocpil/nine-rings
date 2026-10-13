@@ -48,7 +48,7 @@ interface Props {
   onClose: () => void;
   onConfigChange: (config: AppConfig) => void;
   onImport?: () => void;
-  onMarkdownImport?: () => void;
+  onMarkdownImport?: (firstNoteId?: string) => Promise<void> | void;
   /** 同步进行中回调 — 用来 freeze 编辑区 */
   onSyncBusy?: (busy: boolean) => void;
   onBeforePush?: () => Promise<void>;
@@ -347,7 +347,15 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [renameVal, setRenameVal] = useState("");
 
   // ── 导入状态 ──
-  const data = useSettingsData(open, showMessage, onImport, onMarkdownImport);
+  const restoreImportFocus = useCallback(() => {
+    // Wait for disabled controls and any document selection to settle. Do not
+    // steal focus if settings was closed or another subpage was chosen.
+    requestAnimationFrame(() => {
+      const body = settingsBodyRef.current;
+      if (body?.dataset.settingsPage === "data" && body.isConnected) body.focus({ preventScroll: true });
+    });
+  }, []);
+  const data = useSettingsData(open, showMessage, onImport, onMarkdownImport, restoreImportFocus);
   const loadSettings = () => {
     setLoading(true);
     setLoadError(null);
@@ -712,7 +720,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             <button className="settings-retry" onClick={loadSettings}>重试</button>
           </div>
         ) : (
-          <div key={settingsPage} ref={bindSettingsBody} className={`settings-body${!["root", "data", "sync"].includes(settingsPage) ? " settings-content-page" : ""}`} data-settings-page={settingsPage}>
+          <div key={settingsPage} tabIndex={-1} ref={bindSettingsBody} className={`settings-body${!["root", "data", "sync"].includes(settingsPage) ? " settings-content-page" : ""}`} data-settings-page={settingsPage}>
             {libraryError && <div className="reading-library-message" role="alert">{libraryError}</div>}
             {settingsPage === "root" && settingsSearchOpen && settingsQuery.trim() && (
               <div className="settings-search-results" aria-label="设置查找结果">

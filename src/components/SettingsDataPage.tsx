@@ -20,6 +20,8 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
     directoryInputRef,
     directoryImportSupported,
     mdImporting,
+    mdImportOpen,
+    setMdImportOpen,
     mdImportResult,
     mdImportTotal,
     mdImportProgress,
@@ -229,6 +231,10 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
                   onChange={(event) => setMdImportTags(event.target.value)}
                 />
               </label>
+              <label className="data-import-open">
+                <span><input type="checkbox" aria-label="导入并打开" checked={mdImportOpen} onChange={event => setMdImportOpen(event.target.checked)} /> 导入并打开</span>
+                <small>导入多份时打开第一份成功导入的文档，按 Esc 退出设置后查看。</small>
+              </label>
               <div className="data-import-actions">
                 <button
                   type="button"
@@ -316,7 +322,7 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
                 {mdImportResult.failures?.length ? <details><summary>查看失败及冲突详情</summary><ul>{mdImportResult.failures.map((failure, index) => <li key={index}>{failure}</li>)}</ul></details> : mdImportResult.error && <small>{mdImportResult.error}</small>}
                 {(mdImportResult.failed > 0 || mdImportResult.interrupted) && (
                   <small>
-                    已导入的内容会保留；重新选择文件会再次创建内容，建议只重试失败的文件。
+                    已导入的内容会保留；相同内容会跳过，失败或冲突的文件可检查后重试。
                   </small>
                 )}
               </div>
