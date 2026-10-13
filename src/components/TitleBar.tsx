@@ -52,6 +52,11 @@ export default function TitleBar({
     event.clientY >= 0 && event.clientY <= 8;
 
   const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    if (focusTabs && event.target instanceof Element && event.target.closest(".titlebar-title")) {
+      maximizePress.current = null;
+      event.stopPropagation();
+      return;
+    }
     if (!native || (!macOS && !isTopEdge(event))) return;
     maximizePress.current = null;
     if (
@@ -68,6 +73,11 @@ export default function TitleBar({
   };
 
   const handleMouseUp = (event: MouseEvent<HTMLDivElement>) => {
+    if (focusTabs && event.target instanceof Element && event.target.closest(".titlebar-title")) {
+      maximizePress.current = null;
+      event.stopPropagation();
+      return;
+    }
     if (
       !native ||
       (!macOS && !maximizePress.current?.vertical) ||
@@ -222,6 +232,7 @@ export default function TitleBar({
       <div className="titlebar-leading">
         {!exhibition && (
           <span
+            data-tauri-drag-region={focusTabs ? "false" : undefined}
             onDoubleClick={focusTabs ? event => { event.preventDefault(); event.stopPropagation(); saveFocusTabs({ visible: !tabs.visible }); } : undefined}
             title={focusTabs ? "双击显示或隐藏最近文档标签" : undefined}
             className={`titlebar-title${wordmark ? " titlebar-wordmark" : ""}`}

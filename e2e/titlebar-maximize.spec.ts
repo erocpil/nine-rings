@@ -8,11 +8,12 @@ async function mountTitlebar(
   failOnce = false,
   hangOnce = false,
   exhibition = false,
+  focusTabs = false,
 ) {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
   await page.evaluate(
-    async ({ platform, failOnce, hangOnce, exhibition }) => {
+    async ({ platform, failOnce, hangOnce, exhibition, focusTabs }) => {
       Object.defineProperty(navigator, "platform", {
         configurable: true,
         value: platform,
@@ -107,6 +108,8 @@ async function mountTitlebar(
           TitleBar,
           {
             exhibition,
+            wordmark: focusTabs,
+            focusTabs: focusTabs ? React.createElement("div", { className: "titlebar-controls" }, "测试标签") : undefined,
             workspace: exhibition
               ? React.createElement(
                   "button",
@@ -125,7 +128,7 @@ async function mountTitlebar(
         ),
       );
     },
-    { platform, failOnce, hangOnce, exhibition },
+    { platform, failOnce, hangOnce, exhibition, focusTabs },
   );
   await expect(page.locator("#titlebar-test-host .titlebar")).toBeVisible();
 }
@@ -343,3 +346,24 @@ for (const platform of ["MacIntel", "Win32", "Linux x86_64"]) {
     await expect.poll(async () => (await commands(page)).filter(c => c === "toggle_window_maximize").length).toBe(platform === "MacIntel" ? 1 : 0);
   });
 }
+
+
+test("最大化后的 NINE RINGS 及其内部字母只切换标签，不拖动或缩放窗口", async ({ page }) => {
+  await mountTitlebar(page, "MacIntel", false, false, false, true);
+  await page.evaluate(async () => {
+    const path = "/node_modules/@tauri-apps/api/core.js";
+    const { invoke } = await import(/* @vite-ignore */ path);
+    await invoke("toggle_window_maximize");
+  });
+  await expect(page.locator("body")).toHaveAttribute("data-maximized", "true");
+  const commands = await page.locator("body").getAttribute("data-window-commands");
+  const title = page.locator("#titlebar-test-host .titlebar-title");
+  await expect(title).toHaveAttribute("data-tauri-drag-region", "false");
+  await title.click();
+  await title.dblclick();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nr:focusTabs") || "{}").visible)).toBe(false);
+  await title.locator("span").first().dblclick();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nr:focusTabs") || "{}").visible)).toBe(true);
+  await expect(page.locator("body")).toHaveAttribute("data-maximized", "true");
+  expect(await page.locator("body").getAttribute("data-window-commands")).toBe(commands);
+});

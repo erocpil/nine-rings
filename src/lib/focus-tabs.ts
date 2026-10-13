@@ -10,7 +10,7 @@ export interface FocusTabState {
 }
 export const defaultFocusTabs: FocusTabState = {
   visible: true,
-  limit: 16,
+  limit: 32,
   order: [],
   closed: [],
 };
@@ -29,24 +29,25 @@ export function normalizeFocusTabs(
     visible: value.visible !== false,
     limit:
       typeof value.limit === "number" && Number.isFinite(value.limit)
-        ? Math.max(1, Math.min(20, Math.round(value.limit)))
-        : 16,
+        ? Math.max(1, Math.min(64, Math.round(value.limit)))
+        : 32,
     order: ids(value.order),
     closed: ids(value.closed),
   };
 }
 export function readFocusTabs(): FocusTabState {
   try {
-    return normalizeFocusTabs(
-      JSON.parse(localStorage.getItem(KEY) ?? "{}") ?? {},
-    );
+    const raw = JSON.parse(localStorage.getItem(KEY) ?? "{}") ?? {};
+    // Version 1 serialized the old default on every visibility/order change.
+    if (raw.version !== 2 && raw.limit === 16) raw.limit = 32;
+    return normalizeFocusTabs(raw);
   } catch {
     return { ...defaultFocusTabs };
   }
 }
 export function saveFocusTabs(patch: Partial<FocusTabState>) {
   const next = normalizeFocusTabs({ ...readFocusTabs(), ...patch });
-  localStorage.setItem(KEY, JSON.stringify(next));
+  localStorage.setItem(KEY, JSON.stringify({ ...next, version: 2 }));
   window.dispatchEvent(new Event(EVENT));
 }
 export function focusTabIds(recent: string[], state: FocusTabState): string[] {

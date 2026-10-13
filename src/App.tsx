@@ -334,9 +334,11 @@ function App() {
   }, [flushAutoSave]);
 
   const [workspaceHomeRequested, setWorkspaceHomeRequested] = useState(false);
+  const [docTreeReveal, setDocTreeReveal] = useState<{ id: string; sequence: number } | null>(null);
   const [exhibitionReaderActive, setExhibitionReaderActive] = useState(false);
 
   const handleSelectNote = useCallback((note: Note | null, options?: DocumentOpenOptions, preserveMainView = false) => {
+    setDocTreeReveal(null);
     if (!preserveMainView) mainViews.close();
     useDocumentOpenStore.getState().open(note?.id ?? null, options);
     setWorkspaceHomeRequested(false);
@@ -1518,6 +1520,12 @@ function App() {
           <TitleBar wordmark={desktopWorkspace && effectiveFocusMode} focusTabs={desktopWorkspace && effectiveFocusMode ? <FocusDocumentTabs
             noteId={workspaceHome ? undefined : selectedNote?.id} refreshKey={docTreeKey}
             onOpen={async note => { await flushAutoSave(); setQuery(""); setDocResults(null); handleSelectNote(note); }}
+            onReveal={async (id, path) => {
+              setDocTreeKey(key => key + 1);
+              revealDocTreePath(path); setDocTreeReveal(previous => ({ id, sequence: (previous?.sequence ?? 0) + 1 }));
+              setDocTreePopupOpen(false);
+              sidebarHover.restore({ panel: "tree", hidden: false, pinned: true });
+            }}
             onCloseLast={async () => { await flushAutoSave(); handleSelectNote(null); setSelectedFolderPath(null); setSelectedConcept(null); }}
           /> : undefined} />
         </Suspense>
@@ -1643,6 +1651,7 @@ function App() {
                 handleSelectNote(null);
                 closeSidebarOnNarrowScreen();
               }}
+              revealId={docTreeReveal?.id} revealSequence={docTreeReveal?.sequence}
               selectedId={workspaceHome ? null : selectedNote?.id ?? null}
               selectedTitle={workspaceHome ? undefined : selectedNote?.title ?? undefined}
               selectedFolderPath={workspaceHome ? null : selectedFolderPath}

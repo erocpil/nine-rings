@@ -5,6 +5,7 @@ import {
   readRecentNoteIds,
   rememberRecentNote,
   RECENT_NOTE_EDITS_KEY,
+  RECENT_NOTES_LIMIT,
 } from "../../src/lib/quick-switcher";
 import {
   collectFrontendSettings,
@@ -42,7 +43,8 @@ it("prunes flags when visits leave the retained history and tolerates malformed 
   const store = memory();
   rememberRecentNote("old", store);
   markRecentNoteEdited("old", store);
-  for (let i = 0; i < 20; i++) rememberRecentNote(String(i), store);
+  for (let i = 0; i < RECENT_NOTES_LIMIT; i++)
+    rememberRecentNote(String(i), store);
   expect(readRecentEditedNoteIds(store)).toEqual([]);
   store.setItem(RECENT_NOTE_EDITS_KEY, '["a","a",null,{}]');
   expect(readRecentEditedNoteIds(store)).toEqual(["a"]);

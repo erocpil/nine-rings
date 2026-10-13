@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { copyToClipboard } from "../lib/clipboard";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../lib/api";
 import {
@@ -22,23 +23,42 @@ export function FocusDocumentTabs({
   refreshKey,
   onOpen,
   onCloseLast,
+  onReveal,
 }: {
   noteId?: string;
   refreshKey: number;
   onOpen: (note: Note) => Promise<void>;
   onCloseLast: () => Promise<void>;
+  onReveal: (id: string, path: string) => Promise<void>;
 }) {
   const prefs = useFocusTabs();
   const [recent, setRecent] = useState(readRecentNoteIds);
-  const [documents, setDocuments] = useState<WorkspaceDocumentSummary[]>([]);
+  const [documents, setDocuments] = useState<
+    (WorkspaceDocumentSummary & { fullPath: string })[]
+  >([]);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(
     null,
   );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const dragId = useRef<string>();
-  const clickTimer = useRef<ReturnType<typeof setTimeout>>();
-  useEffect(() => () => clearTimeout(clickTimer.current), []);
+  const [dragOrder, setDragOrder] = useState<string[] | null>(null);
+  const drag = useRef<{
+    id: string;
+    x: number;
+    y: number;
+    moved: boolean;
+  } | null>(null);
+  const dragOrderRef = useRef<string[] | null>(null);
+  const suppressClick = useRef(false);
+  const clickOrigin = useRef<{
+    id: string;
+    previous?: string;
+    canceled: boolean;
+  } | null>(null);
+  const operation = useRef(Promise.resolve());
+  const activeId = useRef(noteId);
+  activeId.current = noteId;
+  const membership = [...recent].sort().join("|");
   const menuRef = useRef<HTMLDivElement>(null);
   const strip = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -63,7 +83,14 @@ export function FocusDocumentTabs({
     void api.docs.tree().then(
       (tree) => {
         if (!disposed) {
-          setDocuments(workspaceDocuments(tree));
+          setDocuments(
+            workspaceDocuments(tree).map((note) => ({
+              ...note,
+              fullPath: [note.storagePath, note.title || "未命名文档"]
+                .filter(Boolean)
+                .join("/"),
+            })),
+          );
           setError("");
         }
       },
@@ -74,7 +101,7 @@ export function FocusDocumentTabs({
     return () => {
       disposed = true;
     };
-  }, [refreshKey, recent]);
+  }, [refreshKey, membership]);
   useEffect(() => {
     if (noteId) {
       const state = readFocusTabs();
@@ -128,37 +155,55 @@ export function FocusDocumentTabs({
       window.removeEventListener("resize", dismiss);
     };
   }, [menu]);
-  const byId = new Map(documents.map((note) => [note.id, note]));
-  const ids = focusTabIds(
-    recent.filter((id) => byId.has(id)),
-    prefs,
+  const byId = useMemo(
+    () => new Map(documents.map((note) => [note.id, note])),
+    [documents],
   );
-  if (
-    noteId &&
-    byId.has(noteId) &&
-    !prefs.closed.includes(noteId) &&
-    !ids.includes(noteId)
-  ) {
-    ids.splice(Math.max(0, ids.length - 1), 1, noteId);
-  }
-  const run = async (action: () => Promise<void>) => {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      await action();
-    } catch (reason) {
-      setError(String(reason));
-    } finally {
-      setBusy(false);
-    }
+  const baseIds = useMemo(() => {
+    const result = focusTabIds(
+      recent.filter((id) => byId.has(id)),
+      prefs,
+    );
+    if (
+      noteId &&
+      byId.has(noteId) &&
+      !prefs.closed.includes(noteId) &&
+      !result.includes(noteId)
+    )
+      result.splice(Math.max(0, result.length - 1), 1, noteId);
+    return result;
+  }, [byId, recent, prefs, noteId]);
+  // Visit ordering is shared; tab ordering is fixed until explicitly dragged.
+  useEffect(() => {
+    const state = readFocusTabs();
+    if (baseIds.length && baseIds.join("|") !== state.order.join("|"))
+      saveFocusTabs({ order: baseIds });
+  }, [baseIds]);
+  const ids = dragOrder ?? baseIds;
+  const run = (action: () => Promise<void>) => {
+    const next = operation.current.then(async () => {
+      setBusy(true);
+      setError("");
+      try {
+        await action();
+      } catch (reason) {
+        setError(String(reason));
+      } finally {
+        setBusy(false);
+      }
+    });
+    operation.current = next;
+    return next;
   };
-  const open = async (id: string) => {
+  const open = async (id: string, canceled?: () => boolean) => {
+    if (activeId.current === id || canceled?.()) return;
     const note = await api.notes.get(id);
     if (!note) throw new Error("文档已不存在");
+    if (canceled?.()) return;
     await onOpen(note);
+    activeId.current = id;
   };
-  const close = (closing: string[]) => {
+  const close = (closing: string[], preferred?: string) => {
     setMenu(null);
     // Closing tabs must reduce the open set instead of refilling it from older
     // visits. History itself is retained; opening one again restores its tab.
@@ -166,12 +211,18 @@ export function FocusDocumentTabs({
       ...new Set([...closing, ...recent.filter((id) => !ids.includes(id))]),
     ];
     void run(async () => {
-      if (noteId && closing.includes(noteId)) {
+      const currentId = activeId.current;
+      if (currentId && closing.includes(currentId)) {
         const remaining = ids.filter((id) => !closing.includes(id));
         const neighbor =
-          remaining[Math.min(ids.indexOf(noteId), remaining.length - 1)];
+          preferred && remaining.includes(preferred)
+            ? preferred
+            : remaining[Math.min(ids.indexOf(currentId), remaining.length - 1)];
         if (neighbor) await open(neighbor);
-        else await onCloseLast();
+        else {
+          await onCloseLast();
+          activeId.current = undefined;
+        }
       }
       const state = readFocusTabs();
       saveFocusTabs({
@@ -227,48 +278,107 @@ export function FocusDocumentTabs({
               aria-label={note.title || "未命名文档"}
               className="focus-document-tab"
               title={`${note.title || "未命名文档"}\n${note.storagePath || ""}`}
-              disabled={busy}
-              draggable
-              onDragStart={(event) => {
-                dragId.current = id;
-                event.dataTransfer.setData("text/plain", id);
-                event.dataTransfer.effectAllowed = "move";
+              aria-busy={busy || undefined}
+              data-tab-id={id}
+              data-tauri-drag-region="false"
+              onPointerDown={(event) => {
+                if (event.button !== 0) return;
+                drag.current = {
+                  id,
+                  x: event.clientX,
+                  y: event.clientY,
+                  moved: false,
+                };
+                event.currentTarget.setPointerCapture(event.pointerId);
               }}
-              onDragEnd={() => {
-                dragId.current = undefined;
-              }}
-              onDragOver={(event) => {
-                if (dragId.current) event.preventDefault();
-              }}
-              onDrop={(event) => {
+              onPointerMove={(event) => {
+                const current = drag.current;
+                if (!current) return;
+                if (
+                  !current.moved &&
+                  Math.hypot(
+                    event.clientX - current.x,
+                    event.clientY - current.y,
+                  ) < 5
+                )
+                  return;
+                current.moved = true;
                 event.preventDefault();
-                const source = dragId.current;
-                if (!source || source === id) return;
-                const next = ids.filter((candidate) => candidate !== source);
-                next.splice(ids.indexOf(id), 0, source);
-                saveFocusTabs({ order: next });
-                dragId.current = undefined;
+                const root = strip.current;
+                if (!root) return;
+                const rect = root.getBoundingClientRect();
+                if (event.clientX < rect.left + 24) root.scrollLeft -= 18;
+                else if (event.clientX > rect.right - 24) root.scrollLeft += 18;
+                const target = Array.from(
+                  root.querySelectorAll<HTMLElement>("[data-tab-id]"),
+                ).find((element) => {
+                  const box = element.getBoundingClientRect();
+                  return (
+                    event.clientX >= box.left && event.clientX <= box.right
+                  );
+                })?.dataset.tabId;
+                const order = dragOrderRef.current ?? ids;
+                if (!target || target === current.id || !order.includes(target))
+                  return;
+                const next = order.filter(
+                  (candidate) => candidate !== current.id,
+                );
+                next.splice(order.indexOf(target), 0, current.id);
+                dragOrderRef.current = next;
+                setDragOrder(next);
+              }}
+              onPointerUp={(event) => {
+                const moved = drag.current?.moved;
+                if (moved && dragOrderRef.current)
+                  saveFocusTabs({ order: dragOrderRef.current });
+                drag.current = null;
+                dragOrderRef.current = null;
+                setDragOrder(null);
+                if (event.currentTarget.hasPointerCapture(event.pointerId))
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                if (moved) {
+                  suppressClick.current = true;
+                  requestAnimationFrame(() => {
+                    suppressClick.current = false;
+                  });
+                }
+              }}
+              onPointerCancel={() => {
+                drag.current = null;
+                dragOrderRef.current = null;
+                setDragOrder(null);
               }}
               onClick={(event) => {
-                clearTimeout(clickTimer.current);
-                if (event.detail === 0 && id !== noteId)
-                  void run(() => open(id));
-                else if (event.detail === 1 && id !== noteId)
-                  clickTimer.current = setTimeout(
-                    () => void run(() => open(id)),
-                    350,
-                  );
+                if (suppressClick.current) {
+                  event.preventDefault();
+                  return;
+                }
+                if (event.detail < 2) {
+                  const intent = {
+                    id,
+                    previous: activeId.current,
+                    canceled: false,
+                  };
+                  clickOrigin.current = intent;
+                  void run(() => open(id, () => intent.canceled));
+                }
               }}
               onDoubleClick={() => {
-                clearTimeout(clickTimer.current);
-                close([id]);
+                const intent = clickOrigin.current;
+                if (intent?.id === id) intent.canceled = true;
+                close(
+                  [id],
+                  intent?.id === id && intent.previous !== id
+                    ? intent.previous
+                    : undefined,
+                );
               }}
               onContextMenu={(event) => {
                 event.preventDefault();
                 setMenu({
                   id,
                   x: Math.min(event.clientX, window.innerWidth - 200),
-                  y: Math.min(event.clientY, window.innerHeight - 180),
+                  y: Math.min(event.clientY, window.innerHeight - 260),
                 });
               }}
             >
@@ -293,6 +403,34 @@ export function FocusDocumentTabs({
             ref={menuRef}
             style={{ left: Math.max(0, menu.x), top: Math.max(0, menu.y) }}
           >
+            <button
+              role="menuitem"
+              onClick={() => {
+                const note = byId.get(menu.id);
+                setMenu(null);
+                if (note) {
+                  setError("");
+                  // Start in the click gesture; WebKit may reject an async queue.
+                  void copyToClipboard(note.fullPath, {
+                    reportFailure: true,
+                  }).catch((reason) => setError(String(reason)));
+                }
+              }}
+            >
+              复制文档路径
+            </button>
+            <button
+              role="menuitem"
+              onClick={() => {
+                const note = byId.get(menu.id);
+                setMenu(null);
+                if (note)
+                  void run(() => onReveal(note.id, note.storagePath ?? ""));
+              }}
+            >
+              在文档树中显示文档
+            </button>
+            <hr />
             <button role="menuitem" onClick={() => close([menu.id])}>
               关闭此文件
             </button>

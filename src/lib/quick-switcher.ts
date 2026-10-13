@@ -1,7 +1,7 @@
 import type { Note } from "../types/models";
 
 export const RECENT_NOTES_KEY = "nr:recentNotes";
-export const RECENT_NOTES_LIMIT = 20;
+export const RECENT_NOTES_LIMIT = 64;
 export const RECENT_NOTE_EDITS_KEY = "nr:recentNoteEdits";
 export const RECENT_NOTES_CHANGED_EVENT = "nr:recentNotesChanged";
 

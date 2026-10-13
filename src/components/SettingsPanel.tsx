@@ -792,8 +792,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 {([["standard", "标准"], ["exhibition", "展陈"]] as const).map(([value, label]) => <button type="button" key={value} className={`settings-radio${effectiveWorkspaceLayout(config) === value ? " active" : ""}`} aria-pressed={effectiveWorkspaceLayout(config) === value} disabled={config.interface_style === "classic"} onClick={() => update({ workspace_layout: value })}>{label}</button>)}
               </div>
             </Field>
-            <Field label="专注模式文档标签" desc="双击 NINE RINGS 显示或隐藏；标签排序与关闭独立于最近打开记录，最多支持最近 20 份文档。本机设置。" visible={settingsPage === "appearance"}>
-              <label>最多标签数 <input type="number" aria-label="专注模式最多标签数" min={1} max={20} value={focusTabs.limit} onChange={event => saveFocusTabs({ limit: Number(event.target.value) })} /></label>
+            <Field label="专注模式文档标签" desc="双击 NINE RINGS 显示或隐藏；标签排序与关闭独立于最近打开记录，最多支持最近 64 份文档。本机设置。" visible={settingsPage === "appearance"}>
+              <label>最多标签数 <input type="number" aria-label="专注模式最多标签数" min={1} max={64} value={focusTabs.limit} onChange={event => saveFocusTabs({ limit: Number(event.target.value) })} /></label>
             </Field>
             <Field label="风格配色" desc="当前风格的浅色、深色或跟随系统配色，不改变经典主题。" visible={settingsPage === "appearance" && config.interface_style !== "classic"}>
               <div className="settings-radio-group">{([["light", "浅色"], ["dark", "深色"], ["system", "跟随系统"]] as const).map(([value, label]) => <button type="button" className={`settings-radio${(config.interface_color_mode ?? "system") === value ? " active" : ""}`} key={value} aria-pressed={(config.interface_color_mode ?? "system") === value} onClick={() => update({ interface_color_mode: value })}>{label}</button>)}</div>

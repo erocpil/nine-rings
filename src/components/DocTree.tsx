@@ -24,6 +24,8 @@ interface DocTreeProps {
   onSelect: (note: Note, options?: DocumentOpenOptions) => void;
   onFolderSelect?: (path: string) => void;
   selectedId: string | null;
+  revealId?: string | null;
+  revealSequence?: number;
   selectedTitle?: string;
   selectedFolderPath?: string | null;
   onCreate: () => void;
@@ -127,7 +129,7 @@ function InlineRename({
 }
 
 function DocTree({
-  beforeExport, onSelect, onFolderSelect, selectedId, selectedTitle, selectedFolderPath, onCreate, onPathSecurity, refreshKey,
+  beforeExport, onSelect, onFolderSelect, selectedId, revealId, revealSequence, selectedTitle, selectedFolderPath, onCreate, onPathSecurity, refreshKey,
   onRename, onRenameFolder, onDelete, onToggleReadonly,
   onMoveDocument, onBatchMoveDocuments, onMoveFolder,
   onBatchDelete, onBatchSetReadonly,
@@ -257,8 +259,8 @@ function DocTree({
 
   useLayoutEffect(() => {
     const scrollRoot = treeScrollRef.current;
-    if (loading || !selectedId || !scrollRoot) return;
-    const selected = scrollRoot.querySelector<HTMLElement>(".doc-tree-selected");
+    if (loading || !(revealId || selectedId) || !scrollRoot) return;
+    const selected = scrollRoot.querySelector<HTMLElement>(revealId ? ".doc-tree-revealed" : ".doc-tree-selected");
     // 祖先目录尚未展开时节点还不在 DOM；collapsed 更新后本 effect 会重试。
     if (!selected) return;
     const rootRect = scrollRoot.getBoundingClientRect();
@@ -273,7 +275,7 @@ function DocTree({
       scrollRoot.scrollTop = Math.max(0, scrollRoot.scrollTop + delta);
       localStorage.setItem(DOC_TREE_SCROLL_KEY, String(scrollRoot.scrollTop));
     }
-  }, [collapsed, loading, selectedId, tree]);
+  }, [collapsed, loading, selectedId, revealId, revealSequence, tree]);
 
   useEffect(() => {
     if (contextMenu) {
@@ -741,7 +743,7 @@ function DocTree({
     return (
       <div
         key={node.path}
-        className={`doc-tree-node doc-tree-doc ${isSelected ? "doc-tree-selected" : ""}`}
+        className={`doc-tree-node doc-tree-doc ${isSelected ? "doc-tree-selected" : ""}${node.noteId === revealId ? " doc-tree-revealed" : ""}`}
         style={{ paddingLeft: 6 + Math.max(0, depth - 1) * 12 }}
         onClick={event => handleDocClick(node, documentOpenOptions(event))}
         onContextMenu={(e) => handleContextMenu(e, node)}
