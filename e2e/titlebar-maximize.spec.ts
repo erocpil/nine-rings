@@ -42,7 +42,7 @@ async function mountTitlebar(
             document.body.dataset.windowCommands = JSON.stringify(commands);
             fullscreen = Boolean((args as { fullscreen: boolean }).fullscreen);
           }
-          if (command === "toggle_window_maximize") {
+          if (command === "toggle_window_maximize" || command === "toggle_window_vertical_extent") {
             commands.push(command);
             document.body.dataset.windowCommands = JSON.stringify(commands);
           }
@@ -298,8 +298,8 @@ test("展陈标题栏保留窗口操作，工作区和配色控件不触发最�
   page,
 }) => {
   await mountTitlebar(page, "MacIntel", false, false, true);
-  await page.locator("#titlebar-test-host .titlebar-exhibition").dispatchEvent("mousedown", { button: 0, detail: 2 });
-  await page.locator("#titlebar-test-host .titlebar-exhibition").dispatchEvent("mouseup", { button: 0, detail: 2 });
+  await page.locator("#titlebar-test-host .titlebar-exhibition").dispatchEvent("mousedown", { button: 0, detail: 2, clientY: 20 });
+  await page.locator("#titlebar-test-host .titlebar-exhibition").dispatchEvent("mouseup", { button: 0, detail: 2, clientY: 20 });
   expect(
     (await commands(page)).filter(
       (command) => command === "toggle_window_maximize",
@@ -324,3 +324,17 @@ test("展陈标题栏保留窗口操作，工作区和配色控件不触发最�
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   expect(await commands(page)).toContain("hide");
 });
+
+for (const platform of ["MacIntel", "Win32", "Linux x86_64"]) {
+  test(`${platform} 双击上边缘只切换纵向撑满，再次双击恢复`, async ({ page }) => {
+    await mountTitlebar(page, platform);
+    const bar = page.locator("#titlebar-test-host .titlebar");
+    const rect = (await bar.boundingBox())!;
+    for (let i = 0; i < 2; i++) {
+      await bar.dispatchEvent("mousedown", { button: 0, detail: 2, clientX: rect.x + 10, clientY: rect.y + 2 });
+      await bar.dispatchEvent("mouseup", { button: 0, detail: 2, clientX: rect.x + 10, clientY: rect.y + 2 });
+      await expect.poll(async () => (await commands(page)).filter(c => c === "toggle_window_vertical_extent").length).toBe(i + 1);
+    }
+    expect(await commands(page)).not.toContain("toggle_window_maximize");
+  });
+}

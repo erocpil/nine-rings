@@ -92,9 +92,6 @@ for (const width of [1280, 390])
         (window as any).copiedReference = null;
       });
       await selectTarget(page, label.includes("选中文字"));
-      await page
-        .getByRole("button", { name: "更多编辑操作", exact: true })
-        .click();
       await page.getByRole("button", { name: label, exact: true }).click();
       await expect
         .poll(() => page.evaluate(() => (window as any).copiedReference))
@@ -118,7 +115,6 @@ test("右键复制与工具栏共用权限处理；保存失败不复制且恢�
     (window as any).referenceSaveFail = true;
   });
   await selectTarget(page, true);
-  await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
   await page
     .getByRole("button", { name: "复制选中文字引用", exact: true })
     .click();
@@ -179,7 +175,6 @@ test("浏览器原生剪贴板在异步保存后写入引用", async ({ page, co
     };
   });
   await selectTarget(page, true);
-  await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
   await page
     .getByRole("button", { name: "复制选中文字引用", exact: true })
     .click();

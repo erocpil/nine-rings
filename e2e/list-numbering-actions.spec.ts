@@ -120,7 +120,8 @@ test("右键当前列表项可设置编号，首个列表的继续编号禁用",
     button: "right",
   });
   const context = page.locator(".editor-context-menu");
-  await context.getByRole("button", { name: "段落", exact: true }).click();
+  const paragraph = context.getByRole("button", { name: "段落", exact: true });
+  if (await paragraph.getAttribute("aria-expanded") !== "true") await paragraph.click();
   const menu = context.getByRole("group", {
     name: "有序列表编号",
     exact: true,

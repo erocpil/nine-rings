@@ -743,6 +743,7 @@ pub fn run() {
             commands::window::get_desktop_recovery_status,
             commands::window::set_window_fullscreen,
             commands::window::toggle_window_maximize,
+            commands::window::toggle_window_vertical_extent,
             commands::external_link::open_external_link,
             commands::doc_tree::get_document_source_formats,
             commands::doc_tree::get_document_summaries,

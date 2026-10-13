@@ -274,12 +274,13 @@ pub async fn image_library_read(
     library: State<'_, ImageLibrary>,
     root_id: String,
     node: String,
-) -> Result<Vec<u8>, String> {
+) -> Result<tauri::ipc::Response, String> {
     caller(&window)?;
     let root = library.root(&root_id)?;
     tauri::async_runtime::spawn_blocking(move || read_image(&root, &node))
         .await
         .map_err(|e| e.to_string())?
+        .map(tauri::ipc::Response::new)
 }
 fn read_image(root: &Path, node: &str) -> Result<Vec<u8>, String> {
     let path = checked_path(root, node)?;
@@ -287,15 +288,19 @@ fn read_image(root: &Path, node: &str) -> Result<Vec<u8>, String> {
         return Err("不是支持的图片类型".into());
     }
     let file = fs::File::open(path).map_err(|_| "无法读取图片")?;
-    if !file.metadata().map_err(|_| "无法读取图片")?.is_file() {
+    let metadata = file.metadata().map_err(|_| "无法读取图片")?;
+    if !metadata.is_file() {
         return Err("不是图片文件".into());
     }
+    if metadata.len() == 0 || metadata.len() > 256 * 1024 * 1024 {
+        return Err("图片为空或超过 256 MB".into());
+    }
     let mut bytes = Vec::new();
-    file.take(10 * 1024 * 1024 + 1)
+    file.take(256 * 1024 * 1024 + 1)
         .read_to_end(&mut bytes)
         .map_err(|_| "无法读取图片")?;
-    if bytes.is_empty() || bytes.len() > 10 * 1024 * 1024 {
-        return Err("图片为空或超过 10 MB".into());
+    if bytes.is_empty() || bytes.len() > 256 * 1024 * 1024 {
+        return Err("图片为空或超过 256 MB".into());
     }
     Ok(bytes)
 }
@@ -386,7 +391,13 @@ mod tests {
         assert!(stat_image(&root, "private.txt").is_err());
         assert_eq!(stat_image(&root, "photo000.png").unwrap().size, 5);
         assert_eq!(read_image(&root, "photo000.png").unwrap(), b"image");
-        fs::write(root.join("large.png"), vec![0; 10 * 1024 * 1024 + 1]).unwrap();
+        fs::write(root.join("supported-large.png"), vec![0; 12 * 1024 * 1024]).unwrap();
+        assert_eq!(
+            read_image(&root, "supported-large.png").unwrap().len(),
+            12 * 1024 * 1024
+        );
+        let oversized = fs::File::create(root.join("large.png")).unwrap();
+        oversized.set_len(256 * 1024 * 1024 + 1).unwrap();
         assert!(read_image(&root, "large.png").is_err());
         fs::remove_dir_all(root).unwrap();
     }

@@ -47,26 +47,19 @@ test("手机工具栏菜单互斥、重复点击与外部关闭，标题分页�
   await page.setViewportSize({ width: 390, height: 850 });
   await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
   const dropdowns = page.locator(".editor-menu .menu-dropdown-list");
-  for (const title of ["样式", "标题", "块"]) {
+  for (const title of ["字号", "文字颜色"]) {
     await page.getByTitle(title, { exact: true }).click();
     await expect(dropdowns).toHaveCount(1);
   }
-  await page.getByTitle("块", { exact: true }).click();
+  await page.getByTitle("文字颜色", { exact: true }).click();
   await expect(dropdowns).toHaveCount(0);
-  await page.getByTitle("标题", { exact: true }).click();
-  await page.getByRole("button", { name: "H1–2 H6", exact: true }).click();
+  await page.getByTitle("H1–2 H6", { exact: true }).click();
+  await expect(page.getByTitle("标题 1", { exact: true })).toBeVisible();
+  await page.locator(".ProseMirror").click();
+  await expect(page.getByTitle("标题 1", { exact: true })).toBeVisible();
+  await page.getByTitle("字号", { exact: true }).click();
   await page.locator(".ProseMirror").click();
   await expect(dropdowns).toHaveCount(0);
-  await page.getByTitle("标题", { exact: true }).click();
-  await expect(page.getByRole("button", { name: "H3–H5", exact: true })).toBeVisible();
-  await page.getByTitle("更多编辑操作").click();
-  await expect(dropdowns).toHaveCount(0);
-  const more = page.getByRole("dialog", { name: "更多编辑操作", exact: true });
-  await expect(more).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(more).toHaveCount(0);
-  await page.getByTitle("样式", { exact: true }).click();
-  await expect(dropdowns).toHaveCount(1);
 });
 
 test("切换工具栏布局和插入弹层不重建正文，选区格式与撤销历史保留", async ({ page }) => {
@@ -78,13 +71,10 @@ test("切换工具栏布局和插入弹层不重建正文，选区格式与撤�
   await page.setViewportSize({ width: 390, height: 850 });
   await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
   await selectLine(page, "拆分验证甲正文");
-  await page.getByTitle("样式", { exact: true }).click();
-  await page.getByRole("button", { name: "B 加粗", exact: true }).click();
+  await page.getByTitle("加粗 (Ctrl+B)", { exact: true }).click();
   await expect(editor.locator("strong")).toHaveText("拆分验证甲正文");
 
-  await page.getByTitle("更多编辑操作").click();
-  const more = page.getByRole("dialog", { name: "更多编辑操作", exact: true });
-  await more.getByRole("button", { name: "添加或编辑链接", exact: true }).click();
+  await page.getByRole("button", { name: "添加或编辑链接", exact: true }).click();
   const dialog = page.locator(".image-dialog");
   await expect(dialog.locator("input")).toBeFocused();
   await dialog.locator("input").fill("https://example.com/cancelled");

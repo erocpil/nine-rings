@@ -34,11 +34,11 @@ test("工具栏按宽度补回按钮，手机横屏隐藏密码入口且浮层�
       overflow: el.scrollWidth - el.clientWidth };
   });
   await expect.poll(async () => (await inspect()).visible).toBeGreaterThan(0);
-  await expect.poll(async () => (await inspect()).overflow).toBeLessThanOrEqual(2);
+  await expect.poll(async () => (await inspect()).overflow).toBeGreaterThan(0);
   const portrait = (await inspect()).visible;
   await page.setViewportSize({ width: 844, height: 390 });
-  await expect.poll(async () => (await inspect()).visible).toBeGreaterThan(portrait);
-  await expect.poll(async () => (await inspect()).overflow).toBeLessThanOrEqual(2);
+  await expect.poll(async () => (await inspect()).visible).toBe(portrait);
+  await expect.poll(async () => (await inspect()).overflow).toBeGreaterThan(0);
   await expect(page.locator(".document-security-bar")).toHaveCount(0);
   await openLeftPanel(page, "tree");
   const sidebar = page.getByRole("dialog", { name: "文档侧栏", exact: true });
@@ -71,8 +71,8 @@ test("工具栏按宽度补回按钮，手机横屏隐藏密码入口且浮层�
   await page.getByRole("button", { name: "文档书签", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(async () => (await inspect()).visible).toBe(portrait);
-  await expect.poll(async () => (await inspect()).overflow).toBeLessThanOrEqual(2);
-  await page.getByTitle("更多编辑操作", { exact: true }).click();
+  await expect.poll(async () => (await inspect()).overflow).toBeGreaterThan(0);
+  await page.getByRole("button", { name: "插入图片", exact: true }).scrollIntoViewIfNeeded();
   await expect(page.getByRole("button", { name: "插入图片", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await page.screenshot({ path: test.info().outputPath("nr-toolbar-fit-portrait.png") });

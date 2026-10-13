@@ -1,3 +1,4 @@
+import { parseImageMetadata } from "./image-metadata";
 import { getImageUrl } from "../storage/db-images";
 import { readonlyImageSource } from "../readonly-image-source";
 import { imageDirectoryService } from "./directory-service";
@@ -22,9 +23,29 @@ async function makePreview(
     if (signal.aborted) throw new DOMException("Cancelled", "AbortError");
     // Decode to a bounded preview where supported. Original remains unchanged.
     if (maxEdge > 0 && typeof createImageBitmap === "function") {
-      const bitmap = await createImageBitmap(blob);
-      width = bitmap.width;
-      height = bitmap.height;
+      const metadata = parseImageMetadata(
+        await blob.slice(0, 2 * 1024 * 1024).arrayBuffer(),
+      );
+      const orientation = Number.parseInt(metadata.rows.find(([name]) => name === "EXIF 方向")?.[1] ?? "1", 10);
+      if (orientation >= 5 && orientation <= 8) {
+        [metadata.width, metadata.height] = [metadata.height, metadata.width];
+      }
+      const ratio =
+        metadata.width && metadata.height
+          ? Math.min(1, maxEdge / metadata.width, maxEdge / metadata.height)
+          : 1;
+      const bitmap = await createImageBitmap(
+        blob,
+        metadata.width && metadata.height
+          ? {
+              resizeWidth: Math.max(1, Math.round(metadata.width * ratio)),
+              resizeHeight: Math.max(1, Math.round(metadata.height * ratio)),
+              resizeQuality: "high",
+            }
+          : undefined,
+      );
+      width = metadata.width ?? bitmap.width;
+      height = metadata.height ?? bitmap.height;
       try {
         const canvas = document.createElement("canvas");
         const ratio = Math.min(

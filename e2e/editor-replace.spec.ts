@@ -46,7 +46,6 @@ test("正文全部替换保留结构格式并可一次撤销，实时刷新匹�
 test("手机从更多打开替换，横竖屏均不溢出", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 760 });
   await seed(page);
-  await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
   await page.getByRole("button", { name: "查找与替换", exact: true }).click();
   await expect(page.getByLabel("替换为", { exact: true })).toBeVisible();
   await expect(page.getByLabel("在当前文档中查找")).toBeFocused();

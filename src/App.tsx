@@ -1354,6 +1354,22 @@ function App() {
   ) : null;
 
   const effectiveFocusMode = focusMode;
+  const [focusActivityRevealed, setFocusActivityRevealed] = useState(false);
+  useEffect(() => {
+    setFocusActivityRevealed(false);
+    if (!effectiveFocusMode || mobileDrawerViewport || !sidebarHidden) return;
+    const move = (event: PointerEvent) => {
+      if (event.pointerType === "touch") return;
+      const body = document.querySelector(".app-body")?.getBoundingClientRect();
+      if (!body) return;
+      const atEdge = sidebarOnRight ? event.clientX >= body.right - 6 : event.clientX <= body.left + 6;
+      const inside = event.target instanceof Element && Boolean(event.target.closest(".desktop-activity-bar, #workspace-sidebar"));
+      setFocusActivityRevealed(atEdge || inside);
+    };
+    document.addEventListener("pointermove", move, { passive: true });
+    return () => document.removeEventListener("pointermove", move);
+  }, [effectiveFocusMode, mobileDrawerViewport, sidebarHidden, sidebarOnRight]);
+
   const exhibitionEnabled = Boolean(config && effectiveWorkspaceLayout(config) === "exhibition");
   const readerWasOpenBeforeHome = Boolean(
     exhibitionReturnTarget?.pdfReaderDocumentId || exhibitionReturnTarget?.epubReaderDocumentId,
@@ -1527,7 +1543,7 @@ function App() {
         {contributedPanels.length > 0 && <Suspense fallback={null}><ImageViewerHost /></Suspense>}
         {sidebarWidthHint && <div className="sidebar-width-hint" role="status" aria-live="polite">{sidebarWidthHint}</div>}
         {!mobileDrawerViewport && <nav
-          className={`desktop-activity-bar${workspaceHomeChromeHidden ? " desktop-activity-bar-home-hidden" : ""}`}
+          className={`desktop-activity-bar${effectiveFocusMode && sidebarHidden ? " desktop-activity-bar-focus-overlay" : ""}${effectiveFocusMode && sidebarHidden && !focusActivityRevealed ? " desktop-activity-bar-focus-hidden" : ""}${workspaceHomeChromeHidden ? " desktop-activity-bar-home-hidden" : ""}`}
           aria-label="工作区面板"
           onPointerEnter={() => { if (workspaceHomeChromeHidden) setWorkspaceHomeChromeHidden(false); }}
           onPointerMove={() => { if (workspaceHomeChromeHidden) setWorkspaceHomeChromeHidden(false); }}

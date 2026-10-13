@@ -2,13 +2,12 @@ import { OrderedListNumberingMenu } from "./OrderedListNumberingMenu";
 import { FLOW_BLOCK_TEMPLATE } from "../lib/flow-block";
 import { resetTableColumnWidths } from "../extensions/ContentSizedTable";
 import { DisclosureIcon } from "./DisclosureIcon";
+import { exitCurrentStructuredBlock } from "../extensions/StructuredBlockExit";
 import React, { type ReactNode, type RefObject } from "react";
 import type { Editor } from "@tiptap/core";
 import type { EditorToolbarMenu } from "../hooks/useEditorToolbarMenus";
-import { exitCurrentStructuredBlock } from "../extensions/StructuredBlockExit";
-import { MobileActionSheet } from "./MobileActionSheet";
 import { ToolbarIcon } from "./ToolbarIcon";
-import { useToolbarOverflow } from "../hooks/useToolbarOverflow";
+import { useLayoutEffect } from "react";
 import { useSelectionFontSize } from "../hooks/useSelectionFontSize";
 import { preserveReadingPositions } from "../lib/reading-position";
 
@@ -19,11 +18,8 @@ export interface EditorToolbarProps {
   readonly?: boolean;
   saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
   layout: {
-    isNarrow: boolean;
-    isMinimalToolbar: boolean;
     isMobileToolbarViewport: boolean;
     toolbarRef: RefObject<HTMLDivElement>;
-    moreButtonRef: RefObject<HTMLButtonElement>;
   };
   menus: {
     colorOpen: boolean;
@@ -113,20 +109,18 @@ const btn = (label: ReactNode, action: () => void, active?: boolean, title?: str
 
 /** No wrapper DOM and no second EditorView; commands use the owning session. */
 export function EditorToolbarContents({ editor, readonly, saveStatus, layout, menus, actions, editorFontSize, onEditorFontSizeChange, showCodeLineNumbers, onCodeLineNumbersChange, selectedTableCellCount }: EditorToolbarProps) {
-  const { isNarrow, isMinimalToolbar, isMobileToolbarViewport, toolbarRef, moreButtonRef } = layout;
-  const hiddenTools = useToolbarOverflow(toolbarRef, true);
+  const { toolbarRef } = layout;
   const selectionSize = useSelectionFontSize(editor, editorFontSize);
   const {
     colorOpen, setColorOpen, sizeOpen, setSizeOpen,
-    headingOpen, setHeadingOpen, headingPage, setHeadingPage,
-    orderedOpen, setOrderedOpen, blockOpen, setBlockOpen, styleOpen, setStyleOpen,
-    clipOpen, setClipOpen, tableOpen, setTableOpen,
-    moreOpen, setMoreOpen, closeMore,
+    headingOpen, headingPage, setHeadingPage,
+    orderedOpen, setOrderedOpen, blockOpen, styleOpen,
+    clipOpen, tableOpen, setTableOpen,
     toggleMobileToolbarMenu,
   } = menus;
   const {
-    runToolbarFormat, changeSelectedBlockIndent, handleToggleCodeBlock,
-    insertBlankBlockAfterCurrent, hasSelection, convertSelectionFromMarkdown,
+    changeSelectedBlockIndent, handleToggleCodeBlock,
+    hasSelection, convertSelectionFromMarkdown,
     setTableSelection, copySelectedTableCells, clearSelectedTableCells, setTableCellAlignment,
     handleCopy, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf,
     setLinkDialogUrl, setLinkDialog, setImageDialog,
@@ -145,156 +139,53 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
   const clearTextFormatting = () => {
     editor.chain().focus().unsetAllMarks().run();
   };
-  const moreActions = (<>
-    <button className="menu-dropdown-item" disabled={readonly} onClick={() => { insertFlow(); closeMore(); }} type="button"><ToolbarIcon name="code" />插入流程块</button>
-    {isMinimalToolbar && <button className="menu-dropdown-item" disabled={readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak()} onClick={() => { editor.chain().focus().setHardBreak().run(); closeMore(); }} type="button"><ToolbarIcon name="lineBreak" />块内换行</button>}
-    {isMinimalToolbar && <button className="menu-dropdown-item" disabled={readonly} onClick={() => { closeMore(); actions.openEditorReplace(); }} type="button"><ToolbarIcon name="search" />查找与替换</button>}
-    {isMobileToolbarViewport && <button className="menu-dropdown-item" disabled={readonly} onClick={() => { clearTextFormatting(); closeMore(); }} type="button"><ToolbarIcon name="erase" />清除格式</button>}
-    {hiddenTools.includes("clipboard") && <>
-    <button className="menu-dropdown-item" onClick={() => { handleCopy(); closeMore(); }} type="button"><ToolbarIcon name="copy" />复制</button>
-    <button className="menu-dropdown-item" onClick={() => { handleCut(); closeMore(); }} type="button"><ToolbarIcon name="cut" />剪切</button>
-    <button className="menu-dropdown-item" onClick={() => { handleClipboardPaste(); closeMore(); }} type="button"><ToolbarIcon name="paste" />粘贴</button>
-    </>}
-    <button className="menu-dropdown-item" onClick={() => { void actions.handleCopyBlock(); closeMore(); }} type="button"><ToolbarIcon name="copy" />复制块</button>
-    <button className="menu-dropdown-item" onClick={() => { void actions.copyReference("block"); closeMore(); }} type="button"><ToolbarIcon name="link" />复制块引用</button>
-    <button className="menu-dropdown-item" onClick={() => { void actions.copyReference("position"); closeMore(); }} type="button"><ToolbarIcon name="link" />{hasSelection() ? "复制选中文字引用" : "复制此处引用"}</button>
-    <div className="menu-dropdown-sep" />
-    <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button"><ToolbarIcon name="export" />导出 Markdown</button>
-    <button className="menu-dropdown-item" onClick={() => { setMoreOpen(false); handleExportPdf(); }} type="button"><ToolbarIcon name="document" />导出 PDF</button>
-    <div className="menu-dropdown-sep" />
-    <button className="menu-dropdown-item" onClick={() => {
-      setLinkDialogUrl(editor.getAttributes("link").href || "");
-      setLinkDialog(true);
-      setMoreOpen(false);
-    }} type="button"><ToolbarIcon name="link" />添加或编辑链接</button>
-    <button className="menu-dropdown-item" onClick={() => { setImageDialog(true); setMoreOpen(false); }} type="button"><ToolbarIcon name="image" />插入图片</button>
-    {hiddenTools.includes("size") && <label className="menu-dropdown-control">
-      <span><ToolbarIcon name="font" />文字字号</span>
-      <select
-        value={editor.getAttributes("textStyle").fontSize || ""}
-        onChange={(event) => {
-          preserveReadingPositions(() => {
-            if (event.target.value) editor.chain().focus(undefined, { scrollIntoView: false }).setFontSize(event.target.value).run();
-            else editor.chain().focus(undefined, { scrollIntoView: false }).unsetFontSize().run();
-          });
-        }}
-      >
-        <option value="">默认</option>
-        {FONT_SIZES.map((size) => <option key={size} value={size}>{size}px</option>)}
-      </select>
-    </label>}
-    <div className="toolbar-more-color-actions">
-      <label className="menu-dropdown-control toolbar-more-color-picker">
-        <span><ToolbarIcon name="color" />文字颜色</span>
-        <input
-          type="color"
-          value={editor.getAttributes("textStyle").color || "#333333"}
-          onChange={(event) => editor.chain().focus().setColor(event.target.value).run()}
-        />
-      </label>
-      <button className="menu-dropdown-item toolbar-more-clear-color" onClick={() => editor.chain().focus().unsetColor().run()} type="button"><ToolbarIcon name="erase" />清除文字颜色</button>
-    </div>
-    <div className="menu-dropdown-sep" />
-    {hiddenTools.includes("font") && <>
-    <button className="menu-dropdown-item style-managed-font-action" disabled={editorFontSize <= 12} onClick={() => onEditorFontSizeChange(Math.max(12, editorFontSize - 1))} type="button"><ToolbarIcon name="minus" />缩小编辑器字号</button>
-    <button className="menu-dropdown-item style-managed-font-action" disabled={editorFontSize >= 32} onClick={() => onEditorFontSizeChange(Math.min(32, editorFontSize + 1))} type="button"><ToolbarIcon name="plus" />放大编辑器字号</button>
-    </>}
-  </>);
+  // Fixed menus escape the horizontal scroll viewport while retaining the
+  // owning toolbar's DOM containment and focus/dismissal behavior.
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+    const position = () => {
+      toolbar.querySelectorAll<HTMLElement>(".menu-dropdown-list").forEach(menu => {
+        const anchor = menu.parentElement?.getBoundingClientRect();
+        if (!anchor) return;
+        menu.style.position = "fixed";
+        menu.style.top = `${anchor.bottom}px`;
+        menu.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - menu.offsetWidth - 8))}px`;
+        menu.style.maxHeight = `${Math.max(80, window.innerHeight - anchor.bottom - 12)}px`;
+        menu.style.overflowY = "auto";
+      });
+    };
+    position();
+    toolbar.addEventListener("scroll", position);
+    window.addEventListener("resize", position);
+    const resize = new ResizeObserver(position);
+    resize.observe(toolbar);
+    const changes = new MutationObserver(position);
+    changes.observe(toolbar, { childList: true, subtree: true });
+    return () => {
+      toolbar.removeEventListener("scroll", position);
+      window.removeEventListener("resize", position);
+      resize.disconnect();
+      changes.disconnect();
+    };
+  }, [toolbarRef, colorOpen, sizeOpen, headingOpen, orderedOpen, blockOpen, styleOpen, clipOpen, tableOpen]);
 
   return (<>
-    {!isMinimalToolbar && btn(<ToolbarIcon name="search" />, actions.openEditorReplace, false, "查找与替换", readonly)}
-    {!isMinimalToolbar && btn(<ToolbarIcon name="copy" />, () => { void actions.handleCopyBlock(); }, false, "复制块", false)}
+    {btn(<ToolbarIcon name="search" />, actions.openEditorReplace, false, "查找与替换", readonly)}
+    {btn(<ToolbarIcon name="copy" />, () => { void actions.handleCopyBlock(); }, false, "复制块", false)}
     <span className="toolbar-history-actions">
       {btn(<span className="toolbar-history-icon toolbar-history-icon-undo"><ToolbarIcon name="undo" /></span>, () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly || !editor.can().undo())}
       {btn(<span className="toolbar-history-icon toolbar-history-icon-redo"><ToolbarIcon name="redo" /></span>, () => editor.chain().focus().redo().run(), false, "重做 (Ctrl+Y)", readonly || !editor.can().redo())}
     </span>
     <span className="menu-sep" />
-    {isNarrow ? (
-      <div className="menu-dropdown">
-        <button
-          className="menu-btn"
-          onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("style", styleOpen); }}
-          type="button"
-          title="样式"
-          aria-expanded={styleOpen}
-        >
-          {editor.isActive("bold") ? "B" :
-           editor.isActive("italic") ? "I" :
-           editor.isActive("strike") ? "S" : "样式"}{dropdownCaret}
-        </button>
-        {styleOpen && (
-          <div className="menu-dropdown-list">
-            <button
-              className={`menu-dropdown-item ${editor.isActive("bold") ? "active" : ""}`}
-              onClick={() => { runToolbarFormat("bold"); setStyleOpen(false); }}
-              type="button"
-            ><b>B 加粗</b></button>
-            <button
-              className={`menu-dropdown-item ${editor.isActive("italic") ? "active" : ""}`}
-              onClick={() => { runToolbarFormat("italic"); setStyleOpen(false); }}
-              type="button"
-            ><i>I 斜体</i></button>
-            <button
-              className={`menu-dropdown-item ${editor.isActive("strike") ? "active" : ""}`}
-              onClick={() => { runToolbarFormat("strike"); setStyleOpen(false); }}
-              type="button"
-            ><s>S 删除线</s></button>
-            <button className="menu-dropdown-item" onClick={() => { clearTextFormatting(); setStyleOpen(false); }} type="button">清除格式</button>
-          </div>
-        )}
-      </div>
-    ) : (<>
+    {(<>
     {btn(<b>B</b>, () => editor.chain().focus().toggleBold().run(), editor.isActive("bold"), "加粗 (Ctrl+B)", readonly)}
     {btn(<i>I</i>, () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"), "斜体 (Ctrl+I)", readonly)}
     {btn(<s>S</s>, () => editor.chain().focus().toggleStrike().run(), editor.isActive("strike"), "删除线 (Ctrl+Shift+X)", readonly)}
-    {btn("清除", clearTextFormatting, false, "清除格式", readonly)}
+    {btn(<ToolbarIcon name="erase" />, clearTextFormatting, false, "清除格式", readonly)}
     </>)}
     <span className="menu-sep" />
-    {isNarrow ? (
-      <div className="menu-dropdown">
-        <button
-          className="menu-btn"
-          onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("heading", headingOpen); }}
-          type="button"
-          title="标题"
-          aria-expanded={headingOpen}
-        >
-          {editor.isActive("heading", { level: 1 }) ? "H1" :
-           editor.isActive("heading", { level: 2 }) ? "H2" :
-           editor.isActive("heading", { level: 6 }) ? "H6" :
-           editor.isActive("heading", { level: 3 }) ? "H3" :
-           editor.isActive("heading", { level: 4 }) ? "H4" :
-           editor.isActive("heading", { level: 5 }) ? "H5" : "标题"}{dropdownCaret}
-        </button>
-        {headingOpen && (
-          <div className="menu-dropdown-list">
-            {(headingPage === 0 ? [3, 4, 5] : [1, 2, 6]).map((lvl) => (
-              <button
-                key={lvl}
-                className={`menu-dropdown-item ${editor.isActive("heading", { level: lvl }) ? "active" : ""}`}
-                onClick={() => { editor.chain().focus().toggleHeading({ level: lvl as 1 | 2 | 3 | 4 | 5 | 6 }).run(); setHeadingOpen(false); }}
-                type="button"
-              >H{lvl} — {["","大标题","中标题","小标题","子标题","细标题","微标题"][lvl]}</button>
-            ))}
-            <div className="menu-dropdown-sep" />
-            <button
-              className="menu-dropdown-item"
-              onClick={() => { editor.chain().focus().clearNodes().run(); setHeadingOpen(false); }}
-              type="button"
-            >清除标题</button>
-            <div className="menu-dropdown-sep" />
-            <button
-              className="menu-dropdown-item menu-dropdown-toggle"
-              onClick={(e) => { e.stopPropagation(); setHeadingPage(headingPage === 0 ? 1 : 0); }}
-              type="button"
-              title="切换 H3–5 / H1–2 H6"
-            >
-              <ToolbarIcon name={headingPage === 0 ? "chevronRight" : "chevronLeft"} />{headingPage === 0 ? "H1–2 H6" : "H3–H5"}
-            </button>
-          </div>
-        )}
-      </div>
-    ) : (<>
+    {(<>
     {(headingPage === 0 ? [3, 4, 5] : [1, 2, 6]).map((lvl) => (
       <React.Fragment key={lvl}>
         {btn(`H${lvl}`, () => editor.chain().focus().toggleHeading({ level: lvl as 1 | 2 | 3 | 4 | 5 | 6 }).run(), editor.isActive("heading", { level: lvl }), `标题 ${lvl}`, readonly)}
@@ -308,97 +199,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     >{headingPage === 0 ? "»" : "«"}</button>
     </>)}
     <span className="menu-sep" />
-    {isNarrow ? (
-      <div className="menu-dropdown">
-        <button
-          className="menu-btn"
-          onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("block", blockOpen); }}
-          type="button"
-          title="块"
-          aria-expanded={blockOpen}
-        >块{dropdownCaret}</button>
-        {blockOpen && (
-          <div className={`menu-dropdown-list ${editor.isActive("orderedList") ? "list-numbering-block-menu" : ""}`}>
-            <button
-              className={`menu-dropdown-item ${editor.isActive("blockquote") ? "active" : ""}`}
-              onClick={() => { toggleBlockquote(); setBlockOpen(false); }}
-              type="button"
-            >❝ 引用</button>
-            <button
-              className={`menu-dropdown-item ${editor.isActive("bulletList") ? "active" : ""}`}
-              onClick={() => { editor.chain().focus().toggleBulletList().run(); setBlockOpen(false); }}
-              type="button"
-            >• 无序列表</button>
-            <button
-              className={`menu-dropdown-item ${editor.isActive("orderedList") ? "active" : ""}`}
-              onClick={() => { editor.chain().focus().toggleOrderedList().run(); setBlockOpen(false); }}
-              type="button"
-            >1. 有序列表</button>
-            {editor.isActive("orderedList") && <OrderedListNumberingMenu editor={editor} onDone={() => setBlockOpen(false)} />}
-            <button
-              className="menu-dropdown-item"
-              onClick={() => { changeSelectedBlockIndent(1); setBlockOpen(false); }}
-            type="button"
-            >→ 增加块缩进（Tab）</button>
-            <button
-              className="menu-dropdown-item"
-              onClick={() => { changeSelectedBlockIndent(-1); setBlockOpen(false); }}
-            type="button"
-            >← 减少块缩进（Shift+Tab）</button>
-            <button
-              className={`menu-dropdown-item ${editor.isActive("codeBlock") ? "active" : ""}`}
-              onClick={handleToggleCodeBlock}
-              type="button"
-            >⏹ 代码块</button>
-            <button type="button" className="menu-dropdown-item" disabled={readonly} onMouseDown={event => event.preventDefault()} onClick={() => {
-              insertFlow();
-              setBlockOpen(false);
-            }}>流程块</button>
-            {(editor.isActive("codeBlock") || editor.isActive("blockquote")) && (
-              <button
-                className="menu-dropdown-item"
-                onClick={() => { exitCurrentStructuredBlock(editor); setBlockOpen(false); }}
-                type="button"
-              >↵ 退出当前块（Ctrl+Enter）</button>
-            )}
-            {isMobileToolbarViewport && (
-              <button
-                className="menu-dropdown-item"
-                onClick={insertBlankBlockAfterCurrent}
-                disabled={readonly}
-                type="button"
-              >＋ 在当前块后插入空白块</button>
-            )}
-            <button
-              className="menu-dropdown-item"
-              onClick={() => {
-                editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
-                setBlockOpen(false);
-              }}
-              disabled={editor.isActive("table")}
-              type="button"
-            >▦ 插入表格</button>
-            <div className="menu-dropdown-sep" />
-            <button
-              className="menu-dropdown-item"
-              disabled={!hasSelection()}
-              onClick={convertSelectionFromMarkdown}
-              type="button"
-            >M↓ 转换所选 Markdown</button>
-            <div className="menu-dropdown-sep" />
-            <button
-              className={`menu-dropdown-item ${showCodeLineNumbers ? "active" : ""}`}
-              onClick={() => {
-                const next = !showCodeLineNumbers;
-                onCodeLineNumbersChange(next);
-                setBlockOpen(false);
-              }}
-              type="button"
-            >{showCodeLineNumbers ? "▣ 隐藏代码行号" : "□ 显示代码行号"}</button>
-          </div>
-        )}
-      </div>
-    ) : (<>
+    {(<>
     {btn(<ToolbarIcon name="quote" />, toggleBlockquote, editor.isActive("blockquote"), "引用 (Ctrl+Shift+B)", readonly)}
     {btn(<ToolbarIcon name="bullet" />, () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly)}
     <div className="menu-dropdown ordered-list-toolbar">
@@ -466,31 +267,13 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       </div>
     )}
     <span className="menu-sep" />
-    {!isMinimalToolbar && btn(<ToolbarIcon name="lineBreak" />, () => { editor.chain().focus().setHardBreak().run(); }, false, "块内换行", readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak())}
+    {btn(<ToolbarIcon name="lineBreak" />, () => { editor.chain().focus().setHardBreak().run(); }, false, "块内换行", readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak())}
     <div className="toolbar-secondary">
-    {isNarrow ? (
-      <div className="menu-dropdown" data-toolbar-tool="clipboard">
-        <button
-          className="menu-btn"
-          onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("clip", clipOpen); }}
-          type="button"
-          title="剪贴"
-          aria-expanded={clipOpen}
-        >剪贴{dropdownCaret}</button>
-        {clipOpen && (
-          <div className="menu-dropdown-list">
-            <button className="menu-dropdown-item" onClick={() => { handleCopy(); setClipOpen(false); }} type="button">📋 复制</button>
-            <button className="menu-dropdown-item" onClick={() => { handleCut(); setClipOpen(false); }} type="button">✂ 剪切</button>
-            <button className="menu-dropdown-item" onClick={() => { handleClipboardPaste(); setClipOpen(false); }} type="button">📝 粘贴</button>
-            <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setClipOpen(false); }} type="button">M↑ 导出 Markdown</button>
-          </div>
-        )}
-      </div>
-    ) : (<span className="toolbar-clipboard-actions" data-toolbar-tool="clipboard">
+    {(<span className="toolbar-clipboard-actions" data-toolbar-tool="clipboard">
     {btn(<ToolbarIcon name="copy" />, handleCopy, false, "复制 (Ctrl+C)", readonly)}
     {btn(<ToolbarIcon name="cut" />, handleCut, false, "剪切 (Ctrl+X)", readonly)}
     {btn(<ToolbarIcon name="paste" />, handleClipboardPaste, false, "粘贴 (Ctrl+V)", readonly)}
-    {btn("M↑", () => { void handleExportMarkdown(); }, false, "导出 Markdown", false)}
+    {btn(<ToolbarIcon name="export" />, () => { void handleExportMarkdown(); }, false, "导出 Markdown", false)}
     </span>)}
     <span className="menu-sep" />
 
@@ -558,6 +341,11 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
               type="button"
             />
           ))}
+          <label className="menu-dropdown-control">
+            自定义颜色
+            <input type="color" aria-label="自定义文字颜色" value={editor.getAttributes("textStyle").color || "#333333"}
+              onChange={event => editor.chain().focus().setColor(event.target.value).run()} />
+          </label>
           <div className="menu-dropdown-sep" />
           <button
             className="menu-dropdown-item"
@@ -591,35 +379,13 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {btn("A⁺", () => onEditorFontSizeChange(Math.min(32, editorFontSize + 1)), false, "放大字号", editorFontSize >= 32)}
     </span>
     </div>
-    <div className="menu-dropdown toolbar-more-menu">
-        <button
-          ref={moreButtonRef}
-          className="menu-btn"
-          onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("more", moreOpen); }}
-          type="button"
-          title="更多编辑操作"
-          aria-label="更多编辑操作"
-          aria-expanded={moreOpen}
-        ><span aria-hidden="true">⋯</span></button>
-        {moreOpen && (isMobileToolbarViewport ? (
-          <MobileActionSheet
-            open
-            title="更多编辑操作"
-            onClose={closeMore}
-            dismissAnchor={moreButtonRef.current}
-            placementAnchor={toolbarRef.current}
-            placementGap={4}
-            fitContent
-            className="toolbar-more-sheet"
-          >
-            {moreActions}
-          </MobileActionSheet>
-        ) : (
-          <div className="menu-dropdown-list toolbar-more-list" onClick={(event) => event.stopPropagation()}>
-            {moreActions}
-          </div>
-        ))}
-      </div>
+    {(editor.isActive("codeBlock") || editor.isActive("blockquote")) && btn(<ToolbarIcon name="lineBreak" />, () => { exitCurrentStructuredBlock(editor); }, false, "退出当前块（Ctrl+Enter）", readonly)}
+    {layout.isMobileToolbarViewport && btn(<ToolbarIcon name="plus" />, actions.insertBlankBlockAfterCurrent, false, "在当前块后插入空白块", readonly)}
+    {btn(<ToolbarIcon name="code" />, insertFlow, false, "插入流程块", readonly)}
+    {btn(<ToolbarIcon name="link" />, () => { void actions.copyReference("block"); }, false, "复制块引用")}
+    {btn(<ToolbarIcon name="link" />, () => { void actions.copyReference("position"); }, false, hasSelection() ? "复制选中文字引用" : "复制此处引用")}
+    {btn(<ToolbarIcon name="document" />, handleExportPdf, false, "导出 PDF")}
+    {btn(<ToolbarIcon name="link" />, () => { setLinkDialogUrl(editor.getAttributes("link").href || ""); setLinkDialog(true); }, false, "添加或编辑链接", readonly)}
     {saveStatus && saveStatus !== "clean" && (
       <span role="status" className={`save-status save-status-${saveStatus}`} title={
         saveStatus === "dirty" ? "未保存" :

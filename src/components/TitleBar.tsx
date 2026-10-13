@@ -33,7 +33,7 @@ export default function TitleBar({
   const native = isTauriRuntime();
   const [fullscreen, setFullscreen] = useState(false);
   const macOS = /Mac/i.test(navigator.platform);
-  const maximizePress = useRef<{ x: number; y: number } | null>(null);
+  const maximizePress = useRef<{ x: number; y: number; vertical: boolean } | null>(null);
   const maximizing = useRef(false);
   const maximizeGuardTimer = useRef<number | null>(null);
 
@@ -43,8 +43,11 @@ export default function TitleBar({
       ".titlebar-controls, button, a, input, select, textarea, [contenteditable]",
     );
 
+  const isTopEdge = (event: MouseEvent<HTMLDivElement>) =>
+    event.clientY - event.currentTarget.getBoundingClientRect().top <= 6;
+
   const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
-    if (!native || !macOS) return;
+    if (!native || (!macOS && !isTopEdge(event))) return;
     maximizePress.current = null;
     if (
       event.button !== 0 ||
@@ -56,13 +59,13 @@ export default function TitleBar({
     // 防止同一次手势既触发我们的最大化逻辑又触发 Tauri 的内部切换。
     event.preventDefault();
     event.stopPropagation();
-    maximizePress.current = { x: event.clientX, y: event.clientY };
+    maximizePress.current = { x: event.clientX, y: event.clientY, vertical: isTopEdge(event) };
   };
 
   const handleMouseUp = (event: MouseEvent<HTMLDivElement>) => {
     if (
       !native ||
-      !macOS ||
+      (!macOS && !maximizePress.current?.vertical) ||
       event.button !== 0 ||
       event.detail !== 2 ||
       !isTitlebarBackground(event)
@@ -79,6 +82,7 @@ export default function TitleBar({
       maximizing.current
     )
       return;
+    const verticalExtent = press.vertical;
     maximizing.current = true;
     // Native window calls normally settle immediately. Do not let one lost IPC
     // reply disable titlebar double-clicks for the rest of this app session.
@@ -93,7 +97,7 @@ export default function TitleBar({
       // 已在原生全屏时不改变 Space，也不修改退出全屏后的窗口状态。
       if (!(await appWindow.isFullscreen())) {
         window.dispatchEvent(new Event(FULLSCREEN_WILL_CHANGE_EVENT));
-        await invoke("toggle_window_maximize");
+        await invoke(verticalExtent ? "toggle_window_vertical_extent" : "toggle_window_maximize");
       }
     })()
       .catch((error) => {

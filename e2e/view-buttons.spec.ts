@@ -71,8 +71,8 @@ test.describe("手机工具栏状态恢复", () => {
     const editor = page.locator(".ProseMirror");
     await editor.fill("不应丢失的正文");
     await selectSingleLine(page, "不应丢失的正文");
-    await page.getByTitle("更多编辑操作").tap();
-    await page.getByRole("button", { name: "关闭更多编辑操作", exact: true }).tap();
+    await page.getByTitle("字号", { exact: true }).tap();
+    await page.getByTitle("字号", { exact: true }).tap();
     await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     const redo = page.getByTitle("重做 (Ctrl+Y)");
     await expect(redo).toBeDisabled();
@@ -96,26 +96,19 @@ test.describe("手机工具栏状态恢复", () => {
       await expect(editor).toHaveText("按钮文档甲正文");
       await editor.fill("更多操作正文");
       await selectSingleLine(page, "更多操作正文");
-      const more = page.getByRole("dialog", { name: "更多编辑操作", exact: true });
-      await page.getByTitle("更多编辑操作").tap();
-      const sizeSelect = more.getByRole("combobox", { name: "文字字号", exact: true });
-      if (await sizeSelect.count()) {
-        await sizeSelect.selectOption("24");
-      } else {
-        await page.keyboard.press("Escape");
-        await page.getByTitle("字号", { exact: true }).tap();
-        await page.locator("[data-toolbar-tool='size']").getByRole("button", { name: "24px", exact: true }).tap();
-        await page.getByTitle("更多编辑操作").tap();
-      }
+      const more = page.locator(".editor-menu");
+      await page.getByTitle("字号", { exact: true }).tap();
+      await more.getByRole("button", { name: "24px", exact: true }).tap();
+      await page.getByTitle("文字颜色", { exact: true }).tap();
       await expect(editor.locator('span[style*="font-size"]')).toHaveCSS("font-size", "24px");
-      await more.getByLabel("文字颜色", { exact: true }).fill("#ff0000");
+      await more.getByLabel("自定义文字颜色", { exact: true }).fill("#ff0000");
       await expect(editor.locator('span[style*="color"]')).toHaveCSS("color", "rgb(255, 0, 0)");
-      await more.getByRole("button", { name: "清除文字颜色", exact: true }).tap();
+      await more.getByRole("button", { name: "清除颜色", exact: true }).tap();
       await expect(editor.locator('span[style*="color"]')).toHaveCount(0);
       const size = await editor.evaluate((el) => getComputedStyle(el).fontSize);
-      await more.getByRole("button", { name: "放大编辑器字号", exact: true }).tap();
+      await more.getByRole("button", { name: "放大字号", exact: true }).tap();
       await expect(editor).toHaveCSS("font-size", `${parseFloat(size) + 1}px`);
-      await more.getByRole("button", { name: "缩小编辑器字号", exact: true }).tap();
+      await more.getByRole("button", { name: "缩小字号", exact: true }).tap();
       await expect(editor).toHaveCSS("font-size", size);
       await more.getByRole("button", { name: "添加或编辑链接", exact: true }).tap();
       await page.getByPlaceholder("https://...", { exact: true }).fill("https://example.com/reader");
@@ -125,12 +118,10 @@ test.describe("手机工具栏状态恢复", () => {
       await editor.click();
       await pressLineBoundary(editor, "end");
       await expect.poll(() => page.evaluate(() => window.getSelection()?.isCollapsed)).toBe(true);
-      await page.getByTitle("更多编辑操作").tap();
       await more.getByRole("button", { name: "插入图片", exact: true }).tap();
       await page.getByPlaceholder("图片 URL 或 base64").fill("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=");
       await page.locator(".image-dialog").getByRole("button", { name: "插入", exact: true }).tap();
       await expect(editor.locator("img")).toHaveCount(1);
-      await page.getByTitle("更多编辑操作").tap();
       const download = page.waitForEvent("download");
       await more.getByRole("button", { name: "导出 Markdown", exact: true }).tap();
       expect((await download).suggestedFilename()).toMatch(/\.md$/);
@@ -154,11 +145,10 @@ for (const width of [1440, 390]) {
         if (!(await page.locator(".app-sidebar").getAttribute("class"))?.includes("sidebar-hidden")) await closeDocumentSidebar(page);
         const editor = page.locator(".ProseMirror");
         await editor.fill("按钮功能正文");
-        const action = async (group: string, mobile: string, desktop: string) => {
-          if (width < 768) {
-            await page.getByTitle(group, { exact: true }).tap();
-            await page.getByRole("button", { name: mobile, exact: true }).tap();
-          } else await page.getByTitle(desktop, { exact: true }).click();
+        const action = async (_group: string, _mobile: string, desktop: string) => {
+          const button = page.getByTitle(desktop, { exact: true });
+          if (width < 768) await button.tap();
+          else await button.click();
         };
         for (const [name, title, tag] of [["B 加粗", "加粗 (Ctrl+B)", "strong"], ["I 斜体", "斜体 (Ctrl+I)", "em"], ["S 删除线", "删除线 (Ctrl+Shift+X)", "s"]]) {
           await selectSingleLine(page, "按钮功能正文");
@@ -168,18 +158,11 @@ for (const width of [1440, 390]) {
           await expect(editor.locator(tag)).toHaveCount(0);
         }
         for (const level of [3, 4, 5, 1, 2, 6]) {
-          if (width < 768) {
-            await page.getByTitle("标题", { exact: true }).tap();
-            if (level === 1) await page.getByTitle("切换 H3–5 / H1–2 H6").tap();
-            await page.getByRole("button", { name: new RegExp(`^H${level} —`) }).tap();
-          } else {
-            if (level === 1) await page.getByTitle("H1–2 H6", { exact: true }).click();
-            await page.getByTitle(`标题 ${level}`, { exact: true }).click();
-          }
+          if (level === 1) await page.getByTitle("H1–2 H6", { exact: true }).click();
+          await page.getByTitle(`标题 ${level}`, { exact: true }).click();
           await expect(editor.locator(`h${level}`)).toHaveText("按钮功能正文");
         }
-        if (width < 768) await action("标题", "清除标题", "");
-        else await page.getByTitle("标题 6", { exact: true }).click();
+        await page.getByTitle("标题 6", { exact: true }).click();
         for (const [name, title, selector] of [["❝ 引用", "引用 (Ctrl+Shift+B)", "blockquote"], ["• 无序列表", "无序列表 (Ctrl+Shift+8)", "ul"], ["1. 有序列表", "有序列表 (Ctrl+Shift+7)", "ol"]]) {
           await action("块", name, title);
           await expect(editor.locator(selector)).toHaveCount(1);

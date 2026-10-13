@@ -1,5 +1,5 @@
 import {
-  imageLibrarySession,
+  imageLibrarySession, imageDirectoryExpanded, saveImageDirectoryExpanded,
   selectedImageSnapshot,
   subscribeSelectedImage,
   imageKey,
@@ -169,13 +169,14 @@ function Directory({
     selectedImageSnapshot,
   );
   const [open, setOpen] = useState(
-    () => imageLibrarySession.directories.get(key)?.open ?? false,
+    () => imageLibrarySession.directories.get(key)?.open ?? imageDirectoryExpanded(key),
   );
   const [page, setPage] = useState<ImagePage | null>(
     () => imageLibrarySession.directories.get(key)?.page ?? null,
   );
   useEffect(() => {
     imageLibrarySession.directories.set(key, { open, page });
+    saveImageDirectoryExpanded(key, open);
   }, [key, open, page]);
   useEffect(() => {
     if (

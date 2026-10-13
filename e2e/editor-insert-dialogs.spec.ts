@@ -13,11 +13,7 @@ test("插入图片遮罩覆盖固定分栏，取消不修改正文", async ({ pa
   const sidebar = page.locator(".app-sidebar");
   await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
   const image = page.locator('.editor-menu').getByRole("button", { name: "插入图片", exact: true });
-  if (await image.isVisible()) await image.click();
-  else {
-    await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
-    await page.getByRole("button", { name: "插入图片", exact: true }).click();
-  }
+  await image.click();
   const overlay = page.locator(".image-dialog-overlay");
   await expect(overlay).toBeVisible();
   await expect.poll(() => sidebar.evaluate(el => {

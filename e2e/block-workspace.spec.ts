@@ -103,7 +103,6 @@ test("块内换行现状：代码按钮禁用但快捷键可用，引用按钮�
   await pressLineBoundary(page, "end");
   const lineBreak = await toolbarAction(page, "lineBreak");
   await expect(lineBreak).toBeDisabled();
-  await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
   await code.click();
   await pressLineBoundary(page, "end");
   const before = await code.textContent();

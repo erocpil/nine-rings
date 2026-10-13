@@ -1,5 +1,7 @@
 import { isTauriRuntime } from "../runtime";
 import { workspacePanels } from "../plugin-system/panel-registry";
+export const MAX_LIBRARY_IMAGE_BYTES = 256 * 1024 * 1024;
+
 export interface ImageRoot {
   id: string;
   name: string;
@@ -274,11 +276,11 @@ export const imageDirectoryService = {
     if (!type) throw new Error("不支持的图片格式");
     let blob: Blob;
     if (isTauriRuntime() && !browserRoots.has(rootId)) {
-      const bytes = await native<number[]>("image_library_read", {
+      const bytes = await native<ArrayBuffer | number[]>("image_library_read", {
         rootId,
         node: path,
       });
-      blob = new Blob([new Uint8Array(bytes)], { type });
+      blob = new Blob([bytes instanceof ArrayBuffer ? bytes : new Uint8Array(bytes)], { type });
     } else {
       const entry = browserRoots.get(rootId);
       if (!entry) throw new Error("目录授权已撤销");
@@ -297,12 +299,13 @@ export const imageDirectoryService = {
       }
     }
     if (assert() !== owner) throw new Error("图片插件已换代");
-    if (!blob.size || blob.size > 10 * 1024 * 1024)
-      throw new Error("图片为空或超过 10 MB");
-    const bytes = await blob.arrayBuffer();
+    if (!blob.size || blob.size > MAX_LIBRARY_IMAGE_BYTES)
+      throw new Error("图片为空或超过 256 MB");
+    // Preserve a revocation boundary without copying the entire file.
+    await Promise.resolve();
     if (assert() !== owner || version !== generation)
       throw new Error("图片授权已变更");
-    return new Blob([bytes], { type });
+    return blob.slice(0, blob.size, type);
   },
   async stat(
     rootId: string,

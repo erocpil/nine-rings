@@ -216,12 +216,12 @@
   --editor-ordered-marker-column: var(--editor-ordered-roman-column);
 }
 
-/* 编号在预留列内右对齐；句点后严格采用用户设置的间距。
+/* 编号在预留列内左对齐；最长编号后采用用户设置的间距。
    上方列表缩进保证最长编号仍留在正文区域内，不侵入块号沟槽。 */
 :is(.editor-content, .editor-appearance-preview) ol > li::before {
   right: calc(100% + var(--editor-list-marker-gap));
   left: auto;
-  width: max-content;
-  text-align: right;
+  width: var(--editor-ordered-marker-column);
+  text-align: left;
   transform: none;
 }

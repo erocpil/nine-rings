@@ -1,4 +1,4 @@
-import { imageDirectoryService } from "./directory-service";
+import { MAX_LIBRARY_IMAGE_BYTES, imageDirectoryService } from "./directory-service";
 import { getImageBlob } from "../storage/db-images";
 import { readonlyImageSource } from "../readonly-image-source";
 import { parseImageMetadata } from "./image-metadata";
@@ -50,8 +50,8 @@ export async function imageProperties(
       const response = await fetch(url.href, { signal });
       if (!response.ok)
         throw new Error(`图片属性读取失败（${response.status}）`);
-      if (Number(response.headers.get("content-length")) > 10 * 1024 * 1024)
-        throw new Error("图片超过 10 MB，未读取元信息");
+      if (Number(response.headers.get("content-length")) > MAX_LIBRARY_IMAGE_BYTES)
+        throw new Error("图片超过 256 MB，未读取元信息");
       blob = await response.blob();
     } else rows.push(["文件元信息", "跨域图片未额外读取"]);
   }

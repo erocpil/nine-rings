@@ -829,6 +829,8 @@ test("缩略图带可滚动全部图片、支持双轴触控板且竖图不覆�
   await panel.getByRole("button", { name: "00.png", exact: true }).click();
   const viewer = page.getByRole("region", { name: "图片查看器" });
   const strip = viewer.getByRole("navigation", { name: "图片缩略图导航" });
+  await viewer.locator(".image-filmstrip-dock").hover({ position: { x: 30, y: 10 } });
+  await viewer.getByRole("button", { name: "固定缩略图", exact: true }).click();
   await expect(strip).toBeVisible();
   expect(await strip.getByRole("button").count()).toBeLessThan(30);
   await strip.dispatchEvent("wheel", { deltaX: 0, deltaY: 300 });
@@ -1013,4 +1015,60 @@ test("正文图片弹层支持专注与属性，Esc 依次关闭属性、退出�
   await expect(viewer).not.toHaveClass(/image-viewer-focus/);
   await page.keyboard.press("Escape");
   await expect(viewer).toHaveCount(0);
+});
+
+test("竖图缩略图完整容纳，图片属性窄幅且可拖动调宽", async ({ page }) => {
+  await createBlankDocument(page);
+  await closeDocumentSidebar(page);
+  await enable(page);
+  await page.getByRole("button", { name: "图片", exact: true }).click();
+  const panel = page.getByRole("region", { name: "图片目录分栏" });
+  const portrait = await page.evaluate(async () => {
+    const canvas = document.createElement("canvas"); canvas.width = 100; canvas.height = 1000;
+    canvas.getContext("2d")!.fillRect(0, 0, 100, 1000);
+    return canvas.toDataURL().split(",")[1];
+  });
+  await panel.locator("input[type=file]").first().setInputFiles([
+    { name: "portrait.png", mimeType: "image/png", buffer: Buffer.from(portrait, "base64") },
+    { name: "second.png", mimeType: "image/png", buffer: Buffer.from(portrait, "base64") },
+  ]);
+  await panel.getByRole("button", { name: "已选择图片（临时）", exact: true }).click();
+  const assertThumbnail = async (host: import("@playwright/test").Locator) => {
+    await expect(host.locator("img")).toBeVisible();
+    const geometry = await host.evaluate(element => {
+      const box = element.getBoundingClientRect(); const img = element.querySelector("img")!; const picture = img.getBoundingClientRect();
+      return { width: picture.width, height: picture.height, boxWidth: box.width, boxHeight: box.height, fit: getComputedStyle(img).objectFit, ratio: img.naturalWidth / img.naturalHeight };
+    });
+    expect(geometry.width).toBeLessThanOrEqual(geometry.boxWidth);
+    expect(geometry.height).toBeLessThanOrEqual(geometry.boxHeight);
+    expect(geometry.fit).toBe("contain");
+    expect(geometry.ratio).toBeCloseTo(0.1, 2);
+  };
+  await assertThumbnail(panel.locator(".image-tree-thumbnail").first());
+  await panel.getByRole("button", { name: "portrait.png", exact: true }).click();
+  const viewer = page.getByRole("region", { name: "图片查看器" });
+  const dock = viewer.locator(".image-filmstrip-dock");
+  const strip = viewer.locator(".image-viewer-filmstrip");
+  const bounds = (await viewer.boundingBox())!;
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 80);
+  await expect.poll(async () => (await strip.boundingBox())!.y).toBeGreaterThanOrEqual(bounds.y + bounds.height - 1);
+  await dock.hover({ position: { x: 30, y: 10 } });
+  await expect.poll(async () => { const box = (await strip.boundingBox())!; return box.y + box.height; }).toBeLessThanOrEqual(bounds.y + bounds.height + 1);
+  await viewer.getByRole("button", { name: "固定缩略图", exact: true }).click();
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 80);
+  await expect(dock).toHaveAttribute("data-pinned", "true");
+  await assertThumbnail(strip.locator(".image-tree-thumbnail").first());
+  const toolbarButtons = viewer.getByRole("toolbar").getByRole("button");
+  for (const button of await toolbarButtons.all()) await expect(button.locator("svg")).toHaveCount(1);
+  await expect(viewer.locator(".image-viewer-dimensions")).toHaveText("100 × 1000");
+  await expect(viewer).not.toContainText("双击切换原始尺寸/适窗");
+  await viewer.getByRole("button", { name: "图片属性", exact: true }).click();
+  const properties = viewer.getByRole("region", { name: "图片属性" });
+  expect((await properties.boundingBox())!.width).toBeLessThanOrEqual(262);
+  await properties.getByRole("button", { name: "固定图片属性" }).click();
+  const before = (await properties.boundingBox())!.width;
+  const grip = await properties.getByRole("separator").boundingBox();
+  await page.mouse.move(grip!.x + grip!.width / 2, grip!.y + 30);
+  await page.mouse.down(); await page.mouse.move(grip!.x - 60, grip!.y + 30); await page.mouse.up();
+  await expect.poll(async () => (await properties.boundingBox())!.width).toBeGreaterThan(before + 40);
 });

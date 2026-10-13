@@ -91,7 +91,7 @@ test("有序列表的续行和后续列表项保持同一正文缩进", async ({
   textLefts.forEach((left) => expect(Math.abs(left - textLefts[0])).toBeLessThan(1));
 });
 
-test("两位数及以上的有序列表编号右边缘与正文起点对齐且不侵入 gutter", async ({ page }) => {
+test("两位数及以上的有序列表编号左边缘与正文起点分别对齐且不侵入 gutter", async ({ page }) => {
   await createBlankDocument(page);
   const editor = page.locator(".ProseMirror");
   await expect(editor).toBeEditable();
@@ -125,7 +125,7 @@ test("两位数及以上的有序列表编号右边缘与正文起点对齐且�
     expect(Math.abs(style.textLeft - markerStyles[0].textLeft)).toBeLessThan(1);
     expect(style.markerLeft).toBeGreaterThanOrEqual(style.editorLeft);
     expect(style.textLeft - style.markerRight).toBeGreaterThan(0);
-    expect(style.textAlign).toBe("right");
+    expect(style.textAlign).toBe("left");
     expect(style.transform).toBe("none");
   });
 });

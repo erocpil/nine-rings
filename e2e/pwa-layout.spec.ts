@@ -179,7 +179,6 @@ test.describe("PWA 窄屏应用外壳", () => {
         document.documentElement.dataset.copiedBlockHtml = html;
       } });
     });
-    await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
     await expect(page.getByRole("button", { name: "块内换行", exact: true })).toBeVisible();
     await expect(page.locator(".editor-menu button[title='添加超链接 (Ctrl+K)']")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "添加或编辑链接", exact: true })).toBeVisible();
@@ -2065,260 +2064,57 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(row.getByRole("button", { name: "专注模式", exact: true })).toBeVisible();
   });
 
-  test("更多菜单始终完整限制在手机可视区域内", async ({ page }) => {
+  test("手机横向滚动工具栏保留全部命令且不误触导出", async ({ page }) => {
     await page.goto("/");
-    await page.getByTitle("更多编辑操作").click();
-    const menu = page.getByRole("dialog", { name: "更多编辑操作" });
-    await expect(menu).toBeVisible();
-    await expect(page.getByRole("button", { name: "关闭更多编辑操作" })).toBeFocused();
-    const geometry = await menu.evaluate((element) => {
-      const rect = element.getBoundingClientRect();
-      const toolbarRect = document.querySelector(".editor-menu")!.getBoundingClientRect();
-      return {
-        left: rect.left,
-        right: rect.right,
-        top: rect.top,
-        bottom: rect.bottom,
-        toolbarBottom: toolbarRect.bottom,
-        viewportWidth: window.visualViewport?.width ?? window.innerWidth,
-        viewportHeight: window.visualViewport?.height ?? window.innerHeight,
-      };
-    });
-    expect(geometry.left).toBeGreaterThanOrEqual(0);
-    expect(geometry.top).toBeGreaterThanOrEqual(0);
-    expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth);
-    expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportHeight);
-    expect(geometry.top - geometry.toolbarBottom).toBeGreaterThanOrEqual(3);
-    expect(geometry.top - geometry.toolbarBottom).toBeLessThanOrEqual(5);
-    await expect(menu.getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
-    expect(await menu.locator(".mobile-action-sheet-content").evaluate((content) =>
-      content.scrollHeight - content.clientHeight)).toBeLessThanOrEqual(2);
-    await expect(menu.locator(".mobile-action-sheet-scroll-hint")).toHaveCount(0);
+    let downloads = 0;
+    page.on("download", () => { downloads += 1; });
+    const toolbar = page.locator(".editor-menu");
+    for (const viewport of [{ width: 320, height: 568 }, { width: 760, height: 390 }, { width: 390, height: 280 }]) {
+      await page.setViewportSize(viewport);
+      await closeDocumentSidebar(page);
+      const last = toolbar.getByTitle("导出 PDF", { exact: true });
+      await last.scrollIntoViewIfNeeded();
+      await expect.poll(() => last.evaluate(el => {
+        const rect = el.getBoundingClientRect();
+        return el.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+      })).toBe(true);
+      expect(await toolbar.evaluate(el => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(2);
+    }
+    expect(downloads).toBe(0);
   });
 
-  test("手机端可从更多菜单在当前块内插入 hard break", async ({ page }) => {
+  test("手机工具栏直接插入块内换行并保持选区和保存", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
-    await editor.evaluate((element) => {
+    await editor.evaluate(element => {
       const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
-      instance.commands.setContent({
-        type: "doc",
-        content: [{ type: "paragraph", content: [{ type: "text", text: "第一行" }] }],
-      });
+      instance.commands.setContent({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "第一行" }] }] });
       instance.commands.focus("end");
     });
     await pressLineBoundary(editor, "end");
-
-    await page.getByTitle("更多编辑操作").click();
-    const menu = page.getByRole("dialog", { name: "更多编辑操作" });
-    const hardBreak = menu.getByRole("button", { name: "块内换行", exact: true });
-    await expect(hardBreak).toBeEnabled();
-    await hardBreak.click();
-    await expect(menu).toHaveCount(0);
+    await page.getByTitle("块内换行", { exact: true }).tap();
     await page.keyboard.type("第二行");
-
-    const blocks = editor.locator(":scope > *");
-    const currentBlock = blocks.first();
-    await expect(blocks).toHaveCount(1);
-    await expect(currentBlock.locator("br")).toHaveCount(1);
-    await expect(currentBlock).toHaveText("第一行第二行");
-
-    await expect(page.getByTitle("已保存")).toBeVisible({ timeout: 15000 });
+    await expect(editor.locator(":scope > p")).toHaveCount(1);
+    await expect(editor.locator("p")).toHaveText("第一行第二行");
+    await expect(editor.locator("p > br:not(.ProseMirror-trailingBreak)")).toHaveCount(1);
+    await expect(page.locator(".save-status-saved")).toBeVisible();
     await page.reload();
-    const restoredBlocks = page.locator(".ProseMirror > *");
-    await expect(restoredBlocks).toHaveCount(1);
-    await expect(restoredBlocks.first().locator("br")).toHaveCount(1);
-    await expect(restoredBlocks.first()).toHaveText("第一行第二行");
+    await expect(page.locator(".ProseMirror p")).toHaveText("第一行第二行");
   });
 
-  test("再次点按更多按钮区域只关闭面板且不会误触导出", async ({ page }) => {
-    await page.goto("/");
-    let downloadCount = 0;
-    page.on("download", () => { downloadCount += 1; });
-
-    const trigger = page.getByTitle("更多编辑操作");
-    const triggerBox = await trigger.boundingBox();
-    if (!triggerBox) throw new Error("更多按钮不可见");
-    await page.touchscreen.tap(triggerBox.x + triggerBox.width / 2, triggerBox.y + triggerBox.height / 2);
-    const sheet = page.getByRole("dialog", { name: "更多编辑操作" });
-    await expect(sheet).toBeVisible();
-
-    await page.touchscreen.tap(triggerBox.x + triggerBox.width / 2, triggerBox.y + triggerBox.height / 2);
-    await expect(sheet).toBeHidden();
-    await page.waitForTimeout(100);
-    expect(downloadCount).toBe(0);
-
-    await trigger.click();
-    await expect(sheet).toBeVisible();
-    const header = sheet.locator(".mobile-action-sheet-header");
-    const headerBox = await header.boundingBox();
-    if (!headerBox) throw new Error("更多面板标题不可见");
-    await swipeNoteEditor(header, {
-      startX: headerBox.x + headerBox.width / 2,
-      startY: headerBox.y + 10,
-      endX: headerBox.x + headerBox.width / 2,
-      endY: headerBox.y + 100,
-    });
-    await expect(sheet).toBeHidden();
-    expect(downloadCount).toBe(0);
-  });
-
-  test("虚拟键盘打开时更多菜单完整停留在可视区域且不遮挡工具栏", async ({ page }) => {
-    await page.goto("/");
-    await page.evaluate(() => {
-      document.documentElement.style.setProperty("--app-viewport-height", "460px");
-      document.documentElement.style.setProperty("--app-visual-viewport-bottom-inset", "300px");
-      document.documentElement.classList.add("web-keyboard-open");
-    });
-
-    await page.getByTitle("更多编辑操作").click();
-    const sheet = page.getByRole("dialog", { name: "更多编辑操作" });
-    const geometry = await sheet.evaluate((menu) => {
-      const menuRect = menu.getBoundingClientRect();
-      const appRect = document.querySelector(".app")!.getBoundingClientRect();
-      const toolbarRect = document.querySelector(".editor-menu")!.getBoundingClientRect();
-      return {
-        menuTop: menuRect.top,
-        menuBottom: menuRect.bottom,
-        toolbarBottom: toolbarRect.bottom,
-        viewportTop: appRect.top,
-        viewportBottom: appRect.bottom,
-      };
-    });
-    expect(geometry.menuTop).toBeGreaterThanOrEqual(geometry.viewportTop);
-    expect(geometry.menuBottom).toBeLessThanOrEqual(geometry.viewportBottom);
-    // fitContent deliberately uses the space above the anchor for a modal sheet.
-    expect(geometry.menuTop).toBeGreaterThanOrEqual(geometry.viewportTop + 8);
-    await expect(sheet.getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
-    const lastAction = sheet.getByRole("button", { name: "放大编辑器字号" });
-    await expect(lastAction).toBeVisible();
-    // Additional commands can exceed the reduced keyboard viewport. The last
-    // action must remain reachable inside the sheet rather than force overflow.
-    await lastAction.scrollIntoViewIfNeeded();
-    await expect.poll(() => lastAction.evaluate((action) => {
-      const bounds = action.closest(".mobile-action-sheet-content")!.getBoundingClientRect();
-      const rect = action.getBoundingClientRect();
-      return rect.top >= bounds.top && rect.bottom <= bounds.bottom + 1;
-    })).toBe(true);
-  });
-
-  test("更多弹层触摸由面板处理，滑动不会被工具栏提前转为点击", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("更多编辑操作").click();
-    const sheet = page.getByRole("dialog", { name: "更多编辑操作" });
-    const action = sheet.getByRole("button", { name: "放大编辑器字号" });
-    await page.clock.setFixedTime(new Date());
-    const result = await action.evaluate((button) => {
-      let clicks = 0;
-      button.addEventListener("click", () => { clicks += 1; });
-      const dispatch = (type: string, y: number) => {
-        const touch = { identifier: 17, target: button, clientX: 100, clientY: y };
-        const event = new Event(type, { bubbles: true, cancelable: true });
-        Object.defineProperties(event, {
-          touches: { value: type === "touchend" ? [] : [touch] },
-          changedTouches: { value: [touch] },
-        });
-        button.dispatchEvent(event);
-        return event.defaultPrevented;
-      };
-      const startPrevented = dispatch("touchstart", 300);
-      dispatch("touchmove", 250);
-      dispatch("touchend", 250);
-      const prematureClicks = clicks;
-      // WebKit may emit a compatibility click after a scroll. The sheet must swallow it.
-      button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-      return { startPrevented, prematureClicks, clicks };
-    });
-    expect(result).toEqual({ startPrevented: false, prematureClicks: 0, clicks: 0 });
-    await expect(sheet).toBeVisible();
-    // A deliberate new tap must work immediately, without waiting out the guard.
-    const before = await page.locator(".ProseMirror").evaluate((editor) => parseFloat(getComputedStyle(editor).fontSize));
-    await action.tap();
-    await expect.poll(() => page.locator(".ProseMirror").evaluate((editor) => parseFloat(getComputedStyle(editor).fontSize)))
-      .toBe(before + 1);
-  });
-
-  test("更多菜单在窄屏和横屏不越界，空间不足时所有操作仍可滚动访问", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await createBlankDocument(page, "更多菜单边界回归");
-    await closeDocumentSidebar(page);
-    await expect.poll(() => page.evaluate(async () => {
-      const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
-      return useNotesStore.getState().startupReady;
-    })).toBe(true);
-    await expect(page.locator(".note-editor")).toBeVisible();
-    const sheet = page.getByRole("dialog", { name: "更多编辑操作" });
-    for (const viewport of [
-      { width: 320, height: 568 },
-      { width: 760, height: 390 },
-      { width: 390, height: 760 },
-    ]) {
-      if (await sheet.isVisible()) await page.keyboard.press("Escape");
-      await page.setViewportSize(viewport);
-      await closeDocumentSidebar(page);
-      await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
-      // New reference actions can exceed a short viewport. Keep full touch
-      // targets and check access to the last action rather than require no scroll.
-      await expect.poll(() => sheet.evaluate(element =>
-        element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(viewport.height);
-      const bounds = await sheet.evaluate((element) => {
-        const rect = element.getBoundingClientRect();
-        return { top: rect.top, bottom: rect.bottom, width: element.clientWidth, scrollWidth: element.scrollWidth };
-      });
-      expect(bounds.top).toBeGreaterThanOrEqual(0);
-      expect(bounds.bottom).toBeLessThanOrEqual(viewport.height);
-      expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.width);
-      const lastAction = sheet.locator("button.menu-dropdown-item").last();
-      await sheet.locator(".mobile-action-sheet-content").evaluate(content => { content.scrollTop = content.scrollHeight; });
-      await expect(lastAction).toBeVisible();
-      expect((await lastAction.boundingBox())!.y + (await lastAction.boundingBox())!.height).toBeLessThanOrEqual(viewport.height);
-    }
-    await page.keyboard.press("Escape");
-    await page.setViewportSize({ width: 390, height: 280 });
-    await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
-    await sheet.locator(".mobile-action-sheet-content").evaluate(content => { content.scrollTop = 0; });
-    await expect(sheet.locator(".mobile-action-sheet-scroll-hint")).toBeVisible();
-    const lastAction = sheet.locator("button.menu-dropdown-item").last();
-    await sheet.locator(".mobile-action-sheet-content").evaluate(content => { content.scrollTop = content.scrollHeight; });
-    await expect(sheet.locator(".mobile-action-sheet-scroll-hint")).toHaveCount(0);
-    const rect = await lastAction.boundingBox();
-    expect(rect!.y + rect!.height).toBeLessThanOrEqual(280);
-  });
-
-  test("选择文字后工具栏保留选区并能应用格式", async ({ page }) => {
+  test("选择文字后滚动工具栏仍可应用格式", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
     await editor.fill("测试文字");
     await editor.click();
-    await pressLineBoundary(page, "end");
-    await pressLineBoundary(page, "start", true);
+    await pressLineBoundary(editor, "end");
+    await pressLineBoundary(editor, "start", true);
     await expect.poll(() => page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("测试文字");
-
-    const touch = async (locator: Locator) => {
-      const box = await locator.boundingBox();
-      if (!box) throw new Error("touch target has no geometry");
-      await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
-    };
-    await touch(page.getByTitle("样式"));
-    const boldButton = page.getByRole("button", { name: "B 加粗" });
-    await expect(boldButton).toBeVisible();
-    await expect.poll(async () => boldButton.evaluate((button) => {
-      const rect = button.getBoundingClientRect();
-      const point = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-      return point === button || button.contains(point);
-    })).toBe(true);
-    await touch(page.getByTitle("标题"));
-    await expect(boldButton).toBeHidden();
-    await expect(page.getByRole("button", { name: /H3/ })).toBeVisible();
-    await touch(page.getByTitle("样式"));
-    await boldButton.click();
+    await page.getByTitle("字号", { exact: true }).tap();
+    await page.getByRole("button", { name: "20px", exact: true }).tap();
+    await page.getByTitle("加粗 (Ctrl+B)", { exact: true }).tap();
     await expect(editor.locator("strong")).toHaveText("测试文字");
     await expect(editor).toHaveCSS("-webkit-user-select", "text");
-
-    await touch(page.getByTitle("样式"));
-    await expect(boldButton).toBeVisible();
-    await editor.dispatchEvent("pointerdown", { pointerType: "touch", bubbles: true });
-    await expect(boldButton).toBeHidden();
   });
 
   test("从文档弹层发起新建时先关闭弹层并把对话框放在最上层", async ({ page }) => {
@@ -2784,7 +2580,7 @@ test("横屏手机保持单行工具栏且正文可滚动", async ({ page }) => 
 
   const toolbar = page.locator(".editor-menu");
   await expect(toolbar).toBeVisible();
-  await expect(toolbar).toHaveClass(/toolbar-minimal/);
+  await expect(toolbar).toHaveClass(/toolbar-scrollable/);
   const layout = await toolbar.evaluate((element) => ({
     clientHeight: element.clientHeight,
     scrollHeight: element.scrollHeight,

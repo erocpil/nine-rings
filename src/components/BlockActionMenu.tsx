@@ -82,7 +82,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
     <div className="block-action-menu-title">{title}{submenu ? ` · ${submenu.label}` : ""}</div>
     {submenu && <button type="button" role="menuitem" className="editor-context-item" onClick={() => setSubmenu(null)}>← 返回</button>}
     {visibleActions.map((action, index) => <div key={action.label}>
-      {!submenu && action.group && action.group !== visibleActions[index - 1]?.group && <div className="block-action-menu-group" role="presentation">{action.group}</div>}
+      {!submenu && action.group && action.group !== visibleActions[index - 1]?.group && <div className={`block-action-menu-group${index === 0 ? " first-group" : ""}`} role="presentation">{action.group}</div>}
       {action.colorControl ? <ColorControl action={action} onClose={onClose} /> : <button type="button" role="menuitem" className={`editor-context-item${action.danger ? " block-action-danger" : ""}`} disabled={action.disabled} aria-haspopup={action.children ? "menu" : undefined}
         onClick={() => { if (action.children) { setSubmenu(action); return; } action.run(); onClose(); }}>{action.label}{action.children ? " ›" : ""}</button>}
     </div>)}

@@ -1210,3 +1210,14 @@ body.app-sidebar-dragging .desktop-reader-panel:not([hidden]) {
 .plugin-parameter-fields input, .plugin-parameter-fields select { min-width: 0; width: 100%; box-sizing: border-box; background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 8px; border-radius: 6px; }
 .plugin-parameter-dialog footer { justify-content: flex-end; }
 .plugin-parameter-dialog [role="alert"] { color: var(--text-secondary); font-size: 13px; }
+
+.app-focus-mode .app-body { position: relative; }
+.desktop-activity-bar-focus-overlay {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  z-index: 45;
+  transition: opacity 120ms ease;
+}
+.workspace-sidebar-right .desktop-activity-bar-focus-overlay { left: auto; right: 0; }
+.desktop-activity-bar-focus-hidden { opacity: 0 !important; pointer-events: none; }

@@ -91,19 +91,10 @@ for (const style of ["calm", "calm-compact"] as const) {
     await expect(highlight).not.toBeChecked();
     await page.getByLabel("关闭设置").click();
     await page.setViewportSize({ width: 950, height: 800 });
-    await expect(
-      page.getByRole("button", { name: "更多编辑操作", exact: true }),
-    ).toBeVisible();
-    await page
-      .getByRole("button", { name: "更多编辑操作", exact: true })
-      .click();
-    await expect(
-      page
-        .getByRole("button", { name: "导出 Markdown", exact: true })
-        .filter({ visible: true })
-        .last(),
-    ).toBeVisible();
-    await page.keyboard.press("Escape");
+    await expect(page.getByRole("button", { name: "更多编辑操作", exact: true })).toHaveCount(0);
+    const exportButton = page.getByRole("button", { name: "导出 Markdown", exact: true });
+    await exportButton.scrollIntoViewIfNeeded();
+    await expect(exportButton).toBeVisible();
     await expect(editor.locator("strong")).toHaveText(
       "工具栏保留熟悉的编辑操作",
     );

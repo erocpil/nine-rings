@@ -1,5 +1,31 @@
 import type { ImagePage } from "./directory-service";
 import type { ViewedImage } from "./viewer-request";
+const TREE_KEY = "nr:imageTreeExpanded:v1";
+function restoredPaths(): Set<string> {
+  try {
+    const value = JSON.parse(localStorage.getItem(TREE_KEY) ?? "[]");
+    return new Set(
+      Array.isArray(value)
+        ? value.filter((key): key is string => typeof key === "string")
+        : [],
+    );
+  } catch {
+    return new Set();
+  }
+}
+const expanded = restoredPaths();
+export function imageDirectoryExpanded(key: string): boolean {
+  return expanded.has(key);
+}
+export function saveImageDirectoryExpanded(key: string, open: boolean) {
+  if (open) expanded.add(key);
+  else expanded.delete(key);
+  try {
+    localStorage.setItem(TREE_KEY, JSON.stringify([...expanded]));
+  } catch {
+    /* best effort */
+  }
+}
 /** Device-session UI state survives panel switching; stopping the plugin releases it. */
 export const imageLibrarySession = {
   directories: new Map<string, { open: boolean; page: ImagePage | null }>(),

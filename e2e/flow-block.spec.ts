@@ -92,7 +92,6 @@ test("工具栏插入与粘贴 flow、刷新及局部只读保持源文和折叠
   await page.addInitScript(() => localStorage.setItem("nr:experimentalReadonlyRendering", "true"));
   await createBlankDocument(page, "流程插入验证");
   const editor = page.locator(".note-editor .ProseMirror").first();
-  await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
   await page.getByRole("button", { name: "插入流程块", exact: true }).click();
   await expect(editor.locator(".flow-step")).toHaveCount(2);
   await editor.evaluate(element => (element as HTMLElement & { editor: Editor }).editor.commands.undo());

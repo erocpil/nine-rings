@@ -109,6 +109,7 @@ export function ImageViewer({
     viewportSize.height,
     recipe.quarterTurns,
   );
+  const [stripPinned, setStripPinned] = useState(() => localStorage.getItem("nr:imageFilmstripPinned") === "true");
   const [stripOpen, setStripOpen] = useState(
     () => localStorage.getItem("nr:imageFilmstrip") !== "false",
   );
@@ -514,7 +515,7 @@ export function ImageViewer({
       }}
     >
       <header>
-        <h2 title={image.name}>{image.name || "文档图片"}</h2>
+        <div className="image-viewer-name"><h2 title={image.name}>{image.name || "文档图片"}</h2>{(decodedDimensions.width || dimensions.width) > 0 && <span className="image-viewer-dimensions">{decodedDimensions.width || dimensions.width} × {decodedDimensions.height || dimensions.height}</span>}</div>
         <div className="image-viewer-header-actions">
           <button
             type="button"
@@ -613,19 +614,17 @@ export function ImageViewer({
         >
           <ToolbarIcon name="plus" />
         </button>
-        <button className="btn" onClick={reset}>
-          适窗
-        </button>
+        <button className="btn-icon" aria-label="适窗" title="适应窗口" onClick={reset}><ToolbarIcon name="compress" /></button>
         <button
-          className="btn"
-          title="当前预览的原始像素尺寸"
+          className="btn-icon" aria-label="原始尺寸"
+          title="原始像素尺寸"
           onClick={() => {
             setOriginal(true);
             if (original) setZoom(1 / fitScale);
             setPan({ x: 0, y: 0 });
           }}
         >
-          原始尺寸
+          <ToolbarIcon name="actualSize" />
         </button>
         <button
           className="btn-icon"
@@ -638,32 +637,32 @@ export function ImageViewer({
           <ToolbarIcon name="rotate" />
         </button>
         <button
-          className="btn"
+          className="btn-icon" aria-label="水平翻转"
           title="水平翻转，仅影响预览"
           aria-pressed={recipe.flipHorizontal}
           onClick={() => editPreview("flip-horizontal")}
         >
-          水平翻转
+          <ToolbarIcon name="flipHorizontal" />
         </button>
         <button
-          className="btn"
+          className="btn-icon" aria-label="垂直翻转"
           title="垂直翻转，仅影响预览"
           aria-pressed={recipe.flipVertical}
           onClick={() => editPreview("flip-vertical")}
         >
-          垂直翻转
+          <ToolbarIcon name="flipVertical" />
         </button>
         <button
-          className="btn"
+          className="btn-icon" aria-label="复位预览"
           title="复位旋转、翻转、缩放和平移"
           onClick={() => {
             editPreview("reset");
             reset();
           }}
         >
-          复位预览
+          <ToolbarIcon name="refresh" />
         </button>
-        <select
+        <label className="image-background-control" title="选择图片查看背景"><ToolbarIcon name="palette" /><select
           aria-label="图片查看背景"
           value={background}
           onChange={(event) => {
@@ -675,7 +674,7 @@ export function ImageViewer({
           <option value="checker">透明棋盘格</option>
           <option value="dark">深色背景</option>
           <option value="light">浅色背景</option>
-        </select>
+        </select></label>
         <button
           className="btn-icon"
           aria-label="复制图片"
@@ -690,7 +689,7 @@ export function ImageViewer({
           <ToolbarIcon name="copy" />
         </button>
         <button
-          className="btn"
+          className="btn-icon" aria-label="插入当前文档"
           title="需有可编辑文档且启用插入图片插件"
           disabled={
             canInsert !== undefined
@@ -712,7 +711,7 @@ export function ImageViewer({
             );
           }}
         >
-          插入当前文档
+          <ToolbarIcon name="plus" />
         </button>
         {presentation === "modal" && (
           <button
@@ -837,6 +836,10 @@ export function ImageViewer({
         )}
       </div>
       {stripOpen && images.length > 1 && (
+        <div className="image-filmstrip-dock" data-pinned={stripPinned}>
+        <div className="image-filmstrip-handle"><button type="button" className="btn-icon" aria-label={stripPinned ? "取消固定缩略图" : "固定缩略图"} title={stripPinned ? "取消固定缩略图" : "固定缩略图"} aria-pressed={stripPinned} onClick={() => {
+          setStripPinned(!stripPinned); localStorage.setItem("nr:imageFilmstripPinned", String(!stripPinned));
+        }}><ToolbarIcon name="pin" /></button></div>
         <ImageFilmstrip
           images={images}
           index={index}
@@ -846,13 +849,9 @@ export function ImageViewer({
             setIndex(next);
           }}
         />
+        </div>
       )}
-      <footer>
-        <span role="status">
-          {error ||
-            `${decodedDimensions.width || dimensions.width} × ${decodedDimensions.height || dimensions.height} · 双击切换原始尺寸/适窗 · 变换仅影响预览`}
-        </span>
-      </footer>
+      {error && <footer><span role="status">{error}</span></footer>}
     </Surface>
   );
   return presentation === "modal"

@@ -54,6 +54,67 @@ pub async fn toggle_window_maximize(window: tauri::WebviewWindow) -> Result<(), 
         .await
         .ok_or("maximize transition cancelled")?
 }
+/// Stretch only the main window's vertical extent to the monitor work area.
+/// Keep frame decoration in the calculation: set_size expects the inner size.
+#[tauri::command]
+pub async fn toggle_window_vertical_extent(window: tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("只能调整主窗口尺寸".into());
+    }
+    let (sender, mut receiver) = tauri::async_runtime::channel(1);
+    let target = window.clone();
+    window
+        .run_on_main_thread(move || {
+            static PREVIOUS: std::sync::Mutex<
+                Option<(tauri::PhysicalPosition<i32>, tauri::PhysicalSize<u32>)>,
+            > = std::sync::Mutex::new(None);
+            let result = (|| -> Result<(), String> {
+                if target.is_fullscreen().map_err(|e| e.to_string())?
+                    || target.is_maximized().map_err(|e| e.to_string())?
+                {
+                    return Ok(());
+                }
+                let mut previous = PREVIOUS.lock().map_err(|e| e.to_string())?;
+                if let Some((position, size)) = *previous {
+                    target.set_size(size).map_err(|e| e.to_string())?;
+                    target.set_position(position).map_err(|e| e.to_string())?;
+                    *previous = None;
+                    return Ok(());
+                }
+                let monitor = target
+                    .current_monitor()
+                    .map_err(|e| e.to_string())?
+                    .ok_or("无法确定当前屏幕")?;
+                let position = target.outer_position().map_err(|e| e.to_string())?;
+                let inner = target.inner_size().map_err(|e| e.to_string())?;
+                let outer = target.outer_size().map_err(|e| e.to_string())?;
+                let area = monitor.work_area();
+                let height = area
+                    .size
+                    .height
+                    .saturating_sub(outer.height.saturating_sub(inner.height))
+                    .max(1);
+                target
+                    .set_size(tauri::PhysicalSize::new(inner.width, height))
+                    .map_err(|e| e.to_string())?;
+                if let Err(error) =
+                    target.set_position(tauri::PhysicalPosition::new(position.x, area.position.y))
+                {
+                    let _ = target.set_size(inner);
+                    return Err(error.to_string());
+                }
+                *previous = Some((position, inner));
+                Ok(())
+            })();
+            let _ = sender.try_send(result);
+        })
+        .map_err(|e| e.to_string())?;
+    receiver
+        .recv()
+        .await
+        .ok_or("vertical extent transition cancelled")?
+}
+
 /// Separate document WebView: macOS WKWebView does not implement iframe window.print().
 #[tauri::command]
 pub async fn open_pdf_print_preview(

@@ -712,3 +712,5 @@
 .editor-block-number.relative-current { text-align: left; }
 .vr-gutter .editor-block-number.relative-current { width: calc(var(--editor-gutter-width) - 24px); margin-left: auto; }
 .editor-block-number.relative-current.relative-current-right { text-align: right; }
+
+.block-action-menu-group.first-group { border-top: 0; margin-top: 0; }

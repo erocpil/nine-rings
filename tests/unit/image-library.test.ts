@@ -76,7 +76,8 @@ it("exposes only selected supported files, grouped by path, with bounded pages",
         size: 4,
         lastModified: 1,
         type: "image/png",
-        arrayBuffer: async () => new Uint8Array([1, 2, 3, 4]).buffer,
+        slice: () =>
+          new Blob([new Uint8Array([1, 2, 3, 4])], { type: "image/png" }),
       }) as File,
   );
   files.push({
@@ -139,21 +140,13 @@ it("does not deliver in-flight file bytes after the plugin releases its sources"
     ]),
     declaration,
   );
-  let finish!: (bytes: ArrayBuffer) => void;
-  const file = {
-    name: "photo.png",
-    size: 4,
-    lastModified: 1,
-    type: "image/png",
-    arrayBuffer: () =>
-      new Promise<ArrayBuffer>((resolve) => {
-        finish = resolve;
-      }),
-  } as File;
+  const file = Object.assign(
+    new Blob([new Uint8Array([1, 2, 3, 4])], { type: "image/png" }),
+    { name: "photo.png", lastModified: 1 },
+  ) as File;
   const root = imageDirectoryService.addFiles([file])!;
   const pending = imageDirectoryService.read(root.id, "photo.png");
   imageDirectoryService.release();
-  finish(new Uint8Array([1, 2, 3, 4]).buffer);
   await expect(pending).rejects.toThrow("图片授权已变更");
 });
 
@@ -172,7 +165,8 @@ it("uses selected-file snapshots on desktop without forwarding their IDs to nati
     size: 4,
     lastModified: 1,
     type: "image/png",
-    arrayBuffer: async () => new Uint8Array([1, 2, 3, 4]).buffer,
+    slice: () =>
+      new Blob([new Uint8Array([1, 2, 3, 4])], { type: "image/png" }),
   } as File;
   const root = imageDirectoryService.addFiles([file])!;
   expect((await imageDirectoryService.list(root.id)).nodes[0].name).toBe(

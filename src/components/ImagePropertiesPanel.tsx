@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import {
   imageProperties,
   type ImagePropertyRows,
@@ -24,6 +24,19 @@ export function ImagePropertiesPanel({
   zoom: number;
   rotation: number;
 }) {
+  const [width, setWidth] = useState(() => {
+    try {
+      return Math.max(
+        200,
+        Math.min(
+          480,
+          Number(localStorage.getItem("nr:imagePropertiesWidth")) || 260,
+        ),
+      );
+    } catch {
+      return 260;
+    }
+  });
   const [rows, setRows] = useState<ImagePropertyRows>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -67,6 +80,7 @@ export function ImagePropertiesPanel({
   return (
     <aside
       className={`image-properties-panel${pinned ? " is-pinned" : ""}`}
+      style={{ "--image-properties-width": `${width}px` } as CSSProperties}
       role="region"
       aria-label="图片属性"
       onKeyDown={(event) => {
@@ -77,6 +91,59 @@ export function ImagePropertiesPanel({
         }
       }}
     >
+      <div
+        className="image-properties-resize"
+        role="separator"
+        aria-label="调整图片属性宽度"
+        aria-orientation="vertical"
+        aria-valuenow={width}
+        aria-valuemin={200}
+        aria-valuemax={480}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+            event.preventDefault();
+            const next = Math.max(
+              200,
+              Math.min(480, width + (event.key === "ArrowLeft" ? 10 : -10)),
+            );
+            setWidth(next);
+            try {
+              localStorage.setItem("nr:imagePropertiesWidth", String(next));
+            } catch {
+              /* best effort */
+            }
+          }
+        }}
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          event.currentTarget.dataset.startX = String(event.clientX);
+          event.currentTarget.dataset.startWidth = String(width);
+        }}
+        onPointerUp={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId))
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+          const next = Math.max(
+            200,
+            Math.min(
+              480,
+              Number(event.currentTarget.dataset.startWidth) +
+                Number(event.currentTarget.dataset.startX) -
+                event.clientX,
+            ),
+          );
+          setWidth(next);
+          try {
+            localStorage.setItem("nr:imagePropertiesWidth", String(next));
+          } catch {
+            /* best effort */
+          }
+        }}
+      />
       <div className="image-properties-heading">
         <strong>图片属性</strong>
         <button

@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 
 const paths = {
+  actualSize: <><rect x="5" y="5" width="14" height="14" rx="1" /><path d="M9 9v6m6-6v6M11.5 10h.01M11.5 14h.01" /></>,
+  flipHorizontal: <><path d="M12 3v18M8 6 3 18h5ZM16 6l5 12h-5Z" /></>,
+  flipVertical: <><path d="M3 12h18M6 8l12-5v5ZM6 16l12 5v-5Z" /></>,
   info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7h.01" /></>,
   pin: <path d="M8 3h8l-1 6 4 4H5l4-4ZM12 13v8" />,
   rotate: <path d="M20 7v5h-5M6 7a7 7 0 1 1-1 8M18 6l2 3" />,

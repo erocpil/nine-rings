@@ -2,67 +2,57 @@ import { expect, test } from "@playwright/test";
 
 test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 
-test("省略号菜单可导出正文 PDF 打印页", async ({ page }) => {
+test("滚动工具栏可直接导出正文 PDF", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
-  const moreButton = page.getByRole("button", { name: "更多编辑操作", exact: true });
-  await expect(moreButton).toHaveText("⋯");
-  await moreButton.tap();
+  await expect(page.getByTitle("更多编辑操作", { exact: true })).toHaveCount(0);
   const popupPromise = page.waitForEvent("popup");
   await page.getByRole("button", { name: "导出 PDF", exact: true }).tap();
   const popup = await popupPromise;
   await expect(popup.locator(".document-content")).toContainText("欢迎使用 Nine Rings");
-  await expect(page.getByRole("dialog", { name: "更多编辑操作", exact: true })).toHaveCount(0);
 });
 
-test("标题动态标签保留下拉三角，前后工具底色一致", async ({ page }) => {
-  await page.goto("/");
-  await page.locator(".ProseMirror h2").first().click();
-  const heading = page.getByTitle("标题", { exact: true });
-  await expect(heading).toContainText("H2");
-  await expect(heading.locator(".toolbar-dropdown-caret")).toBeVisible();
-  await page.setViewportSize({ width: 844, height: 390 });
-  const style = page.getByTitle("样式", { exact: true });
-  const background = await style.evaluate(el => getComputedStyle(el).backgroundColor);
-  for (const title of ["标题", "块", "剪贴", "字号", "更多编辑操作"]) {
-    const button = page.getByTitle(title, { exact: true });
-    await expect(button).toBeVisible();
-    await expect(button).toHaveCSS("background-color", background);
-    if (title !== "更多编辑操作") await expect(button.locator(".toolbar-dropdown-caret")).toBeVisible();
-  }
-  await heading.tap();
-  await expect(heading).toHaveAttribute("aria-expanded", "true");
-  expect(await heading.evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe(background);
-  await heading.tap();
-  await expect(heading).toHaveCSS("background-color", background);
-});
-
-test("更多菜单跟随实际工具溢出，不重复工具栏入口", async ({ page }) => {
+test("横向滚动后字号菜单仍在视口内并可操作", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
-  for (const viewport of [{ width: 320, height: 844 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
-    await page.setViewportSize(viewport);
-    await page.getByTitle("更多编辑操作", { exact: true }).click();
-    const sheet = page.getByRole("dialog", { name: "更多编辑操作", exact: true });
-    await expect(sheet).toBeVisible();
-    for (const [tool, label] of [["clipboard", "复制"], ["size", "文字字号"], ["font", "缩小编辑器字号"]]) {
-      const hidden = await page.locator(`[data-toolbar-tool="${tool}"]`).getAttribute("data-toolbar-overflow") === "true";
-      await expect(sheet.getByText(label, { exact: true })).toHaveCount(hidden ? 1 : 0);
-    }
-    await expect(sheet.getByText(/书签/)).toHaveCount(0);
-    await expect(sheet.getByRole("button", { name: "清除格式", exact: true })).toBeVisible();
-    await expect(sheet.getByRole("button", { name: "导出 PDF", exact: true })).toBeVisible();
-    expect(await sheet.locator(".menu-dropdown-item").evaluateAll(items => items.every(el => el.querySelector("svg.toolbar-icon")))).toBe(true);
-    const color = sheet.getByLabel("文字颜色", { exact: true });
-    await expect(color).toHaveCSS("opacity", "0");
-    expect((await color.boundingBox())!.width).toBeGreaterThan(32);
-    const colorControl = sheet.locator(".toolbar-more-color-actions");
-    const clearColor = sheet.getByRole("button", { name: "清除文字颜色", exact: true });
-    const colorBox = await colorControl.boundingBox();
-    const clearBox = await clearColor.boundingBox();
-    expect(colorBox).not.toBeNull();
-    expect(clearBox).not.toBeNull();
-    expect(Math.abs(colorBox!.y - clearBox!.y)).toBeLessThan(2);
-    await page.keyboard.press("Escape");
+  for (const width of [320, 390, 844]) {
+    await page.setViewportSize({ width, height: 844 });
+    const toolbar = page.locator(".editor-menu");
+    await expect(toolbar.locator('[data-toolbar-overflow="true"]')).toHaveCount(0);
+    const size = page.getByTitle("字号", { exact: true });
+    await size.tap();
+    const menu = toolbar.locator(".menu-dropdown-list:visible");
+    await expect(menu).toBeVisible();
+    const rect = (await menu.boundingBox())!;
+    expect(rect.x).toBeGreaterThanOrEqual(0);
+    expect(rect.x + rect.width).toBeLessThanOrEqual(width);
+    await menu.getByRole("button", { name: "20px", exact: true }).tap();
+    await expect(size).toContainText("20");
+    await expect(menu).toHaveCount(0);
   }
+});
+
+test("工具按钮上横向滑动滚动工具栏而不执行命令，新点击仍可用", async ({ page }) => {
+  await page.goto("/");
+  const toolbar = page.locator(".editor-menu");
+  const undo = toolbar.getByTitle("复制块", { exact: true });
+  await undo.scrollIntoViewIfNeeded();
+  const result = await undo.evaluate(button => {
+    const toolbar = button.closest(".editor-menu")!;
+    let clicks = 0;
+    button.addEventListener("click", () => { clicks++; });
+    const before = toolbar.scrollLeft;
+    for (const [type, x] of [["touchstart", 230], ["touchmove", 130], ["touchend", 130]] as const) {
+      const touch = { identifier: 5, target: button, clientX: x, clientY: 200 };
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, { touches: { value: type === "touchend" ? [] : [touch] }, changedTouches: { value: [touch] } });
+      button.dispatchEvent(event);
+    }
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    return { delta: toolbar.scrollLeft - before, clicks };
+  });
+  expect(result.delta).toBeGreaterThan(50);
+  expect(result.clicks).toBe(0);
+  await page.getByTitle("字号", { exact: true }).tap();
+  await expect(toolbar.locator(".menu-dropdown-list")).toBeVisible();
 });

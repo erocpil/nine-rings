@@ -8,42 +8,20 @@ test.use({
 
 async function expectToolbarFits(page: Page) {
   const toolbar = page.locator(".editor-menu");
-  const more = page.getByRole("button", { name: "更多编辑操作", exact: true });
   await expect(toolbar).toBeVisible();
-  await expect(more).toBeVisible();
-  await expect
-    .poll(() => toolbar.evaluate((el) => el.scrollWidth - el.clientWidth))
-    .toBeLessThanOrEqual(2);
-  await expect
-    .poll(() =>
-      more.evaluate((el) => {
-        const box = el.getBoundingClientRect();
-        const hit = document.elementFromPoint(
-          box.x + box.width / 2,
-          box.y + box.height / 2,
-        );
-        return (
-          box.left >= 0 &&
-          box.right <= document.documentElement.clientWidth &&
-          el.contains(hit)
-        );
-      }),
-    )
-    .toBe(true);
-  await more.tap();
-  const sheet = page.getByRole("dialog", { name: "更多编辑操作", exact: true });
-  await expect(sheet).toBeVisible();
-  await expect(
-    sheet.getByRole("button", { name: "插入图片", exact: true }),
-  ).toBeVisible();
-  await sheet
-    .getByRole("button", { name: "关闭更多编辑操作", exact: true })
-    .tap();
-  await expect(sheet).toHaveCount(0);
+  await expect(page.getByTitle("更多编辑操作", { exact: true })).toHaveCount(0);
+  const image = toolbar.getByRole("button", { name: "插入图片", exact: true });
+  await image.scrollIntoViewIfNeeded();
+  await expect.poll(() => image.evaluate(el => {
+    const box = el.getBoundingClientRect();
+    return el.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+  })).toBe(true);
+  await expect.poll(() => toolbar.evaluate(el => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(2);
+
 }
 
 for (const width of [320, 390, 430])
-  test(`正式版手机首屏工具栏完整并可打开更多 ${width}`, async ({
+  test(`正式版手机首屏工具栏可滚动且图片按钮可用 ${width}`, async ({
     page,
     browserName,
   }) => {
@@ -61,7 +39,7 @@ for (const width of [320, 390, 430])
       });
   });
 
-test("只读文档重启后切回编辑并旋转屏幕，更多始终可用", async ({ page }) => {
+test("只读文档重启后切回编辑并旋转屏幕，工具按钮始终可用", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toHaveAttribute(
     "contenteditable",
@@ -115,15 +93,9 @@ test.describe("桌面工具栏重新挂载", () => {
     const toolbar = page.locator(".editor-menu");
     await expect(toolbar).toHaveClass(/toolbar-full/);
     await page.setViewportSize({ width: 900, height: 900 });
-    await expect(toolbar).toHaveClass(/toolbar-compact/);
+    await expect(toolbar).toHaveClass(/toolbar-scrollable/);
     await page.setViewportSize({ width: 780, height: 900 });
-    await expect(toolbar).toHaveClass(/toolbar-minimal/);
-    await expect
-      .poll(() => toolbar.evaluate((el) => el.scrollWidth - el.clientWidth))
-      .toBeLessThanOrEqual(2);
-    await page
-      .getByRole("button", { name: "更多编辑操作", exact: true })
-      .click();
-    await expect(page.locator(".toolbar-more-list")).toBeVisible();
+    await expect(toolbar).toHaveClass(/toolbar-scrollable/);
+    await expectToolbarFits(page);
   });
 });

@@ -1,0 +1,39 @@
+/* Rendered and source controls share one compact, scrollable row. */
+.app .note-editor .editor-menu.toolbar-scrollable {
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 36px;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 1px 8px;
+  gap: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.editor-menu.toolbar-full::-webkit-scrollbar,
+.editor-menu.toolbar-compact::-webkit-scrollbar { display: block; height: 3px; }
+.editor-menu::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
+.editor-menu:hover { scrollbar-color: var(--border) transparent; }
+.editor-menu:hover::-webkit-scrollbar-thumb { background: var(--border); }
+.editor-menu .menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text);
+}
+.editor-menu .menu-btn:hover { border-color: var(--border); }
+.toolbar-history-actions { background: transparent; gap: 4px; }
+.app .note-editor .editor-menu { padding: 1px 8px; min-height: 36px; }
+.app .note-editor .editor-menu .menu-btn { min-height: 28px; border-radius: 4px; background: var(--bg-secondary); }
+.app .note-editor .editor-menu .menu-btn:is(.active, [aria-expanded="true"]) { background: var(--active-bg); color: var(--accent); }
+
+.editor-menu.toolbar-scrollable .save-status { position: sticky; right: 0; margin-left: auto; background: var(--bg); }
+
+.app .note-editor .editor-menu .menu-btn { font-size: 12px; }
+.app .note-editor .editor-menu .toolbar-icon { width: 17px; height: 17px; }

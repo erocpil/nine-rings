@@ -495,7 +495,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   const scrollRef = useRef<HTMLDivElement>(null);
   const foldHostsRef = useRef(new Map<number, HTMLElement>());
   const toolbarRef = useRef<HTMLDivElement | null>(null);
-  const toolbarResizeObserver = useRef<ResizeObserver | null>(null);
+  const toolbarTouchRef = useRef<{ x: number; y: number; left: number; button: HTMLButtonElement; dragged: boolean } | null>(null);
+  const toolbarSwipedRef = useRef(false);
   const toolbarSelectionRef = useRef<{ from: number; to: number } | null>(null);
   const toolbarCellSelectionRef = useRef<CellSelection | null>(null);
   const toolbarInteractingRef = useRef(false);
@@ -664,12 +665,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const [blockMenu, setBlockMenu] = useState<{ position: number; trigger: HTMLButtonElement; doc: ProseMirrorNode } | null>(null);
   const closeBlockMenu = useCallback(() => setBlockMenu(null), []);
-  const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [linkDialog, setLinkDialog] = useState(false);
   const [linkDialogUrl, setLinkDialogUrl] = useState("");
-  const [toolbarWidth, setToolbarWidth] = useState(1000);
-  const [fullToolbarMinWidth, setFullToolbarMinWidth] = useState(0);
-  const [compactToolbarMinWidth, setCompactToolbarMinWidth] = useState(0);
   const [isMobileToolbarViewport, setIsMobileToolbarViewport] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
@@ -699,8 +696,6 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   });
   // Optional controls have their own measured overflow. Switch the fixed
   // groups only when their actual full-mode width no longer fits.
-  const isNarrow = isMobileToolbarViewport || (fullToolbarMinWidth > 0 && toolbarWidth < fullToolbarMinWidth);
-  const isMinimalToolbar = isMobileToolbarViewport || (isNarrow && compactToolbarMinWidth > 0 && toolbarWidth < compactToolbarMinWidth);
   const [showCodeLineNumbers, setShowCodeLineNumbers] = useState(codeLineNumbersEnabled);
   useEffect(() => {
     const sync = () => setShowCodeLineNumbers(codeLineNumbersEnabled());
@@ -795,44 +790,9 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   const wikiDismissedStartRef = useRef<number | null>(null);
   const wikiDocumentsRef = useRef<Promise<Note[]> | null>(null);
 
-  // 工具栏的可用空间取决于侧栏、属性面板和窗口宽度，不能使用 window
-  // 作为断点来源。直接观察工具栏容器，布局变化时立即切换分组模式。
   const attachToolbar = useCallback((element: HTMLDivElement | null) => {
-    toolbarResizeObserver.current?.disconnect();
-    toolbarResizeObserver.current = null;
     toolbarRef.current = element;
-    if (!element) return;
-    const updateWidth = () => setToolbarWidth(element.clientWidth);
-    updateWidth();
-    const observer = new ResizeObserver(updateWidth);
-    observer.observe(element);
-    toolbarResizeObserver.current = observer;
   }, []);
-  useLayoutEffect(() => {
-    const toolbar = toolbarRef.current;
-    if (!toolbar || isMobileToolbarViewport || isMinimalToolbar) return;
-    const measure = () => {
-      const style = getComputedStyle(toolbar);
-      const gap = parseFloat(style.columnGap) || 0;
-      const fixed = Array.from(toolbar.children).filter((element): element is HTMLElement =>
-        element instanceof HTMLElement && !element.classList.contains("toolbar-secondary")
-          && getComputedStyle(element).display !== "none");
-      const required = Math.ceil(fixed.reduce((sum, element) => {
-        const childStyle = getComputedStyle(element);
-        return sum + element.getBoundingClientRect().width
-          + (parseFloat(childStyle.marginLeft) || 0) + (parseFloat(childStyle.marginRight) || 0);
-      }, 0) + Math.max(0, fixed.length - 1) * gap + 12);
-      const update = isNarrow ? setCompactToolbarMinWidth : setFullToolbarMinWidth;
-      update(current => current === required ? current : required);
-    };
-    measure();
-    let frame = 0;
-    const observer = new MutationObserver(() => {
-      if (!frame) frame = requestAnimationFrame(() => { frame = 0; measure(); });
-    });
-    observer.observe(toolbar, { childList: true, subtree: true, characterData: true });
-    return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); };
-  }, [toolbarWidth, isNarrow, isMinimalToolbar, isMobileToolbarViewport, readonly]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -3306,6 +3266,15 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     if (!useCustomContextMenu) return; // 关闭开关 → 系统原生菜单
     e.preventDefault();
     e.stopPropagation();
+    // Pseudo-element list markers belong to li; coordinate hit testing in
+    // their gutter can otherwise resolve to the preceding paragraph.
+    const item = e.target instanceof Element ? e.target.closest("ol > li") : null;
+    if (item && e.clientX < (item.querySelector("p")?.getBoundingClientRect().left ?? 0)) {
+      editor.commands.setTextSelection(editor.view.posAtDOM(item, 0) + 1);
+      setContextSubmenu("paragraph");
+      setContextMenu({ x: e.clientX, y: e.clientY });
+      return;
+    }
     const at = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
     const selection = editor.state.selection;
     if (at && (selection.empty || at.pos < selection.from || at.pos > selection.to)) editor.commands.setTextSelection(at.pos);
@@ -4428,7 +4397,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         {/* ── 工具栏 ── */}
         {!readonly && (<div
           ref={attachToolbar}
-          className={`editor-menu ${isNarrow ? "toolbar-compact" : "toolbar-full"} ${isMinimalToolbar ? "toolbar-minimal" : ""}`}
+          className="editor-menu toolbar-full toolbar-scrollable"
           onPointerDownCapture={(event) => {
             // Portaled sheets own native touch/scroll handling. React still
             // propagates their events through this toolbar's component tree.
@@ -4436,6 +4405,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
             if (!(event.target instanceof Element)) return;
             const button = event.target.closest<HTMLButtonElement>("button");
             if (!button || button.disabled) return;
+            if (event.pointerType !== "touch") toolbarSwipedRef.current = false;
             toolbarInteractingRef.current = true;
             // The first tap may move DOM focus away from the editor. Keep the last non-empty
             // selection across opening a dropdown and tapping one of its commands.
@@ -4443,25 +4413,40 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
             if (event.pointerType === "touch") dismissNativeSelectionMenu();
           }}
           onTouchStartCapture={(event) => {
-            if (!event.currentTarget.contains(event.target as Node)) return;
-            if (!(event.target instanceof Element)) return;
+            if (!(event.target instanceof Element) || event.target.closest(".menu-dropdown-list")) return;
             const button = event.target.closest<HTMLButtonElement>("button");
-            if (!button || button.disabled) return;
+            const touch = event.touches[0];
+            if (!button || button.disabled || !touch) return;
+            toolbarSwipedRef.current = false;
+            toolbarTouchRef.current = { x: touch.clientX, y: touch.clientY, left: event.currentTarget.scrollLeft, button, dragged: false };
             toolbarInteractingRef.current = true;
             rememberToolbarSelection();
             dismissNativeSelectionMenu();
             event.preventDefault();
           }}
+          onTouchMoveCapture={(event) => {
+            const gesture = toolbarTouchRef.current;
+            const touch = event.touches[0];
+            if (!gesture || !touch) return;
+            const dx = touch.clientX - gesture.x;
+            const dy = touch.clientY - gesture.y;
+            if (Math.hypot(dx, dy) > 6) gesture.dragged = true;
+            if (gesture.dragged && Math.abs(dx) >= Math.abs(dy)) {
+              event.currentTarget.scrollTo({ left: gesture.left - dx, behavior: "instant" });
+            }
+          }}
           onTouchEndCapture={(event) => {
-            if (!event.currentTarget.contains(event.target as Node)) return;
-            if (!(event.target instanceof Element)) return;
-            const button = event.target.closest<HTMLButtonElement>("button");
-            if (!button || button.disabled) return;
+            const gesture = toolbarTouchRef.current;
+            toolbarTouchRef.current = null;
+            if (!gesture) return;
             event.preventDefault();
-            button.click();
+            if (gesture.dragged) {
+              toolbarSwipedRef.current = true;
+              toolbarInteractingRef.current = false;
+            } else gesture.button.click();
           }}
           onPointerCancelCapture={() => { toolbarInteractingRef.current = false; }}
-          onTouchCancelCapture={() => { toolbarInteractingRef.current = false; }}
+          onTouchCancelCapture={() => { toolbarTouchRef.current = null; toolbarInteractingRef.current = false; }}
           onChangeCapture={(event) => {
             // Native select/color inputs in the portaled sheet do not dispatch
             // a button click. Restore the text selection before their command.
@@ -4476,6 +4461,12 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
             requestAnimationFrame(() => { toolbarInteractingRef.current = false; });
           }}
           onClickCapture={(event) => {
+            if (toolbarSwipedRef.current) {
+              toolbarSwipedRef.current = false;
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
             if (!(event.target instanceof Element) || !event.target.closest("button")) return;
             // Portaled buttons skip the toolbar's native pointer handlers.
             toolbarInteractingRef.current = true;
@@ -4491,7 +4482,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         >
           <EditorToolbarContents
             editor={editor} readonly={readonly} saveStatus={saveStatus}
-            layout={{ isNarrow, isMinimalToolbar, isMobileToolbarViewport, toolbarRef, moreButtonRef }}
+            layout={{ isMobileToolbarViewport, toolbarRef }}
             menus={{
               colorOpen, setColorOpen, sizeOpen, setSizeOpen,
               headingOpen, setHeadingOpen, headingPage, setHeadingPage,
