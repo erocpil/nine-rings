@@ -3829,9 +3829,9 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
                 aria-label="目录快速滚动"
                 aria-hidden={!outlineOverflow && visibleOutlineEntries.length <= 16}
               >
-                <button type="button" onClick={() => scrollOutlineTo("top")} title="滚动至顶部">Top</button>
-                <button type="button" onClick={() => scrollOutlineTo("middle")} title="滚动至中部">Mid</button>
-                <button type="button" onClick={() => scrollOutlineTo("bottom")} title="滚动至底部">Bot</button>
+                <button type="button" onClick={() => scrollOutlineTo("top")} title="滚动至顶部" aria-label="滚动至顶部"><ToolbarIcon name="pageTop" /></button>
+                <button type="button" onClick={() => scrollOutlineTo("middle")} title="滚动至中部" aria-label="滚动至中部"><ToolbarIcon name="pageMiddle" /></button>
+                <button type="button" onClick={() => scrollOutlineTo("bottom")} title="滚动至底部" aria-label="滚动至底部"><ToolbarIcon name="pageBottom" /></button>
               </div>
               {outlineDisplayConfig?.showCounts !== false && <span className="document-outline-count">
                 {visibleOutlineEntries.length === documentOutline.length

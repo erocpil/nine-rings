@@ -936,7 +936,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       (element) => element.getBoundingClientRect().height,
     );
     expect(longHeaderHeight).toBe(shortHeaderHeight);
-    await outline.getByRole("button", { name: "Bot" }).click();
+    await outline.getByRole("button", { name: "滚动至底部" }).click();
     await expect(outline.locator(".document-outline-text", { hasText: "性能章节 160" })).toBeVisible();
     const compactRows = outline.locator(".document-outline-item").filter({ hasText: "性能章节" });
     await expect.poll(() => compactRows.count()).toBeGreaterThan(2);

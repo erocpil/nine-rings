@@ -94,17 +94,17 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
   })).toBeLessThanOrEqual(1);
 
   const outlineList = outline.locator(".document-outline-list");
-  await outline.getByRole("button", { name: "Bot" }).click();
+  await outline.getByRole("button", { name: "滚动至底部" }).click();
   await expect.poll(() => outlineList.evaluate(
     (list) => Math.abs(list.scrollTop - (list.scrollHeight - list.clientHeight))
       / (list.querySelector<HTMLElement>(".document-outline-item")?.offsetHeight || 1),
   )).toBeLessThanOrEqual(1);
-  await outline.getByRole("button", { name: "Mid" }).click();
+  await outline.getByRole("button", { name: "滚动至中部" }).click();
   await expect.poll(() => outlineList.evaluate(
     (list) => Math.abs(list.scrollTop - (list.scrollHeight - list.clientHeight) / 2)
       / (list.querySelector<HTMLElement>(".document-outline-item")?.offsetHeight || 1),
   )).toBeLessThanOrEqual(1);
-  await outline.getByRole("button", { name: "Top" }).click();
+  await outline.getByRole("button", { name: "滚动至顶部" }).click();
   await expect.poll(() => outlineList.evaluate((list) => list.scrollTop)).toBeLessThanOrEqual(1);
 
   await expect(outlineItems.nth(0)).toHaveAttribute("data-level", "1");

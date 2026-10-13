@@ -1,12 +1,12 @@
 # 插件主区域视图贡献
 
-状态：2026-10-12，可信内置图片查看插件已接入。当前是内部 TypeScript 宿主能力，未开放第三方安装、任意 HTML/React renderer 或公开 SDK JSON 方法。
+状态：2026-10-14，可信内置图片查看与词汇学习插件已接入。当前是内部 TypeScript 宿主能力，未开放第三方安装、任意 HTML/React renderer 或公开 SDK JSON 方法。
 
 ## 职责边界
 
 插件声明名称、视图 ID、宿主支持的 renderer 和数据，调用绑定到当前激活的视图接口。宿主管理中央区域、保存门禁、前后视图切换、编辑器保留、焦点、手机抽屉和资源释放。展示权限 `views.present` 不包含文档写入权限；目录图片另需 `filesystem.images.read`。
 
-`MainViewRegistry` 是独立于左侧 `WorkspacePanelRegistry` 的贡献点。首版 renderer 仅 `image`，贡献 ID 由宿主注册且全局唯一。以后文档统计、搜索结果、对比和图片处理结果可增加明确的数据 schema 与受认可 renderer，不需要插件选择 DOM 容器或复制导航机制。
+`MainViewRegistry` 是独立于左侧 `WorkspacePanelRegistry` 的贡献点。当前 renderer 为 `image` 与 `vocabulary`，贡献 ID 由宿主注册且全局唯一。以后文档统计、搜索结果、对比和图片处理结果可增加明确的数据 schema 与受认可 renderer，不需要插件选择 DOM 容器或复制导航机制。
 
 可信模块绑定示例：
 
@@ -47,3 +47,7 @@ PDF/EPUB 及路径页作为原视图时隐藏但保留布局，而非 display:no
 先按 renderer 增加宿主支持的类型化数据和工具栏动作，再接入相应插件。公开 SDK 需补协议版本、能力协商、打开结果/生命周期事件、取消与错误回执及资源句柄边界；这次没有偷偷扩展 JSON RPC 的公开协议。第三方自定义界面未来需独立隔离容器和权限评估。
 
 图片主区域 renderer 在同一激活/视图 ID 内保持实例，再次打开树节点只更新图库与当前图片，使属性固定/专注等查看状态连续。当前图片选中另由会话状态广播到树，树切换不再决定方向键是否可用。详细属性属于该 renderer 的宿主内建区域，不开放第三方 DOM 或文件系统写入。
+
+## 词汇学习视图
+
+词汇分栏调用受限宿主读服务并提交文档身份、名称与 Markdown 快照。`documents.vocabulary.read` 与 `views.present` 分开核验；不开放任意文档读取或正文写入。词汇视图复用主区域保存与恢复门禁，未知格式保留完整原文；预算、保护检查、手机入口和未来文章关系详见[词汇学习插件](plugin-vocabulary-learning.md)。

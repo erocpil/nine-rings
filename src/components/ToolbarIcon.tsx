@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 const paths = {
+  book: <><path d="M3 4h7l2 2 2-2h7v16h-7l-2 2-2-2H3ZM12 6v16M6 8h3M15 8h3" /></>,
   highlight: <><path d="m4 14 10-10 6 6-10 10H5ZM9 9l6 6M3 22h18" /></>,
   tableRow: <><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M3 15h18" /><rect x="3" y="9" width="18" height="6" fill="currentColor" fillOpacity=".2" /></>,
   tableColumn: <><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 3v18M15 3v18" /><rect x="9" y="3" width="6" height="18" fill="currentColor" fillOpacity=".2" /></>,
@@ -33,6 +34,7 @@ const paths = {
   switchViews: <path d="M4 8h16m-4-4 4 4-4 4M20 16H4m4-4-4 4 4 4" />,
   chevronLeft: <path d="m14 6-6 6 6 6" />,
   chevronRight: <path d="m10 6 6 6-6 6" />,
+  pageMiddle: <><path d="M4 12h16M12 2v6m-3-3 3 3 3-3M12 22v-6m-3 3 3-3 3 3" /></>,
   pageTop: <path d="M4 4h16M12 20V8m-5 5 5-5 5 5" />,
   pageBottom: <path d="M4 20h16M12 4v12m-5-5 5 5 5-5" />,
   expand: <path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6" />,

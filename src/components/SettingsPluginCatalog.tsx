@@ -1,3 +1,4 @@
+import { readVocabularyPreference, saveVocabularyPreference, subscribeVocabulary, vocabularySnapshot } from "../lib/plugin-system/builtin-vocabulary";
 import {
   imageViewerEnabled,
   saveImageViewerEnabled,
@@ -51,6 +52,7 @@ function PluginConfigurationDialog({
   onClose: () => void;
   trigger: RefObject<HTMLElement | null>;
 }) {
+  useSyncExternalStore(subscribeVocabulary, vocabularySnapshot);
   useSyncExternalStore(subscribeResultPresentation, resultPresentationSnapshot);
   const tool =
     plugin.id === "nine-rings.builtin-date"
@@ -116,7 +118,15 @@ function PluginConfigurationDialog({
         <p className="settings-desc">
           内置 · {plugin.type} · {plugin.description}
         </p>
-        {plugin.configuration === "image-viewer" ? (
+        {plugin.configuration === "vocabulary" ? <>
+          <Field label="词汇路径" desc="只展示该路径及其子路径。请把手动生成的 Markdown 导入到这里；修改路径按 Enter 或离开输入框保存。">
+            <input className="settings-input" aria-label="词汇路径" key={readVocabularyPreference().path} defaultValue={readVocabularyPreference().path} onBlur={event => {
+              try { saveVocabularyPreference({ ...readVocabularyPreference(), path: event.target.value }); showMessage("已更新"); } catch (error) { showMessage(String(error)); }
+            }} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
+          </Field>
+          <Field label="例句默认折叠" desc="控制学习视图的例句和译文，折叠状态仅用于本次查看。"><input type="checkbox" aria-label="例句默认折叠" checked={readVocabularyPreference().collapseExamples} onChange={event => { saveVocabularyPreference({ ...readVocabularyPreference(), collapseExamples: event.target.checked }); showMessage("已更新"); }} /></Field>
+          <p className="settings-desc">首版不联网抓取、不改写正文；受保护正文不交给插件。普通文档入口用于编辑和导出，阅读语境关联将在后续接入。</p>
+        </> : plugin.configuration === "image-viewer" ? (
           <p className="settings-desc">
             在左侧「图片」分栏选择目录；手机从文档树工具栏进入。目录授权仅保存在本机，不进入备份。浏览器能力不足时，文件选择仅在当前会话有效。预览旋转不修改原图，图片处理功能将在后续独立接入。
           </p>
@@ -197,8 +207,8 @@ function PluginConfigurationDialog({
           desc={
             active
               ? "插件当前已激活。开启与停用请在插件列表操作。"
-              : presenter
-                ? "未激活；开启展示选项后自动激活。"
+              : presenter || plugin.configuration === "vocabulary"
+                ? "未激活；开启插件后自动激活。"
                 : "未激活；从文档菜单调用时按需激活。"
           }
         >
@@ -206,7 +216,9 @@ function PluginConfigurationDialog({
             权限：
             {active?.permissions.length
               ? active.permissions.join("、")
-              : plugin.configuration === "image-viewer"
+              : plugin.configuration === "vocabulary"
+                ? "分栏与主区域展示、配置路径内的未保护词汇正文读取"
+                : plugin.configuration === "image-viewer"
                 ? "分栏展示、授权图片目录读取；插入文档另经编辑插件命令"
                 : presenter
                   ? "无需文档读写权限"
@@ -234,6 +246,7 @@ export function SettingsPluginCatalog() {
   useSyncExternalStore(treeDisplay.subscribe, treeDisplay.snapshot);
   useSyncExternalStore(subscribeDocumentTools, documentToolsSnapshot);
   useSyncExternalStore(subscribeImageViewer, imageViewerSnapshot);
+  useSyncExternalStore(subscribeVocabulary, vocabularySnapshot);
   useSyncExternalStore(outlineDisplay.subscribe, outlineDisplay.snapshot);
   useSyncExternalStore(bookmarkDisplay.subscribe, bookmarkDisplay.snapshot);
   useSyncExternalStore(notesDisplay.subscribe, notesDisplay.snapshot);
@@ -257,7 +270,7 @@ export function SettingsPluginCatalog() {
                 : "statistics";
           const presenter = panelPresenter(plugin.configuration);
           const enabled =
-            plugin.configuration === "image-viewer"
+            plugin.configuration === "vocabulary" ? readVocabularyPreference().enabled : plugin.configuration === "image-viewer"
               ? imageViewerEnabled()
               : presenter
                 ? presenter.read().enabled
@@ -292,7 +305,8 @@ export function SettingsPluginCatalog() {
                     checked={enabled}
                     onChange={(event) => {
                       try {
-                        if (plugin.configuration === "image-viewer")
+                        if (plugin.configuration === "vocabulary") saveVocabularyPreference({ ...readVocabularyPreference(), enabled: event.target.checked });
+                        else if (plugin.configuration === "image-viewer")
                           saveImageViewerEnabled(event.target.checked);
                         else if (presenter)
                           presenter.save({

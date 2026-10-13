@@ -1,3 +1,4 @@
+import { VOCABULARY_ID } from "./builtin-vocabulary";
 import { BOOKMARK_DISPLAY_PLUGIN_ID } from "./builtin-bookmark-display";
 import { NOTES_DISPLAY_PLUGIN_ID } from "./builtin-notes-display";
 import { OUTLINE_DISPLAY_PLUGIN_ID } from "./builtin-outline-display";
@@ -5,6 +6,7 @@ import { TREE_DISPLAY_PLUGIN_ID } from "./builtin-tree-display";
 
 /** Installed trusted modules, independent of whether an invocation is currently active. */
 export const BUILTIN_PLUGIN_CATALOG = Object.freeze([
+  Object.freeze({ id: VOCABULARY_ID, name: "词汇学习", type: "分栏 · 学习视图", description: "展示指定路径中的词汇 Markdown，分别保留词典的词性、词义、搭配和例句；原文可编辑、导出。", configuration: "vocabulary" as const }),
   Object.freeze({
     id: "nine-rings.builtin-image-viewer",
     name: "图片查看",

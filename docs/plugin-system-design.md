@@ -533,6 +533,10 @@ flowchart TD
 
 ## 2026-10-12 内置图片分栏能力
 
-宿主增加受限 WorkspacePanelRegistry、panels.present 与 filesystem.images.read 内部权限；当前只有 images/image-library 认可模板，激活所有权负责撤销贡献与资源。目录来源与文档图片共用查看器，插入继续通过文档编辑权限和附件存储。授权保持设备本地；不开放第三方文件系统调用、任意 DOM 或写盘权限。详见[图片分栏及后续处理契约](plugin-local-image-panel.md)。
+宿主增加受限 WorkspacePanelRegistry、panels.present 与 filesystem.images.read 内部权限；认可模板现为 images/image-library 和 vocabulary/vocabulary-library，激活所有权负责撤销贡献与资源。目录来源与文档图片共用查看器，插入继续通过文档编辑权限和附件存储。授权保持设备本地；不开放第三方文件系统调用、任意 DOM 或写盘权限。详见[图片分栏及后续处理契约](plugin-local-image-panel.md)。
 
-可信内置模块新增[主区域视图贡献](plugin-main-area-views.md)：绑定到激活的 views.register/open/close，展示权限与编辑权限分离，宿主负责保存与导航。当前仅宿主认可的 image renderer；公开 SDK JSON 方法和第三方自定义 renderer 未开放。
+可信内置模块新增[主区域视图贡献](plugin-main-area-views.md)：绑定到激活的 views.register/open/close，展示权限与编辑权限分离，宿主负责保存与导航。当前为宿主认可的 image、vocabulary renderer；公开 SDK JSON 方法和第三方自定义 renderer 未开放。
+
+## 2026-10-14 词汇学习试点
+
+增加受信任内置词汇分栏和整份文档的只读学习视图，保留 Markdown 为唯一内容来源。宿主提供配置路径范围内的摘要及正文读取，内部 documents.vocabulary.read 权限不扩展现有公开 JSON RPC schema。各词典词义独立，例句归属不变；文章关联仅预留身份类型，不引入复习或联网抓取。详见[实现与使用契约](plugin-vocabulary-learning.md)。

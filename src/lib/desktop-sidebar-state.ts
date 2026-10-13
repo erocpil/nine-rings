@@ -1,8 +1,8 @@
 export const DESKTOP_SIDEBAR_KEY = "nr:desktopSidebar";
-export type DesktopSidebarPanel = "tree" | "list" | "notes" | "reader" | "images";
+export type DesktopSidebarPanel = "tree" | "list" | "notes" | "reader" | "images" | "vocabulary";
 export const SIDEBAR_PANELS: DesktopSidebarPanel[] = ["tree", "list", "notes", "reader"];
 export function sidebarPanelLabel(panel: string): string {
-  return panel === "images" ? "图片" : panel === "tree" ? "文档树" : panel === "list" ? "文档列表" : panel === "notes" ? "随记" : "PDF / EPUB 阅读";
+  return panel === "vocabulary" ? "词汇学习" : panel === "images" ? "图片" : panel === "tree" ? "文档树" : panel === "list" ? "文档列表" : panel === "notes" ? "随记" : "PDF / EPUB 阅读";
 }
 export function normalizeSidebarOrder(saved: string[], contributed: DesktopSidebarPanel[] = []): DesktopSidebarPanel[] {
   const panels = [...SIDEBAR_PANELS, ...contributed.filter(panel => !SIDEBAR_PANELS.includes(panel))];
@@ -23,7 +23,7 @@ export function readDesktopSidebarState(): DesktopSidebarState {
     );
     return {
       panel:
-        saved?.panel === "images" || saved?.panel === "list" || saved?.panel === "notes" || saved?.panel === "reader"
+        saved?.panel === "vocabulary" || saved?.panel === "images" || saved?.panel === "list" || saved?.panel === "notes" || saved?.panel === "reader"
           ? saved.panel
           : "tree",
       hidden:

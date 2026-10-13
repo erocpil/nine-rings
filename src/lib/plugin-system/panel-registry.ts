@@ -5,12 +5,10 @@ import {
   type PluginRuntime,
 } from "./runtime";
 /** Declarative slot, never a plugin-supplied React component or DOM callback. */
-export interface WorkspacePanelContribution {
-  id: "images";
-  label: string;
-  icon: "image";
-  renderer: "image-library";
-}
+export type WorkspacePanelContribution = { label: string } & (
+  | { id: "images"; icon: "image"; renderer: "image-library" }
+  | { id: "vocabulary"; icon: "book"; renderer: "vocabulary-library" }
+);
 export class WorkspacePanelRegistry {
   private entries = new Map<
     string,
@@ -42,9 +40,14 @@ export class WorkspacePanelRegistry {
   register(owner: PluginActivation, value: WorkspacePanelContribution) {
     this.runtime.assert(owner, "panels.present");
     if (
-      value.id !== "images" ||
-      value.renderer !== "image-library" ||
-      value.icon !== "image" ||
+      !(
+        (value.id === "images" &&
+          value.renderer === "image-library" &&
+          value.icon === "image") ||
+        (value.id === "vocabulary" &&
+          value.renderer === "vocabulary-library" &&
+          value.icon === "book")
+      ) ||
       !value.label.trim() ||
       value.label.length > 32 ||
       Object.keys(value).some(
@@ -66,9 +69,13 @@ export class WorkspacePanelRegistry {
   }
   assert(id: string) {
     const entry = this.entries.get(id);
-    if (!entry)
-      throw new PluginHostError("PLUGIN_DISABLED", "图片查看插件未启用");
-    this.runtime.assert(entry.owner, "filesystem.images.read");
+    if (!entry) throw new PluginHostError("PLUGIN_DISABLED", "分栏插件未启用");
+    this.runtime.assert(
+      entry.owner,
+      entry.value.renderer === "image-library"
+        ? "filesystem.images.read"
+        : "documents.vocabulary.read",
+    );
     return entry.owner;
   }
 }

@@ -76,3 +76,39 @@ it("binds plugin view operations to their owner without delegating host acceptan
   runtime.deactivate(owner.pluginId);
   expect(() => host.open(view.id, data)).toThrow();
 });
+
+it("vocabulary views require scoped document authority, bounded immutable data and revoke pending/live content", () => {
+  const runtime = new PluginRuntime();
+  runtime.setEnabled(true);
+  const views = new MainViewRegistry(runtime);
+  const declaration = {
+    id: "test.words",
+    label: "词汇",
+    renderer: "vocabulary",
+  } as const;
+  const limited = runtime.activate("test.limited", ["views.present"]);
+  views.register(limited, declaration);
+  const data = { documentId: "word", title: "sample", source: "# sample" };
+  expect(() => views.open(limited, declaration.id, data)).toThrow();
+  runtime.deactivate(limited.pluginId);
+  const owner = runtime.activate("test.words", [
+    "views.present",
+    "documents.vocabulary.read",
+  ]);
+  views.register(owner, declaration);
+  expect(() =>
+    views.open(owner, declaration.id, { ...data, source: "x".repeat(250001) }),
+  ).toThrow();
+  expect(() =>
+    views.open(owner, declaration.id, { ...data, html: "unsafe" } as never),
+  ).toThrow();
+  const request = views.open(owner, declaration.id, data);
+  data.source = "changed";
+  views.accept(request);
+  expect(views.getSnapshot().current?.data).toMatchObject({
+    source: "# sample",
+  });
+  views.open(owner, declaration.id, data);
+  runtime.deactivate(owner.pluginId);
+  expect(views.getSnapshot()).toMatchObject({ current: null, pending: null });
+});

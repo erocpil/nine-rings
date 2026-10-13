@@ -33,7 +33,7 @@ const TREE_SIDEBAR_WIDTH_KEY = "nr:treeSidebarW";
 const LIST_SIDEBAR_WIDTH_KEY = "nr:listSidebarW";
 const NOTES_SIDEBAR_WIDTH_KEY = "nr:notesSidebarW";
 const sidebarWidthKey = (panel: SidebarPanel) =>
-  panel === "images" ? "nr:imagesSidebarW" : panel === "reader"
+  panel === "vocabulary" ? "nr:vocabularySidebarW" : panel === "images" ? "nr:imagesSidebarW" : panel === "reader"
     ? READER_SIDEBAR_WIDTH_KEY
     : panel === "notes" ? NOTES_SIDEBAR_WIDTH_KEY : panel === "list"
       ? LIST_SIDEBAR_WIDTH_KEY

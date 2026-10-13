@@ -29,13 +29,13 @@ test(`长目录的滚动按钮在悬浮和固定面板中与收起按钮对齐�
       const textCenter = (button: HTMLButtonElement) => {
         const range = document.createRange();
         range.selectNodeContents(button);
-        const rect = range.getBoundingClientRect();
+        const rect = button.querySelector("svg")?.getBoundingClientRect() ?? range.getBoundingClientRect();
         return (rect.top + rect.bottom) / 2;
       };
       const panelRect = element.getBoundingClientRect();
-      const buttons = ["Top", "Mid", "Bot"].map(label => {
+      const buttons = ["滚动至顶部", "滚动至中部", "滚动至底部"].map(label => {
         const button = Array.from(element.querySelectorAll<HTMLButtonElement>(".document-outline-jumps button"))
-          .find(candidate => candidate.textContent === label)!;
+          .find(candidate => candidate.getAttribute("aria-label") === label)!;
         const rect = button.getBoundingClientRect();
         return { offset: Math.abs((rect.top + rect.bottom) / 2 - (closeRect.top + closeRect.bottom) / 2), topOffset: Math.abs(rect.top - closeRect.top), heightDifference: Math.abs(rect.height - closeRect.height), textOffset: Math.abs(textCenter(button) - textCenter(close)), inside: rect.left >= panelRect.left && rect.right <= panelRect.right };
       });

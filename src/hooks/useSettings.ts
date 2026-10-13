@@ -1,3 +1,4 @@
+import { startBuiltinVocabulary } from "../lib/plugin-system/builtin-vocabulary";
 import { bookmarkDisplay } from "../lib/plugin-system/builtin-bookmark-display";
 import { notesDisplay } from "../lib/plugin-system/builtin-notes-display";
 import { applyInterfaceAppearance, resolveInterfaceConfig } from "../lib/interface-style";
@@ -23,6 +24,7 @@ export function useSettings() {
   useEffect(() => bookmarkDisplay.start(), []);
   useEffect(() => notesDisplay.start(), []);
   useEffect(startBuiltinImageViewer, []);
+  useEffect(startBuiltinVocabulary, []);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const configRef = useRef<AppConfig | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);

@@ -137,7 +137,7 @@ for (const width of [1280, 390])
       const list = outline.locator(".document-outline-list");
       await expect(list).toBeVisible();
       await expect(list).toHaveClass(/is-virtualized/);
-      await outline.getByRole("button", { name: "Top", exact: true }).click();
+      await outline.getByRole("button", { name: "滚动至顶部", exact: true }).click();
       await expect
         .poll(() => list.evaluate((root) => root.scrollTop))
         .toBeLessThan(2);
@@ -149,7 +149,7 @@ for (const width of [1280, 390])
           ".document-outline-link { font-size: 23px !important; }";
         root.append(style);
       });
-      await outline.getByRole("button", { name: "Bot", exact: true }).click();
+      await outline.getByRole("button", { name: "滚动至底部", exact: true }).click();
       await expect
         .poll(() =>
           list.evaluate(
@@ -186,7 +186,7 @@ for (const width of [1280, 390])
           ),
         )
         .toBeGreaterThan(100);
-      await outline.getByRole("button", { name: "Top", exact: true }).click();
+      await outline.getByRole("button", { name: "滚动至顶部", exact: true }).click();
       await expect
         .poll(() => list.evaluate((root) => root.scrollTop))
         .toBeLessThan(2);

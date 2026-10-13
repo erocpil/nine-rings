@@ -10,18 +10,30 @@ import type { ViewedImage } from "../image-library/viewer-request";
 export interface MainViewContribution {
   id: string;
   label: string;
-  renderer: "image";
+  renderer: "image" | "vocabulary";
 }
 export interface ImageViewData {
   image: ViewedImage;
   images: readonly ViewedImage[];
 }
-export interface MainViewRequest {
+export interface VocabularyViewData {
+  documentId: string;
+  title: string;
+  source: string;
+}
+interface RequestBase {
   readonly id: number;
   readonly owner: PluginActivation;
   readonly view: Readonly<MainViewContribution>;
-  readonly data: Readonly<ImageViewData>;
 }
+export type MainViewRequest = RequestBase &
+  (
+    | { readonly renderer: "image"; readonly data: Readonly<ImageViewData> }
+    | {
+        readonly renderer: "vocabulary";
+        readonly data: Readonly<VocabularyViewData>;
+      }
+  );
 interface Snapshot {
   readonly current: MainViewRequest | null;
   readonly pending: MainViewRequest | null;
@@ -92,7 +104,7 @@ export class MainViewRegistry {
       !/^[a-z][a-z0-9.-]{0,95}$/.test(declaration.id) ||
       !declaration.label?.trim() ||
       declaration.label.length > 32 ||
-      declaration.renderer !== "image" ||
+      !(["image", "vocabulary"] as string[]).includes(declaration.renderer) ||
       Object.keys(declaration).some(
         (key) => !["id", "label", "renderer"].includes(key),
       ) ||
@@ -111,7 +123,11 @@ export class MainViewRegistry {
       });
     });
   }
-  open(owner: PluginActivation, id: string, data: ImageViewData): number {
+  open(
+    owner: PluginActivation,
+    id: string,
+    data: ImageViewData | VocabularyViewData,
+  ): number {
     this.runtime.assert(owner, "views.present");
     const contribution = this.contributions.get(id);
     if (!contribution || contribution.owner !== owner)
@@ -119,24 +135,53 @@ export class MainViewRegistry {
         "PERMISSION_DENIED",
         "视图未注册或不属于当前插件",
       );
-    if (
-      !data ||
-      Object.keys(data).some((key) => !["image", "images"].includes(key)) ||
-      !Array.isArray(data.images) ||
-      !data.images.length ||
-      data.images.length > 5000
-    )
-      throw new PluginHostError("INVALID_ARGUMENT", "无效的图片集合");
-    const image = imageValue(data.image);
-    const images = Object.freeze(data.images.map(imageValue));
-    if ([image, ...images].some((value) => value.rootId))
-      this.runtime.assert(owner, "filesystem.images.read");
-    const request = Object.freeze({
-      id: ++this.sequence,
-      owner,
-      view: contribution.view,
-      data: Object.freeze({ image, images }),
-    });
+    let request: MainViewRequest;
+    if (contribution.view.renderer === "vocabulary") {
+      this.runtime.assert(owner, "documents.vocabulary.read");
+      const value = data as VocabularyViewData;
+      if (
+        !value ||
+        Object.keys(value).some(
+          (key) => !["documentId", "title", "source"].includes(key),
+        ) ||
+        typeof value.documentId !== "string" ||
+        !value.documentId ||
+        value.documentId.length > 128 ||
+        typeof value.title !== "string" ||
+        value.title.length > 4096 ||
+        typeof value.source !== "string" ||
+        value.source.length > 250000
+      )
+        throw new PluginHostError("INVALID_ARGUMENT", "词汇视图数据无效或超限");
+      request = Object.freeze({
+        id: ++this.sequence,
+        owner,
+        view: contribution.view,
+        renderer: "vocabulary",
+        data: Object.freeze({ ...value }),
+      });
+    } else {
+      const value = data as ImageViewData;
+      if (
+        !value ||
+        Object.keys(value).some((key) => !["image", "images"].includes(key)) ||
+        !Array.isArray(value.images) ||
+        !value.images.length ||
+        value.images.length > 5000
+      )
+        throw new PluginHostError("INVALID_ARGUMENT", "无效的图片集合");
+      const image = imageValue(value.image);
+      const images = Object.freeze(value.images.map(imageValue));
+      if ([image, ...images].some((item) => item.rootId))
+        this.runtime.assert(owner, "filesystem.images.read");
+      request = Object.freeze({
+        id: ++this.sequence,
+        owner,
+        view: contribution.view,
+        renderer: "image",
+        data: Object.freeze({ image, images }),
+      });
+    }
     this.publish({ pending: request });
     return request.id;
   }
@@ -145,7 +190,8 @@ export class MainViewRegistry {
     this.runtime.assert(owner, "views.present");
     return Object.freeze({
       register: (view: MainViewContribution) => this.register(owner, view),
-      open: (id: string, data: ImageViewData) => this.open(owner, id, data),
+      open: (id: string, data: ImageViewData | VocabularyViewData) =>
+        this.open(owner, id, data),
       close: (id: number) => {
         this.runtime.assert(owner, "views.present");
         const request = [this.snapshot.current, this.snapshot.pending].find(
@@ -168,6 +214,8 @@ export class MainViewRegistry {
     const pending = this.snapshot.pending;
     if (!pending || pending.id !== id) return false;
     this.runtime.assert(pending.owner, "views.present");
+    if (pending.renderer === "vocabulary")
+      this.runtime.assert(pending.owner, "documents.vocabulary.read");
     this.publish({ current: pending, pending: null, suspended: false });
     return true;
   }

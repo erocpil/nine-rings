@@ -83,11 +83,11 @@ test("源码目录悬浮与固定均支持折叠展开及 Top Mid Bot", async ({
   for (const pinned of [false, true]) {
     if (pinned) await panel.getByRole("button", { name: "固定", exact: true }).click();
     const list = panel.locator(".document-outline-list");
-    await panel.getByRole("button", { name: "Bot", exact: true }).click();
+    await panel.getByRole("button", { name: "滚动至底部", exact: true }).click();
     await expect.poll(() => list.evaluate(el => el.scrollHeight - el.clientHeight - el.scrollTop)).toBeLessThan(2);
-    await panel.getByRole("button", { name: "Mid", exact: true }).click();
+    await panel.getByRole("button", { name: "滚动至中部", exact: true }).click();
     await expect.poll(() => list.evaluate(el => el.scrollTop / (el.scrollHeight - el.clientHeight))).toBeCloseTo(.5, 1);
-    await panel.getByRole("button", { name: "Top", exact: true }).click();
+    await panel.getByRole("button", { name: "滚动至顶部", exact: true }).click();
     await expect.poll(() => list.evaluate(el => el.scrollTop)).toBeLessThan(2);
     await panel.getByRole("button", { name: "全部折叠", exact: true }).click();
     await expect(panel.locator(".document-outline-text").filter({ hasText: /^Child / })).toHaveCount(0);
