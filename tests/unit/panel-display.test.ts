@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { PluginRuntime } from "../../src/lib/plugin-system/runtime";
 import {
   PanelDisplayRegistry,
   validatePanelDisplay,
 } from "../../src/lib/plugin-system/panel-display";
+import {
+  outlineDisplay,
+  OUTLINE_DISPLAY_SETTINGS_KEY,
+  DEFAULT_OUTLINE_DISPLAY,
+} from "../../src/lib/plugin-system/builtin-outline-display";
 import { DEFAULT_TREE_DISPLAY } from "../../src/lib/plugin-system/builtin-tree-display";
 
 describe("panel display authority and fallback", () => {
@@ -163,4 +168,70 @@ it("invalid saved preferences fall back and rapid changes keep only the latest a
   await vi.waitFor(() =>
     expect(pluginRuntime.getStatus().activations).toHaveLength(0),
   );
+});
+
+it("outline commands are slot-bound and revocation preserves the tree presenter", () => {
+  const runtime = new PluginRuntime();
+  runtime.setEnabled(true);
+  const registry = new PanelDisplayRegistry(runtime);
+  registry.register(runtime.activate("test.tree", []), DEFAULT_TREE_DISPLAY);
+  const outline = runtime.activate("test.outline", []);
+  registry.register(outline, DEFAULT_OUTLINE_DISPLAY);
+  const current = registry.get("document-outline")!;
+  let reveals = 0;
+  expect(
+    registry.run("document-outline", current, "outline.reveal-current", {
+      "outline.reveal-current": () => reveals++,
+    }),
+  ).toBe(true);
+  expect(() =>
+    validatePanelDisplay({
+      ...DEFAULT_OUTLINE_DISPLAY,
+      toolbar: ["tree.refresh"],
+    }),
+  ).toThrow();
+  expect(() =>
+    validatePanelDisplay({
+      ...DEFAULT_TREE_DISPLAY,
+      toolbar: ["outline.reveal-current"],
+    }),
+  ).toThrow();
+  runtime.deactivate(outline.pluginId);
+  expect(
+    registry.run("document-outline", current, "outline.reveal-current", {
+      "outline.reveal-current": () => reveals++,
+    }),
+  ).toBe(false);
+  expect(registry.get("document-tree")).not.toBeNull();
+  expect(reveals).toBe(1);
+});
+
+it("outline preferences reject corrupt and cross-slot data without changing tree storage", () => {
+  const values = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+  });
+  vi.stubGlobal("window", new EventTarget());
+  try {
+    values.set("nr:pluginTreeDisplay", "tree-original");
+    values.set(
+      OUTLINE_DISPLAY_SETTINGS_KEY,
+      JSON.stringify({ enabled: true, display: DEFAULT_TREE_DISPLAY }),
+    );
+    expect(outlineDisplay.read().enabled).toBe(false);
+    values.set(OUTLINE_DISPLAY_SETTINGS_KEY, "bad-json");
+    expect(outlineDisplay.read().display).toEqual(DEFAULT_OUTLINE_DISPLAY);
+    expect(() =>
+      outlineDisplay.save({ enabled: true, display: DEFAULT_TREE_DISPLAY }),
+    ).toThrow();
+    outlineDisplay.save({
+      enabled: true,
+      display: { ...DEFAULT_OUTLINE_DISPLAY, fontSize: 19 },
+    });
+    expect(outlineDisplay.read().display.fontSize).toBe(19);
+    expect(values.get("nr:pluginTreeDisplay")).toBe("tree-original");
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

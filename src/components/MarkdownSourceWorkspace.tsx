@@ -1,3 +1,4 @@
+import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import {
   useEffect,
   useMemo,
@@ -19,7 +20,7 @@ import {
   desktopPanelClass,
   desktopPanelStyle,
 } from "./DesktopDocumentPanels";
-import { DocumentOutlineList, OUTLINE_SCROLL_EVENT } from "./DocumentOutlineList";
+import { DocumentOutlineList, OutlineDisplayTools, OUTLINE_SCROLL_EVENT } from "./DocumentOutlineList";
 import { FocusModeIcon } from "./FocusModeBar";
 
 export function MarkdownSourceWorkspace({
@@ -35,6 +36,7 @@ export function MarkdownSourceWorkspace({
   children: (controls: ReactNode) => ReactNode;
 }) {
   const mobile = useMobileViewport();
+  const outlineDisplayConfig = usePanelDisplay("document-outline");
   const [snapshot, setSnapshot] = useState(revision);
   const [offset, setOffset] = useState(0);
   const [folds, setFolds] = useState<Set<number>>(() => new Set());
@@ -147,15 +149,16 @@ export function MarkdownSourceWorkspace({
         >
           <div className="document-outline-header-primary"><span>{isOutline ? "目录" : "书签"}</span>
             {isOutline && <>
+              <OutlineDisplayTools listRef={listRef} />
               <button type="button" aria-label="全部折叠" title="折叠目录" onClick={() => setFolds(new Set(outline.filter((item, i) => outline[i + 1]?.level > item.level).map(item => item.pos)))}>−</button>
               <button type="button" aria-label="全部展开" title="展开目录" onClick={() => setFolds(new Set())}>+</button>
             </>}
           </div>
           <div className="document-outline-header-actions">
           {isOutline && <div className="document-outline-jumps" aria-label="目录快速滚动">{(["top", "middle", "bottom"] as const).map((target, i) => <button type="button" key={target} title={["滚动至顶部", "滚动至中部", "滚动至底部"][i]} onClick={() => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: target }))}>{["Top", "Mid", "Bot"][i]}</button>)}</div>}
-          <span className="document-outline-count">
+          {(!isOutline || outlineDisplayConfig?.showCounts !== false) && <span className="document-outline-count">
             {isOutline ? outline.length : bookmarks.length} 项
-          </span>
+          </span>}
           <button type="button" onClick={() => controller.toggle(kind)}>
             {controller.pinned(kind) ? "收起" : "固定"}
           </button>

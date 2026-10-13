@@ -19,6 +19,7 @@ function memoryStorage(initial: Record<string, string> = {}) {
 
 const source = memoryStorage({
   "nr:focusMode": "true",
+  "nr:pluginOutlineDisplay": '{"enabled":true,"display":{"fontSize":18}}',
   "nr:pluginTreeDisplay": '{"enabled":true,"display":{"fontSize":18}}',
   "nr:blockWorkspaceDisplay": JSON.stringify({ sourceMicroRendering: true, relativeBlockNumbers: true, relativeSourceLineNumbers: false, relativeBlockNumberAlignment: "left", relativeSourceLineNumberAlignment: "right" }),
   "nr:sidebarW": "264",
@@ -83,3 +84,5 @@ assert(target.value("scrollPos:last-document") === "680", "last document scroll 
 assert(target.value("selectionPos:older-document") === undefined, "positions from inactive documents are excluded");
 
 console.log("backup user settings tests passed");
+
+assert(!serialized.includes("nr:pluginOutlineDisplay"), "outline display preferences stay device-local");

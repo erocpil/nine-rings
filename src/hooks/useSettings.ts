@@ -4,6 +4,7 @@ import { applyInterfaceAppearance, resolveInterfaceConfig } from "../lib/interfa
  */
 import { useState, useEffect, useRef, useMemo } from "react";
 import { startBuiltinImageViewer } from "../lib/plugin-system/builtin-image-viewer";
+import { outlineDisplay } from "../lib/plugin-system/builtin-outline-display";
 import { startBuiltinTreeDisplay } from "../lib/plugin-system/builtin-tree-display";
 import { startPluginRuntime } from "../lib/plugin-system/runtime";
 import { api } from "../lib/api";
@@ -16,6 +17,7 @@ import { preserveReadingPositions } from "../lib/reading-position";
 export function useSettings() {
   useEffect(startPluginRuntime, []);
   useEffect(startBuiltinTreeDisplay, []);
+  useEffect(() => outlineDisplay.start(), []);
   useEffect(startBuiltinImageViewer, []);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const configRef = useRef<AppConfig | null>(null);

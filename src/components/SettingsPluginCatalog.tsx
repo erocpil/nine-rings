@@ -26,7 +26,8 @@ import {
 } from "../lib/plugin-system/builtin-tree-display";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useTransientMessage } from "../hooks/useTransientMessage";
-import { SettingsTreeDisplay } from "./SettingsTreeDisplay";
+import { outlineDisplay } from "../lib/plugin-system/builtin-outline-display";
+import { SettingsPanelDisplay } from "./SettingsPanelDisplay";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { Field } from "./SettingsFields";
 import {
@@ -120,8 +121,12 @@ function PluginConfigurationDialog({
           <p className="settings-desc">
             在左侧「图片」分栏选择目录；手机从文档树工具栏进入。目录授权仅保存在本机，不进入备份。浏览器能力不足时，文件选择仅在当前会话有效。预览旋转不修改原图，图片处理功能将在后续独立接入。
           </p>
-        ) : plugin.configuration === "tree-display" ? (
-          <SettingsTreeDisplay onMessage={showMessage} />
+        ) : plugin.configuration === "tree-display" ||
+          plugin.configuration === "outline-display" ? (
+          <SettingsPanelDisplay
+            outline={plugin.configuration === "outline-display"}
+            onMessage={showMessage}
+          />
         ) : (
           <>
             <Field
@@ -194,7 +199,8 @@ function PluginConfigurationDialog({
           desc={
             active
               ? "插件当前已激活。开启与停用请在插件列表操作。"
-              : plugin.configuration === "tree-display"
+              : plugin.configuration === "tree-display" ||
+                  plugin.configuration === "outline-display"
                 ? "未激活；开启展示选项后自动激活。"
                 : "未激活；从文档菜单调用时按需激活。"
           }
@@ -205,7 +211,8 @@ function PluginConfigurationDialog({
               ? active.permissions.join("、")
               : plugin.configuration === "image-viewer"
                 ? "分栏展示、授权图片目录读取；插入文档另经编辑插件命令"
-                : plugin.configuration === "tree-display"
+                : plugin.configuration === "tree-display" ||
+                    plugin.configuration === "outline-display"
                   ? "无需文档读写权限"
                   : plugin.id !== "nine-rings.builtin-statistics"
                     ? "当前选区读写、当前文档读取"
@@ -234,7 +241,9 @@ export function SettingsPluginCatalog() {
   );
   useSyncExternalStore(subscribeDocumentTools, documentToolsSnapshot);
   useSyncExternalStore(subscribeImageViewer, imageViewerSnapshot);
+  useSyncExternalStore(outlineDisplay.subscribe, outlineDisplay.snapshot);
   const treeEnabled = readTreeDisplayPreference().enabled;
+  const outlineEnabled = outlineDisplay.read().enabled;
   return (
     <aside className="settings-plugin-catalog" aria-label="插件列表">
       <h3>插件列表</h3>
@@ -256,15 +265,23 @@ export function SettingsPluginCatalog() {
           const enabled =
             plugin.configuration === "image-viewer"
               ? imageViewerEnabled()
-              : plugin.configuration === "tree-display"
-                ? treeEnabled
+              : plugin.configuration === "tree-display" ||
+                  plugin.configuration === "outline-display"
+                ? plugin.configuration === "outline-display"
+                  ? outlineEnabled
+                  : treeEnabled
                 : documentToolEnabled(tool);
           const state = !enabled
             ? "已停用"
             : active
               ? "运行中"
-              : plugin.configuration === "tree-display"
-                ? treeEnabled
+              : plugin.configuration === "tree-display" ||
+                  plugin.configuration === "outline-display"
+                ? (
+                    plugin.configuration === "outline-display"
+                      ? outlineEnabled
+                      : treeEnabled
+                  )
                   ? "等待激活"
                   : "未启用"
                 : "按需调用";
@@ -284,35 +301,45 @@ export function SettingsPluginCatalog() {
                 </button>
               </div>
               <div className="settings-plugin-metadata">
-              <label className="settings-toggle">
-                <input
-                  type="checkbox"
-                  aria-label={`启用${plugin.name}`}
-                  checked={enabled}
-                  onChange={(event) => {
-                    try {
-                      if (plugin.configuration === "image-viewer")
-                        saveImageViewerEnabled(event.target.checked);
-                      else if (plugin.configuration === "tree-display")
-                        saveTreeDisplayPreference({
-                          ...readTreeDisplayPreference(),
-                          enabled: event.target.checked,
-                        });
-                      else saveDocumentToolEnabled(tool, event.target.checked);
-                      if (!event.target.checked)
-                        void pluginLifecycle
-                          .deactivate(plugin.id)
-                          .catch(() => {});
-                    } catch {
-                      showMessage("无法保存插件开关，请检查本地存储后重试");
-                    }
-                  }}
-                />
-                <span className="toggle-track" />
-                <span className="toggle-label">{enabled ? "开" : "关"}</span>
-              </label>
-              <span className="settings-plugin-type">内置 · {plugin.type}</span>
-              <span className="settings-plugin-state">{state}</span>
+                <label className="settings-toggle">
+                  <input
+                    type="checkbox"
+                    aria-label={`启用${plugin.name}`}
+                    checked={enabled}
+                    onChange={(event) => {
+                      try {
+                        if (plugin.configuration === "image-viewer")
+                          saveImageViewerEnabled(event.target.checked);
+                        else if (
+                          plugin.configuration === "tree-display" ||
+                          plugin.configuration === "outline-display"
+                        )
+                          (plugin.configuration === "outline-display"
+                            ? outlineDisplay.save
+                            : saveTreeDisplayPreference)({
+                            ...(plugin.configuration === "outline-display"
+                              ? outlineDisplay.read()
+                              : readTreeDisplayPreference()),
+                            enabled: event.target.checked,
+                          });
+                        else
+                          saveDocumentToolEnabled(tool, event.target.checked);
+                        if (!event.target.checked)
+                          void pluginLifecycle
+                            .deactivate(plugin.id)
+                            .catch(() => {});
+                      } catch {
+                        showMessage("无法保存插件开关，请检查本地存储后重试");
+                      }
+                    }}
+                  />
+                  <span className="toggle-track" />
+                  <span className="toggle-label">{enabled ? "开" : "关"}</span>
+                </label>
+                <span className="settings-plugin-type">
+                  内置 · {plugin.type}
+                </span>
+                <span className="settings-plugin-state">{state}</span>
               </div>
               <p>{plugin.description}</p>
             </li>

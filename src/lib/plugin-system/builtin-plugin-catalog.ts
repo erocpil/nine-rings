@@ -1,3 +1,4 @@
+import { OUTLINE_DISPLAY_PLUGIN_ID } from "./builtin-outline-display";
 import { TREE_DISPLAY_PLUGIN_ID } from "./builtin-tree-display";
 
 /** Installed trusted modules, independent of whether an invocation is currently active. */
@@ -16,6 +17,11 @@ export const BUILTIN_PLUGIN_CATALOG = Object.freeze([
     description:
       "定制文档树字体、字号、主题配色、路径提示和辅助信息，扩展展开与刷新工具。",
     configuration: "tree-display" as const,
+  }),
+  Object.freeze({
+    id: OUTLINE_DISPLAY_PLUGIN_ID, name: "目录展示", type: "分栏展示",
+    description: "统一渲染与源码目录的字体、字号、行高、标题提示和层级标记，保留折叠、跳转和自动跟随。",
+    configuration: "outline-display" as const,
   }),
   Object.freeze({
     id: "nine-rings.builtin-date",

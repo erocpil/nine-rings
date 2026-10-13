@@ -1,12 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Field, SettingsSection } from "./SettingsFields";
-import {
-  DEFAULT_TREE_DISPLAY,
-  readTreeDisplayPreference,
-  saveTreeDisplayPreference,
-  subscribeTreeDisplayPreference,
-  treeDisplayPreferenceSnapshot,
-} from "../lib/plugin-system/builtin-tree-display";
+import { treeDisplay } from "../lib/plugin-system/builtin-tree-display";
+import { outlineDisplay } from "../lib/plugin-system/builtin-outline-display";
 import type { PanelDisplayContribution } from "../lib/plugin-system/panel-display";
 
 function DisplayNumber({
@@ -43,35 +38,36 @@ function DisplayNumber({
   );
 }
 
-export function SettingsTreeDisplay({
+export function SettingsPanelDisplay({
   onMessage,
+  outline = false,
 }: {
   onMessage: (message: string) => void;
+  outline?: boolean;
 }) {
-  useSyncExternalStore(
-    subscribeTreeDisplayPreference,
-    treeDisplayPreferenceSnapshot,
-  );
-  const preference = readTreeDisplayPreference();
+  const controller = outline ? outlineDisplay : treeDisplay;
+  const name = outline ? "目录" : "文档树";
+  useSyncExternalStore(controller.subscribe, controller.snapshot);
+  const preference = controller.read();
   const save = (enabled: boolean, display = preference.display) => {
     try {
-      saveTreeDisplayPreference({ enabled, display });
+      controller.save({ enabled, display });
       onMessage("已更新");
     } catch {
-      onMessage("无法保存文档树展示设置");
+      onMessage(`无法保存${name}展示设置`);
     }
   };
   const update = (patch: Partial<PanelDisplayContribution>) =>
     save(preference.enabled, { ...preference.display, ...patch });
   return (
     <SettingsSection
-      title="文档树展示扩展"
+      title={`${name}展示扩展`}
       desc="展示插件只改变外观和工具入口，文档及分栏仍由宿主管理。"
     >
       <>
-        <Field label="文档树字体" desc="">
+        <Field label={`${name}字体`} desc="">
           <select
-            aria-label="文档树字体"
+            aria-label={`${name}字体`}
             value={preference.display.font}
             onChange={(event) =>
               update({
@@ -84,9 +80,9 @@ export function SettingsTreeDisplay({
             <option value="mono">等宽</option>
           </select>
         </Field>
-        <Field label="文档树字号" desc="">
+        <Field label={`${name}字号`} desc="">
           <DisplayNumber
-            label="文档树字号"
+            label={`${name}字号`}
             min={12}
             max={20}
             value={preference.display.fontSize}
@@ -94,9 +90,9 @@ export function SettingsTreeDisplay({
           />{" "}
           px
         </Field>
-        <Field label="文档树行高" desc="">
+        <Field label={`${name}行高`} desc="">
           <DisplayNumber
-            label="文档树行高"
+            label={`${name}行高`}
             min={28}
             max={48}
             value={preference.display.rowHeight}
@@ -105,11 +101,11 @@ export function SettingsTreeDisplay({
           px
         </Field>
         <Field
-          label="文档名称颜色"
-          desc="使用当前浅色或深色主题的语义配色；路径层次配色保持原有设置。"
+          label={outline ? "标题颜色" : "文档名称颜色"}
+          desc="使用当前浅色或深色主题的语义配色；层次配色及当前标题高亮优先。"
         >
           <select
-            aria-label="文档名称颜色"
+            aria-label={outline ? "标题颜色" : "文档名称颜色"}
             value={preference.display.labelColor}
             onChange={(event) =>
               update({
@@ -125,7 +121,7 @@ export function SettingsTreeDisplay({
         </Field>
         <Field label="悬停提示" desc="">
           <select
-            aria-label="文档树悬停提示"
+            aria-label={`${name}悬停提示`}
             value={preference.display.tooltip}
             onChange={(event) =>
               update({
@@ -134,7 +130,7 @@ export function SettingsTreeDisplay({
               })
             }
           >
-            <option value="path">完整路径</option>
+            <option value="path">{outline ? "章节路径" : "完整路径"}</option>
             <option value="name">名称</option>
           </select>
         </Field>
@@ -145,7 +141,7 @@ export function SettingsTreeDisplay({
               checked={preference.display.showCounts}
               onChange={(event) => update({ showCounts: event.target.checked })}
             />
-            路径文档数
+            {outline ? "目录标题数" : "路径文档数"}
           </label>
           <label>
             <input
@@ -155,7 +151,7 @@ export function SettingsTreeDisplay({
                 update({ showMetadata: event.target.checked })
               }
             />
-            文档类型
+            {outline ? "标题级别（H1～H6）" : "文档类型"}
           </label>
         </Field>
         <Field label="扩展工具栏" desc="">
@@ -166,20 +162,20 @@ export function SettingsTreeDisplay({
               onChange={(event) =>
                 update({
                   toolbar: event.target.checked
-                    ? DEFAULT_TREE_DISPLAY.toolbar
+                    ? controller.defaults.toolbar
                     : [],
                 })
               }
             />
-            展开所有目录、刷新文档树
+            {outline ? "定位当前标题" : "展开所有目录、刷新文档树"}
           </label>
         </Field>
         <button
           type="button"
           className="btn"
-          onClick={() => save(preference.enabled, DEFAULT_TREE_DISPLAY)}
+          onClick={() => save(preference.enabled, controller.defaults)}
         >
-          恢复文档树展示默认设置
+          恢复{name}展示默认设置
         </button>
       </>
     </SettingsSection>

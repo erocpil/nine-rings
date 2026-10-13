@@ -1,3 +1,5 @@
+import { usePanelDisplay } from "../hooks/usePanelDisplay";
+import { panelDisplays } from "../lib/plugin-system/panel-display";
 import { BlockNumber } from "./BlockNumber";
 import { useRelativeNumbering } from "../hooks/useRelativeNumbering";
 import { relativeNumber } from "../lib/relative-numbering";
@@ -340,6 +342,7 @@ export function ReadonlyVirtualNote(
     onSearchTargetConsumed,
   } = props;
   const active = useDocumentActive();
+  const outlineDisplayConfig = usePanelDisplay("document-outline");
   const documentHover = useDocumentHoverPreview(() => doc);
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -362,6 +365,15 @@ export function ReadonlyVirtualNote(
   );
   const states = useMemo(() => props.sensitive ? new Map<number, BlockState>() : readingBlockSession(noteId, props.readingBlockVersion ?? contentVersion), [noteId, contentVersion, props.readingBlockVersion, props.sensitive]);
   const sections = useMemo(() => extractHeadingSections(doc), [doc]);
+  const outlinePaths = useMemo(() => {
+    if (outlineDisplayConfig?.tooltip !== "path") return [];
+    const path: string[] = [];
+    return sections.map(heading => {
+      path.length = heading.level - 1;
+      path[heading.level - 1] = outlineLabel(heading.text, 500);
+      return path.filter(Boolean).join(" / ");
+    });
+  }, [sections, outlineDisplayConfig?.tooltip]);
   const presentationLevel = flowHeadingLevel(props.content.metadata);
   const flowAttributes = useMemo(() => flowBlockAttributes(doc, presentationLevel), [doc, presentationLevel]);
   const followupBlocks = useMemo(() => listFollowupBlocks(doc), [doc]);
@@ -1127,12 +1139,20 @@ export function ReadonlyVirtualNote(
                     全部展开
                   </button>
                 </div>
+                {outlineDisplayConfig?.showCounts && <span className="document-outline-count">{sections.length} 项</span>}
+                {outlineDisplayConfig?.toolbar.map(command => <button key={command} type="button" aria-label="定位当前标题" title="定位当前标题" data-panel-display-command={command}
+                  onClick={event => panelDisplays.run("document-outline", outlineDisplayConfig, command, { "outline.reveal-current": () => {
+                    const position = capture().position;
+                    const index = sections.reduce((last, section, index) => section.pos <= position ? index : last, 0);
+                    event.currentTarget.closest("section")?.querySelectorAll(".vr-outline-row")[Math.max(0, index)]?.scrollIntoView({ block: "nearest" });
+                  } })}><ToolbarIcon name="search" /></button>)}
                 {sections.map((section, index) => (
                   <div
                     className="vr-outline-row"
+                    data-panel-display={outlineDisplayConfig ? "plugin" : undefined}
                     key={section.key}
-                    title={outlineLabel(section.text, 500)}
-                    style={{ paddingLeft: (section.level - 1) * 12 }}
+                    title={outlineDisplayConfig?.tooltip === "path" ? outlinePaths[index] : outlineLabel(section.text, 500)}
+                    style={{ paddingLeft: (section.level - 1) * 12, ...(outlineDisplayConfig ? { fontFamily: outlineDisplayConfig.font === "mono" ? "var(--font-mono)" : outlineDisplayConfig.font === "sans" ? "var(--font)" : "inherit", fontSize: outlineDisplayConfig.fontSize, minHeight: mobileDrawerViewport ? Math.max(36, outlineDisplayConfig.rowHeight) : outlineDisplayConfig.rowHeight, color: outlineDisplayConfig.labelColor === "accent" ? "var(--accent)" : outlineDisplayConfig.labelColor === "secondary" ? "var(--text-secondary)" : "inherit" } : {}) }}
                   >
                     {sections[index + 1]?.level > section.level ? <button
                       type="button"
@@ -1150,6 +1170,7 @@ export function ReadonlyVirtualNote(
                         setPanel(null); dismissPreview();
                       }}
                     >
+                      {outlineDisplayConfig?.showMetadata && <span className="document-outline-level">H{section.level} </span>}
                       {outlineLabel(section.text)}
                     </button>
                   </div>

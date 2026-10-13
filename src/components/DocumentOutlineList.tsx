@@ -1,3 +1,6 @@
+import { usePanelDisplay } from "../hooks/usePanelDisplay";
+import { panelDisplays, type PanelDisplayContribution } from "../lib/plugin-system/panel-display";
+import { ToolbarIcon } from "./ToolbarIcon";
 import { outlineLabel } from "../lib/heading-links";
 import { EditorFoldIcon } from "./EditorFoldIcon";
 import {
@@ -8,6 +11,7 @@ import {
   useRef,
   useState,
   type MutableRefObject,
+  type CSSProperties,
 } from "react";
 import type { DocumentOutlineItem } from "../lib/document-outline";
 
@@ -66,17 +70,19 @@ function estimatedRowHeight(
   entry: VisibleOutlineEntry,
   outlineBaseLevel: number,
   listWidth: number,
+  display: PanelDisplayContribution | null,
 ): number {
-  const cacheKey = `${outlineBaseLevel}:${listWidth}`;
+  const cacheKey = `${outlineBaseLevel}:${listWidth}:${display?.font}:${display?.fontSize}:${display?.rowHeight}:${display?.showMetadata}`;
   const cached = rowEstimateCache.get(entry.item);
   const existing = cached?.get(cacheKey);
   if (existing !== undefined) return existing;
   const indentation = Math.max(0, entry.item.level - outlineBaseLevel) * 14;
   // 行内固定区域：左缩进、折叠按钮、Hn 标签、间距及右内边距。
   const availableTextWidth = Math.max(80, listWidth - indentation - 60);
-  const height = approximateTextWidth(outlineLabel(entry.item.text)) > availableTextWidth
-    ? WRAPPED_ROW_HEIGHT
-    : SINGLE_ROW_HEIGHT;
+  const scale = (display?.fontSize ?? 13) / 13;
+  const height = Math.max(display?.rowHeight ?? 0, approximateTextWidth(outlineLabel(entry.item.text)) * scale > availableTextWidth
+    ? WRAPPED_ROW_HEIGHT * scale
+    : SINGLE_ROW_HEIGHT * scale);
   const sizes = cached ?? new Map<string, number>();
   if (sizes.size >= 4) sizes.clear();
   sizes.set(cacheKey, height);
@@ -118,6 +124,17 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
   onToggleFold,
   onJump,
 }: DocumentOutlineListProps) {
+  const display = usePanelDisplay("document-outline");
+  const minimumHeight = display ? Math.max(display.rowHeight, window.matchMedia("(max-width: 768px), (pointer: coarse)").matches ? 36 : 0) : SINGLE_ROW_HEIGHT;
+  const paths = useMemo(() => {
+    if (display?.tooltip !== "path") return [];
+    const ancestors: string[] = [];
+    return entries.map(({ item }) => {
+      ancestors.length = item.level - 1;
+      ancestors[item.level - 1] = outlineLabel(item.text, 500);
+      return ancestors.filter(Boolean).join(" / ");
+    });
+  }, [entries, display?.tooltip]);
   const virtualized = entries.length > VIRTUALIZE_AFTER;
   const [windowRange, setWindowRange] = useState(() => initialWindow(entries, activeOutlineIndex));
   const [listWidth, setListWidth] = useState(DEFAULT_LIST_WIDTH);
@@ -127,7 +144,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
   const measuredHeightsRef = useRef(new Map<string, number>());
   const rowObserverRef = useRef<ResizeObserver | null>(null);
   const observedRowsRef = useRef(new Set<Element>());
-  const navigationTargetRef = useRef<"top" | "middle" | "bottom" | null>(null);
+  const navigationTargetRef = useRef<"top" | "middle" | "bottom" | "current" | null>(null);
 
   const rowLayout = useMemo(() => {
     const tops: number[] = [];
@@ -135,22 +152,31 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
     let totalHeight = 0;
     for (const entry of entries) {
       const height = measuredHeights.get(entryKey(entry))
-        ?? estimatedRowHeight(entry, outlineBaseLevel, listWidth);
+        ?? Math.max(minimumHeight, estimatedRowHeight(entry, outlineBaseLevel, listWidth, display));
       tops.push(totalHeight);
       heights.push(height);
       totalHeight += height;
     }
     return { tops, heights, totalHeight };
-  }, [entries, measuredHeights, listWidth, outlineBaseLevel]);
+  }, [entries, measuredHeights, listWidth, outlineBaseLevel, display, minimumHeight]);
   const rowLayoutRef = useRef(rowLayout);
   rowLayoutRef.current = rowLayout;
 
+  const navigationContextRef = useRef({ entries, activeOutlineIndex, virtualized });
+  navigationContextRef.current = { entries, activeOutlineIndex, virtualized };
   const applyNavigation = useCallback(() => {
     const list = listRef.current;
     const target = navigationTargetRef.current;
     if (!list || !target) return;
     const maximum = Math.max(0, list.scrollHeight - list.clientHeight);
-    const top = target === "top" ? 0 : target === "middle" ? maximum / 2 : maximum;
+    let currentTop: number | undefined;
+    if (target === "current") {
+      const context = navigationContextRef.current;
+      const currentIndex = context.entries.findIndex(entry => entry.index === context.activeOutlineIndex);
+      const currentRow = list.querySelector<HTMLElement>(`[data-outline-index="${context.activeOutlineIndex}"]`);
+      currentTop = context.virtualized ? rowLayoutRef.current.tops[currentIndex] : currentRow ? currentRow.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop : undefined;
+    }
+    const top = target === "current" ? Math.max(0, (currentTop ?? list.scrollTop) - list.clientHeight / 2) : target === "top" ? 0 : target === "middle" ? maximum / 2 : maximum;
     if (Math.abs(list.scrollTop - top) > 0.5) list.scrollTop = top;
   }, [listRef]);
 
@@ -206,7 +232,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
     if (!list) return;
     const navigate = (event: Event) => {
       const target = (event as CustomEvent<string>).detail;
-      if (target !== "top" && target !== "middle" && target !== "bottom") return;
+      if (target !== "top" && target !== "middle" && target !== "bottom" && target !== "current") return;
       navigationTargetRef.current = target;
       applyNavigation();
       scheduleWindowUpdate();
@@ -234,6 +260,11 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
       frameRef.current = 0;
     };
   }, [activeOutlineIndex, entries.length, measuredHeights, listWidth, updateWindow, virtualized, applyNavigation]);
+
+  useLayoutEffect(() => {
+    measuredHeightsRef.current.clear();
+    setMeasuredHeights(new Map());
+  }, [display]);
 
   useLayoutEffect(() => {
     const list = listRef.current;
@@ -274,7 +305,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
         // 的假值（自我实现预言），单行文本因此永远留白。改测内容元素（link）
         // 的自然高度 + 固定垂直 padding，高估的行才能被实测值回缩。
         const measured = Math.max(
-          SINGLE_ROW_HEIGHT,
+          minimumHeight,
           Math.round((record.borderBoxSize?.[0]?.blockSize ?? record.contentRect.height) * 2) / 2 + VERTICAL_PADDING,
         );
         const previous = measuredHeightsRef.current.get(key) ?? layout.heights[visibleIndex];
@@ -300,7 +331,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
       observedRowsRef.current.clear();
       if (rowObserverRef.current === observer) rowObserverRef.current = null;
     };
-  }, [listRef, virtualized]);
+  }, [listRef, virtualized, display, minimumHeight]);
 
   useLayoutEffect(() => {
     if (!virtualized) return;
@@ -319,7 +350,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
       if (!nextRows.has(row)) observer.unobserve(row);
     }
     observedRowsRef.current = nextRows;
-  }, [entries, listRef, virtualized, windowRange.end, windowRange.start]);
+  }, [entries, listRef, virtualized, windowRange.end, windowRange.start, display]);
 
   const renderEntry = (entry: VisibleOutlineEntry, visibleIndex: number) => {
     const { item, index, folded } = entry;
@@ -342,7 +373,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
         data-outline-row-key={entryKey(entry)}
         data-visible-index={visibleIndex}
         aria-current={index === activeOutlineIndex ? "location" : undefined}
-        title={outlineLabel(item.text, 500)}
+        title={display?.tooltip === "path" ? paths[visibleIndex] : outlineLabel(item.text, 500)}
       >
         {entry.foldable ? <button
           className="document-outline-fold"
@@ -353,7 +384,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
         ><EditorFoldIcon outline expanded={!folded} /></button>
           : <span className="document-outline-fold-placeholder" aria-hidden="true" />}
         <button className="document-outline-link" type="button" onClick={() => onJump(item)}>
-          <span className="document-outline-level">H{item.level}</span>
+          {display?.showMetadata !== false && <span className="document-outline-level">H{item.level}</span>}
           <span className="document-outline-text">{outlineLabel(item.text)}</span>
         </button>
       </div>
@@ -367,6 +398,13 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
   return (
     <div
       className={`document-outline-list ${virtualized ? "is-virtualized" : ""}`}
+      data-panel-display={display ? "plugin" : undefined}
+      style={display ? {
+        "--outline-display-font": display.font === "mono" ? "var(--font-mono)" : display.font === "sans" ? "var(--font)" : "inherit",
+        "--outline-display-font-size": `${display.fontSize}px`,
+        "--outline-display-row-height": `${display.rowHeight}px`,
+        "--outline-display-color": display.labelColor === "accent" ? "var(--accent)" : display.labelColor === "secondary" ? "var(--text-secondary)" : "inherit",
+      } as CSSProperties : undefined}
       ref={listRef}
       onScroll={scheduleWindowUpdate}
     >
@@ -381,3 +419,11 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
     </div>
   );
 });
+
+export function OutlineDisplayTools({ listRef }: { listRef: MutableRefObject<HTMLDivElement | null> }) {
+  const display = usePanelDisplay("document-outline");
+  return <>{display?.toolbar.map(command => <button key={command} type="button" title="定位当前标题" aria-label="定位当前标题" data-panel-display-command={command}
+    onClick={() => panelDisplays.run("document-outline", display, command, {
+      "outline.reveal-current": () => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: "current" })),
+    })}><ToolbarIcon name="search" /></button>)}</>;
+}

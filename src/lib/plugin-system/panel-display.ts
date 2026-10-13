@@ -8,6 +8,14 @@ import {
 /** Presentation only. Host controllers retain data, focus, navigation and selection. */
 export type PanelDisplayTarget =
   "document-tree" | "document-outline" | "bookmarks" | "notes";
+export type PanelDisplayCommand =
+  "tree.expand-all" | "tree.refresh" | "outline.reveal-current";
+const COMMANDS: Record<PanelDisplayTarget, readonly PanelDisplayCommand[]> = {
+  "document-tree": ["tree.expand-all", "tree.refresh"],
+  "document-outline": ["outline.reveal-current"],
+  bookmarks: [],
+  notes: [],
+};
 export interface PanelDisplayContribution {
   readonly target: PanelDisplayTarget;
   readonly font: "inherit" | "sans" | "mono";
@@ -17,7 +25,7 @@ export interface PanelDisplayContribution {
   readonly tooltip: "name" | "path";
   readonly showCounts: boolean;
   readonly showMetadata: boolean;
-  readonly toolbar: readonly ("tree.expand-all" | "tree.refresh")[];
+  readonly toolbar: readonly PanelDisplayCommand[];
 }
 const TARGETS = new Set<PanelDisplayTarget>([
   "document-tree",
@@ -57,11 +65,7 @@ export function validatePanelDisplay(
     !Array.isArray(value.toolbar) ||
     value.toolbar.length > 2 ||
     new Set(value.toolbar).size !== value.toolbar.length ||
-    value.toolbar.some(
-      (command) =>
-        value.target !== "document-tree" ||
-        !["tree.expand-all", "tree.refresh"].includes(command),
-    )
+    value.toolbar.some((command) => !COMMANDS[value.target].includes(command))
   )
     throw new PluginHostError("INVALID_ARGUMENT", "分栏展示配置无效");
   return Object.freeze({

@@ -383,3 +383,21 @@
   background: var(--active-bg);
   color: var(--accent);
 }
+
+/* Declarative outline presentation; hierarchy and active-location colors retain precedence. */
+.document-outline-list[data-panel-display="plugin"] {
+  --outline-display-font: inherit;
+  --outline-display-font-size: 13px;
+  --outline-display-row-height: 28px;
+  --outline-display-color: inherit;
+}
+.document-outline-list[data-panel-display="plugin"] .document-outline-item { min-height: var(--outline-display-row-height); }
+.document-outline-list[data-panel-display="plugin"] .document-outline-link { font-family: var(--outline-display-font); color: var(--outline-display-color); }
+.document-outline-list[data-panel-display="plugin"] .document-outline-text { font-family: inherit; font-size: var(--outline-display-font-size); }
+.document-outline-list[data-panel-display="plugin"] .document-outline-item.current .document-outline-link { color: var(--accent); }
+@media (max-width: 768px), (pointer: coarse) {
+  .document-outline-list[data-panel-display="plugin"] .document-outline-item { min-height: max(36px, var(--outline-display-row-height)); }
+}
+
+.vr-outline-row[data-panel-display="plugin"] > button { font: inherit; color: inherit; }
+@media (max-width: 768px), (pointer: coarse) { .vr-outline-row[data-panel-display="plugin"] { min-height: 36px; } }

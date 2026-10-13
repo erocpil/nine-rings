@@ -1,3 +1,4 @@
+import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import { FootnoteNumbering } from "../extensions/FootnoteNumbering";
 import type { DocumentOpenOptions } from "../lib/document-open";
 import { markdownContentFingerprint } from "../lib/external-markdown-source";
@@ -83,7 +84,7 @@ import { DocumentEditorContent } from "./DocumentEditorContent";
 import { EDITOR_NAVIGATION_EVENT, useEditorScrollPersistence } from "../hooks/useEditorScrollPersistence";
 import { headingFoldAnchors } from "../lib/heading-fold-anchors";
 import { ReadingBlockSession } from "../extensions/ReadingBlockSession";
-import { DocumentOutlineList, OUTLINE_SCROLL_EVENT, type VisibleOutlineEntry } from "./DocumentOutlineList";
+import { DocumentOutlineList, OutlineDisplayTools, OUTLINE_SCROLL_EVENT, type VisibleOutlineEntry } from "./DocumentOutlineList";
 import { EditorToolbarContents } from "./EditorToolbarContents";
 import { flushSync } from "react-dom";
 import { createReplacementTransaction } from "../lib/editor-replace";
@@ -505,6 +506,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   const readonlyRef = useRef(Boolean(readonly));
   readonlyRef.current = Boolean(readonly);
   const documentActive = useDocumentActive();
+  const outlineDisplayConfig = usePanelDisplay("document-outline");
   const blockEditContextRef = useRef({ active: documentActive, readonly: Boolean(readonly), noteId, epoch: 0 });
   const editContext = blockEditContextRef.current;
   if (editContext.active !== documentActive || editContext.readonly !== Boolean(readonly) || editContext.noteId !== noteId) {
@@ -3793,6 +3795,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           <div className="document-outline-header">
             <div className="document-outline-header-primary">
               <span>目录</span>
+              <OutlineDisplayTools listRef={outlineListRef} />
               <button
                 type="button"
                 onClick={() => handleOutlineFoldClick(true)}
@@ -3826,11 +3829,11 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
                 <button type="button" onClick={() => scrollOutlineTo("middle")} title="滚动至中部">Mid</button>
                 <button type="button" onClick={() => scrollOutlineTo("bottom")} title="滚动至底部">Bot</button>
               </div>
-              <span className="document-outline-count">
+              {outlineDisplayConfig?.showCounts !== false && <span className="document-outline-count">
                 {visibleOutlineEntries.length === documentOutline.length
                   ? `${documentOutline.length} 项`
                   : `${visibleOutlineEntries.length}/${documentOutline.length} 项`}
-              </span>
+              </span>}
               {!isMobileToolbarViewport && <button type="button" onClick={() => togglePinnedPanel("outline")} aria-label={desktopPanels.pinned("outline") ? "收起固定目录" : "固定目录"}>{desktopPanels.pinned("outline") ? "收起" : "固定"}</button>}
             </div>
           </div>
