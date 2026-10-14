@@ -2,7 +2,7 @@
 
 九环通过 GitHub 仓库实现数据版本化备份。采用**全量 JSON 快照**方案，支持 Push（上传）/ Pull（下载）。
 
-按文档拆分的增量备份仍处于设计阶段，历史建议与问题回复见[增量评估](incremental-backup-assessment.md)，v3 的能力门禁、实体基线、发布恢复、资产及只读测量方案见[手动快照补强设计](sync-snapshot-hardening-design.md)。它不会通过源码提交自动迁移已有备份仓库。
+按文档拆分的增量备份仍处于设计阶段，历史建议与问题回复见[增量评估](incremental-backup-assessment.md)，v3/v4.1 的升级门禁、实体基线、发布恢复、资产及只读测量方案见[手动快照补强设计](sync-snapshot-hardening-design.md)。它不会通过源码提交自动迁移已有备份仓库。
 
 ---
 
