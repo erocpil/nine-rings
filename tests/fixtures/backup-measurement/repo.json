@@ -1,0 +1,14 @@
+{
+  "now": "2026-10-14T00:00:00Z",
+  "repo": { "size": 1024, "default_branch": "main" },
+  "ref": { "object": { "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" } },
+  "commit": { "tree": { "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" } },
+  "tree": {
+    "truncated": false,
+    "tree": [
+      { "type": "blob", "path": "PRIVATE_FIXTURE/backup-20261014T000000001.json", "size": 1000 },
+      { "type": "blob", "path": "PRIVATE_FIXTURE/notes.txt", "size": 50 }
+    ]
+  },
+  "commitPages": [[{ "commit": { "committer": { "date": "2026-10-13T00:00:00Z" }, "message": "PRIVATE_FIXTURE" } }]]
+}

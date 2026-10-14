@@ -1,3 +1,7 @@
+import {
+  clearTransferMeasurements,
+  transferMeasurements,
+} from "../../src/lib/sync/measurement-store";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetch as nativeFetch } from "@tauri-apps/plugin-http";
 import { api } from "../../src/lib/api";
@@ -29,6 +33,7 @@ const config: SyncConfig = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  clearTransferMeasurements();
   vi.mocked(api.export.data).mockResolvedValue(JSON.stringify({ notes: [] }));
 });
 afterEach(async () => {
@@ -136,6 +141,14 @@ describe("native GitHub error boundaries", () => {
     expect(JSON.parse(String(request.body)).content).toBe(
       btoa(unescape(encodeURIComponent(source))),
     );
+    expect(transferMeasurements()).toMatchObject([
+      {
+        kind: "snapshot",
+        transport: "native",
+        status: 400,
+        requestBytes: Buffer.byteLength(String(request.body)),
+      },
+    ]);
     const logs = getLogs()
       .map((entry) => entry.msg)
       .join("\n");

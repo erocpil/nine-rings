@@ -1,3 +1,4 @@
+import { measureBackupJson, type BackupMeasurement } from "./backup-measurement";
 import type { CreateNoteInput, DeltaOps } from "../types/models";
 import { deltaToProseMirror } from "./delta-converter";
 import type { MarkdownImportOptions, TextImportSource } from "./markdown-import";
@@ -5,7 +6,7 @@ import { buildTextImportInput } from "./markdown-import";
 import { extractTitle, mdToDelta } from "./md-parser";
 import { deltaToMarkdown } from "./markdown-serializer";
 
-type WorkerTask = "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "markdown-to-prosemirror" | "delta-to-prosemirror" | "delta-to-markdown";
+type WorkerTask = "measure-backup" | "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "markdown-to-prosemirror" | "delta-to-prosemirror" | "delta-to-markdown";
 
 export function deltaToMarkdownAsync(content: DeltaOps): Promise<string> {
   return runWorkerTask("delta-to-markdown", content, () => deltaToMarkdown(content));
@@ -125,4 +126,8 @@ export function transformMarkdownSource(fileName: string, source: string): Promi
     { fileName, source },
     () => ({ title: extractTitle(source, fileName.replace(/\.md(?:own|ark)?$/i, "")), content: mdToDelta(source) }),
   );
+}
+
+export function measureBackupAsync(source: string): Promise<BackupMeasurement> {
+  return runWorkerTask("measure-backup", source, () => measureBackupJson(source)).catch(() => measureBackupJson(source));
 }

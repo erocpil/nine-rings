@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { deltaToProseMirror } from "../src/lib/delta-converter";
-import { deltaToProseMirrorAsync, deltaToMarkdownAsync, markdownToProseMirrorAsync } from "../src/lib/data-transform-client";
+import { deltaToProseMirrorAsync, deltaToMarkdownAsync, markdownToProseMirrorAsync, measureBackupAsync } from "../src/lib/data-transform-client";
 import { deltaToMarkdown } from "../src/lib/markdown-serializer";
 
+import { measureBackupJson } from "../src/lib/backup-measurement";
 import { mdToDelta } from "../src/lib/md-parser";
 
 const delta = {
@@ -41,7 +42,8 @@ class FakeDataTransformWorker {
         result: message.task === "delta-to-prosemirror"
           ? deltaToProseMirror(message.payload)
           : message.task === "markdown-to-prosemirror" ? deltaToProseMirror(mdToDelta(message.payload as string))
-          : message.task === "delta-to-markdown" ? deltaToMarkdown(message.payload) : undefined,
+          : message.task === "delta-to-markdown" ? deltaToMarkdown(message.payload)
+          : message.task === "measure-backup" ? measureBackupJson(message.payload as string) : undefined,
       },
     } as MessageEvent));
   }
@@ -71,6 +73,9 @@ assert.equal(workerTasks, 2, "源码序列化也必须发送到 Worker");
 const markdown = "# 大文档\n\n" + "**正文**\n\n".repeat(1000);
 assert.deepEqual(await markdownToProseMirrorAsync(markdown), deltaToProseMirror(mdToDelta(markdown)));
 assert.equal(workerTasks, 3, "Markdown 的解析和转换必须一并进入 Worker");
+const source = JSON.stringify({ notes: [{ content: delta }] });
+assert.equal((await measureBackupAsync(source)).totalBytes, Buffer.byteLength(source));
+assert.equal(workerTasks, 4, "备份分析必须在 Worker 中执行");
 failWorkerSend = true;
 assert.deepEqual(await markdownToProseMirrorAsync(markdown), deltaToProseMirror(mdToDelta(markdown)),
   "Worker 发送失败时应使用兼容转换，不能丢失粘贴内容");
@@ -78,6 +83,8 @@ failWorkerSend = false;
 failWorkerLoad = true;
 assert.deepEqual(await markdownToProseMirrorAsync(markdown), deltaToProseMirror(mdToDelta(markdown)),
   "Worker 异步加载失败后仍能完成粘贴转换");
+assert.equal((await measureBackupAsync(source)).totalBytes, Buffer.byteLength(source),
+  "Worker 加载失败时仍应得到完整统计");
 const tasksBeforeFallback = workerTasks;
 assert.deepEqual(await markdownToProseMirrorAsync(markdown), deltaToProseMirror(mdToDelta(markdown)));
 assert.equal(workerTasks, tasksBeforeFallback, "已不可用的 Worker 不应继续接收请求");

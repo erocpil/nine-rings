@@ -1,3 +1,4 @@
+import { measureTransfer } from "./measurement-store";
 /**
  * GitHub 同步服务 — 方案 A：全量 JSON 快照
  *
@@ -514,12 +515,12 @@ async function putRemote(token: string, owner: string, repo: string, path: strin
   checkPushCancellation(options.signal);
   addLog(`[Sync] PUT ${phase === "publishing" ? "发布最新指针" : "上传数据文件"} | 路径: ${path} | 原文: ${contentBytes} bytes | 请求: ${bytes} bytes | 通道: ${isTauriRuntime() ? "Tauri 原生 HTTP" : "WebView / 浏览器"} | 超时: ${timeoutMs / 1000}s`);
   options.onProgress?.({ phase, bytes, timeoutMs });
-  const res = await githubApiFetch(url, {
+  const res = await measureTransfer({ kind: phase === "publishing" ? "pointer" : "snapshot", transport: isTauriRuntime() ? "native" : "web", requestBytes: bytes }, () => githubApiFetch(url, {
     method: "PUT",
     headers: { ...authHeader(token), "Content-Type": "application/json" },
     body: payload,
     signal: options.signal,
-  }, timeoutMs);
+  }, timeoutMs));
   const requestId = res.headers.get("x-github-request-id")?.replace(/[^a-zA-Z0-9:-]/g, "").slice(0, 128);
   addLog(`[Sync] PUT 响应: HTTP ${res.status}${requestId ? ` | GitHub 请求 ID: ${requestId}` : ""}`);
   if (!res.ok) {
@@ -556,9 +557,9 @@ async function putLargeSnapshot(config: SyncConfig, path: string, content: strin
     const timeoutMs = bytes ? githubTransferTimeoutMs(bytes) : GITHUB_REQUEST_TIMEOUT_MS;
     options.onProgress?.({ phase: "uploading", bytes, timeoutMs });
     addLog(`[Sync] Git 数据接口 ${method} ${route || "仓库信息"} | 请求: ${bytes} bytes | 超时: ${timeoutMs / 1000}s`);
-    const res = await githubApiFetch(root + route, {
+    const res = await measureTransfer({ kind: route === "/git/blobs" ? "blob" : "git-metadata", transport: isTauriRuntime() ? "native" : "web", requestBytes: bytes }, () => githubApiFetch(root + route, {
       method, headers: { ...authHeader(config.token), "Content-Type": "application/json" }, body: payload, signal: options.signal,
-    }, timeoutMs);
+    }, timeoutMs));
     const requestId = res.headers.get("x-github-request-id")?.replace(/[^a-zA-Z0-9:-]/g, "").slice(0, 128);
     addLog(`[Sync] Git 数据接口响应: HTTP ${res.status}${requestId ? ` | GitHub 请求 ID: ${requestId}` : ""}`);
     if (!res.ok) throw new GitHubWriteHttpError(res.status, `GitHub ${method} ${route} ${res.status}: ${(await res.text()).slice(0, 200)}\n失败阶段：上传备份数据\n远端路径：${path}\n请求大小：${bytes} bytes${requestId ? `\nGitHub 请求 ID：${requestId}` : ""}`);

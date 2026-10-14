@@ -1,3 +1,6 @@
+import { BackupMeasurementDialog } from "./BackupMeasurementDialog";
+import { api } from "../lib/api";
+import { measureBackupAsync } from "../lib/data-transform-client";
 import { DisclosureIcon } from "./DisclosureIcon";
 import { OperationError } from "./OperationError";
 import { syncErrorMessage } from "../lib/sync/errors";
@@ -34,9 +37,10 @@ interface Props {
   onPullDone?: () => void;
 }
 
-type BusyOperation = "check" | "push" | "pull-preview" | "pull-merge" | "pull-replace";
+type BusyOperation = "measure" | "check" | "push" | "pull-preview" | "pull-merge" | "pull-replace";
 
 const BUSY_MESSAGES: Record<BusyOperation, string> = {
+  measure: "正在保存并测量本地快照，不执行上传",
   check: "正在检查 GitHub 连接，操作期间暂不可编辑",
   push: "GitHub 上传任务正在进行，关闭设置页仍可继续；进度与结果见全局提示",
   "pull-preview": "正在读取远端备份并逐篇比较；预检完成前不会修改本地数据",
@@ -106,6 +110,7 @@ function SyncDocumentList({
 
 export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }: Props) {
   const [logsOpen, setLogsOpen] = useState(false);
+  const [measurementOpen, setMeasurementOpen] = useState(false);
   const { confirm, confirmationDialog } = useConfirmation();
   const [cfg, setCfg] = useState<SyncConfig>(loadSyncConfig);
   const [status, setStatus] = useState<SyncStatus | null>(null);
@@ -343,6 +348,20 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
     <div className="settings-section sync-settings-section">
       {confirmationDialog}
       {logsOpen && <SyncLogDialog onClose={() => setLogsOpen(false)} />}
+      {measurementOpen && <BackupMeasurementDialog busy={busy || exportingLocal} onClose={() => setMeasurementOpen(false)} onMeasure={async () => {
+        setBusyOperation("measure");
+        try {
+          const start = performance.now();
+          await onBeforePush?.();
+          const saved = performance.now();
+          const source = await api.export.data();
+          const exported = performance.now();
+          const report = await measureBackupAsync(source);
+          const end = performance.now();
+          return { ...report, timings: { saveMs: saved - start, exportMs: exported - saved, analysisWallMs: end - exported, totalMs: end - start } };
+        }
+        finally { setBusyOperation(null); }
+      }} />}
       <h3>GitHub 备份</h3>
 
       {/* 高频操作置顶，打开页面后无需越过低频配置即可执行。 */}
@@ -357,6 +376,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
           Pull ↓
         </button>
         <button type="button" className="settings-btn" onClick={() => setLogsOpen(true)}>同步日志</button>
+        <button type="button" className="settings-btn" onClick={() => setMeasurementOpen(true)}>备份测量</button>
       </div>
 
       {!connectionReady && <p className="settings-hint">请先填写有效的 Owner / Repo、备份文件路径和 Token，再测试连接或同步。</p>}

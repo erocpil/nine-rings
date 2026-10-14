@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 
+import { measureBackupJson } from "../lib/backup-measurement";
 import { buildTextImportInput, type MarkdownImportOptions, type TextImportSource } from "../lib/markdown-import";
 import { deltaToProseMirror } from "../lib/delta-converter";
 import { extractTitle, mdToDelta } from "../lib/md-parser";
@@ -7,7 +8,7 @@ import { deltaToMarkdown } from "../lib/markdown-serializer";
 
 interface WorkerRequest {
   id: number;
-  task: "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "markdown-to-prosemirror" | "delta-to-prosemirror" | "delta-to-markdown";
+  task: "measure-backup" | "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "markdown-to-prosemirror" | "delta-to-prosemirror" | "delta-to-markdown";
   payload: unknown;
 }
 
@@ -15,7 +16,9 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
   const { id, task, payload } = event.data;
   try {
     let result: unknown;
-    if (task === "parse-json") {
+    if (task === "measure-backup") {
+      result = measureBackupJson(payload as string);
+    } else if (task === "parse-json") {
       result = JSON.parse(payload as string);
     } else if (task === "stringify-json") {
       const request = payload as { value: unknown; space?: number };

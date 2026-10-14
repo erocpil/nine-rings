@@ -3393,3 +3393,9 @@ button.doc-tree-toggle:focus-visible {
 @media (pointer: coarse) {
   .doc-tree[data-panel-display="plugin"] .doc-tree-node { min-height: max(36px, var(--panel-display-row-height)); }
 }
+
+.backup-measurement { padding: 12px; overflow-x: auto; }
+.backup-measurement table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.backup-measurement :is(th, td) { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+.backup-measurement :is(th, td):first-child { text-align: left; }
+.backup-measurement p { color: var(--text-secondary); font-size: 12px; line-height: 1.6; }

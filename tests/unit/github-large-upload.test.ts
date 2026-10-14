@@ -1,3 +1,7 @@
+import {
+  clearTransferMeasurements,
+  transferMeasurements,
+} from "../../src/lib/sync/measurement-store";
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { fetch as nativeFetch } from "@tauri-apps/plugin-http";
@@ -40,6 +44,7 @@ const response = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status });
 beforeEach(() => {
   vi.clearAllMocks();
+  clearTransferMeasurements();
   source = JSON.stringify({
     version: "2",
     notes: [],
@@ -133,6 +138,17 @@ it.each([
   );
   expect(requests.filter((r) => r.route === route)).toHaveLength(1);
   expect(requests.some((r) => r.method === "PUT")).toBe(false);
+  const recorded = transferMeasurements().at(-1)!;
+  const failed = requests.find((r) => r.route === route)!;
+  expect(recorded).toMatchObject({
+    status: route.includes("refs/") ? 422 : 400,
+    transport: "native",
+    outcome: "response",
+    requestBytes: Buffer.byteLength(JSON.stringify(failed.body)),
+  });
+  expect(JSON.stringify(transferMeasurements())).not.toMatch(
+    /test-secret|中文|nested/,
+  );
 });
 it("initializes an empty repository using only an unpublished placeholder; latest follows the complete snapshot", async () => {
   empty = true;
