@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class NoteVersion {
   final String id;
   final String noteId;
@@ -18,27 +20,35 @@ class NoteVersion {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'note_id': noteId,
-        'title': title,
-        'content': content,
-        'tags': tags,
-        'order': order,
-        'created_at': createdAt,
-      };
+    'id': id,
+    'note_id': noteId,
+    'title': title,
+    'content': content,
+    'tags': jsonEncode(tags),
+    'sort_order': order,
+    'created_at': createdAt,
+  };
 
   factory NoteVersion.fromJson(Map<String, dynamic> json) => NoteVersion(
-        id: json['id'] as String,
-        noteId: json['note_id'] as String,
-        title: json['title'] as String? ?? '',
-        content: json['content'] as String? ?? '[]',
-        tags: json['tags'] != null
-            ? (json['tags'] as List).map((e) => e.toString()).toList()
-            : [],
-        order: json['order'] as int? ?? 0,
-        createdAt: json['created_at'] as String,
-      );
+    id: json['id'] as String,
+    noteId: json['note_id'] as String,
+    title: json['title'] as String? ?? '',
+    content: json['content'] as String? ?? '[]',
+    tags: _tags(json['tags']),
+    order: (json['sort_order'] ?? json['order']) as int? ?? 0,
+    createdAt: json['created_at'] as String,
+  );
+
+  static List<String> _tags(dynamic raw) {
+    final value = raw is String ? jsonDecode(raw) : raw;
+    if (value == null) return [];
+    if (value is! List || value.any((item) => item is! String)) {
+      throw const FormatException('Invalid version tags');
+    }
+    return List<String>.from(value);
+  }
 
   @override
-  String toString() => 'NoteVersion(id=$id, noteId=$noteId, createdAt=$createdAt)';
+  String toString() =>
+      'NoteVersion(id=$id, noteId=$noteId, createdAt=$createdAt)';
 }

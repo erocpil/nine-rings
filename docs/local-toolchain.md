@@ -1,6 +1,6 @@
 # 隔离工具链与安装记录
 
-更新：2026-09-28。适用 Nine Rings 的 Web/PWA 与 Tauri 桌面验证，不安装 Flutter。
+更新：2026-09-28。适用 Nine Rings 的 Web/PWA 与 Tauri 桌面验证；2026-10-15 按用户授权补充既有 Flutter SDK 的隔离升级与测试。
 
 ## 稳定目录与隔离边界
 
@@ -140,3 +140,22 @@ bash scripts/with-local-tools.sh node scripts/format-dart-isolated.mjs \
 ```
 
 使用 `--write` 可格式化指定文件。封装固定语言 3.9.0、80 列及 LF；本次修改的模型、候选编解码器和测试均经过检查。格式化器可解析语法，但不解析依赖或检查类型，不能代替 Flutter analyze、运行测试和 CI 官方 dart format。Flutter 的运行验证仍交给现有 CI。WASM 工具属于可选本机辅助，不纳入应用依赖，也不降低 CI 验收。
+
+
+## 2026-10-15：复用并升级用户 Flutter SDK
+
+用户提供 `~/src/flutter/` 并明确允许在不改变系统工具链的前提下升级。原版本 Flutter 3.32.6 / Dart 3.8.1，低于项目 Dart ^3.9.2；通过 stable 升级至 Flutter 3.47.7（abaf9c5237）/ Dart 3.13.5。未安装全局 Flutter、未修改登录 shell/PATH、Homebrew 或系统 SDK，未构建/安装 Flutter 应用。
+
+升级前检查无 tracked 源码修改；两个未跟踪的本地脚本 `env.sh`、`.env.sh.un~` 不属于上游，升级前后 SHA-256 一致。旧版升级器将未跟踪文件也当作修改；仅为升级进程设置 Git `status.showUntrackedFiles=no` 后继续，没有强制清除文件。Flutter 升级/依赖解析会更新 SDK checkout 自身的 pubspec.lock；后续升级前应检查实际差异，不自动丢弃。
+
+提供 `scripts/with-local-flutter.sh`，默认引用该用户目录，可通过 `NR_FLUTTER_ROOT` 覆盖。Pub 缓存为 `.local-tools/flutter-pub/`，XDG 配置为 `.local-tools/flutter-config/`，分析和测试日志留在 `.local-tools/flutter-validation/`。本次测得 Pub 缓存约 576 MiB、SDK bin/cache 约 3.4 GiB；升级器同时下载了其标准平台缓存，它们仍在用户 SDK 目录，不是系统工具链安装。
+
+```bash
+bash scripts/with-local-flutter.sh --version
+bash scripts/with-local-flutter.sh --project pub get
+bash scripts/with-local-flutter.sh --project analyze --no-pub --no-fatal-infos --no-fatal-warnings
+bash scripts/with-local-flutter.sh --project test --no-pub
+bash scripts/with-local-flutter.sh --project dart format --output=none --set-exit-if-changed lib/models/note_version.dart test/database_contract_test.dart test/widget_test.dart
+```
+
+当前主机代理会拦截测试 VM 的本地 WebSocket，导致 Invalid WebSocket upgrade request。封装仅为当前进程追加 localhost/127.0.0.1/::1 的 NO_PROXY/no_proxy，保留远端代理。修正后 51 项 Flutter 测试通过。analyze 按 CI 参数通过，仍有既有 warning/info，不能描述为零诊断；未因 doctor 的 Android/Xcode/CocoaPods 环境提示安装其它平台依赖。

@@ -5,11 +5,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nine_rings/database/database_helper.dart';
 import 'package:nine_rings/database/migrations.dart';
 import 'package:nine_rings/models/note.dart';
+import 'package:nine_rings/models/note_version.dart';
 import 'package:sqflite/sqflite.dart' show Sqflite;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 Future<Database> createDatabaseAt(int targetVersion) async {
-  final db = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath);
+  final db = await databaseFactoryFfi.openDatabase(
+    inMemoryDatabasePath,
+    options: OpenDatabaseOptions(singleInstance: false),
+  );
+  addTearDown(db.close);
   await db.execute('''CREATE TABLE _schema_version (
     version INTEGER PRIMARY KEY,
     applied_at TEXT NOT NULL
@@ -32,9 +37,11 @@ void main() {
         await DatabaseHelper.runMigrations(db, 5, schemaVersion);
       }
 
-      final fixture = jsonDecode(
-        await File('../tests/fixtures/export-v1.json').readAsString(),
-      ) as Map<String, dynamic>;
+      final fixture =
+          jsonDecode(
+                await File('../tests/fixtures/export-v1.json').readAsString(),
+              )
+              as Map<String, dynamic>;
       final raw = fixture['notes'][1] as Map<String, dynamic>;
       final note = Note(
         id: '${raw['id']}-flutter-v$startingVersion',
@@ -52,7 +59,9 @@ void main() {
         linkedDocIds: List<String>.from(raw['linkedDocIds'] as List),
         readonly: raw['readonly'] as bool,
       );
-      final row = note.toJson()..['search_text'] = note.plainText;
+      final row = note.toJson()
+        ..['tags'] = jsonEncode(note.tags)
+        ..['search_text'] = note.plainText;
       await db.insert('notes', row);
 
       expect(note.plainText, contains('Personal Access Token'));
@@ -69,12 +78,29 @@ void main() {
       );
       expect(hits.single['count'], 1);
 
-      await db.rawInsert(
-        '''INSERT INTO note_versions
-          (id, note_id, title, content, tags, pinned, sort_order, saved_at)
-          SELECT ?, id, title, content, tags, pinned, sort_order, updated_at
-          FROM notes WHERE id = ?''',
-        ['fixture-version-$startingVersion', note.id],
+      final version = NoteVersion(
+        id: 'fixture-version-$startingVersion',
+        noteId: note.id,
+        title: note.title ?? '',
+        content: note.content,
+        tags: note.tags,
+        order: note.sortOrder,
+        createdAt: note.updatedAt,
+      );
+      await db.insert('note_versions', version.toJson());
+      final versionRow = (await db.query('note_versions')).single;
+      final restoredVersion = NoteVersion.fromJson(versionRow);
+      expect(restoredVersion.tags, note.tags);
+      expect(restoredVersion.order, note.sortOrder);
+      expect(restoredVersion.content, note.content);
+      expect(
+        NoteVersion.fromJson({
+          ...versionRow,
+          'tags': note.tags,
+          'sort_order': null,
+          'order': 7,
+        }).order,
+        7,
       );
       expect(
         Sqflite.firstIntValue(
@@ -101,8 +127,6 @@ void main() {
         ),
         0,
       );
-
-      await db.close();
     });
   }
 }

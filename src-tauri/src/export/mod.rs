@@ -256,6 +256,55 @@ mod tests {
     }
 
     #[test]
+    fn candidate_entities_survive_sqlite_content_edit_and_fresh_restore() {
+        let json = include_str!("../../../schema/sync/fixtures/candidate-entities-v1.json");
+        let expected: serde_json::Value = serde_json::from_str(json).unwrap();
+        let bundle = super::parse_legacy_bundle(json).unwrap();
+        let db = backup_db();
+        super::import_bundle(&db, &bundle, true).unwrap();
+        let content = expected["notes"][0]["content"].clone();
+        crate::db::models::update_note(
+            &db,
+            &bundle.notes[0].id,
+            bundle.notes[0].title.as_deref(),
+            &content,
+            &bundle.notes[0].search_text,
+            &bundle.notes[0].tags,
+            bundle.notes[0].pinned,
+            bundle.notes[0].sort_order,
+            "edited",
+        )
+        .unwrap();
+        let restored =
+            super::export_all(&db, &crate::commands::config::AppConfig::default()).unwrap();
+        let fresh = backup_db();
+        super::import_bundle(&fresh, &restored, true).unwrap();
+        let actual = serde_json::to_value(
+            super::export_all(&fresh, &crate::commands::config::AppConfig::default()).unwrap(),
+        )
+        .unwrap();
+        for input in expected["notes"].as_array().unwrap() {
+            let output = actual["notes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|n| n["id"] == input["id"])
+                .unwrap();
+            for (key, value) in input.as_object().unwrap() {
+                if key != "updated_at" && key != "search_text" {
+                    assert_eq!(&output[key], value, "note field: {}", key);
+                }
+            }
+            if input["id"] == "protected-001" {
+                assert_eq!(output["search_text"], "");
+            }
+        }
+        for key in ["templates", "protected_paths", "protected_versions"] {
+            assert_eq!(actual[key], expected[key], "entity: {}", key);
+        }
+    }
+
+    #[test]
     fn templates_round_trip_into_a_fresh_database_and_rollback_with_notes() {
         let source = backup_db();
         source.execute("INSERT INTO templates (id,name,tags,concepts,created_at,updated_at) VALUES ('custom','自定义','[\"tag\"]','[]','now','now')", []).unwrap();

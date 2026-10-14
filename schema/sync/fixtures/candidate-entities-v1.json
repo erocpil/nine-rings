@@ -1,0 +1,150 @@
+{
+  "version": 2,
+  "exported_at": "2026-10-14T00:00:00Z",
+  "notes": [
+    {
+      "id": "roundtrip-001",
+      "date": "2026-10-14",
+      "title": "跨端往返",
+      "content": {
+        "ops": [
+          {
+            "insert": "示例标题"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "普通正文 "
+          },
+          {
+            "insert": "加粗",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "下一段"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "protected-001",
+      "date": "2026-10-14",
+      "title": "保护文档",
+      "content": {
+        "ops": [],
+        "encrypted": {
+          "version": 1,
+          "protectionId": "ab2b4458-7650-4caf-820f-f3bc257724b6",
+          "salt": "z3jf5bgo98iwlc7YHuXgmw==",
+          "iterations": 600000,
+          "iv": "dWN1DmTmH7CiBDY2",
+          "data": "q1gBtzaR+TXpaV4OshxFfTsYD4qUZoXkI0CY8qWINH07r3Bdwt4BcC5bFcS6GXtCBdUZs135saA="
+        }
+      },
+      "search_text": "",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/private",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "roundtrip-template",
+      "name": "模板",
+      "description": "",
+      "is_builtin": false,
+      "title_template": null,
+      "tags": [],
+      "storage_path": null,
+      "doc_type": null,
+      "concepts": [],
+      "pinned": false,
+      "sort_order": 0,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z"
+    }
+  ],
+  "protected_paths": [
+    {
+      "id": "ab2b4458-7650-4caf-820f-f3bc257724b6",
+      "path": "references/private",
+      "verifier": {
+        "ops": [],
+        "encrypted": {
+          "version": 1,
+          "protectionId": "ab2b4458-7650-4caf-820f-f3bc257724b6",
+          "salt": "z3jf5bgo98iwlc7YHuXgmw==",
+          "iterations": 600000,
+          "iv": "dWN1DmTmH7CiBDY2",
+          "data": "q1gBtzaR+TXpaV4OshxFfTsYD4qUZoXkI0CY8qWINH07r3Bdwt4BcC5bFcS6GXtCBdUZs135saA="
+        }
+      },
+      "createdAt": "2026-10-14T00:00:00Z",
+      "updatedAt": "2026-10-14T00:00:00Z"
+    }
+  ],
+  "protected_versions": [
+    {
+      "id": "protected-history-001",
+      "note_id": "protected-001",
+      "title": "保护文档",
+      "content": {
+        "ops": [],
+        "encrypted": {
+          "version": 1,
+          "protectionId": "ab2b4458-7650-4caf-820f-f3bc257724b6",
+          "salt": "z3jf5bgo98iwlc7YHuXgmw==",
+          "iterations": 600000,
+          "iv": "dWN1DmTmH7CiBDY2",
+          "data": "q1gBtzaR+TXpaV4OshxFfTsYD4qUZoXkI0CY8qWINH07r3Bdwt4BcC5bFcS6GXtCBdUZs135saA="
+        }
+      },
+      "tags": [],
+      "pinned": false,
+      "sort_order": 0,
+      "saved_at": "2026-10-14T00:00:00Z"
+    }
+  ]
+}

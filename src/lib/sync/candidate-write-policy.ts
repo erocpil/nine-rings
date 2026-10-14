@@ -179,6 +179,46 @@ export function reviewCandidatePayload(
           }
         }
     }
+    if (!isEncrypted(value) && Array.isArray(value.ops)) {
+      const ops = value.ops;
+      const last = ops[ops.length - 1];
+      const formatted = ops.some(
+        (op) =>
+          record(op) &&
+          record(op.attributes) &&
+          Object.keys(op.attributes).length > 0,
+      );
+      if (
+        formatted &&
+        ops.some(
+          (op) =>
+            record(op) &&
+            typeof op.insert === "string" &&
+            op.insert !== "\n" &&
+            op.insert.includes("\n"),
+        )
+      )
+        issue("unsupported-content");
+      if (
+        !record(last) ||
+        typeof last.insert !== "string" ||
+        !last.insert.endsWith("\n") ||
+        ops.some(
+          (op) =>
+            record(op) &&
+            typeof op.insert === "string" &&
+            (op.insert.includes("\r") ||
+              (record(op.attributes) &&
+                (Object.values(op.attributes).some((v) => v === false) ||
+                  (op.attributes.header !== undefined
+                    ? op.insert !== "\n" ||
+                      Object.keys(op.attributes).length !== 1
+                    : op.insert.includes("\n") &&
+                      Object.keys(op.attributes).length > 0)))),
+        )
+      )
+        issue("unsupported-content");
+    }
     return value;
   };
   try {
@@ -276,6 +316,23 @@ export function reviewCandidatePayload(
         [note.search_text, note.searchText].some(
           (v) => v != null && typeof v !== "string",
         )
+      )
+        issue("noncanonical-fields");
+      if (
+        (note.sort_order as number) < -2147483648 ||
+        (note.sort_order as number) > 2147483647
+      )
+        issue("noncanonical-fields");
+      if (
+        runtime === "tauri" &&
+        (typeof note.content === "string" ||
+          [
+            note.tags,
+            note.concepts,
+            note.linkedDocIds,
+            note.linked_doc_ids,
+          ].some((v) => typeof v === "string") ||
+          typeof note.search_text !== "string")
       )
         issue("noncanonical-fields");
       const body = content(note.content);
