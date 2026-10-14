@@ -352,8 +352,17 @@ function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: No
     } catch { setCopyError(true); }
   };
 
+  const toggleCollapsed = () => {
+    const nextCollapsed = !collapsed;
+    const pos = getPos();
+    const blocks = editorReadingBlocks(editor);
+    if (typeof pos === "number") blocks?.set(pos, { ...blocks.get(pos), collapsed: nextCollapsed });
+    setReadonlyCollapsedOverride(nextCollapsed);
+    if (editable) updateAttributes({ collapsed: nextCollapsed });
+  };
+
   if (node.attrs.language === "toc" && !inWorkspace) return <NodeViewWrapper className="code-block-wrap toc-block-wrap" data-indent={node.attrs.indent > 0 ? node.attrs.indent : undefined}>
-    <TableOfContentsBlock source={code} onLevelsChange={editable ? source => {
+    <TableOfContentsBlock source={code} collapsed={collapsed} onToggleCollapse={toggleCollapsed} onLevelsChange={editable ? source => {
       const pos = getPos();
       if (typeof pos === "number") editor.view.dispatch(editor.state.tr.insertText(source, pos + 1, pos + node.nodeSize - 1));
     } : undefined} />
@@ -441,14 +450,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: No
             <button
               className="code-block-collapse-toggle"
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                const nextCollapsed = !collapsed;
-                const pos = getPos();
-                const blocks = editorReadingBlocks(editor);
-                if (typeof pos === "number") blocks?.set(pos, { ...blocks.get(pos), collapsed: nextCollapsed });
-                setReadonlyCollapsedOverride(nextCollapsed);
-                if (editable) updateAttributes({ collapsed: nextCollapsed });
-              }}
+              onClick={toggleCollapsed}
               type="button"
               aria-label={collapsed ? `展开${isFlow ? "流程" : "代码"}块` : `折叠${isFlow ? "流程" : "代码"}块`}
               aria-expanded={!collapsed}

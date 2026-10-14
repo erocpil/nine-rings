@@ -120,3 +120,19 @@ html .editor-content .document-toc-block ol { list-style: none; padding: 0; marg
 html .editor-content .document-toc-block ol > li::before { content: none; }
 .document-toc-block li { margin: 0; min-width: 0; }
 .document-toc-block a { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-block: 3px; }
+
+.document-toc-collapse-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.document-toc-collapse-toggle:hover,
+.document-toc-collapse-toggle:focus-visible { color: var(--accent); background: var(--bg-hover); }

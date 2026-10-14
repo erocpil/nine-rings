@@ -243,23 +243,29 @@
 .vocabulary-category--examples + .vocabulary-category--examples {
   margin-top: 0.25em;
 }
+.vocabulary-study-scroll {
+  --vocabulary-selection-color: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+:root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula)
+  .vocabulary-study-scroll {
+  --vocabulary-selection-color: color-mix(in srgb, var(--accent) 16%, transparent);
+}
 .vocabulary-study-scroll ::selection {
   background: transparent;
   color: inherit;
 }
 .vocabulary-study-scroll .vocabulary-text::selection,
 .vocabulary-study-scroll .vocabulary-text ::selection {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  background: var(--vocabulary-native-selection, var(--vocabulary-selection-color));
   color: var(--text);
 }
-:root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula)
-  .vocabulary-study-scroll
-  .vocabulary-text::selection,
-:root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula)
-  .vocabulary-study-scroll
-  .vocabulary-text
-  ::selection {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
+.vocabulary-study-scroll ::highlight(vocabulary-selection) {
+  background: var(--vocabulary-selection-color);
+  color: var(--text);
+}
+/* Keep the native range for copying and handles; replace only its paint. */
+.vocabulary-study-scroll.vocabulary-text-selection {
+  --vocabulary-native-selection: transparent;
 }
 
 .vocabulary-panel .workspace-panel-heading > select {

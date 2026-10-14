@@ -26,6 +26,7 @@ import {
   type VocabularyReadingState,
 } from "../lib/vocabulary-reading-state";
 import "./vocabulary.css";
+import { useVocabularySelection } from "./useVocabularySelection";
 const ReadingContext = createContext<{
   initial: VocabularyReadingState;
   remember: (id: string, open: boolean) => void;
@@ -218,6 +219,7 @@ function VocabularyStudyView({
     folds: { ...initialReading.folds },
   });
   const scrollRef = useRef<HTMLDivElement>(null);
+  useVocabularySelection(scrollRef, active);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const persist = useCallback(
     () => saveVocabularyReading(data.documentId, reading.current),

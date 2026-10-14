@@ -7,6 +7,7 @@ import { BlockNumber } from "./BlockNumber";
 import { useRelativeNumbering } from "../hooks/useRelativeNumbering";
 import { relativeNumber } from "../lib/relative-numbering";
 import { BlockActionMenu, groupBlockMenuActions, type BlockMenuAction } from "./BlockActionMenu";
+import { blockReadingActions, blockSpecificMenu } from "./block-specific-actions";
 import { copyDocumentBlock } from "../lib/block-clipboard";
 import { DeferredFlowBlock } from "./DeferredFlowBlock";
 import { flowBlockAttributes, flowHeadingLevel } from "../lib/flow-presentation";
@@ -264,8 +265,8 @@ export function renderReadonlyBlock(
       );
     }
     case "codeBlock": {
-      if (node.attrs.language === "toc") return <div {...attrs} className="toc-block-wrap"><TableOfContentsBlock source={node.textContent} /></div>;
       const { collapsed, isMermaid, showDiagram, isFlow, showFlow, wrap } = codeBlockDisplay(node.attrs, state, defaultWrap);
+      if (node.attrs.language === "toc") return <div {...attrs} className="toc-block-wrap"><TableOfContentsBlock source={node.textContent} collapsed={collapsed} onToggleCollapse={() => update(pos, { collapsed: !collapsed })} /></div>;
       const lineNumbers = codeLineNumbersEnabled();
       const lines = node.textContent.split("\n");
       let linePosition = pos + 1;
@@ -292,6 +293,7 @@ export function renderReadonlyBlock(
             <button
               type="button"
               aria-pressed={wrap}
+              aria-label={wrap ? "关闭代码软换行" : "开启代码软换行"}
               hidden={isMermaid && showDiagram || isFlow && showFlow}
               onClick={() => update(pos, { wrap: !wrap })}
             >
@@ -727,9 +729,9 @@ export function ReadonlyVirtualNote(
         const rowRect = row.getBoundingClientRect();
         const height = rowRect.height;
         if (row.dataset.blockType === "codeBlock") {
-          const toolbar = row.querySelector<HTMLElement>(".vr-code-toolbar");
+          const toolbar = row.querySelector<HTMLElement>(".vr-code-toolbar, .document-toc-block > header");
           if (toolbar) {
-            const title = toolbar.querySelector<HTMLElement>(".structured-block-caption");
+            const title = toolbar.querySelector<HTMLElement>(".structured-block-caption, strong");
             const rect = (title ?? toolbar).getBoundingClientRect();
             const center = `${rect.top - rowRect.top + rect.height / 2}px`;
             if (row.style.getPropertyValue("--vr-block-toolbar-center") !== center) toolbarCenters.push([row, center]);
@@ -1043,6 +1045,7 @@ export function ReadonlyVirtualNote(
     ];
     if (sectionByPos.has(pos)) actions.push({ label: "折叠 / 展开本节", run: () => toggleHeading(pos) });
     else if (["codeBlock", "blockquote", "htmlDetails"].includes(node.type.name)) actions.push({ label: "折叠 / 展开此块", run: () => updateBlock(pos, { collapsed: !(states.get(pos)?.collapsed ?? (node.type.name === "htmlDetails" ? node.attrs.open !== true : node.attrs.collapsed === true)) }) });
+    actions.push(...blockSpecificMenu(blockReadingActions(bodyRef.current?.querySelector<HTMLElement>(`[data-reading-row][data-position="${pos}"]`) ?? null, node.type.name)));
     return groupBlockMenuActions(actions);
   };
   const toolbar = (
@@ -1522,7 +1525,7 @@ export function ReadonlyVirtualNote(
                       <EditorFoldIcon expanded={!folds.has(section.key)} />
                     </button>
                   )}
-                  {props.showLineNumbers && <BlockNumber number={block.number} displayNumber={relativeBlockNumbers ? relativeNumber(block.number, currentNumber, visibleNumbers) : block.number} className={`${block.number === currentNumber ? "active" : ""} ${relativeBlockNumbers && block.number === currentNumber ? `relative-current${relativeBlockNumberAlignment === "right" ? " relative-current-right" : ""}` : ""}`} format={block.node.type.name === "heading" ? `H${block.node.attrs.level}` : block.node.type.name} onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />}
+                  {props.showLineNumbers && <BlockNumber number={block.number} displayNumber={relativeBlockNumbers ? relativeNumber(block.number, currentNumber, visibleNumbers) : block.number} className={`${block.number === currentNumber ? "active" : ""} ${relativeBlockNumbers && block.number === currentNumber ? `relative-current${relativeBlockNumberAlignment === "right" ? " relative-current-right" : ""}` : ""}`} format={block.node.type.name === "codeBlock" && block.node.attrs.language === "toc" ? "TOC" : block.node.type.name === "heading" ? `H${block.node.attrs.level}` : block.node.type.name} onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />}
                 </div>
                 <div className="ProseMirror vr-block" contentEditable={false}>
                   {decorateFlowBlock(renderReadonlyBlock(

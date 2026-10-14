@@ -3364,6 +3364,12 @@ button.doc-tree-toggle:focus-visible {
 .doc-tree-open:disabled { cursor: default; }
 
 .block-selection-hint { padding: 5px 8px; font-size: 12px; color: var(--text-secondary); background: var(--surface); border-bottom: 1px solid var(--border); }
+.block-menu-check { display: inline-block; width: 1.25em; flex: 0 0 1.25em; }
+.block-menu-input-control { padding: 8px 10px; }
+.block-menu-input-control label { display: flex; flex-direction: column; gap: 6px; }
+.block-menu-input-control :is(input, textarea) { box-sizing: border-box; width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); color: var(--text); font: inherit; }
+.block-menu-input-control textarea { resize: vertical; max-height: 40vh; }
+.block-menu-input-control small { color: var(--text-secondary); }
 
 /* Host-scoped presentation slot. Path hierarchy and selection stay host-owned. */
 .doc-tree[data-panel-display="plugin"] {

@@ -144,3 +144,110 @@ test("自动目录普通复制不暴露levels，内部富文本粘贴仍保留�
     expect(await link.evaluate(el => getComputedStyle(el).textDecorationColor)).not.toBe(await link.evaluate(el => getComputedStyle(el).color));
   }
 });
+
+
+for (const mode of ["edit", "readonly", "virtual"] as const) {
+  for (const numbers of [true, false]) {
+    test(`自动目录的块菜单可达且整块复制和折叠有效 ${mode} numbers=${numbers}`, async ({ page }) => {
+      await page.addInitScript(({ mode, numbers }) => {
+        localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: numbers }));
+        localStorage.setItem("nr:experimentalReadonlyRendering", String(mode === "virtual"));
+      }, { mode, numbers });
+      await createBlankDocument(page, "目录块菜单");
+      await page.locator(".ProseMirror:visible").evaluate(element => {
+        const editor = (element as any).editor;
+        editor.commands.setContent({ type: "doc", content: [
+          { type: "codeBlock", attrs: { language: "toc" }, content: [{ type: "text", text: "levels: 1,2,3" }] },
+          { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "目标章节" }] },
+          { type: "paragraph", content: [{ type: "text", text: "正文保持不变" }] },
+        ] }, true);
+        Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => { (window as any).tocBlockCopied = text; } } });
+      });
+      if (mode !== "edit") await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+      if (mode === "virtual") await expect(page.locator("[data-virtual-reader]")).toBeVisible();
+      const toc = page.getByRole("navigation", { name: "文档内目录", exact: true });
+      const trigger = page.getByRole("button", { name: "第 1 块操作", exact: true });
+      // WebKit can scroll the fixture's retained caret into view after setContent.
+      // Test the gutter of the visible TOC header, not an offscreen first block.
+      await toc.locator("header strong").scrollIntoViewIfNeeded();
+      await expect(trigger).toBeInViewport();
+      if (numbers) {
+        const b = (await trigger.boundingBox())!, h = (await toc.locator("header strong").boundingBox())!;
+        expect(Math.abs(b.y + b.height / 2 - (h.y + h.height / 2))).toBeLessThanOrEqual(3);
+      }
+      await trigger.click();
+      const menu = page.getByRole("menu", { name: "第 1 块", exact: true });
+      await expect(menu).toBeVisible();
+      await menu.getByRole("menuitem", { name: "复制纯文本", exact: true }).click();
+      await expect.poll(() => page.evaluate(() => (window as any).tocBlockCopied)).toContain("目标章节");
+      expect(await page.evaluate(() => (window as any).tocBlockCopied)).not.toContain("levels:");
+      await trigger.click();
+      await menu.getByRole("menuitem", { name: "复制块引用", exact: true }).click();
+      await expect.poll(() => page.evaluate(() => (window as any).tocBlockCopied)).toMatch(/nr-note:\/\/[^#]+#nr-ref-/);
+      await trigger.click();
+      await menu.getByRole("menuitem", { name: "折叠 / 展开此块", exact: true }).click();
+      await expect(toc.getByRole("link", { name: "目标章节", exact: true })).not.toBeVisible();
+      await trigger.click();
+      await menu.getByRole("menuitem", { name: "折叠 / 展开此块", exact: true }).click();
+      await expect(toc.getByRole("link", { name: "目标章节", exact: true })).toBeVisible();
+      await trigger.click();
+      if (mode === "edit") {
+        await menu.getByRole("menuitem", { name: "删除此块", exact: true }).click();
+        await expect(toc).toHaveCount(0);
+        await expect(page.locator(".ProseMirror:visible")).toContainText("正文保持不变");
+        await page.locator(".ProseMirror:visible").evaluate(element => (element as any).editor.commands.undo());
+        await expect(toc).toBeVisible();
+      } else {
+        await expect(menu.getByRole("menuitem", { name: "删除此块", exact: true })).toHaveCount(0);
+        await page.keyboard.press("Escape");
+      }
+    });
+  }
+}
+
+
+test("目录块级功能可连续选择标题层级，撤销重做及重新加载保留", async ({ page }) => {
+  await createBlankDocument(page, "目录块级功能");
+  const editor = page.locator(".ProseMirror:visible");
+  await editor.evaluate(element => {
+    const instance = (element as any).editor;
+    instance.commands.setContent({ type: "doc", content: [
+      { type: "codeBlock", attrs: { language: "toc" }, content: [{ type: "text", text: "levels: 2" }] },
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "二级章节" }] },
+      { type: "heading", attrs: { level: 6 }, content: [{ type: "text", text: "六级章节" }] },
+      { type: "paragraph", content: [{ type: "text", text: "正文保持不变" }] },
+    ] }, true);
+  });
+  const toc = page.getByRole("navigation", { name: "文档内目录", exact: true });
+  await toc.locator("header strong").scrollIntoViewIfNeeded();
+  await page.getByRole("button", { name: "第 1 块操作", exact: true }).click();
+  const menu = page.getByRole("menu", { name: "第 1 块", exact: true });
+  await menu.getByRole("menuitem", { name: "块级功能 ›", exact: true }).click();
+  await menu.getByRole("menuitem", { name: "显示标题层级 ›", exact: true }).click();
+  const h2 = menu.getByRole("menuitemcheckbox", { name: "H2", exact: true });
+  const h6 = menu.getByRole("menuitemcheckbox", { name: "H6", exact: true });
+  await expect(h2).toBeDisabled();
+  await h6.click();
+  await expect(menu).toBeVisible();
+  await expect(h6).toBeChecked();
+  await expect(toc.getByRole("link", { name: "六级章节", exact: true })).toBeVisible();
+  await h2.click();
+  await expect(h2).not.toBeChecked();
+  await expect(h6).toBeDisabled();
+  await expect(toc.getByRole("link")).toHaveCount(1);
+  await menu.getByRole("menuitem", { name: "← 返回", exact: true }).click();
+  await expect(menu.getByRole("menuitem", { name: "显示标题层级 ›", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await editor.evaluate(element => (element as any).editor.commands.undo());
+  await expect(toc.getByRole("link")).toHaveCount(2);
+  await editor.evaluate(element => (element as any).editor.commands.redo());
+  await expect(toc.getByRole("link")).toHaveCount(1);
+  await waitForSavedText(page, "levels: 6");
+  await page.reload();
+  await expect(toc.getByRole("link")).toHaveCount(1);
+  await expect(toc.getByRole("link", { name: "六级章节", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  await toc.locator("header strong").scrollIntoViewIfNeeded();
+  await page.getByRole("button", { name: "第 1 块操作", exact: true }).click();
+  await expect(menu.getByRole("menuitem", { name: "块级功能 ›", exact: true })).toHaveCount(0);
+});

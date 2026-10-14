@@ -21,6 +21,7 @@ import { useSearchRegex } from "../hooks/useSearchRegex";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CopyBlockNotice } from "./CopyBlockNotice";
 import { BlockActionMenu, groupBlockMenuActions, type BlockMenuAction } from "./BlockActionMenu";
+import { blockEditingActions, blockReadingActions, blockSpecificMenu } from "./block-specific-actions";
 import { copyDocumentBlock } from "../lib/block-clipboard";
 import { clearBlockTextStyles, formatBlockText, type BlockTextFormat, clipboardBlockFragment, clipboardCutBlock, rememberCutBlock } from "../lib/block-editing";
 import { RenderedLinkMenu } from "./RenderedLinkMenu";
@@ -3872,9 +3873,29 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     else if (["codeBlock", "blockquote", "htmlDetails"].includes(node.type.name)) actions.push({ label: "折叠 / 展开此块", run: () => {
       const dom = editor.view.nodeDOM(position);
       if (!(dom instanceof HTMLElement)) return;
-      const toggle = node.type.name === "htmlDetails" ? dom.querySelector<HTMLElement>(".nr-details-summary") : dom.querySelector<HTMLElement>('.code-block-toolbar button[aria-label^="折叠"], .code-block-toolbar button[aria-label^="展开"], .blockquote-toolbar button[aria-label^="折叠"], .blockquote-toolbar button[aria-label^="展开"]');
+      const toggle = node.type.name === "htmlDetails" ? dom.querySelector<HTMLElement>(".nr-details-summary") : dom.querySelector<HTMLElement>('.document-toc-collapse-toggle, .code-block-toolbar button[aria-label^="折叠"], .code-block-toolbar button[aria-label^="展开"], .blockquote-toolbar button[aria-label^="折叠"], .blockquote-toolbar button[aria-label^="展开"]');
       toggle?.click();
     } });
+    const blockDOM = editor.view.nodeDOM(position);
+    const specific = blockReadingActions(blockDOM instanceof HTMLElement ? blockDOM : null, node.type.name).map(action => ({ ...action, run: () => { action.run(); if (!readonly) editor.view.focus(); } }));
+    if (!readonly) {
+      const writable = () => !editor.isDestroyed && !readonlyRef.current && editor.isEditable && editor.state.doc === blockMenu.doc;
+      const commit = (tr: Transaction, keepMenuFocus = false) => {
+        if (!writable()) return;
+        editor.view.dispatch(closeHistory(tr));
+        editor.view.dispatch(closeHistory(editor.state.tr));
+        if (!keepMenuFocus) editor.view.focus();
+        setBlockMenu({ ...blockMenu, doc: editor.state.doc });
+      };
+      specific.push(...blockEditingActions({ editor, node, position, commit, runCommand: command => {
+        if (!writable()) return;
+        editor.view.dispatch(closeHistory(editor.state.tr));
+        command();
+        editor.view.dispatch(closeHistory(editor.state.tr));
+        editor.view.focus();
+      } }));
+    }
+    actions.push(...blockSpecificMenu(specific));
     const editStart = actions.length;
     if (!readonly) {
       const insert = (at: number, content: Record<string, unknown>) => editor.chain().insertContentAt(at, content).focus().run();

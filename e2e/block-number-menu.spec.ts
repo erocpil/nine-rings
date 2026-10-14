@@ -326,7 +326,7 @@ test("分组菜单整块排版保留其它块、选区与单步撤销", async ({
   const selection = await root.evaluate(element => (element as any).editor.state.selection.from);
   await expect(page.getByRole("button", { name: "块级操作", exact: true })).toHaveCount(0);
   await open(page);
-  await expect(menu(page).locator(".block-action-menu-group")).toHaveText(["复制与引用", "阅读与导航", "文字样式", "编辑与结构", "选择", "剪切与删除"]);
+  await expect(menu(page).locator(".block-action-menu-group")).toHaveText(["复制与引用", "阅读与导航", "块设置", "文字样式", "编辑与结构", "选择", "剪切与删除"]);
   await menu(page).getByRole("menuitem", { name: "粗体", exact: true }).click();
   await expect(root.locator(":scope > p").first().locator("strong")).toHaveText("first");
   expect(await root.evaluate(element => (element as any).editor.state.selection.from)).toBe(selection);
@@ -381,7 +381,7 @@ test("子菜单打开后切换块号，重新定位到新块且不沿用旧样�
   await menu(page).getByRole("menuitem", { name: "文字字号", exact: false }).click();
   await page.getByRole("button", { name: "第 2 块操作", exact: true }).click();
   const popup = page.getByRole("menu", { name: "第 2 块", exact: true });
-  await expect(popup.locator(".block-action-menu-group")).toHaveCount(6);
+  await expect(popup.locator(".block-action-menu-group")).toHaveCount(7);
   await popup.getByRole("menuitem", { name: "粗体", exact: true }).click();
   await expect(page.locator(".ProseMirror:visible > p").nth(1).locator("strong")).toHaveText("second");
   await expect(page.locator(".ProseMirror:visible > p").first().locator("strong")).toHaveCount(0);
@@ -407,3 +407,144 @@ for (const [readonly, virtual] of [[false, false], [true, false], [true, true]])
     }
   });
 }
+
+async function featureFixture(page: Page, node: Record<string, unknown>) {
+  await setup(page);
+  await page.locator(".ProseMirror:visible").evaluate((element, node) => {
+    const editor = (element as any).editor;
+    editor.commands.setContent({ type: "doc", content: [node, { type: "paragraph", content: [{ type: "text", text: "外部正文不变" }] }] }, true);
+    editor.commands.setTextSelection(1);
+  }, node);
+}
+async function specific(page: Page) {
+  await page.getByRole("button", { name: "第 1 块操作", exact: true }).click();
+  await menu(page).getByRole("menuitem", { name: "块级功能 ›", exact: true }).click();
+}
+const textParagraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
+async function firstNode(page: Page) {
+  return page.locator('.ProseMirror[contenteditable="true"]:visible').evaluate(element => (element as any).editor.state.doc.firstChild.toJSON());
+}
+
+test("块级功能覆盖段落标题、引用提示和代码配置，连续选择可撤销", async ({ page }) => {
+  await featureFixture(page, textParagraph("段落"));
+  await specific(page);
+  await menu(page).getByRole("menuitem", { name: "标题级别 ›", exact: true }).click();
+  await menu(page).getByRole("menuitemcheckbox", { name: "H4", exact: true }).click();
+  await expect.poll(async () => (await firstNode(page)).attrs.level).toBe(4);
+  await specific(page);
+  await menu(page).getByRole("menuitem", { name: "标题级别 ›", exact: true }).click();
+  await menu(page).getByRole("menuitemcheckbox", { name: "H5", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await page.locator(".ProseMirror:visible").evaluate(element => (element as any).editor.commands.undo());
+  await expect.poll(async () => (await firstNode(page)).attrs.level).toBe(4);
+  await page.locator(".ProseMirror:visible").evaluate(element => (element as any).editor.commands.setContent({ type: "doc", content: [{ type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "引用正文" }] }] }, { type: "paragraph", content: [{ type: "text", text: "外部正文不变" }] }] }, true));
+  await specific(page);
+  await menu(page).getByRole("menuitem", { name: "引用提示类型 ›", exact: true }).click();
+  await menu(page).getByRole("menuitemcheckbox", { name: "警告 · WARNING", exact: true }).click();
+  await expect.poll(async () => (await firstNode(page)).attrs.alert).toBe("WARNING");
+  await page.keyboard.press("Escape");
+  await page.locator(".ProseMirror:visible").evaluate(element => (element as any).editor.commands.setContent({ type: "doc", content: [{ type: "codeBlock", attrs: { language: "javascript" }, content: [{ type: "text", text: "const value = 1;" }] }, { type: "paragraph", content: [{ type: "text", text: "外部正文不变" }] }] }, true));
+  await specific(page);
+  await menu(page).getByRole("menuitem", { name: "代码语言 ›", exact: true }).click();
+  await menu(page).getByRole("menuitemcheckbox", { name: "Python", exact: true }).click();
+  await expect.poll(async () => (await firstNode(page)).attrs.language).toBe("python");
+  await specific(page);
+  await menu(page).getByRole("menuitem", { name: "修改块简介 ›", exact: true }).click();
+  await menu(page).getByRole("textbox", { name: "修改块简介", exact: true }).fill("代码示例");
+  await menu(page).getByRole("button", { name: "应用", exact: true }).click();
+  await expect.poll(async () => (await firstNode(page)).attrs.title).toBe("代码示例");
+  await specific(page);
+  await menu(page).getByRole("menuitem", { name: "代码软换行", exact: true }).click();
+  await expect.poll(async () => (await firstNode(page)).attrs.wrap).toBe(false);
+  await expect(page.locator(".ProseMirror:visible")).toContainText("外部正文不变");
+});
+
+test("列表块级功能按整块改编号且不修改嵌套任务，校验无效输入", async ({ page }) => {
+  const item = (text: string, attrs = {}) => ({ type: "listItem", attrs, content: [textParagraph(text)] });
+  await featureFixture(page, { type: "orderedList", attrs: { start: 7 }, content: [
+    { type: "listItem", content: [textParagraph("第一项"), { type: "bulletList", content: [item("内层任务", { taskChecked: true })] }] },
+    item("第二项"),
+  ] });
+  await specific(page);
+  await menu(page).getByRole("menuitem", { name: "列表编号 ›", exact: true }).click();
+  await menu(page).getByRole("menuitem", { name: "自定义起始编号 ›", exact: true }).click();
+  const input = menu(page).getByRole("textbox", { name: "自定义起始编号", exact: true });
+  await input.fill("0");
+  await expect(menu(page).getByRole("button", { name: "应用", exact: true })).toBeDisabled();
+  await input.fill("12");
+  await input.press("Enter");
+  expect((await firstNode(page)).attrs.start).toBe(12);
+  await specific(page);
+  await menu(page).getByRole("menuitem", { name: "任务状态（当前层） ›", exact: true }).click();
+  await menu(page).getByRole("menuitem", { name: "转为待办列表", exact: true }).click();
+  const result = await firstNode(page);
+  expect(result.content.map((item: any) => item.attrs.taskChecked)).toEqual([false, false]);
+  expect(result.content[0].content[1].content[0].attrs.taskChecked).toBe(true);
+  await page.locator(".ProseMirror:visible").evaluate(element => (element as any).editor.commands.undo());
+  expect((await firstNode(page)).content[0].attrs.taskChecked).toBeNull();
+});
+
+for (const type of ["htmlDetails", "resizableImage", "mathBlock", "rawHtml"] as const) test(`结构块专用输入保存属性且可撤销：${type}`, async ({ page }) => {
+  const spec = {
+    htmlDetails: { node: { type, attrs: { summary: "展开", open: true }, content: [textParagraph("内部正文")] }, action: "修改折叠摘要", value: "新的摘要", attribute: "summary" },
+    resizableImage: { node: { type, attrs: { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='50'/%3E", alt: "原图" } }, action: "图片替代文本", value: "新的替代文本", attribute: "alt" },
+    mathBlock: { node: { type, attrs: { source: "x^2" } }, action: "编辑公式源码", value: "E=mc^2", attribute: "source" },
+    rawHtml: { node: { type, attrs: { source: "<section>原文</section>" } }, action: "编辑受限 HTML 源码", value: "<section>修改后</section>", attribute: "source" },
+  }[type];
+  await featureFixture(page, spec.node);
+  const previous = (await firstNode(page)).attrs[spec.attribute];
+  await specific(page);
+  await menu(page).getByRole("menuitem", { name: `${spec.action} ›`, exact: true }).click();
+  await menu(page).getByRole("textbox", { name: spec.action, exact: true }).fill(spec.value);
+  await menu(page).getByRole("button", { name: "应用", exact: true }).click();
+  await expect.poll(async () => (await firstNode(page)).attrs[spec.attribute]).toBe(spec.value);
+  await expect(page.locator(".ProseMirror:visible")).toBeFocused();
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(async () => (await firstNode(page)).attrs[spec.attribute]).toBe(previous);
+});
+
+test("表格块级功能在末尾添加行列，恢复自动列宽并支持撤销", async ({ page }) => {
+  const cell = (text: string) => ({ type: "tableCell", attrs: { colwidth: [140] }, content: [textParagraph(text)] });
+  await featureFixture(page, { type: "table", content: [{ type: "tableRow", content: [cell("甲"), cell("乙")] }] });
+  await specific(page);
+  await menu(page).getByRole("menuitem", { name: "在表格末尾添加行", exact: true }).click();
+  expect((await firstNode(page)).content).toHaveLength(2);
+  await specific(page);
+  await menu(page).getByRole("menuitem", { name: "在表格右侧添加列", exact: true }).click();
+  expect((await firstNode(page)).content[0].content).toHaveLength(3);
+  await specific(page);
+  await menu(page).getByRole("menuitem", { name: "恢复自动列宽", exact: true }).click();
+  expect((await firstNode(page)).content[0].content.every((cell: any) => !cell.attrs.colwidth)).toBe(true);
+  await page.locator(".ProseMirror:visible").evaluate(element => (element as any).editor.commands.undo());
+  expect((await firstNode(page)).content[0].content[0].attrs.colwidth).toEqual([140]);
+});
+
+for (const virtual of [false, true]) test(`只读图块可切换源码并保留内容，virtual=${virtual}`, async ({ page }) => {
+  await setup(page, false, virtual);
+  await page.locator(".ProseMirror:visible").evaluate(element => (element as any).editor.commands.setContent({ type: "doc", content: [{ type: "codeBlock", attrs: { language: "flow" }, content: [{ type: "text", text: "### 步骤\n\n流程正文" }] }, { type: "paragraph", content: [{ type: "text", text: "外部正文不变" }] }] }, true));
+  const before = await firstNode(page);
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  if (virtual) await expect(page.locator("[data-virtual-reader]")).toBeVisible();
+  await specific(page);
+  await expect(menu(page).getByRole("menuitem", { name: "修改块简介 ›", exact: true })).toHaveCount(0);
+  await menu(page).getByRole("menuitem", { name: "源码 / 渲染视图", exact: true }).click();
+  await expect(page.getByRole("button", { name: "显示 Flow 流程", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: virtual ? "设为可编辑" : "点击设为可编辑", exact: true }).click();
+  expect((await firstNode(page)).content).toEqual(before.content);
+});
+
+test("手机块级输入面板保持在视口内，取消不修改正文", async ({ page }) => {
+  await featureFixture(page, { type: "htmlDetails", attrs: { summary: "原摘要", open: true }, content: [textParagraph("内部正文")] });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const before = await firstNode(page);
+  await specific(page);
+  await menu(page).getByRole("menuitem", { name: "修改折叠摘要 ›", exact: true }).click();
+  const input = menu(page).getByRole("textbox", { name: "修改折叠摘要", exact: true });
+  await input.fill("尚未应用的摘要");
+  const bounds = (await menu(page).boundingBox())!;
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+  await page.keyboard.press("Escape");
+  await expect(menu(page)).toHaveCount(0);
+  expect(await firstNode(page)).toEqual(before);
+});

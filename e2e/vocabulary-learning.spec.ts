@@ -153,6 +153,7 @@ test("学习视图真实拖选不包含折叠按钮，卡片与控件不使用�
   await page.mouse.down();
   await page.mouse.move(end.x + 80, end.y + end.height / 2, { steps: 15 });
   await page.mouse.up();
+  await expect.poll(() => page.evaluate(() => CSS.highlights.get("vocabulary-selection")?.size ?? 0)).toBeGreaterThan(0);
   await page.screenshot({ path: test.info().outputPath("vocabulary-selection.png") });
   const selected = await page.evaluate(() => window.getSelection()?.toString());
   expect(selected).toContain("An example.");
@@ -255,7 +256,8 @@ test("跨词性标题、释义和展开例句的选区仅着色文字", async ({
   }));
   expect(backgrounds.frame).toBe("rgba(0, 0, 0, 0)");
   expect(backgrounds.heading).toBe("rgba(0, 0, 0, 0)");
-  expect(backgrounds.text).not.toBe("rgba(0, 0, 0, 0)");
+  expect(backgrounds.text).toBe("rgba(0, 0, 0, 0)");
+  await expect.poll(() => page.evaluate(() => CSS.highlights.get("vocabulary-selection")?.size ?? 0)).toBeGreaterThan(0);
   await page.screenshot({ path: test.info().outputPath("vocabulary-cross-selection.png") });
 });
 
@@ -355,4 +357,80 @@ test("排序采用实际添加时间并持久化，提示气泡对齐词汇行�
   await expect(rows.first()).toHaveText("zulu");
   await panel.getByRole("searchbox", { name: "查找词汇" }).fill("no-such-word");
   await expect(panel.getByRole("status")).toHaveText("没有匹配的词汇");
+});
+
+
+test("跨标题、来源和卡片拖选仅绘制文字片段，反向选择和清除保持原生行为", async ({ page }) => {
+  await seed(page);
+  await page.getByRole("button", { name: "词汇学习", exact: true }).click();
+  await page.getByRole("region", { name: "词汇学习分栏" }).getByRole("button", { name: "sample", exact: true }).click();
+  const view = page.getByRole("region", { name: "词汇学习视图" });
+  const title = view.locator(".vocabulary-overview h1 .vocabulary-text");
+  const pronunciation = view.locator(".vocabulary-entry > p .vocabulary-text").first();
+  await page.evaluate(() => document.fonts.ready);
+  const start = (await title.boundingBox())!, end = (await pronunciation.boundingBox())!;
+  const unselected = (await page.screenshot()).toString("base64");
+  for (const reverse of [false, true]) {
+    const from = reverse ? end : start, to = reverse ? start : end;
+    await page.mouse.move(from.x + (reverse ? from.width - 1 : 1), from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + (reverse ? 1 : to.width - 1), to.y + to.height / 2, { steps: 20 });
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(() => CSS.highlights.get("vocabulary-selection")?.size ?? 0)).toBeGreaterThan(3);
+    // WebKit coalesces selectionchange; wait for the final range's paint,
+    // rather than accepting the previous pointer-move frame's highlight count.
+    await expect.poll(() => page.evaluate(() => {
+      const selected = getSelection()!.toString().replace(/\s/g, "");
+      const painted = Array.from(CSS.highlights.get("vocabulary-selection") ?? [], range => range.toString()).join("").replace(/\s/g, "");
+      return selected.length > 0 && selected === painted;
+    })).toBe(true);
+    const state = await page.evaluate(() => ({
+      text: getSelection()!.toString(),
+      nativePaint: getComputedStyle(document.querySelector(".vocabulary-overview .vocabulary-text")!, "::selection").backgroundColor,
+      fragments: Array.from(CSS.highlights.get("vocabulary-selection")!, range => ({
+        singleText: range.startContainer === range.endContainer && range.startContainer.nodeType === Node.TEXT_NODE,
+        text: range.toString(),
+      })),
+    }));
+    expect(state.text).toContain("剑桥词典");
+    expect(state.text).toContain("UK /sample/");
+    expect(state.nativePaint).toBe("rgba(0, 0, 0, 0)");
+    expect(state.fragments.every(fragment => fragment.singleText && fragment.text.length > 0)).toBe(true);
+    const selectedImage = await page.screenshot({ path: test.info().outputPath(`cross-block-selection-${reverse}.png`) });
+    const changed = await page.evaluate(async ({ before, after, box }) => {
+      const pixels = async (source: string) => {
+        const image = new Image();
+        image.src = `data:image/png;base64,${source}`;
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = image.width; canvas.height = image.height;
+        const context = canvas.getContext("2d")!;
+        context.drawImage(image, 0, 0);
+        return context.getImageData(0, 0, canvas.width, canvas.height);
+      };
+      const a = await pixels(before), b = await pixels(after);
+      const differences = (left: number, right: number) => {
+        let count = 0;
+        for (let y = Math.ceil(box.y + 2); y < box.y + box.height - 2; y++) {
+          for (let x = Math.ceil(left); x < right; x++) {
+            const offset = (y * a.width + x) * 4;
+            if (a.data[offset] !== b.data[offset] || a.data[offset + 1] !== b.data[offset + 1] || a.data[offset + 2] !== b.data[offset + 2]) count++;
+          }
+        }
+        return count;
+      };
+      return {
+        left: differences(box.x - 15, box.x - 3),
+        right: differences(box.x + box.width + 8, box.x + box.width + 80),
+        text: differences(box.x + 5, box.x + box.width - 5),
+      };
+    }, { before: unselected, after: selectedImage.toString("base64"), box: start });
+    expect(changed.left).toBe(0);
+    expect(changed.right).toBe(0);
+    expect(changed.text).toBeGreaterThan(10);
+    await view.locator(".vocabulary-view-toolbar").click({ position: { x: 200, y: 12 } });
+    await expect.poll(() => page.evaluate(() => CSS.highlights.get("vocabulary-selection")?.size ?? 0)).toBe(0);
+  }
+  await view.getByRole("button", { name: "返回原视图", exact: true }).click();
+  expect(await page.evaluate(() => CSS.highlights.has("vocabulary-selection"))).toBe(false);
 });

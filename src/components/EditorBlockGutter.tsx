@@ -62,9 +62,9 @@ function firstLineTextCenter(
   if (typeName === "codeBlock") {
     // The block number identifies the whole block, beside its title/type row.
     // Keep this anchor stable across source, diagram and collapsed modes.
-    const toolbar = dom.querySelector<HTMLElement>(".code-block-toolbar, .vr-code-toolbar");
+    const toolbar = dom.querySelector<HTMLElement>(".code-block-toolbar, .vr-code-toolbar, .document-toc-block > header");
     if (toolbar) {
-      const title = toolbar.querySelector<HTMLElement>(".code-block-title, .structured-block-caption");
+      const title = toolbar.querySelector<HTMLElement>(".code-block-title, .structured-block-caption, strong");
       const rect = (title ?? toolbar).getBoundingClientRect();
       return rect.top + rect.height / 2;
     }
@@ -107,6 +107,7 @@ function firstLineTextCenter(
 }
 
 function blockFormat(typeName: string, attrs: Readonly<Record<string, unknown>>): string {
+  if (typeName === "codeBlock" && attrs.language === "toc") return "TOC";
   if (typeName === "heading") return `H${attrs.level ?? "?"}`;
 
   return {
