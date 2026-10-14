@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 /** Delegate hover hints so newly opened toolbars/settings share the same short delay. */
@@ -10,7 +10,33 @@ export function QuickTooltips() {
     top: number;
     above: boolean;
     host: Element;
+    target: HTMLElement;
   } | null>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = tooltipRef.current;
+    if (!hint || !element) return;
+    const box = hint.target.getBoundingClientRect(),
+      popup = element.getBoundingClientRect();
+    const desiredLeft =
+      hint.target.dataset.tooltipAlign === "start"
+        ? box.left
+        : box.left + (box.width - popup.width) / 2;
+    const left = Math.max(
+      8,
+      Math.min(desiredLeft, window.innerWidth - popup.width - 8),
+    );
+    const above = box.bottom + 6 + popup.height > window.innerHeight - 8;
+    const top = above
+      ? Math.max(popup.height + 8, box.top - 6)
+      : box.bottom + 6;
+    if (
+      Math.abs(hint.left - left) > 0.5 ||
+      Math.abs(hint.top - top) > 0.5 ||
+      hint.above !== above
+    )
+      setHint({ ...hint, left, top, above });
+  }, [hint]);
   useEffect(() => {
     let target: HTMLElement | null = null;
     let title = "";
@@ -46,7 +72,9 @@ export function QuickTooltips() {
         return;
       clear();
       if (!element || !element.title.trim()) return;
-      const suppressDocumentPanelHint = element.matches("[data-document-panel-trigger]") && element.dataset.pinned !== "true";
+      const suppressDocumentPanelHint =
+        element.matches("[data-document-panel-trigger]") &&
+        element.dataset.pinned !== "true";
       // Touch/click focus must not leave a hover hint covering mobile controls.
       if (event.type === "focusin" && !element.matches(":focus-visible"))
         return;
@@ -66,17 +94,17 @@ export function QuickTooltips() {
           return;
         }
         const box = element.getBoundingClientRect();
-        const above = box.bottom + 64 > window.innerHeight;
         element.setAttribute(
           "aria-describedby",
           [describedBy, id].filter(Boolean).join(" "),
         );
-        const estimatedWidth = Math.min(320, Math.max(44, Array.from(title).length * 12 + 18));
         setHint({
           text: title,
-          left: Math.max(8, Math.min(box.left + (box.width - estimatedWidth) / 2, window.innerWidth - estimatedWidth - 8)),
-          top: above ? box.top - 6 : box.bottom + 6,
-          above,
+          target: element,
+          // Measure before paint; no character-width estimate for multiline hints.
+          left: 8,
+          top: box.bottom + 6,
+          above: false,
           host: element.closest("dialog[open]") ?? document.body,
         });
       };
@@ -114,6 +142,7 @@ export function QuickTooltips() {
   return hint
     ? createPortal(
         <div
+          ref={tooltipRef}
           id={id}
           role="tooltip"
           className="quick-tooltip"

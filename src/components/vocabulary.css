@@ -80,7 +80,9 @@
   padding: 24px clamp(16px, 4vw, 64px) 48px;
   -webkit-user-select: none;
   user-select: none;
-  line-height: 1.7;
+  font-family: var(--editor-font-family, inherit);
+  font-size: var(--editor-font-size, 16px);
+  line-height: var(--editor-line-height, 1.6);
   min-height: 0;
 }
 .vocabulary-study-scroll > * {
@@ -92,7 +94,10 @@
 }
 .vocabulary-overview h1 {
   margin: 0 0 8px;
-  font-size: 2em;
+  font-size: var(
+    --editor-h1-size,
+    calc(var(--editor-font-size, 16px) * var(--editor-h1-scale, 1.6))
+  );
 }
 .vocabulary-overview p {
   margin: 4px 0;
@@ -105,7 +110,10 @@
   margin-bottom: 28px;
 }
 .vocabulary-provider > h2 {
-  font-size: 1.3em;
+  font-size: var(
+    --editor-h2-size,
+    calc(var(--editor-font-size, 16px) * var(--editor-h2-scale, 1.5))
+  );
   border-bottom: 1px solid var(--border);
   padding-bottom: 8px;
 }
@@ -117,16 +125,25 @@
 }
 .vocabulary-entry h3 {
   margin: 0 0 12px;
-  font-size: 1.15em;
+  font-size: var(
+    --editor-h3-size,
+    calc(var(--editor-font-size, 16px) * var(--editor-h3-scale, 1.375))
+  );
   color: var(--accent);
 }
 .vocabulary-sense h4 {
-  font-size: 1.05em;
-  margin: 20px 0 10px;
+  font-size: var(
+    --editor-h4-size,
+    calc(var(--editor-font-size, 16px) * var(--editor-h4-scale, 1.25))
+  );
+  margin: 1em 0 0.4em;
 }
 .vocabulary-category h5 {
   color: var(--text-secondary);
-  font-size: 0.9em;
+  font-size: var(
+    --editor-h5-size,
+    calc(var(--editor-font-size, 16px) * var(--editor-h5-scale, 1.125))
+  );
   margin: 18px 0 8px;
 }
 .vocabulary-items {
@@ -180,11 +197,6 @@
   color: var(--text-secondary);
   padding: 2px 0;
 }
-.vocabulary-context-placeholder {
-  margin-top: 24px;
-  color: var(--text-secondary);
-  font-size: 0.9em;
-}
 .vocabulary-fallback {
   color: var(--text-secondary);
 }
@@ -214,17 +226,56 @@
   -webkit-user-select: none;
   user-select: none;
 }
-.vocabulary-study-scroll ::selection {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-  color: var(--text);
-}
-
 /* Generated labels stay accessible without entering a cross-paragraph copied range. */
 .vocabulary-study-scroll summary::after {
   content: attr(data-vocabulary-fold-label);
 }
+/* Group related material; separate meanings without spacing every nested row. */
+.vocabulary-entry > p {
+  margin: 0.25em 0;
+}
+.vocabulary-category--definition > p {
+  margin: 0.25em 0;
+}
+.vocabulary-category--examples {
+  margin-top: 0.5em;
+}
+.vocabulary-category--examples + .vocabulary-category--examples {
+  margin-top: 0.25em;
+}
+.vocabulary-study-scroll ::selection {
+  background: transparent;
+  color: inherit;
+}
+.vocabulary-study-scroll .vocabulary-text::selection,
+.vocabulary-study-scroll .vocabulary-text ::selection {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--text);
+}
 :root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula)
   .vocabulary-study-scroll
+  .vocabulary-text::selection,
+:root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula)
+  .vocabulary-study-scroll
+  .vocabulary-text
   ::selection {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.vocabulary-panel .workspace-panel-heading > select {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+.vocabulary-panel .workspace-panel-spacer {
+  flex: 0;
+}
+.vocabulary-panel li button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }

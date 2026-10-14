@@ -1,12 +1,18 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   vocabularyDocuments,
   readVocabularyPreference,
   subscribeVocabulary,
   vocabularySnapshot,
+  type VocabularyDocumentSummary,
 } from "../lib/plugin-system/builtin-vocabulary";
 import { mainViews } from "../lib/plugin-system/main-view-registry";
-import type { WorkspaceDocumentSummary } from "../lib/workspace-summary";
+import {
+  readVocabularySort,
+  saveVocabularySort,
+  sortVocabulary,
+  type VocabularySort,
+} from "../lib/vocabulary-reading-state";
 import { WorkspacePanelHeading } from "./WorkspacePanelHeading";
 import { ToolbarIcon } from "./ToolbarIcon";
 import "./vocabulary.css";
@@ -23,12 +29,15 @@ export function VocabularyPanel({
 }) {
   const pref = useSyncExternalStore(subscribeVocabulary, vocabularySnapshot);
   const view = useSyncExternalStore(mainViews.subscribe, mainViews.getSnapshot);
-  const [items, setItems] = useState<WorkspaceDocumentSummary[]>([]);
+  const [items, setItems] = useState<VocabularyDocumentSummary[]>([]);
+  const [order, setOrder] = useState(readVocabularySort);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [retry, setRetry] = useState(0);
-  const [busy, setBusy] = useState(false);
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  const busy = openingId !== null;
+  const sorted = useMemo(() => sortVocabulary(items, order), [items, order]);
   useEffect(() => {
     if (!active) return;
     let disposed = false;
@@ -59,12 +68,28 @@ export function VocabularyPanel({
       : null;
   return (
     <section className="vocabulary-panel" aria-label="词汇学习分栏">
-      <WorkspacePanelHeading title="词汇学习">
+      <WorkspacePanelHeading
+        title={
+          <select
+            aria-label="词汇排序"
+            value={order}
+            onChange={(event) => {
+              const next = event.target.value as VocabularySort;
+              setOrder(next);
+              saveVocabularySort(next);
+            }}
+          >
+            <option value="alphabet">字母顺序 A–Z</option>
+            <option value="added">添加时间 · 最新在前</option>
+          </select>
+        }
+      >
         {onBack && (
           <button
             type="button"
             className="btn-icon"
             aria-label="返回文档树"
+            title="返回文档树"
             onClick={onBack}
           >
             <ToolbarIcon name="chevronLeft" />
@@ -74,6 +99,7 @@ export function VocabularyPanel({
           type="button"
           className="btn-icon"
           aria-label="刷新词汇列表"
+          title="刷新词汇列表"
           onClick={() => setRetry((value) => value + 1)}
         >
           <ToolbarIcon name="refresh" />
@@ -92,11 +118,11 @@ export function VocabularyPanel({
       {error && <p role="alert">{error}</p>}
       {loading && <p role="status">正在加载词汇列表…</p>}
       <ul>
-        {items
+        {sorted
           .filter((note) =>
             (note.title ?? "无标题")
               .toLocaleLowerCase()
-              .includes(query.toLocaleLowerCase()),
+              .includes(query.trim().toLocaleLowerCase()),
           )
           .map((note) => (
             <li key={note.id}>
@@ -104,13 +130,16 @@ export function VocabularyPanel({
                 type="button"
                 aria-current={note.id === current ? "true" : undefined}
                 disabled={busy}
-                title={`${note.title}\n${note.storagePath}`}
+                aria-busy={openingId === note.id || undefined}
+                title={`${note.title || "无标题"}\n${note.storagePath}`}
+                data-tooltip-align="start"
                 onClick={() => {
-                  setBusy(true);
+                  if (note.id === current && !view.suspended) return;
+                  setOpeningId(note.id);
                   setError("");
                   void onOpen(note.id)
                     .catch((reason) => setError(String(reason)))
-                    .finally(() => setBusy(false));
+                    .finally(() => setOpeningId(null));
                 }}
               >
                 <ToolbarIcon name="book" />
@@ -119,7 +148,22 @@ export function VocabularyPanel({
             </li>
           ))}
       </ul>
-      {items.length === 5000 && <p className="vocabulary-empty">当前最多展示 5000 份文档，请缩小配置路径。</p>}
+      {!loading &&
+        query.trim() &&
+        !items.some((note) =>
+          (note.title ?? "无标题")
+            .toLocaleLowerCase()
+            .includes(query.trim().toLocaleLowerCase()),
+        ) && (
+          <p className="vocabulary-empty" role="status">
+            没有匹配的词汇
+          </p>
+        )}
+      {items.length === 5000 && (
+        <p className="vocabulary-empty">
+          当前最多展示 5000 份文档，请缩小配置路径。
+        </p>
+      )}
       {!loading && !items.length && !error && (
         <p className="vocabulary-empty">
           此路径暂无文档。请手动生成 .md 后，通过“备份与导入”导入到该路径。

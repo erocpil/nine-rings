@@ -50,7 +50,7 @@ test("桌面引用块多段选区可直接点击字号菜单，格式和撤销�
   const quote = editor.locator("blockquote p");
   for (const paragraph of await quote.all()) await expect(paragraph.locator("span").first()).toHaveCSS("font-size", "32px");
   await expect(editor.locator(":scope > p")).not.toHaveCSS("font-size", "32px");
-  await toolbar.getByTitle("撤销 (Ctrl+Z)").click();
+  await page.locator(".note-editor .editor-menu.toolbar-full").getByRole("button", { name: "撤销 (Ctrl+Z)", exact: true }).click();
   await expect(quote.nth(0).locator("span").first()).toHaveCSS("font-size", "18px");
   await expect(quote.nth(1).locator("span").first()).toHaveCSS("font-size", "24px");
 });

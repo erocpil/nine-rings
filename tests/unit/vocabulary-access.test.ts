@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   paths: vi.fn(),
 }));
 vi.mock("../../src/lib/api", () => ({
-  api: { docs: { tree: mocks.tree }, notes: { get: mocks.get } },
+  api: { docs: { summaries: mocks.tree }, notes: { get: mocks.get } },
 }));
 vi.mock("../../src/lib/storage/protection-state", () => ({
   listProtectedPaths: mocks.paths,
@@ -59,23 +59,34 @@ it("lists only scoped unprotected summaries without loading bodies", async () =>
   mocks.paths.mockResolvedValue([{ path: "references/vocabulary/private" }]);
   mocks.tree.mockResolvedValue([
     {
-      type: "document",
-      noteId: "word",
-      name: "sample",
-      path: "references/vocabulary/sample",
+      id: "word",
+      title: "sample",
+      storagePath: "references/vocabulary",
+      created_at: "2026-01-01",
+      updated_at: "2026-01-02",
     },
     {
-      type: "document",
-      noteId: "private",
-      name: "hidden",
-      path: "references/vocabulary/private/hidden",
+      id: "private",
+      title: "hidden",
+      storagePath: "references/vocabulary/private",
+      created_at: "2026-01-01",
+      updated_at: "2026-01-02",
     },
-    { type: "document", noteId: "other", name: "other", path: "ideas/other" },
+    {
+      id: "other",
+      title: "other",
+      storagePath: "ideas",
+      created_at: "2026-01-01",
+      updated_at: "2026-01-02",
+    },
   ]);
   expect((await vocabularyDocuments.list()).map((item) => item.id)).toEqual([
     "word",
   ]);
   expect(mocks.get).not.toHaveBeenCalled();
+  expect(mocks.tree).toHaveBeenCalledWith({
+    storagePath: "references/vocabulary",
+  });
 });
 it("denies out-of-scope, protected, missing and revoked reads", async () => {
   expect(await vocabularyDocuments.read("word")).toMatchObject({

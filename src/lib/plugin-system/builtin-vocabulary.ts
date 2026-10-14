@@ -9,7 +9,11 @@ import {
   withProtectionWrite,
 } from "../storage/protection-state";
 import { isPathUnder, normalizeStoragePath } from "../storage/core";
-import { workspaceDocuments } from "../workspace-summary";
+import type { Note } from "../../types/models";
+export type VocabularyDocumentSummary = Pick<
+  Note,
+  "id" | "title" | "storagePath" | "created_at" | "updated_at"
+>;
 import { subscribeToDataChanges } from "../tab-coordination";
 export const VOCABULARY_ID = "nine-rings.builtin-vocabulary";
 export const VOCABULARY_VIEW = "builtin.vocabulary";
@@ -107,13 +111,11 @@ export function startBuiltinVocabulary() {
           ["panels.present", "views.present", "documents.vocabulary.read"],
           {
             activate(owner) {
-              mainViews
-                .bind(owner.activation)
-                .register({
-                  id: VOCABULARY_VIEW,
-                  label: "词汇学习",
-                  renderer: "vocabulary",
-                });
+              mainViews.bind(owner.activation).register({
+                id: VOCABULARY_VIEW,
+                label: "词汇学习",
+                renderer: "vocabulary",
+              });
               workspacePanels.register(owner.activation, {
                 id: "vocabulary",
                 label: "词汇学习",
@@ -164,9 +166,9 @@ export const vocabularyDocuments = {
     const path = readVocabularyPreference().path;
     const protectedPaths = await listProtectedPaths();
     pluginRuntime.assert(owner, "documents.vocabulary.read");
-    const tree = await api.docs.tree();
+    const summaries = await api.docs.summaries({ storagePath: path });
     pluginRuntime.assert(owner, "documents.vocabulary.read");
-    return workspaceDocuments(tree)
+    return summaries
       .filter(
         (note) =>
           isPathUnder(note.storagePath ?? "", path) &&
@@ -179,7 +181,17 @@ export const vocabularyDocuments = {
           (a.title ?? "").localeCompare(b.title ?? "") ||
           a.id.localeCompare(b.id),
       )
-      .slice(0, 5000);
+      .slice(0, 5000)
+      .map(
+        (note) =>
+          ({
+            id: note.id,
+            title: note.title,
+            storagePath: note.storagePath,
+            created_at: note.created_at,
+            updated_at: note.updated_at,
+          }) satisfies VocabularyDocumentSummary,
+      );
   },
   async read(id: string) {
     const owner = workspacePanels.assert("vocabulary");
