@@ -43,6 +43,19 @@ pub struct ExportBundle {
     pub protected_versions: Vec<Value>,
 }
 
+/// Check the protocol before fixed structs can silently discard an envelope.
+/// No new-envelope round-trip capability is advertised by this release.
+pub fn parse_legacy_bundle(json: &str) -> Result<ExportBundle, String> {
+    let value: Value = serde_json::from_str(json).map_err(|_| "备份不是有效 JSON".to_string())?;
+    let object = value.as_object().ok_or("备份必须为 JSON 对象")?;
+    if object.contains_key("header") {
+        return Err("当前版本尚不支持此同步协议；本机数据未修改".into());
+    }
+    drop(value);
+    // Keep serde's duplicate-field checks for the fixed legacy model.
+    serde_json::from_str(json).map_err(|_| "备份字段无效".to_string())
+}
+
 /// 导出全部数据（不含软删除的笔记）
 pub fn export_all(conn: &Connection, config: &AppConfig) -> rusqlite::Result<ExportBundle> {
     let mut stmt = conn.prepare(
@@ -176,6 +189,29 @@ pub fn import_bundle(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn shared_protocol_gates_reject_before_storage() {
+        let cases: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../schema/sync/fixtures/legacy-gates.json"
+        ))
+        .unwrap();
+        for case in cases.as_array().unwrap() {
+            let source = serde_json::to_string(&case["bundle"]).unwrap();
+            assert_eq!(
+                super::parse_legacy_bundle(&source).is_ok(),
+                case["allowed"].as_bool().unwrap(),
+                "{}",
+                case["name"]
+            );
+        }
+        assert!(super::parse_legacy_bundle("[1,2]").is_err());
+        assert!(super::parse_legacy_bundle("PRIVATE_INVALID").is_err());
+        assert!(super::parse_legacy_bundle(
+            r#"{"version":1,"version":2,"exported_at":"now","notes":[]}"#
+        )
+        .is_err());
+    }
 
     fn backup_db() -> rusqlite::Connection {
         let db = rusqlite::Connection::open_in_memory().unwrap();

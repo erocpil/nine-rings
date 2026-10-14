@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import '../models/note.dart';
 import '../models/note_version.dart';
+import 'backup_protocol.dart';
 
 const _uuid = Uuid();
 
@@ -336,6 +337,7 @@ class NoteService {
     bool replace = false,
   }) async {
     final data = jsonDecode(jsonStr) as Map;
+    assertLegacyBackupProtocol(data);
     if ((data['version'] != null && data['version'] != 1) ||
         ((data['protected_paths'] as List?)?.isNotEmpty ?? false)) {
       throw StateError('此备份包含新版加密数据，请使用支持文档加密的 PWA 或 Tauri；本机数据未修改。');

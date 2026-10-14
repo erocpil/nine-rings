@@ -1,0 +1,91 @@
+{
+  "codec": 1,
+  "vectors": [
+    {
+      "name": "object-keys",
+      "input": {
+        "z": 1,
+        "a": 2
+      },
+      "canonical": "{\"a\":2,\"z\":1}",
+      "sha256": "c2985c5ba6f7d2a55e768f92490ca09388e95bc4cccb9fdf11b15f4d42f93e73"
+    },
+    {
+      "name": "numeric-keys",
+      "input": {
+        "2": "two",
+        "10": "ten"
+      },
+      "canonical": "{\"10\":\"ten\",\"2\":\"two\"}",
+      "sha256": "b71e124675fc80e7314688bffdb68e83515851fb51474125db9a0c4c8aca3808"
+    },
+    {
+      "name": "utf16-keys",
+      "input": {
+        "\ue000": 1,
+        "\ud83d\ude00": 2
+      },
+      "canonical": "{\"\ud83d\ude00\":2,\"\ue000\":1}",
+      "sha256": "28c95d1bbb2209223307e62f489020e8f9e0cfa16adf2daf6d88127a1e8dd22a"
+    },
+    {
+      "name": "text-preservation",
+      "input": {
+        "text": "e\u0301\r\n\u4e2d\u6587",
+        "composed": "\u00e9"
+      },
+      "canonical": "{\"composed\":\"\u00e9\",\"text\":\"e\u0301\\r\\n\u4e2d\u6587\"}",
+      "sha256": "03d2e956572e9f07e125fd697d221cb892717c7a55e485e375614aee7ac2824a"
+    },
+    {
+      "name": "array-order",
+      "input": {
+        "ops": [
+          {
+            "insert": "b"
+          },
+          {
+            "insert": "a"
+          }
+        ]
+      },
+      "canonical": "{\"ops\":[{\"insert\":\"b\"},{\"insert\":\"a\"}]}",
+      "sha256": "111f9dec0a974b4d1bd5f9fbba9fb8825a5660aac37e8297101fd9e92249f37b"
+    },
+    {
+      "name": "unknown-and-cipher",
+      "input": {
+        "future": {
+          "z": null,
+          "a": true
+        },
+        "encrypted": {
+          "ciphertext": "UNCHANGED==",
+          "nonce": "same"
+        }
+      },
+      "canonical": "{\"encrypted\":{\"ciphertext\":\"UNCHANGED==\",\"nonce\":\"same\"},\"future\":{\"a\":true,\"z\":null}}",
+      "sha256": "80d8d1173de120dc35a0a883218a4fb5a9698efb5a47a613cfc6b36eefdcbeb0"
+    },
+    {
+      "name": "numbers",
+      "input": [
+        -0.0,
+        1.5,
+        1e-07,
+        1e-06,
+        9007199254740991
+      ],
+      "canonical": "[0,1.5,1e-7,0.000001,9007199254740991]",
+      "sha256": "150d3db98cff92ae69bf44eb1ae964a0e27981a709a1051f8a91671f09e44be0"
+    },
+    {
+      "name": "lone-surrogate",
+      "input": {
+        "text": "\ud800"
+      },
+      "canonical": "{\"text\":\"\\ud800\"}",
+      "sha256": "7d38e2388498cec03881027e7753b07826c5af2d61dd589b4c1caaab14ec2cc4"
+    }
+  ]
+}

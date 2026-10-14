@@ -20,6 +20,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../models/note.dart';
+import 'backup_protocol.dart';
 
 // ── 类型 ──
 
@@ -338,6 +339,7 @@ Future<SyncConfig> pushToGitHub(
     throw StateError('远端有尚未合并的版本，请先备份本地数据并 Pull；不会覆盖远端指针');
   }
   final content = await exportData();
+  assertLegacyBackupProtocol(jsonDecode(content));
   final version = DateTime.now()
       .toUtc()
       .toIso8601String()
@@ -440,10 +442,13 @@ Future<SyncConfig> pullFromGitHub(
     return updated;
   }
   try {
-    jsonDecode(remote.content);
+    final value = jsonDecode(remote.content);
+    assertLegacyBackupProtocol(value);
+  } on StateError {
+    rethrow;
   } catch (_) {
     throw Exception(
-      '远端备份文件内容不是有效 JSON（前 100 字符: ${remote.content.substring(0, remote.content.length.clamp(0, 100))}）',
+      '远端备份文件内容不是有效 JSON；本机数据未修改。',
     );
   }
 

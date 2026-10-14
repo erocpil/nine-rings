@@ -1,0 +1,61 @@
+[
+  {
+    "name": "legacy",
+    "bundle": {
+      "version": 1,
+      "exported_at": "2026-10-14T00:00:00Z",
+      "notes": []
+    },
+    "allowed": true
+  },
+  {
+    "name": "envelope",
+    "bundle": {
+      "version": 1,
+      "exported_at": "2026-10-14T00:00:00Z",
+      "notes": [],
+      "header": {
+        "kind": "nine-rings.sync-snapshot",
+        "format": 1,
+        "codec": 1,
+        "requires": {
+          "read": 1,
+          "write": 1,
+          "readFeatures": [],
+          "writeFeatures": []
+        },
+        "id": "example-001",
+        "parent": null,
+        "createdAt": "2026-10-14T00:00:00Z",
+        "writtenBy": {
+          "app": "candidate",
+          "platform": "fixture",
+          "deviceId": "fixture"
+        }
+      }
+    },
+    "allowed": false
+  },
+  {
+    "name": "null-header",
+    "bundle": {
+      "version": 1,
+      "exported_at": "2026-10-14T00:00:00Z",
+      "notes": [],
+      "header": null
+    },
+    "allowed": false
+  },
+  {
+    "name": "unknown-header",
+    "bundle": {
+      "version": 1,
+      "exported_at": "2026-10-14T00:00:00Z",
+      "notes": [],
+      "header": {
+        "future": true
+      }
+    },
+    "allowed": false
+  }
+]

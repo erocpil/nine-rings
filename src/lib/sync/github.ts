@@ -1,3 +1,4 @@
+import { assertSyncCapabilities } from "./protocol-capabilities";
 import { measureTransfer } from "./measurement-store";
 /**
  * GitHub 同步服务 — 方案 A：全量 JSON 快照
@@ -220,6 +221,7 @@ function validateRemoteBackup(json: string, version: string): void {
     } catch {
       throw new Error("远端备份文件内容不是有效 JSON，未修改本地数据");
     }
+    assertSyncCapabilities(parsed, { operation: "read", expectedId: version });
     validateBackup(parsed);
   } catch (reason) {
     throw backupError(reason, `远端版本：${version}\n远端备份来源：${formatBackupDevice(summarizeBackup(json).backupDevice)}`);
@@ -803,6 +805,7 @@ export async function pushToGitHub(config: SyncConfig, message?: string, options
   checkPushCancellation(options.signal);
   options.onProgress?.({ phase: "exporting" });
   const content = await exportFullDB();
+  assertSyncCapabilities(JSON.parse(content), { operation: "write" });
   checkPushCancellation(options.signal);
   dumpBundle("导出本地数据", content);
 

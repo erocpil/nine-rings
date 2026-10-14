@@ -37,6 +37,7 @@ jobs:
         with:
           filters: |
             frontend:
+              - 'schema/sync/**'
               - '.node-version'
               - 'src/**'
               - 'e2e/**'
@@ -76,6 +77,7 @@ jobs:
               - '.github/workflows/test.yml'
             flutter:
               - 'flutter_app/**'
+              - 'schema/sync/**'
             rust:
               - 'rust-toolchain.toml'
               - 'src-tauri/**'

@@ -1,3 +1,4 @@
+import { assertSyncCapabilities } from "./sync/protocol-capabilities";
 import { isEncrypted, validateEncryptedContent, type ProtectedPath } from "./document-crypto";
 import type { NoteVersion } from "../types/models";
 import { normalizeStoragePath, isPathUnder } from "./storage/core";
@@ -32,6 +33,7 @@ export function validateBackup(
       safe(child, depth + 1);
     }
   };
+  assertSyncCapabilities(value, { operation: "read" });
   safe(value);
   if (!object(value) || !Array.isArray(value.notes))
     throw new Error("备份必须包含 notes 数组");

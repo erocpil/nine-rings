@@ -218,3 +218,11 @@ it("refuses a missing base tree rather than creating a commit that deletes unrel
   await expect(pushToGitHub(config)).rejects.toThrow(/无效 SHA/);
   expect(requests.some((r) => r.method !== "GET")).toBe(false);
 });
+
+it("does not write an unsupported locally exported envelope", async () => {
+  vi.mocked(api.export.data).mockResolvedValue(
+    JSON.stringify({ notes: [], header: null }),
+  );
+  await expect(pushToGitHub(config)).rejects.toThrow("同步协议");
+  expect(requests.every((r) => r.method === "GET")).toBe(true);
+});

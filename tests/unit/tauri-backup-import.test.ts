@@ -32,3 +32,19 @@ it("redacts stale search text for both object and legacy JSON-string encrypted c
     expect(args.replace).toBe(false);
   }
 });
+
+it("rejects reserved sync envelopes before native IPC or replacement", async () => {
+  invoke.mockClear();
+  for (const header of [
+    null,
+    { kind: "nine-rings.sync-snapshot", format: 99 },
+  ]) {
+    expect(() =>
+      tauriAdapter.importData(
+        JSON.stringify({ version: 1, header, notes: [] }),
+        "replace",
+      ),
+    ).toThrow("同步协议");
+  }
+  expect(invoke).not.toHaveBeenCalled();
+});
