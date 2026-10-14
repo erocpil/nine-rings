@@ -109,11 +109,11 @@
   border-right: 1px solid var(--border);
 }
 .document-panels-right
-  > :is(.note-editor-scroll, .vr-title, .vr-actions, .vr-notice, .markdown-source-content) {
+  > :is(.note-editor-scroll, .vr-title, .vr-actions, .vr-notice, .markdown-source-content, .editor-stats) {
   margin-right: min(var(--document-dock-width, 280px), 50%);
 }
 .document-panels-left
-  > :is(.note-editor-scroll, .vr-title, .vr-actions, .vr-notice, .markdown-source-content) {
+  > :is(.note-editor-scroll, .vr-title, .vr-actions, .vr-notice, .markdown-source-content, .editor-stats) {
   margin-left: min(var(--document-dock-width, 280px), 50%);
 }
 /* Hover previews share the tree context menu's theme-aware halo. Docked panels

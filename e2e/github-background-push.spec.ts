@@ -211,3 +211,29 @@ test("上传 HTTP 400 不发布 latest，失败提示可独立查看带请求 ID
   await expect(dialog).toHaveCount(0);
   await expect(job).toBeVisible();
 });
+
+for (const style of ["classic", "mono-aware"]) for (const side of ["left", "right"])
+  test(`固定目录不遮挡日志与历史：${style}/${side}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 844 });
+    await page.addInitScript(style => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: style, editor_show_status_bar: true })), style);
+    const { createBlankDocument } = await import("./helpers/document");
+    await createBlankDocument(page, "固定目录状态栏");
+    await page.evaluate(async side => {
+      const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts");
+      saveWorkspaceLayout({ panelsSide: side as "left" | "right" });
+    }, side);
+    await page.locator(".ProseMirror:visible").evaluate(element => (element as any).editor.commands.setContent({ type: "doc", content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "标题" }] }, { type: "paragraph", content: [{ type: "text", text: "内容" }] }] }, true));
+    await page.getByRole("button", { name: "文档目录", exact: true }).click();
+    const dock = page.getByRole("complementary", { name: "固定阅读面板" });
+    await expect(dock).toBeVisible();
+    const footer = page.locator(".editor-stats:visible");
+    await expect.poll(async () => {
+      const a = (await footer.boundingBox())!, b = (await dock.boundingBox())!;
+      return side === "right" ? a.x + a.width <= b.x + 1 : a.x >= b.x + b.width - 1;
+    }).toBe(true);
+    await page.getByRole("button", { name: "打开调试日志", exact: true }).click();
+    await expect(page.locator(".debug-panel")).toBeVisible();
+    await page.getByRole("button", { name: "关闭调试日志", exact: true }).click();
+    await page.getByRole("button", { name: "打开本机版本历史", exact: true }).click();
+    await expect(page.locator(".version-panel")).toBeVisible();
+  });

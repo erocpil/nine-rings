@@ -9,6 +9,7 @@
  * 设置 → 填入 token + owner/repo → 测试连接 → 手动/定时同步。
  */
 
+import { GITHUB_LARGE_SNAPSHOT_BYTES, uploadLargeGitSnapshot } from "./github-large-upload";
 import { addLog } from "../debugLog";
 import { GitHubWriteHttpError, syncErrorMessage } from "./errors";
 import { isTauriRuntime } from "../runtime";
@@ -545,6 +546,31 @@ async function putRemote(token: string, owner: string, repo: string, path: strin
   return data.content.sha;
 }
 
+/** Large uploads keep the exact JSON snapshot and existing latest CAS protocol. */
+async function putLargeSnapshot(config: SyncConfig, path: string, content: string, message: string, options: PushOptions): Promise<void> {
+  const root = `https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}`;
+  const request = async (route: string, method: "GET" | "POST" | "PATCH" = "GET", body?: unknown): Promise<unknown> => {
+    checkPushCancellation(options.signal);
+    const payload = body === undefined ? undefined : JSON.stringify(body);
+    const bytes = payload === undefined ? 0 : new TextEncoder().encode(payload).byteLength;
+    const timeoutMs = bytes ? githubTransferTimeoutMs(bytes) : GITHUB_REQUEST_TIMEOUT_MS;
+    options.onProgress?.({ phase: "uploading", bytes, timeoutMs });
+    addLog(`[Sync] Git 数据接口 ${method} ${route || "仓库信息"} | 请求: ${bytes} bytes | 超时: ${timeoutMs / 1000}s`);
+    const res = await githubApiFetch(root + route, {
+      method, headers: { ...authHeader(config.token), "Content-Type": "application/json" }, body: payload, signal: options.signal,
+    }, timeoutMs);
+    const requestId = res.headers.get("x-github-request-id")?.replace(/[^a-zA-Z0-9:-]/g, "").slice(0, 128);
+    addLog(`[Sync] Git 数据接口响应: HTTP ${res.status}${requestId ? ` | GitHub 请求 ID: ${requestId}` : ""}`);
+    if (!res.ok) throw new GitHubWriteHttpError(res.status, `GitHub ${method} ${route} ${res.status}: ${(await res.text()).slice(0, 200)}\n失败阶段：上传备份数据\n远端路径：${path}\n请求大小：${bytes} bytes${requestId ? `\nGitHub 请求 ID：${requestId}` : ""}`);
+    return await res.json();
+  };
+  addLog(`[Sync] 大快照使用 Git 数据接口（UTF-8），不使用 Contents Base64 上传；原文: ${new TextEncoder().encode(content).byteLength} bytes`);
+  await uploadLargeGitSnapshot(request, path, content, message, async () => {
+    addLog("[Sync] 初始化空仓库的未发布数据路径；完成完整快照前不写 latest");
+    await putRemote(config.token, config.owner, config.repo, path, "{}", null, `prepare: ${message}`, options);
+  });
+}
+
 // ── 版本化路径工具 ──
 
 /** 从基础路径推导时间戳数据文件路径 "base-20260715T123000.json" */
@@ -785,8 +811,12 @@ export async function pushToGitHub(config: SyncConfig, message?: string, options
   // ── 1. 写数据文件（创建，sha=null）──
   addLog(`[Sync] 写入数据文件: ${dataPath}`);
   try {
-    await putRemote(config.token, config.owner, config.repo, dataPath, content, null,
-      message || `backup: ${version}`, options);
+    if (new TextEncoder().encode(content).byteLength >= GITHUB_LARGE_SNAPSHOT_BYTES) {
+      await putLargeSnapshot(config, dataPath, content, message || `backup: ${version}`, options);
+    } else {
+      await putRemote(config.token, config.owner, config.repo, dataPath, content, null,
+        message || `backup: ${version}`, options);
+    }
   } catch (e) {
     addLog(`[Sync] 数据文件写入失败: ${syncErrorMessage(e)}`);
     throw e;
