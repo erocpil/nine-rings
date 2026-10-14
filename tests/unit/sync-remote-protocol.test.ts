@@ -130,6 +130,38 @@ it("does not accept an envelope without its control or a mismatched anchored roo
   );
 });
 
+it("keeps shipped publication capabilities disabled even after a successful empty-space preflight", async () => {
+  const { preparePublication } =
+    await import("../../src/lib/sync/publication-recovery");
+  const f = await gitReadFixture({});
+  const remote = await inspectRemoteProtocol(f.request, config);
+  await expect(
+    preparePublication({
+      remote,
+      source: JSON.stringify(gates[1].bundle),
+      runtime: "web",
+      observation: { state: "none" },
+      prerequisites: {
+        localRevision: "not-certified",
+        backup: null,
+        participants: null,
+        payload: {
+          eligible: true,
+          issues: {},
+          requiredFeatures: [],
+          counts: {
+            documents: 0,
+            templates: 0,
+            protectedPaths: 0,
+            protectedVersions: 0,
+          },
+        },
+        publicationRecoveryReady: true,
+      },
+    }),
+  ).rejects.toThrow("尚不支持");
+});
+
 it("never copies credentials or accepted baselines into remote space metadata", async () => {
   const f = await gitReadFixture({});
   const connection = {

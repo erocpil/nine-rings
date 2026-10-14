@@ -1,3 +1,4 @@
+import { PublicationRecoveryStatus } from "./PublicationRecoveryStatus";
 import { BackupMeasurementDialog } from "./BackupMeasurementDialog";
 import { api } from "../lib/api";
 import { measureBackupAsync } from "../lib/data-transform-client";
@@ -365,6 +366,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
         finally { setBusyOperation(null); }
       }} />}
       <h3>GitHub 备份</h3>
+      <PublicationRecoveryStatus config={cfg} />
 
       {/* 高频操作置顶，打开页面后无需越过低频配置即可执行。 */}
       <div className="settings-row sync-actions">

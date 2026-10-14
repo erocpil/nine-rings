@@ -860,6 +860,21 @@ async function pullWithRestoreLock(config: SyncConfig, options: PullOptions, con
   return updated;
 }
 
+export async function recoverPublicationFromGitHub(config:SyncConfig,spaceId:string):Promise<string> {
+  const {readPublicationAttempt}=await import("./publication-store");
+  const {recoverPublication}=await import("./publication-recovery");
+  const attempt=await readPublicationAttempt(spaceId);
+  if(!attempt||!config.token||attempt.space.owner.toLowerCase()!==config.owner.toLowerCase()||attempt.space.repo.toLowerCase()!==config.repo.toLowerCase()||attempt.space.path!==config.path)throw Error("请先配置与发布记录一致的备份连接和凭据");
+  const root=`https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}`;
+  const result=await recoverPublication(spaceId,async route=>{
+    const response=await githubApiFetch(root+route,{headers:authHeader(config.token)},GITHUB_REQUEST_TIMEOUT_MS);
+    if(!response.ok)throw Error(`发布只读核实 HTTP ${response.status}`);
+    return response.json();
+  });
+  addLog(`[Sync] 发布恢复只读核实: ${result}`);
+  return result;
+}
+
 /** Read-only, fixed-revision protocol inspection for explicit migration preparation. */
 export async function preflightProtocolFromGitHub(config: SyncConfig): Promise<RemoteProtocolReport> {
   if (!config.token || !config.owner || !config.repo) throw Error("请先配置 GitHub 连接");
