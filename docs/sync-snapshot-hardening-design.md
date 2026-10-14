@@ -2,7 +2,7 @@
 
 状态：设计与验收计划，尚未实现本页的新协议。更新于 2026-10-14；最新按 v4.1 修订，见第 10 节。I0 测量工具首版已落地，见[测量说明](backup-measurement.md)；macOS 首轮实测见下文，手机及内存仍待补充，增长按用户确认可先估算。
 
-I0 后续用户实测已补充：macOS 准备 1.04 秒、Blob 上传 10.26 秒且发布成功，增长允许先用明确假设估算。I1a 已提供[编码与能力契约](../schema/sync/README.md)、冻结向量及当前各端的有头拒绝入口；新封装尚未启用，未知字段存储往返、非 JS 编码器及升级切换仍属于 I1b，不能把本批作为整项 I1 完成。
+I0 后续用户实测已补充：macOS 准备 1.04 秒、Blob 上传 10.26 秒且发布成功，增长允许先用明确假设估算。I1a 已提供[编码与能力契约](../schema/sync/README.md)、冻结向量及当前各端的有头拒绝入口；新封装尚未启用，I1b 已补候选 Dart 编码/严格输入解析、封装 schema 及 IDB/SQLite 往返样本，并修复 Flutter 对象正文/字段别名兼容。Dart 运行待 CI；全量未知字段存储、正式可写能力与升级切换仍未完成，不能把本批作为整项 I1 完成。
 
 依据：用户提供的 `files (1).zip` 中 `sync-incremental-design.md`（v3，2026-10-10）、`measure-backup-repo.mjs` 及后续 `sync-incremental-design (4).md`（v4.1），结合当前源码复核。延续[既有评估](incremental-backup-assessment.md)，保留手动 Push/Pull、跨端并发及安全合并。原建议未读源码，历史规模与收益估算不作为当前事实。
 

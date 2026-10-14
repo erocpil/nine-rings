@@ -222,6 +222,40 @@ mod tests {
     }
 
     #[test]
+    fn shared_storage_roundtrip_measures_retained_body_and_lost_metadata() {
+        let json = include_str!("../../../schema/sync/fixtures/storage-roundtrip.json");
+        let input: serde_json::Value = serde_json::from_str(json).unwrap();
+        let bundle = super::parse_legacy_bundle(json).unwrap();
+        let db = backup_db();
+        super::import_bundle(&db, &bundle, true).unwrap();
+        db.execute(
+            "UPDATE notes SET title='renamed' WHERE id='roundtrip-001'",
+            [],
+        )
+        .unwrap();
+        let restored = serde_json::to_value(
+            super::export_all(&db, &crate::commands::config::AppConfig::default()).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(restored["notes"][0]["title"], "renamed");
+        assert_eq!(
+            restored["notes"][0]["content"],
+            input["notes"][0]["content"]
+        );
+        assert_eq!(
+            restored["notes"][0]["storage_path"],
+            input["notes"][0]["storage_path"]
+        );
+        assert_eq!(
+            restored["notes"][0]["linked_doc_ids"],
+            input["notes"][0]["linked_doc_ids"]
+        );
+        assert!(restored["notes"][0].get("futureRecord").is_none());
+        assert!(restored["templates"][0].get("futureTemplate").is_none());
+        assert!(restored.get("futureBundle").is_none());
+    }
+
+    #[test]
     fn templates_round_trip_into_a_fresh_database_and_rollback_with_notes() {
         let source = backup_db();
         source.execute("INSERT INTO templates (id,name,tags,concepts,created_at,updated_at) VALUES ('custom','自定义','[\"tag\"]','[]','now','now')", []).unwrap();

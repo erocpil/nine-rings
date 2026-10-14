@@ -37,13 +37,35 @@ const level = (v: unknown): v is number =>
   Number.isSafeInteger(v) && (v as number) >= 1;
 const text = (v: unknown): v is string =>
   typeof v === "string" &&
-  v.length > 0 &&
+  v.trim().length > 0 &&
   v.length <= 256 &&
   !Array.from(v).some(
     (char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127,
   );
 const features = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every(text) && new Set(v).size === v.length;
+const identity = (v: unknown): v is string =>
+  typeof v === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(v);
+function timestamp(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const parts =
+    /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.exec(
+      value,
+    );
+  if (!parts || !Number.isFinite(Date.parse(value))) return false;
+  const year = Number(parts[1]),
+    month = Number(parts[2]),
+    day = Number(parts[3]);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return (
+    month >= 1 &&
+    month <= 12 &&
+    day >= 1 &&
+    day <= days[month - 1] &&
+    value.slice(11, 13) < "24"
+  );
+}
 
 /** Pure header assessment, not proof of ancestry, payload integrity or safe storage round-trip. */
 export function assertSyncCapabilities(
@@ -66,15 +88,13 @@ export function assertSyncCapabilities(
     h.kind !== "nine-rings.sync-snapshot" ||
     !level(h.format) ||
     !level(h.codec) ||
-    !text(h.id) ||
+    !identity(h.id) ||
     !record(h.requires) ||
     !level(h.requires.read) ||
     !level(h.requires.write) ||
     !features(h.requires.readFeatures) ||
     !features(h.requires.writeFeatures) ||
-    typeof h.createdAt !== "string" ||
-    !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(h.createdAt) ||
-    !Number.isFinite(Date.parse(h.createdAt)) ||
+    !timestamp(h.createdAt) ||
     !record(h.writtenBy) ||
     !text(h.writtenBy.app) ||
     !text(h.writtenBy.platform) ||
@@ -82,7 +102,7 @@ export function assertSyncCapabilities(
     !(
       h.parent === null ||
       (record(h.parent) &&
-        text(h.parent.id) &&
+        identity(h.parent.id) &&
         typeof h.parent.sha256 === "string" &&
         /^[a-f0-9]{64}$/.test(h.parent.sha256))
     )

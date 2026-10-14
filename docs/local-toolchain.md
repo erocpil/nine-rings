@@ -127,3 +127,16 @@ Node CI 读取 `.node-version`，Rust CI 固定 1.98.1，与 `rust-toolchain.tom
 ## 2026-10-11：摘要与插件前置适配后的桌面构建
 
 继续使用上述隔离工具链，未安装新系统软件。完整 Rust 回归 59 库测试及 33 集成测试通过。macOS ARM64 release/.app 构建与 DMG 打包通过；最低系统版本继续使用 11.0 配置，运行命令见既有构建步骤。产物为 `.local-tools/target/aarch64-apple-darwin/release/bundle/dmg/Nine Rings_0.2.0_aarch64.dmg`，`hdiutil verify` 返回 0。日志为 `.local-tools/native-build-20261011.log`、`.local-tools/native-dmg-20261011.log`。未安装进 Applications，也未对用户数据库启动 GUI；这不替代 Windows/Linux 退出后进程与文件锁验证。
+
+## 2026-10-14：隔离的 Dart 语法/格式检查
+
+为同步候选编码器检查 Dart 源码，安装了 `@wasm-fmt/dart_fmt@0.4.0`，仅位于 `.local-tools/dart-format/`，约 7.7 MB 解包体积。它是 dart_style 的 WASM 移植版，来源：[项目仓库](https://github.com/wasm-fmt/dart_fmt)。未安装 Flutter/Dart SDK，不修改项目根 Node 依赖、系统 PATH 或全局软件。
+
+```sh
+bash scripts/with-local-tools.sh npm install --prefix .local-tools/dart-format \
+  --ignore-scripts --no-audit --no-fund @wasm-fmt/dart_fmt@0.4.0
+bash scripts/with-local-tools.sh node scripts/format-dart-isolated.mjs \
+  --check flutter_app/lib/services/sync_canonical_codec.dart
+```
+
+使用 `--write` 可格式化指定文件。封装固定语言 3.9.0、80 列及 LF；本次修改的模型、候选编解码器和测试均经过检查。格式化器可解析语法，但不解析依赖或检查类型，不能代替 Flutter analyze、运行测试和 CI 官方 dart format。Flutter 的运行验证仍交给现有 CI。WASM 工具属于可选本机辅助，不纳入应用依赖，也不降低 CI 验收。

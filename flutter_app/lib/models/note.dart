@@ -5,9 +5,14 @@ const _uuid = Uuid();
 
 class Note {
   bool get encrypted {
-    try { final data = jsonDecode(content); return data is Map && data.containsKey('encrypted'); }
-    catch (_) { return false; }
+    try {
+      final data = jsonDecode(content);
+      return data is Map && data.containsKey('encrypted');
+    } catch (_) {
+      return false;
+    }
   }
+
   final String id;
   final String date; // "2026-07-08"
   String? title;
@@ -21,7 +26,7 @@ class Note {
 
   // ── 文档管理系统（v2）──
   String? storagePath; // P.A.R.A. 目录路径, e.g. "projects/nine-rings"
-  String? docType;     // Diátaxis 类型: explanation|how-to|reference|tutorial
+  String? docType; // Diátaxis 类型: explanation|how-to|reference|tutorial
   List<String>? concepts; // Zettelkasten 概念标签
   List<String>? linkedDocIds; // 关联文档 ID 列表
   bool readonly;
@@ -42,52 +47,60 @@ class Note {
     List<String>? concepts,
     List<String>? linkedDocIds,
     bool? readonly,
-  })  : id = id ?? _uuid.v4(),
-        content = content ?? '[]',
-        tags = tags ?? [],
-        pinned = pinned ?? false,
-        sortOrder = sortOrder ?? 0,
-        createdAt = createdAt ?? DateTime.now().toUtc().toIso8601String(),
-        updatedAt = updatedAt ?? DateTime.now().toUtc().toIso8601String(),
-        concepts = concepts,
-        linkedDocIds = linkedDocIds,
-        readonly = readonly ?? false;
+  }) : id = id ?? _uuid.v4(),
+       content = content ?? '[]',
+       tags = tags ?? [],
+       pinned = pinned ?? false,
+       sortOrder = sortOrder ?? 0,
+       createdAt = createdAt ?? DateTime.now().toUtc().toIso8601String(),
+       updatedAt = updatedAt ?? DateTime.now().toUtc().toIso8601String(),
+       concepts = concepts,
+       linkedDocIds = linkedDocIds,
+       readonly = readonly ?? false;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'date': date,
-        'title': title,
-        'content': content,
-        'tags': tags,
-        'pinned': pinned ? 1 : 0,
-        'sort_order': sortOrder,
-        'created_at': createdAt,
-        'updated_at': updatedAt,
-        'deleted_at': deletedAt,
-        'storage_path': storagePath,
-        'doc_type': docType,
-        'concepts': concepts != null ? jsonEncode(concepts) : null,
-        'linked_doc_ids': linkedDocIds != null ? jsonEncode(linkedDocIds) : null,
-        'readonly': readonly ? 1 : 0,
-      };
+    'id': id,
+    'date': date,
+    'title': title,
+    'content': content,
+    'tags': tags,
+    'pinned': pinned ? 1 : 0,
+    'sort_order': sortOrder,
+    'created_at': createdAt,
+    'updated_at': updatedAt,
+    'deleted_at': deletedAt,
+    'storage_path': storagePath,
+    'doc_type': docType,
+    'concepts': concepts != null ? jsonEncode(concepts) : null,
+    'linked_doc_ids': linkedDocIds != null ? jsonEncode(linkedDocIds) : null,
+    'readonly': readonly ? 1 : 0,
+  };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
-        id: json['id'] as String?,
-        date: json['date'] as String,
-        title: json['title'] as String?,
-        content: json['content'] as String?,
-        tags: _parseTags(json['tags']),
-        pinned: json['pinned'] == 1 || json['pinned'] == true,
-        sortOrder: json['sort_order'] as int?,
-        createdAt: json['created_at'] as String?,
-        updatedAt: json['updated_at'] as String?,
-        deletedAt: json['deleted_at'] as String?,
-        storagePath: json['storage_path'] as String?,
-        docType: json['doc_type'] as String?,
-        concepts: _parseStringList(json['concepts']),
-        linkedDocIds: _parseStringList(json['linked_doc_ids']),
-        readonly: json['readonly'] == 1 || json['readonly'] == true,
-      );
+    id: json['id'] as String?,
+    date: json['date'] as String,
+    title: json['title'] as String?,
+    content: _parseContent(json['content']),
+    tags: _parseTags(json['tags']),
+    pinned: json['pinned'] == 1 || json['pinned'] == true,
+    sortOrder: json['sort_order'] as int?,
+    createdAt: json['created_at'] as String?,
+    updatedAt: json['updated_at'] as String?,
+    deletedAt: json['deleted_at'] as String?,
+    storagePath: (json['storagePath'] ?? json['storage_path']) as String?,
+    docType: (json['docType'] ?? json['doc_type']) as String?,
+    concepts: _parseStringList(json['concepts']),
+    linkedDocIds: _parseStringList(
+      json['linkedDocIds'] ?? json['linked_doc_ids'],
+    ),
+    readonly: json['readonly'] == 1 || json['readonly'] == true,
+  );
+
+  static String? _parseContent(dynamic value) {
+    if (value == null || value is String) return value as String?;
+    if (value is Map || value is List) return jsonEncode(value);
+    throw const FormatException('文档正文不是有效的 JSON 对象或字符串');
+  }
 
   static List<String>? _parseStringList(dynamic val) {
     if (val == null) return null;
@@ -145,43 +158,46 @@ class Note {
     List<String>? concepts,
     List<String>? linkedDocIds,
     bool? readonly,
-  }) =>
-      Note(
-        id: id,
-        date: date,
-        title: title ?? this.title,
-        content: content ?? this.content,
-        tags: tags ?? List.from(this.tags),
-        pinned: pinned ?? this.pinned,
-        sortOrder: sortOrder ?? this.sortOrder,
-        createdAt: createdAt,
-        updatedAt: DateTime.now().toUtc().toIso8601String(),
-        deletedAt: deletedAt ?? this.deletedAt,
-        storagePath: storagePath ?? this.storagePath,
-        docType: docType ?? this.docType,
-        concepts: concepts ?? (this.concepts != null ? List.from(this.concepts!) : null),
-        linkedDocIds: linkedDocIds ?? (this.linkedDocIds != null ? List.from(this.linkedDocIds!) : null),
-        readonly: readonly ?? this.readonly,
-      );
+  }) => Note(
+    id: id,
+    date: date,
+    title: title ?? this.title,
+    content: content ?? this.content,
+    tags: tags ?? List.from(this.tags),
+    pinned: pinned ?? this.pinned,
+    sortOrder: sortOrder ?? this.sortOrder,
+    createdAt: createdAt,
+    updatedAt: DateTime.now().toUtc().toIso8601String(),
+    deletedAt: deletedAt ?? this.deletedAt,
+    storagePath: storagePath ?? this.storagePath,
+    docType: docType ?? this.docType,
+    concepts:
+        concepts ?? (this.concepts != null ? List.from(this.concepts!) : null),
+    linkedDocIds:
+        linkedDocIds ??
+        (this.linkedDocIds != null ? List.from(this.linkedDocIds!) : null),
+    readonly: readonly ?? this.readonly,
+  );
 
   Note copyWithUpdated({String? deletedAt}) => Note(
-        id: id,
-        date: date,
-        title: title,
-        content: content,
-        tags: List.from(tags),
-        pinned: pinned,
-        sortOrder: sortOrder,
-        createdAt: createdAt,
-        updatedAt: DateTime.now().toUtc().toIso8601String(),
-        deletedAt: deletedAt ?? this.deletedAt,
-        storagePath: storagePath,
-        docType: docType,
-        concepts: concepts != null ? List.from(concepts!) : null,
-        linkedDocIds: linkedDocIds != null ? List.from(linkedDocIds!) : null,
-        readonly: readonly,
-      );
+    id: id,
+    date: date,
+    title: title,
+    content: content,
+    tags: List.from(tags),
+    pinned: pinned,
+    sortOrder: sortOrder,
+    createdAt: createdAt,
+    updatedAt: DateTime.now().toUtc().toIso8601String(),
+    deletedAt: deletedAt ?? this.deletedAt,
+    storagePath: storagePath,
+    docType: docType,
+    concepts: concepts != null ? List.from(concepts!) : null,
+    linkedDocIds: linkedDocIds != null ? List.from(linkedDocIds!) : null,
+    readonly: readonly,
+  );
 
   @override
-  String toString() => 'Note(id=$id, date=$date, title=$title, storagePath=$storagePath)';
+  String toString() =>
+      'Note(id=$id, date=$date, title=$title, storagePath=$storagePath)';
 }

@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "exported_at": "2026-10-14T00:00:00Z",
+  "notes": [
+    {
+      "id": "roundtrip-001",
+      "date": "2026-10-14",
+      "title": "跨端往返",
+      "content": {
+        "ops": [
+          {
+            "insert": "正文 é\r\n",
+            "attributes": {
+              "futureInline": {
+                "keep": [
+                  1,
+                  true,
+                  null
+                ]
+              }
+            }
+          },
+          {
+            "insert": "标题\n",
+            "attributes": {
+              "header": 3
+            }
+          }
+        ],
+        "futureBody": {
+          "keep": "unchanged"
+        }
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ],
+      "futureRecord": {
+        "keep": "note-extension"
+      }
+    }
+  ],
+  "templates": [
+    {
+      "id": "roundtrip-template",
+      "name": "模板",
+      "description": "",
+      "is_builtin": false,
+      "title_template": null,
+      "tags": [],
+      "storage_path": null,
+      "doc_type": null,
+      "concepts": [],
+      "pinned": false,
+      "sort_order": 0,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "futureTemplate": {
+        "keep": "template-extension"
+      }
+    }
+  ],
+  "futureBundle": {
+    "keep": "bundle-extension"
+  }
+}
