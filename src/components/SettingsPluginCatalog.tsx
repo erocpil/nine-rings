@@ -26,6 +26,7 @@ import { panelPresenter } from "../lib/plugin-system/builtin-panel-presenters";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useTransientMessage } from "../hooks/useTransientMessage";
 import { outlineDisplay } from "../lib/plugin-system/builtin-outline-display";
+import { SettingsVocabularyAppearance } from "./SettingsVocabularyAppearance";
 import { SettingsPanelDisplay } from "./SettingsPanelDisplay";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { Field } from "./SettingsFields";
@@ -125,6 +126,7 @@ function PluginConfigurationDialog({
             }} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
           </Field>
           <Field label="例句默认折叠" desc="控制尚无阅读记录的例句默认状态；译文默认折叠，已记录的展开状态优先恢复。"><input type="checkbox" aria-label="例句默认折叠" checked={readVocabularyPreference().collapseExamples} onChange={event => { saveVocabularyPreference({ ...readVocabularyPreference(), collapseExamples: event.target.checked }); showMessage("已更新"); }} /></Field>
+          <SettingsVocabularyAppearance onMessage={showMessage} />
           <p className="settings-desc">首版不联网抓取、不改写正文；受保护正文不交给插件。普通文档入口用于编辑和导出，阅读语境关联将在后续接入。</p>
         </> : plugin.configuration === "image-viewer" ? (
           <p className="settings-desc">

@@ -1,18 +1,15 @@
-import { useEffect, useRef, useState } from "react";
-import { getLogs, subscribe, subscribeDebugOpen, clearLogs, LogEntry } from "../lib/debugLog";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { getLogs, subscribe, subscribeDebugOpen, clearLogs } from "../lib/debugLog";
 import { copyToClipboard } from "../lib/clipboard";
 
 export function DebugPanel() {
   const [open, setOpen] = useState(false);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const logs = useSyncExternalStore(subscribe, getLogs);
   const [copyState, setCopyState] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // 订阅面板开关
   useEffect(() => subscribeDebugOpen(setOpen), []);
-
-  // 订阅日志更新
-  useEffect(() => subscribe(() => setLogs(getLogs())), []);
 
   // 自动滚到底部
   useEffect(() => {

@@ -4731,7 +4731,6 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           <span>{chars} 字符</span>
           <span>{words} 词</span>
         </span>
-        {onVersionOpen && (
           <span className="editor-status-actions">
             <span className="btn-debug-toggle-wrapper">
               <button
@@ -4743,11 +4742,10 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
                 type="button"
               ><ToolbarIcon name="bug" /><span>日志</span></button>
             </span>
-            <button className="btn-version-icon" onClick={onVersionOpen} title="版本历史" aria-label="打开本机版本历史" type="button">
+            {onVersionOpen && <button className="btn-version-icon" onClick={onVersionOpen} title="版本历史" aria-label="打开本机版本历史" type="button">
               <ToolbarIcon name="history" /><span>历史</span>
-            </button>
+            </button>}
           </span>
-        )}
       </div>}
 
       <BlockWorkspaceHost highlightActiveLine={highlightActiveLine} vimModeEnabled={vimModeEnabled} key={noteId} noteId={noteId} source={editor} readonly={readonly} sensitive={sensitive} saveStatus={saveStatus} onFlush={onFlush} />

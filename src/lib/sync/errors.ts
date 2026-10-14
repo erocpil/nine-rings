@@ -16,3 +16,13 @@ export function syncErrorMessage(reason: unknown): string {
   };
   return read(reason) ?? "未知错误（系统未返回错误详情）";
 }
+/** An HTTP rejection is different from losing the response to a write. */
+export class GitHubWriteHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "GitHubWriteHttpError";
+  }
+}

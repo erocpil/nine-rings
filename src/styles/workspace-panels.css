@@ -3370,6 +3370,9 @@ button.doc-tree-toggle:focus-visible {
 .block-menu-input-control :is(input, textarea) { box-sizing: border-box; width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); color: var(--text); font: inherit; }
 .block-menu-input-control textarea { resize: vertical; max-height: 40vh; }
 .block-menu-input-control small { color: var(--text-secondary); }
+.sync-log-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.sync-log-tools p { flex: 1 1 100%; color: var(--text-secondary); margin: 0 0 4px; }
+.sync-log-content { max-height: 55dvh; overflow: auto; padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font: 12px/1.65 var(--code-font-family, monospace); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
 
 /* Host-scoped presentation slot. Path hierarchy and selection stay host-owned. */
 .doc-tree[data-panel-display="plugin"] {

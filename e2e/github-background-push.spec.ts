@@ -133,3 +133,81 @@ test("取消上传不会写 latest，也不会显示成功或记录成功版本"
   );
   expect(version).toBeNull();
 });
+
+for (const style of ["classic", "mono-aware"]) test(`桌面正文变窄仍可见日志和版本历史：${style}`, async ({ page }) => {
+  await page.setViewportSize({ width: 1728, height: 1005 });
+  await page.addInitScript(style => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: style, workspace_layout: style === "classic" ? "standard" : "exhibition", editor_show_status_bar: true })), style);
+  const { createBlankDocument } = await import("./helpers/document");
+  const { closeDocumentSidebar } = await import("./helpers/workspace");
+  await createBlankDocument(page, "状态栏可见性");
+  await closeDocumentSidebar(page);
+  await page.locator(".ProseMirror:visible").evaluate(element => (element as any).editor.commands.setContent({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "正".repeat(50000) }] }] }, true));
+  await expect(page.locator(".editor-status-secondary")).toContainText("50000");
+  await page.addStyleTag({ content: ".app-main-editor { flex: 0 0 260px !important; max-width: 260px !important; }" });
+  const footer = page.locator(".editor-stats:visible");
+  const bounds = (await footer.boundingBox())!;
+  for (const label of ["打开调试日志", "打开本机版本历史"]) {
+    const button = page.getByRole("button", { name: label, exact: true });
+    await expect(button).toBeVisible();
+    const rect = (await button.boundingBox())!;
+    expect(rect.x).toBeGreaterThanOrEqual(bounds.x);
+    expect(rect.x + rect.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
+  }
+  await page.evaluate(async () => (await import("/src/lib/debugLog.ts")).addLog("[Sync] 打开前已存在的诊断"));
+  await page.getByRole("button", { name: "打开调试日志", exact: true }).click();
+  await expect(page.locator(".debug-panel")).toContainText("打开前已存在的诊断");
+  await page.getByRole("button", { name: "关闭调试日志", exact: true }).click();
+  await expect(page.locator(".debug-panel")).toHaveCount(0);
+});
+
+
+test("隐藏正文状态栏时仍可读取旧同步日志、实时更新、复制，并单独关闭弹层", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_status_bar: false })));
+  await configure(page);
+  await page.evaluate(async () => {
+    const { addLog } = await import("/src/lib/debugLog.ts");
+    addLog("[Sync] 已有上传诊断");
+    addLog("非同步日志");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => { (window as any).copiedSyncLog = text; } } });
+  });
+  await page.getByRole("button", { name: "同步日志", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "同步日志", exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("同步日志内容")).toContainText("已有上传诊断");
+  await expect(dialog.getByLabel("同步日志内容")).not.toContainText("非同步日志");
+  await page.evaluate(async () => (await import("/src/lib/debugLog.ts")).addLog("[Sync] 后续诊断"));
+  await expect(dialog.getByLabel("同步日志内容")).toContainText("后续诊断");
+  await dialog.getByRole("button", { name: "复制同步日志", exact: true }).click();
+  await expect(dialog.getByRole("status")).toHaveText("已复制同步日志");
+  expect(await page.evaluate(() => (window as any).copiedSyncLog)).toContain("已有上传诊断");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".settings-overlay")).toBeVisible();
+});
+
+test("上传 HTTP 400 不发布 latest，失败提示可独立查看带请求 ID 的同步日志", async ({ page }) => {
+  const writes: string[] = [];
+  await page.route("https://api.github.com/**", async route => {
+    if (route.request().method() === "PUT") {
+      writes.push(route.request().url());
+      await route.fulfill({ status: 400, headers: { "x-github-request-id": "ABCD:1234:5678", "access-control-expose-headers": "x-github-request-id" }, json: { message: "We received a malformed request from your client." } });
+    } else await route.fulfill({ status: 404, body: "{}" });
+  });
+  await configure(page);
+  await page.getByRole("button", { name: "Push ↑", exact: true }).click();
+  const job = page.getByLabel("GitHub 上传任务");
+  await expect(job).toContainText("数据文件上传请求被拒绝");
+  await expect(job).toContainText("ABCD:1234:5678");
+  await expect(job).not.toContainText("远端可能已保存");
+  expect(writes).toHaveLength(1);
+  expect(writes[0]).not.toMatch(/-latest$/);
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await job.getByRole("button", { name: "查看同步日志", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "同步日志", exact: true });
+  await expect(dialog.getByLabel("同步日志内容")).toContainText("请求:");
+  await expect(dialog.getByLabel("同步日志内容")).toContainText("HTTP 400");
+  await expect(dialog.getByLabel("同步日志内容")).not.toContainText("fake-test-token");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(job).toBeVisible();
+});

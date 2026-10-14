@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { SyncLogDialog } from "./SyncLogDialog";
 import {
   cancelGitHubPush,
   dismissGitHubPush,
@@ -14,6 +15,7 @@ const PHASE_LABELS = {
 };
 
 export function GitHubPushStatus() {
+  const [logsOpen, setLogsOpen] = useState(false);
   const job = useGitHubPushJob();
   const running = job.status === "running";
   useEffect(() => {
@@ -31,6 +33,7 @@ export function GitHubPushStatus() {
       className={`github-push-status ${job.status}`}
       aria-label="GitHub 上传任务"
     >
+      {logsOpen && <SyncLogDialog onClose={() => setLogsOpen(false)} />}
       <div role="status" aria-live="polite" aria-atomic="true">
         <strong>
           {running
@@ -55,6 +58,7 @@ export function GitHubPushStatus() {
           </small>
         </>
       )}
+      {(job.status === "error" || job.status === "cancelled") && <button type="button" className="settings-btn" onClick={() => setLogsOpen(true)}>查看同步日志</button>}
       <button
         className="settings-btn"
         onClick={running ? cancelGitHubPush : dismissGitHubPush}

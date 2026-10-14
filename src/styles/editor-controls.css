@@ -811,6 +811,7 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 /* ── 编辑器统计条 ── */
 
 .editor-stats {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -828,6 +829,10 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 }
 
 .editor-status-secondary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -838,6 +843,7 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 .editor-stats .btn-debug-toggle-wrapper { display: inline-flex; }
 
 .editor-status-actions {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 8px;

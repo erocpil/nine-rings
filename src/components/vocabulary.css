@@ -26,7 +26,10 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  min-height: 36px;
+  min-height: var(--vocabulary-list-row-height, 40px);
+  font-family: var(--vocabulary-list-font, var(--font));
+  font-size: var(--vocabulary-list-size, 16px);
+  line-height: var(--vocabulary-list-line-height, 1.5);
   border: 0;
   border-radius: 5px;
   background: transparent;
@@ -43,6 +46,8 @@
   background: var(--bg-hover);
 }
 .vocabulary-panel li button[aria-current="true"] {
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
   color: var(--accent);
   background: var(--bg-hover);
 }

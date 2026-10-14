@@ -10,7 +10,7 @@
  */
 
 import { addLog } from "../debugLog";
-import { syncErrorMessage } from "./errors";
+import { GitHubWriteHttpError, syncErrorMessage } from "./errors";
 import { isTauriRuntime } from "../runtime";
 import { validateBackup } from "../backup-validation";
 import { withBackupRestore, type RestoreContext } from "../backup-restore-coordination";
@@ -509,7 +509,9 @@ async function putRemote(token: string, owner: string, repo: string, path: strin
   const payload = JSON.stringify(body);
   const bytes = new TextEncoder().encode(payload).byteLength;
   const timeoutMs = githubTransferTimeoutMs(bytes);
+  const contentBytes = new TextEncoder().encode(content).byteLength;
   checkPushCancellation(options.signal);
+  addLog(`[Sync] PUT ${phase === "publishing" ? "发布最新指针" : "上传数据文件"} | 路径: ${path} | 原文: ${contentBytes} bytes | 请求: ${bytes} bytes | 通道: ${isTauriRuntime() ? "Tauri 原生 HTTP" : "WebView / 浏览器"} | 超时: ${timeoutMs / 1000}s`);
   options.onProgress?.({ phase, bytes, timeoutMs });
   const res = await githubApiFetch(url, {
     method: "PUT",
@@ -517,9 +519,11 @@ async function putRemote(token: string, owner: string, repo: string, path: strin
     body: payload,
     signal: options.signal,
   }, timeoutMs);
+  const requestId = res.headers.get("x-github-request-id")?.replace(/[^a-zA-Z0-9:-]/g, "").slice(0, 128);
+  addLog(`[Sync] PUT 响应: HTTP ${res.status}${requestId ? ` | GitHub 请求 ID: ${requestId}` : ""}`);
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`GitHub PUT ${res.status}: ${err.slice(0, 200)}`);
+    throw new GitHubWriteHttpError(res.status, `GitHub PUT ${res.status}: ${err.slice(0, 200)}\n失败阶段：${phase === "publishing" ? "发布最新备份" : "上传备份数据"}\n远端路径：${path}\n请求大小：${bytes} bytes${requestId ? `\nGitHub 请求 ID：${requestId}` : ""}`);
   }
 
   const text = await res.text();

@@ -69,6 +69,7 @@ for (const width of [1280, 390]) {
     await page.getByRole("button", { name: "词汇学习", exact: true }).click();
     const panel = page.getByRole("region", { name: "词汇学习分栏", exact: true });
     await expect(panel.getByRole("button", { name: "sample", exact: true })).toBeVisible();
+    await expect(panel.getByRole("button", { name: "sample", exact: true })).toHaveCSS("font-size", "16px");
     await expect(panel.getByRole("button", { name: "outside", exact: true })).toHaveCount(0);
     await panel.getByRole("searchbox", { name: "查找词汇" }).fill("samp");
     await expect(panel.getByRole("button", { name: "unknown", exact: true })).toHaveCount(0);
@@ -132,6 +133,7 @@ test("词汇插件的路径和折叠选项可配置且刷新保留", async ({ pa
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   await page.reload();
+  await expect(page.locator(".note-title")).toBeVisible();
   await page.keyboard.press("Alt+,");
   await page.getByLabel("设置分类").getByRole("button", { name: /^高级/ }).click();
   await catalog.getByRole("button", { name: "词汇学习", exact: true }).click();
@@ -433,4 +435,67 @@ test("跨标题、来源和卡片拖选仅绘制文字片段，反向选择和�
   }
   await view.getByRole("button", { name: "返回原视图", exact: true }).click();
   expect(await page.evaluate(() => CSS.highlights.has("vocabulary-selection"))).toBe(false);
+});
+
+test("词汇列表外观实时配置保留当前视图，定位清除筛选并滚动到搜索打开的词汇", async ({ page }) => {
+  await seed(page);
+  await page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    for (let i = 0; i < 40; i++) await api.notes.create({ title: `aaa-${String(i).padStart(2, "0")}`, storagePath: "references/vocabulary", content: { ops: [] } });
+  });
+  await page.getByRole("button", { name: "词汇学习", exact: true }).click();
+  const panel = page.getByRole("region", { name: "词汇学习分栏" });
+  const word = panel.getByRole("button", { name: "sample", exact: true });
+  await expect(word).toHaveCSS("font-size", "16px");
+  await word.click();
+  await expect(word).toHaveAttribute("aria-current", "true");
+  const view = page.getByRole("region", { name: "词汇学习视图" });
+  await expect(view).toBeVisible();
+  const originalView = await view.elementHandle();
+  await page.keyboard.press("Alt+,");
+  await page.getByLabel("设置分类").getByRole("button", { name: /^高级/ }).click();
+  await page.getByRole("complementary", { name: "插件列表" }).getByRole("button", { name: "词汇学习", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "词汇学习配置" });
+  await dialog.getByRole("combobox", { name: "列表字体", exact: true }).selectOption("mono");
+  for (const [label, value] of [["列表字号", "20"], ["列表行高", "1.8"], ["条目最小高度", "52"]]) {
+    await dialog.getByRole("spinbutton", { name: label, exact: true }).fill(value);
+    await dialog.getByRole("spinbutton", { name: label, exact: true }).press("Enter");
+  }
+  await expect(word).toHaveCSS("font-size", "20px");
+  await expect(word).toHaveCSS("line-height", "36px");
+  await expect(word).toHaveCSS("min-height", "52px");
+  expect(await originalView!.evaluate(element => element.isConnected)).toBe(true);
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await expect(view).toBeVisible();
+  await panel.getByRole("searchbox").fill("unknown");
+  await expect(word).toHaveCount(0);
+  await panel.getByRole("button", { name: "定位当前词汇" }).click();
+  await expect(panel.getByRole("searchbox")).toHaveValue("");
+  await expect.poll(() => word.evaluate(element => {
+    const row = element.getBoundingClientRect(), list = element.closest("ul")!.getBoundingClientRect();
+    return row.top >= list.top - 1 && row.bottom <= list.bottom + 1;
+  })).toBe(true);
+  // Global search opens the regular Markdown document; the list follows its identity too.
+  await view.getByRole("button", { name: "返回原视图", exact: true }).click();
+  await panel.getByRole("searchbox").fill("aaa-00");
+  await page.keyboard.press("ControlOrMeta+Shift+f");
+  await page.locator(".search-input").fill("unknown");
+  await page.locator(".search-hit").filter({ hasText: "unknown" }).click();
+  const currentWord = panel.getByRole("button", { name: "unknown", exact: true });
+  await expect(currentWord).toHaveAttribute("aria-current", "true");
+  await expect.poll(() => currentWord.evaluate(element => {
+    const row = element.getBoundingClientRect(), list = element.closest("ul")!.getBoundingClientRect();
+    return row.top >= list.top - 1 && row.bottom <= list.bottom + 1;
+  })).toBe(true);
+  await page.reload();
+  await expect(page.locator(".note-title")).toBeVisible();
+  await page.keyboard.press("Alt+,");
+  await page.getByLabel("设置分类").getByRole("button", { name: /^高级/ }).click();
+  await page.getByRole("complementary", { name: "插件列表" }).getByRole("button", { name: "词汇学习", exact: true }).click();
+  await expect(dialog.getByRole("spinbutton", { name: "列表字号", exact: true })).toHaveValue("20");
+  await expect(dialog.getByRole("combobox", { name: "列表字体", exact: true })).toHaveValue("mono");
+  await dialog.getByRole("button", { name: "恢复列表默认" }).click();
+  await expect(dialog.getByRole("spinbutton", { name: "列表字号", exact: true })).toHaveValue("16");
+  await expect(dialog.getByRole("textbox", { name: "词汇路径", exact: true })).toHaveValue("references/vocabulary");
 });

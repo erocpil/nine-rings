@@ -19,12 +19,58 @@ export const VOCABULARY_ID = "nine-rings.builtin-vocabulary";
 export const VOCABULARY_VIEW = "builtin.vocabulary";
 const KEY = "nr:pluginVocabulary";
 const EVENT = "nr:plugin-vocabulary-change";
-export interface VocabularyPreference {
+export const vocabularyListFonts = {
+  interface: "界面字体",
+  editor: "正文字体",
+  sans: "无衬线字体",
+  serif: "衬线字体",
+  mono: "等宽字体",
+} as const;
+export interface VocabularyListAppearance {
+  listFont: keyof typeof vocabularyListFonts;
+  listFontSize: number;
+  listLineHeight: number;
+  listRowHeight: number;
+}
+export const defaultVocabularyListAppearance: VocabularyListAppearance = {
+  listFont: "interface",
+  listFontSize: 16,
+  listLineHeight: 1.5,
+  listRowHeight: 40,
+};
+function listAppearance(
+  value: Partial<VocabularyListAppearance>,
+): VocabularyListAppearance {
+  const number = (
+    value: unknown,
+    min: number,
+    max: number,
+    fallback: number,
+  ) =>
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= min &&
+    value <= max
+      ? value
+      : fallback;
+  return {
+    listFont:
+      typeof value.listFont === "string" &&
+      Object.prototype.hasOwnProperty.call(vocabularyListFonts, value.listFont)
+        ? value.listFont
+        : "interface",
+    listFontSize: number(value.listFontSize, 12, 28, 16),
+    listLineHeight: number(value.listLineHeight, 1.2, 2.4, 1.5),
+    listRowHeight: number(value.listRowHeight, 28, 72, 40),
+  };
+}
+export interface VocabularyPreference extends VocabularyListAppearance {
   enabled: boolean;
   path: string;
   collapseExamples: boolean;
 }
 export const defaultVocabularyPreference: VocabularyPreference = {
+  ...defaultVocabularyListAppearance,
   enabled: false,
   path: "references/vocabulary",
   collapseExamples: true,
@@ -49,6 +95,7 @@ export function readVocabularyPreference(): VocabularyPreference {
       typeof value.collapseExamples === "boolean"
     )
       return {
+        ...listAppearance(value),
         enabled: value.enabled,
         path: normalizeStoragePath(value.path),
         collapseExamples: value.collapseExamples,
@@ -58,7 +105,10 @@ export function readVocabularyPreference(): VocabularyPreference {
   }
   return { ...defaultVocabularyPreference };
 }
-export function saveVocabularyPreference(value: VocabularyPreference) {
+export function saveVocabularyPreference(
+  value: Pick<VocabularyPreference, "enabled" | "path" | "collapseExamples"> &
+    Partial<VocabularyListAppearance>,
+) {
   const path = normalizeStoragePath(value.path);
   if (
     !path ||
@@ -70,6 +120,7 @@ export function saveVocabularyPreference(value: VocabularyPreference) {
   localStorage.setItem(
     KEY,
     JSON.stringify({
+      ...listAppearance(value),
       enabled: value.enabled,
       path,
       collapseExamples: value.collapseExamples,
@@ -149,7 +200,18 @@ export function startBuiltinVocabulary() {
       reconcile();
     }
   });
-  const preference = subscribeVocabulary(reconcile);
+  const identity = () => {
+    const { enabled, path } = readVocabularyPreference();
+    return JSON.stringify([enabled, path]);
+  };
+  let previousIdentity = identity();
+  const preference = subscribeVocabulary(() => {
+    const next = identity();
+    if (next !== previousIdentity) {
+      previousIdentity = next;
+      reconcile();
+    }
+  });
   reconcile();
   return () => {
     stopped = true;

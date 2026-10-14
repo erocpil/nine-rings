@@ -3,9 +3,11 @@ import { fetch as nativeFetch } from "@tauri-apps/plugin-http";
 import { api } from "../../src/lib/api";
 import {
   githubApiFetch,
+  pushToGitHub,
   previewPullFromGitHub,
   type SyncConfig,
 } from "../../src/lib/sync/github";
+import { getLogs, clearLogs } from "../../src/lib/debugLog";
 import { syncErrorMessage } from "../../src/lib/sync/errors";
 
 vi.mock("../../src/lib/runtime", () => ({ isTauriRuntime: () => true }));
@@ -110,5 +112,37 @@ describe("native GitHub error boundaries", () => {
     await expect(githubApiFetch("https://api.github.com")).rejects.toThrow(
       /本机网络.*\n原始错误：Load failed/,
     );
+  });
+  it("records upload size, stage and GitHub request ID without credentials or body, and never publishes after HTTP 400", async () => {
+    clearLogs();
+    const source = JSON.stringify({ notes: [], privateBody: "正文测试" });
+    vi.mocked(api.export.data).mockResolvedValue(source);
+    vi.mocked(nativeFetch)
+      .mockResolvedValueOnce(new Response("{}", { status: 404 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "malformed request" }), {
+          status: 400,
+          headers: { "x-github-request-id": "ABCD:1234:5678" },
+        }),
+      );
+    await expect(pushToGitHub(config)).rejects.toThrow(
+      /GitHub PUT 400:[\s\S]*上传备份数据[\s\S]*请求大小：[\s\S]*ABCD:1234:5678/,
+    );
+    expect(nativeFetch).toHaveBeenCalledTimes(2);
+    const request = vi.mocked(nativeFetch).mock.calls[1][1]!;
+    expect(new Headers(request.headers).get("content-type")).toBe(
+      "application/json",
+    );
+    expect(JSON.parse(String(request.body)).content).toBe(
+      btoa(unescape(encodeURIComponent(source))),
+    );
+    const logs = getLogs()
+      .map((entry) => entry.msg)
+      .join("\n");
+    expect(logs).toContain("Tauri 原生 HTTP");
+    expect(logs).toContain("HTTP 400");
+    expect(logs).toContain("ABCD:1234:5678");
+    expect(logs).not.toContain(config.token);
+    expect(logs).not.toContain("正文测试");
   });
 });

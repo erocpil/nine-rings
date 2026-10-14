@@ -24,6 +24,7 @@ import { startGitHubPush, useGitHubPushJob } from "../lib/sync/push-job";
 import type { ConflictResolution } from "../lib/sync/backup-merge";
 import { DocumentContentPreview } from "./DocumentContentPreview";
 import { SyncConflictReview } from "./SyncConflictReview";
+import { SyncLogDialog } from "./SyncLogDialog";
 
 interface Props {
   /** 备份进行中回调 — 父组件用来 freeze 编辑区 */
@@ -104,6 +105,7 @@ function SyncDocumentList({
 }
 
 export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }: Props) {
+  const [logsOpen, setLogsOpen] = useState(false);
   const { confirm, confirmationDialog } = useConfirmation();
   const [cfg, setCfg] = useState<SyncConfig>(loadSyncConfig);
   const [status, setStatus] = useState<SyncStatus | null>(null);
@@ -340,6 +342,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
   return (
     <div className="settings-section sync-settings-section">
       {confirmationDialog}
+      {logsOpen && <SyncLogDialog onClose={() => setLogsOpen(false)} />}
       <h3>GitHub 备份</h3>
 
       {/* 高频操作置顶，打开页面后无需越过低频配置即可执行。 */}
@@ -353,6 +356,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
         <button className="settings-btn" onClick={handlePullPreview} disabled={busy || exportingLocal || !connectionReady || !!pullPrecheck}>
           Pull ↓
         </button>
+        <button type="button" className="settings-btn" onClick={() => setLogsOpen(true)}>同步日志</button>
       </div>
 
       {!connectionReady && <p className="settings-hint">请先填写有效的 Owner / Repo、备份文件路径和 Token，再测试连接或同步。</p>}
