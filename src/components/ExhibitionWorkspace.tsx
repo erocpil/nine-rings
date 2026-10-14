@@ -1,3 +1,4 @@
+import { useWindowFullscreen } from "../hooks/useWindowFullscreen";
 import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { useWorkspaceLayout } from "../hooks/useWorkspaceLayout";
 import { useEffect, useMemo, useRef, useState, lazy, Suspense, type ReactNode } from "react";
@@ -57,6 +58,7 @@ export function ExhibitionWorkspace(props: Props) {
   const day = useLocalDay();
   const counts = useMemo(() => workspaceCounts(documents, favorites, day), [documents, favorites, day]);
   const summaryLayout = useWorkspaceLayout();
+  const quietFullscreen = useWindowFullscreen(active && props.desktop && summaryLayout.fullscreenQuietChrome);
   const [summaryPreview, setSummaryPreview] = useState<{ kind: WorkspaceSummaryKind; trigger: HTMLButtonElement; keyboard: boolean } | null>(null);
   const summaryCloseTimer = useRef<ReturnType<typeof setTimeout>>();
   const keepSummary = () => clearTimeout(summaryCloseTimer.current);
@@ -213,6 +215,7 @@ export function ExhibitionWorkspace(props: Props) {
   return (
     <div
       className={`exhibition-shell${active ? " is-exhibition" : ""}`}
+      data-fullscreen-quiet={quietFullscreen || undefined}
       data-text-width={
         enabled && props.desktop
           ? (config?.exhibition_text_width ?? "wide")
@@ -221,7 +224,7 @@ export function ExhibitionWorkspace(props: Props) {
       data-density={enabled && props.desktop ? density : undefined}
     >
       {active && (
-        <header className="exhibition-masthead">
+        <header className="exhibition-masthead" data-quiet-open={openAppearance !== null || undefined}>
           {props.desktop ? (
             <Suspense fallback={null}>
               <TitleBar exhibition workspace={identity}>
@@ -240,6 +243,7 @@ export function ExhibitionWorkspace(props: Props) {
       {active && (
         <section
           className="exhibition-overview"
+          data-quiet-open={summaryPreview !== null || undefined}
           aria-label="工作区概览"
           {...(blocked ? { inert: "" } : {})}
         >

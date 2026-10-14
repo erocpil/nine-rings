@@ -1513,3 +1513,17 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 同步日志由文档树明细改为单行聚合摘要，记录真实 UTF-8 大小、版本、文档/加密正文/模板/保护路径/历史数量和封装头是否存在；不输出标题、概念、正文片段或来源设备标识。增加本机导出与上传响应耗时，以及未接受远端版本时的预检拒绝说明。摘要不代替备份校验，现有备份格式和上传顺序不变。
 
 验证：Vitest 135 文件/1641 项、完整 npm test（含 schema 56 项）、typecheck、lint、format:check、生产构建及 bundle-size 预算通过；github-background-push 整组 Chromium/WebKit 各 13 项通过，包括 1280/900 宽度横线端点、经典/物哀、左右固定目录、隐藏状态栏日志入口、HTTP 400、取消及 latest 冲突。未执行全产品 E2E 或原生 GUI，不宣称远端 CI 结果。
+
+## 2026-10-15：固定提交预检、实体往返与发布恢复基础
+
+三批实现分别提供真实 Git 只读协议预检、按实体语义的真实存储/编辑往返认证，以及独立设备发布记录与中断后的只读核实。生产协议能力仍为 0；现有旧格式 Push/Pull 保持兼容，尚未提供新协议启用入口、非空远端逐实体合并计划、对象上传适配器或完整 Pull 应用/基线事务。详见 [固定提交预检](sync-fixed-revision-preflight.md)、[发布恢复基础](sync-publication-recovery.md) 和 [同步契约](../schema/sync/README.md)。没有向真实备份仓库写入、删除或回滚。
+
+最终集中回归：Vitest 138 文件/1671 项，完整 npm test（含插件 schema 56 项），typecheck、lint、format:check、IPC 检查和 Rust 格式检查通过；完整 cargo test 共 98 项通过，其中库测试 65 项。Flutter 使用用户授权升级的用户目录 SDK，51 项测试通过，三个修改的 Dart 文件格式检查通过；analyze 按 CI 参数通过，仍有 55 条既有 warning/info，不称为零诊断。工具安装及代理绕过本地测试 WebSocket 的原因见 [本机工具链](local-toolchain.md)。
+
+五个 spec（sync-fixed-revision、sync-protocol、github-background-push、backup-restore-coordination、fullscreen-quiet-chrome）最终 Chromium 30/30、WebKit 30/30，均无重试。之前 WebKit 新增预检用例碰到内置示例异步初始化，已改为等待示例初始化标记后冻结文档集合；没有放宽“预检不改变文档”的断言。沙箱拒绝启动端口/IPC、写 SDK 缓存及文件监听的运行不是产品失败，获得权限后完成相应检查。各轮定向用例不累加为全产品 E2E 总数；未验证远端新提交 CI 或原生 GUI。
+
+## 2026-10-15：全屏外围信息悬停显示
+
+外观与布局 → 布局设置新增“全屏时悬停显示外围信息”，默认关闭，仅桌面展陈的实际全屏生效。上方工作区指示与下方概览在光标离开时淡出，悬停、键盘可见焦点及菜单打开时保持显示；中央编辑区与分栏布局不变，减少动画偏好时不执行过渡。Web 监听 fullscreenchange，Tauri 查询真实窗口状态并响应窗口事件及全屏切换完成通知。
+
+上述集中双浏览器各 30 项中包含本功能各 3 项：默认关闭、开关保存重载、全屏淡出/悬停/退出恢复，并断言编辑区几何不变。浏览器用例模拟全屏 API，不替代 Tauri 桌面真机确认。最终生产构建与 bundle-size 预算通过，最大常规 JS chunk 484.40 kB，未产生超过 500 kB 的警告。

@@ -18,6 +18,14 @@ export function SettingsWorkspaceLayout({
   return (
     <>
       <div className="sidebar-settings-card">
+        <div className="sidebar-settings-card-heading"><strong>全屏显示</strong></div>
+        <label className="settings-checkbox-label">
+          <input type="checkbox" aria-label="全屏时悬停显示外围信息" checked={layout.fullscreenQuietChrome} onChange={event=>save({fullscreenQuietChrome:event.currentTarget.checked})}/>
+          全屏时悬停显示外围信息
+        </label>
+        <p className="sidebar-presentation-description">桌面展陈全屏时，上方工作区指示与下方概览默认淡出，移到对应区域或用键盘聚焦后显示；保留原有空间，正文和分栏不受影响。默认关闭。</p>
+      </div>
+      <div className="sidebar-settings-card">
         <div className="sidebar-settings-card-heading"><strong>工作区概览汇总</strong></div>
         <div className="settings-radio-group" role="group" aria-label="汇总项交互方式">
           {([["sidebar", "点击弹出分栏"], ["click", "点击显示弹层"], ["hover", "悬停显示弹层"]] as const).map(([value, label]) => (

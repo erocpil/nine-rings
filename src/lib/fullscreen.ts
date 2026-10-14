@@ -1,6 +1,7 @@
 import { isTauriRuntime } from "./runtime";
 
 /** 编辑器在窗口开始变形前立即捕获阅读锚点。 */
+export const FULLSCREEN_CHANGED_EVENT = "nine-rings:fullscreen-changed";
 export const FULLSCREEN_WILL_CHANGE_EVENT = "nine-rings:fullscreen-will-change";
 
 export async function toggleTauriFullscreen(): Promise<boolean | null> {
@@ -15,5 +16,6 @@ export async function toggleTauriFullscreen(): Promise<boolean | null> {
     detail: { fullscreen: !fullscreen },
   }));
   await invoke("set_window_fullscreen", { fullscreen: !fullscreen });
+  window.dispatchEvent(new Event(FULLSCREEN_CHANGED_EVENT));
   return !fullscreen;
 }

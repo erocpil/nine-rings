@@ -513,3 +513,16 @@
     align-items: flex-start;
   }
 }
+
+/* Fade chrome without changing the editor viewport or its reading anchor. */
+@media (min-width: 769px) and (hover: hover) and (pointer: fine) {
+  .exhibition-shell[data-fullscreen-quiet] > :is(.exhibition-masthead, .exhibition-overview) {
+    transition: opacity 160ms ease;
+  }
+  .exhibition-shell[data-fullscreen-quiet] > :is(.exhibition-masthead, .exhibition-overview):not(:hover):not(:has(:focus-visible)):not([data-quiet-open]) {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .exhibition-shell[data-fullscreen-quiet] > :is(.exhibition-masthead, .exhibition-overview) { transition: none; }
+}
