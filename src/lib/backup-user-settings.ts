@@ -146,6 +146,14 @@ function parseStoredValue(raw: string): unknown {
   }
 }
 
+/** Connection preferences are portable; accepted revisions and protocol facts are not. */
+function portableGitHubSettings(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const input = value as Record<string, unknown>;
+  if (["owner", "repo", "path"].some(key => typeof input[key] !== "string")) return undefined;
+  return { owner: input.owner as string, repo: input.repo as string, path: input.path as string };
+}
+
 function serializeStoredValue(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
@@ -168,8 +176,10 @@ export function collectFrontendSettings(storage: SettingsReadStorage = defaultRe
     if (raw === null) continue;
     const parsed = parseStoredValue(raw);
     // GitHub 配置必须是合法对象；脏字符串可能混有旧版明文 Token，宁可跳过。
-    if (key === "nr:github-sync" && (!parsed || typeof parsed !== "object" || Array.isArray(parsed))) continue;
-    values[key] = sanitize(parsed);
+    if (key === "nr:github-sync") {
+      const portable = portableGitHubSettings(parsed);
+      if (portable) values[key] = portable;
+    } else values[key] = sanitize(parsed);
   }
   // 阅读位置只需跟随最后打开的文档；避免把所有历史文档的临时位置无限写入备份。
   const lastNoteId = storage.getItem("nr:lastNote");
@@ -194,7 +204,9 @@ export function restoreFrontendSettings(
   let restored = 0;
   for (const [key, rawValue] of Object.entries(values)) {
     if ((!allowed.has(key) && !isDocumentPositionKey(key)) || sensitiveKey(key)) continue;
-    const value = sanitize(rawValue);
+    // Do not transplant another device's accepted baseline, credential mode,
+    // pending operations or protocol-enable observations from old backups.
+    const value = key === "nr:github-sync" ? portableGitHubSettings(rawValue) : sanitize(rawValue);
     if (value === undefined) continue;
     storage.setItem(key, serializeStoredValue(value));
     restored += 1;
