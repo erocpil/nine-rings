@@ -365,6 +365,15 @@
   margin-top: 8px;
 }
 
+/* Match the title rule's inset, including classic and docked document layouts. */
+.app-desktop-workspace .editor-stats {
+  border-top-style: none;
+  background-image: linear-gradient(var(--border), var(--border));
+  background-size: calc(100% - 24px - var(--editor-scrollbar-width, 0px)) 1px;
+  background-position: 12px top;
+  background-repeat: no-repeat;
+}
+
 /* Desktop editing controls share the title row inset and leave more breathing room. */
 .app-desktop-workspace .note-editor .editor-menu {
   padding: 5px 12px;

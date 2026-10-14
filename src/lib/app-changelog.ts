@@ -1,6 +1,14 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-15",
+    title: "状态栏对齐与备份诊断",
+    changes: [
+      "状态栏上方分隔线与标题下方分隔线使用相同的左右留白。",
+      "备份日志改用聚合数量和字节摘要，避免文档树刷屏及泄露文档名称；补充导出、上传耗时和未接受远端版本时的拒绝原因。",
+    ],
+  },
+  {
     date: "2026-10-14",
     title: "词汇学习、专注标签与导入导航",
     changes: [

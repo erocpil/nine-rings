@@ -677,7 +677,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
     .editor-stats {
     min-height: 26px;
     padding-inline: 12px;
-    background: transparent;
+    background-color: transparent;
   }
 }
 @media (min-width: 769px) and (pointer: fine) {

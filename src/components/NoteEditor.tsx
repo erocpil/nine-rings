@@ -826,6 +826,9 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         : 24;
       const tailSpace = Math.max(72, root.clientHeight - stickyHeight - lineHeight + 1);
       host.style.setProperty("--editor-tail-space", `${Math.round(tailSpace)}px`);
+      // The sticky title lives inside the scroll viewport; the footer does not.
+      // Account for classic WebKit/Windows scrollbars as well as overlay ones.
+      host.style.setProperty("--editor-scrollbar-width", `${Math.max(0, root.offsetWidth - root.clientWidth)}px`);
     };
 
     updateTailSpace();

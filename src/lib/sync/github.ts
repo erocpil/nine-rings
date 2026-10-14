@@ -13,6 +13,7 @@ import { measureTransfer } from "./measurement-store";
 
 import { GITHUB_LARGE_SNAPSHOT_BYTES, uploadLargeGitSnapshot } from "./github-large-upload";
 import { addLog } from "../debugLog";
+import { backupDiagnosticSummary } from "./diagnostics";
 import { GitHubWriteHttpError, syncErrorMessage } from "./errors";
 import { isTauriRuntime } from "../runtime";
 import { validateBackup } from "../backup-validation";
@@ -517,6 +518,7 @@ async function putRemote(token: string, owner: string, repo: string, path: strin
   checkPushCancellation(options.signal);
   addLog(`[Sync] PUT ${phase === "publishing" ? "发布最新指针" : "上传数据文件"} | 路径: ${path} | 原文: ${contentBytes} bytes | 请求: ${bytes} bytes | 通道: ${isTauriRuntime() ? "Tauri 原生 HTTP" : "WebView / 浏览器"} | 超时: ${timeoutMs / 1000}s`);
   options.onProgress?.({ phase, bytes, timeoutMs });
+  const requestStarted = performance.now();
   const res = await measureTransfer({ kind: phase === "publishing" ? "pointer" : "snapshot", transport: isTauriRuntime() ? "native" : "web", requestBytes: bytes }, () => githubApiFetch(url, {
     method: "PUT",
     headers: { ...authHeader(token), "Content-Type": "application/json" },
@@ -524,7 +526,7 @@ async function putRemote(token: string, owner: string, repo: string, path: strin
     signal: options.signal,
   }, timeoutMs));
   const requestId = res.headers.get("x-github-request-id")?.replace(/[^a-zA-Z0-9:-]/g, "").slice(0, 128);
-  addLog(`[Sync] PUT 响应: HTTP ${res.status}${requestId ? ` | GitHub 请求 ID: ${requestId}` : ""}`);
+  addLog(`[Sync] PUT 响应: HTTP ${res.status} | 耗时: ${Math.round(performance.now() - requestStarted)}ms${requestId ? ` | GitHub 请求 ID: ${requestId}` : ""}`);
   if (!res.ok) {
     const err = await res.text();
     throw new GitHubWriteHttpError(res.status, `GitHub PUT ${res.status}: ${err.slice(0, 200)}\n失败阶段：${phase === "publishing" ? "发布最新备份" : "上传备份数据"}\n远端路径：${path}\n请求大小：${bytes} bytes${requestId ? `\nGitHub 请求 ID：${requestId}` : ""}`);
@@ -559,11 +561,12 @@ async function putLargeSnapshot(config: SyncConfig, path: string, content: strin
     const timeoutMs = bytes ? githubTransferTimeoutMs(bytes) : GITHUB_REQUEST_TIMEOUT_MS;
     options.onProgress?.({ phase: "uploading", bytes, timeoutMs });
     addLog(`[Sync] Git 数据接口 ${method} ${route || "仓库信息"} | 请求: ${bytes} bytes | 超时: ${timeoutMs / 1000}s`);
+    const requestStarted = performance.now();
     const res = await measureTransfer({ kind: route === "/git/blobs" ? "blob" : "git-metadata", transport: isTauriRuntime() ? "native" : "web", requestBytes: bytes }, () => githubApiFetch(root + route, {
       method, headers: { ...authHeader(config.token), "Content-Type": "application/json" }, body: payload, signal: options.signal,
     }, timeoutMs));
     const requestId = res.headers.get("x-github-request-id")?.replace(/[^a-zA-Z0-9:-]/g, "").slice(0, 128);
-    addLog(`[Sync] Git 数据接口响应: HTTP ${res.status}${requestId ? ` | GitHub 请求 ID: ${requestId}` : ""}`);
+    addLog(`[Sync] Git 数据接口响应: HTTP ${res.status} | 耗时: ${Math.round(performance.now() - requestStarted)}ms${requestId ? ` | GitHub 请求 ID: ${requestId}` : ""}`);
     if (!res.ok) throw new GitHubWriteHttpError(res.status, `GitHub ${method} ${route} ${res.status}: ${(await res.text()).slice(0, 200)}\n失败阶段：上传备份数据\n远端路径：${path}\n请求大小：${bytes} bytes${requestId ? `\nGitHub 请求 ID：${requestId}` : ""}`);
     return await res.json();
   };
@@ -593,7 +596,15 @@ function latestPath(basePath: string): string {
 /** 导出全量数据为 JSON 字符串（复用现有导出逻辑） */
 async function exportFullDB(): Promise<string> {
   const { api } = await import("../api");
-  return await api.export.data();
+  const started = performance.now();
+  try {
+    const data = await api.export.data();
+    addLog(`[Sync] 本机导出完成 | 耗时: ${Math.round(performance.now() - started)}ms`);
+    return data;
+  } catch (error) {
+    addLog(`[Sync] 本机导出失败 | 耗时: ${Math.round(performance.now() - started)}ms`);
+    throw error;
+  }
 }
 
 /** 从 JSON 字符串导入全量数据 */
@@ -654,115 +665,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-interface BackupLogNote {
-  id: string;
-  title: string;
-  date: string;
-  storagePath: string;
-  docType: string;
-  tags: string[];
-  concepts: string[];
-}
-const logString = (value: unknown, fallback = "") => typeof value === "string" ? value : fallback;
-const logStrings = (value: unknown): string[] => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-
-/** Diagnostics only project known display fields, never trust remote JSON as Note. */
-function backupLogNote(value: unknown): BackupLogNote | null {
-  if (!isRecord(value)) return null;
-  return {
-    id: logString(value.id, "?"), title: logString(value.title, "无标题"), date: logString(value.date),
-    storagePath: logString(value.storagePath ?? value.storage_path),
-    docType: logString(value.docType ?? value.doc_type),
-    tags: logStrings(value.tags), concepts: logStrings(value.concepts),
-  };
-}
-
-/** 树形 dump 导出数据摘要 + P.A.R.A. 文档树 */
+/** Keep large workspaces diagnosable without flooding the bounded log buffer. */
 function dumpBundle(label: string, json: string): void {
-  let data: unknown;
-  try { data = JSON.parse(json); } catch { addLog(`[Sync] ${label}: <非 JSON> ${json.slice(0, 80)}`); return; }
-
-  if (!isRecord(data)) { addLog(`[Sync] ${label}: <无效备份对象>`); return; }
-  const notes = Array.isArray(data.notes) ? data.notes.map(backupLogNote).filter((note): note is BackupLogNote => note !== null) : [];
-  const sizeKB = (new TextEncoder().encode(json).length / 1024).toFixed(1);
-
-  // 分类统计
-  const docNotes  = notes.filter((n) => n.storagePath);
-  const typeCount: Record<string, number> = {};
-  for (const n of docNotes) {
-    const dt = n.docType ?? "未设置";
-    typeCount[dt] = (typeCount[dt] ?? 0) + 1;
-  }
-
-  addLog(`[Sync] ${label}`);
-  const metadata = isRecord(data.backup_metadata) ? data.backup_metadata : null;
-  const source = isRecord(metadata?.device) ? metadata.device : null;
-  const sourceLabel = source
-    ? `${logString(source.name, "未知设备")} (ID: ${logString(source.id, "none")})`
-    : "未携带备份元数据";
-  addLog(`[Sync] ├─ 大小: ${sizeKB} KB  |  版本: ${data.version ?? "?"}  |  导出: ${logString(data.exported_at).slice(0, 19)}  |  来源: ${sourceLabel}`);
-  addLog(`[Sync] ├─ 文档: ${notes.length} 篇`);
-  if (docNotes.length > 0) {
-    const typeStr = Object.entries(typeCount).map(([k, v]) => `${k}:${v}`).join("  ");
-    addLog(`[Sync] │  文档类型分布: ${typeStr}`);
-  }
-
-  // ── P.A.R.A. 文档树 ──
-  if (docNotes.length > 0) {
-    addLog(`[Sync] ├─ 📁 文档结构 (P.A.R.A.):`);
-    dumpDocTree(docNotes);
-  }
-
-  addLog("");
-}
-
-/** 按 storagePath 分组 dump P.A.R.A. 文档树 */
-function dumpDocTree(docNotes: BackupLogNote[]): void {
-  // 构建前缀树
-  const tree = new Map<string, { folders: Set<string>; docs: BackupLogNote[] }>();
-  for (const n of docNotes) {
-    const root = n.storagePath.split("/")[0] || "(root)";
-    if (!tree.has(root)) tree.set(root, { folders: new Set(), docs: [] });
-    const entry = tree.get(root)!;
-    entry.docs.push(n);
-    // 收集子文件夹
-    const parts = n.storagePath.split("/");
-    for (let i = 1; i < parts.length; i++) {
-      entry.folders.add(parts.slice(0, i + 1).join("/"));
-    }
-  }
-
-  const roots = [...tree.keys()].sort();
-  roots.forEach((root, ri) => {
-    const isLastRoot = ri === roots.length - 1;
-    const rpfx = isLastRoot ? "└" : "├";
-    const entry = tree.get(root)!;
-    addLog(`[Sync] │  ${rpfx}─ 📁 ${root}/  (${entry.docs.length} 文档, ${entry.folders.size} 子目录)`);
-
-    // 子目录
-    const sortedFolders = [...entry.folders].sort();
-    sortedFolders.forEach((folder, fi) => {
-      const isLastF = fi === sortedFolders.length - 1;
-      const fpfx = isLastRoot ? (isLastF ? " " : "│") : "│";
-      const fpfx2 = isLastF ? "└" : "├";
-      const subDocs = entry.docs.filter((n) =>
-        n.storagePath === folder || n.storagePath.startsWith(folder + "/")
-      ).length;
-      const folderName = folder.split("/").pop()!;
-      addLog(`[Sync] │  ${fpfx}   ${fpfx2}─ 📂 ${folderName}/  (${subDocs} 文档)`);
-    });
-
-    // 根级文档（storagePath 恰好等于 root）
-    const rootDocs = entry.docs.filter((n) => n.storagePath === root);
-    rootDocs.forEach((n, di) => {
-      const isLastD = di === rootDocs.length - 1 && sortedFolders.length === 0;
-      const dpfx = isLastRoot ? (isLastD ? " " : "│") : "│";
-      const dpfx2 = isLastD ? "└" : "├";
-      const dt = n.docType ? ` [${n.docType}]` : "";
-      const concepts = n.concepts?.length ? `  🏷 ${n.concepts.join(", ")}` : "";
-      addLog(`[Sync] │  ${dpfx}   ${dpfx2}─ 📄 ${(n.title ?? "无标题").slice(0, 28)}${dt}  ${(n.id ?? "?").slice(0, 6)}${concepts}`);
-    });
-  });
+  addLog(`[Sync] ${label} | ${backupDiagnosticSummary(json)}`);
 }
 
 /**
@@ -795,6 +700,7 @@ export async function pushToGitHub(config: SyncConfig, message?: string, options
   const remoteVersion = currentPointer?.content.trim() ?? "";
   const knownBaseVersion = latestKnownBaseVersion(config);
   if (remoteBackupNeedsMerge(config, remoteVersion)) {
+    addLog("[Sync] Push 预检拒绝：本机尚未接受远端版本；未开始上传，请先 Pull 安全合并");
     throw new Error(
       knownBaseVersion
         ? `远端备份已更新为 ${remoteVersion}，本机最近基线是 ${knownBaseVersion}。请先执行 Pull 安全合并，再重新 Push`
