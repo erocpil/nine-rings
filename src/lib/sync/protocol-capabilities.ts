@@ -67,22 +67,27 @@ function timestamp(value: unknown): value is string {
   );
 }
 
-/** Pure header assessment, not proof of ancestry, payload integrity or safe storage round-trip. */
-export function assertSyncCapabilities(
-  bundle: unknown,
-  options: {
-    operation: "read" | "write";
-    capabilities?: SyncCapabilities;
-    expectedId?: string;
-    requireHeader?: boolean;
-  },
-): "legacy" | "envelope" {
-  if (!record(bundle)) throw new SyncProtocolError("invalid-header");
-  if (!Object.prototype.hasOwnProperty.call(bundle, "header")) {
-    if (options.requireHeader) throw new SyncProtocolError("missing-header");
-    return "legacy"; // This alone never proves a remote space has not switched.
-  }
-  const h = bundle.header;
+export interface SyncHeader {
+  kind: "nine-rings.sync-snapshot";
+  format: number;
+  codec: number;
+  id: string;
+  requires: {
+    read: number;
+    write: number;
+    readFeatures: string[];
+    writeFeatures: string[];
+  };
+  parent: null | { id: string; sha256: string };
+  createdAt: string;
+  writtenBy: { app: string; platform: string; deviceId: string };
+}
+/** Structural inspection never grants read/write support or applies the payload. */
+export function inspectSyncHeader(
+  value: unknown,
+  expectedId?: string,
+): SyncHeader {
+  const h = value;
   if (
     !record(h) ||
     h.kind !== "nine-rings.sync-snapshot" ||
@@ -108,8 +113,27 @@ export function assertSyncCapabilities(
     )
   )
     throw new SyncProtocolError("invalid-header");
-  if (options.expectedId !== undefined && h.id !== options.expectedId)
+  if (expectedId !== undefined && h.id !== expectedId)
     throw new SyncProtocolError("identity-mismatch");
+  return h as unknown as SyncHeader;
+}
+
+/** Pure capability assessment, not proof of ancestry or safe storage round-trip. */
+export function assertSyncCapabilities(
+  bundle: unknown,
+  options: {
+    operation: "read" | "write";
+    capabilities?: SyncCapabilities;
+    expectedId?: string;
+    requireHeader?: boolean;
+  },
+): "legacy" | "envelope" {
+  if (!record(bundle)) throw new SyncProtocolError("invalid-header");
+  if (!Object.prototype.hasOwnProperty.call(bundle, "header")) {
+    if (options.requireHeader) throw new SyncProtocolError("missing-header");
+    return "legacy";
+  }
+  const h = inspectSyncHeader(bundle.header, options.expectedId);
   const c = options.capabilities ?? CURRENT_SYNC_CAPABILITIES;
   if (
     !c.formats.includes(h.format) ||

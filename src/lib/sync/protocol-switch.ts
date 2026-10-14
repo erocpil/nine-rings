@@ -27,6 +27,18 @@ export async function syncSpaceId(space: SyncSpace): Promise<string> {
     !name.test(space.owner) ||
     !name.test(space.repo) ||
     !space.branch ||
+    space.branch.includes("..") ||
+    space.branch.includes("@{") ||
+    /[~^:?*[\]\\]/.test(space.branch) ||
+    space.branch
+      .split("/")
+      .some(
+        (part) =>
+          !part ||
+          part.startsWith(".") ||
+          part.endsWith(".") ||
+          part.endsWith(".lock"),
+      ) ||
     !space.path ||
     [space.branch, space.path].some(
       (s) =>

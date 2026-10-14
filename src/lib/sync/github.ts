@@ -1,3 +1,5 @@
+import { inspectRemoteProtocol, type RemoteProtocolReport } from "./remote-protocol";
+import { assertLegacyConnectionAllowed, observeRemoteProtocol, markProtocolInspectionRequired } from "./protocol-connection";
 import { assertSyncCapabilities } from "./protocol-capabilities";
 import { measureTransfer } from "./measurement-store";
 /**
@@ -682,6 +684,7 @@ export async function pushToGitHub(config: SyncConfig, message?: string, options
     throw new Error("请先配置 GitHub Token、Owner 和 Repo");
   }
 
+  await checkObservedProtocol(config);
   addLog("[Sync] ═══ Push → GitHub ═══");
   checkPushCancellation(options.signal);
   options.onProgress?.({ phase: "checking" });
@@ -765,6 +768,7 @@ export async function pullFromGitHub(config: SyncConfig, options: PullOptions = 
   if (!config.token || !config.owner || !config.repo) {
     throw new Error("请先配置 GitHub Token、Owner 和 Repo");
   }
+  await checkObservedProtocol(config);
   return withBackupRestore("github", options.mode === "replace" ? "replace" : "merge", (context) => pullWithRestoreLock(config, options, context));
 }
 
@@ -856,10 +860,38 @@ async function pullWithRestoreLock(config: SyncConfig, options: PullOptions, con
   return updated;
 }
 
+/** Read-only, fixed-revision protocol inspection for explicit migration preparation. */
+export async function preflightProtocolFromGitHub(config: SyncConfig): Promise<RemoteProtocolReport> {
+  if (!config.token || !config.owner || !config.repo) throw Error("请先配置 GitHub 连接");
+  const started = performance.now();
+  addLog("[Sync] 协议预检开始：固定远端提交，只读检查");
+  try {
+    const root = `https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}`;
+    const storage = getWebStorage().localStorage;
+    if (!storage) throw Error("本机协议记录不可用，不能确认预检");
+    const report = await inspectRemoteProtocol(async route => {
+      const response = await githubApiFetch(root + route, {headers:authHeader(config.token)}, GITHUB_REQUEST_TIMEOUT_MS);
+      if (!response.ok) throw Error(`协议预检读取失败：HTTP ${response.status}`);
+      return response.json();
+    }, config, {onControlDetected:spaceId=>markProtocolInspectionRequired(config,spaceId,storage)});
+    await observeRemoteProtocol(report, storage);
+    addLog(`[Sync] 协议预检完成 | 提交: ${report.evidence.head.slice(0,12)} | 状态: ${report.support} | 历史: ${report.history} | 请求: ${report.reads.requests} | 字节: ${report.reads.bytes} | 耗时: ${Math.round(performance.now()-started)}ms`);
+    return report;
+  } catch (error) {
+    addLog(`[Sync] 协议预检未通过 | 耗时: ${Math.round(performance.now()-started)}ms`);
+    throw error;
+  }
+}
+async function checkObservedProtocol(config: SyncConfig): Promise<void> {
+  const storage = getWebStorage().localStorage;
+  if (storage) await assertLegacyConnectionAllowed(config, storage);
+}
+
 export async function previewPullFromGitHub(config: SyncConfig): Promise<PullPrecheck> {
   if (!config.token || !config.owner || !config.repo) {
     throw new Error("请先配置 GitHub Token、Owner 和 Repo");
   }
+  await checkObservedProtocol(config);
   const ptrPath = latestPath(config.path);
   const [localSnapshot, ptr] = await Promise.all([
     exportFullDB().catch((reason: unknown) => {

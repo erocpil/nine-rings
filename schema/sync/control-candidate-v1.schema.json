@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nine-rings.local/schema/sync/control-candidate-v1",
+  "title": "Candidate sync-space control (not enabled for production writes)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "version", "format", "codec", "firstSnapshot"],
+  "properties": {
+    "kind": { "const": "nine-rings.sync-space" },
+    "version": { "const": 1 },
+    "format": { "const": 1 },
+    "codec": { "const": 1 },
+    "firstSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sha256"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    }
+  }
+}

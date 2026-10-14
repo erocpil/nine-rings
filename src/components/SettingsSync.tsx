@@ -11,6 +11,7 @@ import {
   saveSyncConfig,
   pullFromGitHub,
   previewPullFromGitHub,
+  preflightProtocolFromGitHub,
   formatBackupDevice,
   checkStatus,
   type SyncConfig,
@@ -37,9 +38,10 @@ interface Props {
   onPullDone?: () => void;
 }
 
-type BusyOperation = "measure" | "check" | "push" | "pull-preview" | "pull-merge" | "pull-replace";
+type BusyOperation = "protocol" | "measure" | "check" | "push" | "pull-preview" | "pull-merge" | "pull-replace";
 
 const BUSY_MESSAGES: Record<BusyOperation, string> = {
+  protocol: "正在固定提交并只读核验远端协议，不修改文档或远端",
   measure: "正在保存并测量本地快照，不执行上传",
   check: "正在检查 GitHub 连接，操作期间暂不可编辑",
   push: "GitHub 上传任务正在进行，关闭设置页仍可继续；进度与结果见全局提示",
@@ -377,6 +379,14 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
         </button>
         <button type="button" className="settings-btn" onClick={() => setLogsOpen(true)}>同步日志</button>
         <button type="button" className="settings-btn" onClick={() => setMeasurementOpen(true)}>备份测量</button>
+        <button type="button" className="settings-btn" disabled={busy || exportingLocal || !connectionReady} onClick={async () => {
+          setBusyOperation("protocol");
+          try {
+            const report = await preflightProtocolFromGitHub(cfg);
+            showMessage(report.support === "unsupported" ? "远端使用新协议，当前版本已停止此连接的旧格式同步；新协议尚未开放。" : report.history === "complete" ? "固定提交预检通过：可核实历史中未发现协议控制文件；新协议仍关闭。" : "当前快照为旧格式，但历史超出核验预算，不能确认从未开启；新协议仍关闭。", "success");
+          } catch(error) { showMessage(syncErrorMessage(error), "error"); }
+          finally { setBusyOperation(null); }
+        }}>协议预检</button>
       </div>
 
       {!connectionReady && <p className="settings-hint">请先填写有效的 Owner / Repo、备份文件路径和 Token，再测试连接或同步。</p>}
