@@ -1,175 +1,53 @@
-# Nine Rings — 跨设备备份架构思路
+# Nine Rings 跨设备备份架构
 
-> 文件状态：设计草案 v1 · 2026-07-09
->
-> **定位**：本文档描述未来 V2 增量备份方案的设计思路。当前已实现的 V1 方案为 GitHub 全量 JSON 快照备份（见 [github-backup.md](./github-backup.md)），非增量同步。
+更新于 2026-10-14。当前实现为用户触发的 GitHub 版本化全量 JSON 备份；按实体增量、删除传播和自动同步仍为设计，不能以旧草案中的 SyncEngine/ChangeLog 示例作为已实现功能。
 
----
+| 文档 | 职责 |
+| --- | --- |
+| [GitHub 备份指南](github-backup.md) | 当前格式、配置、范围、Push/Pull 与同步诊断 |
+| [恢复协调](backup-restore-coordination.md) | 本机保存屏障、互斥、中断检测及回退边界 |
+| [增量建议评估](incremental-backup-assessment.md) | 最初/v2 评估、历史测量及逐项问题回复 |
+| [手动快照补强设计](sync-snapshot-hardening-design.md) | v3 评估、兼容门禁、实体基线、发布协议、资产与测量工具要求 |
 
-## 核心原则
+## 当前数据流
 
-1. **本地优先（Local-First）**：所有数据先在本地写入，备份在后台进行。无网络也能正常使用。
-2. **用户自选后端**：对接用户自己的服务端（自建或第三方），不锁平台。
-3. **增量备份**：只传有变动的数据，不每次全量。
-4. **冲突可调停**：不同设备同时编辑时，有确定性的合并策略。
-
----
-
-## 数据流
-
-```
-    ┌──────────────┐        ┌──────────────┐        ┌──────────────┐
-    │  设备 A      │        │  备份服务端    │        │  设备 B      │
-    │  IndexedDB   │◄──────►│  (API Server) │◄──────►│  IndexedDB   │
-    │  / SQLite    │        │   PostgreSQL  │        │  / SQLite    │
-    └──────────────┘        └──────────────┘        └──────────────┘
+```mermaid
+flowchart LR
+    A[本机保存与冻结快照] --> B[完整 JSON 导出]
+    B --> C{UTF-8 大小}
+    C -->|小于 8 MiB| D[Contents 创建版本文件]
+    C -->|至少 8 MiB| E[上传 Git Blob 并校验 SHA]
+    E --> F[创建树与提交并非强制推进分支]
+    D --> G[按旧文件 SHA 发布 latest]
+    F --> G
+    G --> H[确认本机 Push 版本]
 ```
 
----
+8 MiB 是应用选择上传通道的阈值，不是 GitHub 的公开限额。两条路径均保留原完整 JSON、版本化文件名与文本 latest；不压缩、不改变正文，也不按文档拆文件。大快照路径由 `src/lib/sync/github-large-upload.ts` 实现；空仓库在未发布版本路径初始化，完整快照确认后才发布 latest。数据与指针仍分步发布。
 
-## 分层架构
+Pull 先取 latest，再取对应快照；大文件下载可使用 Git Blobs。Web/Tauri 复用 `backup-merge.ts` 做共同基线三方比较，支持冲突决定和副本，不以 updated_at 较大者自动覆盖。远端已有本机未合并版本时 Push 停止并要求安全 Pull。
 
-```
-┌──────────────────────────────────────────┐
-│               UI 层 (React)               │
-├──────────────────────────────────────────┤
-│            StorageAdapter                │
-│  (IndexedDB / Tauri IPC / SyncAdapter)   │
-├──────────────────────────────────────────┤
-│            SyncEngine                    │
-│  ┌──────────┐  ┌──────────┐  ┌────────┐ │
-│  │ ChangeLog │  │  Pusher  │  │ Puller │ │
-│  └──────────┘  └──────────┘  └────────┘ │
-├──────────────────────────────────────────┤
-│          SyncAdapter (抽象)              │
-│  ┌──────────┐  ┌──────────┐             │
-│  │ REST API │  │ WebSocket │             │
-│  └──────────┘  └──────────┘             │
-└──────────────────────────────────────────┘
-```
+JSON 导入与 GitHub Pull 复用恢复协调器；中断不自动重放。上传任务独立于设置页，准备快照期间暂停编辑，开始网络上传后可继续编辑，新变化留给下次 Push；不能再将其描述为全程界面冻结。
 
-### StorageAdapter 层（已存在）
-当前 `api.ts` 已封装数据存储适配器。GitHub 全量备份直接组合导出/导入 API，避免在 StorageAdapter 中伪装成增量同步能力。
+## 数据与能力边界
 
-### SyncEngine（新增）
-核心备份逻辑，独立于具体传输方式：
+- 本机内容优先，网络失败不丢弃本地编辑。全量导出范围以使用指南为准，不含凭据、普通本机版本历史、回收站或 PDF/EPUB 独立资料库。
+- Web、PWA、macOS/Windows/Linux Tauri 共用 TS 同步层，原生网络和存储往返仍需分别验证；Flutter 的合并、加密与未知字段能力不等价，不能以可构建代替数据兼容。
+- 基线目前是版本标识，需下载旧快照比较；逐实体已接受基线及可恢复发布确认尚未实现。
+- 安全合并不传播远端删除，不提供默认自动 Pull、自动同步或跨端最后写入者胜出策略。
+- 本机恢复锁不是整个工作区的跨库事务，也不能约束旧客户端或独立外部数据库写入。
 
-| 组件 | 职责 |
-|------|------|
-| ChangeLog | 记录每次数据变更（实体 ID + 动作 + 时间戳 + 旧值） |
-| Pusher | 定时/手动推送 changelog 到服务端 |
-| Puller | 拉取服务端最新变更，合并到本地 |
+## 演进原则
 
-### SyncAdapter（新增）
-传输层抽象——同一份 SyncEngine 可对接不同后端：
+1. 先测实际完整导出、传输、内存和备份仓库增长，再选择格式；不能从单个文件大小或源码仓库推断备份成本。
+2. 新格式先实现读取/拒写及共享向量，再开启写入。完全不认识新头的旧版本需要升级或隔离，不靠新增字段自动获得安全性。
+3. 按实体确认基线，明确忽略、冲突和上传中新增编辑；配置与模板也必须有冲突规则。
+4. 以共同基线判断修改，字段关联组一起处理。正文 NFC/换行、Delta 有序数组及密文不能为获得稳定哈希而静默改写。
+5. 先补同提交发布和不确定结果的只读核实；远端发布与本机确认并非同一事务，不盲重试写请求。
+6. 删除、附件外置、保留与重写历史分开交付。传播删除先预览和明确授权，保护内容不外置成明文资源。
 
-| 实现 | 适用场景 |
-|------|----------|
-| REST API | 自建后端、简单的 push/pull |
-| WebSocket | 实时备份、多设备即时协同 |
-| 文件导出 | 手动备份——导出 JSON 到另一台设备导入 |
+具体批次与退出条件以[手动快照补强设计](sync-snapshot-hardening-design.md#9-分批落地与退出条件)为准；本次设计更新没有迁移现有备份仓库。
 
----
+## 其他后端
 
-## 数据模型
-
-### 变更日志表 `sync_changelog`（本地）
-
-```sql
-CREATE TABLE sync_changelog (
-  id          TEXT PRIMARY KEY,
-  entity_type TEXT NOT NULL,      -- 'note' | 'daily_page'
-  entity_id   TEXT NOT NULL,
-  action      TEXT NOT NULL,      -- 'create' | 'update' | 'delete'
-  data        TEXT,               -- 变更后的完整 JSON 快照
-  timestamp   TEXT NOT NULL,      -- ISO 8601
-  synced_at   TEXT                -- NULL = 未同步
-);
-```
-
-### 增量备份流程
-
-**Push（本地 → 服务端）：**
-```
-1. SELECT * FROM sync_changelog WHERE synced_at IS NULL
-2. POST /api/sync/push  { changes: [...] }
-3. 服务端返回 { accepted: [...], conflicts: [...] }
-4. 更新 synced_at = now()
-```
-
-**Pull（服务端 → 本地）：**
-```
-1. GET /api/sync/pull?since={last_sync_timestamp}
-2. 服务端返回 { changes: [...] }
-3. 按 timestamp 顺序应用到本地
-4. 更新 last_sync_timestamp
-```
-
----
-
-## 冲突处理策略
-
-### 策略选择：Last-Writer-Wins（LWW）+ 用户确认
-
-**默认策略：最后写入者胜出**
-- 每条数据带 `updated_at` 时间戳
-- 备份恢复时比较 `updated_at`，保留最新的版本
-- 旧版本存入本地"冲突历史"供用户查阅
-
-**冲突标记：**
-当两个设备在短时间内先后修改同一条数据时：
-```
-设备 A: updated_at = T1, 写入 "买牛奶"
-设备 B: updated_at = T2 (T2 > T1), 写入 "买燕麦奶"
-同步结果：设备 A 的 "买牛奶" 被覆盖为 "买燕麦奶"
-```
-
-如果用户需要更细粒度的控制，后续可加"手动合并"面板。
-
----
-
-## 服务端实现选项
-
-| 方案 | 工作量 | 优点 | 缺点 |
-|------|--------|------|------|
-| **轻量 API Server**（Go / Rust） | 中 | 可控、自部署 | 需要服务器 |
-| **Serverless**（Cloudflare Workers + D1） | 中 | 零运维、免费额度 | 锁定平台 |
-| **Supabase / PocketBase** | 低 | 开箱即用 BaaS | 第三方依赖 |
-| **WebDAV / iCloud Drive** | 低 | 用已有云盘同步 JSON | 冲突粒度粗 |
-
-**推荐起步：Cloudflare Workers + D1** 或 **Supabase**
-- Workers 无需管理服务器，D1 是 SQLite 兼容，数据模型可直接映射
-- 两个设备的 Notes 表通过 Worker 接口做 push/pull
-
----
-
-## 实施路线
-
-| 阶段 | 内容 | 估算 |
-|------|------|------|
-| Phase 0 | 本地 SyncEngine + ChangeLog 表（夯实基础） | 3–5 天 |
-| Phase 1 | 简单的 HTTP Push/Pull（自建 server 或 Supabase） | 5–7 天 |
-| Phase 2 | 冲突检测 + 冲突 UI 面板 | 2–3 天 |
-| Phase 3 | 增量同步优化 + WebSocket 实时 | 3–5 天 |
-| Phase 4 | 端到端加密 + 用户鉴权 | 3–5 天 |
-
----
-
-## 当前进度
-
-**已实现（V1 — GitHub 全量快照备份）**：
-- ✅ `github.ts` 组合导出/导入 API → GitHub Contents/Blobs API
-- ✅ Push/Pull UI（设置页，含测试连接）
-- ✅ 备份期间界面冻结（金色横幅 + 全部只读）
-- ✅ 大文件自动切换 Git Blobs API（>1MB）
-- ✅ 导入去重（storagePath > title+date）
-- ✅ `.md` 文件导入去重（upsertNote）
-- ✅ 调试面板树形 dump
-
-**设计阶段（V2 — 增量备份）**：
-- 🔲 本地 SyncEngine + ChangeLog 表
-- 🔲 增量 Push/Pull（REST API / WebSocket）
-- 🔲 冲突检测 + 冲突 UI 面板
-- 🔲 端到端加密 + 用户鉴权
-
-详见 [github-backup.md](./github-backup.md)（V1 使用指南）。
+未来仍可评估 WebDAV、自建 API 或其他对象存储。传输适配器只负责读写和身份/并发约束，不能隐藏为已有 StorageAdapter 的增量能力。每个后端都需证明不可变快照、完整读取、发布一致性、认证隔离及结果不明恢复；不先承诺固定实现天数。WebSocket、实时协作和服务端 changelog 不属于当前手动快照路线。

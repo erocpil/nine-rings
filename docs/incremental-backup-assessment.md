@@ -2,6 +2,8 @@
 
 > 2026-10-10；评估 `~/Downloads/sync-incremental-design.md` 及更新版 `sync-incremental-design (1).md`，核对当前源码及 github.com 官方 REST 文档。属于设计评估，不表示增量备份已经实现。当前仍是版本化全量 JSON 备份；本批没有写入远端备份仓库。文末补 v2 采纳意见和第 13 节八项回复。
 
+> 2026-10-14 补充：v3 已按源码评估，新增[手动快照同步补强设计](sync-snapshot-hardening-design.md)，包含第 9 节六项回复和测量脚本审查；后续实施决定以该文为准。下文 203 篇等统计是 10 月 10 日样本，不代表当前工作区。`c2f790a` 已使大快照改走 Git 数据接口，但仍保留完整 JSON/文本 latest，尚未实现按实体增量或同提交发布。
+
 ## 结论与现状修正
 
 采纳“按稳定文档身份拆文件、确定性编码、复用 Git tree 的增量传输、保留共同基线、非强制发布”这一方向。根据 v2 的实测规模，先做现有快照的语义与测量补强，按实际传输、仓库增长与跨端需求决定是否迁移；不因正文约 10 MiB 就立即换格式。保持用户触发、预检和安全合并；删除传播、字段自动合并和历史清理分开交付，避免把格式升级扩大为一次难以回退的行为变更。用户已确认所有可构建版本都可能 Push/Pull，可能同时编辑同一文档，暂不需要自动同步。
@@ -9,7 +11,7 @@
 草案未读源码，因此两处现状需要修正：
 
 - Web/PWA/Tauri **已有三方比较**。`src/lib/sync/github.ts` 的 `fetchBaseSnapshot` 获取最近已知 Push/Pull 的共同快照，`src/lib/sync/backup-merge.ts` 根据规范化内容身份分类本地改动、远端改动和真正冲突；无基线时保守处理。它不依赖 updated_at 决定哪份更新。增量方案应复用其规则及冲突决定过期校验，不重做一套两方恢复。
-- Push 使用 Contents REST API 创建 `{path}-{version}.json` 全量快照，再按旧 SHA 更新 `{path}-latest` 指针；并非反复覆盖一个同名 JSON，也不是原生 Git 或 Git Trees 上传。最新指针发布失败可留下未发布快照，已有旧设备 Push 保护。全量传输、快照文件累积及跨端编码差异仍是实际问题。
+- Push 创建 `{path}-{version}.json` 全量快照，再按旧 SHA 更新 `{path}-latest` 指针；不是反复覆盖同名 JSON。2026-10-14 起，小快照仍用 Contents，至少 8 MiB 的快照使用 Git Blob/Tree/Commit 并非强制更新分支，随后单独发布 latest；未集成原生 Git 进程。最新指针发布失败可留下未发布快照，已有旧设备 Push 保护。全量传输、快照文件累积及跨端编码差异仍是实际问题。
 
 Flutter 已有旧设备 Push 保护，但 Pull 不具备 Web 的安全三方合并；加密工作区会被明确拒绝。不能把“已有三方比较”推广为所有客户端已等价。
 
@@ -60,7 +62,7 @@ Pull 应先校验完整资源清单与所有内容，再检查预检以来的本
 | 4 版本历史 | 独立 note_versions；普通历史不在 JSON，保护历史在 protected_versions。统计到的 206 条是本机所有版本，不能据此认定远端有 206 条 |
 | 5 同步范围 | 当前 JSON：有效文档（含随记）、文档内元数据/书签/引用、模板、AppConfig、白名单前端偏好/阅读位置、保护路径和加密文档历史；不含 Token/密码/密钥，不含回收站、普通文档历史、PDF/EPUB 原文件及独立资料库阅读数据。`docs/reading-data-backup.md` 的单书备份与 GitHub Push/Pull 分离 |
 | 6 使用模式 | 代码能确认现有界面是手动 Push/Pull，并具备并发旧基线保护；不能从代码或本机数据库推断实际设备数、是否并发编辑。无需等待该答案即可做传输格式试点；自动同步与删除传播上线前需要明确策略和用户设置 |
-| 7 GitHub 调用 | REST Contents 创建快照/更新指针，大文件下载回退 Git Blobs；Tauri 与 Web 复用共享 TS 调用层，原生 HTTP 只是网络通道。推荐限仓库 fine-grained PAT 的 Contents 读写；也兼容 classic PAT，不读取/展示实际令牌。本项目未集成原生 Git 备份流程 |
+| 7 GitHub 调用 | 初评为 REST Contents 创建快照/更新指针，大文件下载回退 Git Blobs；2026-10-14 起大快照上传已加入 Git 数据接口，指针和数据格式不变；Tauri 与 Web 复用共享 TS 调用层，原生 HTTP 只是网络通道。推荐限仓库 fine-grained PAT 的 Contents 读写；也兼容 classic PAT，不读取/展示实际令牌。本项目未集成原生 Git 备份流程 |
 
 未知字段还不是三端无损协议：Web 展开记录可保留额外字段，但 Rust/Dart 的固定模型不能据此保证透传。需为未知字段、受限扩展和不支持版本提供明确往返/拒写契约，不能只在 schema 中写一句保留就认为已完成。
 
