@@ -225,6 +225,13 @@ for (const { width, height, theme } of [
     expect(titleLayout.width).toBeGreaterThanOrEqual(titleLayout.infoWidth - 1);
     await expect(bin.locator(".recycle-close")).toBeInViewport({ ratio: 1 });
     const close = bin.getByRole("button", { name: "关闭回收站", exact: true });
+    const iconBounds = (await bin.locator(".recycle-header-icon").boundingBox())!;
+    const closeBounds = (await close.boundingBox())!;
+    expect(Math.abs(closeBounds.y + closeBounds.height / 2 - iconBounds.y - iconBounds.height / 2)).toBeLessThanOrEqual(1);
+    const headingBounds = (await bin.locator(".recycle-heading h3").boundingBox())!;
+    const countBounds = (await bin.locator(".recycle-total").boundingBox())!;
+    expect(countBounds.x - headingBounds.x - headingBounds.width).toBeGreaterThanOrEqual(5);
+    expect(countBounds.x - headingBounds.x - headingBounds.width).toBeLessThanOrEqual(11);
     await expect(close).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await expect(close).toHaveCSS("color", await bin.locator(".recycle-heading p").evaluate(element => getComputedStyle(element).color));
     for (const button of await bin.locator(".recycle-footer button").all()) {
