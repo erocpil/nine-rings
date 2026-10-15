@@ -1,5 +1,5 @@
 import { readEditorCommands, invokeEditorCommand } from "../lib/editor-command-surface";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 interface Hover { toolbar: HTMLElement; range: Range; left: number; top: number }
@@ -41,8 +41,7 @@ export function SelectionHoverToolbar() {
       }
       clear();
       const rect = range.getBoundingClientRect();
-      const width = Math.min(900, window.innerWidth - 16);
-      const next = { toolbar, range: range.cloneRange(), left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)), top: rect.top >= 50 ? rect.top - 42 : rect.bottom + 4 };
+      const next = { toolbar, range: range.cloneRange(), left: Math.max(8, rect.left), top: rect.top >= 50 ? rect.top - 42 : rect.bottom + 4 };
       setHover(current => current?.toolbar === toolbar && current.left === next.left && current.top === next.top ? current : next);
     };
     const move = (event: PointerEvent) => { x = event.clientX; y = event.clientY; buttons = event.buttons; if (!frame) frame = requestAnimationFrame(update); };
@@ -55,11 +54,20 @@ export function SelectionHoverToolbar() {
     window.addEventListener("scroll", scroll, true); window.addEventListener("resize", hide); document.addEventListener("keydown", key);
     return () => { document.removeEventListener("focusin", focus); cancelAnimationFrame(frame); clear(); document.removeEventListener("pointermove", move); document.removeEventListener("selectionchange", selectionChanged); window.removeEventListener("scroll", scroll, true); window.removeEventListener("resize", hide); document.removeEventListener("keydown", key); };
   }, []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = host.current;
     if (!container || !hover) return;
     const clones = new Map<HTMLButtonElement, HTMLButtonElement>();
     const groups = new Map<Element, HTMLDivElement>();
+    const position = () => {
+      // Measure actual themed buttons, split groups and gaps; a button count
+      // alone cannot account for differing labels, fonts or custom controls.
+      const rect = container.getBoundingClientRect();
+      container.style.left = `${Math.max(8, Math.min(hover.left, window.innerWidth - rect.width - 8))}px`;
+      const selection = hover.range.getBoundingClientRect();
+      const top = selection.top >= rect.height + 12 ? selection.top - rect.height - 6 : selection.bottom + 4;
+      container.style.top = `${Math.max(8, Math.min(top, window.innerHeight - rect.height - 8))}px`;
+    };
     const refresh = () => {
       const next: HTMLButtonElement[] = [];
       const children: HTMLElement[] = [];
@@ -104,9 +112,12 @@ export function SelectionHoverToolbar() {
       children.forEach((child, index) => { if (container.children[index] !== child) container.insertBefore(child, container.children[index] ?? null); });
     };
     refresh();
+    position();
+    const resize = new ResizeObserver(position);
+    resize.observe(container);
     const observer = new MutationObserver(refresh);
     observer.observe(hover.toolbar, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "aria-pressed", "aria-expanded", "class", "style", "title", "aria-label", "hidden"] });
-    return () => { observer.disconnect(); container.replaceChildren(); };
+    return () => { resize.disconnect(); observer.disconnect(); container.replaceChildren(); };
   }, [hover]);
   return hover ? createPortal(<div ref={host} className="selection-hover-toolbar editor-menu toolbar-full toolbar-scrollable" role="toolbar" aria-label="选区编辑工具" style={{ left: hover.left, top: hover.top }} />, document.body) : null;
 }

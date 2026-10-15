@@ -63,7 +63,9 @@ test("悬停选区展示全部宿主工具，移走收回，文字背景可撤�
   await expect(editor.locator("mark")).toHaveCount(0);
 });
 
-test("源码选区悬停复用源码工具，格式命令保留选择", async ({ page }) => {
+for (const width of [900, 1440]) {
+test(`源码选区悬停按工具宽度收缩，格式命令保留选择 ${width}`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
   await createBlankDocument(page);
   await page.getByRole("button", {name:"源码",exact:true}).click();
   const source = page.getByRole("textbox", {name:"Markdown 源码",exact:true});
@@ -72,6 +74,15 @@ test("源码选区悬停复用源码工具，格式命令保留选择", async ({
   await page.mouse.move(rect.x+20,rect.y+rect.height/2);
   const hover = page.getByRole("toolbar",{name:"选区编辑工具",exact:true});
   await expect(hover).toBeVisible();
+  await expect.poll(() => hover.evaluate(element => {
+    const box = element.getBoundingClientRect();
+    const last = element.lastElementChild!.getBoundingClientRect();
+    return element.scrollWidth > element.clientWidth + 1 ? 0 : box.right - last.right;
+  })).toBeLessThanOrEqual(10);
+  const bounds = (await hover.boundingBox())!;
+  expect(bounds.x).toBeGreaterThanOrEqual(8);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(width - 8);
+  expect(await hover.evaluate(element => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
   const bold = hover.getByRole("button", { name: "加粗", exact: true });
   await expect(bold).toHaveClass(/menu-btn/);
   await expect(bold).not.toHaveCSS("background-color", "rgb(255, 255, 255)");
@@ -79,3 +90,5 @@ test("源码选区悬停复用源码工具，格式命令保留选择", async ({
   await bold.click();
   await expect(source).toContainText("**selected** content");
 });
+
+}

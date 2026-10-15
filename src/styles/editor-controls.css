@@ -1477,7 +1477,8 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
   position: fixed;
   z-index: 100;
   box-sizing: border-box;
-  width: min(900px, calc(100vw - 16px));
+  width: max-content;
+  max-width: min(900px, calc(100vw - 16px));
   min-height: 36px;
   padding: 4px;
   margin: 0;
