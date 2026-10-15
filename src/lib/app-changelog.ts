@@ -1,6 +1,13 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-16",
+    title: "复杂列表保存与备份认证",
+    changes: [
+      "修复包含代码或引用的列表在保存后丢失手动缩进的问题；补充复杂列表和嵌套引用的编辑、撤销及备份恢复认证，正式增量同步仍未开启。",
+    ],
+  },
+  {
     date: "2026-10-15",
     title: "全屏显示、备份预检与诊断",
     changes: [

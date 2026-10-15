@@ -32,17 +32,20 @@ export function hasStructuredBody(body: Record<string, unknown>): boolean {
     body.ops.some(
       (op) =>
         record(op) &&
-        record(op.attributes) &&
-        Object.keys(op.attributes).some((key) => structural.has(key)),
+        (record(op.insert) ||
+          (record(op.attributes) &&
+            Object.keys(op.attributes).some((key) => structural.has(key)))),
     )
   );
 }
 
-/** Candidate-only, all-string Delta subset. No embeds or special renderers. */
+/** Candidate-only text plus recursively certified list/quote objects. */
 export function isCertifiedStructuredBody(
   body: Record<string, unknown>,
+  depth = 0,
 ): boolean {
   if (
+    depth > 16 ||
     Object.keys(body).some((key) => key !== "ops") ||
     !Array.isArray(body.ops) ||
     !body.ops.length
@@ -52,6 +55,18 @@ export function isCertifiedStructuredBody(
   let markedText = false;
   for (let index = 0; index < ops.length; index++) {
     const op = ops[index];
+    if (record(op) && record(op.insert)) {
+      if (!validEmbed(op, depth) || markedText) return false;
+      const next = ops[index + 1];
+      if (
+        !record(next) ||
+        next.insert !== "\n" ||
+        (next.attributes !== undefined &&
+          (!record(next.attributes) || Object.keys(next.attributes).length))
+      )
+        return false;
+      continue;
+    }
     if (
       !record(op) ||
       typeof op.insert !== "string" ||
@@ -140,8 +155,8 @@ export function isCertifiedStructuredBody(
       deltaToProseMirror(body as unknown as DeltaOps),
     );
     // Reject misplaced attributes, inconsistent numbering/nesting, lossy combinations,
-    // and forms converted into embeds. Do not silently rewrite the user's content.
-    if (restored.ops.some((op) => typeof op.insert !== "string")) return false;
+    // and changed embed boundaries. Do not silently rewrite the user's content.
+
     return (
       canonicalJson(candidateBodyProjection(body)) ===
       canonicalJson(candidateBodyProjection(restored))
@@ -149,4 +164,97 @@ export function isCertifiedStructuredBody(
   } catch {
     return false;
   }
+}
+
+function validEmbed(op: Record<string, unknown>, depth: number): boolean {
+  if (
+    Object.keys(op).some((key) => !["insert", "attributes"].includes(key)) ||
+    !record(op.insert) ||
+    Object.keys(op.insert).length !== 1
+  )
+    return false;
+  const attrs = op.attributes ?? {};
+  if (
+    !record(attrs) ||
+    Object.entries(attrs).some(([key, value]) => {
+      if (key === "indent")
+        return (
+          !Number.isInteger(value) ||
+          (value as number) < 1 ||
+          (value as number) > 8
+        );
+      return (
+        !["indent-explicit", "blockquote", "blockquote-collapsed"].includes(
+          key,
+        ) || value !== true
+      );
+    })
+  )
+    return false;
+  const insert = op.insert;
+  const child = (ops: unknown) => isCertifiedStructuredBody({ ops }, depth + 1);
+  if (record(insert.blockquote)) {
+    const quote = insert.blockquote;
+    return (
+      quote.version === 1 &&
+      Object.keys(quote).every((key) => ["version", "content"].includes(key)) &&
+      attrs.blockquote === true &&
+      child(quote.content)
+    );
+  }
+  if (record(insert.list)) {
+    const list = insert.list;
+    return (
+      !Object.keys(attrs).some((key) => key.startsWith("blockquote")) &&
+      Object.keys(list).every((key) =>
+        ["version", "ordered", "start", "spread", "items"].includes(key),
+      ) &&
+      list.version === 1 &&
+      typeof list.ordered === "boolean" &&
+      typeof list.spread === "boolean" &&
+      Number.isSafeInteger(list.start) &&
+      (list.start as number) >= 1 &&
+      Array.isArray(list.items) &&
+      list.items.length > 0 &&
+      list.items.every(
+        (item) =>
+          record(item) &&
+          Object.keys(item).every((key) =>
+            ["checked", "content"].includes(key),
+          ) &&
+          (item.checked === null || typeof item.checked === "boolean") &&
+          child(item.content),
+      )
+    );
+  }
+  return false;
+}
+
+/** Read only fields in the validated tree; nested inline marks also require capabilities. */
+export function structuredBodyFeatures(
+  body: Record<string, unknown>,
+): string[] {
+  const features = new Set<string>();
+  const visit = (ops: unknown, depth: number) => {
+    if (depth > 16 || !Array.isArray(ops)) return;
+    for (const op of ops) {
+      if (!record(op)) continue;
+      if (
+        record(op.attributes) &&
+        ["color", "size", "highlight", "background"].some(
+          (key) => record(op.attributes) && op.attributes[key] !== undefined,
+        )
+      )
+        features.add("inline-appearance-v1");
+      if (!record(op.insert)) continue;
+      features.add("structured-block-v1");
+      if (record(op.insert.blockquote))
+        visit(op.insert.blockquote.content, depth + 1);
+      if (record(op.insert.list) && Array.isArray(op.insert.list.items))
+        for (const item of op.insert.list.items)
+          if (record(item)) visit(item.content, depth + 1);
+    }
+  };
+  visit(body.ops, 0);
+  return [...features];
 }

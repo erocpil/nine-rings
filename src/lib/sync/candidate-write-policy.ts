@@ -1,4 +1,4 @@
-import { hasStructuredBody, isCertifiedStructuredBody } from "./structured-body-policy";
+import { hasStructuredBody, isCertifiedStructuredBody, structuredBodyFeatures } from "./structured-body-policy";
 import { isCertifiedWebAppConfig, isCertifiedTauriAppConfig } from "./app-config-policy";
 /** Candidate payload eligibility only. Never applies data or enables a protocol. */
 import { normalizeEditorColor } from "../editor-color";
@@ -155,11 +155,7 @@ export function reviewCandidatePayload(
       required.add("structured-text-v1");
       if (runtime === "flutter") issue("runtime-unsupported");
       if (!isCertifiedStructuredBody(value)) issue("unsupported-content");
-      if (Array.isArray(value.ops) && value.ops.some(op => {
-        if (!record(op) || !record(op.attributes)) return false;
-        const attributes = op.attributes;
-        return ["color", "size", "highlight", "background"].some(key => attributes[key] !== undefined);
-      })) required.add("inline-appearance-v1");
+      for (const feature of structuredBodyFeatures(value)) required.add(feature);
     } else {
       required.add("text-document-v1");
       if (

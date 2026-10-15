@@ -122,7 +122,8 @@ export function proseMirrorToDelta(pmJson: JSONContent | null | undefined): Delt
       case "bulletList":
       case "orderedList":
         if (hasComplexListContent(node)) {
-          ops.push({ insert: { list: { version: 1, ordered: node.type === "orderedList", start: Number(node.attrs?.start) || 1, spread: node.attrs?.spread === true, items: (node.content ?? []).map(item => ({ checked: item.attrs?.taskChecked ?? null, content: proseMirrorToDelta({ type: "doc", content: item.content ?? [] }).ops })) } } }, { insert: "\n" });
+          const attributes = indentAttrs(node);
+          ops.push({ insert: { list: { version: 1, ordered: node.type === "orderedList", start: Number(node.attrs?.start) || 1, spread: node.attrs?.spread === true, items: (node.content ?? []).map(item => ({ checked: item.attrs?.taskChecked ?? null, content: proseMirrorToDelta({ type: "doc", content: item.content ?? [] }).ops })) } }, ...(Object.keys(attributes).length ? { attributes } : {}) }, { insert: "\n" });
         } else appendListOps(node, ops, 0);
         break;
 

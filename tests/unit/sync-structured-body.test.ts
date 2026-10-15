@@ -7,14 +7,19 @@ import { FontSize } from "../../src/extensions/FontSize";
 import { InlineHighlight } from "../../src/extensions/MarkdownExtras";
 import "fake-indexeddb/auto";
 import { expect, it, vi } from "vitest";
-import { getSchema } from "@tiptap/core";
+import { getSchema, type JSONContent } from "@tiptap/core";
 import { EditorState } from "@tiptap/pm/state";
 import { DocumentStarterKit } from "../../src/extensions/DocumentStarterKit";
 import { CodeBlockLineNumbers } from "../../src/extensions/CodeBlockLineNumbers";
 import { CollapsibleBlockquote } from "../../src/extensions/CollapsibleBlockquote";
 import { BlockIndent } from "../../src/extensions/BlockIndent";
 import { MarkdownTaskState } from "../../src/extensions/MarkdownTaskState";
-import fixture from "../../schema/sync/fixtures/candidate-structured-text-v1.json";
+import textFixture from "../../schema/sync/fixtures/candidate-structured-text-v1.json";
+import blockFixture from "../../schema/sync/fixtures/candidate-structured-block-v1.json";
+const fixture = {
+  ...textFixture,
+  notes: [...textFixture.notes, ...blockFixture.notes],
+};
 import {
   deltaToProseMirror,
   proseMirrorToDelta,
@@ -258,4 +263,179 @@ it("binds structured document choices into a still non-writable candidate", asyn
   expect(result.writable).toBe(false);
   expect(result.review.requiredFeatures).toContain("structured-text-v1");
   expect(await candidateEntities(result.source, "web")).toEqual(localEntities);
+});
+
+it("keeps complex list manual indentation through storage and the actual schema", () => {
+  const source: JSONContent = {
+    type: "doc",
+    content: [
+      {
+        type: "orderedList",
+        attrs: { start: 5, indent: 2, indentExplicit: true },
+        content: [
+          {
+            type: "listItem",
+            content: [
+              { type: "paragraph", content: [{ type: "text", text: "item" }] },
+              {
+                type: "codeBlock",
+                attrs: { language: "text" },
+                content: [{ type: "text", text: "code" }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const original = schema.nodeFromJSON(source);
+  const body = proseMirrorToDelta(original.toJSON());
+  const restored = schema.nodeFromJSON(deltaToProseMirror(body));
+  restored.check();
+  expect(restored.eq(original)).toBe(true);
+});
+
+const embeddedItemBody = [
+  { insert: "item" },
+  { insert: "\n" },
+  { insert: "code" },
+  { insert: "\n", attributes: { "code-block": true } },
+];
+const embeddedList = {
+  version: 1,
+  ordered: true,
+  start: 3,
+  spread: false,
+  items: [{ checked: null, content: embeddedItemBody }],
+};
+const embeddedPayload = (insert: unknown, attributes?: unknown) =>
+  JSON.stringify({
+    ...textFixture,
+    notes: [
+      {
+        ...textFixture.notes[0],
+        content: {
+          ops: [
+            { insert, ...(attributes ? { attributes } : {}) },
+            { insert: "\n" },
+          ],
+        },
+      },
+    ],
+  });
+
+it.each([
+  { ...embeddedList, version: 2 },
+  { ...embeddedList, extra: "lost" },
+  { ...embeddedList, ordered: "true" },
+  { ...embeddedList, start: 0 },
+  { ...embeddedList, spread: 1 },
+  { ...embeddedList, items: [] },
+  {
+    ...embeddedList,
+    items: [{ checked: null, content: embeddedItemBody, extra: 1 }],
+  },
+  { ...embeddedList, items: [{ checked: "false", content: embeddedItemBody }] },
+  {
+    ...embeddedList,
+    items: [
+      {
+        checked: null,
+        content: [{ insert: { image: "secret" } }, { insert: "\n" }],
+      },
+    ],
+  },
+  {
+    ...embeddedList,
+    items: [
+      {
+        checked: null,
+        content: [
+          { insert: "code" },
+          {
+            insert: "\n",
+            attributes: { "code-block": true, language: "flow" },
+          },
+        ],
+      },
+    ],
+  },
+])("rejects unsupported fields and bodies at any list depth: %j", (list) => {
+  expect(
+    reviewCandidatePayload(embeddedPayload({ list }), "web").eligible,
+  ).toBe(false);
+});
+
+it("requires nested inline and embed capabilities and preserves semantic hashes across text fragmentation", async () => {
+  const text = { insert: "marked", attributes: { color: "#22a577" } };
+  const list = {
+    ...embeddedList,
+    items: [{ checked: true, content: [text, ...embeddedItemBody.slice(1)] }],
+  };
+  const source = embeddedPayload({ list });
+  expect(reviewCandidatePayload(source, "web")).toMatchObject({
+    eligible: true,
+    requiredFeatures: expect.arrayContaining([
+      "structured-block-v1",
+      "inline-appearance-v1",
+    ]),
+  });
+  const split = {
+    ...list,
+    items: [
+      {
+        checked: true,
+        content: [
+          { ...text, insert: "mar" },
+          { ...text, insert: "ked" },
+          ...embeddedItemBody.slice(1),
+        ],
+      },
+    ],
+  };
+  expect(
+    await candidateEntities(embeddedPayload({ list: split }), "web"),
+  ).toEqual(await candidateEntities(source, "web"));
+  list.items[0].checked = false;
+  expect(await candidateEntities(embeddedPayload({ list }), "web")).not.toEqual(
+    await candidateEntities(source, "web"),
+  );
+  expect(reviewCandidatePayload(source, "flutter").eligible).toBe(false);
+});
+
+it("rejects oversized nesting, quote versions/alerts and missing embed boundaries", () => {
+  let insert: unknown = {
+    blockquote: { version: 1, content: embeddedItemBody },
+  };
+  for (let depth = 0; depth < 18; depth++)
+    insert = {
+      blockquote: {
+        version: 1,
+        content: [
+          { insert, attributes: { blockquote: true } },
+          { insert: "\n" },
+        ],
+      },
+    };
+  expect(
+    reviewCandidatePayload(embeddedPayload(insert, { blockquote: true }), "web")
+      .eligible,
+  ).toBe(false);
+  for (const blockquote of [
+    { version: 2, content: embeddedItemBody },
+    { version: 1, content: embeddedItemBody, alert: "NOTE" },
+    { version: 1, content: [] },
+    { version: 1, content: embeddedItemBody, extra: 1 },
+  ])
+    expect(
+      reviewCandidatePayload(
+        embeddedPayload({ blockquote }, { blockquote: true }),
+        "web",
+      ).eligible,
+    ).toBe(false);
+  const source = JSON.parse(embeddedPayload({ list: embeddedList }));
+  source.notes[0].content.ops.pop();
+  expect(reviewCandidatePayload(JSON.stringify(source), "web").eligible).toBe(
+    false,
+  );
 });

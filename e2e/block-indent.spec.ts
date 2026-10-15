@@ -58,3 +58,23 @@ test("toolbar block indent command applies to a continuous selection", async ({ 
   await expect(editor.locator(":scope > p").nth(0)).toHaveAttribute("data-indent", "1");
   await expect(editor.locator(":scope > p").nth(1)).toHaveAttribute("data-indent", "1");
 });
+
+test("complex list indentation survives autosave and reopening", async ({ page }) => {
+  const editor = await createNote(page);
+  await editor.evaluate(element => {
+    const ed = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    ed.commands.setContent({type:"doc",content:[{type:"orderedList",attrs:{start:5,indent:2,indentExplicit:true},content:[{type:"listItem",content:[{type:"paragraph",content:[{type:"text",text:"复杂列表保存"}]},{type:"codeBlock",attrs:{language:"text"},content:[{type:"text",text:"code"}]}]}]}]}, true);
+  });
+  await expect(editor.locator(":scope > ol")).toHaveAttribute("data-indent", "2");
+  await expect.poll(() => page.evaluate(async () => {
+    const path = "/src/lib/api.ts";
+    const { api } = await import(/* @vite-ignore */ path);
+    const note = await api.notes.get(localStorage.getItem("nr:lastNote")!);
+    return note?.content?.ops?.[0]?.attributes;
+  })).toEqual({indent:2,"indent-explicit":true});
+  await page.reload();
+  await expect(page.locator(".ProseMirror:visible > ol")).toHaveAttribute("data-indent", "2");
+  await expect(page.locator(".ProseMirror:visible > ol")).toHaveAttribute("data-indent-explicit", "true");
+  await expect(page.locator(".ProseMirror:visible > ol")).toHaveAttribute("start", "5");
+  await expect(page.locator(".ProseMirror:visible code")).toHaveText("code");
+});
