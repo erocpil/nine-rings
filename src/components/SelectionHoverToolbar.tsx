@@ -20,7 +20,7 @@ export function SelectionHoverToolbar() {
       frame = 0;
       if (buttons || !window.matchMedia("(min-width: 769px) and (pointer: fine)").matches) return;
       const target = document.elementFromPoint(x, y);
-      if (host.current?.contains(target) || target?.closest(".menu-dropdown-list:popover-open")) { clear(); return; }
+      if (host.current?.contains(target) || target?.closest(".menu-dropdown-list:popover-open, .block-action-menu")) { clear(); return; }
       const selection = document.getSelection();
       const range = selection && !selection.isCollapsed && selection.rangeCount ? selection.getRangeAt(0) : null;
       const owner = range?.commonAncestorContainer instanceof Element ? range.commonAncestorContainer : range?.commonAncestorContainer.parentElement;
@@ -48,7 +48,7 @@ export function SelectionHoverToolbar() {
     const focus = (event: FocusEvent) => { if ((event.target as Element)?.closest("[role=dialog], .image-dialog")) hide(); };
     document.addEventListener("focusin", focus);
     const selectionChanged = () => { if (document.getSelection()?.isCollapsed) hide(); };
-    const scroll = (event: Event) => { if (!host.current?.contains(event.target as Node)) hide(); };
+    const scroll = (event: Event) => { if (!host.current?.contains(event.target as Node) && !(event.target instanceof Element && event.target.closest(".block-action-menu"))) hide(); };
     const key = (event: KeyboardEvent) => { if (event.key === "Escape" && active.current) { hide(); event.preventDefault(); event.stopPropagation(); } };
     document.addEventListener("pointermove", move); document.addEventListener("selectionchange", selectionChanged);
     window.addEventListener("scroll", scroll, true); window.addEventListener("resize", hide); document.addEventListener("keydown", key);

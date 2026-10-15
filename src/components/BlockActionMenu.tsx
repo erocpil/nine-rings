@@ -43,6 +43,17 @@ function InputControl({ action, onClose }: { action: BlockMenuAction; onClose: (
     {!valid && <small role="alert">请输入有效值</small>}
   </form>;
 }
+function menuPosition(rect: DOMRect, menu: DOMRect, placement: "side" | "below") {
+  const below = rect.bottom + 6;
+  const above = rect.top - menu.height - 6;
+  const y = placement === "below"
+    ? below + menu.height <= window.innerHeight - 8 ? below : above >= 8 ? above : below
+    : rect.top;
+  return {
+    x: Math.max(8, Math.min(placement === "below" ? rect.left : rect.right + 6, window.innerWidth - menu.width - 8)),
+    y: Math.max(8, Math.min(y, window.innerHeight - menu.height - 8)),
+  };
+}
 export function BlockActionMenu({ trigger, title, actions, onClose, placement = "side" }: {
   trigger: HTMLElement; title: string; actions: BlockMenuAction[]; onClose: () => void; placement?: "side" | "below";
 }) {
@@ -57,7 +68,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
   useLayoutEffect(() => {
     const rect = trigger.getBoundingClientRect();
     const menu = root.current!.getBoundingClientRect();
-    setPosition({ x: Math.max(8, Math.min(placement === "below" ? rect.left : rect.right + 6, window.innerWidth - menu.width - 8)), y: Math.max(8, Math.min(placement === "below" ? rect.bottom + 6 : rect.top, window.innerHeight - menu.height - 8)) });
+    setPosition(menuPosition(rect, menu, placement));
     root.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
   }, [trigger, submenuPath, placement]);
   useEffect(() => {
@@ -66,7 +77,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
       if (root.current?.contains(event.target as Node)) return;
       if (placement !== "below" || !root.current || !trigger.isConnected) { onClose(); return; }
       const rect = trigger.getBoundingClientRect(), menu = root.current.getBoundingClientRect();
-      const next = { x: Math.max(8, Math.min(rect.left, window.innerWidth - menu.width - 8)), y: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - menu.height - 8)) };
+      const next = menuPosition(rect, menu, placement);
       setPosition(previous => previous.x === next.x && previous.y === next.y ? previous : next);
     };
     document.addEventListener("pointerdown", outside, true);

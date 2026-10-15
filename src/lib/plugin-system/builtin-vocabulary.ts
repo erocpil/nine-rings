@@ -1,4 +1,5 @@
 import { documentNavigation } from "./document-navigation";
+import { noteToMarkdown } from "../markdown-serializer";
 import { readVocabularySort, sortVocabulary } from "../vocabulary-reading-state";
 import { pluginRuntime, PluginHostError } from "./runtime";
 import { pluginLifecycle } from "./lifecycle";
@@ -292,7 +293,6 @@ export const vocabularyDocuments = {
           "PERMISSION_DENIED",
           "词汇插件不读取受保护路径",
         );
-      const { noteToMarkdown } = await import("../markdown-serializer");
       const source = noteToMarkdown(note.title, note.content);
       pluginRuntime.assert(owner, "documents.vocabulary.read");
       if (source.length > 250000)

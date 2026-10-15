@@ -1,3 +1,4 @@
+import { editorCommandTrigger } from "../lib/editor-command-surface";
 import { createPortal } from "react-dom";
 import { relativeLineNumbers } from "../lib/source-relative-line-numbers";
 import { BlockActionMenu } from "./BlockActionMenu";
@@ -160,7 +161,7 @@ export function MarkdownSourceEditor({
     display = useRef(new Compartment());
   const [preferences, setPreferences] = useState(blockWorkspacePreferences);
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
-  const [foldMenu, setFoldMenu] = useState<{ trigger: HTMLButtonElement; collapse: boolean } | null>(null);
+  const [foldMenu, setFoldMenu] = useState<{ trigger: HTMLElement; collapse: boolean } | null>(null);
   const [tools, setTools] = useState({ search: false, goto: false, undo: false, redo: false });
   const syncTools = (state: EditorState) => {
     const next = { search: sourcePanelOpen(state, "search"), goto: sourcePanelOpen(state, "goto"), undo: undoDepth(state) > 0, redo: redoDepth(state) > 0 };
@@ -437,7 +438,7 @@ export function MarkdownSourceEditor({
         </button>
         {[true, false].map(collapse => <span className="source-fold-tool" key={String(collapse)}>
           <button type="button" title={collapse ? "折叠全部" : "展开全部"} aria-label={collapse ? "折叠全部" : "展开全部"} onClick={() => run(collapse ? foldAll : unfoldAll)}><ToolbarIcon name={collapse ? "folderCollapse" : "folderKeep"} /></button>
-          <button type="button" className="source-fold-level-trigger" title={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-label={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-haspopup="menu" aria-expanded={foldMenu?.collapse === collapse} onClick={event => { const trigger = event.currentTarget; setFoldMenu(previous => previous?.collapse === collapse ? null : { trigger, collapse }); }}><svg className="source-fold-level-icon" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1h8L5 5z" fill="currentColor" /></svg></button>
+          <button type="button" className="source-fold-level-trigger" title={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-label={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-haspopup="menu" aria-expanded={foldMenu?.collapse === collapse} onClick={event => { const trigger = editorCommandTrigger(event.currentTarget); setFoldMenu(previous => previous?.collapse === collapse ? null : { trigger, collapse }); }}><svg className="source-fold-level-icon" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1h8L5 5z" fill="currentColor" /></svg></button>
         </span>)}
         {foldMenu && <BlockActionMenu trigger={foldMenu.trigger} placement="below" title={foldMenu.collapse ? "折叠标题级别" : "展开标题级别"} onClose={() => setFoldMenu(null)} actions={[{ label: foldMenu.collapse ? "折叠全部" : "展开全部", run: () => run(foldMenu.collapse ? foldAll : unfoldAll) }, ...Array.from({ length: 6 }, (_, i) => ({ label: foldMenu.collapse ? `折叠 H${i + 1} 及更深标题` : `展开至 H${i + 1}`, run: () => run(view => { const effects = sourceHeadingFoldEffects(view.state, i + 1, foldMenu.collapse); if (!effects) return false; view.dispatch({ effects }); return true; }) }))]} />}
         {!readonly && <>

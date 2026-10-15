@@ -92,3 +92,36 @@ test(`源码选区悬停按工具宽度收缩，格式命令保留选择 ${width
 });
 
 }
+
+for (const readonly of [false, true]) {
+test(`源码选区折叠菜单锚定实际按钮并保持可操作 readonly=${readonly}`, async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await createBlankDocument(page);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  const text = Array.from({ length: 12 }, (_, i) => `正文 ${i}`).join("\n") + "\n## target\nchild";
+  await replaceSource(source, text);
+  if (readonly) await page.getByRole("button", { name: "设置只读", exact: true }).click();
+  await selectSource(source, text.indexOf("target"), text.indexOf("target") + 6);
+  const line = source.locator(".cm-line").filter({ hasText: "## target" });
+  const box = (await line.boundingBox())!;
+  await page.mouse.move(box.x + 60, box.y + box.height / 2);
+  const hover = page.getByRole("toolbar", { name: "选区编辑工具", exact: true });
+  const trigger = hover.getByRole("button", { name: "选择折叠标题级别", exact: true });
+  await expect(trigger).toBeVisible();
+  const anchor = (await trigger.boundingBox())!;
+  await trigger.click();
+  const menu = page.getByRole("menu", { name: "折叠标题级别", exact: true });
+  await expect(menu).toBeVisible();
+  const bounds = (await menu.boundingBox())!;
+  expect(Math.abs(bounds.x - anchor.x)).toBeLessThanOrEqual(1);
+  expect(Math.min(Math.abs(bounds.y - anchor.y - anchor.height - 6), Math.abs(bounds.y + bounds.height + 6 - anchor.y))).toBeLessThanOrEqual(1);
+  await menu.getByRole("menuitem", { name: "折叠 H2 及更深标题", exact: true }).hover();
+  // Exceed the toolbar's leave timer to catch premature dismissal on menu entry.
+  await page.waitForTimeout(250);
+  await expect(hover).toBeVisible();
+  await menu.getByRole("menuitem", { name: "折叠 H2 及更深标题", exact: true }).click();
+  await expect(page.locator(".cm-foldPlaceholder")).toBeVisible();
+  expect((await sourceInfo(source)).value).toBe(text);
+});
+}

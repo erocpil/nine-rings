@@ -11,6 +11,11 @@ export interface EditorSurfaceCommand {
 }
 export const editorCommandGroups: EditorCommandGroup[] = ["编辑", "文字格式", "段落", "插入", "表格", "文档"];
 const anchors = new WeakMap<HTMLElement, DOMRect>();
+const invocationTriggers = new WeakMap<HTMLElement, HTMLElement>();
+/** Resolve the visible invocation button while forwarding a host command. */
+export function editorCommandTrigger(original: HTMLElement): HTMLElement {
+  return invocationTriggers.get(original) ?? original;
+}
 export function commandMenuAnchor(menu: HTMLElement): DOMRect | undefined {
   const owner = menu.closest<HTMLElement>(".menu-dropdown");
   return owner ? anchors.get(owner) : undefined;
@@ -42,7 +47,8 @@ export function invokeEditorCommand(command: EditorSurfaceCommand, anchor: HTMLE
   const owner = original.closest<HTMLElement>(".menu-dropdown");
   if (owner) anchors.set(owner, anchor.getBoundingClientRect());
   original.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse", button: 0 }));
-  original.click();
+  invocationTriggers.set(original, anchor);
+  try { original.click(); } finally { invocationTriggers.delete(original); }
   // Existing open popovers also need to follow a newly selected invocation surface.
   window.dispatchEvent(new Event("nr:editor-command-anchor"));
 }
