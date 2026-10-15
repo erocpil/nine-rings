@@ -1,4 +1,5 @@
 /** Candidate payload eligibility only. Never applies data or enables a protocol. */
+import { normalizeEditorColor } from "../editor-color";
 import { validateBackup } from "../backup-validation";
 import {
   collectFrontendSettings,
@@ -171,11 +172,39 @@ export function reviewCandidatePayload(
                   ? !Number.isInteger(val) ||
                     (val as number) < 1 ||
                     (val as number) > 6
-                  : !["bold", "italic", "strike", "code"].includes(key) ||
-                    typeof val !== "boolean",
+                  : key === "color" || key === "background"
+                    ? typeof val !== "string" ||
+                      normalizeEditorColor(val) !== val
+                    : key === "size"
+                      ? !["small", "normal", "large", "huge"].includes(
+                          String(val),
+                        ) || typeof val !== "string"
+                      : ![
+                          "bold",
+                          "italic",
+                          "strike",
+                          "code",
+                          "highlight",
+                        ].includes(key) || typeof val !== "boolean",
               )
             )
               issue("unsupported-content");
+            if (record(op.attributes)) {
+              const attrs = op.attributes;
+              if (
+                (attrs.background !== undefined && attrs.highlight !== true) ||
+                (attrs.code === true && Object.keys(attrs).length > 1)
+              )
+                issue("unsupported-content");
+              if (
+                ["color", "size", "highlight", "background"].some(
+                  (key) => attrs[key] !== undefined,
+                )
+              ) {
+                required.add("inline-appearance-v1");
+                if (runtime === "flutter") issue("runtime-unsupported");
+              }
+            }
           }
         }
     }

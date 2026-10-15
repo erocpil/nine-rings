@@ -1,3 +1,4 @@
+import { FontSize } from "../extensions/FontSize";
 import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
 import { panelDisplayStyle, sortedBookmarks } from "../lib/panel-display-view";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
@@ -171,50 +172,6 @@ import {
   toggleBookmark,
 } from "../extensions/DocumentBookmarks";
 
-declare module "@tiptap/core" {
-  interface Commands<ReturnType> {
-    fontSize: {
-      setFontSize: (size: string) => ReturnType;
-      unsetFontSize: () => ReturnType;
-    };
-  }
-}
-
-const FontSize = Extension.create({
-  name: "fontSize",
-  addOptions() {
-    return { types: ["textStyle"] };
-  },
-  addGlobalAttributes() {
-    return [
-      {
-        types: this.options.types,
-        attributes: {
-          fontSize: {
-            default: null,
-            parseHTML: (el) => el.style.fontSize?.replace("px", "") || null,
-            renderHTML: (attrs) => {
-              if (!attrs.fontSize) return {};
-              return { style: `font-size: ${attrs.fontSize}px` };
-            },
-          },
-        },
-      },
-    ];
-  },
-  addCommands() {
-    return {
-      setFontSize:
-        (size: string) =>
-        ({ chain }: { chain: Editor["chain"] }) =>
-          chain().setMark("textStyle", { fontSize: size }).run(),
-      unsetFontSize:
-        () =>
-        ({ chain }: { chain: Editor["chain"] }) =>
-          chain().setMark("textStyle", { fontSize: null }).removeEmptyTextStyle().run(),
-    };
-  },
-});
 
 /**
  * Code blocks must win over the editor-wide Markdown/URL paste heuristics.

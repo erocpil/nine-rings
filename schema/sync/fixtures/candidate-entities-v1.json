@@ -34,6 +34,18 @@
           },
           {
             "insert": "\n"
+          },
+          {
+            "insert": "字号颜色与高亮",
+            "attributes": {
+              "color": "#22a577",
+              "size": "large",
+              "highlight": true,
+              "background": "#d6a348"
+            }
+          },
+          {
+            "insert": "\n"
           }
         ]
       },

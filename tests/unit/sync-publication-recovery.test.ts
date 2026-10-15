@@ -27,6 +27,7 @@ vi.mock("../../src/lib/sync/protocol-capabilities", async (importOriginal) => {
     >();
   const features = [
     "text-document-v1",
+    "inline-appearance-v1",
     "template-metadata-v1",
     "encrypted-document-v1",
     "protected-path-v1",
@@ -80,6 +81,7 @@ async function prepared() {
   const header = structuredClone(gates[1].bundle.header)!;
   header.requires.readFeatures = header.requires.writeFeatures = [
     "text-document-v1",
+    "inline-appearance-v1",
     "template-metadata-v1",
     "encrypted-document-v1",
     "protected-path-v1",

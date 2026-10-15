@@ -81,10 +81,13 @@ function deltaAttrToMarks(attrs: Record<string, unknown> | undefined): NonNullab
   if (attrs.highlight) marks.push({ type: "inlineHighlight", attrs: { backgroundColor: normalizeEditorColor(attrs.background) } });
   if (attrs.footnoteRef) marks.push({ type: "footnoteReference", attrs: { id: attrs.footnoteRef, number: attrs.footnoteNumber ?? null, occurrence: attrs.footnoteOccurrence ?? 1 } });
   if (["sub", "sup", "ins"].includes(String(attrs.htmlStyle))) marks.push({ type: "htmlStyle", attrs: { tag: attrs.htmlStyle } });
-  if (attrs.color)     marks.push({ type: "textStyle", attrs: { color: attrs.color } });
-  if (attrs.size) {
-    const px = namedToPx(String(attrs.size));
-    marks.push({ type: "textStyle", attrs: { fontSize: String(px) } });
+  // A ProseMirror mark set permits only one textStyle mark. Keep both
+  // attributes together, otherwise schema validation or later edits lose one.
+  if (attrs.color || attrs.size) {
+    marks.push({ type: "textStyle", attrs: {
+      ...(attrs.color ? { color: attrs.color } : {}),
+      ...(attrs.size ? { fontSize: String(namedToPx(String(attrs.size))) } : {}),
+    } });
   }
   return marks;
 }

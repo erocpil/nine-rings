@@ -208,3 +208,34 @@ test("专注模式选区子菜单独立显示，颜色字号生效且宿主不�
   await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
   await expect(host.getByTitle("字号", { exact: true })).toBeVisible();
 });
+
+test("颜色字号和高亮组合保存后重开保持格式，继续编辑与撤销正常", async ({ page }) => {
+  await createBlankDocument(page, "组合格式往返");
+  const content = page.locator(".ProseMirror");
+  await content.fill("first second");
+  await content.evaluate(element => {
+    const editor = (element as HTMLElement & { editor: Editor }).editor;
+    editor.chain().setTextSelection({ from: 1, to: 6 }).setColor("#22a577").setFontSize("18").setMark("inlineHighlight", { backgroundColor: "#d6a348" }).run();
+  });
+  await expect.poll(() => page.evaluate(async () => {
+    const path = "/src/lib/api.ts";
+    const { api } = await import(/* @vite-ignore */ path);
+    const note = await api.notes.get(localStorage.getItem("nr:lastNote"));
+    return note?.content?.ops?.find((op: { insert: unknown }) => op.insert === "first")?.attributes;
+  })).toMatchObject({ color: "#22a577", size: "large", highlight: true, background: "#d6a348" });
+  await page.reload();
+  await expect(content).toHaveText("first second");
+  await expect(content.locator('span[style*="font-size"]')).toHaveCSS("font-size", "18px");
+  await expect(content.locator('span[style*="color"]')).toHaveCSS("color", "rgb(34, 165, 119)");
+  await content.evaluate(element => {
+    const editor = (element as HTMLElement & { editor: Editor }).editor;
+    editor.state.doc.check();
+    editor.chain().focus().setTextSelection({ from: 1, to: 6 }).toggleBold().run();
+    editor.state.doc.check();
+  });
+  await expect(content.locator("strong")).toHaveText("first");
+  await content.press("ControlOrMeta+z");
+  await expect(content.locator("strong")).toHaveCount(0);
+  await expect(content.locator('span[style*="font-size"]')).toHaveCSS("font-size", "18px");
+  await expect(content.locator('span[style*="color"]')).toHaveCSS("color", "rgb(34, 165, 119)");
+});
