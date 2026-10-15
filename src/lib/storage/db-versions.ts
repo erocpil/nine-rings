@@ -1,3 +1,4 @@
+import { sameVersionSnapshot } from "./version-snapshot";
 // ── db-versions.ts：IndexedDB 版本历史存储 ──
 
 import type { Note, NoteVersion } from "../../types/models";
@@ -51,11 +52,7 @@ export async function createNoteCheckpoint(noteId: string): Promise<void> {
       .sort((a, b) => (b.saved_at ?? "").localeCompare(a.saved_at ?? ""));
     if (noteVersions.length > 0) {
       const latest = noteVersions[0];
-      const latestContent = typeof latest.content === "string"
-        ? latest.content
-        : JSON.stringify(latest.content);
-      const currentContent = JSON.stringify(noteFromDB(existing).content);
-      if (latestContent === currentContent) return; // 相同内容，跳过
+      if (sameVersionSnapshot({ ...latest }, { ...noteFromDB(existing) })) return;
     }
 
     await saveVersionSnapshot(verStore, noteFromDB(existing));
@@ -93,6 +90,7 @@ export async function restoreNoteVersion(versionId: string): Promise<Note> {
       ...existing,
       title: version.title ?? existing.title,
       content: typeof version.content === "string" ? JSON.parse(version.content) : version.content,
+      pinned: version.pinned,
       tags: typeof version.tags === "string" ? JSON.parse(version.tags) : version.tags,
       sort_order: version.sort_order ?? existing.sort_order,
       updated_at: now(),
@@ -102,5 +100,25 @@ export async function restoreNoteVersion(versionId: string): Promise<Note> {
     };
     await putRecord(noteStore, restored);
     return noteFromDB(restored);
+  });
+}
+
+
+// Delete only explicitly selected versions belonging to this document, atomically.
+export async function deleteNoteVersions(noteId: string, versionIds: string[]): Promise<void> {
+  await withDB(async db => {
+    const tx = db.transaction("note_versions", "readwrite");
+    const completed = new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = tx.onabort = () => reject(tx.error ?? new Error("历史清理失败"));
+    });
+    const store = tx.objectStore("note_versions");
+    for (const id of new Set(versionIds)) {
+      const request = store.get(id);
+      request.onsuccess = () => {
+        if (request.result?.note_id === noteId) store.delete(id);
+      };
+    }
+    await completed;
   });
 }

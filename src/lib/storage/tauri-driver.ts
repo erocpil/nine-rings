@@ -1,3 +1,4 @@
+import { sameVersionSnapshot } from "./version-snapshot";
 /**
  * tauri-driver.ts — Tauri/SQLite 端 Op 驱动。
  *
@@ -412,6 +413,15 @@ export const tauriDriver = {
     if (ops.length > 0) await dbTransaction(ops);
   },
 
+  async deleteNoteVersions(noteId: string, versionIds: string[]): Promise<void> {
+    const ops: DeleteOp[] = [...new Set(versionIds)].map(id => ({
+      type: "delete",
+      table: "note_versions",
+      where: [{ col: "id", op: "=", val: id }, { col: "note_id", op: "=", val: noteId }],
+    }));
+    if (ops.length) await dbTransaction(ops);
+  },
+
   // ── getNoteVersions ──
   async getNoteVersions(noteId: string): Promise<NoteVersion[]> {
     const op: SelectOp = {
@@ -504,26 +514,7 @@ export const tauriDriver = {
     const lastRows = await dbQuery<SnakeVersionRow>(lastVerOp);
     const curContent = typeof note.content === "string" ? note.content : JSON.stringify(note.content);
     const curTags = typeof note.tags === "string" ? note.tags : JSON.stringify(note.tags ?? []);
-    if (lastRows.length > 0) {
-      const last = lastRows[0];
-      const lastContent = typeof last.content === "string" ? last.content : "";
-      const lastTitle = last.title ?? null;
-      const lastTags = typeof last.tags === "string" ? last.tags : "[]";
-      const lastPinned = last.pinned === 1 || last.pinned === true || String(last.pinned) === "1";
-      const lastSort = last.sort_order ?? 0;
-      const curTitle = note.title ?? null;
-      const curPinned = note.pinned === 1 || note.pinned === true || String(note.pinned) === "1";
-      const curSort = note.sort_order ?? 0;
-      if (
-        lastContent === curContent &&
-        lastTitle === curTitle &&
-        lastTags === curTags &&
-        lastPinned === curPinned &&
-        lastSort === curSort
-      ) {
-        return; // 内容相同，跳过
-      }
-    }
+    if (lastRows.length > 0 && sameVersionSnapshot({ ...lastRows[0] }, { ...note })) return;
 
     const insOp: InsertOp = {
       type: "insert",

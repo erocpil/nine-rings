@@ -3403,3 +3403,16 @@ button.doc-tree-toggle:focus-visible {
 .backup-measurement :is(th, td) { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
 .backup-measurement :is(th, td):first-child { text-align: left; }
 .backup-measurement p { color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
+
+/* History management keeps the dialog header outside the scrollable body. */
+.app .version-manager { width: min(1000px, calc(100vw - 24px)); }
+.version-management-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-block: 8px; }
+.version-management-tools label { display: inline-flex; align-items: center; gap: 4px; }
+.version-management-tools button, .version-item button, .version-management-tools select {
+  color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px;
+}
+.version-manager button:disabled { opacity: .45; cursor: default; }
+.version-help { color: var(--text-secondary); font-size: 12px; }
+.version-preview { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 8px; min-width: 0; }
+.version-preview .document-comparison { min-width: 0; }
+@media (max-width: 600px) { .version-manager .version-item { flex-wrap: wrap; } }

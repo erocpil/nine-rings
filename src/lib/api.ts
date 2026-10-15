@@ -234,6 +234,10 @@ export const api = {
   },
 
   versions: {
+    delete: (noteId: string, ids: string[]) => {
+      const selected = [...ids];
+      return coordinateStorageMutation(() => adapter().then(a => a.deleteNoteVersions(noteId, selected)));
+    },
     list: (noteId: string) =>
       adapter().then((a) => a.getNoteVersions(noteId)),
 

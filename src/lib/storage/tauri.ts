@@ -74,6 +74,7 @@ export const tauriAdapter: StorageAdapter = {
   },
   batchDelete: (ids) => tauriDriver.batchDelete(ids),
   batchSetReadonly: (ids, readonly) => tauriDriver.batchSetReadonly(ids, readonly),
+  deleteNoteVersions: (noteId, ids) => tauriDriver.deleteNoteVersions(noteId, ids),
   getNoteVersions: (noteId) => tauriDriver.getNoteVersions(noteId),
   restoreNoteVersion: (versionId) => tauriDriver.restoreNoteVersion(versionId),
   createNoteCheckpoint: (noteId) => tauriDriver.createNoteCheckpoint(noteId),

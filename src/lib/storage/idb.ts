@@ -22,7 +22,7 @@ import {
   type FlatDocRecord,
 } from "./core";
 import { withDB, getOne, getAll, getAllFromIndex, putRecord, abortTransaction, delRecord } from "./db";
-import { saveVersionSnapshot, createNoteCheckpoint, getNoteVersions, restoreNoteVersion } from "./db-versions";
+import { saveVersionSnapshot, deleteNoteVersions, createNoteCheckpoint, getNoteVersions, restoreNoteVersion } from "./db-versions";
 import { exportData, importData, exportNoteMarkdown } from "./db-export-import";
 import { getConfig, setConfig } from "./db-config";
 import { localDateKey } from "../local-date";
@@ -372,6 +372,7 @@ export const idbAdapter: StorageAdapter = {
   },
 
   getNoteVersions,
+  deleteNoteVersions,
   restoreNoteVersion,
 
   getConfig,

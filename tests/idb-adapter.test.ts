@@ -308,6 +308,21 @@ async function runTests() {
     console.log("\n── Version history ──");
     const note = await idbAdapter.createNote({ date: "2026-07-15", title: "Version Test", content: { ops: [{ insert: "v1" }] } });
     await idbAdapter.createNoteCheckpoint(note.id);  // explicit checkpoint
+    await idbAdapter.createNoteCheckpoint(note.id);
+    assert((await idbAdapter.getNoteVersions(note.id)).length === 1, "identical checkpoints deduplicate");
+    await idbAdapter.updateNote(note.id, { title: "Renamed only" });
+    await idbAdapter.createNoteCheckpoint(note.id);
+    assert((await idbAdapter.getNoteVersions(note.id)).length === 2, "title-only changes create history");
+    const other = await idbAdapter.createNote({ date: "2026-07-15", title: "Other history" });
+    await idbAdapter.createNoteCheckpoint(other.id);
+    const otherVersion = (await idbAdapter.getNoteVersions(other.id))[0];
+    const beforeDelete = await idbAdapter.getNote(note.id);
+    const ownVersion = (await idbAdapter.getNoteVersions(note.id))[0];
+    await idbAdapter.deleteNoteVersions(note.id, [ownVersion.id, ownVersion.id, otherVersion.id, "missing"]);
+    assert((await idbAdapter.getNoteVersions(note.id)).length === 1, "selected history deleted once");
+    assert((await idbAdapter.getNoteVersions(other.id)).length === 1, "other document history protected");
+    assert(JSON.stringify(await idbAdapter.getNote(note.id)) === JSON.stringify(beforeDelete), "history deletion preserves current document");
+
     await idbAdapter.updateNote(note.id, { title: "Version Test v2", content: { ops: [{ insert: "v2" }] } });
     const versions = await idbAdapter.getNoteVersions(note.id);
     assert(versions.length >= 1, "version snapshot exists");

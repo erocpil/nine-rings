@@ -91,6 +91,7 @@ export function protectedAdapter(raw: StorageAdapter): StorageAdapter {
     }),
     permanentlyDeleteNote: id => withProtectionWrite(() => raw.permanentlyDeleteNote(id)),
     cleanOldDeleted: days => withProtectionWrite(() => raw.cleanOldDeleted(days)),
+    deleteNoteVersions: (noteId, ids) => withProtectionWrite(() => raw.deleteNoteVersions(noteId, ids)),
     createNoteCheckpoint: id => withProtectionWrite(() => {
       assertCoordinatedWriteSnapshot(id, {});
       return raw.createNoteCheckpoint(id);

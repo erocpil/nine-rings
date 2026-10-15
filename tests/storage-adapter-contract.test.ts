@@ -8,7 +8,7 @@ const requiredMethods: Array<keyof StorageAdapter> = [
   "updateNoteOrder", "deleteNote", "searchNotes", "getNotesByTag", "getRecentDates",
   "getAllTags", "exportData", "importData",
   "exportNoteMarkdown", "getDeletedNotes", "restoreNote", "permanentlyDeleteNote", "cleanOldDeleted",
-  "batchDelete", "batchSetReadonly", "getNoteVersions", "restoreNoteVersion", "createNoteCheckpoint",
+  "batchDelete", "batchSetReadonly", "getNoteVersions", "deleteNoteVersions", "restoreNoteVersion", "createNoteCheckpoint",
   "getConfig", "setConfig", "getPathTree", "getNotesByPath", "renameFolder", "moveDocument", "batchMoveDocuments",
   "relocateFolder", "searchDocs", "getAllConcepts",
 ];

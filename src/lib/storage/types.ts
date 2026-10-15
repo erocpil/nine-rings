@@ -223,6 +223,7 @@ export interface StorageAdapter extends TemplateStorage {
 
   // ── Version History ──
   getNoteVersions(noteId: string): Promise<NoteVersion[]>;
+  deleteNoteVersions(noteId: string, versionIds: string[]): Promise<void>;
   restoreNoteVersion(versionId: string): Promise<Note>;
   /** 为指定笔记创建版本 checkpoint（保存当前内容为历史版本） */
   createNoteCheckpoint(noteId: string): Promise<void>;
