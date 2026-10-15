@@ -98,6 +98,36 @@ pub struct AppConfig {
     pub editor_blockquote_indent: i32,
     #[serde(default = "default_editor_search_highlight_color")]
     pub editor_search_highlight_color: String,
+    #[serde(default = "default_navigation_font_size")]
+    pub navigation_font_size: i32,
+    #[serde(default = "default_navigation_text_color")]
+    pub navigation_text_color: String,
+    #[serde(default = "default_navigation_background_color")]
+    pub navigation_background_color: String,
+    #[serde(default = "default_navigation_font_size")]
+    pub navigation_outline_font_size: i32,
+    #[serde(default = "default_navigation_text_color")]
+    pub navigation_outline_text_color: String,
+    #[serde(default = "default_navigation_background_color")]
+    pub navigation_outline_background_color: String,
+    #[serde(default = "default_navigation_font_size")]
+    pub navigation_bookmark_font_size: i32,
+    #[serde(default = "default_navigation_text_color")]
+    pub navigation_bookmark_text_color: String,
+    #[serde(default = "default_navigation_background_color")]
+    pub navigation_bookmark_background_color: String,
+    #[serde(default = "default_navigation_font_size")]
+    pub navigation_tree_font_size: i32,
+    #[serde(default = "default_navigation_text_color")]
+    pub navigation_tree_text_color: String,
+    #[serde(default = "default_navigation_background_color")]
+    pub navigation_tree_background_color: String,
+    #[serde(default = "default_navigation_font_size")]
+    pub navigation_list_font_size: i32,
+    #[serde(default = "default_navigation_text_color")]
+    pub navigation_list_text_color: String,
+    #[serde(default = "default_navigation_background_color")]
+    pub navigation_list_background_color: String,
     #[serde(default = "default_true")]
     pub editor_cjk_spacing: bool,
     pub dev_port: i32,
@@ -141,6 +171,16 @@ pub struct AppConfig {
     pub user_default_license: String,
     #[serde(default = "default_hotkeys")]
     pub hotkeys: std::collections::HashMap<String, String>,
+}
+
+fn default_navigation_font_size() -> i32 {
+    14
+}
+fn default_navigation_text_color() -> String {
+    "#333333".into()
+}
+fn default_navigation_background_color() -> String {
+    "#f5f1e8".into()
 }
 
 fn default_true() -> bool {
@@ -320,6 +360,21 @@ impl Default for AppConfig {
             editor_list_marker_gap: default_editor_list_marker_gap(),
             editor_blockquote_indent: default_editor_blockquote_indent(),
             editor_search_highlight_color: default_editor_search_highlight_color(),
+            navigation_font_size: default_navigation_font_size(),
+            navigation_text_color: default_navigation_text_color(),
+            navigation_background_color: default_navigation_background_color(),
+            navigation_outline_font_size: default_navigation_font_size(),
+            navigation_outline_text_color: default_navigation_text_color(),
+            navigation_outline_background_color: default_navigation_background_color(),
+            navigation_bookmark_font_size: default_navigation_font_size(),
+            navigation_bookmark_text_color: default_navigation_text_color(),
+            navigation_bookmark_background_color: default_navigation_background_color(),
+            navigation_tree_font_size: default_navigation_font_size(),
+            navigation_tree_text_color: default_navigation_text_color(),
+            navigation_tree_background_color: default_navigation_background_color(),
+            navigation_list_font_size: default_navigation_font_size(),
+            navigation_list_text_color: default_navigation_text_color(),
+            navigation_list_background_color: default_navigation_background_color(),
             editor_cjk_spacing: true,
             dev_port: 8000,
             highlight_active_line: true,
@@ -450,43 +505,117 @@ pub fn set_config(
     config: serde_json::Value,
 ) -> Result<AppConfig, String> {
     let mut current = state.lock().map_err(|e| e.to_string())?;
-    // 合并：只覆盖传入的字段，保留其他字段
-    let current_json = serde_json::to_value(&*current).map_err(|e| e.to_string())?;
-    if let serde_json::Value::Object(mut current_map) = current_json {
-        if let serde_json::Value::Object(partial) = config {
-            for (k, v) in partial {
-                if !v.is_null() {
-                    current_map.insert(k, v);
-                }
+    let merged = merge_config(&current, config)?;
+    // 持久化 — 用 setup() 阶段缓存的 DataDir，不依赖 IPC 上下文的 app_data_dir()
+    write_config(&data_dir.0, &merged)?;
+
+    // 验证写入结果
+    let config_path = data_dir.0.join("config.json");
+    let verify_ok = config_path.exists();
+    let verify_size = std::fs::metadata(&config_path)
+        .map(|m| m.len())
+        .unwrap_or(0);
+    append_startup_log(&format!(
+        "set_config: wrote {:?} (exists={}, size={})",
+        config_path, verify_ok, verify_size
+    ));
+
+    *current = merged.clone();
+    Ok(merged)
+}
+
+/// Settings and backup restoration share identical nullable-field semantics.
+/// Null remains ignored for non-nullable legacy fields; omission never resets.
+pub(crate) fn merge_config(
+    current: &AppConfig,
+    partial: serde_json::Value,
+) -> Result<AppConfig, String> {
+    let mut merged = serde_json::to_value(current).map_err(|e| e.to_string())?;
+    if let serde_json::Value::Object(fields) = partial {
+        for (key, value) in fields {
+            if !value.is_null()
+                || matches!(
+                    key.as_str(),
+                    "editor_outline_fold_icon_style" | "exhibition_density"
+                )
+            {
+                merged[&key] = value;
             }
         }
-        let merged: AppConfig = serde_json::from_value(serde_json::Value::Object(current_map))
-            .map_err(|e| e.to_string())?;
+    }
+    serde_json::from_value(merged).map_err(|e| e.to_string())
+}
 
-        // 持久化 — 用 setup() 阶段缓存的 DataDir，不依赖 IPC 上下文的 app_data_dir()
-        write_config(&data_dir.0, &merged)?;
-
-        // 验证写入结果
-        let config_path = data_dir.0.join("config.json");
-        let verify_ok = config_path.exists();
-        let verify_size = std::fs::metadata(&config_path)
-            .map(|m| m.len())
-            .unwrap_or(0);
-        append_startup_log(&format!(
-            "set_config: wrote {:?} (exists={}, size={})",
-            config_path, verify_ok, verify_size
-        ));
-
-        *current = merged.clone();
-        Ok(merged)
-    } else {
-        Err("config serialization error".into())
+#[cfg(test)]
+pub(crate) fn assert_config_values(actual: &serde_json::Value, expected: &serde_json::Value) {
+    // JSON/JS treats 1 and 1.0 identically; compare numbers as values while
+    // checking the full field set so Serde cannot silently drop a field.
+    assert_eq!(
+        actual.as_object().unwrap().keys().collect::<Vec<_>>(),
+        expected.as_object().unwrap().keys().collect::<Vec<_>>()
+    );
+    for (key, value) in expected.as_object().unwrap() {
+        if value.is_number() {
+            assert_eq!(actual[key].as_f64(), value.as_f64(), "{}", key);
+        } else {
+            assert_eq!(&actual[key], value, "{}", key);
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{default_hierarchy_colors, migrate_hierarchy_palette, AppConfig};
+
+    #[test]
+    fn candidate_app_config_round_trips_file_and_nullable_merge() {
+        let value: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../schema/sync/fixtures/app-config-v1.json"
+        ))
+        .unwrap();
+        let old = AppConfig {
+            editor_outline_fold_icon_style: Some("chevron".into()),
+            ..AppConfig::default()
+        };
+        let merged = super::merge_config(&old, value.clone()).unwrap();
+        assert!(merged.editor_outline_fold_icon_style.is_none());
+        super::assert_config_values(&serde_json::to_value(&merged).unwrap(), &value);
+        let dir = std::env::temp_dir().join(format!("nr-config-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        super::write_config(&dir, &merged).unwrap();
+        super::assert_config_values(
+            &serde_json::to_value(super::read_config(&dir)).unwrap(),
+            &value,
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+        let kept = super::merge_config(
+            &old,
+            serde_json::json!({"user_name": "changed", "theme": null}),
+        )
+        .unwrap();
+        assert_eq!(
+            kept.editor_outline_fold_icon_style,
+            old.editor_outline_fold_icon_style
+        );
+        assert_eq!(kept.theme, old.theme);
+        assert!(super::merge_config(
+            &old,
+            serde_json::json!({"navigation_tree_font_size": "bad"})
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn legacy_config_defaults_all_navigation_fields() {
+        let mut value = serde_json::to_value(AppConfig::default()).unwrap();
+        let expected = value.clone();
+        value
+            .as_object_mut()
+            .unwrap()
+            .retain(|key, _| !key.starts_with("navigation_"));
+        let parsed: AppConfig = serde_json::from_value(value).unwrap();
+        assert_eq!(serde_json::to_value(parsed).unwrap(), expected);
+    }
 
     #[test]
     fn workspace_layout_migrates_and_round_trips() {

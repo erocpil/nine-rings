@@ -1,4 +1,4 @@
-import { isCertifiedWebAppConfig } from "./app-config-policy";
+import { isCertifiedWebAppConfig, isCertifiedTauriAppConfig } from "./app-config-policy";
 /** Candidate payload eligibility only. Never applies data or enables a protocol. */
 import { normalizeEditorColor } from "../editor-color";
 import { validateBackup } from "../backup-validation";
@@ -397,9 +397,10 @@ export function reviewCandidatePayload(
         issue("noncanonical-fields");
     }
     if (payload.config != null) {
-      required.add("web-app-config-v1");
-      if (runtime !== "web") issue("runtime-unsupported");
-      if (!isCertifiedWebAppConfig(payload.config)) issue("settings-not-certified");
+      required.add("app-config-v1");
+      if (runtime === "flutter") issue("runtime-unsupported");
+      const certified = runtime === "tauri" ? isCertifiedTauriAppConfig(payload.config) : isCertifiedWebAppConfig(payload.config);
+      if (!certified) issue("settings-not-certified");
     }
     if (bundle.user_settings !== undefined) {
       required.add("frontend-settings-v1");

@@ -180,3 +180,44 @@ export function isCertifiedWebAppConfig(input: unknown): input is AppConfig {
     canonicalJson(input)
   );
 }
+
+const nativeFractionalFields = new Set([
+  "interface_line_height",
+  "editor_line_height",
+  "editor_block_spacing",
+  "editor_paragraph_indent",
+  "editor_heading_margin_top",
+  "editor_heading_margin_bottom",
+  "editor_list_margin_top",
+  "editor_list_margin_bottom",
+  "editor_list_indent",
+  "editor_list_marker_gap",
+]);
+function nativeString(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const unit = value.charCodeAt(i);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = value.charCodeAt(++i);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) return false;
+  }
+  return true;
+}
+/** Serde's String cannot preserve lone UTF-16 surrogates; i32 fields cannot
+ * accept fractional or out-of-range Web numbers. Refuse before native import. */
+export function isCertifiedTauriAppConfig(input: unknown): input is AppConfig {
+  if (!isCertifiedWebAppConfig(input)) return false;
+  return Object.entries(input).every(([key, value]) => {
+    if (typeof value === "number")
+      return (
+        nativeFractionalFields.has(key) ||
+        (Number.isInteger(value) && value >= -2147483648 && value <= 2147483647)
+      );
+    if (typeof value === "string") return nativeString(value);
+    if (key === "hotkeys")
+      return Object.entries(input.hotkeys).every(
+        ([name, binding]) => nativeString(name) && nativeString(binding),
+      );
+    return true;
+  });
+}

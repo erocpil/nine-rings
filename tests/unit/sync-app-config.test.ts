@@ -1,3 +1,4 @@
+import sharedConfig from "../../schema/sync/fixtures/app-config-v1.json";
 import { CERTIFIED_WEB_CONFIG_KEYS } from "../../src/lib/sync/app-config-policy";
 import "fake-indexeddb/auto";
 import { afterEach, expect, it, vi } from "vitest";
@@ -21,7 +22,7 @@ it("requires explicit certification review when the AppConfig field set changes"
   );
 });
 
-it("certifies complete Web configuration without accessing user storage and keeps native runtimes closed", () => {
+it("certifies complete Web/Tauri configuration without user storage access and keeps Flutter closed", () => {
   vi.stubGlobal(
     "localStorage",
     new Proxy(
@@ -35,15 +36,16 @@ it("certifies complete Web configuration without accessing user storage and keep
   );
   expect(review(config())).toMatchObject({
     eligible: true,
-    requiredFeatures: expect.arrayContaining(["web-app-config-v1"]),
+    requiredFeatures: expect.arrayContaining(["app-config-v1"]),
   });
-  for (const runtime of ["tauri", "flutter"] as const) {
+  for (const runtime of ["flutter"] as const) {
     expect(
       reviewCandidatePayload(source(config()), runtime).issues[
         "runtime-unsupported"
       ],
     ).toBeTruthy();
   }
+  expect(reviewCandidatePayload(source(config()), "tauri").eligible).toBe(true);
   expect(CURRENT_SYNC_CAPABILITIES.write).toBe(0);
 });
 
@@ -167,4 +169,56 @@ it("keeps AppConfig and frontend settings separate through conflict choice and c
   });
   expect(assembled.writable).toBe(false);
   expect(assembled.planSha256).not.toBe(unresolved.planSha256);
+});
+
+it("uses the same full configuration fixture as native file and backup tests", async () => {
+  expect(Object.keys(sharedConfig).sort()).toEqual(
+    [...CERTIFIED_WEB_CONFIG_KEYS].sort(),
+  );
+  const items = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => items.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      items.set(key, value);
+    },
+    removeItem: (key: string) => {
+      items.delete(key);
+    },
+  });
+  await setConfig({
+    editor_outline_fold_icon_style: "triangle",
+    navigation_tree_font_size: 14,
+  });
+  await importData(source(sharedConfig), "replace");
+  expect(JSON.parse(await exportData()).config).toEqual(sharedConfig);
+
+  for (const runtime of ["web", "tauri"] as const) {
+    expect(reviewCandidatePayload(source(sharedConfig), runtime).eligible).toBe(
+      true,
+    );
+  }
+  expect(await candidateEntities(source(sharedConfig), "web")).toEqual(
+    await candidateEntities(source(sharedConfig), "tauri"),
+  );
+});
+
+it("rejects native integer overflow, fractions and unpaired UTF-16 before applying configuration", () => {
+  for (const patch of [
+    { navigation_font_size: 14.5 },
+    { interface_font_size: 2147483648 },
+    { user_name: "\ud800" },
+    { user_name: "\udc00" },
+    { hotkeys: { "\ud800": "Alt+Q" } },
+  ]) {
+    expect(
+      reviewCandidatePayload(source({ ...config(), ...patch }), "tauri")
+        .eligible,
+    ).toBe(false);
+  }
+  expect(
+    reviewCandidatePayload(
+      source({ ...config(), user_name: "𠮷 📚", editor_line_height: 1.75 }),
+      "tauri",
+    ).eligible,
+  ).toBe(true);
 });

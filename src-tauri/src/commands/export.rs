@@ -73,19 +73,12 @@ pub fn import_data(
     }
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let mut current = config_state.lock().map_err(|e| e.to_string())?;
-    let mut next = serde_json::to_value(&*current).map_err(|e| e.to_string())?;
-    let configs_imported =
-        if let Some(Value::Object(partial)) = bundle.config.clone().map(sanitize_config_value) {
-            for (key, value) in partial {
-                if !value.is_null() {
-                    next[&key] = value;
-                }
-            }
-            Some(1)
-        } else {
-            None
-        };
-    let merged: AppConfig = serde_json::from_value(next).map_err(|e| e.to_string())?;
+    let partial = bundle.config.clone().map(sanitize_config_value);
+    let configs_imported = partial
+        .as_ref()
+        .filter(|value| value.is_object())
+        .map(|_| 1);
+    let merged = config::merge_config(&current, partial.unwrap_or(Value::Null))?;
     if configs_imported.is_some() {
         config::write_config(&data_dir.0, &merged)?;
     }

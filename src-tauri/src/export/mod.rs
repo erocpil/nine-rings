@@ -256,6 +256,48 @@ mod tests {
     }
 
     #[test]
+    fn candidate_app_config_survives_backup_restore_and_edit() {
+        use crate::commands::config::AppConfig;
+        let value: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../schema/sync/fixtures/app-config-v1.json"
+        ))
+        .unwrap();
+        let config =
+            crate::commands::config::merge_config(&AppConfig::default(), value.clone()).unwrap();
+        let db = backup_db();
+        let exported = super::export_all(&db, &config).unwrap();
+        let text = serde_json::to_string(&exported).unwrap();
+        let imported = super::parse_legacy_bundle(&text).unwrap();
+        let current = AppConfig {
+            editor_outline_fold_icon_style: Some("triangle".into()),
+            ..AppConfig::default()
+        };
+        let restored =
+            crate::commands::config::merge_config(&current, imported.config.clone().unwrap())
+                .unwrap();
+        let fresh = backup_db();
+        super::import_bundle(&fresh, &imported, true).unwrap();
+        crate::commands::config::assert_config_values(
+            &super::export_all(&fresh, &restored)
+                .unwrap()
+                .config
+                .unwrap(),
+            &value,
+        );
+        let edited = crate::commands::config::merge_config(
+            &restored,
+            serde_json::json!({"navigation_tree_font_size": 21}),
+        )
+        .unwrap();
+        let mut expected = value;
+        expected["navigation_tree_font_size"] = serde_json::json!(21);
+        crate::commands::config::assert_config_values(
+            &super::export_all(&fresh, &edited).unwrap().config.unwrap(),
+            &expected,
+        );
+    }
+
+    #[test]
     fn candidate_entities_survive_sqlite_content_edit_and_fresh_restore() {
         let json = include_str!("../../../schema/sync/fixtures/candidate-entities-v1.json");
         let expected: serde_json::Value = serde_json::from_str(json).unwrap();

@@ -106,3 +106,7 @@ Dart 的共享编码、严格输入和 Note SQLite 模型测试已在远端 9aad
 ## Web AppConfig 候选特性（2026-10-15）
 
 最新范围新增 `web-app-config-v1`，仅允许完整且通过实际 Web 读写规范化的 AppConfig，以 `settings/app-config` 单独投影及组装；不静默填充缺省配置或丢弃未知字段。字段变更必须显式审查。Tauri/Flutter 继续拒绝，原生字段缺失及 null 合并问题仍待修复。实际存储、恢复和候选冲突回归见 [实体计划](../../docs/sync-entity-plan.md#web-appconfig-认证2026-10-15)。此段更新前述历史批次的 AppConfig 未认证范围，不改变生产协议能力或旧备份入口。
+
+### Tauri 配置认证补充
+
+完整设置候选特性现为 `app-config-v1`（替代未发布的 `web-app-config-v1`），允许通过各自模型检查的 Web/Tauri 完整配置。Tauri 已补齐 15 项导航字段，并在配置保存/备份导入中恢复显式可空值。共享 `app-config-v1.json` 样本检查全部 83 字段在 Web 存储、原生文件和备份往返中保持一致；原生拒绝整数溢出/小数及孤立 UTF-16 代理项。Flutter 仍未认证，CURRENT_SYNC_CAPABILITIES 未改变。验收边界见实体计划中的 Tauri 配置认证章节。
