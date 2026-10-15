@@ -11,10 +11,11 @@ import type { Root, Nodes, PhrasingContent } from "mdast";
 import type { DeltaOp, DeltaOps } from "../types/models";
 import type { TableEmbed } from "./table-embed";
 import { bareLinkParts, CJK_LINK_BOUNDARY } from "./bare-autolinks";
+import { cjkEmphasis } from "./cjk-emphasis";
 
 export function markdownAST(source: string): Root {
   return fromMarkdown(source, {
-    extensions: [gfm(), math()],
+    extensions: [gfm(), math(), cjkEmphasis()],
     mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()],
   });
 }

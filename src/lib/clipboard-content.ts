@@ -18,6 +18,17 @@ export function shouldParseClipboardMarkdown(text: string, html = ""): boolean {
 
   const doc = new DOMParser().parseFromString(html, "text/html");
 
+  // A source viewer can style the Markdown delimiters themselves (e.g.
+  // <em>*feature isolation*</em>). Prefer the matching source in that case;
+  // ordinary <em>feature isolation</em> and our own rich slices remain HTML.
+  const normalize = (value: string) => value.replace(/\s+/g, " ").trim();
+  if (!doc.body.querySelector("[data-pm-slice], pre, code, table, img, a")
+    && normalize(doc.body.textContent ?? "") === normalize(text)
+    && [...doc.body.querySelectorAll("em, i, strong, b")].some(element => {
+      const value = element.textContent?.trim() ?? "";
+      return /^(\*{1,3})(?=\S)[\s\S]*\S\1$/.test(value);
+    })) return true;
+
   // Some apps put each copied Markdown source line in a styled paragraph (and
   // may mark Markdown punctuation as bold/italic). That is still source text:
   // parse its block markers unless the HTML already represents those blocks

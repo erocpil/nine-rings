@@ -60,6 +60,8 @@ export default defineConfig(async () => {
         manualChunks(id) {
           if (!id) return undefined;
           const normalized = normalizePath(id);
+          // The CJK attention construct depends only on the Markdown kernel.
+          if (normalized.endsWith("/src/lib/cjk-emphasis.ts")) return "markdown";
 
           if (normalized.includes("/node_modules/")) {
             // PCRE2 is downloaded only when regular-expression search is used.
