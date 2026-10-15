@@ -73,6 +73,8 @@ test("批量删除可取消，部分失败保留勾选并可重试，处理中�
   await accept(page);
   await expect(all).toBeDisabled();
   await expect(panel(page).getByLabel("关闭回收站")).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(panel(page)).toBeVisible();
   await expect(panel(page).getByRole("button", { name: "清空回收站", exact: true })).toBeDisabled();
   await expect(row(page, 3).getByRole("button", { name: "恢复" })).toBeDisabled();
   await expect.poll(() => page.evaluate(() => (window as unknown as { recycleTest: RecycleTestState }).recycleTest.calls.length)).toBe(1);
@@ -258,3 +260,23 @@ for (const { width, height, theme } of [
     await page.screenshot({ path: testInfo.outputPath(`recycle-empty-${width}-${theme}.png`) });
   });
 }
+
+test("Esc 关闭回收站并恢复入口焦点，确认层优先取消", async ({ page }) => {
+  await setup(page, 1, false);
+  const trigger = page.getByRole("button", { name: "回收站", exact: true });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  await expect(panel(page)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panel(page)).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await panel(page).getByRole("button", { name: "清空回收站", exact: true }).click();
+  await expect(page.locator(".ui-confirm-dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".ui-confirm-dialog")).toHaveCount(0);
+  await expect(panel(page)).toBeVisible();
+  await expect(panel(page).locator(".recycle-item")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(panel(page)).toHaveCount(0);
+});

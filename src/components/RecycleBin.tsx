@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Note } from "../types/models";
 import { api } from "../lib/api";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import "./RecycleBin.css";
 
 interface RecycleBinProps {
@@ -18,6 +19,20 @@ export function RecycleBin({ open, onClose, onRestored }: RecycleBinProps) {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useDialogFocus(panelRef, open, closeRef);
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || confirmationDialog) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (!busyRef.current) onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose, confirmationDialog]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -130,6 +145,7 @@ export function RecycleBin({ open, onClose, onRestored }: RecycleBinProps) {
     <div className="dialog-overlay confirm-overlay" onClick={() => { if (!busyRef.current) onClose(); }}>
       {confirmationDialog}
       <div
+        ref={panelRef}
         className="dialog recycle-panel"
         role="dialog"
         aria-modal="true"
@@ -145,7 +161,7 @@ export function RecycleBin({ open, onClose, onRestored }: RecycleBinProps) {
             </div>
             <p>已删除的内容可恢复到原位置</p>
           </div>
-          <button className="dialog-close recycle-close" disabled={busy} onClick={onClose} aria-label="关闭回收站">
+          <button ref={closeRef} className="dialog-close recycle-close" disabled={busy} onClick={onClose} aria-label="关闭回收站">
             <ToolbarIcon name="close" />
           </button>
         </div>
