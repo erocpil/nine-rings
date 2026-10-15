@@ -16,7 +16,7 @@
     .editor-content
     .ProseMirror:not(.vr-block)
     > :has(+ :is(h1, h2, h3, h4, h5, h6)) {
-    margin-bottom: var(--style-heading-gap, 28px);
+    margin-bottom: var(--style-next-heading-gap, var(--style-heading-gap, 28px));
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
@@ -44,7 +44,7 @@
     .vr-row[data-next-heading="true"]
     .vr-block
     > :last-child {
-    margin-bottom: var(--style-heading-gap, 28px);
+    margin-bottom: var(--style-next-heading-gap, var(--style-heading-gap, 28px));
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
@@ -124,7 +124,7 @@
       .editor-content
       .ProseMirror
       > :has(+ :is(h1, h2, h3, h4, h5, h6)) {
-      margin-bottom: calc(var(--style-heading-gap, 28px) * 11 / 14);
+      margin-bottom: calc(var(--style-next-heading-gap, var(--style-heading-gap, 28px)) * 11 / 14);
     }
     html:is(
         [data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]
@@ -133,7 +133,7 @@
       .vr-row[data-next-heading="true"]
       .vr-block
       > :last-child {
-      margin-bottom: calc(var(--style-heading-gap, 28px) * 11 / 14);
+      margin-bottom: calc(var(--style-next-heading-gap, var(--style-heading-gap, 28px)) * 11 / 14);
     }
     html:is(
         [data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]
@@ -289,7 +289,7 @@
     .editor-content
     .ProseMirror
     > :not(:is(h1, h2, h3, h4, h5, h6)):has(+ :is(h1, h2, h3, h4, h5, h6)) {
-    margin-bottom: calc(var(--style-heading-gap, 28px) * 4 / 7);
+    margin-bottom: calc(var(--style-next-heading-gap, var(--style-heading-gap, 28px)) * 4 / 7);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
@@ -314,7 +314,7 @@
     .vr-row[data-next-heading="true"]
     .vr-block
     > :last-child {
-    margin-bottom: calc(var(--style-heading-gap, 28px) * 4 / 7);
+    margin-bottom: calc(var(--style-next-heading-gap, var(--style-heading-gap, 28px)) * 4 / 7);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content

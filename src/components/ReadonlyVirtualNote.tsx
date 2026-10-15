@@ -1518,6 +1518,7 @@ export function ReadonlyVirtualNote(
                 data-reading-row
                 data-block-type={block.node.type.name}
                 data-next-heading={blocks[start + visibleIndex + 1]?.node.type.name === "heading" || undefined}
+                data-next-heading-level={blocks[start + visibleIndex + 1]?.node.type.name === "heading" ? blocks[start + visibleIndex + 1].node.attrs.level : undefined}
                 data-position={block.pos}
                 data-block-number={block.number}
               >

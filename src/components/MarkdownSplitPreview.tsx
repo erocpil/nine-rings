@@ -254,6 +254,7 @@ export function MarkdownSplitPreview({
                   data-source-offset={offset}
                   className="markdown-preview-block"
                   data-next-heading={blocks[index + 1]?.node.type.name === "heading" || undefined}
+                data-next-heading-level={blocks[index + 1]?.node.type.name === "heading" ? blocks[index + 1].node.attrs.level : undefined}
                 >
                   {decorateFlowBlock(renderReadonlyBlock(
                     node,

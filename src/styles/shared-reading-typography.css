@@ -1,3 +1,28 @@
+/* Section gaps follow the upcoming heading, not the preceding block's font.
+   Keep the configured gap as the H1/H2 baseline; scale lower levels with it.
+   Virtual rows carry the next level even when that heading is not mounted. */
+html:not([data-interface-style="classic"]) :is(
+  .ProseMirror:not(.vr-block) > :has(+ :is(h3)),
+  .editor-appearance-document > :has(+ :is(h3)),
+  :is(.vr-row, .markdown-preview-block):is([data-next-heading-level="3"])
+) {
+  --style-next-heading-gap: calc(var(--style-heading-gap, 28px) * 5 / 7);
+}
+html:not([data-interface-style="classic"]) :is(
+  .ProseMirror:not(.vr-block) > :has(+ :is(h4)),
+  .editor-appearance-document > :has(+ :is(h4)),
+  :is(.vr-row, .markdown-preview-block):is([data-next-heading-level="4"])
+) {
+  --style-next-heading-gap: calc(var(--style-heading-gap, 28px) * 4 / 7);
+}
+html:not([data-interface-style="classic"]) :is(
+  .ProseMirror:not(.vr-block) > :has(+ :is(h5, h6)),
+  .editor-appearance-document > :has(+ :is(h5, h6)),
+  :is(.vr-row, .markdown-preview-block):is([data-next-heading-level="5"], [data-next-heading-level="6"])
+) {
+  --style-next-heading-gap: calc(var(--style-heading-gap, 28px) * 1 / 2);
+}
+
 /* Source preview wraps each top-level block for source navigation. Apply the
    same pixel rhythm as the editable and virtual readers across these wrappers. */
 html:not([data-interface-style="classic"]) .markdown-preview-block {
@@ -13,7 +38,7 @@ html:not([data-interface-style="classic"]) .markdown-preview-block > :is(h1, h2,
 }
 
 html:not([data-interface-style="classic"]) .markdown-preview-block[data-next-heading="true"] > * {
-  margin-bottom: var(--style-heading-gap, 28px);
+  margin-bottom: var(--style-next-heading-gap, var(--style-heading-gap, 28px));
 }
 
 html:not([data-interface-style="classic"]) .markdown-preview-block[data-next-heading="true"] > :is(h1, h2, h3, h4, h5, h6) {
@@ -30,13 +55,13 @@ html:not([data-interface-style="classic"]) .editor-appearance-document > :is(h1,
 }
 
 html:not([data-interface-style="classic"]) .editor-appearance-document > :has(+ :is(h1, h2, h3, h4, h5, h6)) {
-  margin-bottom: var(--style-heading-gap, 28px);
+  margin-bottom: var(--style-next-heading-gap, var(--style-heading-gap, 28px));
 }
 
 /* A narrow preview column follows the same adaptation as a narrow editor. */
 @container nr-reading (max-width: 480px) {
   html:not([data-interface-style="classic"]) .markdown-preview-block[data-next-heading="true"] > :not(:is(h1, h2, h3, h4, h5, h6)) {
-    margin-bottom: calc(var(--style-heading-gap, 28px) * 11 / 14);
+    margin-bottom: calc(var(--style-next-heading-gap, var(--style-heading-gap, 28px)) * 11 / 14);
   }
 }
 
@@ -136,3 +161,9 @@ html .editor-content .document-toc-block ol > li::before { content: none; }
 }
 .document-toc-collapse-toggle:hover,
 .document-toc-collapse-toggle:focus-visible { color: var(--accent); background: var(--bg-hover); }
+
+@media (max-width: 768px) {
+  html:not([data-interface-style="classic"]) .markdown-preview-block[data-next-heading="true"] > :not(:is(h1, h2, h3, h4, h5, h6)) {
+    margin-bottom: calc(var(--style-next-heading-gap, var(--style-heading-gap, 28px)) * 4 / 7);
+  }
+}

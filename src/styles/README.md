@@ -44,3 +44,14 @@ These are ordered layers, not duplicate stylesheets to concatenate or remove.
 The image viewer content supports both a modal dialog and a host-owned main-area view. Native workspace content remains mounted in a display-contents underlay; the home PDF selector explicitly supports that wrapper.
 
 `editor-toolbar-scroll.css` follows the style and image modules to unify rendered/source toolbar surfaces and preserve a single horizontally scrollable row across themes. Dropdowns retain toolbar DOM ownership but use fixed positioning outside its clipping area.
+
+### Heading section spacing
+
+Managed (non-classic) styles use the configured heading top gap as the H1/H2
+baseline (28px by default). H3 uses 5/7 of it (20px), H4 4/7 (16px), and
+H5/H6 1/2 (14px). Mobile keeps the 4/7 viewport reduction; narrow desktop
+reading columns keep 11/14. Consecutive headings and folded headings retain
+their compact spacing rules, and heading bottom gaps are unchanged.
+`shared-reading-typography.css` assigns `--style-next-heading-gap` to the preceding
+block; virtual rows and source-preview wrappers carry `data-next-heading-level`
+so the same spacing works when the next heading is outside the mounted range.
