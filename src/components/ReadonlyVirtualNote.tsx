@@ -1,3 +1,4 @@
+import { editorForegroundStyle } from "../lib/editor-color";
 import { editorBackgroundStyle } from "../lib/editor-color";
 import { cjkSpacedText } from "./CjkSpacedText";
 import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
@@ -134,7 +135,7 @@ export function renderReadonlyBlock(
           rendered = (
             <span
               style={{
-                color: mark.attrs.color || undefined,
+                color: editorForegroundStyle(mark.attrs?.color),
                 fontSize: mark.attrs.fontSize
                   ? `${Number(mark.attrs.fontSize)}px`
                   : undefined,

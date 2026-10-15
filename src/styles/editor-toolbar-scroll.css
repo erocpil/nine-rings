@@ -12,7 +12,7 @@
 }
 .editor-menu.toolbar-full::-webkit-scrollbar,
 .editor-menu.toolbar-compact::-webkit-scrollbar { display: block; height: 6px; }
-.editor-menu::-webkit-scrollbar-thumb { background: transparent; border: 2px solid transparent; background-clip: padding-box; border-radius: 4px; }
+.editor-menu::-webkit-scrollbar-thumb { background: transparent; border: 0; background-clip: border-box; border-radius: 4px; }
 .editor-menu:hover { scrollbar-color: var(--border) transparent; }
 .editor-menu:hover::-webkit-scrollbar-thumb { background-color: var(--border); }
 .editor-menu .menu-btn {
@@ -44,4 +44,13 @@
   margin-inline: 12px;
   padding: 0;
   background-size: 100% 1px;
+}
+
+/* Do not mix the OS "thin" scrollbar with a separately sized WebKit track. */
+@supports selector(::-webkit-scrollbar) {
+  .app .note-editor .editor-menu.toolbar-scrollable,
+  .selection-hover-toolbar.editor-menu {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
 }

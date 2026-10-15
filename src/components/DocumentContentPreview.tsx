@@ -1,3 +1,4 @@
+import { editorForegroundStyle } from "../lib/editor-color";
 import { createElement, useMemo, useState, type ReactNode } from "react";
 import type { JSONContent } from "@tiptap/core";
 import { deltaToProseMirror } from "../lib/delta-converter";
@@ -19,7 +20,7 @@ function renderNode(node: JSONContent, key: number, depth = 0): ReactNode {
         case "code": text = <code>{text}</code>; break;
         case "link": text = <span className="document-preview-link" title={String(mark.attrs?.href ?? "")}>{text}</span>; break;
         case "textStyle": text = <span style={{
-          color: typeof mark.attrs?.color === "string" ? mark.attrs.color : undefined,
+          color: editorForegroundStyle(mark.attrs?.color),
           fontSize: Number(mark.attrs?.fontSize) > 0 ? Math.min(96, Number(mark.attrs?.fontSize)) : undefined,
         }}>{text}</span>; break;
       }

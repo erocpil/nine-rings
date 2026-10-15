@@ -27,3 +27,17 @@ export function editorBackgroundStyle(value: unknown): string | undefined {
   const color = normalizeEditorColor(value);
   return color ? `color-mix(in srgb, ${color} 30%, var(--bg))` : undefined;
 }
+
+/** Preserve stored ink; only near-black/white neutral colors follow the reading theme. */
+export function editorForegroundStyle(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value) return undefined;
+  const color = normalizeEditorColor(value);
+  if (!color) return value;
+  const channels = [1, 3, 5].map(offset => parseInt(color.slice(offset, offset + 2), 16));
+  const min = Math.min(...channels), max = Math.max(...channels);
+  if (max - min <= 40) {
+    if (max <= 64) return `var(--editor-dark-ink, ${color})`;
+    if (min >= 220) return `var(--editor-light-ink, ${color})`;
+  }
+  return value;
+}

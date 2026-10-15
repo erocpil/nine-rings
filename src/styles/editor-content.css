@@ -742,3 +742,14 @@
 .editor-context-menu.block-action-menu-specific { width: 188px; min-width: 0; max-height: min(440px, calc(100dvh - 16px)); overflow: auto; }
 
 .block-action-menu .block-menu-confirm { width: auto; margin: 8px 0 0 auto; text-align: center; }
+
+/* A dedicated insertion caret, distinct from text and each style's accent. */
+:root { --editor-caret-color: #b43d28; }
+:root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) { --editor-caret-color: #ffad72; }
+:root:is([data-interface-style="paper"], [data-interface-style="mono-aware"], [data-interface-style="nine-rings"]) { --editor-caret-color: #0869a5; }
+:root:is([data-interface-style="paper"], [data-interface-style="mono-aware"], [data-interface-style="nine-rings"]).theme-dark { --editor-caret-color: #75d5f0; }
+.ProseMirror[contenteditable="true"] { caret-color: var(--editor-caret-color); }
+@media (forced-colors: active) { :root { --editor-caret-color: Highlight; } }
+
+:root { --editor-dark-ink: initial; --editor-light-ink: var(--text); }
+:root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) { --editor-dark-ink: var(--text); --editor-light-ink: initial; }

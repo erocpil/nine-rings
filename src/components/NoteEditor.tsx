@@ -47,7 +47,7 @@ import { createToolbarSelectionCommands } from "../lib/editor-toolbar-commands";
 import Placeholder from "@tiptap/extension-placeholder";
 import Heading from "@tiptap/extension-heading";
 import TextStyle from "@tiptap/extension-text-style";
-import Color from "@tiptap/extension-color";
+import { ThemeAwareColor as Color } from "../extensions/ThemeAwareColor";
 import { ResizableImage, MarkdownImage } from "../extensions/ResizableImage";
 import { DocumentLink as LinkExt } from "../extensions/DocumentLink";
 import { ContentSizedTable as Table, AlignedTableCell, AlignedTableHeader } from "../extensions/ContentSizedTable";
