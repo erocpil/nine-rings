@@ -1934,8 +1934,24 @@
   display: none !important;
 }
 
-.focus-mode .editor-menu {
-  display: none !important;
+/* Keep the command host mounted and measurable without occupying document
+   space. display:none also suppresses its top-layer menus, which are invoked
+   from the selection toolbar and context menu in focus mode. */
+.focus-mode:not(.focus-toolbar-expanded) .editor-menu {
+  display: flex !important;
+  position: absolute;
+  visibility: hidden;
+  height: 0;
+  min-height: 0;
+  padding-block: 0;
+  margin-block: 0;
+  border: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.focus-mode:not(.focus-toolbar-expanded) .editor-menu .menu-dropdown-list {
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .mobile-focus-bar {

@@ -174,3 +174,37 @@ test("选区工具的撤销重做清除格式和正文转换", async ({ page }) 
   await expect(content.locator("h3")).toHaveCount(0);
   await expect(content.locator("p")).toHaveText("first second");
 });
+
+test("专注模式选区子菜单独立显示，颜色字号生效且宿主不占空间", async ({ page }) => {
+  await createBlankDocument(page);
+  const content = page.locator(".ProseMirror");
+  await content.fill("first second");
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  const host = page.locator(".note-editor .editor-menu");
+  await expect(host.getByTitle("字号", { exact: true })).toBeHidden();
+  const before = (await content.boundingBox())!;
+  let hover = await select(page);
+  await hover.getByTitle("选择文字颜色", { exact: true }).click();
+  const menu = page.locator(".menu-dropdown-list:visible");
+  await expect(menu).toBeVisible();
+  const anchor = (await hover.getByTitle("选择文字颜色", { exact: true }).boundingBox())!;
+  const bounds = (await menu.boundingBox())!;
+  expect(Math.abs(bounds.y - anchor.y - anchor.height)).toBeLessThan(12);
+  expect((await content.boundingBox())!.y).toBeCloseTo(before.y, 0);
+  await menu.getByTitle("#22a577", { exact: true }).click();
+  await expect(content.locator('span[style*="color"]')).toHaveCSS("color", "rgb(34, 165, 119)");
+  hover = await select(page);
+  await hover.getByTitle("选择背景色", { exact: true }).click();
+  await expect(menu).toBeVisible();
+  await hover.getByTitle("字号", { exact: true }).click();
+  await expect(menu).toHaveCount(1);
+  await menu.getByRole("button", { name: "24px", exact: true }).click();
+  await expect(content.locator('span[style*="font-size"]')).toHaveCSS("font-size", "24px");
+  hover = await select(page);
+  await hover.getByTitle("选择文字颜色", { exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(host.getByTitle("字号", { exact: true })).toBeHidden();
+  await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
+  await expect(host.getByTitle("字号", { exact: true })).toBeVisible();
+});
