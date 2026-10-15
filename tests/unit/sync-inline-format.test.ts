@@ -48,7 +48,6 @@ it("preserves combined text color, size and highlight through the actual editor 
   );
 });
 
-
 it.each(["small", "normal", "large", "huge"])(
   "round-trips certified %s size with all supported inline appearance",
   (size) => {

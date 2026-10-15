@@ -4,8 +4,9 @@ import { expect, test, type Page } from "@playwright/test";
 import { createBlankNote } from "./helpers/editor-fixtures";
 
 async function activateBlock(page: Page, name: "❝ 引用" | "⏹ 代码块") {
-  await page.getByRole("button", { name: "块", exact: true }).click();
-  await page.getByRole("button", { name, exact: true }).click();
+  await page.locator(".editor-menu").getByRole("button", {
+    name: name === "⏹ 代码块" ? "代码块 (Ctrl+Alt+C)" : "引用 (Ctrl+Shift+B)", exact: true,
+  }).click();
 }
 
 test.describe("结构块退出行为", () => {
@@ -24,8 +25,7 @@ test.describe("结构块退出行为", () => {
     // 不会在首次打开时同步触发布局读取。
     await expect(editor.locator(".code-block-gutter span")).toHaveCount(0);
 
-    await page.getByRole("button", { name: "块", exact: true }).click();
-    await page.getByRole("button", { name: "□ 显示代码行号", exact: true }).click();
+    await page.getByRole("button", { name: "显示代码行号", exact: true }).click();
 
     const gutter = editor.locator(".code-block-gutter");
     await expect(page.locator(".note-editor")).toHaveClass(/show-code-line-numbers/);
@@ -172,8 +172,7 @@ test.describe("触屏代码块退出行为", () => {
       await editor.press("Enter");
       await editor.type(line);
     }
-    await page.getByRole("button", { name: "块", exact: true }).click();
-    await page.getByRole("button", { name: "□ 显示代码行号", exact: true }).click();
+    await page.getByRole("button", { name: "显示代码行号", exact: true }).click();
 
     const block = editor.locator(".code-block-wrap");
     const gutter = block.locator(".code-block-gutter");
@@ -248,7 +247,7 @@ test.describe("触屏代码块退出行为", () => {
     await expect(editor.locator(".code-block-wrap code")).toHaveText("mobile-code");
   });
 
-  test("块菜单仍可从含末尾空行的代码块显式退出", async ({ page }) => {
+  test("工具栏仍可从含末尾空行的代码块显式退出", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
     await editor.fill("mobile-code");
@@ -257,7 +256,6 @@ test.describe("触屏代码块退出行为", () => {
     await editor.press("Enter");
     await editor.press("Enter");
 
-    await page.getByRole("button", { name: "块", exact: true }).click();
     await page.getByRole("button", { name: /退出当前块/ }).click();
     await expect(editor.locator(":scope > p")).toHaveCount(1);
     await expect(editor.locator(".code-block-wrap code")).toHaveText("mobile-code\n\n");

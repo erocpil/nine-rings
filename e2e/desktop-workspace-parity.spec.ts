@@ -29,7 +29,7 @@ for (const native of [false, true]) {
       await expect(page.locator(".titlebar")).toBeVisible();
       await page.locator(".titlebar").getByRole("button", { name: "进入全屏", exact: true }).click();
       await page.locator(".titlebar").getByRole("button", { name: "退出全屏", exact: true }).click();
-    } else await expect(page.locator(".titlebar")).toHaveCount(0);
+    } else await expect(page.locator(".titlebar")).toBeVisible();
 
     await expect(page.locator(".app-header")).toHaveCount(0);
     const rail = page.getByRole("navigation", { name: "工作区面板" });

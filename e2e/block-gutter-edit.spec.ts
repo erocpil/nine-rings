@@ -26,8 +26,7 @@ test("触摸代码块后的加号插入后不残留高亮，键盘布局变化�
   await openTestNote(page);
   const editor = page.locator(".ProseMirror");
   await editor.fill("Is this role primarily focused on Spectrum/Quantum switch ASIC SDK development?");
-  await page.getByRole("button", { name: "块", exact: true }).click();
-  await page.getByRole("button", { name: "⏹ 代码块", exact: true }).click();
+  await page.locator(".editor-menu").getByRole("button", { name: "代码块 (Ctrl+Alt+C)", exact: true }).click();
   await expect(editor.locator(".code-block-wrap")).toHaveCount(1);
   await expect(editor.locator(":scope > *")).toHaveCount(1);
   await page.getByTitle("专注模式").click();

@@ -314,12 +314,10 @@ test("桌面工具栏对齐与按钮状态、固定标识和最近三批记录",
   const toolbar = page.locator(".note-editor .editor-menu");
   const geometry = await toolbar.evaluate((el) => {
     const button = el.querySelector("button")!;
-    const lock = document.querySelector(
-      ".note-title-row .note-readonly-badge",
-    )!;
+    const inset = Number.parseFloat(getComputedStyle(el).paddingLeft);
     return {
       left:
-        button.getBoundingClientRect().left - lock.getBoundingClientRect().left,
+        button.getBoundingClientRect().left - el.getBoundingClientRect().left - inset,
       height: button.getBoundingClientRect().height,
       radius: getComputedStyle(button).borderRadius,
     };

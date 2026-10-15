@@ -8,6 +8,8 @@ test("源码标题级别菜单保留源码与只读保护，并排工具栏无�
   await page.getByRole("button", { name: "源码", exact: true }).click();
   const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
   const text = "# One\nintro\n## Two\nbody\n### Three\nnested\n## Four\nbody\n# Five\ntail\n```\n# not a heading\n```";
+  await page.mouse.move(500, 700);
+  await expect(page.getByRole("navigation", { name: "文档目录", exact: true })).toHaveCount(0);
   await replaceSource(area, text);
   const toolbar = page.getByRole("toolbar", { name: "源码编辑工具" });
   for (const [action, menu] of [["折叠全部", "选择折叠标题级别"], ["展开全部", "选择展开标题级别"]]) {
@@ -19,7 +21,7 @@ test("源码标题级别菜单保留源码与只读保护，并排工具栏无�
     expect(arrowBox.x).toBeGreaterThanOrEqual(main.x + main.width - 1);
     expect(Math.abs(arrowBox.y - main.y)).toBeLessThanOrEqual(1);
     expect(arrowBox.y + arrowBox.height).toBeLessThanOrEqual(toolbarBox.y + toolbarBox.height);
-    expect(await arrow.locator("svg").evaluate(el => {
+    await expect.poll(() => arrow.locator("svg").evaluate(el => {
       const rect = el.getBoundingClientRect();
       return document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)?.closest("button") === el.closest("button");
     })).toBe(true);

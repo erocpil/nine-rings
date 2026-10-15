@@ -76,7 +76,7 @@ test("多选纯文本允许个别失败，UTF-16 正确解码且同一批文件�
   await expect(page.getByText("已导入 2 篇文档")).toBeVisible();
   await expect(page.getByText(/失败 1 篇：binary.txt.*二进制/)).toBeVisible();
   await expect(page.locator(".data-import-feedback")).toContainText("1 个文件导入失败");
-  await expect(page.locator(".data-import-feedback")).toContainText("建议只重试失败的文件");
+  await expect(page.locator(".data-import-feedback")).toContainText("失败或冲突的文件可检查后重试");
   await input.setInputFiles(files);
   await expect(page.getByText("已导入 0 篇文档")).toBeVisible();
   await expect(page.locator(".data-import-feedback")).toContainText("相同内容重复导入已跳过 2 篇");

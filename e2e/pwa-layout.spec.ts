@@ -817,7 +817,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     const checkToolbar = async (scope: Locator) => {
       const toolbar = scope.locator(".doc-tree-toolbar");
       const buttons = toolbar.locator("button");
-      expect(await toolbar.locator("button > svg.toolbar-icon").count()).toBe(await buttons.count());
+      await expect(toolbar.locator("button > svg.toolbar-icon")).toHaveCount(await buttons.count());
       const geometry = await toolbar.evaluate((el) => ({
         right: el.getBoundingClientRect().right,
         parentRight: el.parentElement!.getBoundingClientRect().right,
@@ -1432,11 +1432,13 @@ test.describe("PWA 窄屏应用外壳", () => {
     await editor.evaluate((element) => { (element as HTMLElement).blur(); window.getSelection()?.removeAllRanges(); });
     const scroller = page.locator(".note-editor-scroll");
     const session = await page.context().newCDPSession(page);
+    // Start inside the reading surface, below title and toolbar chrome.
+    const swipeY = (await scroller.boundingBox())!.y + 120;
     const swipe = async (x: number, dx: number, dy: number) => {
-      await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: 160 }] });
+      await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: swipeY }] });
       for (let step = 1; step <= 10; step++) {
         await session.send("Input.dispatchTouchEvent", {
-          type: "touchMove", touchPoints: [{ x: x + dx * step / 10, y: 160 + dy * step / 10 }],
+          type: "touchMove", touchPoints: [{ x: x + dx * step / 10, y: swipeY + dy * step / 10 }],
         });
       }
       await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
@@ -1763,7 +1765,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     });
   }
 
-  test("手机端通过块菜单在当前块后插入空白块", async ({ page }) => {
+  test("手机端通过工具栏在当前块后插入空白块", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
     const blocks = editor.locator(":scope > *");
@@ -1775,8 +1777,7 @@ test.describe("PWA 窄屏应用外壳", () => {
 
     const orderedList = editor.locator(":scope > ol").first();
     await orderedList.locator("li").first().click();
-    await page.getByRole("button", { name: "块", exact: true }).click();
-    await page.getByRole("button", { name: "＋ 在当前块后插入空白块" }).click();
+    await page.locator(".editor-menu").getByRole("button", { name: "在当前块后插入空白块", exact: true }).click();
     await page.keyboard.type("手机插入块");
 
     await expect(blocks).toHaveCount(initialBlockCount + 1);

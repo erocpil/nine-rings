@@ -73,7 +73,7 @@ test.describe("响应式编辑器工具栏", () => {
       };
     });
 
-    await expect.poll(verticalSpacing).toEqual({ before: 1, paddingTop: 1, paddingBottom: 1, after: 6 });
+    await expect.poll(verticalSpacing).toEqual({ before: 1, paddingTop: 1, paddingBottom: 1, after: 8 });
     await page.setViewportSize({ width: 390, height: 760 });
     await expect.poll(verticalSpacing).toEqual({ before: 1, paddingTop: 1, paddingBottom: 1, after: 3 });
 

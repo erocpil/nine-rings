@@ -466,7 +466,11 @@ test("词汇列表外观实时配置保留当前视图，定位清除筛选并�
   await expect(word).toHaveCSS("min-height", "52px");
   expect(await originalView!.evaluate(element => element.isConnected)).toBe(true);
   await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
   await page.keyboard.press("Escape");
+  await expect(page.getByLabel("设置分类")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".settings-overlay")).toHaveCount(0);
   await expect(view).toBeVisible();
   await panel.getByRole("searchbox").fill("unknown");
   await expect(word).toHaveCount(0);

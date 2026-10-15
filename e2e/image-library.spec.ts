@@ -189,7 +189,7 @@ test("正文图片弹层可转到主区域，停用恢复原文档", async ({ pa
   );
   await page
     .getByRole("button", { name: "查看图片", exact: true })
-    .click({ force: true });
+    .click();
   const modal = page.getByRole("dialog", { name: "图片查看器" });
   await expect(modal).toBeVisible();
   await modal.getByRole("button", { name: "在主区域打开" }).click();
@@ -1000,9 +1000,9 @@ test("正文图片弹层支持专注与属性，Esc 依次关闭属性、退出�
   );
   await page
     .getByRole("button", { name: "查看图片", exact: true })
-    .click({ force: true });
+    .click();
   const viewer = page.getByRole("dialog", { name: "图片查看器" });
-  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  await viewer.getByRole("button", { name: "进入图片专注模式", exact: true }).click();
   await expect(viewer).toHaveClass(/image-viewer-focus/);
   await viewer.getByRole("button", { name: "图片属性", exact: true }).click();
   const props = viewer.getByRole("region", { name: "图片属性" });

@@ -265,10 +265,10 @@ test("Windows 双击最大化后的全屏按钮通过原生统一入口进入和
   await expect
     .poll(() => page.evaluate(() => document.body.dataset.maximized))
     .toBe("true");
-  await page.getByRole("button", { name: "进入全屏", exact: true }).click();
-  await page.getByRole("button", { name: "退出全屏", exact: true }).click();
+  await page.locator("#titlebar-test-host").getByRole("button", { name: "进入全屏", exact: true }).click();
+  await page.locator("#titlebar-test-host").getByRole("button", { name: "退出全屏", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "进入全屏", exact: true }),
+    page.locator("#titlebar-test-host").getByRole("button", { name: "进入全屏", exact: true }),
   ).toBeVisible();
   const log = await commands(page);
   expect(
@@ -284,8 +284,8 @@ test("macOS 放大后进入/退出全屏，仍可双击还原", async ({ page })
   await expect
     .poll(() => page.evaluate(() => document.body.dataset.maximized))
     .toBe("true");
-  await page.getByRole("button", { name: "进入全屏", exact: true }).click();
-  await page.getByRole("button", { name: "退出全屏", exact: true }).click();
+  await page.locator("#titlebar-test-host").getByRole("button", { name: "进入全屏", exact: true }).click();
+  await page.locator("#titlebar-test-host").getByRole("button", { name: "退出全屏", exact: true }).click();
   await title.dblclick();
   await expect
     .poll(() => page.evaluate(() => document.body.dataset.maximized))
@@ -320,9 +320,9 @@ test("展陈标题栏保留窗口操作，工作区和配色控件不触发最�
       (command) => command === "toggle_window_maximize",
     ),
   ).toHaveLength(1);
-  await page.getByRole("button", { name: "进入全屏", exact: true }).click();
+  await page.locator("#titlebar-test-host").getByRole("button", { name: "进入全屏", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "退出全屏", exact: true }),
+    page.locator("#titlebar-test-host").getByRole("button", { name: "退出全屏", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "关闭", exact: true }).click();
   expect(await commands(page)).toContain("hide");
@@ -356,7 +356,8 @@ test("最大化后的 NINE RINGS 及其内部字母只切换标签，不拖动�
     await invoke("toggle_window_maximize");
   });
   await expect(page.locator("body")).toHaveAttribute("data-maximized", "true");
-  const commands = await page.locator("body").getAttribute("data-window-commands");
+  const mutations = async () => (await commands(page)).filter(command => command !== "is_fullscreen");
+  const before = await mutations();
   const title = page.locator("#titlebar-test-host .titlebar-title");
   await expect(title).toHaveAttribute("data-tauri-drag-region", "false");
   await title.click();
@@ -365,5 +366,5 @@ test("最大化后的 NINE RINGS 及其内部字母只切换标签，不拖动�
   await title.locator("span").first().dblclick();
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nr:focusTabs") || "{}").visible)).toBe(true);
   await expect(page.locator("body")).toHaveAttribute("data-maximized", "true");
-  expect(await page.locator("body").getAttribute("data-window-commands")).toBe(commands);
+  expect(await mutations()).toEqual(before);
 });

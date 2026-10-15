@@ -159,6 +159,13 @@ describe("editor highlight state boundaries", () => {
 
 it("highlights a selected whole block after source-view handoff", () => {
   let state = makeState();
-  state = state.apply(state.tr.setSelection(NodeSelection.create(state.doc, 7)));
-  expect(activeLinePluginKey.getState(state)?.decorations.find().map(d => [d.from, d.to])).toEqual([[7, 15]]);
+  state = state.apply(
+    state.tr.setSelection(NodeSelection.create(state.doc, 7)),
+  );
+  expect(
+    activeLinePluginKey
+      .getState(state)
+      ?.decorations.find()
+      .map((d) => [d.from, d.to]),
+  ).toEqual([[7, 15]]);
 });

@@ -437,7 +437,7 @@ test.describe("编辑器块级 gutter", () => {
       .toBeLessThanOrEqual(1);
   });
 
-  test("多位有序编号按右沿对齐且不侵入块号沟槽", async ({ page }) => {
+  test("多位有序编号按左沿对齐且不侵入块号沟槽", async ({ page }) => {
     const editor = await createListFixture(page);
     const markdown = Array.from({ length: 105 }, (_, index) => `${index + 1}. 项目 ${index + 1}`)
       .join("\n");
@@ -491,9 +491,9 @@ test.describe("编辑器块级 gutter", () => {
       };
     });
 
-    expect(geometry.marker1.textAlign).toBe("right");
-    expect(geometry.marker1.right).toBeCloseTo(geometry.marker10.right, 1);
-    expect(geometry.marker1.right).toBeCloseTo(geometry.marker100.right, 1);
+    expect(geometry.marker1.textAlign).toBe("left");
+    expect(geometry.marker1.left).toBeCloseTo(geometry.marker10.left, 1);
+    expect(geometry.marker1.left).toBeCloseTo(geometry.marker100.left, 1);
     expect(geometry.marker1.width).toBeGreaterThan(0);
     expect(geometry.marker100.gap).toBeCloseTo(geometry.marker100.configuredGap, 1);
     expect(geometry.marker100.left).toBeGreaterThanOrEqual(geometry.listLeft - 1);

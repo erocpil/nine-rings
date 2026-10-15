@@ -178,7 +178,7 @@ for (const item of cases) {
       const row = page.locator(item.virtual ? ".vr-title" : ".note-title-row");
       for (const focus of [false, true]) {
         if (focus)
-          await row
+          await page
             .getByRole("button", { name: "专注模式", exact: true })
             .click();
         for (const name of ["文档目录", "文档书签"]) {
