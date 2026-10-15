@@ -1,4 +1,5 @@
 import { editorBackgroundStyle } from "../lib/editor-color";
+import { cjkSpacedText } from "./CjkSpacedText";
 import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
 import { panelDisplayStyle, bookmarkTooltip, sortedBookmarks } from "../lib/panel-display-view";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
@@ -94,22 +95,26 @@ export function renderReadonlyBlock(
   match: SearchMatch | undefined,
   defaultWrap: boolean,
   followsList = false,
+  spaceText = true,
+  previousText = "",
 ): React.ReactNode {
   if (node.isText) {
     const text = node.text ?? "";
+    const spaced = (part: string, previous = "") => spaceText && !node.marks.some(mark => mark.type.name === "code")
+      ? cjkSpacedText(part, previous) : part;
     const start = Math.max(0, (match?.from ?? Infinity) - pos);
     const end = Math.min(text.length, (match?.to ?? -1) - pos);
     let rendered: React.ReactNode =
       start < end ? (
         <>
-          {text.slice(0, start)}
+          {spaced(text.slice(0, start), previousText)}
           <mark className="search-match search-match-active">
-            {text.slice(start, end)}
+            {spaced(text.slice(start, end), start ? text[start - 1] : previousText)}
           </mark>
-          {text.slice(end)}
+          {spaced(text.slice(end), text[end - 1])}
         </>
       ) : (
-        text
+        spaced(text, previousText)
       );
     for (const mark of node.marks) {
       switch (mark.type.name) {
@@ -171,6 +176,10 @@ export function renderReadonlyBlock(
           update,
           match,
           defaultWrap,
+          false,
+          spaceText && node.type.name !== "codeBlock",
+          node.isTextblock && offset > 0 && !node.childBefore(offset).node?.marks.some(mark => mark.type.name === "code")
+            ? node.textBetween(offset - 1, offset) : "",
         )}
       </React.Fragment>,
     ),
@@ -320,7 +329,7 @@ export function renderReadonlyBlock(
                   linePosition += line.length + 1;
                   return <span className="vr-code-line" key={index} style={{ gridTemplateColumns: `calc(${String(lines.length).length}ch + var(--code-line-number-padding, 8px)) minmax(0, 1fr)` }}>
                     <span className="vr-code-line-number" aria-hidden="true">{index + 1}</span>
-                    <span>{line ? renderReadonlyBlock(node.type.schema.text(line), position, states, update, match, defaultWrap) : "\n"}</span>
+                    <span>{line ? renderReadonlyBlock(node.type.schema.text(line), position, states, update, match, defaultWrap, false, false) : "\n"}</span>
                   </span>;
                 }) : children}</code>
               </pre>

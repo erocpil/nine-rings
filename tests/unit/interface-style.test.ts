@@ -1,5 +1,6 @@
 import { afterEach, expect, test, vi } from "vitest";
 import {
+  INTERFACE_STYLES,
   applyInterfaceStyle,
   effectiveWorkspaceLayout,
   normalizeInterfaceStyle,
@@ -290,6 +291,16 @@ test("shared typography resolves identically across managed styles and color mod
         });
         expect(saved.interface_font_size).toBe(size);
       }
+    }
+  }
+});
+
+test("all styles preserve the CJK spacing preference in display configuration", () => {
+  for (const { value: interface_style } of INTERFACE_STYLES) {
+    for (const editor_cjk_spacing of [true, false]) {
+      const display = resolveInterfaceConfig({ ...DEFAULT_CONFIG, interface_style, editor_cjk_spacing });
+      expect(display.editor_cjk_spacing).toBe(editor_cjk_spacing);
+      expect(editorAppearanceVariables(display)["--editor-cjk-autospace"]).toBe(editor_cjk_spacing ? "normal" : "no-autospace");
     }
   }
 });

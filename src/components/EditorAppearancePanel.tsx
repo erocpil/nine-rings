@@ -5,6 +5,7 @@ import { DeferredFlowBlock } from "./DeferredFlowBlock";
 import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
 import type { AppConfig } from "../types/models";
 import { DEFAULT_EDITOR_APPEARANCE, DEFAULT_BLOCK_TYPOGRAPHY, editorAppearanceVariables } from "../lib/editor-appearance";
+import { cjkSpacedText } from "./CjkSpacedText";
 import { blockWorkspacePreferences, codeBlockHeightPercent } from "../lib/block-display-settings";
 import { DEFAULT_CONFIG } from "../lib/storage/types";
 
@@ -202,6 +203,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
               </label>
             </AppearanceField>
 
+            </>}
             <AppearanceField label="中英文自动间距" desc="在汉字与英文、数字之间增加视觉间距，不修改文档内容">
               <label className="settings-toggle editor-appearance-toggle">
                 <input
@@ -214,7 +216,6 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
               </label>
             </AppearanceField>
 
-            </>}
             <section aria-label="标题与块排版">
               <h3>标题字号</h3>
               <p>默认保留现有字号和手机适配；自定义字号以 px 为单位，所有风格共用。</p>
@@ -289,7 +290,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
             <button
               className="settings-btn-secondary editor-appearance-reset"
               type="button"
-              onClick={() => { onUpdate({ ...DEFAULT_BLOCK_TYPOGRAPHY, ...(managed ? {
+              onClick={() => { onUpdate({ ...DEFAULT_BLOCK_TYPOGRAPHY, editor_cjk_spacing: DEFAULT_EDITOR_APPEARANCE.editor_cjk_spacing, ...(managed ? {
                 interface_font_family: DEFAULT_CONFIG.interface_font_family,
                 interface_font_size: DEFAULT_CONFIG.interface_font_size,
                 interface_line_height: DEFAULT_CONFIG.interface_line_height,
@@ -320,7 +321,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
             </div>
             <article className={`editor-appearance-preview editor-appearance-document ${displayConfig.editor_cjk_spacing ? "editor-auto-cjk-spacing" : ""}`} style={{ ...variables, "--list-followup-indent-enabled": blockDisplay.listFollowupIndent === false ? "0" : "1" } as React.CSSProperties} aria-label="编辑器排版预览">
               <h1>把想法整理成可读的结构</h1>
-              <p>Nine Rings支持Markdown编辑，排版不改变内容本身，却会直接影响阅读节奏。</p>
+              <p>{cjkSpacedText("Nine Rings支持Markdown编辑，排版不改变内容本身，却会直接影响阅读节奏。")}</p>
               <h2>清晰的层级</h2>
               <ul>
                 <li>一级列表用于表达主要观点

@@ -106,6 +106,8 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
   const pathColors = safeHierarchyColors(config?.hierarchy_path_custom_colors, DEFAULT_CONFIG.hierarchy_path_custom_colors);
   const outlineColors = safeHierarchyColors(config?.hierarchy_outline_custom_colors, DEFAULT_CONFIG.hierarchy_outline_custom_colors);
   return {
+    "--editor-cjk-autospace": config?.editor_cjk_spacing === false ? "no-autospace" : "normal",
+    "--editor-cjk-fallback-gap": config?.editor_cjk_spacing === false ? "0px" : "0.125em",
     ...Object.fromEntries(Array.from({ length: 6 }, (_, index) => {
       const size = customFontSize(config?.[`editor_h${index + 1}_font_size` as keyof AppConfig]);
       return size ? [[`--editor-h${index + 1}-size`, `${size}px`]] : [];

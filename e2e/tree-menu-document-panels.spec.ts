@@ -1,6 +1,35 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 
+test("文档树文档与路径右键不选择文字，重命名仍可选择文本", async ({ page }) => {
+  await createBlankDocument(page, "树节点文本选择回归");
+  const documentName = page.locator(".doc-tree-doc .doc-tree-name").filter({ hasText: "树节点文本选择回归" });
+  const folderName = page.locator(".doc-tree-folder .doc-tree-name").first();
+  for (const name of [documentName, folderName]) {
+    await expect.poll(() => name.evaluate(element => {
+      const style = getComputedStyle(element);
+      return style.getPropertyValue("user-select") || style.getPropertyValue("-webkit-user-select");
+    })).toBe("none");
+    await name.click({ button: "right" });
+    await expect(page.locator(".doc-context-menu")).toBeVisible();
+    expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("");
+    await page.keyboard.press("Escape");
+  }
+  await documentName.click({ button: "right" });
+  await page.locator(".doc-context-menu").getByRole("button", { name: "重命名", exact: true }).click();
+  const input = page.locator(".doc-tree-rename-input");
+  await expect.poll(() => input.evaluate(element => {
+    const style = getComputedStyle(element);
+    return style.getPropertyValue("user-select") || style.getPropertyValue("-webkit-user-select");
+  })).toBe("text");
+  await input.selectText();
+  expect(await input.evaluate(element => {
+    const input = element as HTMLInputElement;
+    return input.value.slice(input.selectionStart ?? 0, input.selectionEnd ?? 0);
+  })).toBe("树节点文本选择回归");
+  await page.keyboard.press("Escape");
+});
+
 test("点击目录或书签关闭文档树右键菜单并打开对应面板", async ({ page }) => {
   await createBlankDocument(page, "树菜单与阅读面板");
   await page.locator(".ProseMirror:visible").evaluate(element => {

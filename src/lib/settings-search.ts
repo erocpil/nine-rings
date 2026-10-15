@@ -72,6 +72,13 @@ const entries: SettingsSearchEntry[] = [
     action: "typography",
   },
   {
+    title: "中英文自动间距",
+    description: "编辑器 › 排版设置 · 汉字与英文、数字之间的视觉间距",
+    keywords: "中西文 自动空格 CJK 排版",
+    page: "editor",
+    action: "typography",
+  },
+  {
     title: "代码与引用块显示",
     description: "编辑器 › 排版设置 · 行号、空白字符与代码高度",
     keywords: "代码 引用 行号 空格 tab 空白 高度 换行 弹层 列表后的块 自动缩进",

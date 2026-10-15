@@ -123,6 +123,7 @@ export function resolveInterfaceConfig<T extends Partial<AppConfig>>(
     ...config,
     ...DEFAULT_EDITOR_APPEARANCE,
     ...navigation,
+    editor_cjk_spacing: config.editor_cjk_spacing ?? DEFAULT_EDITOR_APPEARANCE.editor_cjk_spacing,
     editor_font_family: config.interface_font_family ?? "system",
     note_font_size: size,
     editor_line_height: bounded(config.interface_line_height, 1.8, 1.2, 2.2),

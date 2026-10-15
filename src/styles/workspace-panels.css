@@ -1790,6 +1790,8 @@
 }
 
 .doc-tree-node {
+  -webkit-user-select: none;
+  user-select: none;
   display: flex;
   align-items: center;
   gap: 3px;
@@ -3347,6 +3349,8 @@ button.doc-tree-toggle:focus-visible {
 /* ── 文档树重命名输入 ── */
 
 .doc-tree-rename-input {
+  -webkit-user-select: text;
+  user-select: text;
   flex: 1;
   min-width: 0;
   padding: 1px 4px;
