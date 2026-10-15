@@ -33,3 +33,7 @@
 @media (max-width: 768px), (pointer: coarse) {
   .notes-panel[data-panel-display="plugin"] :is(.notes-group-heading, .notes-panel-row) { min-height: max(36px, var(--list-display-row-height)); }
 }
+
+.notes-group-move select { width: 100%; min-width: 0; padding: 6px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 5px; font: inherit; }
+.notes-group-move-summary { color: var(--text-secondary); line-height: 1.5; }
+.notes-panel-tools { max-height: 60%; overflow-y: auto; flex-shrink: 0; }

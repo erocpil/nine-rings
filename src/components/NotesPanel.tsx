@@ -1,3 +1,4 @@
+import { NotesGroupMove } from "./NotesGroupMove";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import { panelDisplayStyle, sortedPanelItems } from "../lib/panel-display-view";
 import { PanelDisplayTools } from "./PanelDisplayTools";
@@ -37,6 +38,11 @@ export function NotesPanel(props: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(props.session.collapsed ?? []));
   const [rename, setRename] = useState<Rename | null>(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [moving, setMoving] = useState<{ ids: string[] } | null>(null);
+  const groupPaths = useMemo(() => [...new Set(notes.map(note => note.storagePath).filter((path): path is string => Boolean(path?.startsWith(`${QUICK_NOTES_PATH}/`))))].sort((a, b) => a.localeCompare(b)), [notes]);
+  const startMove = (ids: string[]) => { setRename(null); setMoving({ ids: [...new Set(ids)] }); setError(""); };
+  const startRename = (value: Rename) => { setMoving(null); setRename(value); };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reload, setReload] = useState(0);
@@ -81,15 +87,24 @@ export function NotesPanel(props: Props) {
     return result;
   }, [notes, query, props.selectedNote, display]);
   const run = async (action: () => Promise<void>, changed = true) => {
-    if (busy || props.disabled) return;
+    if (busyRef.current || props.disabled) return;
+    busyRef.current = true;
     setBusy(true); setError("");
     try {
       await props.beforeChange();
       await action();
       if (changed) { setReload(value => value + 1); props.onChanged(); }
     } catch (reason) { setError(String(reason)); }
-    finally { setBusy(false); }
+    finally { busyRef.current = false; setBusy(false); }
   };
+  const move = (path: string) => run(async () => {
+    if (!moving) return;
+    const ids = moving.ids.filter(id => notes.find(note => note.id === id)?.storagePath !== path);
+    if (ids.length) await props.onMove(ids, path);
+    setSelected(new Set()); setMulti(false); setMoving(null); setQuery("");
+    const group = path === QUICK_NOTES_PATH ? "" : path.slice(QUICK_NOTES_PATH.length + 1);
+    setCollapsed(current => { const next = new Set(current); next.delete(group); return next; });
+  });
   const create = (group = "") => void run(async () => {
     const note = await api.notes.create({ title: quickNoteName(), date: localDateKey(), storagePath: group ? `${QUICK_NOTES_PATH}/${group}` : QUICK_NOTES_PATH, content: { ops: [] } });
     props.onSelect(note);
@@ -115,15 +130,17 @@ export function NotesPanel(props: Props) {
       <strong>随记 <small>Notes</small></strong>
       <PanelDisplayTools target="notes" disabled={busy || loading || props.disabled} handlers={{ "notes.expand-all": () => setCollapsed(new Set()), "notes.refresh": () => { setError(""); setReload(value => value + 1); } }} />
       <button type="button" className="btn-icon" aria-label="新建随记" title="新建随记" disabled={busy || props.disabled} onClick={() => create()}><ToolbarIcon name="plus" /></button>
-      <button type="button" className="btn-icon" aria-label="多选随记" title="多选分组" aria-pressed={multi} disabled={busy || props.disabled} onClick={() => { setMulti(!multi); setSelected(new Set()); setRename(null); }}><ToolbarIcon name="select" /></button>
+      <button type="button" className="btn-icon" aria-label="多选随记" title="多选分组" aria-pressed={multi} disabled={busy || props.disabled} onClick={() => { setMulti(!multi); setSelected(new Set()); setRename(null); setMoving(null); }}><ToolbarIcon name="select" /></button>
       <button type="button" className="btn-icon" aria-label="收起随记分栏" onClick={props.onClose}><ToolbarIcon name="chevronLeft" /></button>
     </header>
     <div className="notes-panel-tools">
       <input type="search" aria-label="筛选随记" placeholder="查找随记或分组" value={query} onChange={event => setQuery(event.target.value)} />
       {multi && <div className="notes-panel-selection"><span>已选 {selected.size} 篇</span>
-        <button type="button" disabled={!selected.size || busy || props.disabled} onClick={() => setRename({ kind: "group", value: quickNoteName() })}>分组</button>
+        <button type="button" disabled={!selected.size || busy || props.disabled} onClick={() => startRename({ kind: "group", value: quickNoteName() })}>分组</button>
+        <button type="button" disabled={!selected.size || busy || props.disabled} onClick={() => startMove([...selected])}>移动到分组</button>
         <button type="button" disabled={!selected.size || busy || props.disabled} onClick={() => void run(async () => { await props.onMove([...selected], QUICK_NOTES_PATH); setSelected(new Set()); setMulti(false); })}>取消分组</button>
       </div>}
+      {moving && <NotesGroupMove key={moving.ids.join(",")} count={moving.ids.length} paths={groupPaths} busy={busy || props.disabled} onMove={move} onCancel={() => setMoving(null)} />}
       {rename && <form className="notes-panel-name-form" onSubmit={event => { event.preventDefault(); submitName(); }}>
         <label>{rename.kind === "renameNote" ? "随记名称" : "分组名称"}<input autoFocus aria-label={rename.kind === "renameNote" ? "随记名称" : "分组名称"} list={rename.kind === "group" ? "notes-group-names" : undefined} value={rename.value} disabled={busy} onChange={event => setRename({ ...rename, value: event.target.value })} onKeyDown={event => { if (event.key === "Escape") setRename(null); }} /></label>
         <datalist id="notes-group-names">{[...new Set(notes.map(note => note.storagePath?.slice(QUICK_NOTES_PATH.length + 1)).filter(Boolean))].map(name => <option key={name} value={name} />)}</datalist>
@@ -135,15 +152,19 @@ export function NotesPanel(props: Props) {
       {!loading && !groups.size && <p className="notes-panel-empty">{query ? "没有匹配的随记" : "记录临时想法；输入 /todo 后按空格或回车创建待办。"}</p>}
       {[...groups].map(([group, documents]) => <section className="notes-group" key={group} aria-label={group || "未分组"}>
         <div className="notes-group-heading">
+          {multi && <input type="checkbox" aria-label={`选择分组 ${group || "未分组"} 中显示的随记`} checked={documents.every(note => selected.has(note.id))} disabled={busy || props.disabled}
+            onChange={() => setSelected(current => { const next = new Set(current); const all = documents.every(note => current.has(note.id)); for (const note of documents) { if (all) next.delete(note.id); else next.add(note.id); } return next; })} />}
           <button type="button" className="notes-group-toggle" aria-expanded={query.trim() ? true : !collapsed.has(group)} onClick={() => setCollapsed(current => { const next = new Set(current); if (next.has(group)) next.delete(group); else next.add(group); return next; })}><ToolbarIcon name={collapsed.has(group) && !query.trim() ? "chevronRight" : "chevronLeft"} /><span>{group || "未分组"}</span>{display?.showCounts !== false && <small>{documents.length}</small>}</button>
           <button type="button" className="btn-icon" aria-label={`在${group || "未分组"}新建随记`} disabled={busy || props.disabled} onClick={() => create(group)}><ToolbarIcon name="plus" /></button>
-          {group && <button type="button" className="btn-icon" aria-label={`重命名分组 ${group}`} disabled={busy || props.disabled} onClick={() => setRename({ kind: "renameGroup", target: `${QUICK_NOTES_PATH}/${group}`, value: group })}><ToolbarIcon name="rename" /></button>}
+          <button type="button" className="btn-icon" title="移动整组，可合并或取消分组（包括筛选隐藏的随记）" aria-label={`移动分组 ${group || "未分组"}`} disabled={busy || props.disabled} onClick={() => startMove(notes.filter(note => (note.storagePath ?? QUICK_NOTES_PATH) === (group ? `${QUICK_NOTES_PATH}/${group}` : QUICK_NOTES_PATH)).map(note => note.id))}><ToolbarIcon name="move" /></button>
+          {group && <button type="button" className="btn-icon" aria-label={`重命名分组 ${group}`} disabled={busy || props.disabled} onClick={() => startRename({ kind: "renameGroup", target: `${QUICK_NOTES_PATH}/${group}`, value: group })}><ToolbarIcon name="rename" /></button>}
         </div>
         {(!collapsed.has(group) || query.trim()) && documents.map(note => <div className={`notes-panel-row${note.id === props.selectedNote?.id ? " is-selected" : ""}`} key={note.id}>
           {multi && <input type="checkbox" aria-label={`选择随记 ${note.title ?? "无标题"}`} checked={selected.has(note.id)} disabled={busy || props.disabled} onChange={() => setSelected(current => { const next = new Set(current); if (next.has(note.id)) next.delete(note.id); else next.add(note.id); return next; })} />}
           <button type="button" className="notes-panel-open" disabled={busy || props.disabled} aria-current={note.id === props.selectedNote?.id ? "page" : undefined} title={display?.tooltip === "path" ? `${note.storagePath ?? QUICK_NOTES_PATH}/${note.title ?? "无标题"}` : note.title ?? "无标题"} onClick={event => { const options = documentOpenOptions(event); void run(async () => { const full = await api.notes.get(note.id); if (!full || full.deleted_at) throw new Error("随记已删除，请刷新列表"); props.onSelect(full, options); }, false); }}><ToolbarIcon name="note" /><span>{note.title ?? "无标题"}</span></button>
           {display?.showMetadata && <time className="notes-panel-date" dateTime={note.updated_at} title={note.updated_at}>{Number.isNaN(Date.parse(note.updated_at)) ? "—" : localDateKey(new Date(note.updated_at))}</time>}
-          <button type="button" className="btn-icon" aria-label={`重命名随记 ${note.title ?? "无标题"}`} disabled={busy || props.disabled} onClick={() => setRename({ kind: "renameNote", target: note.id, value: note.title ?? "" })}><ToolbarIcon name="rename" /></button>
+          <button type="button" className="btn-icon" title="移动到分组" aria-label={`移动随记 ${note.title ?? "无标题"}`} disabled={busy || props.disabled} onClick={() => startMove([note.id])}><ToolbarIcon name="move" /></button>
+          <button type="button" className="btn-icon" aria-label={`重命名随记 ${note.title ?? "无标题"}`} disabled={busy || props.disabled} onClick={() => startRename({ kind: "renameNote", target: note.id, value: note.title ?? "" })}><ToolbarIcon name="rename" /></button>
           <button type="button" className="btn-icon" aria-label={`删除随记 ${note.title ?? "无标题"}`} disabled={busy || props.disabled} onClick={() => void run(() => props.onDelete(note.id))}><ToolbarIcon name="trash" /></button>
         </div>)}
       </section>)}

@@ -102,3 +102,69 @@ test("手机左侧抽屉可切换随记，新建后收起并可使用 /todo 回�
   await expect(panel).toBeVisible();
   await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
 });
+
+for (const width of [1280, 390]) {
+  test(`随记跨组移动、批量新分组、筛选下整组合并与解散 ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 850 });
+    await page.goto("/");
+    await expect(page.locator(".note-editor")).toBeVisible();
+    const ids = await page.evaluate(async () => {
+      const path = "/src/lib/api.ts";
+      const { api } = await import(/* @vite-ignore */ path);
+      const ids: string[] = [];
+      for (const [title, group] of [["想法甲", "甲组"], ["想法乙", "甲组"], ["目标随记", "乙组"]]) {
+        const note = await api.notes.create({ title, date: "2026-10-15", storagePath: `ideas/notes/${group}`, content: { ops: [{ insert: `${title}正文\n` }] } });
+        ids.push(note.id);
+      }
+      return ids;
+    });
+    await page.reload();
+    const openPanel = async () => {
+      const host = width > 768 ? page.getByRole("navigation", { name: "工作区面板" }) : await openDocumentSidebar(page);
+      await host.getByRole("button", { name: "随记", exact: true }).click();
+    };
+    await openPanel();
+    const panel = page.getByRole("region", { name: "随记列表", exact: true });
+    const form = panel.getByRole("form", { name: "移动随记", exact: true });
+    const group = (name: string) => panel.getByRole("region", { name, exact: true });
+    await panel.getByRole("button", { name: "移动随记 想法甲", exact: true }).click();
+    await form.getByLabel("目标分组").selectOption("ideas/notes/乙组");
+    await form.getByRole("button", { name: "取消", exact: true }).click();
+    await expect(group("甲组").locator(".notes-panel-row")).toHaveCount(2);
+    await panel.getByRole("button", { name: "移动随记 想法甲", exact: true }).click();
+    await form.getByLabel("目标分组").selectOption("ideas/notes/乙组");
+    await form.getByRole("button", { name: "移动", exact: true }).click();
+    await expect(group("乙组").locator(".notes-panel-row")).toHaveCount(2);
+    await panel.getByRole("button", { name: "多选随记", exact: true }).click();
+    await panel.getByRole("checkbox", { name: "选择分组 乙组 中显示的随记", exact: true }).check();
+    await panel.getByRole("button", { name: "移动到分组", exact: true }).click();
+    await form.getByLabel("目标分组").selectOption("");
+    await form.getByLabel("新分组名称").fill("非法/名称");
+    await form.getByRole("button", { name: "移动", exact: true }).click();
+    await expect(form.getByRole("alert")).toBeVisible();
+    await form.getByLabel("新分组名称").fill("新组");
+    await form.getByRole("button", { name: "移动", exact: true }).click();
+    await expect(group("新组").locator(".notes-panel-row")).toHaveCount(2);
+    await panel.getByLabel("筛选随记").fill("想法甲");
+    await expect(group("新组").locator(".notes-panel-row")).toHaveCount(1);
+    await panel.getByRole("button", { name: "移动分组 新组", exact: true }).click();
+    await expect(form).toContainText("移动 2 篇随记");
+    await form.getByLabel("目标分组").selectOption("ideas/notes/甲组");
+    await form.getByRole("button", { name: "移动", exact: true }).click();
+    await expect(group("甲组").locator(".notes-panel-row")).toHaveCount(3);
+    await panel.getByRole("button", { name: "移动分组 甲组", exact: true }).click();
+    await form.getByRole("button", { name: "移动", exact: true }).click();
+    await expect(group("未分组").locator(".notes-panel-row")).toHaveCount(3);
+    await page.reload();
+    if (!await panel.isVisible()) await openPanel();
+    await expect(group("未分组").locator(".notes-panel-row")).toHaveCount(3);
+    const saved = await page.evaluate(async ids => {
+      const path = "/src/lib/api.ts";
+      const { api } = await import(/* @vite-ignore */ path);
+      return Promise.all(ids.map(id => api.notes.get(id)));
+    }, ids);
+    expect(saved.map(note => note?.storagePath)).toEqual(Array(3).fill("ideas/notes"));
+    expect(saved.map(note => note?.title)).toEqual(["想法甲", "想法乙", "目标随记"]);
+    saved.forEach(note => expect(JSON.stringify(note?.content)).toContain(`${note?.title}正文`));
+  });
+}
