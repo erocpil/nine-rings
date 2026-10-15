@@ -10,6 +10,8 @@ async function enableH6(page: Page) {
     await expect(menu.locator(".block-action-menu-specific")).toHaveCount(0);
     await menu.getByRole("menuitem", { name: "块级功能 ›", exact: true }).click();
   } else {
+    await expect(menu.locator(".block-action-menu-specific")).toHaveCount(0);
+    await menu.getByRole("menuitem", { name: "块级功能 ›", exact: true }).hover();
     await expect(menu.locator(".block-action-menu-specific")).toBeVisible();
   }
   await menu.getByRole("menuitem", { name: "显示标题层级 ›", exact: true }).click();
@@ -239,6 +241,8 @@ test("目录块级功能可连续选择标题层级，撤销重做及重新加�
   await toc.locator("header strong").scrollIntoViewIfNeeded();
   await page.getByRole("button", { name: "第 1 块操作", exact: true }).click();
   const menu = page.getByRole("menu", { name: "第 1 块", exact: true });
+  await expect(menu.locator(".block-action-menu-specific")).toHaveCount(0);
+  await menu.getByRole("menuitem", { name: "块级功能 ›", exact: true }).hover();
   await expect(menu.locator(".block-action-menu-specific")).toBeVisible();
   await menu.getByRole("menuitem", { name: "显示标题层级 ›", exact: true }).click();
   const h2 = menu.getByRole("menuitemcheckbox", { name: "H2", exact: true });

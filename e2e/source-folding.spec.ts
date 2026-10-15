@@ -60,7 +60,7 @@ test("源码标题级别菜单保留源码与只读保护，并排工具栏无�
   await expect(page.locator(".markdown-preview-header")).toHaveCount(0);
   const sync = page.getByRole("checkbox", { name: "同步滚动", exact: true });
   await expect(sync).toBeVisible();
-  await expect.poll(() => toolbar.evaluate(el => el.scrollWidth - el.clientWidth)).toBeGreaterThan(0);
+  await expect(toolbar.getByRole("button", { name: "加粗", exact: true })).toHaveCount(0);
   expect(await toolbar.evaluate(el => getComputedStyle(el).overflowY)).toBe("hidden");
   expect(await toolbar.evaluate(el => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
   expect(await toolbar.evaluate(el => el.getBoundingClientRect().height)).toBe(36);

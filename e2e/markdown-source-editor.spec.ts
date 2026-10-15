@@ -158,7 +158,7 @@ test("手机源码引用续写、围栏高亮、折叠、跳转与只读保护",
   expect((await sourceInfo(area)).value).toBe(value);
   await expect(
     page.getByRole("button", { name: "加粗", exact: true }),
-  ).toBeDisabled();
+  ).toHaveCount(0);
 });
 
 

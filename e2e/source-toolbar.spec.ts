@@ -26,7 +26,8 @@ for (const width of [390, 1440]) {
     await search.getByRole("textbox", { name: "查找", exact: true }).fill("line");
     await expect(search.locator(".editor-find-count")).toHaveText("100 处");
     const panelColor = await search.evaluate(el => getComputedStyle(el).backgroundColor);
-    await expect.poll(async () => (await search.boundingBox())!.y + (await search.boundingBox())!.height - (await page.locator(".markdown-cm-host .cm-scroller").boundingBox())!.y).toBeLessThanOrEqual(1);
+    await expect.poll(async () => (await viewport.boundingBox())!.y).toBeCloseTo(initialViewport!.y, 0);
+    await expect.poll(async () => (await viewport.boundingBox())!.height).toBeCloseTo(initialViewport!.height, 0);
     await page.screenshot({ path: test.info().outputPath("source-search.png") });
     await find.click();
     await expect(search).toHaveCount(0);
@@ -66,7 +67,7 @@ for (const width of [390, 1440]) {
   });
 }
 
-test("源码常用格式操作单步撤销，只读禁用写入而保留折叠", async ({ page }) => {
+test("源码常用格式操作单步撤销，只读隐藏写入而保留折叠", async ({ page }) => {
   await createBlankDocument(page);
   await page.getByRole("button", { name: "源码", exact: true }).click();
   const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
@@ -88,7 +89,13 @@ test("源码常用格式操作单步撤销，只读禁用写入而保留折叠",
   await expect(page.locator(".cm-foldPlaceholder")).toHaveCount(0);
   await page.getByRole("button", { name: "设置只读", exact: true }).click();
   for (const name of ["斜体", "删除线", "引用", "无序列表", "有序列表", "待办列表", "代码块", "表格", "分隔线", "增加缩进", "减少缩进"]) {
-    await expect(toolbar.getByRole("button", { name, exact: true })).toBeDisabled();
+    await expect(toolbar.getByRole("button", { name, exact: true })).toHaveCount(0);
   }
   await expect(toolbar.getByRole("button", { name: "折叠全部", exact: true })).toBeEnabled();
+  const names = await toolbar.getByRole("button").evaluateAll(buttons => buttons.map(button => button.getAttribute("aria-label")));
+  const micro = names.indexOf("源码微渲染");
+  expect(names.slice(micro + 1, micro + 5)).toEqual(["折叠全部", "选择折叠标题级别", "展开全部", "选择展开标题级别"]);
+  await toolbar.getByRole("button", { name: "查找替换", exact: true }).click();
+  await expect(page.getByRole("search", { name: "源码查找与替换" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "替换为", exact: true })).toBeHidden();
 });
