@@ -242,7 +242,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     }) : <MarkdownSourceWorkspace revision={sourceSession.current!.current} areaRef={viewPosition.area} sourceHandle={viewPosition.sourceHandle} onJump={offset => jumpSourceRef.current(offset)}>{controls => <>
       <div className="note-title-row markdown-source-title-row">
         {props.titleSecurityAction}
-        {props.onReadonlyChange && <button type="button" className="note-readonly-badge note-readonly-action" disabled={busy}
+        {props.onReadonlyChange && <button type="button" className="note-readonly-badge note-readonly-action" data-document-readonly={props.readonly === true} aria-pressed={props.readonly === true} disabled={busy}
           aria-label={props.readonly ? "切换为可编辑" : "设置只读"} title={props.readonly ? "切换为可编辑" : "设置只读"}
           onClick={() => props.onReadonlyChange?.(!props.readonly)}><ToolbarIcon name={props.readonly ? "lock" : "unlock"} /></button>}
         <div className="note-title-field"><DocumentTitlePreview title={props.title || "无标题"} /></div>

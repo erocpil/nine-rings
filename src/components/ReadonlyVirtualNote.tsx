@@ -1300,7 +1300,7 @@ export function ReadonlyVirtualNote(
     >
       {props.focusMode && !props.unifiedTitleBar ? (
         <FocusModeBar target={props.focusToolbarTarget} onOpenProperties={props.onOpenProperties} title={props.title || "无标题"} leading={
-          <button type="button" className="focus-readonly-toggle" aria-label="点击设为可编辑"
+          <button type="button" className="focus-readonly-toggle" data-document-readonly="true" aria-label="点击设为可编辑"
             title="点击设为可编辑" aria-pressed="true" disabled={!props.onReadonlyChange}
             onClick={() => {
               handoffReadingAnchor(noteId, capture());
@@ -1312,6 +1312,8 @@ export function ReadonlyVirtualNote(
           {props.titleSecurityAction}
           <button
             type="button"
+            data-document-readonly="true"
+            aria-pressed="true"
             aria-label="设为可编辑"
             disabled={!props.onReadonlyChange}
             onClick={() => {

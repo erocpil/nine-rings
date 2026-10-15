@@ -4067,7 +4067,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     >
       {focusMode && !unifiedTitleBar && (
         <FocusModeBar key={noteId} target={focusToolbarTarget} onOpenProperties={readonly || focusToolbarTarget ? onOpenProperties : undefined} title={localTitle || "无标题"} leading={onReadonlyChange && (
-          <button type="button" className={`focus-readonly-toggle${readonlyChangeNotice ? " readonly-change-confirmed" : ""}`} aria-pressed={readonly}
+          <button type="button" className={`focus-readonly-toggle${readonlyChangeNotice ? " readonly-change-confirmed" : ""}`} data-document-readonly={readonly} aria-pressed={readonly}
             title={readonly ? "点击设为可编辑" : "点击设为只读"}
             aria-label={readonly ? "点击设为可编辑" : "点击设为只读"}
             disabled={readonlyChangeBusy}
@@ -4261,6 +4261,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
             <button
               type="button"
               className={`note-readonly-badge note-readonly-action${readonlyChangeNotice ? " readonly-change-confirmed" : ""}`}
+              data-document-readonly={readonly}
               aria-pressed={readonly}
               disabled={readonlyChangeBusy}
               onClick={async () => {
@@ -4280,7 +4281,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
               <ToolbarIcon name={readonly ? "lock" : "unlock"} />
             </button>
           ) : readonly ? (
-            <span className="note-readonly-badge" title="只读"><ToolbarIcon name="lock" /></span>
+            <span className="note-readonly-badge" data-document-readonly="true" title="只读"><ToolbarIcon name="lock" /></span>
           ) : null}
           <div className="note-title-field">
             {mobileTitleBar && (focusMode || readonly) ? <DocumentTitlePreview key={noteId} title={localTitle || "无标题"}

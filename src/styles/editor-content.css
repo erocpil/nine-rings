@@ -753,3 +753,8 @@
 
 :root { --editor-dark-ink: initial; --editor-light-ink: var(--text); }
 :root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) { --editor-dark-ink: var(--text); --editor-light-ink: initial; }
+
+:root { --document-readonly-color: #a86209; --document-editable-color: #237847; }
+:root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) { --document-readonly-color: #f2b45e; --document-editable-color: #83c49b; }
+[data-document-readonly="true"] .toolbar-icon { color: var(--document-readonly-color); }
+[data-document-readonly="false"] .toolbar-icon { color: var(--document-editable-color); }
