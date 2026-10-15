@@ -92,3 +92,36 @@ it("the full Markdown demo retains the image-section caret after all preceding G
     target.position + 1,
   );
 });
+
+it("maps literal fence lines by content instead of unequal line lengths or whitespace", () => {
+  const source = "# Intro\n\n```text\n" + "very-long ".repeat(300) + "\n\n    short target\nlast\n```\n\n# Tail";
+  const map = sourcePositionMap(source);
+  const doc = deltaToProseMirror(mdToDelta(source));
+  const block = renderedTextblockMap(doc).find(entry => entry.text.includes("short target"))!;
+  const offset = source.indexOf("short target");
+  const expected = block.from + block.text.slice(0, block.text.indexOf("short target")).replace(/\s/g, "").length;
+  expect(sourceOffsetToWeight(source, offset, map)).toBe(expected);
+  expect(weightToSourceOffset(source, expected, map)).toBe(offset);
+});
+
+it("does not count fence language or heading markers as literal text", () => {
+  for (const source of ["```js\njs\n```", "## # x"]) {
+    const map = sourcePositionMap(source);
+    const literalStart = source.startsWith("```") ? source.indexOf("js", 5) : 3;
+    expect(sourceOffsetToWeight(source, literalStart, map)).toBe(0);
+    expect(sourceOffsetToWeight(source, literalStart + 1, map)).toBe(1);
+  }
+});
+
+it("retains the current block at the end of a heading or paragraph in both directions", async () => {
+  const { sourceOffsetToRenderedPosition, renderedPositionToSourceOffset } = await import("../../src/lib/markdown-view-position");
+  const source = "## Heading\n\nParagraph\n\n## Next";
+  const doc = deltaToProseMirror(mdToDelta(source));
+  for (const label of ["Heading", "Paragraph"]) {
+    const block = renderedTextblockMap(doc).find(block => block.text === label)!;
+    const offset = source.indexOf(label) + label.length;
+    const position = block.position + 1 + label.length;
+    expect(sourceOffsetToRenderedPosition(source, doc, offset)).toBe(position);
+    expect(renderedPositionToSourceOffset(source, doc, position)).toBe(offset);
+  }
+});

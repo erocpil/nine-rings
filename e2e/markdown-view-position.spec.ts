@@ -1,4 +1,4 @@
-import { sourceInfo, replaceSource, scrollSourceTo } from "./helpers/source-editor";
+import { sourceInfo, replaceSource, scrollSourceTo, selectSource } from "./helpers/source-editor";
 import { expect, test } from "@playwright/test";
 
 for (const mode of ["desktop", "mobile", "readonly", "virtual"]) {
@@ -36,15 +36,29 @@ for (const mode of ["desktop", "mobile", "readonly", "virtual"]) {
     });
     await expect.poll(distance).toBeLessThan(100);
     await expect.poll(distance).toBeGreaterThan(-80);
+    if (mode === "virtual" || mode === "readonly") await heading.click({ position: { x: 4, y: 8 } });
     for (let round = 0; round < 3; round++) {
       await page.getByRole("button", { name: "源码", exact: true }).click();
       const info = await sourceInfo(source);
+      if (mode === "virtual" || mode === "readonly")
+        expect(info.value.slice(info.selectionStart, info.selectionStart + 15)).toContain("段落60");
       const visible = { top: info.scrollTop, text: info.value.slice(info.offset, info.offset + 80) };
       expect(visible.top).toBeGreaterThan(1000);
       expect(visible.text).toMatch(/段落60|正文60/);
       await page.getByRole("button", { name: "渲染", exact: true }).click();
       await expect.poll(distance).toBeLessThan(100);
       await expect.poll(distance).toBeGreaterThan(-80);
+    }
+    if (mode === "virtual") {
+      await page.getByRole("button", { name: "源码", exact: true }).click();
+      const info = await sourceInfo(source);
+      const offset = info.value.indexOf("手机自动", info.value.indexOf("正文60")) + 2;
+      await selectSource(source, offset);
+      await page.getByRole("button", { name: "渲染", exact: true }).click();
+      await expect(page.locator(".vr-block.ProseMirror-activeline")).toContainText("正文60");
+      await page.getByRole("button", { name: "源码", exact: true }).click();
+      await expect.poll(async () => (await sourceInfo(source)).selectionStart).toBe(offset);
+      await page.getByRole("button", { name: "渲染", exact: true }).click();
     }
     // Scroll the rendered paragraph, independently of any source handoff.
     await heading.evaluate(element => {
@@ -67,3 +81,69 @@ for (const mode of ["desktop", "mobile", "readonly", "virtual"]) {
     }
   });
 }
+
+test("大文档切换保持离屏当前行，阅读块高亮与光标分离", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts");
+    const { buildTextImportInput } = await load("/src/lib/markdown-import.ts");
+    const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
+    const source = Array.from({ length: 180 }, (_, index) => `## section-${index}\n\n${"uneven paragraph ".repeat(index % 5 + 8)}`).join("\n\n");
+    const note = await api.notes.create(buildTextImportInput({ fileName: "current-line.md", source }, { mode: "document", storagePath: "tests", date: "2026-10-15" }));
+    await api.notes.update(note.id, { readonly: true });
+    useNotesStore.getState().selectNote(await api.notes.get(note.id));
+  });
+  const content = page.locator(".editor-content .ProseMirror");
+  await expect(content).toContainText("section-179");
+  await content.evaluate(async element => {
+    const path = "/src/extensions/EditorHighlights.ts";
+    const { activeLinePluginKey } = await import(/* @vite-ignore */ path);
+    const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    let target = 0;
+    editor.state.doc.forEach((node, pos) => { if (node.textContent === "section-140") target = pos; });
+    editor.view.dispatch(editor.state.tr.setMeta(activeLinePluginKey, { readingBlockPosition: target }));
+    const root = element.closest(".note-editor-scroll")!;
+    root.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+    root.scrollTop = 0;
+  });
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  await expect.poll(async () => {
+    const info = await sourceInfo(source);
+    return info.value.slice(info.selectionStart, info.selectionStart + 20);
+  }).toContain("section-140");
+  await page.getByRole("button", { name: "渲染", exact: true }).click();
+  await expect(page.locator(".ProseMirror-activeline")).toHaveText("section-140");
+  await expect.poll(() => page.locator(".note-editor-scroll").evaluate(element => element.scrollTop)).toBeLessThan(150);
+});
+
+test("长段落按实际换行定位，源码和渲染顶部保持同一段内的位置", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts");
+    const { buildTextImportInput } = await load("/src/lib/markdown-import.ts");
+    const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
+    const source = "# Long paragraph\n\n" + "宽窄 Wiii 中文   ".repeat(800) + "TARGET-HANDOFF " + "remaining ".repeat(300);
+    const note = await api.notes.create(buildTextImportInput({ fileName: "wrapped.md", source }, { mode: "document", storagePath: "tests", date: "2026-10-15" }));
+    useNotesStore.getState().selectNote(note);
+  });
+  await expect(page.locator(".editor-content")).toContainText("TARGET-HANDOFF");
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  await scrollSourceTo(source, "TARGET-HANDOFF");
+  await page.getByRole("button", { name: "渲染", exact: true }).click();
+  const distance = () => page.locator(".editor-content .ProseMirror p").evaluate(element => {
+    const root = element.closest(".note-editor-scroll")!;
+    const sticky = root.querySelector(":scope > .note-editor-sticky");
+    const node = element.firstChild!;
+    const offset = node.textContent!.indexOf("TARGET-HANDOFF");
+    const range = document.createRange(); range.setStart(node, offset); range.setEnd(node, offset + 1);
+    return range.getBoundingClientRect().top - Math.max(root.getBoundingClientRect().top, sticky?.getBoundingClientRect().bottom ?? 0);
+  });
+  await expect.poll(distance).toBeLessThan(60);
+  await expect.poll(distance).toBeGreaterThan(-35);
+});

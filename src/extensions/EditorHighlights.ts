@@ -1,6 +1,6 @@
 import { Extension, type Editor } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import { Plugin, PluginKey, type Selection } from "@tiptap/pm/state";
+import { Plugin, PluginKey, NodeSelection, type Selection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
 // ── 高亮当前行扩展 ──
@@ -30,6 +30,8 @@ function createActiveLineDecorations(
   if (readingBlockPosition !== null && document.nodeAt(readingBlockPosition)) {
     const node = document.nodeAt(readingBlockPosition)!;
     decorations.push(Decoration.node(readingBlockPosition, readingBlockPosition + node.nodeSize, { class: "ProseMirror-activeline" }));
+  } else if (selection instanceof NodeSelection && selection.node.isBlock) {
+    decorations.push(Decoration.node(selection.from, selection.to, { class: "ProseMirror-activeline" }));
   } else if (selection.$from.depth > 0) {
     const start = selection.$from.before(1);
     const end = selection.$from.after(1);

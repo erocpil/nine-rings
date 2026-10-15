@@ -1,3 +1,4 @@
+import { activeLinePluginKey } from "../extensions/EditorHighlights";
 import { IMAGE_VIEW_EVENT } from "../lib/image-library/viewer-request";
 import { documentImages } from "../lib/image-library/document-images";
 import { renderedEditAdapter, sourceEditAdapter } from "../lib/plugin-system/editor-adapters";
@@ -59,7 +60,9 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   useLayoutEffect(() => {
     props.documentSessions?.activate(props.noteId, hostOwner.current, hostView, active);
   }, [props.documentSessions, props.noteId, hostView, active]);
+  const renderedSelection = useRef<number>();
   const hostSelection = (selection: { from: number; to: number }) => {
+    if (source === null) renderedSelection.current = selection.from;
     props.documentSessions?.select(props.noteId, hostOwner.current, source === null ? "rendered" : "source", selection);
   };
   const onSourceReady = viewPosition.onSourceReady;
@@ -95,7 +98,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         if ((latestReader.current?.() ?? latestProps.current.content) !== raw) throw new Error("转换期间正文已变化，请再次切换");
         initial.current = { text, content };
         sourceSession.current = new SourceNavigationSession(text, content);
-        viewPosition.toSource(text, deltaToProseMirror(content), restoreSourceTop, renderedHost.current?.state.selection.from);
+        viewPosition.toSource(text, deltaToProseMirror(content), restoreSourceTop, (renderedHost.current ? activeLinePluginKey.getState(renderedHost.current.state)?.readingBlockPosition ?? renderedHost.current.state.selection.from : renderedSelection.current));
         setSource(text);
       } else {
         // A bookmark destination takes priority over the source viewport.

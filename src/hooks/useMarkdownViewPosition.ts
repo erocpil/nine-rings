@@ -1,3 +1,5 @@
+import { renderedTextGeometry } from "../lib/rendered-text-geometry";
+import { textWeight } from "../lib/delta-content-weight";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import { useLayoutEffect, useRef, useState } from "react";
 import { TextSelection, NodeSelection } from "@tiptap/pm/state";
@@ -6,7 +8,7 @@ import type { JSONContent } from "@tiptap/core";
 import { handoffReadingAnchor } from "../lib/readonly-rendering";
 import { READING_POSITION_FLUSH_EVENT, patchReadingState } from "../lib/reading-state";
 import {
-  renderedPositionToWeight,
+  renderedPositionToSourceOffset,
   sourceOffsetToRenderedPosition,
   renderedTextblockMap,
   renderedTextblockSelector,
@@ -121,7 +123,8 @@ export function useMarkdownViewPosition(
           if (!element) continue;
           const rect = element.getBoundingClientRect();
           if (rect.height <= 0 || rect.bottom <= top + 1) continue;
-          weight =
+          const offset = renderedTextGeometry(element, entry.text)?.offsetAtY(top);
+          weight = offset != null ? entry.from + textWeight(entry.text.slice(0, offset)) :
             entry.from +
             Math.max(0, Math.min(1, (top - rect.top) / rect.height)) *
               (entry.to - entry.from);
@@ -138,11 +141,7 @@ export function useMarkdownViewPosition(
       selection:
         selection === undefined
           ? undefined
-          : weightToSourceOffset(
-              source,
-              renderedPositionToWeight(doc, selection),
-              mapFor(source),
-            ),
+          : renderedPositionToSourceOffset(source, doc, selection, mapFor(source)),
     };
   };
   const toRendered = (source: string, doc: JSONContent) => {
@@ -263,8 +262,14 @@ export function useMarkdownViewPosition(
                   Math.max(1, target.to - target.from),
               ),
             );
-            root.scrollTop +=
-              rect.top - viewportTop(root) + rect.height * fraction;
+            let offset = 0, weight = 0;
+            while (offset < target.text.length && weight < anchor.weight - target.from) {
+              if (!/\s/.test(target.text[offset])) weight++;
+              offset++;
+            }
+            while (offset < target.text.length && /\s/.test(target.text[offset])) offset++;
+            const line = renderedTextGeometry(element, target.text)?.rectAt(offset);
+            root.scrollTop += (line?.top ?? rect.top + rect.height * fraction) - viewportTop(root);
             top = root.scrollTop;
           }
         }

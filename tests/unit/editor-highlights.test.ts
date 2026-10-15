@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Schema } from "@tiptap/pm/model";
-import { EditorState, TextSelection } from "@tiptap/pm/state";
+import { EditorState, TextSelection, NodeSelection } from "@tiptap/pm/state";
 import {
   activeLinePluginKey,
   createActiveLinePlugin,
@@ -155,4 +155,10 @@ describe("editor highlight state boundaries", () => {
     ).toEqual([]);
     expect(activeLinePluginKey.getState(state)?.bookmarkJumpPosition).toBe(7);
   });
+});
+
+it("highlights a selected whole block after source-view handoff", () => {
+  let state = makeState();
+  state = state.apply(state.tr.setSelection(NodeSelection.create(state.doc, 7)));
+  expect(activeLinePluginKey.getState(state)?.decorations.find().map(d => [d.from, d.to])).toEqual([[7, 15]]);
 });

@@ -125,6 +125,10 @@ export function renderedTextblockMap(doc: JSONContent) {
   });
   return entries;
 }
+export interface SourcePositionEntry {
+  from: number; to: number; weightFrom: number; weightTo: number;
+  textOffsets?: Uint32Array;
+}
 export function sourcePositionMap(
   source: string,
   parsed?: { delta: DeltaOps; spans: MarkdownSourceSpan[] },
@@ -138,7 +142,7 @@ export function sourcePositionMap(
     ...endings.map((match) => match.index! + match[0].length),
   ];
   let weight = 0;
-  return spans.flatMap((span) => {
+  return spans.flatMap<SourcePositionEntry>((span) => {
     const from = offsets[span.fromLine] ?? source.length;
     const last = Math.max(span.fromLine, span.toLine - 1);
     const to = (offsets[last] ?? source.length) + (lines[last]?.length ?? 0);
@@ -172,7 +176,24 @@ export function sourcePositionMap(
       });
     }
     const size = span.weight ?? ops.reduce((sum, op) => sum + opWeight(op), 0);
-    const entry = { from, to, weightFrom: weight, weightTo: weight + size };
+    // Literal paragraphs/headings/fences can be mapped by actual characters,
+    // not the proportion of Markdown syntax, whitespace and fence delimiters.
+    const text = ops.every(op => typeof op.insert === "string")
+      ? ops.map(op => op.insert as string).join("").replace(/\n+$/, "") : "";
+    const raw = source.slice(from, to);
+    const literal = raw.includes("\r\n") ? text.replace(/\n/g, "\r\n") : text;
+    const prefix = /^ {0,3}(?:`{3,}|~{3,})/.test(raw)
+      ? (raw.indexOf("\n") + 1 || raw.length)
+      : (/^ {0,3}(?:#{1,6}[ \t]+|(?:[-+*]|\d+[.)])[ \t]+)/.exec(raw)?.[0].length ?? 0);
+    const start = literal ? raw.indexOf(literal, prefix) : -1;
+    let textOffsets: Uint32Array | undefined;
+    if (start >= 0 && textWeight(literal) === size) {
+      textOffsets = new Uint32Array(size);
+      let cursor = 0;
+      for (let index = 0; index < literal.length; index++)
+        if (!/\s/.test(literal[index])) textOffsets[cursor++] = from + start + index;
+    }
+    const entry = { from, to, weightFrom: weight, weightTo: weight + size, textOffsets };
     weight += size;
     return [entry];
   });
@@ -185,6 +206,15 @@ export function sourceOffsetToWeight(
   map = sourcePositionMap(source),
 ): number {
   const entry = map.find((item) => item.to >= offset) ?? map[map.length - 1];
+  if (entry && "textOffsets" in entry && entry.textOffsets) {
+    const offsets = entry.textOffsets;
+    let low = 0, high = offsets.length;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (offsets[mid] < offset) low = mid + 1; else high = mid;
+    }
+    return entry.weightFrom + low;
+  }
   return entry
     ? entry.weightFrom +
         fraction(offset, entry.from, entry.to) *
@@ -195,9 +225,16 @@ export function weightToSourceOffset(
   source: string,
   weight: number,
   map = sourcePositionMap(source),
+  atBlockEnd = false,
 ): number {
   const entry =
-    map.find((item) => item.weightTo > weight) ?? map[map.length - 1];
+    map.find((item) => atBlockEnd ? item.weightFrom < weight && item.weightTo >= weight : item.weightTo > weight) ?? map[map.length - 1];
+  if (entry && "textOffsets" in entry && entry.textOffsets?.length) {
+    const offsets = entry.textOffsets;
+    const index = Math.max(0, Math.ceil(weight - entry.weightFrom));
+    // At a block boundary preserve its syntax start (heading/list prefix).
+    return index === 0 ? entry.from : offsets[index] ?? offsets[offsets.length - 1] + 1;
+  }
   return entry
     ? Math.round(
         entry.from +
@@ -282,6 +319,15 @@ export function renderedPositionToWeight(
         )
     : 0;
 }
+/** A caret at a block's end belongs to that block, not the next one. */
+export function renderedPositionToSourceOffset(
+  source: string, doc: JSONContent, position: number, map = sourcePositionMap(source),
+): number {
+  const blocks = renderedTextblockMap(doc);
+  const block = blocks.find((_entry, index) => position < (blocks[index + 1]?.position ?? Infinity));
+  const weight = renderedPositionToWeight(doc, position);
+  return weightToSourceOffset(source, weight, map, Boolean(block && block.to > block.from && weight === block.to));
+}
 export function sourceOffsetToRenderedPosition(
   source: string,
   doc: JSONContent,
@@ -289,9 +335,11 @@ export function sourceOffsetToRenderedPosition(
   map = sourcePositionMap(source),
 ): number {
   const weight = sourceOffsetToWeight(source, offset, map);
+  const span = map.find(entry => entry.to >= offset);
+  const atBlockEnd = Boolean(span && offset > span.from && weight === span.weightTo && span.weightTo > span.weightFrom);
   const blocks = renderedTextblockMap(doc);
   const block =
-    blocks.find((entry) => entry.to > weight) ?? blocks[blocks.length - 1];
+    blocks.find((entry) => atBlockEnd ? entry.from < weight && entry.to >= weight : entry.to > weight) ?? blocks[blocks.length - 1];
   if (!block) return 0;
   let length = 0,
     count = 0;

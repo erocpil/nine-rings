@@ -434,6 +434,16 @@ export function ReadonlyVirtualNote(
   const [notice, setNotice] = useState("");
   const [blockMenu, setBlockMenu] = useState<{ position: number; number: number; trigger: HTMLButtonElement; doc: PMNode } | null>(null);
   const [currentNumber, setCurrentNumber] = useState(1);
+  const reportSelection = useRef(props.onHostSelection);
+  reportSelection.current = props.onHostSelection;
+  useEffect(() => {
+    const block = blocks.find(block => block.number === currentNumber);
+    if (block) {
+      const saved = copyPosition.current;
+      const position = saved !== null && saved >= block.pos && saved < block.pos + block.node.nodeSize ? saved : block.pos;
+      reportSelection.current?.({ from: position, to: position });
+    }
+  }, [blocks, currentNumber]);
   const { relativeBlockNumbers, relativeBlockNumberAlignment } = useRelativeNumbering();
   const visibleNumbers = useMemo(() => relativeBlockNumbers ? blocks.map(block => block.number) : [], [blocks, relativeBlockNumbers]);
   const closeBlockMenu = useCallback(() => setBlockMenu(null), []);
@@ -1440,7 +1450,7 @@ export function ReadonlyVirtualNote(
             const row = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-reading-row]") : null;
             if (row) {
               copyPosition.current = Number(row.dataset.position);
-              if (relativeBlockNumbers) setCurrentNumber(Number(row.dataset.blockNumber));
+              setCurrentNumber(Number(row.dataset.blockNumber));
             }
             pointer.current = {
               x: event.clientX,
@@ -1529,7 +1539,7 @@ export function ReadonlyVirtualNote(
                   )}
                   {props.showLineNumbers && <BlockNumber number={block.number} displayNumber={relativeBlockNumbers ? relativeNumber(block.number, currentNumber, visibleNumbers) : block.number} className={`${block.number === currentNumber ? "active" : ""} ${relativeBlockNumbers && block.number === currentNumber ? `relative-current${relativeBlockNumberAlignment === "right" ? " relative-current-right" : ""}` : ""}`} format={block.node.type.name === "codeBlock" && block.node.attrs.language === "toc" ? "TOC" : block.node.type.name === "heading" ? `H${block.node.attrs.level}` : block.node.type.name} onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />}
                 </div>
-                <div className="ProseMirror vr-block" contentEditable={false}>
+                <div className={`ProseMirror vr-block${block.number === currentNumber ? " ProseMirror-activeline" : ""}`} contentEditable={false}>
                   {decorateFlowBlock(renderReadonlyBlock(
                     block.node,
                     block.pos,
