@@ -168,3 +168,36 @@ for (const width of [1280, 390]) {
     saved.forEach(note => expect(JSON.stringify(note?.content)).toContain(`${note?.title}正文`));
   });
 }
+
+test("随记名称使用自定义菜单且不选中文本，菜单可关闭并直接移动或改名", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".note-editor")).toBeVisible();
+  await page.evaluate(async () => {
+    const path = "/src/lib/api.ts";
+    const { api } = await import(/* @vite-ignore */ path);
+    await api.notes.create({ title: "菜单随记", date: "2026-10-15", storagePath: "ideas/notes/原组", content: { ops: [{ insert: "正文保留\n" }] } });
+  });
+  await page.reload();
+  await page.getByRole("navigation", { name: "工作区面板" }).getByRole("button", { name: "随记", exact: true }).click();
+  const panel = page.getByRole("region", { name: "随记列表", exact: true });
+  const name = panel.locator(".notes-panel-open").filter({ hasText: "菜单随记" });
+  await expect(name).toBeVisible();
+  expect(await name.evaluate(el => getComputedStyle(el).getPropertyValue("user-select") || getComputedStyle(el).getPropertyValue("-webkit-user-select"))).toBe("none");
+  await name.click({ button: "right" });
+  const menu = page.getByRole("menu", { name: "随记菜单" });
+  await expect(menu).toBeVisible();
+  expect(await page.evaluate(() => getSelection()?.toString())).toBe("");
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(panel).toBeVisible();
+  await name.click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "移动到分组…", exact: true }).click();
+  const form = panel.getByRole("form", { name: "移动随记" });
+  await form.getByRole("button", { name: "移动", exact: true }).click();
+  await expect(panel.getByRole("region", { name: "未分组", exact: true }).locator(".notes-panel-open")).toHaveText("菜单随记");
+  await name.click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "重命名…", exact: true }).click();
+  await panel.getByLabel("随记名称", { exact: true }).fill("已改名");
+  await panel.getByRole("button", { name: "确定", exact: true }).click();
+  await expect(panel.locator(".notes-panel-open")).toHaveText("已改名");
+});

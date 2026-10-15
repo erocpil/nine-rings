@@ -37,3 +37,5 @@
 .notes-group-move select { width: 100%; min-width: 0; padding: 6px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 5px; font: inherit; }
 .notes-group-move-summary { color: var(--text-secondary); line-height: 1.5; }
 .notes-panel-tools { max-height: 60%; overflow-y: auto; flex-shrink: 0; }
+
+.notes-panel-open { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }

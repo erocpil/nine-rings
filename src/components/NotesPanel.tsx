@@ -1,3 +1,5 @@
+import { isMacPlatform } from "../lib/shortcuts";
+import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
 import { NotesGroupMove } from "./NotesGroupMove";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import { panelDisplayStyle, sortedPanelItems } from "../lib/panel-display-view";
@@ -31,6 +33,7 @@ type Rename = { kind: "group" | "renameGroup" | "renameNote"; target?: string; v
 
 export function NotesPanel(props: Props) {
   const display = usePanelDisplay("notes");
+  const [contextMenu, setContextMenu] = useState<NotesMenuTarget | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [query, setQuery] = useState(props.session.query ?? "");
   const [multi, setMulti] = useState(false);
@@ -101,6 +104,8 @@ export function NotesPanel(props: Props) {
     if (!moving) return;
     const ids = moving.ids.filter(id => notes.find(note => note.id === id)?.storagePath !== path);
     if (ids.length) await props.onMove(ids, path);
+    const moved = new Set(ids);
+    setNotes(current => current.map(note => moved.has(note.id) ? { ...note, storagePath: path } : note));
     setSelected(new Set()); setMulti(false); setMoving(null); setQuery("");
     const group = path === QUICK_NOTES_PATH ? "" : path.slice(QUICK_NOTES_PATH.length + 1);
     setCollapsed(current => { const next = new Set(current); next.delete(group); return next; });
@@ -125,6 +130,11 @@ export function NotesPanel(props: Props) {
     }
     setRename(null);
   });
+  const openNote = (id: string, options?: DocumentOpenOptions) => void run(async () => {
+    const full = await api.notes.get(id);
+    if (!full || full.deleted_at) throw new Error("随记已删除，请刷新列表");
+    props.onSelect(full, options);
+  }, false);
   return <section className="notes-panel" data-panel-display={display ? "plugin" : undefined} style={panelDisplayStyle(display) as CSSProperties} aria-label="随记列表" aria-busy={loading}>
     <header className="notes-panel-heading">
       <strong>随记 <small>Notes</small></strong>
@@ -161,7 +171,14 @@ export function NotesPanel(props: Props) {
         </div>
         {(!collapsed.has(group) || query.trim()) && documents.map(note => <div className={`notes-panel-row${note.id === props.selectedNote?.id ? " is-selected" : ""}`} key={note.id}>
           {multi && <input type="checkbox" aria-label={`选择随记 ${note.title ?? "无标题"}`} checked={selected.has(note.id)} disabled={busy || props.disabled} onChange={() => setSelected(current => { const next = new Set(current); if (next.has(note.id)) next.delete(note.id); else next.add(note.id); return next; })} />}
-          <button type="button" className="notes-panel-open" disabled={busy || props.disabled} aria-current={note.id === props.selectedNote?.id ? "page" : undefined} title={display?.tooltip === "path" ? `${note.storagePath ?? QUICK_NOTES_PATH}/${note.title ?? "无标题"}` : note.title ?? "无标题"} onClick={event => { const options = documentOpenOptions(event); void run(async () => { const full = await api.notes.get(note.id); if (!full || full.deleted_at) throw new Error("随记已删除，请刷新列表"); props.onSelect(full, options); }, false); }}><ToolbarIcon name="note" /><span>{note.title ?? "无标题"}</span></button>
+          <button type="button" className="notes-panel-open" disabled={busy || props.disabled} aria-current={note.id === props.selectedNote?.id ? "page" : undefined} title={display?.tooltip === "path" ? `${note.storagePath ?? QUICK_NOTES_PATH}/${note.title ?? "无标题"}` : note.title ?? "无标题"} onClick={event => { if (!(event.ctrlKey && isMacPlatform())) openNote(note.id, documentOpenOptions(event)); }}
+            onContextMenu={event => {
+              event.preventDefault(); event.stopPropagation();
+              if (busy || props.disabled) return;
+              const selection = window.getSelection();
+              if (selection?.anchorNode && event.currentTarget.contains(selection.anchorNode)) selection.removeAllRanges();
+              setContextMenu({ id: note.id, title: note.title ?? "无标题", x: event.clientX, y: event.clientY, trigger: event.currentTarget });
+            }}><ToolbarIcon name="note" /><span>{note.title ?? "无标题"}</span></button>
           {display?.showMetadata && <time className="notes-panel-date" dateTime={note.updated_at} title={note.updated_at}>{Number.isNaN(Date.parse(note.updated_at)) ? "—" : localDateKey(new Date(note.updated_at))}</time>}
           <button type="button" className="btn-icon" title="移动到分组" aria-label={`移动随记 ${note.title ?? "无标题"}`} disabled={busy || props.disabled} onClick={() => startMove([note.id])}><ToolbarIcon name="move" /></button>
           <button type="button" className="btn-icon" aria-label={`重命名随记 ${note.title ?? "无标题"}`} disabled={busy || props.disabled} onClick={() => startRename({ kind: "renameNote", target: note.id, value: note.title ?? "" })}><ToolbarIcon name="rename" /></button>
@@ -169,5 +186,12 @@ export function NotesPanel(props: Props) {
         </div>)}
       </section>)}
     </div>
+    {contextMenu && !busy && !props.disabled && <NotesContextMenu target={contextMenu} close={() => setContextMenu(null)} actions={[
+      { label: "打开", run: () => openNote(contextMenu.id) },
+      { label: "移动到分组…", run: () => startMove([contextMenu.id]) },
+      { label: "重命名…", run: () => startRename({ kind: "renameNote", target: contextMenu.id, value: contextMenu.title }) },
+      { label: "多选", run: () => { setMulti(true); setSelected(current => new Set([...current, contextMenu.id])); } },
+      { label: "移至回收站", run: () => void run(() => props.onDelete(contextMenu.id)) },
+    ]} />}
   </section>;
 }

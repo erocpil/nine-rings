@@ -62,6 +62,49 @@ const create = (title = "公开标题", storagePath = "areas/private") =>
   adapter.createNote({ date: "2026-09-08", title, storagePath, content: body });
 
 describe("document encryption", () => {
+  it("moves ordinary documents without exporting the workspace and rejects missing batch members atomically", async () => {
+    const first = await create("first", "ideas/notes/a");
+    const other = await create("other", "ideas/notes/a");
+    const beforeOther = await adapter.getNote(other.id);
+    const rawMove = vi.spyOn(idbAdapter, "batchMoveDocuments");
+    try {
+      await adapter.batchMoveDocuments([first.id], "ideas/notes/b");
+      expect(rawMove).toHaveBeenCalledOnce();
+      expect(await adapter.getNote(first.id)).toMatchObject({
+        storagePath: "ideas/notes/b",
+        content: body,
+        updated_at: first.updated_at,
+      });
+      expect(await adapter.getNote(other.id)).toEqual(beforeOther);
+      await expect(
+        adapter.batchMoveDocuments([other.id, "missing"], "ideas/notes/b"),
+      ).rejects.toThrow("不存在");
+      expect(await adapter.getNote(other.id)).toEqual(beforeOther);
+    } finally {
+      rawMove.mockRestore();
+    }
+  });
+  it("keeps encrypted destination moves on the protected transaction path", async () => {
+    const note = await create("moving", "ideas/notes/a");
+    await create("protected", "ideas/notes/b");
+    await setPathPassword("ideas/notes/b");
+    const rawMove = vi.spyOn(idbAdapter, "batchMoveDocuments");
+    try {
+      await adapter.batchMoveDocuments([note.id], "ideas/notes/b");
+      expect(rawMove).not.toHaveBeenCalled();
+      const moved = await adapter.getNote(note.id);
+      expect(moved?.storagePath).toBe("ideas/notes/b");
+      expect(isEncrypted(moved?.content)).toBe(true);
+      await adapter.batchMoveDocuments([note.id], "ideas/notes/c");
+      expect(rawMove).not.toHaveBeenCalled();
+      const outside = await adapter.getNote(note.id);
+      expect(outside?.storagePath).toBe("ideas/notes/c");
+      expect(outside?.content).toEqual(moved?.content);
+    } finally {
+      rawMove.mockRestore();
+    }
+  });
+
   it("normalizes direct property updates while preserving Unicode and document identity", async () => {
     const note = await create();
     const updated = await adapter.updateNote(note.id, {

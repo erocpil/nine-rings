@@ -131,8 +131,18 @@ export function protectedAdapter(raw: StorageAdapter): StorageAdapter {
       await moveProtectedDocuments([id], target, before); return 1;
     }),
     batchMoveDocuments: (ids, target) => withProtectionWrite(async () => {
-      await checkPath(normalizeStoragePath(target));
-      return moveProtectedDocuments(ids, target, await readProtectionState());
+      const path = normalizeStoragePath(target);
+      await checkPath(path);
+      const targets = [...new Set(ids)];
+      const [paths, notes] = await Promise.all([listProtectedPaths(), Promise.all(targets.map(id => raw.getNote(id)))]);
+      if (notes.some(note => !note || note.deleted_at || !note.storagePath)) throw new Error("移动的文档不存在");
+      // Ordinary moves only change metadata. Do not clone/transfer every body and
+      // historical version; encrypted boundary transitions retain the atomic snapshot.
+      if (!pathProtection(paths, path) && notes.every(note => note && !isEncrypted(note.content) && !pathProtection(paths, note.storagePath))) {
+        await raw.batchMoveDocuments(targets, path);
+        return;
+      }
+      return moveProtectedDocuments(targets, path, await readProtectionState());
     }),
     relocateFolder: relocateProtectedFolder,
     renameFolder: relocateProtectedFolder,
