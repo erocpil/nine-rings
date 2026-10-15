@@ -49,7 +49,7 @@
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-menu
     .toolbar-dropdown-caret {
-    margin-inline-start: 3px;
+    margin-inline-start: 2px;
     color: var(--text-secondary);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])

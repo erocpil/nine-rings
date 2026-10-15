@@ -245,6 +245,9 @@ test("文字颜色弹层保持紧凑，首次 Esc 关闭且选择颜色仍有效
     await page.setViewportSize({ width, height: 844 });
     if (width === 390) await page.locator(".sidebar-tab-hide").click();
     await button.click();
+    expect((await button.boundingBox())!.width).toBeLessThanOrEqual(14);
+    await expect(button.locator(".toolbar-solid-caret")).toHaveCount(1);
+    await expect(button).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     const menu = toolbar.getByRole("group", { name: "文字颜色选项" });
     await expect(menu).toBeVisible();
     const bounds = (await menu.boundingBox())!;

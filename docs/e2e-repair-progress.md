@@ -1579,3 +1579,9 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 诊断时，直接使用即时 Range 屏幕坐标的右键用例曾在 Chromium/WebKit 各出现未打开菜单；改用正文 Locator 的实际右键点击等待布局稳定，保留文本区域命中，不用派发 contextmenu 替代此用例。WebKit 原生右键可能选词，因此菜单与宿主禁用状态在右键之后取样比较。最终对应整组通过。
 
 类型检查、lint、生产构建、diff 检查通过（最大块约 493.75 kB）；仍有既有 markdown-serializer 静态/动态混合导入提示。未执行全产品 E2E、Tauri 原生应用人工测试或远端 CI；未改共享数据格式。
+
+### 2026-10-15：紧凑组合按钮与菜单互斥
+
+- 文字颜色、背景色、列表编号使用紧凑实心三角，与主按钮共用背景；选区工具栏保留组合结构并原位更新按钮。
+- 背景色菜单纳入宿主工具栏菜单状态，切换菜单、重复点击、外部点击与 Esc 使用同一关闭逻辑。
+- `editor-ui-boundaries`、`editor-command-surfaces`、`toolbar-responsive` 中匹配「手机工具栏菜单互斥|文字颜色弹层|选区」的定向回归：Chromium 25 项通过，WebKit 25 项通过；类型检查、lint 通过。未运行完整 E2E 或原生 Tauri 手工验证。

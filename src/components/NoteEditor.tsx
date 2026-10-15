@@ -638,7 +638,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     [documentOutline],
   );
   const {
-    colorOpen, setColorOpen, sizeOpen, setSizeOpen,
+    backgroundOpen, setBackgroundOpen, colorOpen, setColorOpen, sizeOpen, setSizeOpen,
     headingOpen, setHeadingOpen, headingPage, setHeadingPage,
     orderedOpen, setOrderedOpen, blockOpen, setBlockOpen, styleOpen, setStyleOpen,
     clipOpen, setClipOpen, tableOpen, setTableOpen,
@@ -848,7 +848,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
 
   // 点击外部关闭下拉框
   useEffect(() => {
-    if (!sizeOpen && !colorOpen && !headingOpen && !blockOpen && !orderedOpen && !styleOpen && !clipOpen && !linkOpen && !tableOpen && !moreOpen && !outlineOpen && !bookmarkOpen) return;
+    if (!backgroundOpen && !sizeOpen && !colorOpen && !headingOpen && !blockOpen && !orderedOpen && !styleOpen && !clipOpen && !linkOpen && !tableOpen && !moreOpen && !outlineOpen && !bookmarkOpen) return;
     const handler = () => {
       closeToolbarDropdowns();
       setOutlineOpen(false);
@@ -856,7 +856,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     };
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
-  }, [sizeOpen, colorOpen, headingOpen, blockOpen, orderedOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen, outlineOpen, bookmarkOpen, closeToolbarDropdowns, setOutlineOpen, setBookmarkOpen]);
+  }, [backgroundOpen, sizeOpen, colorOpen, headingOpen, blockOpen, orderedOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen, outlineOpen, bookmarkOpen, closeToolbarDropdowns, setOutlineOpen, setBookmarkOpen]);
 
   // 关闭编辑器右键菜单（点击外部 / Escape / 滚动 / 失焦）
   useEffect(() => {
@@ -4520,7 +4520,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
             editor={editor} readonly={readonly} saveStatus={saveStatus}
             layout={{ isMobileToolbarViewport, toolbarRef }}
             menus={{
-              colorOpen, setColorOpen, sizeOpen, setSizeOpen,
+              backgroundOpen, setBackgroundOpen, colorOpen, setColorOpen, sizeOpen, setSizeOpen,
               headingOpen, setHeadingOpen, headingPage, setHeadingPage,
               orderedOpen, setOrderedOpen, blockOpen, setBlockOpen, styleOpen, setStyleOpen,
               clipOpen, setClipOpen, tableOpen, setTableOpen,

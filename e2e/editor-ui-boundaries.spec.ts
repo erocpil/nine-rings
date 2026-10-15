@@ -47,7 +47,7 @@ test("手机工具栏菜单互斥、重复点击与外部关闭，标题分页�
   await page.setViewportSize({ width: 390, height: 850 });
   await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
   const dropdowns = page.locator(".editor-menu .menu-dropdown-list");
-  for (const title of ["字号", "选择文字颜色"]) {
+  for (const title of ["字号", "选择文字颜色", "选择背景色", "字号", "选择背景色", "选择文字颜色"]) {
     await page.getByTitle(title, { exact: true }).click();
     await expect(dropdowns).toHaveCount(1);
   }

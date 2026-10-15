@@ -1490,13 +1490,40 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 }
 .selection-hover-toolbar .selection-hover-action { flex-shrink: 0; }
 
-.toolbar-split-button { gap: 0; }
-.toolbar-split-button > .menu-btn:first-child { border-radius: 4px 0 0 4px; }
-.toolbar-split-button > .toolbar-split-caret {
-  border-radius: 0 4px 4px 0;
-  border-left: 1px solid var(--border);
-  min-width: 18px;
-  width: 18px;
+/* One surface for a command and its compact options button. */
+.editor-menu .toolbar-split-button {
+  display: inline-flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  gap: 0;
+  border-radius: 6px;
+  background: var(--toolbar-button-bg, color-mix(in srgb, var(--text) 4%, transparent));
+}
+.editor-menu .toolbar-split-button:has(> .menu-btn:hover, > .menu-btn[aria-expanded="true"]) {
+  background: var(--active-bg);
+}
+html[data-interface-style] .editor-menu .toolbar-split-button > .menu-btn {
+  background: transparent;
+  border-radius: 0;
+}
+html[data-interface-style] .editor-menu .toolbar-split-button > .menu-btn:first-child { border-radius: 6px 0 0 6px; }
+html[data-interface-style] .editor-menu .toolbar-split-button > .toolbar-split-caret {
+  border-radius: 0 6px 6px 0;
+  border: 0;
+  min-width: 12px;
+  width: 12px;
   padding-inline: 2px;
 }
-.toolbar-split-caret .toolbar-dropdown-caret { margin: 0; }
+.editor-menu .toolbar-dropdown-caret { margin-inline: 2px 0; }
+html[data-interface-style] .editor-menu .toolbar-split-caret .toolbar-dropdown-caret { margin: 0; }
+.toolbar-solid-caret {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-top: 4px solid currentColor;
+  vertical-align: middle;
+}
+
+html[data-interface-style] .editor-menu .toolbar-split-button > .menu-btn:is(:hover, .active, [aria-expanded="true"]) { background: transparent; border-color: transparent; }

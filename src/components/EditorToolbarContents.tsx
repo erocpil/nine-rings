@@ -6,7 +6,6 @@ import { EditorBackgroundMenu } from "./EditorBackgroundMenu";
 import { OrderedListNumberingMenu } from "./OrderedListNumberingMenu";
 import { FLOW_BLOCK_TEMPLATE } from "../lib/flow-block";
 import { resetTableColumnWidths } from "../extensions/ContentSizedTable";
-import { DisclosureIcon } from "./DisclosureIcon";
 import { exitCurrentStructuredBlock } from "../extensions/StructuredBlockExit";
 import { type ReactNode, type RefObject } from "react";
 import type { Editor } from "@tiptap/core";
@@ -27,6 +26,8 @@ export interface EditorToolbarProps {
     toolbarRef: RefObject<HTMLDivElement>;
   };
   menus: {
+    backgroundOpen: boolean;
+    setBackgroundOpen: (open: boolean) => void;
     colorOpen: boolean;
     setColorOpen: (open: boolean) => void;
     sizeOpen: boolean;
@@ -97,7 +98,7 @@ const PRESET_COLORS = [
 ];
 
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32];
-const dropdownCaret = <span className="toolbar-dropdown-caret" aria-hidden="true"><DisclosureIcon expanded /></span>;
+const dropdownCaret = <span className="toolbar-dropdown-caret" aria-hidden="true"><span className="toolbar-solid-caret" /></span>;
 
 const btn = (label: ReactNode, action: () => void, active?: boolean, title?: string, disabled?: boolean) => (
   <button
@@ -120,7 +121,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
   const applyColor = (color: string) => { rememberColor(color); applyToolbarColor(editor, "text", color); };
   const selectionSize = useSelectionFontSize(editor, editorFontSize);
   const {
-    colorOpen, setColorOpen, sizeOpen, setSizeOpen,
+    backgroundOpen, setBackgroundOpen, colorOpen, setColorOpen, sizeOpen, setSizeOpen,
     headingOpen, headingPage, setHeadingPage,
     orderedOpen, setOrderedOpen, blockOpen, styleOpen,
     clipOpen, tableOpen, setTableOpen,
@@ -197,7 +198,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       resize.disconnect();
       changes.disconnect();
     };
-  }, [toolbarRef, colorOpen, sizeOpen, headingOpen, orderedOpen, blockOpen, styleOpen, clipOpen, tableOpen]);
+  }, [toolbarRef, backgroundOpen, colorOpen, sizeOpen, headingOpen, orderedOpen, blockOpen, styleOpen, clipOpen, tableOpen]);
 
   return (<>
     {btn(<ToolbarIcon name="search" />, actions.openEditorReplace, false, "查找与替换", readonly)}
@@ -234,9 +235,9 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {btn("P", () => editor.chain().focus().clearNodes().run(), false, "正文", readonly)}
     {btn(<ToolbarIcon name="quote" />, toggleBlockquote, editor.isActive("blockquote"), "引用 (Ctrl+Shift+B)", readonly)}
     {btn(<ToolbarIcon name="bullet" />, () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly)}
-    <div className="menu-dropdown ordered-list-toolbar">
+    <div className="menu-dropdown ordered-list-toolbar toolbar-split-button">
     {btn(<ToolbarIcon name="ordered" />, () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"), "有序列表 (Ctrl+Shift+7)", readonly)}
-      <button type="button" className="menu-btn menu-btn-sm" aria-label="有序列表编号" title="有序列表编号" disabled={readonly || !editor.isActive("orderedList")}
+      <button type="button" className="menu-btn toolbar-split-caret" aria-label="有序列表编号" title="有序列表编号" disabled={readonly || !editor.isActive("orderedList")}
         aria-expanded={orderedOpen} onClick={event => { event.stopPropagation(); toggleMobileToolbarMenu("ordered", orderedOpen); }}>{dropdownCaret}</button>
       {orderedOpen && <div className="menu-dropdown-list"><OrderedListNumberingMenu editor={editor} onDone={() => setOrderedOpen(false)} /></div>}
     </div>
@@ -352,7 +353,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       )}
     </div>
 
-    <EditorBackgroundMenu editor={editor} readonly={readonly} />
+    <EditorBackgroundMenu editor={editor} readonly={readonly} open={backgroundOpen} setOpen={setBackgroundOpen} onToggle={() => toggleMobileToolbarMenu("background", backgroundOpen)} />
 
     {/* 文字颜色 */}
     <div className="menu-dropdown toolbar-split-button" data-toolbar-tool="color">

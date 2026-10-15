@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 
-export type EditorToolbarMenu = "style" | "heading" | "block" | "ordered" | "table" | "clip" | "link" | "size" | "color" | "more";
+export type EditorToolbarMenu = "style" | "heading" | "block" | "ordered" | "table" | "clip" | "link" | "size" | "color" | "background" | "more";
 
 /** Session-owned menu state only. Selection, commands and outside-dismiss
  * coordination with document panels stay in NoteEditor. Keep the individual
  * setters: desktop commands intentionally close only their own dropdown. */
 export function useEditorToolbarMenus() {
+  const [backgroundOpen, setBackgroundOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const [sizeOpen, setSizeOpen] = useState(false);
   const [headingOpen, setHeadingOpen] = useState(false);
@@ -22,6 +23,7 @@ export function useEditorToolbarMenus() {
   const closeToolbarDropdowns = useCallback(() => {
     setSizeOpen(false);
     setColorOpen(false);
+    setBackgroundOpen(false);
     setHeadingOpen(false);
     setBlockOpen(false);
     setOrderedOpen(false);
@@ -31,7 +33,7 @@ export function useEditorToolbarMenus() {
     setTableOpen(false);
     setMoreOpen(false);
   }, []);
-  const dropdownOpen = colorOpen || sizeOpen || headingOpen || orderedOpen || blockOpen || styleOpen || clipOpen || tableOpen || moreOpen || linkOpen;
+  const dropdownOpen = backgroundOpen || colorOpen || sizeOpen || headingOpen || orderedOpen || blockOpen || styleOpen || clipOpen || tableOpen || moreOpen || linkOpen;
   useEffect(() => {
     if (!dropdownOpen) return;
     const onKey = (event: KeyboardEvent) => {
@@ -49,13 +51,13 @@ export function useEditorToolbarMenus() {
     const setters = {
       style: setStyleOpen, heading: setHeadingOpen, block: setBlockOpen, ordered: setOrderedOpen,
       table: setTableOpen, clip: setClipOpen, link: setLinkOpen,
-      size: setSizeOpen, color: setColorOpen, more: setMoreOpen,
+      background: setBackgroundOpen, size: setSizeOpen, color: setColorOpen, more: setMoreOpen,
     };
     setters[menu](true);
   }, [closeToolbarDropdowns]);
 
   return {
-    colorOpen, setColorOpen, sizeOpen, setSizeOpen,
+    backgroundOpen, setBackgroundOpen, colorOpen, setColorOpen, sizeOpen, setSizeOpen,
     headingOpen, setHeadingOpen, headingPage, setHeadingPage,
     orderedOpen, setOrderedOpen, blockOpen, setBlockOpen, styleOpen, setStyleOpen,
     clipOpen, setClipOpen, tableOpen, setTableOpen,

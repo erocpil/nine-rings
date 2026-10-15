@@ -59,8 +59,10 @@ export function SelectionHoverToolbar() {
     const container = host.current;
     if (!container || !hover) return;
     const clones = new Map<HTMLButtonElement, HTMLButtonElement>();
+    const groups = new Map<Element, HTMLDivElement>();
     const refresh = () => {
       const next: HTMLButtonElement[] = [];
+      const children: HTMLElement[] = [];
       for (const command of readEditorCommands(hover.toolbar)) {
         const original = command.source;
         let button = clones.get(original);
@@ -84,9 +86,21 @@ export function SelectionHoverToolbar() {
         for (const [name, value] of attributes) if (button.getAttribute(name) !== value) button.setAttribute(name, value);
         if (button.innerHTML !== original.innerHTML) button.innerHTML = original.innerHTML;
         next.push(button);
+        const owner = original.closest(".toolbar-split-button");
+        if (owner) {
+          let group = groups.get(owner);
+          if (!group) {
+            group = document.createElement("div");
+            group.className = "toolbar-split-button";
+            groups.set(owner, group);
+          }
+          if (button.parentElement !== group) group.append(button);
+          if (!children.includes(group)) children.push(group);
+        } else children.push(button);
       }
       for (const [original, clone] of clones) if (!next.includes(clone)) { clone.remove(); clones.delete(original); }
-      next.forEach((button, index) => { if (container.children[index] !== button) container.insertBefore(button, container.children[index] ?? null); });
+      for (const [owner, group] of groups) if (!children.includes(group)) { group.remove(); groups.delete(owner); }
+      children.forEach((child, index) => { if (container.children[index] !== child) container.insertBefore(child, container.children[index] ?? null); });
     };
     refresh();
     const observer = new MutationObserver(refresh);
