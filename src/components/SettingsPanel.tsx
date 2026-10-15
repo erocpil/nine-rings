@@ -664,7 +664,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
         aria-modal="true"
         aria-labelledby="settings-dialog-title"
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); if (settingsSearchOpen) closeSettingsSearch(); else requestClose(); } }}
+        onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); if (settingsSearchOpen) closeSettingsSearch(); else requestClose(); } }}
       >
         <div className={`settings-header${settingsSearchOpen ? " settings-header-search-open" : ""}`}>
           <div className="settings-header-main">
@@ -695,7 +695,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 placeholder="查找设置…"
                 value={settingsQuery}
                 onChange={event => setSettingsQuery(event.target.value)}
-                onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); closeSettingsSearch(); } }}
+                onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeSettingsSearch(); } }}
               />
               {settingsSearchOpen && settingsQuery && <button type="button" className="settings-search-clear" aria-label="清除设置查找" onClick={() => { setSettingsQuery(""); settingsSearchRef.current?.focus(); }}><ToolbarIcon name="close" /></button>}
             </div>
@@ -1215,7 +1215,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                     onChange={(e) => setRenameVal(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); void handleRename(); }
-                      if (e.key === "Escape") { e.stopPropagation(); setRenameTag(null); setRenameVal(""); }
+                      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setRenameTag(null); setRenameVal(""); }
                     }}
                     autoFocus
                     placeholder="新标签名"

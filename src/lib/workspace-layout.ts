@@ -2,6 +2,7 @@ export const WORKSPACE_LAYOUT_KEY = "nr:workspaceLayout";
 export const WORKSPACE_LAYOUT_EVENT = "nr:workspace-layout-change";
 export interface WorkspaceLayout {
   fullscreenQuietChrome: boolean;
+  quietChromeScope: "always" | "fullscreen" | "windowed";
   summaryInteraction: "sidebar" | "click" | "hover";
   summaryVisibleRows: number;
   sidebarSide: "left" | "right";
@@ -15,6 +16,7 @@ export interface WorkspaceLayout {
 }
 export const DEFAULT_WORKSPACE_LAYOUT: WorkspaceLayout = {
   fullscreenQuietChrome: false,
+  quietChromeScope: "fullscreen",
   summaryInteraction: "click",
   summaryVisibleRows: 16,
   sidebarSide: "left",
@@ -37,6 +39,7 @@ export function normalizeWorkspaceLayout(value: unknown): WorkspaceLayout {
       : {};
   return {
     fullscreenQuietChrome: v.fullscreenQuietChrome === true,
+    quietChromeScope: v.quietChromeScope === "always" || v.quietChromeScope === "windowed" ? v.quietChromeScope : "fullscreen",
     summaryInteraction: v.summaryInteraction === "click" || v.summaryInteraction === "hover" ? v.summaryInteraction : v.summaryInteraction === "sidebar" ? "sidebar" : "click",
     summaryVisibleRows: Math.round(number(v.summaryVisibleRows, DEFAULT_WORKSPACE_LAYOUT.summaryVisibleRows, 1, 50)),
     sidebarSide: v.sidebarSide === "right" ? "right" : "left",

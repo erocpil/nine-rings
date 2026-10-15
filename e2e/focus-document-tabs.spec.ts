@@ -21,6 +21,11 @@ test("专注标签切换先保存、独立重排关闭、双击标题显隐和�
   await page.getByRole("button", { name: "专注模式", exact: true }).click();
   const tabs = page.getByRole("tablist", { name: "最近文档", exact: true });
   await expect(tabs.getByRole("tab")).toHaveCount(32);
+  expect(await tabs.getByRole("tab").first().evaluate(element => {
+    const divider = getComputedStyle(element, "::after");
+    return [divider.width, divider.height, divider.borderRadius, divider.pointerEvents];
+  })).toEqual(["1px", "14px", "0px", "none"]);
+  await expect(tabs.getByRole("tab").first()).toHaveCSS("border-right-width", "0px");
   await expect(tabs.getByRole("tab", { selected: true })).toHaveAttribute("aria-label", "标签当前文档较长名称");
   await expect(tabs.getByRole("tab").first()).toContainText("...");
   await expect(page.locator(".focus-tabs-window-space")).toHaveCount(0);

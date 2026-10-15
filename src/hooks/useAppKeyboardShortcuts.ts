@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { DEFAULT_HOTKEYS } from "../types/models";
 import { isTauriRuntime } from "../lib/runtime";
-import { toggleTauriFullscreen } from "../lib/fullscreen";
+import { guardFullscreenEscape, toggleTauriFullscreen } from "../lib/fullscreen";
 import { registerShortcuts } from "../lib/global-shortcuts";
 import {
   isCloseToTrayShortcut,
@@ -36,6 +36,7 @@ function showWindow(): void {
 export function useAppKeyboardShortcuts(actions: AppShortcutActions): void {
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
+  useEffect(guardFullscreenEscape, []);
 
   // ── 浏览器 keydown（Web 端快捷键）──
   useEffect(() => {

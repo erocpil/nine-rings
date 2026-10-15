@@ -101,6 +101,14 @@
   overflow: auto;
   padding: 4px 16px 8px;
 }
+.exhibition-shell .exhibition-overview .exhibition-overview-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 0;
+  min-width: 0;
+}
 .exhibition-overview-heading {
   display: flex;
   justify-content: space-between;
@@ -133,7 +141,7 @@
   .exhibition-summary { flex: 1 1 auto; justify-content: flex-end; gap: 10px; }
   .exhibition-summary button { font-size: 11px; }
 }
-.exhibition-overview h2 {
+.exhibition-overview .exhibition-overview-title {
   font-size: 17px;
   font-weight: 500;
   margin: 4px 0;
@@ -239,7 +247,7 @@
     padding: 2px 10px 6px;
     max-height: 32dvh;
   }
-  .exhibition-overview h2 {
+  .exhibition-overview .exhibition-overview-title {
     font-size: 14px;
   }
   .exhibition-columns {
@@ -403,7 +411,7 @@
     gap: 8px;
   }
 
-  .exhibition-overview h2 {
+  .exhibition-overview .exhibition-overview-title {
     margin: 0;
     line-height: 1.25;
   }
@@ -418,7 +426,7 @@
     display: none;
   }
 
-  .exhibition-overview:has(.exhibition-columns) h2 {
+  .exhibition-overview:has(.exhibition-columns) .exhibition-overview-title {
     font-size: 15px;
   }
 
@@ -452,7 +460,7 @@
     min-height: 30px;
   }
 
-  .exhibition-overview h2 {
+  .exhibition-overview .exhibition-overview-title {
     margin: 0;
     font-size: 14px;
     line-height: 1.2;
@@ -467,7 +475,7 @@
     display: none;
   }
 
-  .exhibition-overview:has(.exhibition-columns) h2 {
+  .exhibition-overview:has(.exhibition-columns) .exhibition-overview-title {
     font-size: 14px;
   }
 
@@ -516,13 +524,16 @@
 
 /* Fade chrome without changing the editor viewport or its reading anchor. */
 @media (min-width: 769px) and (hover: hover) and (pointer: fine) {
-  .exhibition-shell[data-fullscreen-quiet] > :is(.exhibition-masthead, .exhibition-overview) {
+  .exhibition-shell[data-quiet-chrome] > :is(.exhibition-masthead, .exhibition-overview) {
+    /* Keep the same compositing/stacking boundary at opacity 0 and 1.
+       WebKit otherwise rebuilds sibling layers when crossing between bands. */
+    will-change: opacity;
     transition: opacity 160ms ease;
   }
-  .exhibition-shell[data-fullscreen-quiet] > :is(.exhibition-masthead, .exhibition-overview):not(:hover):not(:has(:focus-visible)):not([data-quiet-open]) {
+  .exhibition-shell[data-quiet-chrome] > :is(.exhibition-masthead, .exhibition-overview):not(:hover):not(:has(:focus-visible)):not([data-quiet-open]) {
     opacity: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .exhibition-shell[data-fullscreen-quiet] > :is(.exhibition-masthead, .exhibition-overview) { transition: none; }
+  .exhibition-shell[data-quiet-chrome] > :is(.exhibition-masthead, .exhibition-overview) { transition: none; }
 }

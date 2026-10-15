@@ -45,8 +45,9 @@ export function ExhibitionWorkspace(props: Props) {
   const active = enabled && !focus;
   const density = config?.exhibition_density ?? "comfortable";
   const [expanded, setExpanded] = useState(false);
+  const [homeExpanded, setHomeExpanded] = useState(true);
   const [openAppearance, setOpenAppearance] = useState<string | null>(null);
-  const showOverview = active && (!noteId || expanded);
+  const showOverview = active && (noteId ? expanded : homeExpanded);
   const [documents, setDocuments] = useState<Summary[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
@@ -59,6 +60,8 @@ export function ExhibitionWorkspace(props: Props) {
   const counts = useMemo(() => workspaceCounts(documents, favorites, day), [documents, favorites, day]);
   const summaryLayout = useWorkspaceLayout();
   const quietFullscreen = useWindowFullscreen(active && props.desktop && summaryLayout.fullscreenQuietChrome);
+  const quietChrome = active && props.desktop && summaryLayout.fullscreenQuietChrome &&
+    (summaryLayout.quietChromeScope === "always" || (summaryLayout.quietChromeScope === "windowed" ? !quietFullscreen : quietFullscreen));
   const [summaryPreview, setSummaryPreview] = useState<{ kind: WorkspaceSummaryKind; trigger: HTMLButtonElement; keyboard: boolean } | null>(null);
   const summaryCloseTimer = useRef<ReturnType<typeof setTimeout>>();
   const keepSummary = () => clearTimeout(summaryCloseTimer.current);
@@ -215,7 +218,7 @@ export function ExhibitionWorkspace(props: Props) {
   return (
     <div
       className={`exhibition-shell${active ? " is-exhibition" : ""}`}
-      data-fullscreen-quiet={quietFullscreen || undefined}
+      data-quiet-chrome={quietChrome || undefined}
       data-text-width={
         enabled && props.desktop
           ? (config?.exhibition_text_width ?? "wide")
@@ -248,10 +251,14 @@ export function ExhibitionWorkspace(props: Props) {
           {...(blocked ? { inert: "" } : {})}
         >
           <div className="exhibition-overview-heading">
-            <div>
+            <button type="button" className="exhibition-overview-toggle"
+              aria-label={showOverview ? "收起概览" : "展开概览"}
+              title={showOverview ? "收起概览" : "展开概览"}
+              aria-expanded={showOverview} aria-controls="exhibition-columns"
+              onClick={() => noteId ? setExpanded(value => !value) : setHomeExpanded(value => !value)}>
               <span className="exhibition-eyebrow">THE WORKSPACE</span>
-              <h2>{showOverview ? "给思考留一点空间。" : "工作区概览"}</h2>
-            </div>
+              <span className="exhibition-overview-title">WORKSPACE OVERVIEW</span>
+            </button>
             <nav className="exhibition-summary" data-mobile={!props.desktop || undefined} aria-label="工作区统计" aria-busy={loading}>
               {([
                 ["all", "篇文档", "查看全部文档"],
@@ -275,16 +282,6 @@ export function ExhibitionWorkspace(props: Props) {
                 <strong>{loading || error ? "…" : kind === "recent" && summaryLayout.summaryInteraction !== "sidebar" ? workspaceSummaryPreviewDocuments(documents, "recent", favorites, day, recent).length : counts[kind]}</strong><span>{label}</span>
               </button>)}
             </nav>
-            {noteId && (
-              <button
-                type="button"
-                aria-expanded={showOverview}
-                aria-controls="exhibition-columns"
-                onClick={() => setExpanded((value) => !value)}
-              >
-                {showOverview ? "收起概览" : "展开概览"}
-              </button>
-            )}
           </div>
           {error && (
             <p role="alert" className="exhibition-error">

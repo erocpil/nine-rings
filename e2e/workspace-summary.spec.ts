@@ -46,8 +46,9 @@ test("工作区摘要在收起和展开时可用，统计入口切换列表与�
   await expect(page.locator(".exhibition-columns")).toHaveCount(0);
   const lastCounter = (await summary.getByRole("button", { name: "查看最近打开文档" }).boundingBox())!;
   const expand = (await page.getByRole("button", { name: "展开概览", exact: true }).boundingBox())!;
-  expect(expand.x - lastCounter.x - lastCounter.width).toBeGreaterThanOrEqual(0);
-  expect(expand.x - lastCounter.x - lastCounter.width).toBeLessThanOrEqual(20);
+  expect(expand.x + expand.width).toBeLessThanOrEqual(lastCounter.x);
+  await expect(page.locator(".exhibition-overview-toggle")).toHaveCount(1);
+  await expect(page.locator(".exhibition-overview-toggle")).toContainText("THE WORKSPACE");
   await page.getByRole("button", { name: "展开概览", exact: true }).click();
   await expect(summary).toBeVisible();
   await page.getByRole("button", { name: "收起概览", exact: true }).click();
@@ -215,7 +216,7 @@ test("四项摘要悬停预览，最多十五行，长标题省略且滚动后�
   await expect(popup).toHaveCount(0);
   await summary.getByRole("button", { name: "查看随记", exact: true }).hover();
   await expect(page.getByRole("dialog", { name: "随记预览", exact: true })).toBeVisible();
-  await page.locator(".exhibition-overview h2").hover();
+  await page.locator(".exhibition-overview-toggle").hover();
   await expect(page.locator(".workspace-summary-preview")).toHaveCount(0);
 });
 

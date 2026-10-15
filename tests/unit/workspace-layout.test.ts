@@ -25,6 +25,28 @@ describe("workspace layout preferences", () => {
   it("defaults to right dock, vertical 2:1 and a left workspace", () => {
     expect(readWorkspaceLayout()).toEqual(DEFAULT_WORKSPACE_LAYOUT);
   });
+  it("preserves old fullscreen hover preferences and normalizes one exclusive scope", () => {
+    expect(
+      normalizeWorkspaceLayout({ fullscreenQuietChrome: true }),
+    ).toMatchObject({
+      fullscreenQuietChrome: true,
+      quietChromeScope: "fullscreen",
+    });
+    for (const quietChromeScope of [
+      "always",
+      "fullscreen",
+      "windowed",
+    ] as const) {
+      expect(
+        saveWorkspaceLayout({ fullscreenQuietChrome: true, quietChromeScope }),
+      ).toBe(true);
+      expect(readWorkspaceLayout().quietChromeScope).toBe(quietChromeScope);
+    }
+    expect(
+      normalizeWorkspaceLayout({ quietChromeScope: ["always", "windowed"] })
+        .quietChromeScope,
+    ).toBe("fullscreen");
+  });
   it("migrates the old outline dock and width without pinning bookmarks", () => {
     values.set("nr:documentOutlineDock", "left");
     values.set("nr:documentOutlineWidth", "340");

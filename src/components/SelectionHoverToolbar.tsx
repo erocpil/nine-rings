@@ -47,7 +47,7 @@ export function SelectionHoverToolbar() {
     const move = (event: PointerEvent) => { x = event.clientX; y = event.clientY; buttons = event.buttons; if (!frame) frame = requestAnimationFrame(update); };
     const selectionChanged = () => { if (document.getSelection()?.isCollapsed) hide(); };
     const scroll = (event: Event) => { if (!host.current?.contains(event.target as Node)) hide(); };
-    const key = (event: KeyboardEvent) => { if (event.key === "Escape" && active.current) { hide(); event.stopPropagation(); } };
+    const key = (event: KeyboardEvent) => { if (event.key === "Escape" && active.current) { hide(); event.preventDefault(); event.stopPropagation(); } };
     document.addEventListener("pointermove", move); document.addEventListener("selectionchange", selectionChanged);
     window.addEventListener("scroll", scroll, true); window.addEventListener("resize", hide); document.addEventListener("keydown", key);
     return () => { cancelAnimationFrame(frame); clear(); document.removeEventListener("pointermove", move); document.removeEventListener("selectionchange", selectionChanged); window.removeEventListener("scroll", scroll, true); window.removeEventListener("resize", hide); document.removeEventListener("keydown", key); };

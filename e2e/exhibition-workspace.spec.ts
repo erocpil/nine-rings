@@ -80,6 +80,17 @@ for (const style of ["calm", "mono-aware"] as const) {
       .fill("展陈布局切换前的编辑应当保存。");
     await page.getByRole("button", { name: "返回工作区首页" }).click();
     await expect(page.locator(".exhibition-welcome")).toBeVisible();
+    const overviewToggle = page.locator(".exhibition-overview-toggle");
+    await expect(overviewToggle).toContainText("WORKSPACE OVERVIEW");
+    await expect(overviewToggle).toHaveAttribute("aria-expanded", "true");
+    await overviewToggle.click();
+    await expect(page.locator(".exhibition-columns")).toHaveCount(0);
+    await overviewToggle.press("Enter");
+    await expect(page.locator(".exhibition-columns")).toBeVisible();
+    await overviewToggle.press("Space");
+    await expect(page.locator(".exhibition-columns")).toHaveCount(0);
+    await overviewToggle.click();
+    await expect(page.locator(".exhibition-columns")).toBeVisible();
     const activityBar = page.locator(".desktop-activity-bar");
     await expect(activityBar).toHaveCSS("opacity", "0");
     await activityBar.hover();
@@ -424,7 +435,7 @@ test("桌面顶部菜单点击启用悬停切换，关闭后不再悬停打开�
   await page.getByRole("button", { name: "文本宽度", exact: true }).hover();
   await expect(page.getByRole("listbox")).toHaveCount(0);
   await style.click();
-  await page.locator(".exhibition-overview h2").click();
+  await page.locator(".exhibition-overview-toggle").click();
   await expect(page.getByRole("listbox")).toHaveCount(0);
   await page.getByRole("button", { name: "紧凑程度", exact: true }).hover();
   await expect(page.getByRole("listbox")).toHaveCount(0);

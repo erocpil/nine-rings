@@ -250,6 +250,7 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
       handleSubmit();
     }
     if (e.key === "Escape") {
+      e.preventDefault();
       e.stopPropagation();
       if (!savingRef.current) onClose();
     }
