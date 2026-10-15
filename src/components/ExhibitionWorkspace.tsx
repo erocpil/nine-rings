@@ -1,7 +1,7 @@
 import { useWindowFullscreen } from "../hooks/useWindowFullscreen";
 import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { useWorkspaceLayout } from "../hooks/useWorkspaceLayout";
-import { useEffect, useMemo, useRef, useState, lazy, Suspense, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense, type ReactNode } from "react";
 import { DocumentFilterSelect } from "./DocumentFilterSelect";
 import "./DocumentBrowser.css";
 import { api } from "../lib/api";
@@ -23,6 +23,8 @@ interface Props {
   enabled: boolean;
   desktop: boolean;
   focus: boolean;
+  home: boolean;
+  onFocusChange: (focus: boolean) => void;
   blocked: boolean;
   config: AppConfig | null;
   path: string;
@@ -47,7 +49,8 @@ export function ExhibitionWorkspace(props: Props) {
   const [expanded, setExpanded] = useState(false);
   const [homeExpanded, setHomeExpanded] = useState(true);
   const [openAppearance, setOpenAppearance] = useState<string | null>(null);
-  const showOverview = active && (noteId ? expanded : homeExpanded);
+  const showOverview = active && (props.home ? homeExpanded : expanded);
+  useLayoutEffect(() => { if (!props.home) setExpanded(false); }, [props.home, path, noteId]);
   const [documents, setDocuments] = useState<Summary[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
@@ -180,7 +183,7 @@ export function ExhibitionWorkspace(props: Props) {
       title={props.canReturn ? "返回上一页面" : "返回工作区首页"}
     >
       <span>NINE RINGS / WORKSPACE</span>
-      <strong title={path}>{path || "我的工作区"}</strong>
+      <strong title={path}>{path || "My Workspace"}</strong>
     </button>
   );
   useEffect(() => {
@@ -230,7 +233,7 @@ export function ExhibitionWorkspace(props: Props) {
         <header className="exhibition-masthead" data-quiet-open={openAppearance !== null || undefined}>
           {props.desktop ? (
             <Suspense fallback={null}>
-              <TitleBar exhibition workspace={identity}>
+              <TitleBar exhibition workspace={identity} focus={focus} onFocusChange={props.onFocusChange}>
                 {appearance}
               </TitleBar>
             </Suspense>
@@ -246,7 +249,7 @@ export function ExhibitionWorkspace(props: Props) {
       {active && (
         <section
           className="exhibition-overview"
-          data-quiet-open={summaryPreview !== null || undefined}
+          data-quiet-open={showOverview || summaryPreview !== null || undefined}
           aria-label="工作区概览"
           {...(blocked ? { inert: "" } : {})}
         >
@@ -255,7 +258,7 @@ export function ExhibitionWorkspace(props: Props) {
               aria-label={showOverview ? "收起概览" : "展开概览"}
               title={showOverview ? "收起概览" : "展开概览"}
               aria-expanded={showOverview} aria-controls="exhibition-columns"
-              onClick={() => noteId ? setExpanded(value => !value) : setHomeExpanded(value => !value)}>
+              onClick={() => props.home ? setHomeExpanded(value => !value) : setExpanded(value => !value)}>
               <span className="exhibition-eyebrow">THE WORKSPACE</span>
               <span className="exhibition-overview-title">WORKSPACE OVERVIEW</span>
             </button>

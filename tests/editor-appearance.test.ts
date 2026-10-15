@@ -11,6 +11,8 @@ import {
 import { isStandaloneStrongLabel } from "../src/extensions/StandaloneStrongLabel";
 
 const defaults = editorAppearanceVariables();
+assert.equal(defaults["--editor-line-height"], "1.7");
+assert.equal(editorAppearanceVariables({ editor_line_height: 1.6 })["--editor-line-height"], "1.6");
 assert.equal(defaults["--editor-blockquote-indent"], "8px");
 assert.equal(defaults["--editor-font-size"], "16px");
 assert.equal(defaults["--editor-list-indent"], "1em");

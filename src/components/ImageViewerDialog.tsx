@@ -1,3 +1,4 @@
+import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { imageDirectoryService } from "../lib/image-library/directory-service";
 import { imageDirectoryMonitor } from "../lib/image-library/directory-monitor";
 import { useImageFileChange } from "../hooks/useImageFileChange";
@@ -53,6 +54,7 @@ export function ImageViewer({
   focusMode?: boolean;
   onFocusChange?: (focus: boolean) => void;
 }) {
+  const mobile = useMobileViewport();
   const [images, setImages] = useState(initialImages);
   const [index, setIndex] = useState(
     Math.max(
@@ -586,16 +588,16 @@ export function ImageViewer({
               name={presentation === "main" ? "chevronLeft" : "close"}
             />
           </button>
-          <button
+{(mobile || presentation !== "main") && <button
             type="button"
-            className="btn-icon"
+            className={`btn-icon ${presentation === "main" ? "document-focus-toggle" : ""}`}
             aria-label={focused ? "退出图片专注模式" : "进入图片专注模式"}
             aria-pressed={focused}
             title={focused ? "退出专注模式" : "专注模式"}
             onClick={toggleFocus}
           >
             <ToolbarIcon name={focused ? "compress" : "expand"} />
-          </button>
+          </button>}
         </div>
       </header>
       <div

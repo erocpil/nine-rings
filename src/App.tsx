@@ -1,3 +1,5 @@
+import { useDocumentSequence } from "./hooks/useDocumentSequence";
+import { adjacentDocuments } from "./lib/plugin-system/document-navigation";
 import { VOCABULARY_VIEW, vocabularyDocuments } from "./lib/plugin-system/builtin-vocabulary";
 import { documentAfterDelete } from "./lib/document-after-delete";
 import { readRecentNoteIds } from "./lib/quick-switcher";
@@ -962,6 +964,21 @@ function App() {
     return () => clearTimeout(timer);
   }, [refreshNotes, selectNote, refreshNoteViews]);
 
+  useDocumentSequence({
+    preload: false,
+    active: Boolean(selectedNote) && !workspaceHomeRequested && !pluginMainActive && !settingsOpen && !quickSwitcherOpen && !protectionBusy && !syncBusy && !applyingWebUpdate,
+    current: selectedNote?.id ?? "",
+    resolve: async () => adjacentDocuments((await api.docs.summaries({ storagePath: selectedNote?.storagePath || undefined }))
+      .sort((a, b) => (a.title || "无标题").localeCompare(b.title || "无标题") || a.id.localeCompare(b.id))
+      .map(note => ({ id: note.id, title: note.title || "无标题", scope: note.storagePath || "" })), selectedNote?.id ?? ""),
+    open: async (id, isCurrent) => {
+      await flushAutoSave();
+      const note = await api.notes.get(id);
+      if (note && isCurrent() && useNotesStore.getState().selectedNote?.id === selectedNote?.id && (!mainViews.getSnapshot().current || mainViews.getSnapshot().suspended)) handleSelectNote(note);
+    },
+    onError: reason => useNotesStore.setState({ error: `切换文档失败：${String(reason)}` }),
+  });
+
   // ── 键盘快捷键（浏览器 keydown + Tauri 全局热键）──
   useAppKeyboardShortcuts({
     workspaceActive: (!readingLibraryOpen || !window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) && !protectionBusy && !applyingWebUpdate,
@@ -1416,7 +1433,7 @@ function App() {
   const hideEditorSplit = pluginMainActive || homeReaderOpen || readerPrimaryView || (exhibitionEnabled && workspaceHome) || (!selectedNote && Boolean(selectedConcept || selectedFolderPath));
   return (
     <ReadingTypographyProvider config={config}><EditorFoldIconContext.Provider value={config}>
-    <ExhibitionWorkspace desktop={desktopWorkspace} enabled={exhibitionEnabled && !mobileReaderOpen} focus={effectiveFocusMode} config={config}
+    <ExhibitionWorkspace home={workspaceHome} desktop={desktopWorkspace} enabled={exhibitionEnabled && !mobileReaderOpen} focus={effectiveFocusMode} onFocusChange={next => preserveReadingPositions(() => setFocusMode(next))} config={config}
       latestNote={selectedNote} activeSummary={activeWorkspaceSummary}
       onSummary={kind => {
         const saved = summarySidebarSnapshot.current;
@@ -1541,9 +1558,9 @@ function App() {
       {...(searchExpanded || errorDetailsOpen ? { inert: "" } : {})}
     >
       {/* 展陈桌面窗口操作位于外围；专注模式恢复紧凑标题栏。 */}
-      {(isTauriRuntime() ? !(exhibitionEnabled && desktopWorkspace && !effectiveFocusMode) : desktopWorkspace && effectiveFocusMode) && (
+      {((isTauriRuntime() || desktopWorkspace) && !(exhibitionEnabled && desktopWorkspace && !effectiveFocusMode)) && (
         <Suspense fallback={null}>
-          <TitleBar wordmark={desktopWorkspace && effectiveFocusMode} focusTabs={desktopWorkspace && effectiveFocusMode ? <FocusDocumentTabs
+          <TitleBar focus={focusMode} onFocusChange={desktopWorkspace ? next => preserveReadingPositions(() => setFocusMode(next)) : undefined} wordmark={desktopWorkspace && effectiveFocusMode} focusTabs={desktopWorkspace && effectiveFocusMode ? <FocusDocumentTabs
             noteId={workspaceHome ? undefined : selectedNote?.id} refreshKey={docTreeKey}
             onOpen={async note => { await flushAutoSave(); setQuery(""); setDocResults(null); handleSelectNote(note); }}
             onReveal={async (id, path) => {

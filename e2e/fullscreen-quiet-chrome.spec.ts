@@ -65,6 +65,18 @@ for (const enabled of [false, true])
     await page.mouse.move(bottom.x + 20, bottom.y + bottom.height / 2);
     await expect(footer).toHaveCSS("opacity", "1");
     if (enabled) await expect(header).toHaveCSS("opacity", "0");
+    if (enabled) {
+      await footer
+        .getByRole("button", { name: "展开概览", exact: true })
+        .click();
+      await page.mouse.move(top.x + top.width / 2, top.y + top.height / 2);
+      await expect(footer).toHaveCSS("opacity", "1");
+      await footer
+        .getByRole("button", { name: "收起概览", exact: true })
+        .click();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await expect(footer).toHaveCSS("opacity", "0");
+    }
     await page.mouse.move(top.x + top.width / 2, top.y + top.height / 2);
     await header.getByRole("button", { name: "退出全屏", exact: true }).click();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

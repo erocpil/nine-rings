@@ -1,3 +1,7 @@
+import { useMobileViewport } from "../hooks/useEdgeDrawer";
+import { useDocumentSequence } from "../hooks/useDocumentSequence";
+import { documentNavigation } from "../lib/plugin-system/document-navigation";
+import { VOCABULARY_VIEW } from "../lib/plugin-system/builtin-vocabulary";
 import {
   createContext,
   useContext,
@@ -201,6 +205,7 @@ function VocabularyStudyView({
   onClose: () => void;
   onDocument: (id: string) => Promise<void>;
 }) {
+  const mobile = useMobileViewport();
   useSyncExternalStore(subscribeVocabulary, vocabularySnapshot);
   const collapse = readVocabularyPreference().collapseExamples;
   const result = useMemo(() => {
@@ -255,6 +260,19 @@ function VocabularyStudyView({
     };
   }, [persist]);
   const [error, setError] = useState("");
+  const sequence = useDocumentSequence({
+    active,
+    current: data.documentId,
+    resolve: () =>
+      documentNavigation.neighbors(VOCABULARY_VIEW, data.documentId),
+    open: (id) =>
+      documentNavigation.openAdjacent(VOCABULARY_VIEW, data.documentId, id),
+    onError: (reason) => setError(String(reason)),
+  });
+  const navigationKey = /Mac|iPhone|iPad/.test(navigator.platform)
+    ? "⌘"
+    : "Ctrl+";
+
   useEffect(() => {
     if (!active) return;
     const escape = (event: KeyboardEvent) => {
@@ -283,6 +301,23 @@ function VocabularyStudyView({
         <header className="vocabulary-view-toolbar">
           <strong>{result?.word || data.title}</strong>
           <div>
+            {(["previous", "next"] as const).map((direction) => (
+              <button
+                key={direction}
+                type="button"
+                className="btn-icon"
+                aria-label={direction === "previous" ? "前一单词" : "后一单词"}
+                title={`${direction === "previous" ? "前一单词" : "后一单词"}（${navigationKey}${direction === "previous" ? "←" : "→"}）${sequence[direction] ? ` · ${sequence[direction]!.title}` : " · 已到当前路径边界"}`}
+                disabled={sequence.busy || !sequence[direction]}
+                onClick={() => void sequence.move(direction)}
+              >
+                <ToolbarIcon
+                  name={
+                    direction === "previous" ? "chevronLeft" : "chevronRight"
+                  }
+                />
+              </button>
+            ))}
             <button
               type="button"
               className="btn-icon"
@@ -305,15 +340,17 @@ function VocabularyStudyView({
             >
               <ToolbarIcon name="exit" />
             </button>
-            <button
-              type="button"
-              className="btn-icon"
-              aria-label={focus ? "退出专注模式" : "专注模式"}
-              title={focus ? "退出专注模式" : "专注模式"}
-              onClick={() => onFocus(!focus)}
-            >
-              <ToolbarIcon name={focus ? "compress" : "expand"} />
-            </button>
+            {mobile && (
+              <button
+                type="button"
+                className="btn-icon document-focus-toggle"
+                aria-label={focus ? "退出专注模式" : "专注模式"}
+                title={focus ? "退出专注模式" : "专注模式"}
+                onClick={() => onFocus(!focus)}
+              >
+                <ToolbarIcon name={focus ? "compress" : "expand"} />
+              </button>
+            )}
           </div>
         </header>
         {error && <p role="alert">{error}</p>}

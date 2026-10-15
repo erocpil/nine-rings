@@ -113,7 +113,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   auto_clean_days: 30,
   note_font_size: 16,
   editor_font_family: "system",
-  editor_line_height: 1.6,
+  editor_line_height: 1.7,
   editor_block_spacing: 1,
   editor_block_number_gap: 8,
   editor_h1_font_size: 0,

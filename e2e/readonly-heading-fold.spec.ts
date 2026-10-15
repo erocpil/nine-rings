@@ -76,7 +76,7 @@ test("只读文档显示已保存代码简介和只读语言，并保留查看�
 
   await page.setViewportSize({ width: 390, height: 760 });
   await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
-  await page.locator(".note-title-row").getByTitle("专注模式").click();
+  await page.getByTitle("专注模式").click();
   await expect(page.locator(".note-editor")).toHaveClass(/focus-mode/);
   await expect(page.getByRole("button", { name: "退出专注模式", exact: true })).toBeVisible();
   await expect(codeTitle).toBeVisible();
@@ -135,7 +135,7 @@ test("只有只读专注模式双击标题或正文才切换所属标题章节",
 
   await firstHeading.dblclick();
   await expect(editor.getByText("一级正文", { exact: true })).toBeVisible();
-  await page.locator(".note-title-row").getByTitle("专注模式").click();
+  await page.getByTitle("专注模式").click();
 
   await firstHeading.dblclick();
   await expect(editor.getByText("一级正文", { exact: true })).toBeHidden();
@@ -170,7 +170,7 @@ test("只读正文双击折叠后所属标题停留在双击位置附近", async
   }, `# 前置章节\n\n${precedingBody}\n\n# 待折叠章节\n\n${sectionBody}\n\n# 后续章节\n\n${trailingBody}`);
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
   await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
-  await page.locator(".note-title-row").getByTitle("专注模式").click();
+  await page.getByTitle("专注模式").click();
 
   const target = editor.getByText("目标正文 25", { exact: true });
   // Native scrollIntoView and Playwright's click can use different nested
@@ -253,7 +253,7 @@ test("手机 PWA 只读专注模式可通过触摸双击折叠展开并受开关
   await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 760 });
   await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
-  await page.locator(".note-title-row").getByTitle("专注模式").click();
+  await page.getByTitle("专注模式").click();
   await expect(page.locator(".note-editor")).toHaveClass(/focus-mode/);
   await expect(page.getByRole("button", { name: "退出专注模式", exact: true })).toBeVisible();
   await expect(editor).toHaveAttribute("contenteditable", "false");
@@ -320,7 +320,7 @@ test("手机文档末章的最后几个段落可反复折叠和展示", async ({
   await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 760 });
   await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
-  await page.locator(".note-title-row").getByTitle("专注模式").click();
+  await page.getByTitle("专注模式").click();
 
   const heading = editor.getByText("最后一章", { exact: true });
   const lastBody = editor.getByText("尾段三", { exact: true });
@@ -351,7 +351,7 @@ test("千块只读文档在专注模式下触摸双击可及时折叠", async ({
   await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 760 });
   await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
-  await page.locator(".note-title-row").getByTitle("专注模式").click();
+  await page.getByTitle("专注模式").click();
 
   const target = editor.getByText("长文档正文 600", { exact: true });
   await target.evaluate((element) => element.scrollIntoView({ block: "center" }));

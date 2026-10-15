@@ -16,7 +16,7 @@ import { SettingsWorkspaceLayout } from "./SettingsWorkspaceLayout";
 import { SettingsSidebarPresentation } from "./SettingsSidebarPresentation";
 import { HotkeyConfig } from "./SettingsHotkeys";
 import { Field, SettingsSection } from "./SettingsFields";
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState, useRef } from "react";
 import "./settings-surfaces.css";
 import "./settings-pages.css";
 import { saveEditorAppearance, type BlockDisplayDraft } from "../lib/save-editor-appearance";
@@ -281,6 +281,14 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   useEffect(() => {
     if (settingsPage !== "root") setSettingsSearchOpen(false);
   }, [settingsPage]);
+  useLayoutEffect(() => {
+    if (!open) return;
+    // Category navigation unmounts its focused trigger. Keep Escape inside the
+    // dialog without scrolling the restored page or stealing focus from a child.
+    if (document.activeElement === document.body) {
+      settingsBodyRef.current?.focus({ preventScroll: true });
+    }
+  }, [open, settingsPage, editorAppearanceOpen]);
   const persistPanelOrder = (next: string[]) => {
     try {
       localStorage.setItem("nr:sidebarOrder", next.join(","));
@@ -664,7 +672,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
         aria-modal="true"
         aria-labelledby="settings-dialog-title"
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); if (settingsSearchOpen) closeSettingsSearch(); else requestClose(); } }}
+        onKeyDown={(event) => { if (event.key === "Escape" && !editorAppearanceOpen) { event.preventDefault(); event.stopPropagation(); if (settingsSearchOpen) closeSettingsSearch(); else goBack(); } }}
       >
         <div className={`settings-header${settingsSearchOpen ? " settings-header-search-open" : ""}`}>
           <div className="settings-header-main">

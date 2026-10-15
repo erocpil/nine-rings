@@ -30,7 +30,7 @@ test("触摸代码块后的加号插入后不残留高亮，键盘布局变化�
   await page.getByRole("button", { name: "⏹ 代码块", exact: true }).click();
   await expect(editor.locator(".code-block-wrap")).toHaveCount(1);
   await expect(editor.locator(":scope > *")).toHaveCount(1);
-  await page.locator(".note-title-row").getByTitle("专注模式").click();
+  await page.getByTitle("专注模式").click();
 
   const insert = page.getByRole("button", { name: "在第 1 块后插入段落", exact: true });
   await insert.tap();
@@ -203,7 +203,7 @@ for (const delayedObserver of [false, true]) {
     const editor = page.locator(".ProseMirror");
     await openTestNote(page, [...Array.from({ length: 19 }, (_, i) => `正文 ${i + 1}`), "", "", ""]);
     await expect(editor.locator(":scope > *")).toHaveCount(22);
-    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await page.getByTitle("专注模式").click();
     await editor.locator(":scope > *").last().click();
     await page.evaluate(() => {
       Object.defineProperty(window.visualViewport!, "height", { configurable: true, value: 460 });

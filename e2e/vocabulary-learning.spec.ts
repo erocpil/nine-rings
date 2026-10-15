@@ -499,3 +499,67 @@ test("词汇列表外观实时配置保留当前视图，定位清除筛选并�
   await expect(dialog.getByRole("spinbutton", { name: "列表字号", exact: true })).toHaveValue("16");
   await expect(dialog.getByRole("textbox", { name: "词汇路径", exact: true })).toHaveValue("references/vocabulary");
 });
+
+for (const width of [1280, 390]) test(`词汇顺序导航跟随排序、限定同路径并保护输入 ${width}`, async ({ page }) => {
+  await seed(page);
+  await page.setViewportSize({ width, height: 844 });
+  if (width < 768) await openDocumentSidebar(page);
+  await page.getByRole("button", { name: "词汇学习", exact: true }).click();
+  const panel = page.getByRole("region", { name: "词汇学习分栏" });
+  await panel.getByRole("button", { name: "sample", exact: true }).click();
+  const view = page.getByRole("region", { name: "词汇学习视图" });
+  await expect(view.getByRole("button", { name: "前一单词" })).toBeDisabled();
+  await expect(view.getByRole("button", { name: "后一单词" })).toBeEnabled();
+  await view.getByRole("button", { name: "后一单词" }).click();
+  await expect(view.locator("header strong")).toHaveText("unknown");
+  await expect(view.getByRole("button", { name: "后一单词" })).toBeDisabled();
+  const key = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta" : "Control");
+  await page.keyboard.press(`${key}+ArrowLeft`);
+  await expect(view.locator("header strong")).toHaveText("sample");
+  if (width === 1280) {
+    await panel.getByRole("searchbox").fill("sample");
+    await page.keyboard.press(`${key}+ArrowRight`);
+    await expect(view.locator("header strong")).toHaveText("sample");
+    await panel.getByRole("combobox", { name: "词汇排序" }).selectOption("added");
+    await expect(view.getByRole("button", { name: "后一单词" })).toBeDisabled();
+    await view.getByRole("button", { name: "前一单词" }).click();
+    await expect(view.locator("header strong")).toHaveText("unknown");
+  }
+});
+
+test("词汇按子目录组织，根路径搜索保持路径且右键不选中文本", async ({ page }) => {
+  await seed(page);
+  await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts");
+    const { mdToDelta } = await load("/src/lib/md-parser.ts");
+    for (const path of ["references/vocabulary/awl/unit1", "references/vocabulary/other"])
+      await api.notes.create({ title: "nestedword", storagePath: path, content: mdToDelta("# nestedword\n\n## 剑桥词典\n\n### noun\n\n#### 释义 1\n\nExample.") });
+  });
+  await page.getByRole("button", { name: "词汇学习", exact: true }).click();
+  const panel = page.getByRole("region", { name: "词汇学习分栏" });
+  const awl = panel.locator('[data-vocabulary-path="references/vocabulary/awl"]');
+  await expect(awl).toBeVisible();
+  await awl.click();
+  await expect(panel.locator('[data-vocabulary-path$="unit1"]')).toHaveCount(0);
+  await panel.getByRole("searchbox").fill("nestedword");
+  await expect(panel.getByRole("button", { name: "nestedword", exact: true })).toHaveCount(2);
+  await expect(panel.locator('[data-vocabulary-path$="unit1"]')).toBeVisible();
+  const word = panel.getByRole("button", { name: "nestedword", exact: true }).first();
+  await word.click({ button: "right" });
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("");
+  expect(await word.evaluate(element => {
+    const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    element.dispatchEvent(event);
+    return event.defaultPrevented;
+  })).toBe(true);
+  const footer = panel.locator(".vocabulary-path");
+  expect((await footer.boundingBox())!.y).toBeGreaterThan((await panel.getByRole("searchbox").boundingBox())!.y);
+  await word.click();
+  await expect(panel.locator('[aria-current="true"]')).toHaveCount(1);
+  await expect(page.getByRole("region", { name: "词汇学习视图" })).toContainText("nestedword");
+  await panel.getByRole("searchbox").fill("nestedword");
+  await panel.getByRole("button", { name: "刷新词汇列表" }).click();
+  await expect(panel.getByText("正在加载词汇列表…")).toHaveCount(0);
+  await expect(panel.getByRole("searchbox")).toHaveValue("nestedword");
+});

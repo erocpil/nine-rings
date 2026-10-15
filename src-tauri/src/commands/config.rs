@@ -152,7 +152,7 @@ fn default_editor_font_family() -> String {
 }
 
 fn default_editor_line_height() -> f64 {
-    1.6
+    1.7
 }
 
 fn default_editor_block_spacing() -> f64 {
@@ -635,7 +635,7 @@ mod tests {
         assert_eq!(config.editor_block_number_gap, 8);
         assert_eq!(config.note_font_size, 19);
         assert_eq!(config.editor_font_family, "system");
-        assert_eq!(config.editor_line_height, 1.6);
+        assert_eq!(config.editor_line_height, 1.7);
         assert_eq!(config.editor_block_spacing, 1.0);
         assert_eq!(config.editor_heading_margin_top, 0.7);
         assert_eq!(config.editor_heading_margin_bottom, 0.35);

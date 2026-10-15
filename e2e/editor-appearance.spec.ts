@@ -65,7 +65,7 @@ test("排版设置中的调整即时生效并在重载后保持", async ({ page 
   }))).toEqual({
     family: '"Noto Serif SC", "Songti SC", SimSun, serif',
     size: "17px",
-    lineHeight: "1.7",
+    lineHeight: "1.8",
     blockSpacing: "1.05em",
     listIndent: "1.05em",
     searchColor: "#33aa77",
@@ -131,7 +131,7 @@ test("排版设置中的调整即时生效并在重载后保持", async ({ page 
     headingBottom: (element as HTMLElement).style.getPropertyValue("--editor-heading-margin-bottom"),
     listTop: (element as HTMLElement).style.getPropertyValue("--editor-list-margin-top"),
     listBottom: (element as HTMLElement).style.getPropertyValue("--editor-list-margin-bottom"),
-  }))).toEqual({ size: "17px", lineHeight: "1.7", blockSpacing: "1.05em", searchColor: "#33aa77", headingTop: "0.75em", headingBottom: "0.3em", listTop: "0.3em", listBottom: "0.2em" });
+  }))).toEqual({ size: "17px", lineHeight: "1.8", blockSpacing: "1.05em", searchColor: "#33aa77", headingTop: "0.75em", headingBottom: "0.3em", listTop: "0.3em", listBottom: "0.2em" });
   await expect(page.locator(".menu-font-size-label")).toHaveText("17");
 });
 
@@ -341,4 +341,24 @@ test("当前行高亮保持轻量且代码块字号接近正文", async ({ page 
   expect(sizes.code / sizes.body).toBeGreaterThanOrEqual(0.94);
   expect(sizes.code / sizes.body).toBeLessThanOrEqual(1);
   expect(sizes.activeLine).toBe("rgba(9, 105, 218, 0.06)");
+});
+
+test("经典默认行距在渲染、源码正文与行号间保持一致", async ({ page }) => {
+  await createBlankDocument(page, "经典行距");
+  const editor = page.locator(".note-editor .ProseMirror");
+  await editor.fill("第一行正文");
+  const lineHeight = await editor.evaluate(element => {
+    const style = getComputedStyle(element);
+    return Number.parseFloat(style.lineHeight) / Number.parseFloat(style.fontSize);
+  });
+  expect(lineHeight).toBeCloseTo(1.7, 2);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const source = page.locator(".markdown-cm-host .cm-scroller");
+  await expect(source).toBeVisible();
+  expect(await source.evaluate(element => {
+    const style = getComputedStyle(element);
+    return Number.parseFloat(style.lineHeight) / Number.parseFloat(style.fontSize);
+  })).toBeCloseTo(1.7, 2);
+  const gutter = page.locator(".markdown-cm-host .cm-gutters");
+  await expect(gutter).toHaveCSS("line-height", await source.evaluate(element => getComputedStyle(element).lineHeight));
 });

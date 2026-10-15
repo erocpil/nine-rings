@@ -1,4 +1,13 @@
 /* Docked document tools share one resizable track; previews retain anchored positioning. */
+.desktop-document-panels .document-outline-header-primary > .document-panel-title,
+.desktop-document-panels h3 > .document-panel-title {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
 .desktop-document-panels :is(.document-outline-panel, .document-bookmark-panel, .vr-panel[data-document-kind]) {
   font: 400 13px/1.35 var(--font);
 }
@@ -428,3 +437,5 @@
 @media (max-width: 768px), (pointer: coarse) {
   .app .document-bookmark-list[data-panel-display="plugin"] :is(.document-bookmark-item, .vr-bookmark) { min-height: max(36px, var(--list-display-row-height)); }
 }
+
+.titlebar-btn-focus[aria-pressed="true"] { color: var(--accent); }

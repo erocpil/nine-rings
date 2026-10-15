@@ -1,3 +1,5 @@
+import { documentNavigation } from "./document-navigation";
+import { readVocabularySort, sortVocabulary } from "../vocabulary-reading-state";
 import { pluginRuntime, PluginHostError } from "./runtime";
 import { pluginLifecycle } from "./lifecycle";
 import { workspacePanels } from "./panel-registry";
@@ -172,6 +174,19 @@ export function startBuiltinVocabulary() {
                 label: "词汇学习",
                 renderer: "vocabulary-library",
                 icon: "book",
+              });
+              documentNavigation.register(owner.activation, VOCABULARY_VIEW, {
+                async list() {
+                  return sortVocabulary(await vocabularyDocuments.list(), readVocabularySort()).map(note => ({ id: note.id, title: note.title || "无标题", scope: note.storagePath || "" }));
+                },
+                async open(id, currentId) {
+                  const before = mainViews.getSnapshot();
+                  if (before.suspended || before.current?.renderer !== "vocabulary" || before.current.data.documentId !== currentId) return;
+                  const data = await vocabularyDocuments.read(id);
+                  const after = mainViews.getSnapshot();
+                  if (before.current !== after.current || after.suspended) return;
+                  mainViews.bind(owner.activation).open(VOCABULARY_VIEW, data);
+                },
               });
               owner.own(
                 subscribeToDataChanges((event) => {

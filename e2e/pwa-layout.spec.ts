@@ -761,9 +761,9 @@ test.describe("PWA 窄屏应用外壳", () => {
     await row.getByRole("button", { name: "文档书签", exact: true }).click();
     await expect(page.getByRole("navigation", { name: "文档书签", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
-    await row.getByRole("button", { name: "专注模式", exact: true }).click();
+    await page.getByRole("button", { name: "专注模式", exact: true }).click();
     await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
-    await row.getByRole("button", { name: "退出专注模式", exact: true }).click();
+    await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
     const popup = await openMobileDocumentPopup(page);
     await expect(popup.getByRole("button", { name: "快速切换笔记", exact: true })).toBeVisible();
     await popup.getByRole("button", { name: "全局搜索", exact: true }).click();
@@ -1096,14 +1096,14 @@ test.describe("PWA 窄屏应用外壳", () => {
       await checkPosition();
       await page.setViewportSize({ width, height: 480 });
       await checkPosition();
-      await row.getByTitle("专注模式").click();
+      await page.getByTitle("专注模式").click();
       await checkPosition();
     });
   }
 
   test("点击目录书签使用浮层，右侧滑动使用侧栏，交替打开不串用", async ({ page }) => {
     await createOutlineFixture(page, "入口区分测试");
-    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await page.getByTitle("专注模式").click();
     const bar = page.locator(".note-title-row");
     const outlineButton = bar.getByRole("button", { name: "文档目录", exact: true });
     const bookmarkButton = bar.getByRole("button", { name: "文档书签", exact: true });
@@ -1151,7 +1151,7 @@ test.describe("PWA 窄屏应用外壳", () => {
   test("专注阅读侧栏切换目录书签后，下半部手势打开设置且保留专注状态", async ({ page }) => {
     await createOutlineFixture(page, "专注设置入口");
     const row = page.locator(".note-title-row");
-    await row.getByTitle("专注模式").click();
+    await page.getByTitle("专注模式").click();
     for (const name of ["文档目录", "文档书签"]) {
       await row.getByRole("button", { name, exact: true }).click();
       await page.keyboard.press("Escape");
@@ -1167,7 +1167,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       await expect(drawer).toBeHidden();
       await settings.getByRole("button", { name: "关闭设置", exact: true }).click();
       await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
-      await expect(row.getByRole("button", { name: "退出专注模式", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "退出专注模式", exact: true })).toBeVisible();
     }
   });
 
@@ -1181,7 +1181,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
     });
     await expect(editor.locator("h1, h2, h3").filter({ hasText: /^第 \d+ 章$/ })).toHaveCount(35);
-    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await page.getByTitle("专注模式").click();
     const drawer = page.getByRole("dialog", { name: "阅读侧栏" });
     const host = page.locator(".note-editor");
     const drawerElement = page.locator(".mobile-document-drawer-panel");
@@ -1251,7 +1251,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
     });
     await pressDocumentBoundary(editor, "start");
-    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await page.getByTitle("专注模式").click();
     const body = page.locator(".note-editor-scroll");
     await expect.poll(() => body.evaluate(async (element) => {
       const path = "/src/lib/reading-position.ts";
@@ -1330,7 +1330,7 @@ test.describe("PWA 窄屏应用外壳", () => {
   test("左右边缘采用相同的距离方向判定并允许慢划", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
-    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await page.getByTitle("专注模式").click();
     await page.getByRole("button", { name: "文档书签", exact: true }).click();
     await page.keyboard.press("Escape");
     const host = page.locator(".note-editor");
@@ -1376,7 +1376,7 @@ test.describe("PWA 窄屏应用外壳", () => {
   test("边缘滑动提前锁定方向，纵向滚动和取消后不再打开面板", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
-    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await page.getByTitle("专注模式").click();
     await page.getByRole("button", { name: "文档书签", exact: true }).click();
     await page.keyboard.press("Escape");
     const host = page.locator(".note-editor");
@@ -1428,7 +1428,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       ed.commands.setContent({ type: "doc", content: Array.from({ length: 100 }, (_, i) => ({ type: "paragraph", content: [{ type: "text", text: `正文第 ${i + 1} 段，用于验证滑动时的位置稳定。` }] })) }, true);
     });
     await expect(page.getByRole("button", { name: "文档目录", exact: true })).toHaveCount(0);
-    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await page.getByTitle("专注模式").click();
     await editor.evaluate((element) => { (element as HTMLElement).blur(); window.getSelection()?.removeAllRanges(); });
     const scroller = page.locator(".note-editor-scroll");
     const session = await page.context().newCDPSession(page);
@@ -1564,7 +1564,7 @@ test.describe("PWA 窄屏应用外壳", () => {
 
   test("左右侧栏忽略键盘关闭后的旧视口尺寸并遵循减少动画", async ({ page }) => {
     await page.goto("/");
-    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await page.getByTitle("专注模式").click();
     await page.evaluate(() => {
       const viewport = window.visualViewport!;
       for (const [name, value] of Object.entries({ offsetLeft: 25, offsetTop: 20, width: 340, height: 600 })) {
@@ -1655,7 +1655,7 @@ test.describe("PWA 窄屏应用外壳", () => {
         await page.getByLabel("关闭设置").click();
         await expect(page.getByRole("dialog", { name: "设置", exact: true })).toBeHidden();
       }
-      await page.locator(".note-title-row").getByRole("button", { name: "专注模式", exact: true }).click();
+      await page.getByRole("button", { name: "专注模式", exact: true }).click();
       await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", numbers ? "50px" : "22px");
       for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
         await page.setViewportSize(viewport);
@@ -1683,7 +1683,7 @@ test.describe("PWA 窄屏应用外壳", () => {
         }
       }
       if (!numbers) {
-        await page.locator(".note-title-row").getByRole("button", { name: "退出专注模式", exact: true }).click();
+        await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
         await expect(page.locator(".note-editor")).not.toHaveClass(/focus-mode/);
       }
     }
@@ -2042,7 +2042,7 @@ test.describe("PWA 窄屏应用外壳", () => {
   test("专注模式在竖屏、横屏和桌面均使用唯一文档标题行", async ({ page }) => {
     await createOutlineFixture(page, "专注旋转验证");
     const row = page.locator(".note-title-row");
-    await row.getByTitle("专注模式").click();
+    await page.getByTitle("专注模式").click();
     for (const viewport of [
       { width: 390, height: 760 },
       { width: 844, height: 390 },
@@ -2053,15 +2053,15 @@ test.describe("PWA 窄屏应用外壳", () => {
       await expect(row).toHaveCount(1);
       await expect(row).toBeVisible();
       await expect(page.locator(".mobile-focus-bar, .desktop-focus-toolbar, .app-header")).toHaveCount(0);
-      await expect(row.getByRole("button", { name: "退出专注模式", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "退出专注模式", exact: true })).toBeVisible();
       const box = (await row.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
       expect(box.y).toBeGreaterThanOrEqual(0);
       expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
     }
-    await row.getByRole("button", { name: "退出专注模式", exact: true }).click();
-    await expect(row.getByRole("button", { name: "专注模式", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
+    await expect(page.getByRole("button", { name: "专注模式", exact: true })).toBeVisible();
   });
 
   test("手机横向滚动工具栏保留全部命令且不误触导出", async ({ page }) => {
@@ -2357,7 +2357,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(sidebar).toBeHidden();
     await expect(page.locator(".search-match-active")).toHaveText("色");
 
-    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await page.getByTitle("专注模式").click();
     await swipeNoteEditor(host, { startX: 382, startY: 190, endX: 282, endY: 195 });
     await expect(page.getByRole("dialog", { name: "阅读侧栏" })).toBeVisible();
     await expect(page.locator(".mobile-document-drawer")).toHaveCSS("height", "760px");

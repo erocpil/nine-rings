@@ -946,3 +946,21 @@
   overflow-wrap: anywhere;
   pointer-events: none;
 }
+
+.doc-tree-path-toast {
+  position: fixed;
+  z-index: 10051;
+  bottom: max(42px, calc(var(--safe-bottom, 0px) + 16px));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  box-shadow: 0 4px 20px #0002;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 const paths = {
+  focus: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></>,
   book: <><path d="M3 4h7l2 2 2-2h7v16h-7l-2 2-2-2H3ZM12 6v16M6 8h3M15 8h3" /></>,
   highlight: <><path d="m4 14 10-10 6 6-10 10H5ZM9 9l6 6M3 22h18" /></>,
   tableRow: <><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M3 15h18" /><rect x="3" y="9" width="18" height="6" fill="currentColor" fillOpacity=".2" /></>,

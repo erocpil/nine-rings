@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 for (const style of ["classic", "calm"] as const)
-test(`长目录的滚动按钮在悬浮和固定面板中与收起按钮对齐且持续可见：${style}`, async ({ page }) => {
+test(`长目录滚动按钮在悬浮和固定面板中对齐且持续可见：${style}`, async ({ page }) => {
   await page.addInitScript(style => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: style })), style);
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
@@ -26,6 +26,11 @@ test(`长目录的滚动按钮在悬浮和固定面板中与收起按钮对齐�
     const alignment = await panel.evaluate(element => {
       const close = element.querySelector<HTMLButtonElement>('button[aria-label="固定目录"], button[aria-label="收起固定目录"]')!;
       const closeRect = close.getBoundingClientRect();
+      // The docked title now collapses from the left tool group; on narrow
+      // panels that group may wrap independently of the right scroll tools.
+      const reference = close.closest(".document-outline-header-actions") ? close
+        : element.querySelector<HTMLButtonElement>(".document-outline-jumps button")!;
+      const referenceRect = reference.getBoundingClientRect();
       const textCenter = (button: HTMLButtonElement) => {
         const range = document.createRange();
         range.selectNodeContents(button);
@@ -37,7 +42,7 @@ test(`长目录的滚动按钮在悬浮和固定面板中与收起按钮对齐�
         const button = Array.from(element.querySelectorAll<HTMLButtonElement>(".document-outline-jumps button"))
           .find(candidate => candidate.getAttribute("aria-label") === label)!;
         const rect = button.getBoundingClientRect();
-        return { offset: Math.abs((rect.top + rect.bottom) / 2 - (closeRect.top + closeRect.bottom) / 2), topOffset: Math.abs(rect.top - closeRect.top), heightDifference: Math.abs(rect.height - closeRect.height), textOffset: Math.abs(textCenter(button) - textCenter(close)), inside: rect.left >= panelRect.left && rect.right <= panelRect.right };
+        return { offset: Math.abs((rect.top + rect.bottom) / 2 - (referenceRect.top + referenceRect.bottom) / 2), topOffset: Math.abs(rect.top - referenceRect.top), heightDifference: Math.abs(rect.height - referenceRect.height), textOffset: Math.abs(textCenter(button) - textCenter(reference)), inside: rect.left >= panelRect.left && rect.right <= panelRect.right };
       });
       return { buttons, closeInside: closeRect.left >= panelRect.left && closeRect.right <= panelRect.right };
     });

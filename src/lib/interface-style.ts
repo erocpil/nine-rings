@@ -22,7 +22,7 @@ export const INTERFACE_STYLES: ReadonlyArray<{
   {
     value: "classic",
     label: "经典",
-    description: "保留原有布局密度与控件外观",
+    description: "经典控件与自定义排版，舒展的桌面留白",
   },
   {
     value: "calm",

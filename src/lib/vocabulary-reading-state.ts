@@ -108,6 +108,7 @@ export function readVocabularySort(): VocabularySort {
 export function saveVocabularySort(value: VocabularySort) {
   try {
     localStorage.setItem(SORT_KEY, value);
+    window.dispatchEvent(new Event("nr:vocabulary-sort-change"));
   } catch {
     /* UI remains usable. */
   }

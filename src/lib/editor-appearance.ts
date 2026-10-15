@@ -3,7 +3,7 @@ import { DEFAULT_CONFIG, type AppConfig } from "./storage/types";
 export const DEFAULT_EDITOR_APPEARANCE = {
   note_font_size: 16,
   editor_font_family: "system",
-  editor_line_height: 1.6,
+  editor_line_height: 1.7,
   editor_block_spacing: 1,
   editor_paragraph_indent: 0,
   editor_heading_margin_top: 0.7,
@@ -132,7 +132,7 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
         "--style-custom-content-width": `${clamp(config.interface_content_width, 560, 1200, 780)}px`,
       } : {}),
     "--editor-font-size": `${clamp(config?.note_font_size, 12, 32, 16)}px`,
-    "--editor-line-height": String(clamp(config?.editor_line_height, 1.2, 2.2, 1.6)),
+    "--editor-line-height": String(clamp(config?.editor_line_height, 1.2, 2.2, 1.7)),
     "--editor-block-spacing": `${clamp(config?.editor_block_spacing, 0, 3, 1)}em`,
     "--editor-paragraph-indent": `${clamp(config?.editor_paragraph_indent, 0, 2, 0)}em`,
     "--editor-heading-margin-top": `${clamp(config?.editor_heading_margin_top, 0, 2, 0.7)}em`,

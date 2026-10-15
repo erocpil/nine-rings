@@ -12,6 +12,7 @@ import { copyDocumentBlock } from "../lib/block-clipboard";
 import { DeferredFlowBlock } from "./DeferredFlowBlock";
 import { flowBlockAttributes, flowHeadingLevel } from "../lib/flow-presentation";
 import { useDocumentActive } from "./RetainedDocument";
+import { OutlinePanelTitle } from "./OutlinePanelTitle";
 import { ReadonlyImage } from "./ReadonlyImage";
 import { BlockquoteToolbar } from "./BlockquoteToolbar";
 import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
@@ -1086,14 +1087,15 @@ export function ReadonlyVirtualNote(
         {bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}
       </button>
       <NavigationButtons />
-      <button
+      {mobileDrawerViewport && <button
         type="button"
+        className="document-focus-toggle"
         title={props.focusMode ? "退出专注模式" : "专注模式"}
         aria-label={props.focusMode ? "退出专注模式" : "专注模式"}
         onClick={() => props.onFocusModeChange?.(!props.focusMode)}
       >
         <ToolbarIcon name={props.focusMode ? "compress" : "expand"} />
-      </button>
+      </button>}
     </>
   );
   const renderPanel = (kind: "outline" | "bookmarks" | "search") => (
@@ -1112,7 +1114,7 @@ export function ReadonlyVirtualNote(
                   : "文内搜索"
             }
           >
-            <button
+            {!(kind === "outline" && !mobileDrawerViewport && desktopPanels.pinned("outline")) && <button
               type="button"
               className="vr-panel-close"
               aria-label="关闭阅读面板"
@@ -1122,11 +1124,11 @@ export function ReadonlyVirtualNote(
               }}
             >
               ×
-            </button>
+            </button>}
             {!mobileDrawerViewport && kind !== "search" && !desktopPanels.pinned(kind === "outline" ? "outline" : "bookmark") && <button type="button" onClick={() => togglePinnedPanel(kind === "outline" ? "outline" : "bookmark")}>固定{kind === "outline" ? "目录" : "书签"}</button>}
             {kind === "outline" && (
               <>
-                {!mobileDrawerViewport && <h3>目录</h3>}
+                {!mobileDrawerViewport && <h3><OutlinePanelTitle pinned={desktopPanels.pinned("outline")} onCollapse={() => togglePinnedPanel("outline")} /></h3>}
                 <div>
                   <button
                     type="button"

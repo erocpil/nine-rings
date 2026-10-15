@@ -1,3 +1,4 @@
+import { vocabularyTree, type VocabularyFolder } from "../lib/vocabulary-tree";
 import {
   useEffect,
   useCallback,
@@ -7,6 +8,7 @@ import {
   useState,
   useSyncExternalStore,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import {
   vocabularyDocuments,
@@ -44,6 +46,7 @@ export function VocabularyPanel({
   const [items, setItems] = useState<VocabularyDocumentSummary[]>([]);
   const [order, setOrder] = useState(readVocabularySort);
   const [query, setQuery] = useState("");
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -51,6 +54,10 @@ export function VocabularyPanel({
   const list = useRef<HTMLUListElement>(null);
   const busy = openingId !== null;
   const sorted = useMemo(() => sortVocabulary(items, order), [items, order]);
+  const tree = useMemo(
+    () => vocabularyTree(sorted, preference.path, query),
+    [sorted, preference.path, query],
+  );
   useEffect(() => {
     if (!active) return;
     let disposed = false;
@@ -84,6 +91,20 @@ export function VocabularyPanel({
   useEffect(() => {
     if (active && current) setQuery("");
   }, [active, current]);
+  useEffect(() => {
+    if (active && current) {
+      const path = items.find((item) => item.id === current)?.storagePath;
+      if (path)
+        setCollapsed(
+          (previous) =>
+            new Set(
+              [...previous].filter(
+                (folder) => path !== folder && !path.startsWith(`${folder}/`),
+              ),
+            ),
+        );
+    }
+  }, [active, current, items]);
   const revealCurrent = useCallback(() => {
     const root = list.current;
     const item =
@@ -106,12 +127,78 @@ export function VocabularyPanel({
     items,
     query,
     order,
+    collapsed,
     preference.listFont,
     preference.listFontSize,
     preference.listLineHeight,
     preference.listRowHeight,
     revealCurrent,
   ]);
+  const renderWord = (note: VocabularyDocumentSummary) => (
+    <li key={note.id}>
+      <button
+        type="button"
+        data-vocabulary-id={note.id}
+        onMouseDown={(event) => {
+          if (event.button === 2 || event.detail > 1) event.preventDefault();
+        }}
+        onContextMenu={(event) => {
+          // Reserved for a future host-owned word menu; never select text or open WebKit's menu.
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        aria-current={note.id === current ? "true" : undefined}
+        disabled={busy}
+        aria-busy={openingId === note.id || undefined}
+        title={`${note.title || "无标题"}\n${note.storagePath}`}
+        data-tooltip-align="start"
+        onClick={() => {
+          if (note.id === current && !view.suspended) return;
+          setOpeningId(note.id);
+          setError("");
+          void onOpen(note.id)
+            .catch((reason) => setError(String(reason)))
+            .finally(() => setOpeningId(null));
+        }}
+      >
+        <ToolbarIcon name="book" />
+        <span>{note.title || "无标题"}</span>
+      </button>
+    </li>
+  );
+  const renderFolder = (folder: VocabularyFolder): ReactNode => (
+    <>
+      {folder.folders.map((child) => {
+        const open = Boolean(query.trim()) || !collapsed.has(child.path);
+        return (
+          <li key={child.path}>
+            <button
+              type="button"
+              className="vocabulary-folder"
+              data-vocabulary-path={child.path}
+              title={child.path}
+              aria-expanded={open}
+              disabled={Boolean(query.trim())}
+              onClick={() =>
+                setCollapsed((previous) => {
+                  const next = new Set(previous);
+                  if (next.has(child.path)) next.delete(child.path);
+                  else next.add(child.path);
+                  return next;
+                })
+              }
+            >
+              <ToolbarIcon name={open ? "chevronDown" : "chevronRight"} />
+              <ToolbarIcon name="folder" />
+              <span>{child.name}</span>
+            </button>
+            {open && <ul>{renderFolder(child)}</ul>}
+          </li>
+        );
+      })}
+      {folder.documents.map(renderWord)}
+    </>
+  );
   return (
     <section
       className="vocabulary-panel"
@@ -166,6 +253,17 @@ export function VocabularyPanel({
           disabled={!items.some((item) => item.id === current)}
           onClick={() => {
             setQuery("");
+            const path = items.find((item) => item.id === current)?.storagePath;
+            if (path)
+              setCollapsed(
+                (previous) =>
+                  new Set(
+                    [...previous].filter(
+                      (folder) =>
+                        path !== folder && !path.startsWith(`${folder}/`),
+                    ),
+                  ),
+              );
             revealCurrent();
           }}
         >
@@ -181,9 +279,6 @@ export function VocabularyPanel({
           <ToolbarIcon name="refresh" />
         </button>
       </WorkspacePanelHeading>
-      <p className="vocabulary-path" title={preference.path}>
-        {preference.path}
-      </p>
       <input
         type="search"
         aria-label="查找词汇"
@@ -193,37 +288,8 @@ export function VocabularyPanel({
       />
       {error && <p role="alert">{error}</p>}
       {loading && <p role="status">正在加载词汇列表…</p>}
-      <ul ref={list}>
-        {sorted
-          .filter((note) =>
-            (note.title ?? "无标题")
-              .toLocaleLowerCase()
-              .includes(query.trim().toLocaleLowerCase()),
-          )
-          .map((note) => (
-            <li key={note.id}>
-              <button
-                type="button"
-                data-vocabulary-id={note.id}
-                aria-current={note.id === current ? "true" : undefined}
-                disabled={busy}
-                aria-busy={openingId === note.id || undefined}
-                title={`${note.title || "无标题"}\n${note.storagePath}`}
-                data-tooltip-align="start"
-                onClick={() => {
-                  if (note.id === current && !view.suspended) return;
-                  setOpeningId(note.id);
-                  setError("");
-                  void onOpen(note.id)
-                    .catch((reason) => setError(String(reason)))
-                    .finally(() => setOpeningId(null));
-                }}
-              >
-                <ToolbarIcon name="book" />
-                <span>{note.title || "无标题"}</span>
-              </button>
-            </li>
-          ))}
+      <ul ref={list} className="vocabulary-tree">
+        {renderFolder(tree)}
       </ul>
       {!loading &&
         query.trim() &&
@@ -246,6 +312,9 @@ export function VocabularyPanel({
           此路径暂无文档。请手动生成 .md 后，通过“备份与导入”导入到该路径。
         </p>
       )}
+      <p className="vocabulary-path" title={preference.path}>
+        {preference.path}
+      </p>
     </section>
   );
 }

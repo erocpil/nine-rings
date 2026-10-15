@@ -936,7 +936,7 @@ function DocTree({
         已选择左侧文档，请在文档树中点击另一篇文档作为右侧文档。
         <button type="button" onClick={() => setCompareSelection(null)}>取消</button>
       </div>}
-      {pathNotice && <div role="status" className="doc-tree-path-notice">{pathNotice}</div>}
+      {pathNotice && createPortal(<div role="status" className="doc-tree-path-toast">{pathNotice}</div>, document.body)}
       {exportProgress && <div role="status" className="doc-tree-path-notice">{exportProgress}</div>}
       {toolbarHost === undefined
         ? <div className="doc-tree-toolbar-inline">{toolbar}</div>

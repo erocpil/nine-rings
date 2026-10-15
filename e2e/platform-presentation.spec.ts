@@ -20,7 +20,7 @@ for (const width of [390, 1280]) {
     if (width === 390) await expect(page.getByRole("button", { name: "文档属性" })).toHaveText("跨端工具验证");
     else await expect(page.locator(".note-title")).toHaveValue("跨端工具验证");
     await expect(page.locator(".header-clock, .document-security-bar")).toHaveCount(0);
-    await expect(page.locator(".note-title-row").getByTitle("专注模式").locator("svg")).toHaveCount(1);
+    await expect(page.getByTitle("专注模式").locator("svg")).toHaveCount(1);
     await expect(page.locator(".note-title-row .document-bookmark-toggle")).toContainText("1");
     await page.evaluate(async () => {
       const load = (path: string) => import(/* @vite-ignore */ path);
@@ -31,10 +31,10 @@ for (const width of [390, 1280]) {
     await expect(titlebar.getByRole("button", { name: "文档目录" })).toHaveAttribute("aria-expanded", "false");
     const bookmarks = titlebar.getByRole("button", { name: "文档书签" });
     await expect(bookmarks.locator(".focus-bookmark-count")).toHaveText("1");
-    await expect(titlebar.getByRole("button", { name: "专注模式" }).locator("svg")).toHaveCount(1);
-    await titlebar.getByRole("button", { name: "专注模式" }).click();
+    await expect(page.getByRole("button", { name: "专注模式", exact: true }).locator("svg")).toHaveCount(1);
+    await page.getByRole("button", { name: "专注模式", exact: true }).click();
     const focus = page.locator(".vr-title");
-    await expect(focus.getByRole("button", { name: "退出专注模式" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "退出专注模式", exact: true })).toBeVisible();
     await expect(focus.getByRole("button", { name: "文档书签" })).toContainText("1");
     // Read-only titles toggle properties on both desktop and mobile.
     const focusTitle = focus.getByRole("button", { name: "文档属性", exact: true });
@@ -46,7 +46,7 @@ for (const width of [390, 1280]) {
     else await focusTitle.click();
     await expect(titlePanel).toBeHidden();
     await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
-    await focus.getByRole("button", { name: "退出专注模式" }).click();
+    await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
     await expect(titlebar).toBeVisible();
   });
 }

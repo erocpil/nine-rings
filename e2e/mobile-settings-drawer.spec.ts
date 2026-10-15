@@ -85,7 +85,7 @@ for (const width of [390, 1280]) {
     await page.getByRole("button", { name: /^层次展示/ }).click();
     const hierarchy = page.locator('.settings-body[data-settings-page="hierarchy"]');
     await expect.poll(() => hierarchy.evaluate(element => element.scrollTop)).toBe(0);
-    await page.getByLabel("返回外观与布局").click();
+    await page.keyboard.press("Escape");
     await expect.poll(() => appearance.evaluate(element => element.scrollTop)).toBe(appearancePosition);
     await page.getByLabel("返回设置分类").click();
     await expect.poll(() => root.evaluate(element => element.scrollTop)).toBe(rootPosition);

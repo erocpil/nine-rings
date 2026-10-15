@@ -119,6 +119,7 @@ import { exportDocumentMarkdown } from "../lib/markdown-export";
 import { isTauri } from "../lib/tauri-desktop";
 import { exportDocumentAsPdf, type PdfDocumentInfo } from "../lib/pdf-export";
 import { FULLSCREEN_WILL_CHANGE_EVENT } from "../lib/fullscreen";
+import { OutlinePanelTitle } from "./OutlinePanelTitle";
 import { preserveReadingPositions } from "../lib/reading-position";
 import { editorGutterWidth } from "../lib/editor-gutter";
 import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
@@ -1318,7 +1319,9 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
 
   // Markdown 导入和手动标题最终都会成为 heading 节点，因此目录直接读取
   // 编辑器结构即可，并在正文变化时同步更新而无需改写文档内容。
-  useEffect(() => {
+  // 初始化必须在首帧绘制前完成，否则源码切回时会先画无目录的全宽正文，
+  // 再补上固定面板；正文输入仍沿用下面的防抖增量刷新。
+  useLayoutEffect(() => {
     if (!editor) return;
     const refresh = () => {
       const next = extractDocumentOutline(editor.state.doc);
@@ -3802,7 +3805,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         >
           <div className="document-outline-header">
             <div className="document-outline-header-primary">
-              <span>目录</span>
+              <OutlinePanelTitle pinned={!isMobileToolbarViewport && desktopPanels.pinned("outline")} onCollapse={() => togglePinnedPanel("outline")} />
               <OutlineDisplayTools listRef={outlineListRef} />
               <button
                 type="button"
@@ -3842,7 +3845,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
                   ? `${documentOutline.length} 项`
                   : `${visibleOutlineEntries.length}/${documentOutline.length} 项`}
               </span>}
-              {!isMobileToolbarViewport && <button type="button" onClick={() => togglePinnedPanel("outline")} aria-label={desktopPanels.pinned("outline") ? "收起固定目录" : "固定目录"}>{desktopPanels.pinned("outline") ? "收起" : "固定"}</button>}
+              {!isMobileToolbarViewport && !desktopPanels.pinned("outline") && <button type="button" onClick={() => togglePinnedPanel("outline")} aria-label="固定目录">固定</button>}
             </div>
           </div>
           <DocumentOutlineList
@@ -4396,14 +4399,14 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           ><FocusModeIcon name="bookmark" />{bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}</button>
           {unifiedTitleBar && focusMode && !readonly && <button type="button" className="focus-btn" title="更多编辑工具" aria-label="更多编辑工具" aria-expanded={focusToolbarExpanded} onClick={() => setFocusToolbarExpanded(value => !value)}><ToolbarIcon name="annotate" /></button>}
           <NavigationButtons />
-          <button
-            className={`focus-btn ${focusMode ? "active" : ""}`}
+          {isMobileToolbarViewport && <button
+            className={`focus-btn document-focus-toggle ${focusMode ? "active" : ""}`}
             onClick={() => { onFocusModeChange?.(!focusMode); }}
             title={focusMode ? "退出专注模式" : "专注模式"}
             type="button"
           >
             <ToolbarIcon name={focusMode ? "compress" : "expand"} />
-          </button>
+          </button>}
         </div>
         {/* ── 标签区 ── */}
         {tags.length > 0 && <div className="tag-bar">

@@ -1,3 +1,4 @@
+import { ToolbarIcon } from "./ToolbarIcon";
 import { useFocusTabs, saveFocusTabs } from "../lib/focus-tabs";
 import {
   useEffect,
@@ -27,12 +28,16 @@ export default function TitleBar({
   workspace,
   children,
   focusTabs,
+  focus = false,
+  onFocusChange,
 }: {
   exhibition?: boolean;
   wordmark?: boolean;
   workspace?: ReactNode;
   children?: ReactNode;
   focusTabs?: ReactNode;
+  focus?: boolean;
+  onFocusChange?: (focus: boolean) => void;
 }) {
   const native = isTauriRuntime();
   const tabs = useFocusTabs();
@@ -267,6 +272,7 @@ export default function TitleBar({
         <div className="titlebar-controls titlebar-appearance">{children}</div>
       )}
       <div className="titlebar-controls">
+        {onFocusChange && <button type="button" className="titlebar-btn titlebar-btn-focus" aria-label={focus ? "退出专注模式" : "专注模式"} title={focus ? "退出专注模式" : "专注模式"} aria-pressed={focus} onClick={() => onFocusChange(!focus)}><ToolbarIcon name="focus" /></button>}
         {(native || document.fullscreenEnabled) && (
           <button
             className="titlebar-btn titlebar-btn-fullscreen"

@@ -643,7 +643,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .app-desktop-workspace
-    :is(.document-outline-item.current, .document-bookmark-item.is-current) {
+    .document-bookmark-item.is-current {
     box-shadow: inset 2px 0 var(--accent);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
@@ -693,4 +693,17 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
     flex-wrap: wrap;
     row-gap: 4px;
   }
+}
+
+/* Classic keeps user typography; relax the surrounding desktop chrome instead
+   of changing stored font sizes or adding gaps inside lists and tables. */
+html[data-interface-style="classic"] .app-desktop-workspace .app-main {
+  padding: 14px 18px;
+}
+html[data-interface-style="classic"] .app-desktop-workspace .note-title-row {
+  padding-block: 6px;
+}
+html[data-interface-style="classic"] .app-desktop-workspace .editor-menu {
+  padding-block: 5px;
+  margin-bottom: 8px;
 }

@@ -70,7 +70,7 @@ for (const staleIntersection of [false, true]) {
     await page
       .locator(".sidebar-overlay.active")
       .click({ position: { x: 380, y: 100 } });
-    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await page.getByTitle("专注模式").click();
 
     const alignTail = async () => {
       await editor
@@ -182,7 +182,7 @@ test("命中测试落空时仍定位真实可视块而不是光标所在块", as
   await page
     .locator(".sidebar-overlay.active")
     .click({ position: { x: 380, y: 100 } });
-  await page.locator(".note-title-row").getByTitle("专注模式").click();
+  await page.getByTitle("专注模式").click();
   // Focus mode changes typography and restores the outgoing reading anchor.
   // Start this independent scroll only after that restoration has finished.
   await expect.poll(() => editor.evaluate(async (element) => {

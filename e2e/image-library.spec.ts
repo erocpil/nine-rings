@@ -676,22 +676,21 @@ test("图片树菜单复制名称路径及目录收起，键盘不会切换图�
 
 test("图片与文档共享专注状态，切换和返回不会重置", async ({ page }) => {
   const { viewer } = await openTwoPictures(page);
-  await viewer.getByRole("button", { name: "进入图片专注模式" }).click();
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
   await page.getByRole("button", { name: "文档树", exact: true }).click();
   await expect(page.locator(".note-editor:visible")).toHaveClass(/focus-mode/);
   await page.getByRole("button", { name: "图片", exact: true }).click();
-  await viewer.getByRole("button", { name: "退出图片专注模式" }).click();
+  await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
   await page.getByRole("button", { name: "文档树", exact: true }).click();
   await expect(page.locator(".note-editor:visible")).not.toHaveClass(
     /focus-mode/,
   );
   await page
-    .locator(".note-editor:visible")
     .getByTitle("专注模式", { exact: true })
     .click();
   await page.getByRole("button", { name: "图片", exact: true }).click();
   await expect(
-    viewer.getByRole("button", { name: "退出图片专注模式" }),
+    page.getByRole("button", { name: "退出专注模式", exact: true }),
   ).toBeVisible();
   await viewer.getByRole("button", { name: "返回原视图" }).click();
   await expect(page.locator(".note-editor:visible")).toHaveClass(/focus-mode/);
@@ -926,7 +925,7 @@ test("图片专注模式保持查看器和分栏状态，属性可浮动和固�
   );
   const { panel, viewer } = await openTwoPictures(page);
   const before = await viewer.boundingBox();
-  await viewer.getByRole("button", { name: "进入图片专注模式" }).click();
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
   await expect(page.locator(".exhibition-masthead")).toBeHidden();
   await expect(panel).toBeVisible();
   await expect(page.locator(".desktop-activity-bar")).toBeVisible();
@@ -944,13 +943,14 @@ test("图片专注模式保持查看器和分栏状态，属性可浮动和固�
     exact: true,
   });
   const back = viewer.getByRole("button", { name: "返回原视图" });
-  const focus = viewer.getByRole("button", { name: "退出图片专注模式" });
+  const focus = page.getByRole("button", { name: "退出专注模式", exact: true });
   expect((await propertyButton.boundingBox())!.x).toBeLessThan(
     (await back.boundingBox())!.x,
   );
-  expect((await focus.boundingBox())!.x).toBeGreaterThan(
-    (await back.boundingBox())!.x,
+  expect((await focus.boundingBox())!.y).toBeLessThan(
+    (await back.boundingBox())!.y,
   );
+  await expect(focus).toHaveClass(/titlebar-btn-focus/);
   await properties
     .getByRole("button", { name: "固定图片属性", exact: true })
     .click();
@@ -966,9 +966,9 @@ test("图片专注模式保持查看器和分栏状态，属性可浮动和固�
     .click();
   await expect(properties).toContainText("192 × 192");
   await expect(
-    viewer.getByRole("button", { name: "退出图片专注模式" }),
+    page.getByRole("button", { name: "退出专注模式", exact: true }),
   ).toBeVisible();
-  await viewer.getByRole("button", { name: "退出图片专注模式" }).click();
+  await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
   await expect(panel).toBeVisible();
   await panel
     .getByRole("button", { name: "icon-192.png", exact: true })
@@ -1002,7 +1002,7 @@ test("正文图片弹层支持专注与属性，Esc 依次关闭属性、退出�
     .getByRole("button", { name: "查看图片", exact: true })
     .click({ force: true });
   const viewer = page.getByRole("dialog", { name: "图片查看器" });
-  await viewer.getByRole("button", { name: "进入图片专注模式" }).click();
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
   await expect(viewer).toHaveClass(/image-viewer-focus/);
   await viewer.getByRole("button", { name: "图片属性", exact: true }).click();
   const props = viewer.getByRole("region", { name: "图片属性" });

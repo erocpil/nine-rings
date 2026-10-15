@@ -28,9 +28,12 @@ const folder = (page: Page) => page.locator(".app-sidebar .doc-tree-folder").fil
 
 test("桌面右键复制目录和文档所在路径，复制失败不假报成功", async ({ page }) => {
   await fixture(page);
+  const before = await folder(page).boundingBox();
   await folder(page).click({ button: "right" });
   await page.locator(".doc-context-item").getByText("复制路径", { exact: true }).click();
   await expect(page.locator("body")).toHaveAttribute("data-copied-path", "references/操作目录");
+  await expect(page.locator(".doc-tree-path-toast")).toBeVisible();
+  expect((await folder(page).boundingBox())!.y).toBe(before!.y);
   await page.locator(".app-sidebar .doc-tree-doc").filter({ hasText: "路径操作正文" }).click({ button: "right" });
   await page.locator(".doc-context-item").getByText("复制所在路径", { exact: true }).click();
   await expect(page.locator("body")).toHaveAttribute("data-copied-path", "references/操作目录");
@@ -71,4 +74,21 @@ test.describe("手机目录操作", () => {
     }, ids);
     expect(deleted).toEqual([true, true, false]);
   });
+});
+
+
+test("路径页默认收起概览，手动展开后切路径再次收起", async ({ page }) => {
+  await fixture(page);
+  await page.evaluate(async () => {
+    const path = "/src/lib/api.ts";
+    const { api } = await import(/* @vite-ignore */ path);
+    await api.config.set({ interface_style: "calm", workspace_layout: "exhibition" });
+  });
+  await page.reload();
+  await folder(page).locator(".doc-tree-name").click();
+  await expect(page.locator(".exhibition-columns")).toHaveCount(0);
+  await page.getByRole("button", { name: "展开概览", exact: true }).click();
+  await expect(page.locator(".exhibition-columns")).toBeVisible();
+  await page.locator(".app-sidebar .doc-tree-folder .doc-tree-name").filter({ hasText: /^操作目录其它$/ }).click();
+  await expect(page.locator(".exhibition-columns")).toHaveCount(0);
 });

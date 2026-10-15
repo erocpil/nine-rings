@@ -536,3 +536,43 @@ test("Web/PWA 从 GitHub Pull 后自动应用设置并恢复最后文档位置",
   }), localOnlyNote.id)).toBe(true);
   expect(downloadCount).toBe(0);
 });
+
+for (const width of [390, 1280]) {
+  test(`设置所有分类和子页 Esc 逐层返回，宽度 ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+    if (width < 768) await openMobileSettings(page);
+    else await page.getByTitle("设置", { exact: true }).click();
+    const body = page.locator(".settings-body");
+    const categories = ["外观与布局", "编辑器", "文档管理", "快捷键", "云端同步", "备份与导入", "高级", "更新记录"];
+    for (const title of categories) {
+      await page.getByLabel("设置分类", { exact: true }).getByRole("button", { name: new RegExp(`^${title}`) }).click();
+      await page.keyboard.press("Escape");
+      await expect(body).toHaveAttribute("data-settings-page", "root");
+    }
+    for (const [category, parent, children] of [
+      ["外观与布局", "appearance", ["层次展示", "布局设置", "导航区样式"]],
+      ["编辑器", "editor", ["Vim 设置"]],
+      ["文档管理", "documents", ["书签", "标签管理", "作者与文档默认值"]],
+    ] as const) {
+      await page.getByLabel("设置分类", { exact: true }).getByRole("button", { name: new RegExp(`^${category}`) }).click();
+      for (const child of children) {
+        await body.getByRole("button", { name: new RegExp(`^${child}`) }).click();
+        await page.keyboard.press("Escape");
+        await expect(body).toHaveAttribute("data-settings-page", parent);
+      }
+      await page.keyboard.press("Escape");
+      await expect(body).toHaveAttribute("data-settings-page", "root");
+    }
+    await page.getByLabel("设置分类", { exact: true }).getByRole("button", { name: /^编辑器/ }).click();
+    await page.getByRole("button", { name: /打开排版设置/ }).click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "排版设置" })).toHaveCount(0);
+    await expect(body).toHaveAttribute("data-settings-page", "editor");
+    await page.keyboard.press("Escape");
+    await expect(body).toHaveAttribute("data-settings-page", "root");
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".settings-panel")).toHaveCount(0);
+  });
+}
