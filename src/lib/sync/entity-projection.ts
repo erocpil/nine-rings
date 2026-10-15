@@ -1,11 +1,10 @@
 /** Narrow candidate semantic projection, never applied to arbitrary backup data. */
-import { canonicalJson, canonicalDigest } from "./canonical-codec";
+import { canonicalDigest } from "./canonical-codec";
 import { parseSyncJson } from "./strict-json";
 import {
   reviewCandidatePayload,
   type CandidateRuntime,
 } from "./candidate-write-policy";
-import { isEncrypted } from "../document-crypto";
 export interface SyncEntity {
   kind:
     "note" | "template" | "settings" | "protected-path" | "protected-version";
@@ -13,35 +12,8 @@ export interface SyncEntity {
   value: unknown;
   sha256: string;
 }
-export function candidateBodyProjection(body: unknown): unknown {
-  const parsed = typeof body === "string" ? parseSyncJson(body) : body;
-  if (isEncrypted(parsed)) return parsed;
-  const ops = (
-    parsed as {
-      ops: { insert: string; attributes?: Record<string, unknown> }[];
-    }
-  ).ops;
-  const merged: { insert: string; attributes?: Record<string, unknown> }[] = [];
-  for (const op of ops) {
-    const attrs =
-      op.attributes && Object.keys(op.attributes).length
-        ? op.attributes
-        : undefined;
-    if (!op.insert) continue;
-    const previous = merged[merged.length - 1];
-    if (
-      previous &&
-      canonicalJson(previous.attributes ?? {}) === canonicalJson(attrs ?? {})
-    )
-      previous.insert += op.insert;
-    else
-      merged.push({
-        insert: op.insert,
-        ...(attrs ? { attributes: attrs } : {}),
-      });
-  }
-  return { ops: merged };
-}
+export { candidateBodyProjection } from "./body-projection";
+import { candidateBodyProjection } from "./body-projection";
 export async function candidateEntities(
   source: string,
   runtime: CandidateRuntime,

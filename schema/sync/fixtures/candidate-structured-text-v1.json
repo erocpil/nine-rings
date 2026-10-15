@@ -1,0 +1,234 @@
+{
+  "version": 2,
+  "exported_at": "2026-10-14T00:00:00Z",
+  "notes": [
+    {
+      "id": "structured-0",
+      "date": "2026-10-14",
+      "title": "结构样本 0",
+      "content": {
+        "ops": [
+          {
+            "insert": "父项"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "ordered",
+              "taskChecked": false,
+              "block-indent": 1,
+              "block-indent-explicit": true,
+              "list-spread": true,
+              "listStart": 9,
+              "list-block-start": true
+            }
+          },
+          {
+            "insert": "子项 中文 é 😀"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet",
+              "taskChecked": true,
+              "indent": 1,
+              "list-block-start": true
+            }
+          },
+          {
+            "insert": "第十项"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "ordered",
+              "block-indent": 1,
+              "block-indent-explicit": true,
+              "list-spread": true,
+              "listStart": 10
+            }
+          },
+          {
+            "insert": "重新编号"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "ordered",
+              "listStart": 3,
+              "list-block-start": true
+            }
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "ordered",
+              "listStart": 3,
+              "list-continuation": true
+            }
+          },
+          {
+            "insert": "同一项续段"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "ordered",
+              "listStart": 3,
+              "list-continuation": true
+            }
+          },
+          {
+            "insert": "列表之后"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "structured-1",
+      "date": "2026-10-14",
+      "title": "结构样本 1",
+      "content": {
+        "ops": [
+          {
+            "insert": "\nconst n = 1;\n\n"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true,
+              "indent": 2,
+              "indent-explicit": true,
+              "language": "typescript",
+              "code-meta": "{1,3}",
+              "code-title": "样例",
+              "code-wrap": false,
+              "code-collapsed": true
+            }
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "代码之后"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "structured-2",
+      "date": "2026-10-14",
+      "title": "结构样本 2",
+      "content": {
+        "ops": [
+          {
+            "insert": "引用一"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "blockquote": true,
+              "indent": 1,
+              "blockquote-collapsed": true
+            }
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "blockquote": true,
+              "indent": 1,
+              "blockquote-collapsed": true
+            }
+          },
+          {
+            "insert": "引用二"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "blockquote": true,
+              "indent": 1,
+              "blockquote-collapsed": true
+            }
+          },
+          {
+            "insert": "标题"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3,
+              "indent": 1
+            }
+          },
+          {
+            "insert": "引用之后"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    }
+  ]
+}

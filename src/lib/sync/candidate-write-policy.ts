@@ -1,3 +1,4 @@
+import { hasStructuredBody, isCertifiedStructuredBody } from "./structured-body-policy";
 import { isCertifiedWebAppConfig, isCertifiedTauriAppConfig } from "./app-config-policy";
 /** Candidate payload eligibility only. Never applies data or enables a protocol. */
 import { normalizeEditorColor } from "../editor-color";
@@ -140,6 +141,7 @@ export function reviewCandidatePayload(
   const content = (input: unknown): Record<string, unknown> => {
     const value = decoded(input);
     if (!record(value)) throw Error();
+    const structured = !isEncrypted(value) && hasStructuredBody(value);
     if (isEncrypted(value)) {
       validateEncryptedContent(value);
       unknown(
@@ -148,6 +150,16 @@ export function reviewCandidatePayload(
       );
       required.add("encrypted-document-v1");
       if (runtime === "flutter") issue("runtime-unsupported");
+    } else if (structured) {
+      required.add("text-document-v1");
+      required.add("structured-text-v1");
+      if (runtime === "flutter") issue("runtime-unsupported");
+      if (!isCertifiedStructuredBody(value)) issue("unsupported-content");
+      if (Array.isArray(value.ops) && value.ops.some(op => {
+        if (!record(op) || !record(op.attributes)) return false;
+        const attributes = op.attributes;
+        return ["color", "size", "highlight", "background"].some(key => attributes[key] !== undefined);
+      })) required.add("inline-appearance-v1");
     } else {
       required.add("text-document-v1");
       if (
@@ -209,7 +221,7 @@ export function reviewCandidatePayload(
           }
         }
     }
-    if (!isEncrypted(value) && Array.isArray(value.ops)) {
+    if (!isEncrypted(value) && !structured && Array.isArray(value.ops)) {
       const ops = value.ops;
       const last = ops[ops.length - 1];
       const formatted = ops.some(
