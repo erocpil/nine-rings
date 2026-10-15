@@ -6,7 +6,7 @@ export interface BlockMenuAction {
   group?: string;
   checked?: boolean;
   keepOpen?: boolean;
-  inputControl?: { value: string; multiline?: boolean; valid?: (value: string) => boolean; apply: (value: string) => void };
+  inputControl?: { value: string; multiline?: boolean; normalize?: (value: string) => string; valid?: (value: string) => boolean; apply: (value: string) => void };
   colorControl?: { value: string; apply: (value: string) => void };
 }
 
@@ -27,19 +27,22 @@ export function groupBlockMenuActions(actions: BlockMenuAction[]): BlockMenuActi
 
 function ColorControl({ action, onClose }: { action: BlockMenuAction; onClose: () => void }) {
   const [value, setValue] = useState(action.colorControl!.value);
+  const changed = value.toLowerCase() !== action.colorControl!.value.toLowerCase();
   return <div className="block-menu-color-control">
     <label>{action.label}<input type="color" aria-label={action.label} value={value} disabled={action.disabled} onChange={event => setValue(event.target.value)} /></label>
-    <button type="button" role="menuitem" className="editor-context-item" disabled={action.disabled} onClick={() => { action.colorControl!.apply(value); onClose(); }}>应用颜色</button>
+    <button type="button" role="menuitem" className="editor-context-item block-menu-confirm" disabled={action.disabled || !changed} onClick={() => { if (action.disabled || !changed) return; action.colorControl!.apply(value); onClose(); }}>应用颜色</button>
   </div>;
 }
 function InputControl({ action, onClose }: { action: BlockMenuAction; onClose: () => void }) {
   const control = action.inputControl!;
   const [value, setValue] = useState(control.value);
   const valid = !control.valid || control.valid(value);
-  const props = { "aria-label": action.label, value, onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setValue(event.target.value) };
-  return <form className="block-menu-input-control" onSubmit={event => { event.preventDefault(); if (!valid) return; control.apply(value); onClose(); }}>
+  const normalize = control.normalize ?? ((text: string) => text);
+  const canApply = !action.disabled && valid && normalize(value) !== normalize(control.value);
+  const props = { "aria-label": action.label, disabled: action.disabled, value, onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setValue(event.target.value) };
+  return <form className="block-menu-input-control" onSubmit={event => { event.preventDefault(); if (!canApply) return; control.apply(value); onClose(); }}>
     <label>{action.label}{control.multiline ? <textarea {...props} rows={5} /> : <input {...props} />}</label>
-    <button type="submit" className="editor-context-item" disabled={!valid}>应用</button>
+    <button type="submit" className="editor-context-item block-menu-confirm" disabled={!canApply}>应用</button>
     {!valid && <small role="alert">请输入有效值</small>}
   </form>;
 }

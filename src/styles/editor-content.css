@@ -740,3 +740,5 @@
 .editor-context-menu.block-action-menu { overflow: visible; }
 .block-action-menu-panel { overflow: auto; max-height: min(440px, calc(100dvh - 88px)); }
 .editor-context-menu.block-action-menu-specific { width: 188px; min-width: 0; max-height: min(440px, calc(100dvh - 16px)); overflow: auto; }
+
+.block-action-menu .block-menu-confirm { width: auto; margin: 8px 0 0 auto; text-align: center; }

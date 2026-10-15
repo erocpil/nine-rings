@@ -28,7 +28,7 @@
   white-space: nowrap;
   overflow-x: auto;
   overflow-y: hidden;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
   scrollbar-width: none;
 }
 .editor-menu::-webkit-scrollbar {

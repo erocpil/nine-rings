@@ -23,6 +23,22 @@ test.describe("响应式编辑器工具栏", () => {
       await expect.poll(() => toolbar.locator("button").count()).toBeGreaterThanOrEqual(count);
       await expect(toolbar.locator('[data-toolbar-overflow="true"]')).toHaveCount(0);
       await expectNoHorizontalOverflow(page);
+      await expect(toolbar).toHaveCSS("scroll-behavior", "auto");
+      if (await toolbar.evaluate(element => element.scrollWidth > element.clientWidth + 10)) {
+        const moved = await toolbar.evaluate(element => {
+          element.scrollLeft = 0;
+          element.scrollLeft = 8;
+          return element.scrollLeft;
+        });
+        expect(moved).toBeGreaterThanOrEqual(7);
+      }
+      if (width > 768) {
+        await expect.poll(() => toolbar.evaluate(element => {
+          const title = element.parentElement!.querySelector(".note-title-row")!;
+          const row = title.getBoundingClientRect(), tools = element.getBoundingClientRect();
+          return Math.max(Math.abs(tools.left - row.left - 12), Math.abs(row.right - tools.right - 12));
+        })).toBeLessThanOrEqual(1);
+      }
       if (width === 390) await page.locator(".sidebar-tab-hide").click();
       const image = toolbar.getByTitle("插入图片", { exact: true });
       await image.scrollIntoViewIfNeeded();
@@ -73,9 +89,9 @@ test.describe("响应式编辑器工具栏", () => {
       };
     });
 
-    await expect.poll(verticalSpacing).toEqual({ before: 1, paddingTop: 1, paddingBottom: 1, after: 8 });
+    await expect.poll(verticalSpacing).toEqual({ before: 0, paddingTop: 0, paddingBottom: 0, after: 8 });
     await page.setViewportSize({ width: 390, height: 760 });
-    await expect.poll(verticalSpacing).toEqual({ before: 1, paddingTop: 1, paddingBottom: 1, after: 3 });
+    await expect.poll(verticalSpacing).toEqual({ before: 0, paddingTop: 0, paddingBottom: 0, after: 3 });
 
     const historyGap = await page.locator(".toolbar-history-actions").evaluate((element) => {
       const [undo, redo] = Array.from(element.querySelectorAll("button"));

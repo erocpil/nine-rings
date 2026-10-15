@@ -77,12 +77,13 @@ export function blockEditingActions({
     apply: (value: string) => void,
     valid?: (value: string) => boolean,
     multiline = false,
+    normalize?: (value: string) => string,
   ) =>
     submenu(label, [
       {
         label,
         run: () => {},
-        inputControl: { value, apply, valid, multiline },
+        inputControl: { value, apply, valid, multiline, normalize },
       },
     ]);
   const choices = (
@@ -96,6 +97,7 @@ export function blockEditingActions({
       values.map((item) => ({
         label: item.label,
         checked: current === item.value,
+        disabled: current === item.value,
         run: () => {
           if (current !== item.value) apply(item.value);
         },
@@ -224,15 +226,15 @@ export function blockEditingActions({
         },
       ),
       submenu("任务状态（当前层）", [
-        { label: "转为待办列表", run: () => setTasks(false) },
+        { label: "转为待办列表", disabled: taskStates.every(value => value === false), run: () => setTasks(false) },
         {
           label: "全部标记完成",
-          disabled: !taskStates.some((value) => typeof value === "boolean"),
+          disabled: !taskStates.some((value) => typeof value === "boolean") || taskStates.every(value => value === true),
           run: () => setTasks(true),
         },
         {
           label: "全部标记未完成",
-          disabled: !taskStates.some((value) => typeof value === "boolean"),
+          disabled: !taskStates.some((value) => typeof value === "boolean") || taskStates.every(value => value === false),
           run: () => setTasks(false),
         },
         {
@@ -260,15 +262,17 @@ export function blockEditingActions({
               continuation == null
                 ? "继续上一列表编号"
                 : `继续上一列表：从 ${continuation} 开始`,
-            disabled: continuation == null,
+            disabled: continuation == null || continuation === (node.attrs.start ?? 1),
             run: () => attributes({ start: continuation }),
           },
-          { label: "从 1 重新编号", run: () => attributes({ start: 1 }) },
+          { label: "从 1 重新编号", disabled: (node.attrs.start ?? 1) === 1, run: () => attributes({ start: 1 }) },
           input(
             "自定义起始编号",
             String(node.attrs.start ?? 1),
             (value) => attributes({ start: Number(value) }),
             valid,
+            false,
+            value => String(Number(value)),
           ),
         ]),
       );
@@ -298,8 +302,10 @@ export function blockEditingActions({
         (value) => attributes({ width: `${Number(value)}px` }),
         (value) =>
           /^\d+$/.test(value) && Number(value) >= 24 && Number(value) <= 10000,
+        false,
+        value => String(Number(value)),
       ),
-      { label: "恢复图片默认宽度", run: () => attributes({ width: null }) },
+      { label: "恢复图片默认宽度", disabled: !node.attrs.width, run: () => attributes({ width: null }) },
     ];
   if (type === "mathBlock" || type === "rawHtml")
     return [
@@ -344,6 +350,7 @@ export function blockEditingActions({
       },
       {
         label: "恢复自动列宽",
+        disabled: !Array.from({ length: map.map.length }, (_, index) => node.nodeAt(map.map[index])?.attrs.colwidth).some(width => Array.isArray(width) && width.some(value => Number(value) > 0)),
         run: () =>
           command(first, () => {
             resetTableColumnWidths(editor);

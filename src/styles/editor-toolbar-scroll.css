@@ -5,16 +5,16 @@
   height: 36px;
   min-height: 36px;
   box-sizing: border-box;
-  padding: 1px 8px;
+  padding: 0 8px;
   gap: 4px;
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
 .editor-menu.toolbar-full::-webkit-scrollbar,
-.editor-menu.toolbar-compact::-webkit-scrollbar { display: block; height: 3px; }
-.editor-menu::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
+.editor-menu.toolbar-compact::-webkit-scrollbar { display: block; height: 6px; }
+.editor-menu::-webkit-scrollbar-thumb { background: transparent; border: 2px solid transparent; background-clip: padding-box; border-radius: 4px; }
 .editor-menu:hover { scrollbar-color: var(--border) transparent; }
-.editor-menu:hover::-webkit-scrollbar-thumb { background: var(--border); }
+.editor-menu:hover::-webkit-scrollbar-thumb { background-color: var(--border); }
 .editor-menu .menu-btn {
   display: inline-flex;
   align-items: center;
@@ -37,3 +37,11 @@
 
 .app .note-editor .editor-menu .menu-btn { font-size: 12px; }
 .app .note-editor .editor-menu .toolbar-icon { width: 17px; height: 17px; }
+
+/* The scroll viewport ends at the title rule, not at the editor's outer edge. */
+.app.app-desktop-workspace .note-editor .editor-menu.toolbar-scrollable {
+  width: calc(100% - 24px);
+  margin-inline: 12px;
+  padding: 0;
+  background-size: 100% 1px;
+}
