@@ -1,0 +1,170 @@
+import { CERTIFIED_WEB_CONFIG_KEYS } from "../../src/lib/sync/app-config-policy";
+import "fake-indexeddb/auto";
+import { afterEach, expect, it, vi } from "vitest";
+import { DEFAULT_CONFIG } from "../../src/lib/storage/types";
+import { getConfig, setConfig } from "../../src/lib/storage/db-config";
+import { importData, exportData } from "../../src/lib/storage/db-export-import";
+import { reviewCandidatePayload } from "../../src/lib/sync/candidate-write-policy";
+import { candidateEntities } from "../../src/lib/sync/entity-projection";
+import { assembleEntityCandidate } from "../../src/lib/sync/entity-assembly";
+import { entityKey } from "../../src/lib/sync/entity-plan";
+import { CURRENT_SYNC_CAPABILITIES } from "../../src/lib/sync/protocol-capabilities";
+
+const config = () => structuredClone(DEFAULT_CONFIG);
+const source = (value: unknown) =>
+  JSON.stringify({ version: 1, notes: [], config: value });
+const review = (value: unknown) => reviewCandidatePayload(source(value), "web");
+afterEach(() => vi.unstubAllGlobals());
+it("requires explicit certification review when the AppConfig field set changes", () => {
+  expect([...CERTIFIED_WEB_CONFIG_KEYS].sort()).toEqual(
+    Object.keys(DEFAULT_CONFIG).sort(),
+  );
+});
+
+it("certifies complete Web configuration without accessing user storage and keeps native runtimes closed", () => {
+  vi.stubGlobal(
+    "localStorage",
+    new Proxy(
+      {},
+      {
+        get() {
+          throw Error("must not access real storage");
+        },
+      },
+    ),
+  );
+  expect(review(config())).toMatchObject({
+    eligible: true,
+    requiredFeatures: expect.arrayContaining(["web-app-config-v1"]),
+  });
+  for (const runtime of ["tauri", "flutter"] as const) {
+    expect(
+      reviewCandidatePayload(source(config()), runtime).issues[
+        "runtime-unsupported"
+      ],
+    ).toBeTruthy();
+  }
+  expect(CURRENT_SYNC_CAPABILITIES.write).toBe(0);
+});
+
+it("requires all known fields, rejects unknown fields, malformed values and lossy migrations", () => {
+  for (const key of Object.keys(DEFAULT_CONFIG)) {
+    const incomplete = config() as unknown as Record<string, unknown>;
+    delete incomplete[key];
+    expect(review(incomplete).eligible, key).toBe(false);
+  }
+  const invalid = [
+    { unknown: true },
+    { interface_style: "obsolete" },
+    { interface_font_family: "arbitrary" },
+    { editor_code_font_family: "arbitrary" },
+    { interface_color_mode: "auto" },
+    { editor_outline_fold_icon_style: "unknown" },
+    { highlight_active_line: "true" },
+    { interface_font_size: "16" },
+    { navigation_tree_text_color: "url(secret)" },
+    { hierarchy_path_custom_colors: ["#123456"] },
+    { hotkeys: { token: "private" } },
+    { hotkeys: { focus_search: 12 } },
+    {
+      hierarchy_path_custom_colors: [
+        "#9A5B00",
+        "#B0473C",
+        "#5E7C36",
+        "#247F7B",
+        "#5266A8",
+        "#8356A1",
+      ],
+    },
+  ];
+  for (const partial of invalid)
+    expect(review({ ...config(), ...partial }).eligible).toBe(false);
+});
+
+it("round-trips a complete customized config through actual import, storage, read, edit and export", async () => {
+  const items = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => items.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      items.set(key, value);
+    },
+    removeItem: (key: string) => {
+      items.delete(key);
+    },
+  });
+  const input = config();
+  input.interface_style = "paper";
+  input.interface_color_mode = "dark";
+  input.editor_code_font_family = "monospace";
+  input.interface_font_size = 20;
+  input.editor_outline_fold_icon_style = null;
+  input.user_name = "作者 α";
+  input.hotkeys = { focus_search: "Alt+F", show_window: "Alt+Y" };
+  input.hierarchy_path_custom_colors = Array(6).fill("#aabbcc");
+  input.navigation_tree_text_color = "#123456";
+  await setConfig({
+    editor_outline_fold_icon_style: "chevron",
+    user_name: "原作者",
+    interface_font_size: 18,
+  });
+  await importData(source(input), "replace");
+  expect(await getConfig()).toEqual(input);
+  const exported = await exportData();
+  expect(reviewCandidatePayload(exported, "web").eligible).toBe(true);
+  expect(JSON.parse(exported).config).toEqual(input);
+  await setConfig({ interface_font_size: 21 });
+  const edited = JSON.parse(await exportData());
+  expect(edited.config).toEqual({ ...input, interface_font_size: 21 });
+  expect(reviewCandidatePayload(JSON.stringify(edited), "web").eligible).toBe(
+    true,
+  );
+  expect(
+    (await candidateEntities(exported, "web")).find(
+      (entity) => entity.id === "app-config",
+    )?.value,
+  ).toEqual(input);
+});
+
+it("keeps AppConfig and frontend settings separate through conflict choice and candidate assembly", async () => {
+  const localConfig = { ...config(), interface_font_size: 22 };
+  const localSource = source(localConfig);
+  const remoteSource = JSON.stringify({
+    version: 1,
+    notes: [],
+    config: config(),
+    user_settings: { version: 1, values: { "nr:focusMode": true } },
+  });
+  const local = await candidateEntities(localSource, "web");
+  const remote = await candidateEntities(remoteSource, "web");
+  const key = entityKey(local[0]);
+  const unresolved = await assembleEntityCandidate({
+    spaceId: "a".repeat(64),
+    localSource,
+    remoteSource,
+    runtime: "web",
+    baselines: [],
+  });
+  expect(JSON.parse(unresolved.source).config).toEqual(config());
+  const assembled = await assembleEntityCandidate({
+    spaceId: "a".repeat(64),
+    localSource,
+    remoteSource,
+    runtime: "web",
+    baselines: [],
+    choices: [
+      {
+        key,
+        action: "local",
+        localHash: local[0].sha256,
+        remoteHash: remote.find((e) => e.id === "app-config")!.sha256,
+      },
+    ],
+  });
+  expect(JSON.parse(assembled.source).config).toEqual(localConfig);
+  expect(JSON.parse(assembled.source).user_settings).toEqual({
+    version: 1,
+    values: { "nr:focusMode": true },
+  });
+  expect(assembled.writable).toBe(false);
+  expect(assembled.planSha256).not.toBe(unresolved.planSha256);
+});

@@ -81,6 +81,7 @@ export async function candidateEntities(
   }
   for (const template of (bundle.templates ?? []) as Record<string, unknown>[])
     await add("template", template.id as string, template);
+  if (bundle.config != null) await add("settings", "app-config", bundle.config);
   if (bundle.user_settings !== undefined)
     await add("settings", "frontend", bundle.user_settings);
   for (const path of (bundle.protected_paths ?? []) as Record<

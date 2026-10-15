@@ -30,6 +30,11 @@ function migrateHierarchyPalette(config: AppConfig): AppConfig {
   };
 }
 
+/** Pure read normalization, shared with candidate round-trip checks. */
+export function normalizePersistedConfig(config: AppConfig): AppConfig {
+  return normalizeExhibition(migrateHierarchyPalette({ ...config, workspace_layout: config.workspace_layout === "exhibition" ? "exhibition" : "standard", interface_style: normalizeInterfaceStyle(config.interface_style), interface_color_mode: normalizeInterfaceColorMode(config.interface_color_mode) }));
+}
+
 export async function getConfig(): Promise<AppConfig> {
   let raw: string | null = null;
   try {
@@ -45,7 +50,7 @@ export async function getConfig(): Promise<AppConfig> {
   try {
     const parsed = { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
     console.log("[getConfig]", "highlight_active_line:", parsed.highlight_active_line, "editor_show_line_numbers:", parsed.editor_show_line_numbers);
-    return normalizeExhibition(migrateHierarchyPalette({ ...parsed, workspace_layout: parsed.workspace_layout === "exhibition" ? "exhibition" : "standard", interface_style: normalizeInterfaceStyle(parsed.interface_style), interface_color_mode: normalizeInterfaceColorMode(parsed.interface_color_mode) }));
+    return normalizePersistedConfig(parsed);
   } catch {
     return { ...DEFAULT_CONFIG };
   }

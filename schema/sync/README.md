@@ -102,3 +102,7 @@ I1c 纯接口之后，I1d 已补真实固定提交下载/历史核验、按域�
 Dart 的共享编码、严格输入和 Note SQLite 模型测试已在远端 9aade54 运行通过；本机升级后的 Flutter 3.47.7 / Dart 3.13.5 已运行完整 51 项测试。修复旧测试初始化/列表写 SQL、退役随笔断言，以及实际 NoteVersion 的 sort_order 和标签 JSON 映射。版本 2、加密、模板与设置的新协议 Flutter 写入仍未认证，不因编码通过而开放。
 
 候选[发布恢复基础](../../docs/sync-publication-recovery.md)已加入独立本机记录库、冻结计划、发布前持久化及 GET-only 恢复。只覆盖能力认证后的空命名空间候选；生产能力保持 0，不替换现有 Push 协议。非空远端接受计划、完整 AppConfig/正文覆盖、备份/升级确认 UI 和正式对象准备流程仍为开启前门禁。
+
+## Web AppConfig 候选特性（2026-10-15）
+
+最新范围新增 `web-app-config-v1`，仅允许完整且通过实际 Web 读写规范化的 AppConfig，以 `settings/app-config` 单独投影及组装；不静默填充缺省配置或丢弃未知字段。字段变更必须显式审查。Tauri/Flutter 继续拒绝，原生字段缺失及 null 合并问题仍待修复。实际存储、恢复和候选冲突回归见 [实体计划](../../docs/sync-entity-plan.md#web-appconfig-认证2026-10-15)。此段更新前述历史批次的 AppConfig 未认证范围，不改变生产协议能力或旧备份入口。

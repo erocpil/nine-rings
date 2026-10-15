@@ -47,10 +47,8 @@ it("round-trips candidate entities through actual IDB, local templates, protecte
         protected_versions,
       });
     };
-    // AppConfig default expansion is explicitly NOT certified or silently discarded.
-    expect(
-      reviewCandidatePayload(before, "web").issues["settings-not-certified"],
-    ).toBe(1);
+    // Full Web AppConfig is now a separate certified entity; compare body scope below.
+    expect(reviewCandidatePayload(before, "web").eligible).toBe(true);
     expect(await candidateEntities(scoped(before), "web")).toEqual(
       await candidateEntities(JSON.stringify(fixture), "web"),
     );
