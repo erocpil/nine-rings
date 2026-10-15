@@ -19,7 +19,7 @@ export function EditorInsertDialogs({ linkDialog, linkDialogUrl, setLinkDialog, 
     {/* ── 插入链接对话框（复用图片对话框样式）── */}
     {linkDialog && (
       <div className="image-dialog-overlay" onClick={() => setLinkDialog(false)}>
-        <div className="image-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="image-dialog" role="dialog" aria-modal="true" aria-label="插入链接" onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setLinkDialog(false); } }} onClick={(e) => e.stopPropagation()}>
           <div className="image-dialog-header">
             插入链接
             <button className="image-dialog-close" onClick={() => setLinkDialog(false)}>✕</button>
@@ -44,7 +44,7 @@ export function EditorInsertDialogs({ linkDialog, linkDialogUrl, setLinkDialog, 
     {/* ── 图片 URL 对话框 ── */}
     {imageDialog && (
       <div className="image-dialog-overlay" onClick={() => setImageDialog(false)}>
-        <div className="image-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="image-dialog" role="dialog" aria-modal="true" aria-label="插入图片" onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setImageDialog(false); } }} onClick={(e) => e.stopPropagation()}>
           <div className="image-dialog-header">
             插入图片
             <button className="image-dialog-close" onClick={() => setImageDialog(false)}>✕</button>

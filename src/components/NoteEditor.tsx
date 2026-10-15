@@ -669,7 +669,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   }, []);
   // 编辑器右键菜单 + 右键插入链接对话框
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [contextSubmenu, setContextSubmenu] = useState<"format" | "paragraph" | "insert" | null>(null);
+  const [contextSubmenu, setContextSubmenu] = useState<string | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const [blockMenu, setBlockMenu] = useState<{ position: number; trigger: HTMLButtonElement; doc: ProseMirrorNode } | null>(null);
   const closeBlockMenu = useCallback(() => setBlockMenu(null), []);
@@ -4756,7 +4756,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
 
       <BlockWorkspaceHost highlightActiveLine={highlightActiveLine} vimModeEnabled={vimModeEnabled} key={noteId} noteId={noteId} source={editor} readonly={readonly} sensitive={sensitive} saveStatus={saveStatus} onFlush={onFlush} />
       <EditorContextMenu
-        editor={editor} readonly={readonly}
+        editor={editor} readonly={readonly} toolbarRef={toolbarRef}
         contextMenu={contextMenu} contextMenuRef={contextMenuRef}
         contextSubmenu={contextSubmenu} setContextSubmenu={setContextSubmenu}
         setContextMenu={setContextMenu}

@@ -1569,3 +1569,13 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - 本机 Chromium/WebKit 各 20 项通过，Rust 65 库测试和 33 集成项通过，clippy/typecheck/lint 通过。沙箱内 FSEvents 超时，沙箱外原生通知测试通过。未据此宣称 Linux 真机监听或完整远端 E2E 已通过。
 
 同日追加源码语法颜色开关：Chromium/WebKit 微渲染各 4 项通过，覆盖纯源/微渲染、字体大小保留、源内容不变、撤销及重载；用户设置备份往返通过。
+
+## 2026-10-15：选区工具与右键命令统一
+
+颜色分体按钮先提交为 `47dd33e`。后续将选区弹层和右键菜单接到同一个内部宿主命令适配器，保留真实编辑器选区和已有工具栏操作；子菜单使用实际入口位置，H1–H6、格式、表格、导出等按当前状态可达。选区按钮改为按身份原位更新，新增在 pointerdown 后触发宿主更新、再 mouseup 的回归，避免 replaceChildren 吞点击。
+
+验证按去重用例计：Chromium 58 项分批通过；WebKit 同组 57 项通过、1 项原生剪贴板权限 helper 跳过。范围为 editor-command-surfaces、context-menu、editor-ui-boundaries、table-selection-hover、list-numbering-actions、reference-copy-gesture、reference-anchors。覆盖实际字号/颜色、剪切/复制/粘贴、H1–H6、粗斜体/删除线/行内代码、列表/引用/代码块、表格/流程块/水平线/换行、撤销重做/清除/正文转换、引用和编号；菜单覆盖检查同时核对宿主全部按钮与禁用状态。原生引用剪贴板用例 WebKit 通过，不能将另一项权限跳过记作通过。
+
+诊断时，直接使用即时 Range 屏幕坐标的右键用例曾在 Chromium/WebKit 各出现未打开菜单；改用正文 Locator 的实际右键点击等待布局稳定，保留文本区域命中，不用派发 contextmenu 替代此用例。WebKit 原生右键可能选词，因此菜单与宿主禁用状态在右键之后取样比较。最终对应整组通过。
+
+类型检查、lint、生产构建、diff 检查通过（最大块约 493.75 kB）；仍有既有 markdown-serializer 静态/动态混合导入提示。未执行全产品 E2E、Tauri 原生应用人工测试或远端 CI；未改共享数据格式。

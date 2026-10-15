@@ -17,6 +17,7 @@ test("引用选中文字，跨文档跳转保留目标；源码编辑和重启�
     const coords = ed.view.coordsAtPos(position + 1);
     element.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: coords.left, clientY: coords.top + 2 }));
   });
+  await page.locator(".editor-context-menu").getByRole("button", { name: "编辑", exact: true }).click();
   await page.locator(".editor-context-menu").getByRole("button", { name: "复制选中文字引用", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as typeof window & { copiedReference: string }).copiedReference)).toBeTruthy();
   const copied = await page.evaluate(() => (window as typeof window & { copiedReference: string }).copiedReference);
@@ -146,6 +147,7 @@ test("复制引用只保存元数据，保留导入源码中的脚注定义位�
     const coords = ed.view.coordsAtPos(2);
     element.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: coords.left, clientY: coords.top + 2 }));
   });
+  await page.locator(".editor-context-menu").getByRole("button", { name: "编辑", exact: true }).click();
   await page.locator(".editor-context-menu").getByRole("button", { name: "复制块引用", exact: true }).click();
   await expect.poll(() => page.evaluate(async id => { const { api } = await import("/src/lib/api.ts"); return (await api.notes.get(id))?.content.metadata?.referenceAnchors?.length; }, id)).toBe(1);
   await page.getByRole("button", { name: "源码", exact: true }).click();

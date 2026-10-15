@@ -139,6 +139,7 @@ test("右键复制与工具栏共用权限处理；保存失败不复制且恢�
       }),
     );
   });
+  await page.locator(".editor-context-menu").getByRole("button", { name: "编辑", exact: true }).click();
   await page
     .locator(".editor-context-menu")
     .getByRole("button", { name: "复制选中文字引用", exact: true })

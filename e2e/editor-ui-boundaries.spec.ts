@@ -114,7 +114,7 @@ test("切换文档后右键菜单和链接对话框只更新当前文档", async
     });
     const menu = page.locator(".editor-context-menu");
     await menu.getByRole("button", { name: "插入", exact: true }).click();
-    await menu.getByRole("button", { name: "链接", exact: true }).click();
+    await menu.getByRole("button", { name: "添加或编辑链接", exact: true }).click();
     const dialog = page.locator(".image-dialog");
     const href = title.endsWith("甲") ? "https://example.com/first" : "https://example.com/second";
     await dialog.locator("input").fill(href);

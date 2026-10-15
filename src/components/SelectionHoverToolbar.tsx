@@ -1,3 +1,4 @@
+import { readEditorCommands, invokeEditorCommand } from "../lib/editor-command-surface";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -45,39 +46,52 @@ export function SelectionHoverToolbar() {
       setHover(current => current?.toolbar === toolbar && current.left === next.left && current.top === next.top ? current : next);
     };
     const move = (event: PointerEvent) => { x = event.clientX; y = event.clientY; buttons = event.buttons; if (!frame) frame = requestAnimationFrame(update); };
+    const focus = (event: FocusEvent) => { if ((event.target as Element)?.closest("[role=dialog], .image-dialog")) hide(); };
+    document.addEventListener("focusin", focus);
     const selectionChanged = () => { if (document.getSelection()?.isCollapsed) hide(); };
     const scroll = (event: Event) => { if (!host.current?.contains(event.target as Node)) hide(); };
     const key = (event: KeyboardEvent) => { if (event.key === "Escape" && active.current) { hide(); event.preventDefault(); event.stopPropagation(); } };
     document.addEventListener("pointermove", move); document.addEventListener("selectionchange", selectionChanged);
     window.addEventListener("scroll", scroll, true); window.addEventListener("resize", hide); document.addEventListener("keydown", key);
-    return () => { cancelAnimationFrame(frame); clear(); document.removeEventListener("pointermove", move); document.removeEventListener("selectionchange", selectionChanged); window.removeEventListener("scroll", scroll, true); window.removeEventListener("resize", hide); document.removeEventListener("keydown", key); };
+    return () => { document.removeEventListener("focusin", focus); cancelAnimationFrame(frame); clear(); document.removeEventListener("pointermove", move); document.removeEventListener("selectionchange", selectionChanged); window.removeEventListener("scroll", scroll, true); window.removeEventListener("resize", hide); document.removeEventListener("keydown", key); };
   }, []);
   useEffect(() => {
     const container = host.current;
     if (!container || !hover) return;
+    const clones = new Map<HTMLButtonElement, HTMLButtonElement>();
     const refresh = () => {
-      container.replaceChildren();
-      for (const original of hover.toolbar.querySelectorAll<HTMLButtonElement>("button")) {
-        if (original.closest(".menu-dropdown-list") || original.closest("[hidden]")) continue;
-        const button = original.cloneNode(true) as HTMLButtonElement;
-        button.removeAttribute("id"); button.removeAttribute("autofocus"); button.tabIndex = 0;
-        button.classList.add("selection-hover-action");
-        if (!button.getAttribute("aria-label") && button.title) button.setAttribute("aria-label", button.title);
-        button.addEventListener("pointerdown", event => { if (event.button === 0) event.preventDefault(); });
-        button.addEventListener("click", () => {
-          if (!original.isConnected || original.disabled || hover.toolbar.closest("[inert]")) return;
-          const selection = document.getSelection();
-          if (hover.range.startContainer.isConnected && hover.range.endContainer.isConnected) { selection?.removeAllRanges(); selection?.addRange(hover.range); }
-          original.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse", button: 0 }));
-          original.click();
-        });
-        container.append(button);
+      const next: HTMLButtonElement[] = [];
+      for (const command of readEditorCommands(hover.toolbar)) {
+        const original = command.source;
+        let button = clones.get(original);
+        if (!button) {
+          button = document.createElement("button");
+          button.addEventListener("pointerdown", event => { if (event.button === 0) event.preventDefault(); });
+          button.addEventListener("mousedown", event => event.preventDefault());
+          const target = button;
+          button.addEventListener("click", event => {
+            event.stopPropagation();
+            invokeEditorCommand(command, target);
+          });
+          clones.set(original, button);
+        }
+        // Update in place: replacing a pressed button between pointerdown and
+        // click loses the click entirely (colors, size and clipboard included).
+        const attributes = new Map([...original.attributes].filter(attr => !["id", "autofocus", "hidden"].includes(attr.name)).map(attr => [attr.name, attr.value]));
+        attributes.set("class", `${original.className} selection-hover-action`);
+        attributes.set("aria-label", original.getAttribute("aria-label") || original.title || command.label);
+        for (const attr of [...button.attributes]) if (!attributes.has(attr.name)) button.removeAttribute(attr.name);
+        for (const [name, value] of attributes) if (button.getAttribute(name) !== value) button.setAttribute(name, value);
+        if (button.innerHTML !== original.innerHTML) button.innerHTML = original.innerHTML;
+        next.push(button);
       }
+      for (const [original, clone] of clones) if (!next.includes(clone)) { clone.remove(); clones.delete(original); }
+      next.forEach((button, index) => { if (container.children[index] !== button) container.insertBefore(button, container.children[index] ?? null); });
     };
     refresh();
     const observer = new MutationObserver(refresh);
-    observer.observe(hover.toolbar, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "aria-pressed", "aria-expanded", "class"] });
-    return () => observer.disconnect();
+    observer.observe(hover.toolbar, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "aria-pressed", "aria-expanded", "class", "style", "title", "aria-label", "hidden"] });
+    return () => { observer.disconnect(); container.replaceChildren(); };
   }, [hover]);
   return hover ? createPortal(<div ref={host} className="selection-hover-toolbar editor-menu toolbar-full toolbar-scrollable" role="toolbar" aria-label="选区编辑工具" style={{ left: hover.left, top: hover.top }} />, document.body) : null;
 }

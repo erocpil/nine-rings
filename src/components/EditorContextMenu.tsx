@@ -1,201 +1,63 @@
-import { OrderedListNumberingMenu } from "./OrderedListNumberingMenu";
-import { selectWholeDocument } from "../extensions/BlockSelectAll";
-import { DisclosureIcon } from "./DisclosureIcon";
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useLayoutEffect, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { Editor } from "@tiptap/core";
 import type { EditorToolbarProps } from "./EditorToolbarContents";
+import { selectWholeDocument } from "../extensions/BlockSelectAll";
+import { DisclosureIcon } from "./DisclosureIcon";
+import { editorCommandGroups, readEditorCommands, invokeEditorCommand, type EditorSurfaceCommand } from "../lib/editor-command-surface";
 
 interface EditorContextMenuProps {
   editor: Editor;
+  toolbarRef: RefObject<HTMLDivElement>;
   readonly?: boolean;
   contextMenu: { x: number; y: number } | null;
   contextMenuRef: RefObject<HTMLDivElement>;
   setContextMenu: (position: { x: number; y: number } | null) => void;
-  contextSubmenu: "format" | "paragraph" | "insert" | null;
-  setContextSubmenu: Dispatch<SetStateAction<"format" | "paragraph" | "insert" | null>>;
+  contextSubmenu: string | null;
+  setContextSubmenu: Dispatch<SetStateAction<string | null>>;
   hasCurrentBookmark: boolean;
   bookmarkCount: number;
   onCopyReference: (kind: "block" | "position") => Promise<void>;
   actions: Pick<EditorToolbarProps["actions"], "hasSelection" | "handleCut" | "handleClipboardPaste" | "handleCopy" | "handleCopyBlock" | "openDocumentBookmarks" | "toggleCurrentBookmark" | "convertSelectionFromMarkdown" | "changeSelectedBlockIndent" | "setLinkDialogUrl" | "setLinkDialog" | "setImageDialog">;
 }
 
-/** Presentation only; dismissal/positioning and the live selection stay in NoteEditor. */
-export function EditorContextMenu({ editor, readonly, contextMenu, contextMenuRef, setContextMenu, contextSubmenu, setContextSubmenu, hasCurrentBookmark, bookmarkCount, actions, onCopyReference }: EditorContextMenuProps) {
-  const { hasSelection, handleCut, handleClipboardPaste, handleCopy, openDocumentBookmarks, toggleCurrentBookmark, convertSelectionFromMarkdown, changeSelectedBlockIndent, setLinkDialogUrl, setLinkDialog, setImageDialog } = actions;
-  return (<>
-    {/* ── 正文右键菜单 ── */}
-    {contextMenu && (
-      <div
-        ref={contextMenuRef}
-        className="editor-context-menu"
-        style={{ left: contextMenu.x, top: contextMenu.y }}
-        onMouseDown={(e) => {
-          // 菜单依赖 ProseMirror 当前选区。阻止按钮在按下时夺走焦点，
-          // 这样关闭菜单后 Vim 可立即继续接收 h/j/k/l 等命令。
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-      >
-        {!readonly && (
-          <>
-            <button
-              className="editor-context-item"
-              disabled={!editor.can().undo()}
-              onClick={() => { editor.chain().focus().undo().run(); setContextMenu(null); }}
-            >撤销</button>
-            <button
-              className="editor-context-item"
-              disabled={!editor.can().redo()}
-              onClick={() => { editor.chain().focus().redo().run(); setContextMenu(null); }}
-            >重做</button>
-            <div className="editor-context-sep" />
-            <button
-              className="editor-context-item"
-              disabled={!hasSelection()}
-              onClick={() => { handleCut(); setContextMenu(null); }}
-            >剪切</button>
-            <button
-              className="editor-context-item"
-              onClick={() => { handleClipboardPaste(); setContextMenu(null); }}
-            >粘贴</button>
-          </>
-        )}
-        <button
-          className="editor-context-item"
-          disabled={!hasSelection()}
-          onClick={() => { handleCopy(); setContextMenu(null); }}
-        >复制</button>
-        <button className="editor-context-item" onClick={() => { void actions.handleCopyBlock(); setContextMenu(null); }}>复制块</button>
-        <button className="editor-context-item" onClick={() => { void onCopyReference("block"); setContextMenu(null); }}>复制块引用</button>
-        <button className="editor-context-item" onClick={() => { void onCopyReference("position"); setContextMenu(null); }}>{hasSelection() ? "复制选中文字引用" : "复制此处引用"}</button>
-        <button
-          className="editor-context-item"
-          onClick={() => { selectWholeDocument(editor); setContextMenu(null); }}
-        >全选</button>
-        {bookmarkCount > 0 && (
-          <button
-            className="editor-context-item"
-            onClick={() => { openDocumentBookmarks(); setContextMenu(null); }}
-          >打开书签列表 <span>{bookmarkCount}</span></button>
-        )}
-        <div className="editor-context-sep" />
-        <button
-          className="editor-context-item"
-          onClick={() => { toggleCurrentBookmark(); setContextMenu(null); }}
-        >{hasCurrentBookmark ? "取消当前位置书签" : "添加当前位置书签"} <span>Ctrl+Shift+M</span></button>
-        {!readonly && (
-          <>
-            <button
-              className="editor-context-item editor-context-parent"
-              aria-expanded={contextSubmenu === "format"}
-              onClick={() => setContextSubmenu((current) => current === "format" ? null : "format")}
-            ><span>格式</span><span aria-hidden="true"><DisclosureIcon expanded={contextSubmenu === "format"} /></span></button>
-            {contextSubmenu === "format" && (
-              <div className="editor-context-submenu" role="group" aria-label="格式">
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  disabled={!hasSelection()}
-                  onClick={() => { editor.chain().focus().toggleBold().run(); setContextMenu(null); }}
-                >粗体 <span>Ctrl+B</span></button>
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  disabled={!hasSelection()}
-                  onClick={() => { editor.chain().focus().toggleItalic().run(); setContextMenu(null); }}
-                >斜体 <span>Ctrl+I</span></button>
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  disabled={!hasSelection()}
-                  onClick={() => { editor.chain().focus().toggleStrike().run(); setContextMenu(null); }}
-                >删除线</button>
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  disabled={!hasSelection()}
-                  onClick={() => { editor.chain().focus().toggleCode().run(); setContextMenu(null); }}
-                >行内代码</button>
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  disabled={!hasSelection()}
-                  onClick={() => { editor.chain().focus().unsetAllMarks().run(); setContextMenu(null); }}
-                >清除文本格式</button>
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  disabled={!hasSelection()}
-                  onClick={convertSelectionFromMarkdown}
-                >转换所选 Markdown</button>
-              </div>
-            )}
-            <button
-              className="editor-context-item editor-context-parent"
-              aria-expanded={contextSubmenu === "paragraph"}
-              onClick={() => setContextSubmenu((current) => current === "paragraph" ? null : "paragraph")}
-            ><span>段落</span><span aria-hidden="true"><DisclosureIcon expanded={contextSubmenu === "paragraph"} /></span></button>
-            {contextSubmenu === "paragraph" && (
-              <div className="editor-context-submenu" role="group" aria-label="段落">
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  onClick={() => { editor.chain().focus().clearNodes().run(); setContextMenu(null); }}
-                >正文</button>
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  onClick={() => { editor.chain().focus().toggleHeading({ level: 3 }).run(); setContextMenu(null); }}
-                >三级标题 H3</button>
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  onClick={() => { editor.chain().focus().toggleHeading({ level: 4 }).run(); setContextMenu(null); }}
-                >四级标题 H4</button>
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  onClick={() => { editor.chain().focus().toggleBlockquote().run(); setContextMenu(null); }}
-                >引用块</button>
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  onClick={() => { editor.chain().focus().toggleBulletList().run(); setContextMenu(null); }}
-                >无序列表</button>
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  onClick={() => { editor.chain().focus().toggleOrderedList().run(); setContextMenu(null); }}
-                >有序列表</button>
-                {editor.isActive("orderedList") && <OrderedListNumberingMenu editor={editor} onDone={() => setContextMenu(null)} itemClass="editor-context-item editor-context-subitem" />}
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  onClick={() => { changeSelectedBlockIndent(1); setContextMenu(null); }}
-                >增加块缩进 {!editor.isActive("codeBlock") && <span>Tab</span>}</button>
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  onClick={() => { changeSelectedBlockIndent(-1); setContextMenu(null); }}
-                >减少块缩进 {!editor.isActive("codeBlock") && <span>Shift+Tab</span>}</button>
-              </div>
-            )}
-            <button
-              className="editor-context-item editor-context-parent"
-              aria-expanded={contextSubmenu === "insert"}
-              onClick={() => setContextSubmenu((current) => current === "insert" ? null : "insert")}
-            ><span>插入</span><span aria-hidden="true"><DisclosureIcon expanded={contextSubmenu === "insert"} /></span></button>
-            {contextSubmenu === "insert" && (
-              <div className="editor-context-submenu" role="group" aria-label="插入">
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  disabled={!hasSelection()}
-                  onClick={() => {
-                    setLinkDialogUrl(editor.getAttributes("link").href || "");
-                    setContextMenu(null);
-                    setLinkDialog(true);
-                  }}
-                >链接</button>
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  onClick={() => { setContextMenu(null); setImageDialog(true); }}
-                >图片</button>
-                <button
-                  className="editor-context-item editor-context-subitem"
-                  onClick={() => { editor.chain().focus().setHorizontalRule().run(); setContextMenu(null); }}
-                >水平分隔线</button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    )}
-
-  </>);
+/** Grouped projection of the same live commands used by the toolbar and selection surface. */
+export function EditorContextMenu({ editor, toolbarRef, readonly, contextMenu, contextMenuRef, setContextMenu, contextSubmenu, setContextSubmenu, hasCurrentBookmark, bookmarkCount, actions, onCopyReference }: EditorContextMenuProps) {
+  const [commands, setCommands] = useState<EditorSurfaceCommand[]>([]);
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!contextMenu || !toolbar) { setCommands([]); return; }
+    const refresh = () => setCommands(readEditorCommands(toolbar));
+    refresh();
+    const observer = new MutationObserver(refresh);
+    observer.observe(toolbar, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "class", "aria-pressed", "aria-expanded", "title", "aria-label", "hidden"] });
+    return () => observer.disconnect();
+  }, [contextMenu, toolbarRef]);
+  if (!contextMenu) return null;
+  const run = (action: () => void) => { action(); setContextMenu(null); };
+  return <div ref={contextMenuRef} className="editor-context-menu" role="menu" aria-label="正文操作" style={{ left: contextMenu.x, top: contextMenu.y }}
+    onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }} onClick={event => event.stopPropagation()}>
+    <button className="editor-context-item" onClick={() => run(() => selectWholeDocument(editor))}>全选</button>
+    {readonly && <>
+      <button className="editor-context-item" disabled={!actions.hasSelection()} onClick={() => run(() => { void actions.handleCopy(); })}>复制</button>
+      <button className="editor-context-item" onClick={() => run(() => { void actions.handleCopyBlock(); })}>复制块</button>
+      <button className="editor-context-item" onClick={() => run(() => { void onCopyReference("block"); })}>复制块引用</button>
+      <button className="editor-context-item" onClick={() => run(() => { void onCopyReference("position"); })}>{actions.hasSelection() ? "复制选中文字引用" : "复制此处引用"}</button>
+    </>}
+    <button className="editor-context-item" onClick={() => run(actions.toggleCurrentBookmark)}>{hasCurrentBookmark ? "取消当前位置书签" : "添加当前位置书签"}</button>
+    {bookmarkCount > 0 && <button className="editor-context-item" onClick={() => run(actions.openDocumentBookmarks)}>打开书签列表 <span>{bookmarkCount}</span></button>}
+    {editorCommandGroups.map(group => {
+      const items = commands.filter(command => command.group === group && command.label !== "全选");
+      if (!items.length) return null;
+      return <div key={group}>
+        <button className="editor-context-item editor-context-parent" aria-expanded={contextSubmenu === group}
+          onClick={() => setContextSubmenu(current => current === group ? null : group)}>{group}<DisclosureIcon expanded={contextSubmenu === group} /></button>
+        {contextSubmenu === group && <div className="editor-context-submenu" role="group" aria-label={group}>
+          {items.map(command => <button key={command.id} className={`editor-context-item editor-context-subitem ${command.active ? "active" : ""}`} disabled={command.disabled}
+            onClick={event => { invokeEditorCommand(command, event.currentTarget); setContextMenu(null); }}>
+            {command.label}{command.submenu && <DisclosureIcon expanded={false} />}
+          </button>)}
+        </div>}
+      </div>;
+    })}
+  </div>;
 }

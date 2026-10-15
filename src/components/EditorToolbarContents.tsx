@@ -1,3 +1,5 @@
+import { selectWholeDocument } from "../extensions/BlockSelectAll";
+import { commandMenuAnchor, clearCommandAnchors } from "../lib/editor-command-surface";
 import { applyToolbarColor } from "../lib/toolbar-color";
 import { useToolbarColor } from "../hooks/useToolbarColor";
 import { EditorBackgroundMenu } from "./EditorBackgroundMenu";
@@ -6,7 +8,7 @@ import { FLOW_BLOCK_TEMPLATE } from "../lib/flow-block";
 import { resetTableColumnWidths } from "../extensions/ContentSizedTable";
 import { DisclosureIcon } from "./DisclosureIcon";
 import { exitCurrentStructuredBlock } from "../extensions/StructuredBlockExit";
-import React, { type ReactNode, type RefObject } from "react";
+import { type ReactNode, type RefObject } from "react";
 import type { Editor } from "@tiptap/core";
 import type { EditorToolbarMenu } from "../hooks/useEditorToolbarMenus";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -105,6 +107,7 @@ const btn = (label: ReactNode, action: () => void, active?: boolean, title?: str
     title={title}
     aria-label={title}
     disabled={disabled}
+    data-context-visible={title?.startsWith("标题 ") || undefined}
   >
     {label}
   </button>
@@ -151,7 +154,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     if (!toolbar) return;
     const position = () => {
       toolbar.querySelectorAll<HTMLElement>(".menu-dropdown-list").forEach(menu => {
-        const anchor = menu.parentElement?.getBoundingClientRect();
+        const anchor = commandMenuAnchor(menu) ?? menu.parentElement?.getBoundingClientRect();
         if (!anchor) return;
         if (typeof menu.showPopover === "function") {
           menu.setAttribute("popover", "manual");
@@ -161,13 +164,22 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
           menu.style.bottom = "auto";
         }
         menu.style.position = "fixed";
-        menu.style.top = `${anchor.bottom}px`;
+        const below = window.innerHeight - anchor.bottom - 12;
+        const above = anchor.top - 12;
+        const flip = below < Math.min(menu.scrollHeight, 240) && above > below;
+        menu.style.maxHeight = `${Math.max(40, flip ? above : below)}px`;
+        menu.style.top = `${flip ? Math.max(8, anchor.top - menu.offsetHeight - 4) : anchor.bottom}px`;
         menu.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - menu.offsetWidth - 8))}px`;
-        menu.style.maxHeight = `${Math.max(80, window.innerHeight - anchor.bottom - 12)}px`;
+
         menu.style.overflowY = "auto";
       });
     };
     position();
+    const resetAnchor = (event: PointerEvent) => { if (event.isTrusted && !(event.target as Element)?.closest(".menu-dropdown-list")) clearCommandAnchors(toolbar); };
+    const resetKeyboardAnchor = (event: KeyboardEvent) => { if (event.isTrusted && ["Enter", " "].includes(event.key) && !(event.target as Element)?.closest(".menu-dropdown-list")) clearCommandAnchors(toolbar); };
+    toolbar.addEventListener("keydown", resetKeyboardAnchor, true);
+    toolbar.addEventListener("pointerdown", resetAnchor, true);
+    window.addEventListener("nr:editor-command-anchor", position);
     toolbar.addEventListener("scroll", position);
     window.addEventListener("resize", position);
     window.addEventListener("scroll", position, true);
@@ -176,6 +188,9 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     const changes = new MutationObserver(position);
     changes.observe(toolbar, { childList: true, subtree: true });
     return () => {
+      toolbar.removeEventListener("keydown", resetKeyboardAnchor, true);
+      toolbar.removeEventListener("pointerdown", resetAnchor, true);
+      window.removeEventListener("nr:editor-command-anchor", position);
       toolbar.removeEventListener("scroll", position);
       window.removeEventListener("resize", position);
       window.removeEventListener("scroll", position, true);
@@ -196,24 +211,27 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {btn(<b>B</b>, () => editor.chain().focus().toggleBold().run(), editor.isActive("bold"), "加粗 (Ctrl+B)", readonly)}
     {btn(<i>I</i>, () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"), "斜体 (Ctrl+I)", readonly)}
     {btn(<s>S</s>, () => editor.chain().focus().toggleStrike().run(), editor.isActive("strike"), "删除线 (Ctrl+Shift+X)", readonly)}
+    {btn(<ToolbarIcon name="code" />, () => editor.chain().focus().toggleCode().run(), editor.isActive("code"), "行内代码", readonly)}
     {btn(<ToolbarIcon name="erase" />, clearTextFormatting, false, "清除格式", readonly)}
     </>)}
     <span className="menu-sep" />
     {(<>
-    {(headingPage === 0 ? [3, 4, 5] : [1, 2, 6]).map((lvl) => (
-      <React.Fragment key={lvl}>
+    {[3, 4, 5, 1, 2, 6].map((lvl) => (
+      <span key={lvl} hidden={!(headingPage === 0 ? [3, 4, 5] : [1, 2, 6]).includes(lvl)}>
         {btn(`H${lvl}`, () => editor.chain().focus().toggleHeading({ level: lvl as 1 | 2 | 3 | 4 | 5 | 6 }).run(), editor.isActive("heading", { level: lvl }), `标题 ${lvl}`, readonly)}
-      </React.Fragment>
+      </span>
     ))}
     <button
       className="menu-btn menu-btn-sm"
       onClick={() => setHeadingPage(headingPage === 0 ? 1 : 0)}
+      data-command-presentation-only
       title={headingPage === 0 ? "H1–2 H6" : "H3–H5"}
       type="button"
     >{headingPage === 0 ? "»" : "«"}</button>
     </>)}
     <span className="menu-sep" />
     {(<>
+    {btn("P", () => editor.chain().focus().clearNodes().run(), false, "正文", readonly)}
     {btn(<ToolbarIcon name="quote" />, toggleBlockquote, editor.isActive("blockquote"), "引用 (Ctrl+Shift+B)", readonly)}
     {btn(<ToolbarIcon name="bullet" />, () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly)}
     <div className="menu-dropdown ordered-list-toolbar">
@@ -291,8 +309,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {btn(<ToolbarIcon name="lineBreak" />, () => { editor.chain().focus().setHardBreak().run(); }, false, "块内换行", readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak())}
     <div className="toolbar-secondary">
     {(<span className="toolbar-clipboard-actions" data-toolbar-tool="clipboard">
-    {btn(<ToolbarIcon name="copy" />, handleCopy, false, "复制 (Ctrl+C)", readonly)}
-    {btn(<ToolbarIcon name="cut" />, handleCut, false, "剪切 (Ctrl+X)", readonly)}
+    {btn(<ToolbarIcon name="copy" />, handleCopy, false, "复制 (Ctrl+C)", readonly || !hasSelection())}
+    {btn(<ToolbarIcon name="cut" />, handleCut, false, "剪切 (Ctrl+X)", readonly || !hasSelection())}
     {btn(<ToolbarIcon name="paste" />, handleClipboardPaste, false, "粘贴 (Ctrl+V)", readonly)}
     {btn(<ToolbarIcon name="export" />, () => { void handleExportMarkdown(); }, false, "导出 Markdown", false)}
     </span>)}
@@ -411,6 +429,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {btn(<ToolbarIcon name="code" />, insertFlow, false, "插入流程块", readonly)}
     {btn(<ToolbarIcon name="link" />, () => { void actions.copyReference("block"); }, false, "复制块引用")}
     {btn(<ToolbarIcon name="link" />, () => { void actions.copyReference("position"); }, false, hasSelection() ? "复制选中文字引用" : "复制此处引用")}
+    {btn("—", () => editor.chain().focus().setHorizontalRule().run(), false, "水平分隔线", readonly)}
+    {btn(<ToolbarIcon name="copy" />, () => selectWholeDocument(editor), false, "全选")}
     {btn(<ToolbarIcon name="document" />, handleExportPdf, false, "导出 PDF")}
     {btn(<ToolbarIcon name="link" />, () => { setLinkDialogUrl(editor.getAttributes("link").href || ""); setLinkDialog(true); }, false, "添加或编辑链接", readonly)}
     {saveStatus && saveStatus !== "clean" && (

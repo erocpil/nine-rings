@@ -43,16 +43,13 @@ test.describe("正文右键菜单：作用范围", () => {
     const editor = await createBlankNote(page);
     await editor.fill("正文");
     // Right-click the text, not the paragraph's large trailing blank area.
-    await page.locator(".note-editor-scroll").hover();
-    await page.mouse.wheel(0, -1000);
+    // Setup must finish scrolling before opening a menu that intentionally
+    // dismisses on scroll; an asynchronous wheel can arrive after right-click.
+    await page.locator(".note-editor-scroll").evaluate(element => element.scrollTo({ top: 0, behavior: "instant" }));
     await expect.poll(() => page.locator(".note-editor-scroll").evaluate(element => element.scrollTop)).toBe(0);
-    const point = await editor.locator("p").evaluate(element => {
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      const rect = range.getBoundingClientRect();
-      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-    });
-    await page.mouse.click(point.x, point.y, { button: "right" });
+    // Locator actions wait for the newly created editor's layout to settle;
+    // a cached screen coordinate can hit its toolbar during initial restoration.
+    await editor.locator("p").click({ button: "right", position: { x: 12, y: 10 } });
     await expect(menu(page)).toBeVisible();
   });
 
@@ -100,7 +97,7 @@ test.describe("正文右键菜单：视口边界", () => {
     await editor.fill("选区文本");
     await editor.press("ControlOrMeta+A");
     await dispatchContextMenu(editor, vp.width / 2, vp.height - 2);
-    await item(page, "格式").click();
+    await item(page, "文字格式").click();
 
     const box = (await menu(page).boundingBox())!;
     expect(box.y).toBeGreaterThanOrEqual(0);
@@ -110,14 +107,14 @@ test.describe("正文右键菜单：视口边界", () => {
 });
 
 test.describe("正文右键菜单：菜单项显示与禁用", () => {
-  test("插入子菜单始终显示，链接只在有选区时可用", async ({ page }) => {
+  test("插入链接与宿主工具栏一致，无选区可输入链接", async ({ page }) => {
     const editor = await createBlankNote(page);
 
     // 无选区：光标塌缩
     await editor.fill("测试文本");
     await dispatchContextMenu(editor, 120, 120);
     await item(page, "插入").click();
-    await expect(item(page, "链接")).toBeDisabled();
+    await expect(item(page, "添加或编辑链接")).toBeEnabled();
     await page.keyboard.press("Escape");
 
     // 有选区：全选后右键，链接应可用
@@ -125,7 +122,7 @@ test.describe("正文右键菜单：菜单项显示与禁用", () => {
     await editor.press("ControlOrMeta+A");
     await dispatchContextMenu(editor, 120, 120);
     await item(page, "插入").click();
-    await expect(item(page, "链接")).toBeEnabled();
+    await expect(item(page, "添加或编辑链接")).toBeEnabled();
   });
 
   test("无选区时“复制/剪切”禁用，“全选”可用", async ({ page }) => {
@@ -133,8 +130,9 @@ test.describe("正文右键菜单：菜单项显示与禁用", () => {
     await editor.fill("测试文本");
     await dispatchContextMenu(editor, 120, 120);
 
-    await expect(item(page, "复制")).toBeDisabled();
-    await expect(item(page, "剪切")).toBeDisabled();
+    await item(page, "编辑").click();
+    await expect(item(page, "复制 (Ctrl+C)")).toBeDisabled();
+    await expect(item(page, "剪切 (Ctrl+X)")).toBeDisabled();
     await expect(item(page, "全选")).toBeEnabled();
   });
 
@@ -151,7 +149,7 @@ test.describe("正文右键菜单：菜单项显示与禁用", () => {
     await expect(item(page, "全选")).toBeVisible();
     await expect(item(page, "撤销")).toHaveCount(0);
     await expect(item(page, "粘贴")).toHaveCount(0);
-    await expect(item(page, "格式")).toHaveCount(0);
+    await expect(item(page, "文字格式")).toHaveCount(0);
     await expect(item(page, "段落")).toHaveCount(0);
     await expect(item(page, "插入")).toHaveCount(0);
   });
@@ -183,7 +181,8 @@ test.describe("正文右键菜单：菜单命令行为", () => {
     await editor.fill("要剪切的文本");
     await editor.press("ControlOrMeta+A");
     await dispatchContextMenu(editor, 120, 120);
-    await item(page, "剪切").click();
+    await item(page, "编辑").click();
+    await item(page, "剪切 (Ctrl+X)").click();
 
     // 剪切 = 写入剪贴板 + 删除选区，两段语义分别验证
     await expect
@@ -197,14 +196,14 @@ test.describe("正文右键菜单：菜单命令行为", () => {
     await editor.fill("要加粗的文字");
     await editor.press("ControlOrMeta+A");
     await dispatchContextMenu(editor, 120, 120);
-    await item(page, "格式").click();
-    await item(page, "粗体 Ctrl+B").click();
+    await item(page, "文字格式").click();
+    await item(page, "加粗 (Ctrl+B)").click();
     await expect(editor.locator("strong")).toHaveText("要加粗的文字");
 
     await editor.click();
     await dispatchContextMenu(editor, 120, 120);
     await item(page, "段落").click();
-    await item(page, "三级标题 H3").click();
+    await item(page, "标题 3").click();
     await expect(editor.locator("h3")).toHaveText("要加粗的文字");
   });
 
@@ -214,7 +213,7 @@ test.describe("正文右键菜单：菜单命令行为", () => {
     await editor.press("ControlOrMeta+A");
     await dispatchContextMenu(editor, 120, 120);
     await item(page, "插入").click();
-    await item(page, "链接").click();
+    await item(page, "添加或编辑链接").click();
 
     await expect(page.locator(".image-dialog-input")).toBeVisible();
     await page.locator(".image-dialog-input").fill("https://example.com");
