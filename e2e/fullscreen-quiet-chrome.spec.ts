@@ -78,6 +78,23 @@ for (const enabled of [false, true])
       await expect(footer).toHaveCSS("opacity", "0");
     }
     await page.mouse.move(top.x + top.width / 2, top.y + top.height / 2);
+    await header.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+    await page.mouse.move(640, 400);
+    await expect(footer).toHaveCSS("opacity", enabled ? "0" : "1");
+    if (enabled) {
+      const homeBottom = (await footer.boundingBox())!;
+      await page.mouse.move(homeBottom.x + 20, homeBottom.y + homeBottom.height / 2);
+      await expect(footer).toHaveCSS("opacity", "1");
+      await footer.getByRole("button", { name: "展开概览", exact: true }).click();
+      await page.mouse.move(640, 400);
+      await expect(footer).toHaveCSS("opacity", "1");
+      await page.mouse.move(top.x + top.width / 2, top.y + top.height / 2);
+      await header.getByRole("button", { name: "返回上一页面", exact: true }).click();
+      await header.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+      await page.mouse.move(640, 400);
+      await expect(footer).toHaveCSS("opacity", "0");
+    }
+    await page.mouse.move(top.x + top.width / 2, top.y + top.height / 2);
     await header.getByRole("button", { name: "退出全屏", exact: true }).click();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await expect(header).toHaveCSS("opacity", "1");

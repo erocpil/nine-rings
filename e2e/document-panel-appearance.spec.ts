@@ -119,7 +119,7 @@ for (const virtual of [false, true]) {
           owner.width / 2 + 1,
         );
         if (virtual)
-          await pinned.getByRole("button", { name: "关闭阅读面板" }).click();
+          await pinned.getByRole("button", { name: (await trigger.getAttribute("aria-label")) === "文档目录" ? "收起固定目录" : "关闭阅读面板", exact: true }).click();
         else await trigger.click();
         await page.mouse.move(5, 5);
         await expect(panel).toHaveCount(0);

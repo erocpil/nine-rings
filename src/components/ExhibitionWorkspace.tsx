@@ -65,6 +65,10 @@ export function ExhibitionWorkspace(props: Props) {
   const quietFullscreen = useWindowFullscreen(active && props.desktop && summaryLayout.fullscreenQuietChrome);
   const quietChrome = active && props.desktop && summaryLayout.fullscreenQuietChrome &&
     (summaryLayout.quietChromeScope === "always" || (summaryLayout.quietChromeScope === "windowed" ? !quietFullscreen : quietFullscreen));
+  // Entering home is not an explicit request to pin the overview open.
+  useLayoutEffect(() => {
+    if (props.home && quietChrome) setHomeExpanded(false);
+  }, [props.home, quietChrome]);
   const [summaryPreview, setSummaryPreview] = useState<{ kind: WorkspaceSummaryKind; trigger: HTMLButtonElement; keyboard: boolean } | null>(null);
   const summaryCloseTimer = useRef<ReturnType<typeof setTimeout>>();
   const keepSummary = () => clearTimeout(summaryCloseTimer.current);

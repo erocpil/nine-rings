@@ -5,7 +5,7 @@ use std::{
     fs,
     io::Read,
     path::{Component, Path, PathBuf},
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
@@ -18,7 +18,7 @@ struct Grant {
 #[derive(Default)]
 pub struct ImageLibrary {
     roots: Mutex<HashMap<String, PathBuf>>,
-    watchers: Mutex<HashMap<String, (String, notify::RecommendedWatcher)>>,
+    watchers: Mutex<HashMap<String, (String, DirectoryWatch)>>,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -213,21 +213,43 @@ pub fn image_library_remove(
         .retain(|_, (id, _)| id != &root_id);
     library.save(&app)
 }
+// Native backends can stop asynchronously. Serialize cancellation with delivery
+// so a released subscription never emits late notifications into the UI.
+struct DirectoryWatch {
+    active: Arc<Mutex<bool>>,
+    _watcher: notify::RecommendedWatcher,
+}
+impl Drop for DirectoryWatch {
+    fn drop(&mut self) {
+        if let Ok(mut active) = self.active.lock() {
+            *active = false;
+        }
+    }
+}
 fn watch_directory(
     path: &Path,
     mut changed: impl FnMut(notify::Result<notify::Event>) + Send + 'static,
-) -> Result<notify::RecommendedWatcher, String> {
+) -> Result<DirectoryWatch, String> {
+    let active = Arc::new(Mutex::new(true));
+    let delivery = Arc::clone(&active);
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
         if matches!(&event, Ok(event) if event.kind.is_access()) {
             return;
         }
-        changed(event);
+        if let Ok(active) = delivery.lock() {
+            if *active {
+                changed(event);
+            }
+        }
     })
     .map_err(|e| e.to_string())?;
     watcher
         .watch(path, notify::RecursiveMode::NonRecursive)
         .map_err(|e| e.to_string())?;
-    Ok(watcher)
+    Ok(DirectoryWatch {
+        active,
+        _watcher: watcher,
+    })
 }
 
 #[tauri::command]

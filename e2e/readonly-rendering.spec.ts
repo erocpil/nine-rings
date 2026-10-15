@@ -200,7 +200,7 @@ test("局部阅读默认关闭，1500 块搜索与折叠末章，再回退完整
     .getByRole("button", { name: "文档目录", exact: true })
     .click();
   await page.getByRole("button", { name: "全部折叠", exact: true }).click();
-  await page.getByLabel("关闭阅读面板").click();
+  await page.getByRole("button", { name: "收起固定目录", exact: true }).click();
   await page
     .locator(".vr-actions")
     .getByRole("button", { name: "末尾", exact: true })

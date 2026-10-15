@@ -1560,3 +1560,10 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - 经典默认正文行距改为 1.7，渲染和源码共用，源码行号保持相同行高；Web 默认值、排版恢复默认、Rust 缺省配置及 schema 同步。已有显式配置保留。
 - 设置分类切换时恢复丢失的焦点；Esc 按查找/子弹层/设置子页/分类首页依次处理，返回保留父页滚动位置。
 - 设置导航、编辑器排版及全屏外围信息：Chromium 32/32、WebKit 32/32；WebKit 手机/桌面 Esc 返回滚动恢复 2/2。排版单元测试、类型检查、Lint 与 Rust 旧配置兼容测试通过。
+
+### 2026-10-15：0bc490a 远端检查收尾与全屏首页
+
+- 原提交 macOS/Windows/Linux 构建、六组 Native Platforms、Frontend/Schema/IPC 均通过。Test 的 Rust 监听取消断言失败；Reading workspace 两浏览器均仍定位被目录标题替代的旧关闭按钮，修正对应局部阅读及面板外观用例。
+- notify 后端停止可能异步；DirectoryWatch 在 Drop 时与事件派发共用互斥门禁，取消后不再通知 UI。Rust CI 明确 cache-workspaces 为 src-tauri。
+- 开启外围自动隐藏时，首页默认展开不再固定概览；主动展开仍保持可见，重新进入首页收回。
+- 本机 Chromium/WebKit 各 20 项通过，Rust 65 库测试和 33 集成项通过，clippy/typecheck/lint 通过。沙箱内 FSEvents 超时，沙箱外原生通知测试通过。未据此宣称 Linux 真机监听或完整远端 E2E 已通过。
