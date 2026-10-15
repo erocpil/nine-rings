@@ -139,8 +139,7 @@ html .flow-block-content.editor-content .ProseMirror.flow-prose {
   white-space: normal;
 }
 .document-toc-block header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.document-toc-block fieldset { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; font-size: 12px; }
-.document-toc-block label { display: inline-flex; align-items: center; gap: 3px; }
+.document-toc-levels { margin-inline-start: auto; color: var(--text-secondary); font-size: 12px; text-align: right; }
 html .editor-content .document-toc-block ol { list-style: none; padding: 0; margin: 8px 0 0; }
 html .editor-content .document-toc-block ol > li::before { content: none; }
 .document-toc-block li { margin: 0; min-width: 0; }
@@ -151,7 +150,7 @@ html .editor-content .document-toc-block ol > li::before { content: none; }
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  margin-left: auto;
+  margin-left: 0;
   padding: 2px;
   border: 0;
   border-radius: 4px;

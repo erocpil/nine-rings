@@ -362,10 +362,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: No
   };
 
   if (node.attrs.language === "toc" && !inWorkspace) return <NodeViewWrapper className="code-block-wrap toc-block-wrap" data-indent={node.attrs.indent > 0 ? node.attrs.indent : undefined}>
-    <TableOfContentsBlock source={code} collapsed={collapsed} onToggleCollapse={toggleCollapsed} onLevelsChange={editable ? source => {
-      const pos = getPos();
-      if (typeof pos === "number") editor.view.dispatch(editor.state.tr.insertText(source, pos + 1, pos + node.nodeSize - 1));
-    } : undefined} />
+    <TableOfContentsBlock source={code} collapsed={collapsed} onToggleCollapse={toggleCollapsed} />
     <pre hidden><NodeViewContent as="code" /></pre>
   </NodeViewWrapper>;
   return (

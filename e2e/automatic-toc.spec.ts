@@ -1,5 +1,22 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { createBlankDocument, waitForSavedText } from "./helpers/document";
+
+async function enableH6(page: Page) {
+  const toc = page.getByRole("navigation", { name: "文档内目录" });
+  if ((await toc.locator(".document-toc-levels").innerText()).includes("H6")) return;
+  await page.getByRole("button", { name: "第 1 块操作", exact: true }).click();
+  const menu = page.getByRole("menu", { name: "第 1 块", exact: true });
+  if ((page.viewportSize()?.width ?? 0) < 600) {
+    await expect(menu.locator(".block-action-menu-specific")).toHaveCount(0);
+    await menu.getByRole("menuitem", { name: "块级功能 ›", exact: true }).click();
+  } else {
+    await expect(menu.locator(".block-action-menu-specific")).toBeVisible();
+  }
+  await menu.getByRole("menuitem", { name: "显示标题层级 ›", exact: true }).click();
+  await menu.getByRole("menuitemcheckbox", { name: "H6", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(toc.getByRole("checkbox")).toHaveCount(0);
+}
 
 for (const key of ["Enter", "Space"]) {
   test(`/toc 用 ${key} 插入自动目录，级别、重命名、撤销和重载保持`, async ({ page }) => {
@@ -15,7 +32,7 @@ for (const key of ["Enter", "Space"]) {
       editor.commands.insertContent('<h1>开始</h1><h2>章节</h2><h6>末级标题</h6><p>正文</p>');
     });
     await expect(toc.getByRole("link")).toHaveCount(2);
-    await toc.getByRole("checkbox", { name: "目录展示 H6", exact: true }).check();
+    await enableH6(page);
     await expect(toc.getByRole("link", { name: "末级标题", exact: true })).toBeVisible();
     await editor.evaluate(element => {
       const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
@@ -29,7 +46,7 @@ for (const key of ["Enter", "Space"]) {
     await waitForSavedText(page, "末级标题");
     await page.reload();
     await expect(toc.getByRole("link")).toHaveCount(3);
-    await expect(toc.getByRole("checkbox", { name: "目录展示 H6", exact: true })).toBeChecked();
+    await expect(toc.locator(".document-toc-levels")).toHaveText("H1 · H2 · H3 · H6");
     await page.getByRole("button", { name: "源码", exact: true }).click();
     await expect(page.locator(".cm-content")).toContainText("levels: 1,2,3,6");
   });
@@ -75,7 +92,7 @@ for (const mode of ["edit", "readonly", "virtual", "source"] as const) {
   });
 }
 
-test("手机自动目录级别可点选，超长标签不撑宽竖屏或横屏", async ({ page }, testInfo) => {
+test("手机自动目录通过块菜单设置级别，超长标签不撑宽竖屏或横屏", async ({ page }, testInfo) => {
   await createBlankDocument(page, "手机目录");
   await page.locator(".ProseMirror:visible").evaluate(element => {
     const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
@@ -100,7 +117,7 @@ test("手机自动目录级别可点选，超长标签不撑宽竖屏或横屏",
     const bounds = (await toc.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
-    await toc.getByRole("checkbox", { name: "目录展示 H6", exact: true }).check();
+    await enableH6(page);
     await expect(toc.getByRole("link", { name: "末级标题", exact: true })).toBeVisible();
     await expect.poll(() => toc.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
     await page.screenshot({ path: testInfo.outputPath(`toc-mobile-${viewport.width}.png`) });
@@ -222,7 +239,7 @@ test("目录块级功能可连续选择标题层级，撤销重做及重新加�
   await toc.locator("header strong").scrollIntoViewIfNeeded();
   await page.getByRole("button", { name: "第 1 块操作", exact: true }).click();
   const menu = page.getByRole("menu", { name: "第 1 块", exact: true });
-  await menu.getByRole("menuitem", { name: "块级功能 ›", exact: true }).click();
+  await expect(menu.locator(".block-action-menu-specific")).toBeVisible();
   await menu.getByRole("menuitem", { name: "显示标题层级 ›", exact: true }).click();
   const h2 = menu.getByRole("menuitemcheckbox", { name: "H2", exact: true });
   const h6 = menu.getByRole("menuitemcheckbox", { name: "H6", exact: true });

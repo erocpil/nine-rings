@@ -49,6 +49,8 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
   const root = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x: 8, y: 8 });
   const [submenuPath, setSubmenuPath] = useState<string[]>([]);
+  const specific = actions.find(action => action.label === "块级功能" && !action.disabled);
+  const expanded = submenuPath.length === 0 && !!specific?.children?.length && window.innerWidth >= 600;
   let visibleActions = actions;
   for (const label of submenuPath) {
     visibleActions = visibleActions.find(action => action.label === label)?.children ?? [];
@@ -58,7 +60,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
     const menu = root.current!.getBoundingClientRect();
     setPosition({ x: Math.max(8, Math.min(placement === "below" ? rect.left : rect.right + 6, window.innerWidth - menu.width - 8)), y: Math.max(8, Math.min(placement === "below" ? rect.bottom + 6 : rect.top, window.innerHeight - menu.height - 8)) });
     root.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
-  }, [trigger, submenuPath, placement]);
+  }, [trigger, submenuPath, placement, expanded]);
   useEffect(() => {
     const outside = (event: Event) => { if (!root.current?.contains(event.target as Node) && !trigger.contains(event.target as Node)) onClose(); };
     const scroll = (event: Event) => {
@@ -79,7 +81,12 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
       window.removeEventListener("blur", onClose);
     };
   }, [onClose, trigger, placement]);
-  return createPortal(<div ref={root} role="menu" aria-label={title} className="editor-context-menu block-action-menu"
+  const renderActions = (items: BlockMenuAction[], path: string[]) => <>{items.map((action, index) => <div key={action.label}>
+      {!path.length && action.group && action.group !== items[index - 1]?.group && <div className={`block-action-menu-group${index === 0 ? " first-group" : ""}`} role="presentation">{action.group}</div>}
+      {action.inputControl ? <InputControl action={action} onClose={onClose} /> : action.colorControl ? <ColorControl action={action} onClose={onClose} /> : <button type="button" role={action.checked === undefined ? "menuitem" : "menuitemcheckbox"} aria-checked={action.checked} className={`editor-context-item${action.danger ? " block-action-danger" : ""}`} disabled={action.disabled} aria-haspopup={action.children ? "menu" : undefined}
+        onClick={event => { if (action.children) { setSubmenuPath([...path, action.label]); return; } action.run(); if (action.keepOpen) event.currentTarget.focus({ preventScroll: true }); else onClose(); }}>{action.checked !== undefined && <span aria-hidden="true" className="block-menu-check">{action.checked ? "✓" : ""}</span>}{action.label}{action.children ? " ›" : ""}</button>}
+    </div>)}</>;
+  return createPortal(<div ref={root} role="menu" aria-label={title} className={`editor-context-menu block-action-menu${expanded ? " block-action-menu-expanded" : ""}`}
     style={{ left: position.x, top: position.y }} onMouseDown={event => event.stopPropagation()}
     onKeyDown={event => {
       if (event.key === "Tab" && visibleActions.some(action => action.colorControl || action.inputControl)) {
@@ -99,10 +106,12 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
     }}>
     <div className="block-action-menu-title">{title}{submenuPath.length ? ` · ${submenuPath.join(" · ")}` : ""}</div>
     {submenuPath.length > 0 && <button type="button" role="menuitem" className="editor-context-item" onClick={() => setSubmenuPath(path => path.slice(0, -1))}>← 返回</button>}
-    {visibleActions.map((action, index) => <div key={action.label}>
-      {!submenuPath.length && action.group && action.group !== visibleActions[index - 1]?.group && <div className={`block-action-menu-group${index === 0 ? " first-group" : ""}`} role="presentation">{action.group}</div>}
-      {action.inputControl ? <InputControl action={action} onClose={onClose} /> : action.colorControl ? <ColorControl action={action} onClose={onClose} /> : <button type="button" role={action.checked === undefined ? "menuitem" : "menuitemcheckbox"} aria-checked={action.checked} className={`editor-context-item${action.danger ? " block-action-danger" : ""}`} disabled={action.disabled} aria-haspopup={action.children ? "menu" : undefined}
-        onClick={event => { if (action.children) { setSubmenuPath(path => [...path, action.label]); return; } action.run(); if (action.keepOpen) event.currentTarget.focus({ preventScroll: true }); else onClose(); }}>{action.checked !== undefined && <span aria-hidden="true" className="block-menu-check">{action.checked ? "✓" : ""}</span>}{action.label}{action.children ? " ›" : ""}</button>}
-    </div>)}
+    <div className={expanded ? "block-action-menu-columns" : undefined}>
+      <div className="block-action-menu-panel">{renderActions(visibleActions, submenuPath)}</div>
+      {expanded && <section className="block-action-menu-panel block-action-menu-specific" aria-label="块级功能">
+        <div className="block-action-menu-title">块级功能</div>
+        {renderActions(specific!.children!, ["块级功能"])}
+      </section>}
+    </div>
   </div>, document.body);
 }

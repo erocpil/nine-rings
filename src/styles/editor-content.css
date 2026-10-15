@@ -736,3 +736,8 @@
 .app :is(.editor-content, .document-content, .markdown-preview-pane, .vr-block, .document-toc-block) a[href]:hover {
   text-decoration-color: color-mix(in srgb, var(--text-secondary) 90%, transparent);
 }
+
+.editor-context-menu.block-action-menu-expanded { width: 480px; overflow: hidden; }
+.block-action-menu-columns { display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+.block-action-menu-expanded .block-action-menu-panel { overflow: auto; max-height: min(440px, calc(100dvh - 56px)); min-width: 0; }
+.block-action-menu-specific { border-inline-start: 1px solid var(--border); }
