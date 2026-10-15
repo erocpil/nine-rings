@@ -107,3 +107,36 @@ test("源码微渲染配色跟随全部风格的浅深主题并保持对比度",
   });
   expect(results.filter(row => row.contrast < (["h1", "h2", "h3", "h4"].includes(row.kind) ? 3 : 4.5))).toEqual([]);
 });
+
+test("语法颜色开关独立于微渲染排版并持久化，不清除撤销历史", async ({ page }) => {
+  await createBlankDocument(page);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  const text = "# 标题\n\n[链接](https://example.com) 与 `code`\n";
+  await replaceSource(area, text);
+  const highlight = page.getByRole("button", { name: "语法高亮", exact: true });
+  const micro = page.getByRole("button", { name: "源码微渲染", exact: true });
+  const heading = area.locator(".source-micro-h1").last();
+  const textColor = await area.evaluate(el => getComputedStyle(el).color);
+  for (const enhanced of [false, true]) {
+    if (enhanced) await micro.click();
+    await expect(highlight).toHaveAttribute("aria-pressed", "true");
+    await expect(heading).not.toHaveCSS("color", textColor);
+    const size = await heading.evaluate(el => getComputedStyle(el).fontSize);
+    await highlight.click();
+    await expect(heading).toHaveCSS("color", textColor);
+    await expect(heading).toHaveCSS("font-size", size);
+    await expect(area.locator(".source-micro-link").first()).toHaveCSS("color", textColor);
+    expect((await sourceInfo(area)).value).toBe(text);
+    if (!enhanced) await highlight.click();
+  }
+  await area.press("End");
+  await area.press("x");
+  await highlight.click();
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  expect((await sourceInfo(area)).value).toBe(text);
+  await highlight.click();
+  await page.reload();
+  await expect(highlight).toHaveAttribute("aria-pressed", "false");
+  await expect(micro).toHaveAttribute("aria-pressed", "true");
+});

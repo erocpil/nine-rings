@@ -201,23 +201,23 @@ export function MarkdownSourceEditor({
         HighlightStyle.define([
           {
             tag: [tags.heading, tags.keyword, tags.link],
-            color: "var(--accent)",
+            color: "var(--source-syntax-accent, var(--accent))",
             fontWeight: "600",
           },
           {
             tag: [tags.string, tags.number, tags.atom],
-            color: "var(--text-secondary)",
+            color: "var(--source-syntax-secondary, var(--text-secondary))",
           },
           {
             tag: [tags.comment, tags.meta],
-            color: "var(--text-secondary)",
+            color: "var(--source-syntax-secondary, var(--text-secondary))",
             fontStyle: "italic",
           },
           // Markdown hard-break and delimiter marks inherit meta's tag.
           // Italic skew can make a backslash look like a vertical bar.
           {
             tag: [tags.processingInstruction, tags.escape],
-            color: "var(--text-secondary)",
+            color: "var(--source-syntax-secondary, var(--text-secondary))",
             fontStyle: "normal",
           },
           { tag: tags.strong, fontWeight: "bold" },
@@ -427,6 +427,10 @@ export function MarkdownSourceEditor({
         >
           <ToolbarIcon name="wrap" />
         </button>
+        <button type="button" title="语法高亮" aria-label="语法高亮" aria-pressed={preferences.sourceSyntaxHighlighting !== false}
+          onClick={() => saveBlockWorkspacePreferences({ sourceSyntaxHighlighting: preferences.sourceSyntaxHighlighting === false })}>
+          <ToolbarIcon name="highlight" />
+        </button>
         <button type="button" title="源码微渲染" aria-label="源码微渲染" aria-pressed={preferences.sourceMicroRendering === true}
           onClick={() => saveBlockWorkspacePreferences({ sourceMicroRendering: preferences.sourceMicroRendering !== true })}>
           <ToolbarIcon name="font" />
@@ -500,6 +504,7 @@ export function MarkdownSourceEditor({
     <div
       className="markdown-source-input markdown-cm-source"
       data-micro-rendering={preferences.sourceMicroRendering === true}
+      data-source-highlighting={preferences.sourceSyntaxHighlighting !== false}
       style={{ fontSize, "--source-font-size": `${fontSize}px` } as CSSProperties}
     >
       {toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbar}

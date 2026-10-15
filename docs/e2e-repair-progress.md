@@ -1567,3 +1567,5 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - notify 后端停止可能异步；DirectoryWatch 在 Drop 时与事件派发共用互斥门禁，取消后不再通知 UI。Rust CI 明确 cache-workspaces 为 src-tauri。
 - 开启外围自动隐藏时，首页默认展开不再固定概览；主动展开仍保持可见，重新进入首页收回。
 - 本机 Chromium/WebKit 各 20 项通过，Rust 65 库测试和 33 集成项通过，clippy/typecheck/lint 通过。沙箱内 FSEvents 超时，沙箱外原生通知测试通过。未据此宣称 Linux 真机监听或完整远端 E2E 已通过。
+
+同日追加源码语法颜色开关：Chromium/WebKit 微渲染各 4 项通过，覆盖纯源/微渲染、字体大小保留、源内容不变、撤销及重载；用户设置备份往返通过。

@@ -51,5 +51,21 @@ describe("source micro rendering", () => {
     expect(blockWorkspacePreferences().sourceMicroRendering).toBeUndefined();
     values.set("nr:blockWorkspaceDisplay", '{"sourceMicroRendering":true}');
     expect(blockWorkspacePreferences().sourceMicroRendering).toBe(true);
+    expect(
+      blockWorkspacePreferences().sourceSyntaxHighlighting,
+    ).toBeUndefined();
+    values.set(
+      "nr:blockWorkspaceDisplay",
+      '{"sourceSyntaxHighlighting":"false"}',
+    );
+    expect(
+      blockWorkspacePreferences().sourceSyntaxHighlighting,
+    ).toBeUndefined();
+    values.set(
+      "nr:blockWorkspaceDisplay",
+      '{"sourceMicroRendering":true,"sourceSyntaxHighlighting":false}',
+    );
+    expect(blockWorkspacePreferences().sourceSyntaxHighlighting).toBe(false);
+    expect(blockWorkspacePreferences().sourceMicroRendering).toBe(true);
   });
 });

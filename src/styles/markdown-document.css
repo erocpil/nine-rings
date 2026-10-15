@@ -179,3 +179,14 @@ blockquote[data-alert="WARNING"], blockquote[data-alert="CAUTION"] { border-left
 
 .markdown-cm-host .cm-lineNumbers .cm-gutterElement.cm-relative-current { text-align: left; }
 .markdown-cm-host .cm-lineNumbers .cm-gutterElement.cm-relative-current-right { text-align: right; }
+
+/* Color-only switch shared by plain source and micro typography. Search and
+   selection decorations are deliberately independent of syntax colors. */
+.markdown-cm-source[data-source-highlighting="false"] {
+  --source-syntax-accent: var(--text);
+  --source-syntax-secondary: var(--text);
+}
+.markdown-cm-source[data-source-highlighting="false"] .cm-content [class*="source-micro-"] {
+  color: inherit;
+  background-color: transparent;
+}
