@@ -49,9 +49,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
   const root = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x: 8, y: 8 });
   const [submenuPath, setSubmenuPath] = useState<string[]>([]);
-  const [flyout, setFlyout] = useState<{ x: number; y: number } | null>(null);
-  const specific = actions.find(action => action.label === "块级功能" && !action.disabled);
-  const expanded = submenuPath.length === 0 && !!specific?.children?.length && flyout !== null;
+  const [flyouts, setFlyouts] = useState<{ path: string[]; x: number; y: number }[]>([]);
   let visibleActions = actions;
   for (const label of submenuPath) {
     visibleActions = visibleActions.find(action => action.label === label)?.children ?? [];
@@ -82,35 +80,38 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
       window.removeEventListener("blur", onClose);
     };
   }, [onClose, trigger, placement]);
-  const showSpecific = (button: HTMLElement) => {
-    const menu = root.current!.getBoundingClientRect();
-    const item = button.getBoundingClientRect();
-    const width = 240;
+  const actionsAt = (path: string[]) => path.reduce<BlockMenuAction[]>((items, label) => items.find(action => action.label === label)?.children ?? [], actions);
+  const showSubmenu = (button: HTMLElement, action: BlockMenuAction, path: string[]) => {
+    const parent = button.closest(".block-action-menu-specific") ?? root.current!;
+    const menu = parent.getBoundingClientRect(), item = button.getBoundingClientRect();
+    const width = 188;
     const x = menu.right + width <= window.innerWidth - 8 ? menu.right
       : menu.left - width >= 8 ? menu.left - width : null;
-    if (x === null) return;
-    setFlyout({ x, y: Math.max(8, Math.min(item.top, window.innerHeight - Math.min(440, window.innerHeight - 16) - 8)) });
+    const depth = path.length - submenuPath.length;
+    if (x === null) { setFlyouts(current => current.slice(0, depth)); return; }
+    const height = Math.min(440, window.innerHeight - 16, 40 + (action.children?.length ?? 0) * 34);
+    setFlyouts(current => [...current.slice(0, depth), { path: [...path, action.label], x, y: Math.max(8, Math.min(item.top, window.innerHeight - height - 8)) }]);
   };
   const renderActions = (items: BlockMenuAction[], path: string[]) => <>{items.map((action, index) => <div key={action.label}>
       {!path.length && action.group && action.group !== items[index - 1]?.group && <div className={`block-action-menu-group${index === 0 ? " first-group" : ""}`} role="presentation">{action.group}</div>}
       {action.inputControl ? <InputControl action={action} onClose={onClose} /> : action.colorControl ? <ColorControl action={action} onClose={onClose} /> : <button type="button" role={action.checked === undefined ? "menuitem" : "menuitemcheckbox"} aria-checked={action.checked} className={`editor-context-item${action.danger ? " block-action-danger" : ""}`} disabled={action.disabled} aria-haspopup={action.children ? "menu" : undefined}
-        aria-expanded={!path.length && action.label === "块级功能" ? expanded : undefined}
+        aria-expanded={action.children ? flyouts.some(menu => menu.path.join("/") === [...path, action.label].join("/")) : undefined}
         onPointerEnter={event => {
-          if (path.length || event.pointerType !== "mouse") return;
-          if (action.label === "块级功能" && !action.disabled) showSpecific(event.currentTarget);
-          else setFlyout(null);
+          if (event.pointerType !== "mouse") return;
+          if (action.children && !action.disabled) showSubmenu(event.currentTarget, action, path);
+          else setFlyouts(current => current.slice(0, path.length - submenuPath.length));
         }}
         onKeyDown={event => {
-          if (!path.length && action.label === "块级功能" && event.key === "ArrowRight") {
-            event.preventDefault(); event.stopPropagation(); setFlyout(null); setSubmenuPath([action.label]);
+          if (action.children && event.key === "ArrowRight") {
+            event.preventDefault(); event.stopPropagation(); setFlyouts([]); setSubmenuPath([...path, action.label]);
           }
         }}
-        onClick={event => { if (action.children) { setFlyout(null); setSubmenuPath([...path, action.label]); return; } action.run(); if (action.keepOpen) event.currentTarget.focus({ preventScroll: true }); else onClose(); }}>{action.checked !== undefined && <span aria-hidden="true" className="block-menu-check">{action.checked ? "✓" : ""}</span>}{action.label}{action.children ? " ›" : ""}</button>}
+        onClick={event => { if (action.children) { setFlyouts([]); setSubmenuPath([...path, action.label]); return; } action.run(); if (action.keepOpen) event.currentTarget.focus({ preventScroll: true }); else onClose(); }}>{action.checked !== undefined && <span aria-hidden="true" className="block-menu-check">{action.checked ? "✓" : ""}</span>}{action.label}{action.children ? " ›" : ""}</button>}
     </div>)}</>;
-  return createPortal(<div ref={root} role="menu" aria-label={title} className="editor-context-menu block-action-menu" onPointerLeave={() => setFlyout(null)}
+  return createPortal(<div ref={root} role="menu" aria-label={title} className="editor-context-menu block-action-menu" onPointerLeave={() => setFlyouts([])}
     style={{ left: position.x, top: position.y }} onMouseDown={event => event.stopPropagation()}
     onKeyDown={event => {
-      if (event.key === "Tab" && visibleActions.some(action => action.colorControl || action.inputControl)) {
+      if (event.key === "Tab" && root.current?.querySelector("input, textarea")) {
         event.preventDefault(); event.stopPropagation();
         const controls = Array.from(root.current!.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), textarea:not(:disabled)"));
         const index = controls.indexOf(document.activeElement as HTMLElement);
@@ -126,13 +127,13 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
       buttons[next]?.focus();
     }}>
     <div className="block-action-menu-title">{title}{submenuPath.length ? ` · ${submenuPath.join(" · ")}` : ""}</div>
-    {submenuPath.length > 0 && <button type="button" role="menuitem" className="editor-context-item" onClick={() => setSubmenuPath(path => path.slice(0, -1))}>← 返回</button>}
+    {submenuPath.length > 0 && <button type="button" role="menuitem" className="editor-context-item" onClick={() => { setFlyouts([]); setSubmenuPath(path => path.slice(0, -1)); }}>← 返回</button>}
     <div>
       <div className="block-action-menu-panel">{renderActions(visibleActions, submenuPath)}</div>
-      {expanded && <section className="editor-context-menu block-action-menu-specific" aria-label="块级功能" style={{ left: flyout!.x, top: flyout!.y }}>
-        <div className="block-action-menu-title">块级功能</div>
-        {renderActions(specific!.children!, ["块级功能"])}
-      </section>}
+      {flyouts.map(menu => <section key={menu.path.join("/")} className="editor-context-menu block-action-menu-specific" aria-label={menu.path[menu.path.length - 1]} style={{ left: menu.x, top: menu.y }}>
+        <div className="block-action-menu-title">{menu.path[menu.path.length - 1]}</div>
+        {renderActions(actionsAt(menu.path), menu.path)}
+      </section>)}
     </div>
   </div>, document.body);
 }

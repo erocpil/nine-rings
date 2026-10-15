@@ -80,13 +80,14 @@ export function SelectionHoverToolbar() {
         // Update in place: replacing a pressed button between pointerdown and
         // click loses the click entirely (colors, size and clipboard included).
         const attributes = new Map([...original.attributes].filter(attr => !["id", "autofocus", "hidden"].includes(attr.name)).map(attr => [attr.name, attr.value]));
-        attributes.set("class", `${original.className} selection-hover-action`);
+        attributes.set("class", `${original.className} menu-btn selection-hover-action`);
+        if (original.classList.contains("source-fold-level-trigger")) attributes.set("class", attributes.get("class") + " toolbar-split-caret");
         attributes.set("aria-label", original.getAttribute("aria-label") || original.title || command.label);
         for (const attr of [...button.attributes]) if (!attributes.has(attr.name)) button.removeAttribute(attr.name);
         for (const [name, value] of attributes) if (button.getAttribute(name) !== value) button.setAttribute(name, value);
         if (button.innerHTML !== original.innerHTML) button.innerHTML = original.innerHTML;
         next.push(button);
-        const owner = original.closest(".toolbar-split-button");
+        const owner = original.closest(".toolbar-split-button, .source-fold-tool");
         if (owner) {
           let group = groups.get(owner);
           if (!group) {

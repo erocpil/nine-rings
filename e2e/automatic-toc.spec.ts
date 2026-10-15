@@ -244,7 +244,7 @@ test("目录块级功能可连续选择标题层级，撤销重做及重新加�
   await expect(menu.locator(".block-action-menu-specific")).toHaveCount(0);
   await menu.getByRole("menuitem", { name: "块级功能 ›", exact: true }).hover();
   await expect(menu.locator(".block-action-menu-specific")).toBeVisible();
-  await menu.getByRole("menuitem", { name: "显示标题层级 ›", exact: true }).click();
+  await menu.getByRole("menuitem", { name: "显示标题层级 ›", exact: true }).hover();
   const h2 = menu.getByRole("menuitemcheckbox", { name: "H2", exact: true });
   const h6 = menu.getByRole("menuitemcheckbox", { name: "H6", exact: true });
   await expect(h2).toBeDisabled();
@@ -256,8 +256,11 @@ test("目录块级功能可连续选择标题层级，撤销重做及重新加�
   await expect(h2).not.toBeChecked();
   await expect(h6).toBeDisabled();
   await expect(toc.getByRole("link")).toHaveCount(1);
-  await menu.getByRole("menuitem", { name: "← 返回", exact: true }).click();
-  await expect(menu.getByRole("menuitem", { name: "显示标题层级 ›", exact: true })).toBeVisible();
+  for (const panel of await menu.locator(".block-action-menu-specific").all()) {
+    expect((await panel.boundingBox())!.width).toBeLessThanOrEqual(200);
+  }
+  await menu.getByRole("menuitem", { name: "复制内容", exact: true }).hover();
+  await expect(menu.locator(".block-action-menu-specific")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await editor.evaluate(element => (element as any).editor.commands.undo());
   await expect(toc.getByRole("link")).toHaveCount(2);

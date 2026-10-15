@@ -72,6 +72,10 @@ test("源码选区悬停复用源码工具，格式命令保留选择", async ({
   await page.mouse.move(rect.x+20,rect.y+rect.height/2);
   const hover = page.getByRole("toolbar",{name:"选区编辑工具",exact:true});
   await expect(hover).toBeVisible();
-  await hover.getByRole("button",{name:"加粗",exact:true}).click();
+  const bold = hover.getByRole("button", { name: "加粗", exact: true });
+  await expect(bold).toHaveClass(/menu-btn/);
+  await expect(bold).not.toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(hover.locator(".toolbar-split-button")).toHaveCount(2);
+  await bold.click();
   await expect(source).toContainText("**selected** content");
 });

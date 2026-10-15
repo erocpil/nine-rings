@@ -739,4 +739,4 @@
 
 .editor-context-menu.block-action-menu { overflow: visible; }
 .block-action-menu-panel { overflow: auto; max-height: min(440px, calc(100dvh - 88px)); }
-.editor-context-menu.block-action-menu-specific { width: 240px; max-height: min(440px, calc(100dvh - 16px)); overflow: auto; }
+.editor-context-menu.block-action-menu-specific { width: 188px; min-width: 0; max-height: min(440px, calc(100dvh - 16px)); overflow: auto; }
