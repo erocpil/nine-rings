@@ -1,3 +1,5 @@
+import { applyToolbarColor } from "../lib/toolbar-color";
+import { useToolbarColor } from "../hooks/useToolbarColor";
 import { EditorBackgroundMenu } from "./EditorBackgroundMenu";
 import { OrderedListNumberingMenu } from "./OrderedListNumberingMenu";
 import { FLOW_BLOCK_TEMPLATE } from "../lib/flow-block";
@@ -111,6 +113,8 @@ const btn = (label: ReactNode, action: () => void, active?: boolean, title?: str
 /** No wrapper DOM and no second EditorView; commands use the owning session. */
 export function EditorToolbarContents({ editor, readonly, saveStatus, layout, menus, actions, editorFontSize, onEditorFontSizeChange, showCodeLineNumbers, onCodeLineNumbersChange, selectedTableCellCount }: EditorToolbarProps) {
   const { toolbarRef } = layout;
+  const [lastColor, rememberColor] = useToolbarColor("text", "#d91e18");
+  const applyColor = (color: string) => { rememberColor(color); applyToolbarColor(editor, "text", color); };
   const selectionSize = useSelectionFontSize(editor, editorFontSize);
   const {
     colorOpen, setColorOpen, sizeOpen, setSizeOpen,
@@ -333,43 +337,47 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     <EditorBackgroundMenu editor={editor} readonly={readonly} />
 
     {/* 文字颜色 */}
-    <div className="menu-dropdown" data-toolbar-tool="color">
+    <div className="menu-dropdown toolbar-split-button" data-toolbar-tool="color">
       <button
         className="menu-btn"
-        onClick={(e) => { e.stopPropagation(); if (!readonly) toggleMobileToolbarMenu("color", colorOpen); }}
+        onClick={() => { if (!readonly) { applyColor(lastColor); setColorOpen(false); } }}
         type="button"
         title="文字颜色"
         disabled={readonly}
-        style={{ color: editor.getAttributes("textStyle").color || "inherit" }}
+        aria-label={`应用文字颜色 ${lastColor}`}
       >
-        <span className="color-preview" style={{ backgroundColor: editor.getAttributes("textStyle").color || "var(--text)" }} />
+        <span className="color-preview" style={{ backgroundColor: lastColor }} />
         A
       </button>
+      <button className="menu-btn toolbar-split-caret" type="button" title="选择文字颜色" aria-label="选择文字颜色" aria-expanded={colorOpen} disabled={readonly}
+        onClick={event => { event.stopPropagation(); toggleMobileToolbarMenu("color", colorOpen); }}>{dropdownCaret}</button>
       {colorOpen && (
-        <div className="menu-dropdown-list color-grid">
+        <div className="menu-dropdown-list color-grid" role="group" aria-label="文字颜色选项">
+          <div className="color-swatches">
           {PRESET_COLORS.map((c) => (
             <button
               key={c}
-              className={`color-swatch ${editor.getAttributes("textStyle").color === c ? "active" : ""}`}
+              className={`color-swatch ${lastColor === c ? "active" : ""}`}
               style={{ backgroundColor: c }}
               onClick={() => {
-                editor.chain().focus().setColor(c).run();
+                applyColor(c);
                 setColorOpen(false);
               }}
               title={c}
               type="button"
             />
           ))}
+          </div>
           <label className="menu-dropdown-control">
             自定义颜色
-            <input type="color" aria-label="自定义文字颜色" value={editor.getAttributes("textStyle").color || "#333333"}
-              onChange={event => editor.chain().focus().setColor(event.target.value).run()} />
+            <input type="color" aria-label="自定义文字颜色" value={lastColor}
+              onChange={event => applyColor(event.target.value)} />
           </label>
           <div className="menu-dropdown-sep" />
           <button
             className="menu-dropdown-item"
             onClick={() => {
-              editor.chain().focus().unsetColor().run();
+              applyToolbarColor(editor, "text", null);
               setColorOpen(false);
             }}
             type="button"

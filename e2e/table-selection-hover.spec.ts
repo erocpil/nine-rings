@@ -13,7 +13,7 @@ test("表格行列选择、合并拆分与背景色保存重载及源码往返",
   await page.getByTitle("表格操作", { exact: true }).click();
   await page.getByRole("button", { name: "合并所选单元格", exact: true }).click();
   await expect(editor.locator('td[colspan="3"]')).toHaveCount(1);
-  await page.getByRole("button", { name: "单元格背景色", exact: true }).click();
+  await page.getByRole("button", { name: "选择背景色", exact: true }).click();
   await page.getByRole("button", { name: "背景色 #d6a348", exact: true }).click();
   await expect(editor.locator('td[colspan="3"]')).toHaveAttribute("data-background-color", "#d6a348");
   await expect.poll(() => page.evaluate(async () => {
@@ -56,7 +56,7 @@ test("悬停选区展示全部宿主工具，移走收回，文字背景可撤�
   await expect(editor.locator("strong")).toHaveText("selected");
   await page.mouse.move(1,1);
   await expect(hover).toHaveCount(0);
-  await page.getByRole("button", { name: "文字背景色", exact: true }).click();
+  await page.getByRole("button", { name: "选择背景色", exact: true }).click();
   await page.getByRole("button", { name: "背景色 #83a66e", exact: true }).click();
   await expect(editor.locator("mark")).toHaveAttribute("data-background-color", "#83a66e");
   await editor.press("ControlOrMeta+z");

@@ -783,12 +783,26 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 }
 
 .color-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  width: 224px;
+  max-width: calc(100vw - 16px);
+  box-sizing: border-box;
+  gap: 4px;
   left: auto;
   right: 0;
+}
+
+.color-swatches {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  justify-items: center;
+  gap: 4px;
+}
+
+.color-grid .menu-dropdown-control {
+  min-width: 0;
+  padding: 6px;
 }
 
 .color-swatch {
@@ -1475,3 +1489,14 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
   overflow-y: hidden;
 }
 .selection-hover-toolbar .selection-hover-action { flex-shrink: 0; }
+
+.toolbar-split-button { gap: 0; }
+.toolbar-split-button > .menu-btn:first-child { border-radius: 4px 0 0 4px; }
+.toolbar-split-button > .toolbar-split-caret {
+  border-radius: 0 4px 4px 0;
+  border-left: 1px solid var(--border);
+  min-width: 18px;
+  width: 18px;
+  padding-inline: 2px;
+}
+.toolbar-split-caret .toolbar-dropdown-caret { margin: 0; }

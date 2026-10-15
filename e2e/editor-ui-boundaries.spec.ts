@@ -47,11 +47,11 @@ test("手机工具栏菜单互斥、重复点击与外部关闭，标题分页�
   await page.setViewportSize({ width: 390, height: 850 });
   await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
   const dropdowns = page.locator(".editor-menu .menu-dropdown-list");
-  for (const title of ["字号", "文字颜色"]) {
+  for (const title of ["字号", "选择文字颜色"]) {
     await page.getByTitle(title, { exact: true }).click();
     await expect(dropdowns).toHaveCount(1);
   }
-  await page.getByTitle("文字颜色", { exact: true }).click();
+  await page.getByTitle("选择文字颜色", { exact: true }).click();
   await expect(dropdowns).toHaveCount(0);
   await page.getByTitle("H1–2 H6", { exact: true }).click();
   await expect(page.getByTitle("标题 1", { exact: true })).toBeVisible();

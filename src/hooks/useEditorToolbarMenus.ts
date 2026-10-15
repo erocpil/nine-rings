@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export type EditorToolbarMenu = "style" | "heading" | "block" | "ordered" | "table" | "clip" | "link" | "size" | "color" | "more";
 
@@ -31,6 +31,18 @@ export function useEditorToolbarMenus() {
     setTableOpen(false);
     setMoreOpen(false);
   }, []);
+  const dropdownOpen = colorOpen || sizeOpen || headingOpen || orderedOpen || blockOpen || styleOpen || clipOpen || tableOpen || moreOpen || linkOpen;
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeToolbarDropdowns();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [dropdownOpen, closeToolbarDropdowns]);
   const toggleMobileToolbarMenu = useCallback((menu: EditorToolbarMenu, isOpen: boolean) => {
     closeToolbarDropdowns();
     if (isOpen) return;

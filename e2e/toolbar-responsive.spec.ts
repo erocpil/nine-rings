@@ -233,3 +233,75 @@ test("桌面字号菜单避开编辑区裁剪且选项可点击", async ({ page 
   await size.click();
   await expect(option).toHaveCount(0);
 });
+
+test("文字颜色弹层保持紧凑，首次 Esc 关闭且选择颜色仍有效", async ({ page }) => {
+  await createBlankNote(page);
+  const editor = page.locator('.ProseMirror[contenteditable="true"]').first();
+  await editor.fill("颜色测试");
+  await editor.press("ControlOrMeta+a");
+  const toolbar = page.locator(".editor-menu");
+  const button = toolbar.getByTitle("选择文字颜色", { exact: true });
+  for (const width of [1800, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    if (width === 390) await page.locator(".sidebar-tab-hide").click();
+    await button.click();
+    const menu = toolbar.getByRole("group", { name: "文字颜色选项" });
+    await expect(menu).toBeVisible();
+    const bounds = (await menu.boundingBox())!;
+    expect(bounds.width).toBeLessThanOrEqual(240);
+    expect(bounds.height).toBeLessThan(200);
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    const swatches = await menu.locator(".color-swatch").all();
+    expect(swatches).toHaveLength(14);
+    const first = (await swatches[0].boundingBox())!;
+    const seventh = (await swatches[6].boundingBox())!;
+    const eighth = (await swatches[7].boundingBox())!;
+    expect(seventh.y).toBeCloseTo(first.y, 0);
+    expect(eighth.y).toBeGreaterThan(first.y);
+    const custom = (await menu.getByText("自定义颜色", { exact: true }).boundingBox())!;
+    expect(custom.y).toBeGreaterThan(eighth.y);
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+  }
+  await editor.click();
+  await editor.press("ControlOrMeta+a");
+  await button.click();
+  await toolbar.getByTitle("#d91e18", { exact: true }).click();
+  await expect(toolbar.locator(".color-grid")).toHaveCount(0);
+  await expect(editor.locator('span[style*="color"]')).toHaveCSS("color", "rgb(217, 30, 24)");
+});
+
+test("颜色主按钮复用选择，无选区处理当前词并单步撤销", async ({ page }) => {
+  await createBlankNote(page);
+  const editor = page.locator('.ProseMirror[contenteditable="true"]').first();
+  await editor.fill("first second");
+  const caret = async (position: number) => editor.evaluate((element, position) => {
+    const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    instance.commands.setTextSelection(position);
+    instance.view.focus();
+  }, position);
+  const toolbar = page.locator(".editor-menu");
+  await caret(3);
+  await toolbar.getByTitle("选择文字颜色", { exact: true }).click();
+  await toolbar.getByTitle("#22a577", { exact: true }).click();
+  await expect(editor.locator('span[style*="color"]')).toHaveText("first");
+  await expect(toolbar.locator('[data-toolbar-tool="color"] .color-preview')).toHaveCSS("background-color", "rgb(34, 165, 119)");
+  await caret(9);
+  await toolbar.getByTitle("文字颜色", { exact: true }).click();
+  await expect(toolbar.locator(".color-grid")).toHaveCount(0);
+  await expect(editor.locator('span[style*="color"]').last()).toHaveText("second");
+  await expect.poll(() => editor.evaluate(element => (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor.state.selection.from)).toBe(9);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(editor.locator('span[style*="color"]')).toHaveText("first");
+  await caret(9);
+  await toolbar.getByTitle("选择背景色", { exact: true }).click();
+  await toolbar.getByRole("button", { name: "背景色 #83a66e", exact: true }).click();
+  await expect(editor.locator("mark")).toHaveText("second");
+  await caret(3);
+  await toolbar.getByTitle("文字背景色", { exact: true }).click();
+  await expect(editor.locator("mark").first()).toHaveText("first");
+  await page.reload();
+  await expect(toolbar.locator('[data-toolbar-tool="color"] .color-preview')).toHaveCSS("background-color", "rgb(34, 165, 119)");
+  await expect(toolbar.locator('[data-toolbar-tool="background"] .color-preview')).toHaveCSS("background-color", "rgb(131, 166, 110)");
+});

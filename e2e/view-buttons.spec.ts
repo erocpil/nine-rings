@@ -99,7 +99,7 @@ test.describe("手机工具栏状态恢复", () => {
       const more = page.locator(".editor-menu");
       await page.getByTitle("字号", { exact: true }).tap();
       await more.getByRole("button", { name: "24px", exact: true }).tap();
-      await page.getByTitle("文字颜色", { exact: true }).tap();
+      await page.getByTitle("选择文字颜色", { exact: true }).tap();
       await expect(editor.locator('span[style*="font-size"]')).toHaveCSS("font-size", "24px");
       await more.getByLabel("自定义文字颜色", { exact: true }).fill("#ff0000");
       await expect(editor.locator('span[style*="color"]')).toHaveCSS("color", "rgb(255, 0, 0)");
