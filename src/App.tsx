@@ -24,8 +24,6 @@ import "./components/QuitConfirmation.css";
 import { mergeDocumentMetadata } from "./lib/document-metadata";
 import { preserveReadingPositions } from "./lib/reading-position";
 import { ReadingTypographyProvider } from "./components/ReadingTypographyProvider";
-import { ensureFlowPresentationSample } from "./lib/flow-presentation-sample";
-import { ensureMarkdownDemo, MARKDOWN_DEMO_KEY } from "./lib/markdown-demo";
 import { RetainedDocument } from "./components/RetainedDocument";
 import { useWorkspaceLayout } from "./hooks/useWorkspaceLayout";
 import { readDesktopSidebarState, saveDesktopSidebarState, normalizeSidebarOrder, sidebarPanelLabel } from "./lib/desktop-sidebar-state";
@@ -70,8 +68,6 @@ import { DocMOC } from "./components/DocMOC";
 import type { DeltaOps, DocumentMetadata, ExternalMarkdownSource, Note, DocType, SearchNavigationTarget } from "./types/models";
 import { pushSnapshotBusy, useGitHubPushJob } from "./lib/sync/push-job";
 import { ExhibitionWorkspace, ExhibitionWelcome } from "./components/ExhibitionWorkspace";
-import { ensureAestheticStyleSample } from "./lib/aesthetic-style-sample";
-import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
 import { isTauriRuntime } from "./lib/runtime";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { editorAppearanceVariables } from "./lib/editor-appearance";
@@ -917,6 +913,16 @@ function App() {
     // 延迟一下确保存储就绪
     const timer = setTimeout(async () => {
       try {
+        // Sample text and migrations are background work, not part of the startup bundle.
+        const [
+          { ensureAestheticStyleSample },
+          { ensureFlowPresentationSample },
+          { ensureMarkdownDemo, MARKDOWN_DEMO_KEY },
+        ] = await Promise.all([
+          import("./lib/aesthetic-style-sample"),
+          import("./lib/flow-presentation-sample"),
+          import("./lib/markdown-demo"),
+        ]);
         const upgradeMarkdownDemo = async () => {
           if (!await ensureMarkdownDemo()) return;
           refreshNoteViews();
@@ -941,6 +947,7 @@ function App() {
           return;
         }
         // 整个工作区为空 → 写入示例笔记
+        const { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } = await import("./lib/demo-content");
         const seeded = await api.notes.create({
           date: dateStr,
           title: DEMO_TITLE,
