@@ -60,7 +60,9 @@ export function readReadingState(noteId: string): ReadingState {
     const anchor = raw.rendered?.anchor;
     if (state.rendered && anchor && Number.isSafeInteger(anchor.position) && anchor.position >= 0
       && finite(anchor.offset) && typeof anchor.text === "string" && anchor.text.length <= 32)
-      state.rendered.anchor = { position: anchor.position, offset: anchor.offset, text: anchor.text };
+      state.rendered.anchor = { position: anchor.position, offset: anchor.offset, text: anchor.text,
+        ...(anchor.kind === "block" && typeof anchor.nodeType === "string" ? { kind: "block", nodeType: anchor.nodeType } : {}),
+      };
     if (finite(raw.source?.scrollTop) && raw.source.scrollTop >= 0)
       state.source = { scrollTop: raw.source.scrollTop };
     if (

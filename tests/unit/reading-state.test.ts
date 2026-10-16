@@ -155,3 +155,16 @@ test("rendered text anchors survive patches and reject malformed locations", () 
     expect(readReadingState("a").rendered).toEqual({ scrollTop: 600 });
   }
 });
+
+test("non-text block anchors keep their type across reloads and patches", () => {
+  const anchor = {
+    position: 42,
+    offset: -100,
+    text: "",
+    kind: "block" as const,
+    nodeType: "resizableImage",
+  };
+  patchReadingState("image", { rendered: { scrollTop: 800, anchor } });
+  patchReadingState("image", { view: "rendered" });
+  expect(readReadingState("image").rendered?.anchor).toEqual(anchor);
+});

@@ -267,8 +267,8 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                 <AppearanceField label="块弹层字号" desc="代码／引用独立阅读字号">
                   <select className="settings-input editor-appearance-select" aria-label="弹层字号" value={blockDisplay.fontSize ?? ""} onChange={event => updateBlock({ fontSize: event.target.value ? Number(event.target.value) : undefined })}><option value="">跟随正文</option>{Array.from({ length: 21 }, (_, i) => i + 12).map(size => <option key={size}>{size}</option>)}</select>
                 </AppearanceField>
-                <AppearanceField label="正文代码高度" desc="长代码块内部滚动，最高不超过可视区">
-                  <select className="settings-input editor-appearance-select" aria-label="正文代码最大高度" value={codeHeight} onChange={event => { setCodeHeight(Number(event.target.value)); setBlockDirty(true); }}>{[40, 60, 80, 100].map(value => <option value={value} key={value}>{value}% 可视区</option>)}</select>
+                <AppearanceField label="代码／引用高度" desc="长代码与引用块内部滚动，最高不超过可视区">
+                  <select className="settings-input editor-appearance-select" aria-label="正文代码最大高度" value={codeHeight} onChange={event => { setCodeHeight(Number(event.target.value)); setBlockDirty(true); }}>{[40, 50, 60, 80, 100].map(value => <option value={value} key={value}>{value}% 可视区</option>)}</select>
                 </AppearanceField>
                 <AppearanceField label="代码行号" desc="正文代码块与块弹层共用；在任一处切换都会同步">
                   <label className="block-display-toggle"><input type="checkbox" aria-label="显示代码行号" checked={blockDisplay.lineNumbers ?? false} onChange={event => updateBlock({ lineNumbers: event.target.checked })} /><span>{blockDisplay.lineNumbers ? "显示行号" : "隐藏行号"}</span></label>

@@ -156,9 +156,13 @@ export function flattenPartialStructuredClipboard(slice: Slice, schema: Schema, 
   if (slice.openStart === 0 && slice.openEnd === 0 && (!structuredContext || containsCompleteStructuredRoot)) return slice;
   if (!structured) return slice;
   const text = clipboardSliceToPlainText(slice);
-  const paragraph = schema.nodes.paragraph.create(
-    null,
-    text ? schema.text(text) : undefined,
-  );
+  // HTML paragraph whitespace collapses literal newlines. Encode them as
+  // hard breaks so the rich and plain clipboard representations agree.
+  const content: ProseMirrorNode[] = [];
+  text.replace(/\r\n?/g, "\n").split("\n").forEach((line, index) => {
+    if (index) content.push(schema.nodes.hardBreak.create());
+    if (line) content.push(schema.text(line));
+  });
+  const paragraph = schema.nodes.paragraph.create(null, content);
   return new Slice(Fragment.from(paragraph), 0, 0);
 }

@@ -45,7 +45,7 @@ export function saveBlockWorkspacePreferences(patch: WorkspacePreferences) {
 }
 export function codeBlockHeightPercent() {
   const value = Number(localStorage.getItem(KEY));
-  return [40, 60, 80, 100].includes(value) ? value : 60;
+  return [40, 50, 60, 80, 100].includes(value) ? value : 50;
 }
 function apply() {
   const scrollDiagrams = blockWorkspacePreferences().mermaidDisplay === "scroll";
@@ -56,7 +56,7 @@ function apply() {
   document.documentElement.style.setProperty("--code-block-height", `calc(var(--app-viewport-height, 100dvh) * ${codeBlockHeightPercent() / 100})`);
 }
 export function setCodeBlockHeightPercent(value: number) {
-  if (![40, 60, 80, 100].includes(value)) return;
+  if (![40, 50, 60, 80, 100].includes(value)) return;
   localStorage.setItem(KEY, String(value));
   apply();
   window.dispatchEvent(new Event(EVENT));
@@ -64,7 +64,7 @@ export function setCodeBlockHeightPercent(value: number) {
 
 /** Commit both display preferences before notifying any live editor. */
 export function commitBlockDisplaySettings(preferences: WorkspacePreferences, height: number) {
-  if (![40, 60, 80, 100].includes(height)) throw new Error("无效的代码块高度");
+  if (![40, 50, 60, 80, 100].includes(height)) throw new Error("无效的代码块高度");
   const previous = [WORKSPACE_KEY, KEY, CODE_LINE_NUMBERS_KEY].map(key => [key, localStorage.getItem(key)] as const);
   try {
     localStorage.setItem(WORKSPACE_KEY, JSON.stringify(preferences));

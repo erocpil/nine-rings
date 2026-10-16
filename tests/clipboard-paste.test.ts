@@ -72,6 +72,16 @@ console.log("\n── clipboardSliceToPlainText ──");
 }
 
 {
+  const text = "first\n    second\n\nlast";
+  const copied = flattenPartialStructuredClipboard(new Slice(Fragment.from(schema.text(text)), 0, 0), schema, true);
+  assert(copied.content.firstChild?.content.content.filter(node => node.type.name === "hardBreak").length === 3,
+    "structured text copy represents all newlines as HTML hard breaks");
+  assert(clipboardSliceToPlainText(copied) === text, "plain clipboard retains indentation and empty lines");
+  assert(clipboardSliceToPlainText(normalizeSingleParagraphPaste(copied)) === text,
+    "paste normalization preserves code line breaks inside a quote");
+}
+
+{
   const quote = schema.node("blockquote", null, [schema.node("paragraph", null, schema.text("完整引用块"))]);
   const completeQuote = new Slice(Fragment.from(quote), 0, 0);
   assert(
