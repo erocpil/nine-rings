@@ -63,7 +63,7 @@ export async function readVocabularyPackage(file: Blob): Promise<VocabularyPacka
   if (!header.length) throw new Error("词库文件为空");
   if (header[0] === 0x50 && header[1] === 0x4b &&
     ((header[2] === 3 && header[3] === 4) || (header[2] === 5 && header[3] === 6) || (header[2] === 7 && header[3] === 8))) {
-    throw new Error("这是 ZIP 压缩包，不是独立词库文件。请导入打包工具生成的 .nrvocab.json.gz 或 .nrvocab.json；包含多份 .md 的 ZIP 需先解压，再用 scripts/pack-vocabulary.py 转换。修改扩展名不能转换格式。");
+    return (await import("./zip-package")).readVocabularyZip(file);
   }
   const compressed = header[0] === 31 && header[1] === 139;
   if (compressed && typeof DecompressionStream === "undefined") throw new Error("当前环境不支持 gzip，请导入未压缩 JSON 词库");

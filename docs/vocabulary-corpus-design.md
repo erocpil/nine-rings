@@ -23,7 +23,7 @@ Web/PWA 和 Tauri 使用独立 IndexedDB `nine-rings-vocabulary`，保存于当�
 
 ## 文件格式
 
-输入接受 UTF-8 JSON 或 gzip 压缩 JSON；按文件头判断压缩，不依赖扩展名。建议 `.nrvocab.json.gz`。
+输入接受包含 Markdown 的 ZIP、UTF-8 JSON 或 gzip 压缩 JSON；按文件头判断压缩，不依赖扩展名。建议 `.nrvocab.json.gz`。
 
 ```json
 {
@@ -47,6 +47,12 @@ Web/PWA 和 Tauri 使用独立 IndexedDB `nine-rings-vocabulary`，保存于当�
 库 ID 最多 40 个 ASCII 字母/数字/下划线/连字符；词条 ID 最多 64 个。同库不允许重复 ID，允许不同身份同名词。正文每词最多 250000 UTF-16 单元，包最多 50000 词、解压最多 64 MiB。校验未知字段、版本、分组路径、日期和大小；解压过程中计数，超过上限终止。
 
 包版本较旧，或同一 revision 但内容不同，拒绝覆盖。相同 revision、相同内容可重复导入。按稳定字段顺序与 ASCII ID 顺序计算 SHA-256，不依赖 JSON 输入字段顺序或系统排序语言。
+
+## 直接导入 Markdown ZIP
+
+可直接选择原始 Markdown ZIP，无需先运行打包脚本。读取其中的 `.md`，忽略 macOS 元数据与隐藏文件，保留子目录分组；共同根目录用作库名称和身份来源，词头用于生成稳定词条 ID。重复词头、非法路径、损坏文件和超限内容会拒绝导入，不会修改已有词库。
+
+ZIP 转换初始 revision 为 1；重复导入相同内容允许，已有同名库且内容不同则拒绝覆盖。后续更新可使用打包工具显式管理 revision。添加时间优先读取正文的抓取/提取时间，缺失时使用固定基准日期，不将每次导入时间当作新添加时间。ZIP 内只有一份词库 JSON 时也支持导入；嵌套 gzip 请取出后单独导入。
 
 ## 生成与使用
 

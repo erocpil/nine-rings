@@ -31,10 +31,10 @@ export function SettingsVocabularyCorpora({ onMessage }: { onMessage: (message: 
     } catch (e) { if (alive.current) setError(String(e)); }
     finally { if (alive.current) setBusy(false); }
   };
-  return <Field label="独立词库" desc="导入 .nrvocab.json 或 gzip 压缩词库，不创建普通文档。词库与文档备份、路径加密独立，请保留原包或使用下方导出。">
+  return <Field label="独立词库" desc="导入 Markdown ZIP、.nrvocab.json 或 gzip 压缩词库，不创建普通文档。词库与文档备份、路径加密独立，请保留原包或使用下方导出。">
     {confirmationDialog}
     <div className="vocabulary-corpora-settings">
-      <input ref={input} type="file" aria-label="选择词库文件" accept=".json,.gz,.nrvocab" hidden disabled={busy} onChange={async e => {
+      <input ref={input} type="file" aria-label="选择词库文件" accept=".zip,.json,.gz,.nrvocab" hidden disabled={busy} onChange={async e => {
         const element = e.currentTarget;
         const file = element.files?.[0];
         try { if (file) await load(file); }

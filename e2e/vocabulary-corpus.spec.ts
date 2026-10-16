@@ -1,3 +1,4 @@
+import { zipSync, strToU8 } from "fflate";
 import { gzipSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
@@ -26,7 +27,7 @@ for (const width of [1280, 390]) test(`独立词库导入、导航、重启恢�
     await page.getByRole("complementary", { name: "插件列表" }).getByRole("button", { name: "词汇学习", exact: true }).click();
     const config = page.getByRole("dialog", { name: "词汇学习配置" });
     await config.getByLabel("选择词库文件").setInputFiles({ name: "words.zip", mimeType: "application/zip", buffer: Buffer.from([0x50, 0x4b, 3, 4, 0xff]) });
-    await expect(config.getByRole("alert")).toContainText("这是 ZIP 压缩包");
+    await expect(config.getByRole("alert")).toContainText("ZIP");
     await expect(config.getByLabel("选择词库文件")).toBeEnabled();
     await config.getByLabel("选择词库文件").setInputFiles({ name: "test.nrvocab.json.gz", mimeType: "application/gzip", buffer: gzipSync(Buffer.from(JSON.stringify(pack))) });
     await page.getByRole("button", { name: "导入词库", exact: true }).click();
@@ -34,6 +35,11 @@ for (const width of [1280, 390]) test(`独立词库导入、导航、重启恢�
     const downloading = page.waitForEvent("download");
     await config.getByRole("button", { name: "导出词库", exact: true }).click();
     expect((await downloading).suggestedFilename()).toBe("test-corpus.nrvocab.json");
+    await config.getByLabel("选择词库文件").setInputFiles({ name: "zip-corpus.zip", mimeType: "application/zip", buffer: Buffer.from(zipSync({
+      "zip-corpus/unit2/gamma.md": strToU8(pack.entries[0].source.replaceAll("alpha", "gamma")),
+    })) });
+    await page.getByRole("button", { name: "导入词库", exact: true }).click();
+    await expect(config).toContainText("zip-corpus · 1 词");
     await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
