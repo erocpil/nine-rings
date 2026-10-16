@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   listPullSummaries,
+  cancelPreparedPull,
   PULL_CHANGED,
   type PullSummary,
 } from "../lib/sync/pull-store";
@@ -26,6 +27,7 @@ export function PullRecoveryStatus({
   const [rows, setRows] = useState<PullSummary[]>([]),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
+    [cancelId, setCancelId] = useState<string | null>(null),
     [busy, setBusy] = useState(false);
   const sequence = useRef(0);
   useEffect(() => {
@@ -64,7 +66,26 @@ export function PullRecoveryStatus({
       channel?.close();
     };
   }, []);
-  if (!rows.length && !error) return null;
+  if (!rows.length && !error && (!message || compact)) return null;
+  const cancel = async (row: PullSummary) => {
+    setBusy(true);
+    onOperationChange?.(true);
+    setError("");
+    try {
+      await cancelPreparedPull(row.spaceId, row.id);
+      setCancelId(null);
+      setMessage(
+        "已取消尚未开始应用的计划；正文、接受状态和原始记录均已保留。",
+      );
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : "取消失败，记录已保留",
+      );
+    } finally {
+      setBusy(false);
+      onOperationChange?.(false);
+    }
+  };
   const recover = async (row: PullSummary) => {
     if (!config || !onBeforeSnapshot) return;
     const id = ++sequence.current;
@@ -108,7 +129,9 @@ export function PullRecoveryStatus({
     >
       <span>
         {error ||
-          `检测到 ${rows.length} 项未完成的增量应用或接受确认；不会自动重试或回滚。`}
+          (!rows.length
+            ? message
+            : `检测到 ${rows.length} 项未完成的增量应用或接受确认；不会自动重试或回滚。`)}
       </span>
       {compact ? (
         <button type="button" onClick={onOpenSettings}>
@@ -139,6 +162,40 @@ export function PullRecoveryStatus({
               >
                 核对实际内容并确认恢复
               </button>
+              {row.phase === "PREPARED" &&
+                row.mode !== "equal" &&
+                (cancelId === row.id ? (
+                  <>
+                    <span>
+                      仅取消未开始的应用计划，不导入、回滚或确认接受。
+                    </span>
+                    <button
+                      type="button"
+                      className="settings-btn"
+                      disabled={disabled || busy}
+                      onClick={() => void cancel(row)}
+                    >
+                      确认取消计划
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-btn"
+                      disabled={busy}
+                      onClick={() => setCancelId(null)}
+                    >
+                      保留计划
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="settings-btn"
+                    disabled={disabled || busy}
+                    onClick={() => setCancelId(row.id)}
+                  >
+                    取消未开始的应用计划
+                  </button>
+                ))}
             </div>
           ))}
           {CURRENT_SYNC_CAPABILITIES.read < 1 && (

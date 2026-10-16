@@ -3,6 +3,7 @@ import { openSyncJournal } from "./publication-store";
 import type { EntityReview } from "./entity-review";
 import type { EntityChoice } from "./entity-plan";
 import type { SyncEntity } from "./entity-projection";
+import { RESTORE_LOCK_NAME } from "../backup-restore-coordination";
 export type PullPhase =
   | "PREPARED"
   | "APPLYING"
@@ -104,6 +105,51 @@ export async function readPullAttempt(
   } finally {
     db.close();
   }
+}
+/** Cancel only a frozen intent that has never entered application. Retain its evidence. */
+export async function cancelPreparedPull(spaceId: string, attemptId: string) {
+  if (!globalThis.navigator?.locks) throw Error("当前环境不支持恢复锁");
+  return navigator.locks.request(
+    RESTORE_LOCK_NAME,
+    { mode: "exclusive", ifAvailable: true },
+    async (lock) => {
+      if (!lock) throw Error("恢复操作正在进行，请稍后再试");
+      const db = await openSyncJournal();
+      try {
+        const tx = db.transaction(["pulls", "pullSummaries"], "readwrite"),
+          finished = done(tx);
+        const request = tx.objectStore("pulls").get(spaceId);
+        request.onsuccess = () => {
+          const old = request.result as PullAttempt | undefined;
+          if (
+            !old ||
+            old.id !== attemptId ||
+            old.version !== 1 ||
+            old.spaceId !== spaceId ||
+            old.phase !== "PREPARED" ||
+            old.generationAfter !== null ||
+            old.mode === "equal" ||
+            (old.mode !== undefined && old.mode !== "apply") ||
+            old.review?.spaceId !== spaceId
+          ) {
+            tx.abort();
+            return;
+          }
+          const next: PullAttempt = {
+            ...old,
+            phase: "ABORTED",
+            updatedAt: new Date().toISOString(),
+          };
+          tx.objectStore("pulls").put(next);
+          tx.objectStore("pullSummaries").put(pullSummary(next));
+        };
+        await finished;
+        changed();
+      } finally {
+        db.close();
+      }
+    },
+  );
 }
 export async function savePullAttempt(
   next: PullAttempt,
