@@ -6,7 +6,10 @@ import {
   type CandidateRuntime,
 } from "./candidate-write-policy";
 import { candidateEntities } from "./entity-projection";
-import { readDocumentStorageGeneration } from "../document-storage-generation";
+import {
+  assertDocumentStorageGeneration,
+  readDocumentStorageGeneration,
+} from "../document-storage-generation";
 import {
   syncSpaceId,
   reviewProtocolSwitch,
@@ -38,8 +41,11 @@ export interface PublicationPreparation {
 }
 export async function preparePublication(
   input: PublicationPreparation,
+  assertActive: () => void = () => {},
 ): Promise<PublicationAttempt> {
   input = structuredClone(input);
+  const storageGeneration = readDocumentStorageGeneration();
+  assertActive();
   if (input.runtime === "flutter")
     throw Error("Dart 运行认证尚未完成，不能准备发布");
   if (input.remote.spaceId !== (await syncSpaceId(input.remote.space)))
@@ -90,7 +96,7 @@ export async function preparePublication(
     source: input.source,
     control,
     localRevision,
-    storageGeneration: readDocumentStorageGeneration(),
+    storageGeneration,
     accepted,
     phase: "PREPARED",
     commitSha: null,
@@ -101,11 +107,42 @@ export async function preparePublication(
     128 * 1024 * 1024
   )
     throw Error("发布计划超过本机预算");
-  await persistPreparedAttempt(attempt);
+  assertActive();
+  assertDocumentStorageGeneration(storageGeneration);
+  await persistPreparedAttempt(attempt, () => {
+    assertActive();
+    assertDocumentStorageGeneration(storageGeneration);
+  });
   return structuredClone(attempt);
 }
+/** Save first, then obtain bytes; a failed save never creates a publication intent.
+ * Backup confirmation must still bind to the resulting entity revision. */
+export async function preparePublicationFromSavedState(
+  input: Omit<PublicationPreparation, "source">,
+  boundary: {
+    flush: () => Promise<void>;
+    readSource: () => Promise<string>;
+    assertActive?: () => void;
+  },
+): Promise<PublicationAttempt> {
+  const frozen = structuredClone(input);
+  const { flush, readSource, assertActive = () => {} } = boundary;
+  const generation = readDocumentStorageGeneration();
+  const guard = () => {
+    assertActive();
+    assertDocumentStorageGeneration(generation);
+  };
+  guard();
+  await flush();
+  guard();
+  const source = await readSource();
+  guard();
+  return preparePublication({ ...frozen, source }, guard);
+}
 /** Validate frozen data again after restart; corrupt journal never becomes a write plan. */
-async function validated(spaceId: string): Promise<PublicationAttempt> {
+export async function readValidatedPublication(
+  spaceId: string,
+): Promise<PublicationAttempt> {
   const attempt = await readPublicationAttempt(spaceId);
   if (
     !attempt ||
@@ -247,12 +284,19 @@ export async function recordPublicationObjects(
   spaceId: string,
   commitSha: string,
   request: GitRead,
+  assertActive: () => void = () => {},
 ): Promise<void> {
-  const attempt = await validated(spaceId);
+  const attempt = await readValidatedPublication(spaceId);
   if (attempt.phase !== "PREPARED" || !gitSha(commitSha))
     throw Error("发布阶段不允许登记对象");
   await verifyCommit(attempt, commitSha, request);
-  await transitionPublication(attempt, "OBJECTS_READY", commitSha);
+  assertActive();
+  if (attempt.storageGeneration !== readDocumentStorageGeneration())
+    throw Error("文档库已被恢复，不能登记旧发布对象");
+  await transitionPublication(attempt, "OBJECTS_READY", commitSha, () => {
+    assertActive();
+    assertDocumentStorageGeneration(attempt.storageGeneration);
+  });
 }
 /** Persist PUBLISHING before the sole PATCH. An UNKNOWN attempt cannot be replayed. */
 export async function publishRecordedCommit(
@@ -263,7 +307,7 @@ export async function publishRecordedCommit(
     body: { sha: string; force: false },
   ) => Promise<unknown>,
 ): Promise<void> {
-  let attempt = await validated(spaceId);
+  let attempt = await readValidatedPublication(spaceId);
   if (attempt.phase !== "OBJECTS_READY" || !attempt.commitSha)
     throw Error("发布阶段不允许更新引用");
   await verifyCommit(attempt, attempt.commitSha, request);
@@ -329,7 +373,7 @@ export async function recoverPublication(
   spaceId: string,
   request: GitRead,
 ): Promise<"complete" | "not-published" | "unknown"> {
-  let attempt = await validated(spaceId);
+  let attempt = await readValidatedPublication(spaceId);
   if (attempt.phase === "COMPLETE") return "complete";
   if (["PREPARED", "OBJECTS_READY", "REJECTED"].includes(attempt.phase))
     return "not-published";

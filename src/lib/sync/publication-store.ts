@@ -99,6 +99,20 @@ export async function listPublicationSummaries(): Promise<
     db.close();
   }
 }
+export async function readPublicationSummary(
+  spaceId: string,
+): Promise<PublicationSummary | null> {
+  const db = await open();
+  try {
+    const tx = db.transaction("summaries", "readonly"),
+      finished = done(tx);
+    const row = await result(tx.objectStore("summaries").get(spaceId));
+    await finished;
+    return row ?? null;
+  } finally {
+    db.close();
+  }
+}
 export async function readPublicationAttempt(
   spaceId: string,
 ): Promise<PublicationAttempt | null> {
@@ -115,6 +129,7 @@ export async function readPublicationAttempt(
 }
 export async function persistPreparedAttempt(
   attempt: PublicationAttempt,
+  assertActive: () => void = () => {},
 ): Promise<void> {
   const db = await open();
   try {
@@ -123,6 +138,12 @@ export async function persistPreparedAttempt(
       store = tx.objectStore("attempts");
     const req = store.get(attempt.spaceId);
     req.onsuccess = () => {
+      try {
+        assertActive();
+      } catch {
+        tx.abort();
+        return;
+      }
       if (req.result && req.result.phase !== "COMPLETE") {
         tx.abort();
         return;
@@ -141,6 +162,7 @@ export async function transitionPublication(
   attempt: PublicationAttempt,
   phase: PublicationPhase,
   commitSha = attempt.commitSha,
+  assertActive: () => void = () => {},
 ): Promise<PublicationAttempt> {
   const updated = {
     ...attempt,
@@ -155,6 +177,12 @@ export async function transitionPublication(
       store = tx.objectStore("attempts");
     const req = store.get(attempt.spaceId);
     req.onsuccess = () => {
+      try {
+        assertActive();
+      } catch {
+        tx.abort();
+        return;
+      }
       const current = req.result;
       if (
         !current ||
