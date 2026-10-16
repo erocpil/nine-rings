@@ -29,13 +29,19 @@ export interface PublicationAttempt {
   updatedAt: string;
 }
 const dbName = "nine-rings-sync-state-v1";
-async function open(): Promise<IDBDatabase> {
+export async function openSyncJournal(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(dbName, 1);
+    const req = indexedDB.open(dbName, 2);
     req.onupgradeneeded = () => {
-      req.result.createObjectStore("attempts", { keyPath: "spaceId" });
-      req.result.createObjectStore("baselines", { keyPath: "key" });
-      req.result.createObjectStore("summaries", { keyPath: "spaceId" });
+      for (const [name, keyPath] of [
+        ["attempts", "spaceId"],
+        ["baselines", "key"],
+        ["summaries", "spaceId"],
+        ["pulls", "spaceId"],
+        ["pullSummaries", "spaceId"],
+      ])
+        if (!req.result.objectStoreNames.contains(name))
+          req.result.createObjectStore(name, { keyPath });
     };
     req.onerror = () => reject(Error("发布恢复数据库不可用"));
     req.onblocked = () => reject(Error("发布恢复数据库被其它窗口阻塞"));
@@ -89,7 +95,7 @@ function changed() {
 export async function listPublicationSummaries(): Promise<
   PublicationSummary[]
 > {
-  const db = await open();
+  const db = await openSyncJournal();
   try {
     const tx = db.transaction("summaries", "readonly"),
       finished = done(tx);
@@ -103,7 +109,7 @@ export async function listPublicationSummaries(): Promise<
 export async function readPublicationSummary(
   spaceId: string,
 ): Promise<PublicationSummary | null> {
-  const db = await open();
+  const db = await openSyncJournal();
   try {
     const tx = db.transaction("summaries", "readonly"),
       finished = done(tx);
@@ -117,7 +123,7 @@ export async function readPublicationSummary(
 export async function readPublicationAttempt(
   spaceId: string,
 ): Promise<PublicationAttempt | null> {
-  const db = await open();
+  const db = await openSyncJournal();
   try {
     const tx = db.transaction("attempts", "readonly"),
       finished = done(tx);
@@ -132,14 +138,25 @@ export async function persistPreparedAttempt(
   attempt: PublicationAttempt,
   assertActive: () => void = () => {},
 ): Promise<void> {
-  const db = await open();
+  const db = await openSyncJournal();
   try {
-    const tx = db.transaction(["attempts", "summaries"], "readwrite"),
+    const tx = db.transaction(
+        ["attempts", "summaries", "pullSummaries"],
+        "readwrite",
+      ),
       finished = done(tx),
       store = tx.objectStore("attempts");
+    const pendingPulls = tx.objectStore("pullSummaries").getAll();
     const req = store.get(attempt.spaceId);
     req.onsuccess = () => {
       try {
+        if (
+          pendingPulls.result.some(
+            (row: { phase: string }) =>
+              !["COMPLETE", "ABORTED"].includes(row.phase),
+          )
+        )
+          throw Error("Pull 尚未完成");
         assertActive();
       } catch {
         tx.abort();
@@ -171,7 +188,7 @@ export async function transitionPublication(
     commitSha,
     updatedAt: new Date().toISOString(),
   };
-  const db = await open();
+  const db = await openSyncJournal();
   try {
     const tx = db.transaction(["attempts", "summaries"], "readwrite"),
       finished = done(tx),
@@ -210,7 +227,7 @@ export async function confirmPublication(
 ): Promise<void> {
   if (attempt.phase !== "CONFIRMING" || !attempt.commitSha)
     throw Error("发布尚未确认");
-  const db = await open();
+  const db = await openSyncJournal();
   try {
     const tx = db.transaction(
         ["attempts", "baselines", "summaries"],
@@ -255,7 +272,7 @@ export async function confirmPublication(
 export async function readAcceptedEntities(
   spaceId: string,
 ): Promise<unknown[]> {
-  const db = await open();
+  const db = await openSyncJournal();
   try {
     const tx = db.transaction("baselines", "readonly"),
       finished = done(tx);

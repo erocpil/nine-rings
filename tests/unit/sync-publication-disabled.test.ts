@@ -135,3 +135,130 @@ it("shipped capabilities also refuse nonempty reviewed publication intents", asy
   ).rejects.toThrow("尚不支持");
   expect(await readPublicationAttempt(review.spaceId)).toBeNull();
 });
+it("shipped capabilities refuse selective Pull before importing data", async () => {
+  const { gitReadFixture } = await import("../helpers/git-read-fixture");
+  const { backupPaths, inspectRemoteProtocol } =
+    await import("../../src/lib/sync/remote-protocol");
+  const { prepareEntityReview } =
+    await import("../../src/lib/sync/entity-review");
+  const { applyReviewedPull } =
+    await import("../../src/lib/sync/pull-application");
+  const paths = backupPaths("pull.json"),
+    header = gates[1].bundle.header!,
+    source = JSON.stringify({ ...fixture, header });
+  const git = await gitReadFixture({
+    [paths.latest]: header.id,
+    [paths.snapshot(header.id)]: source,
+    [paths.control]: JSON.stringify({
+      kind: "nine-rings.sync-space",
+      version: 1,
+      format: 1,
+      codec: 1,
+      firstSnapshot: { id: header.id, sha256: await bytesDigest(source) },
+    }),
+  });
+  const report = await inspectRemoteProtocol(git.request, {
+    owner: "example",
+    repo: "disabled-pull",
+    path: "pull.json",
+  });
+  const local = structuredClone(fixture);
+  local.notes[0].title = "local edit";
+  const localSource = JSON.stringify(local),
+    review = await prepareEntityReview({
+      report,
+      request: git.request,
+      localSource,
+      runtime: "web",
+    });
+  const row = review.rows.find(
+    (r) => r.kind === "note" && r.id === fixture.notes[0].id,
+  )!;
+  const apply = vi.fn();
+  await expect(
+    applyReviewedPull(
+      {
+        review,
+        choices: [
+          {
+            key: row.key,
+            action: "remote",
+            localHash: row.localHash,
+            remoteHash: row.remoteHash,
+          },
+        ],
+      },
+      {
+        flush: async () => {},
+        readSource: async () => localSource,
+        apply,
+        request: git.request,
+      },
+    ),
+  ).rejects.toThrow("尚不支持");
+  expect(apply).not.toHaveBeenCalled();
+  const { readPullAttempt } = await import("../../src/lib/sync/pull-store");
+  expect(await readPullAttempt(review.spaceId)).toBeNull();
+  const { planReviewedPull, recoverReviewedPull } =
+    await import("../../src/lib/sync/pull-application");
+  const { savePullAttempt } = await import("../../src/lib/sync/pull-store");
+  const plan = await planReviewedPull(review, [
+    {
+      key: row.key,
+      action: "remote",
+      localHash: row.localHash,
+      remoteHash: row.remoteHash,
+    },
+  ]);
+  // Remove the unrelated fixture publication; this is an isolated journal test.
+  await new Promise<void>((resolve, reject) => {
+    const req = indexedDB.deleteDatabase("nine-rings-sync-state-v1");
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+  await savePullAttempt(
+    {
+      version: 1,
+      id: "older-enabled-client",
+      spaceId: review.spaceId,
+      review,
+      choices: [
+        {
+          key: row.key,
+          action: "remote",
+          localHash: row.localHash,
+          remoteHash: row.remoteHash,
+        },
+      ],
+      ...plan,
+      phase: "APPLYING",
+      generationAfter: "headless",
+      updatedAt: new Date().toISOString(),
+    },
+    null,
+  );
+  vi.stubGlobal("navigator", {
+    locks: {
+      request: async (
+        _name: string,
+        _opts: unknown,
+        run: () => Promise<unknown>,
+      ) => run(),
+    },
+  });
+  await expect(
+    recoverReviewedPull(review.spaceId, async () => plan.source),
+  ).rejects.toThrow("尚不支持");
+  const { confirmEqualReviewedEntities } =
+    await import("../../src/lib/sync/pull-application");
+  await expect(
+    confirmEqualReviewedEntities(
+      { review, choices: [] },
+      {
+        flush: async () => {},
+        readSource: async () => localSource,
+        request: git.request,
+      },
+    ),
+  ).rejects.toThrow("尚不支持");
+});

@@ -145,7 +145,7 @@ test("startup shows a durable pending publication and readonly verification cann
   await expect(page.locator(".ProseMirror:visible")).toBeVisible();
   await page.evaluate(async () => {
     await new Promise<void>((resolve, reject) => {
-      const req = indexedDB.open("nine-rings-sync-state-v1", 1);
+      const req = indexedDB.open("nine-rings-sync-state-v1");
       req.onerror = () => reject(req.error);
       req.onsuccess = () => {
         const db = req.result;

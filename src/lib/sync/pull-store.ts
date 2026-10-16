@@ -1,0 +1,118 @@
+/** Pull journal and accepted receipts share a database; body storage remains separate. */
+import { openSyncJournal } from "./publication-store";
+import type { EntityReview } from "./entity-review";
+import type { EntityChoice } from "./entity-plan";
+import type { SyncEntity } from "./entity-projection";
+export type PullPhase =
+  | "PREPARED"
+  | "APPLYING"
+  | "CONFIRMING"
+  | "COMPLETE"
+  | "ABORTED"
+  | "NEEDS_REVIEW";
+export interface PullAttempt {
+  version: 1;
+  mode?: "apply" | "equal";
+  id: string;
+  spaceId: string;
+  review: EntityReview;
+  choices: EntityChoice[];
+  source: string;
+  targetRevision: string;
+  accepted: SyncEntity[];
+  phase: PullPhase;
+  generationAfter: string | null;
+  updatedAt: string;
+}
+export const pullSummary = (a: PullAttempt) => ({
+  id: a.id,
+  spaceId: a.spaceId,
+  phase: a.phase,
+  updatedAt: a.updatedAt,
+});
+function done(tx: IDBTransaction) {
+  return new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onabort = () =>
+      reject(Error("Pull 记录未提交，可能有未完成操作或状态已变化"));
+    tx.onerror = () => {};
+  });
+}
+export async function readPullAttempt(
+  spaceId: string,
+): Promise<PullAttempt | null> {
+  const db = await openSyncJournal();
+  try {
+    const tx = db.transaction("pulls", "readonly"),
+      finished = done(tx);
+    let value: PullAttempt | null = null;
+    tx.objectStore("pulls").get(spaceId).onsuccess = (e) => {
+      value = (e.target as IDBRequest).result ?? null;
+    };
+    await finished;
+    return value;
+  } finally {
+    db.close();
+  }
+}
+export async function savePullAttempt(
+  next: PullAttempt,
+  expected: PullAttempt | null,
+  guard: () => void = () => {},
+) {
+  const db = await openSyncJournal();
+  try {
+    const tx = db.transaction(
+        ["pulls", "pullSummaries", "summaries", "baselines"],
+        "readwrite",
+      ),
+      finished = done(tx);
+    const publications = tx.objectStore("summaries").getAll(),
+      pulls = tx.objectStore("pullSummaries").getAll();
+    const req = tx.objectStore("pulls").get(next.spaceId);
+    req.onsuccess = () => {
+      try {
+        guard();
+        const old = req.result as PullAttempt | undefined;
+        if (
+          expected
+            ? !old || old.id !== expected.id || old.phase !== expected.phase
+            : !!old && !["COMPLETE", "ABORTED"].includes(old.phase)
+        )
+          throw Error("Pull 已变化");
+        if (
+          publications.result.some(
+            (r: { phase: string }) => r.phase !== "COMPLETE",
+          )
+        )
+          throw Error("发布尚未完成");
+        if (
+          pulls.result.some(
+            (r: { id: string; phase: string }) =>
+              r.id !== next.id && !["COMPLETE", "ABORTED"].includes(r.phase),
+          )
+        )
+          throw Error("已有 Pull");
+        if (next.phase === "COMPLETE") {
+          if (!expected || expected.phase !== "CONFIRMING")
+            throw Error("尚未核验应用");
+          for (const entity of next.accepted)
+            tx.objectStore("baselines").put({
+              key: `${next.spaceId}:${entity.kind}:${entity.id}`,
+              attemptId: next.id,
+              commitSha: next.review.expectedHead,
+              state: "present",
+              entity,
+            });
+        }
+        tx.objectStore("pulls").put(next);
+        tx.objectStore("pullSummaries").put(pullSummary(next));
+      } catch {
+        tx.abort();
+      }
+    };
+    await finished;
+  } finally {
+    db.close();
+  }
+}

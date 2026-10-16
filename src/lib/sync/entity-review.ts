@@ -85,11 +85,12 @@ export type EntityReview = Awaited<ReturnType<typeof prepareEntityReview>>;
 export async function assembleFrozenEntityReview(
   review: EntityReview,
   choices: EntityChoice[],
+  expectedStorageGeneration = review.storageGeneration,
 ) {
   // Snapshot before the first await: UI edits cannot change an in-flight review.
   review = structuredClone(review);
   choices = structuredClone(choices);
-  assertDocumentStorageGeneration(review.storageGeneration);
+  assertDocumentStorageGeneration(expectedStorageGeneration);
   if ((await syncSpaceId(review.space)) !== review.spaceId)
     throw Error("候选审查空间已变化");
   if ((await reviewBinding(review)) !== review.binding)
