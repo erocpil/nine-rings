@@ -1,0 +1,730 @@
+{
+  "version": 2,
+  "exported_at": "2026-10-14T00:00:00Z",
+  "notes": [
+    {
+      "id": "html-styles",
+      "date": "2026-10-14",
+      "title": "HTML认证 styles",
+      "content": {
+        "ops": [
+          {
+            "insert": "中文 "
+          },
+          {
+            "insert": "高亮 ",
+            "attributes": {
+              "highlight": true,
+              "background": "#dde8d8"
+            }
+          },
+          {
+            "insert": "粗体",
+            "attributes": {
+              "bold": true,
+              "highlight": true,
+              "background": "#dde8d8"
+            }
+          },
+          {
+            "insert": " H"
+          },
+          {
+            "insert": "2",
+            "attributes": {
+              "htmlStyle": "sub"
+            }
+          },
+          {
+            "insert": "O X"
+          },
+          {
+            "insert": "2",
+            "attributes": {
+              "htmlStyle": "sup"
+            }
+          },
+          {
+            "insert": " "
+          },
+          {
+            "insert": "新增",
+            "attributes": {
+              "htmlStyle": "ins"
+            }
+          },
+          {
+            "insert": " before"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "hard-break": true
+            }
+          },
+          {
+            "insert": "after"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "html-details",
+      "date": "2026-10-14",
+      "title": "HTML认证 details",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "htmlDetails": {
+                "summary": "外层 <标题>",
+                "open": true,
+                "content": [
+                  {
+                    "insert": "正文 "
+                  },
+                  {
+                    "insert": "粗体",
+                    "attributes": {
+                      "bold": true
+                    }
+                  },
+                  {
+                    "insert": "。"
+                  },
+                  {
+                    "insert": "\n"
+                  },
+                  {
+                    "insert": {
+                      "htmlDetails": {
+                        "summary": "内层",
+                        "open": false,
+                        "content": [
+                          {
+                            "insert": "内部高亮",
+                            "attributes": {
+                              "highlight": true
+                            }
+                          },
+                          {
+                            "insert": "，两行"
+                          },
+                          {
+                            "insert": "\n",
+                            "attributes": {
+                              "hard-break": true
+                            }
+                          },
+                          {
+                            "insert": "第二行。"
+                          },
+                          {
+                            "insert": "\n"
+                          }
+                        ]
+                      }
+                    },
+                    "attributes": {}
+                  },
+                  {
+                    "insert": "\n"
+                  }
+                ]
+              }
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "html-context",
+      "date": "2026-10-14",
+      "title": "HTML认证 context",
+      "content": {
+        "ops": [
+          {
+            "insert": "先前"
+          },
+          {
+            "insert": "1",
+            "attributes": {
+              "footnoteRef": "one",
+              "footnoteNumber": 1,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "htmlDetails": {
+                "summary": "包含结构正文",
+                "open": false,
+                "content": [
+                  {
+                    "insert": {
+                      "list": {
+                        "version": 1,
+                        "ordered": false,
+                        "start": 1,
+                        "spread": false,
+                        "items": [
+                          {
+                            "checked": null,
+                            "content": [
+                              {
+                                "insert": "列表 H"
+                              },
+                              {
+                                "insert": "2",
+                                "attributes": {
+                                  "htmlStyle": "sub"
+                                }
+                              },
+                              {
+                                "insert": "O"
+                              },
+                              {
+                                "insert": "\n"
+                              },
+                              {
+                                "insert": {
+                                  "blockquote": {
+                                    "version": 1,
+                                    "content": [
+                                      {
+                                        "insert": "引用 "
+                                      },
+                                      {
+                                        "insert": "高亮",
+                                        "attributes": {
+                                          "highlight": true
+                                        }
+                                      },
+                                      {
+                                        "insert": "\n"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "attributes": {
+                                  "blockquote": true,
+                                  "indent-explicit": true
+                                }
+                              },
+                              {
+                                "insert": "\n"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "insert": "\n"
+                  },
+                  {
+                    "insert": {
+                      "table": {
+                        "version": 1,
+                        "columns": [
+                          {
+                            "align": null
+                          },
+                          {
+                            "align": null
+                          }
+                        ],
+                        "rows": [
+                          {
+                            "cells": [
+                              {
+                                "header": true,
+                                "content": {
+                                  "ops": [
+                                    {
+                                      "insert": "项目"
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "header": true,
+                                "content": {
+                                  "ops": [
+                                    {
+                                      "insert": "解释"
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "cells": [
+                              {
+                                "content": {
+                                  "ops": [
+                                    {
+                                      "insert": "细节"
+                                    },
+                                    {
+                                      "insert": "2",
+                                      "attributes": {
+                                        "footnoteRef": "two",
+                                        "footnoteNumber": 2,
+                                        "footnoteOccurrence": 1
+                                      }
+                                    },
+                                    {
+                                      "insert": "\n",
+                                      "attributes": {
+                                        "hard-break": true
+                                      }
+                                    },
+                                    {
+                                      "insert": "第二行"
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "content": {
+                                  "ops": [
+                                    {
+                                      "insert": "X"
+                                    },
+                                    {
+                                      "insert": "2",
+                                      "attributes": {
+                                        "htmlStyle": "sup"
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "attributes": {}
+                  },
+                  {
+                    "insert": "\n"
+                  }
+                ]
+              }
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "hr": true
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "footnotes": [
+                {
+                  "id": "one",
+                  "number": 1,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "第一条。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "two",
+                  "number": 2,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "第二条。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                }
+              ]
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "html-raw-block",
+      "date": "2026-10-14",
+      "title": "HTML认证 raw-block",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "rawHtml": "<!--invisible comment 中文-->"
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "rawHtml": "<script>window.nrHTMLExecuted = true</script>"
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "rawHtml": "<style data-nr-unsafe>body { display: none }</style>"
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "rawHtml": "<iframe data-nr-unsafe srcdoc=\"<script>window.nrHTMLExecuted=true</script>\"></iframe>"
+            }
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "html-raw-inline",
+      "date": "2026-10-14",
+      "title": "HTML认证 raw-inline",
+      "content": {
+        "ops": [
+          {
+            "insert": "before "
+          },
+          {
+            "insert": {
+              "rawHtmlInline": "<button data-nr-unsafe onclick=\"window.nrHTMLExecuted=true\">"
+            }
+          },
+          {
+            "insert": "label"
+          },
+          {
+            "insert": {
+              "rawHtmlInline": "</button>"
+            }
+          },
+          {
+            "insert": " "
+          },
+          {
+            "insert": {
+              "rawHtmlInline": "<!--inline comment-->"
+            }
+          },
+          {
+            "insert": " after"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "html-anchor",
+      "date": "2026-10-14",
+      "title": "HTML认证 anchor",
+      "content": {
+        "ops": [
+          {
+            "insert": "Before "
+          },
+          {
+            "insert": {
+              "htmlAnchor": "中文-section"
+            }
+          },
+          {
+            "insert": "anchor"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "hard-break": true
+            }
+          },
+          {
+            "insert": "next"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "html-table",
+      "date": "2026-10-14",
+      "title": "HTML认证 table",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "table": {
+                "version": 1,
+                "columns": [
+                  {
+                    "align": null
+                  },
+                  {
+                    "align": null
+                  }
+                ],
+                "rows": [
+                  {
+                    "cells": [
+                      {
+                        "header": true,
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "HTML"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "header": true,
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "Data"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "cells": [
+                      {
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "亮",
+                              "attributes": {
+                                "highlight": true
+                              }
+                            },
+                            {
+                              "insert": " H"
+                            },
+                            {
+                              "insert": "2",
+                              "attributes": {
+                                "htmlStyle": "sub"
+                              }
+                            },
+                            {
+                              "insert": "O"
+                            },
+                            {
+                              "insert": "\n",
+                              "attributes": {
+                                "hard-break": true
+                              }
+                            },
+                            {
+                              "insert": "next"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "text "
+                            },
+                            {
+                              "insert": {
+                                "rawHtmlInline": "<!--table comment-->"
+                              }
+                            },
+                            {
+                              "insert": " "
+                            },
+                            {
+                              "insert": {
+                                "htmlAnchor": "table-anchor"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    }
+  ]
+}

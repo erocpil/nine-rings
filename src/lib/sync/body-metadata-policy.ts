@@ -17,6 +17,7 @@ const containers = new Set([
   "tableCell",
   "footnotes",
   "footnoteDefinition",
+  "htmlDetails",
 ]);
 /** Only count node types covered by the candidate body policy, not arbitrary JSON. */
 function nodeSize(node: JSONContent): number {
@@ -27,7 +28,10 @@ function nodeSize(node: JSONContent): number {
     node.type === "resizableImage" ||
     node.type === "image" ||
     node.type === "markdownImage" ||
-    node.type === "horizontalRule"
+    node.type === "horizontalRule" ||
+    node.type === "rawHtml" ||
+    node.type === "rawHtmlInline" ||
+    node.type === "htmlAnchor"
   )
     return 1;
   if (!node.type || !containers.has(node.type))

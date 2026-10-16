@@ -73,3 +73,35 @@ test(`只读${virtual ? "虚拟" : "普通"}视图保留折叠区块的展开与
   await expect(page.getByRole("dialog", { name: "折叠区块工作区" })).toBeVisible();
 });
 }
+
+for (const virtual of [false, true]) {
+  test(`HTML 候选认证与惰性原文，虚拟只读=${virtual}`, async ({ page }) => {
+    await page.addInitScript(value => localStorage.setItem("nr:experimentalReadonlyRendering", String(value)), virtual);
+    await createBlankDocument(page, "HTML 安全往返");
+    await page.locator(".note-editor .ProseMirror").evaluate(async element => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { mdToDelta } = await load("/src/lib/md-parser.ts");
+      const { deltaToProseMirror } = await load("/src/lib/delta-converter.ts");
+      const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      editor.commands.setContent(deltaToProseMirror(mdToDelta('<details open>\n<summary>安全标题</summary>\n\nH<sub>2</sub>O<br>第二行\n</details>\n\n<script>window.nrHTMLExecuted=true</script>\n\n<iframe data-nr-unsafe src="about:blank"></iframe>\n\n<!--隐藏注释-->')), true);
+    });
+    await expect.poll(() => page.evaluate(async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api } = await load("/src/lib/api.ts");
+      const { reviewCandidatePayload } = await load("/src/lib/sync/candidate-write-policy.ts");
+      const { default: fixture } = await load("/schema/sync/fixtures/candidate-html-v1.json");
+      const note = await api.notes.get(localStorage.getItem("nr:lastNote")!);
+      if (!JSON.stringify(note?.content).includes("nrHTMLExecuted")) return false;
+      return reviewCandidatePayload(JSON.stringify({ ...fixture, notes: [{ ...fixture.notes[0], content: note.content }] }), "web").eligible;
+    })).toBe(true);
+    await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+    const root = page.locator(".note-editor");
+    await expect(root.locator("sub")).toHaveText("2");
+    await expect(root).toContainText("window.nrHTMLExecuted=true");
+    await expect(root.locator("script, iframe, [data-nr-unsafe]")).toHaveCount(0);
+    await expect(root).not.toContainText("隐藏注释");
+    await page.reload();
+    await expect(root).toContainText("window.nrHTMLExecuted=true");
+    await expect(root.locator("script, iframe, [data-nr-unsafe]")).toHaveCount(0);
+  });
+}

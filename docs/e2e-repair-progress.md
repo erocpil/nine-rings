@@ -1648,3 +1648,10 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - `npm run check` 全部通过，Vitest 154 文件 / 1854 项；生产构建通过，主包约 470 kB，无 chunk 超限警告。
 - `e2e/footnote-navigation.spec.ts` Chromium 4 项、WebKit 4 项通过，含桌面/手机真实编辑自动保存、完整候选认证、重复返回、刷新和普通/虚拟只读跳转。
 - 原生 SQLite `candidate_structured_text_survives_sqlite_edits_and_fresh_restore` 1 项通过，包含新的共享脚注样本。未执行全量浏览器 E2E、原生 GUI 或真实远端上传；生产增量协议与 Flutter 能力不变，旧备份/数据库 schema 未改变。
+
+### 2026-10-16：受限 HTML 候选认证
+
+- 新增 `candidate-html-v1.json` 七类样本与 12 项单元回归：真实 schema 编辑/撤销、summary/open 修改、嵌套脚注、严格字段校验、IDB 恢复、实体摘要和选择组装；SQLite 共用结构正文恢复测试加入同一样本。
+- `npm run check` 通过（Vitest 155 文件 / 1866 项，另含脚本测试、类型、lint、格式与 IPC）；Tauri SQLite 定向测试 1 项通过；构建成功，主包约 470.30 kB，无 500 kB 警告。
+- `markdown-details-interaction.spec.ts` Chromium / WebKit 各 5 项通过：块工作区编辑、普通/虚拟只读折叠、实际自动保存后的目标正文认证、惰性 script/iframe 文本、隐藏注释及刷新恢复。首次新增检查误将整个工作区纳入本批认证（含其它未认证正文），已改为使用保存后的目标文档；不放宽候选校验。
+- 未执行全量 E2E、原生 GUI、真实远端上传或源码并排预览专门回归。生产读写能力仍为 0，Flutter 不声明本批能力。

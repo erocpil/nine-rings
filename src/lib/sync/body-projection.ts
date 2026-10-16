@@ -41,6 +41,17 @@ export function candidateBodyProjection(body: unknown, depth = 0): unknown {
             }),
           ),
         };
+      } else if (
+        typeof insert.rawHtml === "string" ||
+        typeof insert.rawHtmlInline === "string" ||
+        typeof insert.htmlAnchor === "string"
+      ) {
+        projected = { ...insert };
+      } else if (insert.htmlDetails && typeof insert.htmlDetails === "object") {
+        const details = insert.htmlDetails as Record<string, unknown>;
+        projected = {
+          htmlDetails: { ...details, content: project(details.content) },
+        };
       } else if (insert.table && typeof insert.table === "object") {
         const table = insert.table as Record<string, unknown>;
         const inline = (body: unknown) => ({

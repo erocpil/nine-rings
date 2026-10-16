@@ -1,4 +1,10 @@
 import {
+  isCertifiedHTMLDetails,
+  isCertifiedHTMLInline,
+  isCertifiedHTMLStyle,
+  isCertifiedHTMLSource,
+} from "./html-body-policy";
+import {
   FOOTNOTE_ATTRIBUTES,
   isCertifiedFootnoteReference,
   isCertifiedFootnotes,
@@ -35,6 +41,7 @@ const structural = new Set([
   "code-wrap",
   "code-collapsed",
   "blockquote-collapsed",
+  "hard-break",
 ]);
 export function hasStructuredBody(body: Record<string, unknown>): boolean {
   return (
@@ -45,7 +52,10 @@ export function hasStructuredBody(body: Record<string, unknown>): boolean {
         (record(op.insert) ||
           (record(op.attributes) &&
             Object.keys(op.attributes).some(
-              (key) => structural.has(key) || FOOTNOTE_ATTRIBUTES.has(key),
+              (key) =>
+                structural.has(key) ||
+                FOOTNOTE_ATTRIBUTES.has(key) ||
+                key === "htmlStyle",
             ))),
     )
   );
@@ -65,6 +75,21 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
   for (let index = 0; index < ops.length; index++) {
     const op = ops[index];
     if (record(op) && record(op.insert)) {
+      if ("rawHtmlInline" in op.insert || "htmlAnchor" in op.insert) {
+        if (
+          Object.keys(op).some(
+            (key) => !["insert", "attributes"].includes(key),
+          ) ||
+          (op.attributes !== undefined && !record(op.attributes)) ||
+          !isCertifiedHTMLInline(
+            op.insert,
+            (op.attributes ?? {}) as Record<string, unknown>,
+          )
+        )
+          return false;
+        markedText = true;
+        continue;
+      }
       if (
         Object.keys(op.insert).length === 1 &&
         record(op.insert.inlineImage)
@@ -109,6 +134,11 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
     if (op.attributes !== undefined && !record(op.attributes)) return false;
     const attrs = (op.attributes ?? {}) as Record<string, unknown>;
     if (!isCertifiedFootnoteReference(op.insert, attrs)) return false;
+    if (op.insert === "\n" && attrs["hard-break"] === true) {
+      if (Object.keys(attrs).length !== 1) return false;
+      markedText = true;
+      continue;
+    }
     const line = op.insert === "\n";
     if (line) {
       if (attrs["code-block"] === true && markedText) return false;
@@ -151,6 +181,10 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
       } else {
         if (line) return false;
         if (FOOTNOTE_ATTRIBUTES.has(key)) continue;
+        if (key === "htmlStyle") {
+          if (!isCertifiedHTMLStyle(value)) return false;
+          continue;
+        }
         if (["bold", "italic", "strike", "code", "highlight"].includes(key)) {
           if (value !== true) return false;
         } else if (["color", "background"].includes(key)) {
@@ -236,6 +270,15 @@ function validEmbed(op: Record<string, unknown>, depth: number): boolean {
     return false;
   const insert = op.insert;
   const child = (ops: unknown) => certifiedBodyShape({ ops }, depth + 1);
+  if (record(insert.htmlDetails))
+    return (
+      !Object.keys(attrs).some((key) => key.startsWith("blockquote")) &&
+      isCertifiedHTMLDetails(insert.htmlDetails, child)
+    );
+  if (typeof insert.rawHtml === "string")
+    return (
+      Object.keys(attrs).length === 0 && isCertifiedHTMLSource(insert.rawHtml)
+    );
   if (insert.hr === true)
     return !Object.keys(attrs).some((key) => key.startsWith("blockquote"));
   if (Array.isArray(insert.footnotes))
@@ -255,10 +298,14 @@ function validEmbed(op: Record<string, unknown>, depth: number): boolean {
               (typeof item.insert === "string" ||
                 (record(item.insert) &&
                   Object.keys(item.insert).length === 1 &&
-                  record(item.insert.inlineImage))) &&
+                  (record(item.insert.inlineImage) ||
+                    "rawHtmlInline" in item.insert ||
+                    "htmlAnchor" in item.insert))) &&
               (!record(item.attributes) ||
                 !Object.keys(item.attributes).some(
-                  (key) => structural.has(key) || key === "header",
+                  (key) =>
+                    (structural.has(key) && key !== "hard-break") ||
+                    key === "header",
                 )),
           )
         )
@@ -322,19 +369,29 @@ export function structuredBodyFeatures(
         features.add("inline-appearance-v1");
       if (record(op.attributes) && op.attributes.footnoteRef !== undefined)
         features.add("footnotes-v1");
+      if (record(op.attributes) && op.attributes.htmlStyle !== undefined)
+        features.add("restricted-html-v1");
+      if (record(op.attributes) && op.attributes["hard-break"] === true)
+        features.add("hard-break-v1");
       if (!record(op.insert)) continue;
       features.add(
         record(op.insert.table)
           ? "table-block-v1"
-          : record(op.insert.inlineImage)
-            ? "inline-image-v1"
-            : Array.isArray(op.insert.footnotes)
-              ? "footnotes-v1"
-              : op.insert.hr === true
-                ? "horizontal-rule-v1"
-                : typeof op.insert.image === "string"
-                  ? "block-image-v1"
-                  : "structured-block-v1",
+          : record(op.insert.htmlDetails) ||
+              typeof op.insert.htmlAnchor === "string"
+            ? "restricted-html-v1"
+            : typeof op.insert.rawHtml === "string" ||
+                typeof op.insert.rawHtmlInline === "string"
+              ? "inert-html-v1"
+              : record(op.insert.inlineImage)
+                ? "inline-image-v1"
+                : Array.isArray(op.insert.footnotes)
+                  ? "footnotes-v1"
+                  : op.insert.hr === true
+                    ? "horizontal-rule-v1"
+                    : typeof op.insert.image === "string"
+                      ? "block-image-v1"
+                      : "structured-block-v1",
       );
       if (record(op.insert.table) && Array.isArray(op.insert.table.rows)) {
         for (const row of op.insert.table.rows)
@@ -348,6 +405,8 @@ export function structuredBodyFeatures(
               }
           }
       }
+      if (record(op.insert.htmlDetails))
+        visit(op.insert.htmlDetails.content, depth + 1);
       if (Array.isArray(op.insert.footnotes))
         for (const definition of op.insert.footnotes)
           if (record(definition)) visit(definition.content, depth + 1);

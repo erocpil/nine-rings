@@ -1,3 +1,4 @@
+import { isCertifiedHTMLStyle } from "./html-body-policy";
 import { normalizeEditorColor } from "../editor-color";
 /** Portable block-image subset. Local references require resource resolution first. */
 export function isCertifiedImageSource(value: unknown): value is string {
@@ -109,6 +110,7 @@ export function isCertifiedInlineImage(
         /^https?:\/\//i.test(value) &&
         isCertifiedImageSource(value)
       );
+    if (key === "htmlStyle") return isCertifiedHTMLStyle(value);
     if (key === "linkTitle")
       return typeof value === "string" && value.length > 0;
     return false;

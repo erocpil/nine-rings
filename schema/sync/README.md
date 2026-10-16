@@ -124,3 +124,5 @@ Dart 的共享编码、严格输入和 Note SQLite 模型测试已在远端 9aad
 ### 脚注与分隔线候选特性
 
 `footnotes-v1` 覆盖带 ID/编号/引用序号的文字 mark 和唯一的文末定义区；`horizontal-rule-v1` 覆盖其显式分隔线及普通 hr 对象。字段、引用/定义计数和 ID 严格校验，编号/重复返回次数通过整份文档的语义往返核对，不能用局部重编号或删除字段使样本合格。原始 Markdown 中尚未补齐分隔线/计数的表示继续拒绝，实际编辑器保存后的共享 `fixtures/candidate-footnotes-v1.json` 通过 schema/编辑历史及 IDB/SQLite 往返；这不改变旧格式导入。未引用定义与暂缺定义引用保留，完整锚点大小覆盖脚注容器。生产与 Flutter 能力不变，见[脚注认证计划](../../docs/sync-entity-plan.md#脚注正文认证2026-10-16)。
+
+受限 HTML 候选认证：`restricted-html-v1`（details、上下标、插入标记、命名锚点）、`hard-break-v1` 和 `inert-html-v1`（仅惰性原文）。共享 `fixtures/candidate-html-v1.json` 验证嵌套正文及存储恢复，严格拒绝未知结构字段与语义往返丢失；HTML 源码导出不构成外部渲染安全承诺。生产/Flutter 能力不变，见[认证范围](../../docs/sync-entity-plan.md#受限-html-正文认证2026-10-16)。

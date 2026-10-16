@@ -164,3 +164,13 @@
 共享 `candidate-footnotes-v1.json` 覆盖重复/中文/带数字后缀的 ID、无定义引用、未引用定义、跨表格/列表/引用的全局编号、定义内引用、多段结构正文、两位数编号及普通分隔线。真实 schema/编号插件的编辑、删除首次引用及撤销，IDB/SQLite 更新/导出/新库恢复，实体摘要与整实体选择组装均有验证。浏览器覆盖脚注编辑、真实自动保存及完整候选认证、重复引用的指定返回、刷新与普通/虚拟只读跳转。
 
 仅扩大 Web/Tauri 候选范围，生产读写能力保持 0，Flutter 继续拒绝。原始 Markdown/来源等未认证元数据仍拒绝，不能由脚注正文认证推导完整导入文档已可切换。后续受限 HTML、特殊渲染块及剩余元数据；未执行全量浏览器 E2E、原生 GUI 或真实远端上传。
+
+## 受限 HTML 正文认证（2026-10-16）
+
+候选能力 `restricted-html-v1` 覆盖 details 的文本 summary、open 状态与递归正文、sub/sup/ins mark 和命名锚点；mark 高亮沿用 `inline-appearance-v1`，硬换行独立声明 `hard-break-v1`。嵌套列表、引用、表格和脚注采用完整文档语义往返，不在局部重新编号。引用锚点模型大小补齐 details 容器及原始 HTML / 命名锚点原子。
+
+`inert-html-v1` 仅保存未知 HTML 的原始字符串：编辑器、普通只读和虚拟只读以转义文本呈现，完整注释隐藏，不生成 script、iframe 或事件处理器。结构化 details 不接受额外 HTML 属性，summary 为纯文本；原始字符串拒绝不可跨 Rust JSON 往返的孤立代理字符。未知字段、丢失的 mark、非法锚点及超深递归均拒绝，不能删除字段或转义源内容使认证通过。导出 Markdown 会保留 HTML 源码，本认证不保证其它 Markdown 软件如何执行这些源码。
+
+共享 `candidate-html-v1.json` 覆盖上下标/高亮/换行、嵌套 details、跨列表/引用/表格的脚注、惰性块/行内 HTML、注释和中文锚点。真实 schema 编辑/撤销、summary/open 修改、IDB 与 SQLite 导出及新库恢复、实体摘要和完整实体选择均纳入回归。浏览器验证折叠工作区编辑、普通/虚拟只读的惰性呈现及保存刷新。
+
+生产 `CURRENT_SYNC_CAPABILITIES.read/write` 保持 0，Flutter 继续拒绝未认证能力；并未开放正式增量备份、Pull 应用或远端上传。下一批为 Mermaid/flow/toc/公式等特殊渲染块及剩余元数据。
