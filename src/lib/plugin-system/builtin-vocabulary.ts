@@ -1,3 +1,4 @@
+import { corpusResource, type VocabularyResourceService } from "../vocabulary/contracts";
 import { documentNavigation } from "./document-navigation";
 import { noteToMarkdown } from "../markdown-serializer";
 import { readVocabularySort, sortVocabulary } from "../vocabulary-reading-state";
@@ -189,6 +190,22 @@ export function startBuiltinVocabulary() {
                   mainViews.bind(owner.activation).open(VOCABULARY_VIEW, data);
                 },
               });
+              const corpusChanged = (event: Event) => {
+                if (typeof (event as CustomEvent).detail !== "string") return;
+                const current = mainViews.getSnapshot().current;
+                if (current?.owner === owner.activation && current.renderer === "vocabulary"
+                  && corpusResource(current.data.documentId)?.corpusId === (event as CustomEvent).detail) mainViews.close(current.id);
+              };
+              window.addEventListener("nr:vocabulary-corpus-changed", corpusChanged);
+              const corpusStorage = (event: StorageEvent) => {
+                if (event.key !== "nr:vocabularyCorpusRevision" || !event.newValue) return;
+                try { corpusChanged(new CustomEvent("corpus", { detail: JSON.parse(event.newValue).id })); } catch { /* Ignore malformed notification. */ }
+              };
+              window.addEventListener("storage", corpusStorage);
+              owner.own(() => {
+                window.removeEventListener("nr:vocabulary-corpus-changed", corpusChanged);
+                window.removeEventListener("storage", corpusStorage);
+              });
               owner.own(
                 subscribeToDataChanges((event) => {
                   const current = mainViews.getSnapshot().current;
@@ -237,8 +254,8 @@ export function startBuiltinVocabulary() {
     void pluginLifecycle.deactivate(VOCABULARY_ID).catch(() => {});
   };
 }
-/** Scoped host read service; no raw database or arbitrary document reads exposed. */
-export const vocabularyDocuments = {
+/** Scoped host resources: protected document boundaries and explicit installed corpora. */
+export const vocabularyResources: VocabularyResourceService = {
   async list() {
     const owner = workspacePanels.assert("vocabulary");
     const path = readVocabularyPreference().path;
@@ -246,7 +263,7 @@ export const vocabularyDocuments = {
     pluginRuntime.assert(owner, "documents.vocabulary.read");
     const summaries = await api.docs.summaries({ storagePath: path });
     pluginRuntime.assert(owner, "documents.vocabulary.read");
-    return summaries
+    const documents = summaries
       .filter(
         (note) =>
           isPathUnder(note.storagePath ?? "", path) &&
@@ -270,9 +287,22 @@ export const vocabularyDocuments = {
             updated_at: note.updated_at,
           }) satisfies VocabularyDocumentSummary,
       );
+    const { corpusSummaries } = await import("../vocabulary/corpus-store");
+    const corpus = await corpusSummaries(path);
+    pluginRuntime.assert(owner, "documents.vocabulary.read");
+    return [...documents, ...corpus];
+
   },
   async read(id: string) {
     const owner = workspacePanels.assert("vocabulary");
+    const resource = corpusResource(id);
+    if (resource) {
+      pluginRuntime.assert(owner, "documents.vocabulary.read");
+      const { readCorpusEntry } = await import("../vocabulary/corpus-store");
+      const entry = await readCorpusEntry(id);
+      pluginRuntime.assert(owner, "documents.vocabulary.read");
+      return { documentId: id, title: entry.word, source: entry.source, resource };
+    }
     return withProtectionWrite(async () => {
       pluginRuntime.assert(owner, "documents.vocabulary.read");
       const note = await api.notes.get(id);
@@ -300,7 +330,10 @@ export const vocabularyDocuments = {
           "INVALID_ARGUMENT",
           "词汇文档过大，请使用普通文档查看",
         );
-      return { documentId: note.id, title: note.title ?? "无标题", source };
+      return { documentId: note.id, title: note.title ?? "无标题", source, resource: { kind: "document", documentId: note.id } };
     });
   },
 };
+
+/** Compatibility alias for existing document-oriented callers. */
+export const vocabularyDocuments = vocabularyResources;

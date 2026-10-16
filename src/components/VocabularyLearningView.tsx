@@ -318,7 +318,7 @@ function VocabularyStudyView({
                 />
               </button>
             ))}
-            <button
+            {data.resource?.kind !== "corpus" && <button
               type="button"
               className="btn-icon"
               aria-label="普通文档"
@@ -330,7 +330,8 @@ function VocabularyStudyView({
               }}
             >
               <ToolbarIcon name="document" />
-            </button>
+            </button>}
+            {data.resource?.kind === "corpus" && <span className="vocabulary-corpus-label" title="独立词库资料；在插件配置中导出完整词库">词库资料</span>}
             <button
               type="button"
               className="btn-icon"
@@ -365,7 +366,7 @@ function VocabularyStudyView({
         >
           {!result?.recognized && (
             <p className="vocabulary-fallback" role="status">
-              未识别到词典结构。原文完整保留，可用“普通文档”查看和编辑。
+              {data.resource?.kind === "corpus" ? "未识别到词典结构。原文完整保留，可在插件配置中导出词库查看。" : "未识别到词典结构。原文完整保留，可用“普通文档”查看和编辑。"}
             </p>
           )}
           {result?.recognized && (

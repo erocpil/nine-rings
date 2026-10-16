@@ -1,3 +1,4 @@
+import { isVocabularyResource, type VocabularyResourceRef } from "../vocabulary/contracts";
 import {
   pluginRuntime,
   PluginHostError,
@@ -17,6 +18,7 @@ export interface ImageViewData {
   images: readonly ViewedImage[];
 }
 export interface VocabularyViewData {
+  resource?: VocabularyResourceRef;
   documentId: string;
   title: string;
   source: string;
@@ -142,7 +144,7 @@ export class MainViewRegistry {
       if (
         !value ||
         Object.keys(value).some(
-          (key) => !["documentId", "title", "source"].includes(key),
+          (key) => !["documentId", "title", "source", "resource"].includes(key),
         ) ||
         typeof value.documentId !== "string" ||
         !value.documentId ||
@@ -150,7 +152,8 @@ export class MainViewRegistry {
         typeof value.title !== "string" ||
         value.title.length > 4096 ||
         typeof value.source !== "string" ||
-        value.source.length > 250000
+        value.source.length > 250000 ||
+        (value.resource !== undefined && !isVocabularyResource(value.resource, value.documentId))
       )
         throw new PluginHostError("INVALID_ARGUMENT", "词汇视图数据无效或超限");
       request = Object.freeze({
@@ -158,7 +161,7 @@ export class MainViewRegistry {
         owner,
         view: contribution.view,
         renderer: "vocabulary",
-        data: Object.freeze({ ...value }),
+        data: Object.freeze({ ...value, ...(value.resource ? { resource: Object.freeze({ ...value.resource }) } : {}) }),
       });
     } else {
       const value = data as ImageViewData;

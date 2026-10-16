@@ -28,6 +28,8 @@ export async function openDocumentSidebar(page: Page) {
   if (await page.evaluate(() => !matchMedia("(max-width: 768px)").matches))
     await desktop.click();
   else {
+    // matchMedia changes before React has installed the mobile drawer handlers.
+    await expect(sidebar).toHaveAttribute("role", "dialog");
     await swipeLeftEdge(page, 0.15);
   }
   await expect(sidebar).not.toHaveClass(/sidebar-hidden/);

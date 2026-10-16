@@ -50,6 +50,16 @@ export function VocabularyPanel({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    const changed = () => setRetry(value => value + 1);
+    window.addEventListener("nr:vocabulary-corpus-changed", changed);
+    const storage = (event: StorageEvent) => { if (event.key === "nr:vocabularyCorpusRevision") changed(); };
+    window.addEventListener("storage", storage);
+    return () => {
+      window.removeEventListener("nr:vocabulary-corpus-changed", changed);
+      window.removeEventListener("storage", storage);
+    };
+  }, []);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const list = useRef<HTMLUListElement>(null);
   const busy = openingId !== null;

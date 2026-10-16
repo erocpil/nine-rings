@@ -1,3 +1,4 @@
+import { SettingsVocabularyCorpora } from "./SettingsVocabularyCorpora";
 import {
   defaultVocabularyListAppearance,
   readVocabularyPreference,
@@ -19,6 +20,7 @@ export function SettingsVocabularyAppearance({
   };
   return (
     <>
+      <SettingsVocabularyCorpora onMessage={onMessage} />
       <Field
         label="列表字体"
         desc="仅影响左侧词汇列表；中央学习正文继续遵循排版设置。"

@@ -31,17 +31,8 @@ export interface VocabularyStudy {
   extractedAt: string;
   source: string;
 }
-/** Future relationships use document/anchor identities, never view array positions. */
-export interface VocabularyArticleContext {
-  id: string;
-  wordDocumentId: string;
-  articleDocumentId: string;
-  expression: string;
-  quote: string;
-  articleAnchorId?: string;
-  sourceProvider?: string;
-  sourceSenseId?: string;
-}
+/** Article association targets either a document or a stable corpus entry. */
+export type { VocabularyArticleLink as VocabularyArticleContext } from "./vocabulary/contracts";
 export function vocabularyText(node: Nodes): string {
   if ("value" in node) return String(node.value);
   if (node.type === "break") return "\n";
