@@ -2,7 +2,7 @@ import { zipSync, strToU8 } from "fflate";
 import "fake-indexeddb/auto";
 import { webcrypto } from "node:crypto";
 import { beforeEach, expect, it, vi } from "vitest";
-import { importCorpus, listCorpora, readCorpusEntry, exportCorpus, corpusSummaries } from "../../src/lib/vocabulary/corpus-store";
+import { importCorpus, listCorpora, readCorpusEntry, exportCorpus, corpusSummaries, previewCorpusImport, removeCorpus } from "../../src/lib/vocabulary/corpus-store";
 import { readVocabularyPackage, validateVocabularyPackage, boundedText } from "../../src/lib/vocabulary/package";
 import { vocabularyResourceKey } from "../../src/lib/vocabulary/contracts";
 import type { VocabularyPackage } from "../../src/lib/vocabulary/contracts";
@@ -113,4 +113,35 @@ it("rejects unsafe ZIP paths and duplicate headwords before writing a corpus", a
     await expect(readVocabularyPackage(new Blob([zipSync(files)]))).rejects.toThrow();
   }
   expect(await listCorpora()).toHaveLength(0);
+});
+
+it("previews raw ZIP updates, preserves dates, and refuses stale confirmations", async () => {
+  const initial = pack();
+  await importCorpus(initial);
+  const same = await previewCorpusImport(initial, true);
+  expect(same.unchangedPackage).toBe(true);
+  const next = pack(); next.entries[0].source += " updated";
+  next.entries[0].addedAt = "1970-01-01T00:00:00Z";
+  next.entries.push({ ...next.entries[0], id: "new", word: "new" });
+  const preview = await previewCorpusImport(next, true);
+  expect(preview).toMatchObject({ added: 1, changed: 1, removed: 0, unchanged: 0 });
+  expect(preview.pack.revision).toBe(2);
+  expect(preview.pack.entries[0].addedAt).toBe(initial.entries[0].addedAt);
+  await importCorpus(preview.pack, preview.expectedHash);
+  await expect(importCorpus(preview.pack, preview.expectedHash)).rejects.toThrow("重新预览");
+  await expect(removeCorpus("awl", preview.expectedHash!)).rejects.toThrow("重新确认");
+  expect((await exportCorpus("awl")).revision).toBe(2);
+  await removeCorpus("awl", (await listCorpora())[0].hash);
+  expect(await listCorpora()).toHaveLength(0);
+  await expect(readCorpusEntry("vocab:awl:word-a")).rejects.toThrow("不在");
+  await importCorpus(initial, null);
+  expect(await exportCorpus("awl")).toEqual(initial);
+});
+it("previews removals and retains strict explicit package revisions", async () => {
+  const input = pack(); input.entries.push({ ...input.entries[0], id: "removed" });
+  await importCorpus(input);
+  await expect(previewCorpusImport(pack())).rejects.toThrow("revision");
+  const preview = await previewCorpusImport(pack(), true);
+  expect(preview).toMatchObject({ removed: 1, unchanged: 1, changed: 0, added: 0 });
+  expect(preview.pack.revision).toBe(2);
 });

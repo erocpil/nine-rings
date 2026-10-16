@@ -120,8 +120,8 @@ function PluginConfigurationDialog({
           内置 · {plugin.type} · {plugin.description}
         </p>
         {plugin.configuration === "vocabulary" ? <>
-          <Field label="词汇路径" desc="普通 Markdown 词汇从此路径读取；独立词库显示为单独分组，分组并非文档路径。修改路径按 Enter 或离开输入框保存。">
-            <input className="settings-input" aria-label="词汇路径" key={readVocabularyPreference().path} defaultValue={readVocabularyPreference().path} onBlur={event => {
+          <Field label="Markdown 文档路径" desc="仅用于普通 Markdown 词汇文档。ZIP 独立词库无需此路径，也不需要放入文档树。修改路径按 Enter 或离开输入框保存。">
+            <input className="settings-input" aria-label="Markdown 文档路径" key={readVocabularyPreference().path} defaultValue={readVocabularyPreference().path} onBlur={event => {
               try { saveVocabularyPreference({ ...readVocabularyPreference(), path: event.target.value }); showMessage("已更新"); } catch (error) { showMessage(String(error)); }
             }} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }} />
           </Field>

@@ -3,7 +3,7 @@ import { digest, MAX_PACKAGE_BYTES, validateVocabularyPackage } from "./package"
 import type { VocabularyCorpusEntry, VocabularyPackage } from "./contracts";
 
 /** Decode bounded ZIP members in memory; never extract paths to the filesystem. */
-export async function readVocabularyZip(file: Blob): Promise<VocabularyPackage> {
+export async function readVocabularyZip(file: Blob): Promise<{ pack: VocabularyPackage; markdownZip: boolean }> {
   const files: { name: string; text: string; complete: boolean }[] = [];
   let total = 0;
   let failure: Error | null = null;
@@ -47,7 +47,7 @@ export async function readVocabularyZip(file: Blob): Promise<VocabularyPackage> 
   if (files.some(f => !f.complete)) throw new Error("ZIP 内容不完整，请重新获取压缩包");
   const packages = files.filter(f => /\.json$/i.test(f.name));
   if (packages.length === 1 && !files.some(f => /\.md$/i.test(f.name))) {
-    try { return validateVocabularyPackage(JSON.parse(packages[0].text.replace(/^\uFEFF/, ""))); }
+    try { return { pack: validateVocabularyPackage(JSON.parse(packages[0].text.replace(/^\uFEFF/, ""))), markdownZip: false }; }
     catch (e) { throw new Error(`ZIP 内词库 JSON 无效：${String(e)}`); }
   }
   const markdown = files.filter(f => /\.md$/i.test(f.name)).sort((a, b) => a.name < b.name ? -1 : 1);
@@ -69,5 +69,5 @@ export async function readVocabularyZip(file: Blob): Promise<VocabularyPackage> 
     const addedAt = captured && Number.isFinite(Date.parse(captured)) ? new Date(captured).toISOString() : "1970-01-01T00:00:00Z";
     entries.push({ id: entryId, word, group: path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "", source: item.text, addedAt });
   }
-  return validateVocabularyPackage({ format: "nine-rings-vocabulary", version: 1, id, revision: 1, name, entries });
+  return { pack: validateVocabularyPackage({ format: "nine-rings-vocabulary", version: 1, id, revision: 1, name, entries }), markdownZip: true };
 }

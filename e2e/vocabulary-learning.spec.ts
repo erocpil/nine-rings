@@ -124,7 +124,7 @@ test("词汇插件的路径和折叠选项可配置且刷新保留", async ({ pa
   const catalog = page.getByRole("complementary", { name: "插件列表", exact: true });
   await catalog.getByRole("button", { name: "词汇学习", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "词汇学习配置", exact: true });
-  const path = dialog.getByRole("textbox", { name: "词汇路径", exact: true });
+  const path = dialog.getByRole("textbox", { name: "Markdown 文档路径", exact: true });
   await expect(path).toHaveValue("references/vocabulary");
   await path.fill("references/english");
   await path.press("Enter");
@@ -501,7 +501,7 @@ test("词汇列表外观实时配置保留当前视图，定位清除筛选并�
   await expect(dialog.getByRole("combobox", { name: "列表字体", exact: true })).toHaveValue("mono");
   await dialog.getByRole("button", { name: "恢复列表默认" }).click();
   await expect(dialog.getByRole("spinbutton", { name: "列表字号", exact: true })).toHaveValue("16");
-  await expect(dialog.getByRole("textbox", { name: "词汇路径", exact: true })).toHaveValue("references/vocabulary");
+  await expect(dialog.getByRole("textbox", { name: "Markdown 文档路径", exact: true })).toHaveValue("references/vocabulary");
 });
 
 for (const width of [1280, 390]) test(`词汇顺序导航跟随排序、限定同路径并保护输入 ${width}`, async ({ page }) => {

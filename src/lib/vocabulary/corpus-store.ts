@@ -42,7 +42,7 @@ export async function listCorpora(): Promise<CorpusManifest[]> {
   try { return await request(db.transaction("corpora").objectStore("corpora").getAll()); }
   finally { db.close(); }
 }
-export async function importCorpus(input: VocabularyPackage): Promise<void> {
+export async function importCorpus(input: VocabularyPackage, expectedHash?: string | null): Promise<void> {
   const pack = validateVocabularyPackage(input);
   const buckets = new Map<string, VocabularyCorpusEntry[]>();
   const summaries: Summary[] = [];
@@ -74,8 +74,12 @@ export async function importCorpus(input: VocabularyPackage): Promise<void> {
     const store = tx.objectStore("corpora");
     const existing = store.get(pack.id);
     let conflict = false;
+    let stale = false;
     existing.onsuccess = () => {
       const previous = existing.result as CorpusManifest | undefined;
+      if (expectedHash !== undefined && (previous?.hash ?? null) !== expectedHash) {
+        stale = true; tx.abort(); return;
+      }
       if (previous && (previous.revision > pack.revision || (previous.revision === pack.revision && previous.hash !== manifest.hash))) {
         conflict = true; tx.abort(); return;
       }
@@ -83,12 +87,61 @@ export async function importCorpus(input: VocabularyPackage): Promise<void> {
       for (const shard of shards) tx.objectStore("shards").put(shard);
       store.put(manifest);
     };
-    try { await done; } catch (e) { if (conflict) throw new Error("词库版本过旧或同一版本内容不同，请提高 revision 后重试"); throw e; }
+    try { await done; } catch (e) { if (stale) throw new Error("词库已在其它操作中变更，请重新预览后导入"); if (conflict) throw new Error("词库版本过旧或同一版本内容不同，请提高 revision 后重试"); throw e; }
   } finally { db.close(); }
+  notifyCorpusChanged(pack.id);
+}
+function notifyCorpusChanged(id: string) {
+  cache.clear();
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent(CORPUS_CHANGED, { detail: pack.id }));
-    try { localStorage.setItem("nr:vocabularyCorpusRevision", JSON.stringify({ id: pack.id, nonce: crypto.randomUUID() })); } catch { /* Persistent corpus is already committed. */ }
+    window.dispatchEvent(new CustomEvent(CORPUS_CHANGED, { detail: id }));
+    try { localStorage.setItem("nr:vocabularyCorpusRevision", JSON.stringify({ id, nonce: crypto.randomUUID() })); } catch { /* Already committed. */ }
   }
+}
+/** Confirmation is bound to the exact installed version, including across windows. */
+export async function removeCorpus(id: string, expectedHash: string): Promise<void> {
+  const db = await open();
+  try {
+    const tx = db.transaction(["corpora", "shards"], "readwrite");
+    const done = completed(tx);
+    const store = tx.objectStore("corpora");
+    let stale = false;
+    const lookup = store.get(id);
+    lookup.onsuccess = () => {
+      const current = lookup.result as CorpusManifest | undefined;
+      if (!current || current.hash !== expectedHash) { stale = true; tx.abort(); return; }
+      for (const bucket of Object.keys(current.shards)) tx.objectStore("shards").delete(`${id}:${bucket}`);
+      store.delete(id);
+    };
+    try { await done; } catch (error) { if (stale) throw new Error("词库已变更，请刷新后重新确认卸载"); throw error; }
+  } finally { db.close(); }
+  notifyCorpusChanged(id);
+}
+export async function previewCorpusImport(input: VocabularyPackage, markdownZip = false) {
+  const pack = validateVocabularyPackage(input);
+  const manifest = (await listCorpora()).find(c => c.id === pack.id);
+  const previous = manifest ? await exportCorpus(pack.id) : null;
+  const before = new Map(previous?.entries.map(e => [e.id, e]) ?? []);
+  let added = 0, changed = 0, unchanged = 0;
+  for (const entry of pack.entries) {
+    const old = before.get(entry.id);
+    // A raw archive has no revision or reliable per-entry import date.
+    if (markdownZip && old) entry.addedAt = old.addedAt;
+    if (!old) added++;
+    else if (JSON.stringify(old) === JSON.stringify(entry)) unchanged++;
+    else changed++;
+    before.delete(entry.id);
+  }
+  const removed = before.size;
+  const same = !!previous && !added && !changed && !removed && previous.name === pack.name;
+  if (previous && markdownZip) pack.revision = previous.revision + (same ? 0 : 1);
+  if (previous && (pack.revision < previous.revision || (pack.revision === previous.revision && !same))) {
+    throw new Error("词库版本过旧或同一版本内容不同，请提高 revision 后重试");
+  }
+  // exportCorpus and manifest reads can race another window; reject before showing an inaccurate preview.
+  const current = (await listCorpora()).find(c => c.id === pack.id);
+  if ((current?.hash ?? null) !== (manifest?.hash ?? null)) throw new Error("词库已变更，请重新预览导入");
+  return { pack, expectedHash: manifest?.hash ?? null, added, changed, removed, unchanged, unchangedPackage: same && pack.revision === previous?.revision };
 }
 export async function readCorpusEntry(key: string): Promise<VocabularyCorpusEntry> {
   const ref = corpusResource(key);

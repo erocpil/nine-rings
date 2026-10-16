@@ -1,3 +1,4 @@
+import { corpusResource } from "../lib/vocabulary/contracts";
 import { vocabularyTree, type VocabularyFolder } from "../lib/vocabulary-tree";
 import {
   useEffect,
@@ -64,8 +65,12 @@ export function VocabularyPanel({
   const list = useRef<HTMLUListElement>(null);
   const busy = openingId !== null;
   const sorted = useMemo(() => sortVocabulary(items, order), [items, order]);
-  const tree = useMemo(
-    () => vocabularyTree(sorted, preference.path, query),
+  const documentTree = useMemo(
+    () => vocabularyTree(sorted.filter(item => !corpusResource(item.id)), preference.path, query),
+    [sorted, preference.path, query],
+  );
+  const corpusTree = useMemo(
+    () => vocabularyTree(sorted.filter(item => corpusResource(item.id)), preference.path, query),
     [sorted, preference.path, query],
   );
   useEffect(() => {
@@ -299,7 +304,8 @@ export function VocabularyPanel({
       {error && <p role="alert">{error}</p>}
       {loading && <p role="status">正在加载词汇列表…</p>}
       <ul ref={list} className="vocabulary-tree">
-        {renderFolder(tree)}
+        {(corpusTree.folders.length > 0 || corpusTree.documents.length > 0) && <li className="vocabulary-source-group"><span>独立词库</span><ul>{renderFolder(corpusTree)}</ul></li>}
+        {(documentTree.folders.length > 0 || documentTree.documents.length > 0) && <li className="vocabulary-source-group"><span>Markdown 文档</span><ul>{renderFolder(documentTree)}</ul></li>}
       </ul>
       {!loading &&
         query.trim() &&
@@ -319,11 +325,11 @@ export function VocabularyPanel({
       )}
       {!loading && !items.length && !error && (
         <p className="vocabulary-empty">
-          此路径暂无文档。请手动生成 .md 后，通过“备份与导入”导入到该路径。
+          暂无词汇。可在词汇学习插件配置中导入 ZIP 独立词库，或将 Markdown 词汇文档导入配置路径。
         </p>
       )}
       <p className="vocabulary-path" title={preference.path}>
-        {preference.path}
+        Markdown 文档路径：{preference.path} · 独立词库不受此路径限制
       </p>
     </section>
   );

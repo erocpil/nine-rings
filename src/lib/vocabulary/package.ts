@@ -56,6 +56,9 @@ export async function boundedText(stream: ReadableStream<Uint8Array>, limit = MA
   } finally { await reader.cancel(); reader.releaseLock(); }
 }
 export async function readVocabularyPackage(file: Blob): Promise<VocabularyPackage> {
+  return (await readVocabularyImport(file)).pack;
+}
+export async function readVocabularyImport(file: Blob): Promise<{ pack: VocabularyPackage; markdownZip: boolean }> {
   if (file.size > MAX_PACKAGE_BYTES) throw new Error("词库文件超过 64 MB");
   let header: Uint8Array;
   try { header = new Uint8Array(await file.slice(0, 4).arrayBuffer()); }
@@ -80,5 +83,5 @@ export async function readVocabularyPackage(file: Blob): Promise<VocabularyPacka
   let value: unknown;
   try { value = JSON.parse(text.replace(/^\uFEFF/, "")); }
   catch { throw new Error("文件不是有效的词库 JSON，请使用独立词库打包工具生成；普通 Markdown 文档请从文档导入入口导入"); }
-  return validateVocabularyPackage(value);
+  return { pack: validateVocabularyPackage(value), markdownZip: false };
 }

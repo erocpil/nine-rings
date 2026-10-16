@@ -40,6 +40,16 @@ for (const width of [1280, 390]) test(`独立词库导入、导航、重启恢�
     })) });
     await page.getByRole("button", { name: "导入词库", exact: true }).click();
     await expect(config).toContainText("zip-corpus · 1 词");
+    await config.getByLabel("选择词库文件").setInputFiles({ name: "zip-corpus.zip", mimeType: "application/zip", buffer: Buffer.from(zipSync({
+      "zip-corpus/unit2/gamma.md": strToU8(pack.entries[0].source.replaceAll("alpha", "gamma") + "\nUpdated."),
+    })) });
+    await expect(page.getByRole("dialog", { name: "更新独立词库" })).toContainText("修改 1");
+    await page.getByRole("button", { name: "导入词库", exact: true }).click();
+    const zipRow = config.locator(".vocabulary-corpus-row").filter({ hasText: "zip-corpus" });
+    await expect(zipRow).toContainText("v2");
+    await zipRow.getByRole("button", { name: "卸载词库", exact: true }).click();
+    await page.getByRole("dialog", { name: "卸载独立词库" }).getByRole("button", { name: "卸载词库", exact: true }).click();
+    await expect(zipRow).toHaveCount(0);
     await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
