@@ -1015,3 +1015,54 @@ export async function checkStatus(config: SyncConnectionConfig): Promise<SyncSta
     return { ok: false, message: `连接失败: ${syncErrorMessage(e)}` };
   }
 }
+
+/** Explicit candidate review. Only GET requests; no publication/apply capability. */
+export async function previewEntityReviewFromGitHub(
+  config: SyncConfig,
+  localSource: string,
+) {
+  config = { ...config };
+  const report = await preflightProtocolFromGitHub(config);
+  const { prepareEntityReview } = await import("./entity-review");
+  const root = `https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}`;
+  return prepareEntityReview({
+    report,
+    localSource,
+    runtime: isTauriRuntime() ? "tauri" : "web",
+    request: async (route) => {
+      const response = await githubApiFetch(
+        root + route,
+        { headers: authHeader(config.token) },
+        GITHUB_REQUEST_TIMEOUT_MS,
+      );
+      if (!response.ok)
+        throw Error(`实体预检读取失败：HTTP ${response.status}`);
+      return response.json();
+    },
+  });
+}
+
+export async function assertEntityReviewHeadFromGitHub(
+  config: SyncConfig,
+  space: import("./protocol-switch").SyncSpace,
+  expectedHead: string,
+): Promise<void> {
+  if (
+    config.owner.toLowerCase() !== space.owner.toLowerCase() ||
+    config.repo.toLowerCase() !== space.repo.toLowerCase() ||
+    config.path !== space.path
+  )
+    throw Error("备份连接已变化，请重新预检");
+  const root = `https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}`;
+  const response = await githubApiFetch(
+    `${root}/git/ref/heads/${encodeURIComponent(space.branch)}`,
+    { headers: authHeader(config.token) },
+    GITHUB_REQUEST_TIMEOUT_MS,
+  );
+  if (!response.ok) throw Error(`远端提交核对失败：HTTP ${response.status}`);
+  const value = (await response.json()) as {
+    object?: { type?: string; sha?: string };
+  };
+  if (value.object?.type !== "commit" || value.object.sha !== expectedHead)
+    throw Error("远端提交已变化，请重新预检和选择");
+}

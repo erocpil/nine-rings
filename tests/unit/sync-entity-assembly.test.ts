@@ -162,3 +162,44 @@ it("assembled candidate survives actual IDB import/export within the certified s
     vi.unstubAllGlobals();
   }
 });
+it("certifies identical legacy template mirrors and keeps mixed template choices independent", async () => {
+  const remote = {
+    ...structuredClone(fixture),
+    user_settings: { version: 1, values: {} as Record<string, unknown> },
+  };
+  remote.user_settings.values["nine-rings:templates"] = structuredClone(
+    remote.templates,
+  );
+  const local = structuredClone(remote);
+  local.templates[0].name = "本机新模板";
+  local.user_settings.values["nine-rings:templates"] = structuredClone(
+    local.templates,
+  );
+  const localSource = JSON.stringify(local),
+    remoteSource = JSON.stringify(remote);
+  const entities = await candidateEntities(localSource, "web");
+  const prior = await candidateEntities(remoteSource, "web");
+  const template = entities.find((e) => e.kind === "template")!;
+  const result = await assembleEntityCandidate({
+    ...input,
+    localSource,
+    remoteSource,
+    choices: [
+      {
+        key: entityKey(template),
+        action: "local",
+        localHash: template.sha256,
+        remoteHash: prior.find((e) => e.kind === "template")!.sha256,
+      },
+    ],
+  });
+  const payload = JSON.parse(result.source);
+  expect(payload.templates[0].name).toBe("本机新模板");
+  expect(payload.user_settings.values).not.toHaveProperty(
+    "nine-rings:templates",
+  );
+  remote.user_settings.values["nine-rings:templates"] = [];
+  await expect(
+    candidateEntities(JSON.stringify(remote), "web"),
+  ).rejects.toThrow("实体投影拒绝");
+});

@@ -446,7 +446,9 @@ export function reviewCandidatePayload(
         Object.prototype.hasOwnProperty.call(
           input.values,
           "nine-rings:templates",
-        )
+        ) &&
+        canonicalJson(input.values["nine-rings:templates"]) !==
+          canonicalJson(bundle.templates ?? [])
       )
         issue("duplicate-template-source");
       const values = new Map<string, string>();

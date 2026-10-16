@@ -230,7 +230,11 @@ export async function readAcceptedEntities(
   try {
     const tx = db.transaction("baselines", "readonly"),
       finished = done(tx);
-    const rows = await result(tx.objectStore("baselines").getAll());
+    const rows = await result(
+      tx
+        .objectStore("baselines")
+        .getAll(IDBKeyRange.bound(spaceId + ":", spaceId + ":\uffff")),
+    );
     await finished;
     return rows.filter(
       (row) => typeof row.key === "string" && row.key.startsWith(spaceId + ":"),

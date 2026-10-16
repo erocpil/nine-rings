@@ -14,6 +14,15 @@ export interface SyncEntity {
 }
 export { candidateBodyProjection } from "./body-projection";
 import { candidateBodyProjection } from "./body-projection";
+/** Legacy exports mirror templates in frontend settings. Certify equality first;
+ * templates remain independent entities so mixing choices cannot restore a stale mirror. */
+export function frontendEntitySettings(value: unknown): unknown {
+  const settings = structuredClone(value) as {
+    values: Record<string, unknown>;
+  };
+  delete settings.values["nine-rings:templates"];
+  return settings;
+}
 export async function candidateEntities(
   source: string,
   runtime: CandidateRuntime,
@@ -55,7 +64,11 @@ export async function candidateEntities(
     await add("template", template.id as string, template);
   if (bundle.config != null) await add("settings", "app-config", bundle.config);
   if (bundle.user_settings !== undefined)
-    await add("settings", "frontend", bundle.user_settings);
+    await add(
+      "settings",
+      "frontend",
+      frontendEntitySettings(bundle.user_settings),
+    );
   for (const path of (bundle.protected_paths ?? []) as Record<
     string,
     unknown

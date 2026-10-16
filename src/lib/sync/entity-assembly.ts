@@ -4,7 +4,11 @@ import {
   reviewCandidatePayload,
   type CandidateRuntime,
 } from "./candidate-write-policy";
-import { candidateEntities, type SyncEntity } from "./entity-projection";
+import {
+  candidateEntities,
+  frontendEntitySettings,
+  type SyncEntity,
+} from "./entity-projection";
 import {
   entityKey,
   planEntityChanges,
@@ -45,11 +49,12 @@ export async function assembleEntityCandidate(input: {
           entityKey({ kind: kind as SyncEntity["kind"], id: value.id }),
           value,
         );
-    if (bundle.config != null) map.set(entityKey({ kind: "settings", id: "app-config" }), bundle.config);
+    if (bundle.config != null)
+      map.set(entityKey({ kind: "settings", id: "app-config" }), bundle.config);
     if (bundle.user_settings !== undefined)
       map.set(
         entityKey({ kind: "settings", id: "frontend" }),
-        bundle.user_settings,
+        frontendEntitySettings(bundle.user_settings),
       );
     return map;
   };
@@ -67,7 +72,8 @@ export async function assembleEntityCandidate(input: {
     if (row.source === "absent") continue;
     const raw = (row.source === "local" ? localRaw : remoteRaw).get(row.key);
     if (raw === undefined) throw Error("候选实体来源缺失");
-    if (row.kind === "settings") payload[row.id === "app-config" ? "config" : "user_settings"] = raw;
+    if (row.kind === "settings")
+      payload[row.id === "app-config" ? "config" : "user_settings"] = raw;
     else (payload[fields[row.kind]] as unknown[]).push(raw);
   }
   const source = canonicalJson(payload);

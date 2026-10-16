@@ -1,3 +1,4 @@
+import { SyncEntityReview } from "./SyncEntityReview";
 import { PublicationRecoveryStatus } from "./PublicationRecoveryStatus";
 import { BackupMeasurementDialog } from "./BackupMeasurementDialog";
 import { api } from "../lib/api";
@@ -414,6 +415,8 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
           </div>
         ) : null}
       </div>
+
+      <SyncEntityReview config={cfg} disabled={busy || exportingLocal || !connectionReady} onBeforeSnapshot={onBeforePush} onOperationChange={active => setBusyOperation(active ? "protocol" : null)} />
 
       {/* 版本信息 */}
       <BackupRestoreStatus />
