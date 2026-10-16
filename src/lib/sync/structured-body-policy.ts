@@ -244,11 +244,11 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
   return record(last) && last.insert === "\n";
 }
 
-/** Older flat lists omit an inferred boundary. Compare without changing stored source.
- * Only newly emitted markers at the same operation may be ignored; explicit source
- * boundaries, numbering, text, nesting and all other attributes must survive exactly.
+/** Older lists/quote embeds omit inferred, redundant attributes. Compare without
+ * changing stored source. Only newly emitted markers at the same operation may be
+ * ignored; explicit boundaries, numbering, text, nesting and other attributes survive.
  */
-function matchesLegacyListBoundaries(
+function matchesLegacyInferredAttributes(
   body: Record<string, unknown>,
   restored: DeltaOps,
 ) {
@@ -257,6 +257,19 @@ function matchesLegacyListBoundaries(
   let inferred = false;
   const comparable = restored.ops.map((op, index) => {
     const before = original[index];
+    if (
+      record(before.insert) &&
+      record(before.insert.blockquote) &&
+      record(op.insert) &&
+      record(op.insert.blockquote) &&
+      before.attributes?.blockquote === undefined &&
+      op.attributes?.blockquote === true
+    ) {
+      inferred = true;
+      const attributes = { ...op.attributes };
+      delete attributes.blockquote;
+      return { ...op, attributes };
+    }
     if (
       before.insert === "\n" &&
       op.insert === "\n" &&
@@ -300,7 +313,7 @@ export function isCertifiedStructuredBody(
     return (
       canonicalJson(candidateBodyProjection(body)) ===
         canonicalJson(candidateBodyProjection(restored)) ||
-      matchesLegacyListBoundaries(body, restored)
+      matchesLegacyInferredAttributes(body, restored)
     );
   } catch {
     return false;
@@ -398,7 +411,7 @@ function validEmbed(op: Record<string, unknown>, depth: number): boolean {
           ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"].includes(
             quote.alert,
           ))) &&
-      attrs.blockquote === true &&
+      (attrs.blockquote === undefined || attrs.blockquote === true) &&
       child(quote.content)
     );
   }
