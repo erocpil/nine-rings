@@ -244,7 +244,48 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
   return record(last) && last.insert === "\n";
 }
 
-/** Never normalize away a mismatch: derive numbering once in full document context. */
+/** Older flat lists omit an inferred boundary. Compare without changing stored source.
+ * Only newly emitted markers at the same operation may be ignored; explicit source
+ * boundaries, numbering, text, nesting and all other attributes must survive exactly.
+ */
+function matchesLegacyListBoundaries(
+  body: Record<string, unknown>,
+  restored: DeltaOps,
+) {
+  const original = body.ops as DeltaOps["ops"];
+  if (original.length !== restored.ops.length) return false;
+  let inferred = false;
+  const comparable = restored.ops.map((op, index) => {
+    const before = original[index];
+    if (
+      before.insert === "\n" &&
+      op.insert === "\n" &&
+      ["bullet", "ordered"].includes(String(before.attributes?.list)) &&
+      before.attributes?.["list-block-start"] === undefined &&
+      op.attributes?.["list-block-start"] === true
+    ) {
+      inferred = true;
+      const attributes = { ...op.attributes };
+      delete attributes["list-block-start"];
+      return { ...op, attributes };
+    }
+    return op;
+  });
+  if (!inferred) return false;
+  return (
+    canonicalJson(candidateBodyProjection(body)) ===
+      canonicalJson(candidateBodyProjection({ ops: comparable })) &&
+    // The newly explicit representation must itself be stable, never mask a second loss.
+    canonicalJson(candidateBodyProjection(restored)) ===
+      canonicalJson(
+        candidateBodyProjection(
+          proseMirrorToDelta(deltaToProseMirror(restored)),
+        ),
+      )
+  );
+}
+
+/** Derive numbering once in full document context; reject any unproven mismatch. */
 export function isCertifiedStructuredBody(
   body: Record<string, unknown>,
 ): boolean {
@@ -258,7 +299,8 @@ export function isCertifiedStructuredBody(
 
     return (
       canonicalJson(candidateBodyProjection(body)) ===
-      canonicalJson(candidateBodyProjection(restored))
+        canonicalJson(candidateBodyProjection(restored)) ||
+      matchesLegacyListBoundaries(body, restored)
     );
   } catch {
     return false;
