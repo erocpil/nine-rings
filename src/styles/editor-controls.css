@@ -1347,8 +1347,9 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 }
 
 .readonly-change-confirmed {
-  color: var(--success) !important;
-  box-shadow: inset 0 0 0 1px var(--success);
+  color: var(--document-state-color, var(--success)) !important;
+  border-color: var(--document-state-color, var(--success)) !important;
+  box-shadow: inset 0 0 0 1px var(--document-state-color, var(--success));
 }
 
 /* 与左侧文档树保持相同的宽度、遮罩浓度和进出速度。使用 portal 避免编辑器裁切。 */

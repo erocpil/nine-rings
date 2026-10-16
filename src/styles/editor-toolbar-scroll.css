@@ -1,3 +1,10 @@
+.note-editor { --editor-toolbar-scrollbar-size: 6px; }
+/* Match the label row to the title controls and leave the same breathing room
+   above the editable toolbar as its horizontal scrollbar occupies below. */
+.app-desktop-workspace .note-editor .tag-bar { padding-inline: 12px; }
+.note-editor .tag-bar + .editor-menu.toolbar-scrollable {
+  margin-top: var(--editor-toolbar-scrollbar-size);
+}
 /* Rendered and source controls share one compact, scrollable row. */
 .app .note-editor .editor-menu.toolbar-scrollable {
   overflow-x: auto;
@@ -11,7 +18,7 @@
   scrollbar-color: transparent transparent;
 }
 .editor-menu.toolbar-full::-webkit-scrollbar,
-.editor-menu.toolbar-compact::-webkit-scrollbar { display: block; height: 6px; }
+.editor-menu.toolbar-compact::-webkit-scrollbar { display: block; height: var(--editor-toolbar-scrollbar-size, 6px); }
 .editor-menu::-webkit-scrollbar-thumb { background: transparent; border: 0; background-clip: border-box; border-radius: 4px; }
 .editor-menu:hover { scrollbar-color: var(--border) transparent; }
 .editor-menu:hover::-webkit-scrollbar-thumb { background-color: var(--border); }

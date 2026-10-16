@@ -756,5 +756,6 @@
 
 :root { --document-readonly-color: #a86209; --document-editable-color: #237847; }
 :root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) { --document-readonly-color: #f2b45e; --document-editable-color: #83c49b; }
-[data-document-readonly="true"] .toolbar-icon { color: var(--document-readonly-color); }
-[data-document-readonly="false"] .toolbar-icon { color: var(--document-editable-color); }
+[data-document-readonly="true"] { --document-state-color: var(--document-readonly-color); }
+[data-document-readonly="false"] { --document-state-color: var(--document-editable-color); }
+[data-document-readonly] .toolbar-icon { color: var(--document-state-color); }

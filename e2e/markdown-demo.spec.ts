@@ -52,6 +52,14 @@ for (const width of [390, 1280]) test(`内置 Markdown 全景演示 ${width}`, a
   await expect(heading.locator(".editor-heading-fold")).toBeVisible();
   await expect(page.locator(".note-editor:visible .editor-block-number").first()).toBeVisible();
   await page.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+  await expect(page.locator(".note-editor:visible .editor-menu.toolbar-scrollable")).toBeVisible();
+  await expect.poll(() => page.locator(".note-editor:visible .tag-bar").evaluate(element => {
+    const root = element.closest(".note-editor")!;
+    const toolbar = root.querySelector(".editor-menu.toolbar-scrollable")!;
+    const lock = root.querySelector(".note-title-row .note-readonly-badge")!;
+    return { gap: Math.round(toolbar.getBoundingClientRect().top - element.getBoundingClientRect().bottom),
+      alignment: Math.round(element.querySelector(".tag-chip")!.getBoundingClientRect().left - lock.getBoundingClientRect().left) };
+  })).toEqual({ gap: 6, alignment: 0 });
   await expect(heading.locator(".editor-heading-fold")).toBeVisible();
   await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await expect(heading.locator(".editor-heading-fold")).toBeVisible();

@@ -1741,6 +1741,11 @@ test.describe("PWA 窄屏应用外壳", () => {
         const badge = row.getByRole("button", { name: readonly ? "点击设为可编辑" : "点击设为只读", exact: true });
         await expect(badge).toHaveClass(/readonly-change-confirmed/);
         await expect(badge).toHaveAttribute("aria-pressed", String(readonly));
+        await expect.poll(() => badge.evaluate(element => {
+          const style = getComputedStyle(element);
+          const icon = getComputedStyle(element.querySelector("svg")!).color;
+          return style.borderColor === icon && style.boxShadow.includes(icon);
+        })).toBe(true);
         const notice = row.getByRole("status");
         await expect(notice).toHaveText(readonly ? "已设置为只读" : "已设置为可编辑");
         // Feedback highlights the badge and announces the state without
