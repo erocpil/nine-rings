@@ -18,7 +18,7 @@ export function ensureFlowPresentationSample(): Promise<boolean> {
     const documents = await api.docs.search({});
     const existing = documents.find(
       (note) =>
-        (note.storagePath === "ideas" || note.storagePath === BUILTIN_DEMO_PATH) && note.title === FLOW_SAMPLE_TITLE,
+        (note.storagePath === "demo" || note.storagePath === BUILTIN_DEMO_PATH) && note.title === FLOW_SAMPLE_TITLE,
     );
     if (existing) {
       const current = await api.notes.get(existing.id);

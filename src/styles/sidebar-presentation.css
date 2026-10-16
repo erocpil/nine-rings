@@ -19,7 +19,7 @@
   position: absolute;
   inset: 0 auto 0 44px;
   z-index: 40;
-  background: var(--bg);
+  background: var(--navigation-tree-bg, var(--navigation-bg, var(--bg)));
   opacity: 1;
   transform: translateX(0);
   visibility: visible;

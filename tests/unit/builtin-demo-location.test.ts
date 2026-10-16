@@ -9,7 +9,7 @@ const key = "nr:builtin-aesthetic-sample:v1";
 const original = {
   id: "demo",
   title: "物哀、幽玄与侘寂：风格设计与验证",
-  storagePath: "ideas",
+  storagePath: "demo",
   readonly: false,
   content: { ops: [{ insert: "用户已编辑的内容\n" }] },
 };
@@ -22,19 +22,18 @@ beforeEach(() => {
   mocks.get.mockReset().mockResolvedValue(structuredClone(original));
   mocks.update
     .mockReset()
-    .mockResolvedValue({ ...original, storagePath: "demo", readonly: true });
+    .mockResolvedValue({ ...original, storagePath: "ideas", readonly: false });
 });
 afterEach(() => vi.unstubAllGlobals());
 it("moves known legacy demos by ID and changes metadata only, once", async () => {
   expect(await migrateBuiltinDemoLocations()).toBe(true);
   expect(mocks.update).toHaveBeenCalledWith(original.id, {
-    storagePath: "demo",
-    readonly: true,
+    storagePath: "ideas",
   });
   expect(original.content.ops[0].insert).toBe("用户已编辑的内容\n");
   mocks.get.mockResolvedValue({
     ...original,
-    storagePath: "demo",
+    storagePath: "ideas",
     readonly: false,
   });
   expect(await migrateBuiltinDemoLocations()).toBe(false);
@@ -55,13 +54,16 @@ it("does not record success before a failed migration persists", async () => {
   await expect(migrateBuiltinDemoLocations()).rejects.toThrow("disk full");
   expect(await migrateBuiltinDemoLocations()).toBe(true);
 });
-it("adopts an already moved synchronized demo and sets readonly without recreating it", async () => {
-  mocks.get.mockResolvedValue({ ...original, storagePath: "demo" });
+it("does not change an existing ideas demo or its editable state", async () => {
+  mocks.get.mockResolvedValue({ ...original, storagePath: "ideas" });
+  expect(await migrateBuiltinDemoLocations()).toBe(false);
+  expect(mocks.update).not.toHaveBeenCalled();
+});
+it("migrates despite the old v1 marker and preserves readonly", async () => {
+  localStorage.setItem("nr:builtin-demo-location:v1:demo", "1");
+  mocks.get.mockResolvedValue({ ...original, readonly: true });
   expect(await migrateBuiltinDemoLocations()).toBe(true);
-  expect(mocks.update).toHaveBeenCalledWith("demo", {
-    storagePath: "demo",
-    readonly: true,
-  });
+  expect(mocks.update).toHaveBeenCalledWith("demo", { storagePath: "ideas" });
 });
 it("new demo readonly failure leaves migration retryable", async () => {
   mocks.update.mockRejectedValueOnce(new Error("disk full"));

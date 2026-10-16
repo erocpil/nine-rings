@@ -1,7 +1,7 @@
 import { api } from "./api";
 
-export const BUILTIN_DEMO_PATH = "demo";
-const migrated = (id: string) => `nr:builtin-demo-location:v1:${id}`;
+export const BUILTIN_DEMO_PATH = "ideas";
+const migrated = (id: string) => `nr:builtin-demo-location:v2:${id}`;
 const demos = [
   ["nr:builtin-aesthetic-sample:v1", "物哀、幽玄与侘寂：风格设计与验证"],
   ["nr:builtin-flow-sample:v2", "流程展示：从想法到可执行方案"],
@@ -25,15 +25,10 @@ export async function migrateBuiltinDemoLocations(): Promise<boolean> {
       note &&
       !note.deleted_at &&
       note.title === title &&
-      (note.storagePath === "ideas" || note.storagePath === BUILTIN_DEMO_PATH)
+      note.storagePath === "demo"
     ) {
-      if (note.storagePath !== BUILTIN_DEMO_PATH || !note.readonly) {
-        await api.notes.update(id, {
-          storagePath: BUILTIN_DEMO_PATH,
-          readonly: true,
-        });
-        changed = true;
-      }
+      await api.notes.update(id, { storagePath: BUILTIN_DEMO_PATH });
+      changed = true;
     }
     // Respect deliberate moves/renames/deletion and later user unlocks.
     localStorage.setItem(migrated(id), "1");

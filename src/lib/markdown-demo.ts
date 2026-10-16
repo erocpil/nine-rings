@@ -20,7 +20,7 @@ async function upgradeFlow(id: string): Promise<boolean> {
   if (localStorage.getItem(MARKDOWN_DEMO_FLOW_KEY)) return false;
   const note = await api.notes.get(id);
   if (note?.content.encrypted) return false;
-  if (!note || note.deleted_at || note.title !== MARKDOWN_DEMO_TITLE || !["ideas", BUILTIN_DEMO_PATH].includes(note.storagePath ?? "")) {
+  if (!note || note.deleted_at || note.title !== MARKDOWN_DEMO_TITLE || !["demo", BUILTIN_DEMO_PATH].includes(note.storagePath ?? "")) {
     localStorage.setItem(MARKDOWN_DEMO_FLOW_KEY, id);
     return false;
   }
@@ -57,7 +57,7 @@ export function ensureMarkdownDemo(): Promise<boolean> {
     const documents = await api.docs.search({});
     const existing = documents.find(
       (note) =>
-        (note.storagePath === "ideas" || note.storagePath === BUILTIN_DEMO_PATH) && note.title === MARKDOWN_DEMO_TITLE,
+        (note.storagePath === "demo" || note.storagePath === BUILTIN_DEMO_PATH) && note.title === MARKDOWN_DEMO_TITLE,
     );
     if (existing) {
       localStorage.setItem(MARKDOWN_DEMO_KEY, existing.id);

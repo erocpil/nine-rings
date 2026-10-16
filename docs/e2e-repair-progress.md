@@ -1655,3 +1655,7 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - `npm run check` 通过（Vitest 155 文件 / 1866 项，另含脚本测试、类型、lint、格式与 IPC）；Tauri SQLite 定向测试 1 项通过；构建成功，主包约 470.30 kB，无 500 kB 警告。
 - `markdown-details-interaction.spec.ts` Chromium / WebKit 各 5 项通过：块工作区编辑、普通/虚拟只读折叠、实际自动保存后的目标正文认证、惰性 script/iframe 文本、隐藏注释及刷新恢复。首次新增检查误将整个工作区纳入本批认证（含其它未认证正文），已改为使用保存后的目标文档；不放宽候选校验。
 - 未执行全量 E2E、原生 GUI、真实远端上传或源码并排预览专门回归。生产读写能力仍为 0，Flutter 不声明本批能力。
+
+### 2026-10-16：内置示例恢复 ideas 路径
+
+三份示例新建位置改回 ideas；v2 一次性迁移将仍位于 demo 的已知示例按 ID 移回，仅修改路径，保留正文、只读状态及历史。旧 v1 标记不阻止迁移；改名、删除、移动到其它路径的副本保持原样。迁移失败可重试，不清理 demo 中其它文档。验证：9 项定向单元测试、Chromium/WebKit 各 1 项真实迁移测试及类型检查通过。

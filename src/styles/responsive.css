@@ -94,7 +94,7 @@
   }
 
   .app-sidebar:not(.sidebar-hidden) {
-    background: var(--drawer-surface);
+    background: var(--navigation-tree-bg, var(--navigation-bg, var(--bg)));
     transform: translateX(0);
     visibility: visible;
     transition-delay: 0s;

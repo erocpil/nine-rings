@@ -15,7 +15,7 @@ export function ensureAestheticStyleSample(): Promise<boolean> {
     const documents = await api.docs.search({});
     const existing = documents.find(
       (note) =>
-        (note.storagePath === "ideas" || note.storagePath === BUILTIN_DEMO_PATH) && note.title === AESTHETIC_SAMPLE_TITLE,
+        (note.storagePath === "demo" || note.storagePath === BUILTIN_DEMO_PATH) && note.title === AESTHETIC_SAMPLE_TITLE,
     );
     if (existing) {
       localStorage.setItem(AESTHETIC_SAMPLE_KEY, existing.id);
