@@ -38,7 +38,7 @@ test("桌面设置外部点击不关闭，按住查看正文，释放和失焦�
   await page.getByTitle("设置", { exact: true }).click();
   const overlay = page.locator(".settings-overlay");
   await expect(page.getByRole("dialog", { name: "设置", exact: true })).toBeVisible();
-  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(6px)");
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(2px)");
   await expect(overlay).toHaveCSS("transition-duration", "0.18s, 0.18s, 0.18s");
   await page.mouse.click(8, 500);
   await expect(overlay).toHaveCount(1);
@@ -50,7 +50,7 @@ test("桌面设置外部点击不关闭，按住查看正文，释放和失焦�
   await expect(overlay).toHaveCSS("opacity", "0");
   await page.mouse.up();
   await expect(overlay).toHaveCSS("opacity", "1");
-  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(6px)");
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(2px)");
   await expect(page.locator(".note-title:visible")).toHaveValue("设置效果预览");
   await page.mouse.move(8, 500);
   await page.mouse.down();
@@ -82,7 +82,7 @@ test("排版设置按住外部预览，释放恢复且保留草稿", async ({ pa
   await page.mouse.move(800, 500);
   await page.mouse.up();
   await expect(overlay).toHaveCSS("opacity", "1");
-  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(6px)");
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(2px)");
   await expect(appearance).toBeVisible();
   await expect(size).toHaveValue("40");
   await page.mouse.move(8, 500);
@@ -108,7 +108,7 @@ test("减少动态效果时设置预览关闭过渡，按住和松开仍可使�
   await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(0px)");
   await page.mouse.up();
   await expect(overlay).toHaveCSS("opacity", "1");
-  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(6px)");
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(2px)");
 });
 
 test("源码预览同步在同一滚动事件内更新，双向连续映射并可关闭", async ({ page }) => {

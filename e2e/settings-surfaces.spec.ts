@@ -14,7 +14,7 @@ test("设置卡片使用柔和主题底色且触摸悬停不变白", async ({ pa
       const { applyTheme } = await load("/src/lib/theme.ts") as typeof import("../src/lib/theme");
       applyTheme(theme);
     }, theme);
-    await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(6px)");
+    await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(2px)");
     await expect.poll(() => card.evaluate(el => {
       const probe = document.createElement("span");
       probe.style.background = "var(--settings-card-bg)"; el.append(probe);
@@ -38,6 +38,6 @@ test("设置卡片使用柔和主题底色且触摸悬停不变白", async ({ pa
     await page.screenshot({ path: test.info().outputPath(`nr-settings-peek-${theme}.png`), animations: "disabled" });
     await page.mouse.up();
     await expect(overlay).toHaveCSS("opacity", "1");
-    await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(6px)");
+    await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(2px)");
   }
 });

@@ -134,9 +134,14 @@
 /* Keep the backdrop intercepting input while the live workspace is revealed. */
 .settings-overlay.settings-peeking { opacity: 0 !important; }
 
+/* Share one blur value across settings and every enlarged block. Keep the
+   literal filter: older WebKit resolves blur(var(...)) to none. */
+.settings-overlay:not(.settings-overlay-mobile),
+.block-workspace::backdrop {
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
 .settings-overlay:not(.settings-overlay-mobile) {
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
   transition: opacity 180ms ease, backdrop-filter 180ms ease, -webkit-backdrop-filter 180ms ease;
 }
 .settings-overlay:not(.settings-overlay-mobile).settings-peeking {

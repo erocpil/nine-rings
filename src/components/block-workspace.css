@@ -20,7 +20,7 @@
 .block-workspace { position: fixed; margin: 0; padding: 0 0 8px; max-width: none; max-height: none; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); box-shadow: 0 12px 48px #0004; overflow: hidden; }
 .block-workspace[open] { display: flex; flex-direction: column; }
 .block-workspace:focus { outline: none; }
-.block-workspace::backdrop { background: #15202066; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+.block-workspace::backdrop { background: #15202066; }
 .block-workspace-header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 3px 8px; flex: 0 0 auto; border-bottom: 1px solid var(--border); }
 .block-workspace-header strong { font-size: 14px; white-space: nowrap; }
 .block-workspace-vim-mode { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; color: var(--text-secondary); font: 11px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .04em; }
