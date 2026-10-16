@@ -166,3 +166,27 @@ html .editor-content .document-toc-block ol > li::before { content: none; }
     margin-bottom: calc(var(--style-next-heading-gap, var(--style-heading-gap, 28px)) * 4 / 7);
   }
 }
+
+/* Dynamic TOC is navigation, independent of prose list/heading typography. */
+html .editor-content .document-toc-block ol > li {
+  margin-block: 0;
+  padding-block: 0;
+  font-size: inherit;
+  font-weight: 400;
+  text-indent: 0;
+}
+.document-toc-block a { display: flex; align-items: baseline; gap: 7px; font-weight: 400; }
+.document-toc-heading-level { flex: 0 0 2em; font-size: .75em; color: var(--text-secondary); text-decoration: none; font-variant-numeric: tabular-nums; }
+.document-toc-heading-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app[data-hierarchy-outline-mode="default"] .document-toc-block li[data-heading-level="1"] .document-toc-heading-level { color: var(--hierarchy-default-1); }
+.app[data-hierarchy-outline-mode="default"] .document-toc-block li[data-heading-level="2"] .document-toc-heading-level { color: var(--hierarchy-default-2); }
+.app[data-hierarchy-outline-mode="default"] .document-toc-block li[data-heading-level="3"] .document-toc-heading-level { color: var(--hierarchy-default-3); }
+.app[data-hierarchy-outline-mode="default"] .document-toc-block li[data-heading-level="4"] .document-toc-heading-level { color: var(--hierarchy-default-4); }
+.app[data-hierarchy-outline-mode="default"] .document-toc-block li[data-heading-level="5"] .document-toc-heading-level { color: var(--hierarchy-default-5); }
+.app[data-hierarchy-outline-mode="default"] .document-toc-block li[data-heading-level="6"] .document-toc-heading-level { color: var(--hierarchy-default-6); }
+.app[data-hierarchy-outline-mode="custom"] .document-toc-block li[data-heading-level="1"] .document-toc-heading-level { color: var(--hierarchy-outline-custom-1); }
+.app[data-hierarchy-outline-mode="custom"] .document-toc-block li[data-heading-level="2"] .document-toc-heading-level { color: var(--hierarchy-outline-custom-2); }
+.app[data-hierarchy-outline-mode="custom"] .document-toc-block li[data-heading-level="3"] .document-toc-heading-level { color: var(--hierarchy-outline-custom-3); }
+.app[data-hierarchy-outline-mode="custom"] .document-toc-block li[data-heading-level="4"] .document-toc-heading-level { color: var(--hierarchy-outline-custom-4); }
+.app[data-hierarchy-outline-mode="custom"] .document-toc-block li[data-heading-level="5"] .document-toc-heading-level { color: var(--hierarchy-outline-custom-5); }
+.app[data-hierarchy-outline-mode="custom"] .document-toc-block li[data-heading-level="6"] .document-toc-heading-level { color: var(--hierarchy-outline-custom-6); }

@@ -4,13 +4,14 @@ import {
   type Node,
   type Schema,
 } from "@tiptap/pm/model";
-import { extractDocumentOutline } from "./document-outline";
+import { extractDocumentOutline, selectDocumentToc } from "./document-outline";
 import { outlineLabel, tocLevels } from "./heading-links";
 export function tocClipboardEntries(doc: Node, source: string) {
   const levels = tocLevels(source);
-  return extractDocumentOutline(doc)
-    .filter((item) => levels.includes(item.level))
-    .map((item) => ({ ...item, text: outlineLabel(item.text) }));
+  return selectDocumentToc(extractDocumentOutline(doc), levels).map((item) => ({
+    ...item,
+    text: outlineLabel(item.text),
+  }));
 }
 /** Visible text plus an invisible typed attribute, so internal paste retains a dynamic block. */
 export function tocClipboardSerializer(schema: Schema, document: () => Node) {
@@ -29,7 +30,14 @@ export function tocClipboardSerializer(schema: Schema, document: () => Node) {
               [
                 "ol",
                 ...tocClipboardEntries(document(), node.textContent).map(
-                  (item) => ["li", item.text] as [string, string],
+                  (item) => [
+                    "li",
+                    {
+                      style: `padding-left: ${item.depth * 14}px`,
+                      "data-heading-level": item.level,
+                    },
+                    item.text,
+                  ],
                 ),
               ],
             ]

@@ -395,6 +395,18 @@ function DocTree({
     }
   };
 
+  const handleCopyName = async (name: string) => {
+    setContextMenu(null);
+    clearPathNotice();
+    setSelectionError(null);
+    try {
+      await copyToClipboard(name, { reportFailure: true });
+      showPathNotice(`已复制名称：${name}`);
+    } catch {
+      setSelectionError("复制名称失败，请检查剪贴板权限后重试");
+    }
+  };
+
   const collapseAll = () => {
     setContextMenu(null);
     const allFolderPaths = tree
@@ -996,6 +1008,7 @@ function DocTree({
             </>
           ) : (
             <>
+              <button className="doc-context-item" onClick={() => void handleCopyName(contextMenu.title)}>复制名称</button>
               <button className="doc-context-item" onClick={() => void handleCopyPath(getDocumentFolderPath(contextMenu.path, contextMenu.noteId!))}>复制所在路径</button>
               <button className="doc-context-item" disabled={disabled} onClick={() => { setCompareSelection([contextMenu.noteId!]); setCompareIds(null); setContextMenu(null); }}>与另一文档比较…</button>
                               <button className="doc-context-item" onClick={() => handleMoveDocument(contextMenu.noteId!, contextMenu.title, contextMenu.path)}>

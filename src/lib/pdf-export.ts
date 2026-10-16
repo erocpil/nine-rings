@@ -2,6 +2,7 @@ import type { DocumentMetadata } from "../types/models";
 import { applyCodeHighlighting } from "./code-highlight";
 import { isTauriRuntime } from "./runtime";
 import { renderMermaid } from "./mermaid-render";
+import { selectDocumentToc } from "./document-outline";
 import { tocLevels, outlineLabel } from "./heading-links";
 
 export interface PdfDocumentInfo extends DocumentMetadata {
@@ -387,7 +388,7 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
 
 /** Materialize configured TOCs after all rendered headings have their PDF IDs. */
 export function renderPrintToc(root: HTMLElement): void {
-  const headings = [...root.querySelectorAll<HTMLHeadingElement>("h1,h2,h3,h4,h5,h6")];
+  const headings = [...root.querySelectorAll<HTMLHeadingElement>("h1,h2,h3,h4,h5,h6")].filter(heading => !heading.closest(".print-flow,blockquote,details,table,li"));
   for (const pre of [...root.querySelectorAll<HTMLPreElement>('pre[data-language="toc"]')]) {
     const levels = tocLevels(pre.textContent ?? "");
     const nav = root.ownerDocument.createElement("nav");
@@ -396,9 +397,11 @@ export function renderPrintToc(root: HTMLElement): void {
     const label = root.ownerDocument.createElement("strong");
     label.textContent = "目录";
     const list = root.ownerDocument.createElement("ol");
-    for (const heading of headings.filter(heading => levels.includes(Number(heading.tagName.slice(1))))) {
+    const entries = selectDocumentToc(headings.map((heading,pos) => ({pos,level:Number(heading.tagName.slice(1)),text:heading.textContent ?? ""})), levels);
+    for (const entry of entries) {
+      const heading = headings[entry.pos];
       const item = root.ownerDocument.createElement("li");
-      item.style.paddingLeft = `${(Number(heading.tagName.slice(1)) - Math.min(...levels)) * 16}px`;
+      item.style.paddingLeft = `${entry.depth * 14}px`;
       const link = root.ownerDocument.createElement("a");
       link.href = `#${encodeURIComponent(heading.id)}`;
       link.textContent = outlineLabel(heading.textContent ?? "");

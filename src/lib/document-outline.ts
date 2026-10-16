@@ -35,7 +35,9 @@ export function documentOutlineIndexAtPosition(
 }
 
 /** 从已渲染的结构化文档中提取 H1–H6，不修改或回写正文。 */
-export function extractDocumentOutline(doc: ProseMirrorNode): DocumentOutlineItem[] {
+export function extractDocumentOutline(
+  doc: ProseMirrorNode,
+): DocumentOutlineItem[] {
   const cached = outlineCache.get(doc);
   if (cached) return cached;
   const items: DocumentOutlineItem[] = [];
@@ -52,4 +54,17 @@ export function extractDocumentOutline(doc: ProseMirrorNode): DocumentOutlineIte
   });
   outlineCache.set(doc, items);
   return items;
+}
+
+/** Filter by semantic level, indent relative to the first actual visible level. */
+export function selectDocumentToc(
+  items: readonly DocumentOutlineItem[],
+  levels: readonly number[],
+) {
+  const visible = items.filter((item) => levels.includes(item.level));
+  const baseLevel = visible.reduce(
+    (minimum, item) => Math.min(minimum, item.level),
+    6,
+  );
+  return visible.map((item) => ({ ...item, depth: item.level - baseLevel }));
 }

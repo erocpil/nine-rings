@@ -82,7 +82,7 @@ for (const mode of ["edit", "readonly", "virtual", "source"] as const) {
     await expect(duplicates).toHaveCount(2);
     expect(await duplicates.nth(0).getAttribute("href")).not.toBe(await duplicates.nth(1).getAttribute("href"));
     const longLabel = toc.getByRole("link").nth(1);
-    expect([...await longLabel.innerText()].length).toBeLessThanOrEqual(81);
+    expect([...await longLabel.locator(".document-toc-heading-text").innerText()].length).toBeLessThanOrEqual(81);
     await expect(longLabel).toContainText("…");
     await body.getByRole("link", { name: "跳到最后", exact: true }).click();
     await expect(body.locator("h2").filter({ hasText: "3. 网卡接收、RX ring 与 DMA" })).toBeInViewport();
@@ -274,4 +274,27 @@ test("目录块级功能可连续选择标题层级，撤销重做及重新加�
   await toc.locator("header strong").scrollIntoViewIfNeeded();
   await page.getByRole("button", { name: "第 1 块操作", exact: true }).click();
   await expect(menu.getByRole("menuitem", { name: "块级功能 ›", exact: true })).toHaveCount(0);
+});
+
+test("目录块保持实际层级并隔离正文列表样式",async({page})=>{
+ await createBlankDocument(page,"目录层级回归");
+ await page.locator(".ProseMirror:visible").evaluate(element=>{
+  const editor=(element as HTMLElement & {editor:import("@tiptap/core").Editor}).editor;
+  editor.commands.setContent({type:"doc",content:[{type:"codeBlock",attrs:{language:"toc"},content:[{type:"text",text:"levels: 1,2,3,6"}]},...[2,3,2,6,3].map((level,i)=>({type:"heading",attrs:{level},content:[{type:"text",text:`标题${i}`}]}))]},true);
+ });
+ const toc=page.getByRole("navigation",{name:"文档内目录",exact:true});
+ const rows=toc.locator("li");
+ await expect(rows).toHaveCount(5);
+ expect(await rows.evaluateAll(elements=>elements.map(e=>({level:e.getAttribute("data-heading-level"),indent:parseFloat(getComputedStyle(e).paddingInlineStart)})))).toEqual([{level:"2",indent:0},{level:"3",indent:14},{level:"2",indent:0},{level:"6",indent:56},{level:"3",indent:14}]);
+ await expect(toc.locator(".document-toc-heading-level").first()).toHaveText("H2");
+ await expect(toc.getByRole("link",{name:"标题1",exact:true})).toBeVisible();
+ await expect(rows.first()).toHaveCSS("font-weight","400");
+ const printed = await page.evaluate(async()=>{
+  const {renderPrintToc}=await import("/src/lib/pdf-export.ts");
+  const root=document.createElement("div");
+  root.innerHTML='<pre data-language="toc">levels: 1,2,3</pre><h2 id="chapter">章</h2><h3 id="section">节</h3><div class="print-flow"><h3>内部步骤</h3></div><blockquote><h2>内部引用</h2></blockquote>';
+  renderPrintToc(root);
+  return [...root.querySelectorAll(".print-toc li")].map(row=>({text:row.textContent,padding:(row as HTMLElement).style.paddingLeft}));
+ });
+ expect(printed).toEqual([{text:"章",padding:"0px"},{text:"节",padding:"14px"}]);
 });
