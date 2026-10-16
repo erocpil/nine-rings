@@ -447,3 +447,28 @@ it("unknown remote write requirements cannot be bypassed by re-enveloping plain 
   );
   expect(await readPublicationAttempt(s.input.review.spaceId)).toBeNull();
 });
+
+it("legacy journal projections remain readable but never replace raw bound evidence", async () => {
+  const s = await setup(true);
+  const attempt = await prepareReviewedPublication(s.input, s.boundary);
+  const originalSource = attempt.source;
+  Object.assign(attempt.reviewed!.review, {
+    outgoing: [{ untrusted: "old derived cache" }],
+    equal: [{ untrusted: "old derived cache" }],
+    afterPublication: [],
+    afterLocalApply: [],
+  });
+  await overwrite(attempt);
+  expect((await readValidatedPublication(attempt.spaceId)).source).toBe(
+    originalSource,
+  );
+  expect(await readAcceptedEntities(attempt.spaceId)).toEqual([]);
+  const changed = JSON.parse(attempt.reviewed!.review.localSource);
+  changed.notes[0].title += " tampered";
+  attempt.reviewed!.review.localSource = JSON.stringify(changed);
+  await overwrite(attempt);
+  await expect(readValidatedPublication(attempt.spaceId)).rejects.toThrow(
+    "绑定",
+  );
+  expect(await readAcceptedEntities(attempt.spaceId)).toEqual([]);
+});

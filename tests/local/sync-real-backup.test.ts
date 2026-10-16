@@ -12,6 +12,16 @@ import {
 } from "../../src/lib/sync/pull-application";
 import { readPullAttempt } from "../../src/lib/sync/pull-store";
 const inputPath = process.env.NR_SYNC_DRY_RUN_INPUT;
+const selectedRuntime = process.env.NR_SYNC_DRY_RUN_RUNTIME;
+if (
+  selectedRuntime !== undefined &&
+  selectedRuntime !== "web" &&
+  selectedRuntime !== "tauri"
+)
+  throw Error("NR_SYNC_DRY_RUN_RUNTIME must be web or tauri");
+const runtimes: ("web" | "tauri")[] = selectedRuntime
+  ? [selectedRuntime]
+  : ["web", "tauri"];
 const fixture = inputPath
   ? (() => {
       const stat = statSync(inputPath);
@@ -122,7 +132,7 @@ beforeEach(async () => {
     throw Error("Network forbidden in local rehearsal");
   });
   const values = new Map<string, string>();
-  vi.stubGlobal("window", { dispatchEvent: vi.fn() });
+  vi.stubGlobal("window", { dispatchEvent: () => {} });
   vi.stubGlobal("BroadcastChannel", undefined);
   vi.stubGlobal("localStorage", {
     getItem: (key: string) => values.get(key) ?? null,
@@ -241,47 +251,48 @@ async function setup(runtime: "web" | "tauri") {
     },
   };
   const boundary = {
-    flush: vi.fn(async () => {}),
-    readSource: vi.fn(async () => localSource),
+    flush: async () => {},
+    readSource: async () => localSource,
     request: git.request,
   };
   const blobs = new Map<string, string>();
   const commit = "c".repeat(40),
     tree = "d".repeat(40);
-  const post = vi.fn(
-    async (route: string, body: Record<string, unknown>): Promise<unknown> => {
-      expect((await readPublicationAttempt(review.spaceId))?.phase).toBe(
-        "PREPARED",
-      );
-      if (route === "/git/blobs") {
-        const sha = await gitBlobSha(body.content as string);
-        blobs.set(sha, body.content as string);
-        return { sha };
-      }
-      if (route === "/git/trees") {
-        expect(body.base_tree).toBe(git.tree);
-        const next = { ...files };
-        for (const e of body.tree as { path: string; sha: string }[])
-          next[e.path] = blobs.get(e.sha)!;
-        const built = await gitReadFixture(next);
-        for (const [route, value] of built.objects)
-          if (route.startsWith("/git/blobs/")) git.objects.set(route, value);
-        git.objects.set(`/git/trees/${tree}`, {
-          ...(built.objects.get(`/git/trees/${built.tree}`) as object),
-          sha: tree,
-        });
-        return { sha: tree };
-      }
-      expect(route).toBe("/git/commits");
-      expect(body.parents).toEqual([git.head]);
-      git.objects.set(`/git/commits/${commit}`, {
-        sha: commit,
-        tree: { sha: tree },
-        parents: [{ sha: git.head }],
+  const post = async (
+    route: string,
+    body: Record<string, unknown>,
+  ): Promise<unknown> => {
+    expect((await readPublicationAttempt(review.spaceId))?.phase).toBe(
+      "PREPARED",
+    );
+    if (route === "/git/blobs") {
+      const sha = await gitBlobSha(body.content as string);
+      blobs.set(sha, body.content as string);
+      return { sha };
+    }
+    if (route === "/git/trees") {
+      expect(body.base_tree).toBe(git.tree);
+      const next = { ...files };
+      for (const e of body.tree as { path: string; sha: string }[])
+        next[e.path] = blobs.get(e.sha)!;
+      const built = await gitReadFixture(next);
+      for (const [route, value] of built.objects)
+        if (route.startsWith("/git/blobs/")) git.objects.set(route, value);
+      git.objects.set(`/git/trees/${tree}`, {
+        ...(built.objects.get(`/git/trees/${built.tree}`) as object),
+        sha: tree,
       });
-      return { sha: commit };
-    },
-  );
+      return { sha: tree };
+    }
+    expect(route).toBe("/git/commits");
+    expect(body.parents).toEqual([git.head]);
+    git.objects.set(`/git/commits/${commit}`, {
+      sha: commit,
+      tree: { sha: tree },
+      parents: [{ sha: git.head }],
+    });
+    return { sha: commit };
+  };
   return {
     input,
     boundary,
@@ -297,7 +308,7 @@ async function setup(runtime: "web" | "tauri") {
 
 // Opt-in only: this file is outside the default unit include. Git and host storage
 // are memory simulations. It never imports application adapters or network transport.
-it.each(["web", "tauri"] as const)(
+it.each(runtimes)(
   "full backup isolated rehearsal: %s",
   async (runtime) => {
     if (!inputPath)
@@ -333,12 +344,14 @@ it.each(["web", "tauri"] as const)(
       post: s.post,
     });
     expect((await readAcceptedEntities(attempt.spaceId)).length).toBe(0);
-    const patch = vi.fn(async () => {
+    let patchCalls = 0;
+    const patch = async () => {
+      patchCalls++;
       s.git.objects.set("/git/ref/heads/backup/main", {
         object: { type: "commit", sha: s.commit },
       });
       throw Error("response lost");
-    });
+    };
     await expect(
       publishRecordedCommit(attempt.spaceId, s.git.request, patch),
     ).rejects.toThrow("结果不明");
@@ -352,7 +365,7 @@ it.each(["web", "tauri"] as const)(
         elapsedMs: Math.round(performance.now() - started),
       }),
     );
-    expect(patch.mock.calls.length).toBe(1);
+    expect(patchCalls).toBe(1);
     expect((await readAcceptedEntities(attempt.spaceId)).length).toBe(1);
     const publicationMs = performance.now() - started;
 
@@ -397,10 +410,12 @@ it.each(["web", "tauri"] as const)(
       }),
     );
     expect(targetBytes < 64 * 1024 * 1024).toBe(true);
-    const apply = vi.fn(async (next: string) => {
+    let applyCalls = 0;
+    const apply = async (next: string) => {
+      applyCalls++;
       source = next;
       throw Error("lost after commit");
-    });
+    };
     const host = {
       flush: async () => {},
       readSource: async () => source,
@@ -426,7 +441,7 @@ it.each(["web", "tauri"] as const)(
     expect(await recoverReviewedPull(review.spaceId, host.readSource)).toBe(
       "complete",
     );
-    expect(apply.mock.calls.length).toBe(1);
+    expect(applyCalls).toBe(1);
     expect(source === plan.source).toBe(true);
     expect((await readAcceptedEntities(review.spaceId)).length).toBe(
       plan.accepted.length,
@@ -435,6 +450,7 @@ it.each(["web", "tauri"] as const)(
       JSON.stringify({
         runtime,
         publicationBytes,
+        peakRssKiB: process.resourceUsage().maxRSS,
         targetBytes,
         pullBytes,
         accepted: plan.accepted.length,

@@ -4,6 +4,7 @@ import { parseSyncJson } from "./strict-json";
 import {
   reviewCandidatePayload,
   type CandidateRuntime,
+  type CandidateEvaluationScope,
 } from "./candidate-write-policy";
 export interface SyncEntity {
   kind:
@@ -26,8 +27,9 @@ export function frontendEntitySettings(value: unknown): unknown {
 export async function candidateEntities(
   source: string,
   runtime: CandidateRuntime,
+  evaluation?: CandidateEvaluationScope,
 ): Promise<SyncEntity[]> {
-  const review = reviewCandidatePayload(source, runtime);
+  const review = reviewCandidatePayload(source, runtime, evaluation);
   if (!review.eligible) throw Error("实体投影拒绝：存在未认证或可能丢失的数据");
   const bundle = parseSyncJson(source) as Record<string, unknown>;
   const entities: SyncEntity[] = [];

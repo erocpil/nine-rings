@@ -1,3 +1,4 @@
+import { snapshotEntityReview } from "../../src/lib/sync/review-snapshot";
 import "fake-indexeddb/auto";
 import { beforeEach, expect, it, vi } from "vitest";
 import fixture from "../../schema/sync/fixtures/candidate-entities-v1.json";
@@ -235,4 +236,44 @@ it("cancellation prevents both validation completion and transaction commit", as
     ),
   ).rejects.toThrow("保存失败");
   expect(await readEntityReviewDraft(review.spaceId)).toBeNull();
+});
+
+it("reviews retain raw evidence and rows without duplicate projected body arrays", async () => {
+  const { review, input } = await setup();
+  expect(review.localSource).toBe(input.localSource);
+  expect(review.remoteSource.length).toBeGreaterThan(0);
+  expect(review.rows.length).toBeGreaterThan(0);
+  for (const key of [
+    "outgoing",
+    "equal",
+    "afterPublication",
+    "afterLocalApply",
+  ])
+    expect(key in review).toBe(false);
+});
+
+it("review snapshots isolate mutable metadata while retaining bound source strings", async () => {
+  const { review, choice } = await setup();
+  const snapshot = snapshotEntityReview(review);
+  review.localSource = "{}";
+  review.remoteSource = "{}";
+  review.space.owner = "changed-after-snapshot";
+  review.rows[0].key = "changed-after-snapshot";
+  review.choices.push(choice);
+  expect(snapshot.choices).toEqual([]);
+  const candidate = await validateEntityReview(
+    snapshot,
+    [choice],
+    snapshot.localSource,
+  );
+  expect(candidate.publicationNeeded).toBe(true);
+  expect(snapshot.space.owner).not.toBe(review.space.owner);
+  expect(snapshot.rows[0].key).not.toBe(review.rows[0].key);
+  expect(() =>
+    snapshotEntityReview(
+      Object.assign({}, snapshot, {
+        localSource: {},
+      }) as unknown as typeof snapshot,
+    ),
+  ).toThrow("来源");
 });

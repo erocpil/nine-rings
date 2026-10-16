@@ -156,8 +156,12 @@ export function createPinnedReader(
       );
       const raw = (blob.content as string).replace(/\r?\n/g, "");
       must(/^[A-Za-z0-9+/]*={0,2}$/.test(raw) && raw.length % 4 === 0);
-      const data = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
-      must(data.length === size);
+      const binary = atob(raw);
+      must(binary.length === size);
+      // Uint8Array.from(string, mapper) first materializes the string iterator.
+      // Fill the bounded destination directly, avoiding millions of temporary entries.
+      const data = new Uint8Array(size);
+      for (let i = 0; i < size; i++) data[i] = binary.charCodeAt(i);
       bytes += size;
       const content = new TextDecoder("utf-8", { fatal: true }).decode(data);
       must((await gitBlobSha(content)) === entry.sha);

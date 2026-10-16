@@ -50,6 +50,111 @@ export interface CandidateReview {
     protectedVersions: number;
   };
 }
+/** An opaque, action-local cache. Only this module can insert certification results. */
+declare const evaluationBrand: unique symbol;
+export interface CandidateEvaluationScope {
+  readonly [evaluationBrand]: true;
+}
+interface BodyVerdict {
+  issues: CandidateReview["issues"];
+  requiredFeatures: string[];
+}
+interface EvaluationState {
+  entries: Map<string, { verdict: BodyVerdict; bytes: number }>;
+  bytes: number;
+  hits: number;
+  misses: number;
+  maxBytes: number;
+  maxEntries: number;
+  closed: boolean;
+}
+const evaluations = new WeakMap<CandidateEvaluationScope, EvaluationState>();
+export function createCandidateEvaluationScope(
+  options: { maxBytes?: number; maxEntries?: number } = {},
+): CandidateEvaluationScope {
+  const maxBytes = options.maxBytes ?? 64 * 1024 * 1024;
+  const maxEntries = options.maxEntries ?? 512;
+  if (
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes < 0 ||
+    maxBytes > 64 * 1024 * 1024 ||
+    !Number.isSafeInteger(maxEntries) ||
+    maxEntries < 0 ||
+    maxEntries > 512
+  )
+    throw Error("认证缓存预算无效");
+  const scope = Object.freeze({}) as CandidateEvaluationScope;
+  evaluations.set(scope, {
+    entries: new Map(),
+    bytes: 0,
+    hits: 0,
+    misses: 0,
+    maxBytes,
+    maxEntries,
+    closed: false,
+  });
+  return scope;
+}
+function evaluationState(scope: CandidateEvaluationScope): EvaluationState {
+  const state = evaluations.get(scope);
+  if (!state || state.closed) throw Error("认证上下文已失效");
+  return state;
+}
+export function inspectCandidateEvaluation(scope: CandidateEvaluationScope) {
+  const state = evaluations.get(scope);
+  if (!state) throw Error("认证上下文无效");
+  return {
+    bytes: state.bytes,
+    entries: state.entries.size,
+    hits: state.hits,
+    misses: state.misses,
+    closed: state.closed,
+  };
+}
+export function disposeCandidateEvaluationScope(
+  scope: CandidateEvaluationScope,
+) {
+  const state = evaluations.get(scope);
+  if (!state) throw Error("认证上下文无效");
+  state.entries.clear();
+  state.bytes = 0;
+  state.closed = true;
+}
+export async function withCandidateEvaluation<T>(
+  scope: CandidateEvaluationScope | undefined,
+  run: (scope: CandidateEvaluationScope) => Promise<T>,
+): Promise<T> {
+  if (scope) {
+    evaluationState(scope);
+    return run(scope);
+  }
+  const owned = createCandidateEvaluationScope();
+  try {
+    return await run(owned);
+  } finally {
+    disposeCandidateEvaluationScope(owned);
+  }
+}
+function rememberBody(
+  state: EvaluationState,
+  key: string,
+  verdict: BodyVerdict,
+) {
+  const bytes = 2 * (key.length + JSON.stringify(verdict).length);
+  if (bytes > state.maxBytes || !state.maxEntries) return;
+  while (
+    state.entries.size &&
+    (state.bytes + bytes > state.maxBytes ||
+      state.entries.size >= state.maxEntries)
+  ) {
+    const oldest = state.entries.keys().next().value!;
+    state.bytes -= state.entries.get(oldest)!.bytes;
+    state.entries.delete(oldest);
+  }
+  state.entries.set(key, { verdict, bytes });
+  state.bytes += bytes;
+}
+
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 const decoded = (value: unknown): unknown =>
@@ -130,9 +235,11 @@ const fields = {
 export function reviewCandidatePayload(
   source: string,
   runtime: CandidateRuntime,
+  evaluation?: CandidateEvaluationScope,
 ): CandidateReview {
-  const issues: CandidateReview["issues"] = {};
-  const required = new Set<string>();
+  const memo = evaluation ? evaluationState(evaluation) : undefined;
+  let issues: CandidateReview["issues"] = {};
+  let required = new Set<string>();
   const counts = {
     documents: 0,
     templates: 0,
@@ -149,7 +256,7 @@ export function reviewCandidatePayload(
     if (Object.keys(value).some((key) => !allowed.includes(key)))
       issue("unknown-metadata");
   };
-  const content = (input: unknown): Record<string, unknown> => {
+  const uncachedContent = (input: unknown): Record<string, unknown> => {
     const value = decoded(input);
     if (!record(value)) throw Error();
     const body = { ...value };
@@ -288,6 +395,51 @@ export function reviewCandidatePayload(
         issue("unsupported-content");
     }
     return value;
+  };
+  const content = (input: unknown): Record<string, unknown> => {
+    if (!memo) return uncachedContent(input);
+    const value = decoded(input);
+    if (!record(value)) throw Error();
+    // Input is freshly strict-decoded JSON. Include metadata and representation;
+    // never key by ID, a projection that drops fields, or an editor revision.
+    const key =
+      runtime +
+      "\0" +
+      (typeof input === "string" ? "s" + input : "o" + JSON.stringify(value));
+    const cached = memo.entries.get(key);
+    if (cached) {
+      memo.hits++;
+      memo.entries.delete(key);
+      memo.entries.set(key, cached);
+      for (const [code, count] of Object.entries(cached.verdict.issues))
+        issues[code as CandidateIssue] =
+          (issues[code as CandidateIssue] ?? 0) + count!;
+      for (const feature of cached.verdict.requiredFeatures)
+        required.add(feature);
+      return value;
+    }
+    memo.misses++;
+    const outerIssues = issues,
+      outerRequired = required;
+    issues = {};
+    required = new Set();
+    try {
+      const result = uncachedContent(value);
+      rememberBody(memo, key, {
+        issues: { ...issues },
+        requiredFeatures: [...required],
+      });
+      return result;
+    } finally {
+      // Preserve partial diagnostics even when certification throws. A failed
+      // computation is not cached, and per-body features do not depend on order.
+      for (const [code, count] of Object.entries(issues))
+        outerIssues[code as CandidateIssue] =
+          (outerIssues[code as CandidateIssue] ?? 0) + count!;
+      for (const feature of required) outerRequired.add(feature);
+      issues = outerIssues;
+      required = outerRequired;
+    }
   };
   try {
     if (!["web", "tauri", "flutter"].includes(runtime)) throw Error();
@@ -523,6 +675,7 @@ export function assertCandidateWrite(
     expectedId: string;
     capabilities?: SyncCapabilities;
   },
+  evaluation?: CandidateEvaluationScope,
 ): CandidateReview {
   const bundle = parseSyncJson(source);
   assertSyncCapabilities(bundle, {
@@ -531,7 +684,7 @@ export function assertCandidateWrite(
     expectedId: options.expectedId,
     capabilities: options.capabilities,
   });
-  const review = reviewCandidatePayload(source, options.runtime);
+  const review = reviewCandidatePayload(source, options.runtime, evaluation);
   if (!review.eligible) throw new Error("同步实体不能无损处理，拒绝写入");
   const header = (
     bundle as {

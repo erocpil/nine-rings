@@ -1,3 +1,8 @@
+import { entityPlanSummary } from "./review-snapshot";
+import {
+  withCandidateEvaluation,
+  type CandidateEvaluationScope,
+} from "./candidate-write-policy";
 /** Read-only candidate planning. This module never grants publication capability. */
 import { canonicalDigest, canonicalJson } from "./canonical-codec";
 import { candidateEntities, type SyncEntity } from "./entity-projection";
@@ -52,7 +57,13 @@ export async function planEntityChanges(input: {
   baselines: EntityBaseline[];
   choices?: EntityChoice[];
 }) {
-  input = structuredClone(input);
+  input = structuredClone({
+    spaceId: input.spaceId,
+    local: input.local,
+    remote: input.remote,
+    baselines: input.baselines,
+    choices: input.choices,
+  });
   if (!/^[a-f0-9]{64}$/.test(input.spaceId)) throw Error("实体计划空间无效");
   const index = async (entities: SyncEntity[]) => {
     if (entities.length > 100000) throw Error("实体计划超过预算");
@@ -185,57 +196,70 @@ export async function planEntityChanges(input: {
 }
 
 /** Re-read immutable Git objects, never trust a report as a source of entity bytes. */
-export async function previewRemoteEntityPlan(input: {
-  report: RemoteProtocolReport;
-  request: GitRead;
-  localSource: string;
-  runtime: CandidateRuntime;
-  baselines: EntityBaseline[];
-  choices?: EntityChoice[];
-}) {
-  const { request } = input;
-  const frozen = structuredClone({ ...input, request: undefined });
-  const { report } = frozen;
-  const head = report.evidence.head,
-    id = report.evidence.snapshot.latestId;
-  if (
-    report.spaceId !== (await syncSpaceId(report.space)) ||
-    !gitSha(head) ||
-    !id ||
-    report.evidence.snapshot.commit !== head ||
-    report.evidence.control.commit !== head ||
-    report.history !== "complete"
-  )
-    throw Error("需要完整的固定修订预检");
-  const reader = createPinnedReader(request),
-    paths = backupPaths(report.space.path);
-  if ((await reader.file(head, paths.latest))?.content.trim() !== id)
-    throw Error("远端快照身份不匹配");
-  const snapshot = await reader.file(head, paths.snapshot(id));
-  if (!snapshot) throw Error("远端快照缺失");
-  if (new TextEncoder().encode(frozen.localSource).length > 64 * 1024 * 1024)
-    throw Error("本机候选快照超过计划预算");
-  const bundle = parseSyncJson(snapshot.content) as Record<string, unknown>;
-  if (Object.prototype.hasOwnProperty.call(bundle, "header"))
-    inspectSyncHeader(bundle.header, id);
-  const local = await candidateEntities(frozen.localSource, frozen.runtime);
-  const remote = await candidateEntities(snapshot.content, frozen.runtime);
-  const plan = await planEntityChanges({
-    spaceId: report.spaceId,
-    local,
-    remote,
-    baselines: frozen.baselines,
-    choices: frozen.choices,
+export async function previewRemoteEntityPlan(
+  input: {
+    report: RemoteProtocolReport;
+    request: GitRead;
+    localSource: string;
+    runtime: CandidateRuntime;
+    baselines: EntityBaseline[];
+    choices?: EntityChoice[];
+  },
+  evaluation?: CandidateEvaluationScope,
+) {
+  return withCandidateEvaluation(evaluation, async (evaluation) => {
+    const { request } = input;
+    const frozen = structuredClone({ ...input, request: undefined });
+    const { report } = frozen;
+    const head = report.evidence.head,
+      id = report.evidence.snapshot.latestId;
+    if (
+      report.spaceId !== (await syncSpaceId(report.space)) ||
+      !gitSha(head) ||
+      !id ||
+      report.evidence.snapshot.commit !== head ||
+      report.evidence.control.commit !== head ||
+      report.history !== "complete"
+    )
+      throw Error("需要完整的固定修订预检");
+    const reader = createPinnedReader(request),
+      paths = backupPaths(report.space.path);
+    if ((await reader.file(head, paths.latest))?.content.trim() !== id)
+      throw Error("远端快照身份不匹配");
+    const snapshot = await reader.file(head, paths.snapshot(id));
+    if (!snapshot) throw Error("远端快照缺失");
+    if (new TextEncoder().encode(frozen.localSource).length > 64 * 1024 * 1024)
+      throw Error("本机候选快照超过计划预算");
+    const bundle = parseSyncJson(snapshot.content) as Record<string, unknown>;
+    if (Object.prototype.hasOwnProperty.call(bundle, "header"))
+      inspectSyncHeader(bundle.header, id);
+    const local = await candidateEntities(
+      frozen.localSource,
+      frozen.runtime,
+      evaluation,
+    );
+    const remote = await candidateEntities(
+      snapshot.content,
+      frozen.runtime,
+      evaluation,
+    );
+    const plan = await planEntityChanges({
+      spaceId: report.spaceId,
+      local,
+      remote,
+      baselines: frozen.baselines,
+      choices: frozen.choices,
+    });
+    return {
+      ...entityPlanSummary(plan),
+      spaceId: report.spaceId,
+      expectedHead: head,
+      snapshotId: id,
+      snapshotSha256: await bytesDigest(snapshot.content),
+      // No write plan or baseline mutation; retain the original sources for later validation.
+      localSource: frozen.localSource,
+      remoteSource: snapshot.content,
+      writable: false as const,
+    };
   });
-  return {
-    ...plan,
-    spaceId: report.spaceId,
-    expectedHead: head,
-    snapshotId: id,
-    snapshotSha256: await bytesDigest(snapshot.content),
-    // No write plan or baseline mutation; retain the original sources for later validation.
-    localSource: frozen.localSource,
-    remoteSource: snapshot.content,
-    writable: false as const,
-  };
 }

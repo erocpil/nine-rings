@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import gates from "../../schema/sync/fixtures/legacy-gates.json";
 import { gitReadFixture } from "../helpers/git-read-fixture";
 import {
+  createPinnedReader,
   inspectRemoteProtocol,
   bytesDigest,
 } from "../../src/lib/sync/remote-protocol";
@@ -194,4 +195,34 @@ it("persists a conservative guard before a detected control's later snapshot rea
     }),
   ).rejects.toThrow();
   expect(detected).toHaveLength(1);
+});
+
+it("large wrapped Base64 preserves multibyte UTF-8 and exact Git bytes", async () => {
+  const source = "中文🙂a".repeat(200_000);
+  const git = await gitReadFixture({ "large.json": source });
+  const tree = git.objects.get(`/git/trees/${git.tree}`) as {
+    tree: { sha: string }[];
+  };
+  const blob = git.objects.get(`/git/blobs/${tree.tree[0].sha}`) as {
+    content: string;
+  };
+  blob.content = blob.content.replace(/.{80}/g, "$&\n");
+  const file = await createPinnedReader(git.request).file(
+    git.head,
+    "large.json",
+  );
+  expect(file?.content === source).toBe(true);
+});
+it("Base64 bytes must still be valid UTF-8 before a snapshot is accepted", async () => {
+  const git = await gitReadFixture({ "invalid.json": "a" });
+  const tree = git.objects.get(`/git/trees/${git.tree}`) as {
+    tree: { sha: string }[];
+  };
+  const blob = git.objects.get(`/git/blobs/${tree.tree[0].sha}`) as {
+    content: string;
+  };
+  blob.content = "/w==";
+  await expect(
+    createPinnedReader(git.request).file(git.head, "invalid.json"),
+  ).rejects.toThrow();
 });

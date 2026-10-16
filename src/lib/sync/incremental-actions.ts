@@ -1,3 +1,8 @@
+import { snapshotEntityReview } from "./review-snapshot";
+import {
+  withCandidateEvaluation,
+  type CandidateEvaluationScope,
+} from "./candidate-write-policy";
 /** Explicit host entry points. Release capabilities cannot be overridden by UI confirmations. */
 import { api } from "../api";
 import { getOrCreateDeviceId } from "../backup-user-settings";
@@ -140,144 +145,159 @@ export async function executeIncrementalAction(
     migrationConfirmed?: boolean;
   },
   host: { flush: () => Promise<void>; assertActive?: () => void },
+  evaluation?: CandidateEvaluationScope,
 ) {
-  const backup = input.backup;
-  input = structuredClone({
-    config: input.config,
-    review: input.review,
-    choices: input.choices,
-    action: input.action,
-    participants: input.participants,
-    migrationConfirmed: input.migrationConfirmed,
-  });
-  gate(input.action === "publish" ? "write" : "read");
-  const { review, choices, config } = input,
-    assertActive = host.assertActive ?? (() => {});
-  if (review.runtime !== (isTauriRuntime() ? "tauri" : "web"))
-    throw Error("运行端已变化，请重新预检");
-  const transport = incrementalTransport(config, review.space);
-  const common = {
-    flush: host.flush,
-    readSource: () => api.export.data(),
-    request: transport.request,
-    assertActive,
-  };
-  if (input.action === "pull") {
-    const { applyReviewedPull } = await import("./pull-application");
-    const result = await applyReviewedPull(
-      { review, choices },
-      {
-        ...common,
-        apply: (source, context) => api.export.import(source, "merge", context),
-      },
-    );
-    return {
-      message: `已应用并确认 ${result.applied} 项远端实体。`,
-      reload: true,
-    };
-  }
-  if (input.action === "equal") {
-    const { confirmEqualReviewedEntities } = await import("./pull-application");
-    const result = await confirmEqualReviewedEntities(
-      { review, choices },
-      common,
-    );
-    return {
-      message: `已确认 ${result.accepted} 项相同实体，未导入或上传。`,
-      reload: false,
-    };
-  }
-  if (
-    !backup ||
-    !verified.has(backup) ||
-    backup.binding !== review.binding ||
-    backup.localRevision !== review.localRevision
-  )
-    throw Error("请重新选择并核验与本次预检一致的本地备份文件");
-  if (!input.participants?.confirmed)
-    throw Error("请确认所有参与设备均已升级至支持版本");
-  const legacy = !Object.prototype.hasOwnProperty.call(
-    JSON.parse(review.remoteSource),
-    "header",
-  );
-  if (legacy && !input.migrationConfirmed)
-    throw Error("首次迁移需要明确确认协议切换");
-  const { prepareReviewedPublication } = await import("./reviewed-publication");
-  const attempt = await prepareReviewedPublication(
-    {
-      review,
-      choices,
-      allowMigrationCheckpoint: legacy && input.migrationConfirmed,
-      observation: readProtocolObservation(review.spaceId, localStorage),
-      identity: {
-        id: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
-        writtenBy: {
-          app:
-            typeof __APP_VERSION__ === "undefined"
-              ? "unknown"
-              : __APP_VERSION__,
-          platform: review.runtime,
-          deviceId: getOrCreateDeviceId(localStorage),
-        },
-      },
-      prerequisites: {
-        localRevision: review.localRevision,
-        backup: {
-          localRevision: backup.localRevision,
-          sha256: backup.sha256,
-          method: backup.method,
-        },
+  return withCandidateEvaluation(evaluation, async (evaluation) => {
+    const backup = input.backup;
+    input = {
+      ...structuredClone({
+        config: input.config,
+        choices: input.choices,
+        action: input.action,
         participants: input.participants,
-        payload: {
-          eligible: false,
-          issues: {},
-          requiredFeatures: [],
-          counts: {
-            documents: 0,
-            templates: 0,
-            protectedPaths: 0,
-            protectedVersions: 0,
+        migrationConfirmed: input.migrationConfirmed,
+      }),
+      review: snapshotEntityReview(input.review),
+    };
+    gate(input.action === "publish" ? "write" : "read");
+    const { review, choices, config } = input,
+      assertActive = host.assertActive ?? (() => {});
+    if (review.runtime !== (isTauriRuntime() ? "tauri" : "web"))
+      throw Error("运行端已变化，请重新预检");
+    const transport = incrementalTransport(config, review.space);
+    const common = {
+      flush: host.flush,
+      readSource: () => api.export.data(),
+      request: transport.request,
+      assertActive,
+    };
+    if (input.action === "pull") {
+      const { applyReviewedPull } = await import("./pull-application");
+      const result = await applyReviewedPull(
+        { review, choices },
+        {
+          ...common,
+          apply: (source, context) =>
+            api.export.import(source, "merge", context),
+        },
+        evaluation,
+      );
+      return {
+        message: `已应用并确认 ${result.applied} 项远端实体。`,
+        reload: true,
+      };
+    }
+    if (input.action === "equal") {
+      const { confirmEqualReviewedEntities } =
+        await import("./pull-application");
+      const result = await confirmEqualReviewedEntities(
+        { review, choices },
+        common,
+        evaluation,
+      );
+      return {
+        message: `已确认 ${result.accepted} 项相同实体，未导入或上传。`,
+        reload: false,
+      };
+    }
+    if (
+      !backup ||
+      !verified.has(backup) ||
+      backup.binding !== review.binding ||
+      backup.localRevision !== review.localRevision
+    )
+      throw Error("请重新选择并核验与本次预检一致的本地备份文件");
+    if (!input.participants?.confirmed)
+      throw Error("请确认所有参与设备均已升级至支持版本");
+    const legacy = !Object.prototype.hasOwnProperty.call(
+      JSON.parse(review.remoteSource),
+      "header",
+    );
+    if (legacy && !input.migrationConfirmed)
+      throw Error("首次迁移需要明确确认协议切换");
+    const { prepareReviewedPublication } =
+      await import("./reviewed-publication");
+    const attempt = await prepareReviewedPublication(
+      {
+        review,
+        choices,
+        allowMigrationCheckpoint: legacy && input.migrationConfirmed,
+        observation: readProtocolObservation(review.spaceId, localStorage),
+        identity: {
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          writtenBy: {
+            app:
+              typeof __APP_VERSION__ === "undefined"
+                ? "unknown"
+                : __APP_VERSION__,
+            platform: review.runtime,
+            deviceId: getOrCreateDeviceId(localStorage),
           },
         },
-        publicationRecoveryReady: true,
+        prerequisites: {
+          localRevision: review.localRevision,
+          backup: {
+            localRevision: backup.localRevision,
+            sha256: backup.sha256,
+            method: backup.method,
+          },
+          participants: input.participants,
+          payload: {
+            eligible: false,
+            issues: {},
+            requiredFeatures: [],
+            counts: {
+              documents: 0,
+              templates: 0,
+              protectedPaths: 0,
+              protectedVersions: 0,
+            },
+          },
+          publicationRecoveryReady: true,
+        },
       },
-    },
-    common,
-  );
-  const { preparePublicationObjects } = await import("./publication-objects");
-  await preparePublicationObjects({
-    spaceId: attempt.spaceId,
-    ...transport,
-    assertActive,
-  });
-  assertActive();
-  // Conservative refusal is durable before the only possible ref update, including UNKNOWN outcomes.
-  await markProtocolInspectionRequired(config, review.spaceId, localStorage);
-  const { publishRecordedCommit } = await import("./publication-recovery");
-  await publishRecordedCommit(
-    attempt.spaceId,
-    transport.request,
-    transport.patch,
-  );
-  const { inspectRemoteProtocol } = await import("./remote-protocol");
-  let observationWarning = "";
-  try {
-    await observeRemoteProtocol(
-      await inspectRemoteProtocol(transport.request, review.space),
-      localStorage,
+      common,
+      evaluation,
     );
-  } catch {
-    observationWarning =
-      " 发布与接受已完成，但协议状态预检未完成，请重新预检；旧格式同步保持禁止。";
-  }
-  return {
-    message:
-      (legacy
-        ? "首次迁移已完成；仅确认实际发布的本机实体，请重新预检其余差异。"
-        : "已发布并确认所选本机实体。") + observationWarning,
-    reload: false,
-  };
+    const { preparePublicationObjects } = await import("./publication-objects");
+    await preparePublicationObjects(
+      {
+        spaceId: attempt.spaceId,
+        ...transport,
+        assertActive,
+      },
+      evaluation,
+    );
+    assertActive();
+    // Conservative refusal is durable before the only possible ref update, including UNKNOWN outcomes.
+    await markProtocolInspectionRequired(config, review.spaceId, localStorage);
+    const { publishRecordedCommit } = await import("./publication-recovery");
+    await publishRecordedCommit(
+      attempt.spaceId,
+      transport.request,
+      transport.patch,
+      evaluation,
+    );
+    const { inspectRemoteProtocol } = await import("./remote-protocol");
+    let observationWarning = "";
+    try {
+      await observeRemoteProtocol(
+        await inspectRemoteProtocol(transport.request, review.space),
+        localStorage,
+      );
+    } catch {
+      observationWarning =
+        " 发布与接受已完成，但协议状态预检未完成，请重新预检；旧格式同步保持禁止。";
+    }
+    return {
+      message:
+        (legacy
+          ? "首次迁移已完成；仅确认实际发布的本机实体，请重新预检其余差异。"
+          : "已发布并确认所选本机实体。") + observationWarning,
+      reload: false,
+    };
+  });
 }
 export async function recoverIncrementalPull(
   config: SyncConfig,
@@ -324,30 +344,39 @@ export async function resumeIncrementalPublication(
   config: SyncConfig,
   spaceId: string,
   flush: () => Promise<void>,
+  evaluation?: CandidateEvaluationScope,
 ) {
-  gate("write");
-  const { readValidatedPublication, publishRecordedCommit } =
-    await import("./publication-recovery");
-  const attempt = await readValidatedPublication(spaceId);
-  connection(config, attempt.space);
-  if (!["PREPARED", "OBJECTS_READY"].includes(attempt.phase))
-    throw Error("此发布结果可能不明，必须只读核实，禁止重发");
-  await flush();
-  const transport = incrementalTransport(config, attempt.space);
-  if (attempt.phase === "PREPARED") {
-    const { preparePublicationObjects } = await import("./publication-objects");
-    await preparePublicationObjects({ spaceId, ...transport });
-  }
-  await markProtocolInspectionRequired(config, spaceId, localStorage);
-  await publishRecordedCommit(spaceId, transport.request, transport.patch);
-  const { inspectRemoteProtocol } = await import("./remote-protocol");
-  try {
-    await observeRemoteProtocol(
-      await inspectRemoteProtocol(transport.request, attempt.space),
-      localStorage,
+  return withCandidateEvaluation(evaluation, async (evaluation) => {
+    gate("write");
+    const { readValidatedPublication, publishRecordedCommit } =
+      await import("./publication-recovery");
+    const attempt = await readValidatedPublication(spaceId, evaluation);
+    connection(config, attempt.space);
+    if (!["PREPARED", "OBJECTS_READY"].includes(attempt.phase))
+      throw Error("此发布结果可能不明，必须只读核实，禁止重发");
+    await flush();
+    const transport = incrementalTransport(config, attempt.space);
+    if (attempt.phase === "PREPARED") {
+      const { preparePublicationObjects } =
+        await import("./publication-objects");
+      await preparePublicationObjects({ spaceId, ...transport }, evaluation);
+    }
+    await markProtocolInspectionRequired(config, spaceId, localStorage);
+    await publishRecordedCommit(
+      spaceId,
+      transport.request,
+      transport.patch,
+      evaluation,
     );
-    return { observationWarning: false };
-  } catch {
-    return { observationWarning: true };
-  }
+    const { inspectRemoteProtocol } = await import("./remote-protocol");
+    try {
+      await observeRemoteProtocol(
+        await inspectRemoteProtocol(transport.request, attempt.space),
+        localStorage,
+      );
+      return { observationWarning: false };
+    } catch {
+      return { observationWarning: true };
+    }
+  });
 }
