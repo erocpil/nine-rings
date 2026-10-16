@@ -126,7 +126,7 @@ test(`源码选区折叠菜单锚定实际按钮并保持可操作 readonly=${re
 });
 }
 
-test("合并表格自动保存后正文通过认证且保留元数据门禁", async ({ page }) => {
+test("合并表格及引用锚点自动保存后通过认证并拒绝未知元数据", async ({ page }) => {
   await createBlankDocument(page);
   const editor = page.locator(".note-editor:visible .tiptap.ProseMirror").first();
   await editor.evaluate(async element => {
@@ -138,21 +138,34 @@ test("合并表格自动保存后正文通过认证且保留元数据门禁", as
   await expect(editor.locator('th[colspan="2"][rowspan="2"]')).toHaveAttribute("data-background-color", "#dde8d8");
   await editor.locator("th p").first().click();
   await page.keyboard.type("edited");
+  await editor.evaluate(async element => {
+    const { createReferenceAnchor } = await import("/src/extensions/ReferenceAnchors.ts");
+    createReferenceAnchor((element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor, "block", 4);
+  });
   await expect.poll(() => page.evaluate(async () => {
     const { api } = await import("/src/lib/api.ts");
     const { reviewCandidatePayload } = await import("/src/lib/sync/candidate-write-policy.ts");
     const { default: fixture } = await import("/schema/sync/fixtures/candidate-table-v1.json");
     const note = await api.notes.get(localStorage.getItem("nr:lastNote")!);
     if (!note || !JSON.stringify(note.content).includes("edited")) return false;
-    // Certify the table body separately. Real reference-anchor metadata remains
-    // outside this batch and must still block the complete document candidate.
+    // Both table body and actual mapped anchors must be certified. Unknown
+    // metadata is still rejected rather than omitted from the candidate.
     const review = reviewCandidatePayload(JSON.stringify({ ...fixture, notes: [{ ...fixture.notes[1], content: { ops: note.content.ops } }] }), "web");
     const full = reviewCandidatePayload(JSON.stringify({ ...fixture, notes: [{ ...fixture.notes[1], content: note.content }] }), "web");
-    const metadataBlocked = !note.content.metadata || !full.eligible;
-    return review.eligible && review.requiredFeatures.includes("table-block-v1") && metadataBlocked;
+    const unknown = reviewCandidatePayload(JSON.stringify({ ...fixture, notes: [{ ...fixture.notes[1], content: { ...note.content, metadata: { ...note.content.metadata, futureField: true } } }] }), "web");
+    return review.eligible && full.eligible && full.requiredFeatures.includes("reference-anchors-v1")
+      && note.content.metadata?.referenceAnchors?.length === 1 && !unknown.eligible;
   })).toBe(true);
+  const savedAnchors = await page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    return (await api.notes.get(localStorage.getItem("nr:lastNote")!))!.content.metadata!.referenceAnchors;
+  });
   await page.reload();
   await expect(editor.locator('th[colspan="2"][rowspan="2"]')).toHaveAttribute("data-background-color", "#dde8d8");
+  await expect.poll(() => editor.evaluate(async element => {
+    const { referenceAnchorPluginKey } = await import("/src/extensions/ReferenceAnchors.ts");
+    return referenceAnchorPluginKey.getState((element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor.state)?.anchors;
+  })).toEqual(savedAnchors);
   await expect(editor.locator("th p")).toHaveCount(2);
   await expect(editor.locator("th")).toContainText("edited");
 });

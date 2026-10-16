@@ -91,5 +91,10 @@ export function candidateBodyProjection(body: unknown, depth = 0): unknown {
         ...(attrs ? { attributes: attrs } : {}),
       });
   }
-  return { ops: merged };
+  return {
+    ops: merged,
+    ...((parsed as { metadata?: unknown }).metadata !== undefined
+      ? { metadata: (parsed as { metadata: unknown }).metadata }
+      : {}),
+  };
 }

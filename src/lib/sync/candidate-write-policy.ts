@@ -1,5 +1,13 @@
-import { hasStructuredBody, isCertifiedStructuredBody, structuredBodyFeatures } from "./structured-body-policy";
-import { isCertifiedWebAppConfig, isCertifiedTauriAppConfig } from "./app-config-policy";
+import { isCertifiedBodyMetadata } from "./body-metadata-policy";
+import {
+  hasStructuredBody,
+  isCertifiedStructuredBody,
+  structuredBodyFeatures,
+} from "./structured-body-policy";
+import {
+  isCertifiedWebAppConfig,
+  isCertifiedTauriAppConfig,
+} from "./app-config-policy";
 /** Candidate payload eligibility only. Never applies data or enables a protocol. */
 import { normalizeEditorColor } from "../editor-color";
 import { validateBackup } from "../backup-validation";
@@ -141,11 +149,19 @@ export function reviewCandidatePayload(
   const content = (input: unknown): Record<string, unknown> => {
     const value = decoded(input);
     if (!record(value)) throw Error();
-    const structured = !isEncrypted(value) && hasStructuredBody(value);
-    if (isEncrypted(value)) {
-      validateEncryptedContent(value);
+    const body = { ...value };
+    if (!isEncrypted(value) && value.metadata !== undefined) {
+      required.add("reference-anchors-v1");
+      if (runtime === "flutter") issue("runtime-unsupported");
+      delete body.metadata;
+      if (!isCertifiedBodyMetadata(value.metadata, body))
+        issue("unknown-metadata");
+    }
+    const structured = !isEncrypted(body) && hasStructuredBody(body);
+    if (isEncrypted(body)) {
+      validateEncryptedContent(body);
       unknown(
-        value.encrypted as unknown as Record<string, unknown>,
+        body.encrypted as unknown as Record<string, unknown>,
         fields.encrypted,
       );
       required.add("encrypted-document-v1");
@@ -154,17 +170,17 @@ export function reviewCandidatePayload(
       required.add("text-document-v1");
       required.add("structured-text-v1");
       if (runtime === "flutter") issue("runtime-unsupported");
-      if (!isCertifiedStructuredBody(value)) issue("unsupported-content");
-      for (const feature of structuredBodyFeatures(value)) required.add(feature);
+      if (!isCertifiedStructuredBody(body)) issue("unsupported-content");
+      for (const feature of structuredBodyFeatures(body)) required.add(feature);
     } else {
       required.add("text-document-v1");
       if (
-        Object.keys(value).some((key) => key !== "ops") ||
-        !Array.isArray(value.ops)
+        Object.keys(body).some((key) => key !== "ops") ||
+        !Array.isArray(body.ops)
       ) {
         issue("unsupported-content");
       } else
-        for (const op of value.ops) {
+        for (const op of body.ops) {
           if (
             !record(op) ||
             typeof op.insert !== "string" ||
@@ -217,8 +233,8 @@ export function reviewCandidatePayload(
           }
         }
     }
-    if (!isEncrypted(value) && !structured && Array.isArray(value.ops)) {
-      const ops = value.ops;
+    if (!isEncrypted(body) && !structured && Array.isArray(body.ops)) {
+      const ops = body.ops;
       const last = ops[ops.length - 1];
       const formatted = ops.some(
         (op) =>
@@ -407,7 +423,10 @@ export function reviewCandidatePayload(
     if (payload.config != null) {
       required.add("app-config-v1");
       if (runtime === "flutter") issue("runtime-unsupported");
-      const certified = runtime === "tauri" ? isCertifiedTauriAppConfig(payload.config) : isCertifiedWebAppConfig(payload.config);
+      const certified =
+        runtime === "tauri"
+          ? isCertifiedTauriAppConfig(payload.config)
+          : isCertifiedWebAppConfig(payload.config);
       if (!certified) issue("settings-not-certified");
     }
     if (bundle.user_settings !== undefined) {

@@ -1,0 +1,175 @@
+{
+  "version": 2,
+  "exported_at": "2026-10-14T00:00:00Z",
+  "notes": [
+    {
+      "id": "anchors-0",
+      "date": "2026-10-14",
+      "title": "引用锚点认证",
+      "content": {
+        "ops": [
+          {
+            "insert": "abcdef"
+          },
+          {
+            "insert": "\n"
+          }
+        ],
+        "metadata": {
+          "referenceAnchors": [
+            {
+              "id": "range-1",
+              "kind": "range",
+              "from": 2,
+              "to": 5,
+              "preview": "bcd"
+            },
+            {
+              "id": "block-1",
+              "kind": "block",
+              "from": 0,
+              "to": 8,
+              "preview": "abcdef"
+            },
+            {
+              "id": "position-1",
+              "kind": "position",
+              "from": 3,
+              "to": 3,
+              "preview": "abcdef"
+            },
+            {
+              "id": "deleted-1",
+              "kind": "range",
+              "from": 4,
+              "to": 4,
+              "preview": "deleted",
+              "deleted": true
+            }
+          ]
+        }
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "anchors-table-empty",
+      "date": "2026-10-14",
+      "title": "表格认证 1",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "table": {
+                "version": 1,
+                "columns": [
+                  {
+                    "align": null,
+                    "width": 100
+                  },
+                  {
+                    "align": null,
+                    "width": 100
+                  }
+                ],
+                "rows": [
+                  {
+                    "cells": [
+                      {
+                        "header": true,
+                        "colspan": 2,
+                        "rowspan": 2,
+                        "background": "#dde8d8",
+                        "paragraphs": [
+                          {
+                            "ops": [
+                              {
+                                "insert": "跨行列",
+                                "attributes": {
+                                  "bold": true,
+                                  "size": "huge",
+                                  "color": "#aabbcc"
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "ops": [
+                              {
+                                "insert": "第二段"
+                              }
+                            ]
+                          }
+                        ],
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "跨行列",
+                              "attributes": {
+                                "bold": true,
+                                "size": "huge",
+                                "color": "#aabbcc"
+                              }
+                            },
+                            {
+                              "insert": "\n"
+                            },
+                            {
+                              "insert": "第二段"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "cells": []
+                  }
+                ]
+              }
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ],
+        "metadata": {
+          "referenceAnchors": []
+        }
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    }
+  ]
+}
