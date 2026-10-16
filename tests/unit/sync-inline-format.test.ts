@@ -95,8 +95,8 @@ it.each(["small", "normal", "large", "huge"])(
 );
 
 it.each([
-  { code: true, color: "#22a577" },
-  { code: true, bold: true },
+  { code: false, color: "#22a577" },
+  { code: true, bold: false },
   { color: "#ABCDEF" },
   { color: "red" },
   { color: "var(--text)" },

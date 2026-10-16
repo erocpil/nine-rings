@@ -1,3 +1,4 @@
+import { isCertifiedLinkAttributes } from "./link-body-policy";
 import { hasPortableRenderedResources } from "./rendered-source-policy";
 import { isCertifiedInlineAtomAttributes } from "./inline-atom-policy";
 import {
@@ -48,18 +49,21 @@ const structural = new Set([
 export function hasStructuredBody(body: Record<string, unknown>): boolean {
   return (
     Array.isArray(body.ops) &&
-    body.ops.some(
-      (op) =>
-        record(op) &&
-        (record(op.insert) ||
-          (record(op.attributes) &&
-            Object.keys(op.attributes).some(
-              (key) =>
-                structural.has(key) ||
-                FOOTNOTE_ATTRIBUTES.has(key) ||
-                key === "htmlStyle",
-            ))),
-    )
+    body.ops.some((op) => {
+      if (!record(op)) return false;
+      if (record(op.insert)) return true;
+      const attrs = op.attributes;
+      return (
+        record(attrs) &&
+        ((attrs.code === true && Object.keys(attrs).length > 1) ||
+          Object.keys(attrs).some(
+            (key) =>
+              structural.has(key) ||
+              FOOTNOTE_ATTRIBUTES.has(key) ||
+              ["htmlStyle", "link", "linkTitle", "linkExplicit"].includes(key),
+          ))
+      );
+    })
   );
 }
 
@@ -152,7 +156,11 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
       return false;
     if (op.attributes !== undefined && !record(op.attributes)) return false;
     const attrs = (op.attributes ?? {}) as Record<string, unknown>;
-    if (!isCertifiedFootnoteReference(op.insert, attrs)) return false;
+    if (
+      !isCertifiedFootnoteReference(op.insert, attrs) ||
+      !isCertifiedLinkAttributes(attrs)
+    )
+      return false;
     if (op.insert === "\n" && attrs["hard-break"] === true) {
       if (Object.keys(attrs).length !== 1) return false;
       markedText = true;
@@ -195,7 +203,11 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
         } else if (value !== true) return false;
       } else {
         if (line) return false;
-        if (FOOTNOTE_ATTRIBUTES.has(key)) continue;
+        if (
+          FOOTNOTE_ATTRIBUTES.has(key) ||
+          ["link", "linkTitle", "linkExplicit"].includes(key)
+        )
+          continue;
         if (key === "htmlStyle") {
           if (!isCertifiedHTMLStyle(value)) return false;
           continue;
@@ -214,10 +226,7 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
         } else return false;
       }
     }
-    if (
-      (attrs.background !== undefined && attrs.highlight !== true) ||
-      (attrs.code && Object.keys(attrs).length > 1)
-    )
+    if (attrs.background !== undefined && attrs.highlight !== true)
       return false;
     if (!line && op.insert.includes("\n")) {
       const next = ops[index + 1];
@@ -339,7 +348,14 @@ function validEmbed(op: Record<string, unknown>, depth: number): boolean {
     const quote = insert.blockquote;
     return (
       quote.version === 1 &&
-      Object.keys(quote).every((key) => ["version", "content"].includes(key)) &&
+      Object.keys(quote).every((key) =>
+        ["version", "content", "alert"].includes(key),
+      ) &&
+      (quote.alert === undefined ||
+        (typeof quote.alert === "string" &&
+          ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"].includes(
+            quote.alert,
+          ))) &&
       attrs.blockquote === true &&
       child(quote.content)
     );
@@ -388,6 +404,14 @@ export function structuredBodyFeatures(
         )
       )
         features.add("inline-appearance-v1");
+      if (
+        record(op.attributes) &&
+        op.attributes.code === true &&
+        Object.keys(op.attributes).length > 1
+      )
+        features.add("composed-inline-v1");
+      if (record(op.attributes) && op.attributes.link !== undefined)
+        features.add("document-links-v1");
       if (record(op.attributes) && op.attributes.footnoteRef !== undefined)
         features.add("footnotes-v1");
       if (record(op.attributes) && op.attributes.htmlStyle !== undefined)
@@ -443,8 +467,11 @@ export function structuredBodyFeatures(
       if (Array.isArray(op.insert.footnotes))
         for (const definition of op.insert.footnotes)
           if (record(definition)) visit(definition.content, depth + 1);
-      if (record(op.insert.blockquote))
+      if (record(op.insert.blockquote)) {
+        if (op.insert.blockquote.alert !== undefined)
+          features.add("github-alert-v1");
         visit(op.insert.blockquote.content, depth + 1);
+      }
       if (record(op.insert.list) && Array.isArray(op.insert.list.items))
         for (const item of op.insert.list.items)
           if (record(item)) visit(item.content, depth + 1);

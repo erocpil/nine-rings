@@ -1,0 +1,894 @@
+{
+  "version": 2,
+  "exported_at": "2026-10-14T00:00:00Z",
+  "notes": [
+    {
+      "id": "remaining-links",
+      "date": "2026-10-14",
+      "title": "正文与元数据 links",
+      "content": {
+        "ops": [
+          {
+            "insert": "目标"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 1
+            }
+          },
+          {
+            "insert": "网站",
+            "attributes": {
+              "link": "https://example.com/a",
+              "linkTitle": "说明"
+            }
+          },
+          {
+            "insert": " "
+          },
+          {
+            "insert": "邮件",
+            "attributes": {
+              "link": "mailto:demo@example.com"
+            }
+          },
+          {
+            "insert": " "
+          },
+          {
+            "insert": "电话",
+            "attributes": {
+              "link": "tel:+861234"
+            }
+          },
+          {
+            "insert": " "
+          },
+          {
+            "insert": "章节",
+            "attributes": {
+              "link": "#目标",
+              "linkExplicit": true
+            }
+          },
+          {
+            "insert": " "
+          },
+          {
+            "insert": "相对",
+            "attributes": {
+              "link": "../guide.md#开始",
+              "linkExplicit": true
+            }
+          },
+          {
+            "insert": " [[引用]]"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "稳定文档",
+            "attributes": {
+              "link": "nr-note://11111111-1111-4111-8111-111111111111"
+            }
+          },
+          {
+            "insert": " "
+          },
+          {
+            "insert": "块引用",
+            "attributes": {
+              "link": "nr-note://11111111-1111-4111-8111-111111111111#nr-ref-22222222-2222-4222-8222-222222222222"
+            }
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "remaining-alert-NOTE",
+      "date": "2026-10-14",
+      "title": "正文与元数据 alert-NOTE",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "blockquote": {
+                "version": 1,
+                "content": [
+                  {
+                    "insert": "提示内容",
+                    "attributes": {
+                      "bold": true
+                    }
+                  },
+                  {
+                    "insert": " "
+                  },
+                  {
+                    "insert": "网站",
+                    "attributes": {
+                      "link": "https://example.com"
+                    }
+                  },
+                  {
+                    "insert": "\n"
+                  },
+                  {
+                    "insert": "列表"
+                  },
+                  {
+                    "insert": "\n",
+                    "attributes": {
+                      "list": "bullet",
+                      "list-block-start": true
+                    }
+                  },
+                  {
+                    "insert": "后续"
+                  },
+                  {
+                    "insert": "\n",
+                    "attributes": {
+                      "list": "bullet"
+                    }
+                  }
+                ],
+                "alert": "NOTE"
+              }
+            },
+            "attributes": {
+              "blockquote": true,
+              "indent-explicit": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "正文"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "remaining-alert-TIP",
+      "date": "2026-10-14",
+      "title": "正文与元数据 alert-TIP",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "blockquote": {
+                "version": 1,
+                "content": [
+                  {
+                    "insert": "提示内容",
+                    "attributes": {
+                      "bold": true
+                    }
+                  },
+                  {
+                    "insert": " "
+                  },
+                  {
+                    "insert": "网站",
+                    "attributes": {
+                      "link": "https://example.com"
+                    }
+                  },
+                  {
+                    "insert": "\n"
+                  },
+                  {
+                    "insert": "列表"
+                  },
+                  {
+                    "insert": "\n",
+                    "attributes": {
+                      "list": "bullet",
+                      "list-block-start": true
+                    }
+                  },
+                  {
+                    "insert": "后续"
+                  },
+                  {
+                    "insert": "\n",
+                    "attributes": {
+                      "list": "bullet"
+                    }
+                  }
+                ],
+                "alert": "TIP"
+              }
+            },
+            "attributes": {
+              "blockquote": true,
+              "indent-explicit": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "正文"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "remaining-alert-IMPORTANT",
+      "date": "2026-10-14",
+      "title": "正文与元数据 alert-IMPORTANT",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "blockquote": {
+                "version": 1,
+                "content": [
+                  {
+                    "insert": "提示内容",
+                    "attributes": {
+                      "bold": true
+                    }
+                  },
+                  {
+                    "insert": " "
+                  },
+                  {
+                    "insert": "网站",
+                    "attributes": {
+                      "link": "https://example.com"
+                    }
+                  },
+                  {
+                    "insert": "\n"
+                  },
+                  {
+                    "insert": "列表"
+                  },
+                  {
+                    "insert": "\n",
+                    "attributes": {
+                      "list": "bullet",
+                      "list-block-start": true
+                    }
+                  },
+                  {
+                    "insert": "后续"
+                  },
+                  {
+                    "insert": "\n",
+                    "attributes": {
+                      "list": "bullet"
+                    }
+                  }
+                ],
+                "alert": "IMPORTANT"
+              }
+            },
+            "attributes": {
+              "blockquote": true,
+              "indent-explicit": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "正文"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "remaining-alert-WARNING",
+      "date": "2026-10-14",
+      "title": "正文与元数据 alert-WARNING",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "blockquote": {
+                "version": 1,
+                "content": [
+                  {
+                    "insert": "提示内容",
+                    "attributes": {
+                      "bold": true
+                    }
+                  },
+                  {
+                    "insert": " "
+                  },
+                  {
+                    "insert": "网站",
+                    "attributes": {
+                      "link": "https://example.com"
+                    }
+                  },
+                  {
+                    "insert": "\n"
+                  },
+                  {
+                    "insert": "列表"
+                  },
+                  {
+                    "insert": "\n",
+                    "attributes": {
+                      "list": "bullet",
+                      "list-block-start": true
+                    }
+                  },
+                  {
+                    "insert": "后续"
+                  },
+                  {
+                    "insert": "\n",
+                    "attributes": {
+                      "list": "bullet"
+                    }
+                  }
+                ],
+                "alert": "WARNING"
+              }
+            },
+            "attributes": {
+              "blockquote": true,
+              "indent-explicit": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "正文"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "remaining-alert-CAUTION",
+      "date": "2026-10-14",
+      "title": "正文与元数据 alert-CAUTION",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "blockquote": {
+                "version": 1,
+                "content": [
+                  {
+                    "insert": "提示内容",
+                    "attributes": {
+                      "bold": true
+                    }
+                  },
+                  {
+                    "insert": " "
+                  },
+                  {
+                    "insert": "网站",
+                    "attributes": {
+                      "link": "https://example.com"
+                    }
+                  },
+                  {
+                    "insert": "\n"
+                  },
+                  {
+                    "insert": "列表"
+                  },
+                  {
+                    "insert": "\n",
+                    "attributes": {
+                      "list": "bullet",
+                      "list-block-start": true
+                    }
+                  },
+                  {
+                    "insert": "后续"
+                  },
+                  {
+                    "insert": "\n",
+                    "attributes": {
+                      "list": "bullet"
+                    }
+                  }
+                ],
+                "alert": "CAUTION"
+              }
+            },
+            "attributes": {
+              "blockquote": true,
+              "indent-explicit": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "正文"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "remaining-metadata",
+      "date": "2026-10-14",
+      "title": "正文与元数据 metadata",
+      "content": {
+        "ops": [
+          {
+            "insert": "文档"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 1
+            }
+          },
+          {
+            "insert": "原始正文 "
+          },
+          {
+            "insert": "粗体",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "第二段。"
+          },
+          {
+            "insert": "\n"
+          }
+        ],
+        "metadata": {
+          "sourceFormat": "markdown",
+          "originalFileName": "原文.md",
+          "markdownSource": "# 文档\n\n原始正文 **粗体**。\n\n第二段。",
+          "author": "作者",
+          "organization": "组织",
+          "email": "demo@example.com",
+          "website": "https://example.com",
+          "summary": "说明",
+          "keywords": [
+            "Markdown",
+            "认证"
+          ],
+          "language": "zh-CN",
+          "version": "1.0",
+          "copyright": "版权所有",
+          "license": "CC BY",
+          "presentationMode": "flow",
+          "flowHeadingLevel": 2,
+          "externalSource": {
+            "kind": "markdown-url",
+            "url": "https://github.com/example/docs/blob/main/a.md",
+            "resolvedUrl": "https://raw.githubusercontent.com/example/docs/main/a.md",
+            "provider": "github",
+            "contentHash": "aa-bb",
+            "localContentHash": "cc-dd",
+            "etag": "\"etag\"",
+            "lastModified": "Thu, 15 Oct 2026 00:00:00 GMT",
+            "syncedAt": "2026-10-16T00:00:00.000Z"
+          },
+          "bookmarks": [
+            {
+              "id": "bookmark-1",
+              "position": 1,
+              "preview": "文档",
+              "createdAt": "2026-10-16T00:00:00.000Z",
+              "key": "a",
+              "label": "开始"
+            }
+          ],
+          "referenceAnchors": [
+            {
+              "id": "anchor-1",
+              "from": 0,
+              "to": 4,
+              "kind": "block",
+              "preview": "文档"
+            }
+          ]
+        }
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "remaining-origins",
+      "date": "2026-10-14",
+      "title": "正文与元数据 origins",
+      "content": {
+        "ops": [
+          {
+            "insert": "PDF/EPUB 来源摘录。"
+          },
+          {
+            "insert": "\n"
+          }
+        ],
+        "metadata": {
+          "pdfExcerpt": {
+            "pdfId": "pdf-1",
+            "pdfName": "文档.pdf",
+            "page": 2,
+            "selectedText": "PDF 来源",
+            "highlightId": "highlight-1",
+            "anchorStart": 1,
+            "anchorEnd": 8
+          },
+          "epubExcerpt": {
+            "epubId": "epub-1",
+            "epubName": "书.epub",
+            "chapter": 0,
+            "chapterTitle": "开始",
+            "selectedText": "EPUB 来源",
+            "anchor": {
+              "chapterPath": "chapter.xhtml",
+              "start": 0,
+              "end": 7,
+              "exact": "EPUB 来源",
+              "prefix": "前文",
+              "suffix": "后文"
+            }
+          }
+        }
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "remaining-images",
+      "date": "2026-10-14",
+      "title": "正文与元数据 images",
+      "content": {
+        "ops": [
+          {
+            "insert": "flowchart TD\n A@{ img: \"https://example.com/image.png\", label: \"图片\" }"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true,
+              "indent-explicit": true,
+              "language": "mermaid"
+            }
+          },
+          {
+            "insert": "### 图片\n\n![说明](https://example.com/image.png)"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true,
+              "indent-explicit": true,
+              "language": "flow"
+            }
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "remaining-nested",
+      "date": "2026-10-14",
+      "title": "正文与元数据 nested",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "table": {
+                "version": 1,
+                "columns": [
+                  {
+                    "align": null
+                  },
+                  {
+                    "align": null
+                  }
+                ],
+                "rows": [
+                  {
+                    "cells": [
+                      {
+                        "header": true,
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "链接"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "header": true,
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "说明"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "cells": [
+                      {
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "目标",
+                              "attributes": {
+                                "link": "#目标",
+                                "linkExplicit": true
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": {
+                                "mathInline": "x"
+                              },
+                              "attributes": {
+                                "link": "https://example.com"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "htmlDetails": {
+                "summary": "引用容器",
+                "open": true,
+                "content": [
+                  {
+                    "insert": {
+                      "blockquote": {
+                        "version": 1,
+                        "content": [
+                          {
+                            "insert": "内部",
+                            "attributes": {
+                              "link": "nr-note://11111111-1111-4111-8111-111111111111"
+                            }
+                          },
+                          {
+                            "insert": "\n"
+                          }
+                        ],
+                        "alert": "NOTE"
+                      }
+                    },
+                    "attributes": {
+                      "blockquote": true,
+                      "indent-explicit": true
+                    }
+                  },
+                  {
+                    "insert": "\n"
+                  }
+                ]
+              }
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    }
+  ]
+}

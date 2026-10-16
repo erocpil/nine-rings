@@ -438,7 +438,7 @@ it("rejects oversized nesting, quote versions/alerts and missing embed boundarie
   ).toBe(false);
   for (const blockquote of [
     { version: 2, content: embeddedItemBody },
-    { version: 1, content: embeddedItemBody, alert: "NOTE" },
+    { version: 1, content: embeddedItemBody, alert: "UNKNOWN" },
     { version: 1, content: [] },
     { version: 1, content: embeddedItemBody, extra: 1 },
   ])

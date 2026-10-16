@@ -152,6 +152,13 @@ export function reviewCandidatePayload(
     const body = { ...value };
     if (!isEncrypted(value) && value.metadata !== undefined) {
       required.add("reference-anchors-v1");
+      if (
+        record(value.metadata) &&
+        Object.keys(value.metadata).some((key) => key !== "referenceAnchors")
+      )
+        required.add("document-metadata-v1");
+      if (record(value.metadata) && value.metadata.bookmarks !== undefined)
+        required.add("document-bookmarks-v1");
       if (runtime === "flutter") issue("runtime-unsupported");
       delete body.metadata;
       if (!isCertifiedBodyMetadata(value.metadata, body))

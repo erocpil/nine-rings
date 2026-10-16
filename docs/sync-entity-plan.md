@@ -186,3 +186,17 @@
 共享 `candidate-special-blocks-v1.json` 覆盖中文 Mermaid、H3 步骤 flow、非连续 toc 层级、行内/块级公式、带标记公式、表格/列表/引用/details/脚注嵌套及无效草稿。真实 codeBlock/Math schema 的正文与原子属性编辑、撤销、配置摘要变化、整体实体选择、IDB 导出/新库恢复及 SQLite 同一夹具恢复均有回归。浏览器组合四种块验证真实自动保存、引用锚点、桌面/手机、普通/虚拟只读刷新；桌面还验证源码并排预览。
 
 仅扩展 Web/Tauri 候选范围。生产 CURRENT_SYNC_CAPABILITIES.read/write 仍为 0，Flutter 不声明这些能力；未认证来源、书签/发布等元数据与其它未认证正文继续拒绝。后续完成剩余正文/元数据认证，再推进对象上传准备、Pull 应用与接受日志；未执行真实远端上传或原生 GUI 验收。
+
+## 链接、Alert 与已知文档元数据认证（2026-10-16）
+
+本批完成剩余常用正文和已知 `DocumentMetadata` 的候选认证，新增 `document-links-v1`、`github-alert-v1`、`composed-inline-v1`、`document-metadata-v1`、`document-bookmarks-v1`。链接保留 href、显式链接标记及 title，覆盖 HTTP(S)/FTP(S)、mailto/tel、协议相对地址、文档内片段、相对链接和宿主支持的 nr-note UUID/块引用。允许尚未存在的目标；不探测远端或把失效链接当成删除授权。可执行、本机/未知协议、凭证 URL、控制字符、孤立 Unicode 代理字符及孤立链接属性拒绝。链接中的行内代码和组合 marks 通过真实 DocumentStarterKit schema 往返认证，不再因旧 Code excludes 假设拒绝无损组合。
+
+Alert 沿用 version:1 的 blockquote 对象，显式保留 NOTE/TIP/IMPORTANT/WARNING/CAUTION，支持列表、details、链接等嵌套正文。未知标签、额外对象字段或错误类型仍拒绝。Mermaid 扩展认证引号包裹的 img 属性，地址仅限已认证 HTTP(S) 或内嵌 PNG/JPEG/GIF/WebP；不改写 DSL，HTML img、不明确/转义的图片属性、本机和相对地址继续拒绝。flow 已认证可移植图片仍受相同资源和递归预算约束，未解析资源不得依赖本机缓存而误判可恢复。
+
+元数据覆盖 sourceFormat/originalFileName/markdownSource、作者/组织/联系方式/简介/关键词/语言/版本/版权/许可、旧版 flow 展示信息、externalSource 绑定、PDF/EPUB 摘录、bookmarks 和 referenceAnchors。明确白名单与类型、日期、范围约束；不丢弃未知字段使候选合格。原 Markdown 源码按原字符串参与摘要，并检查其中实际呈现图片的可移植性；其换行、脚注位置等不按正文重新格式化。外部内容指纹保留已有格式，不当作安全摘要，也不因本机编辑而“修正”远端基线。来源元数据恢复不代表本机 PDF/EPUB 资源文件也已备份。
+
+书签检查身份和命名键唯一、真实 textblock 起点、有界数量、标签/预览及时间，并按现有插件的顺序要求拒绝会被加载器静默改写的表示。引用锚点继续独立做范围与删除状态验证。真实书签插件加载、正文映射与撤销回归，IDB 和 SQLite 更新/导出/新库恢复覆盖全部已知元数据；整实体选择把正文与来源/书签/发布元信息一并选取，不能混搭两侧字段。元数据和链接目的地变化都进入实体摘要。
+
+浏览器验证书签改名不破坏原 Markdown、正文编辑清除失效源码但保留作者与书签、五种 Alert、普通/虚拟只读及桌面/手机刷新与并排预览；另复用跨文档选区引用的真实跳转、位置映射、源码修改及重启回归。共享夹具为 `candidate-links-metadata-v1.json`。
+
+生产读写仍为 0，Flutter 尚未认证新增正文/元数据能力。未知扩展字段、不受支持的图片格式/宽度、本机附件及不明确的 Mermaid 资源表示仍拒绝；它们需要独立资源协议/后续认证，不通过归一化放行。下一阶段进入接受基线持久化、选择界面、对象准备、Pull 应用日志和发布恢复的实际接入；仍须对真实完整备份运行候选审查，不能把样本通过等同于生产切换验收。

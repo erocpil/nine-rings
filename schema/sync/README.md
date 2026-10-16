@@ -130,3 +130,9 @@ Dart 的共享编码、严格输入和 Note SQLite 模型测试已在远端 9aad
 ### 特殊渲染块候选特性
 
 `mermaid-block-v1`、`flow-block-v1`、`automatic-toc-v1` 保留原 codeBlock 源码与全部已认证块属性；`math-v1` 保留行内/块级公式原子与 marks。`fixtures/candidate-special-blocks-v1.json` 覆盖有效内容、嵌套与编辑中无效草稿，不以渲染成功替代存储往返。flow 的派生图片必须可移植，Mermaid 图片资源指令暂不认证；metadata、Flutter 和生产能力的边界不变。见[认证范围](../../docs/sync-entity-plan.md#特殊渲染块正文认证2026-10-16)。
+
+### 链接、Alert 与已知文档元数据
+
+`document-links-v1` 保存普通/相对/片段/nr-note 链接及 title/显式标记；`composed-inline-v1` 保存 schema 支持的代码组合 marks；`github-alert-v1` 保存五类提示引用。`document-metadata-v1` 与 `document-bookmarks-v1` 认证全部当前已知文档元数据及书签，严格拒绝未知字段和会被静默规范化的位置/身份；原始 Markdown 不被重排。`fixtures/candidate-links-metadata-v1.json` 进入 IDB/SQLite 共享恢复测试，所有字段参与实体摘要和来源选择。
+
+Mermaid 现在可认证引号 img 属性中的可移植图片；本机/相对/不明确图片源、HTML img 和未认证附件仍拒绝。来源信息不等于本机 PDF/EPUB 资源随备份保存。生产协议与 Flutter 能力仍未开放，见[完整边界](../../docs/sync-entity-plan.md#链接alert-与已知文档元数据认证2026-10-16)。

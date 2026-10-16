@@ -51,8 +51,8 @@ it("rejects unknown metadata, duplicate identities and invalid anchor bounds wit
   const anchor = fixture.notes[0].content.metadata.referenceAnchors[0];
   const bad = [
     null,
-    { bookmarks: [] },
-    { sourceFormat: "text" },
+    { bookmarks: null },
+    { sourceFormat: "invalid" },
     { referenceAnchors: null },
     { referenceAnchors: [anchor, anchor] },
     ...[

@@ -1,3 +1,4 @@
+import { isCertifiedHTMLSource } from "./html-body-policy";
 import { isCertifiedInlineAtomAttributes } from "./inline-atom-policy";
 import { isCertifiedImageSource } from "./image-source-policy";
 export { isCertifiedImageSource } from "./image-source-policy";
@@ -16,7 +17,7 @@ export function isCertifiedBlockImage(
       );
     if (key === "indent-explicit") return value === true;
     if (key === "imageAlt" || key === "imageTitle")
-      return typeof value === "string" && value.length > 0;
+      return isCertifiedHTMLSource(value) && value.length > 0;
     if (key === "imageWidth")
       return (
         (Number.isSafeInteger(value) && (value as number) > 0) ||
@@ -42,10 +43,10 @@ export function isCertifiedInlineImage(
       (key) => !["src", "alt", "title", "width"].includes(key),
     ) ||
     !isCertifiedImageSource(value.src) ||
-    typeof value.alt !== "string" ||
+    !isCertifiedHTMLSource(value.alt) ||
     !(
       value.title === null ||
-      (typeof value.title === "string" && value.title.length > 0)
+      (isCertifiedHTMLSource(value.title) && value.title.length > 0)
     ) ||
     (value.width !== undefined &&
       !isCertifiedBlockImage(value.src, { imageWidth: value.width }))

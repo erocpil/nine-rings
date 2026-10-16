@@ -158,7 +158,7 @@ it("rejects unknown/lossy fields, unresolved sources, block formatting and unsaf
       { link: "nr-doc://private" },
       { linkTitle: "missing link" },
       { link: source, linkExplicit: false },
-      { code: true, bold: true },
+      { code: true, bold: false },
     ].map((attributes) => ({ insert: { inlineImage: image }, attributes })),
     { insert: { inlineImage: image, extra: true } },
   ];

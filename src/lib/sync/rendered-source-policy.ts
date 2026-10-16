@@ -27,13 +27,19 @@ export function hasPortableRenderedResources(
         deltaToProseMirror(mdToDelta(source)),
         depth + 1,
       );
-    // Mermaid may reference images in its own DSL. Until those attachments can
-    // be resolved, conservatively reject device-local schemes even in examples.
-    if (
-      language === "mermaid" &&
-      /(?:nr-image:\/\/|blob:|file:|\bimg\s*:|<img\b)/i.test(source)
-    )
-      return false;
+    if (language === "mermaid") {
+      // Certify quoted image attributes without rewriting the diagram's DSL.
+      if (/(?:nr-image:\/\/|blob:|file:|<img\b)/i.test(source)) return false;
+      const directives = [...source.matchAll(/\bimg\s*:/gi)];
+      const images = [
+        ...source.matchAll(/\bimg\s*:\s*(?:"([^"\\]*)"|'([^'\\]*)')/gi),
+      ];
+      if (
+        images.length !== directives.length ||
+        images.some((match) => !isCertifiedImageSource(match[1] ?? match[2]))
+      )
+        return false;
+    }
   }
   return (node.content ?? []).every((child) =>
     hasPortableRenderedResources(child, depth + 1),

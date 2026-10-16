@@ -1,3 +1,10 @@
+import { hasPortableRenderedResources } from "./rendered-source-policy";
+import { mdToDelta } from "../md-parser";
+import { isCertifiedHTMLSource } from "./html-body-policy";
+import {
+  isCertifiedDocumentMetadata,
+  isCertifiedBookmarks,
+} from "./document-metadata-policy";
 import type { JSONContent } from "@tiptap/core";
 import { deltaToProseMirror } from "../delta-converter";
 
@@ -42,16 +49,41 @@ function nodeSize(node: JSONContent): number {
     2 + (node.content ?? []).reduce((size, child) => size + nodeSize(child), 0)
   );
 }
-/** Stable references only; publication/source/bookmark metadata is a separate gate. */
+/** Complete known metadata only; unknown extension fields remain a separate gate. */
 export function isCertifiedBodyMetadata(
   metadata: unknown,
   body: Record<string, unknown>,
 ): boolean {
+  if (!record(metadata) || !isCertifiedDocumentMetadata(metadata)) return false;
   if (
-    !record(metadata) ||
-    Object.keys(metadata).some((key) => key !== "referenceAnchors")
-  )
-    return false;
+    typeof metadata.markdownSource === "string" &&
+    metadata.sourceFormat !== "text"
+  ) {
+    try {
+      if (
+        !hasPortableRenderedResources(
+          deltaToProseMirror(mdToDelta(metadata.markdownSource)),
+        )
+      )
+        return false;
+    } catch {
+      return false;
+    }
+  }
+  if (metadata.bookmarks !== undefined) {
+    try {
+      if (
+        !isCertifiedBookmarks(
+          metadata.bookmarks,
+          deltaToProseMirror(body),
+          nodeSize,
+        )
+      )
+        return false;
+    } catch {
+      return false;
+    }
+  }
   if (metadata.referenceAnchors === undefined) return true;
   const anchors = metadata.referenceAnchors;
   if (!Array.isArray(anchors) || anchors.length > 10000) return false;
@@ -83,7 +115,7 @@ export function isCertifiedBodyMetadata(
       (anchor.to as number) > size ||
       typeof anchor.kind !== "string" ||
       !["block", "position", "range"].includes(anchor.kind) ||
-      typeof anchor.preview !== "string" ||
+      !isCertifiedHTMLSource(anchor.preview) ||
       anchor.preview.length > 80 ||
       (anchor.deleted !== undefined && typeof anchor.deleted !== "boolean")
     )
