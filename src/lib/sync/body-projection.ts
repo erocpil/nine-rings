@@ -28,6 +28,8 @@ export function candidateBodyProjection(body: unknown, depth = 0): unknown {
       let projected: Record<string, unknown>;
       if (typeof insert.image === "string") {
         projected = { image: insert.image };
+      } else if (insert.inlineImage && typeof insert.inlineImage === "object") {
+        projected = { inlineImage: { ...insert.inlineImage } };
       } else if (insert.table && typeof insert.table === "object") {
         const table = insert.table as Record<string, unknown>;
         const inline = (body: unknown) => ({

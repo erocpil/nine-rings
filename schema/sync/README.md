@@ -116,3 +116,7 @@ Dart 的共享编码、严格输入和 Note SQLite 模型测试已在远端 9aad
 候选 `block-image-v1` 在 Web/Tauri 扩展独立图片及列表/引用中的图片；共享 `fixtures/candidate-image-v1.json` 验证真实 schema 编辑/撤销、IDB/SQLite 往返及实体摘要/组装。HTTP(S) 与规范 Base64 PNG/JPEG/GIF/WebP data URI 可认证；原始本机引用需先由资源导出器解析，缺失资源失败。地址可移植不保证外部站点可访问或图片可解码；图片字节原样保留，不执行网络探测。
 
 字段/嵌入对象严格白名单，描述、尺寸和缩进参与摘要；未知字段、非规范宽度、未解析引用和未认证的 inlineImage 继续拒绝。独立图片认证不等于行内/表格图片或附件协议认证。Flutter 与生产读写能力不变，后续范围见[实体认证计划](../../docs/sync-entity-plan.md#独立图片块正文认证2026-10-16)。
+
+### 行内／表格图片候选特性
+
+`inline-image-v1` 在 Web/Tauri 候选范围扩展 `inlineImage` 原子、外观标记和 HTTP(S) 图片链接。表格可包含已认证行内图片，并保留合并、多段及双重正文表达；不将一般文本链接或未知 mark 一并开放。`fixtures/candidate-inline-image-v1.json` 由真实编辑器及 IDB/SQLite 往返验收，引用锚点模型大小包含 markdownImage。字段、位置、marks 均进入实体摘要，本机图片需先解析；生产和 Flutter 能力保持不变，详见[认证计划](../../docs/sync-entity-plan.md#行内图片及表格图片认证2026-10-16)。

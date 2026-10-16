@@ -1632,3 +1632,11 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - `e2e/sync-image-body.spec.ts`：Chromium 2 项、WebKit 2 项，通过桌面/手机宽度的实际触摸缩放、自动保存、完整候选审查和刷新。
 - 原生 SQLite `candidate_structured_text_survives_sqlite_edits_and_fresh_restore` 1 项通过，新增共享图片样本；生产构建通过，主包约 470 kB，无 chunk 超限警告。
 - 未执行全量浏览器 E2E、原生 GUI、真实远端上传；外部图片可访问性和数据图像解码不属于候选字节保留认证。本批没有改变共享数据库 schema 或旧备份格式。
+
+### 2026-10-16：示例迁移、标签反馈与行内图片认证
+
+- 内置三份示例新建于 demo 且只读；已有 ideas 副本仅一次迁移属性，保留 ID/正文并尊重移动、改名和删除。新增迁移故障重试等单元检查；Markdown 演示桌面/手机及三份旧示例迁移，Chromium/WebKit 各 3 项通过。
+- 标签行与锁按钮左对齐，可编辑工具栏上方留出 6px；锁切换圆角边框跟随橙/绿状态色。含手机/桌面的标签几何、反馈颜色和布局不变检查，Chromium/WebKit 各 5 项通过。
+- `inline-image-v1` 新增 11 项检查：真实 schema 编辑/撤销、Markdown 导入、IDB、内嵌资源、摘要及冲突组装。共享样本同时进入既有原生 SQLite 编辑/恢复测试，1 项通过。
+- 表格行内图片真实触摸缩放、图片链接、合并多段及引用锚点的完整保存刷新，Chromium/WebKit 各 2 项通过。
+- 最终完整 `npm run check` 通过：Vitest 153 文件 / 1840 项；生产构建通过，无 chunk 超限警告。未执行浏览器全量 E2E、原生 GUI 或真实远端上传；共享数据库 schema 与旧备份格式不变，生产增量同步继续关闭。

@@ -1,4 +1,7 @@
-import { isCertifiedBlockImage } from "./image-body-policy";
+import {
+  isCertifiedBlockImage,
+  isCertifiedInlineImage,
+} from "./image-body-policy";
 import { isCertifiedTable } from "./table-body-policy";
 import { deltaToProseMirror, proseMirrorToDelta } from "../delta-converter";
 import { normalizeEditorColor } from "../editor-color";
@@ -58,6 +61,24 @@ export function isCertifiedStructuredBody(
   for (let index = 0; index < ops.length; index++) {
     const op = ops[index];
     if (record(op) && record(op.insert)) {
+      if (
+        Object.keys(op.insert).length === 1 &&
+        record(op.insert.inlineImage)
+      ) {
+        if (
+          Object.keys(op).some(
+            (key) => !["insert", "attributes"].includes(key),
+          ) ||
+          (op.attributes !== undefined && !record(op.attributes)) ||
+          !isCertifiedInlineImage(
+            op.insert.inlineImage,
+            (op.attributes ?? {}) as Record<string, unknown>,
+          )
+        )
+          return false;
+        markedText = true;
+        continue;
+      }
       if (!validEmbed(op, depth) || markedText) return false;
       const next = ops[index + 1];
       if (
@@ -206,7 +227,10 @@ function validEmbed(op: Record<string, unknown>, depth: number): boolean {
           !ops.every(
             (item) =>
               record(item) &&
-              typeof item.insert === "string" &&
+              (typeof item.insert === "string" ||
+                (record(item.insert) &&
+                  Object.keys(item.insert).length === 1 &&
+                  record(item.insert.inlineImage))) &&
               (!record(item.attributes) ||
                 !Object.keys(item.attributes).some(
                   (key) => structural.has(key) || key === "header",
@@ -275,9 +299,11 @@ export function structuredBodyFeatures(
       features.add(
         record(op.insert.table)
           ? "table-block-v1"
-          : typeof op.insert.image === "string"
-            ? "block-image-v1"
-            : "structured-block-v1",
+          : record(op.insert.inlineImage)
+            ? "inline-image-v1"
+            : typeof op.insert.image === "string"
+              ? "block-image-v1"
+              : "structured-block-v1",
       );
       if (record(op.insert.table) && Array.isArray(op.insert.table.rows)) {
         for (const row of op.insert.table.rows)

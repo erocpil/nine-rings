@@ -24,6 +24,7 @@ function nodeSize(node: JSONContent): number {
     node.type === "hardBreak" ||
     node.type === "resizableImage" ||
     node.type === "image" ||
+    node.type === "markdownImage" ||
     node.type === "horizontalRule"
   )
     return 1;

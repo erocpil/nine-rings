@@ -1,0 +1,485 @@
+{
+  "version": 2,
+  "exported_at": "2026-10-14T00:00:00Z",
+  "notes": [
+    {
+      "id": "inline-image-inline",
+      "date": "2026-10-14",
+      "title": "行内图片认证 inline",
+      "content": {
+        "ops": [
+          {
+            "insert": "前文 "
+          },
+          {
+            "insert": {
+              "inlineImage": {
+                "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
+                "alt": "行内图片 中文",
+                "title": "标题 \"quoted\"",
+                "width": "80px"
+              }
+            },
+            "attributes": {
+              "bold": true,
+              "link": "https://example.com/article#figure",
+              "linkTitle": "图片目标",
+              "linkExplicit": true
+            }
+          },
+          {
+            "insert": " 后文"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "inline-image-table",
+      "date": "2026-10-14",
+      "title": "行内图片认证 table",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "table": {
+                "version": 1,
+                "columns": [
+                  {
+                    "align": "left",
+                    "width": 140
+                  },
+                  {
+                    "align": "right",
+                    "width": 180
+                  }
+                ],
+                "rows": [
+                  {
+                    "cells": [
+                      {
+                        "header": true,
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "前文 "
+                            },
+                            {
+                              "insert": {
+                                "inlineImage": {
+                                  "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
+                                  "alt": "行内图片 中文",
+                                  "title": "标题 \"quoted\"",
+                                  "width": "80px"
+                                }
+                              },
+                              "attributes": {
+                                "bold": true,
+                                "link": "https://example.com/article#figure",
+                                "linkTitle": "图片目标",
+                                "linkExplicit": true
+                              }
+                            },
+                            {
+                              "insert": " 后文"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "header": true,
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "说明"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "cells": [
+                      {
+                        "colspan": 2,
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "前文 "
+                            },
+                            {
+                              "insert": {
+                                "inlineImage": {
+                                  "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
+                                  "alt": "行内图片 中文",
+                                  "title": "标题 \"quoted\"",
+                                  "width": "80px"
+                                }
+                              },
+                              "attributes": {
+                                "bold": true,
+                                "link": "https://example.com/article#figure",
+                                "linkTitle": "图片目标",
+                                "linkExplicit": true
+                              }
+                            },
+                            {
+                              "insert": " 后文"
+                            },
+                            {
+                              "insert": "\n"
+                            },
+                            {
+                              "insert": "第二段 "
+                            },
+                            {
+                              "insert": {
+                                "inlineImage": {
+                                  "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
+                                  "alt": "",
+                                  "title": null
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "paragraphs": [
+                          {
+                            "ops": [
+                              {
+                                "insert": "前文 "
+                              },
+                              {
+                                "insert": {
+                                  "inlineImage": {
+                                    "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
+                                    "alt": "行内图片 中文",
+                                    "title": "标题 \"quoted\"",
+                                    "width": "80px"
+                                  }
+                                },
+                                "attributes": {
+                                  "bold": true,
+                                  "link": "https://example.com/article#figure",
+                                  "linkTitle": "图片目标",
+                                  "linkExplicit": true
+                                }
+                              },
+                              {
+                                "insert": " 后文"
+                              }
+                            ]
+                          },
+                          {
+                            "ops": [
+                              {
+                                "insert": "第二段 "
+                              },
+                              {
+                                "insert": {
+                                  "inlineImage": {
+                                    "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
+                                    "alt": "",
+                                    "title": null
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "inline-image-list",
+      "date": "2026-10-14",
+      "title": "行内图片认证 list",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "list": {
+                "version": 1,
+                "ordered": false,
+                "start": 1,
+                "spread": true,
+                "items": [
+                  {
+                    "checked": false,
+                    "content": [
+                      {
+                        "insert": "前文 "
+                      },
+                      {
+                        "insert": {
+                          "inlineImage": {
+                            "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
+                            "alt": "行内图片 中文",
+                            "title": "标题 \"quoted\"",
+                            "width": "80px"
+                          }
+                        },
+                        "attributes": {
+                          "bold": true,
+                          "link": "https://example.com/article#figure",
+                          "linkTitle": "图片目标",
+                          "linkExplicit": true
+                        }
+                      },
+                      {
+                        "insert": " 后文"
+                      },
+                      {
+                        "insert": "\n"
+                      },
+                      {
+                        "insert": "code"
+                      },
+                      {
+                        "insert": "\n",
+                        "attributes": {
+                          "code-block": true
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "inline-image-quote",
+      "date": "2026-10-14",
+      "title": "行内图片认证 quote",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "blockquote": {
+                "version": 1,
+                "content": [
+                  {
+                    "insert": "前文 "
+                  },
+                  {
+                    "insert": {
+                      "inlineImage": {
+                        "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
+                        "alt": "行内图片 中文",
+                        "title": "标题 \"quoted\"",
+                        "width": "80px"
+                      }
+                    },
+                    "attributes": {
+                      "bold": true,
+                      "link": "https://example.com/article#figure",
+                      "linkTitle": "图片目标",
+                      "linkExplicit": true
+                    }
+                  },
+                  {
+                    "insert": " 后文"
+                  },
+                  {
+                    "insert": "\n"
+                  },
+                  {
+                    "insert": "code"
+                  },
+                  {
+                    "insert": "\n",
+                    "attributes": {
+                      "code-block": true
+                    }
+                  }
+                ]
+              }
+            },
+            "attributes": {
+              "blockquote": true
+            }
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "inline-image-appearance",
+      "date": "2026-10-14",
+      "title": "行内图片认证 appearance",
+      "content": {
+        "ops": [
+          {
+            "insert": "前文 "
+          },
+          {
+            "insert": {
+              "inlineImage": {
+                "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
+                "alt": "行内图片 中文",
+                "title": "标题 \"quoted\"",
+                "width": "80px"
+              }
+            },
+            "attributes": {
+              "color": "#247f7b",
+              "size": "large",
+              "highlight": true,
+              "background": "#dde8d8"
+            }
+          },
+          {
+            "insert": " 后文"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "inline-image-bare",
+      "date": "2026-10-14",
+      "title": "行内图片认证 bare",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "inlineImage": {
+                "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=",
+                "alt": "",
+                "title": null
+              }
+            }
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    }
+  ]
+}
