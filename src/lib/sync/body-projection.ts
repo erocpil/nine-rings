@@ -30,6 +30,17 @@ export function candidateBodyProjection(body: unknown, depth = 0): unknown {
         projected = { image: insert.image };
       } else if (insert.inlineImage && typeof insert.inlineImage === "object") {
         projected = { inlineImage: { ...insert.inlineImage } };
+      } else if (insert.hr === true) {
+        projected = { hr: true };
+      } else if (Array.isArray(insert.footnotes)) {
+        projected = {
+          footnotes: insert.footnotes.map(
+            (definition: Record<string, unknown>) => ({
+              ...definition,
+              content: project(definition.content),
+            }),
+          ),
+        };
       } else if (insert.table && typeof insert.table === "object") {
         const table = insert.table as Record<string, unknown>;
         const inline = (body: unknown) => ({

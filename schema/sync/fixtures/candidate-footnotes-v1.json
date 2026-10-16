@@ -1,0 +1,1039 @@
+{
+  "version": 2,
+  "exported_at": "2026-10-14T00:00:00Z",
+  "notes": [
+    {
+      "id": "footnote-repeated",
+      "date": "2026-10-14",
+      "title": "脚注认证 repeated",
+      "content": {
+        "ops": [
+          {
+            "insert": "主文"
+          },
+          {
+            "insert": "1",
+            "attributes": {
+              "footnoteRef": "中文",
+              "footnoteNumber": 1,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "，再一次"
+          },
+          {
+            "insert": "1",
+            "attributes": {
+              "footnoteRef": "中文",
+              "footnoteNumber": 1,
+              "footnoteOccurrence": 2
+            }
+          },
+          {
+            "insert": "，另一条"
+          },
+          {
+            "insert": "2",
+            "attributes": {
+              "footnoteRef": "note-2",
+              "footnoteNumber": 2,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "hr": true
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "footnotes": [
+                {
+                  "id": "中文",
+                  "number": 1,
+                  "references": 2,
+                  "content": [
+                    {
+                      "insert": "粗体",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": "与 "
+                    },
+                    {
+                      "insert": "代码",
+                      "attributes": {
+                        "code": true
+                      }
+                    },
+                    {
+                      "insert": "。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "note-2",
+                  "number": 2,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "第二条定义。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "unused",
+                  "number": null,
+                  "references": 0,
+                  "content": [
+                    {
+                      "insert": "未引用但保留。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                }
+              ]
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "footnote-nested",
+      "date": "2026-10-14",
+      "title": "脚注认证 nested",
+      "content": {
+        "ops": [
+          {
+            "insert": "先引用"
+          },
+          {
+            "insert": "1",
+            "attributes": {
+              "footnoteRef": "first",
+              "footnoteNumber": 1,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "blockquote": {
+                "version": 1,
+                "content": [
+                  {
+                    "insert": "引用中的脚注"
+                  },
+                  {
+                    "insert": "2",
+                    "attributes": {
+                      "footnoteRef": "second",
+                      "footnoteNumber": 2,
+                      "footnoteOccurrence": 1
+                    }
+                  },
+                  {
+                    "insert": "\n"
+                  }
+                ]
+              }
+            },
+            "attributes": {
+              "blockquote": true,
+              "indent-explicit": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "列表中的脚注"
+          },
+          {
+            "insert": "2",
+            "attributes": {
+              "footnoteRef": "second",
+              "footnoteNumber": 2,
+              "footnoteOccurrence": 2
+            }
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet",
+              "list-block-start": true
+            }
+          },
+          {
+            "insert": {
+              "table": {
+                "version": 1,
+                "columns": [
+                  {
+                    "align": null
+                  },
+                  {
+                    "align": null
+                  }
+                ],
+                "rows": [
+                  {
+                    "cells": [
+                      {
+                        "header": true,
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "标题"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "header": true,
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "正文"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "cells": [
+                      {
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "单元格中的脚注"
+                            },
+                            {
+                              "insert": "3",
+                              "attributes": {
+                                "footnoteRef": "third",
+                                "footnoteNumber": 3,
+                                "footnoteOccurrence": 1
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "再次"
+                            },
+                            {
+                              "insert": "1",
+                              "attributes": {
+                                "footnoteRef": "first",
+                                "footnoteNumber": 1,
+                                "footnoteOccurrence": 2
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "hr": true
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "footnotes": [
+                {
+                  "id": "first",
+                  "number": 1,
+                  "references": 2,
+                  "content": [
+                    {
+                      "insert": "第一条。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "second",
+                  "number": 2,
+                  "references": 2,
+                  "content": [
+                    {
+                      "insert": "第二条。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "third",
+                  "number": 3,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "第三条。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                }
+              ]
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "footnote-definition-blocks",
+      "date": "2026-10-14",
+      "title": "脚注认证 definition-blocks",
+      "content": {
+        "ops": [
+          {
+            "insert": "引用"
+          },
+          {
+            "insert": "1",
+            "attributes": {
+              "footnoteRef": "multi",
+              "footnoteNumber": 1,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "hr": true
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "footnotes": [
+                {
+                  "id": "multi",
+                  "number": 1,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "首段。"
+                    },
+                    {
+                      "insert": "\n"
+                    },
+                    {
+                      "insert": "第二段。"
+                    },
+                    {
+                      "insert": "\n"
+                    },
+                    {
+                      "insert": "项目"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "list": "bullet",
+                        "list-block-start": true
+                      }
+                    },
+                    {
+                      "insert": {
+                        "blockquote": {
+                          "version": 1,
+                          "content": [
+                            {
+                              "insert": "引用段落"
+                            },
+                            {
+                              "insert": "\n"
+                            }
+                          ]
+                        }
+                      },
+                      "attributes": {
+                        "blockquote": true,
+                        "indent-explicit": true
+                      }
+                    },
+                    {
+                      "insert": "\n"
+                    },
+                    {
+                      "insert": "const n = 1;"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "code-block": true,
+                        "indent-explicit": true,
+                        "language": "js"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "footnote-definition-reference",
+      "date": "2026-10-14",
+      "title": "脚注认证 definition-reference",
+      "content": {
+        "ops": [
+          {
+            "insert": "甲"
+          },
+          {
+            "insert": "1",
+            "attributes": {
+              "footnoteRef": "a",
+              "footnoteNumber": 1,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "hr": true
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "footnotes": [
+                {
+                  "id": "a",
+                  "number": 1,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "指向另一条"
+                    },
+                    {
+                      "insert": "2",
+                      "attributes": {
+                        "footnoteRef": "b",
+                        "footnoteNumber": 2,
+                        "footnoteOccurrence": 1
+                      }
+                    },
+                    {
+                      "insert": "。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "b",
+                  "number": 2,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "第二条。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                }
+              ]
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "footnote-dangling",
+      "date": "2026-10-14",
+      "title": "脚注认证 dangling",
+      "content": {
+        "ops": [
+          {
+            "insert": "尚未补充定义"
+          },
+          {
+            "insert": "1",
+            "attributes": {
+              "footnoteRef": "draft",
+              "footnoteNumber": 1,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "。"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "footnote-rule",
+      "date": "2026-10-14",
+      "title": "脚注认证 rule",
+      "content": {
+        "ops": [
+          {
+            "insert": "正文"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "hr": true
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "下文。"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "footnote-many",
+      "date": "2026-10-14",
+      "title": "脚注认证 two-digit numbering",
+      "content": {
+        "ops": [
+          {
+            "insert": "word"
+          },
+          {
+            "insert": "1",
+            "attributes": {
+              "footnoteRef": "note-0",
+              "footnoteNumber": 1,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "，word"
+          },
+          {
+            "insert": "2",
+            "attributes": {
+              "footnoteRef": "note-1",
+              "footnoteNumber": 2,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "，word"
+          },
+          {
+            "insert": "3",
+            "attributes": {
+              "footnoteRef": "note-2",
+              "footnoteNumber": 3,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "，word"
+          },
+          {
+            "insert": "4",
+            "attributes": {
+              "footnoteRef": "note-3",
+              "footnoteNumber": 4,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "，word"
+          },
+          {
+            "insert": "5",
+            "attributes": {
+              "footnoteRef": "note-4",
+              "footnoteNumber": 5,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "，word"
+          },
+          {
+            "insert": "6",
+            "attributes": {
+              "footnoteRef": "note-5",
+              "footnoteNumber": 6,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "，word"
+          },
+          {
+            "insert": "7",
+            "attributes": {
+              "footnoteRef": "note-6",
+              "footnoteNumber": 7,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "，word"
+          },
+          {
+            "insert": "8",
+            "attributes": {
+              "footnoteRef": "note-7",
+              "footnoteNumber": 8,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "，word"
+          },
+          {
+            "insert": "9",
+            "attributes": {
+              "footnoteRef": "note-8",
+              "footnoteNumber": 9,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "，word"
+          },
+          {
+            "insert": "10",
+            "attributes": {
+              "footnoteRef": "note-9",
+              "footnoteNumber": 10,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "，word"
+          },
+          {
+            "insert": "11",
+            "attributes": {
+              "footnoteRef": "note-10",
+              "footnoteNumber": 11,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "，word"
+          },
+          {
+            "insert": "12",
+            "attributes": {
+              "footnoteRef": "note-11",
+              "footnoteNumber": 12,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "，再次"
+          },
+          {
+            "insert": "1",
+            "attributes": {
+              "footnoteRef": "note-0",
+              "footnoteNumber": 1,
+              "footnoteOccurrence": 2
+            }
+          },
+          {
+            "insert": "。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "hr": true
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "footnotes": [
+                {
+                  "id": "note-0",
+                  "number": 1,
+                  "references": 2,
+                  "content": [
+                    {
+                      "insert": "定义 0。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "note-1",
+                  "number": 2,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "定义 1。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "note-2",
+                  "number": 3,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "定义 2。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "note-3",
+                  "number": 4,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "定义 3。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "note-4",
+                  "number": 5,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "定义 4。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "note-5",
+                  "number": 6,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "定义 5。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "note-6",
+                  "number": 7,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "定义 6。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "note-7",
+                  "number": 8,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "定义 7。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "note-8",
+                  "number": 9,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "定义 8。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "note-9",
+                  "number": 10,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "定义 9。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "note-10",
+                  "number": 11,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "定义 10。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                },
+                {
+                  "id": "note-11",
+                  "number": 12,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "定义 11。"
+                    },
+                    {
+                      "insert": "\n"
+                    }
+                  ]
+                }
+              ]
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    }
+  ]
+}

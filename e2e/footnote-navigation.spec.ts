@@ -47,3 +47,50 @@ test("虚拟只读长文中的脚注可跳至未挂载末尾并返回", async ({
   await body.getByRole("link", { name: "返回脚注引用" }).click();
   await expect(body.locator("#nr-footnote-ref-1")).toBeInViewport();
 });
+
+for (const width of [1280, 390]) test(`脚注编辑保存认证、重复返回及只读刷新 ${width}`, async ({ page }) => {
+  await createBlankDocument(page, "脚注备份认证");
+  const editor = page.locator(".note-editor:visible .tiptap.ProseMirror").first();
+  await editor.evaluate(async element => {
+    const { default: fixture } = await import("/schema/sync/fixtures/candidate-footnotes-v1.json");
+    const { deltaToProseMirror } = await import("/src/lib/delta-converter.ts");
+    const { createReferenceAnchor } = await import("/src/extensions/ReferenceAnchors.ts");
+    const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    const doc = deltaToProseMirror(fixture.notes[0].content);
+    doc.content.splice(-2, 0, ...Array.from({ length: 60 }, (_, i) => ({ type: "paragraph", content: [{ type: "text", text: `正文段落 ${i}` }] })));
+    instance.commands.setContent(doc, true);
+    createReferenceAnchor(instance, "block", 0);
+  });
+  await page.getByRole("navigation", { name: "工作区面板" }).getByRole("button", { name: "文档树", exact: true }).click();
+  await page.setViewportSize({ width, height: 800 });
+  const refs = editor.locator('sup[data-footnote-ref="中文"] a');
+  const definition = editor.locator('li[data-footnote-id="中文"]');
+  await expect(refs).toHaveCount(2);
+  await refs.first().click();
+  await expect(definition).toBeInViewport();
+  await definition.locator("p").first().click();
+  await page.keyboard.insertText("编辑脚注");
+  const saved = () => page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    const { reviewCandidatePayload } = await import("/src/lib/sync/candidate-write-policy.ts");
+    const { default: fixture } = await import("/schema/sync/fixtures/candidate-footnotes-v1.json");
+    const note = await api.notes.get(localStorage.getItem("nr:lastNote")!);
+    if (!note || !JSON.stringify(note.content).includes("编辑脚注")) return false;
+    const review = reviewCandidatePayload(JSON.stringify({ ...fixture, notes: [{ ...fixture.notes[0], content: note.content }] }), "web");
+    return review.eligible && review.requiredFeatures.includes("footnotes-v1") && note.content.metadata?.referenceAnchors?.length === 1;
+  });
+  await expect.poll(saved).toBe(true);
+  await expect(definition.locator(".nr-footnote-backref")).toHaveCount(2);
+  await definition.getByRole("link", { name: "返回脚注引用 2", exact: true }).click();
+  await expect(refs.nth(1)).toBeInViewport();
+  await page.reload();
+  await expect(editor.locator(":scope > hr")).toHaveCount(1);
+  await expect(definition).toContainText("编辑脚注");
+  await expect.poll(saved).toBe(true);
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+  await refs.nth(1).click();
+  await expect(definition).toBeInViewport();
+  await definition.getByRole("link", { name: "返回脚注引用 2", exact: true }).click();
+  await expect(refs.nth(1)).toBeInViewport();
+});

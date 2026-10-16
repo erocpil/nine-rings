@@ -15,6 +15,8 @@ const containers = new Set([
   "tableRow",
   "tableHeader",
   "tableCell",
+  "footnotes",
+  "footnoteDefinition",
 ]);
 /** Only count node types covered by the candidate body policy, not arbitrary JSON. */
 function nodeSize(node: JSONContent): number {

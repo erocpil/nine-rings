@@ -120,3 +120,7 @@ Dart 的共享编码、严格输入和 Note SQLite 模型测试已在远端 9aad
 ### 行内／表格图片候选特性
 
 `inline-image-v1` 在 Web/Tauri 候选范围扩展 `inlineImage` 原子、外观标记和 HTTP(S) 图片链接。表格可包含已认证行内图片，并保留合并、多段及双重正文表达；不将一般文本链接或未知 mark 一并开放。`fixtures/candidate-inline-image-v1.json` 由真实编辑器及 IDB/SQLite 往返验收，引用锚点模型大小包含 markdownImage。字段、位置、marks 均进入实体摘要，本机图片需先解析；生产和 Flutter 能力保持不变，详见[认证计划](../../docs/sync-entity-plan.md#行内图片及表格图片认证2026-10-16)。
+
+### 脚注与分隔线候选特性
+
+`footnotes-v1` 覆盖带 ID/编号/引用序号的文字 mark 和唯一的文末定义区；`horizontal-rule-v1` 覆盖其显式分隔线及普通 hr 对象。字段、引用/定义计数和 ID 严格校验，编号/重复返回次数通过整份文档的语义往返核对，不能用局部重编号或删除字段使样本合格。原始 Markdown 中尚未补齐分隔线/计数的表示继续拒绝，实际编辑器保存后的共享 `fixtures/candidate-footnotes-v1.json` 通过 schema/编辑历史及 IDB/SQLite 往返；这不改变旧格式导入。未引用定义与暂缺定义引用保留，完整锚点大小覆盖脚注容器。生产与 Flutter 能力不变，见[脚注认证计划](../../docs/sync-entity-plan.md#脚注正文认证2026-10-16)。

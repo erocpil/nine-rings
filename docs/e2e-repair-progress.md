@@ -1640,3 +1640,11 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - `inline-image-v1` 新增 11 项检查：真实 schema 编辑/撤销、Markdown 导入、IDB、内嵌资源、摘要及冲突组装。共享样本同时进入既有原生 SQLite 编辑/恢复测试，1 项通过。
 - 表格行内图片真实触摸缩放、图片链接、合并多段及引用锚点的完整保存刷新，Chromium/WebKit 各 2 项通过。
 - 最终完整 `npm run check` 通过：Vitest 153 文件 / 1840 项；生产构建通过，无 chunk 超限警告。未执行浏览器全量 E2E、原生 GUI 或真实远端上传；共享数据库 schema 与旧备份格式不变，生产增量同步继续关闭。
+
+### 2026-10-16：脚注候选认证
+
+- `footnotes-v1` 覆盖全局编号、重复引用序号、文末定义、多段/结构正文及未引用/暂缺定义；`horizontal-rule-v1` 覆盖实际保存的脚注分隔线和普通 hr 对象。
+- 增加 14 项脚注单元检查；真实 schema/编号插件覆盖编辑、删去首次引用、两位数重编号及撤销，IDB 编辑导出恢复、整实体选择/摘要、锚点大小，以及表格内局部错误编号拒绝。递归形状校验与整份文档语义核对分开，原深度预算保留。
+- `npm run check` 全部通过，Vitest 154 文件 / 1854 项；生产构建通过，主包约 470 kB，无 chunk 超限警告。
+- `e2e/footnote-navigation.spec.ts` Chromium 4 项、WebKit 4 项通过，含桌面/手机真实编辑自动保存、完整候选认证、重复返回、刷新和普通/虚拟只读跳转。
+- 原生 SQLite `candidate_structured_text_survives_sqlite_edits_and_fresh_restore` 1 项通过，包含新的共享脚注样本。未执行全量浏览器 E2E、原生 GUI 或真实远端上传；生产增量协议与 Flutter 能力不变，旧备份/数据库 schema 未改变。

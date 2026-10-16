@@ -1,4 +1,9 @@
 import {
+  FOOTNOTE_ATTRIBUTES,
+  isCertifiedFootnoteReference,
+  isCertifiedFootnotes,
+} from "./footnote-body-policy";
+import {
   isCertifiedBlockImage,
   isCertifiedInlineImage,
 } from "./image-body-policy";
@@ -39,16 +44,15 @@ export function hasStructuredBody(body: Record<string, unknown>): boolean {
         record(op) &&
         (record(op.insert) ||
           (record(op.attributes) &&
-            Object.keys(op.attributes).some((key) => structural.has(key)))),
+            Object.keys(op.attributes).some(
+              (key) => structural.has(key) || FOOTNOTE_ATTRIBUTES.has(key),
+            ))),
     )
   );
 }
 
-/** Candidate-only text plus recursively certified list/quote objects. */
-export function isCertifiedStructuredBody(
-  body: Record<string, unknown>,
-  depth = 0,
-): boolean {
+/** Shape recursion is separate from the single document-wide semantic check. */
+function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
   if (
     depth > 16 ||
     Object.keys(body).some((key) => key !== "ops") ||
@@ -79,6 +83,11 @@ export function isCertifiedStructuredBody(
         markedText = true;
         continue;
       }
+      if (
+        Array.isArray(op.insert.footnotes) &&
+        (depth !== 0 || index !== ops.length - 2)
+      )
+        return false;
       if (!validEmbed(op, depth) || markedText) return false;
       const next = ops[index + 1];
       if (
@@ -99,6 +108,7 @@ export function isCertifiedStructuredBody(
       return false;
     if (op.attributes !== undefined && !record(op.attributes)) return false;
     const attrs = (op.attributes ?? {}) as Record<string, unknown>;
+    if (!isCertifiedFootnoteReference(op.insert, attrs)) return false;
     const line = op.insert === "\n";
     if (line) {
       if (attrs["code-block"] === true && markedText) return false;
@@ -140,6 +150,7 @@ export function isCertifiedStructuredBody(
         } else if (value !== true) return false;
       } else {
         if (line) return false;
+        if (FOOTNOTE_ATTRIBUTES.has(key)) continue;
         if (["bold", "italic", "strike", "code", "highlight"].includes(key)) {
           if (value !== true) return false;
         } else if (["color", "background"].includes(key)) {
@@ -172,7 +183,14 @@ export function isCertifiedStructuredBody(
     }
   }
   const last = ops[ops.length - 1];
-  if (!record(last) || last.insert !== "\n") return false;
+  return record(last) && last.insert === "\n";
+}
+
+/** Never normalize away a mismatch: derive numbering once in full document context. */
+export function isCertifiedStructuredBody(
+  body: Record<string, unknown>,
+): boolean {
+  if (!certifiedBodyShape(body)) return false;
   try {
     const restored = proseMirrorToDelta(
       deltaToProseMirror(body as unknown as DeltaOps),
@@ -217,7 +235,14 @@ function validEmbed(op: Record<string, unknown>, depth: number): boolean {
   )
     return false;
   const insert = op.insert;
-  const child = (ops: unknown) => isCertifiedStructuredBody({ ops }, depth + 1);
+  const child = (ops: unknown) => certifiedBodyShape({ ops }, depth + 1);
+  if (insert.hr === true)
+    return !Object.keys(attrs).some((key) => key.startsWith("blockquote"));
+  if (Array.isArray(insert.footnotes))
+    return (
+      !Object.keys(attrs).some((key) => key.startsWith("blockquote")) &&
+      isCertifiedFootnotes(insert.footnotes, child)
+    );
   if (record(insert.table)) {
     return (
       !Object.keys(attrs).some((key) => key.startsWith("blockquote")) &&
@@ -295,15 +320,21 @@ export function structuredBodyFeatures(
         )
       )
         features.add("inline-appearance-v1");
+      if (record(op.attributes) && op.attributes.footnoteRef !== undefined)
+        features.add("footnotes-v1");
       if (!record(op.insert)) continue;
       features.add(
         record(op.insert.table)
           ? "table-block-v1"
           : record(op.insert.inlineImage)
             ? "inline-image-v1"
-            : typeof op.insert.image === "string"
-              ? "block-image-v1"
-              : "structured-block-v1",
+            : Array.isArray(op.insert.footnotes)
+              ? "footnotes-v1"
+              : op.insert.hr === true
+                ? "horizontal-rule-v1"
+                : typeof op.insert.image === "string"
+                  ? "block-image-v1"
+                  : "structured-block-v1",
       );
       if (record(op.insert.table) && Array.isArray(op.insert.table.rows)) {
         for (const row of op.insert.table.rows)
@@ -317,6 +348,9 @@ export function structuredBodyFeatures(
               }
           }
       }
+      if (Array.isArray(op.insert.footnotes))
+        for (const definition of op.insert.footnotes)
+          if (record(definition)) visit(definition.content, depth + 1);
       if (record(op.insert.blockquote))
         visit(op.insert.blockquote.content, depth + 1);
       if (record(op.insert.list) && Array.isArray(op.insert.list.items))
