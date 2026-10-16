@@ -34,8 +34,11 @@ export function SettingsVocabularyCorpora({ onMessage }: { onMessage: (message: 
   return <Field label="独立词库" desc="导入 .nrvocab.json 或 gzip 压缩词库，不创建普通文档。词库与文档备份、路径加密独立，请保留原包或使用下方导出。">
     {confirmationDialog}
     <div className="vocabulary-corpora-settings">
-      <input ref={input} type="file" aria-label="选择词库文件" accept=".json,.gz,.nrvocab" hidden disabled={busy} onChange={e => {
-        const file = e.target.files?.[0]; e.target.value = ""; if (file) void load(file);
+      <input ref={input} type="file" aria-label="选择词库文件" accept=".json,.gz,.nrvocab" hidden disabled={busy} onChange={async e => {
+        const element = e.currentTarget;
+        const file = element.files?.[0];
+        try { if (file) await load(file); }
+        finally { element.value = ""; }
       }} />
       <button className="settings-btn" disabled={busy} onClick={() => input.current?.click()}>{busy ? "正在处理词库…" : "导入词库文件"}</button>
       {error && <p role="alert">{error}</p>}

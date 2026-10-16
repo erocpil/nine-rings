@@ -82,3 +82,12 @@ it("detects damaged compressed storage without changing the manifest", async () 
   await expect(readCorpusEntry("vocab:awl:unique-corruption-case")).rejects.toThrow("校验失败");
   expect((await listCorpora())[0].revision).toBe(1);
 });
+it("identifies ZIP by magic bytes and reports actionable errors for invalid files", async () => {
+  for (const bytes of [[0x50, 0x4b, 3, 4], [0x50, 0x4b, 5, 6]]) {
+    await expect(readVocabularyPackage(new Blob([new Uint8Array(bytes)]))).rejects.toThrow("这是 ZIP 压缩包");
+  }
+  await expect(readVocabularyPackage(new Blob([]))).rejects.toThrow("为空");
+  await expect(readVocabularyPackage(new Blob([new Uint8Array([0xff, 0xfe, 0x80])]))).rejects.toThrow("UTF-8");
+  await expect(readVocabularyPackage(new Blob(["# word\nmarkdown"])) ).rejects.toThrow("不是有效的词库 JSON");
+  expect(await readVocabularyPackage(new Blob(["\ufeff", JSON.stringify(pack())]))).toEqual(pack());
+});

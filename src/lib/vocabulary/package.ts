@@ -57,9 +57,28 @@ export async function boundedText(stream: ReadableStream<Uint8Array>, limit = MA
 }
 export async function readVocabularyPackage(file: Blob): Promise<VocabularyPackage> {
   if (file.size > MAX_PACKAGE_BYTES) throw new Error("词库文件超过 64 MB");
-  const header = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+  let header: Uint8Array;
+  try { header = new Uint8Array(await file.slice(0, 4).arrayBuffer()); }
+  catch { throw new Error("无法读取所选词库文件，请重新选择本机文件后重试"); }
+  if (!header.length) throw new Error("词库文件为空");
+  if (header[0] === 0x50 && header[1] === 0x4b &&
+    ((header[2] === 3 && header[3] === 4) || (header[2] === 5 && header[3] === 6) || (header[2] === 7 && header[3] === 8))) {
+    throw new Error("这是 ZIP 压缩包，不是独立词库文件。请导入打包工具生成的 .nrvocab.json.gz 或 .nrvocab.json；包含多份 .md 的 ZIP 需先解压，再用 scripts/pack-vocabulary.py 转换。修改扩展名不能转换格式。");
+  }
   const compressed = header[0] === 31 && header[1] === 139;
   if (compressed && typeof DecompressionStream === "undefined") throw new Error("当前环境不支持 gzip，请导入未压缩 JSON 词库");
-  const stream = compressed ? file.stream().pipeThrough(new DecompressionStream("gzip")) : file.stream();
-  return validateVocabularyPackage(JSON.parse(await boundedText(stream)));
+  let text: string;
+  try {
+    const stream = compressed ? file.stream().pipeThrough(new DecompressionStream("gzip")) : file.stream();
+    text = await boundedText(stream);
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+    throw new Error(compressed
+      ? "gzip 词库解压或读取失败，请重新选择文件；若仍失败，请使用打包工具生成未压缩的 .nrvocab.json 后导入"
+      : "无法按 UTF-8 读取词库，请选择 .nrvocab.json 或 .nrvocab.json.gz 文件");
+  }
+  let value: unknown;
+  try { value = JSON.parse(text.replace(/^\uFEFF/, "")); }
+  catch { throw new Error("文件不是有效的词库 JSON，请使用独立词库打包工具生成；普通 Markdown 文档请从文档导入入口导入"); }
+  return validateVocabularyPackage(value);
 }

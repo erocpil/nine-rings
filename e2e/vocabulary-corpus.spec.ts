@@ -25,6 +25,9 @@ for (const width of [1280, 390]) test(`独立词库导入、导航、重启恢�
     await page.getByLabel("设置分类").getByRole("button", { name: /^高级/ }).click();
     await page.getByRole("complementary", { name: "插件列表" }).getByRole("button", { name: "词汇学习", exact: true }).click();
     const config = page.getByRole("dialog", { name: "词汇学习配置" });
+    await config.getByLabel("选择词库文件").setInputFiles({ name: "words.zip", mimeType: "application/zip", buffer: Buffer.from([0x50, 0x4b, 3, 4, 0xff]) });
+    await expect(config.getByRole("alert")).toContainText("这是 ZIP 压缩包");
+    await expect(config.getByLabel("选择词库文件")).toBeEnabled();
     await config.getByLabel("选择词库文件").setInputFiles({ name: "test.nrvocab.json.gz", mimeType: "application/gzip", buffer: gzipSync(Buffer.from(JSON.stringify(pack))) });
     await page.getByRole("button", { name: "导入词库", exact: true }).click();
     await expect(config).toContainText("测试词库 · 2 词");
