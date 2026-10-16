@@ -37,10 +37,10 @@ it.each([
   ).toEqual(candidateBodyProjection(body));
   expect(JSON.stringify(body)).toBe(original);
 });
-it("still rejects lossy leading breaks, marked multiline text and CR characters", () => {
+it("still rejects lossy leading breaks, discarded marks and CR characters", () => {
   for (const op of [
     { insert: "\n\nNext" },
-    { insert: "First\nNext", attributes: { bold: true } },
+    { insert: "\nFirst Next", attributes: { bold: true } },
     { insert: "First\r\nNext" },
   ])
     expect(
@@ -49,3 +49,41 @@ it("still rejects lossy leading breaks, marked multiline text and CR characters"
       }),
     ).toBe(false);
 });
+
+it.each(["bold", "italic", "strike", "code"])(
+  "preserves %s on every character of multiline text through edit and undo",
+  (mark) => {
+    const body = {
+      ops: [
+        { insert: "Before " },
+        { insert: "First\nSecond", attributes: { [mark]: true } },
+        { insert: " after" },
+        { insert: "\n", attributes: { header: 2 } },
+      ],
+    };
+    const source = JSON.stringify(body);
+    expect(isCertifiedStructuredBody(body)).toBe(true);
+    const doc = schema.nodeFromJSON(deltaToProseMirror(body));
+    doc.check();
+    expect(doc.firstChild?.child(1).textContent).toBe("First\nSecond");
+    expect(doc.firstChild?.child(1).marks.map((m) => m.type.name)).toContain(
+      mark,
+    );
+    const saved = proseMirrorToDelta(doc.toJSON());
+    expect(candidateBodyProjection(saved)).toEqual(
+      candidateBodyProjection(body),
+    );
+    expect(schema.nodeFromJSON(deltaToProseMirror(saved)).eq(doc)).toBe(true);
+    let state = EditorState.create({ schema, doc, plugins: [history()] });
+    state = state.apply(state.tr.insertText("Edit", 1));
+    expect(
+      undo(state, (tr) => {
+        state = state.apply(tr);
+      }),
+    ).toBe(true);
+    expect(
+      candidateBodyProjection(proseMirrorToDelta(state.doc.toJSON())),
+    ).toEqual(candidateBodyProjection(body));
+    expect(JSON.stringify(body)).toBe(source);
+  },
+);

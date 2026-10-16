@@ -67,10 +67,10 @@ it.each([
   };
   expect(isCertifiedStructuredBody(body)).toBe(false);
 });
-it("does not accept loss of newlines or formatting alongside a boundary", () => {
+it("does not accept loss of leading-newline formatting alongside a boundary", () => {
   const body = {
     ops: [
-      { insert: "First\nSecond", attributes: { bold: true } },
+      { insert: "\nFirst Second", attributes: { bold: true } },
       { insert: "\n", attributes: { list: "bullet" } },
     ],
   };

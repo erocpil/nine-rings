@@ -44,13 +44,13 @@ it.each([{ blockquote: false }, { blockquote: "true" }, { extra: true }])(
   },
 );
 it("does not accept changed embed representation, text loss, unknown versions or missing delimiters", () => {
-  expect(isCertifiedStructuredBody(quoteBody())).toBe(false);
+  expect(isCertifiedStructuredBody(quoteBody())).toBe(true);
   const body = quoteBody({ "indent-explicit": true });
   body.ops[0].insert = {
     blockquote: {
       version: 1,
       content: [
-        { insert: "Quoted\ntext", attributes: { bold: true } },
+        { insert: "\nQuoted text", attributes: { bold: true } },
         { insert: "\n" },
       ],
     },

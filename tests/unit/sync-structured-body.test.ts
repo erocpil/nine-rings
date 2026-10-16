@@ -141,7 +141,6 @@ it.each([
   { "code-block": true, language: "mermaid", "code-collapsed": false },
   { "code-block": true, language: "flow", "code-title": 1 },
   { "code-block": true, language: "toc", onclick: "unsafe" },
-  { blockquote: true, "indent-explicit": true },
   { blockquote: true, bold: true },
   { header: 2, list: "bullet" },
   { list: "bullet", "list-continuation": true },

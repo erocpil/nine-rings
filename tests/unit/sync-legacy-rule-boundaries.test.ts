@@ -69,7 +69,7 @@ it("does not ignore line breaks, malformed embeds or absent document endings", (
     {
       ops: [
         { insert: { hr: true } },
-        { insert: "Text\nNext", attributes: { bold: true } },
+        { insert: "\nText Next", attributes: { bold: true } },
         { insert: "\n" },
       ],
     },

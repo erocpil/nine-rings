@@ -228,12 +228,9 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
     }
     if (attrs.background !== undefined && attrs.highlight !== true)
       return false;
-    if (!line && op.insert.includes("\n")) {
-      // Legacy exports can pack unmarked text/newlines into one operation, both
-      // in code and ordinary paragraphs. The full-document round trip below must
-      // preserve every character; never trim/split text to force certification.
-      if (Object.keys(attrs).length) return false;
-    }
+    // Embedded newlines in text, including marked text, are certified only when
+    // the full-document projection below preserves every character and mark.
+    // Leading newlines which discard formatting still fail that comparison.
   }
   const last = ops[ops.length - 1];
   return record(last) && last.insert === "\n";
@@ -335,12 +332,100 @@ export function inspectStructuredBody(
 
     return canonicalJson(candidateBodyProjection(comparison)) ===
       canonicalJson(candidateBodyProjection(restored)) ||
-      matchesLegacyInferredAttributes(comparison, restored)
+      matchesLegacyInferredAttributes(comparison, restored) ||
+      matchesSimpleQuoteEncoding(comparison, restored, document)
       ? "certified"
       : "roundtrip-mismatch";
   } catch {
     return "invalid-conversion";
   }
+}
+
+/** A paragraph-only quote has two legacy encodings. Flatten only for comparison;
+ * do not flatten alerts, nested blocks or structural child attributes. */
+function flatQuoteComparison(
+  body: Record<string, unknown>,
+): Record<string, unknown> {
+  const ops = body.ops as DeltaOps["ops"];
+  let skipTerminator = -1;
+  return {
+    ...body,
+    ops: ops.flatMap((op, index) => {
+      if (index === skipTerminator) return [];
+      if (!record(op.insert) || !record(op.insert.blockquote)) return [op];
+      const quote = op.insert.blockquote;
+      if (
+        quote.version !== 1 ||
+        Object.keys(quote).some(
+          (key) => !["version", "content"].includes(key),
+        ) ||
+        !Array.isArray(quote.content) ||
+        !quote.content.length ||
+        ops[index + 1]?.insert !== "\n" ||
+        Object.keys(ops[index + 1]?.attributes ?? {}).length > 0 ||
+        !quote.content.every(
+          (child) =>
+            record(child) &&
+            typeof child.insert === "string" &&
+            (child.insert !== "\n" ||
+              !Object.keys(record(child.attributes) ? child.attributes : {})
+                .length ||
+              (record(child.attributes) &&
+                Object.keys(child.attributes).length === 1 &&
+                child.attributes["hard-break"] === true)),
+        )
+      )
+        return [op];
+      skipTerminator = index + 1;
+      return (quote.content as DeltaOps["ops"]).map((child) =>
+        child.insert === "\n" && child.attributes?.["hard-break"] !== true
+          ? { insert: "\n", attributes: { ...op.attributes, blockquote: true } }
+          : child,
+      );
+    }),
+  };
+}
+
+function matchesSimpleQuoteEncoding(
+  body: Record<string, unknown>,
+  restored: DeltaOps,
+  document: unknown,
+): boolean {
+  const before = flatQuoteComparison(body),
+    after = flatQuoteComparison(restored as unknown as Record<string, unknown>);
+  if (
+    canonicalJson(candidateBodyProjection(before)) !==
+      canonicalJson(candidateBodyProjection(after)) &&
+    !matchesLegacyInferredAttributes(before, after as unknown as DeltaOps)
+  )
+    return false;
+  // In particular, never merge two distinct adjacent quote blocks or drop attrs.
+  const tree = canonicalJson(quoteTreeDefaults(document));
+  return [before, after, restored].every(
+    (source) =>
+      tree === canonicalJson(quoteTreeDefaults(deltaToProseMirror(source))),
+  );
+}
+
+function quoteTreeDefaults(node: unknown): unknown {
+  if (!record(node)) return node;
+  return {
+    ...node,
+    ...(node.type === "blockquote"
+      ? {
+          attrs: {
+            indent: 0,
+            indentExplicit: false,
+            collapsed: false,
+            alert: null,
+            ...(record(node.attrs) ? node.attrs : {}),
+          },
+        }
+      : {}),
+    ...(Array.isArray(node.content)
+      ? { content: node.content.map(quoteTreeDefaults) }
+      : {}),
+  };
 }
 
 function withLegacyStructuralMarkers(
