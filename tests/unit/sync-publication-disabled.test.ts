@@ -55,3 +55,83 @@ it("shipped zero capabilities refuse object creation before any Git request", as
   expect(post).not.toHaveBeenCalled();
   expect((await readPublicationAttempt(spaceId))?.phase).toBe("PREPARED");
 });
+it("shipped capabilities also refuse nonempty reviewed publication intents", async () => {
+  const { gitReadFixture } = await import("../helpers/git-read-fixture");
+  const { backupPaths, inspectRemoteProtocol } =
+    await import("../../src/lib/sync/remote-protocol");
+  const { prepareEntityReview } =
+    await import("../../src/lib/sync/entity-review");
+  const { prepareReviewedPublication } =
+    await import("../../src/lib/sync/reviewed-publication");
+  const paths = backupPaths("backup.json"),
+    source = JSON.stringify(fixture);
+  const git = await gitReadFixture({
+    [paths.latest]: "old-1",
+    [paths.snapshot("old-1")]: source,
+  });
+  const report = await inspectRemoteProtocol(git.request, {
+    owner: "example",
+    repo: "disabled-review",
+    path: "backup.json",
+  });
+  const local = structuredClone(fixture);
+  local.notes[0].title = "local edit";
+  const localSource = JSON.stringify(local);
+  const review = await prepareEntityReview({
+    report,
+    request: git.request,
+    localSource,
+    runtime: "web",
+  });
+  const row = review.rows.find(
+    (r) => r.kind === "note" && r.id === fixture.notes[0].id,
+  )!;
+  await expect(
+    prepareReviewedPublication(
+      {
+        review,
+        choices: [
+          {
+            key: row.key,
+            action: "local",
+            localHash: row.localHash,
+            remoteHash: row.remoteHash,
+          },
+        ],
+        identity: {
+          id: "new-1",
+          createdAt: "2026-10-16T00:00:00Z",
+          writtenBy: { app: "test", platform: "web", deviceId: "test" },
+        },
+        observation: { state: "none" },
+        prerequisites: {
+          localRevision: review.localRevision,
+          backup: {
+            localRevision: review.localRevision,
+            sha256: "b".repeat(64),
+            method: "desktop-verified",
+          },
+          participants: { confirmed: true, minimumVersion: "1.0.0" },
+          payload: {
+            eligible: true,
+            issues: {},
+            requiredFeatures: [],
+            counts: {
+              documents: 0,
+              templates: 0,
+              protectedPaths: 0,
+              protectedVersions: 0,
+            },
+          },
+          publicationRecoveryReady: true,
+        },
+      },
+      {
+        flush: async () => {},
+        readSource: async () => localSource,
+        request: git.request,
+      },
+    ),
+  ).rejects.toThrow("尚不支持");
+  expect(await readPublicationAttempt(review.spaceId)).toBeNull();
+});

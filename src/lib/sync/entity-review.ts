@@ -82,10 +82,9 @@ export async function prepareEntityReview(input: {
   };
 }
 export type EntityReview = Awaited<ReturnType<typeof prepareEntityReview>>;
-export async function validateEntityReview(
+export async function assembleFrozenEntityReview(
   review: EntityReview,
   choices: EntityChoice[],
-  currentLocalSource: string,
 ) {
   // Snapshot before the first await: UI edits cannot change an in-flight review.
   review = structuredClone(review);
@@ -109,6 +108,24 @@ export async function validateEntityReview(
     )) !== review.localRevision
   )
     throw Error("本机快照绑定已损坏");
+  if ((await bytesDigest(review.remoteSource)) !== review.snapshotSha256)
+    throw Error("远端快照绑定已损坏");
+  if ((await canonicalDigest(review.baselines)) !== review.baselineSha256)
+    throw Error("冻结接受基线已损坏");
+  const candidate = await assembleEntityCandidate({
+    ...review,
+    baselines: review.baselines,
+    choices,
+  });
+  return candidate;
+}
+export async function validateEntityReview(
+  review: EntityReview,
+  choices: EntityChoice[],
+  currentLocalSource: string,
+) {
+  review = structuredClone(review);
+  choices = structuredClone(choices);
   const current = await candidateEntities(currentLocalSource, review.runtime);
   const sorted = [...current].sort((a, b) =>
     JSON.stringify([a.kind, a.id]) < JSON.stringify([b.kind, b.id]) ? -1 : 1,
@@ -120,11 +137,7 @@ export async function validateEntityReview(
   const baselines = await readAcceptedBaselines(review.spaceId);
   if ((await canonicalDigest(baselines)) !== review.baselineSha256)
     throw Error("已接受基线已变化，请重新预检");
-  const candidate = await assembleEntityCandidate({
-    ...review,
-    baselines,
-    choices,
-  });
+  const candidate = await assembleFrozenEntityReview(review, choices);
   assertDocumentStorageGeneration(review.storageGeneration);
   return candidate;
 }

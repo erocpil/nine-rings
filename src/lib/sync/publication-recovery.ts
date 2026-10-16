@@ -1,3 +1,4 @@
+import { validateReviewedPublicationRecord } from "./reviewed-publication";
 import { RESTORE_LOCK_NAME } from "../backup-restore-coordination";
 /** Candidate publication foundation. Shipped capabilities remain zero; no enable UI exists. */
 import { canonicalDigest, canonicalJson } from "./canonical-codec";
@@ -170,28 +171,32 @@ export async function readValidatedPublication(
     expectedId: attempt.snapshotId,
   });
   const entities = await candidateEntities(attempt.source, attempt.runtime);
-  if (
-    header.parent !== null ||
-    attempt.localRevision !== (await canonicalDigest(entities)) ||
-    canonicalJson(entities) !== canonicalJson(attempt.accepted) ||
-    attempt.control !==
-      canonicalJson({
-        kind: "nine-rings.sync-space",
-        version: 1,
-        format: 1,
-        codec: 1,
-        firstSnapshot: {
-          id: attempt.snapshotId,
-          sha256: attempt.snapshotSha256,
-        },
-      })
-  )
-    throw Error("发布计划内容不匹配");
+  if (attempt.reviewed) {
+    await validateReviewedPublicationRecord(attempt);
+  } else {
+    if (
+      header.parent !== null ||
+      attempt.localRevision !== (await canonicalDigest(entities)) ||
+      canonicalJson(entities) !== canonicalJson(attempt.accepted) ||
+      attempt.control !==
+        canonicalJson({
+          kind: "nine-rings.sync-space",
+          version: 1,
+          format: 1,
+          codec: 1,
+          firstSnapshot: {
+            id: attempt.snapshotId,
+            sha256: attempt.snapshotSha256,
+          },
+        })
+    )
+      throw Error("发布计划内容不匹配");
+  }
   if (attempt.storageGeneration !== readDocumentStorageGeneration())
     throw Error("文档库已被恢复，不能确认旧发布基线");
   return attempt;
 }
-/** Supplied objects must be a single-parent commit with exactly the three planned file changes. */
+/** Supplied objects must be a single-parent commit with exactly the planned file changes. */
 async function verifyCommit(
   attempt: PublicationAttempt,
   commitSha: string,
@@ -206,11 +211,40 @@ async function verifyCommit(
   )
     throw Error("发布提交父项不匹配");
   const paths = backupPaths(attempt.space.path);
-  const expected = new Map([
+  const expected = new Map<string, string>([
     [paths.latest, attempt.snapshotId],
     [paths.snapshot(attempt.snapshotId), attempt.source],
-    [paths.control, attempt.control],
+    ...(attempt.reviewed?.mode === "append"
+      ? []
+      : [[paths.control, attempt.control] as [string, string]]),
   ]);
+  if (attempt.reviewed) {
+    const proof = attempt.reviewed;
+    if (
+      (
+        await reader.file(attempt.expectedParent, paths.latest)
+      )?.content.trim() !== proof.review.snapshotId ||
+      (
+        await reader.file(
+          attempt.expectedParent,
+          paths.snapshot(proof.review.snapshotId),
+        )
+      )?.content !== proof.review.remoteSource
+    )
+      throw Error("发布父快照证据不匹配");
+    const previousControl = await reader.file(
+      attempt.expectedParent,
+      paths.control,
+    );
+    if (proof.mode === "append") {
+      if (
+        previousControl?.content !== attempt.control ||
+        (await reader.file(commitSha, paths.control))?.content !==
+          attempt.control
+      )
+        throw Error("已启用空间的控制文件不能改变");
+    } else if (previousControl) throw Error("首次切换前控制文件必须不存在");
+  }
   for (const [path, text] of expected) {
     if ((await reader.file(commitSha, path))?.content !== text)
       throw Error("发布对象与冻结计划不匹配");

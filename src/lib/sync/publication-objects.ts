@@ -69,16 +69,35 @@ export async function preparePublicationObjects(input: {
       const reader = createPinnedReader(request);
       const parent = await reader.commit(attempt.expectedParent);
       const paths = backupPaths(attempt.space.path);
-      const files = [
+      const files: [string, string][] = [
         [paths.snapshot(attempt.snapshotId), attempt.source],
         [paths.latest, attempt.snapshotId],
-        [paths.control, attempt.control],
-      ] as const;
-      // Bootstrap only: never overwrite an existing snapshot ID or namespace file.
-      for (const [path] of files) {
-        if (await reader.file(attempt.expectedParent, path))
-          throw Error("目标发布文件已存在，不能覆盖");
-      }
+        ...(attempt.reviewed?.mode === "append"
+          ? []
+          : [[paths.control, attempt.control] as [string, string]]),
+      ];
+      if (
+        await reader.file(
+          attempt.expectedParent,
+          paths.snapshot(attempt.snapshotId),
+        )
+      )
+        throw Error("目标发布文件已存在，不能覆盖");
+      if (
+        !attempt.reviewed &&
+        (await reader.file(attempt.expectedParent, paths.latest))
+      )
+        throw Error("目标发布文件已存在，不能覆盖");
+      const oldControl = await reader.file(
+        attempt.expectedParent,
+        paths.control,
+      );
+      if (
+        attempt.reviewed?.mode === "append"
+          ? oldControl?.content !== attempt.control
+          : !!oldControl
+      )
+        throw Error("控制文件证据不匹配，不能覆盖");
       const entries: {
         path: string;
         mode: "100644";

@@ -23,6 +23,7 @@ export interface PublicationAttempt {
   localRevision: string;
   storageGeneration: string;
   accepted: SyncEntity[];
+  reviewed?: import("./reviewed-publication").ReviewedPublicationEvidence;
   phase: PublicationPhase;
   commitSha: string | null;
   updatedAt: string;
