@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { gitBlobSha } from "../../src/lib/sync/remote-protocol";
 export async function gitReadFixture(
   files: Record<string, string>,
@@ -10,13 +11,11 @@ export async function gitReadFixture(
   for (const [path, content] of Object.entries(files)) {
     const sha = await gitBlobSha(content),
       bytes = new TextEncoder().encode(content);
-    let binary = "";
-    for (const byte of bytes) binary += String.fromCharCode(byte);
     objects.set(`/git/blobs/${sha}`, {
       sha,
       size: bytes.length,
       encoding: "base64",
-      content: btoa(binary),
+      content: Buffer.from(bytes).toString("base64"),
     });
     entries.push({
       path,
