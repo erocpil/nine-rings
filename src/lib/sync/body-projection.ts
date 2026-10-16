@@ -26,7 +26,29 @@ export function candidateBodyProjection(body: unknown, depth = 0): unknown {
       const project = (ops: unknown) =>
         (candidateBodyProjection({ ops }, depth + 1) as { ops: unknown }).ops;
       let projected: Record<string, unknown>;
-      if (insert.blockquote && typeof insert.blockquote === "object") {
+      if (insert.table && typeof insert.table === "object") {
+        const table = insert.table as Record<string, unknown>;
+        const inline = (body: unknown) => ({
+          ops: project((body as { ops: unknown }).ops),
+        });
+        projected = {
+          table: {
+            ...table,
+            rows: (table.rows as { cells: Record<string, unknown>[] }[]).map(
+              (row) => ({
+                ...row,
+                cells: row.cells.map((cell) => ({
+                  ...cell,
+                  content: inline(cell.content),
+                  ...(cell.paragraphs
+                    ? { paragraphs: (cell.paragraphs as unknown[]).map(inline) }
+                    : {}),
+                })),
+              }),
+            ),
+          },
+        };
+      } else if (insert.blockquote && typeof insert.blockquote === "object") {
         const quote = insert.blockquote as Record<string, unknown>;
         projected = {
           blockquote: { ...quote, content: project(quote.content) },

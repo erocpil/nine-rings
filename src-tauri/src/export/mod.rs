@@ -351,6 +351,7 @@ mod tests {
         for json in [
             include_str!("../../../schema/sync/fixtures/candidate-structured-text-v1.json"),
             include_str!("../../../schema/sync/fixtures/candidate-structured-block-v1.json"),
+            include_str!("../../../schema/sync/fixtures/candidate-table-v1.json"),
         ] {
             let expected: serde_json::Value = serde_json::from_str(json).unwrap();
             let bundle = super::parse_legacy_bundle(json).unwrap();

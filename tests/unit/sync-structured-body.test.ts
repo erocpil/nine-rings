@@ -1,3 +1,10 @@
+import TableRow from "@tiptap/extension-table-row";
+import {
+  ContentSizedTable,
+  AlignedTableCell,
+  AlignedTableHeader,
+} from "../../src/extensions/ContentSizedTable";
+import tableFixture from "../../schema/sync/fixtures/candidate-table-v1.json";
 import { history, undo } from "@tiptap/pm/history";
 import { assembleEntityCandidate } from "../../src/lib/sync/entity-assembly";
 import { entityKey } from "../../src/lib/sync/entity-plan";
@@ -18,7 +25,7 @@ import textFixture from "../../schema/sync/fixtures/candidate-structured-text-v1
 import blockFixture from "../../schema/sync/fixtures/candidate-structured-block-v1.json";
 const fixture = {
   ...textFixture,
-  notes: [...textFixture.notes, ...blockFixture.notes],
+  notes: [...textFixture.notes, ...blockFixture.notes, ...tableFixture.notes],
 };
 import {
   deltaToProseMirror,
@@ -33,6 +40,10 @@ import { CURRENT_SYNC_CAPABILITIES } from "../../src/lib/sync/protocol-capabilit
 import { importData, exportData } from "../../src/lib/storage/db-export-import";
 import { idbAdapter } from "../../src/lib/storage/idb";
 const schema = getSchema([
+  ContentSizedTable,
+  TableRow,
+  AlignedTableCell,
+  AlignedTableHeader,
   DocumentStarterKit.configure({ codeBlock: false, blockquote: false }),
   CodeBlockLineNumbers,
   CollapsibleBlockquote,
@@ -437,5 +448,126 @@ it("rejects oversized nesting, quote versions/alerts and missing embed boundarie
   source.notes[0].content.ops.pop();
   expect(reviewCandidatePayload(JSON.stringify(source), "web").eligible).toBe(
     false,
+  );
+});
+
+type TestCellBody = {
+  extra?: boolean;
+  ops: {
+    insert: string | { image: string };
+    attributes?: Record<string, unknown>;
+  }[];
+};
+type TestTable = {
+  version: number;
+  extra?: boolean;
+  columns: { width?: number; extra?: boolean }[];
+  rows: {
+    extra?: boolean;
+    cells: {
+      header?: boolean;
+      rowspan?: number;
+      colspan?: number;
+      background?: string;
+      content: TestCellBody;
+      paragraphs: TestCellBody[];
+    }[];
+  }[];
+};
+it("certifies table features and rejects malformed or lossy cell structures", () => {
+  const content = tableFixture.notes[1].content;
+  const review = (body: unknown) =>
+    reviewCandidatePayload(
+      JSON.stringify({
+        ...tableFixture,
+        notes: [{ ...tableFixture.notes[1], content: body }],
+      }),
+      "web",
+    );
+  expect(review(content)).toMatchObject({
+    eligible: true,
+    requiredFeatures: expect.arrayContaining([
+      "table-block-v1",
+      "inline-appearance-v1",
+    ]),
+  });
+  const mutations: ((table: TestTable) => void)[] = [
+    (table) => {
+      table.version = 2;
+    },
+    (table) => {
+      table.extra = true;
+    },
+    (table) => {
+      table.columns[0].width = 10;
+    },
+    (table) => {
+      table.columns[0].extra = true;
+    },
+    (table) => {
+      table.rows[0].extra = true;
+    },
+    (table) => {
+      table.rows[0].cells[0].header = false;
+    },
+    (table) => {
+      table.rows[0].cells[0].rowspan = 3;
+    },
+    (table) => {
+      table.rows[0].cells[0].colspan = 3;
+    },
+    (table) => {
+      table.rows[0].cells[0].background = "rgb(1, 2, 3)";
+    },
+    (table) => {
+      table.rows[0].cells[0].content.extra = true;
+    },
+    (table) => {
+      table.rows[0].cells[0].paragraphs[0].ops[0].attributes!.link =
+        "https://example.com";
+    },
+    (table) => {
+      table.rows[0].cells[0].paragraphs[0].ops[0].insert = {
+        image: "image.png",
+      };
+    },
+    (table) => {
+      table.rows[0].cells[0].paragraphs[0].ops[0].insert = "different source";
+    },
+    (table) => {
+      table.rows[0].cells[0].content.ops.push({
+        insert: "\n",
+        attributes: { header: 2 },
+      });
+    },
+  ];
+  for (const mutate of mutations) {
+    const copy = structuredClone(content);
+    mutate((copy.ops[0].insert as unknown as { table: TestTable }).table);
+    expect(review(copy).eligible).toBe(false);
+  }
+});
+it("normalizes cell text fragments without losing paragraph boundaries or styles", () => {
+  const before = structuredClone(tableFixture.notes[1].content);
+  const after = structuredClone(before);
+  const table = (after.ops[0].insert as unknown as { table: TestTable }).table;
+  for (const body of [
+    table.rows[0].cells[0].content,
+    table.rows[0].cells[0].paragraphs[0],
+  ]) {
+    const first = body.ops[0];
+    body.ops.splice(
+      0,
+      1,
+      { ...first, insert: (first.insert as string).slice(0, 1) },
+      { ...first, insert: (first.insert as string).slice(1) },
+    );
+  }
+  expect(candidateBodyProjection(before)).toEqual(
+    candidateBodyProjection(after),
+  );
+  table.rows[0].cells[0].background = "#112233";
+  expect(candidateBodyProjection(before)).not.toEqual(
+    candidateBodyProjection(after),
   );
 });

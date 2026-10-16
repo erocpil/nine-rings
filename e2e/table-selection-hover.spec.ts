@@ -125,3 +125,34 @@ test(`源码选区折叠菜单锚定实际按钮并保持可操作 readonly=${re
   expect((await sourceInfo(source)).value).toBe(text);
 });
 }
+
+test("合并表格自动保存后正文通过认证且保留元数据门禁", async ({ page }) => {
+  await createBlankDocument(page);
+  const editor = page.locator(".note-editor:visible .tiptap.ProseMirror").first();
+  await editor.evaluate(async element => {
+    const { default: fixture } = await import("/schema/sync/fixtures/candidate-table-v1.json");
+    const { deltaToProseMirror } = await import("/src/lib/delta-converter.ts");
+    const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    instance.commands.setContent(deltaToProseMirror(fixture.notes[1].content), true);
+  });
+  await expect(editor.locator('th[colspan="2"][rowspan="2"]')).toHaveAttribute("data-background-color", "#dde8d8");
+  await editor.locator("th p").first().click();
+  await page.keyboard.type("edited");
+  await expect.poll(() => page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    const { reviewCandidatePayload } = await import("/src/lib/sync/candidate-write-policy.ts");
+    const { default: fixture } = await import("/schema/sync/fixtures/candidate-table-v1.json");
+    const note = await api.notes.get(localStorage.getItem("nr:lastNote")!);
+    if (!note || !JSON.stringify(note.content).includes("edited")) return false;
+    // Certify the table body separately. Real reference-anchor metadata remains
+    // outside this batch and must still block the complete document candidate.
+    const review = reviewCandidatePayload(JSON.stringify({ ...fixture, notes: [{ ...fixture.notes[1], content: { ops: note.content.ops } }] }), "web");
+    const full = reviewCandidatePayload(JSON.stringify({ ...fixture, notes: [{ ...fixture.notes[1], content: note.content }] }), "web");
+    const metadataBlocked = !note.content.metadata || !full.eligible;
+    return review.eligible && review.requiredFeatures.includes("table-block-v1") && metadataBlocked;
+  })).toBe(true);
+  await page.reload();
+  await expect(editor.locator('th[colspan="2"][rowspan="2"]')).toHaveAttribute("data-background-color", "#dde8d8");
+  await expect(editor.locator("th p")).toHaveCount(2);
+  await expect(editor.locator("th")).toContainText("edited");
+});

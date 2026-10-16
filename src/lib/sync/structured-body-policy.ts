@@ -1,3 +1,4 @@
+import { isCertifiedTable } from "./table-body-policy";
 import { deltaToProseMirror, proseMirrorToDelta } from "../delta-converter";
 import { normalizeEditorColor } from "../editor-color";
 import type { DeltaOps } from "../../types/models";
@@ -193,6 +194,27 @@ function validEmbed(op: Record<string, unknown>, depth: number): boolean {
     return false;
   const insert = op.insert;
   const child = (ops: unknown) => isCertifiedStructuredBody({ ops }, depth + 1);
+  if (record(insert.table)) {
+    return (
+      !Object.keys(attrs).some((key) => key.startsWith("blockquote")) &&
+      isCertifiedTable(insert.table, (ops) => {
+        if (
+          !Array.isArray(ops) ||
+          !ops.every(
+            (item) =>
+              record(item) &&
+              typeof item.insert === "string" &&
+              (!record(item.attributes) ||
+                !Object.keys(item.attributes).some(
+                  (key) => structural.has(key) || key === "header",
+                )),
+          )
+        )
+          return false;
+        return child([...ops, { insert: "\n" }]);
+      })
+    );
+  }
   if (record(insert.blockquote)) {
     const quote = insert.blockquote;
     return (
@@ -247,7 +269,21 @@ export function structuredBodyFeatures(
       )
         features.add("inline-appearance-v1");
       if (!record(op.insert)) continue;
-      features.add("structured-block-v1");
+      features.add(
+        record(op.insert.table) ? "table-block-v1" : "structured-block-v1",
+      );
+      if (record(op.insert.table) && Array.isArray(op.insert.table.rows)) {
+        for (const row of op.insert.table.rows)
+          if (record(row) && Array.isArray(row.cells)) {
+            for (const cell of row.cells)
+              if (record(cell)) {
+                if (record(cell.content)) visit(cell.content.ops, depth + 1);
+                if (Array.isArray(cell.paragraphs))
+                  for (const paragraph of cell.paragraphs)
+                    if (record(paragraph)) visit(paragraph.ops, depth + 1);
+              }
+          }
+      }
       if (record(op.insert.blockquote))
         visit(op.insert.blockquote.content, depth + 1);
       if (record(op.insert.list) && Array.isArray(op.insert.list.items))
