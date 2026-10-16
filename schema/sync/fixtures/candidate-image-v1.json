@@ -1,0 +1,242 @@
+{
+  "version": 2,
+  "exported_at": "2026-10-14T00:00:00Z",
+  "notes": [
+    {
+      "id": "image-embedded",
+      "date": "2026-10-14",
+      "title": "图片认证 embedded",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII="
+            },
+            "attributes": {
+              "imageAlt": "图片替代文本 中文",
+              "imageTitle": "标题 \"quoted\"",
+              "imageWidth": "240px",
+              "indent": 1,
+              "indent-explicit": true
+            }
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "image-remote",
+      "date": "2026-10-14",
+      "title": "图片认证 remote",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "image": "https://example.com/picture.png?a=1&b=2#image"
+            },
+            "attributes": {
+              "imageAlt": "Remote",
+              "imageWidth": 320
+            }
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "image-gif",
+      "date": "2026-10-14",
+      "title": "图片认证 gif",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "image": "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+            }
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "image-quote",
+      "date": "2026-10-14",
+      "title": "图片认证 quote",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "blockquote": {
+                "version": 1,
+                "content": [
+                  {
+                    "insert": {
+                      "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII="
+                    },
+                    "attributes": {
+                      "imageAlt": "图片替代文本 中文",
+                      "imageTitle": "标题 \"quoted\"",
+                      "imageWidth": "240px",
+                      "indent": 1,
+                      "indent-explicit": true
+                    }
+                  },
+                  {
+                    "insert": "\n"
+                  }
+                ]
+              }
+            },
+            "attributes": {
+              "blockquote": true
+            }
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "image-list",
+      "date": "2026-10-14",
+      "title": "图片认证 list",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "list": {
+                "version": 1,
+                "ordered": true,
+                "start": 3,
+                "spread": true,
+                "items": [
+                  {
+                    "checked": null,
+                    "content": [
+                      {
+                        "insert": "image list"
+                      },
+                      {
+                        "insert": "\n"
+                      },
+                      {
+                        "insert": {
+                          "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII="
+                        },
+                        "attributes": {
+                          "imageAlt": "图片替代文本 中文",
+                          "imageTitle": "标题 \"quoted\"",
+                          "imageWidth": "240px",
+                          "indent": 1,
+                          "indent-explicit": true
+                        }
+                      },
+                      {
+                        "insert": "\n"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    }
+  ]
+}

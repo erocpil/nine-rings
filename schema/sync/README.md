@@ -110,3 +110,9 @@ Dart 的共享编码、严格输入和 Note SQLite 模型测试已在远端 9aad
 ### Tauri 配置认证补充
 
 完整设置候选特性现为 `app-config-v1`（替代未发布的 `web-app-config-v1`），允许通过各自模型检查的 Web/Tauri 完整配置。Tauri 已补齐 15 项导航字段，并在配置保存/备份导入中恢复显式可空值。共享 `app-config-v1.json` 样本检查全部 83 字段在 Web 存储、原生文件和备份往返中保持一致；原生拒绝整数溢出/小数及孤立 UTF-16 代理项。Flutter 仍未认证，CURRENT_SYNC_CAPABILITIES 未改变。验收边界见实体计划中的 Tauri 配置认证章节。
+
+## 独立图片块候选特性（2026-10-16）
+
+候选 `block-image-v1` 在 Web/Tauri 扩展独立图片及列表/引用中的图片；共享 `fixtures/candidate-image-v1.json` 验证真实 schema 编辑/撤销、IDB/SQLite 往返及实体摘要/组装。HTTP(S) 与规范 Base64 PNG/JPEG/GIF/WebP data URI 可认证；原始本机引用需先由资源导出器解析，缺失资源失败。地址可移植不保证外部站点可访问或图片可解码；图片字节原样保留，不执行网络探测。
+
+字段/嵌入对象严格白名单，描述、尺寸和缩进参与摘要；未知字段、非规范宽度、未解析引用和未认证的 inlineImage 继续拒绝。独立图片认证不等于行内/表格图片或附件协议认证。Flutter 与生产读写能力不变，后续范围见[实体认证计划](../../docs/sync-entity-plan.md#独立图片块正文认证2026-10-16)。

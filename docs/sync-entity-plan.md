@@ -130,3 +130,15 @@
 共享样本 `candidate-reference-anchors-v1.json` 与真实锚点插件覆盖初始化、编辑映射、撤销恢复、IDB 导出/清空/导入和 SQLite 新库恢复。浏览器回归在合并表格中真正创建引用并自动保存：表格正文及完整锚点元数据均通过候选认证，额外未知元数据仍拒绝；刷新后表格内容保留。此前表格批次对 referenceAnchors 的暂拒结论由本批替代。
 
 仅 Web/Tauri 候选认证扩大；Flutter 不声明该能力，生产 `CURRENT_SYNC_CAPABILITIES.read/write` 仍为 0。下一批继续图片、脚注、受限 HTML 和特殊块，以及其它文档元数据认证；尚未开放正式增量上传或 Pull 应用。
+
+## 独立图片块正文认证（2026-10-16）
+
+增加候选能力 `block-image-v1`，覆盖 Delta 的独立 `image` 对象及已认证列表、引用中的图片。保留 `imageAlt`、`imageTitle`、正整数／正整数 px 宽度及手动缩进；图片地址、尺寸和描述均原样进入实体摘要，变更任何一项都会改变摘要。不新增图片存储格式，也不改动旧备份导入规则。
+
+认证对象是可移植图片表示：HTTP(S) 绝对地址，以及使用规范 Base64 的 PNG/JPEG/GIF/WebP data URI。相对路径、file/blob/nr-image 地址、含凭据地址、SVG/其它 data URI、非规范尺寸及未知属性均拒绝；不自动清除或改写以通过门禁。此边界证明字节与编辑语义往返，不证明远端链接可访问、图片可解码或离线可用；外部 HTTP(S) 图片仍依赖原站。
+
+本机 `nr-image://` 必须先经现有资源导出器解析成 data URI，再交给候选审查。单元回归验证有资源时正确内嵌、资源缺失时明确失败；没有引入外置附件上传或替换生产 Push。
+
+共享 `candidate-image-v1.json` 覆盖内嵌／远端图片、数值／px 宽度、替代文本与标题、列表／引用嵌套。验证真实 schema 的图片属性编辑与撤销、IDB 更新／导出／清空恢复、原生 SQLite 更新／新库恢复、摘要变化及显式冲突来源组装；Chromium/WebKit 各覆盖桌面及手机宽度的触摸缩放、实际自动保存、完整候选认证和刷新保留。
+
+本批不认证 `inlineImage`、表格内图片、图片链接 mark、百分比宽度及其它未验证表示。后续先补行内／表格图片，再继续脚注、受限 HTML、特殊渲染块和其它元数据。Flutter 仍拒绝，生产 `CURRENT_SYNC_CAPABILITIES.read/write` 保持 0；原生 GUI 和真实远端上传未执行。

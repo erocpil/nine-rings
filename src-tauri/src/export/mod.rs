@@ -352,6 +352,7 @@ mod tests {
             include_str!("../../../schema/sync/fixtures/candidate-structured-text-v1.json"),
             include_str!("../../../schema/sync/fixtures/candidate-structured-block-v1.json"),
             include_str!("../../../schema/sync/fixtures/candidate-table-v1.json"),
+            include_str!("../../../schema/sync/fixtures/candidate-image-v1.json"),
             include_str!("../../../schema/sync/fixtures/candidate-reference-anchors-v1.json"),
         ] {
             let expected: serde_json::Value = serde_json::from_str(json).unwrap();

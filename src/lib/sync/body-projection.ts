@@ -26,7 +26,9 @@ export function candidateBodyProjection(body: unknown, depth = 0): unknown {
       const project = (ops: unknown) =>
         (candidateBodyProjection({ ops }, depth + 1) as { ops: unknown }).ops;
       let projected: Record<string, unknown>;
-      if (insert.table && typeof insert.table === "object") {
+      if (typeof insert.image === "string") {
+        projected = { image: insert.image };
+      } else if (insert.table && typeof insert.table === "object") {
         const table = insert.table as Record<string, unknown>;
         const inline = (body: unknown) => ({
           ops: project((body as { ops: unknown }).ops),

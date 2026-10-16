@@ -1624,3 +1624,11 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - 完整 `npm run check` 通过：150 文件 / 1797 项 Vitest，以及类型、lint、格式、npm test、覆盖率和 IPC。最终补充非法类型回归后，相关 3 文件 / 62 项再次通过。
 - Chromium/WebKit 表格引用定向回归各 1 项通过：真实创建引用、自动保存、完整候选认证和未知元数据拒绝；增加刷新后实际编辑器锚点与保存值一致的断言。生产构建及体积预算通过，主包约 470 kB。
 - 未运行完整产品 E2E、原生 GUI 人工验收或远端 CI；书签、来源、发布等其它正文元数据以及剩余嵌入类型仍待认证。
+
+### 2026-10-16：独立图片块候选认证
+
+- 范围：`block-image-v1` 的可移植独立图片、列表/引用嵌套、描述和尺寸；不开放生产增量协议或 Flutter 写入。
+- `npm run check` 全部通过，Vitest 151 文件 / 1821 项；含 23 项图片候选检查，覆盖真实 schema 编辑/撤销、IDB 往返、摘要/冲突组装、本机资源内嵌及缺失失败。
+- `e2e/sync-image-body.spec.ts`：Chromium 2 项、WebKit 2 项，通过桌面/手机宽度的实际触摸缩放、自动保存、完整候选审查和刷新。
+- 原生 SQLite `candidate_structured_text_survives_sqlite_edits_and_fresh_restore` 1 项通过，新增共享图片样本；生产构建通过，主包约 470 kB，无 chunk 超限警告。
+- 未执行全量浏览器 E2E、原生 GUI、真实远端上传；外部图片可访问性和数据图像解码不属于候选字节保留认证。本批没有改变共享数据库 schema 或旧备份格式。

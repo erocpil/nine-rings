@@ -1,3 +1,4 @@
+import { isCertifiedBlockImage } from "./image-body-policy";
 import { isCertifiedTable } from "./table-body-policy";
 import { deltaToProseMirror, proseMirrorToDelta } from "../delta-converter";
 import { normalizeEditorColor } from "../editor-color";
@@ -175,6 +176,8 @@ function validEmbed(op: Record<string, unknown>, depth: number): boolean {
   )
     return false;
   const attrs = op.attributes ?? {};
+  if (record(attrs) && typeof op.insert.image === "string")
+    return isCertifiedBlockImage(op.insert.image, attrs);
   if (
     !record(attrs) ||
     Object.entries(attrs).some(([key, value]) => {
@@ -270,7 +273,11 @@ export function structuredBodyFeatures(
         features.add("inline-appearance-v1");
       if (!record(op.insert)) continue;
       features.add(
-        record(op.insert.table) ? "table-block-v1" : "structured-block-v1",
+        record(op.insert.table)
+          ? "table-block-v1"
+          : typeof op.insert.image === "string"
+            ? "block-image-v1"
+            : "structured-block-v1",
       );
       if (record(op.insert.table) && Array.isArray(op.insert.table.rows)) {
         for (const row of op.insert.table.rows)
