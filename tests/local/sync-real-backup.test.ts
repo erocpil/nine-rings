@@ -13,6 +13,9 @@ import {
 import { readPullAttempt } from "../../src/lib/sync/pull-store";
 const inputPath = process.env.NR_SYNC_DRY_RUN_INPUT;
 const selectedRuntime = process.env.NR_SYNC_DRY_RUN_RUNTIME;
+const scenario = process.env.NR_SYNC_DRY_RUN_SCENARIO ?? "mixed";
+if (scenario !== "mixed" && scenario !== "all-documents")
+  throw Error("NR_SYNC_DRY_RUN_SCENARIO must be mixed or all-documents");
 if (
   selectedRuntime !== undefined &&
   selectedRuntime !== "web" &&
@@ -194,6 +197,10 @@ async function setup(runtime: "web" | "tauri") {
   local.notes[0].title = "本机新标题";
   local.notes[1].title = "尚未接受的远端选择";
   local.templates[0].name = "应当被忽略";
+  if (scenario === "all-documents") {
+    for (const note of local.notes) note.title += " [rehearsal]";
+    for (const template of local.templates) template.name += " [rehearsal]";
+  }
   const localSource = JSON.stringify(local);
   const review = await prepareEntityReview({
     report,
@@ -214,11 +221,23 @@ async function setup(runtime: "web" | "tauri") {
       action,
     };
   };
-  const choices = [
-    choose("note", local.notes[0].id, "local"),
-    choose("note", local.notes[1].id, "remote"),
-    choose("template", local.templates[0].id, "ignore"),
-  ];
+  const choices: EntityChoice[] =
+    scenario === "all-documents"
+      ? review.rows
+          .filter(
+            (row) => row.localHash !== null && row.localHash !== row.remoteHash,
+          )
+          .map((row) => ({
+            key: row.key,
+            localHash: row.localHash,
+            remoteHash: row.remoteHash,
+            action: "local",
+          }))
+      : [
+          choose("note", local.notes[0].id, "local"),
+          choose("note", local.notes[1].id, "remote"),
+          choose("template", local.templates[0].id, "ignore"),
+        ];
   const input = {
     review,
     choices,
@@ -366,7 +385,9 @@ it.each(runtimes)(
       }),
     );
     expect(patchCalls).toBe(1);
-    expect((await readAcceptedEntities(attempt.spaceId)).length).toBe(1);
+    expect((await readAcceptedEntities(attempt.spaceId)).length).toBe(
+      s.input.choices.filter((choice) => choice.action === "local").length,
+    );
     const publicationMs = performance.now() - started;
 
     // A fresh local namespace simulates the receiving client; no application DB.
@@ -379,7 +400,8 @@ it.each(runtimes)(
         req.onsuccess = () => resolve();
         req.onerror = () => reject(req.error);
       });
-    let source = s.localSource;
+    let source =
+      scenario === "all-documents" ? JSON.stringify(fixture) : s.localSource;
     const report = await inspectRemoteProtocol(s.git.request, {
       owner: "example",
       repo: "backup",
@@ -449,6 +471,7 @@ it.each(runtimes)(
     console.log(
       JSON.stringify({
         runtime,
+        scenario,
         publicationBytes,
         peakRssKiB: process.resourceUsage().maxRSS,
         targetBytes,
