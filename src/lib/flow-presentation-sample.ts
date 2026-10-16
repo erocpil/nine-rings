@@ -1,3 +1,4 @@
+import { BUILTIN_DEMO_PATH, finishBuiltinDemoCreation } from "./builtin-demo-location";
 import legacyMarkdown from "./flow-presentation-sample-v1.md?raw";
 import { deltaToProseMirror } from "./delta-converter";
 import markdown from "./flow-presentation-sample.md?raw";
@@ -17,7 +18,7 @@ export function ensureFlowPresentationSample(): Promise<boolean> {
     const documents = await api.docs.search({});
     const existing = documents.find(
       (note) =>
-        note.storagePath === "ideas" && note.title === FLOW_SAMPLE_TITLE,
+        (note.storagePath === "ideas" || note.storagePath === BUILTIN_DEMO_PATH) && note.title === FLOW_SAMPLE_TITLE,
     );
     if (existing) {
       const current = await api.notes.get(existing.id);
@@ -45,10 +46,11 @@ export function ensureFlowPresentationSample(): Promise<boolean> {
     const note = await api.notes.create({
       date,
       title: FLOW_SAMPLE_TITLE,
-      storagePath: "ideas",
+      storagePath: BUILTIN_DEMO_PATH,
       content: mdToDelta(markdown),
       tags: ["流程展示", "效果验证"],
     });
+    await finishBuiltinDemoCreation(note.id);
     localStorage.setItem(FLOW_SAMPLE_KEY, note.id);
     return true;
   };

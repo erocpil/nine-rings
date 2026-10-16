@@ -1,7 +1,14 @@
 import { beforeEach, afterEach, expect, test, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ search: vi.fn(), create: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  search: vi.fn(),
+  create: vi.fn(),
+  setMetadata: vi.fn(),
+}));
 vi.mock("../../src/lib/api", () => ({
-  api: { docs: { search: mocks.search }, notes: { create: mocks.create } },
+  api: {
+    docs: { search: mocks.search },
+    notes: { create: mocks.create, update: mocks.setMetadata },
+  },
 }));
 import {
   ensureAestheticStyleSample,
@@ -15,12 +22,13 @@ beforeEach(() => {
     setItem: (key: string, value: string) => values.set(key, value),
   });
   vi.stubGlobal("navigator", {});
+  mocks.setMetadata.mockReset().mockResolvedValue({});
   mocks.search.mockReset().mockResolvedValue([]);
   mocks.create.mockReset().mockResolvedValue({ id: "sample-id" });
 });
 afterEach(() => vi.unstubAllGlobals());
 
-test("concurrent startup adds one ideas sample and leaves edited or deleted copies alone", async () => {
+test("concurrent startup adds one readonly demo sample and leaves edited or deleted copies alone", async () => {
   await Promise.all([
     ensureAestheticStyleSample(),
     ensureAestheticStyleSample(),
@@ -28,7 +36,7 @@ test("concurrent startup adds one ideas sample and leaves edited or deleted copi
   expect(mocks.create).toHaveBeenCalledTimes(1);
   expect(mocks.create.mock.calls[0][0]).toMatchObject({
     title: AESTHETIC_SAMPLE_TITLE,
-    storagePath: "ideas",
+    storagePath: "demo",
   });
   expect(JSON.stringify(mocks.create.mock.calls[0][0].content)).toContain(
     "幽玄",

@@ -18,7 +18,7 @@ for (const width of [390, 1280]) test(`内置 Markdown 全景演示 ${width}`, a
   await expect.poll(() => page.evaluate(async () => {
     const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
     return useNotesStore.getState().selectedNote?.storagePath;
-  })).toBe("ideas");
+  })).toBe("demo");
   const readonlyToggle = page.getByRole("button", { name: "点击设为只读", exact: true });
   if (await readonlyToggle.isVisible()) await readonlyToggle.click();
   const root = page.locator(".note-editor:visible .editor-content").first();
@@ -149,4 +149,29 @@ for (const showNumbers of [undefined, false, true]) test(`已有 Markdown 全景
   await page.getByRole("button", { name: "源码", exact: true }).click();
   const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
   expect((await sourceInfo(area)).value).toContain("````flow\n### 捕捉");
+});
+
+test("旧 ideas 示例迁到 demo 并只读，保留三份原文与身份", async ({ page }) => {
+  await page.goto("/");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:builtin-markdown-demo:v1"))).not.toBeNull();
+  const before = await page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    const keys = ["nr:builtin-aesthetic-sample:v1", "nr:builtin-flow-sample:v2", "nr:builtin-markdown-demo:v1"];
+    const saved = [];
+    for (const key of keys) {
+      const id = localStorage.getItem(key)!;
+      const note = await api.notes.update(id, { storagePath: "ideas", readonly: false });
+      localStorage.removeItem(`nr:builtin-demo-location:v1:${id}`);
+      saved.push({ id, content: note.content });
+    }
+    return saved;
+  });
+  await page.reload();
+  await expect.poll(() => page.evaluate(async before => {
+    const { api } = await import("/src/lib/api.ts");
+    return Promise.all(before.map(async previous => {
+      const note = await api.notes.get(previous.id);
+      return !!note && note.readonly && note.storagePath === "demo" && JSON.stringify(note.content) === JSON.stringify(previous.content);
+    }));
+  }, before)).toEqual([true, true, true]);
 });

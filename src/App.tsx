@@ -918,10 +918,12 @@ function App() {
           { ensureAestheticStyleSample },
           { ensureFlowPresentationSample },
           { ensureMarkdownDemo, MARKDOWN_DEMO_KEY },
+          { migrateBuiltinDemoLocations },
         ] = await Promise.all([
           import("./lib/aesthetic-style-sample"),
           import("./lib/flow-presentation-sample"),
           import("./lib/markdown-demo"),
+          import("./lib/builtin-demo-location"),
         ]);
         const upgradeMarkdownDemo = async () => {
           if (!await ensureMarkdownDemo()) return;
@@ -944,6 +946,7 @@ function App() {
           if (await ensureAestheticStyleSample()) refreshNoteViews();
           if (await ensureFlowPresentationSample()) refreshNoteViews();
           await upgradeMarkdownDemo();
+          if (await migrateBuiltinDemoLocations()) refreshNoteViews();
           return;
         }
         // 整个工作区为空 → 写入示例笔记
@@ -964,6 +967,7 @@ function App() {
         if (await ensureAestheticStyleSample()) refreshNoteViews();
         if (await ensureFlowPresentationSample()) refreshNoteViews();
         await upgradeMarkdownDemo();
+        if (await migrateBuiltinDemoLocations()) refreshNoteViews();
       } catch {
         // 静默忽略——非首次运行或环境问题
       }

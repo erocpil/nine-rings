@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, expect, test, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   search: vi.fn(),
+  setMetadata: vi.fn(),
   create: vi.fn(),
   get: vi.fn(),
   update: vi.fn(),
@@ -10,6 +11,7 @@ vi.mock("../../src/lib/api", () => ({
     docs: { search: mocks.search },
     notes: {
       create: mocks.create,
+      update: mocks.setMetadata,
       get: mocks.get,
       replaceContent: mocks.update,
     },
@@ -27,6 +29,7 @@ beforeEach(() => {
     setItem: (key: string, value: string) => values.set(key, value),
   });
   vi.stubGlobal("navigator", {});
+  mocks.setMetadata.mockReset().mockResolvedValue({});
   mocks.search.mockReset().mockResolvedValue([]);
   mocks.get.mockReset().mockResolvedValue(null);
   mocks.update.mockReset().mockResolvedValue({ id: "existing" });
@@ -34,7 +37,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-test("concurrent startup adds one ideas sample and leaves edited or deleted copies alone", async () => {
+test("concurrent startup adds one readonly demo sample and leaves edited or deleted copies alone", async () => {
   await Promise.all([
     ensureFlowPresentationSample(),
     ensureFlowPresentationSample(),
@@ -42,7 +45,7 @@ test("concurrent startup adds one ideas sample and leaves edited or deleted copi
   expect(mocks.create).toHaveBeenCalledTimes(1);
   expect(mocks.create.mock.calls[0][0]).toMatchObject({
     title: FLOW_SAMPLE_TITLE,
-    storagePath: "ideas",
+    storagePath: "demo",
   });
   expect(JSON.stringify(mocks.create.mock.calls[0][0].content)).toContain(
     "阶段",

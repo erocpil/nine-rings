@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   search: vi.fn(),
+  setMetadata: vi.fn(),
   create: vi.fn(),
   get: vi.fn(),
   update: vi.fn(),
@@ -12,6 +13,7 @@ vi.mock("../../src/lib/api", () => ({
     docs: { search: mocks.search },
     notes: {
       create: mocks.create,
+      update: mocks.setMetadata,
       get: mocks.get,
       replaceContent: mocks.update,
     },
@@ -42,6 +44,7 @@ beforeEach(() => {
     setItem: (key: string, value: string) => values.set(key, value),
   });
   vi.stubGlobal("navigator", {});
+  mocks.setMetadata.mockReset().mockResolvedValue({});
   mocks.search.mockReset().mockResolvedValue([]);
   mocks.create.mockReset().mockResolvedValue({ id: "demo" });
   mocks.get.mockReset().mockResolvedValue(null);
@@ -53,13 +56,13 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-test("creates one ideas document and preserves source syntax for viewing", async () => {
+test("creates one readonly demo document and preserves source syntax for viewing", async () => {
   await Promise.all([ensureMarkdownDemo(), ensureMarkdownDemo()]);
   expect(mocks.create).toHaveBeenCalledTimes(1);
   const input = mocks.create.mock.calls[0][0];
   expect(input).toMatchObject({
     title: MARKDOWN_DEMO_TITLE,
-    storagePath: "ideas",
+    storagePath: "demo",
     docType: "reference",
   });
   const source = input.content.metadata.markdownSource;

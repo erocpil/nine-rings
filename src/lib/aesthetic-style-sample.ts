@@ -1,3 +1,4 @@
+import { BUILTIN_DEMO_PATH, finishBuiltinDemoCreation } from "./builtin-demo-location";
 import markdown from "./aesthetic-style-sample.md?raw";
 import { api } from "./api";
 import { mdToDelta } from "./md-parser";
@@ -14,7 +15,7 @@ export function ensureAestheticStyleSample(): Promise<boolean> {
     const documents = await api.docs.search({});
     const existing = documents.find(
       (note) =>
-        note.storagePath === "ideas" && note.title === AESTHETIC_SAMPLE_TITLE,
+        (note.storagePath === "ideas" || note.storagePath === BUILTIN_DEMO_PATH) && note.title === AESTHETIC_SAMPLE_TITLE,
     );
     if (existing) {
       localStorage.setItem(AESTHETIC_SAMPLE_KEY, existing.id);
@@ -25,10 +26,11 @@ export function ensureAestheticStyleSample(): Promise<boolean> {
     const note = await api.notes.create({
       date,
       title: AESTHETIC_SAMPLE_TITLE,
-      storagePath: "ideas",
+      storagePath: BUILTIN_DEMO_PATH,
       content: mdToDelta(markdown),
       tags: ["界面风格", "效果验证"],
     });
+    await finishBuiltinDemoCreation(note.id);
     localStorage.setItem(AESTHETIC_SAMPLE_KEY, note.id);
     return true;
   };
