@@ -42,6 +42,8 @@ export function candidateBodyProjection(body: unknown, depth = 0): unknown {
           ),
         };
       } else if (
+        typeof insert.mathInline === "string" ||
+        typeof insert.mathBlock === "string" ||
         typeof insert.rawHtml === "string" ||
         typeof insert.rawHtmlInline === "string" ||
         typeof insert.htmlAnchor === "string"

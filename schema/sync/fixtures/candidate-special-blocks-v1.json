@@ -1,0 +1,635 @@
+{
+  "version": 2,
+  "exported_at": "2026-10-14T00:00:00Z",
+  "notes": [
+    {
+      "id": "special-mermaid",
+      "date": "2026-10-14",
+      "title": "特殊块认证 mermaid",
+      "content": {
+        "ops": [
+          {
+            "insert": "前文"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "flowchart LR\n A[\"中文输入\"] -->|\"DMA\"| B[\"输出\"]"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true,
+              "indent": 1,
+              "indent-explicit": true,
+              "language": "mermaid",
+              "code-meta": "title=\"网关\"",
+              "code-title": "网关源码",
+              "code-wrap": false,
+              "code-collapsed": true
+            }
+          },
+          {
+            "insert": "后文"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "special-flow",
+      "date": "2026-10-14",
+      "title": "特殊块认证 flow",
+      "content": {
+        "ops": [
+          {
+            "insert": "### 输入\n\n- 条件\n\n> **验证**\n\n### 输出\n\n|结果|说明|\n|---|---|\n|成功|保留|"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true,
+              "indent-explicit": true,
+              "language": "flow"
+            }
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "special-toc",
+      "date": "2026-10-14",
+      "title": "特殊块认证 toc",
+      "content": {
+        "ops": [
+          {
+            "insert": "levels: 1,3,6"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true,
+              "indent-explicit": true,
+              "language": "toc"
+            }
+          },
+          {
+            "insert": "开始"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 1
+            }
+          },
+          {
+            "insert": "章节"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "末级"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 6
+            }
+          },
+          {
+            "insert": "正文"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "special-math",
+      "date": "2026-10-14",
+      "title": "特殊块认证 math",
+      "content": {
+        "ops": [
+          {
+            "insert": "行内 "
+          },
+          {
+            "insert": {
+              "mathInline": "E=mc^2"
+            }
+          },
+          {
+            "insert": " 及 "
+          },
+          {
+            "insert": {
+              "mathInline": "x_1+x_2"
+            },
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "mathBlock": "\\int_0^1 x\\,dx=\\frac{1}{2}"
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "special-nested",
+      "date": "2026-10-14",
+      "title": "特殊块认证 nested",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "list": {
+                "version": 1,
+                "ordered": false,
+                "start": 1,
+                "spread": false,
+                "items": [
+                  {
+                    "checked": null,
+                    "content": [
+                      {
+                        "insert": "列表 "
+                      },
+                      {
+                        "insert": {
+                          "mathInline": "x^2"
+                        }
+                      },
+                      {
+                        "insert": "\n"
+                      },
+                      {
+                        "insert": "flowchart TB\n A --> B"
+                      },
+                      {
+                        "insert": "\n",
+                        "attributes": {
+                          "code-block": true,
+                          "indent-explicit": true,
+                          "language": "mermaid"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "blockquote": {
+                "version": 1,
+                "content": [
+                  {
+                    "insert": "引用"
+                  },
+                  {
+                    "insert": "\n"
+                  },
+                  {
+                    "insert": "### 步骤\n\n正文 $x$"
+                  },
+                  {
+                    "insert": "\n",
+                    "attributes": {
+                      "code-block": true,
+                      "indent-explicit": true,
+                      "language": "flow"
+                    }
+                  }
+                ]
+              }
+            },
+            "attributes": {
+              "blockquote": true,
+              "indent-explicit": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "htmlDetails": {
+                "summary": "嵌套目录",
+                "open": true,
+                "content": [
+                  {
+                    "insert": "levels: 2,3"
+                  },
+                  {
+                    "insert": "\n",
+                    "attributes": {
+                      "code-block": true,
+                      "indent-explicit": true,
+                      "language": "toc"
+                    }
+                  },
+                  {
+                    "insert": {
+                      "mathBlock": "x+y"
+                    },
+                    "attributes": {}
+                  },
+                  {
+                    "insert": "\n"
+                  }
+                ]
+              }
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "special-table",
+      "date": "2026-10-14",
+      "title": "特殊块认证 table",
+      "content": {
+        "ops": [
+          {
+            "insert": {
+              "table": {
+                "version": 1,
+                "columns": [
+                  {
+                    "align": null
+                  },
+                  {
+                    "align": null
+                  }
+                ],
+                "rows": [
+                  {
+                    "cells": [
+                      {
+                        "header": true,
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "公式"
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "header": true,
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "其它"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "cells": [
+                      {
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": {
+                                "mathInline": "x_1"
+                              }
+                            },
+                            {
+                              "insert": "\n",
+                              "attributes": {
+                                "hard-break": true
+                              }
+                            },
+                            {
+                              "insert": {
+                                "mathInline": "y^2"
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "content": {
+                          "ops": [
+                            {
+                              "insert": "正常"
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "special-drafts",
+      "date": "2026-10-14",
+      "title": "特殊块认证 drafts",
+      "content": {
+        "ops": [
+          {
+            "insert": "flowchart ?"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true,
+              "indent-explicit": true,
+              "language": "mermaid"
+            }
+          },
+          {
+            "insert": "未完成 **"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true,
+              "indent-explicit": true,
+              "language": "flow"
+            }
+          },
+          {
+            "insert": "levels: pending"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true,
+              "indent-explicit": true,
+              "language": "toc"
+            }
+          },
+          {
+            "insert": {
+              "mathBlock": "\\unknowncommand{"
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    },
+    {
+      "id": "special-footnotes",
+      "date": "2026-10-14",
+      "title": "特殊块认证 footnotes",
+      "content": {
+        "ops": [
+          {
+            "insert": "正文"
+          },
+          {
+            "insert": "1",
+            "attributes": {
+              "footnoteRef": "one",
+              "footnoteNumber": 1,
+              "footnoteOccurrence": 1
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "### 来源\n\n嵌套引用[^inner]\n\n[^inner]: 只属于流程内部"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true,
+              "indent-explicit": true,
+              "language": "flow"
+            }
+          },
+          {
+            "insert": {
+              "hr": true
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": {
+              "footnotes": [
+                {
+                  "id": "one",
+                  "number": 1,
+                  "references": 1,
+                  "content": [
+                    {
+                      "insert": "说明 "
+                    },
+                    {
+                      "insert": {
+                        "mathInline": "x"
+                      }
+                    },
+                    {
+                      "insert": "\n"
+                    },
+                    {
+                      "insert": "graph TD\nA --> B"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "code-block": true,
+                        "indent-explicit": true,
+                        "language": "mermaid"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "attributes": {}
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "search_text": "派生文本",
+      "tags": [
+        "跨端"
+      ],
+      "pinned": false,
+      "readonly": false,
+      "sort_order": 2,
+      "created_at": "2026-10-14T00:00:00Z",
+      "updated_at": "2026-10-14T00:00:00Z",
+      "storage_path": "references/sync",
+      "doc_type": "reference",
+      "concepts": [
+        "编码"
+      ],
+      "linked_doc_ids": [
+        "other-001"
+      ]
+    }
+  ]
+}

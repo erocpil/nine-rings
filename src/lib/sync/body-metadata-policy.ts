@@ -31,7 +31,9 @@ function nodeSize(node: JSONContent): number {
     node.type === "horizontalRule" ||
     node.type === "rawHtml" ||
     node.type === "rawHtmlInline" ||
-    node.type === "htmlAnchor"
+    node.type === "htmlAnchor" ||
+    node.type === "mathInline" ||
+    node.type === "mathBlock"
   )
     return 1;
   if (!node.type || !containers.has(node.type))

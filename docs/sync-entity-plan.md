@@ -174,3 +174,15 @@
 共享 `candidate-html-v1.json` 覆盖上下标/高亮/换行、嵌套 details、跨列表/引用/表格的脚注、惰性块/行内 HTML、注释和中文锚点。真实 schema 编辑/撤销、summary/open 修改、IDB 与 SQLite 导出及新库恢复、实体摘要和完整实体选择均纳入回归。浏览器验证折叠工作区编辑、普通/虚拟只读的惰性呈现及保存刷新。
 
 生产 `CURRENT_SYNC_CAPABILITIES.read/write` 保持 0，Flutter 继续拒绝未认证能力；并未开放正式增量备份、Pull 应用或远端上传。下一批为 Mermaid/flow/toc/公式等特殊渲染块及剩余元数据。
+
+## 特殊渲染块正文认证（2026-10-16）
+
+新增候选特性 `mermaid-block-v1`、`flow-block-v1`、`automatic-toc-v1` 和 `math-v1`。前三者沿用真实编辑器的 codeBlock 编码，保存完整源码及 language、meta、title、wrap、collapsed、缩进；自动目录的 levels 保留在源码中，不把派生目录条目写回正文。公式保留 mathInline/mathBlock 的 source、行内标记和精确位置，支持表格单元格、列表/引用、details 与脚注中的已认证表示。公式原子大小为 1，纳入引用锚点范围校验。
+
+源码是内容权威，不以渲染成功作为备份条件：保留空公式、无效 Mermaid/LaTeX、未完成的 flow/toc 草稿。代码/公式源码与配置均进入摘要；未知字段、块格式误放到行内原子、孤立 Unicode 代理字符及有损组合继续拒绝。完整文档经过一次 Delta → ProseMirror → Delta 的严格语义比较，不对 source 做美化、转义、截断或“修正”。flow 内部 Markdown 的派生结构只用于资源检查，其脚注属于内部作用域，不能与外层脚注混合重编号。
+
+资源边界：flow 内部及嵌套 flow 的图片必须已经内嵌为已认证 data URL 或使用 HTTP(S)，本机/相对地址、未解析 nr-image 和不支持的图片源均拒绝。Mermaid 的图片资源语法尚未完成可移植认证，因此保守拒绝 img 指令、HTML img 和本机 scheme（即使出现在示例文字中）；普通无图片图表及无效草稿可认证。外部 HTTP(S) 资源的可用性不由候选认证保证，渲染继续沿用 Mermaid strict 和 KaTeX trust:false，本批未新增执行 HTML 或脚本的能力。
+
+共享 `candidate-special-blocks-v1.json` 覆盖中文 Mermaid、H3 步骤 flow、非连续 toc 层级、行内/块级公式、带标记公式、表格/列表/引用/details/脚注嵌套及无效草稿。真实 codeBlock/Math schema 的正文与原子属性编辑、撤销、配置摘要变化、整体实体选择、IDB 导出/新库恢复及 SQLite 同一夹具恢复均有回归。浏览器组合四种块验证真实自动保存、引用锚点、桌面/手机、普通/虚拟只读刷新；桌面还验证源码并排预览。
+
+仅扩展 Web/Tauri 候选范围。生产 CURRENT_SYNC_CAPABILITIES.read/write 仍为 0，Flutter 不声明这些能力；未认证来源、书签/发布等元数据与其它未认证正文继续拒绝。后续完成剩余正文/元数据认证，再推进对象上传准备、Pull 应用与接受日志；未执行真实远端上传或原生 GUI 验收。

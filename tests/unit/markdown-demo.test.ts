@@ -62,7 +62,7 @@ test("creates one readonly demo document and preserves source syntax for viewing
   const input = mocks.create.mock.calls[0][0];
   expect(input).toMatchObject({
     title: MARKDOWN_DEMO_TITLE,
-    storagePath: "demo",
+    storagePath: "ideas",
     docType: "reference",
   });
   const source = input.content.metadata.markdownSource;

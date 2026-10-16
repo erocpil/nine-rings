@@ -1,3 +1,5 @@
+import { hasPortableRenderedResources } from "./rendered-source-policy";
+import { isCertifiedInlineAtomAttributes } from "./inline-atom-policy";
 import {
   isCertifiedHTMLDetails,
   isCertifiedHTMLInline,
@@ -75,6 +77,22 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
   for (let index = 0; index < ops.length; index++) {
     const op = ops[index];
     if (record(op) && record(op.insert)) {
+      if ("mathInline" in op.insert) {
+        if (
+          Object.keys(op).some(
+            (key) => !["insert", "attributes"].includes(key),
+          ) ||
+          Object.keys(op.insert).length !== 1 ||
+          !isCertifiedHTMLSource(op.insert.mathInline) ||
+          (op.attributes !== undefined && !record(op.attributes)) ||
+          !isCertifiedInlineAtomAttributes(
+            (op.attributes ?? {}) as Record<string, unknown>,
+          )
+        )
+          return false;
+        markedText = true;
+        continue;
+      }
       if ("rawHtmlInline" in op.insert || "htmlAnchor" in op.insert) {
         if (
           Object.keys(op).some(
@@ -127,6 +145,7 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
     if (
       !record(op) ||
       typeof op.insert !== "string" ||
+      !isCertifiedHTMLSource(op.insert) ||
       op.insert.includes("\r") ||
       Object.keys(op).some((k) => !["insert", "attributes"].includes(k))
     )
@@ -168,11 +187,7 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
           if (value !== "bullet" && value !== "ordered") return false;
         } else if (["language", "code-meta", "code-title"].includes(key)) {
           if (typeof value !== "string" || !value) return false;
-          if (
-            key === "language" &&
-            /^(mermaid|flow|toc|math|latex)$/i.test(value.trim())
-          )
-            return false;
+          if (!isCertifiedHTMLSource(value)) return false;
         } else if (key === "taskChecked") {
           if (typeof value !== "boolean") return false;
         } else if (key === "code-wrap") {
@@ -226,9 +241,9 @@ export function isCertifiedStructuredBody(
 ): boolean {
   if (!certifiedBodyShape(body)) return false;
   try {
-    const restored = proseMirrorToDelta(
-      deltaToProseMirror(body as unknown as DeltaOps),
-    );
+    const document = deltaToProseMirror(body as unknown as DeltaOps);
+    if (!hasPortableRenderedResources(document)) return false;
+    const restored = proseMirrorToDelta(document);
     // Reject misplaced attributes, inconsistent numbering/nesting, lossy combinations,
     // and changed embed boundaries. Do not silently rewrite the user's content.
 
@@ -275,6 +290,11 @@ function validEmbed(op: Record<string, unknown>, depth: number): boolean {
       !Object.keys(attrs).some((key) => key.startsWith("blockquote")) &&
       isCertifiedHTMLDetails(insert.htmlDetails, child)
     );
+  if (typeof insert.mathBlock === "string")
+    return (
+      !Object.keys(attrs).some((key) => key.startsWith("blockquote")) &&
+      isCertifiedHTMLSource(insert.mathBlock)
+    );
   if (typeof insert.rawHtml === "string")
     return (
       Object.keys(attrs).length === 0 && isCertifiedHTMLSource(insert.rawHtml)
@@ -300,7 +320,8 @@ function validEmbed(op: Record<string, unknown>, depth: number): boolean {
                   Object.keys(item.insert).length === 1 &&
                   (record(item.insert.inlineImage) ||
                     "rawHtmlInline" in item.insert ||
-                    "htmlAnchor" in item.insert))) &&
+                    "htmlAnchor" in item.insert ||
+                    "mathInline" in item.insert))) &&
               (!record(item.attributes) ||
                 !Object.keys(item.attributes).some(
                   (key) =>
@@ -373,25 +394,37 @@ export function structuredBodyFeatures(
         features.add("restricted-html-v1");
       if (record(op.attributes) && op.attributes["hard-break"] === true)
         features.add("hard-break-v1");
+      if (record(op.attributes) && op.attributes["code-block"] === true) {
+        const language =
+          typeof op.attributes.language === "string"
+            ? op.attributes.language.trim().toLowerCase()
+            : "";
+        if (language === "mermaid") features.add("mermaid-block-v1");
+        if (language === "flow") features.add("flow-block-v1");
+        if (language === "toc") features.add("automatic-toc-v1");
+      }
       if (!record(op.insert)) continue;
       features.add(
-        record(op.insert.table)
-          ? "table-block-v1"
-          : record(op.insert.htmlDetails) ||
-              typeof op.insert.htmlAnchor === "string"
-            ? "restricted-html-v1"
-            : typeof op.insert.rawHtml === "string" ||
-                typeof op.insert.rawHtmlInline === "string"
-              ? "inert-html-v1"
-              : record(op.insert.inlineImage)
-                ? "inline-image-v1"
-                : Array.isArray(op.insert.footnotes)
-                  ? "footnotes-v1"
-                  : op.insert.hr === true
-                    ? "horizontal-rule-v1"
-                    : typeof op.insert.image === "string"
-                      ? "block-image-v1"
-                      : "structured-block-v1",
+        typeof op.insert.mathInline === "string" ||
+          typeof op.insert.mathBlock === "string"
+          ? "math-v1"
+          : record(op.insert.table)
+            ? "table-block-v1"
+            : record(op.insert.htmlDetails) ||
+                typeof op.insert.htmlAnchor === "string"
+              ? "restricted-html-v1"
+              : typeof op.insert.rawHtml === "string" ||
+                  typeof op.insert.rawHtmlInline === "string"
+                ? "inert-html-v1"
+                : record(op.insert.inlineImage)
+                  ? "inline-image-v1"
+                  : Array.isArray(op.insert.footnotes)
+                    ? "footnotes-v1"
+                    : op.insert.hr === true
+                      ? "horizontal-rule-v1"
+                      : typeof op.insert.image === "string"
+                        ? "block-image-v1"
+                        : "structured-block-v1",
       );
       if (record(op.insert.table) && Array.isArray(op.insert.table.rows)) {
         for (const row of op.insert.table.rows)
