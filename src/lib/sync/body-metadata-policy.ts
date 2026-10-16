@@ -1,4 +1,7 @@
-import { hasPortableRenderedResources } from "./rendered-source-policy";
+import {
+  hasPortableRenderedResources,
+  renderedResourceFeatures,
+} from "./rendered-source-policy";
 import { mdToDelta } from "../md-parser";
 import { isCertifiedHTMLSource } from "./html-body-policy";
 import {
@@ -10,6 +13,17 @@ import { deltaToProseMirror } from "../delta-converter";
 
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
+export function metadataResourceFeatures(metadata: unknown): string[] {
+  if (
+    !record(metadata) ||
+    typeof metadata.markdownSource !== "string" ||
+    metadata.sourceFormat === "text"
+  )
+    return [];
+  return renderedResourceFeatures(
+    deltaToProseMirror(mdToDelta(metadata.markdownSource)),
+  );
+}
 const containers = new Set([
   "paragraph",
   "heading",

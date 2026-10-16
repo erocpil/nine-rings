@@ -310,6 +310,17 @@ function appendListOps(listNode: JSONContent, ops: DeltaOp[], depth: number): vo
   }
 }
 
+/** Legacy list encoding for compatibility comparison only. Normal saves continue
+ * using the versioned list embed whenever an item contains non-paragraph blocks. */
+export function legacyFlatListDelta(listNode: JSONContent): DeltaOps {
+  if (listNode.type !== "bulletList" && listNode.type !== "orderedList") {
+    throw new Error("Expected a list node");
+  }
+  const ops: DeltaOp[] = [];
+  appendListOps(listNode, ops, 0);
+  return { ops };
+}
+
 function nodeIndent(node: JSONContent): number {
   const value = Number(node.attrs?.indent);
   return Number.isFinite(value) ? Math.max(0, Math.min(8, Math.floor(value))) : 0;
@@ -589,7 +600,8 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         }
       } else if (insert.startsWith("\n")) {
         skipEmptyLineAfterBlockEmbed = false;
-        flushList();
+        // A paragraph-internal break must not flush pending list items. Match
+        // explicit hard-break handling so first save cannot change list nesting.
         // Hard break within paragraph
         const breakMarks = deltaAttrToMarks(attrs);
         currentParagraph.content.push({ type: "hardBreak", ...(breakMarks.length ? { marks: breakMarks } : {}) });

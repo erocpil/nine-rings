@@ -73,7 +73,7 @@ it("rejects unstable successive leading breaks and invalid multiline marks", () 
     ).toBe(false);
 });
 
-it("preserves the list split implied by legacy leading breaks", () => {
+it("keeps legacy soft breaks inside the same ordered list", () => {
   const body = {
     ops: [
       { insert: "First" },
@@ -89,10 +89,9 @@ it("preserves the list split implied by legacy leading breaks", () => {
   expect(isCertifiedStructuredBody(body)).toBe(true);
   const doc = schema.nodeFromJSON(deltaToProseMirror(body));
   doc.check();
-  expect(doc.childCount).toBe(2);
-  expect(doc.child(0).childCount).toBe(1);
-  expect(doc.child(1).childCount).toBe(2);
-  expect(doc.child(1).attrs.start).toBe(2);
+  expect(doc.childCount).toBe(1);
+  expect(doc.child(0).childCount).toBe(3);
+  expect(doc.child(0).attrs.start).toBe(1);
   const saved = proseMirrorToDelta(doc.toJSON());
   expect(schema.nodeFromJSON(deltaToProseMirror(saved)).eq(doc)).toBe(true);
   expect(JSON.stringify(body)).toBe(source);
@@ -112,4 +111,50 @@ it("reports only a fixed diagnostic category for failed certification", async ()
       ],
     }),
   ).toBe("changed-tree");
+});
+
+it("keeps nested items attached to their parent across a legacy soft break", () => {
+  const body = {
+    ops: [
+      { insert: "Parent" },
+      { insert: "\n", attributes: { list: "bullet" } },
+      { insert: "Child before" },
+      { insert: "\nafter", attributes: { code: true } },
+      { insert: "\n", attributes: { list: "bullet", indent: 1 } },
+      { insert: "Sibling" },
+      { insert: "\n", attributes: { list: "bullet" } },
+    ],
+  };
+  const source = JSON.stringify(body);
+  expect(isCertifiedStructuredBody(body)).toBe(true);
+  const doc = schema.nodeFromJSON(deltaToProseMirror(body));
+  doc.check();
+  expect(doc.childCount).toBe(1);
+  expect(doc.firstChild?.childCount).toBe(2);
+  expect(doc.firstChild?.firstChild?.child(1).type.name).toBe("bulletList");
+  expect(
+    schema
+      .nodeFromJSON(deltaToProseMirror(proseMirrorToDelta(doc.toJSON())))
+      .eq(doc),
+  ).toBe(true);
+  expect(JSON.stringify(body)).toBe(source);
+});
+it("continues to honor explicit list group boundaries across soft breaks", () => {
+  const body = {
+    ops: [
+      { insert: "First" },
+      { insert: "\n", attributes: { list: "ordered", listStart: 1 } },
+      { insert: "Second" },
+      { insert: "\nafter" },
+      {
+        insert: "\n",
+        attributes: { list: "ordered", listStart: 2, "list-block-start": true },
+      },
+    ],
+  };
+  expect(isCertifiedStructuredBody(body)).toBe(true);
+  const doc = schema.nodeFromJSON(deltaToProseMirror(body));
+  doc.check();
+  expect(doc.childCount).toBe(2);
+  expect(doc.child(1).attrs.start).toBe(2);
 });

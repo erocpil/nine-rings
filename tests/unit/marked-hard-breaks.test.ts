@@ -75,7 +75,7 @@ it.each(marks)(
     expect(JSON.stringify(body)).toBe(source);
   },
 );
-it("does not lose inline-code break marks or merge groups in legacy ordered lists", () => {
+it("retains inline-code break marks within a continuous legacy ordered list", () => {
   const body = {
     ops: [
       { insert: "First" },
@@ -88,8 +88,9 @@ it("does not lose inline-code break marks or merge groups in legacy ordered list
   expect(isCertifiedStructuredBody(body)).toBe(true);
   const doc = schema.nodeFromJSON(deltaToProseMirror(body));
   doc.check();
-  expect(doc.childCount).toBe(2);
-  expect(doc.child(1).attrs.start).toBe(2);
+  expect(doc.childCount).toBe(1);
+  expect(doc.firstChild?.childCount).toBe(2);
+  expect(doc.firstChild?.attrs.start).toBe(1);
   expect(
     schema
       .nodeFromJSON(deltaToProseMirror(proseMirrorToDelta(doc.toJSON())))

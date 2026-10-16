@@ -1,4 +1,7 @@
-import { isCertifiedBodyMetadata } from "./body-metadata-policy";
+import {
+  isCertifiedBodyMetadata,
+  metadataResourceFeatures,
+} from "./body-metadata-policy";
 import {
   hasStructuredBody,
   isCertifiedStructuredBody,
@@ -163,6 +166,8 @@ export function reviewCandidatePayload(
       delete body.metadata;
       if (!isCertifiedBodyMetadata(value.metadata, body))
         issue("unknown-metadata");
+      for (const feature of metadataResourceFeatures(value.metadata))
+        required.add(feature);
     }
     const structured = !isEncrypted(body) && hasStructuredBody(body);
     if (isEncrypted(body)) {

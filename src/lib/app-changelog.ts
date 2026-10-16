@@ -1,6 +1,14 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-17",
+    title: "列表稳定性与完整备份审查",
+    changes: [
+      "修复旧段内换行提前拆开列表、丢失嵌套层级的问题；段内换行行为保持一致，显式列表边界照常保留。",
+      "完善复杂列表和引用两种旧表示的认证，内置演示图片使用精确资源白名单并声明独立协议特性；真实备份内容审查通过，正式迁移仍未开放。",
+    ],
+  },
+  {
     date: "2026-10-16",
     title: "块菜单、目录与备份认证",
     changes: [

@@ -1,5 +1,8 @@
 import { isCertifiedLinkAttributes } from "./link-body-policy";
-import { hasPortableRenderedResources } from "./rendered-source-policy";
+import {
+  hasPortableRenderedResources,
+  renderedResourceFeatures,
+} from "./rendered-source-policy";
 import { isCertifiedInlineAtomAttributes } from "./inline-atom-policy";
 import {
   isCertifiedHTMLDetails,
@@ -17,7 +20,11 @@ import {
   isCertifiedInlineImage,
 } from "./image-body-policy";
 import { isCertifiedTable } from "./table-body-policy";
-import { deltaToProseMirror, proseMirrorToDelta } from "../delta-converter";
+import {
+  deltaToProseMirror,
+  proseMirrorToDelta,
+  legacyFlatListDelta,
+} from "../delta-converter";
 import { normalizeEditorColor } from "../editor-color";
 import type { DeltaOps } from "../../types/models";
 import { canonicalJson } from "./canonical-codec";
@@ -248,6 +255,7 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
 function matchesLegacyInferredAttributes(
   body: Record<string, unknown>,
   restored: DeltaOps,
+  stableSource: DeltaOps = restored,
 ) {
   // Compare semantic text runs, not arbitrary operation fragmentation. Keep all
   // attributes and boundaries; only the explicitly inferred fields below differ.
@@ -338,10 +346,10 @@ function matchesLegacyInferredAttributes(
     canonicalJson(candidateBodyProjection(body)) ===
       canonicalJson(candidateBodyProjection({ ops: comparable })) &&
     // The newly explicit representation must itself be stable, never mask a second loss.
-    canonicalJson(candidateBodyProjection(restored)) ===
+    canonicalJson(candidateBodyProjection(stableSource)) ===
       canonicalJson(
         candidateBodyProjection(
-          proseMirrorToDelta(deltaToProseMirror(restored)),
+          proseMirrorToDelta(deltaToProseMirror(stableSource)),
         ),
       )
   );
@@ -390,7 +398,7 @@ export function inspectStructuredBody(
     return canonicalJson(candidateBodyProjection(comparison)) ===
       canonicalJson(candidateBodyProjection(restored)) ||
       matchesLegacyInferredAttributes(comparison, restored) ||
-      matchesSimpleQuoteEncoding(comparison, restored, document)
+      matchesLegacyBlockEncoding(comparison, restored, document)
       ? "certified"
       : "roundtrip-mismatch";
   } catch {
@@ -398,9 +406,9 @@ export function inspectStructuredBody(
   }
 }
 
-/** A paragraph-only quote has two legacy encodings. Flatten only for comparison;
- * do not flatten alerts, nested blocks or structural child attributes. */
-function flatQuoteComparison(
+/** Compare known legacy list/quote encodings without changing stored data.
+ * Paragraph-only quotes exclude alerts and nested blocks; lists use the original encoder. */
+function flatBlockComparison(
   body: Record<string, unknown>,
 ): Record<string, unknown> {
   const ops = body.ops as DeltaOps["ops"];
@@ -409,6 +417,21 @@ function flatQuoteComparison(
     ...body,
     ops: ops.flatMap((op, index) => {
       if (index === skipTerminator) return [];
+      if (
+        record(op.insert) &&
+        record(op.insert.list) &&
+        ops[index + 1]?.insert === "\n" &&
+        !Object.keys(ops[index + 1]?.attributes ?? {}).length
+      ) {
+        const document = deltaToProseMirror({ ops: [op, ops[index + 1]] });
+        if (
+          document.content.length === 1 &&
+          ["bulletList", "orderedList"].includes(document.content[0].type ?? "")
+        ) {
+          skipTerminator = index + 1;
+          return legacyFlatListDelta(document.content[0]).ops;
+        }
+      }
       if (!record(op.insert) || !record(op.insert.blockquote)) return [op];
       const quote = op.insert.blockquote;
       if (
@@ -442,31 +465,60 @@ function flatQuoteComparison(
   };
 }
 
-function matchesSimpleQuoteEncoding(
+function matchesLegacyBlockEncoding(
   body: Record<string, unknown>,
   restored: DeltaOps,
   document: unknown,
 ): boolean {
-  const before = flatQuoteComparison(body),
-    after = flatQuoteComparison(restored as unknown as Record<string, unknown>);
+  const before = flatBlockComparison(body),
+    after = flatBlockComparison(restored as unknown as Record<string, unknown>);
   if (
     canonicalJson(candidateBodyProjection(before)) !==
       canonicalJson(candidateBodyProjection(after)) &&
-    !matchesLegacyInferredAttributes(before, after as unknown as DeltaOps)
+    !matchesLegacyInferredAttributes(
+      before,
+      after as unknown as DeltaOps,
+      restored,
+    )
   )
     return false;
   // In particular, never merge two distinct adjacent quote blocks or drop attrs.
-  const tree = canonicalJson(quoteTreeDefaults(document));
+  const tree = canonicalJson(blockTreeDefaults(document));
   return [before, after, restored].every(
     (source) =>
-      tree === canonicalJson(quoteTreeDefaults(deltaToProseMirror(source))),
+      tree === canonicalJson(blockTreeDefaults(deltaToProseMirror(source))),
   );
 }
 
-function quoteTreeDefaults(node: unknown): unknown {
+function blockTreeDefaults(node: unknown): unknown {
   if (!record(node)) return node;
   return {
     ...node,
+    ...(node.type === "codeBlock"
+      ? {
+          attrs: {
+            language: null,
+            meta: null,
+            title: "",
+            wrap: true,
+            collapsed: false,
+            indent: 0,
+            indentExplicit: false,
+            ...(record(node.attrs) ? node.attrs : {}),
+          },
+        }
+      : {}),
+    ...(["bulletList", "orderedList"].includes(String(node.type))
+      ? {
+          attrs: {
+            ...(node.type === "orderedList" ? { start: 1 } : {}),
+            spread: false,
+            indent: 0,
+            indentExplicit: false,
+            ...(record(node.attrs) ? node.attrs : {}),
+          },
+        }
+      : {}),
     ...(node.type === "blockquote"
       ? {
           attrs: {
@@ -479,7 +531,7 @@ function quoteTreeDefaults(node: unknown): unknown {
         }
       : {}),
     ...(Array.isArray(node.content)
-      ? { content: node.content.map(quoteTreeDefaults) }
+      ? { content: node.content.map(blockTreeDefaults) }
       : {}),
   };
 }
@@ -489,33 +541,10 @@ function withLegacyStructuralMarkers(
 ): Record<string, unknown> {
   if (!Array.isArray(body.ops)) return body;
   let inferred = false;
-  let implicitBreak = false;
   const ops: unknown[] = [];
   for (let index = 0; index < body.ops.length; index++) {
     const op = body.ops[index],
       next = body.ops[index + 1];
-    if (
-      record(op) &&
-      op.insert === "\n" &&
-      !(record(op.attributes) && op.attributes["hard-break"] === true)
-    ) {
-      if (
-        implicitBreak &&
-        record(op.attributes) &&
-        ["bullet", "ordered"].includes(String(op.attributes.list)) &&
-        op.attributes["list-block-start"] === undefined
-      ) {
-        // The old leading-newline branch flushes pending list lines. Preserve
-        // that group boundary when its newline is made explicit in this copy.
-        ops.push({
-          ...op,
-          attributes: { ...op.attributes, "list-block-start": true },
-        });
-        inferred = true;
-      } else ops.push(op);
-      implicitBreak = false;
-      continue;
-    }
     if (
       record(op) &&
       typeof op.insert === "string" &&
@@ -546,7 +575,6 @@ function withLegacyStructuralMarkers(
         },
       );
       inferred = true;
-      implicitBreak = true;
     } else ops.push(op);
     if (
       record(op) &&
@@ -791,5 +819,7 @@ export function structuredBodyFeatures(
     }
   };
   visit(body.ops, 0);
+  for (const feature of renderedResourceFeatures(deltaToProseMirror(body)))
+    features.add(feature);
   return [...features];
 }

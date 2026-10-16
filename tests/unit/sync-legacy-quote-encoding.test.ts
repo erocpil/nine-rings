@@ -100,3 +100,23 @@ it("does not hide conflicting per-line indentation or marked leading-newline los
   ])
     expect(isCertifiedStructuredBody(body)).toBe(false);
 });
+
+it("checks stability of actual saved encoding when inferred list boundaries accompany quotes", () => {
+  const body = {
+    ops: [
+      { insert: "Item" },
+      { insert: "\n", attributes: { list: "bullet" } },
+      { insert: "Quote", attributes: { bold: true } },
+      {
+        insert: "\n",
+        attributes: { blockquote: true, "indent-explicit": true },
+      },
+    ],
+  };
+  expect(isCertifiedStructuredBody(body)).toBe(true);
+  const doc = schema.nodeFromJSON(deltaToProseMirror(body));
+  doc.check();
+  expect(doc.childCount).toBe(2);
+  const saved = proseMirrorToDelta(doc.toJSON());
+  expect(schema.nodeFromJSON(deltaToProseMirror(saved)).eq(doc)).toBe(true);
+});
