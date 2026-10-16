@@ -1,3 +1,4 @@
+import { SyncMigrationActions } from "./SyncMigrationActions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import {
@@ -48,11 +49,13 @@ export function SyncEntityReview({
   disabled,
   onBeforeSnapshot,
   onOperationChange,
+  onPullDone,
 }: {
   config: SyncConfig;
   disabled: boolean;
   onBeforeSnapshot?: () => Promise<void>;
   onOperationChange: (busy: boolean) => void;
+  onPullDone?: () => void;
 }) {
   const [review, setReview] = useState<EntityReview | null>(null),
     [choices, setChoices] = useState<EntityChoice[]>([]),
@@ -175,7 +178,9 @@ export function SyncEntityReview({
   return (
     <section className="sync-entity-review" aria-label="增量备份候选审查">
       <h4>增量备份候选审查</h4>
-      <p>检查差异并保存选择草稿；正式增量同步尚未开启，不上传或覆盖数据。</p>
+      <p>
+        先检查差异并保存选择草稿。迁移、发布和应用须在下方明确确认，且受版本能力门禁限制。
+      </p>
       <div className="settings-row">
         <button
           type="button"
@@ -204,6 +209,22 @@ export function SyncEntityReview({
       {message && <p role="status">{message}</p>}
       {review && (
         <>
+          <SyncMigrationActions
+            key={review.binding}
+            config={config}
+            review={review}
+            choices={choices}
+            disabled={disabled || busy}
+            onBeforeSnapshot={onBeforeSnapshot}
+            onOperationChange={onOperationChange}
+            onPullDone={onPullDone}
+            onAccepted={(resultMessage) => {
+              setReview(null);
+              setChoices([]);
+              setSelected("");
+              setMessage(`${resultMessage} 请重新预检最新差异。`);
+            }}
+          />
           <p>
             固定快照 {review.snapshotId} · 已接受基线 {review.baselines.length}{" "}
             项 · 共 {review.rows.length} 项

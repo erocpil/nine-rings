@@ -29,7 +29,57 @@ export const pullSummary = (a: PullAttempt) => ({
   spaceId: a.spaceId,
   phase: a.phase,
   updatedAt: a.updatedAt,
+  space: a.review.space,
+  mode: a.mode ?? "apply",
 });
+export type PullSummary = ReturnType<typeof pullSummary>;
+export const PULL_CHANGED = "nr:sync-pull-changed";
+function changed() {
+  try {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(PULL_CHANGED));
+      if (typeof BroadcastChannel !== "undefined") {
+        const channel = new BroadcastChannel(PULL_CHANGED);
+        channel.postMessage(null);
+        channel.close();
+      }
+    }
+  } catch {
+    /* Notifications cannot undo committed records. */
+  }
+}
+export async function listPullSummaries(): Promise<PullSummary[]> {
+  const db = await openSyncJournal();
+  try {
+    const tx = db.transaction("pullSummaries", "readonly"),
+      finished = done(tx);
+    let values: PullSummary[] = [];
+    tx.objectStore("pullSummaries").getAll().onsuccess = (e) => {
+      values = (e.target as IDBRequest).result;
+    };
+    await finished;
+    if (
+      values.some(
+        (row) =>
+          !row ||
+          typeof row.id !== "string" ||
+          typeof row.spaceId !== "string" ||
+          ![
+            "PREPARED",
+            "APPLYING",
+            "CONFIRMING",
+            "COMPLETE",
+            "ABORTED",
+            "NEEDS_REVIEW",
+          ].includes(row.phase),
+      )
+    )
+      throw Error("Pull 状态摘要损坏，未重试应用");
+    return values;
+  } finally {
+    db.close();
+  }
+}
 function done(tx: IDBTransaction) {
   return new Promise<void>((resolve, reject) => {
     tx.oncomplete = () => resolve();
@@ -112,6 +162,7 @@ export async function savePullAttempt(
       }
     };
     await finished;
+    changed();
   } finally {
     db.close();
   }

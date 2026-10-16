@@ -76,6 +76,7 @@ import { getPathAncestors } from "./lib/move-to";
 import { resolveFolderRename } from "./lib/folder-rename";
 import { useWebPlatform } from "./hooks/useWebPlatform";
 import { WebStatusBanner } from "./components/WebStatusBanner";
+import { PullRecoveryStatus } from "./components/PullRecoveryStatus";
 import { PublicationRecoveryStatus } from "./components/PublicationRecoveryStatus";
 import { BackupRestoreStatus } from "./components/BackupRestoreStatus";
 import { withBackupRestoreReadLock } from "./lib/backup-restore-coordination";
@@ -1607,6 +1608,7 @@ function App() {
       )}
 
       <PublicationRecoveryStatus compact onOpenSettings={() => setSettingsOpen(true)} />
+      <PullRecoveryStatus compact onOpenSettings={() => setSettingsOpen(true)} />
       <BackupRestoreStatus compact onOpenSettings={() => setSettingsOpen(true)} />
       {readingLibraryError && <div role="alert" className="reading-library-message">{readingLibraryError}</div>}
 

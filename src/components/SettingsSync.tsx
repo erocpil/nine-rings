@@ -1,4 +1,5 @@
 import { SyncEntityReview } from "./SyncEntityReview";
+import { PullRecoveryStatus } from "./PullRecoveryStatus";
 import { PublicationRecoveryStatus } from "./PublicationRecoveryStatus";
 import { BackupMeasurementDialog } from "./BackupMeasurementDialog";
 import { api } from "../lib/api";
@@ -40,9 +41,10 @@ interface Props {
   onPullDone?: () => void;
 }
 
-type BusyOperation = "protocol" | "measure" | "check" | "push" | "pull-preview" | "pull-merge" | "pull-replace";
+type BusyOperation = "incremental" | "protocol" | "measure" | "check" | "push" | "pull-preview" | "pull-merge" | "pull-replace";
 
 const BUSY_MESSAGES: Record<BusyOperation, string> = {
+  incremental: "正在核验或执行已确认的增量操作，请等待保存与结果确认完成",
   protocol: "正在固定提交并只读核验远端协议，不修改文档或远端",
   measure: "正在保存并测量本地快照，不执行上传",
   check: "正在检查 GitHub 连接，操作期间暂不可编辑",
@@ -367,7 +369,8 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
         finally { setBusyOperation(null); }
       }} />}
       <h3>GitHub 备份</h3>
-      <PublicationRecoveryStatus config={cfg} />
+      <PublicationRecoveryStatus config={cfg} onBeforeSnapshot={onBeforePush} onOperationChange={active => setBusyOperation(active ? "incremental" : null)} disabled={busy || exportingLocal} />
+      <PullRecoveryStatus config={cfg} onBeforeSnapshot={onBeforePush} onOperationChange={active => setBusyOperation(active ? "incremental" : null)} onPullDone={onPullDone} disabled={busy || exportingLocal} />
 
       {/* 高频操作置顶，打开页面后无需越过低频配置即可执行。 */}
       <div className="settings-row sync-actions">
@@ -416,7 +419,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
         ) : null}
       </div>
 
-      <SyncEntityReview config={cfg} disabled={busy || exportingLocal || !connectionReady} onBeforeSnapshot={onBeforePush} onOperationChange={active => setBusyOperation(active ? "protocol" : null)} />
+      <SyncEntityReview config={cfg} disabled={busy || exportingLocal || !connectionReady} onBeforeSnapshot={onBeforePush} onOperationChange={active => setBusyOperation(active ? "incremental" : null)} onPullDone={onPullDone} />
 
       {/* 版本信息 */}
       <BackupRestoreStatus />

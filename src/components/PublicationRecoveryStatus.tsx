@@ -1,3 +1,4 @@
+import { CURRENT_SYNC_CAPABILITIES } from "../lib/sync/protocol-capabilities";
 import { useEffect, useState } from "react";
 import {
   listPublicationSummaries,
@@ -10,10 +11,16 @@ export function PublicationRecoveryStatus({
   compact = false,
   onOpenSettings,
   config,
+  onBeforeSnapshot,
+  onOperationChange,
+  disabled = false,
 }: {
   compact?: boolean;
   onOpenSettings?: () => void;
   config?: SyncConfig;
+  onBeforeSnapshot?: () => Promise<void>;
+  onOperationChange?: (busy: boolean) => void;
+  disabled?: boolean;
 }) {
   const [rows, setRows] = useState<PublicationSummary[]>([]),
     [error, setError] = useState<string | null>(null),
@@ -69,10 +76,11 @@ export function PublicationRecoveryStatus({
               <button
                 type="button"
                 className="settings-btn"
-                disabled={busy || !config?.token}
+                disabled={disabled || busy || !config?.token}
                 onClick={async () => {
                   if (!config) return;
                   setBusy(true);
+                  onOperationChange?.(true);
                   setError(null);
                   try {
                     const { recoverPublicationFromGitHub } =
@@ -96,11 +104,56 @@ export function PublicationRecoveryStatus({
                     );
                   } finally {
                     setBusy(false);
+                    onOperationChange?.(false);
                   }
                 }}
               >
                 只读核实发布
               </button>
+              {["PREPARED", "OBJECTS_READY"].includes(row.phase) && (
+                <button
+                  type="button"
+                  className="settings-btn"
+                  disabled={
+                    disabled ||
+                    busy ||
+                    !config?.token ||
+                    !onBeforeSnapshot ||
+                    CURRENT_SYNC_CAPABILITIES.write < 1
+                  }
+                  onClick={async () => {
+                    if (!config || !onBeforeSnapshot) return;
+                    setBusy(true);
+                    onOperationChange?.(true);
+                    setError(null);
+                    try {
+                      const { resumeIncrementalPublication } =
+                        await import("../lib/sync/incremental-actions");
+                      const result = await resumeIncrementalPublication(
+                        config,
+                        row.spaceId,
+                        onBeforeSnapshot,
+                      );
+                      setMessage(
+                        result.observationWarning
+                          ? "冻结发布与接受已完成，协议状态预检尚未完成；请重新预检。"
+                          : "已继续发布原冻结提交并确认基线；请重新预检后续编辑。",
+                      );
+                    } catch (reason) {
+                      setError(
+                        reason instanceof Error
+                          ? reason.message
+                          : "继续发布失败，请核实恢复状态",
+                      );
+                    } finally {
+                      setBusy(false);
+                      onOperationChange?.(false);
+                    }
+                  }}
+                >
+                  继续已确认的冻结发布
+                </button>
+              )}
             </div>
           ))}
           {message && <p>{message}</p>}

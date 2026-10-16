@@ -3427,3 +3427,10 @@ button.doc-tree-toggle:focus-visible {
 .sync-entity-table td button { border: 0; background: transparent; color: var(--link-color); text-align: start; font: inherit; cursor: pointer; }
 .sync-entity-table select { max-width: 160px; color: var(--text); background: var(--bg); }
 .sync-entity-detail { min-width: 0; margin-top: 12px; }
+
+.sync-migration-actions { min-width: 0; margin-block: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+.sync-migration-actions legend { padding-inline: 5px; font-weight: 600; }
+.sync-migration-actions p { margin-block: 8px; overflow-wrap: anywhere; }
+.sync-migration-actions .settings-row { flex-wrap: wrap; gap: 8px; }
+.sync-migration-confirm { display: flex; align-items: flex-start; gap: 6px; margin-block: 8px; }
+.sync-migration-actions input[type="file"] { display: block; max-width: 100%; margin-top: 5px; font: inherit; }

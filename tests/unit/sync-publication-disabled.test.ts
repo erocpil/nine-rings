@@ -261,4 +261,30 @@ it("shipped capabilities refuse selective Pull before importing data", async () 
       },
     ),
   ).rejects.toThrow("尚不支持");
+  const {
+    executeIncrementalAction,
+    incrementalTransport,
+    recoverIncrementalPull,
+    resumeIncrementalPublication,
+  } = await import("../../src/lib/sync/incremental-actions");
+  const config = {
+    ...review.space,
+    token: "TEST_TOKEN",
+  } as import("../../src/lib/sync/github").SyncConfig;
+  for (const action of ["publish", "pull", "equal"] as const)
+    await expect(
+      executeIncrementalAction(
+        { config, review, choices: [], action },
+        { flush: async () => {} },
+      ),
+    ).rejects.toThrow("尚未认证");
+  expect(() =>
+    incrementalTransport(config, review.space).post("/git/blobs", {}),
+  ).toThrow("尚未认证");
+  await expect(
+    recoverIncrementalPull(config, review.spaceId, async () => {}),
+  ).rejects.toThrow("尚未认证");
+  await expect(
+    resumeIncrementalPublication(config, review.spaceId, async () => {}),
+  ).rejects.toThrow("尚未认证");
 });

@@ -75,6 +75,31 @@ test("实体选择草稿可重启恢复，过期选择拒绝且不改正文或�
   const review = page.getByRole("region", { name: "增量备份候选审查" });
   await page.getByRole("button", { name: "预检实体差异", exact: true }).click();
   await expect(review).toContainText("预检完成");
+  const migration = review.getByRole("group", {
+    name: "增量操作与首次迁移确认",
+    exact: true,
+  });
+  await expect(migration).toBeVisible();
+  const migrationSource = await page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    return api.export.data();
+  });
+  await migration
+    .getByLabel("核验迁移备份文件", { exact: true })
+    .setInputFiles({
+      name: "verified-backup.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(migrationSource),
+    });
+  await expect(migration).toContainText("备份已核验");
+  await migration.locator('input[type="checkbox"]').nth(0).check();
+  await migration.getByLabel("参与设备最低版本", { exact: true }).fill("1.0.0");
+  await migration.locator('input[type="checkbox"]').nth(1).check();
+  await expect(
+    migration.getByRole("button", { name: "首次迁移并发布", exact: true }),
+  ).toBeDisabled();
+  await expect(migration).toContainText("勾选确认不能绕过");
+
   const choice = page.getByLabel(`选择 ${fixture.notes[0].id}`, {
     exact: true,
   });
@@ -104,6 +129,8 @@ test("实体选择草稿可重启恢复，过期选择拒绝且不改正文或�
   await settings();
   await page.getByRole("button", { name: "预检实体差异", exact: true }).click();
   await expect(review).toContainText("已恢复匹配当前快照");
+  await expect(review).not.toContainText("备份已核验");
+
   await expect(choice).toHaveValue("local");
   movedHead = true;
   await page

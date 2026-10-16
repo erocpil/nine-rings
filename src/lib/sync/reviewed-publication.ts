@@ -31,6 +31,7 @@ export interface ReviewedPublicationEvidence {
   review: EntityReview;
   choices: EntityChoice[];
   mode: "legacy-switch" | "append";
+  checkpoint?: true;
   candidateRevision: string;
   planSha256: string;
 }
@@ -72,7 +73,10 @@ export async function validateReviewedPublicationRecord(
   const payload = parseSyncJson(attempt.source) as Record<string, unknown>;
   delete payload.header;
   if (
-    !candidate.publicationNeeded ||
+    (!candidate.publicationNeeded &&
+      !(proof.checkpoint === true && proof.mode === "legacy-switch")) ||
+    (proof.checkpoint !== undefined &&
+      (proof.checkpoint !== true || proof.mode !== "legacy-switch")) ||
     attempt.spaceId !== review.spaceId ||
     canonicalJson(attempt.space) !== canonicalJson(review.space) ||
     attempt.runtime !== review.runtime ||
@@ -103,6 +107,7 @@ export async function prepareReviewedPublication(
     prerequisites: SwitchPrerequisites;
     observation: ObservationStatus;
     identity: Pick<SyncHeader, "id" | "createdAt" | "writtenBy">;
+    allowMigrationCheckpoint?: boolean;
   },
   boundary: {
     flush: () => Promise<void>;
@@ -125,7 +130,7 @@ export async function prepareReviewedPublication(
   const source = await readSource();
   guard();
   const candidate = await validateEntityReview(review, input.choices, source);
-  if (!candidate.publicationNeeded)
+  if (!candidate.publicationNeeded && !input.allowMigrationCheckpoint)
     throw Error("候选与远端相同，无需发布；接受确认需独立处理");
   if (review.runtime === "flutter") throw Error("Dart 运行认证尚未完成");
   const fresh = await inspectRemoteProtocol(request, review.space);
@@ -145,6 +150,8 @@ export async function prepareReviewedPublication(
     throw Error("远端快照证据不匹配");
   const mode =
     fresh.evidence.control.state === "enabled" ? "append" : "legacy-switch";
+  if (!candidate.publicationNeeded && mode === "append")
+    throw Error("候选与远端相同，无需发布；接受确认需独立处理");
   const parent =
     mode === "append"
       ? { id: review.snapshotId, sha256: review.snapshotSha256 }
@@ -214,6 +221,7 @@ export async function prepareReviewedPublication(
       review,
       choices: input.choices,
       mode,
+      ...(!candidate.publicationNeeded ? { checkpoint: true as const } : {}),
       candidateRevision: await canonicalDigest(
         await candidateEntities(frozenSource, review.runtime),
       ),
