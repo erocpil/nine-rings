@@ -214,7 +214,11 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
         }
         if (["bold", "italic", "strike", "code", "highlight"].includes(key)) {
           if (value !== true) return false;
-        } else if (["color", "background"].includes(key)) {
+        } else if (key === "color") {
+          // Foreground ink is stored verbatim by the real textStyle converter.
+          if (typeof value !== "string" || !normalizeEditorColor(value))
+            return false;
+        } else if (key === "background") {
           if (
             typeof value !== "string" ||
             normalizeEditorColor(value) !== value
@@ -247,8 +251,34 @@ function matchesLegacyInferredAttributes(
   const original = body.ops as DeltaOps["ops"];
   if (original.length !== restored.ops.length) return false;
   let inferred = false;
+  const definitions = new Set<string>();
+  for (const op of restored.ops) {
+    if (record(op.insert) && Array.isArray(op.insert.footnotes))
+      for (const definition of op.insert.footnotes)
+        if (record(definition) && typeof definition.id === "string")
+          definitions.add(definition.id);
+  }
   const comparable = restored.ops.map((op, index) => {
     const before = original[index];
+    if (
+      typeof before.insert === "string" &&
+      before.insert === op.insert &&
+      typeof before.attributes?.footnoteRef === "string" &&
+      before.attributes.footnoteRef === op.attributes?.footnoteRef &&
+      definitions.has(before.attributes.footnoteRef)
+    ) {
+      const attributes = { ...op.attributes };
+      for (const field of ["footnoteNumber", "footnoteOccurrence"] as const) {
+        if (
+          before.attributes?.[field] === undefined &&
+          attributes[field] !== undefined
+        ) {
+          delete attributes[field];
+          inferred = true;
+        }
+      }
+      return { ...op, attributes };
+    }
     if (
       record(before.insert) &&
       record(before.insert.blockquote) &&
@@ -488,9 +518,22 @@ function withLegacyStructuralMarkers(
       op.insert.hr === true &&
       Object.keys(op.insert).length === 1 &&
       record(next) &&
-      typeof next.insert === "string" &&
-      next.insert.length > 0 &&
-      !next.insert.startsWith("\n")
+      ((typeof next.insert === "string" &&
+        next.insert.length > 0 &&
+        !next.insert.startsWith("\n")) ||
+        (record(next.insert) &&
+          Object.keys(next.insert).length === 1 &&
+          [
+            "hr",
+            "footnotes",
+            "blockquote",
+            "list",
+            "table",
+            "image",
+            "mathBlock",
+            "rawHtml",
+            "htmlDetails",
+          ].some((key) => key in (next.insert as Record<string, unknown>))))
     ) {
       ops.push({ insert: "\n" });
       inferred = true;

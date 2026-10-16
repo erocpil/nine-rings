@@ -204,20 +204,22 @@ export function reviewCandidatePayload(
                   ? !Number.isInteger(val) ||
                     (val as number) < 1 ||
                     (val as number) > 6
-                  : key === "color" || key === "background"
-                    ? typeof val !== "string" ||
-                      normalizeEditorColor(val) !== val
-                    : key === "size"
-                      ? !["small", "normal", "large", "huge"].includes(
-                          String(val),
-                        ) || typeof val !== "string"
-                      : ![
-                          "bold",
-                          "italic",
-                          "strike",
-                          "code",
-                          "highlight",
-                        ].includes(key) || typeof val !== "boolean",
+                  : key === "color"
+                    ? typeof val !== "string" || !normalizeEditorColor(val)
+                    : key === "background"
+                      ? typeof val !== "string" ||
+                        normalizeEditorColor(val) !== val
+                      : key === "size"
+                        ? !["small", "normal", "large", "huge"].includes(
+                            String(val),
+                          ) || typeof val !== "string"
+                        : ![
+                            "bold",
+                            "italic",
+                            "strike",
+                            "code",
+                            "highlight",
+                          ].includes(key) || typeof val !== "boolean",
               )
             )
               issue("unsupported-content");

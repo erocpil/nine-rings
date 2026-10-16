@@ -28,13 +28,19 @@ export function isCertifiedFootnoteReference(
 ): boolean {
   if (![...FOOTNOTE_ATTRIBUTES].some((key) => attrs[key] !== undefined))
     return true;
+  // Omitted legacy counters are checked against whole-document derived values
+  // during roundtrip comparison, never inferred from a local fragment alone.
+  const number =
+    attrs.footnoteNumber === undefined ? Number(text) : attrs.footnoteNumber;
+  const occurrence =
+    attrs.footnoteOccurrence === undefined ? 1 : attrs.footnoteOccurrence;
   return (
     label(attrs.footnoteRef) &&
-    count(attrs.footnoteNumber) &&
-    attrs.footnoteNumber > 0 &&
-    count(attrs.footnoteOccurrence) &&
-    attrs.footnoteOccurrence > 0 &&
-    text === String(attrs.footnoteNumber)
+    count(number) &&
+    number > 0 &&
+    count(occurrence) &&
+    occurrence > 0 &&
+    text === String(number)
   );
 }
 /** Shape validation only; numbering/counts are checked in full document context. */

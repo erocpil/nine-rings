@@ -97,11 +97,8 @@ it.each(["small", "normal", "large", "huge"])(
 it.each([
   { code: false, color: "#22a577" },
   { code: true, bold: false },
-  { color: "#ABCDEF" },
   { color: "red" },
   { color: "var(--text)" },
-  { color: "#abc" },
-  { color: "rgb(34, 165, 119)" },
   { color: 1 },
   { size: "20px" },
   { size: 18 },

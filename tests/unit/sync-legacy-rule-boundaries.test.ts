@@ -92,3 +92,23 @@ it("does not ignore line breaks, malformed embeds or absent document endings", (
   ])
     expect(isCertifiedStructuredBody(body)).toBe(false);
 });
+
+it("certifies an omitted rule boundary before another block, not an inline atom", () => {
+  for (const insert of [{ hr: true }, { mathBlock: "x^2" }]) {
+    const body = {
+      ops: [{ insert: { hr: true } }, { insert }, { insert: "\n" }],
+    };
+    const source = JSON.stringify(body);
+    expect(isCertifiedStructuredBody(body)).toBe(true);
+    expect(JSON.stringify(body)).toBe(source);
+  }
+  expect(
+    isCertifiedStructuredBody({
+      ops: [
+        { insert: { hr: true } },
+        { insert: { mathInline: "x" } },
+        { insert: "\n" },
+      ],
+    }),
+  ).toBe(false);
+});

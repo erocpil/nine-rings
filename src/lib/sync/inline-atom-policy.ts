@@ -27,7 +27,9 @@ export function isCertifiedInlineAtomAttributes(
       ].includes(key)
     )
       return value === true;
-    if (key === "color" || key === "background")
+    if (key === "color")
+      return typeof value === "string" && !!normalizeEditorColor(value);
+    if (key === "background")
       return typeof value === "string" && normalizeEditorColor(value) === value;
     if (key === "size")
       return (
