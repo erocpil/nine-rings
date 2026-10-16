@@ -297,43 +297,106 @@ function matchesLegacyInferredAttributes(
 export function isCertifiedStructuredBody(
   body: Record<string, unknown>,
 ): boolean {
+  return inspectStructuredBody(body) === "certified";
+}
+
+/** Aggregate-only diagnosis: never returns source text, paths, node IDs or attributes. */
+export function inspectStructuredBody(
+  body: Record<string, unknown>,
+):
+  | "certified"
+  | "invalid-shape"
+  | "changed-tree"
+  | "nonportable-resource"
+  | "unstable-tree"
+  | "roundtrip-mismatch"
+  | "invalid-conversion" {
   try {
-    // Older horizontal-rule embeds may omit their structural terminator before text.
-    // Insert it only into the comparison copy, and prove it does not change the tree.
-    const comparison = withLegacyRuleTerminators(body);
-    if (!certifiedBodyShape(comparison)) return false;
+    // Infer old structural markers only in the comparison copy. Prove the full
+    // document tree is unchanged both now and after another save/load cycle.
+    const comparison = withLegacyStructuralMarkers(body);
+    if (!certifiedBodyShape(comparison)) return "invalid-shape";
     const document = deltaToProseMirror(body as unknown as DeltaOps);
     if (
       comparison !== body &&
       canonicalJson(document) !==
         canonicalJson(deltaToProseMirror(comparison as unknown as DeltaOps))
     )
-      return false;
-    if (!hasPortableRenderedResources(document)) return false;
+      return "changed-tree";
+    if (!hasPortableRenderedResources(document)) return "nonportable-resource";
     const restored = proseMirrorToDelta(document);
+    if (
+      comparison !== body &&
+      canonicalJson(document) !== canonicalJson(deltaToProseMirror(restored))
+    )
+      return "unstable-tree";
     // Reject misplaced attributes, inconsistent numbering/nesting, lossy combinations,
     // and changed embed boundaries. Do not silently rewrite the user's content.
 
-    return (
-      canonicalJson(candidateBodyProjection(comparison)) ===
-        canonicalJson(candidateBodyProjection(restored)) ||
+    return canonicalJson(candidateBodyProjection(comparison)) ===
+      canonicalJson(candidateBodyProjection(restored)) ||
       matchesLegacyInferredAttributes(comparison, restored)
-    );
+      ? "certified"
+      : "roundtrip-mismatch";
   } catch {
-    return false;
+    return "invalid-conversion";
   }
 }
 
-function withLegacyRuleTerminators(
+function withLegacyStructuralMarkers(
   body: Record<string, unknown>,
 ): Record<string, unknown> {
   if (!Array.isArray(body.ops)) return body;
   let inferred = false;
+  let implicitBreak = false;
   const ops: unknown[] = [];
   for (let index = 0; index < body.ops.length; index++) {
     const op = body.ops[index],
       next = body.ops[index + 1];
-    ops.push(op);
+    if (
+      record(op) &&
+      op.insert === "\n" &&
+      !(record(op.attributes) && op.attributes["hard-break"] === true)
+    ) {
+      if (
+        implicitBreak &&
+        record(op.attributes) &&
+        ["bullet", "ordered"].includes(String(op.attributes.list)) &&
+        op.attributes["list-block-start"] === undefined
+      ) {
+        // The old leading-newline branch flushes pending list lines. Preserve
+        // that group boundary when its newline is made explicit in this copy.
+        ops.push({
+          ...op,
+          attributes: { ...op.attributes, "list-block-start": true },
+        });
+        inferred = true;
+      } else ops.push(op);
+      implicitBreak = false;
+      continue;
+    }
+    if (
+      record(op) &&
+      typeof op.insert === "string" &&
+      op.insert.length > 1 &&
+      op.insert.startsWith("\n") &&
+      (op.attributes === undefined ||
+        (record(op.attributes) && !Object.keys(op.attributes).length)) &&
+      !(
+        record(next) &&
+        record(next.attributes) &&
+        next.attributes["code-block"] === true
+      )
+    ) {
+      // This is exactly the existing decoder's leading-newline interpretation.
+      // Do not split remaining newlines, formatted text, code or plain-text imports.
+      ops.push(
+        { insert: "\n", attributes: { "hard-break": true } },
+        { insert: op.insert.slice(1) },
+      );
+      inferred = true;
+      implicitBreak = true;
+    } else ops.push(op);
     if (
       record(op) &&
       record(op.insert) &&
