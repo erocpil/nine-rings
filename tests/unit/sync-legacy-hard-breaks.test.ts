@@ -56,10 +56,10 @@ it("does not reinterpret multiline code as a hard break", () => {
   expect(doc.firstChild?.type.name).toBe("codeBlock");
   expect(doc.firstChild?.textContent).toBe("\nCode\nnext");
 });
-it("rejects unstable successive leading breaks and marked multiline text", () => {
+it("rejects unstable successive leading breaks and invalid multiline marks", () => {
   for (const op of [
     { insert: "\n\nNext" },
-    { insert: "\nNext", attributes: { bold: true } },
+    { insert: "\nNext", attributes: { bold: false } },
   ])
     expect(
       isCertifiedStructuredBody({

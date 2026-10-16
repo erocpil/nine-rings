@@ -50,7 +50,7 @@ it("does not accept changed embed representation, text loss, unknown versions or
     blockquote: {
       version: 1,
       content: [
-        { insert: "\nQuoted text", attributes: { bold: true } },
+        { insert: "\nQuoted text", attributes: { bold: false } },
         { insert: "\n" },
       ],
     },

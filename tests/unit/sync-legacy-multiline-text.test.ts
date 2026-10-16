@@ -37,10 +37,10 @@ it.each([
   ).toEqual(candidateBodyProjection(body));
   expect(JSON.stringify(body)).toBe(original);
 });
-it("still rejects lossy leading breaks, discarded marks and CR characters", () => {
+it("still rejects lossy leading breaks, invalid marks and CR characters", () => {
   for (const op of [
     { insert: "\n\nNext" },
-    { insert: "\nFirst Next", attributes: { bold: true } },
+    { insert: "\nFirst Next", attributes: { bold: false } },
     { insert: "First\r\nNext" },
   ])
     expect(

@@ -338,7 +338,7 @@ function extractInlineOps(
     } else if (inline.type === "hardBreak") {
       // 块内换行与 Delta 的块结束符都是 `\n`，必须显式区分。
       // 否则内存中的 <br> 会在自动保存后被还原成新段落。
-      ops.push({ insert: "\n", attributes: { "hard-break": true } });
+      ops.push({ insert: "\n", attributes: { ...atomAttributes, "hard-break": true } });
     } else if (inline.type === "image" || inline.type === "resizableImage") {
       ops.push({ insert: { image: inline.attrs?.src ?? "" } });
     } else if (inline.type === "mathInline") {
@@ -491,7 +491,8 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
       if (insert === "\n") {
         if (attrs["hard-break"] === true) {
           skipEmptyLineAfterBlockEmbed = false;
-          currentParagraph.content.push({ type: "hardBreak" });
+          const marks = deltaAttrToMarks(attrs);
+          currentParagraph.content.push({ type: "hardBreak", ...(marks.length ? { marks } : {}) });
           continue;
         }
         if (
@@ -590,7 +591,8 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         skipEmptyLineAfterBlockEmbed = false;
         flushList();
         // Hard break within paragraph
-        currentParagraph.content.push({ type: "hardBreak" });
+        const breakMarks = deltaAttrToMarks(attrs);
+        currentParagraph.content.push({ type: "hardBreak", ...(breakMarks.length ? { marks: breakMarks } : {}) });
         const rest = insert.slice(1);
         if (rest) {
           const marks = deltaAttrToMarks(attrs);

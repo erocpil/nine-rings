@@ -70,9 +70,23 @@ it.each([
 it("does not accept loss of leading-newline formatting alongside a boundary", () => {
   const body = {
     ops: [
-      { insert: "\nFirst Second", attributes: { bold: true } },
+      { insert: "\nFirst Second", attributes: { bold: false } },
       { insert: "\n", attributes: { list: "bullet" } },
     ],
   };
   expect(isCertifiedStructuredBody(body)).toBe(false);
+});
+
+it("compares inferred boundaries across inert empty operations and text fragments", () => {
+  const body = {
+    ops: [
+      { insert: "" },
+      { insert: "Fir" },
+      { insert: "st" },
+      { insert: "\n", attributes: { list: "bullet" } },
+    ],
+  };
+  const source = JSON.stringify(body);
+  expect(isCertifiedStructuredBody(body)).toBe(true);
+  expect(JSON.stringify(body)).toBe(source);
 });

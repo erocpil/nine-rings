@@ -194,7 +194,6 @@ it("rejects lossy HTML attributes, invalid Unicode, styles and hard breaks", () 
     content({ htmlAnchor: "bad id" }),
     content({ htmlAnchor: "\ud800" }),
     content("text", { htmlStyle: "script" }),
-    content("\n", { "hard-break": true, bold: true }),
     { ops: [{ insert: "\n", attributes: { "hard-break": true } }] },
   ])
     expect(review(invalid).eligible).toBe(false);

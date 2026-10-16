@@ -60,10 +60,11 @@ export function isCertifiedFootnotes(
       !label(definition.id) ||
       ids.has(definition.id) ||
       !(
+        definition.number === undefined ||
         definition.number === null ||
         (count(definition.number) && definition.number > 0)
       ) ||
-      !count(definition.references) ||
+      !(definition.references === undefined || count(definition.references)) ||
       !child(definition.content)
     )
       return false;

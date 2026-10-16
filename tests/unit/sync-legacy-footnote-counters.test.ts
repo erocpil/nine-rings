@@ -60,3 +60,29 @@ it("never rewrites stale labels, counters, definitions or missing definitions", 
     expect(isCertifiedStructuredBody(body)).toBe(false);
   }
 });
+
+it.each(["number", "references", "both"])(
+  "certifies omitted definition %s only from the same full document",
+  (field) => {
+    const body: MutableBody = structuredClone(fixture.notes[0].content);
+    const definitions = body.ops.find(isDefinitions)!.insert as {
+      footnotes: Record<string, unknown>[];
+    };
+    for (const definition of definitions.footnotes) {
+      if (field === "number" || field === "both") delete definition.number;
+      if (field === "references" || field === "both")
+        delete definition.references;
+    }
+    for (const op of body.ops)
+      if (op.attributes?.footnoteRef) {
+        delete op.attributes.footnoteNumber;
+        delete op.attributes.footnoteOccurrence;
+      }
+    const source = JSON.stringify(body);
+    expect(isCertifiedStructuredBody(body)).toBe(true);
+    expect(
+      candidateBodyProjection(proseMirrorToDelta(deltaToProseMirror(body))),
+    ).toEqual(candidateBodyProjection(fixture.notes[0].content));
+    expect(JSON.stringify(body)).toBe(source);
+  },
+);

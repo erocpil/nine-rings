@@ -162,7 +162,8 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
     )
       return false;
     if (op.insert === "\n" && attrs["hard-break"] === true) {
-      if (Object.keys(attrs).length !== 1) return false;
+      const { "hard-break": _break, ...marks } = attrs;
+      if (!isCertifiedInlineAtomAttributes(marks)) return false;
       markedText = true;
       continue;
     }
@@ -248,18 +249,44 @@ function matchesLegacyInferredAttributes(
   body: Record<string, unknown>,
   restored: DeltaOps,
 ) {
-  const original = body.ops as DeltaOps["ops"];
-  if (original.length !== restored.ops.length) return false;
+  // Compare semantic text runs, not arbitrary operation fragmentation. Keep all
+  // attributes and boundaries; only the explicitly inferred fields below differ.
+  const original = (candidateBodyProjection(body) as DeltaOps).ops;
+  const emitted = (candidateBodyProjection(restored) as DeltaOps).ops;
+  if (original.length !== emitted.length) return false;
   let inferred = false;
   const definitions = new Set<string>();
-  for (const op of restored.ops) {
+  for (const op of emitted) {
     if (record(op.insert) && Array.isArray(op.insert.footnotes))
       for (const definition of op.insert.footnotes)
         if (record(definition) && typeof definition.id === "string")
           definitions.add(definition.id);
   }
-  const comparable = restored.ops.map((op, index) => {
+  const comparable = emitted.map((op, index) => {
     const before = original[index];
+    if (
+      record(before.insert) &&
+      record(op.insert) &&
+      Array.isArray(before.insert.footnotes) &&
+      Array.isArray(op.insert.footnotes) &&
+      before.insert.footnotes.length === op.insert.footnotes.length
+    ) {
+      const oldDefinitions = before.insert.footnotes;
+      const footnotes = op.insert.footnotes.map((definition, at) => {
+        const old = oldDefinitions[at];
+        if (!record(definition) || !record(old) || old.id !== definition.id)
+          return definition;
+        const comparableDefinition = { ...definition };
+        for (const field of ["number", "references"]) {
+          if (old[field] === undefined && field in comparableDefinition) {
+            delete comparableDefinition[field];
+            inferred = true;
+          }
+        }
+        return comparableDefinition;
+      });
+      return { ...op, insert: { ...op.insert, footnotes } };
+    }
     if (
       typeof before.insert === "string" &&
       before.insert === op.insert &&
@@ -401,7 +428,6 @@ function flatQuoteComparison(
               !Object.keys(record(child.attributes) ? child.attributes : {})
                 .length ||
               (record(child.attributes) &&
-                Object.keys(child.attributes).length === 1 &&
                 child.attributes["hard-break"] === true)),
         )
       )
@@ -496,7 +522,8 @@ function withLegacyStructuralMarkers(
       op.insert.length > 1 &&
       op.insert.startsWith("\n") &&
       (op.attributes === undefined ||
-        (record(op.attributes) && !Object.keys(op.attributes).length)) &&
+        (record(op.attributes) &&
+          isCertifiedInlineAtomAttributes(op.attributes))) &&
       !(
         record(next) &&
         record(next.attributes) &&
@@ -504,10 +531,19 @@ function withLegacyStructuralMarkers(
       )
     ) {
       // This is exactly the existing decoder's leading-newline interpretation.
-      // Do not split remaining newlines, formatted text, code or plain-text imports.
+      // Keep all inline marks. Do not split remaining newlines or code blocks.
       ops.push(
-        { insert: "\n", attributes: { "hard-break": true } },
-        { insert: op.insert.slice(1) },
+        {
+          insert: "\n",
+          attributes: {
+            ...(record(op.attributes) ? op.attributes : {}),
+            "hard-break": true,
+          },
+        },
+        {
+          insert: op.insert.slice(1),
+          ...(op.attributes !== undefined ? { attributes: op.attributes } : {}),
+        },
       );
       inferred = true;
       implicitBreak = true;
