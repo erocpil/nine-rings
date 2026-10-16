@@ -229,15 +229,10 @@ function certifiedBodyShape(body: Record<string, unknown>, depth = 0): boolean {
     if (attrs.background !== undefined && attrs.highlight !== true)
       return false;
     if (!line && op.insert.includes("\n")) {
-      const next = ops[index + 1];
-      if (
-        Object.keys(attrs).length ||
-        !record(next) ||
-        next.insert !== "\n" ||
-        !record(next.attributes) ||
-        next.attributes["code-block"] !== true
-      )
-        return false;
+      // Legacy exports can pack unmarked text/newlines into one operation, both
+      // in code and ordinary paragraphs. The full-document round trip below must
+      // preserve every character; never trim/split text to force certification.
+      if (Object.keys(attrs).length) return false;
     }
   }
   const last = ops[ops.length - 1];
@@ -302,22 +297,58 @@ function matchesLegacyInferredAttributes(
 export function isCertifiedStructuredBody(
   body: Record<string, unknown>,
 ): boolean {
-  if (!certifiedBodyShape(body)) return false;
   try {
+    // Older horizontal-rule embeds may omit their structural terminator before text.
+    // Insert it only into the comparison copy, and prove it does not change the tree.
+    const comparison = withLegacyRuleTerminators(body);
+    if (!certifiedBodyShape(comparison)) return false;
     const document = deltaToProseMirror(body as unknown as DeltaOps);
+    if (
+      comparison !== body &&
+      canonicalJson(document) !==
+        canonicalJson(deltaToProseMirror(comparison as unknown as DeltaOps))
+    )
+      return false;
     if (!hasPortableRenderedResources(document)) return false;
     const restored = proseMirrorToDelta(document);
     // Reject misplaced attributes, inconsistent numbering/nesting, lossy combinations,
     // and changed embed boundaries. Do not silently rewrite the user's content.
 
     return (
-      canonicalJson(candidateBodyProjection(body)) ===
+      canonicalJson(candidateBodyProjection(comparison)) ===
         canonicalJson(candidateBodyProjection(restored)) ||
-      matchesLegacyInferredAttributes(body, restored)
+      matchesLegacyInferredAttributes(comparison, restored)
     );
   } catch {
     return false;
   }
+}
+
+function withLegacyRuleTerminators(
+  body: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!Array.isArray(body.ops)) return body;
+  let inferred = false;
+  const ops: unknown[] = [];
+  for (let index = 0; index < body.ops.length; index++) {
+    const op = body.ops[index],
+      next = body.ops[index + 1];
+    ops.push(op);
+    if (
+      record(op) &&
+      record(op.insert) &&
+      op.insert.hr === true &&
+      Object.keys(op.insert).length === 1 &&
+      record(next) &&
+      typeof next.insert === "string" &&
+      next.insert.length > 0 &&
+      !next.insert.startsWith("\n")
+    ) {
+      ops.push({ insert: "\n" });
+      inferred = true;
+    }
+  }
+  return inferred ? { ...body, ops } : body;
 }
 
 function validEmbed(op: Record<string, unknown>, depth: number): boolean {
