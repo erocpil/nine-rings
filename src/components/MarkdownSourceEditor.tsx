@@ -1,6 +1,6 @@
+import { EditorStatusBar } from "./EditorStatusBar";
 import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
 import { numberingDisplays } from "../lib/plugin-system/numbering-display";
-import { toggleDebug } from "../lib/debugLog";
 import { editorCommandTrigger } from "../lib/editor-command-surface";
 import { createPortal } from "react-dom";
 import { relativeLineNumbers } from "../lib/source-relative-line-numbers";
@@ -138,7 +138,9 @@ export function MarkdownSourceEditor({
   showLineNumbers,
   escapeRepair,
   toolbarTarget,
+  statusTarget,
   showStatusBar = true,
+  focusMode = false,
   saveStatus,
   onVersionOpen,
 }: {
@@ -155,7 +157,9 @@ export function MarkdownSourceEditor({
   showLineNumbers: boolean;
   escapeRepair?: ReactNode;
   toolbarTarget?: HTMLElement | null;
+  statusTarget?: HTMLElement | null;
   showStatusBar?: boolean;
+  focusMode?: boolean;
   saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
   onVersionOpen?: () => void;
 }) {
@@ -168,6 +172,7 @@ export function MarkdownSourceEditor({
   selectionCallback.current = onSelectionChange;
   callback.current = onChange;
   const editingReadonly = readonly || editingDisabled;
+
   const initial = useRef({ value, readonly: editingReadonly });
   const lastValue = useRef(value);
   const access = useRef(new Compartment()),
@@ -421,6 +426,16 @@ export function MarkdownSourceEditor({
       command(view.current);
     }
   };
+  useLayoutEffect(() => {
+    const root = host.current?.closest<HTMLElement>(".markdown-source-editor");
+    const scroller = view.current?.scrollDOM;
+    if (!root || !scroller) return;
+    const measure = () => root.style.setProperty("--editor-scrollbar-width", `${Math.max(0, scroller.offsetWidth - scroller.clientWidth)}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    return () => { observer.disconnect(); root.style.removeProperty("--editor-scrollbar-width"); };
+  }, [areaRef, session, onReady]);
   const toolbar = (
       <div
         className="markdown-source-tools"
@@ -528,12 +543,7 @@ export function MarkdownSourceEditor({
     >
       {toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbar}
       <div ref={host} className="markdown-cm-host" />
-      {showStatusBar && <div className="editor-stats markdown-source-status" role="group" aria-label="源码状态栏">
-        <span className={`editor-save-state editor-save-state-${saveStatus ?? "clean"}`} role="status" aria-label={saveStatus === "dirty" ? "待保存" : saveStatus === "saving" ? "保存中" : saveStatus === "error" ? "保存失败" : "已保存到本机；GitHub 备份需要单独 Push"} title="仅表示本机保存状态，GitHub 备份需要单独 Push"><ToolbarIcon name={saveStatus === "saving" ? "saving" : saveStatus === "error" ? "warning" : "check"} />{saveStatus === "dirty" ? "待保存" : saveStatus === "saving" ? "保存中" : saveStatus === "error" ? "保存失败" : null}</span>
-        <span>行 {cursor.line}，列 {cursor.column}</span>
-        <span>{value.length} 字符</span>
-        <span className="editor-status-actions"><button type="button" className="btn-debug-toggle" onClick={toggleDebug} title="打开调试日志" aria-label="打开调试日志"><ToolbarIcon name="bug" /><span>日志</span></button>{onVersionOpen && <button type="button" className="btn-version-icon" onClick={onVersionOpen} title="版本历史" aria-label="打开本机版本历史"><ToolbarIcon name="history" /><span>历史</span></button>}</span>
-      </div>}
+      {statusTarget ? createPortal(<EditorStatusBar enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} /> : null}
     </div>
   );
 }

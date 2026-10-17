@@ -1,0 +1,34 @@
+{
+  "manifestVersion": 1,
+  "id": "acme.status",
+  "name": "示例状态栏",
+  "version": "1.0.0",
+  "engines": {
+    "nineRingsPluginApi": "^0.1.0",
+    "app": "^0.3.0"
+  },
+  "contributes": {
+    "statusBar": {
+      "visible": true,
+      "showInFocus": true,
+      "font": "inherit",
+      "fontSize": 12,
+      "bold": false,
+      "italic": false,
+      "color": "secondary",
+      "background": "transparent",
+      "paddingY": 4,
+      "gap": 10,
+      "items": [
+        "navigation",
+        "save",
+        "block",
+        "position",
+        "characters",
+        "words",
+        "diagnostics",
+        "history"
+      ]
+    }
+  }
+}

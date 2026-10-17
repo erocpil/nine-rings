@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { useNavigationStore as store } from "../../src/stores/useNavigationStore";
 import {
   navigationKey,
+  isOrdinaryNavigationJump,
   isDocumentNavigationShortcut,
 } from "../../src/lib/document-navigation";
 const position = (noteId: string, from: number) => ({ noteId, from, to: from });
@@ -113,4 +114,11 @@ it("reserves navigation hotkeys without occupying Mac Option word movement", () 
   expect(isDocumentNavigationShortcut("Alt+ArrowLeft", true)).toBe(false);
   expect(isDocumentNavigationShortcut("Command+Alt+Left", true)).toBe(true);
   expect(isDocumentNavigationShortcut("Ctrl+Alt+Left", false)).toBe(false);
+});
+
+it("nearby working areas merge, while substantial mouse jumps are retained", () => {
+  expect(isOrdinaryNavigationJump(0, 80)).toBe(false);
+  expect(isOrdinaryNavigationJump(4, 799)).toBe(false);
+  expect(isOrdinaryNavigationJump(5, 100)).toBe(true);
+  expect(isOrdinaryNavigationJump(0, 800)).toBe(true);
 });

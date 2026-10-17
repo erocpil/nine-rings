@@ -185,13 +185,13 @@
   outline: none;
 }
 .document-panel-divider:is(:hover, :focus-visible, :active)::after {
-  inset: calc(50% - 1.5px) 0;
+  inset: calc(50% - 0.5px) 0;
   background: var(--accent);
   opacity: 0.65;
 }
 .dock-horizontal
   > .document-panel-divider:is(:hover, :focus-visible, :active)::after {
-  inset: 0 calc(50% - 1.5px);
+  inset: 0 calc(50% - 0.5px);
 }
 .document-dock-width-handle {
   position: absolute;
@@ -209,8 +209,22 @@
 .dock-left > .document-dock-width-handle {
   right: -3px;
 }
-.document-dock-width-handle:hover {
+.document-dock-width-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--border) 45%, transparent);
+  opacity: 0.12;
+  pointer-events: none;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+.document-dock-width-handle:is(:hover, :focus-visible, :active)::after {
   background: var(--accent);
+  opacity: 0.58;
 }
 [data-document-panel-trigger][data-pinned="true"] {
   color: var(--accent);
@@ -378,6 +392,7 @@
 /* Match the title rule's inset, including classic and docked document layouts. */
 .app-desktop-workspace .editor-stats {
   border-top-style: none;
+  padding-inline: 12px calc(12px + var(--editor-scrollbar-width, 0px));
   background-image: linear-gradient(var(--border), var(--border));
   background-size: calc(100% - 24px - var(--editor-scrollbar-width, 0px)) 1px;
   background-position: 12px top;
@@ -446,3 +461,8 @@
   :root .app-desktop-workspace .app-main:has(.editor-stats) { padding-bottom: 0; }
   .app-desktop-workspace .editor-stats { padding-block: 4px; }
 }
+.app-desktop-workspace .editor-status-bar[data-status-display="plugin"] { padding-block: var(--statusbar-padding, 4px); }
+
+/* Fixed source chrome and rendered sticky chrome share the scroll viewport edge. */
+.app-desktop-workspace .markdown-source-title-row { margin-inline-end: var(--editor-scrollbar-width, 0px); }
+.app-desktop-workspace .markdown-source-toolbar-host { margin-inline-end: calc(12px + var(--editor-scrollbar-width, 0px)); }

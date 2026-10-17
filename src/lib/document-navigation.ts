@@ -22,3 +22,8 @@ export function isDocumentNavigationShortcut(shortcut: string, mac = isMacPlatfo
     metaKey: parts.some(part => ["cmd", "command", "meta", "super"].includes(part)) || (mac && parts.includes("commandorcontrol")),
   }, mac) !== null;
 }
+
+/** Ordinary clicks inside a working area do not create a trail of tiny jumps. */
+export function isOrdinaryNavigationJump(blockDistance: number, characterDistance: number): boolean {
+  return blockDistance >= 5 || characterDistance >= 800;
+}

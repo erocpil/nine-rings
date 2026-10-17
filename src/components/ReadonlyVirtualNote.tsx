@@ -1,3 +1,5 @@
+import { EditorStatusBar } from "./EditorStatusBar";
+import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import { editorForegroundStyle } from "../lib/editor-color";
 import { editorBackgroundStyle } from "../lib/editor-color";
 import { cjkSpacedText } from "./CjkSpacedText";
@@ -358,6 +360,7 @@ export function ReadonlyVirtualNote(
     searchTarget,
     onSearchTargetConsumed,
   } = props;
+  const statusBar = useStatusBarDisplay(props.showStatusBar, props.focusMode);
   const active = useDocumentActive();
   const outlineDisplayConfig = usePanelDisplay("document-outline");
   const bookmarkDisplayConfig = usePanelDisplay("bookmarks");
@@ -1128,7 +1131,7 @@ export function ReadonlyVirtualNote(
         <FocusModeIcon name="bookmark" />
         {bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}
       </button>
-      <NavigationButtons />
+      {!statusBar.navigationInStatus && <NavigationButtons />}
       {mobileDrawerViewport && <button
         type="button"
         className="document-focus-toggle"
@@ -1599,12 +1602,8 @@ export function ReadonlyVirtualNote(
         </div>
       </div>
       {documentHover.preview}
-      {props.showStatusBar && (
-        <div className="vr-status">
-          {doc.childCount} 块 · 已挂载 {end - start} 块
-          {selectionWindow ? " · 正在保留选区" : ""}
-        </div>
-      )}
+      <EditorStatusBar enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus ?? "clean"} block={`${doc.childCount} 块 · 已挂载 ${end - start} 块${selectionWindow ? " · 正在保留选区" : ""}`} onVersionOpen={props.onVersionOpen} />
+
     </div></DocumentOutlineContext.Provider>
   );
 }

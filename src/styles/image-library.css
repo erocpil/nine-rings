@@ -474,3 +474,4 @@
   .image-filmstrip-dock:not([data-pinned="true"]):has(:focus-visible) { transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) { .image-filmstrip-dock { transition: none !important; } }
+.image-viewer-zoom-select { max-width: 78px; padding: 3px; color: var(--text-secondary); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; font: inherit; }

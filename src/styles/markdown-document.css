@@ -191,6 +191,12 @@ blockquote[data-alert="WARNING"], blockquote[data-alert="CAUTION"] { border-left
 }
 
 /* The header and toolbar rules share exactly the same horizontal bounds. */
-.markdown-source-title-row { margin-inline: 12px; padding-inline: 0; border-bottom: 1px solid var(--border); }
+.markdown-source-title-row { margin-inline: 0; padding-inline: 12px; }
 .markdown-source-toolbar-host { margin-inline: 12px; }
 .markdown-source-toolbar-host > .markdown-source-tools { padding-inline: 0; }
+
+.markdown-source-status-host { flex: 0 0 auto; min-width: 0; }
+/* Match the rendered reader's persistent tail-scroll gutter even for short source. */
+.markdown-cm-host .cm-scroller { overflow-y: scroll; scrollbar-gutter: stable; }
+/* Reserve the same viewport edge in both editor engines, including short notes. */
+.note-editor-scroll { overflow-y: scroll; scrollbar-gutter: stable; }

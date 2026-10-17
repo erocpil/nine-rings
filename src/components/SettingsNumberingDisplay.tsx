@@ -107,86 +107,114 @@ export function SettingsNumberingDisplay({
       <p className="settings-desc">
         启用后接管对应编号与折叠符号的展示；系统内置设置暂时禁用但保留原值。停用后恢复。浅深颜色可分开设置，不影响正文、折叠状态或块菜单。
       </p>
-      {(
-        [
-          ["visible", "显示编号"],
-          ["relative", "相对编号"],
-          ["bold", "编号粗体"],
-          ["italic", "编号斜体"],
-          ["highlightCurrent", "高亮当前编号"],
-          ["currentBold", "当前编号粗体"],
-        ] as const
-      ).map(([key, label]) => (
-        <Field desc="" key={key} label={label}>
-          <input
-            type="checkbox"
-            aria-label={label}
-            checked={display[key]}
-            onChange={(event) => update({ [key]: event.target.checked })}
-          />
-        </Field>
-      ))}
-      <Field desc="" label="编号字体">
-        <select
-          aria-label="编号字体"
-          value={display.font}
-          onChange={(event) =>
-            update({ font: event.target.value as NumberingDisplay["font"] })
-          }
+      <div className="numbering-settings-grid">
+        <section className="numbering-settings-group" aria-label="编号与文字">
+          <h3>编号与文字</h3>
+          {(
+            [
+              ["visible", "显示编号"],
+              ["relative", "相对编号"],
+              ["bold", "编号粗体"],
+              ["italic", "编号斜体"],
+            ] as const
+          ).map(([key, label]) => (
+            <Field desc="" key={key} label={label}>
+              <input
+                type="checkbox"
+                aria-label={label}
+                checked={display[key]}
+                onChange={(event) => update({ [key]: event.target.checked })}
+              />
+            </Field>
+          ))}
+          <Field desc="" label="编号字体">
+            <select
+              aria-label="编号字体"
+              value={display.font}
+              onChange={(event) =>
+                update({ font: event.target.value as NumberingDisplay["font"] })
+              }
+            >
+              <option value="inherit">跟随编辑区</option>
+              <option value="mono">等宽字体</option>
+              <option value="sans">系统无衬线</option>
+              <option value="serif">衬线字体</option>
+            </select>
+          </Field>
+          <Field desc="" label="编号字号">
+            <input
+              type="number"
+              aria-label="编号字号"
+              min={9}
+              max={24}
+              defaultValue={display.fontSize}
+              key={`${target}:${display.fontSize}`}
+              onBlur={(event) =>
+                update({ fontSize: Number(event.target.value) })
+              }
+            />
+          </Field>
+          {color("color", "编号颜色")}
+          {color("background", "编号区域背景")}
+        </section>
+        <section
+          className="numbering-settings-group"
+          aria-label="当前编号与折叠"
         >
-          <option value="inherit">跟随编辑区</option>
-          <option value="mono">等宽字体</option>
-          <option value="sans">系统无衬线</option>
-          <option value="serif">衬线字体</option>
-        </select>
-      </Field>
-      <Field desc="" label="编号字号">
-        <input
-          type="number"
-          aria-label="编号字号"
-          min={9}
-          max={24}
-          defaultValue={display.fontSize}
-          key={`${target}:${display.fontSize}`}
-          onBlur={(event) => update({ fontSize: Number(event.target.value) })}
-        />
-      </Field>
-      <Field desc="" label="相对编号当前项对齐">
-        <select
-          aria-label="相对编号当前项对齐"
-          value={display.currentAlignment}
-          onChange={(event) =>
-            update({ currentAlignment: event.target.value as "left" | "right" })
-          }
-        >
-          <option value="left">左对齐</option>
-          <option value="right">右对齐</option>
-        </select>
-      </Field>
-      {color("color", "编号颜色")}
-      {color("background", "编号区域背景")}
-      {color("currentColor", "当前编号颜色")}
-      {color("currentBackground", "当前编号背景")}
-      {(
-        [
-          ["foldCollapsed", "折叠状态符号"],
-          ["foldExpanded", "展开状态符号"],
-        ] as const
-      ).map(([key, label]) => (
-        <Field desc="" key={`${target}:${key}`} label={label}>
-          <input
-            type="text"
-            aria-label={label}
-            maxLength={8}
-            defaultValue={display[key]}
-            onBlur={(event) => update({ [key]: event.target.value })}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing)
-                event.currentTarget.blur();
-            }}
-          />
-        </Field>
-      ))}
+          <h3>当前编号与折叠</h3>
+          {(
+            [
+              ["highlightCurrent", "高亮当前编号"],
+              ["currentBold", "当前编号粗体"],
+            ] as const
+          ).map(([key, label]) => (
+            <Field desc="" key={key} label={label}>
+              <input
+                type="checkbox"
+                aria-label={label}
+                checked={display[key]}
+                onChange={(event) => update({ [key]: event.target.checked })}
+              />
+            </Field>
+          ))}
+          <Field desc="" label="相对编号当前项对齐">
+            <select
+              aria-label="相对编号当前项对齐"
+              value={display.currentAlignment}
+              onChange={(event) =>
+                update({
+                  currentAlignment: event.target.value as "left" | "right",
+                })
+              }
+            >
+              <option value="left">左对齐</option>
+              <option value="right">右对齐</option>
+            </select>
+          </Field>
+          {color("currentColor", "当前编号颜色")}
+          {color("currentBackground", "当前编号背景")}
+          {(
+            [
+              ["foldCollapsed", "折叠状态符号"],
+              ["foldExpanded", "展开状态符号"],
+            ] as const
+          ).map(([key, label]) => (
+            <Field desc="" key={`${target}:${key}`} label={label}>
+              <input
+                type="text"
+                aria-label={label}
+                maxLength={8}
+                defaultValue={display[key]}
+                onBlur={(event) => update({ [key]: event.target.value })}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.nativeEvent.isComposing)
+                    event.currentTarget.blur();
+                }}
+              />
+            </Field>
+          ))}
+        </section>
+      </div>
       <button
         type="button"
         className="settings-btn"

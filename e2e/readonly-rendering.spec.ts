@@ -331,7 +331,7 @@ test("窗口外书签跳转和跨窗口原生选区不会丢失", async ({ page 
       selection.addRange(range);
       return selection.toString();
     });
-  await expect(page.locator(".vr-status")).toContainText("正在保留选区");
+  await expect(page.getByRole("group", { name: "文档状态栏", exact: true })).toContainText("正在保留选区");
   await page.locator(".vr-scroll").evaluate((element) => {
     element.scrollTop += 4000;
   });
@@ -340,7 +340,7 @@ test("窗口外书签跳转和跨窗口原生选区不会丢失", async ({ page 
     selected,
   );
   await page.evaluate(() => window.getSelection()?.removeAllRanges());
-  await expect(page.locator(".vr-status")).not.toContainText("正在保留选区");
+  await expect(page.getByRole("group", { name: "文档状态栏", exact: true })).not.toContainText("正在保留选区");
   await expect
     .poll(() => page.locator("[data-reading-row]").count())
     .toBeLessThan(80);

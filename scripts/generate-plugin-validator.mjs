@@ -14,7 +14,7 @@ for (const file of readdirSync(directory).sort()) {
     schema.$defs.Template.required.push("usage");
     schema.$defs.Template.properties.target.properties.properties = false;
 
-    schema.$defs.Contributes.properties = Object.fromEntries(["themes", "templates", "snippets", "macros", "queries", "gutters"].map(key => [key, { ...schema.$defs.Contributes.properties[key], minItems: 1, maxItems: key === "themes" ? 8 : key === "gutters" ? 2 : 16 }]));
+    schema.$defs.Contributes.properties = Object.fromEntries(["themes", "templates", "snippets", "macros", "queries", "gutters", "statusBar"].map(key => [key, key === "statusBar" ? schema.$defs.Contributes.properties[key] : { ...schema.$defs.Contributes.properties[key], minItems: 1, maxItems: key === "themes" ? 8 : key === "gutters" ? 2 : 16 }]));
     schema.$defs.Contributes.additionalProperties = false;
     schema.$defs.Macro.properties.enablement = false;
   }

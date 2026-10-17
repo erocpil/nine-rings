@@ -1,3 +1,4 @@
+import { isOrdinaryNavigationJump } from "../lib/document-navigation";
 import { useDocumentActive } from "../components/RetainedDocument";
 import { useEffect, type RefObject } from "react";
 import type { Editor } from "@tiptap/core";
@@ -39,11 +40,14 @@ export function useEditorNavigation(editor: Editor | null, noteId: string, scrol
       const selection = editor.state.selection;
       const moved = !selection.eq(previous);
       if (moved || tr.docChanged) {
-        const differentBlock = selection.$from.start() !== previous.$from.start();
+        const blockDistance = Math.abs(selection.$from.index(0) - previous.$from.index(0));
+        // Nearby editing clicks belong to one working area. Explicit jumps are
+        // always retained, including matches within the same paragraph.
+        const far = isOrdinaryNavigationJump(blockDistance, Math.abs(selection.from - previous.from));
         const pointer = Boolean(tr.getMeta("pointer")) || dragging;
         const jump = moved && !tr.docChanged && !tr.getMeta("navigation-history") && !keyboardMovement
           && !(selection instanceof AllSelection)
-          && (tr.getMeta("navigation-jump") || (pointer ? !pointerRecorded && (differentBlock || Math.abs(selection.from - previous.from) > 80) : differentBlock || Math.abs(selection.from - previous.from) > 80));
+          && (tr.getMeta("navigation-jump") || (pointer && !pointerRecorded && far));
         state.record(location(), jump);
         if (pointer && moved) pointerRecorded = true;
       }

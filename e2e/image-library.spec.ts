@@ -1136,3 +1136,19 @@ test("已授权目录自动检测新增、改名、修改和删除，保留当�
   await expect(viewer.locator(".image-viewer-dimensions")).toHaveText("96 × 32");
   await expect(panel.locator(".image-tree-file.is-selected")).toContainText("one.png");
 });
+
+test("大图按原始像素放大到200%，缩放不受适窗倍数上限限制",async({page})=>{
+ await createBlankDocument(page);await closeDocumentSidebar(page);await enable(page);
+ await page.getByRole('button',{name:'图片',exact:true}).click();
+ const data=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=12000;c.height=100;c.getContext('2d')!.fillRect(0,0,12000,100);return c.toDataURL('image/png').split(',')[1];});
+ const panel=page.getByRole('region',{name:'图片目录分栏'});
+ await panel.locator('input[type=file]').first().setInputFiles({name:'zoom-200.png',mimeType:'image/png',buffer:Buffer.from(data,'base64')});
+ await panel.getByRole('button',{name:'已选择图片（临时）',exact:true}).click();
+ await panel.getByRole('button',{name:'zoom-200.png',exact:true}).click();
+ const viewer=page.getByRole('region',{name:'图片查看器'}),ratio=viewer.getByRole('combobox',{name:'图片缩放比例',exact:true});
+ await expect(ratio).toBeEnabled(); await ratio.selectOption('200');
+ await expect(ratio).toHaveValue('200');
+ await expect.poll(()=>viewer.locator('.image-viewer-viewport img').evaluate(el=>Math.round(el.getBoundingClientRect().width))).toBe(24000);
+ await viewer.getByRole('button',{name:'缩小图片',exact:true}).click();await expect(ratio).toHaveValue('160');
+ await viewer.getByRole('button',{name:'原始尺寸',exact:true}).click();await expect(ratio).toHaveValue('100');
+});

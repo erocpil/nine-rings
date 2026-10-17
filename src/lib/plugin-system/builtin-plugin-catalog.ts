@@ -1,3 +1,4 @@
+import { STATUS_PLUGIN_ID } from "./builtin-status-display";
 import { NUMBERING_PLUGIN_ID } from "./builtin-numbering-display";
 import { VOCABULARY_ID } from "./builtin-vocabulary";
 import { THEME_PLUGIN_ID } from "./builtin-theme-resources";
@@ -8,6 +9,7 @@ import { TREE_DISPLAY_PLUGIN_ID } from "./builtin-tree-display";
 
 /** Installed trusted modules, independent of whether an invocation is currently active. */
 export const BUILTIN_PLUGIN_CATALOG = Object.freeze([
+  Object.freeze({ id: STATUS_PLUGIN_ID, name: "状态栏展示", type: "编辑区展示", description: "定制渲染与源码状态栏的字体、配色、间距、信息项及顺序，保留宿主保存与位置导航。", configuration: "status" as const }),
   Object.freeze({ id: NUMBERING_PLUGIN_ID, name: "编号展示", type: "编辑区展示", description: "分别定制渲染块号和源码行号的字体、颜色、当前项及折叠符号，停用后恢复内置设置。", configuration: "numbering" as const }),
   Object.freeze({ id: THEME_PLUGIN_ID, name: "主题配色", type: "主题资源", description: "提供成对浅深配色及可选的标题、块字体建议，保留布局、用户排版设置和原风格回退。", configuration: "theme" as const }),
   Object.freeze({ id: VOCABULARY_ID, name: "词汇学习", type: "分栏 · 学习视图", description: "展示指定路径中的词汇 Markdown，分别保留词典的词性、词义、搭配和例句；原文可编辑、导出。", configuration: "vocabulary" as const }),

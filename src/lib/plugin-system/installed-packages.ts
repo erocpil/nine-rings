@@ -1,3 +1,4 @@
+import { statusDisplays } from "./status-display";
 import { numberingDisplays } from "./numbering-display";
 import { actionResources } from "./action-resources";
 import { contentResources } from "./content-resources";
@@ -96,6 +97,7 @@ export function startInstalledPluginPackages() {
               {
                 activate(owner) {
                   if (data.gutters.length) numberingDisplays.register(owner.activation, data.gutters);
+                  if (data.statusBar) statusDisplays.register(owner.activation, data.statusBar);
                   if (data.themes.length)
                     themeResources.register(owner.activation, data.themes);
                   if (data.actions.length)

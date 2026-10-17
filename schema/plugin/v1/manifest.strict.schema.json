@@ -25,7 +25,8 @@
               "importProfiles",
               "exportProfiles",
               "themes",
-              "gutters"
+              "gutters",
+              "statusBar"
             ]
           }
         }

@@ -318,3 +318,17 @@ for (const view of ["rendered", "source"] as const) {
     await waitForSavedText(page, "pending-barrier-edit");
   });
 }
+
+test("相邻块连续编辑合并为工作区域，一次后退离开近期修改区", async ({page})=>{
+ await fixture(page);
+ const initial=await location(page);
+ await editor(page).locator('p').nth(20).click();
+ await expect.poll(async()=>{const s=await history(page);return s.entries.length;}).toBeGreaterThan(1);
+ const count=(await history(page)).entries.length;
+ for(const index of [21,22,23]) {
+  await editor(page).locator('p').nth(index).click(); await page.keyboard.type('修改');
+ }
+ expect((await history(page)).entries).toHaveLength(count);
+ await page.getByRole('button',{name:'后退',exact:true}).click();
+ await expect.poll(()=>location(page)).toEqual(initial);
+});

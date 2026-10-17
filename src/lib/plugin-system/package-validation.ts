@@ -1,3 +1,4 @@
+import { validateStatusDisplay, type StatusDisplay } from "./status-display";
 import { validateNumberingDisplay, type NumberingDisplay } from "./numbering-display";
 import { parseMacros, type ActionContribution } from "./action-resources";
 import { parseQueries } from "./query-resources";
@@ -201,6 +202,7 @@ export interface ValidatedPluginPackage {
   content: readonly ContentContribution[];
   actions: readonly ActionContribution[];
   gutters: readonly NumberingDisplay[];
+  statusBar: StatusDisplay | null;
   files: Record<string, string>;
 }
 function localized(value: unknown): string {
@@ -278,7 +280,7 @@ export async function validatePluginPackage(
     !Object.keys(contributes).length ||
     Object.keys(contributes).some(
       (key) =>
-        !["themes", "templates", "snippets", "macros", "queries", "gutters"].includes(key),
+        !["themes", "templates", "snippets", "macros", "queries", "gutters", "statusBar"].includes(key),
     )
   )
     return invalid("未开放的贡献点");
@@ -348,6 +350,7 @@ export async function validatePluginPackage(
     content,
     actions,
     gutters,
+    statusBar: contributes.statusBar === undefined ? null : validateStatusDisplay(contributes.statusBar),
     files: text,
   };
 }

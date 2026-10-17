@@ -23,8 +23,8 @@ export function useSettings() {
   useEffect(() => {
     let disposed = false;
     let stop: (() => void) | undefined;
-    void import("../lib/plugin-system/numbering-service").then(module => {
-      if (!disposed) stop = module.startNumberingService();
+    void import("../lib/plugin-system/editor-presentation-service").then(module => {
+      if (!disposed) stop = module.startEditorPresentationService();
     });
     return () => { disposed = true; stop?.(); };
   }, []);

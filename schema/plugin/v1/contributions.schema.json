@@ -772,6 +772,9 @@
           "items": {
             "$ref": "#/$defs/NumberingDisplay"
           }
+        },
+        "statusBar": {
+          "$ref": "#/$defs/StatusDisplay"
         }
       },
       "additionalProperties": true
@@ -1180,6 +1183,141 @@
         "currentBackground",
         "foldExpanded",
         "foldCollapsed"
+      ]
+    },
+    "StatusDisplay": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "visible": {
+          "type": "boolean"
+        },
+        "font": {
+          "enum": [
+            "inherit",
+            "mono",
+            "sans",
+            "serif"
+          ]
+        },
+        "fontSize": {
+          "type": "number",
+          "minimum": 9,
+          "maximum": 20
+        },
+        "bold": {
+          "type": "boolean"
+        },
+        "italic": {
+          "type": "boolean"
+        },
+        "color": {
+          "oneOf": [
+            {
+              "enum": [
+                "text",
+                "secondary",
+                "accent",
+                "transparent",
+                "surface",
+                "active"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "light": {
+                  "type": "string",
+                  "pattern": "^#[a-fA-F0-9]{6}$"
+                },
+                "dark": {
+                  "type": "string",
+                  "pattern": "^#[a-fA-F0-9]{6}$"
+                }
+              },
+              "required": [
+                "light",
+                "dark"
+              ]
+            }
+          ]
+        },
+        "background": {
+          "oneOf": [
+            {
+              "enum": [
+                "text",
+                "secondary",
+                "accent",
+                "transparent",
+                "surface",
+                "active"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "light": {
+                  "type": "string",
+                  "pattern": "^#[a-fA-F0-9]{6}$"
+                },
+                "dark": {
+                  "type": "string",
+                  "pattern": "^#[a-fA-F0-9]{6}$"
+                }
+              },
+              "required": [
+                "light",
+                "dark"
+              ]
+            }
+          ]
+        },
+        "showInFocus": {
+          "type": "boolean"
+        },
+        "paddingY": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 12
+        },
+        "gap": {
+          "type": "number",
+          "minimum": 2,
+          "maximum": 24
+        },
+        "items": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 8,
+          "items": {
+            "enum": [
+              "navigation",
+              "save",
+              "block",
+              "position",
+              "characters",
+              "words",
+              "diagnostics",
+              "history"
+            ]
+          }
+        }
+      },
+      "required": [
+        "visible",
+        "font",
+        "fontSize",
+        "bold",
+        "italic",
+        "color",
+        "background",
+        "showInFocus",
+        "paddingY",
+        "gap",
+        "items"
       ]
     }
   }

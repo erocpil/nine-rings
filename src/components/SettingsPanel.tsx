@@ -1,3 +1,4 @@
+import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
 import { useFocusTabs, saveFocusTabs } from "../lib/focus-tabs";
 import { SettingsPluginCatalog } from "./SettingsPluginCatalog";
@@ -148,6 +149,8 @@ function normalizeVimConfig(value: string): string {
 
 export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onBeforePush, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onOpenBookmark, onNotesChanged, libraryError }: Props) {
   const numberingPlugins = useNumberingDisplay();
+  const statusBarPreference = useStatusBarDisplay(false);
+  const statusPlugin = statusBarPreference.display;
   const pluginsEnabled = useSyncExternalStore(pluginRuntime.subscribe, pluginRuntime.isEnabled);
   const contributedThemes = useSyncExternalStore(themeResources.subscribe, themeResources.getSnapshot);
   useSyncExternalStore(subscribeThemePreference, themePreferenceSnapshot);
@@ -1057,7 +1060,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 <input
                   type="checkbox"
                   aria-label="状态栏块号" checked={config.editor_show_status_block_number}
-                  disabled={!config.editor_show_status_bar}
+                  disabled={Boolean(statusPlugin) || !config.editor_show_status_bar}
                   onChange={(e) => update({ editor_show_status_block_number: e.target.checked })}
                 />
                 <span className="toggle-track" />
@@ -1069,11 +1072,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <label className="settings-toggle">
                 <input
                   type="checkbox"
-                  aria-label="编辑器状态栏" checked={config.editor_show_status_bar}
+                  aria-label="编辑器状态栏" disabled={Boolean(statusPlugin)} checked={config.editor_show_status_bar}
                   onChange={(e) => update({ editor_show_status_bar: e.target.checked })}
                 />
                 <span className="toggle-track" />
                 <span className="toggle-label">{config.editor_show_status_bar ? "开" : "关"}</span>
+              </label>
+            </Field>
+
+            <Field label="专注模式状态栏" desc={statusPlugin ? "由状态栏展示插件接管；停用插件后恢复此处保存的选择" : "状态栏开启时，选择是否在专注模式中继续显示；关闭时导航箭头回到标题栏"} visible={settingsPage === "editor"}>
+              <label className="settings-toggle">
+                <input type="checkbox" aria-label="专注模式状态栏" disabled={Boolean(statusPlugin) || !config.editor_show_status_bar} checked={statusBarPreference.showInFocus} onChange={event => saveBlockWorkspacePreferences({ statusBarInFocus: event.target.checked })} />
+                <span className="toggle-track" /><span className="toggle-label">{statusBarPreference.showInFocus ? "显示" : "隐藏"}</span>
               </label>
             </Field>
 

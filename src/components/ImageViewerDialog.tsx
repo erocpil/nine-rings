@@ -127,6 +127,7 @@ export function ImageViewer({
   const [error, setError] = useState("");
   const [original, setOriginal] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const nativeZoom = useRef(1);
   const [recipe, setRecipe] = useState({ ...DEFAULT_IMAGE_RECIPE });
   const rotation = recipe.quarterTurns * 90;
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
@@ -232,7 +233,7 @@ export function ImageViewer({
     return () => observer.disconnect();
   }, [active]);
   useEffect(() => {
-    if (original && dimensions.width) setZoom(1 / fitScale);
+    if (original && dimensions.width) setZoom(nativeZoom.current / fitScale);
   }, [original, fitScale, dimensions.width]);
   useLayoutEffect(() => {
     if (presentation !== "modal") return;
@@ -305,7 +306,7 @@ export function ImageViewer({
       point: { x: number; y: number },
       before = transform.current,
     ) => {
-      const next = Math.max(0.1, Math.min(12, zoom));
+      const next = Math.max(0.1, Math.min(12 / fitScale, zoom));
       setZoom(next);
       movePan(
         {
@@ -383,7 +384,7 @@ export function ImageViewer({
       for (const name of ["gesturestart", "gesturechange", "gestureend"])
         element.removeEventListener(name, gesture);
     };
-  }, [active, movePan]);
+  }, [active, movePan, fitScale]);
   const change = useCallback(
     (step: number) => {
       setOriginal(false);
@@ -533,7 +534,7 @@ export function ImageViewer({
         }
         if (event.key === "+" || event.key === "=") {
           event.preventDefault();
-          setZoom((value) => Math.min(12, value * 1.25));
+          setZoom((value) => Math.min(12 / fitScale, value * 1.25));
         }
         if (event.key === "-") {
           event.preventDefault();
@@ -634,14 +635,20 @@ export function ImageViewer({
         >
           <ToolbarIcon name="minus" />
         </button>
-        <span title="相对于原始像素的显示比例">
-          {Math.round(zoom * fitScale * 100)}%
-        </span>
+        <select className="image-viewer-zoom-select" aria-label="图片缩放比例" title="相对于原始像素的显示比例" disabled={fileChange.missing || !dimensions.width} value={Math.round(zoom * fitScale * 100)} onChange={event => {
+          nativeZoom.current = Number(event.target.value) / 100;
+          setOriginal(true);
+          setZoom(nativeZoom.current / fitScale);
+          setPan({ x: 0, y: 0 });
+        }}>
+          {![25,50,100,200].includes(Math.round(zoom * fitScale * 100)) && <option value={Math.round(zoom * fitScale * 100)}>{Math.round(zoom * fitScale * 100)}%</option>}
+          {[25,50,100,200].map(percent => <option key={percent} value={percent}>{percent}%</option>)}
+        </select>
         <button
           className="btn-icon"
           aria-label="放大图片"
           title="放大（+）"
-          onClick={() => setZoom((value) => Math.min(12, value * 1.25))}
+          onClick={() => setZoom((value) => Math.min(12 / fitScale, value * 1.25))}
         >
           <ToolbarIcon name="plus" />
         </button>
@@ -651,6 +658,7 @@ export function ImageViewer({
           title="原始像素尺寸"
           disabled={fileChange.missing}
           onClick={() => {
+            nativeZoom.current = 1;
             setOriginal(true);
             if (original) setZoom(1 / fitScale);
             setPan({ x: 0, y: 0 });
@@ -770,6 +778,7 @@ export function ImageViewer({
             if (fileChange.missing) return;
             if (original) reset();
             else {
+              nativeZoom.current = 1;
               setOriginal(true);
               setZoom(1 / fitScale);
               setPan({ x: 0, y: 0 });
@@ -798,7 +807,7 @@ export function ImageViewer({
                 setZoom((value) =>
                   Math.max(
                     0.1,
-                    Math.min(12, (value * after.distance) / pair.distance),
+                    Math.min(12 / fitScale, (value * after.distance) / pair.distance),
                   ),
                 );
               movePan((value) => ({

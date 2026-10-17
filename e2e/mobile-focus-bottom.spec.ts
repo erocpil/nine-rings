@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 
 test("专注模式正文延伸到底部，不保留固定安全区空白", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nr:blockWorkspaceDisplay", JSON.stringify({ statusBarInFocus: false })));
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
   // Desktop browser runners do not expose the iPhone Home Indicator inset.

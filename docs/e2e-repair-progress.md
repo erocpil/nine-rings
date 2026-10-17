@@ -1785,3 +1785,11 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - 完整 check 通过：191 单元文件 / 2277 项，以及原有独立用例、schema 静态生成、格式、类型、lint 和 IPC。最后补充锚点取消语义与留白修正后，编号 15 单元、完整 typecheck/lint 及生产构建再通过。主包 495.51 kB，无 500 kB chunk 警告，未提高阈值。
 - Chromium 组合 42 项通过（automatic-toc、plugin-numbering、toc-viewport-anchor、doc-tree-selection-layout、bookmark-compact-row、document-browser-compact、vocabulary-learning）；WebKit 对应目录/编号/文档树/手机书签组合 24 项通过。最后锚点交接修改后，toc-viewport-anchor 与 font-reading-position 两引擎各 8 项通过；这包含前三项目录重跑，不应重复计为新增用例。
 - 日志：`/tmp/nr-numbering-check-final.log`、`/tmp/nr-numbering-toc-chromium-final.log`、`/tmp/nr-numbering-toc-webkit.log`、`/tmp/nr-fold-resize-chromium.log`、`/tmp/nr-fold-resize-webkit.log`、`/tmp/nr-numbering-production-final.log`。未执行本批全产品 E2E、Tauri 原生 GUI 或 Flutter；原生菜单栏迁移仍为可行性讨论，未伪称已迁移。
+
+## 2026-10-18：状态栏资源与编辑区连续性
+
+- 渲染、源码、实验性只读共用状态栏；内置及声明式资源支持显示项顺序、字体/配色/间距与专注可见性。默认两种模式均显示，已有显式关闭选择保留；隐藏导航项或整栏时回退标题入口。
+- 专注编辑工具保留窗口会话选择，图片倍率按原始像素支持 200%，目录 splitter 保持 6px 命中区而仅绘制 1px 线。源码预览页脚移出双列，标题/横线/页脚按实际滚动条占宽对齐。
+- 编号配置宽屏两栏分组、窄屏单栏；插件配置初始聚焦弹层，返回鼠标触发项不显示焦点圈，键盘可继续激活。
+- 最新 Chromium 三个文件 12 项通过；WebKit 对应 11 项加前次手机底部 1 项通过。新增测试最初依赖操作系统完整 Tab 遍历，改为明确焦点目标后的键盘激活，未删布局与恢复断言。此前跨引擎对齐发现滚动条差异，最终源码与渲染 scroller 都采用稳定纵向占位。
+- 生产构建与 bundle-size 通过，主入口 495.63 kB；未提高 500 kB 阈值，无循环/超大 chunk 警告。类型、lint、设置备份回归通过。完整 check 及远端结果另记录，定向浏览器回归不代表完整产品 E2E 或原生真机验收。

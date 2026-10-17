@@ -38,4 +38,4 @@ const validated = await validatePluginPackage(files, undefined, target);
 const archive = zipSync(files);
 if (archive.length > PACKAGE_LIMITS.compressed) throw Error("压缩包超过安装预算");
 await writeFile(output, archive, { flag: "wx" });
-console.log(`${validated.id} ${validated.version} · ${validated.themes.length} 份主题 · ${validated.content.length} 份模板/片段 · ${validated.gutters.length} 个编号目标 · ${archive.length} bytes\nSHA-256 ${validated.digest}\n${output}`);
+console.log(`${validated.id} ${validated.version} · ${validated.themes.length} 份主题 · ${validated.content.length} 份模板/片段 · ${validated.gutters.length} 个编号目标 · ${validated.statusBar ? 1 : 0} 份状态栏展示 · ${archive.length} bytes\nSHA-256 ${validated.digest}\n${output}`);

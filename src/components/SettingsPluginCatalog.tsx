@@ -1,3 +1,5 @@
+import { SettingsStatusDisplay } from "./SettingsStatusDisplay";
+import { readStatusPreference, saveStatusPreference, subscribeStatusPreference, statusPreferenceSnapshot } from "../lib/plugin-system/builtin-status-display";
 import { SettingsNumberingDisplay } from "./SettingsNumberingDisplay";
 import { readNumberingPreference, saveNumberingPreference, subscribeNumberingPreference, numberingPreferenceSnapshot } from "../lib/plugin-system/builtin-numbering-display";
 import { SettingsInstalledPackages } from "./SettingsInstalledPackages";
@@ -9,6 +11,7 @@ import {
   imageViewerSnapshot,
 } from "../lib/plugin-system/builtin-image-viewer";
 import {
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -69,7 +72,6 @@ function PluginConfigurationDialog({
   const presentation = readResultPresentation(tool);
   const presenter = panelPresenter(plugin.configuration);
   const dialog = useRef<HTMLDialogElement>(null);
-  const close = useRef<HTMLButtonElement>(null);
   const status = useSyncExternalStore(
     pluginRuntime.subscribe,
     pluginRuntime.getStatus,
@@ -81,10 +83,11 @@ function PluginConfigurationDialog({
     element.showModal();
     return () => element.close();
   }, []);
-  useDialogFocus(dialog, true, close, trigger, true);
+  useDialogFocus(dialog, true, dialog, trigger, true);
   return createPortal(
     <dialog
       ref={dialog}
+      tabIndex={-1}
       className="settings-panel plugin-config-dialog"
       aria-label={`${plugin.name}配置`}
       aria-modal="true"
@@ -111,7 +114,6 @@ function PluginConfigurationDialog({
           {message}
         </span>
         <button
-          ref={close}
           type="button"
           className="btn-icon"
           aria-label="关闭插件配置"
@@ -124,7 +126,7 @@ function PluginConfigurationDialog({
         <p className="settings-desc">
           内置 · {plugin.type} · {plugin.description}
         </p>
-        {plugin.configuration === "numbering" ? <SettingsNumberingDisplay onMessage={showMessage} /> : plugin.configuration === "theme" ? <SettingsThemeResources onMessage={showMessage} /> : plugin.configuration === "vocabulary" ? <>
+        {plugin.configuration === "status" ? <SettingsStatusDisplay onMessage={showMessage} /> : plugin.configuration === "numbering" ? <SettingsNumberingDisplay onMessage={showMessage} /> : plugin.configuration === "theme" ? <SettingsThemeResources onMessage={showMessage} /> : plugin.configuration === "vocabulary" ? <>
           <Field label="Markdown 文档路径" desc="仅用于普通 Markdown 词汇文档。ZIP 独立词库无需此路径，也不需要放入文档树。修改路径按 Enter 或离开输入框保存。">
             <input className="settings-input" aria-label="Markdown 文档路径" key={readVocabularyPreference().path} defaultValue={readVocabularyPreference().path} onBlur={event => {
               try { saveVocabularyPreference({ ...readVocabularyPreference(), path: event.target.value }); showMessage("已更新"); } catch (error) { showMessage(String(error)); }
@@ -214,7 +216,7 @@ function PluginConfigurationDialog({
           desc={
             active
               ? "插件当前已激活。开启与停用请在插件列表操作。"
-              : presenter || plugin.configuration === "vocabulary" || plugin.configuration === "theme" || plugin.configuration === "numbering"
+              : presenter || plugin.configuration === "vocabulary" || plugin.configuration === "theme" || plugin.configuration === "numbering" || plugin.configuration === "status"
                 ? "未激活；开启插件后自动激活。"
                 : "未激活；从文档菜单调用时按需激活。"
           }
@@ -227,7 +229,7 @@ function PluginConfigurationDialog({
                 ? "分栏与主区域展示、配置路径内的未保护词汇正文读取"
                 : plugin.configuration === "image-viewer"
                 ? "分栏展示、授权图片目录读取；插入文档另经编辑插件命令"
-                : presenter || plugin.configuration === "theme" || plugin.configuration === "numbering"
+                : presenter || plugin.configuration === "theme" || plugin.configuration === "numbering" || plugin.configuration === "status"
                   ? "无需文档读写权限"
                   : plugin.id !== "nine-rings.builtin-statistics"
                     ? "当前选区读写、当前文档读取"
@@ -241,6 +243,17 @@ function PluginConfigurationDialog({
 }
 
 export function SettingsPluginCatalog() {
+  const catalog = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const resumeKeyboardFocus = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      catalog.current?.querySelectorAll<HTMLElement>("[data-pointer-focus]").forEach(element => {
+        delete element.dataset.pointerFocus;
+      });
+    };
+    document.addEventListener("keydown", resumeKeyboardFocus, true);
+    return () => document.removeEventListener("keydown", resumeKeyboardFocus, true);
+  }, []);
   const { message, showMessage } = useTransientMessage();
   const [selected, setSelected] = useState<BuiltinPluginDescription | null>(
     null,
@@ -252,6 +265,7 @@ export function SettingsPluginCatalog() {
   );
   useSyncExternalStore(treeDisplay.subscribe, treeDisplay.snapshot);
   useSyncExternalStore(subscribeNumberingPreference, numberingPreferenceSnapshot);
+  useSyncExternalStore(subscribeStatusPreference, statusPreferenceSnapshot);
   useSyncExternalStore(subscribeThemePreference, themePreferenceSnapshot);
   useSyncExternalStore(subscribeDocumentTools, documentToolsSnapshot);
   useSyncExternalStore(subscribeImageViewer, imageViewerSnapshot);
@@ -260,7 +274,7 @@ export function SettingsPluginCatalog() {
   useSyncExternalStore(bookmarkDisplay.subscribe, bookmarkDisplay.snapshot);
   useSyncExternalStore(notesDisplay.subscribe, notesDisplay.snapshot);
   return (
-    <aside className="settings-plugin-catalog" aria-label="插件列表">
+    <aside ref={catalog} className="settings-plugin-catalog" aria-label="插件列表">
       <h3>插件列表</h3>
       <p className="settings-desc">
         {BUILTIN_PLUGIN_CATALOG.length} 个内置插件 · 点击名称查看配置
@@ -279,7 +293,7 @@ export function SettingsPluginCatalog() {
                 : "statistics";
           const presenter = panelPresenter(plugin.configuration);
           const enabled =
-            plugin.configuration === "numbering" ? readNumberingPreference().enabled : plugin.configuration === "theme" ? readThemePreference().enabled : plugin.configuration === "vocabulary" ? readVocabularyPreference().enabled : plugin.configuration === "image-viewer"
+            plugin.configuration === "status" ? readStatusPreference().enabled : plugin.configuration === "numbering" ? readNumberingPreference().enabled : plugin.configuration === "theme" ? readThemePreference().enabled : plugin.configuration === "vocabulary" ? readVocabularyPreference().enabled : plugin.configuration === "image-viewer"
               ? imageViewerEnabled()
               : presenter
                 ? presenter.read().enabled
@@ -288,7 +302,7 @@ export function SettingsPluginCatalog() {
             ? "已停用"
             : active
               ? "运行中"
-              : presenter || plugin.configuration === "theme" || plugin.configuration === "numbering"
+              : presenter || plugin.configuration === "theme" || plugin.configuration === "numbering" || plugin.configuration === "status"
                 ? "等待激活"
                 : "按需调用";
           return (
@@ -297,6 +311,8 @@ export function SettingsPluginCatalog() {
                 <button
                   type="button"
                   className="settings-plugin-name"
+                  onPointerDown={event => { event.currentTarget.dataset.pointerFocus = "true"; }}
+                  onKeyDown={event => { delete event.currentTarget.dataset.pointerFocus; }}
                   onClick={(event) => {
                     event.currentTarget.focus({ preventScroll: true });
                     trigger.current = event.currentTarget;
@@ -314,7 +330,8 @@ export function SettingsPluginCatalog() {
                     checked={enabled}
                     onChange={(event) => {
                       try {
-                        if (plugin.configuration === "numbering") saveNumberingPreference({ ...readNumberingPreference(), enabled: event.target.checked });
+                        if (plugin.configuration === "status") saveStatusPreference({ ...readStatusPreference(), enabled: event.target.checked });
+                        else if (plugin.configuration === "numbering") saveNumberingPreference({ ...readNumberingPreference(), enabled: event.target.checked });
                         else if (plugin.configuration === "theme") saveThemePreference({ ...readThemePreference(), enabled: event.target.checked });
                         else if (plugin.configuration === "vocabulary") saveVocabularyPreference({ ...readVocabularyPreference(), enabled: event.target.checked });
                         else if (plugin.configuration === "image-viewer")

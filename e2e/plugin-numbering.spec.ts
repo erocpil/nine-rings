@@ -107,8 +107,8 @@ for (const virtual of [false, true])
         .querySelector(".markdown-source-tools")!
         .getBoundingClientRect();
       return {
-        left: Math.abs(title.left - tools.left),
-        right: Math.abs(title.right - tools.right),
+        left: Math.abs(title.left + 12 - tools.left),
+        right: Math.abs(title.right - 12 - tools.right),
       };
     });
     expect(rules.left).toBeLessThanOrEqual(1);
@@ -175,4 +175,31 @@ test("可安装编号数据包无需权限或代码，启用和卸载恢复宿�
   await expect(page.locator("html")).not.toHaveAttribute(
     "data-numbering-source",
   );
+});
+
+test("编号配置宽屏分组双栏、窄屏单栏，鼠标打开关闭不突出焦点按钮", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await createBlankDocument(page);
+  const dialog = await enable(page);
+  await expect(dialog).toBeFocused();
+  const groups = dialog.locator('.numbering-settings-group');
+  const first = await groups.nth(0).boundingBox();
+  const second = await groups.nth(1).boundingBox();
+  expect(Math.abs(first!.y - second!.y)).toBeLessThan(2);
+  expect(second!.x).toBeGreaterThan(first!.x + first!.width);
+  await page.setViewportSize({ width: 600, height: 900 });
+  const narrowFirst = await groups.nth(0).boundingBox();
+  const narrowSecond = await groups.nth(1).boundingBox();
+  expect(narrowSecond!.y).toBeGreaterThan(narrowFirst!.y + narrowFirst!.height);
+  await page.keyboard.press('Escape');
+  const trigger = page.getByRole('button', { name: '编号展示', exact: true });
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toHaveCSS('outline-style', 'none');
+  // Tab must restore keyboard focus styling even after pointer-driven dismissal.
+  await page.keyboard.press('Tab');
+  await expect(trigger).not.toHaveAttribute('data-pointer-focus', 'true');
+  // WebKit Tab traversal depends on the OS full-keyboard-access preference.
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog', { name: '编号展示配置', exact: true })).toBeVisible();
 });

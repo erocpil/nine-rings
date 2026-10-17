@@ -1,3 +1,6 @@
+import { useFocusEditorTools } from "../stores/useFocusEditorTools";
+import { EditorStatusBar } from "./EditorStatusBar";
+import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
 import { FontSize } from "../extensions/FontSize";
 import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
@@ -77,7 +80,7 @@ import { Plugin, TextSelection, Selection, type Transaction } from "@tiptap/pm/s
 import type { EditorView } from "@tiptap/pm/view";
 import { closeHistory } from "@tiptap/pm/history";
 import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
-import { addLog, isDebugOpen, subscribeDebugOpen, toggleDebug } from "../lib/debugLog";
+import { addLog, isDebugOpen, subscribeDebugOpen } from "../lib/debugLog";
 import { copyToClipboard } from "../lib/clipboard";
 import {
   CodeBlockLineNumbers,
@@ -453,6 +456,7 @@ function DocumentEditor(input: NoteEditorProps) {
 }
 
 function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
+  const statusBar = useStatusBarDisplay(showStatusBar, focusMode);
   const [documentSerializer] = useState(() => new IncrementalDocumentSerializer());
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
@@ -619,7 +623,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       setLocalTitle(title ?? "");
     }
   }, [title]);
-  const [focusToolbarExpanded, setFocusToolbarExpanded] = useState(false);
+  const focusToolbarExpanded = useFocusEditorTools(state => state.expanded);
+  const setFocusToolbarExpanded = useFocusEditorTools(state => state.setExpanded);
   const dismissNativeSelectionMenu = useCallback(() => {
     const selection = window.getSelection();
     // iOS 没有供网页主动关闭/重新打开编辑菜单的 API。清除当前 DOM Range
@@ -707,7 +712,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   const nativeCjkLatinSpacing = useMemo(supportsNativeCjkLatinSpacing, []);
 
   const scheduleDocumentStats = useCallback((target: Editor, immediate = false) => {
-    if (!showStatusBar) return;
+    if (!statusBar.visible) return;
     if (documentStatsTimerRef.current !== null) {
       window.clearTimeout(documentStatsTimerRef.current);
     }
@@ -719,7 +724,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         words: target.storage.characterCount?.words?.() ?? 0,
       });
     }, immediate ? 0 : 180);
-  }, [showStatusBar]);
+  }, [statusBar.visible]);
 
   useEffect(() => {
     if (!markdownPasteText) return;
@@ -1207,8 +1212,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   }, [editor, noteId, cancelReadonlyHeadingAnchor]);
 
   useEffect(() => {
-    if (editor && showStatusBar) scheduleDocumentStats(editor, true);
-  }, [editor, scheduleDocumentStats, showStatusBar]);
+    if (editor && statusBar.visible) scheduleDocumentStats(editor, true);
+  }, [editor, scheduleDocumentStats, statusBar.visible]);
 
   useMobileEditorScroll(editor, scrollRef, readonly);
 
@@ -1352,7 +1357,6 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     return bindViewportEdgeSwipe("right", (touch) => {
       const viewport = swipeViewport();
       if (touch.clientY >= viewport.middleY) return onOpenSettings ? () => {
-        setFocusToolbarExpanded(false);
         onOpenSettings();
       } : null;
       const target = lastMobilePanel.current;
@@ -1360,7 +1364,6 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         return documentOutline.length === 0 ? () => openDocumentBookmarks("drawer") : null;
       }
       return () => {
-        setFocusToolbarExpanded(false);
         if (target === "bookmark") openDocumentBookmarks("drawer");
         else openDocumentOutline("drawer");
       };
@@ -1626,9 +1629,6 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     if (editor && editor.options.editable !== editable) editor.setEditable(editable, false);
   }, [readonly, editor, selectedBlockIndexes.size]);
 
-  useEffect(() => {
-    if (!focusMode) setFocusToolbarExpanded(false);
-  }, [focusMode]);
 
   const revealSearchMatch = useCallback((requestedIndex: number, suppliedMatches?: SearchMatch[], focusEditor = true) => {
     if (!editor) return;
@@ -2508,7 +2508,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     }
   }, [editor, noteId]);
 
-  useEditorScrollPersistence({ editor, noteId, sensitive, scrollRef, scrollPositionRef, rendererHandoffRef, showStatusBar, isMobileToolbarViewport });
+  useEditorScrollPersistence({ editor, noteId, sensitive, scrollRef, scrollPositionRef, rendererHandoffRef, showStatusBar: statusBar.visible, isMobileToolbarViewport });
 
   useEditorNavigation(editor, noteId, scrollRef);
 
@@ -4120,8 +4120,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
               setReadonlyChangeBusy(true);
               try {
                 await onReadonlyChange(!readonly);
-                setFocusToolbarExpanded(false);
-                setReadonlyChangeNotice(true);
+                        setReadonlyChangeNotice(true);
               } finally { setReadonlyChangeBusy(false); }
             }}
           ><ToolbarIcon name={readonly ? "lock" : "unlock"} /></button>
@@ -4148,8 +4147,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
               aria-expanded={outlineOpen}
               onClick={(event) => {
                 event.stopPropagation();
-                setFocusToolbarExpanded(false);
-                toggleDocumentOutline();
+                        toggleDocumentOutline();
               }}
               title="文档目录"
               aria-label="文档目录"
@@ -4164,8 +4162,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
             aria-expanded={bookmarkOpen}
             onClick={(event) => {
               event.stopPropagation();
-              setFocusToolbarExpanded(false);
-              toggleDocumentBookmarks();
+                    toggleDocumentBookmarks();
             }}
             title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
             aria-label={bookmarks.length > 0 ? `文档书签，共 ${bookmarks.length} 项` : "文档书签"}
@@ -4185,14 +4182,13 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
               aria-label="更多编辑工具"
             ><FocusModeIcon name="tools" /></button>
           )}
-          <NavigationButtons />
+          {!statusBar.navigationInStatus && <NavigationButtons />}
           <button
             type="button"
             onClick={() => {
               setOutlineOpen(false);
               setBookmarkOpen(false);
-              setFocusToolbarExpanded(false);
-              onFocusModeChange?.(false);
+                    onFocusModeChange?.(false);
             }}
             title="退出专注模式"
             aria-label="退出专注模式"
@@ -4399,7 +4395,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
             type="button"
           ><FocusModeIcon name="bookmark" />{bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}</button>
           {unifiedTitleBar && focusMode && !readonly && <button type="button" className="focus-btn" title="更多编辑工具" aria-label="更多编辑工具" aria-expanded={focusToolbarExpanded} onClick={() => setFocusToolbarExpanded(value => !value)}><ToolbarIcon name="annotate" /></button>}
-          <NavigationButtons />
+          {!statusBar.navigationInStatus && <NavigationButtons />}
           {isMobileToolbarViewport && <button
             className={`focus-btn document-focus-toggle ${focusMode ? "active" : ""}`}
             onClick={() => { onFocusModeChange?.(!focusMode); }}
@@ -4704,7 +4700,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       </div>
 
       {/* ── 文档状态栏：本机保存状态、位置统计与诊断/历史入口 ── */}
-      {(showStatusBar || searchMatches.length > 0) && <div className={`editor-stats${showStatusBar ? "" : " editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
+      <EditorStatusBar debugOpen={debugOpen} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} block={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? `块 ${currentStatusBlock}/${totalBlocks}` : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} onVersionOpen={onVersionOpen} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
         {saveIssue && <button type="button" className="workspace-error-indicator" onClick={onOpenSaveIssue}>保存异常 · 查看详情</button>}
         {searchMatches.length > 0 && !editorFindOpen && (
           <span className="editor-search-navigation" role="status" aria-live="polite">
@@ -4719,37 +4715,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
             >×</button>
           </span>
         )}
-        {showStatusBar && <span
-          className={`editor-save-state editor-save-state-${saveStatus ?? "clean"}`}
-          role="status"
-          aria-label={saveStatus === "dirty" ? "待保存" : saveStatus === "saving" ? "保存中" : saveStatus === "error" ? "保存失败" : "已保存到本机；GitHub 备份需要单独 Push"}
-          title="仅表示当前设备的保存状态；GitHub 备份需要单独 Push"
-        >
-          <ToolbarIcon name={saveStatus === "saving" ? "saving" : saveStatus === "error" ? "warning" : "check"} />
-          {saveStatus === "dirty" ? "待保存" : saveStatus === "saving" ? "保存中" : saveStatus === "error" ? "保存失败" : null}
-        </span>}
-        {showStatusBlockNumber && <span className="editor-status-block">块 {currentStatusBlock}/{totalBlocks}</span>}
-        <span className="editor-status-secondary">
-          <span ref={scrollPositionRef} className="editor-status-position">位置 0%</span>
-          <span>{chars} 字符</span>
-          <span>{words} 词</span>
-        </span>
-          <span className="editor-status-actions">
-            <span className="btn-debug-toggle-wrapper">
-              <button
-                className={`btn-debug-toggle${debugOpen ? " active" : ""}`}
-                onClick={toggleDebug}
-                title={debugOpen ? "关闭调试日志" : "打开调试日志"}
-                aria-label={debugOpen ? "关闭调试日志" : "打开调试日志"}
-                aria-pressed={debugOpen}
-                type="button"
-              ><ToolbarIcon name="bug" /><span>日志</span></button>
-            </span>
-            {onVersionOpen && <button className="btn-version-icon" onClick={onVersionOpen} title="版本历史" aria-label="打开本机版本历史" type="button">
-              <ToolbarIcon name="history" /><span>历史</span>
-            </button>}
-          </span>
-      </div>}
+      </EditorStatusBar>
 
       <BlockWorkspaceHost highlightActiveLine={highlightActiveLine} vimModeEnabled={vimModeEnabled} key={noteId} noteId={noteId} source={editor} readonly={readonly} sensitive={sensitive} saveStatus={saveStatus} onFlush={onFlush} />
       <EditorContextMenu

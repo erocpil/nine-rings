@@ -1529,3 +1529,25 @@ html[data-interface-style] .editor-menu .toolbar-split-caret .toolbar-dropdown-c
 }
 
 html[data-interface-style] .editor-menu .toolbar-split-button > .menu-btn:is(:hover, .active, [aria-expanded="true"]) { background: transparent; border-color: transparent; }
+
+/* Shared status widgets: host owns commands, presentation providers own appearance. */
+.editor-status-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.editor-status-bar::-webkit-scrollbar { display: none; }
+.editor-status-item { display: inline-flex; align-items: center; flex: 0 0 auto; white-space: nowrap; gap: inherit; }
+.editor-status-actions-start { margin-inline-start: auto; }
+.editor-status-bar .document-navigation button { width: 24px; height: 24px; padding: 2px; border: 1px solid transparent; background: transparent; }
+:root .editor-status-bar[data-status-display="plugin"] {
+  font-family: var(--statusbar-font, inherit); font-size: var(--statusbar-size, 11px); font-weight: var(--statusbar-weight, 400); font-style: var(--statusbar-style, normal);
+  padding-block: var(--statusbar-padding, 4px); gap: var(--statusbar-gap, 10px);
+  color: var(--statusbar-color-light, var(--text-secondary)); background-color: var(--statusbar-background-light, transparent);
+}
+.editor-status-bar[data-status-display="plugin"] :is(.editor-status-item, .editor-status-block, .btn-debug-toggle, .btn-version-icon, .document-navigation .focus-btn) { font: inherit; color: inherit; }
+html:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) .editor-status-bar[data-status-display="plugin"] { color: var(--statusbar-color-dark, var(--text-secondary)); background-color: var(--statusbar-background-dark, transparent); }
+.focus-mode .editor-status-bar[data-status-show-in-focus="true"] { display: flex !important; }
+.status-display-items { padding: 0; list-style: none; }
+.status-display-items li { display: flex; align-items: center; gap: 6px; padding-block: 4px; }
+.status-display-items label { flex: 1; display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 768px) {
+  .editor-status-bar .editor-status-item:is([data-status-item="characters"], [data-status-item="words"], [data-status-item="diagnostics"]) { display: none; }
+  .editor-status-bar { gap: 6px; }
+}
