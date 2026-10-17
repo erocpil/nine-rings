@@ -335,3 +335,5 @@ MIT © [erocpil](https://github.com/erocpil)
 Nord（北境）与 Dracula Classic（德古拉）配色依照各自的 MIT 许可证使用；原作者版权声明与许可全文见 [主题第三方许可声明](public/third-party-theme-licenses.txt)。该文件会随 Web 和 Tauri 桌面版的前端资源一起打包。
 
 手动逐实体同步（Web/Tauri 0.3.0）：首次迁移、选择合并与中断恢复见[同步指南](docs/incremental-sync.md)。Flutter 对新协议仍保持关闭；升级不会自动迁移已有备份。
+
+工程资料：[当前关键设计](docs/current-design.md) · [工程设计地图与复用经验](docs/engineering-design-map.md) · [2026-10-18 代码审查](docs/code-review-2026-10-18.md)。
