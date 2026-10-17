@@ -5,12 +5,12 @@ import {
 } from "./runtime";
 import { numberingColor, type NumberingColor } from "./numbering-display";
 export const STATUS_ITEMS = [
-  "navigation",
   "save",
   "block",
   "position",
   "characters",
   "words",
+  "navigation",
   "diagnostics",
   "history",
 ] as const;

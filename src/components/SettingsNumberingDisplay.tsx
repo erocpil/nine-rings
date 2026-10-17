@@ -107,8 +107,8 @@ export function SettingsNumberingDisplay({
       <p className="settings-desc">
         启用后接管对应编号与折叠符号的展示；系统内置设置暂时禁用但保留原值。停用后恢复。浅深颜色可分开设置，不影响正文、折叠状态或块菜单。
       </p>
-      <div className="numbering-settings-grid">
-        <section className="numbering-settings-group" aria-label="编号与文字">
+      <div className="plugin-settings-grid numbering-settings-grid">
+        <section className="plugin-settings-group numbering-settings-group" aria-label="编号与文字">
           <h3>编号与文字</h3>
           {(
             [
@@ -158,7 +158,7 @@ export function SettingsNumberingDisplay({
           {color("background", "编号区域背景")}
         </section>
         <section
-          className="numbering-settings-group"
+          className="plugin-settings-group numbering-settings-group"
           aria-label="当前编号与折叠"
         >
           <h3>当前编号与折叠</h3>

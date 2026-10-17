@@ -43,7 +43,16 @@ for (const width of [390, 1280]) {
         name: "展开所有目录",
         exact: true,
       });
+      const allToggle = page.locator("[data-doc-tree-toggle-all]");
+      await expect(allToggle).toHaveCount(1);
+      if (await allToggle.getAttribute("aria-pressed") === "true") await allToggle.click();
       await expand.click();
+      await expect(allToggle).toHaveAttribute("aria-pressed", "true");
+      await expect(allToggle).toHaveAttribute("aria-label", "折叠所有目录");
+      await allToggle.click();
+      await expect(allToggle).toHaveAttribute("aria-pressed", "false");
+      await expect(allToggle).toHaveAttribute("aria-label", "展开所有目录");
+      await allToggle.click();
       const folder = tree.locator(".doc-tree-folder .doc-tree-name").first();
       await expect(folder).toHaveCSS("font-size", "17px");
       const row = tree.locator(".doc-tree-node").first();
@@ -67,7 +76,9 @@ for (const width of [390, 1280]) {
         setPluginsEnabled(false);
       });
       await expect(tree).not.toHaveAttribute("data-panel-display", "plugin");
-      await expect(expand).toHaveCount(0);
+      await expect(allToggle).toBeVisible();
+      await expect(allToggle).not.toHaveAttribute("data-panel-display-command");
+      await expect(page.getByRole("button", { name: "刷新文档树", exact: true })).toHaveCount(0);
       expect(
         await page.evaluate(() => localStorage.getItem("nr:docTreeCollapsed")),
       ).toBe(folds);

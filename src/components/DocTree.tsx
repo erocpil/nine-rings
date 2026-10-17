@@ -810,28 +810,37 @@ function DocTree({
   const selectedDocument = tree.find((node) => node.type === "document" && node.noteId === selectedId);
   const selectedFolder = !selectedId ? tree.find(node => node.type === "folder" && node.path === selectedFolderPath) : undefined;
   const selectedPath = selectedDocument?.noteId ? getDocumentFolderPath(selectedDocument.path, selectedDocument.noteId) : selectedFolder?.path;
+  const expandableFolders = tree.filter(node => node.type === "folder" && (childrenMap.get(node.path)?.length ?? 0) > 0);
+  const allExpanded = expandableFolders.length > 0 && expandableFolders.every(node => !collapsed.has(node.path));
   const toolbar = (
     <div className="doc-tree-toolbar">
       <div ref={setToolbarScroller} className="doc-tree-toolbar-actions" role="group" aria-label="文档树工具，滚轮可横向浏览">
-        {display?.toolbar.map(command => <button key={command} type="button" className="btn-icon doc-tree-batch-btn" data-panel-display-command={command}
-          disabled={disabled || (command === "tree.expand-all" && !tree.some(node => node.type === "folder"))}
-          title={command === "tree.expand-all" ? "展开所有目录" : "刷新文档树"}
-          aria-label={command === "tree.expand-all" ? "展开所有目录" : "刷新文档树"}
+        {display?.toolbar.filter(command => command !== "tree.expand-all").map(command => <button key={command} type="button" className="btn-icon doc-tree-batch-btn" data-panel-display-command={command}
+          disabled={disabled}
+          title="刷新文档树"
+          aria-label="刷新文档树"
           onClick={() => {
             // Only host-known commands; no plugin callbacks or model access.
             if (disabled) return;
             panelDisplays.run("document-tree", display, command, {
-              "tree.expand-all": () => { setContextMenu(null); setCollapsed(new Set()); },
               "tree.refresh": () => { setContextMenu(null); loadTree(); },
             });
-          }}><ToolbarIcon name={command === "tree.expand-all" ? "plus" : "refresh"} /></button>)}
+          }}><ToolbarIcon name="refresh" /></button>)}
         <button
+          type="button"
           className="btn-icon doc-tree-batch-btn"
-          onClick={collapseAll}
-          title="折叠所有目录"
-          disabled={!tree.some(node => node.type === "folder")}
+          data-doc-tree-toggle-all=""
+          data-panel-display-command={display?.toolbar.includes("tree.expand-all") ? "tree.expand-all" : undefined}
+          aria-pressed={allExpanded}
+          aria-label={allExpanded ? "折叠所有目录" : "展开所有目录"}
+          title={allExpanded ? "折叠所有目录" : "展开所有目录"}
+          disabled={disabled || expandableFolders.length === 0}
+          onClick={() => {
+            if (allExpanded) collapseAll();
+            else { setContextMenu(null); setCollapsed(new Set()); }
+          }}
         >
-          <ToolbarIcon name="folderCollapse" />
+          <ToolbarIcon name={allExpanded ? "folderCollapse" : "expand"} />
         </button>
         <button
           className="btn-icon doc-tree-batch-btn"

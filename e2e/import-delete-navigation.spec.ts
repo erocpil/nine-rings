@@ -51,6 +51,7 @@ for (const batch of [false, true]) test(batch ? "批量删除当前与最近文�
     document.body.dataset.deletedSelections = "[]";
     useNotesStore.subscribe(state => { const values = JSON.parse(document.body.dataset.deletedSelections!); values.push(state.selectedNote?.id ?? null); document.body.dataset.deletedSelections = JSON.stringify(values); });
   });
+  const mainBounds = await page.locator(".app-main").boundingBox();
   if (batch) {
     await page.getByRole("button", { name: "批量选择", exact: true }).click();
     await page.getByRole("checkbox", { name: "选择文档 待删除当前文档", exact: true }).check();
@@ -59,6 +60,20 @@ for (const batch of [false, true]) test(batch ? "批量删除当前与最近文�
     await page.getByTitle("批量删除", { exact: true }).click();
   } else await remove("待删除当前文档");
   await expect(page.locator(".note-title")).toHaveValue("最近可用文档");
+  const notice = page.locator("body > .undo-overlay");
+  await expect(notice).toBeVisible();
+  await expect(notice).toHaveCSS("position", "fixed");
+  await expect(notice.getByRole("button", { name: "撤销", exact: true })).toBeVisible();
+  const afterBounds = await page.locator(".app-main").boundingBox();
+  expect(Math.abs(afterBounds!.height - mainBounds!.height)).toBeLessThanOrEqual(1);
   const selected = await page.evaluate(() => JSON.parse(document.body.dataset.deletedSelections!) as (string | null)[]);
   expect(selected).toContain(ids[0]); expect(selected).not.toContain(null);
+  await notice.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(notice).toHaveCount(0);
+  await expect.poll(() => page.evaluate(async id => {
+    const apiPath = "/src/lib/api.ts";
+    const { api } = await import(/* @vite-ignore */ apiPath);
+    const restored = await api.notes.get(id);
+    return restored?.id === id && !restored.deleted_at;
+  }, current)).toBe(true);
 });

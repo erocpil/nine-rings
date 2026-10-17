@@ -252,7 +252,7 @@ export async function validatePluginPackage(
     return invalid("L0 不允许脚本入口、权限或激活事件");
   if (
     Array.isArray(manifest.platforms) &&
-    !manifest.platforms.includes(platform)
+    !manifest.platforms.includes(platform === "tauri" ? "desktop" : "web")
   )
     return invalid("插件不支持当前平台");
   const id = manifest.id as string,

@@ -113,3 +113,9 @@ bash scripts/with-local-tools.sh node --import tsx scripts/pack-plugin.ts \
 ## 状态栏展示
 
 `contributes.statusBar` 支持统一宿主状态栏的信息项、顺序和排版。提供者互斥，接管时保留并禁用对应内置设置，停用恢复；隐藏导航项时回退标题栏箭头，不开放脚本命令。字段与示例见[状态栏展示](plugin-status-bar.md)。
+
+## 可直接使用的组合示例
+
+[阅读展示插件](plugin-reading-display.md)在一个包内声明两个编号目标和一个状态栏，提供打包与安装步骤。平台清单使用 `web` / `desktop`；Tauri 内部运行时名称会映射到 `desktop`，桌面专用包也可使用同一打包工具校验。
+
+文档树的全部展开/折叠共用宿主按钮：按实际目录状态切换图标、提示与高亮，停用展示插件仍可使用。原 `tree.expand-all` 工具贡献复用该入口，不再生成第二个按钮；刷新入口仍随展示插件撤回。

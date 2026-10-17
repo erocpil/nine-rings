@@ -118,7 +118,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
 
     const workspace = page.getByRole("navigation", { name: "工作区面板" });
     await expect(workspace.getByRole("button", { name: "文档树", exact: true })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByTitle("折叠所有目录")).toBeVisible();
+    await expect(page.locator("[data-doc-tree-toggle-all]")).toBeVisible();
     await expect(page.locator(".doc-tree-header, .doc-tree-title")).toHaveCount(0);
 
     const sidebar = page.locator(".app-sidebar");
@@ -138,6 +138,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
     await expect(page.locator(".header-clock")).toBeHidden();
     await expect(page.locator(".daily-overview")).toBeHidden();
 
+    if (await page.locator("[data-doc-tree-toggle-all]").getAttribute("aria-pressed") !== "true") await page.locator("[data-doc-tree-toggle-all]").click();
     await page.getByTitle("折叠所有目录").click();
     const firstFolder = page.locator(".doc-tree-folder").filter({ has: page.locator("button.doc-tree-toggle") }).first();
     await expect(firstFolder.locator(".doc-tree-toggle")).toHaveAttribute("aria-expanded", "false");
@@ -161,6 +162,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
   test("切换移动文档列表保留侧栏的目录折叠状态", async ({ page }) => {
     await createDocument(page, "折叠状态同步测试文档", "projects");
     const sidebar = page.locator(".app-sidebar");
+    if (await sidebar.locator("[data-doc-tree-toggle-all]").getAttribute("aria-pressed") !== "true") await sidebar.locator("[data-doc-tree-toggle-all]").click();
     await sidebar.getByTitle("折叠所有目录").click();
     const firstToggle = sidebar.getByRole("button", { name: /^(展开|折叠)目录 projects$/, exact: true });
     await expect(firstToggle).toHaveAttribute("aria-expanded", "false");

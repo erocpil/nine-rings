@@ -116,7 +116,7 @@ export function EditorStatusBar({
   const items = state.visible
     ? state.items.filter((k) => content[k] != null)
     : [];
-  const firstAction = items.find((k) => k === "diagnostics" || k === "history");
+  const firstAction = items.find((k) => k === "navigation" || k === "diagnostics" || k === "history");
   return (
     <div
       className={`editor-stats editor-status-bar ${className}`}

@@ -541,7 +541,7 @@
 .settings-version {
   width: fit-content;
   margin-inline: auto;
-  margin-top: 16px;
+  margin-top: 32px;
   color: var(--text-tertiary);
   font-size: 11px;
   text-align: center;

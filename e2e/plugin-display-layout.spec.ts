@@ -1,0 +1,83 @@
+import { expect, test } from "@playwright/test";
+import { createBlankDocument } from "./helpers/document";
+
+for (const name of ["状态栏展示", "文档树展示", "目录展示", "书签展示", "随记展示"]) {
+  test(`${name}宽屏配置分两栏，手机单栏且配置可保存`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await createBlankDocument(page);
+    await page.keyboard.press("Alt+,");
+    await page.getByLabel("设置分类").getByRole("button", { name: /^高级/ }).click();
+    await page.getByRole("checkbox", { name: "启用插件功能", exact: true }).check();
+    await page.getByRole("button", { name, exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: `${name}配置`, exact: true });
+    const groups = dialog.locator(".plugin-settings-group");
+    await expect(groups).toHaveCount(2);
+    const first = await groups.nth(0).boundingBox();
+    const second = await groups.nth(1).boundingBox();
+    expect(Math.abs(first!.y - second!.y)).toBeLessThan(2);
+    expect(second!.x).toBeGreaterThan(first!.x + first!.width);
+    const fontLabel = name === "状态栏展示" ? "状态栏字体" : `${name.replace("展示", "")}字体`;
+    await dialog.getByRole("combobox", { name: fontLabel, exact: true }).selectOption("mono");
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name, exact: true }).click();
+    await expect(dialog.getByRole("combobox", { name: fontLabel, exact: true })).toHaveValue("mono");
+    await page.setViewportSize({ width: 390, height: 844 });
+    const narrowFirst = await groups.nth(0).boundingBox();
+    const narrowSecond = await groups.nth(1).boundingBox();
+    expect(narrowSecond!.y).toBeGreaterThan(narrowFirst!.y + narrowFirst!.height);
+    await expect.poll(() => dialog.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+    const reset = dialog.getByRole("button", { name: /^恢复.*默认/ });
+    await reset.scrollIntoViewIfNeeded();
+    await expect(reset).toBeVisible();
+    await reset.click();
+    await expect(dialog.getByRole("combobox", { name: fontLabel, exact: true })).toHaveValue("inherit");
+  });
+}
+
+test("阅读展示组合包可审查安装、重启恢复、停用和卸载", async ({ page }) => {
+  const { readFileSync } = await import("node:fs");
+  const { zipSync, strToU8 } = await import("fflate");
+  const manifest = JSON.parse(readFileSync(new URL("../schema/plugin/examples/erocpil.reading-display/manifest.json", import.meta.url), "utf8"));
+  manifest.integrity = { algorithm: "sha256", files: {} };
+  const buffer = Buffer.from(zipSync({ "manifest.json": strToU8(JSON.stringify(manifest, null, 2) + "\n") }));
+  await createBlankDocument(page);
+  const open = async () => {
+    await page.keyboard.press("Alt+,");
+    await page.getByLabel("设置分类").getByRole("button", { name: /^高级/ }).click();
+  };
+  await open();
+  await page.getByRole("checkbox", { name: "启用插件功能", exact: true }).check();
+  const installed = page.getByRole("region", { name: "已安装声明式插件", exact: true });
+  await installed.getByLabel("选择声明式插件包").setInputFiles({ name: "erocpil.reading-display-1.0.0.nrplugin.zip", mimeType: "application/zip", buffer });
+  const review = page.getByRole("dialog", { name: "审查声明式插件包" });
+  await expect(review).toContainText("渲染块号");
+  await expect(review).toContainText("源码行号");
+  await expect(review).toContainText("状态栏展示");
+  await expect(review.getByRole("button", { name: "确认安装", exact: true })).toBeDisabled();
+  await review.getByRole("checkbox").check();
+  await review.getByRole("button", { name: "确认安装", exact: true }).click();
+  const enabled = installed.getByRole("checkbox", { name: "启用 阅读展示", exact: true });
+  await expect(enabled).not.toBeChecked();
+  await enabled.check();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  const bar = page.getByRole("group", { name: "文档状态栏", exact: true });
+  await expect(bar).toHaveCSS("font-size", "12px");
+  await expect(bar).toHaveAttribute("data-status-display", "plugin");
+  await expect(page.locator("html")).toHaveAttribute("data-numbering-blocks", "");
+  await expect(page.locator("html")).toHaveAttribute("data-numbering-source", "");
+  const nav = await bar.locator('[data-status-item="navigation"]').boundingBox();
+  const log = await bar.locator('[data-status-item="diagnostics"]').boundingBox();
+  expect(nav!.x + nav!.width).toBeLessThanOrEqual(log!.x);
+  await page.reload();
+  await expect(bar).toHaveAttribute("data-status-display", "plugin");
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  await expect(page.getByRole("group", { name: "源码状态栏", exact: true })).toHaveAttribute("data-status-display", "plugin");
+  await open();
+  await enabled.uncheck();
+  await expect(page.locator("html")).not.toHaveAttribute("data-numbering-blocks");
+  await expect(page.locator("html")).not.toHaveAttribute("data-numbering-source");
+  await installed.getByRole("button", { name: "卸载 阅读展示", exact: true }).click();
+  await expect(enabled).toHaveCount(0);
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await expect(page.getByRole("group", { name: "源码状态栏", exact: true })).not.toHaveAttribute("data-status-display", "plugin");
+});

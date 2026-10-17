@@ -33,7 +33,7 @@ const manifest = parseSyncJson(new TextDecoder("utf-8", { fatal: true }).decode(
 manifest.integrity = { algorithm: "sha256", files: {} };
 for (const [path, bytes] of Object.entries(files)) if (path !== "manifest.json") manifest.integrity.files[path] = await packageDigest(bytes);
 files["manifest.json"] = strToU8(JSON.stringify(manifest, null, 2) + "\n");
-const target = Array.isArray(manifest.platforms) && !manifest.platforms.includes("web") && manifest.platforms.includes("tauri") ? "tauri" : "web";
+const target = Array.isArray(manifest.platforms) && !manifest.platforms.includes("web") && manifest.platforms.includes("desktop") ? "tauri" : "web";
 const validated = await validatePluginPackage(files, undefined, target);
 const archive = zipSync(files);
 if (archive.length > PACKAGE_LIMITS.compressed) throw Error("压缩包超过安装预算");

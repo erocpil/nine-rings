@@ -80,9 +80,11 @@
 
 .undo-overlay {
   position: fixed;
-  bottom: 24px;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 32px);
   z-index: 1100;
   animation: fadeIn 0.2s ease;
 }
@@ -95,7 +97,8 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 16px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--text) 18%, transparent);
+  color: var(--text);
   font-size: 13px;
 }
 
@@ -3438,3 +3441,12 @@ button.doc-tree-toggle:focus-visible {
 .sync-operation-progress { display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
 .sync-operation-progress strong { font-weight: 600; }
 .sync-operation-progress > span { color: var(--text-secondary); font-size: 12px; }
+
+.undo-toast-msg { min-width: 0; overflow-wrap: anywhere; }
+.undo-toast-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none; min-height: 32px; padding: 4px 10px; border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border)); border-radius: 6px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; transition: background-color .12s ease, border-color .12s ease; }
+.undo-toast-btn .toolbar-icon { width: 16px; height: 16px; }
+.undo-toast-btn:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.undo-toast-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.undo-toast-btn:active { background: color-mix(in srgb, var(--accent) 20%, var(--surface)); }
+@media (max-width: 600px) { .undo-toast-btn { min-height: 36px; } }
+@media (prefers-reduced-motion: reduce) { .undo-overlay { animation: none; } }

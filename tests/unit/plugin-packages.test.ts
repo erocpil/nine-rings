@@ -347,3 +347,66 @@ it("an older host cleanup cannot revoke a newer activation of the same package",
   first();
   expect(themeResources.get("acme.palette/paper")).not.toBeNull();
 });
+
+it("maps desktop manifest platforms to Tauri and keeps web exclusion", async () => {
+  const files = await packageFiles("1.0.0", (manifest) => {
+    manifest.platforms = ["desktop"];
+  });
+  await expect(
+    validatePluginPackage(files, "0.3.0", "tauri"),
+  ).resolves.toMatchObject({ id: "acme.palette" });
+  await expect(validatePluginPackage(files, "0.3.0", "web")).rejects.toThrow(
+    "当前平台",
+  );
+  const both = await packageFiles("1.0.0", (manifest) => {
+    manifest.platforms = ["desktop", "web"];
+  });
+  await expect(
+    validatePluginPackage(both, "0.3.0", "tauri"),
+  ).resolves.toMatchObject({ id: "acme.palette" });
+  await expect(
+    validatePluginPackage(both, "0.3.0", "web"),
+  ).resolves.toMatchObject({ id: "acme.palette" });
+});
+
+it("packs a desktop-only reading preset and rejects it on web", async () => {
+  const { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync } =
+    await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { spawnSync } = await import("node:child_process");
+  const directory = mkdtempSync(join(tmpdir(), "nr-reading-pack-"));
+  try {
+    const source = join(directory, "source");
+    mkdirSync(source);
+    const manifest = JSON.parse(
+      readFileSync(
+        "schema/plugin/examples/erocpil.reading-display/manifest.json",
+        "utf8",
+      ),
+    );
+    manifest.platforms = ["desktop"];
+    writeFileSync(join(source, "manifest.json"), JSON.stringify(manifest));
+    const output = join(directory, "reading.nrplugin.zip");
+    const result = spawnSync(
+      process.execPath,
+      ["--import", "tsx", "scripts/pack-plugin.ts", source, output],
+      { encoding: "utf8" },
+    );
+    expect(result.status, result.stderr).toBe(0);
+    const files = readPluginArchive(readFileSync(output));
+    const parsed = await validatePluginPackage(files, "0.3.0", "tauri");
+    expect(parsed.id).toBe("erocpil.reading-display");
+    expect(parsed.gutters).toHaveLength(2);
+    expect(parsed.statusBar?.items.slice(-3)).toEqual([
+      "navigation",
+      "diagnostics",
+      "history",
+    ]);
+    await expect(validatePluginPackage(files, "0.3.0", "web")).rejects.toThrow(
+      "当前平台",
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

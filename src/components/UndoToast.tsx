@@ -1,10 +1,13 @@
+import { createPortal } from "react-dom";
+import { ToolbarIcon } from "./ToolbarIcon";
+
 /**
- * UndoToast — 底部浮条，自动消失，点击可撤销
+ * UndoToast — 悬浮提示，不参与工作区布局，自动消失并提供撤销
  *
  * 使用方式：
  *   const { undo, showUndo } = useUndo();
  *   // 在 JSX 中：
- *   <UndoToast undo={undo} onUndo={() => undo?.action()} onDismiss={() => setUndo(null)} />
+ *   <UndoToast undo={undo} onDismiss={() => setUndo(null)} />
  */
 
 export interface UndoState {
@@ -24,18 +27,24 @@ interface UndoToastProps {
 export function UndoToast({ undo, onDismiss }: UndoToastProps) {
   if (!undo) return null;
 
-  return (
-    <div className="undo-toast">
-      <span className="undo-toast-msg">{undo.message}</span>
-      <button
-        className="undo-toast-btn"
-        onClick={() => {
-          undo.onUndo();
-          onDismiss();
-        }}
-      >
-        撤销
-      </button>
-    </div>
+  return createPortal(
+    <div className="undo-overlay" role="status" aria-live="polite">
+      <div className="undo-toast">
+        <span className="undo-toast-msg">{undo.message}</span>
+        <button
+          type="button"
+          className="undo-toast-btn"
+          title="撤销删除"
+          onClick={() => {
+            undo.onUndo();
+            onDismiss();
+          }}
+        >
+          <ToolbarIcon name="undo" />
+          <span>撤销</span>
+        </button>
+      </div>
+    </div>,
+    document.body,
   );
 }

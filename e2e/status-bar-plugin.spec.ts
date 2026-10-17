@@ -13,6 +13,11 @@ test('状态栏导航随隐藏回到标题，源码预览保留全宽与共同�
  const bar=page.getByRole('group',{name:'文档状态栏',exact:true});
  await expect(bar.getByRole('button',{name:'后退',exact:true})).toBeVisible();
  await expect(page.locator('.note-title-row .document-navigation')).toHaveCount(0);
+ const navBox=await bar.locator('[data-status-item="navigation"]').boundingBox();
+ const logBox=await bar.locator('[data-status-item="diagnostics"]').boundingBox();
+ const barBox=await bar.boundingBox();
+ expect(navBox!.x).toBeGreaterThan(barBox!.x+barBox!.width/2);
+ expect(navBox!.x+navBox!.width).toBeLessThanOrEqual(logBox!.x);
  const rendered=await page.locator('.note-title-row:visible').evaluate(el=>({left:el.getBoundingClientRect().left,right:el.getBoundingClientRect().right,padding:getComputedStyle(el).paddingLeft}));
  await page.getByRole('button',{name:'源码',exact:true}).click();
  const sourceBar=page.getByRole('group',{name:'源码状态栏',exact:true});

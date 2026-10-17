@@ -1,0 +1,77 @@
+{
+  "manifestVersion": 1,
+  "id": "erocpil.reading-display",
+  "name": "阅读展示",
+  "description": "统一块号、源码行号和状态栏的轻量展示，自动适配浅深主题；停用后恢复原有设置。",
+  "version": "1.0.0",
+  "engines": {
+    "nineRingsPluginApi": "^0.1.0",
+    "app": "^0.3.0"
+  },
+  "platforms": [
+    "web",
+    "desktop"
+  ],
+  "contributes": {
+    "gutters": [
+      {
+        "visible": true,
+        "relative": false,
+        "font": "mono",
+        "fontSize": 13,
+        "bold": false,
+        "italic": false,
+        "color": "secondary",
+        "background": "transparent",
+        "highlightCurrent": true,
+        "currentBold": true,
+        "currentColor": "accent",
+        "currentBackground": "transparent",
+        "foldExpanded": "▾",
+        "foldCollapsed": "▸",
+        "target": "blocks",
+        "currentAlignment": "right"
+      },
+      {
+        "visible": true,
+        "relative": false,
+        "font": "mono",
+        "fontSize": 13,
+        "bold": false,
+        "italic": false,
+        "color": "secondary",
+        "background": "transparent",
+        "highlightCurrent": true,
+        "currentBold": true,
+        "currentColor": "accent",
+        "currentBackground": "transparent",
+        "foldExpanded": "▾",
+        "foldCollapsed": "▸",
+        "target": "source",
+        "currentAlignment": "left"
+      }
+    ],
+    "statusBar": {
+      "visible": true,
+      "showInFocus": true,
+      "font": "inherit",
+      "fontSize": 12,
+      "bold": false,
+      "italic": false,
+      "color": "secondary",
+      "background": "transparent",
+      "paddingY": 4,
+      "gap": 10,
+      "items": [
+        "save",
+        "block",
+        "position",
+        "characters",
+        "words",
+        "navigation",
+        "diagnostics",
+        "history"
+      ]
+    }
+  }
+}

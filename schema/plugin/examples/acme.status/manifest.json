@@ -20,12 +20,12 @@
       "paddingY": 4,
       "gap": 10,
       "items": [
-        "navigation",
         "save",
         "block",
         "position",
         "characters",
         "words",
+        "navigation",
         "diagnostics",
         "history"
       ]
