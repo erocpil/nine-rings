@@ -1,11 +1,16 @@
 import { candidateEntities } from "../src/lib/sync/entity-projection";
 import { withCandidateEvaluation } from "../src/lib/sync/candidate-write-policy";
 import { CURRENT_SYNC_CAPABILITIES } from "../src/lib/sync/protocol-capabilities";
+import { planEntityChanges } from "../src/lib/sync/entity-plan";
+import { assembleEntityCandidate } from "../src/lib/sync/entity-assembly";
+import { canonicalDigest } from "../src/lib/sync/canonical-codec";
+import { parseSyncJson } from "../src/lib/sync/strict-json";
 
 const { performance, crypto, TextEncoder, indexedDB } = globalThis;
 
 // Built separately from the app. Runs only in a disposable browser context.
-globalThis.syncBrowserProbe = async (source) => {
+globalThis.syncBrowserProbe = async (source, scope = "core") => {
+  if (!["core", "planning"].includes(scope)) throw Error("Unknown probe scope");
   if (CURRENT_SYNC_CAPABILITIES.read || CURRENT_SYNC_CAPABILITIES.write)
     throw Error("Probe requires production migration to remain disabled");
   const stages = [];
@@ -35,6 +40,64 @@ globalThis.syncBrowserProbe = async (source) => {
     ),
   );
   const projectedCount = entities.length;
+  let candidateBytes = null;
+  if (scope === "planning") {
+    const candidate = await stage("plan-and-assemble-all-documents", () =>
+      withCandidateEvaluation(undefined, async (evaluation) => {
+        const local = parseSyncJson(source);
+        for (const note of local.notes) note.title += " [isolated probe]";
+        for (const template of local.templates ?? [])
+          template.name += " [isolated probe]";
+        const localSource = JSON.stringify(local);
+        const localEntities = await candidateEntities(
+          localSource,
+          "web",
+          evaluation,
+        );
+        const spaceId = "a".repeat(64);
+        const preview = await planEntityChanges({
+          spaceId,
+          local: localEntities,
+          remote: entities,
+          baselines: [],
+        });
+        const choices = preview.rows
+          .filter(
+            (row) => row.localHash !== row.remoteHash && row.localHash !== null,
+          )
+          .map((row) => ({
+            key: row.key,
+            localHash: row.localHash,
+            remoteHash: row.remoteHash,
+            action: "local",
+          }));
+        const result = await assembleEntityCandidate(
+          {
+            spaceId,
+            localSource,
+            remoteSource: source,
+            runtime: "web",
+            baselines: [],
+            choices,
+          },
+          evaluation,
+        );
+        if (
+          result.writable !== false ||
+          result.afterPublication.length !==
+            local.notes.length + (local.templates?.length ?? 0)
+        )
+          throw Error("Probe selection verification failed");
+        if (
+          (await canonicalDigest(result.outgoing)) !==
+          (await canonicalDigest(localEntities))
+        )
+          throw Error("Probe assembly changed selected entities");
+        return new TextEncoder().encode(result.source).length;
+      }),
+    );
+    candidateBytes = candidate;
+  }
   // Release the graph before testing source persistence; this is not full planning.
   entities.length = 0;
   const database = await new Promise((resolve, reject) => {
@@ -74,6 +137,7 @@ globalThis.syncBrowserProbe = async (source) => {
     return {
       projectedCount,
       sourceBytes: new TextEncoder().encode(source).length,
+      candidateBytes,
       stages,
     };
   } finally {

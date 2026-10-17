@@ -5,13 +5,35 @@ import { fileURLToPath, URL } from "node:url";
 import process from "node:process";
 import { TextDecoder } from "node:util";
 import console from "node:console";
+import { spawnSync } from "node:child_process";
 import { build } from "vite";
 import { chromium, webkit } from "@playwright/test";
 
 const input = process.env.NR_SYNC_DRY_RUN_INPUT;
 const engine = process.env.NR_SYNC_PROFILE_BROWSER ?? "chromium";
-if (!input || !["chromium", "webkit"].includes(engine))
-  throw Error("Set NR_SYNC_DRY_RUN_INPUT; browser must be chromium or webkit");
+const scope = process.env.NR_SYNC_PROFILE_SCOPE ?? "core";
+if (engine === "both") {
+  for (const browser of ["chromium", "webkit"]) {
+    const result = spawnSync(
+      process.execPath,
+      [fileURLToPath(import.meta.url)],
+      {
+        env: { ...process.env, NR_SYNC_PROFILE_BROWSER: browser },
+        stdio: "inherit",
+      },
+    );
+    if (result.error || result.status !== 0) process.exit(result.status ?? 1);
+  }
+  process.exit(0);
+}
+if (
+  !input ||
+  !["chromium", "webkit"].includes(engine) ||
+  !["core", "planning", "storage"].includes(scope)
+)
+  throw Error(
+    "Set NR_SYNC_DRY_RUN_INPUT; browser must be chromium or webkit; scope must be core, planning or storage",
+  );
 const info = await stat(input);
 if (!info.isFile() || info.size > 64 * 1024 * 1024)
   throw Error("Input exceeds budget");
@@ -21,11 +43,30 @@ const source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 const bundle = await build({
   configFile: false,
   logLevel: "error",
+  // Match the app's worker-safe Markdown dependency resolution.
+  resolve: {
+    alias: {
+      "decode-named-character-reference": fileURLToPath(
+        new URL(
+          "../node_modules/decode-named-character-reference/index.js",
+          import.meta.url,
+        ),
+      ),
+    },
+  },
+  worker: { format: "es" },
   build: {
     write: false,
     minify: true,
     lib: {
-      entry: fileURLToPath(new URL("./sync-browser-probe.js", import.meta.url)),
+      entry: fileURLToPath(
+        new URL(
+          scope === "storage"
+            ? "./sync-storage-probe.js"
+            : "./sync-browser-probe.js",
+          import.meta.url,
+        ),
+      ),
       formats: ["iife"],
       name: "SyncProbe",
     },
@@ -37,11 +78,24 @@ if (Array.isArray(output) || !output.output)
   throw Error("Unexpected probe build");
 const chunks = output.output.filter((entry) => entry.type === "chunk");
 if (chunks.length !== 1) throw Error("Probe must be self-contained");
+const assets = new Map(
+  output.output
+    .filter((entry) => entry.type === "asset")
+    .map((entry) => ["/" + entry.fileName, entry.source]),
+);
 const server = createServer((request, response) => {
   response.setHeader("Cache-Control", "no-store");
   if (request.url === "/probe.js") {
     response.setHeader("Content-Type", "text/javascript");
     response.end(chunks[0].code);
+  } else if (assets.has(request.url)) {
+    response.setHeader(
+      "Content-Type",
+      request.url.endsWith(".js")
+        ? "text/javascript"
+        : "application/octet-stream",
+    );
+    response.end(assets.get(request.url));
   } else if (request.url === "/") {
     response.setHeader("Content-Type", "text/html");
     response.end('<!doctype html><script src="/probe.js"></script>');
@@ -81,9 +135,21 @@ try {
   );
   const before = await memory();
   const result = await page.evaluate(
-    (text) => globalThis.syncBrowserProbe(text),
-    source,
+    ({ text, scope }) => globalThis.syncBrowserProbe(text, scope),
+    { text: source, scope },
   );
+  let afterReload = null;
+  if (scope === "storage") {
+    await page.reload();
+    await page.waitForFunction(
+      () => typeof globalThis.syncStorageReload === "function",
+    );
+    afterReload = await page.evaluate(
+      (expected) => globalThis.syncStorageReload(expected),
+      result.reloadDigest,
+    );
+    delete result.reloadDigest;
+  }
   await page.goto("about:blank");
   const afterUnload = await memory();
   console.log(
@@ -91,14 +157,17 @@ try {
       {
         browser: engine,
         scope: "bundled-core-and-real-indexeddb",
+        scenario: scope,
         before,
         ...result,
+        afterReload,
         afterUnload,
       },
       null,
       2,
     ),
   );
+  if (scope === "storage" && !result.preserved) process.exitCode = 2;
 } finally {
   await browser?.close();
   await new Promise((resolve) => server.close(resolve));
