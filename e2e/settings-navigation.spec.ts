@@ -576,3 +576,20 @@ for (const width of [390, 1280]) {
     await expect(page.locator(".settings-panel")).toHaveCount(0);
   });
 }
+
+
+test("三击版本号仅选中版本文字，不扩大到设置页空白", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".note-editor")).toBeVisible();
+  await page.getByTitle("设置", { exact: true }).click();
+  const version = page.locator(".settings-version");
+  await version.click({ clickCount: 3 });
+  const text = await version.innerText();
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(text);
+  expect(await version.evaluate(element => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount) return false;
+    const range = selection.getRangeAt(0);
+    return element.contains(range.startContainer) && element.contains(range.endContainer);
+  })).toBe(true);
+});

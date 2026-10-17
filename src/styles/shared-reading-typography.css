@@ -190,3 +190,16 @@ html .editor-content .document-toc-block ol > li {
 .app[data-hierarchy-outline-mode="custom"] .document-toc-block li[data-heading-level="4"] .document-toc-heading-level { color: var(--hierarchy-outline-custom-4); }
 .app[data-hierarchy-outline-mode="custom"] .document-toc-block li[data-heading-level="5"] .document-toc-heading-level { color: var(--hierarchy-outline-custom-5); }
 .app[data-hierarchy-outline-mode="custom"] .document-toc-block li[data-heading-level="6"] .document-toc-heading-level { color: var(--hierarchy-outline-custom-6); }
+
+
+/* All styles retain the same visible quote rule as mono-aware. Higher
+   specificity keeps surface border resets from erasing it. No positioned
+   editable ancestor: preserve WebKit IME composition in quote paragraphs. */
+html[data-interface-style] .editor-content blockquote,
+html[data-interface-style] .editor-content blockquote.blockquote-wrap {
+  border-left: 2px solid var(--accent);
+}
+html[data-interface-style] .editor-content blockquote:is([data-alert="WARNING"], [data-alert="CAUTION"]),
+html[data-interface-style] .editor-content blockquote.blockquote-wrap:is([data-alert="WARNING"], [data-alert="CAUTION"]) {
+  border-left-color: var(--color-danger, #b66b53);
+}

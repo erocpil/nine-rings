@@ -1358,7 +1358,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             {/* ── 版本 ── */}
             {settingsPage === "root" && (
               <>
-                <div className="settings-version">v{__APP_VERSION__}</div>
+                <div className="settings-version" onMouseDown={event => {
+                  if (event.detail < 3) return;
+                  event.preventDefault();
+                  window.getSelection()?.selectAllChildren(event.currentTarget);
+                }}>v{__APP_VERSION__}</div>
                 {webUpdate && <SettingsUpdateStatus webUpdate={webUpdate} showMessage={showMessage} />}
               </>
             )}

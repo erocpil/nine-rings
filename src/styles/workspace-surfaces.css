@@ -539,6 +539,8 @@
 }
 
 .settings-version {
+  width: fit-content;
+  margin-inline: auto;
   margin-top: 16px;
   color: var(--text-tertiary);
   font-size: 11px;
