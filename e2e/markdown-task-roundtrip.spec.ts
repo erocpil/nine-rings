@@ -115,7 +115,11 @@ test("历史任务转义必须确认并保存快照，快照失败不改正文",
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts");
     const checkpoint = api.versions.checkpoint;
-    api.versions.checkpoint = async () => { api.versions.checkpoint = checkpoint; throw new Error("快照测试失败"); };
+    const id = localStorage.getItem("nr:lastNote");
+    api.versions.checkpoint = async (noteId: string) => {
+      if (noteId !== id) return checkpoint(noteId);
+      api.versions.checkpoint = checkpoint; throw new Error("快照测试失败");
+    };
   });
   await apply.click();
   await expect(preview.getByRole("alert")).toContainText("快照测试失败");

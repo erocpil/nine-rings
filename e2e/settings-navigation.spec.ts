@@ -343,9 +343,8 @@ test.describe("移动端设置", () => {
     await page.getByRole("button", { name: /^云端同步/ }).click();
 
     const ownerRepoInput = page.getByRole("textbox", { name: "Owner / Repo" });
-    const box = await ownerRepoInput.boundingBox();
-    if (!box) throw new Error("Owner / Repo 字段不可见");
-    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    // Locator tap waits for the settings transition and scrolling to settle.
+    await ownerRepoInput.tap();
 
     await expect(ownerRepoInput).toBeVisible();
     await expect(ownerRepoInput).toBeFocused();

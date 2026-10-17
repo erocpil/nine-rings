@@ -46,6 +46,11 @@ for (const key of ["Enter", "Space"]) {
     await editor.evaluate(element => (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor.commands.undo());
     await expect(toc.getByRole("link", { name: "章节", exact: true })).toBeVisible();
     await waitForSavedText(page, "末级标题");
+    await expect.poll(() => page.evaluate(async () => {
+      const { api } = await import("/src/lib/api.ts");
+      const note = await api.notes.get(localStorage.getItem("nr:lastNote")!);
+      return JSON.stringify(note.content).includes("1,2,3,6");
+    })).toBe(true);
     await page.reload();
     await expect(toc.getByRole("link")).toHaveCount(3);
     await expect(toc.locator(".document-toc-levels")).toHaveText("H1 · H2 · H3 · H6");

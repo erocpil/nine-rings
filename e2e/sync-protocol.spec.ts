@@ -28,6 +28,7 @@ test("restored connection preferences never become an accepted foreign sync base
 test("unsupported envelope import cannot replace documents or settings", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:builtin-markdown-demo:v1"))).not.toBeNull();
   const result = await page.evaluate(async () => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts");

@@ -124,6 +124,7 @@ function wrapSelection(view: EditorView, before: string, after = before) {
 export function MarkdownSourceEditor({
   value,
   readonly,
+  editingDisabled = false,
   areaRef,
   onReady,
   onSelectionChange,
@@ -137,6 +138,7 @@ export function MarkdownSourceEditor({
 }: {
   value: string;
   readonly: boolean;
+  editingDisabled?: boolean;
   areaRef: MutableRefObject<SourceEditorHandle | null>;
   onSelectionChange?: (selection: { from: number; to: number }) => void;
   onReady?: (handle: SourceEditorHandle | null) => void;
@@ -155,7 +157,8 @@ export function MarkdownSourceEditor({
   const selectionCallback = useRef(onSelectionChange);
   selectionCallback.current = onSelectionChange;
   callback.current = onChange;
-  const initial = useRef({ value, readonly });
+  const editingReadonly = readonly || editingDisabled;
+  const initial = useRef({ value, readonly: editingReadonly });
   const lastValue = useRef(value);
   const access = useRef(new Compartment()),
     display = useRef(new Compartment());
@@ -366,13 +369,13 @@ export function MarkdownSourceEditor({
   useEffect(() => {
     view.current?.dispatch({
       effects: access.current.reconfigure([
-        EditorState.readOnly.of(readonly),
-        EditorView.editable.of(!readonly),
-        readonly ? readonlySourceSelection : drawSelection(),
-        EditorView.contentAttributes.of({ "aria-readonly": String(readonly) }),
+        EditorState.readOnly.of(editingReadonly),
+        EditorView.editable.of(!editingReadonly),
+        editingReadonly ? readonlySourceSelection : drawSelection(),
+        EditorView.contentAttributes.of({ "aria-readonly": String(editingReadonly) }),
       ]),
     });
-  }, [readonly]);
+  }, [editingReadonly]);
   useEffect(() => {
     const sync = () => {
       setPreferences(blockWorkspacePreferences());
@@ -442,17 +445,17 @@ export function MarkdownSourceEditor({
         </span>)}
         {foldMenu && <BlockActionMenu trigger={foldMenu.trigger} placement="below" title={foldMenu.collapse ? "折叠标题级别" : "展开标题级别"} onClose={() => setFoldMenu(null)} actions={[{ label: foldMenu.collapse ? "折叠全部" : "展开全部", run: () => run(foldMenu.collapse ? foldAll : unfoldAll) }, ...Array.from({ length: 6 }, (_, i) => ({ label: foldMenu.collapse ? `折叠 H${i + 1} 及更深标题` : `展开至 H${i + 1}`, run: () => run(view => { const effects = sourceHeadingFoldEffects(view.state, i + 1, foldMenu.collapse); if (!effects) return false; view.dispatch({ effects }); return true; }) }))]} />}
         {!readonly && <>
-        <button type="button" title="撤销" aria-label="撤销" disabled={readonly || !tools.undo} onClick={() => run(undo)}>
+        <button type="button" title="撤销" aria-label="撤销" disabled={editingReadonly || !tools.undo} onClick={() => run(undo)}>
           <ToolbarIcon name="undo" />
         </button>
-        <button type="button" title="重做" aria-label="重做" disabled={readonly || !tools.redo} onClick={() => run(redo)}>
+        <button type="button" title="重做" aria-label="重做" disabled={editingReadonly || !tools.redo} onClick={() => run(redo)}>
           <ToolbarIcon name="redo" />
         </button>
         <button
           type="button"
           title="加粗"
           aria-label="加粗"
-          disabled={readonly}
+          disabled={editingReadonly}
           onClick={() => run((v) => wrapSelection(v, "**"))}
         >
           <ToolbarIcon name="bold" />
@@ -461,18 +464,18 @@ export function MarkdownSourceEditor({
           type="button"
           title="行内代码"
           aria-label="行内代码"
-          disabled={readonly}
+          disabled={editingReadonly}
           onClick={() => run((v) => wrapSelection(v, "`"))}
         >
           <ToolbarIcon name="code" />
         </button>
-        <button type="button" title="斜体" aria-label="斜体" disabled={readonly} onClick={() => run(v => wrapSelection(v, "*"))}><ToolbarIcon name="italic" /></button>
-        <button type="button" title="删除线" aria-label="删除线" disabled={readonly} onClick={() => run(v => wrapSelection(v, "~~"))}><ToolbarIcon name="strike" /></button>
+        <button type="button" title="斜体" aria-label="斜体" disabled={editingReadonly} onClick={() => run(v => wrapSelection(v, "*"))}><ToolbarIcon name="italic" /></button>
+        <button type="button" title="删除线" aria-label="删除线" disabled={editingReadonly} onClick={() => run(v => wrapSelection(v, "~~"))}><ToolbarIcon name="strike" /></button>
         <button
           type="button"
           title="链接"
           aria-label="链接"
-          disabled={readonly}
+          disabled={editingReadonly}
           onClick={() => run((v) => wrapSelection(v, "[", "](https://)"))}
         >
           <ToolbarIcon name="link" />
@@ -480,7 +483,7 @@ export function MarkdownSourceEditor({
         {([
           ["引用", "quote", "quote"], ["无序列表", "bullet", "bullet"],
           ["有序列表", "ordered", "ordered"], ["待办列表", "task", "check"],
-        ] as const).map(([label, format, icon]) => <button key={format} type="button" title={label} aria-label={label} disabled={readonly} onClick={() => run(v => {
+        ] as const).map(([label, format, icon]) => <button key={format} type="button" title={label} aria-label={label} disabled={editingReadonly} onClick={() => run(v => {
           if (v.composing) return false;
           const spec = formatSourceLines(v.state, format);
           if (!spec) return false;
@@ -488,14 +491,14 @@ export function MarkdownSourceEditor({
         })}><ToolbarIcon name={icon} /></button>)}
         {([
           ["代码块", "code", "codeBlock"], ["表格", "table", "table"], ["分隔线", "rule", "minus"],
-        ] as const).map(([label, kind, icon]) => <button key={kind} type="button" title={label} aria-label={label} disabled={readonly} onClick={() => run(v => {
+        ] as const).map(([label, kind, icon]) => <button key={kind} type="button" title={label} aria-label={label} disabled={editingReadonly} onClick={() => run(v => {
           if (v.composing) return false;
           const spec = insertSourceBlock(v.state, kind);
           if (!spec) return false;
           v.dispatch(spec); v.focus(); return true;
         })}><ToolbarIcon name={icon} /></button>)}
-        <button type="button" title="增加缩进" aria-label="增加缩进" disabled={readonly} onClick={() => run(v => !v.composing && !v.state.readOnly && indentMore(v))}><ToolbarIcon name="indent" /></button>
-        <button type="button" title="减少缩进" aria-label="减少缩进" disabled={readonly} onClick={() => run(v => !v.composing && !v.state.readOnly && indentLess(v))}><ToolbarIcon name="outdent" /></button>
+        <button type="button" title="增加缩进" aria-label="增加缩进" disabled={editingReadonly} onClick={() => run(v => !v.composing && !v.state.readOnly && indentMore(v))}><ToolbarIcon name="indent" /></button>
+        <button type="button" title="减少缩进" aria-label="减少缩进" disabled={editingReadonly} onClick={() => run(v => !v.composing && !v.state.readOnly && indentLess(v))}><ToolbarIcon name="outdent" /></button>
         {escapeRepair}
         </>}
         <span className="markdown-source-cursor" aria-label="光标位置">

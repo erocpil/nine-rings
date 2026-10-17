@@ -14,7 +14,7 @@ for (const status of [true, false]) {
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator(".app")).toHaveClass(/app-mobile-workspace/);
     await closeDocumentSidebar(page);
-    await expect(page.locator('.note-title')).toHaveValue('物哀、幽玄与侘寂：风格设计与验证');
+    await expect.poll(() => page.locator('.note-title').evaluate(element => element instanceof HTMLInputElement ? element.value : element.textContent)).toBe('物哀、幽玄与侘寂：风格设计与验证');
     await expect(page.locator('.is-exhibition .app-main')).toHaveCSS('padding-bottom', '0px');
     await expect(page.locator('.note-editor .editor-stats')).toBeVisible({ visible: status });
     const gap = await page.evaluate(() => {
@@ -47,7 +47,7 @@ for (const [density, expected] of [['comfortable', '20px'], ['compact', '14px']]
     const sample = page.locator('.doc-tree-open').filter({ hasText: '物哀、幽玄与侘寂：风格设计与验证' });
     await expect(sample).toBeVisible();
     await sample.click();
-    await expect(page.locator('.note-title')).toHaveValue('物哀、幽玄与侘寂：风格设计与验证');
+    await expect.poll(() => page.locator('.note-title').evaluate(element => element instanceof HTMLInputElement ? element.value : element.textContent)).toBe('物哀、幽玄与侘寂：风格设计与验证');
     await expect(page.locator('.editor-content-shell')).toHaveCSS('margin-top', expected);
   });
 }

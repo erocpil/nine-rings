@@ -14,7 +14,7 @@ async function mountDialog(page: Page, kind: "recycle" | "versions") {
     Object.assign(host.style, { position: "fixed", inset: "0", zIndex: "99999" });
     document.body.append(host);
     const root = createRoot(host);
-    const state = { calls: 0, fail: true, release: () => {}, restored: "" };
+    const state = { calls: 0, fail: true, loaded: false, release: () => {}, restored: "" };
     (window as any).actionTest = state;
     if (kind === "recycle") {
       await api.notes.delete(note.id);
@@ -41,6 +41,7 @@ async function mountDialog(page: Page, kind: "recycle" | "versions") {
       root.render(React.createElement(VersionHistory, {
         open: true, noteId: note.id, onClose: () => root.unmount(),
         onBeforeRestore: async () => {
+          if (!state.loaded) { state.loaded = true; return; }
           if (state.fail) throw new Error("模拟保存失败");
           await api.notes.update(note.id, { content: { ops: [{ insert: "恢复前最新编辑" }, { insert: "\n" }] } });
         },

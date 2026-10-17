@@ -226,13 +226,16 @@ test("文档树点击可见项不强制居中且底部右键菜单不越出视�
   const tree = page.locator(".doc-tree");
   const target = page.locator(".doc-tree-doc").filter({ hasText: "视口文档 20" });
   await expect(target).toBeAttached();
-  const initial = await target.evaluate((element) => {
-    const root = element.closest<HTMLElement>(".doc-tree")!;
-    const rootRect = root.getBoundingClientRect();
-    root.scrollTop += element.getBoundingClientRect().top - rootRect.top - 12;
-    return { scrollTop: root.scrollTop, clientHeight: root.clientHeight };
-  });
-  expect(initial.scrollTop).toBeGreaterThan(0);
+  let initial = { scrollTop: 0, clientHeight: 0 };
+  await expect.poll(async () => {
+    initial = await target.evaluate((element) => {
+      const root = element.closest<HTMLElement>(".doc-tree")!;
+      const rootRect = root.getBoundingClientRect();
+      root.scrollTop += element.getBoundingClientRect().top - rootRect.top - 12;
+      return { scrollTop: root.scrollTop, clientHeight: root.clientHeight };
+    });
+    return initial.scrollTop;
+  }).toBeGreaterThan(0);
   expect(initial.clientHeight).toBeGreaterThan(80);
   await expect(target).toBeVisible();
 
