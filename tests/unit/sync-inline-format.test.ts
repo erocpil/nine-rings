@@ -90,7 +90,7 @@ it.each(["small", "normal", "large", "huge"])(
       }
       expect(reviewCandidatePayload(source, "flutter").eligible).toBe(false);
     }
-    expect(CURRENT_SYNC_CAPABILITIES.write).toBe(0);
+    expect(CURRENT_SYNC_CAPABILITIES.write).toBe(1);
   },
 );
 

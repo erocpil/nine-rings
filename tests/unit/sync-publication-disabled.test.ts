@@ -9,8 +9,15 @@ import {
 } from "../../src/lib/sync/publication-store";
 import { syncSpaceId } from "../../src/lib/sync/protocol-switch";
 import { bytesDigest } from "../../src/lib/sync/remote-protocol";
+vi.mock("../../src/lib/sync/protocol-capabilities", async (original) => {
+  const actual =
+    await original<typeof import("../../src/lib/sync/protocol-capabilities")>();
+  const { disabledSyncProtocol } =
+    await import("../helpers/disabled-sync-profile");
+  return disabledSyncProtocol(actual);
+});
 afterEach(() => vi.unstubAllGlobals());
-it("shipped zero capabilities refuse object creation before any Git request", async () => {
+it("an uncertified client refuses object creation before any Git request", async () => {
   vi.stubGlobal("navigator", {
     locks: {
       request: async (

@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { CURRENT_SYNC_CAPABILITIES } from "../lib/sync/protocol-capabilities";
+import {
+  MINIMUM_SYNC_CLIENT_VERSION,
+  supportedSyncParticipantVersion,
+} from "../lib/sync/release-capabilities";
 import type { SyncConfig } from "../lib/sync/github";
 import type { EntityReview } from "../lib/sync/entity-review";
+import type { BootstrapReview } from "../lib/sync/bootstrap-review";
 import type { EntityChoice } from "../lib/sync/entity-plan";
 import type {
   IncrementalAction,
@@ -19,7 +24,7 @@ export function SyncMigrationActions({
   onAccepted,
 }: {
   config: SyncConfig;
-  review: EntityReview;
+  review: EntityReview | BootstrapReview;
   choices: EntityChoice[];
   disabled: boolean;
   onBeforeSnapshot?: () => Promise<void>;
@@ -29,7 +34,7 @@ export function SyncMigrationActions({
 }) {
   const [backup, setBackup] = useState<VerifiedMigrationBackup | null>(null),
     [participants, setParticipants] = useState(false),
-    [minimumVersion, setMinimumVersion] = useState(""),
+    [minimumVersion, setMinimumVersion] = useState(MINIMUM_SYNC_CLIENT_VERSION),
     [confirmed, setConfirmed] = useState(false),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
@@ -40,23 +45,29 @@ export function SyncMigrationActions({
       sequence.current++;
     };
   }, []);
-  const legacy = !Object.prototype.hasOwnProperty.call(
-    JSON.parse(review.remoteSource),
-    "header",
-  );
+  const bootstrap = "kind" in review;
+  const legacy =
+    bootstrap ||
+    !Object.prototype.hasOwnProperty.call(
+      JSON.parse(review.remoteSource),
+      "header",
+    );
   const c = CURRENT_SYNC_CAPABILITIES,
     readable = c.read >= 1 && c.formats.includes(1) && c.codecs.includes(1),
     writable = readable && c.write >= 1;
   const remoteCount = choices.filter(
     (v) =>
       v.action === "remote" &&
+      !bootstrap &&
       review.rows.some((r) => r.key === v.key && r.difference !== "equal"),
   ).length;
-  const equalCount = review.rows.filter(
-    (r) =>
-      r.difference === "equal" &&
-      !choices.some((v) => v.key === r.key && v.action === "ignore"),
-  ).length;
+  const equalCount = bootstrap
+    ? 0
+    : review.rows.filter(
+        (r) =>
+          r.difference === "equal" &&
+          !choices.some((v) => v.key === r.key && v.action === "ignore"),
+      ).length;
   const run = async (task: (guard: () => void) => Promise<void>) => {
     const id = ++generation.current;
     const guard = () => {
@@ -91,7 +102,12 @@ export function SyncMigrationActions({
       guard();
       const { validateEntityReview } =
         await import("../lib/sync/entity-review");
-      await validateEntityReview(review, choices, await api.export.data());
+      if (bootstrap) {
+        const { validateBootstrapReview } =
+          await import("../lib/sync/bootstrap-review");
+        await validateBootstrapReview(review, await api.export.data());
+      } else
+        await validateEntityReview(review, choices, await api.export.data());
       guard();
       const { verifyMigrationBackup } =
         await import("../lib/sync/incremental-actions");
@@ -105,18 +121,31 @@ export function SyncMigrationActions({
     run(async (guard) => {
       const { executeIncrementalAction } =
         await import("../lib/sync/incremental-actions");
-      const result = await executeIncrementalAction(
-        {
-          config,
-          review,
-          choices,
-          action,
-          ...(backup ? { backup } : {}),
-          participants: { confirmed: participants, minimumVersion },
-          migrationConfirmed: confirmed,
-        },
-        { flush: onBeforeSnapshot!, assertActive: guard },
-      );
+      const result = bootstrap
+        ? await (
+            await import("../lib/sync/incremental-actions")
+          ).executeBootstrapPublication(
+            {
+              config,
+              review,
+              ...(backup ? { backup } : {}),
+              participants: { confirmed: participants, minimumVersion },
+              migrationConfirmed: confirmed,
+            },
+            { flush: onBeforeSnapshot!, assertActive: guard },
+          )
+        : await executeIncrementalAction(
+            {
+              config,
+              review,
+              choices,
+              action,
+              ...(backup ? { backup } : {}),
+              participants: { confirmed: participants, minimumVersion },
+              migrationConfirmed: confirmed,
+            },
+            { flush: onBeforeSnapshot!, assertActive: guard },
+          );
       guard();
       setMessage(result.message);
       if (result.reload) onPullDone?.();
@@ -184,8 +213,9 @@ export function SyncMigrationActions({
           checked={participants}
           onChange={(event) => setParticipants(event.target.checked)}
         />
-        所有可能 Push/Pull 的设备均已升级到支持此协议的版本（包括仍在使用的
-        Web、桌面版或 Flutter）
+        所有会继续 Push/Pull 的设备均使用 {MINIMUM_SYNC_CLIENT_VERSION}{" "}
+        及以上支持此协议的 Web/桌面版；不支持此协议的客户端（含
+        Flutter）已停用此连接
       </label>
       <label className="settings-row">
         已确认的最低支持版本
@@ -215,7 +245,7 @@ export function SyncMigrationActions({
             !writable ||
             !backup ||
             !participants ||
-            !/^\d+\.\d+\.\d+$/.test(minimumVersion) ||
+            !supportedSyncParticipantVersion(minimumVersion) ||
             (legacy && !confirmed)
           }
           onClick={() => void execute("publish")}

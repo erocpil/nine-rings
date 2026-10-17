@@ -2,11 +2,12 @@ import { SyncMigrationActions } from "./SyncMigrationActions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import {
-  previewEntityReviewFromGitHub,
+  previewSyncDestinationFromGitHub,
   assertEntityReviewHeadFromGitHub,
   type SyncConfig,
 } from "../lib/sync/github";
 import type { EntityReview } from "../lib/sync/entity-review";
+import type { BootstrapReview } from "../lib/sync/bootstrap-review";
 import type { EntityChoice, EntityPlanRow } from "../lib/sync/entity-plan";
 import { parseSyncJson } from "../lib/sync/strict-json";
 import { isEncrypted } from "../lib/document-crypto";
@@ -65,11 +66,13 @@ export function SyncEntityReview({
     [showEqual, setShowEqual] = useState(false),
     [selected, setSelected] = useState("");
   const request = useRef(0);
+  const [bootstrap, setBootstrap] = useState<BootstrapReview | null>(null);
   const operation = useRef(onOperationChange);
   operation.current = onOperationChange;
   useEffect(() => {
     request.current++;
     setReview(null);
+    setBootstrap(null);
     setChoices([]);
     setMessage("");
     setBusy(false);
@@ -151,8 +154,18 @@ export function SyncEntityReview({
           `选择草稿已保存；${conflicts} 项仍待处理。未上传、应用或确认接受。`,
         );
       } else {
-        const result = await previewEntityReviewFromGitHub(config, source);
+        const result = await previewSyncDestinationFromGitHub(config, source);
         if (id !== request.current) return;
+        if ("kind" in result) {
+          setBootstrap(result);
+          setReview(null);
+          setChoices([]);
+          setMessage(
+            `空备份空间预检完成：本机 ${result.entityCount} 项实体。首次发布前请保存并核验备份。`,
+          );
+          return;
+        }
+        setBootstrap(null);
         setReview(result);
         setChoices(result.choices);
         setPage(0);
@@ -207,6 +220,21 @@ export function SyncEntityReview({
         )}
       </div>
       {message && <p role="status">{message}</p>}
+      {bootstrap && (
+        <SyncMigrationActions
+          key={bootstrap.binding}
+          config={config}
+          review={bootstrap}
+          choices={[]}
+          disabled={disabled || busy}
+          onBeforeSnapshot={onBeforeSnapshot}
+          onOperationChange={onOperationChange}
+          onAccepted={(result) => {
+            setBootstrap(null);
+            setMessage(`${result} 请重新预检最新差异。`);
+          }}
+        />
+      )}
       {review && (
         <>
           <SyncMigrationActions

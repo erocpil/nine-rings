@@ -129,7 +129,7 @@ it.each(fixture.notes)(
       }),
     ).toBe(true);
     expect(state.doc.eq(doc)).toBe(true);
-    expect(CURRENT_SYNC_CAPABILITIES.write).toBe(0);
+    expect(CURRENT_SYNC_CAPABILITIES.write).toBe(1);
   },
 );
 

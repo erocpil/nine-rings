@@ -70,7 +70,7 @@ test("启动仅显示未完成 Pull 摘要，不读正文、不联网或重放�
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "核对实际内容并确认恢复", exact: true }),
-  ).toBeDisabled();
+  ).toBeEnabled();
   expect(
     await page.evaluate(
       () => (window as unknown as { pullBodyReads: number }).pullBodyReads,

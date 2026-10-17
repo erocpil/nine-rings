@@ -10,6 +10,10 @@ import { isTauriRuntime } from "../runtime";
 import { githubApiFetch, type SyncConfig } from "./github";
 import { CURRENT_SYNC_CAPABILITIES } from "./protocol-capabilities";
 import type { EntityReview } from "./entity-review";
+import {
+  validateBootstrapReview,
+  type BootstrapReview,
+} from "./bootstrap-review";
 import { entityKey, type EntityChoice } from "./entity-plan";
 import { candidateEntities } from "./entity-projection";
 import { canonicalDigest } from "./canonical-codec";
@@ -111,7 +115,7 @@ export interface VerifiedMigrationBackup {
 }
 const verified = new WeakSet<object>();
 export async function verifyMigrationBackup(
-  review: EntityReview,
+  review: Pick<EntityReview, "binding" | "localRevision" | "runtime">,
   fileSource: string,
 ): Promise<VerifiedMigrationBackup> {
   if (new TextEncoder().encode(fileSource).length > 64 * 1024 * 1024)
@@ -132,6 +136,139 @@ export async function verifyMigrationBackup(
   });
   verified.add(proof);
   return proof;
+}
+/** Bootstrap uses its own empty-space evidence, never a fabricated remote snapshot. */
+export async function executeBootstrapPublication(
+  input: {
+    config: SyncConfig;
+    review: BootstrapReview;
+    backup?: VerifiedMigrationBackup;
+    participants: { confirmed: boolean; minimumVersion: string };
+    migrationConfirmed: boolean;
+  },
+  host: { flush: () => Promise<void>; assertActive?: () => void },
+) {
+  gate("write");
+  const backup = input.backup;
+  const frozen = structuredClone({ ...input, backup: undefined });
+  const { config, review } = frozen;
+  const guard = host.assertActive ?? (() => {});
+  if (review.runtime !== (isTauriRuntime() ? "tauri" : "web"))
+    throw Error("运行端已变化，请重新预检");
+  if (
+    !backup ||
+    !verified.has(backup) ||
+    backup.binding !== review.binding ||
+    backup.localRevision !== review.localRevision
+  )
+    throw Error("请核验与本次空空间预检一致的本地备份文件");
+  if (!frozen.migrationConfirmed || !frozen.participants.confirmed)
+    throw Error("请明确确认首次发布，并确认所有参与设备已经升级");
+  const transport = incrementalTransport(config, review.space);
+  guard();
+  await host.flush();
+  guard();
+  const current = await validateBootstrapReview(
+    review,
+    await api.export.data(),
+  );
+  guard();
+  const { inspectRemoteProtocol } = await import("./remote-protocol");
+  const report = await inspectRemoteProtocol(transport.request, review.space);
+  await observeRemoteProtocol(report, localStorage);
+  if (report.evidence.head !== review.report.evidence.head)
+    throw Error("远端已变化，请重新预检");
+  const { prepareBootstrapReview } = await import("./bootstrap-review");
+  await prepareBootstrapReview({
+    report,
+    localSource: current.localSource,
+    runtime: current.runtime,
+  });
+  guard();
+  const payload = JSON.parse(current.localSource) as Record<string, unknown>;
+  const id = crypto.randomUUID();
+  const source = JSON.stringify({
+    ...payload,
+    header: {
+      kind: "nine-rings.sync-snapshot",
+      format: 1,
+      codec: 1,
+      id,
+      parent: null,
+      createdAt: new Date().toISOString(),
+      requires: {
+        read: 1,
+        write: 1,
+        readFeatures: current.payload.requiredFeatures,
+        writeFeatures: current.payload.requiredFeatures,
+      },
+      writtenBy: {
+        app:
+          typeof __APP_VERSION__ === "undefined" ? "unknown" : __APP_VERSION__,
+        platform: current.runtime,
+        deviceId: getOrCreateDeviceId(localStorage),
+      },
+    },
+  });
+  const { preparePublicationFromSavedState, publishRecordedCommit } =
+    await import("./publication-recovery");
+  const attempt = await preparePublicationFromSavedState(
+    {
+      remote: report,
+      runtime: current.runtime,
+      observation: readProtocolObservation(report.spaceId, localStorage),
+      prerequisites: {
+        localRevision: current.localRevision,
+        backup: {
+          localRevision: backup.localRevision,
+          sha256: backup.sha256,
+          method: backup.method,
+        },
+        participants: frozen.participants,
+        payload: current.payload,
+        publicationRecoveryReady: true,
+      },
+    },
+    {
+      flush: host.flush,
+      readSource: async () => {
+        await validateBootstrapReview(review, await api.export.data());
+        return source;
+      },
+      assertActive: guard,
+    },
+  );
+  const { preparePublicationObjects } = await import("./publication-objects");
+  await preparePublicationObjects({
+    spaceId: attempt.spaceId,
+    ...transport,
+    assertActive: guard,
+  });
+  guard();
+  await markProtocolInspectionRequired(
+    config,
+    review.report.spaceId,
+    localStorage,
+    attempt.id,
+  );
+  await publishRecordedCommit(
+    attempt.spaceId,
+    transport.request,
+    transport.patch,
+  );
+  let warning = "";
+  try {
+    await observeRemoteProtocol(
+      await inspectRemoteProtocol(transport.request, review.space),
+      localStorage,
+    );
+  } catch {
+    warning = " 请重新预检协议状态，旧格式同步保持禁止。";
+  }
+  return {
+    message: "已完成空空间首次发布并确认接受。" + warning,
+    reload: false,
+  };
 }
 export type IncrementalAction = "publish" | "pull" | "equal";
 export async function executeIncrementalAction(
@@ -215,6 +352,12 @@ export async function executeIncrementalAction(
     );
     if (legacy && !input.migrationConfirmed)
       throw Error("首次迁移需要明确确认协议切换");
+    const { inspectRemoteProtocol: inspectBeforePublication } =
+      await import("./remote-protocol");
+    await observeRemoteProtocol(
+      await inspectBeforePublication(transport.request, review.space),
+      localStorage,
+    );
     const { prepareReviewedPublication } =
       await import("./reviewed-publication");
     const attempt = await prepareReviewedPublication(
@@ -271,7 +414,12 @@ export async function executeIncrementalAction(
     );
     assertActive();
     // Conservative refusal is durable before the only possible ref update, including UNKNOWN outcomes.
-    await markProtocolInspectionRequired(config, review.spaceId, localStorage);
+    await markProtocolInspectionRequired(
+      config,
+      review.spaceId,
+      localStorage,
+      attempt.id,
+    );
     const { publishRecordedCommit } = await import("./publication-recovery");
     await publishRecordedCommit(
       attempt.spaceId,
@@ -361,7 +509,12 @@ export async function resumeIncrementalPublication(
         await import("./publication-objects");
       await preparePublicationObjects({ spaceId, ...transport }, evaluation);
     }
-    await markProtocolInspectionRequired(config, spaceId, localStorage);
+    await markProtocolInspectionRequired(
+      config,
+      spaceId,
+      localStorage,
+      attempt.id,
+    );
     await publishRecordedCommit(
       spaceId,
       transport.request,

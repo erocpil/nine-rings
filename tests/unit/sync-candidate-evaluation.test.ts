@@ -100,7 +100,7 @@ it("root metadata and protection relationships are checked afresh after body cac
     disposeCandidateEvaluationScope(scope);
   }
 });
-it("warm certification does not override production gates or omitted feature declarations", () => {
+it("warm certification does not override omitted feature declarations", () => {
   const scope = createCandidateEvaluationScope();
   try {
     const source = JSON.stringify({
@@ -115,7 +115,7 @@ it("warm certification does not override production gates or omitted feature dec
         { runtime: "web", expectedId: "example-001" },
         scope,
       ),
-    ).toThrow("尚不支持");
+    ).toThrow("必需特性");
     expect(() =>
       assertCandidateWrite(
         source,

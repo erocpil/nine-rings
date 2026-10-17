@@ -88,6 +88,83 @@ beforeEach(async () => {
   });
 });
 afterEach(() => vi.unstubAllGlobals());
+it("a cancelled first publication can be explicitly retried without reopening legacy writes", async () => {
+  const s = await setup();
+  const original = host.fetch.getMockImplementation()!;
+  let hasCommit = false,
+    interrupted = false;
+  host.fetch.mockImplementation(async (url: string, init: RequestInit) => {
+    if (
+      init.method === "GET" &&
+      url.includes("/git/ref/heads/") &&
+      hasCommit &&
+      !interrupted &&
+      (await readPublicationAttempt(s.review.spaceId))?.phase ===
+        "OBJECTS_READY"
+    ) {
+      interrupted = true;
+      throw Error("offline before ref request");
+    }
+    const response = await original(url, init);
+    if (init.method === "POST" && url.endsWith("/git/commits"))
+      hasCommit = true;
+    return response;
+  });
+  const backup = await verifyMigrationBackup(s.review, s.source);
+  const input = {
+    ...s,
+    backup,
+    action: "publish" as const,
+    participants: { confirmed: true, minimumVersion: "1.0.0" },
+    migrationConfirmed: true,
+  };
+  await expect(
+    executeIncrementalAction(input, { flush: async () => {} }),
+  ).rejects.toThrow();
+  const pending = await readPublicationAttempt(s.review.spaceId);
+  expect(pending?.phase).toBe("OBJECTS_READY");
+  const { cancelUnpublishedPublication } =
+    await import("../../src/lib/sync/publication-recovery");
+  await cancelUnpublishedPublication(s.review.spaceId, pending!.id);
+  await executeIncrementalAction(input, { flush: async () => {} });
+  expect((await readPublicationAttempt(s.review.spaceId))?.phase).toBe(
+    "COMPLETE",
+  );
+  expect(s.writes.filter((value) => value.startsWith("PATCH"))).toHaveLength(1);
+  const { assertLegacyConnectionAllowed } =
+    await import("../../src/lib/sync/protocol-connection");
+  await expect(
+    assertLegacyConnectionAllowed(s.config, localStorage),
+  ).rejects.toThrow("停止旧格式");
+});
+it("an uncertain first publication cannot be treated as a cancelled migration", async () => {
+  const s = await setup();
+  const original = host.fetch.getMockImplementation()!;
+  host.fetch.mockImplementation(async (url: string, init: RequestInit) => {
+    const response = await original(url, init);
+    if (init.method === "PATCH") throw Error("lost response");
+    return response;
+  });
+  await expect(
+    executeIncrementalAction(
+      {
+        ...s,
+        action: "publish",
+        backup: await verifyMigrationBackup(s.review, s.source),
+        participants: { confirmed: true, minimumVersion: "1.0.0" },
+        migrationConfirmed: true,
+      },
+      { flush: async () => {} },
+    ),
+  ).rejects.toThrow("结果不明");
+  const pending = await readPublicationAttempt(s.review.spaceId);
+  expect(pending?.phase).toBe("UNKNOWN");
+  const { cancelUnpublishedPublication } =
+    await import("../../src/lib/sync/publication-recovery");
+  await expect(
+    cancelUnpublishedPublication(s.review.spaceId, pending!.id),
+  ).rejects.toThrow("只能取消");
+});
 async function setup(changed = true) {
   const paths = backupPaths("backup.json"),
     remote = JSON.stringify(fixture),

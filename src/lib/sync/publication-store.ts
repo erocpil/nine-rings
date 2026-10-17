@@ -8,7 +8,8 @@ export type PublicationPhase =
   | "UNKNOWN"
   | "REJECTED"
   | "CONFIRMING"
-  | "COMPLETE";
+  | "COMPLETE"
+  | "ABORTED";
 export interface PublicationAttempt {
   version: 1;
   runtime: "web" | "tauri";
@@ -162,7 +163,7 @@ export async function persistPreparedAttempt(
         tx.abort();
         return;
       }
-      if (req.result && req.result.phase !== "COMPLETE") {
+      if (req.result && !["COMPLETE", "ABORTED"].includes(req.result.phase)) {
         tx.abort();
         return;
       }

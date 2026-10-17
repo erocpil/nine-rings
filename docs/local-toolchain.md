@@ -159,3 +159,8 @@ bash scripts/with-local-flutter.sh --project dart format --output=none --set-exi
 ```
 
 当前主机代理会拦截测试 VM 的本地 WebSocket，导致 Invalid WebSocket upgrade request。封装仅为当前进程追加 localhost/127.0.0.1/::1 的 NO_PROXY/no_proxy，保留远端代理。修正后 51 项 Flutter 测试通过。analyze 按 CI 参数通过，仍有既有 warning/info，不能描述为零诊断；未因 doctor 的 Android/Xcode/CocoaPods 环境提示安装其它平台依赖。
+
+
+## 0.3.0 同步验证工具（2026-10-17）
+
+同步验收沿用仓库 `.local-tools` 的 Node、Rust 和 Playwright，不调整系统工具链。原生完整备份测试是显式忽略用例，通过 `NR_SYNC_DRY_RUN_INPUT` 指定只读输入；真实 GitHub 测试是单独 opt-in 脚本。命令、隔离目录、凭据和数据边界见[本机演练说明](../tests/local/README.md)。普通 check/CI 不读取私有文件或 gh 凭据，不运行真实远端写测试。

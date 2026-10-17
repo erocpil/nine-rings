@@ -888,7 +888,7 @@ export async function preflightProtocolFromGitHub(config: SyncConfig): Promise<R
       const response = await githubApiFetch(root + route, {headers:authHeader(config.token)}, GITHUB_REQUEST_TIMEOUT_MS);
       if (!response.ok) throw Error(`协议预检读取失败：HTTP ${response.status}`);
       return response.json();
-    }, config, {onControlDetected:spaceId=>markProtocolInspectionRequired(config,spaceId,storage)});
+    }, config, {historyLimit:128,onControlDetected:spaceId=>markProtocolInspectionRequired(config,spaceId,storage)});
     await observeRemoteProtocol(report, storage);
     addLog(`[Sync] 协议预检完成 | 提交: ${report.evidence.head.slice(0,12)} | 状态: ${report.support} | 历史: ${report.history} | 请求: ${report.reads.requests} | 字节: ${report.reads.bytes} | 耗时: ${Math.round(performance.now()-started)}ms`);
     return report;
@@ -1016,6 +1016,22 @@ export async function checkStatus(config: SyncConnectionConfig): Promise<SyncSta
   }
 }
 
+export async function previewSyncDestinationFromGitHub(
+  config: SyncConfig,
+  localSource: string,
+) {
+  config = { ...config };
+  const report = await preflightProtocolFromGitHub(config);
+  if (!report.evidence.snapshot.latestId) {
+    const { prepareBootstrapReview } = await import("./bootstrap-review");
+    return prepareBootstrapReview({
+      report,
+      localSource,
+      runtime: isTauriRuntime() ? "tauri" : "web",
+    });
+  }
+  return previewEntityReviewFromGitHub(config, localSource);
+}
 /** Explicit candidate review. Only GET requests; no publication/apply capability. */
 export async function previewEntityReviewFromGitHub(
   config: SyncConfig,

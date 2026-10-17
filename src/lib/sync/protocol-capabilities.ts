@@ -1,3 +1,4 @@
+import { RELEASE_SYNC_CAPABILITIES } from "./release-capabilities";
 export interface SyncCapabilities {
   formats: readonly number[];
   codecs: readonly number[];
@@ -6,15 +7,9 @@ export interface SyncCapabilities {
   readFeatures: readonly string[];
   writeFeatures: readonly string[];
 }
-/** No released client is yet certified to round-trip the new envelope. */
-export const CURRENT_SYNC_CAPABILITIES: SyncCapabilities = Object.freeze({
-  formats: Object.freeze([]),
-  codecs: Object.freeze([]),
-  read: 0,
-  write: 0,
-  readFeatures: Object.freeze([]),
-  writeFeatures: Object.freeze([]),
-});
+/** Web/Tauri v0.3: certified format/codec/features; payload checks remain mandatory. */
+export const CURRENT_SYNC_CAPABILITIES: SyncCapabilities =
+  RELEASE_SYNC_CAPABILITIES;
 export class SyncProtocolError extends Error {
   constructor(
     readonly code:

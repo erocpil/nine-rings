@@ -5,6 +5,7 @@ import {
   type SyncCapabilities,
 } from "./protocol-capabilities";
 import type { CandidateReview } from "./candidate-write-policy";
+import { supportedSyncParticipantVersion } from "./release-capabilities";
 
 export const PROTOCOL_OBSERVATION_PREFIX = "nr:sync-protocol:v1:";
 export interface SyncSpace {
@@ -246,7 +247,7 @@ export function reviewProtocolSwitch(
     reasons.add("backup-unverified");
   if (
     !prerequisites.participants?.confirmed ||
-    !/^\d+\.\d+\.\d+$/.test(prerequisites.participants.minimumVersion)
+    !supportedSyncParticipantVersion(prerequisites.participants.minimumVersion)
   )
     reasons.add("participants-unconfirmed");
   if (

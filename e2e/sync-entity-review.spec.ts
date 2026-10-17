@@ -97,8 +97,8 @@ test("实体选择草稿可重启恢复，过期选择拒绝且不改正文或�
   await migration.locator('input[type="checkbox"]').nth(1).check();
   await expect(
     migration.getByRole("button", { name: "首次迁移并发布", exact: true }),
-  ).toBeDisabled();
-  await expect(migration).toContainText("勾选确认不能绕过");
+  ).toBeEnabled();
+  // Version capability is open; preview alone must still perform no writes.
 
   const choice = page.getByLabel(`选择 ${fixture.notes[0].id}`, {
     exact: true,
@@ -146,5 +146,71 @@ test("实体选择草稿可重启恢复，过期选择拒绝且不改正文或�
     .getByRole("button", { name: "校验并保存选择", exact: true })
     .click();
   await expect(review).toContainText("本机内容已变化");
+  expect(methods.every((method) => method === "GET")).toBe(true);
+});
+
+test("空备份空间需要当前备份和支持版本确认，预检不会发布", async ({ page }) => {
+  const git = await gitReadFixture({});
+  const methods: string[] = [];
+  await page.route("https://api.github.com/**", async (route) => {
+    methods.push(route.request().method());
+    const path = decodeURIComponent(
+      new URL(route.request().url()).pathname,
+    ).replace("/repos/example/backup", "");
+    if (git.objects.has(path))
+      await route.fulfill({ json: git.objects.get(path) });
+    else await route.fulfill({ status: 404, json: { message: "Not Found" } });
+  });
+  await page.goto("/");
+  await expect(page.locator(".note-editor")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("nr:builtin-markdown-demo:v1")),
+    )
+    .toBeTruthy();
+  await page.evaluate(async (fixture) => {
+    const { api } = await import("/src/lib/api.ts");
+    const { loadSyncConfig, saveSyncConfig } =
+      await import("/src/lib/sync/github.ts");
+    await api.export.import(JSON.stringify(fixture), "replace");
+    saveSyncConfig({
+      ...loadSyncConfig(),
+      owner: "example",
+      repo: "backup",
+      token: "TEST_CREDENTIAL",
+    });
+  }, fixture);
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^云端同步/ }).click();
+  const review = page.getByRole("region", { name: "增量备份候选审查" });
+  await review
+    .getByRole("button", { name: "预检实体差异", exact: true })
+    .click();
+  await expect(review).toContainText("空备份空间预检完成");
+  const actions = review.getByRole("group", { name: "增量操作与首次迁移确认" });
+  const publish = actions.getByRole("button", {
+    name: "首次迁移并发布",
+    exact: true,
+  });
+  await expect(publish).toBeDisabled();
+  const source = await page.evaluate(async () =>
+    (await import("/src/lib/api.ts")).api.export.data(),
+  );
+  await actions.getByLabel("核验迁移备份文件", { exact: true }).setInputFiles({
+    name: "local-before-migration.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(source),
+  });
+  await expect(actions).toContainText("备份已核验");
+  await actions.locator('input[type="checkbox"]').nth(0).check();
+  await actions.locator('input[type="checkbox"]').nth(1).check();
+  await actions.getByLabel("参与设备最低版本").fill("0.2.0");
+  await expect(publish).toBeDisabled();
+  await actions.getByLabel("参与设备最低版本").fill("0.3.0");
+  await expect(publish).toBeEnabled();
+  await expect(
+    actions.getByRole("button", { name: /应用所选远端实体/ }),
+  ).toBeDisabled();
+  expect(methods.length).toBeGreaterThan(0);
   expect(methods.every((method) => method === "GET")).toBe(true);
 });

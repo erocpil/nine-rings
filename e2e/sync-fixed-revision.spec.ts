@@ -59,7 +59,7 @@ for (const enabled of [false, true])
     await page.getByRole("button", { name: /^云端同步/ }).click();
     await page.getByRole("button", { name: "协议预检", exact: true }).click();
     await expect(page.locator(".sync-feedback")).toContainText(
-      enabled ? "远端使用新协议" : "固定提交预检通过",
+      enabled ? "新协议完整性预检通过" : "固定提交预检通过",
     );
     expect(methods.every((method) => method === "GET")).toBe(true);
     expect(

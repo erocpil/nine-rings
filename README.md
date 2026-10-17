@@ -95,7 +95,7 @@ Web、Tauri 与 Flutter 共享 `schema/note.yaml` 和 `schema/config.yaml` 作�
 
 首次可信内置插件宿主的前置条件已完成：受限命令、内部 SDK、编辑/保存修订、事件和生命周期已接入并通过[前置审计](docs/plugin-readiness-audit.md)。公开 SDK 和第三方插件安装尚未开放。标准与 SDK 草案见[插件体系设计](docs/plugin-system-design.md)。日期时间、文档统计和多参数图片插入已提供内置入口；新增[词汇学习插件](docs/plugin-vocabulary-learning.md)，展示指定路径下手动生成的词汇 Markdown，分开保留词典释义、搭配及可折叠例句，中央学习视图不改写原文；新增[图片查看分栏](docs/plugin-local-image-panel.md)，支持授权本机目录与文档图片查看、缩放平移、预览旋转和插入文档；图片分栏默认在中央区域打开，正文弹层可转到[主区域视图](docs/plugin-main-area-views.md)，关闭恢复原文档；新增[文档树展示扩展](docs/plugin-panel-presentation.md)，高级设置开启插件功能后，右侧列表展示内置插件的名称、类型、简介和状态，点击名称打开配置弹层；文档树可调整字体、字号、行高、提示、辅助信息及工具栏。目录展示已复用同一展示边界，统一渲染/源码目录排版、章节路径提示和当前标题定位；书签和随记展示也已接入，支持独立排版、提示、辅助信息与展示排序，保留锚点/分组及宿主操作，风格使用主题资源贡献；围栏渲染另需 C4 门禁，第三方安装尚未开放。
 
-插件适配前的代码基线为 `v0.1.0`（`05e624a`）。当前 Web/Tauri 产品版本已提升至 `0.2.0`，首次内置宿主的 R1～R6 已完成；第三方安装及具体贡献点仍有独立门禁。SDK、插件和内容格式的版本独立管理，执行步骤见[插件适配版本与发布计划](docs/plugin-release-plan.md)，当前状态见[产品完善与插件推进待办](docs/plugin-readiness-todo.md)。
+插件适配前的代码基线为 `v0.1.0`（`05e624a`）。当前 Web/Tauri 产品版本已提升至 `0.3.0`，首次内置宿主的 R1～R6 已完成；第三方安装及具体贡献点仍有独立门禁。SDK、插件和内容格式的版本独立管理，执行步骤见[插件适配版本与发布计划](docs/plugin-release-plan.md)，当前状态见[产品完善与插件推进待办](docs/plugin-readiness-todo.md)。
 
 ---
 
@@ -333,3 +333,5 @@ nine-rings/
 MIT © [erocpil](https://github.com/erocpil)
 
 Nord（北境）与 Dracula Classic（德古拉）配色依照各自的 MIT 许可证使用；原作者版权声明与许可全文见 [主题第三方许可声明](public/third-party-theme-licenses.txt)。该文件会随 Web 和 Tauri 桌面版的前端资源一起打包。
+
+手动逐实体同步（Web/Tauri 0.3.0）：首次迁移、选择合并与中断恢复见[同步指南](docs/incremental-sync.md)。Flutter 对新协议仍保持关闭；升级不会自动迁移已有备份。

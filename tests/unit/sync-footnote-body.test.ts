@@ -119,7 +119,7 @@ it.each(fixture.notes)(
     expect(features).toContain(
       note.id === "footnote-rule" ? "horizontal-rule-v1" : "footnotes-v1",
     );
-    expect(CURRENT_SYNC_CAPABILITIES.write).toBe(0);
+    expect(CURRENT_SYNC_CAPABILITIES.write).toBe(1);
   },
 );
 

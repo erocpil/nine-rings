@@ -25,13 +25,19 @@ export function PublicationRecoveryStatus({
   const [rows, setRows] = useState<PublicationSummary[]>([]),
     [error, setError] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
-    [message, setMessage] = useState("");
+    [message, setMessage] = useState(""),
+    [cancelId, setCancelId] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     const refresh = () =>
       void listPublicationSummaries()
         .then((values) => {
-          if (active) setRows(values.filter((row) => row.phase !== "COMPLETE"));
+          if (active)
+            setRows(
+              values.filter(
+                (row) => !["COMPLETE", "ABORTED"].includes(row.phase),
+              ),
+            );
         })
         .catch(() => {
           if (active)
@@ -152,6 +158,48 @@ export function PublicationRecoveryStatus({
                   }}
                 >
                   继续已确认的冻结发布
+                </button>
+              )}
+              {["PREPARED", "OBJECTS_READY", "REJECTED"].includes(
+                row.phase,
+              ) && (
+                <button
+                  type="button"
+                  className="settings-btn"
+                  disabled={
+                    disabled || busy || CURRENT_SYNC_CAPABILITIES.write < 1
+                  }
+                  onClick={async () => {
+                    if (cancelId !== row.id) {
+                      setCancelId(row.id);
+                      return;
+                    }
+                    setBusy(true);
+                    onOperationChange?.(true);
+                    setError(null);
+                    try {
+                      const { cancelUnpublishedPublication } =
+                        await import("../lib/sync/publication-recovery");
+                      await cancelUnpublishedPublication(row.spaceId, row.id);
+                      setCancelId(null);
+                      setMessage(
+                        "已取消未发布计划，接受基线和远端数据未修改；请重新预检。",
+                      );
+                    } catch (reason) {
+                      setError(
+                        reason instanceof Error
+                          ? reason.message
+                          : "取消失败，记录已保留",
+                      );
+                    } finally {
+                      setBusy(false);
+                      onOperationChange?.(false);
+                    }
+                  }}
+                >
+                  {cancelId === row.id
+                    ? "确认取消未发布计划"
+                    : "取消未发布计划"}
                 </button>
               )}
             </div>

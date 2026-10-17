@@ -178,7 +178,8 @@ export async function savePullAttempt(
           throw Error("Pull 已变化");
         if (
           publications.result.some(
-            (r: { phase: string }) => r.phase !== "COMPLETE",
+            (r: { phase: string }) =>
+              !["COMPLETE", "ABORTED"].includes(r.phase),
           )
         )
           throw Error("发布尚未完成");

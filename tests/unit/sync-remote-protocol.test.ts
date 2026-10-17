@@ -79,7 +79,7 @@ it("verifies enabled control and raw snapshot digest, persists monotonic facts a
   const f = await enabledFixture(),
     report = await inspectRemoteProtocol(f.request, config);
   expect(report).toMatchObject({
-    support: "unsupported",
+    support: "supported",
     evidence: { snapshot: { parentChain: "verified", header: "present" } },
   });
   const values = new Map<string, string>();
@@ -131,7 +131,7 @@ it("does not accept an envelope without its control or a mismatched anchored roo
   );
 });
 
-it("keeps shipped publication capabilities disabled even after a successful empty-space preflight", async () => {
+it("requires a matching saved revision even after a successful empty-space preflight", async () => {
   const { preparePublication } =
     await import("../../src/lib/sync/publication-recovery");
   const f = await gitReadFixture({});
@@ -160,7 +160,7 @@ it("keeps shipped publication capabilities disabled even after a successful empt
         publicationRecoveryReady: true,
       },
     }),
-  ).rejects.toThrow("尚不支持");
+  ).rejects.toThrow("本机修订不匹配");
 });
 
 it("never copies credentials or accepted baselines into remote space metadata", async () => {

@@ -4,6 +4,9 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+#[cfg(test)]
+mod private_rehearsal;
+
 /// 导出格式：全量笔记 + daily page
 #[derive(Serialize, Deserialize)]
 pub struct BackupTemplate {
@@ -44,12 +47,12 @@ pub struct ExportBundle {
 }
 
 /// Check the protocol before fixed structs can silently discard an envelope.
-/// No new-envelope round-trip capability is advertised by this release.
+/// Protocol snapshots must use the reviewed sync path, never generic legacy import.
 pub fn parse_legacy_bundle(json: &str) -> Result<ExportBundle, String> {
     let value: Value = serde_json::from_str(json).map_err(|_| "备份不是有效 JSON".to_string())?;
     let object = value.as_object().ok_or("备份必须为 JSON 对象")?;
     if object.contains_key("header") {
-        return Err("当前版本尚不支持此同步协议；本机数据未修改".into());
+        return Err("同步协议快照必须通过增量同步审查；本机数据未修改".into());
     }
     drop(value);
     // Keep serde's duplicate-field checks for the fixed legacy model.

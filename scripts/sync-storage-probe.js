@@ -1,7 +1,6 @@
 import { importData, exportData } from "../src/lib/storage/db-export-import";
 import { candidateEntities } from "../src/lib/sync/entity-projection";
 import { canonicalDigest } from "../src/lib/sync/canonical-codec";
-import { CURRENT_SYNC_CAPABILITIES } from "../src/lib/sync/protocol-capabilities";
 import {
   addFrontendSettingsToBackup,
   withFrontendSettings,
@@ -14,10 +13,6 @@ const exportComplete = async () =>
 
 // The runner always creates a new, disposable browser context at a random origin.
 globalThis.syncBrowserProbe = async (source) => {
-  if (CURRENT_SYNC_CAPABILITIES.read || CURRENT_SYNC_CAPABILITIES.write)
-    throw Error(
-      "Storage probe requires production migration to remain disabled",
-    );
   const stages = [];
   const stage = async (name, operation) => {
     const started = performance.now();

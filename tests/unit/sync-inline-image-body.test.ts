@@ -99,7 +99,7 @@ it.each(fixture.notes)(
     expect(
       reviewCandidatePayload(payload(note.content), "flutter").eligible,
     ).toBe(false);
-    expect(CURRENT_SYNC_CAPABILITIES.write).toBe(0);
+    expect(CURRENT_SYNC_CAPABILITIES.write).toBe(1);
     expect(
       reviewCandidatePayload(
         payload({

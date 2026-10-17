@@ -1,6 +1,5 @@
 import { canonicalDigest } from "../src/lib/sync/canonical-codec";
 import { parseSyncJson } from "../src/lib/sync/strict-json";
-import { CURRENT_SYNC_CAPABILITIES } from "../src/lib/sync/protocol-capabilities";
 import {
   persistPreparedAttempt,
   readPublicationAttempt,
@@ -15,10 +14,6 @@ import {
 } from "../src/lib/sync/pull-store";
 
 const { performance, TextEncoder } = globalThis;
-const ensureDisabled = () => {
-  if (CURRENT_SYNC_CAPABILITIES.read || CURRENT_SYNC_CAPABILITIES.write)
-    throw Error("Journal storage probe requires migration disabled");
-};
 const assert = (value) => {
   if (!value) throw Error("Journal storage invariant failed");
 };
@@ -27,7 +22,6 @@ const reader = (kind) =>
 
 // Real records captured by the isolated service rehearsal. No recovery/publish API is invoked.
 globalThis.syncBrowserProbe = async (source) => {
-  ensureDisabled();
   const { kind, record } = parseSyncJson(source);
   assert(
     ["publication", "pull"].includes(kind) && record && record.version === 1,
@@ -102,7 +96,6 @@ globalThis.syncBrowserProbe = async (source) => {
 };
 
 globalThis.syncStorageReload = async (expected) => {
-  ensureDisabled();
   const record = await reader(expected.kind)(expected.spaceId);
   assert(
     record &&

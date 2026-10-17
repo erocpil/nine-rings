@@ -1,6 +1,5 @@
 import { candidateEntities } from "../src/lib/sync/entity-projection";
 import { withCandidateEvaluation } from "../src/lib/sync/candidate-write-policy";
-import { CURRENT_SYNC_CAPABILITIES } from "../src/lib/sync/protocol-capabilities";
 import { planEntityChanges } from "../src/lib/sync/entity-plan";
 import { assembleEntityCandidate } from "../src/lib/sync/entity-assembly";
 import { canonicalDigest } from "../src/lib/sync/canonical-codec";
@@ -11,8 +10,6 @@ const { performance, crypto, TextEncoder, indexedDB } = globalThis;
 // Built separately from the app. Runs only in a disposable browser context.
 globalThis.syncBrowserProbe = async (source, scope = "core") => {
   if (!["core", "planning"].includes(scope)) throw Error("Unknown probe scope");
-  if (CURRENT_SYNC_CAPABILITIES.read || CURRENT_SYNC_CAPABILITIES.write)
-    throw Error("Probe requires production migration to remain disabled");
   const stages = [];
   const stage = async (name, operation) => {
     const start = performance.now();

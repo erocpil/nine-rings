@@ -2,7 +2,7 @@
 
 九环通过 GitHub 仓库实现数据版本化备份。采用**全量 JSON 快照**方案，支持 Push（上传）/ Pull（下载）。
 
-按文档拆分的增量备份仍处于设计阶段，历史建议与问题回复见[增量评估](incremental-backup-assessment.md)，v3/v4.1 的升级门禁、实体基线、发布恢复、资产及只读测量方案见[手动快照补强设计](sync-snapshot-hardening-design.md)。它不会通过源码提交自动迁移已有备份仓库。
+Web/PWA 与 Tauri 0.3.0 已提供逐实体选择合并、接受基线和可恢复的手动同步，使用方法见[正式同步指南](incremental-sync.md)。远端载荷仍是完整 JSON 快照；按文档拆分传输、删除传播与自动同步尚未实现。旧格式备份继续可用，首次切换必须导出并核验本地备份、确认参与设备升级；Flutter 暂不参与新协议。历史方案见[增量评估](incremental-backup-assessment.md)和[补强设计](sync-snapshot-hardening-design.md)。
 
 导出构成及上传耗时可在「备份测量」查看；另提供只读仓库元数据工具，使用方法和统计边界见[备份测量](backup-measurement.md)。
 

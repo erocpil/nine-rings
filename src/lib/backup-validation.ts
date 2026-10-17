@@ -34,6 +34,8 @@ export function validateBackup(
     }
   };
   assertSyncCapabilities(value, { operation: "read" });
+  if (object(value) && Object.prototype.hasOwnProperty.call(value, "header"))
+    throw new Error("同步协议快照必须通过增量同步审查，不能作为普通备份直接导入");
   safe(value);
   if (!object(value) || !Array.isArray(value.notes))
     throw new Error("备份必须包含 notes 数组");

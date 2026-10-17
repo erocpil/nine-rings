@@ -89,19 +89,21 @@ const assets = new Map(
 const server = createServer((request, response) => {
   response.setHeader("Cache-Control", "no-store");
   if (request.url === "/probe.js") {
-    response.setHeader("Content-Type", "text/javascript");
+    response.setHeader("Content-Type", "text/javascript; charset=utf-8");
     response.end(chunks[0].code);
   } else if (assets.has(request.url)) {
     response.setHeader(
       "Content-Type",
       request.url.endsWith(".js")
-        ? "text/javascript"
+        ? "text/javascript; charset=utf-8"
         : "application/octet-stream",
     );
     response.end(assets.get(request.url));
   } else if (request.url === "/") {
-    response.setHeader("Content-Type", "text/html");
-    response.end('<!doctype html><script src="/probe.js"></script>');
+    response.setHeader("Content-Type", "text/html; charset=utf-8");
+    response.end(
+      '<!doctype html><meta charset="utf-8"><script src="/probe.js"></script>',
+    );
   } else {
     response.writeHead(404);
     response.end();

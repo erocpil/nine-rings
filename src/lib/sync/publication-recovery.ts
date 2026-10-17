@@ -179,6 +179,7 @@ export async function readValidatedPublication(
         "REJECTED",
         "CONFIRMING",
         "COMPLETE",
+        "ABORTED",
       ].includes(attempt.phase) ||
       (attempt.commitSha !== null && !gitSha(attempt.commitSha)) ||
       (await bytesDigest(attempt.source)) !== attempt.snapshotSha256
@@ -364,6 +365,29 @@ export async function recordPublicationObjects(
     });
   });
 }
+/** Cancel only an intent that cannot have an unconfirmed successful ref update. */
+export async function cancelUnpublishedPublication(
+  spaceId: string,
+  attemptId: string,
+) {
+  if (!globalThis.navigator?.locks) throw Error("发布锁不可用，未取消");
+  await navigator.locks.request(
+    RESTORE_LOCK_NAME,
+    { mode: "exclusive" },
+    async () => {
+      const attempt = await readValidatedPublication(spaceId);
+      if (
+        attempt.id !== attemptId ||
+        !["PREPARED", "OBJECTS_READY", "REJECTED"].includes(attempt.phase)
+      )
+        throw Error("只能取消尚未发布或已明确拒绝的计划；结果不明时必须先核实");
+      assertDocumentStorageGeneration(attempt.storageGeneration);
+      await transitionPublication(attempt, "ABORTED", attempt.commitSha, () =>
+        assertDocumentStorageGeneration(attempt.storageGeneration),
+      );
+    },
+  );
+}
 /** Persist PUBLISHING before the sole PATCH. An UNKNOWN attempt cannot be replayed. */
 export async function publishRecordedCommit(
   spaceId: string,
@@ -449,6 +473,7 @@ export async function recoverPublication(
   return withCandidateEvaluation(evaluation, async (evaluation) => {
     let attempt = await readValidatedPublication(spaceId, evaluation);
     if (attempt.phase === "COMPLETE") return "complete";
+    if (attempt.phase === "ABORTED") return "not-published";
     if (["PREPARED", "OBJECTS_READY", "REJECTED"].includes(attempt.phase))
       return "not-published";
     if (!attempt.commitSha) throw Error("发布恢复缺少提交身份");

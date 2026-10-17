@@ -1,5 +1,7 @@
 # 完整备份隔离演练
 
+当前 Web/Tauri 0.3.0 已开放认证协议；本目录原有假设能力模式仍只覆盖隔离模拟。以下分开记录模拟、原生 SQLite 和真实 GitHub 演练，不能互相替代证据。
+
 此目录不在普通 Vitest / CI 用例范围内。演练只读取显式指定的本机备份，使用 Node 进程内的 fake IndexedDB、内存 Git 对象和模拟宿主；禁止 `fetch`，不连接 GitHub、不导入真实数据库、不改写输入。
 
 ```sh
@@ -48,7 +50,7 @@ NR_SYNC_DRY_RUN_INPUT=/absolute/path/to/backup.json \
 
 `NR_SYNC_DRY_RUN_REMOTE=checkpoint` 则让本机与旧远端内容相同，显式启用迁移检查点；只建立协议，不发布本机差异、不创建实体接受回执，也不重放无需执行的正文导入。该模式不能同时传 `NR_SYNC_DRY_RUN_SCENARIO`。默认 remote=enabled，保留已有空间追加演练。
 
-这些模式仍只使用模拟 Git、fake IndexedDB 和测试模块内的假设能力；备份验证及设备确认是测试输入，不代表用户真实文件下载确认或全部设备升级已验收。生产读写仍为 0，原生/真实双端及产品迁移入口须另外验证。
+这些模式仍只使用模拟 Git、fake IndexedDB 和测试模块内的假设能力；备份验证及设备确认是测试输入，不代表用户真实文件下载确认或全部设备升级已验收。这组模拟不执行原生/真实双端或产品入口验收；其它类型的验证见下方独立工具。
 
 `NR_SYNC_DRY_RUN_REMOTE=empty` 从只有无关文件的空备份空间开始，调用保存边界后的首次发布准备，核对首快照 parent=null、所有出站实体在远端确认后才接受，以及另一端 Pull 确认丢失恢复。此模式不伪造非空远端审查；与 legacy/checkpoint 一起构成首次切换的服务层矩阵，仍不是实际远端仓库或用户迁移验收。
 
@@ -68,3 +70,27 @@ bash scripts/with-local-tools.sh env \
 ```
 
 批量入口仅接收捕获日志中列出的 1～4 个 `.local-tools` 内实际文件，逐条在 Chromium/WebKit 的全新上下文执行；失败即停止。scope=journal 输入上限 128 MiB；不连接网络、不调用发布、恢复或接受确认服务。使用产品实际日志存储函数，核对取消回滚、完整记录摘要回读、并发比较更新只有一个成功、摘要状态以及页面重载后的持久性，接受回执始终为零。发布记录在此隔离存储测试中转为 UNKNOWN，Pull 转为 NEEDS_REVIEW；这些是存储测试状态，不是已证明的远端/正文结果。不得把这项测试当作新协议认证、完整恢复服务或真实进程重启的证据。
+
+
+## 原生 SQLite 完整备份与事务回滚
+
+```sh
+NR_SYNC_DRY_RUN_INPUT=/absolute/path/to/backup.json \
+  bash scripts/with-local-tools.sh cargo test --manifest-path src-tauri/Cargo.toml \
+  --locked --lib private_backup_disk_reopen_and_atomic_rollback -- --ignored --nocapture
+```
+
+显式 opt-in，普通 Rust 测试忽略。只读输入（最多 64 MiB），在仓库 `.local-tools` 的随机私有目录创建实际 WAL 数据库，执行生产导入、关闭重开、完整导出与故意失败导入的事务回滚验证；测试后删除自己创建的临时数据库，不启动安装的 Tauri 应用，不使用其数据目录。仅输出数量与耗时。
+
+## 真实 GitHub 与独立浏览器进程
+
+```sh
+bash scripts/with-local-tools.sh env NR_SYNC_LIVE_BROWSER=both \
+  node scripts/rehearse-sync-live.mjs --check-bundle
+bash scripts/with-local-tools.sh env NR_SYNC_LIVE=1 NR_SYNC_LIVE_BROWSER=both \
+  node scripts/rehearse-sync-live.mjs
+```
+
+第二条是写入操作，只用于已授权的 `erocpil/nine-rings-backup` 测试仓库。工具通过 gh 会话在内存中读取凭据，创建唯一 orphan 测试分支，只上传公开 schema fixture，不读取私有备份，不删除文件或修改默认分支。测试浏览器内把仓库发现返回的 default_branch 指向新分支，以隔离既有长历史；实际 GitHub 默认分支没有更改，因此这不是默认分支选择的线上验收。
+
+分别用 Chromium/WebKit 的两个独立持久配置，调用实际 API/发布/Pull/接受与恢复服务：首次发布前中断取消重试、相同确认、冲突合并保留未选设置、PATCH 响应丢失后关闭进程恢复、真实导入完成但确认丢失后重启恢复、离线零发布和竞争拒绝（不强推），另补旧快照首次迁移与第二客户端 Pull。`--legacy-only` 仅运行后者，也创建独立新分支。当前生产 profile 已启用，工具不替换它；`candidateProfile` 记入报告。运行报告和浏览器配置只保存在 `.local-tools/sync-live-*/`，测试分支保留供检查，未经授权不清理。

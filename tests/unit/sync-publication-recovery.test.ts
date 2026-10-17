@@ -16,10 +16,12 @@ import {
   recordPublicationObjects,
   publishRecordedCommit,
   recoverPublication,
+  cancelUnpublishedPublication,
 } from "../../src/lib/sync/publication-recovery";
 import {
   readPublicationAttempt,
   readAcceptedEntities,
+  transitionPublication,
 } from "../../src/lib/sync/publication-store";
 // Only this test module supplies hypothetical certified capabilities. Shipped code stays zero.
 vi.mock("../../src/lib/sync/protocol-capabilities", async (importOriginal) => {
@@ -73,6 +75,53 @@ beforeEach(async () => {
   });
 });
 afterEach(() => vi.unstubAllGlobals());
+it.each(["PREPARED", "OBJECTS_READY", "REJECTED"] as const)(
+  "explicit cancellation of %s keeps frozen evidence and releases the next plan",
+  async (phase) => {
+    const state = await prepared();
+    if (phase !== "PREPARED")
+      await transitionPublication(state.attempt, phase, state.commit);
+    const before = await readPublicationAttempt(state.attempt.spaceId);
+    await cancelUnpublishedPublication(state.attempt.spaceId, state.attempt.id);
+    const after = await readPublicationAttempt(state.attempt.spaceId);
+    expect(after).toMatchObject({
+      ...before,
+      phase: "ABORTED",
+      updatedAt: expect.any(String),
+    });
+    expect(await readAcceptedEntities(state.attempt.spaceId)).toEqual([]);
+    expect(
+      await recoverPublication(state.attempt.spaceId, state.remote.request),
+    ).toBe("not-published");
+    const next = await prepared();
+    expect(next.attempt.id).not.toBe(state.attempt.id);
+  },
+);
+it.each([
+  "PUBLISHING",
+  "UNKNOWN",
+  "CONFIRMING",
+  "COMPLETE",
+  "ABORTED",
+] as const)("%s cannot be dismissed as an unpublished plan", async (phase) => {
+  const state = await prepared();
+  await transitionPublication(state.attempt, phase, state.commit);
+  await expect(
+    cancelUnpublishedPublication(state.attempt.spaceId, state.attempt.id),
+  ).rejects.toThrow("只能取消");
+  expect((await readPublicationAttempt(state.attempt.spaceId))?.phase).toBe(
+    phase,
+  );
+});
+it("cancellation rejects a stale dialog identity", async () => {
+  const state = await prepared();
+  await expect(
+    cancelUnpublishedPublication(state.attempt.spaceId, "old-dialog"),
+  ).rejects.toThrow("只能取消");
+  expect((await readPublicationAttempt(state.attempt.spaceId))?.phase).toBe(
+    "PREPARED",
+  );
+});
 async function prepared(
   beforePrepare: (
     input: PublicationPreparation,

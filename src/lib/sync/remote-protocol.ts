@@ -1,6 +1,15 @@
 /** Fixed-revision, GET-only protocol inspection. It neither applies nor publishes data. */
 import { parseSyncJson } from "./strict-json";
-import { inspectSyncHeader } from "./protocol-capabilities";
+import {
+  snapshotHeaderCache,
+  protocolHistoryCache,
+} from "./snapshot-header-cache";
+import {
+  inspectSyncHeader,
+  assertSyncCapabilities,
+  SyncProtocolError,
+  type SyncHeader,
+} from "./protocol-capabilities";
 import {
   syncSpaceId,
   type PinnedProtocolEvidence,
@@ -117,10 +126,10 @@ export function createPinnedReader(
       );
     return trees.get(sha)!;
   };
-  const file = async (
+  const fingerprint = async (
     revision: string,
     path: string,
-  ): Promise<{ content: string; sha: string } | null> => {
+  ): Promise<{ sha: string; size: number } | null> => {
     const parts = path.split("/");
     must(
       parts.length <= 100 && parts.every((p) => p && p !== "." && p !== ".."),
@@ -142,42 +151,62 @@ export function createPinnedReader(
           (entry.size as number) >= 0,
       );
       const size = entry.size as number;
-      if (size > 64 * 1024 * 1024 || bytes + size > budget.bytes)
-        throw new RemoteInspectionError("budget");
-      const blob = await get(`/git/blobs/${entry.sha}`);
-      must(
-        record(blob) &&
-          blob.sha === entry.sha &&
-          blob.encoding === "base64" &&
-          blob.size === size &&
-          typeof blob.content === "string" &&
-          blob.content.length <=
-            Math.ceil(size / 3) * 4 + Math.ceil(size / 40) + 16,
-      );
-      const raw = (blob.content as string).replace(/\r?\n/g, "");
-      must(/^[A-Za-z0-9+/]*={0,2}$/.test(raw) && raw.length % 4 === 0);
-      const binary = atob(raw);
-      must(binary.length === size);
-      // Uint8Array.from(string, mapper) first materializes the string iterator.
-      // Fill the bounded destination directly, avoiding millions of temporary entries.
-      const data = new Uint8Array(size);
-      for (let i = 0; i < size; i++) data[i] = binary.charCodeAt(i);
-      bytes += size;
-      const content = new TextDecoder("utf-8", { fatal: true }).decode(data);
-      must((await gitBlobSha(content)) === entry.sha);
-      return { content, sha: entry.sha as string };
+      if (size > 64 * 1024 * 1024) throw new RemoteInspectionError("budget");
+      return { sha: entry.sha as string, size };
     }
     throw new RemoteInspectionError("integrity");
   };
-  return { file, commit, get, stats: () => ({ requests, bytes }) };
+  const file = async (
+    revision: string,
+    path: string,
+  ): Promise<{ content: string; sha: string } | null> => {
+    const entry = await fingerprint(revision, path);
+    if (!entry) return null;
+    const size = entry.size;
+    if (bytes + size > budget.bytes) throw new RemoteInspectionError("budget");
+    const blob = await get(`/git/blobs/${entry.sha}`);
+    must(
+      record(blob) &&
+        blob.sha === entry.sha &&
+        blob.encoding === "base64" &&
+        blob.size === size &&
+        typeof blob.content === "string" &&
+        blob.content.length <=
+          Math.ceil(size / 3) * 4 + Math.ceil(size / 40) + 16,
+    );
+    const raw = (blob.content as string).replace(/\r?\n/g, "");
+    must(/^[A-Za-z0-9+/]*={0,2}$/.test(raw) && raw.length % 4 === 0);
+    const binary = atob(raw);
+    must(binary.length === size);
+    // Uint8Array.from(string, mapper) first materializes the string iterator.
+    // Fill the bounded destination directly, avoiding millions of temporary entries.
+    const data = new Uint8Array(size);
+    for (let i = 0; i < size; i++) data[i] = binary.charCodeAt(i);
+    bytes += size;
+    const content = new TextDecoder("utf-8", { fatal: true }).decode(data);
+    must((await gitBlobSha(content)) === entry.sha);
+    return { content, sha: entry.sha };
+  };
+  return { file, fingerprint, commit, get, stats: () => ({ requests, bytes }) };
 }
 export interface RemoteProtocolReport {
   space: SyncSpace;
   spaceId: string;
   evidence: PinnedProtocolEvidence;
-  support: "legacy" | "unsupported";
+  support: "legacy" | "supported" | "unsupported";
   history: "complete" | "budget";
   reads: { requests: number; bytes: number };
+}
+export interface SnapshotHeaderCache {
+  read(
+    blobSha: string,
+    id: string,
+  ): Promise<{ rawSha256: string; header: SyncHeader } | null>;
+  write(blobSha: string, source: string): Promise<void>;
+}
+export interface ProtocolHistoryCache {
+  read(revision: string): Promise<string[] | null>;
+  write(revision: string, parents: string[]): Promise<void>;
 }
 /** Control's first snapshot is the root of the snapshot chain; digests are raw UTF-8 bytes. */
 export async function inspectRemoteProtocol(
@@ -186,10 +215,15 @@ export async function inspectRemoteProtocol(
   options: {
     historyLimit?: number;
     chainLimit?: number;
+    headerCache?: SnapshotHeaderCache | false;
+    historyCache?: ProtocolHistoryCache | false;
     onControlDetected?: (spaceId: string) => Promise<void>;
   } = {},
 ): Promise<RemoteProtocolReport> {
-  const reader = createPinnedReader(request);
+  const reader = createPinnedReader(request, {
+    requests: options.historyLimit && options.historyLimit > 64 ? 1024 : 160,
+    bytes: 128 * 1024 * 1024,
+  });
   const repo = await reader.get("");
   must(
     record(repo) &&
@@ -203,6 +237,22 @@ export async function inspectRemoteProtocol(
     branch: repo.default_branch,
   };
   const spaceId = await syncSpaceId(space);
+  let headerCache = options.headerCache || undefined;
+  let historyCache = options.historyCache || undefined;
+  if (options.headerCache === undefined && typeof window !== "undefined") {
+    try {
+      headerCache = snapshotHeaderCache(localStorage, spaceId);
+    } catch {
+      /* Full verification remains available. */
+    }
+  }
+  if (options.historyCache === undefined && typeof window !== "undefined") {
+    try {
+      historyCache = protocolHistoryCache(localStorage, spaceId);
+    } catch {
+      /* Full verification remains available. */
+    }
+  }
   const ref = await reader.get(
     `/git/ref/heads/${space.branch.split("/").map(encodeURIComponent).join("/")}`,
   );
@@ -230,9 +280,9 @@ export async function inspectRemoteProtocol(
     },
     legacyHistory: "unknown",
   };
-  let current = pointer ? await reader.file(head, paths.snapshot(id)) : null;
+  const current = pointer ? await reader.file(head, paths.snapshot(id)) : null;
   if (pointer && !current) throw new RemoteInspectionError("missing-snapshot");
-  let bundle = current ? parseSyncJson(current.content) : null;
+  const bundle = current ? parseSyncJson(current.content) : null;
   must(bundle === null || record(bundle));
   let support: RemoteProtocolReport["support"] = "legacy",
     history: RemoteProtocolReport["history"] = "complete";
@@ -269,23 +319,46 @@ export async function inspectRemoteProtocol(
       format: latest.format,
       codec: latest.codec,
     };
+    const latestBundle = bundle;
     const seen = new Set<string>();
     let next = id,
       expected: string | undefined;
     const limit = Math.min(32, Math.max(1, options.chainLimit ?? 16));
-    let verified = false;
-    for (let depth = 0; depth < limit; depth++) {
+    let verified = false,
+      fetched = 1;
+    for (let depth = 0; depth < (headerCache ? 10000 : limit); depth++) {
       must(!seen.has(next));
       seen.add(next);
-      if (depth) {
-        current = await reader.file(head, paths.snapshot(next));
-        if (!current) throw new RemoteInspectionError("missing-snapshot");
-        bundle = parseSyncJson(current.content);
+      let hash: string, header: SyncHeader;
+      if (depth === 0) {
+        must(current);
+        hash = await bytesDigest(current.content);
+        header = latest;
+        const memo = await headerCache?.read(current.sha, header.id);
+        if (!memo || memo.rawSha256 !== hash)
+          await headerCache?.write(current.sha, current.content);
+      } else {
+        const fingerprint = await reader.fingerprint(
+          head,
+          paths.snapshot(next),
+        );
+        if (!fingerprint) throw new RemoteInspectionError("missing-snapshot");
+        const cached = await headerCache?.read(fingerprint.sha, next);
+        if (cached) {
+          hash = cached.rawSha256;
+          header = inspectSyncHeader(cached.header, next);
+        } else {
+          if (fetched++ >= limit) throw new RemoteInspectionError("budget");
+          const source = await reader.file(head, paths.snapshot(next));
+          if (!source) throw new RemoteInspectionError("missing-snapshot");
+          const payload = parseSyncJson(source.content);
+          must(record(payload));
+          hash = await bytesDigest(source.content);
+          header = inspectSyncHeader(payload.header, next);
+          await headerCache?.write(source.sha, source.content);
+        }
       }
-      must(current && record(bundle));
-      const hash = await bytesDigest(current.content);
       if (expected) must(hash === expected);
-      const header = inspectSyncHeader(bundle.header, next);
       must(header.format === 1 && header.codec === 1);
       if (!header.parent) {
         must(
@@ -300,7 +373,18 @@ export async function inspectRemoteProtocol(
     }
     if (!verified) throw new RemoteInspectionError("budget");
     evidence.snapshot.parentChain = "verified";
-    support = "unsupported";
+    try {
+      assertSyncCapabilities(latestBundle, {
+        operation: "read",
+        expectedId: id,
+        requireHeader: true,
+      });
+      support = "supported";
+    } catch (error) {
+      if (!(error instanceof SyncProtocolError) || error.code !== "unsupported")
+        throw error;
+      support = "unsupported";
+    }
   } else {
     if (
       record(bundle) &&
@@ -312,21 +396,36 @@ export async function inspectRemoteProtocol(
     // Walk every reachable parent, not first-parent or a path-filtered log.
     const queue = [head],
       seen = new Set<string>();
-    const limit = Math.min(64, Math.max(1, options.historyLimit ?? 16));
+    const limit = Math.min(256, Math.max(1, options.historyLimit ?? 16));
+    let fetched = 0;
     try {
       while (queue.length) {
         const revision = queue.pop()!;
         if (seen.has(revision)) continue;
-        if (seen.size >= limit) {
+        if (seen.size >= (historyCache ? 10000 : limit)) {
           history = "budget";
           break;
         }
         seen.add(revision);
+        const cachedParents = await historyCache?.read(revision);
+        if (cachedParents) {
+          for (const parent of cachedParents)
+            if (!seen.has(parent)) queue.push(parent);
+          continue;
+        }
+        if (fetched++ >= limit) {
+          history = "budget";
+          break;
+        }
         if (await reader.file(revision, paths.control)) {
           await options.onControlDetected?.(spaceId);
           throw new RemoteInspectionError("invalid-control");
         }
         const commit = await reader.commit(revision);
+        await historyCache?.write(
+          revision,
+          (commit.parents as { sha: string }[]).map((parent) => parent.sha),
+        );
         for (const parent of commit.parents as { sha: string }[])
           if (!seen.has(parent.sha)) queue.push(parent.sha);
       }

@@ -46,7 +46,7 @@ it("certifies complete Web/Tauri configuration without user storage access and k
     ).toBeTruthy();
   }
   expect(reviewCandidatePayload(source(config()), "tauri").eligible).toBe(true);
-  expect(CURRENT_SYNC_CAPABILITIES.write).toBe(0);
+  expect(CURRENT_SYNC_CAPABILITIES.write).toBe(1);
 });
 
 it("requires all known fields, rejects unknown fields, malformed values and lossy migrations", () => {

@@ -389,7 +389,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
           setBusyOperation("protocol");
           try {
             const report = await preflightProtocolFromGitHub(cfg);
-            showMessage(report.support === "unsupported" ? "远端使用新协议，当前版本已停止此连接的旧格式同步；新协议尚未开放。" : report.history === "complete" ? "固定提交预检通过：可核实历史中未发现协议控制文件；新协议仍关闭。" : "当前快照为旧格式，但历史超出核验预算，不能确认从未开启；新协议仍关闭。", "success");
+            showMessage(report.support === "supported" ? "新协议完整性预检通过，可在下方执行增量同步。" : report.support === "unsupported" ? "远端使用新协议，当前版本已停止此连接的旧格式同步；请升级到支持该协议的版本。" : report.history === "complete" ? "固定提交预检通过：可核实历史中未发现协议控制文件；可在下方审查并确认首次迁移。" : "历史尚未完全核验，不能确认从未开启；请再次预检继续，已核验提交会在本机复用。", "success");
           } catch(error) { showMessage(syncErrorMessage(error), "error"); }
           finally { setBusyOperation(null); }
         }}>协议预检</button>

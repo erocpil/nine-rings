@@ -219,7 +219,7 @@ it.each([
       .ready,
   ).toBe(false);
 });
-it("only hypothetical certified capabilities can pass pure preflight, never the shipped zero profile", async () => {
+it("certified capabilities can pass preflight while a disabled client remains refused", async () => {
   const id = await syncSpaceId(space);
   expect(
     reviewProtocolSwitch(
@@ -231,7 +231,25 @@ it("only hypothetical certified capabilities can pass pure preflight, never the 
     ),
   ).toEqual({ ready: true, reasons: [] });
   expect(
-    reviewProtocolSwitch(id, evidence(), { state: "none" }, prerequisites())
-      .reasons,
+    reviewProtocolSwitch(id, evidence(), { state: "none" }, prerequisites(), {
+      ...hypothetical,
+      read: 0,
+      write: 0,
+    }).reasons,
   ).toContain("capability-unsupported");
+});
+
+it("requires participating clients at or above the first sync release", async () => {
+  const { supportedSyncParticipantVersion } =
+    await import("../../src/lib/sync/release-capabilities");
+  for (const version of [
+    "0.2.99",
+    "0.0.0",
+    "0.3",
+    "0.3.0-beta",
+    "9007199254740992.0.0",
+  ])
+    expect(supportedSyncParticipantVersion(version)).toBe(false);
+  for (const version of ["0.3.0", "0.3.1", "0.10.0", "1.0.0"])
+    expect(supportedSyncParticipantVersion(version)).toBe(true);
 });
