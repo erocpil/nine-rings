@@ -21,7 +21,17 @@ test("实体选择草稿可重启恢复，过期选择拒绝且不改正文或�
     [paths.latest]: "snapshot-1",
     [paths.snapshot("snapshot-1")]: source,
   });
+  // A real UI click must continue past the 128-new-commit batch boundary.
+  const ancestors = Array.from({ length: 130 }, (_, index) => (index + 1).toString(16).padStart(40, "0"));
+  ancestors.forEach((sha, index) => git.objects.set(`/git/commits/${sha}`, {
+    sha, tree: { sha: git.tree }, parents: index ? [{ sha: ancestors[index - 1] }] : [],
+  }));
+  const headCommit = git.objects.get(`/git/commits/${git.head}`) as { parents: { sha: string }[] };
+  headCommit.parents = [{ sha: ancestors[ancestors.length - 1] }];
   const methods: string[] = [];
+  let headReads = 0;
+  let continueSecondBatch = () => {};
+  const secondBatch = new Promise<void>(resolve => { continueSecondBatch = resolve; });
   let movedHead = false;
   let holdFirstRead = true;
   let unblock = () => {};
@@ -33,6 +43,10 @@ test("实体选择草稿可重启恢复，过期选择拒绝且不改正文或�
     const path = decodeURIComponent(
       new URL(route.request().url()).pathname,
     ).replace("/repos/example/backup", "");
+    if (path.startsWith("/git/ref/heads/")) {
+      headReads++;
+      if (headReads === 2) await secondBatch;
+    }
     if (movedHead && path.startsWith("/git/ref/heads/")) {
       await route.fulfill({
         json: { object: { type: "commit", sha: "f".repeat(40) } },
@@ -92,7 +106,11 @@ test("实体选择草稿可重启恢复，过期选择拒绝且不改正文或�
     review.getByRole("button", { name: "取消检查", exact: true }),
   ).toBeEnabled();
   unblock();
+  await expect.poll(() => headReads).toBe(2);
+  await expect(progress).toContainText("历史核验第 2 批");
+  continueSecondBatch();
   await expect(review).toContainText("预检完成");
+  expect(headReads).toBeGreaterThanOrEqual(2);
   await expect(progress).toHaveCount(0);
   const migration = review.getByRole("group", {
     name: "增量操作与首次迁移确认",

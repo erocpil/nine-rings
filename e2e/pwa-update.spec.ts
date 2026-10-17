@@ -79,6 +79,9 @@ test.afterAll(async () => {
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 });
 test.beforeEach(async ({ page }) => {
+  const openedPages: Page[] = [];
+  page.context().on("page", opened => openedPages.push(opened));
+  (page as Page & { updateOpenedPages?: Page[] }).updateOpenedPages = openedPages;
   revision = 1;
   blockDownload = false;
   failDownload = false;
@@ -91,7 +94,11 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator(".ProseMirror")).toBeVisible();
   await expect.poll(() => activeVersion(page)).toBe(1);
 });
-test.afterEach(releaseDownloads);
+test.afterEach(async ({ page }) => {
+  releaseDownloads();
+  expect((page as Page & { updateOpenedPages?: Page[] }).updateOpenedPages).toEqual([]);
+  expect(page.context().pages()).toEqual([page]);
+});
 
 test("手机 PWA 重启时接管已开始的新版下载，保存后升级且服务断开仍可重开", async ({ page }) => {
   revision = 2;
@@ -243,3 +250,26 @@ for (const width of [390, 1280]) {
     await expect(settings).toHaveCount(0);
   });
 }
+
+
+test("下载超过页面等待期限后完成会清除超时，并在原标签保存刷新", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.clock.install();
+  revision = 2;
+  blockDownload = true;
+  await page.keyboard.press("Alt+,");
+  await page.getByRole("button", { name: "检查更新", exact: true }).click();
+  const status = page.locator(".settings-web-update [role=status]");
+  await expect(status).toContainText("正在下载并安装新版");
+  await page.clock.fastForward(60_001);
+  await expect(status).toContainText("更新等待超时");
+  releaseDownloads();
+  await expect(status).toContainText("新版本已就绪");
+  await expect(status).not.toContainText("失败");
+  await Promise.all([
+    page.waitForEvent("load"),
+    page.locator(".settings-web-update").getByRole("button", { name: "保存并刷新" }).click(),
+  ]);
+  await expect.poll(() => activeVersion(page)).toBe(2);
+  expect(page.context().pages()).toEqual([page]);
+});

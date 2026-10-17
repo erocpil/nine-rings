@@ -28,6 +28,9 @@ export function SyncOperationProgress({ fallback }: { fallback: string }) {
     <div className="sync-operation-progress" aria-label="同步操作进度">
       <strong>{progress.stage}</strong>
       {progress.detail && <span>{progress.detail}</span>}
+      {progress.historyBatch !== undefined && (
+        <span>历史核验第 {progress.historyBatch} 批（本次最多 8 批），复用已核验缓存</span>
+      )}
       {progress.completedReads > 0 && (
         <span>本次已完成 {progress.completedReads} 次只读请求</span>
       )}

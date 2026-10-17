@@ -392,6 +392,58 @@ describe("PWA update lifecycle", () => {
     });
   });
 
+  it("clears a download timeout when that same installer later becomes ready", async () => {
+    const worker = new Worker();
+    registration.installing = worker;
+    start();
+    await vi.advanceTimersByTimeAsync(60_001);
+    expect(status.error).toContain("等待超时");
+    expect(status.checking).toBe(false);
+    installed(worker);
+    await settle();
+    expect(status).toMatchObject({
+      available: true,
+      checking: false,
+      error: null,
+      errorDetails: null,
+      phase: "ready",
+    });
+    expect(pwaUpdateStatusText(status)).toContain("新版本已就绪");
+    expect(browser.location.reload).not.toHaveBeenCalled();
+    await updater.check();
+    expect(status.error).toBeNull();
+  });
+
+  it("checks the worker state at the deadline when the statechange event is delayed", async () => {
+    const worker = new Worker();
+    registration.installing = worker;
+    start();
+    await settle();
+    registration.installing = null;
+    registration.waiting = worker;
+    worker.state = "installed";
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(status).toMatchObject({
+      available: true,
+      checking: false,
+      error: null,
+      phase: "ready",
+    });
+  });
+
+  it("does not let an older timed-out installer clear a later check failure", async () => {
+    const worker = new Worker();
+    registration.installing = worker;
+    start();
+    await vi.advanceTimersByTimeAsync(60_001);
+    registration.installing = null;
+    registration.update.mockRejectedValueOnce(Error("later-network-failure"));
+    await updater.check();
+    installed(worker);
+    expect(status.error).toContain("later-network-failure");
+    expect(pwaUpdateStatusText(status)).toContain("已下载版本仍可保存并刷新");
+  });
+
   it("times out activation without reloading, allowing a later retry", async () => {
     const worker = new Worker();
     registration.waiting = worker;

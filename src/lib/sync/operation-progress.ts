@@ -2,6 +2,7 @@
 export interface SyncOperationProgress {
   id: number;
   completedReads: number;
+  historyBatch?: number;
   startedAt: number;
   stageAt: number;
   updatedAt: number;
@@ -47,7 +48,7 @@ export function captureSyncProgress() {
     extra: Partial<
       Pick<
         SyncOperationProgress,
-        "detail" | "timeoutMs" | "receivedBytes" | "totalBytes"
+        "detail" | "timeoutMs" | "receivedBytes" | "totalBytes" | "historyBatch"
       >
     > = {},
   ) => {
@@ -57,6 +58,7 @@ export function captureSyncProgress() {
       id,
       startedAt: value.startedAt,
       completedReads: value.completedReads,
+      historyBatch: value.historyBatch,
       stageAt: value.stage === stage ? value.stageAt : now,
       updatedAt: now,
       stage,

@@ -10,7 +10,9 @@ export interface PwaUpdateStatus {
 }
 
 export function pwaUpdateStatusText(status: PwaUpdateStatus): string {
-  if (status.error) return status.error;
+  if (status.error) return status.available
+    ? `已下载版本仍可保存并刷新；${status.error}`
+    : status.error;
   if (status.phase === "installing") return "正在下载并安装新版，请保持联网";
   if (status.checking) return status.available ? "正在检查后续新版，已下载版本仍保留" : "正在检查新版，请保持联网";
   if (status.available) return "新版本已就绪，保存本机改动后即可刷新";
@@ -23,7 +25,7 @@ const UPDATE_TIMEOUT = 60_000;
 const CHECK_INTERVAL = 30 * 60_000;
 
 class PwaUpdateFailure extends Error {
-  constructor(message: string, public readonly details: string | null) {
+  constructor(message: string, public readonly details: string | null, public readonly recovered?: () => boolean) {
     super(message);
     this.name = "PwaUpdateFailure";
   }
@@ -54,6 +56,7 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
   const watched = new Set<ServiceWorker>();
   const installerFailures = new WeakMap<ServiceWorker, string>();
   let failedInstaller: ServiceWorker | null = null;
+  let timedOutWait: { worker: ServiceWorker; done: () => boolean } | null = null;
   const publish = (patch: Partial<PwaUpdateStatus>) => {
     status = { ...status, ...patch };
     status.phase = status.error ? "error"
@@ -66,7 +69,15 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
     cleanups.add(() => target.removeEventListener(event, callback));
   };
   const reconcile = () => {
-    publish({ available: controllerChanged || Boolean(registration?.waiting) });
+    const recovered = timedOutWait?.done() ?? false;
+    if (recovered) {
+      timedOutWait = null;
+      failedInstaller = null;
+    }
+    publish({
+      available: controllerChanged || Boolean(registration?.waiting),
+      ...(recovered ? { error: null, errorDetails: null, checked: true } : {}),
+    });
   };
   const buildFailureDetails = (worker: ServiceWorker, summary: string) => {
     const script = worker.scriptURL;
@@ -144,10 +155,19 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
       }
     };
     const timer = setTimeout(
-      () => finish(new PwaUpdateFailure(
-        "更新等待超时，请检查网络后重试；本地数据未清除。",
-        buildFailureDetails(worker, "等待超时。"),
-      )),
+      () => {
+        // State changes and timer callbacks are queued independently. Recheck
+        // the actual worker before reporting a timeout, even without its event.
+        changed();
+        if (settled) return;
+        timedOutWait = { worker, done };
+        failedInstaller = worker;
+        finish(new PwaUpdateFailure(
+          "更新等待超时，请检查网络后重试；本地数据未清除。",
+          buildFailureDetails(worker, "等待超时。"),
+          done,
+        ));
+      },
       UPDATE_TIMEOUT,
     );
     worker.addEventListener("statechange", changed);
@@ -165,6 +185,7 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
     }
     lastCheck = Date.now();
     failedInstaller = null;
+    timedOutWait = null;
     publish({ checking: true, error: null, errorDetails: null });
     checking = (async () => {
       try {
@@ -187,9 +208,15 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
         setFailure(null);
         publish({ checked: true });
       } catch (error) {
-        const message = formatErrorMessage(error);
-        const details = error instanceof PwaUpdateFailure ? error.details : null;
-        setFailure(message.startsWith("检查更新失败：") ? message : `检查更新失败：${message}`, details);
+        if (error instanceof PwaUpdateFailure && error.recovered?.()) {
+          reconcile();
+          setFailure(null);
+          publish({ checked: true });
+        } else {
+          const message = formatErrorMessage(error);
+          const details = error instanceof PwaUpdateFailure ? error.details : null;
+          setFailure(message.startsWith("检查更新失败：") ? message : `检查更新失败：${message}`, details);
+        }
       } finally {
         checking = undefined;
         trackedInstaller = null;

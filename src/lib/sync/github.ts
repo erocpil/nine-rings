@@ -1,3 +1,4 @@
+import { completeCandidatePreflight } from "./complete-preflight";
 import { githubReadJson } from "./github-read";
 import { githubTransferTimeoutMs } from "./github-timeout";
 import { inspectRemoteProtocol, type RemoteProtocolReport } from "./remote-protocol";
@@ -923,14 +924,14 @@ export async function recoverPublicationFromGitHub(config:SyncConfig,spaceId:str
 }
 
 /** Read-only, fixed-revision protocol inspection for explicit migration preparation. */
-export async function preflightProtocolFromGitHub(config: SyncConfig): Promise<RemoteProtocolReport> {
+export async function preflightProtocolFromGitHub(config: SyncConfig, assertActive: () => void = () => {}): Promise<RemoteProtocolReport> {
   if (!config.token || !config.owner || !config.repo) throw Error("请先配置 GitHub 连接");
   const started = performance.now();
   addLog("[Sync] 协议预检开始：固定远端提交，只读检查");
   try {
     const storage = getWebStorage().localStorage;
     if (!storage) throw Error("本机协议记录不可用，不能确认预检");
-    const report = await inspectRemoteProtocol((route, options) => githubReadJson(githubApiFetch, config, route, options), config, {historyLimit:128,onControlDetected:spaceId=>markProtocolInspectionRequired(config,spaceId,storage)});
+    const report = await inspectRemoteProtocol((route, options) => { assertActive(); return githubReadJson((...args) => { assertActive(); return githubApiFetch(...args); }, config, route, options); }, config, {historyLimit:128,onControlDetected:spaceId=>markProtocolInspectionRequired(config,spaceId,storage)});
     await observeRemoteProtocol(report, storage);
     addLog(`[Sync] 协议预检完成 | 提交: ${report.evidence.head.slice(0,12)} | 状态: ${report.support} | 历史: ${report.history} | 请求: ${report.reads.requests} | 字节: ${report.reads.bytes} | 耗时: ${Math.round(performance.now()-started)}ms`);
     return report;
@@ -1061,9 +1062,12 @@ export async function checkStatus(config: SyncConnectionConfig): Promise<SyncSta
 export async function previewSyncDestinationFromGitHub(
   config: SyncConfig,
   localSource: string,
+  assertActive: () => void = () => {},
 ) {
   config = { ...config };
-  const report = await preflightProtocolFromGitHub(config);
+  const report = await completeCandidatePreflight(
+    () => preflightProtocolFromGitHub(config, assertActive), assertActive,
+  );
   if (!report.evidence.snapshot.latestId) {
     const { prepareBootstrapReview } = await import("./bootstrap-review");
     return prepareBootstrapReview({
@@ -1072,24 +1076,27 @@ export async function previewSyncDestinationFromGitHub(
       runtime: isTauriRuntime() ? "tauri" : "web",
     });
   }
-  return prepareGitHubEntityReview(config, localSource, report);
+  return prepareGitHubEntityReview(config, localSource, report, assertActive);
 }
 /** Explicit candidate review. Only GET requests; no publication/apply capability. */
 export async function previewEntityReviewFromGitHub(
   config: SyncConfig,
   localSource: string,
+  assertActive: () => void = () => {},
 ) {
   config = { ...config };
-  const report = await preflightProtocolFromGitHub(config);
-  return prepareGitHubEntityReview(config, localSource, report);
+  const report = await completeCandidatePreflight(
+    () => preflightProtocolFromGitHub(config, assertActive), assertActive,
+  );
+  return prepareGitHubEntityReview(config, localSource, report, assertActive);
 }
-async function prepareGitHubEntityReview(config: SyncConfig, localSource: string, report: RemoteProtocolReport) {
+async function prepareGitHubEntityReview(config: SyncConfig, localSource: string, report: RemoteProtocolReport, assertActive: () => void) {
   const { prepareEntityReview } = await import("./entity-review");
   return prepareEntityReview({
     report,
     localSource,
     runtime: isTauriRuntime() ? "tauri" : "web",
-    request: (route, options) => githubReadJson(githubApiFetch, config, route, options),
+    request: (route, options) => { assertActive(); return githubReadJson((...args) => { assertActive(); return githubApiFetch(...args); }, config, route, options); },
   });
 }
 

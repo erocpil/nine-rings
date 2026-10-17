@@ -158,7 +158,9 @@ export function SyncEntityReview({
           `选择草稿已保存；${conflicts} 项仍待处理。未上传、应用或确认接受。`,
         );
       } else {
-        const result = await previewSyncDestinationFromGitHub(config, source);
+        const result = await previewSyncDestinationFromGitHub(config, source, () => {
+          if (id !== request.current) throw Error("检查已取消");
+        });
         if (id !== request.current) return;
         if ("kind" in result) {
           setBootstrap(result);
