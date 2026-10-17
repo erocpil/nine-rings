@@ -15,6 +15,7 @@ import { isEncrypted } from "../lib/document-crypto";
 import { DocumentComparison } from "./DocumentComparison";
 import type { SyncRemoteDocumentPreview } from "../lib/sync/backup-merge";
 
+const settingsNames: Record<string, string> = { frontend: "界面与阅读偏好", "app-config": "应用配置" };
 const difference: Record<EntityPlanRow["difference"], string> = {
   equal: "相同",
   "local-change": "本机修改",
@@ -176,13 +177,14 @@ export function SyncEntityReview({
         setChoices(result.choices);
         setPage(0);
         setSelected("");
-        setMessage(
+        const timings = ` 历史与快照预检 ${Math.ceil(result.timings.inspectionMs / 1000)} 秒，候选比较 ${Math.ceil(result.timings.comparisonMs / 1000)} 秒。`;
+        setMessage((
           result.expiredDraft
             ? "之前的选择已过期，请按当前快照重新选择。"
             : result.choices.length
               ? "已恢复匹配当前快照的选择草稿。"
-              : "预检完成，尚未选择的差异保留远端候选，本机不变。",
-        );
+              : "预检完成，尚未选择的差异保留远端候选，本机不变。"
+        ) + timings);
       }
     } catch (error) {
       if (id === request.current)
@@ -292,13 +294,13 @@ export function SyncEntityReview({
                         onClick={() => setSelected(row.key)}
                       >
                         {String(
-                          (row.kind === "note"
+                          (row.kind === "settings" ? settingsNames[row.id] : row.kind === "note"
                             ? (left.get(row.id) ?? right.get(row.id))?.title
                             : null) ?? row.id,
                         )}
                       </button>
                       <small>
-                        {row.kind} · {row.id}
+                        {row.kind === "settings" ? "设置（整体同步）" : `${row.kind} · ${row.id}`}
                       </small>
                     </td>
                     <td>{difference[row.difference]}</td>
@@ -362,7 +364,8 @@ export function SyncEntityReview({
           </div>
           {current && (
             <div className="sync-entity-detail">
-              <h4>比较 {current.id}</h4>
+              <h4>比较 {current.kind === "settings" ? settingsNames[current.id] ?? current.id : current.id}</h4>
+              {current.kind === "settings" && <p>此项是一组设置，不是文档。选择远端会应用整组设置；选择忽略可保留本机偏好。</p>}
               <p>
                 本机 {current.localHash?.slice(0, 12) ?? "缺席"} · 远端{" "}
                 {current.remoteHash?.slice(0, 12) ?? "缺席"}

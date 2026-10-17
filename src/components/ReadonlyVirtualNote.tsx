@@ -14,7 +14,7 @@ import { copyDocumentBlock } from "../lib/block-clipboard";
 import { DeferredFlowBlock } from "./DeferredFlowBlock";
 import { flowBlockAttributes, flowHeadingLevel } from "../lib/flow-presentation";
 import { useDocumentActive } from "./RetainedDocument";
-import { OutlinePanelTitle } from "./OutlinePanelTitle";
+import { DocumentPanelTitle, OutlinePanelTitle } from "./OutlinePanelTitle";
 import { ReadonlyImage } from "./ReadonlyImage";
 import { BlockquoteToolbar } from "./BlockquoteToolbar";
 import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
@@ -1134,7 +1134,7 @@ export function ReadonlyVirtualNote(
                   : "文内搜索"
             }
           >
-            {!(kind === "outline" && !mobileDrawerViewport && desktopPanels.pinned("outline")) && <button
+            {!(kind !== "search" && !mobileDrawerViewport && desktopPanels.pinned(kind === "outline" ? "outline" : "bookmark")) && <button
               type="button"
               className="vr-panel-close"
               aria-label="关闭阅读面板"
@@ -1209,7 +1209,7 @@ export function ReadonlyVirtualNote(
             )}
             {kind === "bookmarks" && (
               <>
-                <h3>书签</h3>
+                <h3><DocumentPanelTitle label="书签" pinned={!mobileDrawerViewport && desktopPanels.pinned("bookmark")} onCollapse={() => togglePinnedPanel("bookmark")} /></h3>
                 {bookmarkDisplayConfig?.showCounts && <span>{bookmarks.length} 项</span>}
                 <PanelDisplayTools target="bookmarks" disabled={!bookmarks.length} handlers={{ "bookmarks.reveal-current": () => { const position = capture().position; const nearest = bookmarks.reduce<(typeof bookmarks)[number] | undefined>((current, item) => !current || Math.abs(item.position - position) < Math.abs(current.position - position) ? item : current, undefined); revealPanelItem(bookmarkDisplayListRef.current, nearest?.id); } }} />
                 {bookmarks.length === 0 && <p>暂无书签</p>}

@@ -10,7 +10,7 @@ const fixture = JSON.parse(
     "utf8",
   ),
 );
-import { backupPaths } from "../src/lib/sync/remote-protocol";
+import { gitBlobSha, backupPaths } from "../src/lib/sync/remote-protocol";
 
 test("实体选择草稿可重启恢复，过期选择拒绝且不改正文或远端", async ({
   page,
@@ -30,6 +30,8 @@ test("实体选择草稿可重启恢复，过期选择拒绝且不改正文或�
   headCommit.parents = [{ sha: ancestors[ancestors.length - 1] }];
   const methods: string[] = [];
   let headReads = 0;
+  let snapshotReads = 0;
+  const snapshotRoute = `/git/blobs/${await gitBlobSha(source)}`;
   let continueSecondBatch = () => {};
   const secondBatch = new Promise<void>(resolve => { continueSecondBatch = resolve; });
   let movedHead = false;
@@ -43,6 +45,7 @@ test("实体选择草稿可重启恢复，过期选择拒绝且不改正文或�
     const path = decodeURIComponent(
       new URL(route.request().url()).pathname,
     ).replace("/repos/example/backup", "");
+    if (path === snapshotRoute) snapshotReads++;
     if (path.startsWith("/git/ref/heads/")) {
       headReads++;
       if (headReads === 2) await secondBatch;
@@ -111,6 +114,8 @@ test("实体选择草稿可重启恢复，过期选择拒绝且不改正文或�
   continueSecondBatch();
   await expect(review).toContainText("预检完成");
   expect(headReads).toBeGreaterThanOrEqual(2);
+  expect(snapshotReads).toBe(1);
+  await expect(review).toContainText("候选比较");
   await expect(progress).toHaveCount(0);
   const migration = review.getByRole("group", {
     name: "增量操作与首次迁移确认",

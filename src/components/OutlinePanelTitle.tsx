@@ -1,22 +1,18 @@
-/** Docked outlines collapse from their title; previews keep a separate pin action. */
-export function OutlinePanelTitle({
-  pinned,
-  onCollapse,
+/** Fixed panels collapse from their title; floating previews retain a pin action. */
+export function DocumentPanelTitle({
+  pinned, onCollapse, label,
 }: {
   pinned: boolean;
   onCollapse: () => void;
+  label: string;
 }) {
   return pinned ? (
-    <button
-      type="button"
-      className="document-panel-title"
-      aria-label="收起固定目录"
-      title="收起固定目录"
-      onClick={onCollapse}
-    >
-      目录
+    <button type="button" className="document-panel-title"
+      aria-label={`收起固定${label}`} title={`收起固定${label}`} onClick={onCollapse}>
+      {label}
     </button>
-  ) : (
-    <span>目录</span>
-  );
+  ) : <span>{label}</span>;
+}
+export function OutlinePanelTitle(props: { pinned: boolean; onCollapse: () => void }) {
+  return <DocumentPanelTitle {...props} label="目录" />;
 }

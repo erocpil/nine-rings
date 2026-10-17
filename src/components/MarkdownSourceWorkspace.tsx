@@ -1,5 +1,5 @@
 import { ToolbarIcon } from "./ToolbarIcon";
-import { OutlinePanelTitle } from "./OutlinePanelTitle";
+import { DocumentPanelTitle, OutlinePanelTitle } from "./OutlinePanelTitle";
 import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
 import { panelDisplayStyle, bookmarkTooltip, sortedBookmarks } from "../lib/panel-display-view";
 import type { CSSProperties } from "react";
@@ -155,7 +155,7 @@ export function MarkdownSourceWorkspace({
             isOutline ? "document-outline-header" : "document-bookmark-header"
           }
         >
-          <div className="document-outline-header-primary">{isOutline ? <OutlinePanelTitle pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} /> : <span>书签</span>}
+          <div className="document-outline-header-primary">{isOutline ? <OutlinePanelTitle pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} /> : <DocumentPanelTitle label="书签" pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} />}
             {isOutline && <>
               <OutlineDisplayTools listRef={listRef} />
               <button type="button" aria-label="全部折叠" title="折叠目录" onClick={() => setFolds(new Set(outline.filter((item, i) => outline[i + 1]?.level > item.level).map(item => item.pos)))}>−</button>
@@ -168,7 +168,7 @@ export function MarkdownSourceWorkspace({
           {(isOutline ? outlineDisplayConfig?.showCounts !== false : bookmarkDisplayConfig?.showCounts !== false) && <span className="document-outline-count">
             {isOutline ? outline.length : bookmarks.length} 项
           </span>}
-          {(!isOutline || !controller.pinned(kind)) && <button type="button" onClick={() => controller.toggle(kind)}>
+          {!controller.pinned(kind) && <button type="button" onClick={() => controller.toggle(kind)}>
             {controller.pinned(kind) ? "收起" : "固定"}
           </button>}
           </div>

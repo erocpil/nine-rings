@@ -128,6 +128,10 @@ test("手机 PWA 重启时接管已开始的新版下载，保存后升级且服
   await expect(page.locator(".note-title")).toHaveValue("升级前最后一次修改");
   await expect(page.locator(".ProseMirror")).toContainText("尚未防抖提交的正文");
   await expect.poll(() => activeVersion(page)).toBe(2);
+  await expect.poll(() => page.evaluate(() => {
+    const values = JSON.parse(sessionStorage.getItem("nr:pwa-update-events:v1") ?? "[]") as Array<{event: string; navigation: string; expectedReload: boolean}>;
+    return values.some(value => value.event === "boot" && value.navigation === "reload" && value.expectedReload);
+  })).toBe(true);
   // Cut the actual origin connection, including SW fetches. Unlike request
   // routing this cannot accidentally let the worker keep using the network.
   serverUnavailable = true;
@@ -271,5 +275,12 @@ test("下载超过页面等待期限后完成会清除超时，并在原标签�
     page.locator(".settings-web-update").getByRole("button", { name: "保存并刷新" }).click(),
   ]);
   await expect.poll(() => activeVersion(page)).toBe(2);
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const events = JSON.parse(sessionStorage.getItem("nr:pwa-update-events:v1") ?? "[]") as Array<{event: string; navigation: string; expectedReload: boolean}>;
+    return events;
+  })).toContainEqual(expect.objectContaining({ event: "boot", expectedReload: true }));
   expect(page.context().pages()).toEqual([page]);
 });
+
+// Navigation evidence is exported with local diagnostics; no page URL or note content is collected.

@@ -214,6 +214,7 @@ export async function inspectRemoteProtocol(
   config: { owner: string; repo: string; path: string },
   options: {
     historyLimit?: number;
+    historyPrefetch?: boolean;
     chainLimit?: number;
     headerCache?: SnapshotHeaderCache | false;
     historyCache?: ProtocolHistoryCache | false;
@@ -416,6 +417,14 @@ export async function inspectRemoteProtocol(
         if (fetched++ >= limit) {
           history = "budget";
           break;
+        }
+        // Linear backups: overlap the next commit metadata with this tree read.
+        // Do not speculate across merges or beyond this batch's commit budget.
+        if (options.historyPrefetch && fetched < limit) {
+          const current = await reader.commit(revision);
+          const parents = current.parents as { sha: string }[];
+          if (parents.length === 1 && !seen.has(parents[0].sha) && !(await historyCache?.read(parents[0].sha)))
+            void reader.commit(parents[0].sha).catch(() => {});
         }
         if (await reader.file(revision, paths.control)) {
           await options.onControlDetected?.(spaceId);

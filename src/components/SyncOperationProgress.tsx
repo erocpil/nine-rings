@@ -31,6 +31,7 @@ export function SyncOperationProgress({ fallback }: { fallback: string }) {
       {progress.historyBatch !== undefined && (
         <span>历史核验第 {progress.historyBatch} 批（本次最多 8 批），复用已核验缓存</span>
       )}
+      {progress.inspectionMs !== undefined && <span>历史与快照预检已完成：{elapsed(progress.inspectionMs)}</span>}
       {progress.completedReads > 0 && (
         <span>本次已完成 {progress.completedReads} 次只读请求</span>
       )}

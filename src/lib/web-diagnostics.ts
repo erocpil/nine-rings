@@ -1,3 +1,4 @@
+import { readPwaUpdateDiagnostics } from "./pwa-update-diagnostics";
 import type { WebStorageStatus } from "../hooks/useWebPlatform";
 import { api } from "./api";
 import { parseJsonAsync } from "./data-transform-client";
@@ -29,6 +30,7 @@ export async function collectWebDiagnostics(storage: WebStorageStatus): Promise<
   return {
     reportVersion: 1,
     readerEvents: readReaderDiagnostics(),
+    updateEvents: readPwaUpdateDiagnostics(),
     generatedAt: new Date().toISOString(),
     privacy: "Counts and runtime metadata only. Note content, titles, tags, IDs and credentials are excluded.",
     app: {

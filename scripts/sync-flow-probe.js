@@ -67,6 +67,7 @@ globalThis.syncFlow = {
       return {
         bootstrap: false,
         rows: value.rows.length,
+        timings: value.timings,
         differences: counts,
         expiredDraft: value.expiredDraft,
       };

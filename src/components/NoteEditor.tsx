@@ -120,7 +120,7 @@ import { exportDocumentMarkdown } from "../lib/markdown-export";
 import { isTauri } from "../lib/tauri-desktop";
 import { exportDocumentAsPdf, type PdfDocumentInfo } from "../lib/pdf-export";
 import { FULLSCREEN_WILL_CHANGE_EVENT } from "../lib/fullscreen";
-import { OutlinePanelTitle } from "./OutlinePanelTitle";
+import { DocumentPanelTitle, OutlinePanelTitle } from "./OutlinePanelTitle";
 import { preserveReadingPositions } from "../lib/reading-position";
 import { editorGutterWidth } from "../lib/editor-gutter";
 import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
@@ -3975,12 +3975,12 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           onClick={(event) => event.stopPropagation()}
         >
           <div className="document-bookmark-header">
-            <div className="document-bookmark-heading"><span>书签</span>{bookmarkDisplayConfig?.showCounts !== false && <span>{bookmarks.length} 项</span>}</div>
+            <div className="document-bookmark-heading"><DocumentPanelTitle label="书签" pinned={!isMobileToolbarViewport && desktopPanels.pinned("bookmark")} onCollapse={() => togglePinnedPanel("bookmark")} />{bookmarkDisplayConfig?.showCounts !== false && <span>{bookmarks.length} 项</span>}</div>
             <div className="document-bookmark-header-actions">
               <PanelDisplayTools target="bookmarks" disabled={!currentBookmark} handlers={{ "bookmarks.reveal-current": () => revealPanelItem(bookmarkDisplayListRef.current, currentBookmark?.id) }} />
               <button className="document-bookmark-add" type="button" onClick={toggleCurrentBookmark}
                 aria-label={currentBookmark ? "取消当前位置书签" : "添加当前位置书签"}>{currentBookmark ? "取消" : "添加"}</button>
-              {!isMobileToolbarViewport && <button type="button" onClick={() => togglePinnedPanel("bookmark")} aria-label={desktopPanels.pinned("bookmark") ? "收起固定书签" : "固定书签"}>{desktopPanels.pinned("bookmark") ? "收起" : "固定"}</button>}
+              {!isMobileToolbarViewport && !desktopPanels.pinned("bookmark") && <button type="button" onClick={() => togglePinnedPanel("bookmark")} aria-label="固定书签">固定</button>}
             </div>
           </div>
           <div className="document-bookmark-list" ref={bookmarkDisplayListRef} data-panel-display={bookmarkDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(bookmarkDisplayConfig) as React.CSSProperties}>

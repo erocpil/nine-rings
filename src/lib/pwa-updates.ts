@@ -1,3 +1,4 @@
+import { recordPwaUpdateEvent } from "./pwa-update-diagnostics";
 import { withTimeout } from "./async";
 
 export interface PwaUpdateStatus {
@@ -38,6 +39,7 @@ function formatErrorMessage(error: unknown): string {
 /** Observe both an existing installer and future updatefound events. update()
  * resolves before installation finishes, so it is not an activation barrier. */
 export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
+  recordPwaUpdateEvent("boot");
   let status: PwaUpdateStatus = {
     checking: false,
     available: false,
@@ -183,6 +185,7 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
       if (force) setFailure("当前离线，联网后再检查更新。", "网络状态离线");
       return Promise.resolve();
     }
+    recordPwaUpdateEvent("check");
     lastCheck = Date.now();
     failedInstaller = null;
     timedOutWait = null;
@@ -237,12 +240,13 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
     check: () => check(true),
     /** Caller must flush edits and prevent new edits until this completes. */
     async apply() {
+      recordPwaUpdateEvent("apply");
       // An older waiting release may coexist with a newer download/check.
       // Finish that attempt before choosing which worker to activate.
       if (checking) await checking;
       if (registration?.installing || (!controllerChanged && !registration?.waiting)) await check(true);
       if (disposed) throw new Error("更新已取消");
-      if (controllerChanged) { window.location.reload(); return; }
+      if (controllerChanged) { recordPwaUpdateEvent("reload"); window.location.reload(); return; }
       const worker = registration?.waiting;
       if (!worker) throw new Error(status.error || "新版尚未准备好，请稍后重新检查更新。");
       trackedInstaller = worker;
@@ -252,6 +256,7 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
       const activated = waitFor(worker, () => navigator.serviceWorker.controller === worker);
       worker.postMessage({ type: "SKIP_WAITING" });
       await activated.finally(clearTracking);
+      recordPwaUpdateEvent("reload");
       window.location.reload();
     },
     dispose() {

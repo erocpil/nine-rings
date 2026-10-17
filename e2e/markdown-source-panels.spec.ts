@@ -116,12 +116,24 @@ for (const virtual of [false, true])
       await page.getByRole("button", { name, exact: true }).click();
     const dock = page.getByRole("complementary", { name: "固定阅读面板" });
     await expect(dock.locator(".document-panel-slot")).toHaveCount(2);
+    const collapseBookmark = dock.getByRole("button", { name: "收起固定书签", exact: true });
+    await expect(collapseBookmark).toHaveText("书签");
+    await expect(dock.getByRole("button", { name: "收起", exact: true })).toHaveCount(0);
+    await collapseBookmark.click();
+    await expect(dock.locator(".document-panel-slot")).toHaveCount(1);
+    await page.getByRole("button", { name: "文档书签", exact: true }).click();
+    await expect(dock.locator(".document-panel-slot")).toHaveCount(2);
     await page.getByRole("button", { name: "源码", exact: true }).click();
     const area = page.getByRole("textbox", {
       name: "Markdown 源码",
       exact: true,
     });
     await expect(area).toBeVisible();
+    await expect(dock.locator(".document-panel-slot")).toHaveCount(2);
+    await expect(collapseBookmark).toHaveText("书签");
+    await collapseBookmark.click();
+    await expect(dock.locator(".document-panel-slot")).toHaveCount(1);
+    await page.getByRole("button", { name: "文档书签", exact: true }).click();
     await expect(dock.locator(".document-panel-slot")).toHaveCount(2);
     await expect(dock).toHaveClass(
       virtual ? /dock-left dock-horizontal/ : /dock-right dock-vertical/,

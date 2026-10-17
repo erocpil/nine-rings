@@ -1,5 +1,6 @@
 /* Docked document tools share one resizable track; previews retain anchored positioning. */
 .desktop-document-panels .document-outline-header-primary > .document-panel-title,
+.desktop-document-panels .document-bookmark-heading > .document-panel-title,
 .desktop-document-panels h3 > .document-panel-title {
   padding: 0;
   border: 0;
