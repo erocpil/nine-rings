@@ -1,3 +1,7 @@
+import {
+  captureSyncProgress,
+  captureReadCompletion,
+} from "./operation-progress";
 /** Shared GET-only transport for fixed-revision inspection and recovery. */
 import { githubTransferTimeoutMs } from "./github-timeout";
 import { addLog } from "../debugLog";
@@ -30,6 +34,10 @@ export type GitHubReadFetch = (
   input: string,
   init: RequestInit,
   timeoutMs: number,
+  onProgress?: (progress: {
+    receivedBytes: number;
+    totalBytes?: number;
+  }) => void,
 ) => Promise<Response>;
 
 // The host supplies transport; this module must not import the sync entry point.
@@ -47,11 +55,18 @@ export async function githubReadJson(
   )
     throw Error("无效 Git 读取路径");
   const root = `https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}`;
+  const report = captureSyncProgress();
+  const completed = captureReadCompletion();
   const timeout = githubReadBudget(route, options.expectedBytes);
   const label = phase(route);
   const transport = isTauriRuntime() ? "Tauri 原生 HTTP" : "浏览器";
   for (let attempt = 1; attempt <= 2; attempt++) {
     const started = performance.now();
+    const details = {
+      detail: `${transport} · 第 ${attempt}/2 次尝试 · 只读请求`,
+      timeoutMs: timeout,
+    };
+    report(`读取${label}`, { ...details, receivedBytes: 0 });
     // Log large transfers, retries and failures; avoid flooding hundreds of metadata GETs.
     if (
       route.startsWith("/git/blobs/") &&
@@ -72,12 +87,16 @@ export async function githubReadJson(
           },
         },
         timeout,
+        (progress) => report(`读取${label}`, { ...details, ...progress }),
       );
       if (!response.ok)
         throw Object.assign(Error(`读取${label} HTTP ${response.status}`), {
           status: response.status,
         });
+      report(`解析${label}响应`);
       const value = await response.json();
+      completed();
+      report("校验 Git 对象与快照完整性");
       if (
         route.startsWith("/git/blobs/") &&
         (options.expectedBytes ?? 0) >= 1024 * 1024

@@ -1,3 +1,4 @@
+import { syncStage } from "./operation-progress";
 import { snapshotEntityReview } from "./review-snapshot";
 import {
   withCandidateEvaluation,
@@ -209,6 +210,7 @@ export async function applyReviewedPull(
         assertDocumentStorageGeneration(review.storageGeneration);
       };
       guard();
+      syncStage("保存当前编辑与等待保存屏障");
       await host.flush();
       guard();
       await validateEntityReview(
@@ -290,6 +292,7 @@ export async function applyReviewedPull(
         };
         await savePullAttempt(next, attempt, assertActive);
         attempt = next;
+        syncStage("应用所选实体到本机数据库（请等待完成）");
         await host.apply(attempt.source, context);
         context.markDataCommitted();
         assertActive();
@@ -393,6 +396,7 @@ export async function confirmEqualReviewedEntities(
           assertDocumentStorageGeneration(review.storageGeneration);
         };
         guard();
+        syncStage("保存当前编辑与等待保存屏障");
         await host.flush();
         guard();
         await validateEntityReview(

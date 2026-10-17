@@ -1,5 +1,11 @@
+import {
+  beginSyncProgress,
+  endSyncProgress,
+  readSyncProgress,
+} from "../src/lib/sync/operation-progress";
 import { api } from "../src/lib/api";
 import {
+  preflightProtocolFromGitHub,
   previewSyncDestinationFromGitHub,
   recoverPublicationFromGitHub,
 } from "../src/lib/sync/github";
@@ -29,6 +35,45 @@ async function review(config) {
   return previewSyncDestinationFromGitHub(config, await api.export.data());
 }
 globalThis.syncFlow = {
+  async exportCurrent() { return api.export.data(); },
+  progress() {
+    return readSyncProgress();
+  },
+  async preflightReadOnly({ config }) {
+    const owner = beginSyncProgress("实际远端只读核验");
+    try {
+      const report = await preflightProtocolFromGitHub(config);
+      return {
+        support: report.support,
+        history: report.history,
+        requests: report.reads.requests,
+        bytes: report.reads.bytes,
+        head: report.evidence.head,
+        latest: report.evidence.snapshot.latestId,
+      };
+    } finally {
+      endSyncProgress(owner);
+    }
+  },
+  async reviewReadOnly({ config }) {
+    const owner = beginSyncProgress("完整本机与实际远端候选比较");
+    try {
+      const value = await review(config);
+      const counts = {};
+      if ("kind" in value)
+        return { bootstrap: true, entities: value.entityCount };
+      for (const row of value.rows)
+        counts[row.difference] = (counts[row.difference] ?? 0) + 1;
+      return {
+        bootstrap: false,
+        rows: value.rows.length,
+        differences: counts,
+        expiredDraft: value.expiredDraft,
+      };
+    } finally {
+      endSyncProgress(owner);
+    }
+  },
   async init({ fixture }) {
     assert(
       CURRENT_SYNC_CAPABILITIES.write === 1 &&

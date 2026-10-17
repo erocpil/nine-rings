@@ -1,3 +1,4 @@
+import { captureSyncProgress, syncStage } from "./operation-progress";
 import { githubReadJson } from "./github-read";
 import { snapshotEntityReview } from "./review-snapshot";
 import {
@@ -68,6 +69,19 @@ export function incrementalTransport(config: SyncConfig, space: SyncSpace) {
       route.split("/").includes("..")
     )
       throw Error("无效 Git 路径");
+    const report = captureSyncProgress();
+    const stage =
+      method === "PATCH"
+        ? "发布分支并等待远端结果（不会自动重发）"
+        : route === "/git/blobs"
+          ? "上传冻结快照"
+          : route === "/git/trees"
+            ? "准备 Git 目录"
+            : "创建冻结提交";
+    report(stage, {
+      detail: "写请求；请等待结果确认，勿重复提交",
+      timeoutMs: method === "POST" ? 600_000 : 20_000,
+    });
     const response = await githubApiFetch(
       root + route,
       {
@@ -86,10 +100,12 @@ export function incrementalTransport(config: SyncConfig, space: SyncSpace) {
       throw Object.assign(Error(`增量备份 ${method} HTTP ${response.status}`), {
         status: response.status,
       });
+    report("核验写入结果与本机冻结记录");
     return response.json();
   };
   return {
-    request: ((route, options) => githubReadJson(githubApiFetch, config, route, options)) as GitRead,
+    request: ((route, options) =>
+      githubReadJson(githubApiFetch, config, route, options)) as GitRead,
     post: (
       route: "/git/blobs" | "/git/trees" | "/git/commits",
       body: Record<string, unknown>,
@@ -167,8 +183,10 @@ export async function executeBootstrapPublication(
     throw Error("请明确确认首次发布，并确认所有参与设备已经升级");
   const transport = incrementalTransport(config, review.space);
   guard();
+  syncStage("保存当前编辑与等待保存屏障");
   await host.flush();
   guard();
+  syncStage("认证本机完整快照与首次迁移条件");
   const current = await validateBootstrapReview(
     review,
     await api.export.data(),

@@ -345,9 +345,32 @@ export async function githubApiFetch(
   input: RequestInfo | URL,
   init: RequestInit = {},
   timeoutMs = GITHUB_REQUEST_TIMEOUT_MS,
+  onProgress?: (progress: { receivedBytes: number; totalBytes?: number }) => void,
 ): Promise<Response> {
   const controller = new AbortController();
+  const startedAt = Date.now();
+  const startedMonotonic = performance.now();
+  let lastByteAt: number | null = null;
+  let lastByteMonotonic = 0;
+  let stalled = false;
+  const method = (init.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+  const readonly = ["GET", "HEAD"].includes(method);
+  // Timers can be delayed while a WebView or the host is suspended. Check
+  // elapsed wall time again on resume and before accepting any response data.
+  const checkDeadline = () => {
+    if (controller.signal.aborted) return;
+    if (Date.now() - startedAt >= timeoutMs || performance.now() - startedMonotonic >= timeoutMs) {
+      controller.abort("timeout");
+    } else if (readonly && lastByteAt !== null &&
+      (Date.now() - lastByteAt >= 60_000 || performance.now() - lastByteMonotonic >= 60_000)) {
+      stalled = true;
+      controller.abort("idle");
+    }
+  };
   const timeout = globalThis.setTimeout(() => controller.abort("timeout"), timeoutMs);
+  const watchdog = globalThis.setInterval(checkDeadline, 1000);
+  const events = ["pageshow", "focus", "visibilitychange"];
+  for (const event of events) globalThis.addEventListener?.(event, checkDeadline);
   const abortFromCaller = () => controller.abort(init.signal?.reason);
   init.signal?.addEventListener("abort", abortFromCaller, { once: true });
   if (init.signal?.aborted) abortFromCaller();
@@ -368,7 +391,16 @@ export async function githubApiFetch(
         : fetch;
       checkPushCancellation(controller.signal);
       const readResponse = async (response: Response): Promise<Response> => {
+        checkDeadline();
+        checkPushCancellation(controller.signal);
         readStage = "读取响应体";
+        receivedBytes = 0;
+        lastByteAt = Date.now();
+        lastByteMonotonic = performance.now();
+        const length = Number(response.headers.get("content-length"));
+        const totalBytes = !response.headers.get("content-encoding") && Number.isSafeInteger(length) && length > 0 ? length : undefined;
+        let lastProgress = Number.NEGATIVE_INFINITY;
+        onProgress?.({ receivedBytes, totalBytes });
         let body: Blob | null = null;
         const reader = response.body?.getReader();
         if (reader) {
@@ -380,12 +412,23 @@ export async function githubApiFetch(
             while (true) {
               checkPushCancellation(controller.signal);
               const { done, value } = await reader.read();
+              checkDeadline();
+              checkPushCancellation(controller.signal);
               if (done) break;
+              if (value.byteLength > 0) {
+                lastByteAt = Date.now();
+                lastByteMonotonic = performance.now();
+              }
               receivedBytes += value.byteLength;
+              if (performance.now() - lastProgress >= 200) {
+                onProgress?.({ receivedBytes, totalBytes });
+                lastProgress = performance.now();
+              }
               chunks.push(value.slice());
             }
             checkPushCancellation(controller.signal);
             body = new Blob(chunks);
+            onProgress?.({ receivedBytes, totalBytes });
           } finally {
             controller.signal.removeEventListener("abort", cancelBody);
             reader.releaseLock();
@@ -424,11 +467,10 @@ export async function githubApiFetch(
   } catch (reason) {
     if (controller.signal.aborted) {
       if (init.signal?.aborted) throw new Error("GitHub 请求已取消");
-      const method = (init.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
       const resultHint = ["GET", "HEAD"].includes(method)
         ? "本次只读请求未写入远端，可重新预检或重试读取"
         : "写请求超时不代表远端一定未写入，请先检查远端状态";
-      throw new Error(`GitHub 请求超时（${Math.ceil(timeoutMs / 1000)} 秒）。请检查网络、代理或防火墙是否允许访问 api.github.com；${resultHint}。阶段：${readStage}，已接收 ${receivedBytes} bytes`);
+      throw new Error(`GitHub 请求超时（${stalled ? "正文连续 60 秒无新数据" : `${Math.ceil(timeoutMs / 1000)} 秒`}）。请检查网络、代理或防火墙是否允许访问 api.github.com；${resultHint}。阶段：${readStage}，已接收 ${receivedBytes} bytes`);
     }
     if (reason instanceof TypeError) {
       throw new Error(`无法连接 GitHub API。请检查本机网络、代理或防火墙是否允许访问 api.github.com。\n原始错误：${syncErrorMessage(reason)}`);
@@ -436,6 +478,8 @@ export async function githubApiFetch(
     throw new Error(`GitHub 请求失败：${syncErrorMessage(reason)}`);
   } finally {
     globalThis.clearTimeout(timeout);
+    globalThis.clearInterval(watchdog);
+    for (const event of events) globalThis.removeEventListener?.(event, checkDeadline);
     controller.signal.removeEventListener("abort", rejectAbort);
     init.signal?.removeEventListener("abort", abortFromCaller);
   }

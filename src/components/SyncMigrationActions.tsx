@@ -1,3 +1,4 @@
+import { syncStage } from "../lib/sync/operation-progress";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { CURRENT_SYNC_CAPABILITIES } from "../lib/sync/protocol-capabilities";
@@ -98,6 +99,7 @@ export function SyncMigrationActions({
     await run(async (guard) => {
       if (file.size > 64 * 1024 * 1024)
         throw Error("请选择 64 MiB 以内的本地 JSON 备份");
+      syncStage("保存当前编辑与等待保存屏障");
       await onBeforeSnapshot!();
       guard();
       const { validateEntityReview } =
@@ -111,6 +113,7 @@ export function SyncMigrationActions({
       guard();
       const { verifyMigrationBackup } =
         await import("../lib/sync/incremental-actions");
+      syncStage("核验所选备份文件与本机实体摘要");
       const proof = await verifyMigrationBackup(review, await file.text());
       guard();
       setBackup(proof);
@@ -171,6 +174,7 @@ export function SyncMigrationActions({
           className="settings-btn"
           onClick={() =>
             void run(async (guard) => {
+              syncStage("保存当前编辑与等待保存屏障");
               await onBeforeSnapshot!();
               guard();
               const { exportLocalJsonBackup } =

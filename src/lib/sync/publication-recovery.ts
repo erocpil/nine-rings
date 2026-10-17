@@ -1,3 +1,4 @@
+import { syncStage } from "./operation-progress";
 import {
   withCandidateEvaluation,
   type CandidateEvaluationScope,
@@ -444,6 +445,7 @@ export async function publishRecordedCommit(
               : "发布结果不明，请只读核实；禁止重发原请求",
           );
         }
+        syncStage("确认远端发布并写入本机接受基线");
         attempt = await transitionPublication(attempt, "CONFIRMING");
       },
     );

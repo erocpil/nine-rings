@@ -1,3 +1,4 @@
+import { syncStage } from "../lib/sync/operation-progress";
 import { SyncMigrationActions } from "./SyncMigrationActions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
@@ -123,11 +124,14 @@ export function SyncEntityReview({
     operation.current(true);
     setMessage("");
     try {
+      syncStage("保存当前编辑与等待保存屏障");
       await onBeforeSnapshot?.();
       if (id !== request.current) return;
+      syncStage("导出本机快照并准备实体比较");
       const source = await api.export.data();
       if (id !== request.current) return;
       if (save && review) {
+        syncStage("重验选择、本机修订与远端提交");
         await assertEntityReviewHeadFromGitHub(
           config,
           review.space,

@@ -3434,3 +3434,7 @@ button.doc-tree-toggle:focus-visible {
 .sync-migration-actions .settings-row { flex-wrap: wrap; gap: 8px; }
 .sync-migration-confirm { display: flex; align-items: flex-start; gap: 6px; margin-block: 8px; }
 .sync-migration-actions input[type="file"] { display: block; max-width: 100%; margin-top: 5px; font: inherit; }
+
+.sync-operation-progress { display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+.sync-operation-progress strong { font-weight: 600; }
+.sync-operation-progress > span { color: var(--text-secondary); font-size: 12px; }

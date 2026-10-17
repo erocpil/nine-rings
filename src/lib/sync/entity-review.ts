@@ -1,3 +1,4 @@
+import { captureSyncProgress } from "./operation-progress";
 import { entityPlanSummary, snapshotEntityReview } from "./review-snapshot";
 import {
   withCandidateEvaluation,
@@ -54,6 +55,7 @@ export async function prepareEntityReview(
   },
   evaluation?: CandidateEvaluationScope,
 ) {
+  const progress = captureSyncProgress();
   return withCandidateEvaluation(evaluation, async (evaluation) => {
     const frozen = { ...input, report: structuredClone(input.report) };
     const storageGeneration = readDocumentStorageGeneration();
@@ -71,6 +73,7 @@ export async function prepareEntityReview(
     const draft = await readEntityReviewDraft(preview.spaceId);
     const choices = draft && draft.binding === binding ? draft.choices : [];
     // Also validate restored choices rather than trusting the draft database.
+    progress("比较文档、模板与设置，认证实体正文");
     const candidate = await assembleEntityCandidate(
       {
         ...preview,

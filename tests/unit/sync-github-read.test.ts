@@ -27,6 +27,7 @@ it("budgets a 23 MB snapshot by Base64 transfer bytes instead of the metadata de
     expect.stringContaining("/git/blobs/abc"),
     expect.objectContaining({ method: "GET" }),
     budget,
+    expect.any(Function),
   );
 });
 it("retries only the failed read once after a timeout", async () => {
@@ -73,4 +74,26 @@ it("rejects oversized body hints before issuing a request", async () => {
     }),
   ).rejects.toThrow("超出预算");
   expect(fetch).not.toHaveBeenCalled();
+});
+
+it("reports received response bytes through the operation-owned callback", async () => {
+  const { beginSyncProgress, endSyncProgress, readSyncProgress } =
+    await import("../../src/lib/sync/operation-progress");
+  beginSyncProgress("预检");
+  try {
+    fetch.mockImplementation(async (_url, _init, _timeout, progress) => {
+      progress({ receivedBytes: 1024, totalBytes: 2048 });
+      expect(readSyncProgress()).toMatchObject({
+        receivedBytes: 1024,
+        totalBytes: 2048,
+        timeoutMs: 120000,
+      });
+      return new Response("{}");
+    });
+    await githubReadJson(fetch, config, "/git/blobs/abc");
+    expect(readSyncProgress()?.stage).toBe("校验 Git 对象与快照完整性");
+    expect(readSyncProgress()?.receivedBytes).toBeUndefined();
+  } finally {
+    endSyncProgress();
+  }
 });

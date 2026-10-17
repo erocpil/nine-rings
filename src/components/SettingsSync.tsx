@@ -1,3 +1,5 @@
+import { SyncOperationProgress } from "./SyncOperationProgress";
+import { beginSyncProgress, endSyncProgress } from "../lib/sync/operation-progress";
 import { SyncEntityReview } from "./SyncEntityReview";
 import { PullRecoveryStatus } from "./PullRecoveryStatus";
 import { PublicationRecoveryStatus } from "./PublicationRecoveryStatus";
@@ -120,7 +122,13 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
   const { confirm, confirmationDialog } = useConfirmation();
   const [cfg, setCfg] = useState<SyncConfig>(loadSyncConfig);
   const [status, setStatus] = useState<SyncStatus | null>(null);
-  const [busyOperation, setBusyOperation] = useState<BusyOperation | null>(null);
+  const [busyOperation, updateBusyOperation] = useState<BusyOperation | null>(null);
+  const progressOwner = useRef<number | null>(null);
+  const setBusyOperation = useCallback((operation: BusyOperation | null) => {
+    if (operation === "incremental" || operation === "protocol") progressOwner.current = beginSyncProgress("等待保存当前编辑与开始核验");
+    else if (progressOwner.current !== null) { endSyncProgress(progressOwner.current); progressOwner.current = null; }
+    updateBusyOperation(operation);
+  }, []);
   const { message, showMessage: showTransientMessage, clearMessage: clearTransientMessage } = useTransientMessage();
   const [messageType, setMessageType] = useState<"" | "success" | "error">("");
   const [pullPrecheck, setPullPrecheck] = useState<PullPrecheck | null>(null);
@@ -257,7 +265,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
     } finally {
       setBusyOperation(null);
     }
-  }, [cfg, clearMessage]);
+  }, [setBusyOperation, cfg, clearMessage]);
 
   const handlePush = useCallback(() => {
     clearMessage();
@@ -281,7 +289,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
     } finally {
       setBusyOperation(null);
     }
-  }, [cfg, clearMessage, showMessage, onBeforePush]);
+  }, [setBusyOperation, cfg, clearMessage, showMessage, onBeforePush]);
 
   const handlePull = useCallback(async (mode: PullMode) => {
     if (!pullPrecheck) return;
@@ -326,7 +334,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
     } finally {
       setBusyOperation(null);
     }
-  }, [cfg, clearMessage, ignoredRemoteIds, conflictResolutions, onBeforePush, onPullDone, pullPrecheck, showMessage, confirm]);
+  }, [setBusyOperation, cfg, clearMessage, ignoredRemoteIds, conflictResolutions, onBeforePush, onPullDone, pullPrecheck, showMessage, confirm]);
 
   const handleLocalExport = useCallback(async () => {
     setExportingLocal(true);
@@ -402,7 +410,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
         {busy ? (
           <div className="sync-banner">
             <div className="sync-banner-spinner" />
-            <span>{BUSY_MESSAGES[busyOperation ?? "push"]}</span>
+            <SyncOperationProgress fallback={BUSY_MESSAGES[busyOperation ?? "push"]} />
           </div>
         ) : message && messageType === "error" ? (
           <OperationError key={message} message={message} />
@@ -444,7 +452,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
               {busy ? (
                 <>
                   <div className="sync-banner-spinner" />
-                  <span>{BUSY_MESSAGES[busyOperation ?? "push"]}</span>
+                  <SyncOperationProgress fallback={BUSY_MESSAGES[busyOperation ?? "push"]} />
                 </>
               ) : message && messageType === "error" ? (
                 <OperationError key={message} message={message} />

@@ -30,9 +30,18 @@ function migrateHierarchyPalette(config: AppConfig): AppConfig {
   };
 }
 
+// Removed before user-facing notes/tasks shipped. Retire only these known
+// preferences; preserve all other unknown fields for explicit sync refusal.
+function retireUnusedPreferences(config: AppConfig): AppConfig {
+  const result = { ...config } as AppConfig & Record<string, unknown>;
+  delete result.default_view;
+  delete result.todo_carryover_default;
+  return result;
+}
+
 /** Pure read normalization, shared with candidate round-trip checks. */
 export function normalizePersistedConfig(config: AppConfig): AppConfig {
-  return normalizeExhibition(migrateHierarchyPalette({ ...config, workspace_layout: config.workspace_layout === "exhibition" ? "exhibition" : "standard", interface_style: normalizeInterfaceStyle(config.interface_style), interface_color_mode: normalizeInterfaceColorMode(config.interface_color_mode) }));
+  return retireUnusedPreferences(normalizeExhibition(migrateHierarchyPalette({ ...config, workspace_layout: config.workspace_layout === "exhibition" ? "exhibition" : "standard", interface_style: normalizeInterfaceStyle(config.interface_style), interface_color_mode: normalizeInterfaceColorMode(config.interface_color_mode) })));
 }
 
 export async function getConfig(): Promise<AppConfig> {
@@ -58,7 +67,7 @@ export async function getConfig(): Promise<AppConfig> {
 
 export async function setConfig(partial: Partial<AppConfig>): Promise<AppConfig> {
   const current = await getConfig();
-  const merged = normalizeExhibition({ ...current, ...partial });
+  const merged = retireUnusedPreferences(normalizeExhibition({ ...current, ...partial }));
   merged.workspace_layout = merged.workspace_layout === "exhibition" ? "exhibition" : "standard";
   merged.interface_style = normalizeInterfaceStyle(merged.interface_style);
   merged.interface_color_mode = normalizeInterfaceColorMode(merged.interface_color_mode);

@@ -98,17 +98,19 @@ try {
 
 
   let bodyCancelled = false;
+  const received: number[] = [];
   globalThis.fetch = (async () => new Response(new ReadableStream({
     start(controller) { controller.enqueue(new TextEncoder().encode("partial")); },
     cancel() { bodyCancelled = true; },
   }))) as typeof fetch;
   timedOut = false;
   let bodyTimeout = "";
-  try { await githubApiFetch("https://api.github.com", {}, 10); }
+  try { await githubApiFetch("https://api.github.com", {}, 10, progress => { received.push(progress.receivedBytes); }); }
   catch (error) { bodyTimeout = (error as Error).message; timedOut = bodyTimeout.includes("GitHub 请求超时"); }
   assert(timedOut, "deadline covers stalled response body even if mocked fetch ignores abort");
   assert(bodyTimeout.includes("读取响应体") && bodyTimeout.includes("已接收 7 bytes"), "stalled body diagnostics identify bytes received without logging content");
   assert(bodyCancelled, "timed-out response body reader is cancelled and released");
+  assert(received.includes(7), "download progress reports actual response bytes while the body is still pending");
 
   let started = false;
   globalThis.fetch = (async () => { started = true; return new Response("{}"); }) as typeof fetch;

@@ -222,3 +222,40 @@ it("rejects native integer overflow, fractions and unpaired UTF-16 before applyi
     ).eligible,
   ).toBe(true);
 });
+
+it("retires only removed local preferences while refusing the original remote configuration", async () => {
+  const legacy = {
+    ...config(),
+    default_view: "notes",
+    todo_carryover_default: true,
+  };
+  const original = source(legacy);
+  expect(review(legacy).issues["settings-not-certified"]).toBe(1);
+  await expect(candidateEntities(original, "web")).rejects.toThrow(
+    "default_view、todo_carryover_default",
+  );
+  const values = new Map<string, string>([
+    ["nine_rings_config", JSON.stringify(legacy)],
+  ]);
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
+    },
+  });
+  const current = await getConfig();
+  expect(current).not.toHaveProperty("default_view");
+  expect(current).not.toHaveProperty("todo_carryover_default");
+  expect(review(current).eligible).toBe(true);
+  await setConfig(legacy);
+  expect(JSON.parse(values.get("nine_rings_config")!)).not.toHaveProperty(
+    "default_view",
+  );
+  expect(source(legacy)).toBe(original);
+  await setConfig({
+    ...config(),
+    future_user_setting: "preserve",
+  } as typeof legacy);
+  expect(await getConfig()).toHaveProperty("future_user_setting", "preserve");
+  expect(review(await getConfig()).eligible).toBe(false);
+});

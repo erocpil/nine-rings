@@ -1,3 +1,4 @@
+import { DEFAULT_CONFIG } from "../storage/types";
 /** Narrow candidate semantic projection, never applied to arbitrary backup data. */
 import { canonicalDigest } from "./canonical-codec";
 import { parseSyncJson } from "./strict-json";
@@ -30,7 +31,38 @@ export async function candidateEntities(
   evaluation?: CandidateEvaluationScope,
 ): Promise<SyncEntity[]> {
   const review = reviewCandidatePayload(source, runtime, evaluation);
-  if (!review.eligible) throw Error("实体投影拒绝：存在未认证或可能丢失的数据");
+  if (!review.eligible) {
+    const categories: Record<string, string> = {
+      "settings-not-certified": "应用配置未认证",
+      "settings-loss": "界面设置无法无损恢复",
+      "unsupported-content": "正文包含未认证结构",
+      "unknown-metadata": "包含未知元数据",
+    };
+    const details = Object.entries(review.issues)
+      .map(([key, count]) => `${categories[key] ?? key} ${count} 项`)
+      .join("；");
+    let hint = "";
+    if (review.issues["settings-not-certified"]) {
+      try {
+        const config = (
+          parseSyncJson(source) as { config?: Record<string, unknown> }
+        ).config;
+        const obsolete = ["default_view", "todo_carryover_default"].filter(
+          (key) =>
+            config &&
+            Object.prototype.hasOwnProperty.call(config, key) &&
+            !(key in DEFAULT_CONFIG),
+        );
+        if (obsolete.length)
+          hint = `。应用配置保留了已移除功能的旧字段：${obsolete.join("、")}。请用当前客户端重新导出并更新旧格式备份后预检；本次不会自动丢弃这些字段`;
+      } catch {
+        /* Rejection messages never include source values. */
+      }
+    }
+    throw Error(
+      `实体投影拒绝：存在未认证或可能丢失的数据（${details}）${hint}`,
+    );
+  }
   const bundle = parseSyncJson(source) as Record<string, unknown>;
   const entities: SyncEntity[] = [];
   const add = async (kind: SyncEntity["kind"], id: string, value: unknown) => {

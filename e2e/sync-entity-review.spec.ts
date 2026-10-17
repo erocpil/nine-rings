@@ -23,6 +23,11 @@ test("实体选择草稿可重启恢复，过期选择拒绝且不改正文或�
   });
   const methods: string[] = [];
   let movedHead = false;
+  let holdFirstRead = true;
+  let unblock = () => {};
+  const heldRead = new Promise<void>((resolve) => {
+    unblock = resolve;
+  });
   await page.route("https://api.github.com/**", async (route) => {
     methods.push(route.request().method());
     const path = decodeURIComponent(
@@ -33,6 +38,10 @@ test("实体选择草稿可重启恢复，过期选择拒绝且不改正文或�
         json: { object: { type: "commit", sha: "f".repeat(40) } },
       });
       return;
+    }
+    if (path.startsWith("/git/blobs/") && holdFirstRead) {
+      holdFirstRead = false;
+      await heldRead;
     }
     if (git.objects.has(path))
       await route.fulfill({ json: git.objects.get(path) });
@@ -74,7 +83,17 @@ test("实体选择草稿可重启恢复，过期选择拒绝且不改正文或�
   await settings();
   const review = page.getByRole("region", { name: "增量备份候选审查" });
   await page.getByRole("button", { name: "预检实体差异", exact: true }).click();
+  const progress = page.getByLabel("同步操作进度", { exact: true });
+  await expect(progress).toContainText("读取备份正文/控制文件 Blob");
+  await expect(progress).toContainText("第 1/2 次尝试");
+  await expect(progress).toContainText(/本次已完成 [1-9]\d* 次只读请求/);
+  await expect(progress).toContainText(/累计 [1-9]\d* 秒/);
+  await expect(
+    review.getByRole("button", { name: "取消检查", exact: true }),
+  ).toBeEnabled();
+  unblock();
   await expect(review).toContainText("预检完成");
+  await expect(progress).toHaveCount(0);
   const migration = review.getByRole("group", {
     name: "增量操作与首次迁移确认",
     exact: true,
