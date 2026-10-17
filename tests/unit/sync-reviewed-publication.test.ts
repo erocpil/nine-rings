@@ -288,6 +288,54 @@ it("a remote-only choice cannot create a needless publication or acceptance rece
   expect(await readPublicationAttempt(s.input.review.spaceId)).toBeNull();
   expect(await readAcceptedEntities(s.input.review.spaceId)).toEqual([]);
 });
+it("an explicit legacy checkpoint preserves remote content without accepting unpublished local changes", async () => {
+  const s = await setup();
+  s.input.choices[0].action = "remote";
+  const attempt = await prepareReviewedPublication(
+    { ...s.input, allowMigrationCheckpoint: true },
+    s.boundary,
+  );
+  expect(attempt.reviewed).toMatchObject({
+    mode: "legacy-switch",
+    checkpoint: true,
+  });
+  expect(attempt.accepted).toEqual([]);
+  const payload = JSON.parse(attempt.source);
+  expect(payload.header.parent).toBeNull();
+  expect(
+    new Map(payload.notes.map((note: { id: string }) => [note.id, note])),
+  ).toEqual(new Map(fixture.notes.map((note) => [note.id, note])));
+  expect(payload.templates).toEqual(fixture.templates);
+  expect(await readValidatedPublication(attempt.spaceId)).toMatchObject({
+    phase: "PREPARED",
+  });
+  expect(s.post).not.toHaveBeenCalled();
+  expect(await readAcceptedEntities(attempt.spaceId)).toEqual([]);
+});
+it.each(["opt-in", "backup", "participants", "head", "already-enabled"])(
+  "checkpoint cannot bypass %s prerequisites",
+  async (failure) => {
+    const s = await setup(failure === "already-enabled");
+    s.input.choices[0].action = "remote";
+    if (failure === "backup")
+      s.input.prerequisites.backup.localRevision = "f".repeat(64);
+    if (failure === "participants")
+      s.input.prerequisites.participants.confirmed = false;
+    if (failure === "head")
+      s.git.objects.set("/git/ref/heads/backup/main", {
+        object: { type: "commit", sha: "e".repeat(40) },
+      });
+    await expect(
+      prepareReviewedPublication(
+        { ...s.input, allowMigrationCheckpoint: failure !== "opt-in" },
+        s.boundary,
+      ),
+    ).rejects.toThrow();
+    expect(await readPublicationAttempt(s.input.review.spaceId)).toBeNull();
+    expect(await readAcceptedEntities(s.input.review.spaceId)).toEqual([]);
+    expect(s.post).not.toHaveBeenCalled();
+  },
+);
 it.each(["save", "local", "backup", "head", "identity"])(
   "%s mismatch leaves no durable publication intent",
   async (failure) => {

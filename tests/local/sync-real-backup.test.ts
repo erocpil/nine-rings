@@ -13,6 +13,18 @@ import {
 import { readPullAttempt } from "../../src/lib/sync/pull-store";
 const inputPath = process.env.NR_SYNC_DRY_RUN_INPUT;
 const selectedRuntime = process.env.NR_SYNC_DRY_RUN_RUNTIME;
+const remoteMode = process.env.NR_SYNC_DRY_RUN_REMOTE ?? "enabled";
+if (!["enabled", "legacy", "checkpoint", "empty"].includes(remoteMode))
+  throw Error(
+    "NR_SYNC_DRY_RUN_REMOTE must be enabled, legacy, checkpoint or empty",
+  );
+if (
+  remoteMode === "checkpoint" &&
+  process.env.NR_SYNC_DRY_RUN_SCENARIO !== undefined
+)
+  throw Error(
+    "Checkpoint rehearsal cannot be combined with changed-document scenarios",
+  );
 const scenario = process.env.NR_SYNC_DRY_RUN_SCENARIO ?? "mixed";
 if (scenario !== "mixed" && scenario !== "all-documents")
   throw Error("NR_SYNC_DRY_RUN_SCENARIO must be mixed or all-documents");
@@ -54,7 +66,10 @@ import {
   publishRecordedCommit,
   recoverPublication,
   readValidatedPublication,
+  preparePublicationFromSavedState,
 } from "../../src/lib/sync/publication-recovery";
+import { canonicalDigest } from "../../src/lib/sync/canonical-codec";
+import { candidateEntities } from "../../src/lib/sync/entity-projection";
 import {
   readAcceptedEntities,
   readPublicationAttempt,
@@ -165,7 +180,7 @@ async function setup(runtime: "web" | "tauri") {
   console.log(JSON.stringify({ runtime, stage: "candidate-certified" }));
   const remoteSource = JSON.stringify({
     ...fixture,
-    header: root,
+    ...(remoteMode === "enabled" ? { header: root } : {}),
   });
   const paths = backupPaths("backup.json");
   const oldControl = JSON.stringify(
@@ -180,10 +195,14 @@ async function setup(runtime: "web" | "tauri") {
     2,
   );
   const files: Record<string, string> = {
-    [paths.latest]: root.id,
-    [paths.snapshot(root.id)]: remoteSource,
+    ...(remoteMode === "empty"
+      ? {}
+      : {
+          [paths.latest]: root.id,
+          [paths.snapshot(root.id)]: remoteSource,
+        }),
     "README.md": "keep me",
-    [paths.control]: oldControl,
+    ...(remoteMode === "enabled" ? { [paths.control]: oldControl } : {}),
   };
   const git = await gitReadFixture(files);
   console.log(JSON.stringify({ runtime, stage: "git-fixture-ready" }));
@@ -194,25 +213,31 @@ async function setup(runtime: "web" | "tauri") {
   });
   console.log(JSON.stringify({ runtime, stage: "remote-inspected" }));
   const local = structuredClone(fixture);
-  local.notes[0].title = "本机新标题";
-  local.notes[1].title = "尚未接受的远端选择";
-  local.templates[0].name = "应当被忽略";
-  if (scenario === "all-documents") {
-    for (const note of local.notes) note.title += " [rehearsal]";
-    for (const template of local.templates) template.name += " [rehearsal]";
+  if (remoteMode !== "checkpoint") {
+    local.notes[0].title = "本机新标题";
+    local.notes[1].title = "尚未接受的远端选择";
+    local.templates[0].name = "应当被忽略";
+    if (scenario === "all-documents") {
+      for (const note of local.notes) note.title += " [rehearsal]";
+      for (const template of local.templates) template.name += " [rehearsal]";
+    }
   }
   const localSource = JSON.stringify(local);
-  const review = await prepareEntityReview({
-    report,
-    request: git.request,
-    localSource,
-    runtime,
-  });
+  const review =
+    remoteMode === "empty"
+      ? null
+      : await prepareEntityReview({
+          report,
+          request: git.request,
+          localSource,
+          runtime,
+        });
   const choose = (
     kind: string,
     id: string,
     action: EntityChoice["action"],
   ): EntityChoice => {
+    if (!review) throw Error("Empty namespace has no remote choices");
     const row = review.rows.find((r) => r.kind === kind && r.id === id)!;
     return {
       key: row.key,
@@ -222,25 +247,34 @@ async function setup(runtime: "web" | "tauri") {
     };
   };
   const choices: EntityChoice[] =
-    scenario === "all-documents"
-      ? review.rows
-          .filter(
-            (row) => row.localHash !== null && row.localHash !== row.remoteHash,
-          )
-          .map((row) => ({
-            key: row.key,
-            localHash: row.localHash,
-            remoteHash: row.remoteHash,
-            action: "local",
-          }))
-      : [
-          choose("note", local.notes[0].id, "local"),
-          choose("note", local.notes[1].id, "remote"),
-          choose("template", local.templates[0].id, "ignore"),
-        ];
+    !review || remoteMode === "checkpoint"
+      ? []
+      : scenario === "all-documents"
+        ? review.rows
+            .filter(
+              (row) =>
+                row.localHash !== null && row.localHash !== row.remoteHash,
+            )
+            .map((row) => ({
+              key: row.key,
+              localHash: row.localHash,
+              remoteHash: row.remoteHash,
+              action: "local",
+            }))
+        : [
+            choose("note", local.notes[0].id, "local"),
+            choose("note", local.notes[1].id, "remote"),
+            choose("template", local.templates[0].id, "ignore"),
+          ];
+  const emptyEntities = review
+    ? null
+    : await candidateEntities(localSource, runtime);
+  const localRevision =
+    review?.localRevision ?? (await canonicalDigest(emptyEntities));
   const input = {
     review,
     choices,
+    allowMigrationCheckpoint: remoteMode === "checkpoint",
     identity: {
       id: "next-1",
       createdAt: "2026-10-16T00:00:00Z",
@@ -248,9 +282,9 @@ async function setup(runtime: "web" | "tauri") {
     },
     observation: { state: "none" as const },
     prerequisites: {
-      localRevision: review.localRevision,
+      localRevision,
       backup: {
-        localRevision: review.localRevision,
+        localRevision,
         sha256: "b".repeat(64),
         method: "desktop-verified" as const,
       },
@@ -274,6 +308,23 @@ async function setup(runtime: "web" | "tauri") {
     readSource: async () => localSource,
     request: git.request,
   };
+  const prepare = async () => {
+    if (review)
+      return prepareReviewedPublication({ ...input, review }, boundary);
+    const source = JSON.stringify({
+      ...local,
+      header: { ...root, ...input.identity, parent: null },
+    });
+    return preparePublicationFromSavedState(
+      {
+        remote: report,
+        runtime,
+        observation: input.observation,
+        prerequisites: input.prerequisites,
+      },
+      { ...boundary, readSource: async () => source },
+    );
+  };
   const blobs = new Map<string, string>();
   const commit = "c".repeat(40),
     tree = "d".repeat(40);
@@ -281,7 +332,7 @@ async function setup(runtime: "web" | "tauri") {
     route: string,
     body: Record<string, unknown>,
   ): Promise<unknown> => {
-    expect((await readPublicationAttempt(review.spaceId))?.phase).toBe(
+    expect((await readPublicationAttempt(report.spaceId))?.phase).toBe(
       "PREPARED",
     );
     if (route === "/git/blobs") {
@@ -294,6 +345,9 @@ async function setup(runtime: "web" | "tauri") {
       const next = { ...files };
       for (const e of body.tree as { path: string; sha: string }[])
         next[e.path] = blobs.get(e.sha)!;
+      for (const [path, original] of Object.entries(files))
+        if (path !== paths.latest && path !== paths.control)
+          expect(next[path] === original).toBe(true);
       const built = await gitReadFixture(next);
       for (const [route, value] of built.objects)
         if (route.startsWith("/git/blobs/")) git.objects.set(route, value);
@@ -314,7 +368,10 @@ async function setup(runtime: "web" | "tauri") {
   };
   return {
     input,
-    boundary,
+    prepare,
+    expectedPublicationAccepted:
+      emptyEntities?.length ??
+      choices.filter((choice) => choice.action === "local").length,
     git,
     post,
     commit,
@@ -341,7 +398,24 @@ it.each(runtimes)(
         elapsedMs: Math.round(performance.now() - started),
       }),
     );
-    const attempt = await prepareReviewedPublication(s.input, s.boundary);
+    const attempt = await s.prepare();
+    expect(JSON.parse(attempt.source).header.parent).toEqual(
+      remoteMode === "enabled"
+        ? {
+            id: s.input.review!.snapshotId,
+            sha256: s.input.review!.snapshotSha256,
+          }
+        : null,
+    );
+    expect(attempt.reviewed?.mode).toBe(
+      remoteMode === "empty"
+        ? undefined
+        : remoteMode === "enabled"
+          ? "append"
+          : "legacy-switch",
+    );
+    if (remoteMode === "checkpoint")
+      expect(attempt.reviewed?.checkpoint).toBe(true);
     const publicationBytes = new TextEncoder().encode(
       JSON.stringify(attempt),
     ).length;
@@ -386,9 +460,23 @@ it.each(runtimes)(
     );
     expect(patchCalls).toBe(1);
     expect((await readAcceptedEntities(attempt.spaceId)).length).toBe(
-      s.input.choices.filter((choice) => choice.action === "local").length,
+      s.expectedPublicationAccepted,
     );
     const publicationMs = performance.now() - started;
+    if (remoteMode === "checkpoint") {
+      console.log(
+        JSON.stringify({
+          runtime,
+          remoteMode,
+          publicationBytes,
+          accepted: 0,
+          patchCalls,
+          totalMs: Math.round(publicationMs),
+          peakRssKiB: process.resourceUsage().maxRSS,
+        }),
+      );
+      return;
+    }
 
     // A fresh local namespace simulates the receiving client; no application DB.
     for (const name of [
@@ -401,7 +489,9 @@ it.each(runtimes)(
         req.onerror = () => reject(req.error);
       });
     let source =
-      scenario === "all-documents" ? JSON.stringify(fixture) : s.localSource;
+      remoteMode === "empty" || scenario === "all-documents"
+        ? JSON.stringify(fixture)
+        : s.localSource;
     const report = await inspectRemoteProtocol(s.git.request, {
       owner: "example",
       repo: "backup",
@@ -471,6 +561,7 @@ it.each(runtimes)(
     console.log(
       JSON.stringify({
         runtime,
+        remoteMode,
         scenario,
         publicationBytes,
         peakRssKiB: process.resourceUsage().maxRSS,
