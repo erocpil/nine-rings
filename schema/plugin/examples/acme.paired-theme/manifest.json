@@ -1,0 +1,20 @@
+{
+  "manifestVersion": 1,
+  "id": "acme.paired-theme",
+  "name": "示例成对主题",
+  "version": "1.0.0",
+  "description": "用于验证声明式主题安装、启停与原风格回退。",
+  "engines": {
+    "nineRingsPluginApi": "^0.1.0",
+    "app": "^0.3.0"
+  },
+  "contributes": {
+    "themes": [
+      {
+        "id": "paper",
+        "name": "示例纸页",
+        "resource": "resources/paper.json"
+      }
+    ]
+  }
+}

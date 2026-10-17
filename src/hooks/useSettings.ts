@@ -21,6 +21,14 @@ import { preserveReadingPositions } from "../lib/reading-position";
 export function useSettings() {
   useEffect(startPluginRuntime, []);
   useEffect(startBuiltinThemes, []);
+  useEffect(() => {
+    let disposed = false;
+    let stop: (() => void) | undefined;
+    void import("../lib/plugin-system/installed-packages").then(module => {
+      if (!disposed) stop = module.startInstalledPluginPackages();
+    }).catch(() => { /* A package loader failure leaves host/builtin resources intact. */ });
+    return () => { disposed = true; stop?.(); };
+  }, []);
   useEffect(startBuiltinTreeDisplay, []);
   useEffect(() => outlineDisplay.start(), []);
   useEffect(() => bookmarkDisplay.start(), []);

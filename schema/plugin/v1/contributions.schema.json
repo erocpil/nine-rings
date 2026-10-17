@@ -643,6 +643,132 @@
       }
     },
     "Theme": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/LegacyTheme"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "common.schema.json#/$defs/LocalId"
+            },
+            "name": {
+              "$ref": "common.schema.json#/$defs/LocalizedName"
+            },
+            "resource": {
+              "$ref": "common.schema.json#/$defs/PackageFilePath"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "resource"
+          ]
+        }
+      ]
+    },
+    "Contributes": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "贡献点集合。未知的键为向前兼容而放行（宿主给出警告并跳过）；严格模式见 manifest.strict.schema.json。",
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "command.schema.json"
+          },
+          "maxItems": 100,
+          "description": "仅 L1（有 entry）可用。"
+        },
+        "menus": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Menu"
+          },
+          "maxItems": 50,
+          "contains": {
+            "type": "object",
+            "required": [
+              "placement"
+            ],
+            "properties": {
+              "placement": {
+                "const": "toolbar"
+              }
+            }
+          },
+          "minContains": 0,
+          "maxContains": 3
+        },
+        "keybindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Keybinding"
+          },
+          "maxItems": 50
+        },
+        "templates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Template"
+          },
+          "maxItems": 50
+        },
+        "snippets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Snippet"
+          },
+          "maxItems": 100
+        },
+        "macros": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Macro"
+          },
+          "maxItems": 20
+        },
+        "queries": {
+          "type": "array",
+          "items": {
+            "$ref": "query.schema.json"
+          },
+          "maxItems": 20
+        },
+        "properties": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Property"
+          },
+          "maxItems": 30
+        },
+        "importProfiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ImportProfile"
+          },
+          "maxItems": 10
+        },
+        "exportProfiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExportProfile"
+          },
+          "maxItems": 10
+        },
+        "themes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Theme"
+          },
+          "maxItems": 10
+        }
+      },
+      "additionalProperties": true
+    },
+    "LegacyTheme": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -842,105 +968,6 @@
       "patternProperties": {
         "^x-": true
       }
-    },
-    "Contributes": {
-      "type": "object",
-      "minProperties": 1,
-      "description": "贡献点集合。未知的键为向前兼容而放行（宿主给出警告并跳过）；严格模式见 manifest.strict.schema.json。",
-      "properties": {
-        "commands": {
-          "type": "array",
-          "items": {
-            "$ref": "command.schema.json"
-          },
-          "maxItems": 100,
-          "description": "仅 L1（有 entry）可用。"
-        },
-        "menus": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Menu"
-          },
-          "maxItems": 50,
-          "contains": {
-            "type": "object",
-            "required": [
-              "placement"
-            ],
-            "properties": {
-              "placement": {
-                "const": "toolbar"
-              }
-            }
-          },
-          "minContains": 0,
-          "maxContains": 3
-        },
-        "keybindings": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Keybinding"
-          },
-          "maxItems": 50
-        },
-        "templates": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Template"
-          },
-          "maxItems": 50
-        },
-        "snippets": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Snippet"
-          },
-          "maxItems": 100
-        },
-        "macros": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Macro"
-          },
-          "maxItems": 20
-        },
-        "queries": {
-          "type": "array",
-          "items": {
-            "$ref": "query.schema.json"
-          },
-          "maxItems": 20
-        },
-        "properties": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Property"
-          },
-          "maxItems": 30
-        },
-        "importProfiles": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ImportProfile"
-          },
-          "maxItems": 10
-        },
-        "exportProfiles": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ExportProfile"
-          },
-          "maxItems": 10
-        },
-        "themes": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Theme"
-          },
-          "maxItems": 10
-        }
-      },
-      "additionalProperties": true
     }
   }
 }

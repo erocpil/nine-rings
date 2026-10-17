@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "id": "acme.paired-theme/paper",
+  "name": "示例纸页",
+  "light": {
+    "bg": "#f8f2e5",
+    "surface": "#efe5d3",
+    "border": "#d8c9ae",
+    "text": "#302e2a",
+    "muted": "#70665a",
+    "accent": "#93611f",
+    "accentHover": "#704718",
+    "hover": "#efe4d1",
+    "active": "#e8d4b0",
+    "code": "#efe6d8",
+    "syntaxKeyword": "#ad3d31",
+    "syntaxString": "#386d46",
+    "syntaxValue": "#8a5a16",
+    "syntaxMeta": "#88551c",
+    "syntaxType": "#346d91"
+  },
+  "dark": {
+    "bg": "#1b1b1b",
+    "surface": "#242321",
+    "border": "#45423b",
+    "text": "#e8e3d8",
+    "muted": "#b2a998",
+    "accent": "#e5b65c",
+    "accentHover": "#f2cf82",
+    "hover": "#302c25",
+    "active": "#41351f",
+    "code": "#23211d",
+    "syntaxKeyword": "#ef7764",
+    "syntaxString": "#79c987",
+    "syntaxValue": "#e5b65c",
+    "syntaxMeta": "#efb75c",
+    "syntaxType": "#64cde0"
+  },
+  "typography": {
+    "headingScale": [
+      1.75,
+      1.5,
+      1.375,
+      1.25,
+      1.125,
+      1
+    ],
+    "compactHeadingScale": [
+      1.625,
+      1.5,
+      1.375,
+      1.25,
+      1.125,
+      1
+    ],
+    "codeFont": "monospace",
+    "quoteFont": "serif",
+    "flowFont": "sans"
+  }
+}

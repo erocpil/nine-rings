@@ -6,6 +6,7 @@ export default tseslint.config(
   {
     ignores: [
       "dist/**",
+      "src/lib/plugin-system/generated-package-validator.js",
       "node_modules/**",
       "coverage/**",
       "flutter_app/**",

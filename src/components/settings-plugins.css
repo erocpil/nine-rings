@@ -62,3 +62,7 @@
 .plugin-theme-preview { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px; border: 1px solid; border-radius: 8px; }
 .plugin-theme-preview code { padding: 6px; border-radius: 4px; overflow-wrap: anywhere; }
 @media (max-width: 420px) { .plugin-theme-previews { grid-template-columns: minmax(0, 1fr); } }
+
+.settings-installed-packages { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
+.plugin-package-digest { overflow-wrap: anywhere; font-size: 12px; }
+.settings-installed-packages .settings-btn { margin: 4px 6px 4px 0; }

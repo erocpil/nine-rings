@@ -1,3 +1,4 @@
+import { SettingsInstalledPackages } from "./SettingsInstalledPackages";
 import { readVocabularyPreference, saveVocabularyPreference, subscribeVocabulary, vocabularySnapshot } from "../lib/plugin-system/builtin-vocabulary";
 import {
   imageViewerEnabled,
@@ -343,6 +344,7 @@ export function SettingsPluginCatalog() {
           );
         })}
       </ul>
+      <SettingsInstalledPackages />
       {selected && (
         <PluginConfigurationDialog
           plugin={selected}

@@ -65,6 +65,9 @@ export default defineConfig(async () => {
           if (normalized.endsWith("/src/lib/editor-color.ts")) return "markdown";
 
           if (normalized.includes("/node_modules/")) {
+            // Admission tooling is used only when a third-party package is inspected.
+            // Keep its compiler/SemVer dependencies out of the startup vendor graph.
+            if (["ajv", "fast-uri", "json-schema-traverse", "fast-deep-equal", "require-from-string", "semver"].some(name => packagePath(normalized, name))) return "plugin-package-validation";
             // PCRE2 is downloaded only when regular-expression search is used.
             if (packagePath(normalized, "pcre2-wasm")) return undefined;
             // Keep Mermaid's source and diagram-specific dependencies in the

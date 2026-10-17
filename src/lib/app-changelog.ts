@@ -1,6 +1,14 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-18",
+    title: "声明式主题安装与验证收尾",
+    changes: [
+      "插件列表支持本机成对主题包：审查来源、资源差异和指纹后安装，更新需重新确认；支持启停、刷新恢复和卸载回退，不执行第三方脚本。",
+      "主题安装使用静态校验器及按需加载，保持 Tauri 脚本限制并消除超大共享 chunk 警告，不提高构建警告阈值。",
+    ],
+  },
+  {
     date: "2026-10-17",
     title: "正式手动同步与备份恢复",
     changes: [
