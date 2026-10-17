@@ -1,4 +1,9 @@
 import {
+  contentResources,
+  type RegisteredContent,
+} from "../lib/plugin-system/content-resources";
+import { insertDeclarativeContent } from "../lib/plugin-system/content-invocation";
+import {
   IMAGE_INSERT_EVENT,
   type ViewedImage,
 } from "../lib/image-library/viewer-request";
@@ -67,6 +72,11 @@ export function BuiltinPluginTools({
     pluginRuntime.isEnabled,
   );
   useSyncExternalStore(subscribeResultPresentation, resultPresentationSnapshot);
+  const content = useSyncExternalStore(
+    contentResources.subscribe,
+    contentResources.getSnapshot,
+  );
+  const contentAbort = useRef<AbortController | null>(null);
   const button = useRef<HTMLButtonElement>(null);
   const [kind, setKind] = useState<DocumentTool>("date");
   const presentation = readResultPresentation(kind);
@@ -95,6 +105,8 @@ export function BuiltinPluginTools({
   > | null>(null);
   const close = useCallback(() => {
     epoch.current++;
+    contentAbort.current?.abort();
+    contentAbort.current = null;
     setTrigger(null);
     setStatistics(null);
     setMessage("");
@@ -137,6 +149,42 @@ export function BuiltinPluginTools({
     window.addEventListener("keydown", escape, true);
     return () => window.removeEventListener("keydown", escape, true);
   }, [active, busy, showingResult, trigger, close]);
+  const runContent = async (
+    entry: RegisteredContent,
+    values: ParameterValues,
+  ) => {
+    if (running.current || !enabled || !active || disabled || readonly) return;
+    close();
+    const version = epoch.current;
+    const controller = new AbortController();
+    contentAbort.current = controller;
+    running.current = true;
+    setBusy(true);
+    try {
+      // A native parameter dialog restores focus when it unmounts. Let that
+      // cleanup finish before focusing/capturing the original editor selection.
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+      if (version !== epoch.current || controller.signal.aborted) return;
+      onFocusEditor();
+      await insertDeclarativeContent(
+        entry,
+        values,
+        sessions,
+        () => latest.current,
+        controller.signal,
+      );
+      if (version === epoch.current) setMessage("内容已插入并保存");
+    } catch (error) {
+      if (version === epoch.current)
+        setMessage(error instanceof Error ? error.message : "插入失败");
+    } finally {
+      if (contentAbort.current === controller) contentAbort.current = null;
+      running.current = false;
+      if (version === epoch.current) setBusy(false);
+    }
+  };
   const run = async (
     kind: DocumentTool,
     format: DateFormat = "date",
@@ -280,10 +328,16 @@ export function BuiltinPluginTools({
           );
           return imageCommandMarkdown(values, undefined, ref);
         });
-      } else if (/^data:image\/(png|jpeg|gif|webp|avif|bmp);base64,/i.test(image.src)) {
+      } else if (
+        /^data:image\/(png|jpeg|gif|webp|avif|bmp);base64,/i.test(image.src)
+      ) {
         void imageRun.current("image", "date", async (signal) => {
           const blob = await (await fetch(image.src, { signal })).blob();
-          const ref = await storePluginImage(new File([blob], image.name, { type: blob.type }), context.documentId!, signal);
+          const ref = await storePluginImage(
+            new File([blob], image.name, { type: blob.type }),
+            context.documentId!,
+            signal,
+          );
           return imageCommandMarkdown(values, undefined, ref);
         });
       } else {
@@ -355,13 +409,13 @@ export function BuiltinPluginTools({
         ref={button}
         type="button"
         className="markdown-view-toggle"
-        title="内置插件"
+        title={content.length ? "插件" : "内置插件"}
         data-can-insert-image={
           !readonly && !disabled && !busy && documentToolEnabled("image")
             ? "true"
             : undefined
         }
-        aria-label="内置插件"
+        aria-label={content.length ? "插件" : "内置插件"}
         aria-haspopup="menu"
         aria-expanded={Boolean(trigger)}
         disabled={disabled || busy}
@@ -373,8 +427,25 @@ export function BuiltinPluginTools({
       {trigger && (
         <PluginCommandMenu
           trigger={trigger}
+          title={content.length ? "插件" : "内置插件"}
           onClose={() => setTrigger(null)}
           commands={[
+            ...content
+              .filter((entry) =>
+                entry.value.views.includes(
+                  context.view === "source" ? "source" : "render",
+                ),
+              )
+              .map((entry) => ({
+                label: `${entry.value.kind === "template" ? "模板" : "片段"} · ${entry.value.name} (${entry.value.id})`,
+                disabled: readonly || disabled || busy,
+                parameters: entry.value.fields.length
+                  ? { kind: "form" as const, fields: entry.value.fields }
+                  : { kind: "none" as const },
+                run: (values: ParameterValues) => {
+                  void runContent(entry, values);
+                },
+              })),
             {
               label: "插入日期与时间",
               parameters: {

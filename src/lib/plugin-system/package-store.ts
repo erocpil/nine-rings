@@ -133,7 +133,10 @@ export async function installPluginPackage(
     const others = all.filter((row) => row.id !== validated.id);
     if (
       others.reduce(
-        (sum, row) => sum + Object.keys(row.files).length - 1,
+        (sum, row) =>
+          sum +
+          (JSON.parse(row.files["manifest.json"]).contributes.themes?.length ??
+            0),
         validated.themes.length,
       ) > 24
     )

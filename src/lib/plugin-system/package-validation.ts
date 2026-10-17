@@ -1,4 +1,8 @@
 import semver from "semver";
+import {
+  parseContentContributions,
+  type ContentContribution,
+} from "./content-resources";
 import { runtimeKind } from "../runtime";
 import packageInfo from "../../../package.json";
 import { Inflate } from "fflate";
@@ -191,6 +195,7 @@ export interface ValidatedPluginPackage {
   version: string;
   digest: string;
   themes: readonly ThemeResource[];
+  content: readonly ContentContribution[];
   files: Record<string, string>;
 }
 function localized(value: unknown): string {
@@ -200,7 +205,7 @@ function localized(value: unknown): string {
       ? value.default
       : "";
 }
-/** Admission is deliberately limited to the shipped theme interpreter. Other contribution gates stay closed. */
+/** Admission exposes only shipped data interpreters; no plugin code or schema is evaluated. */
 export async function validatePluginPackage(
   files: Record<string, Uint8Array>,
   appVersion = packageInfo.version,
@@ -224,7 +229,8 @@ export async function validatePluginPackage(
     total += bytes.length;
     paths.add(path.toLowerCase());
     if (total > PACKAGE_LIMITS.decoded) return invalid("资源总量超限");
-    if (!path.endsWith(".json")) return invalid("当前仅允许声明式 JSON 资源");
+    if (!/\.(json|md|txt)$/.test(path))
+      return invalid("仅允许 JSON、Markdown 或纯文本资源");
     text[path] = decoder.decode(bytes);
     hashes[path] = await packageDigest(bytes);
   }
@@ -264,12 +270,12 @@ export async function validatePluginPackage(
   }
   const contributes = manifest.contributes as Record<string, unknown>;
   if (
-    Object.keys(contributes).some((key) => key !== "themes") ||
-    !Array.isArray(contributes.themes) ||
-    !contributes.themes.length ||
-    contributes.themes.length > PACKAGE_LIMITS.themes
+    !Object.keys(contributes).length ||
+    Object.keys(contributes).some(
+      (key) => !["themes", "templates", "snippets"].includes(key),
+    )
   )
-    return invalid("当前安装仅开放成对主题资源，其它贡献点尚未开放");
+    return invalid("未开放的贡献点");
   const integrity = manifest.integrity as
     { algorithm: string; files: Record<string, string> } | undefined;
   if (
@@ -284,7 +290,7 @@ export async function validatePluginPackage(
     return invalid("必须完整核验 manifest 之外的全部资源");
   const themes: ThemeResource[] = [],
     used = new Set<string>();
-  for (const entry of contributes.themes) {
+  for (const entry of (contributes.themes ?? []) as unknown[]) {
     if (!object(entry) || typeof entry.resource !== "string")
       return invalid("主题须使用成对资源文件");
     const path = safePackagePath(entry.resource);
@@ -300,6 +306,17 @@ export async function validatePluginPackage(
       return invalid("主题 ID、名称或归属不一致");
     themes.push(resource);
   }
+  const content = parseContentContributions(id, contributes, (path) => {
+    safePackagePath(path);
+    if (
+      path === "manifest.json" ||
+      !/\.(md|txt)$/.test(path) ||
+      !(path in text)
+    )
+      return invalid("正文资源缺失或类型错误");
+    used.add(path);
+    return text[path];
+  });
   if (used.size !== entries.length - 1) return invalid("包中包含未声明资源");
   // The confirmation fingerprint covers manifest bytes as well as all resource bytes; integrity alone is not trust.
   const digest = await packageDigest(
@@ -316,6 +333,7 @@ export async function validatePluginPackage(
     version,
     digest,
     themes,
+    content,
     files: text,
   };
 }

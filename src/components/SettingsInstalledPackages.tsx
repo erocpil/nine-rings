@@ -82,7 +82,7 @@ function PackageConfirmation({
         <p>{candidate.description || "未提供简介"}</p>
         <p>
           本机文件来源，未验证发布者身份。SHA-256
-          只证明内容一致，不证明来源可信。包仅含配色数据，不执行脚本或读取文档；安装及更新后默认停用。
+          只证明内容一致，不证明来源可信。包只含声明式数据，不执行脚本；模板和片段仅在明确调用时向当前可编辑文档插入内容。安装及更新后默认停用。
         </p>
         {previous && (
           <p>
@@ -94,6 +94,13 @@ function PackageConfirmation({
             <li key={theme.id}>
               {theme.name} · {theme.id}
               {theme.typography ? " · 含可选排版建议" : " · 仅配色"}
+            </li>
+          ))}
+          {candidate.content.map((entry) => (
+            <li key={entry.id}>
+              {entry.name} · {entry.kind === "template" ? "插入模板" : "片段"} ·{" "}
+              {entry.id}
+              {entry.trigger ? ` · ${entry.trigger}` : ""}
             </li>
           ))}
         </ul>
@@ -214,7 +221,7 @@ export function SettingsInstalledPackages() {
     >
       <h3>声明式插件包</h3>
       <p className="settings-desc">
-        当前开放成对主题配色。仅本机保存，安装前核验并明确确认；暂不安装脚本、宏、模板或查询扩展。
+        支持成对主题配色、插入模板和文本片段。仅本机保存，安装前核验并明确确认；暂不安装脚本、宏、查询或新建文档模板。
       </p>
       <input
         ref={input}

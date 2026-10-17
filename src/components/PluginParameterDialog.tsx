@@ -90,6 +90,16 @@ export function PluginParameterDialog({
                       </option>
                     ))}
                   </select>
+                ) : field.multiline ? (
+                  <textarea
+                    aria-label={field.label}
+                    value={String(values[field.id])}
+                    required={field.required}
+                    maxLength={field.maxLength}
+                    onChange={(event) =>
+                      setValues({ ...values, [field.id]: event.target.value })
+                    }
+                  />
                 ) : (
                   <input
                     aria-label={field.label}

@@ -9,7 +9,9 @@ export function PluginCommandMenu({
   trigger,
   commands,
   onClose,
+  title = "内置插件",
 }: {
+  title?: string;
   trigger: HTMLElement;
   commands: PluginInvocation[];
   onClose: () => void;
@@ -105,7 +107,9 @@ export function PluginCommandMenu({
   useEffect(() => {
     if (
       form &&
-      commands.find((command) => command.label === form.label)?.disabled
+      !commands.some(
+        (command) => command.label === form.label && !command.disabled,
+      )
     )
       onClose();
   }, [commands, form, onClose]);
@@ -167,11 +171,11 @@ export function PluginCommandMenu({
       ref={root}
       className="editor-context-menu plugin-command-menu"
       role="menu"
-      aria-label="内置插件"
+      aria-label={title}
       style={{ left: position.x, top: position.y }}
       onKeyDown={keyboard}
     >
-      <div className="block-action-menu-title">内置插件</div>
+      <div className="block-action-menu-title">{title}</div>
       {actions.map((action) => (
         <button
           key={action.label}

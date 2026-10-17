@@ -1289,7 +1289,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             )}
 
             <div className={`settings-advanced-main${pluginsEnabled ? " has-plugin-catalog" : ""}`}>
-            <Field label="启用插件功能" desc="默认关闭，仅在本设备生效。关闭会终止插件任务；不影响内置编辑功能。当前插件仍在适配中，第三方安装尚未开放。" visible={settingsPage === "advanced"}>
+            <Field label="启用插件功能" desc="默认关闭，仅在本设备生效。关闭会终止插件任务；不影响内置编辑功能。支持审查后安装声明式主题、插入模板及片段；第三方脚本尚未开放。" visible={settingsPage === "advanced"}>
               <label className="settings-toggle">
                 <input type="checkbox" aria-label="启用插件功能" checked={pluginsEnabled} onChange={event => {
                   try { setPluginsEnabled(event.target.checked); showMessage("已更新"); }

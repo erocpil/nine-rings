@@ -8,10 +8,13 @@ const ajv = new Ajv2020({ allErrors: false, allowUnionTypes: true, code: { sourc
 for (const file of readdirSync(directory).sort()) {
   const schema = JSON.parse(readFileSync(new URL(file, directory), "utf8"));
   if (file === "contributions.schema.json") {
-    // The installed interpreter intentionally exposes only paired themes. Do not
-    // ship megabytes of validators for unopened commands/properties/queries.
+    // Compile only contribution types with a shipped host interpreter.
     schema.$defs.Theme = schema.$defs.Theme.oneOf[1];
-    schema.$defs.Contributes.properties = { themes: { ...schema.$defs.Contributes.properties.themes, minItems: 1, maxItems: 8 } };
+    schema.$defs.Template.properties.usage = { type: "array", items: { const: "insert" }, minItems: 1, maxItems: 1 };
+    schema.$defs.Template.required.push("usage");
+    schema.$defs.Template.properties.target = false;
+    schema.$defs.Template.properties.titlePattern = false;
+    schema.$defs.Contributes.properties = Object.fromEntries(["themes", "templates", "snippets"].map(key => [key, { ...schema.$defs.Contributes.properties[key], minItems: 1, maxItems: key === "themes" ? 8 : 16 }]));
     schema.$defs.Contributes.additionalProperties = false;
   }
   if (file === "manifest.schema.json") {

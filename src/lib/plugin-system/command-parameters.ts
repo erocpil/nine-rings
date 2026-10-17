@@ -7,6 +7,7 @@ export interface ParameterField {
   type: "text" | "number" | "boolean" | "select";
   default: ParameterValue;
   required?: boolean;
+  multiline?: boolean;
   filePicker?: { accept: string; maxBytes: number };
   visibleWhen?: { field: string; equals: ParameterValue };
   maxLength?: number;

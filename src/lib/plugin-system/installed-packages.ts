@@ -1,3 +1,4 @@
+import { contentResources } from "./content-resources";
 import { pluginRuntime } from "./runtime";
 import { pluginLifecycle } from "./lifecycle";
 import { themeResources } from "./theme-resources";
@@ -67,11 +68,24 @@ export function startInstalledPluginPackages() {
               throw Error("已安装插件指纹变化，需要重新审查");
             if (stopped || requested !== revision || !pluginRuntime.isEnabled())
               return;
-            const activation = await pluginLifecycle.activate(data.id, [], {
-              activate(owner) {
-                themeResources.register(owner.activation, data.themes);
+            const activation = await pluginLifecycle.activate(
+              data.id,
+              data.content.length
+                ? [
+                    "editor.selection.read",
+                    "editor.selection.write",
+                    "documents.current.read",
+                  ]
+                : [],
+              {
+                activate(owner) {
+                  if (data.themes.length)
+                    themeResources.register(owner.activation, data.themes);
+                  if (data.content.length)
+                    contentResources.register(owner.activation, data.content);
+                },
               },
-            });
+            );
             if (
               stopped ||
               requested !== revision ||

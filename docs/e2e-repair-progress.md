@@ -1759,3 +1759,11 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - Pull 保存事件/BroadcastChannel 更新轻量摘要；App 启动提示和设置详情均已接入，不自动读取冻结正文、联网或导入。用户核验成功后，只确认相同 generationAfter 的通用恢复记录；损坏/其它代次提示保留。恢复核验不要求网络 Token，仍匹配仓库与路径并等待保存屏障。
 - 新增 16 项宿主链路单元测试，模拟 Git 对象至 PATCH/接受确认、检查点、伪造/不一致备份、确认/保存/连接失败、受限传输、UNKNOWN 拒绝、Pull/相等 API 路由、明确继续与事后观察失败；真实零能力测试补入口/POST/恢复拒绝。完整 check 通过：163 文件 / 1982 项；最终定向 2 文件 / 19 项及完整 typecheck/lint 通过。
 - Chromium/WebKit 各 6 项回归通过，覆盖真实文件核验与重启后证明失效、勾选不能绕过发行门禁、启动只读摘要/零正文读取/零联网、固定提交与发布恢复原流程。构建通过，主包约 477.95 kB，无大包或混合动态导入警告。未执行真实 GitHub 写入、原生 GUI、多端/Flutter 切换或完整产品 E2E；发行能力仍为 0，不能据此宣称正式协议已经开放。
+
+### 2026-10-18：声明式插入模板与片段
+
+- 本机包从成对主题扩展至带参数的插入模板、按视图限定的片段；静态验证器、资源哈希、安装确认及重验继续生效。拒绝尚未实现的新建模板元数据、宏和其它贡献点。
+- 插入复用 SDK 目标/保护/保存修订门禁，保留单次撤销。修复模板参数对话框卸载抢回焦点的问题；停用包时撤回待填写表单，已插入正文保留。新增写作示例及真实 Node 打包验证，文档/备份格式不变。
+- 完整 `npm run check` 通过：189 单元文件 / 2240 项及原有独立检查；最后焦点与界面文案修改后 typecheck/lint、生产构建和 bundle 预算再通过。主包 495.69 kB，无超大 chunk 警告。
+- Chromium/WebKit 分别覆盖 10 个不同用例（plugin-content 3、plugin-packages 3、plugin-parameter-form 4）。最后 3 项模板用例两引擎重跑全过，含手机 390 宽度。最初新用例错误使用桌面新建按钮及未关闭设置已修正；不将重跑重复计数。已有主题安装、图片参数表单与本机图片插入均通过。
+- 日志：`/tmp/nr-content-check.log`、`/tmp/nr-content-chromium-final.log`、`/tmp/nr-content-chromium-complete.log`、`/tmp/nr-content-webkit.log`、`/tmp/nr-content-webkit-final.log`、`/tmp/nr-content-build-final.log`、`/tmp/nr-content-bundle.log`。未执行本批原生 GUI 安装或全产品 E2E；上次推送的远端完整 E2E 仍另行跟踪。

@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 1,
+  "id": "acme.writing",
+  "name": "写作模板与片段",
+  "description": "插入带参数的会议记录和纯文本提示。",
+  "version": "1.0.0",
+  "engines": { "nineRingsPluginApi": "^0.1.0", "app": "^0.3.0" },
+  "contributes": {
+    "templates": [{
+      "id": "meeting", "name": "会议记录", "usage": ["insert"],
+      "variables": [
+        { "name": "topic", "label": "议题", "type": "text", "required": true },
+        { "name": "status", "label": "状态", "type": "choice", "choices": [{ "value": "待讨论", "label": "待讨论" }, { "value": "已确认", "label": "已确认" }] }
+      ],
+      "content": { "format": "markdown", "file": "resources/meeting.md" }
+    }],
+    "snippets": [{ "id": "reminder", "trigger": ";todo", "description": "待办提示", "views": ["render", "source"], "content": { "format": "text", "text": "待办：确认下一步。" } }]
+  }
+}
