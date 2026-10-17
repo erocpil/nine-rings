@@ -1662,6 +1662,29 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     if (editor && !editor.isDestroyed) setSearchHighlights(editor, [], 0);
   }, [editor]);
 
+  // Search navigation belongs to the active visit, not the retained editor.
+  // Clearing decorations must never change document marks or undo history.
+  useEffect(() => {
+    if (!documentActive) closeEditorFind();
+  }, [documentActive, closeEditorFind]);
+
+  useEffect(() => {
+    if (!editor || !documentActive) return;
+    const dismissNavigation = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || event.keyCode === 229
+        || editorFindOpen || searchMatchesRef.current.length === 0
+        || !editor.view.dom.getClientRects().length || editor.view.dom.closest("[inert]")) return;
+      // Foreground menus/dialogs and plugin notices own the first Escape.
+      if ([...document.querySelectorAll('[role="dialog"], [role="menu"], dialog[open], .builtin-plugin-notice')]
+        .some(element => element.getClientRects().length > 0)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeEditorFind();
+    };
+    window.addEventListener("keydown", dismissNavigation, true);
+    return () => window.removeEventListener("keydown", dismissNavigation, true);
+  }, [editor, documentActive, editorFindOpen, closeEditorFind]);
+
   const closeLineJump = useCallback(() => {
     setLineJumpOpen(false);
     setLineJumpError(null);
@@ -4670,12 +4693,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
             <button type="button" onClick={() => revealSearchMatch(activeSearchMatch + 1)} title="下一处匹配" aria-label="下一处匹配">↓</button>
             <button
               type="button"
-              onClick={() => {
-                searchMatchesRef.current = [];
-                setSearchMatches([]);
-                setSearchHighlights(editor, [], 0);
-              }}
-              title="关闭搜索高亮"
+              onClick={closeEditorFind}
+              title="关闭搜索高亮（Esc）"
               aria-label="关闭搜索高亮"
             >×</button>
           </span>

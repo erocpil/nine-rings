@@ -311,3 +311,71 @@ for (const mode of ["编辑", "专注", "只读", "局部只读"] as const) {
     await expectSearchMatchCentered(page);
   });
 }
+
+
+for (const mode of ["editable", "readonly", "virtual"] as const) {
+  test(`全局搜索高亮可 Esc 退出，切换和刷新不残留 ${mode}`, async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".note-editor")).toBeVisible();
+    await page.evaluate(async mode => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api } = await load("/src/lib/api.ts");
+      const { buildTextImportInput } = await load("/src/lib/markdown-import.ts");
+      const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
+      localStorage.setItem("nr:experimentalReadonlyRendering", String(mode === "virtual"));
+      for (const title of ["搜索退出首篇", "搜索退出次篇"]) {
+        const note = await api.notes.create(buildTextImportInput({ fileName: title + ".md", source: "第一处 dismiss-search-token\n\n第二处 dismiss-search-token" }, { mode: "document", storagePath: "ideas", date: "2026-10-17" }));
+        if (mode !== "editable") await api.notes.update(note.id, { readonly: true });
+        if (title === "搜索退出首篇") useNotesStore.getState().selectNote(await api.notes.get(note.id));
+      }
+    }, mode);
+    await page.reload();
+    const expectTitle = async (title: string) => {
+      if (mode === "virtual") await expect(page.locator(".vr-title")).toContainText(title);
+      else await expect(page.locator(".note-title")).toHaveValue(title);
+    };
+    await expectTitle("搜索退出首篇");
+    if (mode === "virtual") await expect(page.locator("[data-virtual-reader=true]")).toBeVisible();
+    const highlights = page.locator(".note-editor .search-match");
+    const openResult = async (title = "搜索退出首篇") => {
+      await page.keyboard.press("ControlOrMeta+Shift+f");
+      await page.locator(".search-input").fill("dismiss-search-token");
+      await page.locator(".search-hit").filter({ hasText: title }).click();
+      await expect.poll(() => highlights.count()).toBeGreaterThan(0);
+    };
+    await openResult();
+    await page.keyboard.press("Alt+,");
+    await expect(page.locator(".settings-panel")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".settings-panel")).toHaveCount(0);
+    await expect.poll(() => highlights.count()).toBeGreaterThan(0);
+    await page.keyboard.press("Escape");
+    await expect(highlights).toHaveCount(0);
+    await expect(page.locator(".editor-search-navigation")).toHaveCount(0);
+
+    await openResult();
+    // Switch normally, without a search target, then revisit the retained editor.
+    for (const title of ["搜索退出次篇", "搜索退出首篇"]) {
+      await page.evaluate(async title => {
+        const load = (path: string) => import(/* @vite-ignore */ path);
+        const { api } = await load("/src/lib/api.ts");
+        const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
+        const notes = await api.notes.all();
+        const note = notes.find((item: { title: string }) => item.title === title);
+        useNotesStore.getState().selectNote(await api.notes.get(note.id));
+      }, title);
+      await expectTitle(title);
+      await expect(highlights).toHaveCount(0);
+    }
+    await openResult();
+    if (mode === "virtual") await page.getByRole("button", { name: "关闭阅读面板", exact: true }).click();
+    else await page.getByRole("button", { name: "关闭搜索高亮", exact: true }).click();
+    await expect(highlights).toHaveCount(0);
+    await openResult();
+    await page.reload();
+    await expectTitle("搜索退出首篇");
+    await expect(page.locator(".note-editor .ProseMirror").first()).toBeVisible();
+    await expect(highlights).toHaveCount(0);
+    await expect(page.locator(".editor-search-navigation")).toHaveCount(0);
+  });
+}

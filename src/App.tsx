@@ -1126,6 +1126,10 @@ function App() {
         requestId: searchRequestIdRef.current,
         options,
       });
+    } else {
+      // A normal tree/list navigation cancels an outstanding search jump too.
+      searchRequestIdRef.current += 1;
+      setEditorSearchTarget(null);
     }
     if (!keepSearch) {
       setSearchExpanded(false);

@@ -428,6 +428,9 @@ export function ReadonlyVirtualNote(
   }, [mobileDrawerViewport, openPreview, dismissPreview]);
   const [query, setQuery] = useState("");
   const [matchIndex, setMatchIndex] = useState(0);
+  useEffect(() => {
+    if (!active) { setQuery(""); setMatchIndex(0); setPanel(null); }
+  }, [active]);
   const matches = useMemo(() => findSearchMatches(doc, query), [doc, query]);
   const [referenceMatch, setReferenceMatch] = useState<SearchMatch | undefined>();
   const activeMatch = referenceMatch ?? matches[matchIndex];
@@ -979,7 +982,7 @@ export function ReadonlyVirtualNote(
   };
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (rootRef.current?.closest("[inert]")) return;
+      if (!active || event.defaultPrevented || rootRef.current?.closest("[inert]")) return;
       if (event.isComposing || event.keyCode === 229) return;
       if (event.target instanceof Element && event.target.closest(".settings-overlay, .block-workspace, .pdf-reader")) return;
       if (isEditorLineJumpKeyEvent(event)) {
@@ -1005,6 +1008,14 @@ export function ReadonlyVirtualNote(
         openPanel("search");
       }
       if (event.key === "Escape") {
+        if ([...document.querySelectorAll('[role="dialog"], [role="menu"], dialog[open], .builtin-plugin-notice')]
+          .some(element => element.getClientRects().length > 0)) return;
+        if (query) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          setQuery("");
+          setMatchIndex(0);
+        }
         setPanel(null);
         if (blockJumpValue !== null) {
           event.preventDefault();
@@ -1030,7 +1041,7 @@ export function ReadonlyVirtualNote(
     };
     window.addEventListener("keydown", keydown, true);
     return () => window.removeEventListener("keydown", keydown, true);
-  }, [openPanel, capture, noteId, onFallback, blockJumpValue, doc]);
+  }, [active, query, openPanel, capture, noteId, onFallback, blockJumpValue, doc]);
   const lastDoubleFold = useRef<{ time: number; number: number } | null>(null);
   const tap = useRef<{
     pos: number;
@@ -1139,6 +1150,7 @@ export function ReadonlyVirtualNote(
               className="vr-panel-close"
               aria-label="关闭阅读面板"
               onClick={() => {
+                if (kind === "search") { setQuery(""); setMatchIndex(0); }
                 if (!mobileDrawerViewport && kind !== "search" && desktopPanels.pinned(kind === "outline" ? "outline" : "bookmark")) togglePinnedPanel(kind === "outline" ? "outline" : "bookmark");
                 else { setPanel(null); dismissPreview(); }
               }}
