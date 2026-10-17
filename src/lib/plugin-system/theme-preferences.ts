@@ -10,7 +10,7 @@ const CHANGE = "nr:plugin-theme-change";
 export const DEFAULT_THEME_PREFERENCE: Readonly<ThemePreference> =
   Object.freeze({
     enabled: false,
-    themeId: `${THEME_PLUGIN_ID}/paper`,
+    themeId: "follow",
     typography: false,
   });
 function validate(value: unknown): ThemePreference {
@@ -25,7 +25,8 @@ function validate(value: unknown): ThemePreference {
     typeof v.enabled !== "boolean" ||
     typeof v.typography !== "boolean" ||
     typeof v.themeId !== "string" ||
-    !/^[a-z][a-z0-9.-]{0,95}\/[a-z][a-z0-9-]{0,47}$/.test(v.themeId)
+    (v.themeId !== "follow" &&
+      !/^[a-z][a-z0-9.-]{0,95}\/[a-z][a-z0-9-]{0,47}$/.test(v.themeId))
   )
     throw Error("主题偏好无效");
   // Missing resources retain their identity and fall back; never silently select another theme.
@@ -61,4 +62,24 @@ export function subscribeThemePreference(listener: () => void) {
 export function saveThemePreference(value: ThemePreference) {
   localStorage.setItem(THEME_SETTINGS_KEY, JSON.stringify(validate(value)));
   window.dispatchEvent(new Event(CHANGE));
+}
+
+/** Follow preserves classic named palettes; other styles resolve only known builtin IDs. */
+export function resolveThemeResourceId(
+  themeId: string,
+  style: string | undefined,
+): string | null {
+  if (themeId !== "follow") return themeId;
+  if (style === "calm-compact") style = "calm";
+  return [
+    "paper",
+    "calm",
+    "minimal",
+    "nine-rings",
+    "mono-aware",
+    "yugen",
+    "wabi-sabi",
+  ].includes(style ?? "")
+    ? `${THEME_PLUGIN_ID}/${style}`
+    : null;
 }

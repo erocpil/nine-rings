@@ -28,6 +28,7 @@ export function SettingsThemeResources({
         !BUILTIN_THEME_RESOURCES.some((value) => value.id === theme.id),
     ),
   ];
+  const following = preference.themeId === "follow";
   const selected = available.find((theme) => theme.id === preference.themeId);
   const save = (patch: Partial<typeof preference>) => {
     try {
@@ -48,9 +49,10 @@ export function SettingsThemeResources({
           value={preference.themeId}
           onChange={(event) => save({ themeId: event.target.value })}
         >
-          {!selected && (
+          {!selected && !following && (
             <option value={preference.themeId}>主题不可用（保留选择）</option>
           )}
+          <option value="follow">跟随当前内置风格</option>
           {available.map((theme) => (
             <option key={theme.id} value={theme.id}>
               {theme.name}
@@ -58,9 +60,14 @@ export function SettingsThemeResources({
           ))}
         </select>
       </Field>
-      {!selected && (
+      {!selected && !following && (
         <p role="status" className="settings-desc">
           所选资源缺失，当前使用原风格；资源恢复后可继续使用，无需重设偏好。
+        </p>
+      )}
+      {following && (
+        <p className="settings-desc">
+          配色随界面风格切换；经典保留原有命名主题。仅明确选择其它配色时覆盖，布局和用户排版保持原设置。
         </p>
       )}
       {selected && (

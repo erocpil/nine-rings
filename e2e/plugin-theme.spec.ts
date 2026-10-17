@@ -36,17 +36,19 @@ for (const width of [390, 1280]) {
     await advanced(page);
     await page.getByRole("checkbox", { name: "启用插件功能", exact: true }).check();
     const list = page.getByRole("complementary", { name: "插件列表", exact: true });
-    const enabled = list.getByRole("checkbox", { name: "启用风格主题", exact: true });
+    const enabled = list.getByRole("checkbox", { name: "启用主题配色", exact: true });
     await expect(enabled).not.toBeChecked();
     await enabled.check();
-    await expect(page.locator("html")).toHaveAttribute("data-plugin-theme", paper);
-    await expect.poll(() => color(page)).toBe("#f8f2e5");
-    await list.getByRole("button", { name: "风格主题", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "风格主题配置", exact: true });
+    await expect(page.locator("html")).toHaveAttribute("data-plugin-theme", "nine-rings.builtin-theme/yugen");
+    await expect.poll(() => color(page)).toBe("#f2f5f6");
+    await list.getByRole("button", { name: "主题配色", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "主题配色配置", exact: true });
+    await expect(dialog.getByRole("combobox", { name: "配色资源", exact: true })).toHaveValue("follow");
+    await dialog.getByRole("combobox", { name: "配色资源", exact: true }).selectOption(paper);
     await expect(dialog.locator(".plugin-theme-preview")).toHaveCount(2);
     await expect(dialog).toContainText("无需文档读写权限");
     const paletteSelect = dialog.getByRole("combobox", { name: "配色资源", exact: true });
-    await expect(paletteSelect.locator("option")).toHaveCount(7);
+    await expect(paletteSelect.locator("option")).toHaveCount(8);
     for (const [id, light, dark] of [
       ["paper", "#f8f2e5", "#1b1b1b"], ["calm", "#e8f0e3", "#202c23"],
       ["minimal", "#fafafa", "#202226"], ["nine-rings", "#f0ebf5", "#37313f"],
@@ -98,10 +100,9 @@ test("主题配置跨窗口同步，资源缺失保留选择并回退", async ({
   await expect(page.locator(".note-editor")).toBeVisible();
   await advanced(page);
   await page.getByRole("checkbox", { name: "启用插件功能", exact: true }).check();
-  await page.getByRole("checkbox", { name: "启用风格主题", exact: true }).check();
-  await expect(page.locator("html")).toHaveAttribute("data-plugin-theme", paper);
-  await page.getByRole("button", { name: "风格主题", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "风格主题配置", exact: true });
+  await page.getByRole("checkbox", { name: "启用主题配色", exact: true }).check();
+  await page.getByRole("button", { name: "主题配色", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "主题配色配置", exact: true });
   const peer = await context.newPage();
   try {
     await peer.goto("/");
@@ -126,12 +127,16 @@ test("经典命名深色主题使用对应资源变体且保留排版与宿主�
   const config = await page.evaluate(() => localStorage.getItem("nine_rings_config"));
   await advanced(page);
   await page.getByRole("checkbox", { name: "启用插件功能", exact: true }).check();
-  await page.getByRole("checkbox", { name: "启用风格主题", exact: true }).check();
+  await page.getByRole("checkbox", { name: "启用主题配色", exact: true }).check();
+  await expect.poll(() => color(page)).toBe(original);
+  await page.getByRole("button", { name: "主题配色", exact: true }).click();
+  await page.getByRole("combobox", { name: "配色资源", exact: true }).selectOption(paper);
+  await page.getByRole("button", { name: "关闭插件配置", exact: true }).click();
   await expect.poll(() => color(page)).toBe("#1b1b1b");
   await expect(page.locator("html")).toHaveClass(/theme-nord/);
   await expect(page.locator(".ProseMirror")).toHaveCSS("font-size", "22px");
   expect(await page.evaluate(() => localStorage.getItem("nine_rings_config"))).toBe(config);
-  await page.getByRole("checkbox", { name: "启用风格主题", exact: true }).uncheck();
+  await page.getByRole("checkbox", { name: "启用主题配色", exact: true }).uncheck();
   await expect.poll(() => color(page)).toBe(original);
 });
 
@@ -166,9 +171,10 @@ test("主题排版建议重测局部只读长文档，保留视口与原文", as
   });
   await advanced(page);
   await page.getByRole("checkbox", { name: "启用插件功能", exact: true }).check();
-  await page.getByRole("checkbox", { name: "启用风格主题", exact: true }).check();
-  await page.getByRole("button", { name: "风格主题", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "风格主题配置", exact: true });
+  await page.getByRole("checkbox", { name: "启用主题配色", exact: true }).check();
+  await page.getByRole("button", { name: "主题配色", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "主题配色配置", exact: true });
+  await dialog.getByRole("combobox", { name: "配色资源", exact: true }).selectOption(paper);
   const typography = dialog.getByRole("checkbox", { name: "使用主题排版建议", exact: true });
   for (const checked of [true, false, true]) {
     await typography.setChecked(checked);
@@ -181,7 +187,7 @@ test("主题排版建议重测局部只读长文档，保留视口与原文", as
   await page.getByRole("button", { name: "源码", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Markdown 源码", exact: true })).toBeVisible();
   await advanced(page);
-  await page.getByRole("button", { name: "风格主题", exact: true }).click();
+  await page.getByRole("button", { name: "主题配色", exact: true }).click();
   await dialog.getByRole("checkbox", { name: "使用主题排版建议", exact: true }).uncheck();
   await dialog.getByRole("button", { name: "关闭插件配置", exact: true }).click();
   await page.getByRole("button", { name: "关闭设置", exact: true }).click();

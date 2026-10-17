@@ -799,7 +799,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </div>
             )}
 
-            <Field label="界面风格" desc={activeThemeResource ? `当前配色由风格主题插件提供：${activeThemeResource.name}；风格仍决定布局和装饰。可在高级设置的插件列表更换或停用配色。` : "各风格保留自己的配色；经典排版和非经典风格排版分别保存"} visible={settingsPage === "appearance"}>
+            <Field label="界面风格" desc={activeThemeResource ? `当前配色由主题配色插件提供：${activeThemeResource.name}；风格仍决定布局和装饰。可在高级设置的插件列表更换或停用配色。` : "各风格保留自己的配色；经典排版和非经典风格排版分别保存"} visible={settingsPage === "appearance"}>
               <div className={`interface-style-options${mobileSettingsViewport ? "" : " interface-style-options-desktop"}`}>
                 {INTERFACE_STYLES.map(style => <button key={style.value} type="button" className="interface-style-option" aria-pressed={(config.interface_style === "calm-compact" ? "calm" : normalizeInterfaceStyle(config.interface_style)) === style.value} onClick={() => update({ interface_style: style.value })}>
                   <span className={`interface-style-preview preview-${style.value}`} aria-hidden="true"><i /><span><b /><i /><i /><em /></span></span>

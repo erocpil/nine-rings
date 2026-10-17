@@ -219,7 +219,7 @@ function host() {
   const media = Object.assign(new EventTarget(), { matches: false });
   let mutation = () => {};
   const root = {
-    dataset: {} as Record<string, string>,
+    dataset: { interfaceStyle: "paper" } as Record<string, string>,
     classList: { contains: (name: string) => classes.has(name) },
     style: {
       getPropertyValue: (key: string) => properties.get(key)?.value ?? "",
@@ -368,4 +368,26 @@ it("handles cross-window missing/corrupt preferences and rapid toggles; manual s
   storage();
   expect(h.root.dataset.pluginTheme).toBeUndefined();
   await vi.waitFor(() => expect(themeResources.getSnapshot()).toHaveLength(0));
+});
+
+it("follows the host style without disturbing classic palettes or losing an explicit override", async () => {
+  const h = host();
+  pluginRuntime.setEnabled(true);
+  stop = startBuiltinThemes();
+  saveThemePreference({ ...DEFAULT_THEME_PREFERENCE, enabled: true });
+  await vi.waitFor(() => expect(h.root.dataset.pluginTheme).toBe(paper.id));
+  h.root.dataset.interfaceStyle = "calm-compact";
+  h.mutation();
+  expect(h.root.dataset.pluginTheme).toBe(`${THEME_PLUGIN_ID}/calm`);
+  h.root.dataset.interfaceStyle = "classic";
+  h.mutation();
+  expect(h.root.dataset.pluginTheme).toBeUndefined();
+  expect(h.root.style.getPropertyValue("--bg")).toBe("");
+  saveThemePreference({ ...readThemePreference(), themeId: paper.id });
+  expect(h.root.dataset.pluginTheme).toBe(paper.id);
+  h.root.dataset.interfaceStyle = "yugen";
+  h.mutation();
+  expect(h.root.dataset.pluginTheme).toBe(paper.id);
+  saveThemePreference({ ...readThemePreference(), themeId: "follow" });
+  expect(h.root.dataset.pluginTheme).toBe(`${THEME_PLUGIN_ID}/yugen`);
 });

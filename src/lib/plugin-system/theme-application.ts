@@ -5,6 +5,7 @@ import {
 } from "../reading-position";
 import {
   readThemePreference,
+  resolveThemeResourceId,
   subscribeThemePreference,
 } from "./theme-preferences";
 import { themeResources, type ThemeResource } from "./theme-resources";
@@ -87,9 +88,11 @@ export function startThemeApplication() {
   };
   const update = () => {
     const preference = readThemePreference();
-    const theme = preference.enabled
-      ? themeResources.get(preference.themeId)
-      : null;
+    const id = resolveThemeResourceId(
+      preference.themeId,
+      root.dataset.interfaceStyle,
+    );
+    const theme = preference.enabled && id ? themeResources.get(id) : null;
     // Keep the host's theme class authoritative, including classic named dark themes.
     const dark = [
       "theme-dark",
@@ -136,7 +139,10 @@ export function startThemeApplication() {
   const unsubscribeResources = themeResources.subscribe(update);
   const unsubscribePreference = subscribeThemePreference(update);
   const observer = new MutationObserver(update);
-  observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+  observer.observe(root, {
+    attributes: true,
+    attributeFilter: ["class", "data-interface-style"],
+  });
   compact.addEventListener("change", update);
   update();
   return () => {
