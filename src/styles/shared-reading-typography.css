@@ -199,7 +199,52 @@ html[data-interface-style] .editor-content blockquote,
 html[data-interface-style] .editor-content blockquote.blockquote-wrap {
   border-left: 2px solid var(--accent);
 }
-html[data-interface-style] .editor-content blockquote:is([data-alert="WARNING"], [data-alert="CAUTION"]),
-html[data-interface-style] .editor-content blockquote.blockquote-wrap:is([data-alert="WARNING"], [data-alert="CAUTION"]) {
-  border-left-color: var(--color-danger, #b66b53);
+/* Shared quote surface: body typography remains configurable; only labels carry
+   semantic color. Do not position editable ancestors (WebKit IME). */
+html[data-interface-style] .editor-content blockquote {
+  --quote-body-inset: 16px;
+  --quote-alert-ink: var(--accent);
+  --quote-resting-background: color-mix(in srgb, var(--text) 3.5%, var(--bg));
+  background: var(--quote-resting-background);
+  color: var(--text);
+  padding-inline: var(--quote-body-inset);
 }
+html[data-interface-style] .editor-content blockquote.blockquote-wrap { padding-inline: 0; }
+html[data-interface-style] .editor-content .blockquote-content {
+  padding-inline: var(--quote-body-inset, 16px);
+}
+html[data-interface-style] .editor-content blockquote blockquote { --quote-body-inset: 10px; }
+html[data-interface-style] .editor-content blockquote[data-alert="NOTE"] { --quote-alert-ink: var(--quote-alert-note, var(--accent)); --quote-alert-caption: "ⓘ 提示"; }
+html[data-interface-style] .editor-content blockquote[data-alert="TIP"] { --quote-alert-ink: var(--quote-alert-tip, var(--accent)); --quote-alert-caption: "◇ 建议"; }
+html[data-interface-style] .editor-content blockquote[data-alert="IMPORTANT"] { --quote-alert-ink: var(--quote-alert-important, var(--accent)); --quote-alert-caption: "❖ 重要"; }
+html[data-interface-style] .editor-content blockquote[data-alert="WARNING"] { --quote-alert-ink: var(--quote-alert-warning, var(--accent)); --quote-alert-caption: "⚠ 警告"; }
+html[data-interface-style] .editor-content blockquote[data-alert="CAUTION"] { --quote-alert-ink: var(--quote-alert-caution, var(--accent)); --quote-alert-caption: "! 风险"; }
+html[data-interface-style] .editor-content blockquote:is([data-alert="NOTE"], [data-alert="TIP"], [data-alert="IMPORTANT"], [data-alert="WARNING"], [data-alert="CAUTION"]) {
+  border-left-color: var(--quote-alert-ink);
+  --quote-resting-background: color-mix(in srgb, var(--quote-alert-ink) 3.5%, var(--bg));
+  background: var(--quote-resting-background);
+}
+html[data-interface-style] .editor-content blockquote[data-alert] :is(.blockquote-toolbar > .structured-block-symbol, .blockquote-toolbar > .structured-block-caption) { color: var(--quote-alert-ink); }
+html[data-interface-style] .editor-content blockquote[data-alert]:not(:has(> .blockquote-toolbar)):not(:has(> .blockquote-node-view))::before {
+  content: var(--quote-alert-caption, none);
+  display: block;
+  color: var(--quote-alert-ink);
+  font-weight: 600;
+}
+/* The selected quote replaces its resting surface with the shared current-block
+   color. Virtual reading wraps the same block in a decorated vr-block. */
+html[data-interface-style] .editor-content blockquote.ProseMirror-activeline,
+html[data-interface-style] .editor-content .vr-block.ProseMirror-activeline > blockquote {
+  background: color-mix(in srgb, var(--activeline-bg) 55%, transparent);
+}
+html[data-interface-style] .editor-content blockquote.ProseMirror-activeline .ProseMirror-activeline { background: transparent; }
+html[data-interface-style] .no-active-line .editor-content blockquote.ProseMirror-activeline,
+html[data-interface-style] .no-active-line .editor-content .vr-block.ProseMirror-activeline > blockquote {
+  background: var(--quote-resting-background);
+}
+@media (max-width: 768px) {
+  html[data-interface-style] .editor-content blockquote { --quote-body-inset: 12px; }
+  html[data-interface-style] .editor-content blockquote blockquote { --quote-body-inset: 8px; }
+}
+
+html[data-interface-style] .editor-content .vr-block.ProseMirror-activeline:has(> blockquote) { background: transparent; }

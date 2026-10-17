@@ -6,7 +6,7 @@ const source = "## 明确问题\n\n*目的：明确边界。*\n\n- 操作一\n- 
 
 for (const width of [1280, 390]) {
   test(`flow 块连续主线、折叠及源码预览保持一致 ${width}`, async ({ page }, testInfo) => {
-    await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "paper" })));
+    await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "paper", editor_show_line_numbers: true })));
     await createBlankDocument(page, "流程块回归");
     const editor = page.locator(".note-editor .ProseMirror").first();
     await editor.evaluate((element, text) => {
@@ -18,6 +18,7 @@ for (const width of [1280, 390]) {
       ] }, true);
     }, source);
     await waitForSavedText(page, "引用说明");
+    await expect(page.locator('.editor-block-number[data-block-format="Flow"]')).toHaveCount(1);
     await page.setViewportSize({ width, height: 850 });
     if (width < 769) {
       await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 400 } });

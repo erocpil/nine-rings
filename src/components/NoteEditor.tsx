@@ -3063,7 +3063,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       })
   ), [documentOutline, headingSectionByPosition, outlineCollapsedHeadingKeys, outlineVisibleHeadingPositions]);
 
-  const documentHover = useDocumentHoverPreview(() => editor?.state.doc ?? null);
+  const documentHover = useDocumentHoverPreview(() => editor?.state.doc ?? null, editor && !editor.isDestroyed ? editor.view.dom : null);
   const presentationLevel = flowHeadingLevel(content.metadata);
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;

@@ -1,3 +1,4 @@
+import { SettingsQuoteAlerts } from "./SettingsQuoteAlerts";
 import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
 import { useFocusTabs, saveFocusTabs } from "../lib/focus-tabs";
@@ -896,6 +897,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 <span><strong>层次展示</strong><small>路径与目录各自设置关闭、默认配色或自定义</small></span>
                 <span className="editor-appearance-entry-action">打开层次设置 →</span>
               </button>
+            </Field>
+
+            <Field label="提示引用配色" desc="五种提示自动适配主题并检查对比度；颜色冲突时可改为跟随风格。" visible={settingsPage === "appearance"}>
+              {settingsPage === "appearance" && <SettingsQuoteAlerts onMessage={showMessage} />}
             </Field>
 
             <Field label="布局设置" desc="调整分栏位置、阅读面板排列、顺序与宽度" visible={settingsPage === "appearance"}>

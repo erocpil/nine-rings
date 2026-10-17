@@ -1,3 +1,4 @@
+import { fencedBlockLabel } from "../lib/block-format-label";
 import { EditorFoldIcon } from "./EditorFoldIcon";
 import { BlockNumber } from "./BlockNumber";
 import { useRelativeNumbering } from "../hooks/useRelativeNumbering";
@@ -20,6 +21,7 @@ import {
 } from "../extensions/HeadingFold";
 
 interface GutterBlock {
+  id: number;
   index: number;
   pos: number;
   endPos: number;
@@ -107,7 +109,7 @@ function firstLineTextCenter(
 }
 
 function blockFormat(typeName: string, attrs: Readonly<Record<string, unknown>>): string {
-  if (typeName === "codeBlock" && attrs.language === "toc") return "TOC";
+  if (typeName === "codeBlock") return fencedBlockLabel(attrs.language);
   if (typeName === "heading") return `H${attrs.level ?? "?"}`;
 
   return {
@@ -205,6 +207,10 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
     const layoutIndexByPosition = new Map<number, number>();
     const observedIndexes = new Map<HTMLElement, number>();
     const measuredBlocks = new Map<HTMLElement, GutterBlock>();
+    // Document offsets shift on each keystroke; DOM identity survives those
+    // edits and keeps number controls mounted (including hover/touch state).
+    const blockIds = new WeakMap<HTMLElement, number>();
+    let nextBlockId = 0;
     const layoutElements = new Set<HTMLElement>();
 
     const publishBlocks = () => {
@@ -251,7 +257,10 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       const section = node.type.name === "heading"
         ? headingSectionAtPosition(extractHeadingSections(editor.state.doc), pos)
         : null;
+      let id = blockIds.get(dom);
+      if (id === undefined) { id = ++nextBlockId; blockIds.set(dom, id); }
       return {
+        id,
         index,
         pos,
         endPos: pos + node.nodeSize,
@@ -577,7 +586,18 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
         // 直到收起键盘触发布局刷新才恢复。普通块内输入仍走节流测量，
         // 不为每个字符重建整份文档的观察窗口。
         if (editor.state.doc.childCount !== topLevelBlocks.length) scheduleRebuild();
-        else scheduleDocumentMeasure();
+        else {
+          // Keep event targets and active ranges current during the throttled
+          // geometry pass; stale ranges can briefly highlight the next number.
+          for (const [dom, block] of measuredBlocks) {
+            measuredBlocks.set(dom, { ...block,
+              pos: transaction.mapping.map(block.pos, 1),
+              endPos: transaction.mapping.map(block.endPos, -1),
+            });
+          }
+          updateActiveBlock();
+          scheduleDocumentMeasure();
+        }
       } else {
         updateActiveBlock();
       }
@@ -682,7 +702,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
             ? Math.max(0, nextBlock.top - block.bottom)
             : block.marginBottom;
           return {
-            key: `after-${block.pos}`,
+            key: `after-${block.id}`,
             blockIndex: block.index,
             adjacent: hoveredBlockIndex === block.index || hoveredBlockIndex === nextBlock?.index,
             pos: block.endPos,
@@ -786,7 +806,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
     >
       {selectedBlockIndexes.length > 0 && onBlockSelect && blocks.map((block) => (
         <button
-          key={`select-${block.pos}`}
+          key={`select-${block.id}`}
           type="button"
           className={`editor-block-select${blockIsSelected(block) ? " selected" : ""}`}
           style={{ top: block.firstLineCenter }}
@@ -805,7 +825,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
         </button>
       ))}
       {!selectingBlocks && !showNumbers && onBlockMenu && blocks.map(block => (
-        <button key={`menu-${block.pos}`} type="button" className="editor-block-menu-target"
+        <button key={`menu-${block.id}`} type="button" className="editor-block-menu-target"
           style={{ top: block.top, height: Math.max(24, block.bottom - block.top) }}
           data-block-index={block.index} aria-label={`第 ${block.index} 块操作`} aria-haspopup="menu"
           onMouseDown={event => event.preventDefault()}
@@ -816,7 +836,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       ))}
       {!selectingBlocks && showNumbers && blocks.map((block) => (
         <BlockNumber
-          key={`number-${block.pos}`}
+          key={`number-${block.id}`}
           className={`${relativeBlockNumbers && block.index === currentNumber ? `relative-current${relativeBlockNumberAlignment === "right" ? " relative-current-right" : ""}` : ""} ${(relativeBlockNumbers ? block.index === currentNumber : block.active) ? "active" : ""} ${blockHasBookmark(block) ? "bookmarked" : ""} ${block.index === highlightedBlockIndex ? "bookmark-jump-gutter" : ""}`}
           style={{ top: block.firstLineCenter }}
           number={block.index} format={block.format}
@@ -826,7 +846,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       ))}
       {!selectingBlocks && !showNumbers && blocks.filter(blockHasBookmark).map((block) => (
         <span
-          key={`bookmark-${block.pos}`}
+          key={`bookmark-${block.id}`}
           className={`editor-block-bookmark without-number ${block.index === highlightedBlockIndex ? "bookmark-jump-gutter" : ""}`}
           style={{ top: block.firstLineCenter }}
           aria-hidden="true"
@@ -839,7 +859,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
         if (!host?.isConnected) return null;
         return createPortal(
         <button
-          key={`fold-${block.pos}`}
+          key={`fold-${block.id}`}
           type="button"
           className={`editor-heading-fold ${block.folded ? "folded" : ""}`}
           aria-label={`${block.folded ? "展开" : "折叠"}第 ${block.index} 块章节`}

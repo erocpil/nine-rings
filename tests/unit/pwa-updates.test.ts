@@ -69,6 +69,40 @@ describe("PWA update lifecycle", () => {
     vi.unstubAllGlobals();
   });
 
+  it("shows real resource completion and bytes only from the active installer", async () => {
+    const worker = new Worker();
+    registration.installing = worker;
+    start();
+    await settle();
+    expect(worker.postMessage).toHaveBeenCalledWith({
+      type: "GET_INSTALL_PROGRESS",
+    });
+    const report = (source: Worker, data: unknown) => {
+      const event = new MessageEvent("message", { data });
+      Object.defineProperty(event, "source", { value: source });
+      container.dispatchEvent(event);
+    };
+    const progress = {
+      type: "PWA_INSTALL_PROGRESS",
+      completed: 3,
+      total: 8,
+      bytes: 1048576,
+    };
+    report(new Worker(), progress);
+    expect(status.progress).toBeNull();
+    report(worker, progress);
+    expect(pwaUpdateStatusText(status)).toContain(
+      "37%（3/8 项，已下载 1.0 MB）",
+    );
+    report(worker, { ...progress, completed: 9 });
+    expect(status.progress?.completed).toBe(3);
+    installed(worker);
+    await settle();
+    expect(pwaUpdateStatusText(status)).toContain("新版本已就绪");
+    report(worker, { ...progress, completed: 4 });
+    expect(status.progress?.completed).toBe(3);
+  });
+
   it("observes an installer that predates register resolution", async () => {
     const worker = new Worker();
     registration.installing = worker;
@@ -102,7 +136,9 @@ describe("PWA update lifecycle", () => {
     });
     const apply = updater.apply();
     await settle();
-    expect(worker.postMessage).not.toHaveBeenCalled();
+    expect(worker.postMessage).not.toHaveBeenCalledWith({
+      type: "SKIP_WAITING",
+    });
     installed(worker);
     await settle();
     expect(worker.postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" });
@@ -335,7 +371,9 @@ describe("PWA update lifecycle", () => {
       error: null,
     });
     expect(browser.location.reload).not.toHaveBeenCalled();
-    expect(latest.postMessage).not.toHaveBeenCalled();
+    expect(latest.postMessage).not.toHaveBeenCalledWith({
+      type: "SKIP_WAITING",
+    });
   });
 
   it("applies the latest waiting worker after an in-flight download rather than activating the older release", async () => {

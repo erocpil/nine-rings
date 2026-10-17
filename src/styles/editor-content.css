@@ -759,3 +759,9 @@
 [data-document-readonly="true"] { --document-state-color: var(--document-readonly-color); }
 [data-document-readonly="false"] { --document-state-color: var(--document-editable-color); }
 [data-document-readonly] .toolbar-icon { color: var(--document-state-color); }
+
+.nr-link-hover-actions { pointer-events: auto; }
+.nr-link-hover-actions .nr-link-preview-address { display: block; max-height: 140px; overflow: auto; }
+.nr-link-hover-actions button { display: block; margin-top: 8px; border: 1px solid var(--border); border-radius: 5px; padding: 4px 10px; background: var(--hover-bg); color: var(--accent); font: inherit; cursor: pointer; }
+.nr-link-hover-actions button:hover { background: var(--active-bg); }
+.nr-link-hover-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

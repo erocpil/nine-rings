@@ -1,8 +1,26 @@
+import { markPasteRule } from "@tiptap/core";
 import Link from "@tiptap/extension-link";
 import { Plugin } from "@tiptap/pm/state";
-import { bareLinkParts, CJK_LINK_BOUNDARY, malformedBareLink } from "../lib/bare-autolinks";
+import { bareLinkParts, CJK_LINK_BOUNDARY, malformedBareLink, shouldAutoLinkText } from "../lib/bare-autolinks";
 /** Link titles must survive editor hydration and Markdown export. */
 export const DocumentLink = Link.extend({
+  addOptions() {
+    return { ...this.parent?.(), shouldAutoLink: shouldAutoLinkText };
+  },
+  addPasteRules() {
+    return [markPasteRule({
+      type: this.type,
+      find: text => {
+        let index = 0;
+        return bareLinkParts(text).flatMap(part => {
+          const start = index;
+          index += part.text.length;
+          return part.href ? [{ text: part.text, index: start, data: { href: part.href } }] : [];
+        });
+      },
+      getAttributes: match => ({ href: match.data?.href }),
+    })];
+  },
   addAttributes() {
     return { ...this.parent?.(), title: { default: null }, explicit: { default: false, rendered: false, parseHTML: () => true } };
   },

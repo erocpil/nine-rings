@@ -1,7 +1,7 @@
 const KEY = "nr:codeBlockHeightPercent";
 const EVENT = "nine-rings:block-display-change";
 export const BLOCK_WORKSPACE_DISPLAY_EVENT = "nine-rings:block-workspace-display-change";
-export type WorkspacePreferences = { mermaidDisplay?: "fit" | "scroll"; fontSize?: number; tabSize?: number; whitespace?: "off" | "all" | "abnormal"; lineNumbers?: boolean; wrap?: boolean; listFollowupIndent?: boolean; statusBarInFocus?: boolean; sourceMicroRendering?: boolean; sourceSyntaxHighlighting?: boolean; relativeBlockNumbers?: boolean; relativeSourceLineNumbers?: boolean; relativeBlockNumberAlignment?: "left" | "right"; relativeSourceLineNumberAlignment?: "left" | "right" };
+export type WorkspacePreferences = { quoteAlertColors?: "semantic" | "style"; mermaidDisplay?: "fit" | "scroll"; fontSize?: number; tabSize?: number; whitespace?: "off" | "all" | "abnormal"; lineNumbers?: boolean; wrap?: boolean; listFollowupIndent?: boolean; statusBarInFocus?: boolean; sourceMicroRendering?: boolean; sourceSyntaxHighlighting?: boolean; relativeBlockNumbers?: boolean; relativeSourceLineNumbers?: boolean; relativeBlockNumberAlignment?: "left" | "right"; relativeSourceLineNumberAlignment?: "left" | "right" };
 const WORKSPACE_KEY = "nr:blockWorkspaceDisplay";
 const CODE_LINE_NUMBERS_KEY = "nr:codeLineNumbers";
 export function codeLineNumbersEnabled(): boolean {
@@ -19,6 +19,7 @@ export function blockWorkspacePreferences(): WorkspacePreferences {
     const parsed: unknown = JSON.parse(localStorage.getItem(WORKSPACE_KEY) ?? "{}");
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return preferences;
     const value = parsed as Record<string, unknown>;
+    if (value.quoteAlertColors === "semantic" || value.quoteAlertColors === "style") preferences.quoteAlertColors = value.quoteAlertColors;
     if (typeof value.fontSize === "number" && value.fontSize >= 12 && value.fontSize <= 32) preferences.fontSize = value.fontSize;
     if (typeof value.tabSize === "number" && Number.isInteger(value.tabSize) && value.tabSize >= 1 && value.tabSize <= 16) preferences.tabSize = value.tabSize;
     if (value.whitespace === "off" || value.whitespace === "all" || value.whitespace === "abnormal") preferences.whitespace = value.whitespace;

@@ -3,6 +3,7 @@ import { withTimeout } from "./async";
 
 export interface PwaUpdateStatus {
   phase?: "idle" | "checking" | "installing" | "ready" | "up-to-date" | "error";
+  progress?: { completed: number; total: number; bytes: number } | null;
   checking: boolean;
   available: boolean;
   checked: boolean;
@@ -14,7 +15,12 @@ export function pwaUpdateStatusText(status: PwaUpdateStatus): string {
   if (status.error) return status.available
     ? `已下载版本仍可保存并刷新；${status.error}`
     : status.error;
-  if (status.phase === "installing") return "正在下载并安装新版，请保持联网";
+  if (status.phase === "installing") {
+    const progress = status.progress;
+    return progress
+      ? `正在下载并安装新版：${Math.floor(progress.completed / progress.total * 100)}%（${progress.completed}/${progress.total} 项，已下载 ${(progress.bytes / 1024 / 1024).toFixed(1)} MB），请保持联网`
+      : "正在下载并安装新版，请保持联网";
+  }
   if (status.checking) return status.available ? "正在检查后续新版，已下载版本仍保留" : "正在检查新版，请保持联网";
   if (status.available) return "新版本已就绪，保存本机改动后即可刷新";
   if (status.checked) return "未发现待安装的新版本";
@@ -96,6 +102,8 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
     const worker = registration?.installing;
     if (!worker || watched.has(worker)) return;
     watched.add(worker);
+    publish({ progress: null });
+    worker.postMessage({ type: "GET_INSTALL_PROGRESS" });
     reconcile();
     listen(worker, "statechange", () => {
       reconcile();
@@ -107,6 +115,14 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
   const onInstallMessage = (event: MessageEvent) => {
     const worker = event.source as ServiceWorker | null;
     if (!worker || (worker !== registration?.installing && !watched.has(worker))) return;
+    if (event.data?.type === "PWA_INSTALL_PROGRESS") {
+      if (worker !== registration?.installing) return;
+      const { completed, total, bytes } = event.data;
+      if ([completed, total, bytes].every(Number.isSafeInteger) && total > 0 && completed >= 0 && completed <= total && bytes >= 0) {
+        publish({ progress: { completed, total, bytes } });
+      }
+      return;
+    }
     if (event.data?.type !== "PWA_INSTALL_FAILED" || typeof event.data.details !== "string") return;
     installerFailures.set(worker, event.data.details);
     // Message delivery and statechange are separate tasks; accept either order.

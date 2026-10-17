@@ -156,7 +156,7 @@ for (const width of [1280, 390]) {
     });
     await expect(number).toHaveClass(/block-type-preview/);
     // Exercise every label against the smallest possible (one-digit) gutter.
-    for (const format of ["Text", "H1", "Quote", "UL", "OL", "Task", "Code", "HR", "Table", "Image", "Block"]) {
+    for (const format of ["Text", "H1", "Quote", "UL", "OL", "Task", "Code", "Flow", "MMD", "TOC", "HR", "Table", "Image", "Block"]) {
       const bounds = await number.evaluate((element, label) => {
         element.setAttribute("data-block-format", label);
         const style = getComputedStyle(element, "::after");
@@ -235,3 +235,33 @@ for (const delayedObserver of [false, true]) {
     await expect(page.locator("html")).toHaveClass(/web-keyboard-open/);
   });
 }
+
+test("连续输入保留当前与后续块号 DOM，当前编号不跳动", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true })));
+  await page.goto("/");
+  await openTestNote(page, ["第一段", "第二段", "第三段"]);
+  const editor = page.locator(".note-editor .ProseMirror").first();
+  await editor.evaluate(element => {
+    const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    instance.commands.setContent({ type: "doc", content: ["第一段", "第二段", "第三段"].map(text => ({ type: "paragraph", content: [{ type: "text", text }] })) }, true);
+    instance.commands.setTextSelection(3);
+    instance.commands.focus();
+  });
+  const first = page.locator('.editor-block-number[data-block-index="1"]');
+  const next = page.locator('.editor-block-number[data-block-index="2"]');
+  await expect(first).toHaveClass(/active/);
+  await expect(next).toBeVisible();
+  const firstHandle = await first.elementHandle();
+  const nextHandle = await next.elementHandle();
+  for (const text of ["输入", "abc", "更多内容", "123"]) {
+    await page.keyboard.insertText(text);
+    await expect.poll(() => firstHandle!.evaluate(node => node.isConnected)).toBe(true);
+    await expect.poll(() => nextHandle!.evaluate(node => node.isConnected)).toBe(true);
+    await expect(first).toHaveClass(/active/);
+    await expect(next).not.toHaveClass(/active/);
+  }
+  // Let the deferred geometry/observer pass finish, then check identity again.
+  await page.waitForTimeout(200);
+  expect(await firstHandle!.evaluate(node => node.isConnected)).toBe(true);
+  expect(await nextHandle!.evaluate(node => node.isConnected)).toBe(true);
+});

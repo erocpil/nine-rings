@@ -1,3 +1,4 @@
+import { fencedBlockLabel } from "../lib/block-format-label";
 import { EditorStatusBar } from "./EditorStatusBar";
 import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import { editorForegroundStyle } from "../lib/editor-color";
@@ -1575,7 +1576,7 @@ export function ReadonlyVirtualNote(
                       <EditorFoldIcon expanded={!folds.has(section.key)} />
                     </button>
                   )}
-                  {props.showLineNumbers && <BlockNumber number={block.number} displayNumber={relativeBlockNumbers ? relativeNumber(block.number, currentNumber, visibleNumbers) : block.number} className={`${block.number === currentNumber ? "active" : ""} ${relativeBlockNumbers && block.number === currentNumber ? `relative-current${relativeBlockNumberAlignment === "right" ? " relative-current-right" : ""}` : ""}`} format={block.node.type.name === "codeBlock" && block.node.attrs.language === "toc" ? "TOC" : block.node.type.name === "heading" ? `H${block.node.attrs.level}` : block.node.type.name} onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />}
+                  {props.showLineNumbers && <BlockNumber number={block.number} displayNumber={relativeBlockNumbers ? relativeNumber(block.number, currentNumber, visibleNumbers) : block.number} className={`${block.number === currentNumber ? "active" : ""} ${relativeBlockNumbers && block.number === currentNumber ? `relative-current${relativeBlockNumberAlignment === "right" ? " relative-current-right" : ""}` : ""}`} format={block.node.type.name === "codeBlock" ? fencedBlockLabel(block.node.attrs.language) : block.node.type.name === "heading" ? `H${block.node.attrs.level}` : block.node.type.name} onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />}
                 </div>
                 <div className={`ProseMirror vr-block${block.number === currentNumber ? " ProseMirror-activeline" : ""}`} contentEditable={false}>
                   {decorateFlowBlock(renderReadonlyBlock(

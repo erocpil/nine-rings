@@ -1,3 +1,4 @@
+import { canRemoveRenderedLink, removeRenderedLink } from "../lib/rendered-link-editing";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { copyToClipboard } from "../lib/clipboard";
@@ -16,7 +17,7 @@ function linkAt(target: EventTarget | null): HTMLAnchorElement | null {
 }
 
 export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { children: ReactNode; noteId: string; onOpenLinkedNote?: (note: Note, referenceId?: string, options?: DocumentOpenOptions) => Promise<void> }) {
-  const [menu, setMenu] = useState<{ url: string; x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<{ url: string; x: number; y: number; anchor: HTMLAnchorElement } | null>(null);
   const [suggestion, setSuggestion] = useState<{ path: string; candidates: LinkDocument[]; x: number; y: number; options?: DocumentOpenOptions } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const focus = useRef<HTMLElement | null>(null);
@@ -37,7 +38,7 @@ export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { child
     cancelPress();
     if (!ref.current?.contains(document.activeElement)) focus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setSuggestion(null);
-    setMenu({ url: link.getAttribute("href") ?? link.href, x, y });
+    setMenu({ url: link.getAttribute("href") ?? link.href, x, y, anchor: link });
   };
   const openRelative = async (href: string, label: string, x: number, y: number, options?: DocumentOpenOptions) => {
     if (!onOpenLinkedNote) return;
@@ -199,6 +200,10 @@ export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { child
         catch { showMessage("复制链接失败，请检查剪贴板权限"); }
       }}>复制链接</button>
       <button role="menuitem" onClick={() => void open(false)}>打开链接</button>
+      {canRemoveRenderedLink(menu.anchor) && <button role="menuitem" onClick={() => {
+        const anchor = menu.anchor; close();
+        if (!removeRenderedLink(anchor)) showMessage("链接位置已变化，请重新选择");
+      }}>移除链接</button>}
       {!isTauriRuntime() && !internalNoteId(menu.url) && !isRelativeMarkdownLink(menu.url) && <button role="menuitem" onClick={() => void open(true)}>在新窗口打开</button>}
     </div>, document.body)}
     {suggestion && createPortal(<div ref={ref} role="dialog" aria-label="文档链接建议" className="rendered-link-menu" style={{ left: suggestion.x, top: suggestion.y }} onKeyDown={event => {

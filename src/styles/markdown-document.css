@@ -130,7 +130,7 @@
 .editor-content .markdown-inline-image img { display: inline-block; max-width: 100%; vertical-align: middle; margin: 0; }
 [data-list-spread="true"] > li > p + p { margin-top: .65em; }
 blockquote[data-alert] { border-left-color: var(--accent); }
-blockquote[data-alert="WARNING"], blockquote[data-alert="CAUTION"] { border-left-color: var(--color-danger, #b66b53); }
+
 
 /* Source reading tools float over the viewport, matching rendered find/jump panels. */
 .markdown-cm-host .cm-panels-top { flex-shrink: 0; border-bottom: 0; max-height: min(45dvh, 300px); overflow: auto; }

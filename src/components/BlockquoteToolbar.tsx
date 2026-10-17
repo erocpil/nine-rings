@@ -1,3 +1,4 @@
+import { QUOTE_ALERTS, type QuoteAlert } from "../lib/quote-alert-colors";
 import { useRef, type MouseEventHandler } from "react";
 import { EditorFoldIcon } from "./EditorFoldIcon";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -11,12 +12,13 @@ export function BlockquoteToolbar({ text, collapsed, toggle, onOpen, position, a
   position?: number;
   alert?: string;
 }) {
+  const kind = alert && Object.prototype.hasOwnProperty.call(QUOTE_ALERTS, alert) ? QUOTE_ALERTS[alert as QuoteAlert] : null;
   const suppressClickUntilRef = useRef(0);
   const touchRef = useRef<{ identifier: number; x: number; y: number; moved: boolean } | null>(null);
   return (
       <div className="blockquote-toolbar" data-pdf-exclude contentEditable={false}>
-        <span className="structured-block-symbol" aria-hidden="true">❝</span>
-        <span className="structured-block-caption">{alert ? ({ NOTE: "提示", TIP: "建议", IMPORTANT: "重要", WARNING: "警告", CAUTION: "注意" } as Record<string, string>)[alert] ?? alert : blockquoteCaption(text, collapsed)}</span>
+        <span className="structured-block-symbol" aria-hidden="true">{kind?.symbol ?? "❝"}</span>
+        <span className="structured-block-caption">{kind?.label ?? (alert || blockquoteCaption(text, collapsed))}</span>
         <button type="button" className="block-workspace-open" title="放大阅读引用块" aria-label="放大阅读引用块"
           onMouseDown={event => event.preventDefault()}
           data-workspace-position={position} onClick={onOpen}><ToolbarIcon name="expand" /></button>

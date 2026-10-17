@@ -16,7 +16,12 @@ import { cjkEmphasis } from "./cjk-emphasis";
 export function markdownAST(source: string): Root {
   return fromMarkdown(source, {
     extensions: [gfm(), math(), cjkEmphasis()],
-    mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()],
+    // Micromark already recognizes source-aware GFM autolinks. The MDAST
+    // regex fallback runs after escape decoding and would relink `https\\://`
+    // emitted when a user deliberately removes a link.
+    mdastExtensions: [gfmFromMarkdown().map(extension =>
+      extension.enter?.literalAutolink ? { ...extension, transforms: [] } : extension
+    ), mathFromMarkdown()],
   });
 }
 export interface MarkdownSourceSpan {

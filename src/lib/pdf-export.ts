@@ -1,3 +1,5 @@
+import { QUOTE_ALERTS, quoteAlertPalette, type QuoteAlert } from "./quote-alert-colors";
+import { blockWorkspacePreferences } from "./block-display-settings";
 import type { DocumentMetadata } from "../types/models";
 import { applyCodeHighlighting } from "./code-highlight";
 import { isTauriRuntime } from "./runtime";
@@ -81,7 +83,7 @@ const PRINT_STYLES = `
   .document-content a { color: #1d5fd1; }
   .document-content blockquote {
     margin: 1em 0;
-    padding: 2px 0 2px 16px;
+    padding: 2px 16px;
     border-left: 4px solid #aab2c0;
     color: #4b5260;
   }
@@ -285,6 +287,19 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
     applyCodeHighlighting(code, code.parentElement?.getAttribute("data-language"));
   });
   content.append(template.content.cloneNode(true));
+  const quotePalette = blockWorkspacePreferences().quoteAlertColors === "style" ? null : quoteAlertPalette(["#ffffff"], "#202124");
+  content.querySelectorAll<HTMLElement>("blockquote[data-alert]").forEach(quote => {
+    const kind = quote.getAttribute("data-alert") as QuoteAlert;
+    const definition = Object.prototype.hasOwnProperty.call(QUOTE_ALERTS, kind) ? QUOTE_ALERTS[kind] : null;
+    if (!definition) return;
+    const ink = quotePalette?.[kind] ?? "#4b5260";
+    quote.style.borderLeftColor = ink;
+    quote.style.background = `color-mix(in srgb, ${ink} 3.5%, white)`;
+    const caption = printDocument.createElement("div");
+    caption.textContent = `${definition.symbol} ${definition.label}`;
+    caption.style.cssText = `color:${ink};font-weight:600`;
+    quote.prepend(caption);
+  });
 
   const diagramReady = (async () => {
     if ([...content.querySelectorAll('pre[data-language]')].some(pre => pre.getAttribute("data-language")?.toLowerCase() === "flow")) {

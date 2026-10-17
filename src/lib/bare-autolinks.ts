@@ -22,3 +22,9 @@ export function malformedBareLink(text: string, href: unknown, title?: unknown):
   if (typeof href !== "string" || title || !CJK_LINK_BOUNDARY.test(text)) return false;
   return href === text || href === `http://${text}` || href === `https://${text}` || href === `mailto:${text}`;
 }
+
+/** Match only a complete GFM-style bare link, never a dotted file name. */
+export function shouldAutoLinkText(text: string): boolean {
+  const parts = bareLinkParts(text);
+  return parts.length === 1 && parts[0].text === text && !!parts[0].href;
+}

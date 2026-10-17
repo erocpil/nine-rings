@@ -73,3 +73,35 @@ describe("Chinese bare autolink boundaries", () => {
     ).toBe(true);
   });
 });
+
+it("does not auto-link local filenames but retains complete GFM links", async () => {
+  const { shouldAutoLinkText } = await import("../../src/lib/bare-autolinks");
+  for (const value of [
+    "erocpil.reading-display-1.0.0.nrplugin.zip",
+    ".local-tools/plugin-packages/reading-display-20261018/erocpil.reading-display-1.0.0.nrplugin.zip",
+    "~/Downloads/example.pdf",
+    "./notes/example.md",
+  ])
+    expect(shouldAutoLinkText(value)).toBe(false);
+  for (const value of [
+    "https://example.com/archive.zip",
+    "http://example.com",
+    "www.github.com",
+    "demo@example.com",
+  ])
+    expect(shouldAutoLinkText(value)).toBe(true);
+});
+
+it("preserves an unlinked URL as plain text through Markdown export and reimport", async () => {
+  const { deltaToMarkdown } = await import("../../src/lib/markdown-serializer");
+  const { mdToDelta } = await import("../../src/lib/md-parser");
+  const text = "https://example.com/archive.zip";
+  const markdown = deltaToMarkdown({ ops: [{ insert: text + "\n" }] });
+  const roundtrip = mdToDelta(markdown);
+  expect(roundtrip.ops.filter((op) => op.attributes?.link)).toHaveLength(0);
+  expect(
+    roundtrip.ops
+      .map((op) => (typeof op.insert === "string" ? op.insert : ""))
+      .join(""),
+  ).toContain(text);
+});

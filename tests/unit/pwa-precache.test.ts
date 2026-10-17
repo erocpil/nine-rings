@@ -34,6 +34,41 @@ describe("generated service worker precache", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
+  it("reports completed cached resources and actual downloaded bytes", async () => {
+    const reports: { completed: number; total: number; bytes: number }[] = [];
+    const runtime = worker(
+      vi.fn<typeof fetch>().mockImplementation(async () => new Response("abc")),
+      {
+        caches: {
+          open: async () => ({ put: async () => {} }),
+          delete: vi.fn(),
+        },
+        self: {
+          addEventListener() {},
+          clients: {
+            matchAll: async () => [
+              {
+                postMessage: (value: (typeof reports)[number]) =>
+                  reports.push(value),
+              },
+            ],
+          },
+        },
+      },
+    );
+    await runtime.installVersion();
+    expect(reports[0]).toMatchObject({ completed: 0, bytes: 0 });
+    const final = reports[reports.length - 1]!;
+    expect(final.completed).toBe(final.total);
+    expect(final.bytes).toBe(final.total * 3);
+    expect(
+      reports.every(
+        (value, index) =>
+          index === 0 || value.completed >= reports[index - 1].completed,
+      ),
+    ).toBe(true);
+  });
+
   it("serves a precached WASM fetch with an empty request destination while offline", async () => {
     const handlers = new Map<
       string,
