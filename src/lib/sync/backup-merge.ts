@@ -257,7 +257,7 @@ function conflictCopy(record: BackupRecord, timestamp: string): BackupRecord {
   return {
     ...record,
     id: uuid(),
-    title: `${title}（本地同步冲突副本）`,
+    title: `${title}（本机版本·冲突副本）`,
     search_text: extractPlainText(content),
     created_at: timestamp,
     updated_at: timestamp,
@@ -346,7 +346,7 @@ export function buildSafeMergedBackup(localJson: string, remoteJson: string, bas
       if (localTemplate) mergedTemplates.push(localTemplate);
     } else {
       if (remoteTemplate) mergedTemplates.push(remoteTemplate);
-      if (category === "conflicts" && localTemplate) mergedTemplates.push({ ...localTemplate, id: uuid(), name: `${localTemplate.name ?? "模板"}（本地冲突副本）`, is_builtin: false });
+      if (category === "conflicts" && localTemplate) mergedTemplates.push({ ...localTemplate, id: uuid(), name: `${localTemplate.name ?? "模板"}（本机版本·冲突副本）`, is_builtin: false });
     }
   }
   const merged: BackupBundle = {

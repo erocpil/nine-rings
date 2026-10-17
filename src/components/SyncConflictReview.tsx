@@ -16,7 +16,7 @@ export function SyncConflictReview({ precheck, resolutions, ignoredIds, onResolv
   const labels: Record<ConflictChoice, string> = { both: "都保留", local: "仅保留本地", remote: "仅保留远端" };
   return <section className="sync-conflict-review" aria-label="冲突比较与处理">
     <h4>双方冲突 · {conflicts.length} 篇</h4>
-    <p>默认都保留：原文档采用远端，本地版本另存为“本地同步冲突副本”。选择在点击“安全合并”后才生效。</p>
+    <p>默认都保留：原名称的文档采用 GitHub 备份中的版本；当前设备合并前的版本另存为“本机版本·冲突副本”，使用新的文档 ID。这里的本机指正在执行 Pull 的设备。选择在点击“安全合并”后才生效。</p>
     <label>冲突文档 <select value={selected} onChange={event => setSelected(event.target.value)}>
       {conflicts.map(doc => <option key={doc.id} value={doc.id}>{doc.title} — {doc.storagePath || doc.date}（{ignoredIds.has(doc.id) ? "已忽略远端" : labels[resolutions[doc.id]?.choice ?? "both"]}）</option>)}
     </select></label>

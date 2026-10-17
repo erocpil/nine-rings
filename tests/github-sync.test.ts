@@ -87,6 +87,15 @@ try {
   try { await githubApiFetch("https://api.github.com", {}, 10); }
   catch (error) { timedOut = (error as Error).message.includes("GitHub 请求超时"); }
   assert(timedOut, "a pending WebView request is aborted and reported as a timeout");
+  for (const method of ["GET", "HEAD", "POST", "PUT", "PATCH"]) {
+    let message = "";
+    try { await githubApiFetch("https://api.github.com", { method }, 10); }
+    catch (error) { message = (error as Error).message; }
+    assert(message.includes(["GET", "HEAD"].includes(method)
+      ? "本次只读请求未写入远端" : "写请求超时不代表远端一定未写入"),
+    `${method} timeout distinguishes a readonly retry from an uncertain write`);
+  }
+
 
   let bodyCancelled = false;
   globalThis.fetch = (async () => new Response(new ReadableStream({

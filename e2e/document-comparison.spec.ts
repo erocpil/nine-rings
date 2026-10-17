@@ -159,7 +159,7 @@ for (const choice of ["both", "local", "remote", "stale"] as const) {
       const load = (path: string) => import(/* @vite-ignore */ path);
       const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
       const bundle = JSON.parse(await api.export.data());
-      return { original: await api.notes.get(id), copies: bundle.notes.filter((note: { title?: string }) => note.title?.includes("对比甲（本地同步冲突副本）")) };
+      return { original: await api.notes.get(id), copies: bundle.notes.filter((note: { title?: string }) => note.title?.includes("对比甲（本机版本·冲突副本）")) };
     }, ids[0]);
     expect(result.original!.content.ops[2].insert).toBe(choice === "local" ? "本地内容" : "远端冲突内容");
     expect(result.copies).toHaveLength(choice === "both" ? 1 : 0);

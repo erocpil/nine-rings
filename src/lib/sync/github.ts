@@ -420,7 +420,11 @@ export async function githubApiFetch(
   } catch (reason) {
     if (controller.signal.aborted) {
       if (init.signal?.aborted) throw new Error("GitHub 请求已取消");
-      throw new Error(`GitHub 请求超时（${Math.ceil(timeoutMs / 1000)} 秒）。请检查网络、代理或防火墙是否允许访问 api.github.com；上传超时不代表远端一定未写入，请先检查远端状态`);
+      const method = (init.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+      const resultHint = ["GET", "HEAD"].includes(method)
+        ? "本次只读请求未写入远端，可重新预检或重试读取"
+        : "写请求超时不代表远端一定未写入，请先检查远端状态";
+      throw new Error(`GitHub 请求超时（${Math.ceil(timeoutMs / 1000)} 秒）。请检查网络、代理或防火墙是否允许访问 api.github.com；${resultHint}`);
     }
     if (reason instanceof TypeError) {
       throw new Error(`无法连接 GitHub API。请检查本机网络、代理或防火墙是否允许访问 api.github.com。\n原始错误：${syncErrorMessage(reason)}`);

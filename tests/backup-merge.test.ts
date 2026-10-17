@@ -94,7 +94,7 @@ assert(notes.has("local-only") && notes.has("remote-only"), "safe merge keeps lo
 assert(JSON.stringify(notes.get("local-change")?.content).includes("local"), "safe merge keeps a local-only modification");
 assert(JSON.stringify(notes.get("remote-change")?.content).includes("remote"), "safe merge applies a remote-only modification");
 assert(JSON.stringify(notes.get("conflict")?.content).includes("remote"), "remote conflict version remains at the stable UUID");
-const conflictCopy = bundle.notes.find((item) => item.id !== "conflict" && item.title.includes("本地同步冲突副本"));
+const conflictCopy = bundle.notes.find((item) => item.id !== "conflict" && item.title.includes("本机版本·冲突副本"));
 assert(Boolean(conflictCopy) && JSON.stringify(conflictCopy?.content).includes("local"), "local conflict version is preserved as a copy");
 assert(merged.conflictCopies === 1, "one document conflict copy is reported");
 assert(bundle.notes.filter((item) => item.title === "同名文档").length === 2, "same-title notes with distinct UUIDs are both preserved");
