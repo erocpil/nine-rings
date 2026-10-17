@@ -29,16 +29,17 @@ if (engine === "both") {
 if (
   !input ||
   !["chromium", "webkit"].includes(engine) ||
-  !["core", "planning", "storage"].includes(scope)
+  !["core", "planning", "storage", "journal"].includes(scope)
 )
   throw Error(
-    "Set NR_SYNC_DRY_RUN_INPUT; browser must be chromium or webkit; scope must be core, planning or storage",
+    "Set NR_SYNC_DRY_RUN_INPUT; browser must be chromium or webkit; scope must be core, planning, storage or journal",
   );
 const info = await stat(input);
-if (!info.isFile() || info.size > 64 * 1024 * 1024)
+const inputLimit = (scope === "journal" ? 128 : 64) * 1024 * 1024;
+if (!info.isFile() || info.size > inputLimit)
   throw Error("Input exceeds budget");
 const bytes = await readFile(input);
-if (bytes.length > 64 * 1024 * 1024) throw Error("Input exceeds budget");
+if (bytes.length > inputLimit) throw Error("Input exceeds budget");
 const source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 const bundle = await build({
   configFile: false,
@@ -61,9 +62,11 @@ const bundle = await build({
     lib: {
       entry: fileURLToPath(
         new URL(
-          scope === "storage"
-            ? "./sync-storage-probe.js"
-            : "./sync-browser-probe.js",
+          scope === "journal"
+            ? "./sync-journal-probe.js"
+            : scope === "storage"
+              ? "./sync-storage-probe.js"
+              : "./sync-browser-probe.js",
           import.meta.url,
         ),
       ),
@@ -139,7 +142,7 @@ try {
     { text: source, scope },
   );
   let afterReload = null;
-  if (scope === "storage") {
+  if (scope === "storage" || scope === "journal") {
     await page.reload();
     await page.waitForFunction(
       () => typeof globalThis.syncStorageReload === "function",

@@ -51,3 +51,20 @@ NR_SYNC_DRY_RUN_INPUT=/absolute/path/to/backup.json \
 这些模式仍只使用模拟 Git、fake IndexedDB 和测试模块内的假设能力；备份验证及设备确认是测试输入，不代表用户真实文件下载确认或全部设备升级已验收。生产读写仍为 0，原生/真实双端及产品迁移入口须另外验证。
 
 `NR_SYNC_DRY_RUN_REMOTE=empty` 从只有无关文件的空备份空间开始，调用保存边界后的首次发布准备，核对首快照 parent=null、所有出站实体在远端确认后才接受，以及另一端 Pull 确认丢失恢复。此模式不伪造非空远端审查；与 legacy/checkpoint 一起构成首次切换的服务层矩阵，仍不是实际远端仓库或用户迁移验收。
+
+## 捕获冻结记录并验证真实浏览器日志存储
+
+`NR_SYNC_DRY_RUN_CAPTURE_JOURNALS=1` 可选地把服务层实际生成的 PREPARED 发布记录和 APPLYING Pull 记录写到 `.local-tools/sync-journal-*/`。每条记录独立随机目录（权限 700）和独占文件（600），日志只输出文件位置，不输出正文。目录受 Git 忽略；文件包含私人文档及设置，不能提交、上传或附到公共日志。不开启此选项则不产生这些文件；checkpoint 模式没有 Pull 记录。
+
+```sh
+NR_SYNC_DRY_RUN_INPUT=/absolute/backup.json \
+  NR_SYNC_DRY_RUN_REMOTE=empty NR_SYNC_DRY_RUN_RUNTIME=web \
+  NR_SYNC_DRY_RUN_CAPTURE_JOURNALS=1 \
+  bash scripts/with-local-tools.sh node scripts/rehearse-sync-backup.mjs \
+  > /tmp/sync-capture.log 2>&1
+bash scripts/with-local-tools.sh env \
+  NR_SYNC_JOURNAL_CAPTURE_LOG=/tmp/sync-capture.log \
+  node scripts/profile-sync-journals.mjs
+```
+
+批量入口仅接收捕获日志中列出的 1～4 个 `.local-tools` 内实际文件，逐条在 Chromium/WebKit 的全新上下文执行；失败即停止。scope=journal 输入上限 128 MiB；不连接网络、不调用发布、恢复或接受确认服务。使用产品实际日志存储函数，核对取消回滚、完整记录摘要回读、并发比较更新只有一个成功、摘要状态以及页面重载后的持久性，接受回执始终为零。发布记录在此隔离存储测试中转为 UNKNOWN，Pull 转为 NEEDS_REVIEW；这些是存储测试状态，不是已证明的远端/正文结果。不得把这项测试当作新协议认证、完整恢复服务或真实进程重启的证据。

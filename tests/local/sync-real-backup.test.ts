@@ -1,6 +1,13 @@
 import "fake-indexeddb/auto";
 import { beforeEach, afterEach, it, expect, vi } from "vitest";
-import { readFileSync, statSync } from "node:fs";
+import {
+  readFileSync,
+  statSync,
+  mkdirSync,
+  mkdtempSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
 import { parseSyncJson } from "../../src/lib/sync/strict-json";
 type BackupFixture =
   typeof import("../../schema/sync/fixtures/candidate-entities-v1.json");
@@ -13,6 +20,27 @@ import {
 import { readPullAttempt } from "../../src/lib/sync/pull-store";
 const inputPath = process.env.NR_SYNC_DRY_RUN_INPUT;
 const selectedRuntime = process.env.NR_SYNC_DRY_RUN_RUNTIME;
+const captureJournals = process.env.NR_SYNC_DRY_RUN_CAPTURE_JOURNALS;
+if (captureJournals !== undefined && captureJournals !== "1")
+  throw Error("NR_SYNC_DRY_RUN_CAPTURE_JOURNALS must be 1 or omitted");
+function captureJournal(
+  runtime: string,
+  kind: "publication" | "pull",
+  record: unknown,
+) {
+  if (!captureJournals) return;
+  const root = join(process.cwd(), ".local-tools");
+  mkdirSync(root, { recursive: true });
+  const directory = mkdtempSync(join(root, "sync-journal-"));
+  const path = join(directory, `${runtime}-${kind}.json`);
+  writeFileSync(path, JSON.stringify({ kind, record }), {
+    flag: "wx",
+    mode: 0o600,
+  });
+  console.log(
+    JSON.stringify({ runtime, stage: "captured-private-journal", kind, path }),
+  );
+}
 const remoteMode = process.env.NR_SYNC_DRY_RUN_REMOTE ?? "enabled";
 if (!["enabled", "legacy", "checkpoint", "empty"].includes(remoteMode))
   throw Error(
@@ -419,6 +447,7 @@ it.each(runtimes)(
     const publicationBytes = new TextEncoder().encode(
       JSON.stringify(attempt),
     ).length;
+    captureJournal(runtime, "publication", attempt);
     console.log(
       JSON.stringify({
         runtime,
@@ -539,6 +568,7 @@ it.each(runtimes)(
     );
     const pending = await readPullAttempt(review.spaceId);
     expect(pending?.phase).toBe("APPLYING");
+    captureJournal(runtime, "pull", pending);
     const pullBytes = new TextEncoder().encode(JSON.stringify(pending)).length;
     console.log(
       JSON.stringify({
