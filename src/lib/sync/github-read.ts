@@ -1,5 +1,4 @@
 /** Shared GET-only transport for fixed-revision inspection and recovery. */
-import { githubApiFetch } from "./github";
 import { githubTransferTimeoutMs } from "./github-timeout";
 import { addLog } from "../debugLog";
 import { isTauriRuntime } from "../runtime";
@@ -27,7 +26,15 @@ function phase(route: string) {
   if (route.startsWith("/git/ref/")) return "分支 HEAD";
   return "仓库信息";
 }
+export type GitHubReadFetch = (
+  input: string,
+  init: RequestInit,
+  timeoutMs: number,
+) => Promise<Response>;
+
+// The host supplies transport; this module must not import the sync entry point.
 export async function githubReadJson(
+  request: GitHubReadFetch,
   config: { owner: string; repo: string; token: string },
   route: string,
   options: GitReadOptions = {},
@@ -54,7 +61,7 @@ export async function githubReadJson(
         `[Sync] 读取${label} | 原文: ${options.expectedBytes} bytes | 超时: ${timeout / 1000}s | 通道: ${transport} | 尝试: ${attempt}/2`,
       );
     try {
-      const response = await githubApiFetch(
+      const response = await request(
         root + route,
         {
           method: "GET",

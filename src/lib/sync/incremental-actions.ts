@@ -89,7 +89,7 @@ export function incrementalTransport(config: SyncConfig, space: SyncSpace) {
     return response.json();
   };
   return {
-    request: ((route, options) => githubReadJson(config, route, options)) as GitRead,
+    request: ((route, options) => githubReadJson(githubApiFetch, config, route, options)) as GitRead,
     post: (
       route: "/git/blobs" | "/git/trees" | "/git/commits",
       body: Record<string, unknown>,

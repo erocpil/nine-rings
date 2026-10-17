@@ -873,7 +873,7 @@ export async function recoverPublicationFromGitHub(config:SyncConfig,spaceId:str
   const {recoverPublication}=await import("./publication-recovery");
   const attempt=await readPublicationAttempt(spaceId);
   if(!attempt||!config.token||attempt.space.owner.toLowerCase()!==config.owner.toLowerCase()||attempt.space.repo.toLowerCase()!==config.repo.toLowerCase()||attempt.space.path!==config.path)throw Error("请先配置与发布记录一致的备份连接和凭据");
-  const result=await recoverPublication(spaceId,(route, options)=>githubReadJson(config, route, options));
+  const result=await recoverPublication(spaceId,(route, options)=>githubReadJson(githubApiFetch, config, route, options));
   addLog(`[Sync] 发布恢复只读核实: ${result}`);
   return result;
 }
@@ -886,7 +886,7 @@ export async function preflightProtocolFromGitHub(config: SyncConfig): Promise<R
   try {
     const storage = getWebStorage().localStorage;
     if (!storage) throw Error("本机协议记录不可用，不能确认预检");
-    const report = await inspectRemoteProtocol((route, options) => githubReadJson(config, route, options), config, {historyLimit:128,onControlDetected:spaceId=>markProtocolInspectionRequired(config,spaceId,storage)});
+    const report = await inspectRemoteProtocol((route, options) => githubReadJson(githubApiFetch, config, route, options), config, {historyLimit:128,onControlDetected:spaceId=>markProtocolInspectionRequired(config,spaceId,storage)});
     await observeRemoteProtocol(report, storage);
     addLog(`[Sync] 协议预检完成 | 提交: ${report.evidence.head.slice(0,12)} | 状态: ${report.support} | 历史: ${report.history} | 请求: ${report.reads.requests} | 字节: ${report.reads.bytes} | 耗时: ${Math.round(performance.now()-started)}ms`);
     return report;
@@ -1045,7 +1045,7 @@ async function prepareGitHubEntityReview(config: SyncConfig, localSource: string
     report,
     localSource,
     runtime: isTauriRuntime() ? "tauri" : "web",
-    request: (route, options) => githubReadJson(config, route, options),
+    request: (route, options) => githubReadJson(githubApiFetch, config, route, options),
   });
 }
 
@@ -1060,7 +1060,7 @@ export async function assertEntityReviewHeadFromGitHub(
     config.path !== space.path
   )
     throw Error("备份连接已变化，请重新预检");
-  const value = await githubReadJson(config, `/git/ref/heads/${encodeURIComponent(space.branch)}`) as {
+  const value = await githubReadJson(githubApiFetch, config, `/git/ref/heads/${encodeURIComponent(space.branch)}`) as {
     object?: { type?: string; sha?: string };
   };
   if (value.object?.type !== "commit" || value.object.sha !== expectedHead)
