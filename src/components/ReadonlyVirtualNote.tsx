@@ -14,6 +14,7 @@ import { copyDocumentBlock } from "../lib/block-clipboard";
 import { DeferredFlowBlock } from "./DeferredFlowBlock";
 import { flowBlockAttributes, flowHeadingLevel } from "../lib/flow-presentation";
 import { useDocumentActive } from "./RetainedDocument";
+import { READING_TYPOGRAPHY_WILL_CHANGE } from "../lib/reading-position";
 import { DocumentPanelTitle, OutlinePanelTitle } from "./OutlinePanelTitle";
 import { ReadonlyImage } from "./ReadonlyImage";
 import { BlockquoteToolbar } from "./BlockquoteToolbar";
@@ -489,6 +490,16 @@ export function ReadonlyVirtualNote(
     pendingAnchor.current = capture();
   }, [capture]);
   const previousFocus = useRef(props.focusMode);
+  useEffect(() => {
+    const invalidateTypography = () => {
+      if (!rootRef.current || heights.current.size === 0) return;
+      if (!pendingAnchor.current && active && rootRef.current.isConnected && rootRef.current.clientWidth > 0 && rootRef.current.clientHeight > 0) preserve();
+      heights.current.clear();
+      setRevision(value => value + 1);
+    };
+    window.addEventListener(READING_TYPOGRAPHY_WILL_CHANGE, invalidateTypography);
+    return () => window.removeEventListener(READING_TYPOGRAPHY_WILL_CHANGE, invalidateTypography);
+  }, [active, preserve]);
   useLayoutEffect(() => {
     if (previousFocus.current !== props.focusMode) {
       previousFocus.current = props.focusMode;
@@ -1221,8 +1232,7 @@ export function ReadonlyVirtualNote(
             )}
             {kind === "bookmarks" && (
               <>
-                <h3><DocumentPanelTitle label="书签" pinned={!mobileDrawerViewport && desktopPanels.pinned("bookmark")} onCollapse={() => togglePinnedPanel("bookmark")} /></h3>
-                {bookmarkDisplayConfig?.showCounts && <span>{bookmarks.length} 项</span>}
+                <h3><DocumentPanelTitle label="书签" pinned={!mobileDrawerViewport && desktopPanels.pinned("bookmark")} onCollapse={() => togglePinnedPanel("bookmark")} />{bookmarkDisplayConfig?.showCounts !== false && <span className="document-bookmark-count">{bookmarks.length} 项</span>}</h3>
                 <PanelDisplayTools target="bookmarks" disabled={!bookmarks.length} handlers={{ "bookmarks.reveal-current": () => { const position = capture().position; const nearest = bookmarks.reduce<(typeof bookmarks)[number] | undefined>((current, item) => !current || Math.abs(item.position - position) < Math.abs(current.position - position) ? item : current, undefined); revealPanelItem(bookmarkDisplayListRef.current, nearest?.id); } }} />
                 {bookmarks.length === 0 && <p>暂无书签</p>}
                 <div className="document-bookmark-list" ref={bookmarkDisplayListRef} data-panel-display={bookmarkDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(bookmarkDisplayConfig) as React.CSSProperties}>

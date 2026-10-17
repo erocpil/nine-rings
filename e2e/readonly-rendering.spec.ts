@@ -192,9 +192,11 @@ test("局部阅读默认关闭，1500 块搜索与折叠末章，再回退完整
     .getByRole("button", { name: "搜索", exact: true })
     .click();
   await page.getByLabel("搜索正文").fill("段落 1499");
-  await page.getByLabel("关闭阅读面板").click();
   await expect(page.locator(".vr-body mark")).toHaveText("段落 1499");
   await expect(page.locator(".vr-body mark")).toBeInViewport();
+  await page.getByLabel("关闭阅读面板").click();
+  await expect(page.locator(".vr-body mark")).toHaveCount(0);
+  await expect(page.locator('[data-reading-row][data-block-number="1500"]')).toBeInViewport();
   await page
     .locator(".vr-title")
     .getByRole("button", { name: "文档目录", exact: true })
@@ -263,8 +265,11 @@ test("只读局部阅读保留代码与引用状态，并能刷新恢复位置",
   await expect(page.locator(".vr-body mark")).toHaveText("引用第二段");
   await expect(page.locator(".vr-body mark")).toBeInViewport();
   await page.getByLabel("搜索正文").fill("段落 269");
-  await page.getByLabel("关闭阅读面板").click();
+  await expect(page.locator(".vr-body mark")).toHaveText("段落 269");
   await expect(page.locator(".vr-body mark")).toBeInViewport();
+  await page.getByLabel("关闭阅读面板").click();
+  await expect(page.locator(".vr-body mark")).toHaveCount(0);
+  await expect(page.locator('[data-reading-row][data-block-number="270"]')).toBeInViewport();
   await expect
     .poll(() =>
       page.evaluate(() => {
@@ -291,9 +296,8 @@ test("窗口外书签跳转和跨窗口原生选区不会丢失", async ({ page 
   await page
     .getByRole("button", { name: "添加当前位置书签", exact: true })
     .click();
-  await expect(
-    page.getByRole("button", { name: "取消当前位置书签", exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".document-bookmark-item")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "取消当前位置书签", exact: true })).toHaveCount(0);
   await enable(page);
   // The full editor pinned this panel during setup; the reader preserves that layout.
   const bookmarkTrigger = page.locator(".vr-title").getByRole("button", { name: "文档书签", exact: true });

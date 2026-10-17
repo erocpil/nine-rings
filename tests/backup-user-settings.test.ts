@@ -19,6 +19,7 @@ function memoryStorage(initial: Record<string, string> = {}) {
 
 const source = memoryStorage({
   "nr:focusMode": "true",
+  "nr:pluginTheme": '{"enabled":true,"themeId":"nine-rings.builtin-theme/paper","typography":true}',
   "nr:pluginBookmarkDisplay": '{"enabled":true}',
   "nr:pluginNotesDisplay": '{"enabled":true}',
   "nr:pluginOutlineDisplay": '{"enabled":true,"display":{"fontSize":18}}',
@@ -44,6 +45,7 @@ const source = memoryStorage({
 const collected = collectFrontendSettings(source);
 const serialized = JSON.stringify(collected);
 assert(serialized.includes('"sourceMicroRendering":true'), "source enhancement preference is backed up");
+assert(!serialized.includes("nr:pluginTheme"), "theme activation and resource choice stay device-local");
 assert(!serialized.includes("nr:pluginTreeDisplay"), "panel display activation and preferences stay device-local");
 assert(!serialized.includes("nr:currentDate"), "retired daily preference is excluded");
 assert(serialized.includes("example"), "non-sensitive GitHub settings are included");

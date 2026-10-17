@@ -1,4 +1,5 @@
 import { startBuiltinVocabulary } from "../lib/plugin-system/builtin-vocabulary";
+import { startBuiltinThemes } from "../lib/plugin-system/builtin-theme";
 import { bookmarkDisplay } from "../lib/plugin-system/builtin-bookmark-display";
 import { notesDisplay } from "../lib/plugin-system/builtin-notes-display";
 import { applyInterfaceAppearance, resolveInterfaceConfig } from "../lib/interface-style";
@@ -19,6 +20,7 @@ import { preserveReadingPositions } from "../lib/reading-position";
 
 export function useSettings() {
   useEffect(startPluginRuntime, []);
+  useEffect(startBuiltinThemes, []);
   useEffect(startBuiltinTreeDisplay, []);
   useEffect(() => outlineDisplay.start(), []);
   useEffect(() => bookmarkDisplay.start(), []);

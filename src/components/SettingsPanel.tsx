@@ -4,6 +4,8 @@ import { PluginRuntimeStatus } from "./PluginRuntimeStatus";
 import { useRelativeNumbering } from "../hooks/useRelativeNumbering";
 import { useSyncExternalStore } from "react";
 import { pluginRuntime, setPluginsEnabled } from "../lib/plugin-system/runtime";
+import { themeResources } from "../lib/plugin-system/theme-resources";
+import { readThemePreference, subscribeThemePreference, themePreferenceSnapshot } from "../lib/plugin-system/theme-preferences";
 import { DesktopRecoveryStatus } from "./DesktopRecoveryStatus";
 import { normalizeSidebarOrder, sidebarPanelLabel } from "../lib/desktop-sidebar-state";
 import { INTERFACE_STYLES, normalizeInterfaceStyle, effectiveWorkspaceLayout } from "../lib/interface-style";
@@ -145,6 +147,10 @@ function normalizeVimConfig(value: string): string {
 
 export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onBeforePush, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onOpenBookmark, onNotesChanged, libraryError }: Props) {
   const pluginsEnabled = useSyncExternalStore(pluginRuntime.subscribe, pluginRuntime.isEnabled);
+  const contributedThemes = useSyncExternalStore(themeResources.subscribe, themeResources.getSnapshot);
+  useSyncExternalStore(subscribeThemePreference, themePreferenceSnapshot);
+  const themePreference = readThemePreference();
+  const activeThemeResource = themePreference.enabled ? contributedThemes.find(theme => theme.id === themePreference.themeId) : null;
   const relativeNumbering = useRelativeNumbering();
   const focusTabs = useFocusTabs();
   const [vimConfig, setVimConfig] = useState(() => normalizeVimConfig(localStorage.getItem(VIM_CONFIG_KEY) ?? "set tabstop=4"));
@@ -793,7 +799,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </div>
             )}
 
-            <Field label="界面风格" desc="各风格保留自己的配色；经典排版和非经典风格排版分别保存" visible={settingsPage === "appearance"}>
+            <Field label="界面风格" desc={activeThemeResource ? `当前配色由风格主题插件提供：${activeThemeResource.name}；风格仍决定布局和装饰。可在高级设置的插件列表更换或停用配色。` : "各风格保留自己的配色；经典排版和非经典风格排版分别保存"} visible={settingsPage === "appearance"}>
               <div className={`interface-style-options${mobileSettingsViewport ? "" : " interface-style-options-desktop"}`}>
                 {INTERFACE_STYLES.map(style => <button key={style.value} type="button" className="interface-style-option" aria-pressed={(config.interface_style === "calm-compact" ? "calm" : normalizeInterfaceStyle(config.interface_style)) === style.value} onClick={() => update({ interface_style: style.value })}>
                   <span className={`interface-style-preview preview-${style.value}`} aria-hidden="true"><i /><span><b /><i /><i /><em /></span></span>

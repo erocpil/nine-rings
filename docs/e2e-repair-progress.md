@@ -1,6 +1,16 @@
 # E2E 清理进度（2026-09-28）
 
 
+## 2026-10-17：风格主题资源与书签面板
+
+P4 可信内置主题资源已接通：[契约与入口](plugin-theme-resources.md)。包含七组浅深配色、可选标题/块默认字体、用户排版覆盖及缺失/停用回退；原风格 CSS 保留，第三方安装不开放。主题生命周期与根令牌应用不重建文档编辑器，偏好排除文档/同步备份。书签移除顶部“取消当前位置书签”，总数右置，保留逐条删除及原有添加、快捷键和块菜单。
+
+最终验证：完整 `npm run check` 通过（186 文件、2197 项单元测试、类型、lint、格式、独立脚本、覆盖率和 IPC）；生产构建通过，主应用 chunk 495.03 kB，无 chunk 大小或循环分包警告。Chromium/WebKit 运行相同五个文件各 32 项通过：plugin-theme、plugin-catalog、bookmarks、markdown-source-panels、readonly-rendering。主题测试覆盖桌面/手机、七组配色逐一跟随系统浅深切换、经典 Nord 深色映射、用户标题/代码排版、编辑实例不变、开关/重启/跨窗口及缺失/损坏回退；书签涵盖右侧计数、删除、手机滑动及源码/局部只读。
+
+扩展回归发现两项旧只读测试在关闭搜索后仍要求高亮存在，已按 a80503e 的新契约更新：先核对命中和定位，关闭后高亮清除、目标块仍在视口，保留刷新位置和末章折叠验证。新主题首轮测试的控件定位改用 combobox/checkbox 角色，避免与同名设置分组冲突。前期重复回归不额外累计覆盖数。
+
+未执行全产品 E2E 或实际原生 GUI；未改变共享存储/备份格式，无 Rust、Flutter 或系统工具链变更。本批提交后仍须另行推送，不能据本地通过宣称新提交远端全绿。
+
 ## 2026-10-17：候选审查与更新收尾回归
 
 核对提交 `df950046e0187bc684fa1cd086296c18f928a0dc` 的远端检查：三平台 Tauri 构建、基础 CI 和 Frontend Tests 成功；[Test](https://github.com/erocpil/nine-rings/actions/runs/39029077804) 的 Chromium/WebKit 阅读组各失败 3 项，[Native Platforms](https://github.com/erocpil/nine-rings/actions/runs/39029077805) 的 Windows 展陈组失败 2 项。

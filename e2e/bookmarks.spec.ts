@@ -44,7 +44,10 @@ for (const width of [1280, 390]) {
         await expect(active).toContainText("第二条书签");
         await expect(active.locator(".document-bookmark-index")).toHaveText("3");
         await expect(active.locator(".document-bookmark-index")).toHaveCSS("font-weight", width === 390 ? "700" : "400");
-        await expect(panel.getByRole("button", { name: "取消当前位置书签", exact: true })).toBeVisible();
+        await expect(panel.getByRole("button", { name: "取消当前位置书签", exact: true })).toHaveCount(0);
+        const count = panel.locator(".document-bookmark-count");
+        await expect(count).toHaveText("2 项");
+        expect((await count.boundingBox())!.x).toBeGreaterThan((await panel.locator(".document-bookmark-heading").boundingBox())!.x);
         const background = (element: Element) => getComputedStyle(element).backgroundColor;
         const currentSurface = width === 390 ? active : panel.locator(".document-bookmark-item.is-current");
         const otherSurface = width === 390 ? rows.first().locator(".document-bookmark-jump") : rows.first();
@@ -79,7 +82,9 @@ for (const width of [1280, 390]) {
         }
         await toggle.click();
         await expect(active).toContainText("第二条书签");
-        await panel.getByRole("button", { name: "取消当前位置书签", exact: true }).click();
+        const remove = rows.last().getByRole("button", { name: "删除书签 第二条书签", exact: true });
+        if (width === 390) await remove.focus();
+        await remove.click();
         await expect(rows).toHaveCount(1);
         await expect(active).toHaveCount(0);
         await expect(panel.getByRole("button", { name: "添加当前位置书签", exact: true })).toBeVisible();

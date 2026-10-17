@@ -23,7 +23,7 @@ for (const width of [390, 1280]) {
       exact: true,
     });
     await global.check();
-    await expect(list.getByRole("listitem")).toHaveCount(9);
+    await expect(list.getByRole("listitem")).toHaveCount(10);
     await expect(list).toContainText("分栏展示");
     await expect(list).toContainText("编辑命令");
     await expect(list).toContainText("文档统计");

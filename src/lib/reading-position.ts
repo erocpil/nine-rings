@@ -1,5 +1,8 @@
 import type { Editor } from "@tiptap/core";
 
+/** Host presentation changes can invalidate offscreen virtual measurements. */
+export const READING_TYPOGRAPHY_WILL_CHANGE = "nr:reading-typography-will-change";
+
 function viewport(root: HTMLElement) {
   const rect = root.getBoundingClientRect();
   const sticky = root.querySelector<HTMLElement>(

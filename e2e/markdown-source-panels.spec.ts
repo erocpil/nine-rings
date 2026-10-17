@@ -118,6 +118,14 @@ for (const virtual of [false, true])
     await expect(dock.locator(".document-panel-slot")).toHaveCount(2);
     const collapseBookmark = dock.getByRole("button", { name: "收起固定书签", exact: true });
     await expect(collapseBookmark).toHaveText("书签");
+    const expectCountOnRight = async () => {
+      const count = dock.locator(".document-bookmark-count");
+      await expect(count).toHaveText("1 项");
+      const heading = await collapseBookmark.boundingBox();
+      const badge = await count.boundingBox();
+      expect(badge!.x).toBeGreaterThan(heading!.x + heading!.width);
+    };
+    await expectCountOnRight();
     await expect(dock.getByRole("button", { name: "收起", exact: true })).toHaveCount(0);
     await collapseBookmark.click();
     await expect(dock.locator(".document-panel-slot")).toHaveCount(1);
@@ -131,6 +139,7 @@ for (const virtual of [false, true])
     await expect(area).toBeVisible();
     await expect(dock.locator(".document-panel-slot")).toHaveCount(2);
     await expect(collapseBookmark).toHaveText("书签");
+    await expectCountOnRight();
     await collapseBookmark.click();
     await expect(dock.locator(".document-panel-slot")).toHaveCount(1);
     await page.getByRole("button", { name: "文档书签", exact: true }).click();
