@@ -67,6 +67,8 @@ interface EvaluationState {
   maxBytes: number;
   maxEntries: number;
   closed: boolean;
+  cleanups: Set<() => void>;
+  workerOwnsMemo?: boolean;
 }
 const evaluations = new WeakMap<CandidateEvaluationScope, EvaluationState>();
 export function createCandidateEvaluationScope(
@@ -92,6 +94,7 @@ export function createCandidateEvaluationScope(
     maxBytes,
     maxEntries,
     closed: false,
+    cleanups: new Set(),
   });
   return scope;
 }
@@ -116,6 +119,8 @@ export function disposeCandidateEvaluationScope(
 ) {
   const state = evaluations.get(scope);
   if (!state) throw Error("认证上下文无效");
+  for (const cleanup of state.cleanups) cleanup();
+  state.cleanups.clear();
   state.entries.clear();
   state.bytes = 0;
   state.closed = true;
@@ -141,7 +146,8 @@ function rememberBody(
   verdict: BodyVerdict,
 ) {
   const bytes = 2 * (key.length + JSON.stringify(verdict).length);
-  if (bytes > state.maxBytes || !state.maxEntries) return;
+  if (state.workerOwnsMemo || bytes > state.maxBytes || !state.maxEntries)
+    return;
   while (
     state.entries.size &&
     (state.bytes + bytes > state.maxBytes ||
@@ -667,7 +673,7 @@ export function reviewCandidatePayload(
   };
 }
 
-/** Current production capabilities are still zero; eligibility never grants them. */
+/** Eligibility does not replace envelope/capability and feature declaration checks. */
 export function assertCandidateWrite(
   source: string,
   options: {
@@ -685,6 +691,12 @@ export function assertCandidateWrite(
     capabilities: options.capabilities,
   });
   const review = reviewCandidatePayload(source, options.runtime, evaluation);
+  return assertReviewedCandidate(bundle, review);
+}
+export function assertReviewedCandidate(
+  bundle: unknown,
+  review: CandidateReview,
+): CandidateReview {
   if (!review.eligible) throw new Error("同步实体不能无损处理，拒绝写入");
   const header = (
     bundle as {
@@ -699,4 +711,23 @@ export function assertCandidateWrite(
       throw new Error("同步实体必需特性未完整声明，拒绝写入");
   }
   return review;
+}
+
+/** Internal computation resources share the exact operation lifetime and cache budget. */
+export function ownCandidateComputation(
+  scope: CandidateEvaluationScope,
+  cleanup: () => void,
+) {
+  const state = evaluationState(scope);
+  state.cleanups.add(cleanup);
+  // Move the memo budget rather than allocating a second full cache on the UI thread.
+  state.entries.clear();
+  state.bytes = 0;
+  state.workerOwnsMemo = true;
+  return { maxBytes: state.maxBytes, maxEntries: state.maxEntries };
+}
+export function assertCandidateEvaluationActive(
+  scope: CandidateEvaluationScope,
+) {
+  evaluationState(scope);
 }

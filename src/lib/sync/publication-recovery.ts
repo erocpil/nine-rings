@@ -1,3 +1,4 @@
+import { assertCandidateWriteAsync } from "./candidate-async-policy";
 import { syncStage } from "./operation-progress";
 import {
   withCandidateEvaluation,
@@ -7,10 +8,7 @@ import { validateReviewedPublicationRecord } from "./reviewed-publication";
 import { RESTORE_LOCK_NAME } from "../backup-restore-coordination";
 /** Candidate publication foundation. Shipped capabilities remain zero; no enable UI exists. */
 import { canonicalDigest, canonicalJson } from "./canonical-codec";
-import {
-  assertCandidateWrite,
-  type CandidateRuntime,
-} from "./candidate-write-policy";
+import { type CandidateRuntime } from "./candidate-write-policy";
 import { candidateEntities } from "./entity-projection";
 import {
   assertDocumentStorageGeneration,
@@ -58,7 +56,7 @@ export async function preparePublication(
       throw Error("Dart 运行认证尚未完成，不能准备发布");
     if (input.remote.spaceId !== (await syncSpaceId(input.remote.space)))
       throw Error("发布空间身份不匹配");
-    const review = assertCandidateWrite(
+    const review = await assertCandidateWriteAsync(
       input.source,
       {
         runtime: input.runtime,
@@ -188,7 +186,7 @@ export async function readValidatedPublication(
       throw Error("发布恢复记录损坏，已停止");
     const header = JSON.parse(attempt.source).header;
     // Structural/payload validation continues to enforce the shipped capability gate.
-    assertCandidateWrite(
+    await assertCandidateWriteAsync(
       attempt.source,
       {
         runtime: attempt.runtime,

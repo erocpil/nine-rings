@@ -1,3 +1,4 @@
+import { reviewCandidatePayloadAsync } from "./candidate-async-policy";
 import { snapshotEntityReview } from "./review-snapshot";
 import {
   withCandidateEvaluation,
@@ -5,10 +6,7 @@ import {
 } from "./candidate-write-policy";
 /** Assemble a read-only candidate; publication and local application remain separate. */
 import { canonicalDigest, canonicalJson } from "./canonical-codec";
-import {
-  reviewCandidatePayload,
-  type CandidateRuntime,
-} from "./candidate-write-policy";
+import { type CandidateRuntime } from "./candidate-write-policy";
 import {
   candidateEntities,
   frontendEntitySettings,
@@ -106,7 +104,11 @@ export async function assembleEntityCandidate(
     const source = canonicalJson(payload);
     if (new TextEncoder().encode(source).length > 64 * 1024 * 1024)
       throw Error("候选组装超过预算");
-    const review = reviewCandidatePayload(source, input.runtime, evaluation);
+    const review = await reviewCandidatePayloadAsync(
+      source,
+      input.runtime,
+      evaluation,
+    );
     if (!review.eligible) throw Error("组合后的候选未通过保护关系或无损校验");
     const entities = await candidateEntities(source, input.runtime, evaluation);
     const sorted = (items: SyncEntity[]) =>

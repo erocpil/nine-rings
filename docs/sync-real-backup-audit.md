@@ -420,3 +420,12 @@ WebKit 同样完成三轮真实历史核验（260 / 262 / 180 次逻辑读取，
 ```sh
 NR_SYNC_DRY_RUN_INPUT=/path/to/backup.json NR_SYNC_PROFILE_SCOPE=planning NR_SYNC_PROFILE_REPETITIONS=3 NR_SYNC_PROFILE_BROWSER=both bash scripts/with-local-tools.sh node scripts/profile-sync-browser.mjs
 ```
+
+
+## 2026-10-17：正文认证移入操作级 Worker
+
+Web/Tauri 大于等于 256 Ki 个 UTF-16 单元的候选在同源 module Worker 中运行原有完整认证代码。每次操作复用一个 Worker，正文缓存预算从主线程移交，结束/取消上下文后终止并拒绝迟到结果。120 秒后台计算超时、脚本加载错误和消息错误均拒绝本次核验，不自动重放或降低认证；无 Worker 的环境保留原同步实现。发布、恢复、Pull 仍逐次检查封装、能力、特性、修订及远端 HEAD，Worker 不读数据库或访问网络。
+
+隔离生产打包的 `profile-sync-browser.mjs` 对 2026-10-17 本地备份离线演练：输入 23,289,729 bytes，222 个实体，候选 15,485,669 bytes。Chromium 认证/投影 2,531 ms、计划/组装 6,975 ms，定时器最大延迟 535 ms；WebKit 分别 2,958 / 7,620 / 703 ms。此前约 2.2～2.8 秒主线程延迟明显下降，但全量解析、投影与规范编码仍有短暂停顿，本批不声称完全消除。Chromium 操作后 GC 主线程堆约 43.2 MB；不包含 Worker 堆，不作为整个应用峰值内存结论。未连接 GitHub、未修改用户数据库、未重复首次迁移。
+
+后台/同步结果一致性、篡改拒绝、上下文释放和页面响应均由 Chromium/WebKit 回归覆盖；单元验证超时、失败、消息错误、预算和能力门禁。浏览器模拟不等于 Tauri 原生 GUI 及双端实际传输验收。

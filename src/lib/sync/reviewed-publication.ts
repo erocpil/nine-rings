@@ -1,3 +1,4 @@
+import { assertCandidateWriteAsync } from "./candidate-async-policy";
 import { snapshotEntityReview } from "./review-snapshot";
 import {
   withCandidateEvaluation,
@@ -5,7 +6,6 @@ import {
 } from "./candidate-write-policy";
 /** Frozen nonempty-remote publication intents. No remote writes or local application. */
 import { canonicalDigest, canonicalJson } from "./canonical-codec";
-import { assertCandidateWrite } from "./candidate-write-policy";
 import { candidateEntities } from "./entity-projection";
 import type { EntityReview } from "./entity-review";
 import type { EntityChoice } from "./entity-plan";
@@ -198,7 +198,7 @@ export async function prepareReviewedPublication(
       header,
     });
     // Production capability gate is checked before intent persistence or object writes.
-    const payload = assertCandidateWrite(
+    const payload = await assertCandidateWriteAsync(
       frozenSource,
       {
         runtime: review.runtime,

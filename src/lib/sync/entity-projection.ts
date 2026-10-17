@@ -1,9 +1,9 @@
+import { reviewCandidatePayloadAsync } from "./candidate-async-policy";
 import { DEFAULT_CONFIG } from "../storage/types";
 /** Narrow candidate semantic projection, never applied to arbitrary backup data. */
 import { canonicalDigest } from "./canonical-codec";
 import { parseSyncJson } from "./strict-json";
 import {
-  reviewCandidatePayload,
   type CandidateRuntime,
   type CandidateEvaluationScope,
 } from "./candidate-write-policy";
@@ -30,7 +30,7 @@ export async function candidateEntities(
   runtime: CandidateRuntime,
   evaluation?: CandidateEvaluationScope,
 ): Promise<SyncEntity[]> {
-  const review = reviewCandidatePayload(source, runtime, evaluation);
+  const review = await reviewCandidatePayloadAsync(source, runtime, evaluation);
   if (!review.eligible) {
     const categories: Record<string, string> = {
       "settings-not-certified": "应用配置未认证",

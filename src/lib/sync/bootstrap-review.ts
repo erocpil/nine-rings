@@ -1,9 +1,9 @@
+import { reviewCandidatePayloadAsync } from "./candidate-async-policy";
 /** Read-only, fixed-HEAD review for an empty backup namespace. */
 import { canonicalDigest } from "./canonical-codec";
 import { candidateEntities } from "./entity-projection";
 import { entityKey } from "./entity-plan";
 import {
-  reviewCandidatePayload,
   withCandidateEvaluation,
   type CandidateRuntime,
 } from "./candidate-write-policy";
@@ -39,7 +39,11 @@ export async function prepareBootstrapReview(input: {
     throw Error("首次发布候选超过 64 MiB 预算");
   const storageGeneration = readDocumentStorageGeneration();
   return withCandidateEvaluation(undefined, async (evaluation) => {
-    const payload = reviewCandidatePayload(localSource, runtime, evaluation);
+    const payload = await reviewCandidatePayloadAsync(
+      localSource,
+      runtime,
+      evaluation,
+    );
     if (!payload.eligible)
       throw Error("本机数据包含尚未认证的内容，不能首次发布");
     const entities = await candidateEntities(localSource, runtime, evaluation);

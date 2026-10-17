@@ -1,3 +1,7 @@
+import {
+  reviewCandidatePayloadAsync,
+  assertCandidateWriteAsync,
+} from "./candidate-async-policy";
 import { syncStage } from "./operation-progress";
 import { snapshotEntityReview } from "./review-snapshot";
 import {
@@ -13,10 +17,6 @@ import {
   validateEntityReview,
   type EntityReview,
 } from "./entity-review";
-import {
-  reviewCandidatePayload,
-  assertCandidateWrite,
-} from "./candidate-write-policy";
 import { assertSyncCapabilities } from "./protocol-capabilities";
 import { parseSyncJson } from "./strict-json";
 import {
@@ -237,12 +237,14 @@ export async function applyReviewedPull(
         string,
         unknown
       >;
-      const targetFeatures = reviewCandidatePayload(
-        plan.source,
-        review.runtime,
-        evaluation,
+      const targetFeatures = (
+        await reviewCandidatePayloadAsync(
+          plan.source,
+          review.runtime,
+          evaluation,
+        )
       ).requiredFeatures;
-      assertCandidateWrite(
+      await assertCandidateWriteAsync(
         canonicalJson({
           ...(parseSyncJson(plan.source) as object),
           header: {
