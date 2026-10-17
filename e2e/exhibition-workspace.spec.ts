@@ -75,6 +75,10 @@ for (const style of ["calm", "mono-aware"] as const) {
     await expect(
       page.getByRole("button", { name: "展开概览", exact: true }),
     ).toBeVisible();
+    // Built-in demos are intentionally readonly. Enter edit mode explicitly
+    // before testing save-on-navigation, rather than relying on startup timing.
+    await page.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+    await expect(page.locator(".note-editor .ProseMirror")).toHaveAttribute("contenteditable", "true");
     await page
       .locator(".note-editor .ProseMirror")
       .fill("展陈布局切换前的编辑应当保存。");

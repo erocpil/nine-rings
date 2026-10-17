@@ -1,6 +1,19 @@
 # E2E 清理进度（2026-09-28）
 
 
+## 2026-10-17：候选审查与更新收尾回归
+
+核对提交 `df950046e0187bc684fa1cd086296c18f928a0dc` 的远端检查：三平台 Tauri 构建、基础 CI 和 Frontend Tests 成功；[Test](https://github.com/erocpil/nine-rings/actions/runs/39029077804) 的 Chromium/WebKit 阅读组各失败 3 项，[Native Platforms](https://github.com/erocpil/nine-rings/actions/runs/39029077805) 的 Windows 展陈组失败 2 项。
+
+- 长引用内部段落在源码切回渲染时，只调整外层阅读区，受限高度的引用内滚动未跟随。现在从内到外先在实际可滚动的引用正文揭示目标行，再对齐外层视口；不改变折叠、选区或正文内容。现有双向切换用例补充目标行处于内部裁切范围的断言。
+- 固定书签已改为标题收起，旧测试还查找“关闭阅读面板”。改用“收起固定书签”，保留跳转及跨窗口原生选区验证。
+- 展陈用例编辑默认只读的内置示例。明确先点击“点击设为可编辑”，等待 contenteditable=true，再验证保存与首页往返；不修改示例默认只读规则。
+- 真实 PWA 更新加入普通桌面网页设置入口回归；保存后只刷新原标签，保留 URL、sessionStorage 标签标记、最后编辑和新版 Worker。Chromium/WebKit 各 9 项通过，用户现场另开标签仍未复现。
+
+完整 `npm run check` 通过：185 文件、2188 项单元测试，类型/lint/格式、独立脚本、覆盖率与 IPC 全部通过；生产构建通过，最大应用 chunk 483.61 kB，无提高警告阈值。本地嵌套定位与只读阅读、展陈工作区 Chromium/WebKit 各 34 项通过；长引用目标文字可视范围断言另作定向复验，不重复累计。原生 GUI 和 Windows 真机未执行，不将浏览器回归记为 Windows 系统验证。此次提交未推送；远端默认 E2E 在本次核对时仍运行，远端失败的修复需在新提交推送后确认，不宣称远端全绿。
+
+同页重复候选组装测量及性能边界见[真实备份审计](sync-real-backup-audit.md)。用户自行负责正式双端验收，本批未写远端备份或安装版数据库。
+
 ## 2026-10-15：远端完整回归失败的收尾批次
 
 检查远端 `c8f3e9087dc6f20237772278df7c201c5c529661`：CI、三平台 Tauri 构建和 Native Platforms 通过；[Test 38722431302](https://github.com/erocpil/nine-rings/actions/runs/38722431302) 失败。Frontend 被五个单元测试文件的 Prettier 格式阻断；默认 E2E 报告 30 failed / 1 flaky，WebKit 风险组 2 failed，生产 PWA gate 通过。

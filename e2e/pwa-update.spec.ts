@@ -141,6 +141,26 @@ test("手机 PWA 重启时接管已开始的新版下载，保存后升级且服
   await expect(page.locator(".ProseMirror")).toContainText("尚未防抖提交的正文");
 });
 
+test("桌面普通网页从设置保存刷新，仅当前标签重载且保留最后编辑", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => sessionStorage.setItem("pwa-update-tab-proof", "original"));
+  revision = 2;
+  await page.keyboard.press("Alt+,");
+  await page.getByRole("button", { name: "检查更新", exact: true }).click();
+  await expect(page.locator(".settings-web-update [role=status]")).toContainText("新版本已就绪");
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await page.locator(".ProseMirror").fill("桌面设置更新保留的最后编辑");
+  await page.keyboard.press("Alt+,");
+  await Promise.all([
+    page.waitForEvent("load"),
+    page.locator(".settings-web-update").getByRole("button", { name: "保存并刷新", exact: true }).click(),
+  ]);
+  await expect(page.locator(".ProseMirror")).toContainText("桌面设置更新保留的最后编辑");
+  await expect.poll(() => activeVersion(page)).toBe(2);
+  expect(await page.evaluate(() => sessionStorage.getItem("pwa-update-tab-proof"))).toBe("original");
+  expect(page.url()).toBe(origin + "/");
+});
+
 test("新版下载失败保留旧版，设置可手动检查并重试升级", async ({ page }) => {
   revision = 2;
   failDownload = true;

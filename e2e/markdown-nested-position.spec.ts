@@ -34,6 +34,18 @@ for (const kind of ["list", "quote", "table"]) {
           const sticky = root.querySelector(":scope > .note-editor-sticky");
           return Math.abs(element.getBoundingClientRect().top - Math.max(root.getBoundingClientRect().top, sticky?.getBoundingClientRect().bottom ?? 0));
         })).toBeLessThan(80);
+        if (kind === "quote") {
+          await expect.poll(() => target.evaluate(element => {
+            const body = element.closest(".blockquote-content")!;
+            const range = document.createRange();
+            range.setStart(element.firstChild!, 0);
+            range.setEnd(element.firstChild!, 1);
+            const rect = range.getBoundingClientRect();
+            const clip = body.getBoundingClientRect();
+            const visibleHeight = Math.min(rect.bottom, clip.bottom) - Math.max(rect.top, clip.top);
+            return body.scrollTop > 0 && visibleHeight >= rect.height - 1;
+          })).toBe(true);
+        }
         await page.getByRole("button", { name: "源码", exact: true }).click();
         const info = await sourceInfo(area);
         const visible = info.value.slice(info.offset, info.offset + 60);

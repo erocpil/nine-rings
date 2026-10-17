@@ -312,7 +312,7 @@ test("窗口外书签跳转和跨窗口原生选区不会丢失", async ({ page 
   await expect(page.locator(".vr-bookmark")).toHaveCount(1);
   await page.locator(".vr-bookmark").click();
   await expect(page.locator('[data-block-number="300"]')).toBeInViewport();
-  await page.getByRole("region", { name: "文档书签", exact: true }).getByLabel("关闭阅读面板").click();
+  await page.getByRole("region", { name: "文档书签", exact: true }).getByRole("button", { name: "收起固定书签", exact: true }).click();
   await page
     .locator(".vr-actions")
     .getByRole("button", { name: "顶端", exact: true })

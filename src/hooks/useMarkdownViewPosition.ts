@@ -269,7 +269,18 @@ export function useMarkdownViewPosition(
             }
             while (offset < target.text.length && /\s/.test(target.text[offset])) offset++;
             const line = renderedTextGeometry(element, target.text)?.rectAt(offset);
-            root.scrollTop += (line?.top ?? rect.top + rect.height * fraction) - viewportTop(root);
+            // Long quotes own a bounded inner scroller. Reveal the line there
+            // before aligning the document; outer scrolling cannot unclip it.
+            let lineTop = line?.top ?? rect.top + rect.height * fraction;
+            for (let parent = element.parentElement; parent && parent !== root; parent = parent.parentElement) {
+              if (!parent.matches(".blockquote-content") || parent.scrollHeight <= parent.clientHeight) continue;
+              const overflow = getComputedStyle(parent).overflowY;
+              if (overflow !== "auto" && overflow !== "scroll") continue;
+              const before = parent.scrollTop;
+              parent.scrollTop += lineTop - (parent.getBoundingClientRect().top + parent.clientTop);
+              lineTop -= parent.scrollTop - before;
+            }
+            root.scrollTop += lineTop - viewportTop(root);
             top = root.scrollTop;
           }
         }

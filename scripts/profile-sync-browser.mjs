@@ -12,6 +12,11 @@ import { chromium, webkit } from "@playwright/test";
 const input = process.env.NR_SYNC_DRY_RUN_INPUT;
 const engine = process.env.NR_SYNC_PROFILE_BROWSER ?? "chromium";
 const scope = process.env.NR_SYNC_PROFILE_SCOPE ?? "core";
+const repetitions = Number(process.env.NR_SYNC_PROFILE_REPETITIONS ?? "1");
+if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 10)
+  throw Error("NR_SYNC_PROFILE_REPETITIONS must be an integer from 1 to 10");
+if (repetitions > 1 && !["core", "planning"].includes(scope))
+  throw Error("Repeated profiling is supported only for core/planning");
 if (engine === "both") {
   for (const browser of ["chromium", "webkit"]) {
     const result = spawnSync(
@@ -139,10 +144,53 @@ try {
     () => typeof globalThis.syncBrowserProbe === "function",
   );
   const before = await memory();
-  const result = await page.evaluate(
-    ({ text, scope }) => globalThis.syncBrowserProbe(text, scope),
-    { text: source, scope },
-  );
+  // Reuse this page/context deliberately: separate processes hide retained graphs.
+  // Samples are natural-GC observations, never an assertion of total/peak memory.
+  const runs = [];
+  for (let index = 0; index < repetitions; index++) {
+    const result = await page.evaluate(
+      async ({ text, scope }) => {
+        let last = globalThis.performance.now(),
+          maxTimerDelayMs = 0,
+          timerTicks = 0;
+        const timer = globalThis.setInterval(() => {
+          const now = globalThis.performance.now();
+          maxTimerDelayMs = Math.max(maxTimerDelayMs, now - last - 16);
+          last = now;
+          timerTicks++;
+        }, 16);
+        try {
+          const value = await globalThis.syncBrowserProbe(text, scope);
+          // Include the final synchronous section even if no timer fired in it.
+          maxTimerDelayMs = Math.max(
+            maxTimerDelayMs,
+            globalThis.performance.now() - last - 16,
+          );
+          return {
+            ...value,
+            responsiveness: {
+              timerTicks,
+              maxTimerDelayMs: Math.round(maxTimerDelayMs),
+            },
+          };
+        } finally {
+          globalThis.clearInterval(timer);
+        }
+      },
+      { text: source, scope },
+    );
+    // Let pending task cleanup run; do not force GC or declare immediate release.
+    await page.evaluate(
+      () => new Promise((resolve) => globalThis.setTimeout(resolve, 0)),
+    );
+    runs.push({ ...result, afterOperation: await memory() });
+    if (
+      runs[0].projectedCount !== result.projectedCount ||
+      runs[0].sourceBytes !== result.sourceBytes
+    )
+      throw Error("Repeated probe changed source/entity counts");
+  }
+  const result = runs[runs.length - 1];
   let afterReload = null;
   if (scope === "storage" || scope === "journal") {
     await page.reload();
@@ -165,6 +213,8 @@ try {
         scenario: scope,
         before,
         ...result,
+        repetitions,
+        ...(repetitions > 1 ? { runs } : {}),
         afterReload,
         afterUnload,
       },
