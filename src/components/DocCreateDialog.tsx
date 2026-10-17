@@ -1,9 +1,33 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { plainTextToDelta } from "../lib/plain-text-delta";
+import {
+  contentResources,
+  expandContent,
+  templateTitle,
+  type RegisteredContent,
+} from "../lib/plugin-system/content-resources";
+import { PluginParameterDialog } from "./PluginParameterDialog";
+import type { ParameterValues } from "../lib/plugin-system/command-parameters";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { DocType, Note } from "../types/models";
-import { applyTemplateMetadata, templateStore, type Template } from "../lib/storage/template-store";
-import { buildDocumentStoragePath, normalizeStoragePath, splitSuggestedDocPath } from "../lib/storage/core";
+import {
+  applyTemplateMetadata,
+  templateStore,
+  type Template,
+} from "../lib/storage/template-store";
+import {
+  buildDocumentStoragePath,
+  normalizeStoragePath,
+  splitSuggestedDocPath,
+} from "../lib/storage/core";
 import { PathPreview } from "./ListPresentation";
 import { OperationError } from "./OperationError";
 import { useDialogFocus } from "../hooks/useDialogFocus";
@@ -25,7 +49,11 @@ const PATH_OPTIONS = [
 const CUSTOM_ROOT_VALUE = "__custom_root__";
 
 const DOC_TYPE_OPTIONS: { value: DocType; label: string; desc: string }[] = [
-  { value: "explanation", label: "📖 解释", desc: "说明原理、设计思路、为什么" },
+  {
+    value: "explanation",
+    label: "📖 解释",
+    desc: "说明原理、设计思路、为什么",
+  },
   { value: "how-to", label: "🔧 指南", desc: "具体操作的步骤说明" },
   { value: "reference", label: "📋 参考", desc: "API 参数、配置项、速查表" },
   { value: "tutorial", label: "🎓 教程", desc: "引导式从头到尾学完" },
@@ -46,8 +74,29 @@ function applyTemplateMeta(template: Template) {
   };
 }
 
-function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogProps) {
-  const suggestion = useMemo(() => splitSuggestedDocPath(suggestedPath), [suggestedPath]);
+function DocCreateDialog({
+  onClose,
+  onCreated,
+  suggestedPath,
+}: DocCreateDialogProps) {
+  const suggestion = useMemo(
+    () => splitSuggestedDocPath(suggestedPath),
+    [suggestedPath],
+  );
+  const contributions = useSyncExternalStore(
+    contentResources.subscribe,
+    contentResources.getSnapshot,
+  );
+  const pluginTemplates = contributions.filter((entry) =>
+    entry.value.usage.includes("new"),
+  );
+  const [pluginTemplate, setPluginTemplate] =
+    useState<RegisteredContent | null>(null);
+  const [parameters, setParameters] = useState<ParameterValues>({});
+  const [parameterOpen, setParameterOpen] = useState(false);
+  const pluginUnavailable = Boolean(
+    pluginTemplate && !contributions.includes(pluginTemplate),
+  );
   const [title, setTitle] = useState("");
   const [rootPath, setRootPath] = useState(suggestion.rootPath);
   const [customRootPath, setCustomRootPath] = useState("");
@@ -63,7 +112,9 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
   const [error, setError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
-  const [customRootSuggestions, setCustomRootSuggestions] = useState<string[]>([]);
+  const [customRootSuggestions, setCustomRootSuggestions] = useState<string[]>(
+    [],
+  );
   const titleRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   useDialogFocus(dialogRef, true, titleRef);
@@ -74,7 +125,11 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
     if (revealFocusFrameRef.current !== null) {
       window.cancelAnimationFrame(revealFocusFrameRef.current);
     }
-    const target = control ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    const target =
+      control ??
+      (document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null);
     revealFocusFrameRef.current = window.requestAnimationFrame(() => {
       // A second frame lets the Visual Viewport CSS variables resize the dialog
       // before measuring the focused control.
@@ -82,7 +137,10 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
         revealFocusFrameRef.current = null;
         const body = bodyRef.current;
         if (!body || !target || !body.contains(target)) return;
-        const region = target.closest<HTMLElement>(".dialog-type-btn, .dialog-template-chip") ?? target;
+        const region =
+          target.closest<HTMLElement>(
+            ".dialog-type-btn, .dialog-template-chip",
+          ) ?? target;
         const bodyRect = body.getBoundingClientRect();
         const targetRect = region.getBoundingClientRect();
         const margin = 10;
@@ -96,22 +154,30 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
   }, []);
 
   useEffect(() => {
-    api.docs.allConcepts().then(setExistingConcepts).catch(() => {});
-    api.docs.tree().then((tree) => {
-      const roots = tree
-        .filter((node) => node.type === "folder" && !node.path.includes("/"))
-        .map((node) => node.name);
-      setCustomRootSuggestions([...new Set(roots)]);
-    }).catch(() => {});
+    api.docs
+      .allConcepts()
+      .then(setExistingConcepts)
+      .catch(() => {});
+    api.docs
+      .tree()
+      .then((tree) => {
+        const roots = tree
+          .filter((node) => node.type === "folder" && !node.path.includes("/"))
+          .map((node) => node.name);
+        setCustomRootSuggestions([...new Set(roots)]);
+      })
+      .catch(() => {});
     // 加载模板
-    templateStore.seedBuiltinTemplates().then(() =>
-      templateStore.listTemplates()
-    ).then((list) => {
-      setTemplates(list);
-      // "空白笔记" 作为默认选中
-      const blank = list.find((t) => t.id === "builtin-blank");
-      if (blank) setActiveTemplateId(blank.id);
-    }).catch(() => {});
+    templateStore
+      .seedBuiltinTemplates()
+      .then(() => templateStore.listTemplates())
+      .then((list) => {
+        setTemplates(list);
+        // "空白笔记" 作为默认选中
+        const blank = list.find((t) => t.id === "builtin-blank");
+        if (blank) setActiveTemplateId(blank.id);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -140,11 +206,17 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
 
   /** 选择模板 — 预填表单，用户仍可修改 */
   const handleTemplateSelect = (template: Template | null) => {
+    setPluginTemplate(null);
+    setParameterOpen(false);
+    setError(null);
     if (template) {
       const meta = applyTemplateMeta(template);
       setTitle(meta.title);
       // 路径：模板有匹配的 rootPath 则用，否则重置为默认
-      if (meta.rootPath && PATH_OPTIONS.some((o) => o.value === meta.rootPath)) {
+      if (
+        meta.rootPath &&
+        PATH_OPTIONS.some((o) => o.value === meta.rootPath)
+      ) {
         setRootPath(meta.rootPath);
       } else {
         setRootPath("projects");
@@ -161,13 +233,40 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
     }
   };
 
+  const selectPluginTemplate = (entry: RegisteredContent) => {
+    contentResources.assert(entry);
+    const values = Object.fromEntries(
+      entry.value.fields.map((field) => [field.id, field.default]),
+    );
+    setPluginTemplate(entry);
+    setActiveTemplateId(entry.value.id);
+    setParameters(values);
+    setError(null);
+    setTitle(templateTitle(entry.value, values));
+    const path = splitSuggestedDocPath(
+      entry.value.target?.path ?? suggestedPath,
+    );
+    if (PATH_OPTIONS.some((option) => option.value === path.rootPath)) {
+      setRootPath(path.rootPath);
+      setCustomRootPath("");
+    } else {
+      setRootPath(CUSTOM_ROOT_VALUE);
+      setCustomRootPath(path.rootPath);
+    }
+    setSubPath(path.subPath);
+    setPathTouched(true);
+    setDocType(entry.value.target?.docType ?? "explanation");
+    setConcepts([]);
+    setParameterOpen(entry.value.fields.length > 0);
+  };
+
   const handleConceptChange = (value: string) => {
     setConceptInput(value);
     if (value.trim()) {
       setFilteredSuggestions(
         existingConcepts.filter(
-          (c) => c.includes(value.trim()) && !concepts.includes(c)
-        )
+          (c) => c.includes(value.trim()) && !concepts.includes(c),
+        ),
       );
     } else {
       setFilteredSuggestions([]);
@@ -210,24 +309,45 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
 
   const storagePath = buildStoragePath();
   let pathError = "";
-  try { normalizeStoragePath(storagePath); }
-  catch (reason) { pathError = reason instanceof Error ? reason.message : String(reason); }
+  try {
+    normalizeStoragePath(storagePath);
+  } catch (reason) {
+    pathError = reason instanceof Error ? reason.message : String(reason);
+  }
 
   const handleSubmit = async () => {
-    if (!title.trim() || pathError || savingRef.current) return;
+    if (!title.trim() || pathError || savingRef.current || pluginUnavailable)
+      return;
     savingRef.current = true;
     setSaving(true);
     setError(null);
     try {
       const today = localDateKey();
-      const selectedTemplate = templates.find((template) => template.id === activeTemplateId);
-      const defaults = selectedTemplate ? await templateStore.applyTemplate(selectedTemplate) : null;
+      const selectedTemplate = templates.find(
+        (template) => template.id === activeTemplateId,
+      );
+      const defaults = selectedTemplate
+        ? await templateStore.applyTemplate(selectedTemplate)
+        : null;
 
+      let pluginContent;
+      if (pluginTemplate) {
+        contentResources.assert(pluginTemplate);
+        const input = expandContent(pluginTemplate.value, parameters);
+        const { mdToDelta } = await import("../lib/md-parser");
+        pluginContent =
+          input.format === "markdown"
+            ? mdToDelta(input.value)
+            : plainTextToDelta(input.value);
+        contentResources.assert(pluginTemplate);
+      }
       const note = await api.notes.create({
         date: today,
         title: title.trim(),
-        content: defaults?.content ?? { ops: [] },
-        tags: defaults?.tags ?? [],
+        content: pluginContent ?? defaults?.content ?? { ops: [] },
+        tags: pluginTemplate
+          ? [...(pluginTemplate.value.target?.tags ?? [])]
+          : (defaults?.tags ?? []),
         pinned: defaults?.pinned ?? false,
         storagePath,
         docType,
@@ -245,7 +365,12 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.defaultPrevented || e.nativeEvent.isComposing) return;
-    if (e.key === "Enter" && !e.shiftKey && e.target instanceof HTMLInputElement && e.target.type !== "radio") {
+    if (
+      e.key === "Enter" &&
+      !e.shiftKey &&
+      e.target instanceof HTMLInputElement &&
+      e.target.type !== "radio"
+    ) {
       e.preventDefault();
       handleSubmit();
     }
@@ -257,7 +382,12 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
   };
 
   return (
-    <div className="dialog-overlay doc-create-overlay" onClick={() => { if (!savingRef.current) onClose(); }}>
+    <div
+      className="dialog-overlay doc-create-overlay"
+      onClick={() => {
+        if (!savingRef.current) onClose();
+      }}
+    >
       <div
         className="dialog doc-create-dialog ui-form-dialog"
         ref={dialogRef}
@@ -266,11 +396,20 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
         aria-labelledby="doc-create-dialog-title"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
-        onFocusCapture={(event) => revealFocusedControl(event.target as HTMLElement)}
+        onFocusCapture={(event) =>
+          revealFocusedControl(event.target as HTMLElement)
+        }
       >
         <div className="dialog-header">
           <h3 id="doc-create-dialog-title">新建文档</h3>
-          <button className="btn-icon dialog-close" onClick={onClose} disabled={saving} aria-label="关闭新建文档">✕</button>
+          <button
+            className="btn-icon dialog-close"
+            onClick={onClose}
+            disabled={saving}
+            aria-label="关闭新建文档"
+          >
+            ✕
+          </button>
         </div>
 
         <div className="dialog-body" ref={bodyRef}>
@@ -279,6 +418,19 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
             <div className="dialog-field">
               <span className="dialog-label">模板</span>
               <div className="dialog-template-row">
+                {pluginTemplates.map((entry) => (
+                  <button
+                    type="button"
+                    key={entry.value.id}
+                    className={`dialog-template-chip ${pluginTemplate === entry ? "active" : ""}`}
+                    aria-pressed={pluginTemplate === entry}
+                    onClick={() => selectPluginTemplate(entry)}
+                  >
+                    <span className="dialog-template-name">
+                      {entry.value.name} · 插件
+                    </span>
+                  </button>
+                ))}
                 {templates.map((t) => (
                   <button
                     key={t.id}
@@ -288,14 +440,21 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
                     type="button"
                   >
                     <span className="dialog-template-icon">
-                      {t.id === "builtin-meeting" ? "📋" :
-                       t.id === "builtin-reading" ? "📖" :
-                       t.id === "builtin-project" ? "🚀" :
-                       t.id === "builtin-idea" ? "💡" :
-                       t.id === "builtin-todo" ? "✅" :
-                       t.id === "builtin-knowledge" ? "🧠" :
-                       t.id === "builtin-weekly" ? "📊" :
-                       "📄"}
+                      {t.id === "builtin-meeting"
+                        ? "📋"
+                        : t.id === "builtin-reading"
+                          ? "📖"
+                          : t.id === "builtin-project"
+                            ? "🚀"
+                            : t.id === "builtin-idea"
+                              ? "💡"
+                              : t.id === "builtin-todo"
+                                ? "✅"
+                                : t.id === "builtin-knowledge"
+                                  ? "🧠"
+                                  : t.id === "builtin-weekly"
+                                    ? "📊"
+                                    : "📄"}
                     </span>
                     <span className="dialog-template-name">{t.name}</span>
                   </button>
@@ -304,6 +463,28 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
             </div>
           )}
 
+          {pluginTemplate && (
+            <div className="dialog-field">
+              <span className="dialog-label">
+                插件模板：{pluginTemplate.value.name}
+              </span>
+              {pluginUnavailable ? (
+                <p role="alert">
+                  模板已停用或更新，请重新选择模板；未创建文档。
+                </p>
+              ) : (
+                pluginTemplate.value.fields.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => setParameterOpen(true)}
+                  >
+                    填写模板参数…
+                  </button>
+                )
+              )}
+            </div>
+          )}
           {/* 标题 */}
           <label className="dialog-field">
             <span className="dialog-label">标题</span>
@@ -320,14 +501,18 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
 
           {/* 目录（P.A.R.A. 生命周期） */}
           <div className="dialog-field">
-            <span className="dialog-label">位置 <span className="dialog-hint">（仅决定存放，可更改）</span></span>
+            <span className="dialog-label">
+              位置 <span className="dialog-hint">（仅决定存放，可更改）</span>
+            </span>
             <div className="dialog-path-row">
               <select
                 className={`dialog-select ${showSuggestion ? "suggested" : ""}`}
                 value={rootPath}
                 aria-label="顶级目录"
                 onChange={(e) => handleRootPathChange(e.target.value)}
-                title={PATH_OPTIONS.find((option) => option.value === rootPath)?.desc}
+                title={
+                  PATH_OPTIONS.find((option) => option.value === rootPath)?.desc
+                }
               >
                 {PATH_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -336,26 +521,32 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
                 ))}
                 <option value={CUSTOM_ROOT_VALUE}>➕ 自定义目录</option>
               </select>
-              {rootPath === CUSTOM_ROOT_VALUE && <>
-                <span className="dialog-path-sep">/</span>
-                <input
-                  type="text"
-                  className="dialog-input dialog-path-input"
-                  placeholder="目录路径 (如 private/network)"
-                  aria-label="自定义目录"
-                  aria-invalid={!!pathError}
-                  aria-describedby={pathError ? "doc-create-path-error" : undefined}
-                  value={customRootPath}
-                  list="custom-root-paths"
-                  onChange={(e) => {
-                    setCustomRootPath(e.target.value);
-                    setPathTouched(true);
-                  }}
-                />
-                <datalist id="custom-root-paths">
-                  {customRootSuggestions.map((path) => <option key={path} value={path} />)}
-                </datalist>
-              </>}
+              {rootPath === CUSTOM_ROOT_VALUE && (
+                <>
+                  <span className="dialog-path-sep">/</span>
+                  <input
+                    type="text"
+                    className="dialog-input dialog-path-input"
+                    placeholder="目录路径 (如 private/network)"
+                    aria-label="自定义目录"
+                    aria-invalid={!!pathError}
+                    aria-describedby={
+                      pathError ? "doc-create-path-error" : undefined
+                    }
+                    value={customRootPath}
+                    list="custom-root-paths"
+                    onChange={(e) => {
+                      setCustomRootPath(e.target.value);
+                      setPathTouched(true);
+                    }}
+                  />
+                  <datalist id="custom-root-paths">
+                    {customRootSuggestions.map((path) => (
+                      <option key={path} value={path} />
+                    ))}
+                  </datalist>
+                </>
+              )}
               <span className="dialog-path-sep">/</span>
               <input
                 type="text"
@@ -363,19 +554,33 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
                 placeholder="子路径 (如 nine-rings)"
                 aria-label="子路径"
                 aria-invalid={!!pathError}
-                aria-describedby={pathError ? "doc-create-path-error" : undefined}
+                aria-describedby={
+                  pathError ? "doc-create-path-error" : undefined
+                }
                 value={subPath}
                 onChange={(e) => handleSubPathChange(e.target.value)}
               />
             </div>
             <PathPreview className="dialog-path-preview" target={storagePath} />
-            {pathError && <span className="ui-field-error" id="doc-create-path-error" role="status">{pathError}</span>}
+            {pathError && (
+              <span
+                className="ui-field-error"
+                id="doc-create-path-error"
+                role="status"
+              >
+                {pathError}
+              </span>
+            )}
           </div>
 
           {/* 类型（Diátaxis） */}
           <div className="dialog-field">
             <span className="dialog-label">类型</span>
-            <div className="dialog-type-grid" role="radiogroup" aria-label="文档类型">
+            <div
+              className="dialog-type-grid"
+              role="radiogroup"
+              aria-label="文档类型"
+            >
               {DOC_TYPE_OPTIONS.map((o) => (
                 <label
                   key={o.value}
@@ -398,7 +603,9 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
 
           {/* 概念标签（Zettelkasten） */}
           <label className="dialog-field">
-            <span className="dialog-label">概念标签 <span className="dialog-hint">（关联查找用）</span></span>
+            <span className="dialog-label">
+              概念标签 <span className="dialog-hint">（关联查找用）</span>
+            </span>
             <div className="dialog-tags-input-row">
               <input
                 type="text"
@@ -433,7 +640,14 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
                 {concepts.map((c) => (
                   <span key={c} className="dialog-tag">
                     {c}
-                    <button className="dialog-tag-remove" aria-label={`移除概念 ${c}`} onClick={() => removeConcept(c)} type="button">✕</button>
+                    <button
+                      className="dialog-tag-remove"
+                      aria-label={`移除概念 ${c}`}
+                      onClick={() => removeConcept(c)}
+                      type="button"
+                    >
+                      ✕
+                    </button>
                   </span>
                 ))}
               </div>
@@ -443,16 +657,51 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
         </div>
 
         <div className="dialog-footer">
-          <button className="btn btn-secondary" onClick={onClose} disabled={saving}>取消</button>
+          <button
+            className="btn btn-secondary"
+            onClick={onClose}
+            disabled={saving}
+          >
+            取消
+          </button>
           <button
             className="btn btn-primary"
             onClick={handleSubmit}
-            disabled={!title.trim() || !!pathError || saving}
+            disabled={
+              !title.trim() || !!pathError || saving || pluginUnavailable
+            }
           >
             {saving ? "创建中..." : "创建"}
           </button>
         </div>
       </div>
+      {parameterOpen && pluginTemplate && !pluginUnavailable && (
+        <div onClick={(event) => event.stopPropagation()}>
+          <PluginParameterDialog
+            command={{
+              label: `新建 · ${pluginTemplate.value.name}`,
+              parameters: {
+                kind: "form",
+                fields: pluginTemplate.value.fields.map((field) => ({
+                  ...field,
+                  default: parameters[field.id] ?? field.default,
+                })),
+              },
+              run: () => {},
+            }}
+            onCancel={() => setParameterOpen(false)}
+            onSubmit={(values) => {
+              contentResources.assert(pluginTemplate);
+              expandContent(pluginTemplate.value, values);
+              const nextTitle = templateTitle(pluginTemplate.value, values);
+              if (title === templateTitle(pluginTemplate.value, parameters))
+                setTitle(nextTitle);
+              setParameters(values);
+              setParameterOpen(false);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

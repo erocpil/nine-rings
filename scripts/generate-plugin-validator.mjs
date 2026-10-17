@@ -10,12 +10,27 @@ for (const file of readdirSync(directory).sort()) {
   if (file === "contributions.schema.json") {
     // Compile only contribution types with a shipped host interpreter.
     schema.$defs.Theme = schema.$defs.Theme.oneOf[1];
-    schema.$defs.Template.properties.usage = { type: "array", items: { const: "insert" }, minItems: 1, maxItems: 1 };
+
     schema.$defs.Template.required.push("usage");
-    schema.$defs.Template.properties.target = false;
-    schema.$defs.Template.properties.titlePattern = false;
-    schema.$defs.Contributes.properties = Object.fromEntries(["themes", "templates", "snippets"].map(key => [key, { ...schema.$defs.Contributes.properties[key], minItems: 1, maxItems: key === "themes" ? 8 : 16 }]));
+    schema.$defs.Template.properties.target.properties.properties = false;
+
+    schema.$defs.Contributes.properties = Object.fromEntries(["themes", "templates", "snippets", "macros", "queries"].map(key => [key, { ...schema.$defs.Contributes.properties[key], minItems: 1, maxItems: key === "themes" ? 8 : 16 }]));
     schema.$defs.Contributes.additionalProperties = false;
+    schema.$defs.Macro.properties.enablement = false;
+  }
+  if (file === "query.schema.json") {
+    // Recursive static validator avoids exponentially duplicating the bounded
+    // condition schema. The interpreter additionally enforces depth/node limits.
+    schema.$defs.Leaf.oneOf = [...schema.$defs.Leaf.oneOf.slice(0, 9), schema.$defs.Leaf.oneOf[13]];
+    schema.$defs.Leaf.oneOf[9].properties.field = { enum: ["title", "path", "tags", "concepts", "docType", "createdAt", "updatedAt"] };
+    schema.$defs.Q1 = JSON.parse(JSON.stringify(schema.$defs.Q1).replaceAll("#/$defs/Q2", "#/$defs/Q1"));
+    schema.$defs.QueryField = { enum: ["title", "path", "tags", "concepts", "docType", "createdAt", "updatedAt"] };
+    const props = schema.$defs.Query.properties;
+    props.placement.items = { const: "commandPalette" };
+    props.groupBy = false;
+    props.view.properties.type = { enum: ["list", "table"] };
+    props.params.items.properties.type = { enum: ["string", "date"] };
+    props.sort.items.properties.field = { enum: ["title", "path", "docType", "createdAt", "updatedAt"] };
   }
   if (file === "manifest.schema.json") {
     schema.properties.entry = false;

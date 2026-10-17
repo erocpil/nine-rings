@@ -1,3 +1,4 @@
+import { toggleDebug } from "../lib/debugLog";
 import { editorCommandTrigger } from "../lib/editor-command-surface";
 import { createPortal } from "react-dom";
 import { relativeLineNumbers } from "../lib/source-relative-line-numbers";
@@ -135,6 +136,9 @@ export function MarkdownSourceEditor({
   showLineNumbers,
   escapeRepair,
   toolbarTarget,
+  showStatusBar = true,
+  saveStatus,
+  onVersionOpen,
 }: {
   value: string;
   readonly: boolean;
@@ -149,6 +153,9 @@ export function MarkdownSourceEditor({
   showLineNumbers: boolean;
   escapeRepair?: ReactNode;
   toolbarTarget?: HTMLElement | null;
+  showStatusBar?: boolean;
+  saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
+  onVersionOpen?: () => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -515,6 +522,12 @@ export function MarkdownSourceEditor({
     >
       {toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbar}
       <div ref={host} className="markdown-cm-host" />
+      {showStatusBar && <div className="editor-stats markdown-source-status" role="group" aria-label="源码状态栏">
+        <span className={`editor-save-state editor-save-state-${saveStatus ?? "clean"}`} role="status" aria-label={saveStatus === "dirty" ? "待保存" : saveStatus === "saving" ? "保存中" : saveStatus === "error" ? "保存失败" : "已保存到本机；GitHub 备份需要单独 Push"} title="仅表示本机保存状态，GitHub 备份需要单独 Push"><ToolbarIcon name={saveStatus === "saving" ? "saving" : saveStatus === "error" ? "warning" : "check"} />{saveStatus === "dirty" ? "待保存" : saveStatus === "saving" ? "保存中" : saveStatus === "error" ? "保存失败" : null}</span>
+        <span>行 {cursor.line}，列 {cursor.column}</span>
+        <span>{value.length} 字符</span>
+        <span className="editor-status-actions"><button type="button" className="btn-debug-toggle" onClick={toggleDebug} title="打开调试日志" aria-label="打开调试日志"><ToolbarIcon name="bug" /><span>日志</span></button>{onVersionOpen && <button type="button" className="btn-version-icon" onClick={onVersionOpen} title="版本历史" aria-label="打开本机版本历史"><ToolbarIcon name="history" /><span>历史</span></button>}</span>
+      </div>}
     </div>
   );
 }

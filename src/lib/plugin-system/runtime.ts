@@ -22,7 +22,7 @@ export class PluginHostError extends Error {
   }
 }
 export type PluginPermission =
-  "editor.selection.read" | "editor.selection.write" | "documents.current.read" | "panels.present" | "filesystem.images.read" | "views.present" | "documents.vocabulary.read";
+  "editor.selection.read" | "editor.selection.write" | "documents.current.read" | "panels.present" | "filesystem.images.read" | "views.present" | "documents.vocabulary.read" | "documents.metadata.read";
 export interface PluginActivation {
   readonly pluginId: string;
   readonly generation: string;
@@ -128,6 +128,7 @@ export class PluginRuntime {
       "editor.selection.read",
       "editor.selection.write",
       "documents.current.read",
+      "documents.metadata.read",
       "panels.present",
       "views.present",
       "documents.vocabulary.read",

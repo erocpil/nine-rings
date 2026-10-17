@@ -23,6 +23,7 @@ export async function insertDeclarativeContent(
   signal: AbortSignal,
 ) {
   contentResources.assert(entry);
+  if (!entry.value.usage.includes("insert")) throw new PluginHostError("INVALID_ARGUMENT", "此模板仅用于新建文档");
   const view = context().view;
   if (
     (view !== "render" && view !== "source") ||

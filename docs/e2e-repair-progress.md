@@ -1767,3 +1767,12 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - 完整 `npm run check` 通过：189 单元文件 / 2240 项及原有独立检查；最后焦点与界面文案修改后 typecheck/lint、生产构建和 bundle 预算再通过。主包 495.69 kB，无超大 chunk 警告。
 - Chromium/WebKit 分别覆盖 10 个不同用例（plugin-content 3、plugin-packages 3、plugin-parameter-form 4）。最后 3 项模板用例两引擎重跑全过，含手机 390 宽度。最初新用例错误使用桌面新建按钮及未关闭设置已修正；不将重跑重复计数。已有主题安装、图片参数表单与本机图片插入均通过。
 - 日志：`/tmp/nr-content-check.log`、`/tmp/nr-content-chromium-final.log`、`/tmp/nr-content-chromium-complete.log`、`/tmp/nr-content-webkit.log`、`/tmp/nr-content-webkit-final.log`、`/tmp/nr-content-build-final.log`、`/tmp/nr-content-bundle.log`。未执行本批原生 GUI 安装或全产品 E2E；上次推送的远端完整 E2E 仍另行跟踪。
+
+### 2026-10-18：新建模板、受限宏与元数据查询
+
+- 新建模板复用宿主创建对话框及保护适配器；确认前资源停用/更新会禁用创建。宏预检后逐步调度、保存并报告进度；查询只读取 summary，排除受保护路径，结果表格/列表可正常跳转。不改变共享正文、模板库或备份格式。
+- 新增 22 项单元覆盖新建核心元信息、未知标题参数和自定义属性拒绝、宏白名单/参数/递归、保存失败/选区变化/停用停止，以及查询条件/预算/参数/投影/保护。完整 check：190 文件 / 2262 项，schema 56 项、静态生成一致性、lint/typecheck 和 IPC 契约检查通过。
+- Chromium/WebKit 各 12 项通过：plugin-actions 4、plugin-content 3、plugin-packages 3、focus-activity-edge 2。覆盖源码与渲染完整流程、参数、撤销、停用禁用创建、源码状态栏持久化、手机安装，以及两侧 20px 处唤出专注分栏。首次测试把源码标题当 input、未等待设置实际持久化的断言已纠正；创建按钮漏禁用已修复。
+- 源码状态栏沿用现有编辑器状态栏配置，不新增备份字段；显示位置、字符数、保存、日志与历史。专注分栏热区由 6px 加宽到 24px，移出隐藏与固定保持不变。
+- 生产构建及 bundle 预算通过，主包 496.07 kB，无超大 chunk 警告。未执行本批 Tauri 原生 GUI 或全产品 E2E；原生菜单栏迁移仅评估可行，尚未增加自定义格式命令。
+- 记录：`/tmp/nr-actions-check-final.log`、`/tmp/nr-actions-schema.log`、`/tmp/nr-actions-chromium-complete.log`、`/tmp/nr-actions-webkit.log`、`/tmp/nr-actions-build.log`、`/tmp/nr-actions-bundle.log`。

@@ -1,3 +1,4 @@
+import { actionResources } from "./action-resources";
 import { contentResources } from "./content-resources";
 import { pluginRuntime } from "./runtime";
 import { pluginLifecycle } from "./lifecycle";
@@ -70,17 +71,33 @@ export function startInstalledPluginPackages() {
               return;
             const activation = await pluginLifecycle.activate(
               data.id,
-              data.content.length
-                ? [
-                    "editor.selection.read",
-                    "editor.selection.write",
-                    "documents.current.read",
-                  ]
-                : [],
+              [
+                ...(data.content.some((entry) =>
+                  entry.usage.includes("insert"),
+                ) ||
+                data.actions.some(
+                  (action) => action.kind === "macro" && action.writes,
+                )
+                  ? [
+                      "editor.selection.read" as const,
+                      "editor.selection.write" as const,
+                    ]
+                  : []),
+                ...(data.content.some((entry) =>
+                  entry.usage.includes("insert"),
+                ) || data.actions.some((action) => action.kind === "macro")
+                  ? ["documents.current.read" as const]
+                  : []),
+                ...(data.actions.some((action) => action.kind === "query")
+                  ? ["documents.metadata.read" as const]
+                  : []),
+              ],
               {
                 activate(owner) {
                   if (data.themes.length)
                     themeResources.register(owner.activation, data.themes);
+                  if (data.actions.length)
+                    actionResources.register(owner.activation, data.actions);
                   if (data.content.length)
                     contentResources.register(owner.activation, data.content);
                 },

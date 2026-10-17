@@ -12,7 +12,7 @@ for (const side of ["left", "right"]) {
     const nav = page.getByRole("navigation", { name: "工作区面板", exact: true });
     await expect(nav).toHaveClass(/desktop-activity-bar-focus-hidden/);
     const body = (await page.locator(".app-body").boundingBox())!;
-    const x = side === "left" ? body.x + 2 : body.x + body.width - 2;
+    const x = side === "left" ? body.x + 20 : body.x + body.width - 20;
     await page.mouse.move(x, body.y + 200);
     await expect(nav).not.toHaveClass(/desktop-activity-bar-focus-hidden/);
     await page.mouse.move(body.x + body.width / 2, body.y + 200);

@@ -71,10 +71,11 @@ it.each([
     m.contributes.templates[0].target = { properties: { "acme.foo/bar": "x" } };
   },
   (m: TestManifest) => {
-    m.contributes.templates[0].usage = ["new"];
+    m.contributes.templates[0].usage = ["open"];
   },
   (m: TestManifest) => {
     m.contributes.templates[0].titlePattern = "标题";
+    m.contributes.templates[0].usage = ["insert"];
   },
   (m: TestManifest) => {
     m.contributes.templates[0].variables.push({

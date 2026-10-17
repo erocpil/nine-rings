@@ -82,7 +82,7 @@ function PackageConfirmation({
         <p>{candidate.description || "未提供简介"}</p>
         <p>
           本机文件来源，未验证发布者身份。SHA-256
-          只证明内容一致，不证明来源可信。包只含声明式数据，不执行脚本；模板和片段仅在明确调用时向当前可编辑文档插入内容。安装及更新后默认停用。
+          只证明内容一致，不证明来源可信。包只含声明式数据，不执行脚本；模板与片段仅在明确调用时写入；宏只执行已审核的宿主命令，可编辑或统计当前文档；查询只读取工作区元数据。安装及更新后默认停用。
         </p>
         {previous && (
           <p>
@@ -94,6 +94,17 @@ function PackageConfirmation({
             <li key={theme.id}>
               {theme.name} · {theme.id}
               {theme.typography ? " · 含可选排版建议" : " · 仅配色"}
+            </li>
+          ))}
+          {candidate.actions.map((entry) => (
+            <li key={entry.id}>
+              {entry.name} ·{" "}
+              {entry.kind === "macro"
+                ? entry.writes
+                  ? "受限宏 · 编辑当前文档"
+                  : "受限宏 · 只读"
+                : "元数据查询"}{" "}
+              · {entry.id}
             </li>
           ))}
           {candidate.content.map((entry) => (
@@ -221,7 +232,7 @@ export function SettingsInstalledPackages() {
     >
       <h3>声明式插件包</h3>
       <p className="settings-desc">
-        支持成对主题配色、插入模板和文本片段。仅本机保存，安装前核验并明确确认；暂不安装脚本、宏、查询或新建文档模板。
+        支持成对主题配色、插入模板和文本片段。仅本机保存，安装前核验并明确确认；支持新建文档模板、受限宏与元数据查询；暂不安装脚本或自定义属性。
       </p>
       <input
         ref={input}

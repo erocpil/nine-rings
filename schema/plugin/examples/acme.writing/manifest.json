@@ -3,17 +3,141 @@
   "id": "acme.writing",
   "name": "写作模板与片段",
   "description": "插入带参数的会议记录和纯文本提示。",
-  "version": "1.0.0",
-  "engines": { "nineRingsPluginApi": "^0.1.0", "app": "^0.3.0" },
+  "version": "1.1.0",
+  "engines": {
+    "nineRingsPluginApi": "^0.1.0",
+    "app": "^0.3.0"
+  },
   "contributes": {
-    "templates": [{
-      "id": "meeting", "name": "会议记录", "usage": ["insert"],
-      "variables": [
-        { "name": "topic", "label": "议题", "type": "text", "required": true },
-        { "name": "status", "label": "状态", "type": "choice", "choices": [{ "value": "待讨论", "label": "待讨论" }, { "value": "已确认", "label": "已确认" }] }
-      ],
-      "content": { "format": "markdown", "file": "resources/meeting.md" }
-    }],
-    "snippets": [{ "id": "reminder", "trigger": ";todo", "description": "待办提示", "views": ["render", "source"], "content": { "format": "text", "text": "待办：确认下一步。" } }]
+    "templates": [
+      {
+        "id": "meeting",
+        "name": "会议记录",
+        "usage": [
+          "new",
+          "insert"
+        ],
+        "variables": [
+          {
+            "name": "topic",
+            "label": "议题",
+            "type": "text",
+            "required": true
+          },
+          {
+            "name": "status",
+            "label": "状态",
+            "type": "choice",
+            "choices": [
+              {
+                "value": "待讨论",
+                "label": "待讨论"
+              },
+              {
+                "value": "已确认",
+                "label": "已确认"
+              }
+            ]
+          }
+        ],
+        "content": {
+          "format": "markdown",
+          "file": "resources/meeting.md"
+        },
+        "titlePattern": "{{topic}} · {{date}}",
+        "target": {
+          "path": "ideas/meetings",
+          "docType": "how-to",
+          "tags": [
+            "会议"
+          ]
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "id": "reminder",
+        "trigger": ";todo",
+        "description": "待办提示",
+        "views": [
+          "render",
+          "source"
+        ],
+        "content": {
+          "format": "text",
+          "text": "待办：确认下一步。"
+        }
+      }
+    ],
+    "macros": [
+      {
+        "id": "acme.writing.date-note",
+        "title": "日期记录与统计",
+        "steps": [
+          {
+            "command": "nine-rings.editor.insert-text",
+            "args": {
+              "value": "记录："
+            }
+          },
+          {
+            "command": "nine-rings.editor.insert-date",
+            "args": {
+              "format": "date"
+            }
+          },
+          {
+            "command": "nine-rings.document.statistics"
+          }
+        ]
+      }
+    ],
+    "queries": [
+      {
+        "id": "meetings",
+        "name": "会议文档",
+        "placement": [
+          "commandPalette"
+        ],
+        "params": [
+          {
+            "name": "keyword",
+            "type": "string",
+            "default": "会议"
+          }
+        ],
+        "where": {
+          "all": [
+            {
+              "field": "path",
+              "op": "under",
+              "value": "ideas/meetings"
+            },
+            {
+              "field": "title",
+              "op": "contains",
+              "value": {
+                "param": "keyword"
+              }
+            }
+          ]
+        },
+        "sort": [
+          {
+            "field": "updatedAt",
+            "dir": "desc"
+          }
+        ],
+        "limit": 50,
+        "view": {
+          "type": "table",
+          "columns": [
+            "title",
+            "path",
+            "tags"
+          ]
+        }
+      }
+    ]
   }
 }

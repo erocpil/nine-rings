@@ -1427,7 +1427,7 @@ function App() {
       if (event.pointerType === "touch") return;
       const body = document.querySelector(".app-body")?.getBoundingClientRect();
       if (!body) return;
-      const atEdge = sidebarOnRight ? event.clientX >= body.right - 6 : event.clientX <= body.left + 6;
+      const atEdge = sidebarOnRight ? event.clientX >= body.right - 24 : event.clientX <= body.left + 24;
       const inside = event.target instanceof Element && Boolean(event.target.closest(".desktop-activity-bar, #workspace-sidebar"));
       setFocusActivityRevealed(atEdge || inside);
     };

@@ -1,4 +1,15 @@
 import {
+  actionResources,
+  type RegisteredAction,
+} from "../lib/plugin-system/action-resources";
+import {
+  executeDeclarativeMacro,
+  readDeclarativeQuery,
+} from "../lib/plugin-system/action-invocation";
+import type { QueryRow } from "../lib/plugin-system/query-resources";
+import { PluginQueryResults } from "./PluginQueryResults";
+import type { Note } from "../types/models";
+import {
   contentResources,
   type RegisteredContent,
 } from "../lib/plugin-system/content-resources";
@@ -59,6 +70,7 @@ export function BuiltinPluginTools({
   disabled,
   readonly,
   onFocusEditor,
+  onOpenNote,
 }: {
   sessions: DocumentEditSessions;
   context: HostCommandContext;
@@ -66,6 +78,7 @@ export function BuiltinPluginTools({
   disabled: boolean;
   readonly: boolean;
   onFocusEditor: () => void;
+  onOpenNote?: (note: Note) => Promise<void>;
 }) {
   const enabled = useSyncExternalStore(
     pluginRuntime.subscribe,
@@ -76,6 +89,14 @@ export function BuiltinPluginTools({
     contentResources.subscribe,
     contentResources.getSnapshot,
   );
+  const actions = useSyncExternalStore(
+    actionResources.subscribe,
+    actionResources.getSnapshot,
+  );
+  const [queryResult, setQueryResult] = useState<{
+    entry: RegisteredAction;
+    rows: readonly QueryRow[];
+  } | null>(null);
   const contentAbort = useRef<AbortController | null>(null);
   const button = useRef<HTMLButtonElement>(null);
   const [kind, setKind] = useState<DocumentTool>("date");
@@ -109,6 +130,7 @@ export function BuiltinPluginTools({
     contentAbort.current = null;
     setTrigger(null);
     setStatistics(null);
+    setQueryResult(null);
     setMessage("");
     setBusy(false);
     const current = session.current;
@@ -149,6 +171,76 @@ export function BuiltinPluginTools({
     window.addEventListener("keydown", escape, true);
     return () => window.removeEventListener("keydown", escape, true);
   }, [active, busy, showingResult, trigger, close]);
+  useEffect(() => {
+    if (queryResult && !actions.includes(queryResult.entry)) close();
+  }, [actions, queryResult, close]);
+  const runAction = async (
+    entry: RegisteredAction,
+    values: ParameterValues,
+  ) => {
+    if (
+      running.current ||
+      !enabled ||
+      !active ||
+      disabled ||
+      (readonly && entry.value.kind === "macro" && entry.value.writes)
+    )
+      return;
+    close();
+    const version = epoch.current,
+      controller = new AbortController();
+    contentAbort.current = controller;
+    running.current = true;
+    setBusy(true);
+    try {
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+      if (version !== epoch.current || controller.signal.aborted) return;
+      if (entry.value.kind === "query") {
+        setMessage("正在查询文档元数据…");
+        const rows = await readDeclarativeQuery(
+          entry,
+          values,
+          controller.signal,
+        );
+        if (version === epoch.current) {
+          setMessage("");
+          setQueryResult({ entry, rows });
+        }
+      } else {
+        if (entry.value.writes) onFocusEditor();
+        const result = await executeDeclarativeMacro(
+          entry,
+          sessions,
+          () => latest.current,
+          controller.signal,
+          (done, total) => {
+            if (version === epoch.current)
+              setMessage(`宏正在执行 ${done}/${total} 步…`);
+          },
+        );
+        if (version === epoch.current) {
+          const stats = [...result.results]
+            .reverse()
+            .find(
+              (value) =>
+                value && typeof value === "object" && "characters" in value,
+            ) as { characters: number; lines: number } | undefined;
+          setMessage(
+            `宏已完成 ${result.completed} 步${stats ? ` · ${stats.characters} 字符 / ${stats.lines} 行` : ""}`,
+          );
+        }
+      }
+    } catch (error) {
+      if (version === epoch.current)
+        setMessage(error instanceof Error ? error.message : "扩展执行失败");
+    } finally {
+      if (contentAbort.current === controller) contentAbort.current = null;
+      running.current = false;
+      if (version === epoch.current) setBusy(false);
+    }
+  };
   const runContent = async (
     entry: RegisteredContent,
     values: ParameterValues,
@@ -409,13 +501,13 @@ export function BuiltinPluginTools({
         ref={button}
         type="button"
         className="markdown-view-toggle"
-        title={content.length ? "插件" : "内置插件"}
+        title={content.length || actions.length ? "插件" : "内置插件"}
         data-can-insert-image={
           !readonly && !disabled && !busy && documentToolEnabled("image")
             ? "true"
             : undefined
         }
-        aria-label={content.length ? "插件" : "内置插件"}
+        aria-label={content.length || actions.length ? "插件" : "内置插件"}
         aria-haspopup="menu"
         aria-expanded={Boolean(trigger)}
         disabled={disabled || busy}
@@ -424,17 +516,43 @@ export function BuiltinPluginTools({
       >
         <ToolbarIcon name="plus" />
       </button>
+      {queryResult && (
+        <PluginQueryResults
+          entry={queryResult.entry}
+          rows={queryResult.rows}
+          onClose={close}
+          onOpen={onOpenNote}
+        />
+      )}
       {trigger && (
         <PluginCommandMenu
           trigger={trigger}
-          title={content.length ? "插件" : "内置插件"}
+          title={content.length || actions.length ? "插件" : "内置插件"}
           onClose={() => setTrigger(null)}
           commands={[
+            ...actions.map((entry) => ({
+              label: `${entry.value.kind === "macro" ? "宏" : "查询"} · ${entry.value.name} (${entry.value.id})`,
+              disabled:
+                disabled ||
+                busy ||
+                (readonly &&
+                  entry.value.kind === "macro" &&
+                  entry.value.writes),
+              parameters:
+                entry.value.kind === "query" && entry.value.fields.length
+                  ? { kind: "form" as const, fields: entry.value.fields }
+                  : { kind: "none" as const },
+              run: (values: ParameterValues) => {
+                void runAction(entry, values);
+              },
+            })),
             ...content
-              .filter((entry) =>
-                entry.value.views.includes(
-                  context.view === "source" ? "source" : "render",
-                ),
+              .filter(
+                (entry) =>
+                  entry.value.usage.includes("insert") &&
+                  entry.value.views.includes(
+                    context.view === "source" ? "source" : "render",
+                  ),
               )
               .map((entry) => ({
                 label: `${entry.value.kind === "template" ? "模板" : "片段"} · ${entry.value.name} (${entry.value.id})`,

@@ -9,6 +9,8 @@ import {
   type ParameterField,
   type ParameterValues,
 } from "./command-parameters";
+import { normalizeStoragePath } from "../storage/core";
+import type { DocType } from "../../types/models";
 import { formatPluginDate } from "./date-formats";
 
 export interface ContentContribution {
@@ -16,6 +18,13 @@ export interface ContentContribution {
   readonly name: string;
   readonly kind: "template" | "snippet";
   readonly trigger?: string;
+  readonly usage: readonly ("new" | "insert")[];
+  readonly titlePattern?: string;
+  readonly target?: Readonly<{
+    path?: string;
+    docType?: DocType;
+    tags?: readonly string[];
+  }>;
   readonly views: readonly ("render" | "source")[];
   readonly format: "markdown" | "text";
   readonly text: string;
@@ -53,6 +62,16 @@ export function parseContentContributions(
       const text = source.text ?? read(source.file!);
       if (!text.length || text.length > 100000 || text.includes("\0"))
         invalid("正文为空、含空字符或超过 100000 字符");
+      const usage: readonly ("new" | "insert")[] =
+        kind === "template"
+          ? (entry.usage as ("new" | "insert")[])
+          : (["insert"] as const);
+      const target = entry.target as
+        { path?: string; docType?: DocType; tags?: string[] } | undefined;
+      if ((target || entry.titlePattern) && !usage.includes("new"))
+        invalid("仅新建模板可声明标题与目标元信息");
+      if (target?.path && normalizeStoragePath(target.path) !== target.path)
+        invalid("模板路径必须为规范路径");
       const fields: ParameterField[] = [],
         dates: string[] = [];
       for (const variable of (entry.variables ?? []) as Record<
@@ -107,7 +126,9 @@ export function parseContentContributions(
         fields.push(field);
       }
       if (kind === "template")
-        for (const match of text.matchAll(/\{\{([^{}]*)\}\}/g)) {
+        for (const match of (text + "\n" + (entry.titlePattern ?? "")).matchAll(
+          /\{\{([^{}]*)\}\}/g,
+        )) {
           if (
             !["date", "time", "datetime"].includes(match[1]) &&
             !fields.some((field) => field.id === match[1])
@@ -122,6 +143,20 @@ export function parseContentContributions(
               ? localized(entry.name)
               : localized(entry.description) || (entry.trigger as string),
           kind,
+          usage: Object.freeze([...usage]),
+          ...(entry.titlePattern
+            ? { titlePattern: entry.titlePattern as string }
+            : {}),
+          ...(target
+            ? {
+                target: Object.freeze({
+                  ...target,
+                  ...(target.tags
+                    ? { tags: Object.freeze([...target.tags]) }
+                    : {}),
+                }),
+              }
+            : {}),
           ...(kind === "snippet" ? { trigger: entry.trigger as string } : {}),
           views: Object.freeze(
             kind === "template"
@@ -237,3 +272,22 @@ export class ContentResourceRegistry {
   }
 }
 export const contentResources = new ContentResourceRegistry(pluginRuntime);
+
+/** The existing new-document dialog remains the authority for the final title/path. */
+export function templateTitle(
+  entry: ContentContribution,
+  values: ParameterValues,
+) {
+  const title = expandContent(
+    {
+      ...entry,
+      text: entry.titlePattern ?? entry.name,
+      dates: [],
+      fields: entry.fields.map((field) => ({ ...field, required: false })),
+    },
+    values,
+  ).value;
+  if (title.length > 200)
+    return invalid("模板标题超过 200 字符，请缩短参数或修改标题");
+  return title;
+}

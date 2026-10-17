@@ -1223,3 +1223,10 @@ body.app-sidebar-dragging .desktop-reader-panel:not([hidden]) {
 }
 .workspace-sidebar-right .desktop-activity-bar-focus-overlay { left: auto; right: 0; }
 .desktop-activity-bar-focus-hidden { opacity: 0 !important; pointer-events: none; }
+
+.plugin-query-results { width: min(860px, calc(100vw - 24px)); }
+.plugin-query-results small { display: block; color: var(--text-secondary); overflow-wrap: anywhere; }
+.plugin-query-table { overflow: auto; }
+.plugin-query-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.plugin-query-table th, .plugin-query-table td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.markdown-source-status { flex: 0 0 auto; font-size: 12px; }

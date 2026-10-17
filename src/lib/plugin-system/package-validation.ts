@@ -1,3 +1,5 @@
+import { parseMacros, type ActionContribution } from "./action-resources";
+import { parseQueries } from "./query-resources";
 import semver from "semver";
 import {
   parseContentContributions,
@@ -196,6 +198,7 @@ export interface ValidatedPluginPackage {
   digest: string;
   themes: readonly ThemeResource[];
   content: readonly ContentContribution[];
+  actions: readonly ActionContribution[];
   files: Record<string, string>;
 }
 function localized(value: unknown): string {
@@ -272,7 +275,8 @@ export async function validatePluginPackage(
   if (
     !Object.keys(contributes).length ||
     Object.keys(contributes).some(
-      (key) => !["themes", "templates", "snippets"].includes(key),
+      (key) =>
+        !["themes", "templates", "snippets", "macros", "queries"].includes(key),
     )
   )
     return invalid("未开放的贡献点");
@@ -318,6 +322,10 @@ export async function validatePluginPackage(
     return text[path];
   });
   if (used.size !== entries.length - 1) return invalid("包中包含未声明资源");
+  const actions = Object.freeze([
+    ...parseMacros(id, contributes.macros, content),
+    ...parseQueries(id, contributes.queries),
+  ]);
   // The confirmation fingerprint covers manifest bytes as well as all resource bytes; integrity alone is not trust.
   const digest = await packageDigest(
     encoder.encode(
@@ -334,6 +342,7 @@ export async function validatePluginPackage(
     digest,
     themes,
     content,
+    actions,
     files: text,
   };
 }
