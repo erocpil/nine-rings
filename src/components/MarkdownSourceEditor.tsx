@@ -1,3 +1,5 @@
+import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
+import { numberingDisplays } from "../lib/plugin-system/numbering-display";
 import { toggleDebug } from "../lib/debugLog";
 import { editorCommandTrigger } from "../lib/editor-command-surface";
 import { createPortal } from "react-dom";
@@ -157,6 +159,7 @@ export function MarkdownSourceEditor({
   saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
   onVersionOpen?: () => void;
 }) {
+  const numbering = useNumberingDisplay().source;
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const handleRef = useRef<SourceEditorHandle | null>(null);
@@ -179,12 +182,16 @@ export function MarkdownSourceEditor({
   };
   const displayExtensions = () => {
     const prefs = blockWorkspacePreferences();
+    const plugin = numberingDisplays.getSnapshot().source;
+    const visible = plugin?.visible ?? showLineNumbers;
+    const relative = plugin?.relative ?? prefs.relativeSourceLineNumbers;
     return [
-      showLineNumbers ? (prefs.relativeSourceLineNumbers ? relativeLineNumbers(prefs.relativeSourceLineNumberAlignment) : lineNumbers()) : [],
+      foldGutter(plugin ? { markerDOM: expanded => { const span = document.createElement("span"); span.className = "plugin-source-fold-symbol"; span.textContent = expanded ? plugin.foldExpanded : plugin.foldCollapsed; return span; } } : {}),
+      visible ? (relative ? relativeLineNumbers(plugin?.currentAlignment ?? prefs.relativeSourceLineNumberAlignment) : lineNumbers()) : [],
       prefs.wrap !== false ? EditorView.lineWrapping : [],
       EditorState.tabSize.of(prefs.tabSize ?? 4),
       indentUnit.of(" ".repeat(prefs.tabSize ?? 4)),
-      highlightActiveLine ? [activeLine(), highlightActiveLineGutter()] : [],
+      highlightActiveLine ? [activeLine(), highlightActiveLineGutter()] : plugin ? [highlightActiveLineGutter()] : [],
     ];
   };
   const displayRef = useRef(displayExtensions);
@@ -198,7 +205,6 @@ export function MarkdownSourceEditor({
       history(),
       mobileSourceInput(),
       scrollPastEnd(),
-      foldGutter(),
       bracketMatching(),
       closeBrackets(),
       markdown({
@@ -397,7 +403,7 @@ export function MarkdownSourceEditor({
       window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
       window.removeEventListener("storage", sync);
     };
-  }, [highlightActiveLine, showLineNumbers]);
+  }, [highlightActiveLine, showLineNumbers, numbering]);
   useEffect(() => {
     if (lastValue.current === value) return;
     lastValue.current = value;

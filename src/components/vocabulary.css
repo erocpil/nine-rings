@@ -64,7 +64,6 @@
 }
 .vocabulary-panel li button[aria-current="true"] {
   font-weight: 600;
-  box-shadow: inset 3px 0 0 var(--accent);
   color: var(--accent);
   background: var(--bg-hover);
 }

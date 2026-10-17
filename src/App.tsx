@@ -30,7 +30,7 @@ import { readDesktopSidebarState, saveDesktopSidebarState, normalizeSidebarOrder
 import { readWorkspaceLayout, saveWorkspaceLayout, type WorkspaceLayout } from "./lib/workspace-layout";
 import { useDocumentNavigation } from "./hooks/useDocumentNavigation";
 import { NavigationButtons } from "./components/NavigationButtons";
-import { EditorFoldIconContext } from "./components/EditorFoldIcon";
+import { EditorFoldIconContext } from "./components/EditorFoldIconContext";
 import { useEdgeScrollbars } from "./hooks/useEdgeScrollbars";
 import { useWorkspaceSidebar } from "./hooks/useWorkspaceSidebar";
 import { useSidebarPresentation } from "./hooks/useSidebarPresentation";

@@ -1,0 +1,50 @@
+{
+  "manifestVersion": 1,
+  "id": "acme.numbering",
+  "name": "示例编号展示",
+  "version": "1.0.0",
+  "engines": {
+    "nineRingsPluginApi": "^0.1.0",
+    "app": "^0.3.0"
+  },
+  "contributes": {
+    "gutters": [
+      {
+        "visible": true,
+        "relative": false,
+        "font": "mono",
+        "fontSize": 12,
+        "bold": false,
+        "italic": false,
+        "color": "secondary",
+        "background": "transparent",
+        "highlightCurrent": true,
+        "currentBold": true,
+        "currentColor": "accent",
+        "currentBackground": "active",
+        "foldExpanded": "▾",
+        "foldCollapsed": "▸",
+        "target": "blocks",
+        "currentAlignment": "right"
+      },
+      {
+        "visible": true,
+        "relative": false,
+        "font": "mono",
+        "fontSize": 12,
+        "bold": false,
+        "italic": false,
+        "color": "secondary",
+        "background": "transparent",
+        "highlightCurrent": true,
+        "currentBold": true,
+        "currentColor": "accent",
+        "currentBackground": "active",
+        "foldExpanded": "▾",
+        "foldCollapsed": "▸",
+        "target": "source",
+        "currentAlignment": "left"
+      }
+    ]
+  }
+}

@@ -1,3 +1,4 @@
+import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
 import {
   DEFAULT_EDITOR_FOLD_ICONS,
   outlineFoldStyle,
@@ -12,13 +13,16 @@ export function SettingsFoldIcons({
   config: EditorFoldIconConfig;
   onChange: (partial: Partial<EditorFoldIconConfig>) => void;
 }) {
+  const owned = Boolean(useNumberingDisplay().blocks);
   return (
     <div className="settings-fold-icons">
+      {owned && <p className="settings-desc">正文折叠符号由编号展示插件接管，原设置保留。</p>}
       <label>
         正文折叠标识
         <select
           className="settings-input"
           aria-label="折叠标识样式"
+          disabled={owned}
           value={config.editor_fold_icon_style ?? "chevron"}
           onChange={(event) => {
             const style = event.target.value;
@@ -48,7 +52,7 @@ export function SettingsFoldIcons({
             收起状态（点击展开）
             <input
               className="settings-input"
-              aria-label="收起状态符号"
+              aria-label="收起状态符号" disabled={owned}
               maxLength={8}
               value={
                 config.editor_fold_icon_collapsed ??
@@ -67,7 +71,7 @@ export function SettingsFoldIcons({
             展开状态（点击收起）
             <input
               className="settings-input"
-              aria-label="展开状态符号"
+              aria-label="展开状态符号" disabled={owned}
               maxLength={8}
               value={
                 config.editor_fold_icon_expanded ??

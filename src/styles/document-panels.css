@@ -440,3 +440,9 @@
 }
 
 .titlebar-btn-focus[aria-pressed="true"] { color: var(--accent); }
+
+/* The status row owns its vertical spacing; do not add main-area padding below it. */
+@media (min-width: 769px) and (pointer: fine) {
+  :root .app-desktop-workspace .app-main:has(.editor-stats) { padding-bottom: 0; }
+  .app-desktop-workspace .editor-stats { padding-block: 4px; }
+}

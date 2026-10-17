@@ -1,3 +1,4 @@
+import { numberingDisplays } from "./plugin-system/numbering-display";
 /**
  * 块编号 gutter 的宽度只随编号位数阶梯式增长，避免普通编辑时正文抖动。
  * 桌面端未显示编号时保留 24px，供块间插入按钮使用。手机端也保留
@@ -9,7 +10,9 @@ export function editorGutterWidth(blockCount: number, showNumbers: boolean, comp
   const digits = String(safeCount).length;
   // 桌面块号左侧保留“+”/折叠列；手机端保留 22px 触摸列，数字列
   // 继续按位数紧凑扩展，避免折叠按钮、块号和正文互相覆盖。
-  if (compact) return 22 + Math.max(14, 4 + digits * 6);
+  const size = numberingDisplays.getSnapshot().blocks?.fontSize;
+  const unit = size ? Math.ceil(size * 0.75) : compact ? 6 : 8;
+  if (compact) return 22 + Math.max(14, 4 + digits * unit);
   // Reserve the first 20px for +/- and heading-fold controls, plus a 2px gap.
-  return Math.max(30, 22 + digits * 8);
+  return Math.max(30, 22 + digits * unit);
 }

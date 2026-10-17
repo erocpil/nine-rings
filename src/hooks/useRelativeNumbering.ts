@@ -1,3 +1,4 @@
+import { useNumberingDisplay } from "./useNumberingDisplay";
 import { useEffect, useState } from "react";
 import {
   blockWorkspacePreferences,
@@ -16,6 +17,7 @@ function read() {
   };
 }
 export function useRelativeNumbering() {
+  const plugin = useNumberingDisplay();
   const [value, setValue] = useState(read);
   useEffect(() => {
     const sync = () => {
@@ -39,5 +41,10 @@ export function useRelativeNumbering() {
       window.removeEventListener("storage", sync);
     };
   }, []);
-  return value;
+  return {
+    relativeBlockNumbers: plugin.blocks?.relative ?? value.relativeBlockNumbers,
+    relativeSourceLineNumbers: plugin.source?.relative ?? value.relativeSourceLineNumbers,
+    relativeBlockNumberAlignment: plugin.blocks?.currentAlignment ?? value.relativeBlockNumberAlignment,
+    relativeSourceLineNumberAlignment: plugin.source?.currentAlignment ?? value.relativeSourceLineNumberAlignment,
+  };
 }

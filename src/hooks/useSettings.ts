@@ -20,6 +20,14 @@ import { preserveReadingPositions } from "../lib/reading-position";
 
 export function useSettings() {
   useEffect(startPluginRuntime, []);
+  useEffect(() => {
+    let disposed = false;
+    let stop: (() => void) | undefined;
+    void import("../lib/plugin-system/numbering-service").then(module => {
+      if (!disposed) stop = module.startNumberingService();
+    });
+    return () => { disposed = true; stop?.(); };
+  }, []);
   useEffect(startBuiltinThemes, []);
   useEffect(() => {
     let disposed = false;

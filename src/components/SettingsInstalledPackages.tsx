@@ -96,6 +96,7 @@ function PackageConfirmation({
               {theme.typography ? " · 含可选排版建议" : " · 仅配色"}
             </li>
           ))}
+          {candidate.gutters.map(display => <li key={display.target}>{display.target === "blocks" ? "渲染块号" : "源码行号"}展示 · 接管对应内置设置，保留宿主菜单与折叠行为</li>)}
           {candidate.actions.map((entry) => (
             <li key={entry.id}>
               {entry.name} ·{" "}

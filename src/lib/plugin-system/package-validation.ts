@@ -1,3 +1,4 @@
+import { validateNumberingDisplay, type NumberingDisplay } from "./numbering-display";
 import { parseMacros, type ActionContribution } from "./action-resources";
 import { parseQueries } from "./query-resources";
 import semver from "semver";
@@ -199,6 +200,7 @@ export interface ValidatedPluginPackage {
   themes: readonly ThemeResource[];
   content: readonly ContentContribution[];
   actions: readonly ActionContribution[];
+  gutters: readonly NumberingDisplay[];
   files: Record<string, string>;
 }
 function localized(value: unknown): string {
@@ -276,7 +278,7 @@ export async function validatePluginPackage(
     !Object.keys(contributes).length ||
     Object.keys(contributes).some(
       (key) =>
-        !["themes", "templates", "snippets", "macros", "queries"].includes(key),
+        !["themes", "templates", "snippets", "macros", "queries", "gutters"].includes(key),
     )
   )
     return invalid("未开放的贡献点");
@@ -326,6 +328,8 @@ export async function validatePluginPackage(
     ...parseMacros(id, contributes.macros, content),
     ...parseQueries(id, contributes.queries),
   ]);
+  const gutters = Object.freeze(((contributes.gutters ?? []) as unknown[]).map(validateNumberingDisplay));
+  if (new Set(gutters.map(value => value.target)).size !== gutters.length) return invalid("同一包不能重复接管编号目标");
   // The confirmation fingerprint covers manifest bytes as well as all resource bytes; integrity alone is not trust.
   const digest = await packageDigest(
     encoder.encode(
@@ -343,6 +347,7 @@ export async function validatePluginPackage(
     themes,
     content,
     actions,
+    gutters,
     files: text,
   };
 }

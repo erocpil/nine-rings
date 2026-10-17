@@ -1776,3 +1776,12 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - 源码状态栏沿用现有编辑器状态栏配置，不新增备份字段；显示位置、字符数、保存、日志与历史。专注分栏热区由 6px 加宽到 24px，移出隐藏与固定保持不变。
 - 生产构建及 bundle 预算通过，主包 496.07 kB，无超大 chunk 警告。未执行本批 Tauri 原生 GUI 或全产品 E2E；原生菜单栏迁移仅评估可行，尚未增加自定义格式命令。
 - 记录：`/tmp/nr-actions-check-final.log`、`/tmp/nr-actions-schema.log`、`/tmp/nr-actions-chromium-complete.log`、`/tmp/nr-actions-webkit.log`、`/tmp/nr-actions-build.log`、`/tmp/nr-actions-bundle.log`。
+
+### 2026-10-18：编号展示插件、目录锚点与导航留白
+
+- 新增内置编号展示插件及 `contributes.gutters` 数据贡献点。分别配置渲染块号与源码行号的可见性、相对模式、当前对齐、字体/字号/粗斜体、语义色或浅深颜色对、当前编号强调和折叠符号。普通/局部只读与源码复用宿主编号和操作；接管禁用对应内置设置，停用恢复原值。每目标单一提供者、严格校验、资源随激活代次撤回，不新增正文或网络权限。`acme.numbering` 已实际打包验证。
+- 源码上下两条工具区域横线端点对齐。文档树、列表、书签和词汇列表移除左侧内阴影标记，保留原有选中颜色。桌面状态栏移除叠加的主区域底部空白，内容上下居中；四种风格实测上下各 7.5px，经典额外 14px 留白也已消除，手机安全区规则保留。
+- `/tmp/refs.md` 的正文保存为仓库回归 fixture：保留光标在 H2「二」，连续折叠/展开内嵌目录，以目录自身顶部向下展开。定位到通用尺寸恢复保留了下方光标的旧锚点，会在目录完成布局后再拉动正文。现在显式折叠在布局期间取得锚点所有权，完成后交还目录块锚点；用户新操作取消恢复，不更改选区或正文。
+- 完整 check 通过：191 单元文件 / 2277 项，以及原有独立用例、schema 静态生成、格式、类型、lint 和 IPC。最后补充锚点取消语义与留白修正后，编号 15 单元、完整 typecheck/lint 及生产构建再通过。主包 495.51 kB，无 500 kB chunk 警告，未提高阈值。
+- Chromium 组合 42 项通过（automatic-toc、plugin-numbering、toc-viewport-anchor、doc-tree-selection-layout、bookmark-compact-row、document-browser-compact、vocabulary-learning）；WebKit 对应目录/编号/文档树/手机书签组合 24 项通过。最后锚点交接修改后，toc-viewport-anchor 与 font-reading-position 两引擎各 8 项通过；这包含前三项目录重跑，不应重复计为新增用例。
+- 日志：`/tmp/nr-numbering-check-final.log`、`/tmp/nr-numbering-toc-chromium-final.log`、`/tmp/nr-numbering-toc-webkit.log`、`/tmp/nr-fold-resize-chromium.log`、`/tmp/nr-fold-resize-webkit.log`、`/tmp/nr-numbering-production-final.log`。未执行本批全产品 E2E、Tauri 原生 GUI 或 Flutter；原生菜单栏迁移仍为可行性讨论，未伪称已迁移。

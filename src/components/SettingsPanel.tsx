@@ -1,3 +1,4 @@
+import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
 import { useFocusTabs, saveFocusTabs } from "../lib/focus-tabs";
 import { SettingsPluginCatalog } from "./SettingsPluginCatalog";
 import { PluginRuntimeStatus } from "./PluginRuntimeStatus";
@@ -146,6 +147,7 @@ function normalizeVimConfig(value: string): string {
 
 
 export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onBeforePush, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onOpenBookmark, onNotesChanged, libraryError }: Props) {
+  const numberingPlugins = useNumberingDisplay();
   const pluginsEnabled = useSyncExternalStore(pluginRuntime.subscribe, pluginRuntime.isEnabled);
   const contributedThemes = useSyncExternalStore(themeResources.subscribe, themeResources.getSnapshot);
   useSyncExternalStore(subscribeThemePreference, themePreferenceSnapshot);
@@ -1013,12 +1015,13 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
+            {(numberingPlugins.blocks || numberingPlugins.source) && settingsPage === "editor" && <p className="settings-desc" role="status">编号展示由插件接管；对应内置设置暂时禁用，停用插件后恢复原值。</p>}
             {/* ── 显示块编号 ── */}
             <Field label="显示块编号" desc="正文按顶层内容块编号；Markdown 源码按文本行显示行号" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
-                  aria-label="显示块编号" checked={config.editor_show_line_numbers}
+                  aria-label="显示块编号" disabled={Boolean(numberingPlugins.blocks || numberingPlugins.source)} checked={config.editor_show_line_numbers}
                   onChange={(e) => update({ editor_show_line_numbers: e.target.checked })}
                 />
                 <span className="toggle-track" />
@@ -1028,24 +1031,24 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
             <Field label="相对块号" desc="当前块显示绝对块号，其余显示可见块距离；需开启显示块编号，折叠隐藏的块不计数" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
-                <input type="checkbox" aria-label="相对块号" checked={relativeNumbering.relativeBlockNumbers} onChange={event => saveBlockWorkspacePreferences({ relativeBlockNumbers: event.target.checked })} />
+                <input type="checkbox" aria-label="相对块号" disabled={Boolean(numberingPlugins.blocks)} checked={relativeNumbering.relativeBlockNumbers} onChange={event => saveBlockWorkspacePreferences({ relativeBlockNumbers: event.target.checked })} />
                 <span className="toggle-track" /><span className="toggle-label">{relativeNumbering.relativeBlockNumbers ? "开" : "关"}</span>
               </label>
             </Field>
             <Field label="相对行号" desc="Markdown 源码当前行显示绝对行号，其余显示可见行距；需开启显示块编号，折叠隐藏行和软换行不另计行数" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
-                <input type="checkbox" aria-label="相对行号" checked={relativeNumbering.relativeSourceLineNumbers} onChange={event => saveBlockWorkspacePreferences({ relativeSourceLineNumbers: event.target.checked })} />
+                <input type="checkbox" aria-label="相对行号" disabled={Boolean(numberingPlugins.source)} checked={relativeNumbering.relativeSourceLineNumbers} onChange={event => saveBlockWorkspacePreferences({ relativeSourceLineNumbers: event.target.checked })} />
                 <span className="toggle-track" /><span className="toggle-label">{relativeNumbering.relativeSourceLineNumbers ? "开" : "关"}</span>
               </label>
             </Field>
 
             <Field label="相对块号当前项对齐" desc="仅在相对块号开启时生效，默认右对齐；其它编号仍右对齐" visible={settingsPage === "editor"}>
-              <select aria-label="相对块号当前项对齐" value={relativeNumbering.relativeBlockNumberAlignment} onChange={event => saveBlockWorkspacePreferences({ relativeBlockNumberAlignment: event.target.value as "left" | "right" })}>
+              <select aria-label="相对块号当前项对齐" disabled={Boolean(numberingPlugins.blocks)} value={relativeNumbering.relativeBlockNumberAlignment} onChange={event => saveBlockWorkspacePreferences({ relativeBlockNumberAlignment: event.target.value as "left" | "right" })}>
                 <option value="left">左对齐</option><option value="right">右对齐</option>
               </select>
             </Field>
             <Field label="相对行号当前项对齐" desc="仅在相对行号开启时生效，默认左对齐；其它编号仍右对齐" visible={settingsPage === "editor"}>
-              <select aria-label="相对行号当前项对齐" value={relativeNumbering.relativeSourceLineNumberAlignment} onChange={event => saveBlockWorkspacePreferences({ relativeSourceLineNumberAlignment: event.target.value as "left" | "right" })}>
+              <select aria-label="相对行号当前项对齐" disabled={Boolean(numberingPlugins.source)} value={relativeNumbering.relativeSourceLineNumberAlignment} onChange={event => saveBlockWorkspacePreferences({ relativeSourceLineNumberAlignment: event.target.value as "left" | "right" })}>
                 <option value="left">左对齐</option><option value="right">右对齐</option>
               </select>
             </Field>

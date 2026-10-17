@@ -596,11 +596,6 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .app-desktop-workspace
-    .doc-tree-selected {
-    box-shadow: inset 2px 0 var(--accent);
-  }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
-    .app-desktop-workspace
     .document-browser-controls {
     padding-inline: 10px;
     border-bottom-color: var(--style-rule);
@@ -610,11 +605,6 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
     .document-browser-row {
     border-bottom-color: transparent;
     border-radius: 6px;
-  }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
-    .app-desktop-workspace
-    .document-browser-row.selected {
-    box-shadow: inset 2px 0 var(--accent);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .app-desktop-workspace
@@ -640,11 +630,6 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
     .app-desktop-workspace
     :is(.document-outline-item, .document-bookmark-item) {
     border-radius: 6px;
-  }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
-    .app-desktop-workspace
-    .document-bookmark-item.is-current {
-    box-shadow: inset 2px 0 var(--accent);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .app-desktop-workspace

@@ -189,3 +189,8 @@ blockquote[data-alert="WARNING"], blockquote[data-alert="CAUTION"] { border-left
   color: inherit;
   background-color: transparent;
 }
+
+/* The header and toolbar rules share exactly the same horizontal bounds. */
+.markdown-source-title-row { margin-inline: 12px; padding-inline: 0; border-bottom: 1px solid var(--border); }
+.markdown-source-toolbar-host { margin-inline: 12px; }
+.markdown-source-toolbar-host > .markdown-source-tools { padding-inline: 0; }

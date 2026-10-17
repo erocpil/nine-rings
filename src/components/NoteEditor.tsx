@@ -1,3 +1,4 @@
+import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
 import { FontSize } from "../extensions/FontSize";
 import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
 import { panelDisplayStyle, sortedBookmarks } from "../lib/panel-display-view";
@@ -8,7 +9,7 @@ import { markdownContentFingerprint } from "../lib/external-markdown-source";
 import { FlowPresentation, flowPresentationKey } from "../extensions/FlowPresentation";
 import { flowHeadingLevel } from "../lib/flow-presentation";
 import { useDocumentActive } from "./RetainedDocument";
-import { isReadingPositionRestoring } from "../lib/reading-position";
+import { isReadingPositionRestoring, READING_POSITION_ANCHOR_EVENT } from "../lib/reading-position";
 import { IncrementalDocumentSerializer } from "../lib/incremental-document-serializer";
 import { editorDocumentFromContent } from "../lib/editor-content-model";
 import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
@@ -408,7 +409,9 @@ export function NoteEditor(props: NoteEditorProps) {
   return <ProtectedNoteEditor props={props} render={next => <RenderedLinkMenu key={next.noteId} noteId={next.noteId} onOpenLinkedNote={next.onOpenLinkedNote}><MarkdownDocumentView props={next} render={current => <DocumentEditor {...current} />} /></RenderedLinkMenu>} />;
 }
 
-function DocumentEditor(props: NoteEditorProps) {
+function DocumentEditor(input: NoteEditorProps) {
+  const numbering = useNumberingDisplay();
+  const props = numbering.blocks ? { ...input, showLineNumbers: numbering.blocks.visible } : input;
   useEffect(watchBlockDisplaySettings, []);
   const [experimental, setExperimental] = useState(readonlyRenderingEnabled);
   const [full, setFull] = useState(false);
@@ -2035,6 +2038,9 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
 
     const capture = () => {
       frame = 0;
+      // Explicit local folding owns its anchor; capturing the retained caret
+      // mid-fold would let a later ResizeObserver pull the document upward.
+      if (isReadingPositionRestoring(root)) { anchor = null; return; }
       if (adjusting || windowHidden || document.visibilityState === "hidden" || editor.isDestroyed || !root.isConnected || root.clientWidth === 0 || root.clientHeight === 0 || root.closest("[inert]")) return;
       if (preserveResizeAnchor && anchor) return;
       // Native reflow can emit scroll before ResizeObserver. Keep the last
@@ -2350,6 +2356,17 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       anchor = null;
       scheduleCapture();
     };
+    const explicitFoldAnchor = (event: Event) => {
+      const detail = (event as CustomEvent<{ element: HTMLElement; top: number }>).detail;
+      if (!detail?.element.isConnected || !root.contains(detail.element)) return;
+      clearSettleTimers();
+      adjusting = false;
+      preserveResizeAnchor = true;
+      anchor = { kind: "block", pos: blockPosition(detail.element),
+        viewportTop: detail.top - editorReadingViewport(root).top,
+        viewportHeight: editorReadingViewport(root).height, relativeRatio: 0,
+        width: root.clientWidth, blockElement: detail.element };
+    };
     const wheelNavigation = () => {
       preserveResizeAnchor = false;
       // Ordinary continuous scrolling keeps the existing throttled capture.
@@ -2361,6 +2378,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     editor.on("selectionUpdate", userNavigation);
     editor.on("focus", scheduleCapture);
     root.addEventListener(EDITOR_NAVIGATION_EVENT, userNavigation);
+    root.addEventListener(READING_POSITION_ANCHOR_EVENT, explicitFoldAnchor);
     root.addEventListener("pointerdown", userNavigation, { passive: true });
     root.addEventListener("wheel", wheelNavigation, { passive: true });
     root.addEventListener("touchstart", userNavigation, { passive: true });
@@ -2379,6 +2397,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       editor.off("selectionUpdate", userNavigation);
       editor.off("focus", scheduleCapture);
       root.removeEventListener(EDITOR_NAVIGATION_EVENT, userNavigation);
+      root.removeEventListener(READING_POSITION_ANCHOR_EVENT, explicitFoldAnchor);
       root.removeEventListener("pointerdown", userNavigation);
       root.removeEventListener("wheel", wheelNavigation);
       root.removeEventListener("touchstart", userNavigation);

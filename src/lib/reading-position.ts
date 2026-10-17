@@ -97,10 +97,28 @@ function capture(root: HTMLElement): (() => void) | null {
 }
 
 const pending = new WeakMap<HTMLElement, () => void>();
+export const READING_POSITION_ANCHOR_EVENT = "nine-rings:reading-position-anchor";
+const explicitAnchors = new WeakMap<HTMLElement, number>();
+
+/** A local fold owns its visible anchor while generic resize compensation settles. */
+export function holdReadingPositionAnchor(root: HTMLElement, element: HTMLElement): (commit?: boolean) => void {
+  const top = element.getBoundingClientRect().top;
+  explicitAnchors.set(root, (explicitAnchors.get(root) ?? 0) + 1);
+  let released = false;
+  return (commit = false) => {
+    if (released) return;
+    released = true;
+    const count = (explicitAnchors.get(root) ?? 1) - 1;
+    if (count) explicitAnchors.set(root, count);
+    else explicitAnchors.delete(root);
+    if (commit && !count)
+      root.dispatchEvent(new CustomEvent(READING_POSITION_ANCHOR_EVENT, { detail: { element, top } }));
+  };
+}
 
 /** Explicit typography changes own restoration until both layout frames settle. */
 export function isReadingPositionRestoring(root: HTMLElement): boolean {
-  return pending.has(root);
+  return pending.has(root) || explicitAnchors.has(root);
 }
 const settled = new WeakMap<
   HTMLElement,

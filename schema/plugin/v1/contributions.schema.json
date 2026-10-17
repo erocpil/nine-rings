@@ -764,6 +764,14 @@
             "$ref": "#/$defs/Theme"
           },
           "maxItems": 10
+        },
+        "gutters": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/NumberingDisplay"
+          }
         }
       },
       "additionalProperties": true
@@ -968,6 +976,211 @@
       "patternProperties": {
         "^x-": true
       }
+    },
+    "NumberingDisplay": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "enum": [
+            "blocks",
+            "source"
+          ]
+        },
+        "currentAlignment": {
+          "enum": [
+            "left",
+            "right"
+          ]
+        },
+        "font": {
+          "enum": [
+            "inherit",
+            "mono",
+            "sans",
+            "serif"
+          ]
+        },
+        "fontSize": {
+          "type": "number",
+          "minimum": 9,
+          "maximum": 24
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "relative": {
+          "type": "boolean"
+        },
+        "bold": {
+          "type": "boolean"
+        },
+        "italic": {
+          "type": "boolean"
+        },
+        "highlightCurrent": {
+          "type": "boolean"
+        },
+        "currentBold": {
+          "type": "boolean"
+        },
+        "color": {
+          "oneOf": [
+            {
+              "enum": [
+                "text",
+                "secondary",
+                "accent",
+                "transparent",
+                "surface",
+                "active"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "light": {
+                  "type": "string",
+                  "pattern": "^#[a-fA-F0-9]{6}$"
+                },
+                "dark": {
+                  "type": "string",
+                  "pattern": "^#[a-fA-F0-9]{6}$"
+                }
+              },
+              "required": [
+                "light",
+                "dark"
+              ]
+            }
+          ]
+        },
+        "background": {
+          "oneOf": [
+            {
+              "enum": [
+                "text",
+                "secondary",
+                "accent",
+                "transparent",
+                "surface",
+                "active"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "light": {
+                  "type": "string",
+                  "pattern": "^#[a-fA-F0-9]{6}$"
+                },
+                "dark": {
+                  "type": "string",
+                  "pattern": "^#[a-fA-F0-9]{6}$"
+                }
+              },
+              "required": [
+                "light",
+                "dark"
+              ]
+            }
+          ]
+        },
+        "currentColor": {
+          "oneOf": [
+            {
+              "enum": [
+                "text",
+                "secondary",
+                "accent",
+                "transparent",
+                "surface",
+                "active"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "light": {
+                  "type": "string",
+                  "pattern": "^#[a-fA-F0-9]{6}$"
+                },
+                "dark": {
+                  "type": "string",
+                  "pattern": "^#[a-fA-F0-9]{6}$"
+                }
+              },
+              "required": [
+                "light",
+                "dark"
+              ]
+            }
+          ]
+        },
+        "currentBackground": {
+          "oneOf": [
+            {
+              "enum": [
+                "text",
+                "secondary",
+                "accent",
+                "transparent",
+                "surface",
+                "active"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "light": {
+                  "type": "string",
+                  "pattern": "^#[a-fA-F0-9]{6}$"
+                },
+                "dark": {
+                  "type": "string",
+                  "pattern": "^#[a-fA-F0-9]{6}$"
+                }
+              },
+              "required": [
+                "light",
+                "dark"
+              ]
+            }
+          ]
+        },
+        "foldExpanded": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8
+        },
+        "foldCollapsed": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8
+        }
+      },
+      "required": [
+        "target",
+        "currentAlignment",
+        "font",
+        "fontSize",
+        "visible",
+        "relative",
+        "bold",
+        "italic",
+        "highlightCurrent",
+        "currentBold",
+        "color",
+        "background",
+        "currentColor",
+        "currentBackground",
+        "foldExpanded",
+        "foldCollapsed"
+      ]
     }
   }
 }

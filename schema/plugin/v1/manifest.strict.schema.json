@@ -24,7 +24,8 @@
               "properties",
               "importProfiles",
               "exportProfiles",
-              "themes"
+              "themes",
+              "gutters"
             ]
           }
         }

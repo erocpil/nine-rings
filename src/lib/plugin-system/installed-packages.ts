@@ -1,3 +1,4 @@
+import { numberingDisplays } from "./numbering-display";
 import { actionResources } from "./action-resources";
 import { contentResources } from "./content-resources";
 import { pluginRuntime } from "./runtime";
@@ -94,6 +95,7 @@ export function startInstalledPluginPackages() {
               ],
               {
                 activate(owner) {
+                  if (data.gutters.length) numberingDisplays.register(owner.activation, data.gutters);
                   if (data.themes.length)
                     themeResources.register(owner.activation, data.themes);
                   if (data.actions.length)

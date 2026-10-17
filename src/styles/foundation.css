@@ -1230,3 +1230,26 @@ body.app-sidebar-dragging .desktop-reader-panel:not([hidden]) {
 .plugin-query-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .plugin-query-table th, .plugin-query-table td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 .markdown-source-status { flex: 0 0 auto; font-size: 12px; }
+
+/* Numbering providers change presentation, never gutter actions or fold state. */
+html[data-numbering-blocks] :is(.editor-block-gutter, .vr-gutter) { background: var(--numbering-blocks-background, transparent); }
+html[data-numbering-blocks] .editor-block-number {
+  font-family: var(--numbering-blocks-font, var(--font-mono)); font-size: var(--numbering-blocks-size, 12px); font-weight: var(--numbering-blocks-weight, 400); font-style: var(--numbering-blocks-style, normal);
+  color: var(--numbering-blocks-color, var(--text-secondary)); background: var(--numbering-blocks-background, transparent); opacity: 1;
+}
+html[data-numbering-blocks] .editor-block-number.active {
+  color: var(--numbering-blocks-currentColor, var(--accent)); background: var(--numbering-blocks-currentBackground, var(--active-bg)); font-weight: var(--numbering-blocks-currentWeight, 700);
+}
+@media (hover: hover) { html[data-numbering-blocks] .editor-block-number:hover { color: transparent; } }
+html[data-numbering-source] .markdown-cm-host .cm-gutters { background: var(--numbering-source-background, transparent); }
+html[data-numbering-source] .markdown-cm-host .cm-lineNumbers .cm-gutterElement {
+  font-family: var(--numbering-source-font, var(--font-mono)); font-size: var(--numbering-source-size, 12px); font-weight: var(--numbering-source-weight, 400); font-style: var(--numbering-source-style, normal);
+  color: var(--numbering-source-color, var(--text-secondary)); background: var(--numbering-source-background, transparent);
+}
+html[data-numbering-source] .markdown-cm-host .cm-lineNumbers :is(.cm-activeLineGutter, .cm-relative-current) {
+  color: var(--numbering-source-currentColor, var(--accent)); background: var(--numbering-source-currentBackground, var(--active-bg)); font-weight: var(--numbering-source-currentWeight, 700);
+}
+.plugin-source-fold-symbol { font-size: 12px; display: inline-block; min-width: 12px; text-align: center; }
+.numbering-color-pair { display: flex; gap: 12px; }
+.numbering-color-pair label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.numbering-color-pair input[type="color"] { width: 36px; height: 28px; }
