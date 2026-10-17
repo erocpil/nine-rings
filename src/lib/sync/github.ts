@@ -1,3 +1,5 @@
+import { githubReadJson } from "./github-read";
+import { githubTransferTimeoutMs } from "./github-timeout";
 import { inspectRemoteProtocol, type RemoteProtocolReport } from "./remote-protocol";
 import { assertLegacyConnectionAllowed, observeRemoteProtocol, markProtocolInspectionRequired } from "./protocol-connection";
 import { assertSyncCapabilities } from "./protocol-capabilities";
@@ -321,9 +323,7 @@ function authHeader(token: string): Record<string, string> {
 }
 
 /** 按实际传输字节预算：至少两分钟，以 64 KiB/s 留出余量，最多十分钟。 */
-export function githubTransferTimeoutMs(bytes = 0): number {
-  return Math.min(600_000, 120_000 + Math.ceil(Math.max(0, bytes) / 65_536) * 1000);
-}
+export { githubTransferTimeoutMs } from "./github-timeout";
 
 export interface PushProgress {
   phase: "checking" | "exporting" | "uploading" | "publishing";
@@ -352,6 +352,8 @@ export async function githubApiFetch(
   init.signal?.addEventListener("abort", abortFromCaller, { once: true });
   if (init.signal?.aborted) abortFromCaller();
   let rejectAbort: () => void = () => {};
+  let receivedBytes = 0;
+  let readStage = "等待响应头/原生传输";
   try {
     const aborted = new Promise<never>((_, reject) => {
       rejectAbort = () => reject(new Error("Request aborted"));
@@ -366,6 +368,7 @@ export async function githubApiFetch(
         : fetch;
       checkPushCancellation(controller.signal);
       const readResponse = async (response: Response): Promise<Response> => {
+        readStage = "读取响应体";
         let body: Blob | null = null;
         const reader = response.body?.getReader();
         if (reader) {
@@ -378,6 +381,7 @@ export async function githubApiFetch(
               checkPushCancellation(controller.signal);
               const { done, value } = await reader.read();
               if (done) break;
+              receivedBytes += value.byteLength;
               chunks.push(value.slice());
             }
             checkPushCancellation(controller.signal);
@@ -424,7 +428,7 @@ export async function githubApiFetch(
       const resultHint = ["GET", "HEAD"].includes(method)
         ? "本次只读请求未写入远端，可重新预检或重试读取"
         : "写请求超时不代表远端一定未写入，请先检查远端状态";
-      throw new Error(`GitHub 请求超时（${Math.ceil(timeoutMs / 1000)} 秒）。请检查网络、代理或防火墙是否允许访问 api.github.com；${resultHint}`);
+      throw new Error(`GitHub 请求超时（${Math.ceil(timeoutMs / 1000)} 秒）。请检查网络、代理或防火墙是否允许访问 api.github.com；${resultHint}。阶段：${readStage}，已接收 ${receivedBytes} bytes`);
     }
     if (reason instanceof TypeError) {
       throw new Error(`无法连接 GitHub API。请检查本机网络、代理或防火墙是否允许访问 api.github.com。\n原始错误：${syncErrorMessage(reason)}`);
@@ -869,12 +873,7 @@ export async function recoverPublicationFromGitHub(config:SyncConfig,spaceId:str
   const {recoverPublication}=await import("./publication-recovery");
   const attempt=await readPublicationAttempt(spaceId);
   if(!attempt||!config.token||attempt.space.owner.toLowerCase()!==config.owner.toLowerCase()||attempt.space.repo.toLowerCase()!==config.repo.toLowerCase()||attempt.space.path!==config.path)throw Error("请先配置与发布记录一致的备份连接和凭据");
-  const root=`https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}`;
-  const result=await recoverPublication(spaceId,async route=>{
-    const response=await githubApiFetch(root+route,{headers:authHeader(config.token)},GITHUB_REQUEST_TIMEOUT_MS);
-    if(!response.ok)throw Error(`发布只读核实 HTTP ${response.status}`);
-    return response.json();
-  });
+  const result=await recoverPublication(spaceId,(route, options)=>githubReadJson(config, route, options));
   addLog(`[Sync] 发布恢复只读核实: ${result}`);
   return result;
 }
@@ -885,14 +884,9 @@ export async function preflightProtocolFromGitHub(config: SyncConfig): Promise<R
   const started = performance.now();
   addLog("[Sync] 协议预检开始：固定远端提交，只读检查");
   try {
-    const root = `https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}`;
     const storage = getWebStorage().localStorage;
     if (!storage) throw Error("本机协议记录不可用，不能确认预检");
-    const report = await inspectRemoteProtocol(async route => {
-      const response = await githubApiFetch(root + route, {headers:authHeader(config.token)}, GITHUB_REQUEST_TIMEOUT_MS);
-      if (!response.ok) throw Error(`协议预检读取失败：HTTP ${response.status}`);
-      return response.json();
-    }, config, {historyLimit:128,onControlDetected:spaceId=>markProtocolInspectionRequired(config,spaceId,storage)});
+    const report = await inspectRemoteProtocol((route, options) => githubReadJson(config, route, options), config, {historyLimit:128,onControlDetected:spaceId=>markProtocolInspectionRequired(config,spaceId,storage)});
     await observeRemoteProtocol(report, storage);
     addLog(`[Sync] 协议预检完成 | 提交: ${report.evidence.head.slice(0,12)} | 状态: ${report.support} | 历史: ${report.history} | 请求: ${report.reads.requests} | 字节: ${report.reads.bytes} | 耗时: ${Math.round(performance.now()-started)}ms`);
     return report;
@@ -1034,7 +1028,7 @@ export async function previewSyncDestinationFromGitHub(
       runtime: isTauriRuntime() ? "tauri" : "web",
     });
   }
-  return previewEntityReviewFromGitHub(config, localSource);
+  return prepareGitHubEntityReview(config, localSource, report);
 }
 /** Explicit candidate review. Only GET requests; no publication/apply capability. */
 export async function previewEntityReviewFromGitHub(
@@ -1043,22 +1037,15 @@ export async function previewEntityReviewFromGitHub(
 ) {
   config = { ...config };
   const report = await preflightProtocolFromGitHub(config);
+  return prepareGitHubEntityReview(config, localSource, report);
+}
+async function prepareGitHubEntityReview(config: SyncConfig, localSource: string, report: RemoteProtocolReport) {
   const { prepareEntityReview } = await import("./entity-review");
-  const root = `https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}`;
   return prepareEntityReview({
     report,
     localSource,
     runtime: isTauriRuntime() ? "tauri" : "web",
-    request: async (route) => {
-      const response = await githubApiFetch(
-        root + route,
-        { headers: authHeader(config.token) },
-        GITHUB_REQUEST_TIMEOUT_MS,
-      );
-      if (!response.ok)
-        throw Error(`实体预检读取失败：HTTP ${response.status}`);
-      return response.json();
-    },
+    request: (route, options) => githubReadJson(config, route, options),
   });
 }
 
@@ -1073,14 +1060,7 @@ export async function assertEntityReviewHeadFromGitHub(
     config.path !== space.path
   )
     throw Error("备份连接已变化，请重新预检");
-  const root = `https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}`;
-  const response = await githubApiFetch(
-    `${root}/git/ref/heads/${encodeURIComponent(space.branch)}`,
-    { headers: authHeader(config.token) },
-    GITHUB_REQUEST_TIMEOUT_MS,
-  );
-  if (!response.ok) throw Error(`远端提交核对失败：HTTP ${response.status}`);
-  const value = (await response.json()) as {
+  const value = await githubReadJson(config, `/git/ref/heads/${encodeURIComponent(space.branch)}`) as {
     object?: { type?: string; sha?: string };
   };
   if (value.object?.type !== "commit" || value.object.sha !== expectedHead)

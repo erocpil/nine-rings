@@ -103,9 +103,11 @@ try {
     cancel() { bodyCancelled = true; },
   }))) as typeof fetch;
   timedOut = false;
+  let bodyTimeout = "";
   try { await githubApiFetch("https://api.github.com", {}, 10); }
-  catch (error) { timedOut = (error as Error).message.includes("GitHub 请求超时"); }
+  catch (error) { bodyTimeout = (error as Error).message; timedOut = bodyTimeout.includes("GitHub 请求超时"); }
   assert(timedOut, "deadline covers stalled response body even if mocked fetch ignores abort");
+  assert(bodyTimeout.includes("读取响应体") && bodyTimeout.includes("已接收 7 bytes"), "stalled body diagnostics identify bytes received without logging content");
   assert(bodyCancelled, "timed-out response body reader is cancelled and released");
 
   let started = false;

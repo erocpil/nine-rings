@@ -204,7 +204,6 @@ async function forward(route, name) {
       spaceId: fault.bootstrapSpaceId,
     });
     if (state.publication === "OBJECTS_READY") {
-      fault.firstPublication = null;
       return route.abort("internetdisconnected");
     }
   }
@@ -296,6 +295,7 @@ try {
         (await call(a, "inspect", { spaceId })).publication === "OBJECTS_READY",
       );
       assert(counts.PATCH === before);
+      fault.firstPublication = null;
       await call(a, "cancel", { spaceId });
       await call(a, "legacyBlocked", { config });
       assert((await call(a, "prepare", { config, id })).bootstrap);

@@ -15,7 +15,7 @@ import {
   type PinnedProtocolEvidence,
   type SyncSpace,
 } from "./protocol-switch";
-export type GitRead = (route: string) => Promise<unknown>;
+export type GitRead = (route: string, options?: { expectedBytes?: number }) => Promise<unknown>;
 export const gitSha = (v: unknown): v is string =>
   typeof v === "string" && /^[a-f0-9]{40}$/.test(v);
 export const snapshotId = (v: unknown): v is string =>
@@ -69,9 +69,9 @@ export function createPinnedReader(
   const commits = new Map<string, Promise<Record<string, unknown>>>();
   let requests = 0,
     bytes = 0;
-  const get = async (route: string) => {
+  const get = async (route: string, options?: { expectedBytes?: number }) => {
     if (++requests > budget.requests) throw new RemoteInspectionError("budget");
-    return request(route);
+    return options ? request(route, options) : request(route);
   };
   const commit = (sha: string): Promise<Record<string, unknown>> => {
     if (!gitSha(sha)) throw new RemoteInspectionError("integrity");
@@ -164,7 +164,7 @@ export function createPinnedReader(
     if (!entry) return null;
     const size = entry.size;
     if (bytes + size > budget.bytes) throw new RemoteInspectionError("budget");
-    const blob = await get(`/git/blobs/${entry.sha}`);
+    const blob = await get(`/git/blobs/${entry.sha}`, { expectedBytes: size });
     must(
       record(blob) &&
         blob.sha === entry.sha &&

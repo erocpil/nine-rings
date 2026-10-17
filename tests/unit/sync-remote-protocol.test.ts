@@ -226,3 +226,22 @@ it("Base64 bytes must still be valid UTF-8 before a snapshot is accepted", async
     createPinnedReader(git.request).file(git.head, "invalid.json"),
   ).rejects.toThrow();
 });
+
+it("passes verified tree size to the blob transport for its download deadline", async () => {
+  const source = "snapshot body";
+  const fixture = await gitReadFixture({ "body.json": source });
+  let hint: number | undefined;
+  const request = async (
+    route: string,
+    options?: { expectedBytes?: number },
+  ) => {
+    if (route.startsWith("/git/blobs/")) hint = options?.expectedBytes;
+    return fixture.request(route);
+  };
+  const result = await createPinnedReader(request).file(
+    fixture.head,
+    "body.json",
+  );
+  expect(result?.content).toBe(source);
+  expect(hint).toBe(new TextEncoder().encode(source).length);
+});
