@@ -1436,7 +1436,16 @@ function App() {
         handleSelectNote(imported);
       }
     }}
-    onPullDone={() => window.location.reload()}
+    onPullDone={async () => {
+      try {
+        const { migrateBuiltinDemoLocations } = await import("./lib/builtin-demo-location");
+        await migrateBuiltinDemoLocations({ force: true });
+      } catch (error) {
+        // Pull has already committed; keep its recovery behavior and leave a diagnostic.
+        console.warn("Could not reconcile built-in demo paths after Pull", error);
+      }
+      window.location.reload();
+    }}
   />;
 
   const mobileReadingLibraryOpen = mobileDrawerViewport && readingLibraryOpen;

@@ -59,7 +59,7 @@ interface Props {
   onSyncBusy?: (busy: boolean) => void;
   onBeforePush?: () => Promise<void>;
   /** Pull 完成后回调 — 重新载入并应用恢复后的设置与工作区 */
-  onPullDone?: () => void;
+  onPullDone?: () => void | Promise<void>;
   webStorageStatus?: WebStorageStatus;
   webUpdate?: SettingsWebUpdate;
   onBeforeBookmarkNoteUpdate?: (noteId: string) => Promise<void>;

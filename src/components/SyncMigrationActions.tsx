@@ -30,7 +30,7 @@ export function SyncMigrationActions({
   disabled: boolean;
   onBeforeSnapshot?: () => Promise<void>;
   onOperationChange: (busy: boolean) => void;
-  onPullDone?: () => void;
+  onPullDone?: () => void | Promise<void>;
   onAccepted: (message: string) => void;
 }) {
   const [backup, setBackup] = useState<VerifiedMigrationBackup | null>(null),
@@ -151,7 +151,7 @@ export function SyncMigrationActions({
           );
       guard();
       setMessage(result.message);
-      if (result.reload) onPullDone?.();
+      if (result.reload) await onPullDone?.();
       setBusy(false);
       onOperationChange(false);
       onAccepted(result.message);

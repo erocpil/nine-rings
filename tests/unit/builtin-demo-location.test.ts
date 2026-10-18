@@ -30,6 +30,7 @@ it("moves known legacy demos by ID and changes metadata only, once", async () =>
   expect(await migrateBuiltinDemoLocations()).toBe(true);
   expect(mocks.update).toHaveBeenCalledWith(original.id, {
     storagePath: "ideas/demo",
+    readonly: true,
   });
   expect(original.content.ops[0].insert).toBe("用户已编辑的内容\n");
   mocks.get.mockResolvedValue({
@@ -44,7 +45,7 @@ it.each([
   null,
   { ...original, deleted_at: "deleted" },
   { ...original, title: "renamed" },
-  { ...original, storagePath: "projects/personal" },
+  { ...original, storagePath: "projects/personal", readonly: true },
 ])("respects deleted, moved and renamed copies %j", async (note) => {
   mocks.get.mockResolvedValue(note);
   expect(await migrateBuiltinDemoLocations()).toBe(false);
@@ -55,16 +56,28 @@ it("does not record success before a failed migration persists", async () => {
   await expect(migrateBuiltinDemoLocations()).rejects.toThrow("disk full");
   expect(await migrateBuiltinDemoLocations()).toBe(true);
 });
-it.each(["demo", "ideas"])("moves a legacy demo path %s without changing its editable state", async storagePath => {
+it.each(["demo", "ideas"])("moves a legacy demo path %s and initializes it readonly", async storagePath => {
   mocks.get.mockResolvedValue({ ...original, storagePath });
   expect(await migrateBuiltinDemoLocations()).toBe(true);
-  expect(mocks.update).toHaveBeenCalledWith("demo", { storagePath: BUILTIN_DEMO_PATH });
+  expect(mocks.update).toHaveBeenCalledWith("demo", { storagePath: BUILTIN_DEMO_PATH, readonly: true });
 });
 it("migrates despite the old v1 marker and preserves readonly", async () => {
   localStorage.setItem("nr:builtin-demo-location:v1:demo", "1");
   mocks.get.mockResolvedValue({ ...original, readonly: true });
   expect(await migrateBuiltinDemoLocations()).toBe(true);
   expect(mocks.update).toHaveBeenCalledWith("demo", { storagePath: "ideas/demo" });
+});
+it("reconciles an old path restored by Pull even when the local migration marker exists", async () => {
+  localStorage.setItem(`nr:builtin-demo-location:v3:${original.id}`, "1");
+  localStorage.setItem(`nr:builtin-demo-readonly:v1:${original.id}`, "1");
+  mocks.get.mockResolvedValue({ ...original, storagePath: "ideas" });
+  expect(await migrateBuiltinDemoLocations()).toBe(false);
+  expect(mocks.update).not.toHaveBeenCalled();
+
+  expect(await migrateBuiltinDemoLocations({ force: true })).toBe(true);
+  expect(mocks.update).toHaveBeenCalledWith(original.id, {
+    storagePath: BUILTIN_DEMO_PATH,
+  });
 });
 it("new demo readonly failure leaves migration retryable", async () => {
   mocks.update.mockRejectedValueOnce(new Error("disk full"));
@@ -87,7 +100,7 @@ it("moves all three built-in samples into ideas/demo", async () => {
   });
   expect(await migrateBuiltinDemoLocations()).toBe(true);
   expect(mocks.update).toHaveBeenCalledTimes(3);
-  for (const [, id] of samples) expect(mocks.update).toHaveBeenCalledWith(id, { storagePath: BUILTIN_DEMO_PATH });
+  for (const [, id] of samples) expect(mocks.update).toHaveBeenCalledWith(id, { storagePath: BUILTIN_DEMO_PATH, readonly: true });
   expect(await migrateBuiltinDemoLocations()).toBe(false);
   expect(mocks.update).toHaveBeenCalledTimes(3);
 });

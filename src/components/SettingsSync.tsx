@@ -40,7 +40,7 @@ interface Props {
   onBusyChange?: (busy: boolean) => void;
   onBeforePush?: () => Promise<void>;
   /** Pull 完成后回调 — 通知父组件重新载入并应用恢复后的完整工作区 */
-  onPullDone?: () => void;
+  onPullDone?: () => void | Promise<void>;
 }
 
 type BusyOperation = "incremental" | "protocol" | "measure" | "check" | "push" | "pull-preview" | "pull-merge" | "pull-replace";
@@ -327,7 +327,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
       } else {
         showMessage(`已用远端快照覆盖本地数据 (${new Date().toLocaleTimeString()})`, "success");
       }
-      onPullDone?.();
+      await onPullDone?.();
       setPullPrecheck(null);
     } catch (e) {
       showMessage(`拉取失败：${syncErrorMessage(e)}`, "error");

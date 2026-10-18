@@ -21,7 +21,7 @@ export function PullRecoveryStatus({
   config?: SyncConfig;
   onBeforeSnapshot?: () => Promise<void>;
   onOperationChange?: (busy: boolean) => void;
-  onPullDone?: () => void;
+  onPullDone?: () => void | Promise<void>;
   disabled?: boolean;
 }) {
   const [rows, setRows] = useState<PullSummary[]>([]),
@@ -107,7 +107,7 @@ export function PullRecoveryStatus({
           ? "接受已确认，通用恢复提示仍需检查。"
           : "已核验实际内容并完成接受确认，未重试导入。",
       );
-      onPullDone?.();
+      await onPullDone?.();
     } catch (reason) {
       if (id === sequence.current)
         setError(

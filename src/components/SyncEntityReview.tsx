@@ -58,7 +58,7 @@ export function SyncEntityReview({
   disabled: boolean;
   onBeforeSnapshot?: () => Promise<void>;
   onOperationChange: (busy: boolean) => void;
-  onPullDone?: () => void;
+  onPullDone?: () => void | Promise<void>;
 }) {
   const [review, setReview] = useState<EntityReview | null>(null),
     [choices, setChoices] = useState<EntityChoice[]>([]),
