@@ -1,3 +1,4 @@
+import { useEditorCommandShortcuts } from "./useEditorCommandShortcuts";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { isTauriRuntime } from "../lib/runtime";
 import { blockNativeMenu } from "../lib/native-menu-registry";
@@ -5,6 +6,7 @@ import { blockNativeMenu } from "../lib/native-menu-registry";
 export function useNativeMenuHost(blocked: boolean, onError: (error: string) => void) {
   const errorRef = useRef(onError);
   errorRef.current = onError;
+  useEditorCommandShortcuts(error => errorRef.current(`快捷键操作失败：${String(error)}`));
   useLayoutEffect(() => { blockNativeMenu(blocked); }, [blocked]);
   useEffect(() => () => blockNativeMenu(false), []);
   useEffect(() => {

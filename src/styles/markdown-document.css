@@ -200,3 +200,5 @@ blockquote[data-alert] { border-left-color: var(--accent); }
 .markdown-cm-host .cm-scroller { overflow-y: scroll; scrollbar-gutter: stable; }
 /* Reserve the same viewport edge in both editor engines, including short notes. */
 .note-editor-scroll { overflow-y: scroll; scrollbar-gutter: stable; }
+
+.markdown-document-view[data-source-tools-hidden] .markdown-source-toolbar-host { display: none; }

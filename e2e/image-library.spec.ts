@@ -143,7 +143,7 @@ for (const source of [false, true]) {
     await closeDocumentSidebar(page);
     await enable(page);
     if (source)
-      await page.getByTitle("切换到 Markdown 源码", { exact: true }).click();
+      await page.getByRole("button", { name: "源码", exact: true }).click();
     const editor = page.locator(
       source ? ".cm-content:visible" : ".ProseMirror:visible",
     );

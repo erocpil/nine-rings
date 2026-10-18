@@ -1,3 +1,5 @@
+import { shortcutTitle } from "../lib/editor-shortcuts";
+import { vimModePluginKey } from "../extensions/VimMode";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { useFocusEditorTools } from "../stores/useFocusEditorTools";
 import { EditorStatusBar } from "./EditorStatusBar";
@@ -3072,6 +3074,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     editor.view.dispatch(editor.state.tr.setMeta(flowPresentationKey, presentationLevel).setMeta("addToHistory", false));
   }, [editor, presentationLevel]);
 
+  const vimState = editor && vimModePluginKey.getState(editor.state);
+  const nativeFormatShortcut = !vimState?.enabled || vimState.mode === "insert";
   useNativeMenuActions({
     "document.outline": { run: toggleDocumentOutline, checked: outlineOpen, enabled: documentOutline.length > 0 },
     "document.bookmarks": { run: toggleDocumentBookmarks, checked: bookmarkOpen },
@@ -3084,15 +3088,16 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     "document.jump": { run: openLineJump },
     "document.export-md": { run: () => handleExportMarkdown() },
     "document.export-pdf": { run: handleExportPdf },
-    ...Object.fromEntries((["bold", "italic", "strike", "code"] as const).map(mark => [`format.${mark}`, { run: () => editor?.chain().focus().toggleMark(mark).run(), checked: editor?.isActive(mark), enabled: !readonly && editor?.can().toggleMark(mark) }])),
-    ...Object.fromEntries(([1, 2, 3, 4, 5, 6] as const).map(level => [`format.h${level}`, { run: () => editor?.chain().focus().toggleHeading({ level }).run(), enabled: !readonly }])),
-    "format.paragraph": { run: () => editor?.chain().focus().setParagraph().run(), enabled: !readonly },
-    "format.bullet": { run: () => editor?.chain().focus().toggleBulletList().run(), enabled: !readonly },
-    "format.ordered": { run: () => editor?.chain().focus().toggleOrderedList().run(), enabled: !readonly },
-    "format.todo": { run: () => editor?.chain().focus().wrapInList("bulletList").updateAttributes("listItem", { taskChecked: false }).run(), enabled: !readonly },
-    "format.quote": { run: () => editor?.chain().focus().toggleBlockquote().run(), enabled: !readonly },
-    "format.codeblock": { run: () => editor?.chain().focus().toggleCodeBlock().run(), enabled: !readonly },
-    "format.clear": { run: () => editor?.chain().focus().unsetAllMarks().run(), enabled: !readonly },
+    ...Object.fromEntries((["bold", "italic", "strike", "code"] as const).map(mark => [`format.${mark}`, { run: () => editor?.chain().focus().toggleMark(mark).run(), checked: editor?.isActive(mark), shortcut: nativeFormatShortcut, enabled: !readonly && editor?.can().toggleMark(mark) }])),
+    ...Object.fromEntries(([1, 2, 3, 4, 5, 6] as const).map(level => [`format.h${level}`, { run: () => editor?.chain().focus().toggleHeading({ level }).run(), checked: editor?.isActive("heading", { level }), shortcut: nativeFormatShortcut, enabled: !readonly }])),
+    "format.paragraph": { checked: editor?.isActive("paragraph"), run: () => editor?.chain().focus().setParagraph().run(), shortcut: nativeFormatShortcut, enabled: !readonly },
+    "format.bullet": { checked: editor?.isActive("bulletList") && typeof editor.getAttributes("listItem").taskChecked !== "boolean", run: () => editor?.chain().focus().toggleBulletList().run(), shortcut: nativeFormatShortcut, enabled: !readonly },
+    "format.ordered": { checked: editor?.isActive("orderedList") && typeof editor.getAttributes("listItem").taskChecked !== "boolean", run: () => editor?.chain().focus().toggleOrderedList().run(), shortcut: nativeFormatShortcut, enabled: !readonly },
+    "format.todo": { checked: typeof editor?.getAttributes("listItem").taskChecked === "boolean", run: () => editor?.chain().focus().wrapInList("bulletList").updateAttributes("listItem", { taskChecked: false }).run(), shortcut: nativeFormatShortcut, enabled: !readonly },
+    "format.quote": { checked: editor?.isActive("blockquote"), run: () => editor?.chain().focus().toggleBlockquote().run(), shortcut: nativeFormatShortcut, enabled: !readonly },
+    "format.codeblock": { checked: editor?.isActive("codeBlock"), run: () => editor?.chain().focus().toggleCodeBlock().run(), shortcut: nativeFormatShortcut, enabled: !readonly },
+    "format.link": { run: () => { setLinkDialogUrl(editor?.getAttributes("link").href || ""); setLinkDialog(true); }, enabled: !readonly, shortcut: nativeFormatShortcut },
+    "format.clear": { run: () => editor?.chain().focus().unsetAllMarks().run(), shortcut: nativeFormatShortcut, enabled: !readonly },
   }, documentActive && Boolean(editor));
   if (!editor) return <div className="note-editor"><div className="empty-state">加载中...</div></div>;
 
@@ -4201,7 +4206,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
                 setBookmarkOpen(false);
                 setFocusToolbarExpanded((expanded) => !expanded);
               }}
-              title="更多编辑工具"
+              title={shortcutTitle("view.tools", "更多编辑工具")}
               aria-label="更多编辑工具"
             ><FocusModeIcon name="tools" /></button>
           )}
@@ -4417,7 +4422,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
             aria-expanded={bookmarkOpen}
             type="button"
           ><FocusModeIcon name="bookmark" />{bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}</button>
-          {unifiedTitleBar && focusMode && !readonly && <button type="button" className="focus-btn" title="更多编辑工具" aria-label="更多编辑工具" aria-expanded={focusToolbarExpanded} onClick={() => setFocusToolbarExpanded(value => !value)}><ToolbarIcon name="annotate" /></button>}
+          {unifiedTitleBar && focusMode && !readonly && <button type="button" className="focus-btn" title={shortcutTitle("view.tools", "更多编辑工具")} aria-label="更多编辑工具" aria-expanded={focusToolbarExpanded} onClick={() => setFocusToolbarExpanded(value => !value)}><ToolbarIcon name="annotate" /></button>}
           {!statusBar.navigationInStatus && <NavigationButtons />}
           {isMobileToolbarViewport && <button
             className={`focus-btn document-focus-toggle ${focusMode ? "active" : ""}`}

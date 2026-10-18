@@ -38,7 +38,7 @@ test("选区弹层的字号颜色剪切实际生效，子菜单锚定选区", as
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => {}, write: async () => {} } });
   });
   hover = await select(page);
-  await hover.getByTitle("剪切 (Ctrl+X)", { exact: true }).click();
+  await hover.getByRole("button", { name: "剪切 (Ctrl+X)", exact: true }).click();
   await expect(content).toHaveText(" second");
   await page.keyboard.press("ControlOrMeta+z");
   await expect(content).toHaveText("first second");
@@ -70,7 +70,7 @@ for (const [label, selector] of [
   const content = page.locator(".ProseMirror");
   await content.fill("first second");
   const hover = await select(page);
-  await hover.getByTitle(label, { exact: true }).click();
+  await hover.getByRole("button", { name: label, exact: true }).click();
   await expect(content.locator(selector).first()).toContainText("first");
 });
 
@@ -86,13 +86,13 @@ test("选区菜单复制粘贴和链接图片入口可用", async ({ page }) => 
     } });
   });
   let hover = await select(page);
-  await hover.getByTitle("复制 (Ctrl+C)", { exact: true }).click();
+  await hover.getByRole("button", { name: "复制 (Ctrl+C)", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe("first");
   hover = await select(page);
-  await hover.getByTitle("粘贴 (Ctrl+V)", { exact: true }).click();
+  await hover.getByRole("button", { name: "粘贴 (Ctrl+V)", exact: true }).click();
   await expect(content).toContainText("pasted");
   hover = await select(page);
-  await hover.getByTitle("添加或编辑链接", { exact: true }).click();
+  await hover.getByRole("button", { name: "添加或编辑链接", exact: true }).click();
   await expect(page.locator(".image-dialog")).toBeVisible();
   await page.keyboard.press("Escape");
   hover = await select(page);
@@ -106,7 +106,7 @@ test("右键各分组覆盖当前宿主工具栏命令及禁用状态", async ({
   await content.fill("first second");
   await content.locator("p").click({ button: "right" });
   const expected = await page.locator(".editor-menu button").evaluateAll(buttons => buttons.filter(button => !button.closest(".menu-dropdown-list") && !button.hasAttribute("data-command-presentation-only")).map(button => ({
-    label: (button as HTMLButtonElement).title || button.getAttribute("aria-label") || button.textContent?.trim(),
+    label: button.getAttribute("aria-label") || (button as HTMLButtonElement).title || button.textContent?.trim(),
     disabled: (button as HTMLButtonElement).disabled,
   })));
   const menu = page.getByRole("menu", { name: "正文操作" });
@@ -129,11 +129,11 @@ test("按钮按下期间宿主状态刷新不吞掉点击", async ({ page }) => 
   const content = page.locator(".ProseMirror");
   await content.fill("first second");
   const hover = await select(page);
-  const button = hover.getByTitle("加粗 (Ctrl+B)", { exact: true });
+  const button = hover.getByRole("button", { name: "加粗 (Ctrl+B)", exact: true });
   const rect = (await button.boundingBox())!;
   await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
   await page.mouse.down();
-  await page.locator('.note-editor .editor-menu').getByTitle("加粗 (Ctrl+B)", { exact: true }).evaluate(element => element.classList.add("test-state-refresh"));
+  await page.locator('.note-editor .editor-menu').getByRole("button", { name: "加粗 (Ctrl+B)", exact: true }).evaluate(element => element.classList.add("test-state-refresh"));
   await expect(button).toHaveClass(/test-state-refresh/);
   await page.mouse.up();
   await expect(content.locator("strong")).toHaveText("first");
@@ -145,7 +145,7 @@ for (const [label, node] of [["插入 3×3 表格", "table"], ["插入流程块"
     const content = page.locator(".ProseMirror");
     await content.fill("first second");
     const hover = await select(page);
-    await hover.getByTitle(label, { exact: true }).click();
+    await hover.getByRole("button", { name: label, exact: true }).click();
     await expect.poll(() => content.evaluate(element => JSON.stringify((element as HTMLElement & { editor: Editor }).editor.getJSON()))).toContain(`"type":"${node}"`);
   });
 
@@ -154,23 +154,23 @@ test("选区工具的撤销重做清除格式和正文转换", async ({ page }) 
   const content = page.locator(".ProseMirror");
   await content.fill("first second");
   let hover = await select(page);
-  await hover.getByTitle("加粗 (Ctrl+B)", { exact: true }).click();
+  await hover.getByRole("button", { name: "加粗 (Ctrl+B)", exact: true }).click();
   hover = await select(page);
-  await hover.getByTitle("撤销 (Ctrl+Z)", { exact: true }).click();
+  await hover.getByRole("button", { name: "撤销 (Ctrl+Z)", exact: true }).click();
   await expect(content.locator("strong")).toHaveCount(0);
   hover = await select(page);
-  await hover.getByTitle("重做 (Ctrl+Y)", { exact: true }).click();
+  await hover.getByRole("button", { name: "重做 (Ctrl+Y)", exact: true }).click();
   await expect(content.locator("strong")).toHaveText("first");
   hover = await select(page);
-  await hover.getByTitle("清除格式", { exact: true }).click();
+  await hover.getByRole("button", { name: "清除格式", exact: true }).click();
   await expect(content.locator("strong")).toHaveCount(0);
   hover = await select(page);
-  await hover.getByTitle("标题 3", { exact: true }).click();
+  await hover.getByRole("button", { name: "标题 3", exact: true }).click();
   // Selection helper targets a paragraph; restore the same selected positions in the heading.
   await content.evaluate(element => { const editor = (element as HTMLElement & { editor: Editor }).editor; editor.commands.setTextSelection({ from: 1, to: 6 }); editor.view.focus(); });
   const box = (await content.locator("h3").boundingBox())!;
   await page.mouse.move(box.x + 12, box.y + box.height / 2);
-  await page.getByRole("toolbar", { name: "选区编辑工具" }).getByTitle("正文", { exact: true }).click();
+  await page.getByRole("toolbar", { name: "选区编辑工具" }).getByRole("button", { name: "正文", exact: true }).click();
   await expect(content.locator("h3")).toHaveCount(0);
   await expect(content.locator("p")).toHaveText("first second");
 });

@@ -48,7 +48,7 @@
 
 ## 编辑器导航
 
-- macOS Tauri 提供系统菜单中的工作区、文档、格式与界面操作，跟随活动文档、只读和弹层状态更新；原有界面入口保留。详见[macOS 系统菜单](docs/macos-native-menu.md)。
+- macOS Tauri 提供系统菜单中的工作区、File 文档操作、格式与界面操作，跟随活动文档、只读和弹层状态更新；原有界面入口保留。详见[macOS 系统菜单](docs/macos-native-menu.md)。
 
 - 普通模式可通过标题旁的“书签”、工具栏“更多”或正文右键菜单管理书签；`Ctrl/Cmd+Shift+M` 切换当前位置书签。书签随文档保存，跳转时会自动展开所在的折叠章节。
 - Vim 模式下，`i` 进入 Insert、`Esc` 返回 Normal；`Ctrl+F/B` 整页移动、`Ctrl+D/U` 半页移动、`Ctrl+E/Y` 单行滚动。

@@ -74,7 +74,7 @@ test.describe("手机工具栏状态恢复", () => {
     await page.getByTitle("字号", { exact: true }).tap();
     await page.getByTitle("字号", { exact: true }).tap();
     await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-    const redo = page.getByTitle("重做 (Ctrl+Y)");
+    const redo = page.getByRole("button", { name: "重做 (Ctrl+Y)", exact: true });
     await expect(redo).toBeDisabled();
     const rect = (await redo.boundingBox())!;
     await page.touchscreen.tap(rect.x + rect.width / 2, rect.y + rect.height / 2);
@@ -162,7 +162,7 @@ for (const width of [1440, 390]) {
           await page.getByTitle(`标题 ${level}`, { exact: true }).click();
           await expect(editor.locator(`h${level}`)).toHaveText("按钮功能正文");
         }
-        await page.getByTitle("标题 6", { exact: true }).click();
+        await page.getByRole("button", { name: "标题 6", exact: true }).click();
         for (const [name, title, selector] of [["❝ 引用", "引用 (Ctrl+Shift+B)", "blockquote"], ["• 无序列表", "无序列表 (Ctrl+Shift+8)", "ul"], ["1. 有序列表", "有序列表 (Ctrl+Shift+7)", "ol"]]) {
           await action("块", name, title);
           await expect(editor.locator(selector)).toHaveCount(1);
@@ -183,9 +183,9 @@ for (const width of [1440, 390]) {
         await page.waitForTimeout(600);
         await action("块", "⏹ 代码块", "代码块 (Ctrl+Alt+C)");
         await expect(editor.locator(".code-block-wrap")).toHaveCount(0);
-        await page.getByTitle("撤销 (Ctrl+Z)").click();
+        await page.getByRole("button", { name: "撤销 (Ctrl+Z)", exact: true }).click();
         await expect(editor.locator(".code-block-wrap")).toHaveCount(1);
-        await page.getByTitle("重做 (Ctrl+Y)").click();
+        await page.getByRole("button", { name: "重做 (Ctrl+Y)", exact: true }).click();
         await expect(editor.locator(".code-block-wrap")).toHaveCount(0);
         await expect(editor).toHaveText("按钮功能正文");
       });

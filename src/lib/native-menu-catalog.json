@@ -4,19 +4,23 @@
     "items": [
       {
         "id": "workspace.home",
-        "text": "工作区首页／返回文档"
+        "text": "工作区首页／返回文档",
+        "accelerator": "Command+Shift+H"
       },
       {
         "id": "workspace.new",
-        "text": "新建文档…"
+        "text": "新建文档…",
+        "accelerator": "Command+N"
       },
       {
         "id": "workspace.search",
-        "text": "全局搜索…"
+        "text": "全局搜索…",
+        "accelerator": "Command+Shift+F"
       },
       {
         "id": "workspace.switch",
-        "text": "快速切换文档…"
+        "text": "快速切换文档…",
+        "accelerator": "Command+P"
       },
       {
         "id": "workspace.recycle",
@@ -82,7 +86,7 @@
     ]
   },
   {
-    "text": "文档",
+    "text": "File",
     "items": [
       {
         "id": "document.save",
@@ -100,7 +104,8 @@
       {
         "id": "document.source",
         "text": "源码模式",
-        "checkable": true
+        "checkable": true,
+        "accelerator": "Command+Alt+S"
       },
       {
         "id": "document.readonly",
@@ -110,29 +115,35 @@
       {
         "id": "document.properties",
         "text": "文档属性",
-        "checkable": true
+        "checkable": true,
+        "accelerator": "Command+Alt+Enter"
       },
       {
         "id": "document.find",
-        "text": "文档内查找…"
+        "text": "文档内查找…",
+        "accelerator": "Command+F"
       },
       {
         "id": "document.replace",
-        "text": "查找替换…"
+        "text": "查找替换…",
+        "accelerator": "Command+Alt+F"
       },
       {
         "id": "document.jump",
-        "text": "跳转行／块…"
+        "text": "跳转行／块…",
+        "accelerator": "Command+G"
       },
       {
         "id": "document.outline",
         "text": "文档目录",
-        "checkable": true
+        "checkable": true,
+        "accelerator": "Command+Alt+O"
       },
       {
         "id": "document.bookmarks",
         "text": "书签",
-        "checkable": true
+        "checkable": true,
+        "accelerator": "Command+Alt+B"
       },
       {
         "id": "document.history",
@@ -145,11 +156,13 @@
       },
       {
         "id": "document.export-md",
-        "text": "导出 Markdown…"
+        "text": "导出 Markdown…",
+        "accelerator": "Command+Shift+E"
       },
       {
         "id": "document.export-pdf",
-        "text": "导出／打印 PDF…"
+        "text": "导出／打印 PDF…",
+        "accelerator": "Command+Alt+P"
       },
       {
         "id": "document.collapse",
@@ -179,7 +192,8 @@
           }
         ]
       }
-    ]
+    ],
+    "merge": "file"
   },
   {
     "text": "格式",
@@ -187,79 +201,112 @@
       {
         "id": "format.bold",
         "text": "粗体",
-        "checkable": true
+        "checkable": true,
+        "accelerator": "Command+B"
       },
       {
         "id": "format.italic",
         "text": "斜体",
-        "checkable": true
+        "checkable": true,
+        "accelerator": "Command+I"
       },
       {
         "id": "format.strike",
         "text": "删除线",
-        "checkable": true
+        "checkable": true,
+        "accelerator": "Command+Shift+X"
       },
       {
         "id": "format.code",
         "text": "行内代码",
-        "checkable": true
+        "checkable": true,
+        "accelerator": "Command+E"
       },
       {
         "text": "标题",
         "items": [
           {
             "id": "format.paragraph",
-            "text": "正文"
+            "text": "正文",
+            "accelerator": "Command+Alt+0",
+            "checkable": true
           },
           {
             "id": "format.h1",
-            "text": "一级标题"
+            "text": "一级标题",
+            "accelerator": "Command+Alt+1",
+            "checkable": true
           },
           {
             "id": "format.h2",
-            "text": "二级标题"
+            "text": "二级标题",
+            "accelerator": "Command+Alt+2",
+            "checkable": true
           },
           {
             "id": "format.h3",
-            "text": "三级标题"
+            "text": "三级标题",
+            "accelerator": "Command+Alt+3",
+            "checkable": true
           },
           {
             "id": "format.h4",
-            "text": "四级标题"
+            "text": "四级标题",
+            "accelerator": "Command+Alt+4",
+            "checkable": true
           },
           {
             "id": "format.h5",
-            "text": "五级标题"
+            "text": "五级标题",
+            "accelerator": "Command+Alt+5",
+            "checkable": true
           },
           {
             "id": "format.h6",
-            "text": "六级标题"
+            "text": "六级标题",
+            "accelerator": "Command+Alt+6",
+            "checkable": true
           }
         ]
       },
       {
         "id": "format.bullet",
-        "text": "无序列表"
+        "text": "无序列表",
+        "accelerator": "Command+Shift+8",
+        "checkable": true
       },
       {
         "id": "format.ordered",
-        "text": "有序列表"
+        "text": "有序列表",
+        "accelerator": "Command+Shift+7",
+        "checkable": true
       },
       {
         "id": "format.todo",
-        "text": "待办列表"
+        "text": "待办列表",
+        "accelerator": "Command+Shift+9",
+        "checkable": true
       },
       {
         "id": "format.quote",
-        "text": "引用块"
+        "text": "引用块",
+        "accelerator": "Command+Shift+B",
+        "checkable": true
       },
       {
         "id": "format.codeblock",
-        "text": "代码块"
+        "text": "代码块",
+        "accelerator": "Command+Alt+C"
       },
       {
         "id": "format.clear",
-        "text": "清除文字格式"
+        "text": "清除文字格式",
+        "accelerator": "Command+Backslash"
+      },
+      {
+        "id": "format.link",
+        "text": "添加或编辑链接…",
+        "accelerator": "Command+K"
       }
     ]
   },
@@ -269,7 +316,14 @@
       {
         "id": "view.focus",
         "text": "专注模式",
-        "checkable": true
+        "checkable": true,
+        "accelerator": "Command+Shift+Enter"
+      },
+      {
+        "id": "view.tools",
+        "text": "更多编辑工具",
+        "checkable": true,
+        "accelerator": "Command+Alt+T"
       },
       {
         "text": "风格",

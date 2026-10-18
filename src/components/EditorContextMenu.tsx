@@ -52,7 +52,7 @@ export function EditorContextMenu({ editor, toolbarRef, readonly, contextMenu, c
         <button className="editor-context-item editor-context-parent" aria-expanded={contextSubmenu === group}
           onClick={() => setContextSubmenu(current => current === group ? null : group)}>{group}<DisclosureIcon expanded={contextSubmenu === group} /></button>
         {contextSubmenu === group && <div className="editor-context-submenu" role="group" aria-label={group}>
-          {items.map(command => <button key={command.id} className={`editor-context-item editor-context-subitem ${command.active ? "active" : ""}`} disabled={command.disabled}
+          {items.map(command => <button key={command.id} title={command.source.title} className={`editor-context-item editor-context-subitem ${command.active ? "active" : ""}`} disabled={command.disabled}
             onClick={event => { invokeEditorCommand(command, event.currentTarget); setContextMenu(null); }}>
             {command.label}{command.submenu && <DisclosureIcon expanded={false} />}
           </button>)}

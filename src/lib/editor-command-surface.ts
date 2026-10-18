@@ -35,7 +35,8 @@ export function readEditorCommands(toolbar: HTMLElement): EditorSurfaceCommand[]
   return [...toolbar.querySelectorAll<HTMLButtonElement>("button")]
     .filter(button => !button.closest(".menu-dropdown-list") && (!button.closest("[hidden]") || button.dataset.contextVisible === "true") && !button.hasAttribute("data-command-presentation-only"))
     .map((button, index) => {
-      const label = button.title || button.getAttribute("aria-label") || button.textContent?.trim() || "操作";
+      // Accessible command identity is independent of platform shortcut hints.
+      const label = button.getAttribute("aria-label") || button.title || button.textContent?.trim() || "操作";
       return { id: `${index}:${label}`, label, group: group(label), disabled: button.disabled,
         active: button.classList.contains("active") || button.getAttribute("aria-pressed") === "true",
         submenu: button.hasAttribute("aria-expanded"), source: button };

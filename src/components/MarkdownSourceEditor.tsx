@@ -1,3 +1,5 @@
+import { shortcutTitle } from "../lib/editor-shortcuts";
+import { emptySourceFormats, sourceFormats, sourceHeadingChange, removeSourceInlineFormat, type SourceInlineFormat } from "../lib/source-format-state";
 import { useDocumentActive } from "./RetainedDocument";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { EditorStatusBar } from "./EditorStatusBar";
@@ -82,8 +84,15 @@ import type { SourceEditRange } from "../lib/markdown-source-navigation";
 
 function wrapSelection(view: EditorView, before: string, after = before) {
   if (view.state.readOnly || view.composing) return false;
+  const inlineKind = ({ "**": "bold", "*": "italic", "~~": "strike", "`": "code" } as const)[before as "**" | "*" | "~~" | "`"];
+  const removal = before === after && inlineKind ? removeSourceInlineFormat(view.state, inlineKind) : null;
+  if (removal) {
+    view.dispatch({ ...removal, annotations: isolateHistory.of("full") });
+    view.focus(); return true;
+  }
   const range = view.state.selection.main;
   if (
+    !inlineKind &&
     range.from >= before.length &&
     view.state.sliceDoc(range.from - before.length, range.from) === before &&
     view.state.sliceDoc(range.to, range.to + after.length) === after
@@ -106,6 +115,7 @@ function wrapSelection(view: EditorView, before: string, after = before) {
   }
   const text = view.state.sliceDoc(range.from, range.to);
   const unwrap =
+    !inlineKind &&
     text.startsWith(before) &&
     text.endsWith(after) &&
     text.length >= before.length + after.length;
@@ -184,7 +194,10 @@ export function MarkdownSourceEditor({
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
   const [foldMenu, setFoldMenu] = useState<{ trigger: HTMLElement; collapse: boolean } | null>(null);
   const [tools, setTools] = useState({ search: false, goto: false, undo: false, redo: false });
+  const [formats, setFormats] = useState(emptySourceFormats);
   const syncTools = (state: EditorState) => {
+    const nextFormats = sourceFormats(state);
+    setFormats(previous => Object.keys(nextFormats).every(key => previous[key as keyof typeof previous] === nextFormats[key as keyof typeof nextFormats]) ? previous : nextFormats);
     const next = { search: sourcePanelOpen(state, "search"), goto: sourcePanelOpen(state, "goto"), undo: undoDepth(state) > 0, redo: redoDepth(state) > 0 };
     setTools(previous => Object.keys(next).every(key => previous[key as keyof typeof next] === next[key as keyof typeof next]) ? previous : next);
   };
@@ -310,7 +323,7 @@ export function MarkdownSourceEditor({
         { key: "Backspace", run: deleteMarkupBackward },
         { key: "Mod-b", run: (v) => wrapSelection(v, "**") },
         { key: "Mod-i", run: (v) => wrapSelection(v, "*") },
-        { key: "Mod-Shift-c", run: (v) => wrapSelection(v, "`") },
+        { key: "Mod-e", run: (v) => wrapSelection(v, "`") },
         { key: "Mod-k", run: (v) => wrapSelection(v, "[", "](https://)") },
         { key: "Mod-g", run: v => toggleSourcePanel(v, "goto") },
         ...closeBracketsKeymap,
@@ -445,10 +458,10 @@ export function MarkdownSourceEditor({
         role="toolbar"
         aria-label="源码编辑工具"
       >
-        <button type="button" title="查找替换" aria-label="查找替换" aria-expanded={tools.search} aria-pressed={tools.search} onClick={() => run(v => toggleSourcePanel(v, "search"))}>
+        <button type="button" title={shortcutTitle("document.find", "查找替换")} aria-label="查找替换" aria-expanded={tools.search} aria-pressed={tools.search} onClick={() => run(v => toggleSourcePanel(v, "search"))}>
           <ToolbarIcon name="search" />
         </button>
-        <button type="button" title="跳转行" aria-label="跳转行" aria-expanded={tools.goto} aria-pressed={tools.goto} onClick={() => run(v => toggleSourcePanel(v, "goto"))}>
+        <button type="button" title={shortcutTitle("document.jump", "跳转行")} aria-label="跳转行" aria-expanded={tools.goto} aria-pressed={tools.goto} onClick={() => run(v => toggleSourcePanel(v, "goto"))}>
           <ToolbarIcon name="jumpLine" />
         </button>
         <button
@@ -476,15 +489,15 @@ export function MarkdownSourceEditor({
         </span>)}
         {foldMenu && <BlockActionMenu trigger={foldMenu.trigger} placement="below" title={foldMenu.collapse ? "折叠标题级别" : "展开标题级别"} onClose={() => setFoldMenu(null)} actions={[{ label: foldMenu.collapse ? "折叠全部" : "展开全部", run: () => run(foldMenu.collapse ? foldAll : unfoldAll) }, ...Array.from({ length: 6 }, (_, i) => ({ label: foldMenu.collapse ? `折叠 H${i + 1} 及更深标题` : `展开至 H${i + 1}`, run: () => run(view => { const effects = sourceHeadingFoldEffects(view.state, i + 1, foldMenu.collapse); if (!effects) return false; view.dispatch({ effects }); return true; }) }))]} />}
         {!readonly && <>
-        <button type="button" title="撤销" aria-label="撤销" disabled={editingReadonly || !tools.undo} onClick={() => run(undo)}>
+        <button type="button" title={shortcutTitle("edit.undo", "撤销")} aria-label="撤销" disabled={editingReadonly || !tools.undo} onClick={() => run(undo)}>
           <ToolbarIcon name="undo" />
         </button>
-        <button type="button" title="重做" aria-label="重做" disabled={editingReadonly || !tools.redo} onClick={() => run(redo)}>
+        <button type="button" title={shortcutTitle("edit.redo", "重做")} aria-label="重做" disabled={editingReadonly || !tools.redo} onClick={() => run(redo)}>
           <ToolbarIcon name="redo" />
         </button>
         <button
           type="button"
-          title="加粗"
+          title={shortcutTitle("format.bold", "加粗")}
           aria-label="加粗"
           disabled={editingReadonly}
           onClick={() => run((v) => wrapSelection(v, "**"))}
@@ -493,18 +506,18 @@ export function MarkdownSourceEditor({
         </button>
         <button
           type="button"
-          title="行内代码"
+          title={shortcutTitle("format.code", "行内代码")}
           aria-label="行内代码"
           disabled={editingReadonly}
           onClick={() => run((v) => wrapSelection(v, "`"))}
         >
           <ToolbarIcon name="code" />
         </button>
-        <button type="button" title="斜体" aria-label="斜体" disabled={editingReadonly} onClick={() => run(v => wrapSelection(v, "*"))}><ToolbarIcon name="italic" /></button>
-        <button type="button" title="删除线" aria-label="删除线" disabled={editingReadonly} onClick={() => run(v => wrapSelection(v, "~~"))}><ToolbarIcon name="strike" /></button>
+        <button type="button" title={shortcutTitle("format.italic", "斜体")} aria-label="斜体" disabled={editingReadonly} onClick={() => run(v => wrapSelection(v, "*"))}><ToolbarIcon name="italic" /></button>
+        <button type="button" title={shortcutTitle("format.strike", "删除线")} aria-label="删除线" disabled={editingReadonly} onClick={() => run(v => wrapSelection(v, "~~"))}><ToolbarIcon name="strike" /></button>
         <button
           type="button"
-          title="链接"
+          title={shortcutTitle("format.link", "链接")}
           aria-label="链接"
           disabled={editingReadonly}
           onClick={() => run((v) => wrapSelection(v, "[", "](https://)"))}
@@ -514,7 +527,7 @@ export function MarkdownSourceEditor({
         {([
           ["引用", "quote", "quote"], ["无序列表", "bullet", "bullet"],
           ["有序列表", "ordered", "ordered"], ["待办列表", "task", "check"],
-        ] as const).map(([label, format, icon]) => <button key={format} type="button" title={label} aria-label={label} disabled={editingReadonly} onClick={() => run(v => {
+        ] as const).map(([label, format, icon]) => <button key={format} type="button" title={shortcutTitle(`format.${format === "task" ? "todo" : format}`, label)} aria-label={label} disabled={editingReadonly} onClick={() => run(v => {
           if (v.composing) return false;
           const spec = formatSourceLines(v.state, format);
           if (!spec) return false;
@@ -522,7 +535,7 @@ export function MarkdownSourceEditor({
         })}><ToolbarIcon name={icon} /></button>)}
         {([
           ["代码块", "code", "codeBlock"], ["表格", "table", "table"], ["分隔线", "rule", "minus"],
-        ] as const).map(([label, kind, icon]) => <button key={kind} type="button" title={label} aria-label={label} disabled={editingReadonly} onClick={() => run(v => {
+        ] as const).map(([label, kind, icon]) => <button key={kind} type="button" title={kind === "code" ? shortcutTitle("format.codeblock", label) : label} aria-label={label} disabled={editingReadonly} onClick={() => run(v => {
           if (v.composing) return false;
           const spec = insertSourceBlock(v.state, kind);
           if (!spec) return false;
@@ -548,19 +561,26 @@ export function MarkdownSourceEditor({
     "source.wrap": { run: () => saveBlockWorkspacePreferences({ wrap: preferences.wrap === false }), checked: preferences.wrap !== false },
     "source.highlight": { run: () => saveBlockWorkspacePreferences({ sourceSyntaxHighlighting: preferences.sourceSyntaxHighlighting === false }), checked: preferences.sourceSyntaxHighlighting !== false },
     "source.micro": { run: () => saveBlockWorkspacePreferences({ sourceMicroRendering: preferences.sourceMicroRendering !== true }), checked: preferences.sourceMicroRendering === true },
-    ...Object.fromEntries([["bold", "**"], ["italic", "*"], ["strike", "~~"], ["code", "`"]].map(([kind, marker]) => [`format.${kind}`, { run: () => run(v => wrapSelection(v, marker)), enabled: !editingReadonly }])),
+    ...Object.fromEntries([["bold", "**"], ["italic", "*"], ["strike", "~~"], ["code", "`"]].map(([kind, marker]) => [`format.${kind}`, { run: () => run(v => wrapSelection(v, marker)), enabled: !editingReadonly && !formats.codeblock && (kind === "code" || !formats.code), checked: formats[kind as SourceInlineFormat] }])),
     ...Object.fromEntries((["quote", "bullet", "ordered", "task"] as const).map(kind => [`format.${kind === "task" ? "todo" : kind}`, { run: () => run(v => {
       if (v.composing) return false;
       const spec = formatSourceLines(v.state, kind);
       if (!spec) return false;
       v.dispatch(spec); v.focus(); return true;
-    }), enabled: !editingReadonly }])),
+    }), enabled: !editingReadonly && !formats.codeblock, checked: formats[kind === "task" ? "todo" : kind] }])),
+    ...Object.fromEntries(Array.from({ length: 7 }, (_, level) => [`format.${level ? `h${level}` : "paragraph"}`, { run: () => run(v => {
+      if (v.composing) return false;
+      const spec = sourceHeadingChange(v.state, level);
+      if (!spec) return false;
+      v.dispatch({ ...spec, annotations: isolateHistory.of("full") }); v.focus(); return true;
+    }), enabled: !editingReadonly && !formats.codeblock, checked: formats[level ? `h${level}` as keyof typeof formats : "paragraph"] }])),
+    "format.link": { run: () => run(v => wrapSelection(v, "[", "](https://)")), enabled: !editingReadonly && !formats.codeblock && !formats.code },
     "format.codeblock": { run: () => run(v => {
       if (v.composing) return false;
       const spec = insertSourceBlock(v.state, "code");
       if (!spec) return false;
       v.dispatch(spec); v.focus(); return true;
-    }), enabled: !editingReadonly },
+    }), enabled: !editingReadonly, checked: formats.codeblock },
   }, documentActive);
   return (
     <div

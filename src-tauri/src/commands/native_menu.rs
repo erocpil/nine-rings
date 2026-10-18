@@ -5,6 +5,12 @@ pub struct MenuState {
     id: String,
     enabled: bool,
     checked: bool,
+    #[serde(default = "default_shortcut")]
+    shortcut: bool,
+}
+
+fn default_shortcut() -> bool {
+    true
 }
 
 #[cfg(target_os = "macos")]
@@ -13,7 +19,9 @@ mod macos {
     use serde::Deserialize;
     use std::{collections::HashMap, sync::Mutex};
     use tauri::{
-        menu::{CheckMenuItem, MenuItem, MenuItemKind, Submenu},
+        menu::{
+            CheckMenuItem, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID,
+        },
         Manager,
     };
 
@@ -22,16 +30,22 @@ mod macos {
         text: String,
         id: Option<String>,
         accelerator: Option<String>,
+        merge: Option<String>,
         #[serde(default)]
         checkable: bool,
         items: Option<Vec<Entry>>,
     }
-    pub struct NativeMenu(pub Mutex<HashMap<String, MenuItemKind<tauri::Wry>>>);
+    pub struct NativeItem {
+        item: MenuItemKind<tauri::Wry>,
+        accelerator: Option<String>,
+        shortcut: bool,
+    }
+    pub struct NativeMenu(pub Mutex<HashMap<String, NativeItem>>);
 
     fn build(
         app: &tauri::App,
         entry: Entry,
-        states: &mut HashMap<String, MenuItemKind<tauri::Wry>>,
+        states: &mut HashMap<String, NativeItem>,
     ) -> tauri::Result<MenuItemKind<tauri::Wry>> {
         if let Some(children) = entry.items {
             let submenu = Submenu::new(app, entry.text, true)?;
@@ -59,7 +73,14 @@ mod macos {
                 entry.accelerator.as_deref(),
             )?)
         };
-        states.insert(id, item.clone());
+        states.insert(
+            id,
+            NativeItem {
+                item: item.clone(),
+                accelerator: entry.accelerator,
+                shortcut: true,
+            },
+        );
         Ok(item)
     }
     pub fn install(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -71,8 +92,45 @@ mod macos {
         let mut states = HashMap::new();
         // Preserve the existing Cocoa application/Edit/Window menus and their
         // standard responders, including the save-before-quit replacement.
-        for entry in entries {
+        let original = menu.items()?;
+        let help = original
+            .iter()
+            .find(|item| item.id().as_ref() == HELP_SUBMENU_ID);
+        if let Some(help) = help {
+            menu.remove(help)?;
+        }
+        for mut entry in entries {
+            if entry.merge.as_deref() == Some("file") {
+                let file = original.iter().find_map(|item| match item {
+                    MenuItemKind::Submenu(submenu)
+                        if submenu
+                            .text()
+                            .is_ok_and(|name| name == "File" || name == "文件") =>
+                    {
+                        Some(submenu)
+                    }
+                    _ => None,
+                });
+                if let Some(file) = file {
+                    // Keep the native Close responder, appending it after the
+                    // document actions and a separator rather than duplicating it.
+                    file.insert(&PredefinedMenuItem::separator(app)?, 0)?;
+                    for (index, child) in entry
+                        .items
+                        .take()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .enumerate()
+                    {
+                        file.insert(&build(app, child, &mut states)?, index)?;
+                    }
+                    continue;
+                }
+            }
             menu.append(&build(app, entry, &mut states)?)?;
+        }
+        if let Some(help) = help {
+            menu.append(help)?;
         }
         app.manage(NativeMenu(Mutex::new(states)));
         Ok(())
@@ -81,12 +139,28 @@ mod macos {
         let Some(menu) = app.try_state::<NativeMenu>() else {
             return Ok(());
         };
-        let items = menu.0.lock().map_err(|e| e.to_string())?;
+        let mut items = menu.0.lock().map_err(|e| e.to_string())?;
         let states: HashMap<_, _> = states
             .into_iter()
             .map(|s| (format!("nr-menu:{}", s.id), s))
             .collect();
-        for (id, item) in items.iter() {
+        for (id, entry) in items.iter_mut() {
+            let shortcut = states.get(id).is_none_or(|state| state.shortcut);
+            if shortcut != entry.shortcut {
+                let accelerator = if shortcut {
+                    entry.accelerator.as_deref()
+                } else {
+                    None
+                };
+                match &entry.item {
+                    MenuItemKind::MenuItem(item) => item.set_accelerator(accelerator),
+                    MenuItemKind::Check(item) => item.set_accelerator(accelerator),
+                    _ => Ok(()),
+                }
+                .map_err(|e| e.to_string())?;
+                entry.shortcut = shortcut;
+            }
+            let item = &entry.item;
             let state = states.get(id);
             let enabled = state.is_some_and(|s| s.enabled);
             match item {
@@ -125,7 +199,7 @@ pub fn update_native_menu(
         // Windows/Linux dead-code checks clean.
         let _ = app;
         for state in states {
-            let _ = (state.id, state.enabled, state.checked);
+            let _ = (state.id, state.enabled, state.checked, state.shortcut);
         }
         Ok(())
     }

@@ -115,7 +115,7 @@ for (const mode of ["full", "source", "virtual"]) test(`集中书签打开并定
   await waitForSavedText(page, '目标段落 99');
   await page.getByRole('button', { name: '点击设为只读', exact: true }).click();
   if (mode === "source") {
-    await page.getByTitle("切换到 Markdown 源码").click();
+    await page.getByRole("button", { name: "源码", exact: true }).click();
     await expect(page.getByRole("textbox", { name: "Markdown 源码", exact: true })).toBeVisible();
     await scrollSourceTo(page.getByRole("textbox", { name: "Markdown 源码", exact: true }), "目标段落 0");
   } else {

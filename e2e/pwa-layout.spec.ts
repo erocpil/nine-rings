@@ -2078,7 +2078,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     for (const viewport of [{ width: 320, height: 568 }, { width: 760, height: 390 }, { width: 390, height: 280 }]) {
       await page.setViewportSize(viewport);
       await closeDocumentSidebar(page);
-      const last = toolbar.getByTitle("导出 PDF", { exact: true });
+      const last = toolbar.getByRole("button", { name: "导出 PDF", exact: true });
       await last.scrollIntoViewIfNeeded();
       await expect.poll(() => last.evaluate(el => {
         const rect = el.getBoundingClientRect();
@@ -2118,7 +2118,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect.poll(() => page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("测试文字");
     await page.getByTitle("字号", { exact: true }).tap();
     await page.getByRole("button", { name: "20px", exact: true }).tap();
-    await page.getByTitle("加粗 (Ctrl+B)", { exact: true }).tap();
+    await page.getByRole("button", { name: "加粗 (Ctrl+B)", exact: true }).tap();
     await expect(editor.locator("strong")).toHaveText("测试文字");
     await expect(editor).toHaveCSS("-webkit-user-select", "text");
   });

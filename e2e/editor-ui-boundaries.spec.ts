@@ -48,15 +48,15 @@ test("手机工具栏菜单互斥、重复点击与外部关闭，标题分页�
   await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
   const dropdowns = page.locator(".editor-menu .menu-dropdown-list");
   for (const title of ["字号", "选择文字颜色", "选择背景色", "字号", "选择背景色", "选择文字颜色"]) {
-    await page.getByTitle(title, { exact: true }).click();
+    await page.getByRole("button", { name: title, exact: true }).click();
     await expect(dropdowns).toHaveCount(1);
   }
   await page.getByTitle("选择文字颜色", { exact: true }).click();
   await expect(dropdowns).toHaveCount(0);
   await page.getByTitle("H1–2 H6", { exact: true }).click();
-  await expect(page.getByTitle("标题 1", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "标题 1", exact: true })).toBeVisible();
   await page.locator(".ProseMirror").click();
-  await expect(page.getByTitle("标题 1", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "标题 1", exact: true })).toBeVisible();
   await page.getByTitle("字号", { exact: true }).click();
   await page.locator(".ProseMirror").click();
   await expect(dropdowns).toHaveCount(0);
@@ -71,7 +71,7 @@ test("切换工具栏布局和插入弹层不重建正文，选区格式与撤�
   await page.setViewportSize({ width: 390, height: 850 });
   await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
   await selectLine(page, "拆分验证甲正文");
-  await page.getByTitle("加粗 (Ctrl+B)", { exact: true }).click();
+  await page.getByRole("button", { name: "加粗 (Ctrl+B)", exact: true }).click();
   await expect(editor.locator("strong")).toHaveText("拆分验证甲正文");
 
   await page.getByRole("button", { name: "添加或编辑链接", exact: true }).click();
@@ -87,10 +87,10 @@ test("切换工具栏布局和插入弹层不重建正文，选区格式与撤�
   await page.getByTitle("插入图片", { exact: true }).click();
   await expect(dialog.locator("input")).toBeFocused();
   await dialog.getByRole("button", { name: "取消", exact: true }).click();
-  await page.getByTitle("撤销 (Ctrl+Z)", { exact: true }).click();
+  await page.getByRole("button", { name: "撤销 (Ctrl+Z)", exact: true }).click();
   await expect(editor.locator("strong")).toHaveCount(0);
   await expect(editor).toHaveText("拆分验证甲正文");
-  await page.getByTitle("重做 (Ctrl+Y)", { exact: true }).click();
+  await page.getByRole("button", { name: "重做 (Ctrl+Y)", exact: true }).click();
   await expect(editor.locator("strong")).toHaveText("拆分验证甲正文");
   expect(await original.evaluate((element) => element === document.querySelector(".ProseMirror"))).toBe(true);
   await expect(editor).toHaveCount(1);

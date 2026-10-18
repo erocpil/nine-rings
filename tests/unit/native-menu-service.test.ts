@@ -30,6 +30,23 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 describe("native menu bridge", () => {
+  it("restores authoritative check state after a native checkbox command does nothing", async () => {
+    cleanups.push(
+      registerNativeMenuActions(
+        {},
+        { selected: { checked: true, run: () => {} } },
+      ),
+    );
+    cleanups.push(await startNativeMenuService());
+    expect(mocks.invoke).toHaveBeenCalledOnce();
+    mocks.action!({ payload: "selected" });
+    await vi.waitFor(() =>
+      expect(mocks.invoke.mock.calls.length).toBeGreaterThan(1),
+    );
+    expect(mocks.invoke).toHaveBeenLastCalledWith("update_native_menu", {
+      states: [{ id: "selected", enabled: true, checked: true }],
+    });
+  });
   it("skips unchanged state IPC, uses latest handlers and disables an unfocused main window", async () => {
     const owner = {},
       first = vi.fn(),

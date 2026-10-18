@@ -66,7 +66,7 @@ test("最近三份文档保留实例和撤销历史，首页往返不卸载，�
   expect(await a.evaluate(instance => instance.isDestroyed)).toBe(false);
 
   await open(2);
-  await page.getByTitle("切换到 Markdown 源码", { exact: true }).click();
+  await page.getByRole("button", { name: "源码", exact: true }).click();
   const source = page.locator(".cm-content");
   await expect(source).toBeVisible();
   const sourceNode = await source.elementHandle();

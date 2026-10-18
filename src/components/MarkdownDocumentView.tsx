@@ -1,3 +1,5 @@
+import { shortcutTitle } from "../lib/editor-shortcuts";
+import { useFocusEditorTools } from "../stores/useFocusEditorTools";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import { activeLinePluginKey } from "../extensions/EditorHighlights";
@@ -35,6 +37,8 @@ const MarkdownSourceEditor = lazy(() => import("./MarkdownSourceEditor").then(mo
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
   const statusBar = useStatusBarDisplay(props.showStatusBar, props.focusMode);
   const active = useDocumentActive();
+  const moreTools = useFocusEditorTools(state => state.expanded);
+  const setMoreTools = useFocusEditorTools(state => state.setExpanded);
   const sourceOpenTarget = useDocumentOpenStore(state => state.target?.noteId === props.noteId ? state.target : null);
   const navigationTarget = useNavigationStore(state => state.target?.noteId === props.noteId ? state.target : null);
   const mobile = useMobileViewport();
@@ -212,16 +216,17 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     return () => window.removeEventListener(IMAGE_VIEW_EVENT, enrich, true);
   }, [active]);
   useNativeMenuActions({
+    "view.tools": { run: () => setMoreTools(value => !value), checked: moreTools, enabled: props.focusMode && !props.readonly },
     "document.source": { run: () => changeView(), checked: source !== null, enabled: supported && !busy },
     "document.readonly": { run: () => props.onReadonlyChange?.(!props.readonly), checked: Boolean(props.readonly), enabled: Boolean(props.onReadonlyChange) && !busy },
   }, active);
   if (!supported) return render({ ...props, onHostSelection: hostSelection, onHostEditorReady: hostRenderedReady });
   const toggle = <><button type="button" className="markdown-view-toggle" disabled={busy}
-    title={source === null ? "切换到 Markdown 源码" : "切换到渲染视图"}
+    title={shortcutTitle("document.source", source === null ? "切换到 Markdown 源码" : "切换到渲染视图")}
     aria-label={source === null ? "源码" : "渲染"}
     aria-busy={busy} onClick={() => void changeView()}><ToolbarIcon name={source === null ? "code" : "document"} /></button>
     {props.documentSessions && <BuiltinPluginTools onOpenNote={props.onOpenLinkedNote} sessions={props.documentSessions} active={active} disabled={busy} readonly={Boolean(props.readonly)} onFocusEditor={() => { if (source !== null) viewPosition.sourceHandle?.focus(); else renderedHost.current?.view.focus(); }} context={{ platform: runtimeKind(), view: props.readonly ? "readonly" : source === null ? "render" : "source", documentId: props.noteId }} />}</>;
-  return <div className="markdown-document-view" ref={viewPosition.host}>
+  return <div className="markdown-document-view" data-source-tools-hidden={props.focusMode && !props.readonly && !moreTools || undefined} ref={viewPosition.host}>
     {error && <div role="alert" className="markdown-source-hint">{error}</div>}
     {source === null ? render({
       ...props,
@@ -255,6 +260,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           onClick={() => props.onReadonlyChange?.(!props.readonly)}><ToolbarIcon name={props.readonly ? "lock" : "unlock"} /></button>}
         <div className="note-title-field"><DocumentTitlePreview title={props.title || "无标题"} /></div>
         {toggle}
+        {props.focusMode && !props.readonly && <button type="button" className="markdown-view-toggle" title={shortcutTitle("view.tools", "更多编辑工具")} aria-label="更多编辑工具" aria-expanded={moreTools} onClick={() => setMoreTools(value => !value)}><ToolbarIcon name="annotate" /></button>}
         {!mobile && <button type="button" className="markdown-view-toggle" title="并排预览" aria-label="并排预览" aria-pressed={preview} onClick={() => { setPreview(!preview); localStorage.setItem("nr:markdownSplitPreview", String(!preview)); }}><ToolbarIcon name="panel" /></button>}
         {!mobile && preview && <label className="markdown-preview-sync"><input type="checkbox" checked={previewSync} onChange={event => { setPreviewSync(event.target.checked); localStorage.setItem("nr:markdownPreviewSync", String(event.target.checked)); }} />同步滚动</label>}
         {controls}

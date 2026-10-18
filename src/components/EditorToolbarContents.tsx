@@ -1,3 +1,4 @@
+import { shortcutTitle } from "../lib/editor-shortcuts";
 import { selectWholeDocument } from "../extensions/BlockSelectAll";
 import { commandMenuAnchor, clearCommandAnchors } from "../lib/editor-command-surface";
 import { applyToolbarColor } from "../lib/toolbar-color";
@@ -100,12 +101,12 @@ const PRESET_COLORS = [
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32];
 const dropdownCaret = <span className="toolbar-dropdown-caret" aria-hidden="true"><span className="toolbar-solid-caret" /></span>;
 
-const btn = (label: ReactNode, action: () => void, active?: boolean, title?: string, disabled?: boolean) => (
+const btn = (label: ReactNode, action: () => void, active?: boolean, title?: string, disabled?: boolean, shortcut?: string) => (
   <button
     className={`menu-btn ${active ? "active" : ""}`}
     onClick={disabled ? undefined : action}
     type="button"
-    title={title}
+    title={shortcut && title ? shortcutTitle(shortcut, title.replace(/ \(Ctrl[^)]*\)/, "")) : title}
     aria-label={title}
     disabled={disabled}
     data-context-visible={title?.startsWith("标题 ") || undefined}
@@ -201,25 +202,25 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
   }, [toolbarRef, backgroundOpen, colorOpen, sizeOpen, headingOpen, orderedOpen, blockOpen, styleOpen, clipOpen, tableOpen]);
 
   return (<>
-    {btn(<ToolbarIcon name="search" />, actions.openEditorReplace, false, "查找与替换", readonly)}
+    {btn(<ToolbarIcon name="search" />, actions.openEditorReplace, false, "查找与替换", readonly, "document.replace")}
     {btn(<ToolbarIcon name="copy" />, () => { void actions.handleCopyBlock(); }, false, "复制块", false)}
     <span className="toolbar-history-actions">
-      {btn(<span className="toolbar-history-icon toolbar-history-icon-undo"><ToolbarIcon name="undo" /></span>, () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly || !editor.can().undo())}
-      {btn(<span className="toolbar-history-icon toolbar-history-icon-redo"><ToolbarIcon name="redo" /></span>, () => editor.chain().focus().redo().run(), false, "重做 (Ctrl+Y)", readonly || !editor.can().redo())}
+      {btn(<span className="toolbar-history-icon toolbar-history-icon-undo"><ToolbarIcon name="undo" /></span>, () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly || !editor.can().undo(), "edit.undo")}
+      {btn(<span className="toolbar-history-icon toolbar-history-icon-redo"><ToolbarIcon name="redo" /></span>, () => editor.chain().focus().redo().run(), false, "重做 (Ctrl+Y)", readonly || !editor.can().redo(), "edit.redo")}
     </span>
     <span className="menu-sep" />
     {(<>
-    {btn(<b>B</b>, () => editor.chain().focus().toggleBold().run(), editor.isActive("bold"), "加粗 (Ctrl+B)", readonly)}
-    {btn(<i>I</i>, () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"), "斜体 (Ctrl+I)", readonly)}
-    {btn(<s>S</s>, () => editor.chain().focus().toggleStrike().run(), editor.isActive("strike"), "删除线 (Ctrl+Shift+X)", readonly)}
-    {btn(<ToolbarIcon name="code" />, () => editor.chain().focus().toggleCode().run(), editor.isActive("code"), "行内代码", readonly)}
-    {btn(<ToolbarIcon name="erase" />, clearTextFormatting, false, "清除格式", readonly)}
+    {btn(<b>B</b>, () => editor.chain().focus().toggleBold().run(), editor.isActive("bold"), "加粗 (Ctrl+B)", readonly, "format.bold")}
+    {btn(<i>I</i>, () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"), "斜体 (Ctrl+I)", readonly, "format.italic")}
+    {btn(<s>S</s>, () => editor.chain().focus().toggleStrike().run(), editor.isActive("strike"), "删除线 (Ctrl+Shift+X)", readonly, "format.strike")}
+    {btn(<ToolbarIcon name="code" />, () => editor.chain().focus().toggleCode().run(), editor.isActive("code"), "行内代码", readonly, "format.code")}
+    {btn(<ToolbarIcon name="erase" />, clearTextFormatting, false, "清除格式", readonly, "format.clear")}
     </>)}
     <span className="menu-sep" />
     {(<>
     {[3, 4, 5, 1, 2, 6].map((lvl) => (
       <span key={lvl} hidden={!(headingPage === 0 ? [3, 4, 5] : [1, 2, 6]).includes(lvl)}>
-        {btn(`H${lvl}`, () => editor.chain().focus().toggleHeading({ level: lvl as 1 | 2 | 3 | 4 | 5 | 6 }).run(), editor.isActive("heading", { level: lvl }), `标题 ${lvl}`, readonly)}
+        {btn(`H${lvl}`, () => editor.chain().focus().toggleHeading({ level: lvl as 1 | 2 | 3 | 4 | 5 | 6 }).run(), editor.isActive("heading", { level: lvl }), `标题 ${lvl}`, readonly, `format.h${lvl}`)}
       </span>
     ))}
     <button
@@ -232,18 +233,18 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     </>)}
     <span className="menu-sep" />
     {(<>
-    {btn("P", () => editor.chain().focus().clearNodes().run(), false, "正文", readonly)}
-    {btn(<ToolbarIcon name="quote" />, toggleBlockquote, editor.isActive("blockquote"), "引用 (Ctrl+Shift+B)", readonly)}
-    {btn(<ToolbarIcon name="bullet" />, () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly)}
+    {btn("P", () => editor.chain().focus().clearNodes().run(), false, "正文", readonly, "format.paragraph")}
+    {btn(<ToolbarIcon name="quote" />, toggleBlockquote, editor.isActive("blockquote"), "引用 (Ctrl+Shift+B)", readonly, "format.quote")}
+    {btn(<ToolbarIcon name="bullet" />, () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly, "format.bullet")}
     <div className="menu-dropdown ordered-list-toolbar toolbar-split-button">
-    {btn(<ToolbarIcon name="ordered" />, () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"), "有序列表 (Ctrl+Shift+7)", readonly)}
+    {btn(<ToolbarIcon name="ordered" />, () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"), "有序列表 (Ctrl+Shift+7)", readonly, "format.ordered")}
       <button type="button" className="menu-btn toolbar-split-caret" aria-label="有序列表编号" title="有序列表编号" disabled={readonly || !editor.isActive("orderedList")}
         aria-expanded={orderedOpen} onClick={event => { event.stopPropagation(); toggleMobileToolbarMenu("ordered", orderedOpen); }}>{dropdownCaret}</button>
       {orderedOpen && <div className="menu-dropdown-list"><OrderedListNumberingMenu editor={editor} onDone={() => setOrderedOpen(false)} /></div>}
     </div>
     {btn(<ToolbarIcon name="indent" />, () => changeSelectedBlockIndent(1), false, editor.isActive("codeBlock") ? "增加代码块缩进（代码内 Tab 仅缩进代码）" : "增加块缩进 (Tab)", readonly)}
     {btn(<ToolbarIcon name="outdent" />, () => changeSelectedBlockIndent(-1), false, editor.isActive("codeBlock") ? "减少代码块缩进（代码内 Shift+Tab 仅减少代码缩进）" : "减少块缩进 (Shift+Tab)", readonly)}
-    {btn(<ToolbarIcon name="code" />, handleToggleCodeBlock, editor.isActive("codeBlock"), "代码块 (Ctrl+Alt+C)", readonly)}
+    {btn(<ToolbarIcon name="code" />, handleToggleCodeBlock, editor.isActive("codeBlock"), "代码块 (Ctrl+Alt+C)", readonly, "format.codeblock")}
     {btn(<ToolbarIcon name="table" />, () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), editor.isActive("table"), "插入 3×3 表格", readonly || editor.isActive("table"))}
     {btn("M↓", convertSelectionFromMarkdown, false, "转换所选 Markdown", readonly || !hasSelection())}
     <button
@@ -310,10 +311,10 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {btn(<ToolbarIcon name="lineBreak" />, () => { editor.chain().focus().setHardBreak().run(); }, false, "块内换行", readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak())}
     <div className="toolbar-secondary">
     {(<span className="toolbar-clipboard-actions" data-toolbar-tool="clipboard">
-    {btn(<ToolbarIcon name="copy" />, handleCopy, false, "复制 (Ctrl+C)", readonly || !hasSelection())}
-    {btn(<ToolbarIcon name="cut" />, handleCut, false, "剪切 (Ctrl+X)", readonly || !hasSelection())}
-    {btn(<ToolbarIcon name="paste" />, handleClipboardPaste, false, "粘贴 (Ctrl+V)", readonly)}
-    {btn(<ToolbarIcon name="export" />, () => { void handleExportMarkdown(); }, false, "导出 Markdown", false)}
+    {btn(<ToolbarIcon name="copy" />, handleCopy, false, "复制 (Ctrl+C)", readonly || !hasSelection(), "edit.copy")}
+    {btn(<ToolbarIcon name="cut" />, handleCut, false, "剪切 (Ctrl+X)", readonly || !hasSelection(), "edit.cut")}
+    {btn(<ToolbarIcon name="paste" />, handleClipboardPaste, false, "粘贴 (Ctrl+V)", readonly, "edit.paste")}
+    {btn(<ToolbarIcon name="export" />, () => { void handleExportMarkdown(); }, false, "导出 Markdown", false, "document.export-md")}
     </span>)}
     <span className="menu-sep" />
 
@@ -431,9 +432,9 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {btn(<ToolbarIcon name="link" />, () => { void actions.copyReference("block"); }, false, "复制块引用")}
     {btn(<ToolbarIcon name="link" />, () => { void actions.copyReference("position"); }, false, hasSelection() ? "复制选中文字引用" : "复制此处引用")}
     {btn("—", () => editor.chain().focus().setHorizontalRule().run(), false, "水平分隔线", readonly)}
-    {btn(<ToolbarIcon name="copy" />, () => selectWholeDocument(editor), false, "全选")}
-    {btn(<ToolbarIcon name="document" />, handleExportPdf, false, "导出 PDF")}
-    {btn(<ToolbarIcon name="link" />, () => { setLinkDialogUrl(editor.getAttributes("link").href || ""); setLinkDialog(true); }, false, "添加或编辑链接", readonly)}
+    {btn(<ToolbarIcon name="copy" />, () => selectWholeDocument(editor), false, "全选", false, "edit.all")}
+    {btn(<ToolbarIcon name="document" />, handleExportPdf, false, "导出 PDF", false, "document.export-pdf")}
+    {btn(<ToolbarIcon name="link" />, () => { setLinkDialogUrl(editor.getAttributes("link").href || ""); setLinkDialog(true); }, false, "添加或编辑链接", readonly, "format.link")}
     {saveStatus && saveStatus !== "clean" && (
       <span role="status" className={`save-status save-status-${saveStatus}`} title={
         saveStatus === "dirty" ? "未保存" :

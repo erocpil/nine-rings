@@ -66,7 +66,7 @@ test.describe("响应式编辑器工具栏", () => {
     await expect(redo).toBeEnabled();
     await redo.click();
     await expect(page.locator(".ProseMirror")).toHaveText("撤销重做验证");
-    await expect(page.getByTitle("加粗 (Ctrl+B)", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "加粗 (Ctrl+B)", exact: true })).toBeVisible();
     await expectNoHorizontalOverflow(page);
   });
   test("标签输入行与编辑工具栏保持紧凑间距", async ({ page }) => {

@@ -1,4 +1,4 @@
-export interface NativeMenuAction { run: () => unknown; enabled?: boolean; checked?: boolean }
+export interface NativeMenuAction { run: () => unknown; enabled?: boolean; checked?: boolean; shortcut?: boolean }
 type Actions = Record<string, NativeMenuAction>;
 const scopes = new Map<object, Actions>();
 const subscribers = new Set<() => void>();
@@ -13,7 +13,7 @@ export function unregisterNativeMenuActions(owner: object) { if (scopes.delete(o
 export function blockNativeMenu(value: boolean) { if (blocked !== value) { blocked = value; notify(); } }
 export function nativeMenuSnapshot() {
   const actions = Object.assign({}, ...scopes.values()) as Actions;
-  return Object.entries(actions).map(([id, action]) => ({ id, enabled: !blocked && action.enabled !== false, checked: action.checked ?? false }));
+  return Object.entries(actions).map(([id, action]) => ({ id, enabled: !blocked && action.enabled !== false, checked: action.checked ?? false, ...(action.shortcut === false ? { shortcut: false } : {}) }));
 }
 export function runNativeMenuAction(id: string) {
   if (typeof id !== "string") return;

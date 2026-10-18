@@ -18,10 +18,10 @@ test("源码编辑高亮、列表续写、Tab、搜索替换和视图切换撤�
     const button = toolbar.getByRole("button", { name, exact: true });
     await expect(button).toHaveText("");
     await expect(button.locator("svg")).toBeVisible();
-    await expect(button).toHaveAttribute("title", name);
+    await expect(button).toHaveAttribute("title", new RegExp(`^${name}(?: [(]|$)`));
   }
   await toolbar.getByRole("button", { name: "查找替换", exact: true }).hover();
-  await expect(page.getByRole("tooltip")).toHaveText("查找替换");
+  await expect(page.getByRole("tooltip")).toHaveText(/^查找替换/);
   await page.mouse.move(600, 600);
   const area = page.getByRole("textbox", {
     name: "Markdown 源码",
