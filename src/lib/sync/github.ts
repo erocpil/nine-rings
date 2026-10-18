@@ -53,6 +53,10 @@ export interface SyncConfig {
   lastPushVersion: string | null;
   /** 最近一次 Pull 的数据版本 */
   lastPullVersion: string | null;
+  /** 最近一次明确接受并完成同步的共同版本；不按时间戳猜测 Pull/Push 的先后。 */
+  lastAcceptedVersion?: string | null;
+  /** 共同版本所属的仓库和路径；切换目标空间后要求重新 Pull。 */
+  lastAcceptedSpace?: string | null;
   /** 是否持久保存 Token（false=会话级） */
   rememberToken: boolean;
 }
@@ -82,6 +86,8 @@ const DEFAULT_SYNC_CONFIG: SyncConfig = {
   remoteSha: null,
   lastPushVersion: null,
   lastPullVersion: null,
+  lastAcceptedVersion: null,
+  lastAcceptedSpace: null,
   rememberToken: false,
 };
 
@@ -681,6 +687,10 @@ async function importMergedDB(json: string, context: RestoreContext): Promise<vo
 }
 
 function latestKnownBaseVersion(config: SyncConfig): string | null {
+  const space = `${config.owner.toLowerCase()}/${config.repo.toLowerCase()}/${config.path}`;
+  if (config.lastAcceptedSpace)
+    return config.lastAcceptedSpace === space ? config.lastAcceptedVersion ?? null : null;
+  if (config.lastAcceptedVersion) return null;
   const versions = [config.lastPullVersion, config.lastPushVersion]
     .filter((version): version is string => Boolean(version))
     .sort();
@@ -761,7 +771,7 @@ export async function pushToGitHub(config: SyncConfig, message?: string, options
     addLog("[Sync] Push 预检拒绝：本机尚未接受远端版本；未开始上传，请先 Pull 安全合并");
     throw new Error(
       knownBaseVersion
-        ? `远端备份已更新为 ${remoteVersion}，本机最近基线是 ${knownBaseVersion}。请先执行 Pull 安全合并，再重新 Push`
+        ? `远端备份版本为 ${remoteVersion}，本机最近接受的基线是 ${knownBaseVersion}；两者不一致。请先执行 Pull 安全合并，再重新 Push`
         : `远端已有备份 ${remoteVersion}，当前设备尚未合并。请先执行 Pull 安全合并，再重新 Push`,
     );
   }
@@ -809,6 +819,8 @@ export async function pushToGitHub(config: SyncConfig, message?: string, options
     ...config,
     lastSyncAt: new Date().toISOString(),
     lastPushVersion: version,
+    lastAcceptedVersion: version,
+    lastAcceptedSpace: `${config.owner.toLowerCase()}/${config.repo.toLowerCase()}/${config.path}`,
   };
   saveSyncConfig(updated);
   return updated;
@@ -910,6 +922,8 @@ async function pullWithRestoreLock(config: SyncConfig, options: PullOptions, con
     ...config,
     lastSyncAt: new Date().toISOString(),
     lastPullVersion: version,
+    lastAcceptedVersion: version,
+    lastAcceptedSpace: `${config.owner.toLowerCase()}/${config.repo.toLowerCase()}/${config.path}`,
   };
   saveSyncConfig(updated);
   return updated;
