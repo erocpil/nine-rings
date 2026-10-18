@@ -399,6 +399,15 @@
   background-repeat: no-repeat;
 }
 
+/* The debug panel is a sibling of NoteEditor, so mirror its status-bar inset
+   when a document outline/bookmark is pinned inside the editor. */
+.app-main-editor:has(.document-panels-right) > .debug-panel {
+  margin-right: min(var(--document-dock-width, 280px), 50%);
+}
+.app-main-editor:has(.document-panels-left) > .debug-panel {
+  margin-left: min(var(--document-dock-width, 280px), 50%);
+}
+
 /* Desktop editing controls share the title row inset and leave more breathing room. */
 .app-desktop-workspace .note-editor .editor-menu {
   padding: 5px 12px;

@@ -115,7 +115,6 @@ const SETTINGS_CATEGORIES: Array<{
   { id: "data", title: "备份与导入", description: "本地 JSON 备份、恢复及 Markdown / 纯文本导入" },
   { id: "advanced", title: "高级", description: isTauri() ? "回收站清理与正文渲染" : "回收站清理、渲染与诊断" },
   { id: "systemInfo", title: "系统信息", description: "应用运行状态、内存与文档空间统计" },
-  { id: "changelog", title: "更新记录", description: "查看近期功能改进与问题修复" },
 ];
 
 const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
@@ -201,6 +200,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [editorAppearanceOpen, setEditorAppearanceOpen] = useState(false);
   const [editorAppearanceDraft, setEditorAppearanceDraft] = useState<AppConfig | null>(null);
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("root");
+  const changelogParentPage = useRef<SettingsPage>("advanced");
   const settingsBodyRef = useRef<HTMLDivElement | null>(null);
   const pageScrollPositions = useRef<Partial<Record<SettingsPage, number>>>({});
   const restoreScrollPage = useRef<SettingsPage | null>(null);
@@ -222,11 +222,15 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   }, [settingsPage]);
   const [settingsQuery, setSettingsQuery] = useState("");
   const [settingsSearchOpen, setSettingsSearchOpen] = useState(false);
-  const parentPage: SettingsPage = settingsPage === "vim" ? "editor"
+  const [searchReturnPage, setSearchReturnPage] = useState<SettingsPage | null>(null);
+  const settingsSearchOrigin = useRef<SettingsPage>("root");
+  const inferredParentPage: SettingsPage = settingsPage === "vim" ? "editor"
     : settingsPage === "sidebar" ? "appearance"
     : settingsPage === "hierarchy" ? "appearance"
     : settingsPage === "navigation" ? "appearance"
+    : settingsPage === "changelog" ? changelogParentPage.current
     : ["bookmarks", "tags", "profile"].includes(settingsPage) ? "documents" : "root";
+  const parentPage = searchReturnPage && settingsPage !== "root" ? searchReturnPage : inferredParentPage;
   const [syncBusy, setSyncBusy] = useState(false);
   const pushRunning = useGitHubPushJob(state => state.status === "running");
   const { confirm: confirmLeaveSync, confirmationDialog: leaveSyncDialog } = useConfirmation(open);
@@ -247,9 +251,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     else {
       restoreScrollPage.current = parentPage;
       setSettingsPage(parentPage);
+      if (searchReturnPage) setSearchReturnPage(null);
       if (parentPage === "root" && settingsQuery.trim()) setSettingsSearchOpen(true);
     }
-  }); }, [settingsPage, parentPage, settingsQuery, onClose, guardLeave]);
+  }); }, [settingsPage, parentPage, searchReturnPage, settingsQuery, onClose, guardLeave]);
   const [editorAppearanceSearch, setEditorAppearanceSearch] = useState("");
   const settingsSearchRef = useRef<HTMLInputElement>(null);
   const settingsSearchButtonRef = useRef<HTMLButtonElement>(null);
@@ -277,13 +282,19 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
         ? { ...result, description: "外观与布局 · 风格排版", page: "appearance" as const, target: '[data-settings-label="风格排版"]' }
         : result);
   const closeSettingsSearch = () => {
+    const origin = settingsSearchOrigin.current;
     setSettingsQuery("");
     setSettingsSearchOpen(false);
+    if (origin !== "root" && settingsPage === "root") {
+      restoreScrollPage.current = origin;
+      setSettingsPage(origin);
+    }
     settingsSearchButtonRef.current?.focus({ preventScroll: true });
   };
   const toggleSettingsSearch = () => {
     if (settingsSearchOpen) { closeSettingsSearch(); return; }
     void guardLeave(() => {
+      settingsSearchOrigin.current = settingsPage;
       setSettingsPage("root");
       setSettingsSearchOpen(true);
     });
@@ -752,6 +763,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                   ? <div key={result.title} className="settings-search-help"><strong>{result.title}</strong><p>{result.description}</p></div>
                   : <button key={result.title} className="settings-category-card" onClick={() => {
                     setSettingsSearchOpen(false);
+                    setSearchReturnPage(settingsSearchOrigin.current === "root" ? null : settingsSearchOrigin.current);
+                    if (result.page === "changelog") changelogParentPage.current = settingsSearchOrigin.current;
                     setSettingsPage(result.page);
                     if (result.action === "typography") { setEditorAppearanceSearch(settingsQuery); setEditorAppearanceDraft({ ...config }); setEditorAppearanceOpen(true); }
                     else setSearchDestination(result);
@@ -1376,6 +1389,15 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 </button>
               </SettingsSection>
             )}
+
+            <Field label="更新记录" desc="查看近期功能改进与问题修复。" visible={settingsPage === "advanced"}>
+              <button className="settings-btn-secondary" type="button" onClick={() => {
+                changelogParentPage.current = "advanced";
+                setSettingsPage("changelog");
+              }}>
+                查看更新记录
+              </button>
+            </Field>
 
 
             </div>

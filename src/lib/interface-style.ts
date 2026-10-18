@@ -60,6 +60,19 @@ export const INTERFACE_STYLES: ReadonlyArray<{
     description: "砂岩与苔色、朴素边界，自然安定的纸石感",
   },
 ];
+export function formatInterfaceAppearanceLog(
+  config: Pick<AppConfig, "interface_style" | "interface_color_mode" | "theme">,
+): string {
+  const style = normalizeInterfaceStyle(config.interface_style);
+  if (style === "classic") return `主题: ${config.theme}`;
+  const styleName = INTERFACE_STYLES.find((entry) => entry.value === style)?.label ?? style;
+  const colorMode = config.interface_color_mode === "light"
+    ? "浅色"
+    : config.interface_color_mode === "dark"
+      ? "深色"
+      : "跟随系统";
+  return `风格: ${styleName} | 配色: ${colorMode}`;
+}
 export function normalizeInterfaceStyle(value: unknown): InterfaceStyle {
   return value === "calm" ||
     value === "calm-compact" ||

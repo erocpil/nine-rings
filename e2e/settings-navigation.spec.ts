@@ -47,7 +47,7 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
     "云端同步",
     "备份与导入",
     "高级",
-    "更新记录",
+    "系统信息",
   ]);
   await expect(page.getByRole("heading", { name: "设置", exact: true })).toBeVisible();
   await expect(page.locator(".settings-field")).toHaveCount(0);
@@ -80,7 +80,27 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.getByRole("textbox", { name: "查找设置" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("textbox", { name: "查找设置" })).toBeHidden();
-  await expect(page.getByRole("dialog", { name: "设置", exact: true })).toBeVisible();
+  await expect(page.locator(".settings-panel")).toBeVisible();
+  await expect(page.locator(".settings-body")).toHaveAttribute("data-settings-page", "data");
+});
+
+test("从子设置页查找后保留原页面作为返回位置", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  const body = page.locator(".settings-body");
+  await page.getByRole("button", { name: "打开设置查找" }).click();
+  await expect(body).toHaveAttribute("data-settings-page", "root");
+  await page.keyboard.press("Escape");
+  await expect(body).toHaveAttribute("data-settings-page", "appearance");
+
+  await page.getByRole("button", { name: "打开设置查找" }).click();
+  await page.getByRole("textbox", { name: "查找设置" }).fill("层次展示");
+  await page.getByRole("button", { name: /层次展示/ }).click();
+  await expect(body).toHaveAttribute("data-settings-page", "hierarchy");
+  await page.keyboard.press("Escape");
+  await expect(body).toHaveAttribute("data-settings-page", "appearance");
 });
 
 test("设置子页首个分组没有多余顶部留白和分割线", async ({ page }) => {
@@ -544,7 +564,7 @@ for (const width of [390, 1280]) {
     if (width < 768) await openMobileSettings(page);
     else await page.getByTitle("设置", { exact: true }).click();
     const body = page.locator(".settings-body");
-    const categories = ["外观与布局", "编辑器", "文档管理", "快捷键", "云端同步", "备份与导入", "高级", "更新记录"];
+    const categories = ["外观与布局", "编辑器", "文档管理", "快捷键", "云端同步", "备份与导入", "高级", "系统信息"];
     for (const title of categories) {
       await page.getByLabel("设置分类", { exact: true }).getByRole("button", { name: new RegExp(`^${title}`) }).click();
       await page.keyboard.press("Escape");
@@ -564,6 +584,13 @@ for (const width of [390, 1280]) {
       await page.keyboard.press("Escape");
       await expect(body).toHaveAttribute("data-settings-page", "root");
     }
+    await page.getByLabel("设置分类", { exact: true }).getByRole("button", { name: /^高级/ }).click();
+    await body.getByRole("button", { name: "查看更新记录", exact: true }).click();
+    await expect(body).toHaveAttribute("data-settings-page", "changelog");
+    await page.keyboard.press("Escape");
+    await expect(body).toHaveAttribute("data-settings-page", "advanced");
+    await page.keyboard.press("Escape");
+    await expect(body).toHaveAttribute("data-settings-page", "root");
     await page.getByLabel("设置分类", { exact: true }).getByRole("button", { name: /^编辑器/ }).click();
     await page.getByRole("button", { name: /打开排版设置/ }).click();
     await page.keyboard.press("Escape");

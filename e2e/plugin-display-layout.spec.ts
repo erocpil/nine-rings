@@ -63,9 +63,13 @@ test("阅读展示组合包可审查安装、重启恢复、停用和卸载", as
   await expect(review.getByRole("button", { name: "确认安装", exact: true })).toBeDisabled();
   await review.getByRole("button", { name: /点击确认：我已检查来源/ }).click();
   await review.getByRole("button", { name: "确认安装", exact: true }).click();
-  const enabled = installed.getByRole("checkbox", { name: "启用 阅读展示", exact: true });
+  const enabled = installed.getByRole("checkbox", { name: "切换 阅读展示", exact: true });
   await expect(enabled).not.toBeChecked();
+  await expect(installed.getByText("启用", { exact: true })).toBeVisible();
   await enabled.check();
+  await expect(installed.getByText("停用", { exact: true })).toBeVisible();
+  await expect.poll(() => installed.textContent()).toContain("运行中");
+  await expect(installed).not.toContainText("已启用，正在核验资源");
   await expect(page.getByRole("checkbox", { name: "启用编号展示", exact: true })).toBeDisabled();
   await expect(page.getByRole("checkbox", { name: "启用状态栏展示", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "关闭设置", exact: true }).click();

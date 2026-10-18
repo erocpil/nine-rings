@@ -22,7 +22,10 @@ export function VersionHistory({ open, noteId, onClose, onBeforeRestore, onResto
   const [versions, setVersions] = useState<NoteVersion[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const [compare, setCompare] = useState(false);
+  // A historical snapshot is most useful when its changes from the live
+  // document are visible immediately. Keep the original-only preview as an
+  // explicit option for inspecting the saved snapshot without comparison.
+  const [compare, setCompare] = useState(true);
   const [current, setCurrent] = useState<Note | null>(null);
   const [keep, setKeep] = useState(5);
   const [deleting, setDeleting] = useState(false);
@@ -180,7 +183,7 @@ export function VersionHistory({ open, noteId, onClose, onBeforeRestore, onResto
                   </div>
                 )}
               </div>
-              <button disabled={busy} aria-pressed={previewId === v.id} onClick={() => { setPreviewId(v.id); setCompare(false); }}>预览</button>
+              <button disabled={busy} aria-pressed={previewId === v.id} onClick={() => { setPreviewId(v.id); setCompare(true); }}>预览</button>
               <button
                 className="version-btn-restore"
                 disabled={busy}
@@ -193,7 +196,7 @@ export function VersionHistory({ open, noteId, onClose, onBeforeRestore, onResto
           {preview && <section ref={previewRef} className="version-preview" aria-label="历史版本预览">
             <div className="version-management-tools">
               <strong>{preview.title || "无标题"} · {new Date(preview.saved_at).toLocaleString()}</strong>
-              <button aria-pressed={compare} disabled={!current || busy} onClick={() => setCompare(v => !v)}>{compare ? "仅预览历史" : "与当前文档对比"}</button>
+              <button aria-pressed={compare} disabled={!current || busy} onClick={() => setCompare(v => !v)}>{compare ? "仅预览历史版本" : "与当前版本对比"}</button>
               <button onClick={() => setPreviewId(null)} aria-label="关闭历史预览">✕</button>
             </div>
             {compare && current

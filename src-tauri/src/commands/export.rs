@@ -101,22 +101,22 @@ pub fn import_data(
 
 // ──── 回收站 ────
 
+const GET_DELETED_NOTES_SQL: &str = "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly
+             FROM notes WHERE deleted_at IS NOT NULL
+             ORDER BY updated_at DESC";
+
+fn list_deleted_notes(
+    conn: &rusqlite::Connection,
+) -> rusqlite::Result<Vec<crate::db::models::Note>> {
+    let mut stmt = conn.prepare(GET_DELETED_NOTES_SQL)?;
+    let rows = stmt.query_map([], crate::db::models::note_from_row)?;
+    rows.collect()
+}
+
 #[tauri::command]
 pub fn get_deleted_notes(state: State<AppState>) -> Result<Vec<crate::db::models::Note>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly
-             FROM notes WHERE deleted_at IS NOT NULL
-             ORDER BY updated_at DESC
-             LIMIT 200",
-        )
-        .map_err(|e| e.to_string())?;
-    let rows = stmt
-        .query_map([], crate::db::models::note_from_row)
-        .map_err(|e| e.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())
+    list_deleted_notes(&conn).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -162,7 +162,7 @@ fn permanently_delete_trashed_note(conn: &rusqlite::Connection, id: &str) -> Res
 
 #[cfg(test)]
 mod recycle_tests {
-    use super::permanently_delete_trashed_note;
+    use super::{list_deleted_notes, permanently_delete_trashed_note};
     use rusqlite::Connection;
 
     #[test]
@@ -190,6 +190,29 @@ mod recycle_tests {
             .unwrap();
         assert_eq!(notes, "restored");
         assert_eq!(versions, "v1");
+    }
+
+    #[test]
+    fn recycle_bin_listing_includes_more_than_two_hundred_items() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE notes (
+                id TEXT PRIMARY KEY, date TEXT NOT NULL, title TEXT, content TEXT NOT NULL,
+                search_text TEXT NOT NULL, tags TEXT NOT NULL, pinned INTEGER NOT NULL,
+                sort_order INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                storage_path TEXT, doc_type TEXT, concepts TEXT, linked_doc_ids TEXT,
+                readonly INTEGER, deleted_at TEXT
+            );",
+        )
+        .unwrap();
+        for index in 0..205 {
+            conn.execute(
+                "INSERT INTO notes VALUES (?1, '2026-10-18', ?2, '{}', '', '[]', 0, 0, '2026-10-18', ?3, NULL, NULL, '[]', '[]', 0, '2026-10-18')",
+                rusqlite::params![format!("trashed-{index}"), format!("文档 {index}"), format!("2026-10-18T00:{:02}:00Z", index % 60)],
+            )
+            .unwrap();
+        }
+        assert_eq!(list_deleted_notes(&conn).unwrap().len(), 205);
     }
 }
 

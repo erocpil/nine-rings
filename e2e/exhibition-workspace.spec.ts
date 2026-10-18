@@ -453,6 +453,33 @@ test("桌面顶部菜单点击启用悬停切换，关闭后不再悬停打开�
   await expect(page.locator('select[aria-label="工作区风格"]')).toBeVisible();
 });
 
+test("工作区风格和配色下拉项选中后保持单行，窄屏截断而不换行", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "nine-rings", interface_color_mode: "dark", workspace_layout: "exhibition" })));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/");
+  const style = page.getByRole("button", { name: "工作区风格", exact: true });
+  await style.click();
+  let selected = page.getByRole("option", { name: /九环/ });
+  await expect(selected.locator("span")).toHaveCSS("white-space", "nowrap");
+  const initialHeight = await selected.boundingBox();
+  await page.getByRole("option", { name: /物哀/ }).click();
+  await style.click();
+  selected = page.getByRole("option", { name: /物哀/ });
+  const selectedHeight = await selected.boundingBox();
+  expect(selectedHeight!.height).toBeLessThanOrEqual(initialHeight!.height! + 1);
+  for (const option of await page.getByRole("listbox", { name: "工作区风格" }).getByRole("option").all()) {
+    await expect(option.locator("span")).toHaveCSS("white-space", "nowrap");
+  }
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileStyle = page.locator('select[aria-label="工作区风格"]');
+  await expect(mobileStyle).toBeVisible();
+  expect(await mobileStyle.evaluate(element => getComputedStyle(element).whiteSpace)).toBe("nowrap");
+  const mobilePalette = page.locator('select[aria-label="工作区配色"]');
+  await expect(mobilePalette).toBeVisible();
+  expect(await mobilePalette.evaluate(element => getComputedStyle(element).whiteSpace)).toBe("nowrap");
+});
+
 
 test("首页快速往返不保存恢复期间的临时滚动位置", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "calm", workspace_layout: "exhibition" })));

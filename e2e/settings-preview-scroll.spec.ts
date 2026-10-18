@@ -104,6 +104,10 @@ test("设置子页面按住外围可预览完整工作区，松开后保持子�
   await expect(page.locator(".system-information-grid")).toContainText("文档数量");
   await expect(page.locator(".system-information-grid")).toContainText("全部文档正文大小");
   await expect(page.getByRole("tree", { name: "按路径汇总的文档信息" })).toBeVisible();
+  const information = page.locator(".settings-system-information > .settings-section");
+  const infoLeft = await information.nth(0).boundingBox();
+  const infoRight = await information.nth(1).boundingBox();
+  expect(infoRight!.x).toBeGreaterThan(infoLeft!.x + infoLeft!.width);
   await page.mouse.move(8, 500);
   await page.mouse.down();
   await expect(overlay).toHaveCSS("opacity", "0");
@@ -113,6 +117,31 @@ test("设置子页面按住外围可预览完整工作区，松开后保持子�
   await expect(overlay).toHaveCSS("opacity", "1");
   await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(2px)");
   await expect(page.getByRole("heading", { name: "系统信息", exact: true })).toBeVisible();
+});
+
+test("系统信息在手机宽度改为单列", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await createBlankDocument(page, "手机系统信息布局");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await page.locator(".note-editor").evaluate(element => {
+    const y = innerHeight * 0.7;
+    const start = { identifier: 1, target: element, clientX: innerWidth - 8, clientY: y };
+    const end = { ...start, clientX: innerWidth - 108 };
+    for (const [type, touches, changedTouches] of [["touchstart", [start], [start]], ["touchmove", [end], [end]], ["touchend", [], [end]]] as const) {
+      const event = new Event(type, { bubbles: true, cancelable: type !== "touchstart" });
+      Object.defineProperties(event, { touches: { value: touches }, changedTouches: { value: changedTouches } });
+      element.dispatchEvent(event);
+    }
+  });
+  await expect(page.getByRole("heading", { name: "设置", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /^系统信息/ }).click();
+  const information = page.locator(".settings-system-information > .settings-section");
+  await expect(information).toHaveCount(2);
+  const first = await information.nth(0).boundingBox();
+  const second = await information.nth(1).boundingBox();
+  expect(second!.y).toBeGreaterThan(first!.y + first!.height);
+  await expect.poll(() => page.locator(".settings-body").evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
 });
 
 test("减少动态效果时设置预览关闭过渡，按住和松开仍可使用", async ({ page }) => {

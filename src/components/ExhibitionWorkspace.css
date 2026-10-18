@@ -238,6 +238,9 @@
   .exhibition-appearance select {
     max-width: 92px;
     min-height: 36px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .is-exhibition > .app {
     min-height: 180px;

@@ -17,6 +17,7 @@ import {
 } from "../lib/plugin-system/package-store";
 import type { ValidatedPluginPackage } from "../lib/plugin-system/package-validation";
 import { themeResources } from "../lib/plugin-system/theme-resources";
+import { pluginRuntime } from "../lib/plugin-system/runtime";
 import {
   saveThemePreference,
   readThemePreference,
@@ -194,6 +195,10 @@ export function SettingsInstalledPackages() {
     themeResources.subscribe,
     themeResources.getSnapshot,
   );
+  const runtimeStatus = useSyncExternalStore(
+    pluginRuntime.subscribe,
+    pluginRuntime.getStatus,
+  );
   useEffect(() => {
     let mounted = true,
       generation = 0;
@@ -294,7 +299,7 @@ export function SettingsInstalledPackages() {
               <label className="settings-toggle">
                 <input
                   type="checkbox"
-                  aria-label={`启用 ${record.name}`}
+                  aria-label={`切换 ${record.name}`}
                   checked={record.enabled}
                   disabled={busy || record.trustedDigest !== record.digest}
                   onChange={(event) => {
@@ -308,11 +313,11 @@ export function SettingsInstalledPackages() {
                     );
                     void run(
                       () => setPluginPackageEnabled(record, checked),
-                      checked ? "已启用，正在核验资源" : "已停用",
+                      checked ? "已启用" : "已停用",
                     );
                   }}
                 />
-                启用
+                {record.enabled ? "停用" : "启用"}
               </label>
             </div>
             <p>
@@ -320,6 +325,17 @@ export function SettingsInstalledPackages() {
               {record.trustedDigest === record.digest
                 ? "已确认内容"
                 : "需重新审查"}
+              <span className="installed-package-runtime-state">
+                {record.enabled
+                  ? !runtimeStatus.enabled
+                    ? "全局插件功能未启用"
+                    : runtimeStatus.activations.some((item) => item.pluginId === record.id)
+                      ? "运行中"
+                      : runtimeStatus.lastFailure?.pluginId === record.id && runtimeStatus.lastFailure.phase === "activate"
+                        ? `激活失败 · ${runtimeStatus.lastFailure.code}`
+                        : "正在激活…"
+                  : "已停用"}
+              </span>
             </p>
             {record.enabled &&
               resources

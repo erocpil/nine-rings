@@ -2,7 +2,7 @@ import { startBuiltinVocabulary } from "../lib/plugin-system/builtin-vocabulary"
 import { startBuiltinThemes } from "../lib/plugin-system/builtin-theme";
 import { bookmarkDisplay } from "../lib/plugin-system/builtin-bookmark-display";
 import { notesDisplay } from "../lib/plugin-system/builtin-notes-display";
-import { applyInterfaceAppearance, resolveInterfaceConfig } from "../lib/interface-style";
+import { applyInterfaceAppearance, formatInterfaceAppearanceLog, resolveInterfaceConfig } from "../lib/interface-style";
 /**
  * useSettings — 配置加载与主题管理。
  */
@@ -67,7 +67,7 @@ export function useSettings() {
           localStorage.removeItem("nr:editorFontSize");
         }
         applyInterfaceAppearance(c);
-        addLog(`[启动] 九环 v${__APP_VERSION__} | 主题: ${c.theme}`);
+        addLog(`[启动] 九环 v${__APP_VERSION__} | ${formatInterfaceAppearanceLog(c)}`);
         configRef.current = c;
         setConfig(c);
       })
@@ -81,6 +81,9 @@ export function useSettings() {
   const handleConfigChange = (c: AppConfig) => {
     const previous = configRef.current;
     configRef.current = c;
+    const appearanceIdentityChanged = !previous || c.interface_style !== previous.interface_style ||
+      (c.interface_style === "classic" ? c.theme !== previous.theme : c.interface_color_mode !== previous.interface_color_mode);
+    if (previous && appearanceIdentityChanged) addLog(`[外观] ${formatInterfaceAppearanceLog(c)}`);
     const styleChanged = !previous || c.interface_style !== previous.interface_style || c.interface_color_mode !== previous.interface_color_mode || c.workspace_layout !== previous.workspace_layout || c.exhibition_text_width !== previous.exhibition_text_width || c.exhibition_density !== previous.exhibition_density || c.interface_content_width !== previous.interface_content_width;
     if (styleChanged || c.theme !== previous?.theme) preserveReadingPositions(() => applyInterfaceAppearance(c));
     // 主题只由根节点 CSS 变量驱动。仅主题变化时无需让包含长文档的整个 App

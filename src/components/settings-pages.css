@@ -557,6 +557,14 @@ fieldset.editor-appearance-controls { min-height: 0; min-width: 0; margin: 0; bo
   gap: 8px 16px;
   margin: 0 0 16px;
 }
+.settings-system-information {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+.settings-content-page[data-settings-page="systemInfo"] > .settings-system-information { grid-column: 1 / -1; min-width: 0; }
+.settings-system-information > .settings-hint { grid-column: 1 / -1; margin: 0; }
 .system-information-grid dt { color: var(--text-secondary); }
 .system-information-grid dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .system-information-grid dd small { display: block; margin-top: 2px; color: var(--text-secondary); font-size: 11px; }
@@ -573,6 +581,10 @@ fieldset.editor-appearance-controls { min-height: 0; min-width: 0; margin: 0; bo
 .system-information-path-count, .system-information-path-size { flex: 0 0 auto; color: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
 .system-information-path-count { min-width: 54px; text-align: right; }
 .system-information-path-size { min-width: 62px; text-align: right; }
+@media (max-width: 760px) {
+  .settings-system-information { grid-template-columns: minmax(0, 1fr); }
+  .settings-system-information > .settings-hint { grid-column: auto; }
+}
 @media (max-width: 560px) {
   .system-information-grid { grid-template-columns: 1fr; gap: 3px; }
   .system-information-grid dd { margin-bottom: 9px; }
