@@ -1,6 +1,6 @@
 # Tauri 桌面版当前设计
 
-更新时间：2026-10-10。当前实现面向 macOS、Windows、Linux，共用 React 前端，通过 Rust/SQLite 提供桌面存储和原生能力。系统设计入口见[关键设计总览](current-design.md)，工具链与产物见[构建指南](TAURI_BUILD.md)。
+更新时间：2026-10-18。当前实现面向 macOS、Windows、Linux，共用 React 前端，通过 Rust/SQLite 提供桌面存储和原生能力。系统设计入口见[关键设计总览](current-design.md)，工具链与产物见[构建指南](TAURI_BUILD.md)。
 
 ## 1. 分层与所有权
 
@@ -67,3 +67,7 @@ GitHub 是应用 JSON 快照备份服务，不是项目源码 Git 操作或实�
 旧版文档中的共享 Rust Sync Engine、WebDAV/本地文件增量同步、CRDT 实时协作与 Quick Capture 阶段图属于早期设想，不能作为已实现能力。本文用当前职责取代该阶段图；演进方向另见[未来演进](future-evolution.md)。
 
 插件重构当前仅有草案；统一修订协调器、SDK、安装器和第三方隔离均未实施，首次宿主代码实现计划提升产品版本，不在文档更新时改版本。
+
+## macOS 系统菜单
+
+系统菜单通过宿主命令注册器复用工作区和活动编辑器能力，保留 Cocoa 标准编辑/窗口菜单及安全退出。结构、状态同步、只读/弹层门禁、保留文档隔离与原生验收边界见 [macOS 系统菜单](macos-native-menu.md)。

@@ -1,0 +1,391 @@
+[
+  {
+    "text": "工作区",
+    "items": [
+      {
+        "id": "workspace.home",
+        "text": "工作区首页／返回文档"
+      },
+      {
+        "id": "workspace.new",
+        "text": "新建文档…"
+      },
+      {
+        "id": "workspace.search",
+        "text": "全局搜索…"
+      },
+      {
+        "id": "workspace.switch",
+        "text": "快速切换文档…"
+      },
+      {
+        "id": "workspace.recycle",
+        "text": "回收站…"
+      },
+      {
+        "id": "workspace.settings",
+        "text": "设置…",
+        "accelerator": "Command+,"
+      },
+      {
+        "text": "分栏",
+        "items": [
+          {
+            "id": "sidebar.tree",
+            "text": "文档树",
+            "checkable": true
+          },
+          {
+            "id": "sidebar.list",
+            "text": "文档列表",
+            "checkable": true
+          },
+          {
+            "id": "sidebar.notes",
+            "text": "随记",
+            "checkable": true
+          },
+          {
+            "id": "sidebar.readers",
+            "text": "PDF／EPUB 阅读资料库",
+            "checkable": true
+          },
+          {
+            "id": "sidebar.images",
+            "text": "图片",
+            "checkable": true
+          },
+          {
+            "id": "sidebar.vocabulary",
+            "text": "词汇学习",
+            "checkable": true
+          }
+        ]
+      },
+      {
+        "id": "workspace.overview",
+        "text": "展开工作区概览",
+        "checkable": true
+      },
+      {
+        "id": "workspace.recent",
+        "text": "最近打开"
+      },
+      {
+        "id": "workspace.favorites",
+        "text": "收藏文档"
+      },
+      {
+        "id": "workspace.today",
+        "text": "今日修改"
+      }
+    ]
+  },
+  {
+    "text": "文档",
+    "items": [
+      {
+        "id": "document.save",
+        "text": "保存",
+        "accelerator": "Command+S"
+      },
+      {
+        "id": "edit.undo",
+        "text": "撤销正文编辑"
+      },
+      {
+        "id": "edit.redo",
+        "text": "重做正文编辑"
+      },
+      {
+        "id": "document.source",
+        "text": "源码模式",
+        "checkable": true
+      },
+      {
+        "id": "document.readonly",
+        "text": "只读",
+        "checkable": true
+      },
+      {
+        "id": "document.properties",
+        "text": "文档属性",
+        "checkable": true
+      },
+      {
+        "id": "document.find",
+        "text": "文档内查找…"
+      },
+      {
+        "id": "document.replace",
+        "text": "查找替换…"
+      },
+      {
+        "id": "document.jump",
+        "text": "跳转行／块…"
+      },
+      {
+        "id": "document.outline",
+        "text": "文档目录",
+        "checkable": true
+      },
+      {
+        "id": "document.bookmarks",
+        "text": "书签",
+        "checkable": true
+      },
+      {
+        "id": "document.history",
+        "text": "版本历史…"
+      },
+      {
+        "id": "document.logs",
+        "text": "调试日志",
+        "checkable": true
+      },
+      {
+        "id": "document.export-md",
+        "text": "导出 Markdown…"
+      },
+      {
+        "id": "document.export-pdf",
+        "text": "导出／打印 PDF…"
+      },
+      {
+        "id": "document.collapse",
+        "text": "折叠全部标题"
+      },
+      {
+        "id": "document.expand",
+        "text": "展开全部标题"
+      },
+      {
+        "text": "源码显示",
+        "items": [
+          {
+            "id": "source.wrap",
+            "text": "软换行",
+            "checkable": true
+          },
+          {
+            "id": "source.highlight",
+            "text": "语法高亮",
+            "checkable": true
+          },
+          {
+            "id": "source.micro",
+            "text": "微渲染",
+            "checkable": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "text": "格式",
+    "items": [
+      {
+        "id": "format.bold",
+        "text": "粗体",
+        "checkable": true
+      },
+      {
+        "id": "format.italic",
+        "text": "斜体",
+        "checkable": true
+      },
+      {
+        "id": "format.strike",
+        "text": "删除线",
+        "checkable": true
+      },
+      {
+        "id": "format.code",
+        "text": "行内代码",
+        "checkable": true
+      },
+      {
+        "text": "标题",
+        "items": [
+          {
+            "id": "format.paragraph",
+            "text": "正文"
+          },
+          {
+            "id": "format.h1",
+            "text": "一级标题"
+          },
+          {
+            "id": "format.h2",
+            "text": "二级标题"
+          },
+          {
+            "id": "format.h3",
+            "text": "三级标题"
+          },
+          {
+            "id": "format.h4",
+            "text": "四级标题"
+          },
+          {
+            "id": "format.h5",
+            "text": "五级标题"
+          },
+          {
+            "id": "format.h6",
+            "text": "六级标题"
+          }
+        ]
+      },
+      {
+        "id": "format.bullet",
+        "text": "无序列表"
+      },
+      {
+        "id": "format.ordered",
+        "text": "有序列表"
+      },
+      {
+        "id": "format.todo",
+        "text": "待办列表"
+      },
+      {
+        "id": "format.quote",
+        "text": "引用块"
+      },
+      {
+        "id": "format.codeblock",
+        "text": "代码块"
+      },
+      {
+        "id": "format.clear",
+        "text": "清除文字格式"
+      }
+    ]
+  },
+  {
+    "text": "界面",
+    "items": [
+      {
+        "id": "view.focus",
+        "text": "专注模式",
+        "checkable": true
+      },
+      {
+        "text": "风格",
+        "items": [
+          {
+            "id": "style.classic",
+            "text": "经典",
+            "checkable": true
+          },
+          {
+            "id": "style.calm",
+            "text": "清雅",
+            "checkable": true
+          },
+          {
+            "id": "style.paper",
+            "text": "纸页",
+            "checkable": true
+          },
+          {
+            "id": "style.minimal",
+            "text": "精简",
+            "checkable": true
+          },
+          {
+            "id": "style.nine-rings",
+            "text": "九环",
+            "checkable": true
+          },
+          {
+            "id": "style.mono-aware",
+            "text": "物哀",
+            "checkable": true
+          },
+          {
+            "id": "style.yugen",
+            "text": "幽玄",
+            "checkable": true
+          },
+          {
+            "id": "style.wabi-sabi",
+            "text": "侘寂",
+            "checkable": true
+          }
+        ]
+      },
+      {
+        "text": "配色",
+        "items": [
+          {
+            "id": "color.light",
+            "text": "浅色",
+            "checkable": true
+          },
+          {
+            "id": "color.dark",
+            "text": "深色",
+            "checkable": true
+          },
+          {
+            "id": "color.system",
+            "text": "跟随系统",
+            "checkable": true
+          }
+        ]
+      },
+      {
+        "text": "正文宽度",
+        "items": [
+          {
+            "id": "width.narrow",
+            "text": "窄幅",
+            "checkable": true
+          },
+          {
+            "id": "width.standard",
+            "text": "标准",
+            "checkable": true
+          },
+          {
+            "id": "width.wide",
+            "text": "宽幅",
+            "checkable": true
+          }
+        ]
+      },
+      {
+        "text": "密度",
+        "items": [
+          {
+            "id": "density.comfortable",
+            "text": "舒适",
+            "checkable": true
+          },
+          {
+            "id": "density.compact",
+            "text": "紧凑",
+            "checkable": true
+          }
+        ]
+      },
+      {
+        "text": "布局",
+        "items": [
+          {
+            "id": "layout.standard",
+            "text": "标准",
+            "checkable": true
+          },
+          {
+            "id": "layout.exhibition",
+            "text": "展陈",
+            "checkable": true
+          }
+        ]
+      }
+    ]
+  }
+]

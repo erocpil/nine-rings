@@ -48,6 +48,8 @@
 
 ## 编辑器导航
 
+- macOS Tauri 提供系统菜单中的工作区、文档、格式与界面操作，跟随活动文档、只读和弹层状态更新；原有界面入口保留。详见[macOS 系统菜单](docs/macos-native-menu.md)。
+
 - 普通模式可通过标题旁的“书签”、工具栏“更多”或正文右键菜单管理书签；`Ctrl/Cmd+Shift+M` 切换当前位置书签。书签随文档保存，跳转时会自动展开所在的折叠章节。
 - Vim 模式下，`i` 进入 Insert、`Esc` 返回 Normal；`Ctrl+F/B` 整页移动、`Ctrl+D/U` 半页移动、`Ctrl+E/Y` 单行滚动。
 - Vim Normal 模式可用 `m{a-z}` 设置命名书签，使用 `'{a-z}` 跳转。Normal/Visual 优先处理 Vim 键位，粗体、斜体、行内代码等格式快捷键只在 Insert 模式生效。

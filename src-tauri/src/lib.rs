@@ -591,6 +591,8 @@ pub fn run() {
             install_macos_fullscreen_menu(app)?;
             #[cfg(target_os = "macos")]
             install_macos_quit_menu(app)?;
+            #[cfg(target_os = "macos")]
+            commands::native_menu::install(app)?;
 
             // ── 系统托盘 ──
             startup_log!("setting up tray...");
@@ -713,6 +715,19 @@ pub fn run() {
         })
         .on_menu_event(|app, event| {
             #[cfg(target_os = "macos")]
+            if let Some(command) = event.id().as_ref().strip_prefix("nr-menu:") {
+                use tauri::Emitter;
+                // App-wide menus remain visible in print-preview windows. They
+                // must not mutate the retained main document behind that view.
+                if !app
+                    .get_webview_window("main")
+                    .is_some_and(|window| window.is_focused().unwrap_or(false))
+                {
+                    return;
+                }
+                let _ = app.emit_to("main", "nine-rings:native-menu", command);
+            }
+            #[cfg(target_os = "macos")]
             if event.id().as_ref() == "nine-rings-confirm-quit" {
                 use tauri::Emitter;
                 show_main_window(app);
@@ -741,6 +756,7 @@ pub fn run() {
             commands::image_library::image_library_stat,
             commands::image_library::image_library_watch,
             commands::image_library::image_library_unwatch,
+            commands::native_menu::update_native_menu,
             commands::window::quit_application,
             commands::window::get_desktop_recovery_status,
             commands::window::set_window_fullscreen,

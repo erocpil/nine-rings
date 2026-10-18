@@ -1,3 +1,6 @@
+import { isDebugOpen, subscribeDebugOpen, toggleDebug } from "./lib/debugLog";
+import { useNativeMenuHost } from "./hooks/useNativeMenuHost";
+import { useNativeMenuActions } from "./hooks/useNativeMenuActions";
 import { useDocumentSequence } from "./hooks/useDocumentSequence";
 import { adjacentDocuments } from "./lib/plugin-system/document-navigation";
 import { VOCABULARY_VIEW, vocabularyDocuments } from "./lib/plugin-system/builtin-vocabulary";
@@ -991,6 +994,45 @@ function App() {
     onError: reason => useNotesStore.setState({ error: `切换文档失败：${String(reason)}` }),
   });
 
+  const activateSidebarPanel = async (panel: typeof desktopPanel) => {
+    if (!workspaceHome && (panel === "images" || panel === "vocabulary") && pluginViewState.suspended && ((panel === "images" && pluginMainView?.renderer === "image") || (panel === "vocabulary" && pluginMainView?.renderer === "vocabulary"))) {
+      try { await flushAutoSave(); }
+      catch (saveError) { useNotesStore.setState({ error: `保存失败，未切换图片视图：${String(saveError)}` }); return; }
+    }
+    if (workspaceHome) {
+      setWorkspaceHomePanelActivated(true);
+      setWorkspaceHomeChromeHidden(false);
+    } else setExhibitionReaderActive(false);
+    summarySidebarSnapshot.current = null;
+    setActiveWorkspaceSummary(null);
+    // Switching navigation panels parks the image session rather than
+    // closing it, so the image button can restore its current position.
+    if (!workspaceHome) {
+      if (panel === "tree") mainViews.suspend();
+      else if ((panel === "images" && pluginMainView?.renderer === "image") || (panel === "vocabulary" && pluginMainView?.renderer === "vocabulary")) mainViews.resume();
+    }
+    sidebarHover.click(panel);
+  };
+  const nativeDebugOpen = useSyncExternalStore(subscribeDebugOpen, isDebugOpen);
+  useNativeMenuHost(searchExpanded || errorDetailsOpen || settingsOpen || quickSwitcherOpen || docCreateOpen || versionOpen || protectionBusy || syncBusy || applyingWebUpdate || recycleOpen, error => useNotesStore.setState({ error }));
+  useNativeMenuActions({
+    "workspace.new": { run: () => setDocCreateOpen(true) },
+    "workspace.settings": { run: () => setSettingsOpen(true) },
+    "workspace.search": { run: openGlobalSearch },
+    "workspace.switch": { run: () => setQuickSwitcherOpen(true) },
+    "workspace.recycle": { run: () => setRecycleOpen(true) },
+    "document.save": { run: flushAutoSave, enabled: Boolean(selectedNote) },
+    "document.logs": { run: toggleDebug, checked: nativeDebugOpen },
+    "document.properties": { run: () => setPropertiesOpen(value => !value), checked: propertiesOpen, enabled: !workspaceHomeRequested && !pluginMainActive && Boolean(selectedNote || selectedFolderPath) },
+    "document.history": { run: () => setVersionOpen(true), enabled: Boolean(selectedNote) && !workspaceHomeRequested && !pluginMainActive },
+    "view.focus": { run: () => preserveReadingPositions(() => setFocusMode(value => !value)), checked: focusMode },
+    "sidebar.tree": { run: () => activateSidebarPanel("tree"), checked: !sidebarHidden && desktopPanel === "tree" },
+    "sidebar.list": { run: () => activateSidebarPanel("list"), checked: !sidebarHidden && desktopPanel === "list" },
+    "sidebar.notes": { run: () => activateSidebarPanel("notes"), checked: !sidebarHidden && desktopPanel === "notes" },
+    "sidebar.readers": { run: () => activateSidebarPanel("reader"), checked: !sidebarHidden && desktopPanel === "reader" },
+    ...Object.fromEntries((["images", "vocabulary"] as const).map(panel => [`sidebar.${panel}`, { run: () => activateSidebarPanel(panel), checked: !sidebarHidden && desktopPanel === panel, enabled: contributedPanels.some(item => item.id === panel) }])),
+  });
+
   // ── 键盘快捷键（浏览器 keydown + Tauri 全局热键）──
   useAppKeyboardShortcuts({
     workspaceActive: (!readingLibraryOpen || !window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) && !protectionBusy && !applyingWebUpdate,
@@ -1639,25 +1681,7 @@ function App() {
             aria-expanded={!sidebarHidden && desktopPanel === panel} aria-controls="workspace-sidebar"
             onKeyDown={event => sidebarHover.keyDown(panel, event)}
             onPointerEnter={event => sidebarHover.enterButton(panel, event.pointerType)} onPointerLeave={sidebarHover.leave}
-            onClick={async () => {
-              if (!workspaceHome && (panel === "images" || panel === "vocabulary") && pluginViewState.suspended && ((panel === "images" && pluginMainView?.renderer === "image") || (panel === "vocabulary" && pluginMainView?.renderer === "vocabulary"))) {
-                try { await flushAutoSave(); }
-                catch (saveError) { useNotesStore.setState({ error: `保存失败，未切换图片视图：${String(saveError)}` }); return; }
-              }
-              if (workspaceHome) {
-                setWorkspaceHomePanelActivated(true);
-                setWorkspaceHomeChromeHidden(false);
-              } else setExhibitionReaderActive(false);
-              summarySidebarSnapshot.current = null;
-              setActiveWorkspaceSummary(null);
-              // Switching navigation panels parks the image session rather than
-              // closing it, so the image button can restore its current position.
-              if (!workspaceHome) {
-                if (panel === "tree") mainViews.suspend();
-                else if ((panel === "images" && pluginMainView?.renderer === "image") || (panel === "vocabulary" && pluginMainView?.renderer === "vocabulary")) mainViews.resume();
-              }
-              sidebarHover.click(panel);
-            }}>
+            onClick={() => void activateSidebarPanel(panel)}>
             <ToolbarIcon name={icon} />
           </button>)}
           <div className="desktop-activity-footer">

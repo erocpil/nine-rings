@@ -60,6 +60,9 @@ export default defineConfig(async () => {
         manualChunks(id) {
           if (!id) return undefined;
           const normalized = normalizePath(id);
+          // Shared native command registration has no dependency on App/editor
+          // code. Keep it separate so macOS menus do not enlarge the entry chunk.
+          if (["/src/lib/runtime.ts", "/src/lib/native-menu-registry.ts", "/src/hooks/useNativeMenuActions.ts", "/src/hooks/useNativeMenuHost.ts"].some(path => normalized.endsWith(path))) return "platform-runtime";
           // The CJK attention construct depends only on the Markdown kernel.
           if (normalized.endsWith("/src/lib/cjk-emphasis.ts")) return "markdown";
           if (normalized.endsWith("/src/lib/editor-color.ts")) return "markdown";

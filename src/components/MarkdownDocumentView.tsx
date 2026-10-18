@@ -1,3 +1,4 @@
+import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import { activeLinePluginKey } from "../extensions/EditorHighlights";
 import { IMAGE_VIEW_EVENT } from "../lib/image-library/viewer-request";
@@ -210,6 +211,10 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     window.addEventListener(IMAGE_VIEW_EVENT, enrich, true);
     return () => window.removeEventListener(IMAGE_VIEW_EVENT, enrich, true);
   }, [active]);
+  useNativeMenuActions({
+    "document.source": { run: () => changeView(), checked: source !== null, enabled: supported && !busy },
+    "document.readonly": { run: () => props.onReadonlyChange?.(!props.readonly), checked: Boolean(props.readonly), enabled: Boolean(props.onReadonlyChange) && !busy },
+  }, active);
   if (!supported) return render({ ...props, onHostSelection: hostSelection, onHostEditorReady: hostRenderedReady });
   const toggle = <><button type="button" className="markdown-view-toggle" disabled={busy}
     title={source === null ? "切换到 Markdown 源码" : "切换到渲染视图"}

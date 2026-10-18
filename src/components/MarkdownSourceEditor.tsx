@@ -1,3 +1,5 @@
+import { useDocumentActive } from "./RetainedDocument";
+import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { EditorStatusBar } from "./EditorStatusBar";
 import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
 import { numberingDisplays } from "../lib/plugin-system/numbering-display";
@@ -164,6 +166,7 @@ export function MarkdownSourceEditor({
   onVersionOpen?: () => void;
 }) {
   const numbering = useNumberingDisplay().source;
+  const documentActive = useDocumentActive();
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const handleRef = useRef<SourceEditorHandle | null>(null);
@@ -534,6 +537,31 @@ export function MarkdownSourceEditor({
         </span>
       </div>
   );
+  useNativeMenuActions({
+    "document.find": { run: () => run(v => toggleSourcePanel(v, "search")) },
+    "document.replace": { run: () => run(v => toggleSourcePanel(v, "search")), enabled: !readonly },
+    "document.jump": { run: () => run(v => toggleSourcePanel(v, "goto")) },
+    "edit.undo": { run: () => run(undo), enabled: !editingReadonly && tools.undo },
+    "edit.redo": { run: () => run(redo), enabled: !editingReadonly && tools.redo },
+    "document.collapse": { run: () => run(foldAll) },
+    "document.expand": { run: () => run(unfoldAll) },
+    "source.wrap": { run: () => saveBlockWorkspacePreferences({ wrap: preferences.wrap === false }), checked: preferences.wrap !== false },
+    "source.highlight": { run: () => saveBlockWorkspacePreferences({ sourceSyntaxHighlighting: preferences.sourceSyntaxHighlighting === false }), checked: preferences.sourceSyntaxHighlighting !== false },
+    "source.micro": { run: () => saveBlockWorkspacePreferences({ sourceMicroRendering: preferences.sourceMicroRendering !== true }), checked: preferences.sourceMicroRendering === true },
+    ...Object.fromEntries([["bold", "**"], ["italic", "*"], ["strike", "~~"], ["code", "`"]].map(([kind, marker]) => [`format.${kind}`, { run: () => run(v => wrapSelection(v, marker)), enabled: !editingReadonly }])),
+    ...Object.fromEntries((["quote", "bullet", "ordered", "task"] as const).map(kind => [`format.${kind === "task" ? "todo" : kind}`, { run: () => run(v => {
+      if (v.composing) return false;
+      const spec = formatSourceLines(v.state, kind);
+      if (!spec) return false;
+      v.dispatch(spec); v.focus(); return true;
+    }), enabled: !editingReadonly }])),
+    "format.codeblock": { run: () => run(v => {
+      if (v.composing) return false;
+      const spec = insertSourceBlock(v.state, "code");
+      if (!spec) return false;
+      v.dispatch(spec); v.focus(); return true;
+    }), enabled: !editingReadonly },
+  }, documentActive);
   return (
     <div
       className="markdown-source-input markdown-cm-source"

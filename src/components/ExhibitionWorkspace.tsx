@@ -1,3 +1,4 @@
+import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { useWindowFullscreen } from "../hooks/useWindowFullscreen";
 import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { useWorkspaceLayout } from "../hooks/useWorkspaceLayout";
@@ -151,6 +152,19 @@ export function ExhibitionWorkspace(props: Props) {
       setBusy(false);
     }
   };
+  const changeAppearance = (patch: Partial<AppConfig>) => run(() => props.onAppearance(patch));
+  useNativeMenuActions({
+    "workspace.home": { run: () => run(props.onHome), enabled: !blocked && !busy },
+    "workspace.overview": { run: () => props.home ? setHomeExpanded(value => !value) : setExpanded(value => !value), checked: showOverview, enabled: active && !blocked && !busy },
+    "workspace.recent": { run: () => props.onSummary("recent"), enabled: !blocked && !busy },
+    "workspace.favorites": { run: () => props.onSummary("favorites"), enabled: !blocked && !busy },
+    "workspace.today": { run: () => props.onSummary("today"), enabled: !blocked && !busy },
+    ...Object.fromEntries(INTERFACE_STYLES.map(style => [`style.${style.value}`, { run: () => changeAppearance({ interface_style: style.value }), checked: (config?.interface_style === "calm-compact" ? "calm" : config?.interface_style) === style.value, enabled: !blocked && !busy }])),
+    ...Object.fromEntries((["light", "dark", "system"] as const).map(mode => [`color.${mode}`, { run: () => changeAppearance(config?.interface_style === "classic" ? { theme: mode } : { interface_color_mode: mode }), checked: (config?.interface_style === "classic" ? config.theme : config?.interface_color_mode) === mode, enabled: !blocked && !busy }])),
+    ...Object.fromEntries((["comfortable", "compact"] as const).map(density => [`density.${density}`, { run: () => changeAppearance({ exhibition_density: density }), checked: config?.exhibition_density === density, enabled: enabled && !blocked && !busy }])),
+    ...Object.fromEntries((["standard", "exhibition"] as const).map(layout => [`layout.${layout}`, { run: () => changeAppearance({ workspace_layout: layout }), checked: config?.workspace_layout === layout, enabled: config?.interface_style !== "classic" && !blocked && !busy }])),
+    ...Object.fromEntries((["narrow", "standard", "wide"] as const).map(width => [`width.${width}`, { run: () => changeAppearance({ exhibition_text_width: width }), checked: config?.exhibition_text_width === width, enabled: enabled && !blocked && !busy }])),
+  });
   const open = (id: string, options?: DocumentOpenOptions) =>
     void run(async () => {
       const note = await api.notes.get(id);

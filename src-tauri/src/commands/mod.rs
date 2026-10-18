@@ -11,3 +11,5 @@ pub mod window;
 pub mod search_projection;
 
 pub mod image_library;
+
+pub mod native_menu;

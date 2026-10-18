@@ -1,3 +1,4 @@
+import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { useFocusEditorTools } from "../stores/useFocusEditorTools";
 import { EditorStatusBar } from "./EditorStatusBar";
 import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
@@ -3071,6 +3072,28 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     editor.view.dispatch(editor.state.tr.setMeta(flowPresentationKey, presentationLevel).setMeta("addToHistory", false));
   }, [editor, presentationLevel]);
 
+  useNativeMenuActions({
+    "document.outline": { run: toggleDocumentOutline, checked: outlineOpen, enabled: documentOutline.length > 0 },
+    "document.bookmarks": { run: toggleDocumentBookmarks, checked: bookmarkOpen },
+    "edit.undo": { run: () => editor?.chain().focus().undo().run(), enabled: !readonly && editor?.can().undo() },
+    "edit.redo": { run: () => editor?.chain().focus().redo().run(), enabled: !readonly && editor?.can().redo() },
+    "document.collapse": { run: () => setAllHeadingFoldsKeepingViewport(true), enabled: documentOutline.length > 0 },
+    "document.expand": { run: () => setAllHeadingFoldsKeepingViewport(false), enabled: documentOutline.length > 0 },
+    "document.find": { run: openEditorFind },
+    "document.replace": { run: openEditorReplace, enabled: !readonly },
+    "document.jump": { run: openLineJump },
+    "document.export-md": { run: () => handleExportMarkdown() },
+    "document.export-pdf": { run: handleExportPdf },
+    ...Object.fromEntries((["bold", "italic", "strike", "code"] as const).map(mark => [`format.${mark}`, { run: () => editor?.chain().focus().toggleMark(mark).run(), checked: editor?.isActive(mark), enabled: !readonly && editor?.can().toggleMark(mark) }])),
+    ...Object.fromEntries(([1, 2, 3, 4, 5, 6] as const).map(level => [`format.h${level}`, { run: () => editor?.chain().focus().toggleHeading({ level }).run(), enabled: !readonly }])),
+    "format.paragraph": { run: () => editor?.chain().focus().setParagraph().run(), enabled: !readonly },
+    "format.bullet": { run: () => editor?.chain().focus().toggleBulletList().run(), enabled: !readonly },
+    "format.ordered": { run: () => editor?.chain().focus().toggleOrderedList().run(), enabled: !readonly },
+    "format.todo": { run: () => editor?.chain().focus().wrapInList("bulletList").updateAttributes("listItem", { taskChecked: false }).run(), enabled: !readonly },
+    "format.quote": { run: () => editor?.chain().focus().toggleBlockquote().run(), enabled: !readonly },
+    "format.codeblock": { run: () => editor?.chain().focus().toggleCodeBlock().run(), enabled: !readonly },
+    "format.clear": { run: () => editor?.chain().focus().unsetAllMarks().run(), enabled: !readonly },
+  }, documentActive && Boolean(editor));
   if (!editor) return <div className="note-editor"><div className="empty-state">加载中...</div></div>;
 
   const { rememberToolbarSelection, runToolbarFormat } = createToolbarSelectionCommands(editor, toolbarSelectionRef, toolbarCellSelectionRef);

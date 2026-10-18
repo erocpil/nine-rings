@@ -1,3 +1,5 @@
+import { useDocumentActive } from "./RetainedDocument";
+import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { DocumentPanelTitle, OutlinePanelTitle } from "./OutlinePanelTitle";
 import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
@@ -40,6 +42,7 @@ export function MarkdownSourceWorkspace({
   onJump: (offset: number) => void;
   children: (controls: ReactNode) => ReactNode;
 }) {
+  const documentActive = useDocumentActive();
   const mobile = useMobileViewport();
   const outlineDisplayConfig = usePanelDisplay("document-outline");
   const bookmarkDisplayConfig = usePanelDisplay("bookmarks");
@@ -112,6 +115,10 @@ export function MarkdownSourceWorkspace({
     setOffset(next);
     controller.dismiss();
   };
+  useNativeMenuActions({
+    "document.outline": { run: () => controller.toggle("outline"), checked: controller.pinned("outline") || controller.preview === "outline", enabled: outline.length > 0 },
+    "document.bookmarks": { run: () => controller.toggle("bookmark"), checked: controller.pinned("bookmark") || controller.preview === "bookmark" },
+  }, documentActive);
   const controls = mobile ? null : (
     <>
       {(["outline", "bookmark"] as const).map((kind) => (

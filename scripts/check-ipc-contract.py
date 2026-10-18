@@ -89,6 +89,7 @@ def main():
     driver_invokes = extract_invoke_commands(TAURI_DRIVER_TS)
     template_invokes = extract_invoke_commands(TEMPLATE_TAURI_TS)
     native_search_invokes = extract_invoke_commands(NATIVE_SEARCH_TS)
+    native_menu_invokes = extract_invoke_commands(os.path.join(PROJECT_ROOT, "src", "lib", "native-menu-service.ts"))
 
     with open(IMAGE_LIBRARY_TS) as source:
         image_source = source.read()
@@ -113,6 +114,10 @@ def main():
     for cmd, line, raw in template_invokes:
         if cmd not in registered:
             unregistered.append((cmd, line, "template-tauri.ts", raw))
+
+    for cmd, line, raw in native_menu_invokes:
+        if cmd not in registered:
+            unregistered.append((cmd, line, "native-menu-service.ts", raw))
 
     for cmd, line, raw in native_search_invokes:
         if cmd not in registered:
