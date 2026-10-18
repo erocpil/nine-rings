@@ -11,6 +11,11 @@ import {
 
 // ── 快捷键配置 ──
 
+const HOTKEY_GROUPS = [
+  { title: "搜索与设置", ids: ["focus_search", "open_settings"] },
+  { title: "窗口控制", ids: ["show_window"] },
+] as const;
+
 export function HotkeyConfig({
   config,
   onUpdate,
@@ -178,59 +183,67 @@ export function HotkeyConfig({
           {recordingError}
         </div>
       )}
-      {Object.entries(HOTKEY_LABELS)
+      <div className="hotkey-groups">
+        {HOTKEY_GROUPS.map((group) => (
+          <section className="hotkey-group" key={group.title}>
+            <h4 className="hotkey-group-title">{group.title}</h4>
+            <div className="hotkey-group-list">
+              {group.ids.map((id) => {
+                const label = HOTKEY_LABELS[id];
+                const fixed = id === "show_window";
+                const current = fixed
+                  ? DEFAULT_HOTKEYS[id]
+                  : (config.hotkeys?.[id] ?? DEFAULT_HOTKEYS[id]);
+                const isRecording = recordingId === id;
 
-        .map(([id, label]) => {
-          const fixed = id === "show_window";
-          const current = fixed
-            ? DEFAULT_HOTKEYS[id]
-            : (config.hotkeys?.[id] ?? DEFAULT_HOTKEYS[id]);
-          const isRecording = recordingId === id;
-
-          return (
-            <div key={id} className="hotkey-row">
-              <span className="hotkey-label">{label}</span>
-              {fixed ? (
-                <span className="hotkey-fixed">
-                  <kbd>{formatShortcut(current)}</kbd>
-                  <small>桌面固定快捷键</small>
-                </span>
-              ) : (
-                <>
-                  {isRecording ? (
-                    <input
-                      className={`hotkey-input recording`}
-                      value="按下新快捷键…"
-                      readOnly
-                      aria-label={`录制${label}快捷键`}
-                      onKeyDown={handleKeyDown}
-                      onBlur={() => setRecordingId(null)}
-                      autoFocus
-                    />
-                  ) : (
-                    <button
-                      className="hotkey-btn"
-                      onClick={() => startRecord(id)}
-                      title="点击修改快捷键"
-                      aria-label={`修改${label}快捷键`}
-                    >
-                      <kbd>{current ? formatShortcut(current) : "未设置"}</kbd>
-                    </button>
-                  )}
-                  <button
-                    className="hotkey-reset"
-                    onClick={() => resetHotkey(id)}
-                    title="恢复默认"
-                    aria-label={`恢复${label}默认快捷键`}
-                    disabled={current === DEFAULT_HOTKEYS[id]}
-                  >
-                    ↺
-                  </button>
-                </>
-              )}
+                return (
+                  <div key={id} className="hotkey-row">
+                    <span className="hotkey-label">{label}</span>
+                    {fixed ? (
+                      <span className="hotkey-fixed">
+                        <kbd>{formatShortcut(current)}</kbd>
+                        <small>桌面固定快捷键</small>
+                      </span>
+                    ) : (
+                      <>
+                        {isRecording ? (
+                          <input
+                            className="hotkey-input recording"
+                            value="按下新快捷键…"
+                            readOnly
+                            aria-label={`录制${label}快捷键`}
+                            onKeyDown={handleKeyDown}
+                            onBlur={() => setRecordingId(null)}
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            className="hotkey-btn"
+                            onClick={() => startRecord(id)}
+                            title="点击修改快捷键"
+                            aria-label={`修改${label}快捷键`}
+                          >
+                            <kbd>{current ? formatShortcut(current) : "未设置"}</kbd>
+                          </button>
+                        )}
+                        <button
+                          className="hotkey-reset"
+                          onClick={() => resetHotkey(id)}
+                          title="恢复默认"
+                          aria-label={`恢复${label}默认快捷键`}
+                          disabled={current === DEFAULT_HOTKEYS[id]}
+                        >
+                          ↺
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </section>
+        ))}
+      </div>
     </div>
   );
 }

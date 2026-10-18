@@ -16,6 +16,11 @@ export function SettingsUpdateStatus({ webUpdate, showMessage }: Props) {
     return pwaUpdateStatusText(status);
   };
 
+  const installing = webUpdate.phase === "installing";
+  const installingProgress = webUpdate.progress
+    ? `下载进度：${Math.floor(webUpdate.progress.completed / webUpdate.progress.total * 100)}%（${webUpdate.progress.completed}/${webUpdate.progress.total} 项，已下载 ${(webUpdate.progress.bytes / 1024 / 1024).toFixed(1)} MB）`
+    : "下载进度：正在获取资源信息…";
+
   const getUpdateStatusClass = (status: SettingsWebUpdate) => {
     if (status.error) return "is-error";
     if (status.checking || status.phase === "installing") return "is-checking";
@@ -99,8 +104,14 @@ export function SettingsUpdateStatus({ webUpdate, showMessage }: Props) {
             role="status"
             className={`settings-update-status ${getUpdateStatusClass(webUpdate)}`}
           >
-            <span className="settings-update-status-dot" aria-hidden="true" />
-            {getUpdateStatusText(webUpdate)}
+            {!installing && !webUpdate.checked && <span className="settings-update-status-dot" aria-hidden="true" />}
+            {installing ? (
+              <span className="settings-update-status-installing">
+                <span>正在下载并安装新版</span>
+                <span>请保持联网</span>
+                <span>{installingProgress}</span>
+              </span>
+            ) : getUpdateStatusText(webUpdate)}
           </span>
           {webUpdate.error && webUpdate.errorDetails && (
             <button

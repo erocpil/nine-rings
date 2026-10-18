@@ -556,6 +556,24 @@ test("Web/PWA 从 GitHub Pull 后自动应用设置并恢复最后文档位置",
   expect(downloadCount).toBe(0);
 });
 
+test("内置快捷键按用途分组并在宽屏并列展示", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^快捷键/ }).click();
+  const groups = page.locator(".hotkey-group");
+  await expect(groups).toHaveCount(2);
+  await expect(groups.nth(0).locator(".hotkey-group-title")).toHaveText("搜索与设置");
+  await expect(groups.nth(0).getByText("聚焦搜索", { exact: true })).toBeVisible();
+  await expect(groups.nth(0).getByText("打开设置", { exact: true })).toBeVisible();
+  await expect(groups.nth(1).locator(".hotkey-group-title")).toHaveText("窗口控制");
+  const columns = await page.locator(".hotkey-groups").evaluate(element => getComputedStyle(element).gridTemplateColumns.split(" ").length);
+  expect(columns).toBe(2);
+  await expect(groups.nth(0).locator(".hotkey-label").first()).toHaveCSS("font-size", "15px");
+  await expect(groups.nth(0).locator(".hotkey-btn kbd").first()).toHaveCSS("font-size", "14px");
+});
+
 for (const width of [390, 1280]) {
   test(`设置所有分类和子页 Esc 逐层返回，宽度 ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });

@@ -648,6 +648,13 @@
   background: color-mix(in srgb, var(--surface) 90%, var(--bg));
 }
 
+.settings-update-status-installing {
+  display: grid;
+  gap: 2px;
+  text-align: center;
+  line-height: 1.45;
+}
+
 .settings-update-status-dot {
   width: 6px;
   height: 6px;
