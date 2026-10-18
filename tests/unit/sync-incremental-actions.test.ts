@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { beforeEach, afterEach, it, expect, vi } from "vitest";
 import fixture from "../../schema/sync/fixtures/candidate-entities-v1.json";
 import { gitReadFixture } from "../helpers/git-read-fixture";
+import { mergeBackupPayload } from "../helpers/merge-backup-payload";
 import {
   backupPaths,
   inspectRemoteProtocol,
@@ -412,7 +413,7 @@ it("host Pull applies through the existing merge API and requests a workspace re
     ) => {
       expect(mode).toBe("merge");
       expect(typeof context.markDataCommitted).toBe("function");
-      source = next;
+      source = mergeBackupPayload(source, next);
     },
   );
   const report = await inspectRemoteProtocol(s.git.request, {
@@ -593,7 +594,7 @@ it("host recovery confirms actual Pull data without invoking import again", asyn
   let source = s.source.replace("local change", "local conflict");
   host.read.mockImplementation(async () => source);
   host.apply.mockImplementation(async (next: string) => {
-    source = next;
+    source = mergeBackupPayload(source, next);
     throw Error("lost after import");
   });
   const report = await inspectRemoteProtocol(s.git.request, {

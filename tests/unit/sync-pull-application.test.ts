@@ -3,6 +3,7 @@ import { beforeEach, afterEach, it, expect, vi } from "vitest";
 import fixture from "../../schema/sync/fixtures/candidate-entities-v1.json";
 import gates from "../../schema/sync/fixtures/legacy-gates.json";
 import { gitReadFixture } from "../helpers/git-read-fixture";
+import { mergeBackupPayload } from "../helpers/merge-backup-payload";
 import { prepareEntityReview } from "../../src/lib/sync/entity-review";
 import {
   planReviewedPull,
@@ -140,7 +141,7 @@ async function setup() {
     },
   ];
   const apply = vi.fn(async (next: string) => {
-    source = next;
+    source = mergeBackupPayload(source, next);
   });
   const host = {
     flush: vi.fn(async () => {}),
@@ -162,6 +163,8 @@ it("preserves unselected/local-only entities and confirms only actually applied 
   const s = await setup();
   const plan = await planReviewedPull(s.review, s.choices);
   const payload = JSON.parse(plan.source);
+  const writePayload = JSON.parse(plan.writeSource);
+  expect(typeof writePayload.exported_at).toBe("string");
   expect(payload.notes).toHaveLength(3);
   expect(
     payload.notes.find((n: { id: string }) => n.id === fixture.notes[1].id)
@@ -170,6 +173,8 @@ it("preserves unselected/local-only entities and confirms only actually applied 
   expect(
     payload.notes.find((n: { id: string }) => n.id === "local-only").title,
   ).toBe("keep local-only");
+  expect(writePayload.notes).toHaveLength(1);
+  expect(writePayload.notes[0].id).toBe(fixture.notes[0].id);
   expect(await applyReviewedPull(s, s.host)).toEqual({ applied: 1 });
   expect(s.host.apply).toHaveBeenCalledTimes(1);
   expect((await readPullAttempt(s.review.spaceId))?.phase).toBe("COMPLETE");
@@ -183,7 +188,7 @@ it("response loss after actual application recovers by inspection without replay
   const s = await setup(),
     plan = await planReviewedPull(s.review, s.choices);
   s.host.apply.mockImplementation(async (next) => {
-    s.setSource(next);
+    s.setSource(mergeBackupPayload(await s.host.readSource(), next));
     throw Error("lost after commit");
   });
   await expect(applyReviewedPull(s, s.host)).rejects.toThrow(
@@ -195,7 +200,12 @@ it("response loss after actual application recovers by inspection without replay
     "complete",
   );
   expect(s.host.apply).toHaveBeenCalledTimes(1);
-  expect(await s.host.readSource()).toBe(plan.source);
+  const actual = JSON.parse(await s.host.readSource());
+  expect(actual.notes).toHaveLength(JSON.parse(plan.source).notes.length);
+  expect(
+    actual.notes.find((note: { id: string }) => note.id === fixture.notes[0].id)
+      .title,
+  ).toBe(fixture.notes[0].title);
 });
 it("partial data or later edits are not accepted or rolled back", async () => {
   const s = await setup();
@@ -237,7 +247,7 @@ it.each(["save", "local", "head", "cancel"])(
 it("workspace replacement after application prevents old acceptance", async () => {
   const s = await setup();
   s.host.apply.mockImplementation(async (next) => {
-    s.setSource(next);
+    s.setSource(mergeBackupPayload(await s.host.readSource(), next));
     values.set(DOCUMENT_STORAGE_GENERATION_KEY, "another-restore");
   });
   await expect(applyReviewedPull(s, s.host)).rejects.toThrow();
