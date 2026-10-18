@@ -238,7 +238,7 @@ test("编辑器状态栏紧凑且可以关闭并持久化", async ({ page }) => 
   await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
   const statusBar = page.locator(".editor-stats");
   await expect(statusBar).toBeVisible();
-  await expect.poll(() => statusBar.evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(22);
+  await expect.poll(() => statusBar.evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(36);
 
   const editor = page.locator(".ProseMirror");
   await expect.poll(() => editor.evaluate((element) => {

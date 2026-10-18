@@ -60,11 +60,12 @@ test("局部只读渲染刷新后恢复折叠和块锚点", async ({ page }) => 
   await expect(root).toBeVisible();
   await root.getByRole("button", { name: "折叠代码块", exact: true }).click();
   const scroll = root.locator(".note-editor-scroll");
-  const before = await scroll.evaluate((el) => {
-    el.scrollTop = 650;
-    el.dispatchEvent(new Event("scroll"));
-    return el.scrollTop;
-  });
+  // A real wheel gesture cancels opening/fold restoration before persisting
+  // a new position; a synthetic scroll can legitimately be overwritten.
+  await scroll.hover();
+  await page.mouse.wheel(0, 650);
+  await expect.poll(() => scroll.evaluate(el => el.scrollTop)).toBeGreaterThan(600);
+  const before = await scroll.evaluate(el => el.scrollTop);
   expect(before).toBeGreaterThan(600);
   await expect
     .poll(() => page.evaluate((id) => {

@@ -23,7 +23,9 @@ for (const width of [390, 1280]) {
       exact: true,
     });
     await global.check();
-    await expect(list.getByRole("listitem")).toHaveCount(10);
+    const names = await page.evaluate(async () => (await import("/src/lib/plugin-system/builtin-plugin-catalog.ts")).BUILTIN_PLUGIN_CATALOG.map(plugin => plugin.name));
+    await expect(list.getByRole("listitem")).toHaveCount(names.length);
+    for (const name of names) await expect(list.getByRole("button", { name, exact: true })).toBeVisible();
     await expect(list).toContainText("分栏展示");
     await expect(list).toContainText("编辑命令");
     await expect(list).toContainText("文档统计");
@@ -130,9 +132,7 @@ test("另一窗口关闭插件撤销配置弹层，Tab 留在弹层且背景设�
     name: "文档树展示配置",
     exact: true,
   });
-  await expect(
-    dialog.getByRole("button", { name: "关闭插件配置", exact: true }),
-  ).toBeFocused();
+  await expect(dialog).toBeFocused();
   for (let i = 0; i < 20; i++) {
     await page.keyboard.press("Tab");
     expect(

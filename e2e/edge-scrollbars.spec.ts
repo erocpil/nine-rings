@@ -147,6 +147,9 @@ for (const readonly of [false, true]) {
     await page.mouse.move(rect.x + 100, y);
     await expect(pane).not.toHaveAttribute("data-scrollbar-visible");
 
+    // Keep the real pointer at the simulated native event coordinates while
+    // DOM occlusion changes can also generate WebKit mouse transitions.
+    await page.mouse.move(x, y);
     await nativeMouse("mousemove");
     await page.evaluate(({ x, y }) => {
       const overlay = document.createElement("div");

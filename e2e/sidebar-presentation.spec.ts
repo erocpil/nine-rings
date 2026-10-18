@@ -254,3 +254,40 @@ test("键盘进入等待浮层解除暂时 inert，Esc 仍返回分栏按钮", a
   await expect(sidebar).toHaveClass(/sidebar-hidden/);
   await expect(tree).toBeFocused();
 });
+
+test("键盘进入分栏在控件拒绝聚焦及临时 inert 后仍保持焦点", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nr:sidebarPresentation", "overlay");
+    const focus = HTMLElement.prototype.focus;
+    HTMLElement.prototype.focus = function(options) {
+      if (this.matches("#workspace-sidebar button")) return;
+      focus.call(this, options);
+    };
+  });
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  const sidebar = page.locator("#workspace-sidebar");
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  const tree = page.locator('[data-sidebar-panel="tree"]');
+  await tree.press("ArrowRight");
+  await expect(sidebar).toBeFocused();
+  await sidebar.evaluate(async element => {
+    const input = document.createElement("input");
+    input.id = "keyboard-focus-removal";
+    element.append(input);
+    input.focus();
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    if (document.activeElement !== input) throw new Error("Existing sidebar input focus was stolen");
+    input.remove();
+  });
+  await expect(sidebar).toBeFocused();
+  await sidebar.evaluate(async element => {
+    element.setAttribute("inert", "");
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    element.removeAttribute("inert");
+  });
+  await expect.poll(() => sidebar.evaluate(element => element.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  await expect(tree).toBeFocused();
+});

@@ -4195,7 +4195,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
             title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
             aria-label={bookmarks.length > 0 ? `文档书签，共 ${bookmarks.length} 项` : "文档书签"}
           ><FocusModeIcon name="bookmark" />{bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}</button>
-          {!showLineNumbers && selectedBlockIndexes.size === 0 && <button type="button" title="块级操作" aria-label="块级操作" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>}
+          {!showLineNumbers && selectedBlockIndexes.size === 0 && <button type="button" title="块级操作" aria-label="块级操作" data-title-block-menu="true" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>}
           {!readonly && (
             <button
               type="button"
@@ -4376,7 +4376,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           </div>
           {saveIssue && <button type="button" className="focus-btn workspace-error-indicator" aria-label="查看保存错误详情" title="查看保存错误详情" onClick={onOpenSaveIssue}><ToolbarIcon name="warning" /></button>}
           {!showLineNumbers && selectedBlockIndexes.size === 0 && (
-            <button type="button" className="focus-btn readonly-copy-block" title="块级操作" aria-label="块级操作" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>
+            <button type="button" className="focus-btn readonly-copy-block" title="块级操作" aria-label="块级操作" data-title-block-menu="true" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>
           )}
           {pdfExcerptSource && onOpenPdfExcerpt && (
             <button
@@ -4576,7 +4576,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
 
         {/* ── 编辑器内容 ── */}
         <CopyBlockNotice message={copyBlockNotice} onClose={() => setCopyBlockNotice("")} />
-        {blockMenu && documentActive && editor.state.doc === blockMenu.doc && <BlockActionMenu key={blockMenu.position} trigger={blockMenu.trigger} title={`第 ${editor.state.doc.resolve(blockMenu.position).index(0) + 1} 块`} actions={blockMenuActions()} onClose={closeBlockMenu} />}
+        {blockMenu && documentActive && editor.state.doc === blockMenu.doc && <BlockActionMenu placement={blockMenu.trigger.hasAttribute("data-title-block-menu") ? "below" : "side"} key={blockMenu.position} trigger={blockMenu.trigger} title={`第 ${editor.state.doc.resolve(blockMenu.position).index(0) + 1} 块`} actions={blockMenuActions()} onClose={closeBlockMenu} />}
         {selectedBlockIndexes.size > 0 && (() => {
           const count = selectedIndexes().length;
           return count > 0 ? <><div className="block-selection-toolbar" role="toolbar" aria-label="块级操作">

@@ -175,9 +175,11 @@ export function useSidebarHoverPreview({
     cancelFocusEntry.current?.();
     keyboardInside.current = true;
     const finishEntry = () => {
+      focusObserver.disconnect();
       document.removeEventListener("pointerdown", interruptEntry, true);
       document.removeEventListener("keydown", interruptEntry, true);
       document.removeEventListener("focusin", reclaimFocus, true);
+      document.removeEventListener("focusout", retryFocus, true);
       cancelFocusEntry.current = null;
     };
     const interruptEntry = () => {
@@ -191,6 +193,7 @@ export function useSidebarHoverPreview({
     const focusPanel = () => {
       if (!keyboardInside.current) { finishEntry(); return; }
       const root = document.getElementById("workspace-sidebar");
+      if (root?.contains(document.activeElement)) return;
       // Opening the panel can race a delayed editor autofocus in WebKit.
       // Genuine user input interrupts entry; incidental focus changes do not.
       // Opening can commit after the first animation frame on a busy page.
@@ -207,6 +210,9 @@ export function useSidebarHoverPreview({
           },
         );
         (first ?? root).focus({ preventScroll: true });
+        // Some WebKit controls reject focus while layout/inert is settling.
+        // The panel itself is an explicit tabindex=-1 fallback.
+        if (!root.contains(document.activeElement)) root.focus({ preventScroll: true });
         // Keep ownership after entry too: a late editor autofocus can arrive
         // after this frame. The next real pointer/key input releases it.
         if (root.contains(document.activeElement)) return;
@@ -226,7 +232,23 @@ export function useSidebarHoverPreview({
       cancelAnimationFrame(focusFrame.current);
       focusFrame.current = requestAnimationFrame(focusPanel);
     };
+    const retryFocus = () => {
+      if (!keyboardInside.current) return;
+      // A temporary inert ancestor can blur to body without a new focusin.
+      cancelAnimationFrame(focusFrame.current);
+      focusFrame.current = requestAnimationFrame(focusPanel);
+    };
     document.addEventListener("focusin", reclaimFocus, true);
+    document.addEventListener("focusout", retryFocus, true);
+    const focusObserver = new MutationObserver(() => {
+      if (!document.getElementById("workspace-sidebar")?.contains(document.activeElement)) retryFocus();
+    });
+    // Removing a focused control need not emit focusout. Observe panel content
+    // and ancestor inert changes only while this keyboard request owns focus.
+    const root = document.getElementById("workspace-sidebar");
+    for (let element = root; element; element = element.parentElement) {
+      focusObserver.observe(element, { childList: element === root, subtree: element === root, attributes: true, attributeFilter: ["inert"] });
+    }
     focusFrame.current = requestAnimationFrame(focusPanel);
   };
   const click = (next: Panel) => {

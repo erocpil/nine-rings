@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
 async function select(page: Page) {
-  const content = page.locator(".ProseMirror");
+  const content = page.locator(".note-editor .editor-content > .ProseMirror:visible");
   await content.evaluate(element => {
     const editor = (element as HTMLElement & { editor: Editor }).editor;
     editor.commands.setTextSelection({ from: 1, to: 6 }); editor.view.focus();
@@ -15,7 +15,7 @@ async function select(page: Page) {
 }
 test("选区弹层的字号颜色剪切实际生效，子菜单锚定选区", async ({ page }) => {
   await createBlankDocument(page);
-  const content = page.locator(".ProseMirror");
+  const content = page.locator(".note-editor .editor-content > .ProseMirror:visible");
   await content.fill("first second");
   let hover = await select(page);
   await hover.getByTitle("字号", { exact: true }).click();
@@ -45,7 +45,7 @@ test("选区弹层的字号颜色剪切实际生效，子菜单锚定选区", as
 });
 test("右键菜单覆盖宿主按钮并复用字号与所有标题", async ({ page }) => {
   await createBlankDocument(page);
-  const content = page.locator(".ProseMirror");
+  const content = page.locator(".note-editor .editor-content > .ProseMirror:visible");
   await content.fill("first second");
   await select(page);
   await content.locator("p").click({ button: "right", position: { x: 12, y: 8 } });
@@ -67,7 +67,7 @@ for (const [label, selector] of [
   ["引用 (Ctrl+Shift+B)", "blockquote"], ["代码块 (Ctrl+Alt+C)", "pre"],
 ]) test(`选区命令实际修改正文：${label}`, async ({ page }) => {
   await createBlankDocument(page);
-  const content = page.locator(".ProseMirror");
+  const content = page.locator(".note-editor .editor-content > .ProseMirror:visible");
   await content.fill("first second");
   const hover = await select(page);
   await hover.getByRole("button", { name: label, exact: true }).click();
@@ -76,7 +76,7 @@ for (const [label, selector] of [
 
 test("选区菜单复制粘贴和链接图片入口可用", async ({ page }) => {
   await createBlankDocument(page);
-  const content = page.locator(".ProseMirror");
+  const content = page.locator(".note-editor .editor-content > .ProseMirror:visible");
   await content.fill("first second");
   await page.evaluate(() => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
@@ -102,7 +102,7 @@ test("选区菜单复制粘贴和链接图片入口可用", async ({ page }) => 
 
 test("右键各分组覆盖当前宿主工具栏命令及禁用状态", async ({ page }) => {
   await createBlankDocument(page);
-  const content = page.locator(".ProseMirror");
+  const content = page.locator(".note-editor .editor-content > .ProseMirror:visible");
   await content.fill("first second");
   await content.locator("p").click({ button: "right" });
   const expected = await page.locator(".editor-menu button").evaluateAll(buttons => buttons.filter(button => !button.closest(".menu-dropdown-list") && !button.hasAttribute("data-command-presentation-only")).map(button => ({
@@ -126,7 +126,7 @@ test("右键各分组覆盖当前宿主工具栏命令及禁用状态", async ({
 
 test("按钮按下期间宿主状态刷新不吞掉点击", async ({ page }) => {
   await createBlankDocument(page);
-  const content = page.locator(".ProseMirror");
+  const content = page.locator(".note-editor .editor-content > .ProseMirror:visible");
   await content.fill("first second");
   const hover = await select(page);
   const button = hover.getByRole("button", { name: "加粗 (Ctrl+B)", exact: true });
@@ -142,7 +142,7 @@ test("按钮按下期间宿主状态刷新不吞掉点击", async ({ page }) => 
 for (const [label, node] of [["插入 3×3 表格", "table"], ["插入流程块", "codeBlock"], ["水平分隔线", "horizontalRule"], ["块内换行", "hardBreak"]])
   test(`选区插入命令：${label}`, async ({ page }) => {
     await createBlankDocument(page);
-    const content = page.locator(".ProseMirror");
+    const content = page.locator(".note-editor .editor-content > .ProseMirror:visible");
     await content.fill("first second");
     const hover = await select(page);
     await hover.getByRole("button", { name: label, exact: true }).click();
@@ -151,7 +151,7 @@ for (const [label, node] of [["插入 3×3 表格", "table"], ["插入流程块"
 
 test("选区工具的撤销重做清除格式和正文转换", async ({ page }) => {
   await createBlankDocument(page);
-  const content = page.locator(".ProseMirror");
+  const content = page.locator(".note-editor .editor-content > .ProseMirror:visible");
   await content.fill("first second");
   let hover = await select(page);
   await hover.getByRole("button", { name: "加粗 (Ctrl+B)", exact: true }).click();
@@ -177,7 +177,7 @@ test("选区工具的撤销重做清除格式和正文转换", async ({ page }) 
 
 test("专注模式选区子菜单独立显示，颜色字号生效且宿主不占空间", async ({ page }) => {
   await createBlankDocument(page);
-  const content = page.locator(".ProseMirror");
+  const content = page.locator(".note-editor .editor-content > .ProseMirror:visible");
   await content.fill("first second");
   await page.getByRole("button", { name: "专注模式", exact: true }).click();
   const host = page.locator(".note-editor .editor-menu");
@@ -211,7 +211,7 @@ test("专注模式选区子菜单独立显示，颜色字号生效且宿主不�
 
 test("颜色字号和高亮组合保存后重开保持格式，继续编辑与撤销正常", async ({ page }) => {
   await createBlankDocument(page, "组合格式往返");
-  const content = page.locator(".ProseMirror");
+  const content = page.locator(".note-editor .editor-content > .ProseMirror:visible");
   await content.fill("first second");
   await content.evaluate(element => {
     const editor = (element as HTMLElement & { editor: Editor }).editor;

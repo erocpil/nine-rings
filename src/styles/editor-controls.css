@@ -1551,3 +1551,10 @@ html:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) .editor-sta
   .editor-status-bar .editor-status-item:is([data-status-item="characters"], [data-status-item="words"], [data-status-item="diagnostics"]) { display: none; }
   .editor-status-bar { gap: 6px; }
 }
+
+/* Adapt to the editor pane, including a narrow pane on a wide desktop. */
+.editor-status-bar { container: nr-status / inline-size; }
+@container nr-status (max-width: 320px) {
+  .editor-status-bar :is(.btn-debug-toggle, .btn-version-icon) > span { display: none; }
+  .editor-status-bar [data-status-item="block"] { max-width: 64px; overflow: hidden; text-overflow: ellipsis; }
+}

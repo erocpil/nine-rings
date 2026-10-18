@@ -27,12 +27,13 @@ for (const source of [false, true]) {
     await expect(list).toHaveAttribute("data-panel-display", "plugin");
     await expect(list.locator(".document-outline-level")).toHaveCount(0);
     await expect(panel.locator(".document-outline-count")).toHaveCount(0);
-    await panel.getByTitle("滚动至顶部", { exact: true }).click();
+    await panel.getByRole("button", { name: "全部展开", exact: true }).click();
+    await panel.getByRole("button", { name: "滚动至顶部", exact: true }).click();
     const row = list.locator('[data-outline-index="1"]');
     await expect(row.locator(".document-outline-text")).toHaveCSS("font-size", "18px");
     await expect(row).toHaveAttribute("title", "父章节 / 子章节 1");
     expect(await row.evaluate(el => el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(42);
-    await panel.getByTitle("滚动至底部", { exact: true }).click();
+    await panel.getByRole("button", { name: "滚动至底部", exact: true }).click();
     await expect(list.locator('[data-outline-index="139"]')).toBeVisible();
     expect(await list.locator(".document-outline-item").count()).toBeLessThan(80);
     await panel.getByRole("button", { name: "定位当前标题", exact: true }).click();

@@ -1098,7 +1098,7 @@ export function ReadonlyVirtualNote(
   };
   const toolbar = (
     <>
-      {!props.showLineNumbers && <button type="button" title="块级操作" aria-label="块级操作" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={event => event.preventDefault()} onClick={event => {
+      {!props.showLineNumbers && <button type="button" title="块级操作" aria-label="块级操作" data-title-block-menu="true" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={event => event.preventDefault()} onClick={event => {
         const currentPosition = copyPosition.current ?? capture().position;
         const resolved = doc.resolve(Math.max(0, Math.min(currentPosition, doc.content.size)));
         const index = Math.min(doc.childCount - 1, resolved.index(0));
@@ -1311,7 +1311,7 @@ export function ReadonlyVirtualNote(
   const tocContext = useMemo(() => ({ items: extractDocumentOutline(doc), navigate: navigateHeading }), [doc, navigateHeading]);
   return (
     <DocumentOutlineContext.Provider value={tocContext}>
-    {blockMenu && active && doc === blockMenu.doc && <BlockActionMenu key={blockMenu.position} title={`第 ${blockMenu.number} 块`} trigger={blockMenu.trigger} actions={blockMenuActions()} onClose={closeBlockMenu} />}
+    {blockMenu && active && doc === blockMenu.doc && <BlockActionMenu placement={blockMenu.trigger.hasAttribute("data-title-block-menu") ? "below" : "side"} key={blockMenu.position} title={`第 ${blockMenu.number} 块`} trigger={blockMenu.trigger} actions={blockMenuActions()} onClose={closeBlockMenu} />}
     <div
       className={`note-editor note-editor-readonly vr-note ${desktopPanelClass(desktopPanels, sections.length > 0)} ${props.cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${props.focusMode ? "focus-mode" : ""} ${props.showLineNumbers ? "show-line-numbers" : ""} ${props.highlightActiveLine ? "" : "no-active-line"}`}
       data-virtual-reader="true"
