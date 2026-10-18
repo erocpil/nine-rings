@@ -345,7 +345,7 @@
   border-radius: 7px;
   background: var(--surface);
 }
-.settings-content-page .hotkey-label { width: auto; font-size: 15px; }
+.settings-content-page .hotkey-label { width: auto; font-size: 13px; }
 .settings-content-page .hotkey-btn kbd,
 .settings-content-page .hotkey-fixed kbd { font-size: 14px; }
 .settings-content-page .hotkey-btn,
@@ -353,11 +353,40 @@
   min-height: 36px;
 }
 .settings-content-page .hotkey-reserved-note {
-  margin-bottom: 10px;
+  display: grid;
+  gap: 10px;
   padding: 12px;
   background: var(--settings-card-bg);
   border-radius: 8px;
   line-height: 1.65;
+}
+.settings-content-page .hotkey-note-web { margin: 0; }
+.settings-content-page .hotkey-note-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.settings-content-page .hotkey-note-card {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+}
+.settings-content-page .hotkey-note-card h4 {
+  margin: 0 0 5px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+.settings-content-page .hotkey-note-card p {
+  margin: 0;
+  color: var(--text);
+  font-size: 11px;
+}
+.settings-content-page .hotkey-note-card kbd {
+  font: 600 11px var(--font-mono, monospace);
+  color: var(--text);
 }
 .settings-content-page .settings-tag-list {
   display: grid;
@@ -487,6 +516,7 @@
     flex-wrap: wrap;
   }
   .settings-content-page .hotkey-groups { grid-template-columns: minmax(0, 1fr); }
+  .settings-content-page .hotkey-note-grid { grid-template-columns: minmax(0, 1fr); }
   .settings-content-page .hotkey-label {
     flex-basis: 100%;
   }

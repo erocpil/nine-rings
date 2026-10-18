@@ -568,9 +568,15 @@ test("内置快捷键按用途分组并在宽屏并列展示", async ({ page }) 
   await expect(groups.nth(0).getByText("聚焦搜索", { exact: true })).toBeVisible();
   await expect(groups.nth(0).getByText("打开设置", { exact: true })).toBeVisible();
   await expect(groups.nth(1).locator(".hotkey-group-title")).toHaveText("窗口控制");
+  const notes = page.locator(".hotkey-note-card");
+  const noteTitles = await notes.locator("h4").allTextContents();
+  expect(noteTitles).toEqual(expect.arrayContaining(["文档查找与跳转", "Vim 模式"]));
+  await expect(notes.first().locator("h4")).toHaveCSS("font-size", "11px");
+  await expect(notes.first().locator("p")).toHaveCSS("font-size", "11px");
+  expect(await page.locator(".hotkey-note-grid").evaluate(element => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(2);
   const columns = await page.locator(".hotkey-groups").evaluate(element => getComputedStyle(element).gridTemplateColumns.split(" ").length);
   expect(columns).toBe(2);
-  await expect(groups.nth(0).locator(".hotkey-label").first()).toHaveCSS("font-size", "15px");
+  await expect(groups.nth(0).locator(".hotkey-label").first()).toHaveCSS("font-size", "13px");
   await expect(groups.nth(0).locator(".hotkey-btn kbd").first()).toHaveCSS("font-size", "14px");
 });
 

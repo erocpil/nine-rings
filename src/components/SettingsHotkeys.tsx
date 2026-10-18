@@ -169,14 +169,25 @@ export function HotkeyConfig({
     <div className="hotkey-list">
       <div className="hotkey-reserved-note">
         {!isTauriRuntime() && (
-          <p>
+          <p className="hotkey-note-web">
             以下绑定用于 Tauri 桌面版，可随备份迁移。Web 版仍使用 Alt+E
             搜索、Alt+, 打开设置；无法用全局热键唤起浏览器窗口。
           </p>
         )}
-        Cmd+F、Alt+F：当前文档查找；Cmd+G / Ctrl+G、Alt+G：跳转行/块号；Vim Normal/Visual
-        会优先接管 Ctrl 导航键，格式快捷键只在 Insert 生效
-        {mac && <p>普通编辑及 Vim Insert 模式保留 macOS 的 Control 文本快捷键：Ctrl+F/B 前后移动，Ctrl+N/P 上下移动，Ctrl+A/E 到行首或行尾。应用操作使用 Command。</p>}
+        <div className="hotkey-note-grid">
+          <section className="hotkey-note-card">
+            <h4>文档查找与跳转</h4>
+            <p><kbd>Cmd+F / Alt+F</kbd> 查找当前文档；<kbd>Cmd+G / Ctrl+G / Alt+G</kbd> 跳转到行或块。</p>
+          </section>
+          <section className="hotkey-note-card">
+            <h4>Vim 模式</h4>
+            <p>Normal / Visual 模式优先接管 Ctrl 导航键；格式快捷键只在 Insert 模式生效。</p>
+          </section>
+          {mac && <section className="hotkey-note-card">
+            <h4>macOS 文本导航</h4>
+            <p>普通编辑及 Vim Insert 保留 Control 文本快捷键：<kbd>Ctrl+F/B</kbd> 前后移动，<kbd>Ctrl+N/P</kbd> 上下移动，<kbd>Ctrl+A/E</kbd> 到行首或行尾。应用操作使用 Command。</p>
+          </section>}
+        </div>
       </div>
       {recordingError && (
         <div className="hotkey-recording-error" role="status">
