@@ -450,10 +450,12 @@ test("桌面顶部菜单点击启用悬停切换，关闭后不再悬停打开�
   await page.getByRole("button", { name: "工作区风格", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("listbox")).toHaveCount(0);
-  await expect(page.locator('select[aria-label="工作区风格"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: "工作区风格", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "工作区配色", exact: true })).toBeVisible();
+  await expect(page.locator('select[aria-label="工作区风格"]')).toHaveCount(0);
 });
 
-test("工作区风格和配色下拉项选中后保持单行，窄屏截断而不换行", async ({ page }) => {
+test("工作区风格和配色选项完整显示，手机按钮留出间距且可直接切换弹层", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "nine-rings", interface_color_mode: "dark", workspace_layout: "exhibition" })));
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/");
@@ -470,14 +472,33 @@ test("工作区风格和配色下拉项选中后保持单行，窄屏截断而�
   for (const option of await page.getByRole("listbox", { name: "工作区风格" }).getByRole("option").all()) {
     await expect(option.locator("span")).toHaveCSS("white-space", "nowrap");
   }
+  expect(await page.getByRole("listbox", { name: "工作区风格" }).evaluate(element =>
+    [...element.querySelectorAll<HTMLElement>('[role="option"] > span')].every(span => span.scrollWidth <= span.clientWidth),
+  )).toBe(true);
   await page.keyboard.press("Escape");
+});
+
+test("手机展陈风格和配色按钮有间距，未选择时可直接切换弹层", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const mobileStyle = page.locator('select[aria-label="工作区风格"]');
-  await expect(mobileStyle).toBeVisible();
-  expect(await mobileStyle.evaluate(element => getComputedStyle(element).whiteSpace)).toBe("nowrap");
-  const mobilePalette = page.locator('select[aria-label="工作区配色"]');
-  await expect(mobilePalette).toBeVisible();
-  expect(await mobilePalette.evaluate(element => getComputedStyle(element).whiteSpace)).toBe("nowrap");
+  await page.addInitScript(() => {
+    localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "nine-rings", interface_color_mode: "dark", workspace_layout: "exhibition" }));
+    localStorage.setItem("nr:sidebarHidden", "true");
+  });
+  await page.goto("/");
+  const mobileStyle = page.getByRole("button", { name: "工作区风格", exact: true });
+  const mobilePalette = page.getByRole("button", { name: "工作区配色", exact: true });
+  await expect(mobileStyle).toBeEnabled();
+  const [styleBox, paletteBox] = await Promise.all([mobileStyle.boundingBox(), mobilePalette.boundingBox()]);
+  expect(paletteBox!.x - (styleBox!.x + styleBox!.width)).toBeGreaterThanOrEqual(10);
+  await mobileStyle.click();
+  await expect(page.getByRole("listbox", { name: "工作区风格" })).toBeVisible();
+  await mobilePalette.click();
+  await expect(page.getByRole("listbox", { name: "工作区风格" })).toHaveCount(0);
+  const palette = page.getByRole("listbox", { name: "工作区配色" });
+  await expect(palette).toBeVisible();
+  expect(await palette.evaluate(element =>
+    [...element.querySelectorAll<HTMLElement>('[role="option"] > span')].every(span => span.scrollWidth <= span.clientWidth),
+  )).toBe(true);
 });
 
 

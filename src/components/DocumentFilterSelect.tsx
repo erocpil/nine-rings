@@ -44,9 +44,13 @@ export function DocumentFilterSelect({ label, text, icon, disabled = false, clas
     const context = canvas.getContext("2d");
     const labels = [...popup.querySelectorAll<HTMLElement>("[role=option] > span")];
     const labelWidth = Math.max(0, ...labels.map(label => {
+      const style = getComputedStyle(label);
       if (!context) return label.scrollWidth;
-      context.font = getComputedStyle(label.parentElement!).font;
-      return context.measureText(label.textContent ?? "").width;
+      // Construct the canvas font from resolved longhands. The shorthand can
+      // still contain var(--font) in some WebKit versions, which silently
+      // leaves the canvas at its tiny default and clips the option text.
+      context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      return Math.max(context.measureText(label.textContent ?? "").width, label.scrollWidth);
     }));
     // Width: 2 × horizontal button padding, icon gap/reservation and popup
     // chrome. Measuring labels avoids the 100%-wide flex child expanding the

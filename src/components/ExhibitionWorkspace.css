@@ -233,7 +233,8 @@
     max-width: 36vw;
   }
   .exhibition-appearance {
-    gap: 2px;
+    gap: 12px;
+    min-width: 0;
   }
   .exhibition-appearance select {
     max-width: 92px;

@@ -205,20 +205,16 @@ export function ExhibitionWorkspace(props: Props) {
     </button>
   );
   useEffect(() => {
-    if (busy || blocked || !active || !props.desktop) setOpenAppearance(null);
-  }, [busy, blocked, active, props.desktop]);
+    if (busy || blocked || !active) setOpenAppearance(null);
+  }, [busy, blocked, active]);
   const choose = (label: string, value: string, options: { value: string; label: string }[], patch: (value: string) => Partial<AppConfig>) =>
-    props.desktop ? <DocumentFilterSelect key={label} label={label}
+    <DocumentFilterSelect key={label} label={label}
       text={options.find(option => option.value === value)?.label ?? value}
       className="exhibition-select" value={value} options={options} disabled={busy || blocked}
       open={openAppearance === label && !busy && !blocked}
       onOpenChange={open => setOpenAppearance(current => open ? label : current === label ? null : current)}
       onHover={() => setOpenAppearance(current => current === null ? null : label)}
-      onChange={value => void run(() => props.onAppearance(patch(value)))} />
-    : <label key={label}><select aria-label={label} disabled={busy || blocked} value={value}
-        onChange={event => void run(() => props.onAppearance(patch(event.target.value)))}>
-        {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select></label>;
+      onChange={value => void run(() => props.onAppearance(patch(value)))} />;
   const appearance = (
     <div className="exhibition-appearance">
       {choose("工作区风格", config?.interface_style === "calm-compact" ? "calm" : config?.interface_style ?? "calm",

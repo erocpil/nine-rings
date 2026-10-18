@@ -1,6 +1,13 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-19",
+    title: "移动端风格选择",
+    changes: [
+      "展陈工作区风格与配色按钮在手机上增加间距，并改用可直接切换的应用内弹层；选项完整显示，同时为选中标记保留空间。",
+    ],
+  },
+  {
     date: "2026-10-18",
     title: "声明式扩展与编号展示",
     changes: [
