@@ -4,8 +4,8 @@ import type { SyntaxNode } from "@lezer/common";
 
 export type SourceInlineFormat = "bold" | "italic" | "strike" | "code";
 const inlineNodes: Record<SourceInlineFormat, string> = { bold: "StrongEmphasis", italic: "Emphasis", strike: "Strikethrough", code: "InlineCode" };
-const blockNodes: Record<string, string> = { quote: "Blockquote", bullet: "BulletList", ordered: "OrderedList", todo: "Task", codeblock: "FencedCode", paragraph: "Paragraph" };
-export type SourceFormats = Record<SourceInlineFormat | "quote" | "bullet" | "ordered" | "todo" | "codeblock" | "paragraph" | `h${1 | 2 | 3 | 4 | 5 | 6}`, boolean>;
+const blockNodes: Record<string, string> = { quote: "Blockquote", bullet: "BulletList", ordered: "OrderedList", todo: "Task", codeblock: "FencedCode", paragraph: "Paragraph", link: "Link", table: "Table", rule: "HorizontalRule" };
+export type SourceFormats = Record<SourceInlineFormat | "quote" | "bullet" | "ordered" | "todo" | "codeblock" | "paragraph" | "link" | "table" | "rule" | `h${1 | 2 | 3 | 4 | 5 | 6}`, boolean>;
 export const emptySourceFormats = (): SourceFormats => Object.fromEntries([
   ...Object.keys(inlineNodes), ...Object.keys(blockNodes), ...Array.from({ length: 6 }, (_, i) => `h${i + 1}`),
 ].map(key => [key, false])) as SourceFormats;
@@ -43,6 +43,7 @@ export function sourceFormats(state: EditorState): SourceFormats {
   tree.iterate({ from: range.from, to: range.to, enter(ref) {
     for (const [kind, name] of Object.entries(names)) {
       if (ref.name !== name && !(kind === "codeblock" && ref.name === "CodeBlock")
+        && !(kind === "link" && ref.name === "Autolink")
         && !(kind === "h1" && ref.name === "SetextHeading1") && !(kind === "h2" && ref.name === "SetextHeading2")) continue;
       let from = ref.from, to = ref.to;
       if (range.empty && kind in inlineNodes) {
@@ -65,12 +66,12 @@ export function sourceFormats(state: EditorState): SourceFormats {
       if (span.from > covered) {
         // Newline separators are not part of block nodes; allow blank gaps for
         // structural formats, while inline text must be entirely marked.
-        if (kind in inlineNodes || state.sliceDoc(covered, span.from).trim()) break;
+        if (kind in inlineNodes || kind === "link" || state.sliceDoc(covered, span.from).trim()) break;
       }
       covered = Math.max(covered, span.to);
       if (covered >= range.to) break;
     }
-    formats[kind as keyof SourceFormats] = covered >= range.to || (!(kind in inlineNodes) && covered > range.from && !state.sliceDoc(covered, range.to).trim());
+    formats[kind as keyof SourceFormats] = covered >= range.to || (!(kind in inlineNodes) && kind !== "link" && covered > range.from && !state.sliceDoc(covered, range.to).trim());
   }
   if (formats.todo) formats.bullet = formats.ordered = false;
   return formats;

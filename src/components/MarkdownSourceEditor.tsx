@@ -498,8 +498,8 @@ export function MarkdownSourceEditor({
         <button
           type="button"
           title={shortcutTitle("format.bold", "加粗")}
-          aria-label="加粗"
-          disabled={editingReadonly}
+          aria-label="加粗" aria-pressed={formats.bold} className={formats.bold ? "active" : undefined}
+          disabled={editingReadonly || formats.codeblock || formats.code}
           onClick={() => run((v) => wrapSelection(v, "**"))}
         >
           <ToolbarIcon name="bold" />
@@ -507,19 +507,19 @@ export function MarkdownSourceEditor({
         <button
           type="button"
           title={shortcutTitle("format.code", "行内代码")}
-          aria-label="行内代码"
-          disabled={editingReadonly}
+          aria-label="行内代码" aria-pressed={formats.code} className={formats.code ? "active" : undefined}
+          disabled={editingReadonly || formats.codeblock}
           onClick={() => run((v) => wrapSelection(v, "`"))}
         >
           <ToolbarIcon name="code" />
         </button>
-        <button type="button" title={shortcutTitle("format.italic", "斜体")} aria-label="斜体" disabled={editingReadonly} onClick={() => run(v => wrapSelection(v, "*"))}><ToolbarIcon name="italic" /></button>
-        <button type="button" title={shortcutTitle("format.strike", "删除线")} aria-label="删除线" disabled={editingReadonly} onClick={() => run(v => wrapSelection(v, "~~"))}><ToolbarIcon name="strike" /></button>
+        <button type="button" title={shortcutTitle("format.italic", "斜体")} aria-label="斜体" aria-pressed={formats.italic} className={formats.italic ? "active" : undefined} disabled={editingReadonly || formats.codeblock || formats.code} onClick={() => run(v => wrapSelection(v, "*"))}><ToolbarIcon name="italic" /></button>
+        <button type="button" title={shortcutTitle("format.strike", "删除线")} aria-label="删除线" aria-pressed={formats.strike} className={formats.strike ? "active" : undefined} disabled={editingReadonly || formats.codeblock || formats.code} onClick={() => run(v => wrapSelection(v, "~~"))}><ToolbarIcon name="strike" /></button>
         <button
           type="button"
           title={shortcutTitle("format.link", "链接")}
-          aria-label="链接"
-          disabled={editingReadonly}
+          aria-label="链接" aria-pressed={formats.link} className={formats.link ? "active" : undefined}
+          disabled={editingReadonly || formats.codeblock || formats.code}
           onClick={() => run((v) => wrapSelection(v, "[", "](https://)"))}
         >
           <ToolbarIcon name="link" />
@@ -527,7 +527,7 @@ export function MarkdownSourceEditor({
         {([
           ["引用", "quote", "quote"], ["无序列表", "bullet", "bullet"],
           ["有序列表", "ordered", "ordered"], ["待办列表", "task", "check"],
-        ] as const).map(([label, format, icon]) => <button key={format} type="button" title={shortcutTitle(`format.${format === "task" ? "todo" : format}`, label)} aria-label={label} disabled={editingReadonly} onClick={() => run(v => {
+        ] as const).map(([label, format, icon]) => <button key={format} type="button" title={shortcutTitle(`format.${format === "task" ? "todo" : format}`, label)} aria-label={label} aria-pressed={formats[format === "task" ? "todo" : format]} className={formats[format === "task" ? "todo" : format] ? "active" : undefined} disabled={editingReadonly || formats.codeblock} onClick={() => run(v => {
           if (v.composing) return false;
           const spec = formatSourceLines(v.state, format);
           if (!spec) return false;
@@ -535,7 +535,7 @@ export function MarkdownSourceEditor({
         })}><ToolbarIcon name={icon} /></button>)}
         {([
           ["代码块", "code", "codeBlock"], ["表格", "table", "table"], ["分隔线", "rule", "minus"],
-        ] as const).map(([label, kind, icon]) => <button key={kind} type="button" title={kind === "code" ? shortcutTitle("format.codeblock", label) : label} aria-label={label} disabled={editingReadonly} onClick={() => run(v => {
+        ] as const).map(([label, kind, icon]) => <button key={kind} type="button" title={kind === "code" ? shortcutTitle("format.codeblock", label) : label} aria-label={label} aria-pressed={formats[kind === "code" ? "codeblock" : kind]} className={formats[kind === "code" ? "codeblock" : kind] ? "active" : undefined} disabled={editingReadonly} onClick={() => run(v => {
           if (v.composing) return false;
           const spec = insertSourceBlock(v.state, kind);
           if (!spec) return false;

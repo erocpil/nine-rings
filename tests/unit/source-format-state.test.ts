@@ -34,6 +34,19 @@ describe("source format recognition", () => {
       ).toBe(false);
     },
   );
+  it("recognizes links, tables and rules without leaking link state into mixed selections", () => {
+    expect(sourceFormats(state("[site](https://example.com)", 2)).link).toBe(
+      true,
+    );
+    expect(sourceFormats(state("<https://example.com>", 5)).link).toBe(true);
+    expect(
+      sourceFormats(state("[site](https://example.com) plain", 1, 31)).link,
+    ).toBe(false);
+    expect(
+      sourceFormats(state("| A | B |\n|---|---|\n| a | b |", 25)).table,
+    ).toBe(true);
+    expect(sourceFormats(state("---", 1)).rule).toBe(true);
+  });
   it("does not mark escaped delimiters, incomplete markup or code literals", () => {
     expect(sourceFormats(state("\\*\\*literal\\*\\*", 6)).bold).toBe(false);
     expect(sourceFormats(state("**incomplete", 5)).bold).toBe(false);
