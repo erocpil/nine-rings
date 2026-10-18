@@ -68,6 +68,9 @@ test("阅读展示组合包可审查安装、重启恢复、停用和卸载", as
   await expect(installed.getByText("启用", { exact: true })).toBeVisible();
   await enabled.check();
   await expect(installed.getByText("停用", { exact: true })).toBeVisible();
+  const packageItem = installed.locator("li").filter({ hasText: "erocpil.reading-display" });
+  await expect(packageItem.getByRole("status")).toHaveText("已启用");
+  await expect(installed.locator(":scope > p[role='status']")).toHaveCount(0);
   await expect.poll(() => installed.textContent()).toContain("运行中");
   await expect(installed).not.toContainText("已启用，正在核验资源");
   await expect(page.getByRole("checkbox", { name: "启用编号展示", exact: true })).toBeDisabled();
@@ -87,6 +90,7 @@ test("阅读展示组合包可审查安装、重启恢复、停用和卸载", as
   await expect(page.getByRole("group", { name: "源码状态栏", exact: true })).toHaveAttribute("data-status-display", "plugin");
   await open();
   await enabled.uncheck();
+  await expect(packageItem.getByRole("status")).toHaveText("已停用");
   await expect(page.getByRole("checkbox", { name: "启用编号展示", exact: true })).toBeEnabled();
   await expect(page.getByRole("checkbox", { name: "启用状态栏展示", exact: true })).toBeEnabled();
   await expect(page.locator("html")).not.toHaveAttribute("data-numbering-blocks");

@@ -71,6 +71,9 @@
 .plugin-package-digest { overflow-wrap: anywhere; font-size: 12px; }
 .settings-installed-packages .settings-btn { margin: 4px 6px 4px 0; }
 .installed-package-runtime-state { margin-inline-start: 8px; color: var(--text-secondary); }
+.installed-package-feedback { margin: 3px 0 8px; font-size: 12px; line-height: 1.4; }
+.installed-package-feedback.success { color: var(--success, var(--text-secondary)); }
+.installed-package-feedback.error { color: var(--danger, #b42318); }
 .plugin-review-list { margin: 12px 0; padding-inline-start: 1.35em; list-style-position: inside; }
 .plugin-review-list li { padding-inline-start: .15em; }
 .plugin-review-consent { display: flex; align-items: flex-start; gap: 9px; width: 100%; margin: 14px 0 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--settings-input-bg); color: var(--text); font: inherit; line-height: 1.5; text-align: left; cursor: pointer; }

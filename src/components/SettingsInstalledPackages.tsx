@@ -187,10 +187,12 @@ function PackageConfirmation({
 export function SettingsInstalledPackages() {
   const [records, setRecords] = useState<InstalledPluginPackage[]>([]),
     [candidate, setCandidate] = useState<ValidatedPluginPackage | null>(null);
+  const [packageFeedback, setPackageFeedback] = useState<Record<string, { text: string; kind: "success" | "error" }>>({});
   const [expanded, setExpanded] = useState(true);
   const [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const feedbackTimers = useRef(new Map<string, number>());
   const resources = useSyncExternalStore(
     themeResources.subscribe,
     themeResources.getSnapshot,
@@ -220,6 +222,50 @@ export function SettingsInstalledPackages() {
       unsubscribe();
     };
   }, []);
+  useEffect(() => () => {
+    feedbackTimers.current.forEach(timer => window.clearTimeout(timer));
+    feedbackTimers.current.clear();
+  }, []);
+  const showPackageFeedback = (id: string, text: string, kind: "success" | "error") => {
+    const oldTimer = feedbackTimers.current.get(id);
+    if (oldTimer !== undefined) window.clearTimeout(oldTimer);
+    const feedback = { text, kind } as const;
+    setPackageFeedback(current => ({ ...current, [id]: feedback }));
+    if (kind === "success") {
+      const timer = window.setTimeout(() => {
+        feedbackTimers.current.delete(id);
+        setPackageFeedback(current => {
+          if (current[id] !== feedback) return current;
+          const next = { ...current };
+          delete next[id];
+          return next;
+        });
+      }, 3000);
+      feedbackTimers.current.set(id, timer);
+    } else {
+      feedbackTimers.current.delete(id);
+    }
+  };
+  const togglePackage = async (record: InstalledPluginPackage, enabled: boolean) => {
+    setBusy(true);
+    setMessage("");
+    setPackageFeedback(current => {
+      const next = { ...current };
+      delete next[record.id];
+      return next;
+    });
+    setRecords(current => current.map(value => value.id === record.id ? { ...value, enabled } : value));
+    try {
+      await setPluginPackageEnabled(record, enabled);
+      showPackageFeedback(record.id, enabled ? "已启用" : "已停用", "success");
+    } catch (reason) {
+      showPackageFeedback(record.id, `${enabled ? "启用" : "停用"}失败：${reason instanceof Error ? reason.message : "操作失败"}`, "error");
+    } finally {
+      try { setRecords(await listPluginPackages()); }
+      catch { /* Preserve the operation result beside this package. */ }
+      setBusy(false);
+    }
+  };
   const run = async (operation: () => Promise<void>, success: string) => {
     setBusy(true);
     try {
@@ -304,17 +350,7 @@ export function SettingsInstalledPackages() {
                   disabled={busy || record.trustedDigest !== record.digest}
                   onChange={(event) => {
                     const checked = event.target.checked;
-                    setRecords((current) =>
-                      current.map((value) =>
-                        value.id === record.id
-                          ? { ...value, enabled: checked }
-                          : value,
-                      ),
-                    );
-                    void run(
-                      () => setPluginPackageEnabled(record, checked),
-                      checked ? "已启用" : "已停用",
-                    );
+                    void togglePackage(record, checked);
                   }}
                 />
                 {record.enabled ? "停用" : "启用"}
@@ -337,6 +373,10 @@ export function SettingsInstalledPackages() {
                   : "已停用"}
               </span>
             </p>
+            {packageFeedback[record.id] && <p
+              className={`installed-package-feedback ${packageFeedback[record.id].kind}`}
+              role={packageFeedback[record.id].kind === "error" ? "alert" : "status"}
+            >{packageFeedback[record.id].text}</p>}
             {record.enabled &&
               resources
                 .filter((theme) => theme.id.startsWith(record.id + "/"))
