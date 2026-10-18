@@ -47,6 +47,9 @@ export function SearchBar({ initialQuery, onQueryChange, inputRef, onSearch, onD
   const [conceptInput, setConceptInput] = useState(initialQuery?.concept ?? "");
   const [conceptFilter, setConceptFilter] = useState(initialQuery?.concept ?? "");
   useEffect(() => {
+    inputRef?.current?.focus({ preventScroll: true });
+  }, [inputRef]);
+  useEffect(() => {
     onQueryChange?.({ text: value, storagePath: pathFilter || undefined, docType: typeFilter || undefined, concept: conceptFilter || undefined, options });
   }, [value, pathFilter, typeFilter, conceptFilter, options, onQueryChange]);
   const [conceptSuggestions, setConceptSuggestions] = useState<string[]>([]);

@@ -52,7 +52,6 @@ import { WorkspacePanelHeading } from "./components/WorkspacePanelHeading";
 import { WorkspaceDialog } from "./components/WorkspaceDialog";
 import { PasswordRequestCancelled } from "./lib/password-request";
 import "./components/ReadingLibrary.css";
-import { SearchBar } from "./components/SearchBar";
 import { UndoToast } from "./components/UndoToast";
 import type { UndoState } from "./components/UndoToast";
 import { useSearch } from "./hooks/useSearch";
@@ -115,6 +114,7 @@ const PropertiesPanel = lazy(() => import("./components/PropertiesPanel"));
 const FolderPropertiesPanel = lazy(() => import("./components/FolderPropertiesPanel"));
 const DocCreateDialog = lazy(() => import("./components/DocCreateDialog"));
 const QuickSwitcher = lazy(() => import("./components/QuickSwitcher"));
+const SearchBar = lazy(() => import("./components/SearchBar").then(module => ({ default: module.SearchBar })));
 const PdfReader = lazy(() => import("./components/PdfReader"));
 const ReadingLibrary = lazy(() => import("./components/ReadingLibrary"));
 const EpubReader = lazy(() => import("./components/EpubReader"));
@@ -2217,9 +2217,11 @@ function App() {
     </ExhibitionWorkspace>
     {mobileReadingLibraryPanel}
     {searchExpanded && <WorkspaceDialog title="全局搜索" onClose={dismissSearchResults} initialFocusRef={headerSearchInputRef} restoreFocusRef={globalSearchRestoreFocusRef}>
-      <SearchBar inputRef={headerSearchInputRef} cancelRequestId={searchCancelRequestId}
-        initialQuery={globalSearchQueryRef.current} onQueryChange={query => { globalSearchQueryRef.current = query; }}
-        onSearch={search} onDocSearch={handleDocSearch} onEscape={dismissSearchResults} />
+      <Suspense fallback={<div className="workspace-dialog-empty" role="status">正在加载搜索…</div>}>
+        <SearchBar inputRef={headerSearchInputRef} cancelRequestId={searchCancelRequestId}
+          initialQuery={globalSearchQueryRef.current} onQueryChange={query => { globalSearchQueryRef.current = query; }}
+          onSearch={search} onDocSearch={handleDocSearch} onEscape={dismissSearchResults} />
+      </Suspense>
       {(searchError || docSearchError) && <p className="search-pattern-error" role="alert">{searchError || docSearchError}</p>}
       {query || docResults ? <SearchResultsPanel notes={docResults ?? results.notes}
         searchTerm={docResults ? docSearchText : query} options={globalSearchQueryRef.current.options} searching={docSearching} onClose={dismissSearchResults}
