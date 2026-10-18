@@ -39,8 +39,22 @@ export function DocumentFilterSelect({ label, text, icon, disabled = false, clas
     const top = (viewport?.offsetTop ?? 0) + 8;
     const right = left + (viewport?.width ?? innerWidth) - 16;
     const bottom = top + (viewport?.height ?? innerHeight) - 16;
-    popup.style.maxWidth = `${right - left}px`;
-    popup.style.minWidth = `${Math.min(rect.width, right - left)}px`;
+    const maxWidth = right - left;
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    const labels = [...popup.querySelectorAll<HTMLElement>("[role=option] > span")];
+    const labelWidth = Math.max(0, ...labels.map(label => {
+      if (!context) return label.scrollWidth;
+      context.font = getComputedStyle(label.parentElement!).font;
+      return context.measureText(label.textContent ?? "").width;
+    }));
+    // Width: 2 × horizontal button padding, icon gap/reservation and popup
+    // chrome. Measuring labels avoids the 100%-wide flex child expanding the
+    // intrinsic width to the available screen width.
+    const contentWidth = Math.ceil(labelWidth + 20 + 12 + 16 + 10);
+    popup.style.width = `${Math.min(maxWidth, Math.max(rect.width, contentWidth))}px`;
+    popup.style.maxWidth = `${maxWidth}px`;
+    popup.style.minWidth = `${Math.min(rect.width, maxWidth)}px`;
     const below = Math.max(0, bottom - rect.bottom - 4);
     const above = Math.max(0, rect.top - top - 4);
     const placeAbove = below < Math.min(240, popup.scrollHeight) && above > below;
@@ -57,7 +71,12 @@ export function DocumentFilterSelect({ label, text, icon, disabled = false, clas
   useEffect(() => {
     if (!open) return;
     const outside = (event: Event) => {
-      if (event.target instanceof Node && !trigger.current?.contains(event.target) && !menu.current?.contains(event.target)) {
+      const target = event.target;
+      // A neighboring selector owns the click that switches menus. Let its
+      // click handler replace the active menu instead of closing this one in
+      // the capture phase and risking a stale toggle on the same pointer tap.
+      const selector = target instanceof Element && target.closest(".document-browser-filter-control");
+      if (target instanceof Node && !trigger.current?.contains(target) && !menu.current?.contains(target) && !selector) {
         handlers.current.onOpenChange(false);
       }
     };
