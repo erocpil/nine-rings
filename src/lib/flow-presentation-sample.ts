@@ -1,4 +1,4 @@
-import { BUILTIN_DEMO_PATH, finishBuiltinDemoCreation } from "./builtin-demo-location";
+import { BUILTIN_DEMO_PATH, finishBuiltinDemoCreation, isBuiltinDemoPath } from "./builtin-demo-location";
 import legacyMarkdown from "./flow-presentation-sample-v1.md?raw";
 import { deltaToProseMirror } from "./delta-converter";
 import markdown from "./flow-presentation-sample.md?raw";
@@ -18,7 +18,7 @@ export function ensureFlowPresentationSample(): Promise<boolean> {
     const documents = await api.docs.search({});
     const existing = documents.find(
       (note) =>
-        (note.storagePath === "demo" || note.storagePath === BUILTIN_DEMO_PATH) && note.title === FLOW_SAMPLE_TITLE,
+        isBuiltinDemoPath(note.storagePath) && note.title === FLOW_SAMPLE_TITLE,
     );
     if (existing) {
       const current = await api.notes.get(existing.id);

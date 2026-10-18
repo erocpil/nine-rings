@@ -1,12 +1,17 @@
 import { api } from "./api";
 
-export const BUILTIN_DEMO_PATH = "ideas";
-const migrated = (id: string) => `nr:builtin-demo-location:v2:${id}`;
+export const BUILTIN_DEMO_PATH = "ideas/demo";
+const migrated = (id: string) => `nr:builtin-demo-location:v3:${id}`;
+const LEGACY_DEMO_PATHS = new Set(["demo", "ideas"]);
 const demos = [
   ["nr:builtin-aesthetic-sample:v1", "物哀、幽玄与侘寂：风格设计与验证"],
   ["nr:builtin-flow-sample:v2", "流程展示：从想法到可执行方案"],
   ["nr:builtin-markdown-demo:v1", "Markdown 全景：GFM、GitHub 与 Nine Rings"],
 ] as const;
+
+export function isBuiltinDemoPath(path: string | undefined): boolean {
+  return path === BUILTIN_DEMO_PATH || (path !== undefined && LEGACY_DEMO_PATHS.has(path));
+}
 
 /** Run before publishing the seed marker; failed readonly writes remain retryable. */
 export async function finishBuiltinDemoCreation(id: string): Promise<void> {
@@ -25,7 +30,7 @@ export async function migrateBuiltinDemoLocations(): Promise<boolean> {
       note &&
       !note.deleted_at &&
       note.title === title &&
-      note.storagePath === "demo"
+      LEGACY_DEMO_PATHS.has(note.storagePath ?? "")
     ) {
       await api.notes.update(id, { storagePath: BUILTIN_DEMO_PATH });
       changed = true;

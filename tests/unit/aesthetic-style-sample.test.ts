@@ -36,7 +36,7 @@ test("concurrent startup adds one readonly demo sample and leaves edited or dele
   expect(mocks.create).toHaveBeenCalledTimes(1);
   expect(mocks.create.mock.calls[0][0]).toMatchObject({
     title: AESTHETIC_SAMPLE_TITLE,
-    storagePath: "ideas",
+    storagePath: "ideas/demo",
   });
   expect(JSON.stringify(mocks.create.mock.calls[0][0].content)).toContain(
     "幽玄",

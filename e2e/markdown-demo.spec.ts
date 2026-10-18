@@ -159,7 +159,7 @@ for (const showNumbers of [undefined, false, true]) test(`已有 Markdown 全景
   expect((await sourceInfo(area)).value).toContain("````flow\n### 捕捉");
 });
 
-test("旧 demo 示例迁回 ideas，保留三份原文与身份及只读状态", async ({ page }) => {
+test("旧 demo 示例迁入 ideas/demo，保留三份原文与身份及只读状态", async ({ page }) => {
   await page.goto("/");
   await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:builtin-markdown-demo:v1"))).not.toBeNull();
   const before = await page.evaluate(async () => {
@@ -169,7 +169,7 @@ test("旧 demo 示例迁回 ideas，保留三份原文与身份及只读状态",
     for (const key of keys) {
       const id = localStorage.getItem(key)!;
       const note = await api.notes.update(id, { storagePath: "demo", readonly: true });
-      localStorage.removeItem(`nr:builtin-demo-location:v2:${id}`);
+      localStorage.removeItem(`nr:builtin-demo-location:v3:${id}`);
       saved.push({ id, content: note.content });
     }
     return saved;
@@ -179,7 +179,7 @@ test("旧 demo 示例迁回 ideas，保留三份原文与身份及只读状态",
     const { api } = await import("/src/lib/api.ts");
     return Promise.all(before.map(async previous => {
       const note = await api.notes.get(previous.id);
-      return !!note && note.readonly && note.storagePath === "ideas" && JSON.stringify(note.content) === JSON.stringify(previous.content);
+      return !!note && note.readonly && note.storagePath === "ideas/demo" && JSON.stringify(note.content) === JSON.stringify(previous.content);
     }));
   }, before)).toEqual([true, true, true]);
 });
