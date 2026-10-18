@@ -19,6 +19,11 @@ import {
 import { pluginRuntime } from "../../src/lib/plugin-system/runtime";
 import { themeResources } from "../../src/lib/plugin-system/theme-resources";
 import { startInstalledPluginPackages } from "../../src/lib/plugin-system/installed-packages";
+import { pluginLifecycle } from "../../src/lib/plugin-system/lifecycle";
+import { NUMBERING_PLUGIN_ID, DEFAULT_NUMBERING_DISPLAYS } from "../../src/lib/plugin-system/builtin-numbering-display";
+import { DEFAULT_STATUS_DISPLAY, statusDisplays } from "../../src/lib/plugin-system/status-display";
+import { STATUS_PLUGIN_ID } from "../../src/lib/plugin-system/builtin-status-display";
+import { numberingDisplays } from "../../src/lib/plugin-system/numbering-display";
 
 export async function packageFiles(
   version = "1.0.0",
@@ -251,6 +256,39 @@ it("activates only verified trusted resources, revokes on disable/global stop an
   await vi.waitFor(() =>
     expect(themeResources.get("acme.palette/paper")).toBeNull(),
   );
+});
+
+it("lets an enabled declarative reading-display package take over active built-in displays", async () => {
+  const { readFileSync } = await import("node:fs");
+  const manifest = JSON.parse(
+    readFileSync("schema/plugin/examples/erocpil.reading-display/manifest.json", "utf8"),
+  );
+  manifest.integrity = { algorithm: "sha256", files: {} };
+  const files = { "manifest.json": strToU8(JSON.stringify(manifest)) };
+  const reading = await validatePluginPackage(files);
+  await installPluginPackage(reading, null, true);
+  pluginRuntime.setEnabled(true);
+  await pluginLifecycle.activate(NUMBERING_PLUGIN_ID, [], {
+    activate(owner) {
+      numberingDisplays.register(owner.activation, DEFAULT_NUMBERING_DISPLAYS);
+    },
+  });
+  await pluginLifecycle.activate(STATUS_PLUGIN_ID, [], {
+    activate(owner) {
+      statusDisplays.register(owner.activation, DEFAULT_STATUS_DISPLAY);
+    },
+  });
+  stop = startInstalledPluginPackages();
+  await setPluginPackageEnabled((await listPluginPackages())[0], true);
+  await vi.waitFor(() =>
+    expect(pluginRuntime.getStatus().activations.some((entry) => entry.pluginId === reading.id)).toBe(true),
+  );
+  const activeIds = pluginRuntime.getStatus().activations.map((entry) => entry.pluginId);
+  expect(activeIds).toContain(reading.id);
+  expect(activeIds).not.toContain(NUMBERING_PLUGIN_ID);
+  expect(activeIds).not.toContain(STATUS_PLUGIN_ID);
+  expect(statusDisplays.getSnapshot()?.fontSize).toBe(12);
+  expect(numberingDisplays.getSnapshot().blocks?.fontSize).toBe(13);
 });
 
 it("rejects stored byte tampering on the next activation even if enabled/trust metadata was restored", async () => {

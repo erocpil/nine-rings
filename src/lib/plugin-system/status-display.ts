@@ -120,6 +120,9 @@ class StatusDisplayRegistry {
   private owner: PluginActivation | null = null;
   private listeners = new Set<() => void>();
   getSnapshot = () => this.value;
+  getOwner() {
+    return this.owner?.pluginId ?? null;
+  }
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => {

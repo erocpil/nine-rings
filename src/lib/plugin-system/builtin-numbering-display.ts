@@ -109,6 +109,13 @@ export function startBuiltinNumberingDisplay() {
           return;
         const preference = readNumberingPreference();
         if (!preference.enabled) return;
+        if (
+          (["blocks", "source"] as const).some((target) => {
+            const owner = numberingDisplays.getOwner(target);
+            return owner !== null && owner !== NUMBERING_PLUGIN_ID;
+          })
+        )
+          return;
         const owner = await pluginLifecycle.activate(NUMBERING_PLUGIN_ID, [], {
           activate: (scope) => {
             numberingDisplays.register(scope.activation, preference.displays);

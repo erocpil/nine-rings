@@ -183,6 +183,9 @@ class NumberingDisplayRegistry {
   > = Object.freeze({});
   private listeners = new Set<() => void>();
   getSnapshot = () => this.snapshot;
+  getOwner(target: NumberingTarget) {
+    return this.values.get(target)?.owner.pluginId ?? null;
+  }
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => {

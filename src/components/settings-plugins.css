@@ -5,7 +5,11 @@
 .settings-content-page[data-settings-page="advanced"] .settings-advanced-main.has-plugin-catalog { grid-column: 1; grid-template-columns: minmax(0, 1fr); }
 .settings-advanced-main > :is(.settings-field, .settings-section) { margin: 0; padding: 20px; min-width: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--settings-input-bg); }
 .settings-plugin-catalog { grid-column: 2; grid-row: 1; min-width: 0; align-self: start; position: sticky; top: 0; padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--settings-input-bg); }
-.settings-plugin-catalog h3 { margin: 0 0 8px; color: var(--text); font-size: 16px; }
+.plugin-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.plugin-section-heading h3 { margin: 0; color: var(--text); font-size: 16px; }
+.plugin-section-collapse { display: grid; place-items: center; flex: none; width: 30px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--text-secondary); font: inherit; cursor: pointer; }
+.plugin-section-collapse:hover { background: var(--active-bg); color: var(--text); }
+.plugin-section-collapse:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .settings-plugin-catalog ul { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 12px; }
 .settings-plugin-catalog li { padding-block: 12px; border-top: 1px solid var(--border); }
 .settings-plugin-summary { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; }
@@ -66,6 +70,13 @@
 .settings-installed-packages { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
 .plugin-package-digest { overflow-wrap: anywhere; font-size: 12px; }
 .settings-installed-packages .settings-btn { margin: 4px 6px 4px 0; }
+.plugin-review-list { margin: 12px 0; padding-inline-start: 1.35em; list-style-position: inside; }
+.plugin-review-list li { padding-inline-start: .15em; }
+.plugin-review-consent { display: flex; align-items: flex-start; gap: 9px; width: 100%; margin: 14px 0 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--settings-input-bg); color: var(--text); font: inherit; line-height: 1.5; text-align: left; cursor: pointer; }
+.plugin-review-consent > span { flex: none; width: 1.3em; color: var(--text-secondary); font-weight: 700; text-align: center; }
+.plugin-review-consent.confirmed { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--settings-input-bg)); }
+.plugin-review-consent.confirmed > span { color: var(--accent); }
+.plugin-review-consent:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Keep pointer-driven dialog transitions quiet; keyboard focus remains visible. */
 .settings-plugin-name[data-pointer-focus="true"]:focus-visible { outline: none; }

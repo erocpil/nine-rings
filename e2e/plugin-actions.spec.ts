@@ -50,7 +50,7 @@ async function install(page: import("@playwright/test").Page) {
       ),
     });
   const review = page.getByRole("dialog", { name: "审查声明式插件包" });
-  await review.getByRole("checkbox").check();
+  await review.getByRole("button", { name: /点击确认：我已检查来源/ }).click();
   await review.getByRole("button", { name: "确认安装", exact: true }).click();
   await section
     .getByRole("checkbox", { name: "启用 写作模板与片段", exact: true })
@@ -103,7 +103,9 @@ for (const source of [false, true])
       source
         ? sourceInfo(editor).then((info) => info.value)
         : editor.evaluate((element) =>
-            JSON.stringify((element as any).editor.getJSON()),
+            JSON.stringify(
+              (element as HTMLElement & { editor: { getJSON(): unknown } }).editor.getJSON(),
+            ),
           );
     const initial = await value();
     await editor.click();

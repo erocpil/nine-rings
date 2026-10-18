@@ -160,7 +160,7 @@ test("可安装编号数据包无需权限或代码，启用和卸载恢复宿�
   });
   const review = page.getByRole("dialog", { name: "审查声明式插件包" });
   await expect(review).toContainText("源码行号");
-  await review.getByRole("checkbox").check();
+  await review.getByRole("button", { name: /点击确认：我已检查来源/ }).click();
   await review.getByRole("button", { name: "确认安装", exact: true }).click();
   await section
     .getByRole("checkbox", { name: "启用 示例编号展示", exact: true })

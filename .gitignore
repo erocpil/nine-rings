@@ -1,5 +1,6 @@
 # Dependencies
 /.local-tools/
+/tools/
 node_modules/
 .pnp
 .pnp.js

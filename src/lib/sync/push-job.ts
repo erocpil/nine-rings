@@ -8,6 +8,7 @@ interface PushJob {
   target: string;
   bytes?: number;
   timeoutMs?: number;
+  requestStartedAt?: number;
   message: string;
   cancelRequested: boolean;
   result: SyncConfig | null;
@@ -45,6 +46,7 @@ export async function startGitHubPush(
     target: `${config.owner}/${config.repo}`,
     bytes: undefined,
     timeoutMs: undefined,
+    requestStartedAt: undefined,
     message: "",
     cancelRequested: false,
     result: null,
@@ -54,7 +56,11 @@ export async function startGitHubPush(
     const { pushToGitHub } = await import("./github");
     const result = await pushToGitHub(snapshotConfig, undefined, {
       signal: controller.signal,
-      onProgress: (progress) => useGitHubPushJob.setState(progress),
+      onProgress: (progress) =>
+        useGitHubPushJob.setState({
+          ...progress,
+          requestStartedAt: Date.now(),
+        }),
     });
     useGitHubPushJob.setState({
       status: "success",

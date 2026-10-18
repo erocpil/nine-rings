@@ -2,7 +2,7 @@ import { panelDisplays } from "../lib/plugin-system/panel-display";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import type { CSSProperties } from "react";
 import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import type { PathNode, Note } from "../types/models";
@@ -138,6 +138,20 @@ function DocTree({
 }: DocTreeProps) {
   const display = usePanelDisplay("document-tree");
   const [tree, setTree] = useState<PathNode[]>([]);
+  const folderDocumentIds = useMemo(() => {
+    const byFolder = new Map<string, string[]>();
+    for (const node of tree) {
+      if (node.type !== "document" || !node.noteId) continue;
+      const parentEnd = node.path.lastIndexOf("/");
+      for (let separator = node.path.indexOf("/"); separator >= 0 && separator <= parentEnd; separator = node.path.indexOf("/", separator + 1)) {
+        const folderPath = node.path.slice(0, separator);
+        const ids = byFolder.get(folderPath) ?? [];
+        ids.push(node.noteId);
+        byFolder.set(folderPath, ids);
+      }
+    }
+    return byFolder;
+  }, [tree]);
   const exportBusy = useRef(false);
   const [exportProgress, setExportProgress] = useState<string | null>(null);
   const handleExportPath = async (path: string) => {
@@ -198,6 +212,20 @@ function DocTree({
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchBusy, setBatchBusy] = useState(false);
+
+  const toggleSelectFolder = useCallback((folderPath: string) => {
+    const ids = folderDocumentIds.get(folderPath) ?? [];
+    if (ids.length === 0) return;
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      const deselect = ids.every((id) => previous.has(id));
+      for (const id of ids) {
+        if (deselect) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  }, [folderDocumentIds]);
 
   const toggleSelectId = useCallback((noteId: string) => {
     setSelectedIds(prev => {
@@ -602,9 +630,7 @@ function DocTree({
 
   // ── 文件夹操作：收集目录下所有文档 ID ──
   const getDocIdsUnderPath = (folderPath: string): string[] => {
-    return tree
-      .filter((n) => n.type === 'document' && n.noteId && n.path.startsWith(folderPath + "/"))
-      .map((n) => n.noteId!);
+    return folderDocumentIds.get(folderPath) ?? [];
   };
 
   const handleFolderDelete = (folderPath: string) => {
@@ -719,6 +745,24 @@ function DocTree({
               <span className="doc-tree-toggle" aria-hidden="true" />
             )}
             {node.protected && <span className="doc-tree-icon doc-tree-path-lock" title="加密路径"><ToolbarIcon name="lock" /></span>}
+            {selectMode && (folderDocumentIds.get(node.path)?.length ?? 0) > 0 && (() => {
+              const ids = folderDocumentIds.get(node.path)!;
+              const selectedCount = ids.reduce((count, id) => count + Number(selectedIds.has(id)), 0);
+              const checked = selectedCount === ids.length;
+              const indeterminate = selectedCount > 0 && !checked;
+              return (
+                <input
+                  type="checkbox"
+                  className="doc-tree-checkbox"
+                  aria-label={`选择路径 ${node.path} 下的所有文档`}
+                  checked={checked}
+                  ref={(input) => { if (input) input.indeterminate = indeterminate; }}
+                  disabled={disabled || batchBusy}
+                  onChange={() => toggleSelectFolder(node.path)}
+                  onClick={(event) => event.stopPropagation()}
+                />
+              );
+            })()}
             {renamingFolder === node.path ? (
               <InlineRename
                 initialValue={node.name}

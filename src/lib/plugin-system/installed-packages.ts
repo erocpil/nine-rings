@@ -2,8 +2,13 @@ import { statusDisplays } from "./status-display";
 import { numberingDisplays } from "./numbering-display";
 import { actionResources } from "./action-resources";
 import { contentResources } from "./content-resources";
-import { pluginRuntime } from "./runtime";
+import { PluginHostError, pluginRuntime } from "./runtime";
 import { pluginLifecycle } from "./lifecycle";
+import { NUMBERING_PLUGIN_ID } from "./builtin-numbering-display";
+import {
+  STATUS_DISPLAY_CHANGE_EVENT,
+  STATUS_PLUGIN_ID,
+} from "./builtin-status-display";
 import { themeResources } from "./theme-resources";
 import { listPluginPackages, subscribePluginPackages } from "./package-store";
 
@@ -13,7 +18,12 @@ export function startInstalledPluginPackages() {
     revision = 0,
     enabled = pluginRuntime.isEnabled();
   let queue = Promise.resolve();
-  const active = new Map<string, { digest: string; generation: string }>();
+  const active = new Map<string, {
+    digest: string;
+    generation: string;
+    controlsNumbering: boolean;
+    controlsStatus: boolean;
+  }>();
   const owns = (id: string, generation: string) =>
     pluginRuntime
       .getStatus()
@@ -44,6 +54,10 @@ export function startInstalledPluginPackages() {
             if (owns(id, entry.generation))
               await pluginLifecycle.deactivate(id);
             active.delete(id);
+            if (entry.controlsNumbering)
+              window.dispatchEvent(new Event("nr:numbering-display-change"));
+            if (entry.controlsStatus)
+              window.dispatchEvent(new Event(STATUS_DISPLAY_CHANGE_EVENT));
           }
         }
         if (!wanted.length) return;
@@ -53,24 +67,46 @@ export function startInstalledPluginPackages() {
             return;
           if (active.get(record.id)?.digest === record.digest) continue;
           if (record.trustedDigest !== record.digest) continue;
+          let controlsNumbering = false;
+          let controlsStatus = false;
           try {
             const encoder = new TextEncoder();
-            const data = await validatePluginPackage(
-              Object.fromEntries(
-                Object.entries(record.files).map(([path, text]) => [
-                  path,
-                  encoder.encode(text),
-                ]),
-              ),
-            );
+            let data;
+            try {
+              data = await validatePluginPackage(
+                Object.fromEntries(
+                  Object.entries(record.files).map(([path, text]) => [
+                    path,
+                    encoder.encode(text),
+                  ]),
+                ),
+              );
+            } catch (error) {
+              throw new PluginHostError(
+                "INVALID_ARGUMENT",
+                error instanceof Error ? error.message : "插件包验证失败",
+              );
+            }
             if (
               data.id !== record.id ||
               data.digest !== record.trustedDigest ||
               data.version !== record.version
             )
-              throw Error("已安装插件指纹变化，需要重新审查");
+              throw new PluginHostError(
+                "INVALID_ARGUMENT",
+                "已安装插件指纹变化，需要重新审查",
+              );
             if (stopped || requested !== revision || !pluginRuntime.isEnabled())
               return;
+            controlsNumbering = data.gutters.length > 0;
+            controlsStatus = data.statusBar !== null;
+            // A declarative package owns the active presentation while enabled;
+            // retain built-in preferences and let their controllers restore them
+            // when the package is later disabled or removed.
+            if (controlsNumbering)
+              await pluginLifecycle.deactivate(NUMBERING_PLUGIN_ID);
+            if (controlsStatus)
+              await pluginLifecycle.deactivate(STATUS_PLUGIN_ID);
             const activation = await pluginLifecycle.activate(
               data.id,
               [
@@ -127,12 +163,20 @@ export function startInstalledPluginPackages() {
             active.set(data.id, {
               digest: data.digest,
               generation: activation.generation,
+              controlsNumbering,
+              controlsStatus,
             });
-          } catch {
+          } catch (error) {
+            if (controlsNumbering)
+              window.dispatchEvent(new Event("nr:numbering-display-change"));
+            if (controlsStatus)
+              window.dispatchEvent(new Event(STATUS_DISPLAY_CHANGE_EVENT));
             pluginRuntime.recordLifecycleFailure(
               record.id,
               "activate",
-              "INVALID_ARGUMENT",
+              error instanceof PluginHostError
+                ? error.code
+                : "INTERNAL_ERROR",
             );
           }
         }
@@ -156,8 +200,13 @@ export function startInstalledPluginPackages() {
     ++revision;
     unsubscribePackages();
     unsubscribeRuntime();
-    for (const [id, entry] of active)
+    for (const [id, entry] of active) {
       if (owns(id, entry.generation)) void pluginLifecycle.deactivate(id);
+      if (entry.controlsNumbering)
+        window.dispatchEvent(new Event("nr:numbering-display-change"));
+      if (entry.controlsStatus)
+        window.dispatchEvent(new Event(STATUS_DISPLAY_CHANGE_EVENT));
+    }
     active.clear();
   };
 }

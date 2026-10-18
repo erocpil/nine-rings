@@ -89,7 +89,7 @@ function PackageConfirmation({
             更新会撤销旧版资源，选中的配色暂时回退原风格；重新启用后恢复。不会删除文档或用户排版设置。
           </p>
         )}
-        <ul>
+        <ul className="plugin-review-list">
           {candidate.themes.map((theme) => (
             <li key={theme.id}>
               {theme.name} · {theme.id}
@@ -120,7 +120,7 @@ function PackageConfirmation({
         <details>
           <summary>核验指纹与资源差异</summary>
           <p className="plugin-package-digest">SHA-256：{candidate.digest}</p>
-          <ul>
+          <ul className="plugin-review-list">
             {Object.keys(candidate.files)
               .sort()
               .map((path) => (
@@ -142,14 +142,17 @@ function PackageConfirmation({
               ))}
           </ul>
         </details>
-        <label className="settings-toggle">
-          <input
-            type="checkbox"
-            checked={consent}
-            onChange={(event) => setConsent(event.target.checked)}
-          />
-          我已检查来源、资源与更新差异，确认安装这些数据
-        </label>
+        <button
+          type="button"
+          className={`plugin-review-consent ${consent ? "confirmed" : ""}`}
+          aria-pressed={consent}
+          onClick={() => setConsent((value) => !value)}
+        >
+          <span aria-hidden="true">{consent ? "✓" : "○"}</span>
+          {consent
+            ? "已确认检查来源、资源与更新差异（点击取消）"
+            : "点击确认：我已检查来源、资源与更新差异，并确认安装这些数据"}
+        </button>
         {error && <p role="alert">{error}</p>}
         <button
           type="button"
@@ -183,6 +186,7 @@ function PackageConfirmation({
 export function SettingsInstalledPackages() {
   const [records, setRecords] = useState<InstalledPluginPackage[]>([]),
     [candidate, setCandidate] = useState<ValidatedPluginPackage | null>(null);
+  const [expanded, setExpanded] = useState(true);
   const [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -232,7 +236,19 @@ export function SettingsInstalledPackages() {
       aria-label="已安装声明式插件"
       className="settings-installed-packages"
     >
-      <h3>声明式插件包</h3>
+      <div className="plugin-section-heading">
+        <h3>声明式插件包</h3>
+        <button
+          type="button"
+          className="plugin-section-collapse"
+          aria-label={`${expanded ? "折叠" : "展开"}声明式插件包`}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+        </button>
+      </div>
+      {expanded && <>
       <p className="settings-desc">
         支持成对主题配色、插入模板和文本片段。仅本机保存，安装前核验并明确确认；支持新建文档模板、受限宏与元数据查询；暂不安装脚本或自定义属性。
       </p>
@@ -345,6 +361,7 @@ export function SettingsInstalledPackages() {
           </li>
         ))}
       </ul>
+      </>}
       {candidate && (
         <PackageConfirmation
           candidate={candidate}

@@ -37,7 +37,13 @@ for (const width of [390, 1280]) test(`本机主题包明确确认、启停、�
   await page.keyboard.press("Escape");
   await expect(section.getByRole("checkbox", { name: "启用 示例成对主题", exact: true })).toHaveCount(0);
   await choose.setInputFiles(archive());
-  await review.getByRole("checkbox").check();
+  const confirmReview = review.getByRole("button", { name: /点击确认：我已检查来源/ });
+  await expect(confirmReview).toHaveAttribute("aria-pressed", "false");
+  await confirmReview.click();
+  await expect(confirmReview).toHaveAttribute("aria-pressed", "true");
+  await confirmReview.click();
+  await expect(review.getByRole("button", { name: "确认安装", exact: true })).toBeDisabled();
+  await confirmReview.click();
   await review.getByRole("button", { name: "确认安装", exact: true }).click();
   await expect(review).toHaveCount(0);
   const enabled = section.getByRole("checkbox", { name: "启用 示例成对主题", exact: true });
@@ -66,7 +72,7 @@ test("拒绝脚本包、同版替换；更新重新审查且默认停用", async
   await expect(page.getByRole("dialog", { name: "审查声明式插件包" })).toHaveCount(0);
   const confirm = async () => {
     const review = page.getByRole("dialog", { name: "审查声明式插件包" });
-    await review.getByRole("checkbox").check();
+    await review.getByRole("button", { name: /点击确认：我已检查来源/ }).click();
     await review.getByRole("button", { name: "确认安装", exact: true }).click();
     return review;
   };

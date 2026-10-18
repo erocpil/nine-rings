@@ -25,6 +25,8 @@ import {
 } from "../lib/plugin-system/builtin-plugin-catalog";
 import { pluginRuntime } from "../lib/plugin-system/runtime";
 import { pluginLifecycle } from "../lib/plugin-system/lifecycle";
+import { numberingDisplays } from "../lib/plugin-system/numbering-display";
+import { statusDisplays } from "../lib/plugin-system/status-display";
 import { treeDisplay } from "../lib/plugin-system/builtin-tree-display";
 import { bookmarkDisplay } from "../lib/plugin-system/builtin-bookmark-display";
 import { notesDisplay } from "../lib/plugin-system/builtin-notes-display";
@@ -244,6 +246,7 @@ function PluginConfigurationDialog({
 
 export function SettingsPluginCatalog() {
   const catalog = useRef<HTMLElement>(null);
+  const [catalogExpanded, setCatalogExpanded] = useState(true);
   useEffect(() => {
     const resumeKeyboardFocus = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
@@ -266,6 +269,8 @@ export function SettingsPluginCatalog() {
   useSyncExternalStore(treeDisplay.subscribe, treeDisplay.snapshot);
   useSyncExternalStore(subscribeNumberingPreference, numberingPreferenceSnapshot);
   useSyncExternalStore(subscribeStatusPreference, statusPreferenceSnapshot);
+  useSyncExternalStore(numberingDisplays.subscribe, numberingDisplays.getSnapshot);
+  useSyncExternalStore(statusDisplays.subscribe, statusDisplays.getSnapshot);
   useSyncExternalStore(subscribeThemePreference, themePreferenceSnapshot);
   useSyncExternalStore(subscribeDocumentTools, documentToolsSnapshot);
   useSyncExternalStore(subscribeImageViewer, imageViewerSnapshot);
@@ -275,12 +280,23 @@ export function SettingsPluginCatalog() {
   useSyncExternalStore(notesDisplay.subscribe, notesDisplay.snapshot);
   return (
     <aside ref={catalog} className="settings-plugin-catalog" aria-label="插件列表">
-      <h3>插件列表</h3>
+      <div className="plugin-section-heading">
+        <h3>插件列表</h3>
+        <button
+          type="button"
+          className="plugin-section-collapse"
+          aria-label={`${catalogExpanded ? "折叠" : "展开"}插件列表`}
+          aria-expanded={catalogExpanded}
+          onClick={() => setCatalogExpanded((value) => !value)}
+        >
+          <span aria-hidden="true">{catalogExpanded ? "▾" : "▸"}</span>
+        </button>
+      </div>
       <p className="settings-desc">
         {BUILTIN_PLUGIN_CATALOG.length} 个内置插件 · 点击名称查看配置
       </p>
       {message && <p role="status">{message}</p>}
-      <ul>
+      {catalogExpanded && <ul>
         {BUILTIN_PLUGIN_CATALOG.map((plugin) => {
           const active = status.activations.some(
             (item) => item.pluginId === plugin.id,
@@ -298,7 +314,15 @@ export function SettingsPluginCatalog() {
               : presenter
                 ? presenter.read().enabled
                 : documentToolEnabled(tool);
-          const state = !enabled
+          const overridden = plugin.configuration === "numbering"
+            ? (["blocks", "source"] as const).some((target) => {
+                const owner = numberingDisplays.getOwner(target);
+                return owner !== null && owner !== plugin.id;
+              })
+            : plugin.configuration === "status" && statusDisplays.getOwner() !== null && statusDisplays.getOwner() !== plugin.id;
+          const state = overridden
+            ? "由声明式插件接管"
+            : !enabled
             ? "已停用"
             : active
               ? "运行中"
@@ -328,6 +352,7 @@ export function SettingsPluginCatalog() {
                     type="checkbox"
                     aria-label={`启用${plugin.name}`}
                     checked={enabled}
+                    disabled={overridden}
                     onChange={(event) => {
                       try {
                         if (plugin.configuration === "status") saveStatusPreference({ ...readStatusPreference(), enabled: event.target.checked });
@@ -353,7 +378,7 @@ export function SettingsPluginCatalog() {
                     }}
                   />
                   <span className="toggle-track" />
-                  <span className="toggle-label">{enabled ? "开" : "关"}</span>
+                  <span className="toggle-label">{overridden ? "接管" : enabled ? "开" : "关"}</span>
                 </label>
                 <span className="settings-plugin-type">
                   内置 · {plugin.type}
@@ -364,7 +389,7 @@ export function SettingsPluginCatalog() {
             </li>
           );
         })}
-      </ul>
+      </ul>}
       <SettingsInstalledPackages />
       {selected && (
         <PluginConfigurationDialog

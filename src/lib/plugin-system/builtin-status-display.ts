@@ -8,7 +8,8 @@ import {
 } from "./status-display";
 export const STATUS_PLUGIN_ID = "nine-rings.builtin-status-display";
 export const STATUS_SETTINGS_KEY = "nr:pluginStatusDisplay";
-const EVENT = "nr:status-display-change";
+export const STATUS_DISPLAY_CHANGE_EVENT = "nr:status-display-change";
+const EVENT = STATUS_DISPLAY_CHANGE_EVENT;
 export interface StatusPreference {
   enabled: boolean;
   display: StatusDisplay;
@@ -75,6 +76,8 @@ export function startBuiltinStatusDisplay() {
           return;
         const preference = readStatusPreference();
         if (!preference.enabled) return;
+        if (statusDisplays.getOwner() !== null && statusDisplays.getOwner() !== STATUS_PLUGIN_ID)
+          return;
         const owner = await pluginLifecycle.activate(STATUS_PLUGIN_ID, [], {
           activate(scope) {
             statusDisplays.register(scope.activation, preference.display);

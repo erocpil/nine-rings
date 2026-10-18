@@ -94,6 +94,27 @@ test("排版设置按住外部预览，释放恢复且保留草稿", async ({ pa
   await expect(size).toHaveValue("40");
 });
 
+test("设置子页面按住外围可预览完整工作区，松开后保持子页", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await createBlankDocument(page, "子设置页预览");
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^系统信息/ }).click();
+  const overlay = page.locator(".settings-overlay");
+  await expect(page.getByRole("heading", { name: "系统信息", exact: true })).toBeVisible();
+  await expect(page.locator(".system-information-grid")).toContainText("文档数量");
+  await expect(page.locator(".system-information-grid")).toContainText("全部文档正文大小");
+  await expect(page.getByRole("tree", { name: "按路径汇总的文档信息" })).toBeVisible();
+  await page.mouse.move(8, 500);
+  await page.mouse.down();
+  await expect(overlay).toHaveCSS("opacity", "0");
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(0px)");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await page.mouse.up();
+  await expect(overlay).toHaveCSS("opacity", "1");
+  await expect.poll(() => settingsBackdropFilter(overlay)).toBe("blur(2px)");
+  await expect(page.getByRole("heading", { name: "系统信息", exact: true })).toBeVisible();
+});
+
 test("减少动态效果时设置预览关闭过渡，按住和松开仍可使用", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await createBlankDocument(page);

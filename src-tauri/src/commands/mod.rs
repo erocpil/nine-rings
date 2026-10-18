@@ -9,6 +9,7 @@ pub mod template;
 pub mod window;
 
 pub mod search_projection;
+pub mod system_info;
 
 pub mod image_library;
 

@@ -39,7 +39,7 @@ async function selectDocuments(page: Page, titles: string[]) {
   for (const title of titles) {
     await page.locator(".doc-tree-doc").filter({ hasText: title }).click();
   }
-  await expect(page.locator(".doc-tree-checkbox:checked")).toHaveCount(titles.length);
+  await expect(page.locator(".doc-tree-doc .doc-tree-checkbox:checked")).toHaveCount(titles.length);
 }
 
 async function seedViewportDocuments(page: Page, count = 36) {
@@ -119,6 +119,29 @@ test("文档树支持批量取消只读并移动到新目录", async ({ page }) 
   }
 });
 
+test("批量选择路径会递归选中其下文档并支持半选状态", async ({ page }) => {
+  await openDocumentView(page);
+  await createDocument(page, "路径批量文档甲", "path-batch");
+  await createDocument(page, "路径批量文档乙", "path-batch/nested");
+  await page.getByTitle("批量选择").click();
+
+  await page.locator(".doc-tree-doc").filter({ hasText: "路径批量文档甲" }).click();
+  const folder = page.locator(".doc-tree-folder").filter({
+    has: page.locator(".doc-tree-name").filter({ hasText: /^path-batch$/ }),
+  });
+  const pathCheckbox = folder.locator('input[aria-label^="选择路径 "]');
+  await expect(pathCheckbox).toBeVisible();
+  expect(await pathCheckbox.evaluate((input: HTMLInputElement) => input.indeterminate)).toBe(true);
+
+  await pathCheckbox.click();
+  await expect(page.locator(".doc-tree-doc .doc-tree-checkbox:checked")).toHaveCount(2);
+  expect(await pathCheckbox.evaluate((input: HTMLInputElement) => input.indeterminate)).toBe(false);
+
+  await page.getByTitle("批量设为只读").click();
+  await expect(page.locator(".doc-tree-doc").filter({ hasText: "路径批量文档甲" }).locator(".doc-tree-icon")).toHaveText("📖");
+  await expect(page.locator(".doc-tree-doc").filter({ hasText: "路径批量文档乙" }).locator(".doc-tree-icon")).toHaveText("📖");
+});
+
 test.describe("多选入口始终可切换", () => {
   test.use({ hasTouch: true });
   test("手机文档弹层也能在原位取消多选", async ({ page }) => {
@@ -167,7 +190,7 @@ test.describe("多选入口始终可切换", () => {
 
       await tapSamePoint();
       await page.locator(".doc-tree-doc").filter({ hasText: "视口文档 00" }).click();
-      await expect(page.locator(".doc-tree-checkbox:checked")).toHaveCount(1);
+      await expect(page.locator(".doc-tree-doc .doc-tree-checkbox:checked")).toHaveCount(1);
       await page.locator(".doc-tree-toolbar-actions").evaluate((element) => { element.scrollLeft = element.scrollWidth; });
       const hit = await toggle.evaluate((element) => {
         const rect = element.getBoundingClientRect();

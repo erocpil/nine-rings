@@ -759,6 +759,7 @@ pub fn run() {
             commands::native_menu::update_native_menu,
             commands::window::quit_application,
             commands::window::get_desktop_recovery_status,
+            commands::system_info::get_system_info,
             commands::window::set_window_fullscreen,
             commands::window::toggle_window_maximize,
             commands::window::toggle_window_vertical_extent,
