@@ -411,6 +411,34 @@ test("子菜单打开后切换块号，重新定位到新块且不沿用旧样�
   await expect(page.locator(".ProseMirror:visible > p").first().locator("strong")).toHaveCount(0);
 });
 
+test("方向键在原菜单旁展开子菜单，左键逐层返回并恢复打开项焦点", async ({ page }) => {
+  await featureFixture(page, textParagraph("段落"));
+  await page.getByRole("button", { name: "第 1 块操作", exact: true }).click();
+  const popup = menu(page);
+  const blockFeatures = popup.getByRole("menuitem", { name: "块级功能 ›", exact: true });
+  await blockFeatures.focus();
+  await page.keyboard.press("ArrowRight");
+
+  const featureFlyout = page.locator('.block-action-menu-specific[aria-label="块级功能"]');
+  await expect(popup).toBeVisible();
+  await expect(blockFeatures).toBeVisible();
+  await expect(featureFlyout).toBeVisible();
+  const headingLevels = featureFlyout.getByRole("menuitem", { name: "标题级别 ›", exact: true });
+  await expect(headingLevels).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+
+  const levelsFlyout = page.locator('.block-action-menu-specific[aria-label="标题级别"]');
+  await expect(levelsFlyout).toBeVisible();
+  await expect(levelsFlyout.getByRole("menuitemcheckbox", { name: "H1", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(levelsFlyout).toHaveCount(0);
+  await expect(headingLevels).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(featureFlyout).toHaveCount(0);
+  await expect(blockFeatures).toBeFocused();
+  await expect(popup).toBeVisible();
+});
+
 for (const [readonly, virtual] of [[false, false], [true, false], [true, true]]) {
   test(`隐藏块号后控制列可打开和收回块菜单 readonly=${readonly} virtual=${virtual}`, async ({ page }) => {
     await setup(page, readonly, virtual, false, false);

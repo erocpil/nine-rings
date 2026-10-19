@@ -86,6 +86,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
   const [position, setPosition] = useState({ x: 8, y: 8 });
   const [submenuPath, setSubmenuPath] = useState<string[]>([]);
   const [flyouts, setFlyouts] = useState<{ path: string[]; x: number; y: number }[]>([]);
+  const keyboardFocusPath = useRef<string | null>(null);
   let visibleActions = presentedActions;
   for (const label of submenuPath) {
     visibleActions = visibleActions.find(action => action.label === label)?.children ?? [];
@@ -94,8 +95,22 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
     const rect = trigger.getBoundingClientRect();
     const menu = root.current!.getBoundingClientRect();
     setPosition(menuPosition(rect, menu, placement));
-    root.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
+    const focusPath = keyboardFocusPath.current;
+    keyboardFocusPath.current = null;
+    if (focusPath) {
+      const opener = Array.from(root.current?.querySelectorAll<HTMLButtonElement>("button[data-submenu-path]") ?? [])
+        .find(button => button.dataset.submenuPath === focusPath);
+      opener?.focus({ preventScroll: true });
+    } else root.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
   }, [trigger, submenuPath, placement]);
+  useLayoutEffect(() => {
+    const focusPath = keyboardFocusPath.current;
+    if (!focusPath) return;
+    keyboardFocusPath.current = null;
+    const flyout = Array.from(root.current?.querySelectorAll<HTMLElement>(".block-action-menu-specific") ?? [])
+      .find(section => section.dataset.submenuPath === focusPath);
+    flyout?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
+  }, [flyouts]);
   useEffect(() => {
     const outside = (event: Event) => { if (!root.current?.contains(event.target as Node) && !trigger.contains(event.target as Node)) onClose(); };
     const scroll = (event: Event) => {
@@ -124,13 +139,17 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
     const x = menu.right + width <= window.innerWidth - 8 ? menu.right
       : menu.left - width >= 8 ? menu.left - width : null;
     const depth = path.length - submenuPath.length;
-    if (x === null) { setFlyouts(current => current.slice(0, depth)); return; }
+    if (x === null) { setFlyouts(current => current.slice(0, depth)); return false; }
     const height = Math.min(440, window.innerHeight - 16, 40 + (action.children?.length ?? 0) * 34);
     setFlyouts(current => [...current.slice(0, depth), { path: [...path, action.label], x, y: Math.max(8, Math.min(item.top, window.innerHeight - height - 8)) }]);
+    return true;
   };
+  const encodedPath = (path: string[]) => JSON.stringify(path);
+  const focusOpener = (path: string[]) => Array.from(root.current?.querySelectorAll<HTMLButtonElement>("button[data-submenu-path]") ?? [])
+    .find(button => button.dataset.submenuPath === encodedPath(path))?.focus({ preventScroll: true });
   const renderActions = (items: BlockMenuAction[], path: string[]) => <>{items.map((action, index) => <div key={action.label}>
       {!path.length && action.group && action.group !== items[index - 1]?.group && <div className={`block-action-menu-group${index === 0 ? " first-group" : ""}`} role="presentation">{action.group}</div>}
-      {action.inputControl ? <InputControl action={action} onClose={onClose} /> : action.colorControl ? <ColorControl action={action} onClose={onClose} /> : <button type="button" role={action.checked === undefined ? "menuitem" : "menuitemcheckbox"} aria-checked={action.checked} className={`editor-context-item${action.danger ? " block-action-danger" : ""}`} disabled={action.disabled} aria-haspopup={action.children ? "menu" : undefined}
+      {action.inputControl ? <InputControl action={action} onClose={onClose} /> : action.colorControl ? <ColorControl action={action} onClose={onClose} /> : <button type="button" role={action.checked === undefined ? "menuitem" : "menuitemcheckbox"} aria-checked={action.checked} data-submenu-path={action.children ? encodedPath([...path, action.label]) : undefined} className={`editor-context-item${action.danger ? " block-action-danger" : ""}`} disabled={action.disabled} aria-haspopup={action.children ? "menu" : undefined}
         aria-expanded={action.children ? flyouts.some(menu => menu.path.join("/") === [...path, action.label].join("/")) : undefined}
         title={presentation?.enabled && presentation.showHints ? ACTION_HINTS[action.label] : undefined}
         onPointerEnter={event => {
@@ -141,7 +160,13 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
         }}
         onKeyDown={event => {
           if (action.children && event.key === "ArrowRight") {
-            event.preventDefault(); event.stopPropagation(); setFlyouts([]); setSubmenuPath([...path, action.label]);
+            event.preventDefault(); event.stopPropagation();
+            const nextPath = [...path, action.label];
+            keyboardFocusPath.current = encodedPath(nextPath);
+            if (!showSubmenu(event.currentTarget, action, path)) {
+              keyboardFocusPath.current = null;
+              setSubmenuPath(nextPath);
+            }
           }
         }}
         onClick={event => { if (action.children) { setFlyouts([]); setSubmenuPath([...path, action.label]); return; } action.run(); if (action.keepOpen) event.currentTarget.focus({ preventScroll: true }); else onClose(); }}>{action.checked !== undefined && <span aria-hidden="true" className="block-menu-check">{action.checked ? "✓" : ""}</span>}{action.label}{action.children ? " ›" : ""}</button>}
@@ -170,9 +195,28 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
         return;
       }
       if (event.key === "Escape" || event.key === "Tab") { event.stopPropagation(); if (event.key === "Escape") { event.preventDefault(); trigger.focus({ preventScroll: true }); } onClose(); return; }
+      if (event.key === "ArrowLeft") {
+        const activeFlyout = (event.target as HTMLElement).closest<HTMLElement>(".block-action-menu-specific");
+        if (activeFlyout?.dataset.submenuPath) {
+          event.preventDefault(); event.stopPropagation();
+          const path = JSON.parse(activeFlyout.dataset.submenuPath) as string[];
+          setFlyouts(current => current.filter(menu => menu.path.length < path.length));
+          focusOpener(path);
+          return;
+        }
+        if (submenuPath.length) {
+          event.preventDefault(); event.stopPropagation();
+          keyboardFocusPath.current = encodedPath(submenuPath);
+          setFlyouts([]);
+          setSubmenuPath(path => path.slice(0, -1));
+          return;
+        }
+      }
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || !["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
       event.preventDefault(); event.stopPropagation();
-      const buttons = Array.from(root.current!.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
+      const activeFlyout = (event.target as HTMLElement).closest<HTMLElement>(".block-action-menu-specific");
+      const scope = activeFlyout ?? root.current!.querySelector<HTMLElement>(".block-action-menu-panel");
+      const buttons = Array.from(scope?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []);
       const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
       const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
       buttons[next]?.focus();
@@ -181,7 +225,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
     {submenuPath.length > 0 && <button type="button" role="menuitem" className="editor-context-item" onClick={() => { setFlyouts([]); setSubmenuPath(path => path.slice(0, -1)); }}>← 返回</button>}
     <div>
       <div className="block-action-menu-panel">{renderActions(visibleActions, submenuPath)}</div>
-      {flyouts.map(menu => <section key={menu.path.join("/")} className="editor-context-menu block-action-menu-specific" aria-label={menu.path[menu.path.length - 1]} style={{ left: menu.x, top: menu.y }}>
+      {flyouts.map(menu => <section key={menu.path.join("/")} data-submenu-path={encodedPath(menu.path)} className="editor-context-menu block-action-menu-specific" aria-label={menu.path[menu.path.length - 1]} style={{ left: menu.x, top: menu.y }}>
         <div className="block-action-menu-title">{menu.path[menu.path.length - 1]}</div>
         {renderActions(actionsAt(menu.path), menu.path)}
       </section>)}
