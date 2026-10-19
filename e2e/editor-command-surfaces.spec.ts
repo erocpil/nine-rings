@@ -47,11 +47,13 @@ test("右键菜单覆盖宿主按钮并复用字号与所有标题", async ({ pa
   await createBlankDocument(page);
   const content = page.locator(".note-editor .editor-content > .ProseMirror:visible");
   await content.fill("first second");
+  await expect(page.locator(".editor-menu").getByRole("button", { name: "块内换行", exact: true })).toHaveAttribute("title", "块内换行（Shift+Enter）");
   await select(page);
   await content.locator("p").click({ button: "right", position: { x: 12, y: 8 } });
   const menu = page.getByRole("menu", { name: "正文操作" });
   await expect(menu).toBeVisible();
   await menu.getByRole("button", { name: "段落", exact: true }).click();
+  await expect(menu.getByRole("button", { name: "块内换行", exact: true })).toHaveAttribute("title", "块内换行（Shift+Enter）");
   for (let level = 1; level <= 6; level++) await expect(menu.getByRole("button", { name: `标题 ${level}`, exact: true })).toBeVisible();
   await menu.getByRole("button", { name: "文字格式", exact: true }).click();
   await menu.getByRole("button", { name: "字号", exact: true }).click();

@@ -394,7 +394,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, highlightActiveLine = 
     }
   };
   const iconButton = (label: string, icon: Parameters<typeof ToolbarIcon>[0]["name"], run: () => void) =>
-    <button type="button" title={label} aria-label={label} onMouseDown={event => event.preventDefault()} onClick={run}><ToolbarIcon name={icon} /></button>;
+    <button type="button" title={label === "块内换行" ? "块内换行（Shift+Enter）" : label} aria-label={label} onMouseDown={event => event.preventDefault()} onClick={run}><ToolbarIcon name={icon} /></button>;
 
   return createPortal(<dialog ref={dialog} tabIndex={-1} className={`block-workspace${highlightActiveLine ? "" : " no-active-line"}`} data-block-type={rootType} role="dialog" aria-modal="true" aria-label={`${name}工作区`}
     onCancel={event => { event.preventDefault(); if (!editor?.view.composing) void close(); }}

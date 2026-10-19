@@ -101,13 +101,13 @@ const PRESET_COLORS = [
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32];
 const dropdownCaret = <span className="toolbar-dropdown-caret" aria-hidden="true"><span className="toolbar-solid-caret" /></span>;
 
-const btn = (label: ReactNode, action: () => void, active?: boolean, title?: string, disabled?: boolean, shortcut?: string) => (
+const btn = (label: ReactNode, action: () => void, active?: boolean, title?: string, disabled?: boolean, shortcut?: string, accessibleLabel?: string) => (
   <button
     className={`menu-btn ${active ? "active" : ""}`}
     onClick={disabled ? undefined : action}
     type="button"
     title={shortcut && title ? shortcutTitle(shortcut, title.replace(/ \(Ctrl[^)]*\)/, "")) : title}
-    aria-label={title}
+    aria-label={accessibleLabel ?? title}
     disabled={disabled}
     data-context-visible={title?.startsWith("标题 ") || undefined}
   >
@@ -308,7 +308,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       </div>
     )}
     <span className="menu-sep" />
-    {btn(<ToolbarIcon name="lineBreak" />, () => { editor.chain().focus().setHardBreak().run(); }, false, "块内换行", readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak())}
+    {btn(<ToolbarIcon name="lineBreak" />, () => { editor.chain().focus().setHardBreak().run(); }, false, "块内换行（Shift+Enter）", readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak(), undefined, "块内换行")}
     <div className="toolbar-secondary">
     {(<span className="toolbar-clipboard-actions" data-toolbar-tool="clipboard">
     {btn(<ToolbarIcon name="copy" />, handleCopy, false, "复制 (Ctrl+C)", readonly || !hasSelection(), "edit.copy")}
