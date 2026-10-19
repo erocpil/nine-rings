@@ -137,7 +137,7 @@ interface EditorBlockGutterProps {
   highlightedBlockIndex?: number | null;
   selectedBlockIndexes?: readonly number[];
   onBlockSelect?: (position: number) => void;
-  onBlockMenu?: (position: number, trigger: HTMLButtonElement) => void;
+  onBlockMenu?: (position: number, trigger: HTMLButtonElement, number: number) => void;
   onBlockCountChange?: (count: number) => void;
   onHeadingFoldToggle?: (position: number) => void;
   onReferenceMenu?: (position: number, x: number, y: number) => void;
@@ -830,8 +830,8 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           data-block-index={block.index} aria-label={`第 ${block.index} 块操作`} aria-haspopup="menu"
           onMouseDown={event => event.preventDefault()}
           onTouchStart={startGutterTouch} onTouchMove={moveGutterTouch} onTouchCancel={cancelGutterTouch}
-          onTouchEnd={event => { const trigger = event.currentTarget; runGutterActionFromTouch(event, () => onBlockMenu(block.pos, trigger)); }}
-          onClick={event => { const trigger = event.currentTarget; runGutterActionFromClick(event, () => onBlockMenu(block.pos, trigger)); }}
+          onTouchEnd={event => { const trigger = event.currentTarget; runGutterActionFromTouch(event, () => onBlockMenu(block.pos, trigger, block.index)); }}
+          onClick={event => { const trigger = event.currentTarget; runGutterActionFromClick(event, () => onBlockMenu(block.pos, trigger, block.index)); }}
         />
       ))}
       {!selectingBlocks && showNumbers && blocks.map((block) => (
@@ -841,7 +841,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           style={{ top: block.firstLineCenter }}
           number={block.index} format={block.format}
           displayNumber={relativeBlockNumbers ? relativeNumber(block.index, currentNumber, visibleNumbers) : block.index}
-          onOpen={trigger => onBlockMenu?.(block.pos, trigger)}
+          onOpen={trigger => onBlockMenu?.(block.pos, trigger, block.index)}
         />
       ))}
       {!selectingBlocks && !showNumbers && blocks.filter(blockHasBookmark).map((block) => (

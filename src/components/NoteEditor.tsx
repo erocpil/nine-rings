@@ -28,7 +28,7 @@ import { findTextMatches, searchPatternError } from "../lib/search-matching";
 import { useSearchRegex } from "../hooks/useSearchRegex";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CopyBlockNotice } from "./CopyBlockNotice";
-import { BlockActionMenu, groupBlockMenuActions, type BlockMenuAction } from "./BlockActionMenu";
+import { BlockActionMenu, type BlockMenuAction } from "./BlockActionMenu";
 import { blockEditingActions, blockReadingActions, blockSpecificMenu } from "./block-specific-actions";
 import { copyDocumentBlock } from "../lib/block-clipboard";
 import { clearBlockTextStyles, formatBlockText, type BlockTextFormat, clipboardBlockFragment, clipboardCutBlock, rememberCutBlock } from "../lib/block-editing";
@@ -639,7 +639,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextSubmenu, setContextSubmenu] = useState<string | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
-  const [blockMenu, setBlockMenu] = useState<{ position: number; trigger: HTMLButtonElement; doc: ProseMirrorNode } | null>(null);
+  const [blockMenu, setBlockMenu] = useState<{ position: number; number: number; trigger: HTMLButtonElement; doc: ProseMirrorNode } | null>(null);
   const closeBlockMenu = useCallback(() => setBlockMenu(null), []);
   const [linkDialog, setLinkDialog] = useState(false);
   const [linkDialogUrl, setLinkDialogUrl] = useState("");
@@ -3130,7 +3130,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     const block = topLevelBlockAt(position);
     closeToolbarDropdowns();
     setContextMenu(null);
-    setBlockMenu(current => current?.trigger === trigger && current.doc === editor.state.doc ? null : { position: block.pos, trigger, doc: editor.state.doc });
+    setBlockMenu(current => current?.trigger === trigger && current.doc === editor.state.doc ? null : { position: block.pos, number: block.index + 1, trigger, doc: editor.state.doc });
   };
   const copySelectedBlocks = async () => {
     const indexes = selectedIndexes();
@@ -4032,7 +4032,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         editor.view.dispatch(closeHistory(editor.state.tr));
       },
     });
-    return groupBlockMenuActions(actions.map((action, index) => index >= editStart ? isolate(action) : action));
+    return actions.map((action, index) => index >= editStart ? isolate(action) : action);
   };
   const bookmarkPanel = bookmarkOpen && (
         <nav
@@ -4576,7 +4576,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
 
         {/* ── 编辑器内容 ── */}
         <CopyBlockNotice message={copyBlockNotice} onClose={() => setCopyBlockNotice("")} />
-        {blockMenu && documentActive && editor.state.doc === blockMenu.doc && <BlockActionMenu placement={blockMenu.trigger.hasAttribute("data-title-block-menu") ? "below" : "side"} key={blockMenu.position} trigger={blockMenu.trigger} title={`第 ${editor.state.doc.resolve(blockMenu.position).index(0) + 1} 块`} actions={blockMenuActions()} onClose={closeBlockMenu} />}
+        {blockMenu && documentActive && editor.state.doc === blockMenu.doc && <BlockActionMenu placement={blockMenu.trigger.hasAttribute("data-title-block-menu") ? "below" : "side"} key={blockMenu.position} trigger={blockMenu.trigger} title={`第 ${blockMenu.number} 块`} blockNumber={blockMenu.number} blockType={editor.state.doc.nodeAt(blockMenu.position)?.type.name} actions={blockMenuActions()} onClose={closeBlockMenu} />}
         {selectedBlockIndexes.size > 0 && (() => {
           const count = selectedIndexes().length;
           return count > 0 ? <><div className="block-selection-toolbar" role="toolbar" aria-label="块级操作">
@@ -4661,7 +4661,18 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
             highlightedBlockIndex={bookmarkJumpBlockIndex}
             selectedBlockIndexes={selectedBlockIndexList}
             onBlockSelect={extendBlockSelection}
-            onBlockMenu={(position, trigger) => { closeToolbarDropdowns(); setContextMenu(null); setBlockMenu(current => current?.position === position && current.doc === editor.state.doc ? null : { position, trigger, doc: editor.state.doc }); }}
+            onBlockMenu={(position, trigger, reportedNumber) => {
+              closeToolbarDropdowns();
+              setContextMenu(null);
+              // The visible gutter number is the stable target identity. Re-resolve
+              // it against the current document so a stale virtual row position
+              // cannot open a neighboring block's menu.
+              const number = Number(trigger.dataset.blockIndex) || reportedNumber;
+              const target = number > 0 && number <= editor.state.doc.childCount
+                ? blockRangeAtIndex(number - 1)
+                : { from: position, index: number - 1 };
+              setBlockMenu(current => current?.position === target.from && current.doc === editor.state.doc ? null : { position: target.from, number, trigger, doc: editor.state.doc });
+            }}
             onBlockCountChange={setGutterBlockCount}
             onHeadingFoldToggle={toggleEditorHeadingFromGutter}
             onReferenceMenu={useCustomContextMenu ? (position, x, y) => {

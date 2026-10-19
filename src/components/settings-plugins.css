@@ -18,6 +18,12 @@
 .settings-plugin-type, .settings-plugin-state { font-size: 12px; color: var(--text-secondary); }
 .settings-plugin-state { flex: none; }
 .settings-plugin-catalog li p { margin: 8px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.block-menu-plugin-groups { display: grid; gap: 4px; min-width: min(320px, 100%); }
+.block-menu-plugin-group-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; min-height: 34px; }
+.block-menu-plugin-group-row > label { display: inline-flex; align-items: center; gap: 8px; }
+.block-menu-plugin-reorder { display: inline-flex; gap: 4px; }
+.block-menu-plugin-reorder button { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--settings-input-bg); }
+.block-menu-plugin-reorder button:disabled { opacity: .4; }
 @media (min-width: 769px) {
   .settings-panel .settings-body[data-settings-page="advanced"]:has(> .settings-plugin-catalog) {
     min-height: 0;

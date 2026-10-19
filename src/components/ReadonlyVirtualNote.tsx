@@ -12,7 +12,7 @@ import { panelDisplays } from "../lib/plugin-system/panel-display";
 import { BlockNumber } from "./BlockNumber";
 import { useRelativeNumbering } from "../hooks/useRelativeNumbering";
 import { relativeNumber } from "../lib/relative-numbering";
-import { BlockActionMenu, groupBlockMenuActions, type BlockMenuAction } from "./BlockActionMenu";
+import { BlockActionMenu, type BlockMenuAction } from "./BlockActionMenu";
 import { blockReadingActions, blockSpecificMenu } from "./block-specific-actions";
 import { copyDocumentBlock } from "../lib/block-clipboard";
 import { DeferredFlowBlock } from "./DeferredFlowBlock";
@@ -1094,7 +1094,7 @@ export function ReadonlyVirtualNote(
     if (sectionByPos.has(pos)) actions.push({ label: "折叠 / 展开本节", run: () => toggleHeading(pos) });
     else if (["codeBlock", "blockquote", "htmlDetails"].includes(node.type.name)) actions.push({ label: "折叠 / 展开此块", run: () => updateBlock(pos, { collapsed: !(states.get(pos)?.collapsed ?? (node.type.name === "htmlDetails" ? node.attrs.open !== true : node.attrs.collapsed === true)) }) });
     actions.push(...blockSpecificMenu(blockReadingActions(bodyRef.current?.querySelector<HTMLElement>(`[data-reading-row][data-position="${pos}"]`) ?? null, node.type.name)));
-    return groupBlockMenuActions(actions);
+    return actions;
   };
   const toolbar = (
     <>
@@ -1311,7 +1311,7 @@ export function ReadonlyVirtualNote(
   const tocContext = useMemo(() => ({ items: extractDocumentOutline(doc), navigate: navigateHeading }), [doc, navigateHeading]);
   return (
     <DocumentOutlineContext.Provider value={tocContext}>
-    {blockMenu && active && doc === blockMenu.doc && <BlockActionMenu placement={blockMenu.trigger.hasAttribute("data-title-block-menu") ? "below" : "side"} key={blockMenu.position} title={`第 ${blockMenu.number} 块`} trigger={blockMenu.trigger} actions={blockMenuActions()} onClose={closeBlockMenu} />}
+    {blockMenu && active && doc === blockMenu.doc && <BlockActionMenu placement={blockMenu.trigger.hasAttribute("data-title-block-menu") ? "below" : "side"} key={blockMenu.position} title={`第 ${blockMenu.number} 块`} blockNumber={blockMenu.number} blockType={doc.nodeAt(blockMenu.position)?.type.name} trigger={blockMenu.trigger} actions={blockMenuActions()} onClose={closeBlockMenu} />}
     <div
       className={`note-editor note-editor-readonly vr-note ${desktopPanelClass(desktopPanels, sections.length > 0)} ${props.cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${props.focusMode ? "focus-mode" : ""} ${props.showLineNumbers ? "show-line-numbers" : ""} ${props.highlightActiveLine ? "" : "no-active-line"}`}
       data-virtual-reader="true"

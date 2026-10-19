@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import { BLOCK_MENU_GROUPS, blockMenuTitle, readBlockMenuPresentation, subscribeBlockMenuPresentation, blockMenuPresentationSnapshot, type BlockMenuGroupId, type BlockMenuPresentation } from "../lib/plugin-system/builtin-block-menu";
 
 export interface BlockMenuAction {
   label: string; run: () => void; disabled?: boolean; danger?: boolean; children?: BlockMenuAction[];
@@ -10,19 +11,34 @@ export interface BlockMenuAction {
   colorControl?: { value: string; apply: (value: string) => void };
 }
 
+const ACTION_HINTS: Record<string, string> = {
+  "复制内容": "复制当前块的渲染内容。", "复制 Markdown": "复制为可编辑的 Markdown 源码。", "复制纯文本": "只复制文本，不包含块格式。",
+  "复制块引用": "复制可跳转回此处的引用。", "添加块书签": "在当前块设置一个书签。", "打开块模式": "在专注工作区单独查看此块。",
+  "剪切此块": "写入剪贴板成功后再从文档删除。", "删除此块": "删除当前块，可通过撤销恢复。", "增加缩进": "只调整当前块的缩进。",
+  "减少缩进": "只调整当前块的缩进。", "清除文字样式": "清除块内显式文字样式，保留语义结构。", "块级功能": "打开当前块类型专属的配置。",
+};
+
 /** Shared presentation grouping for gutter and title-bar menus, including readonly. */
-export function groupBlockMenuActions(actions: BlockMenuAction[]): BlockMenuAction[] {
-  const groups: [string, string[]][] = [
-    ["复制与引用", ["复制内容", "复制 Markdown", "复制纯文本", "复制块引用"]],
-    ["阅读与导航", ["添加块书签", "取消块书签", "打开块模式", "折叠 / 展开本节", "折叠 / 展开此块"]],
-    ["块设置", ["块级功能"]],
-    ["文字样式", ["粗体", "斜体", "文字字号", "文字颜色", "清除文字样式"]],
-    ["编辑与结构", ["在上方插入段落", "在下方插入段落", "在本块前粘贴块", "在本块后粘贴块", "复制副本", "增加缩进", "减少缩进", "转换类型"]],
-    ["选择", ["选择多个块"]],
-    ["剪切与删除", ["剪切此块", "删除此块"]],
-  ];
-  return groups.flatMap<BlockMenuAction>(([group, labels]) => actions.filter(action => labels.includes(action.label)).map(action => ({ ...action, group })))
-    .concat(actions.filter(action => !groups.some(([, labels]) => labels.includes(action.label))));
+export function groupBlockMenuActions(actions: BlockMenuAction[], presentation?: BlockMenuPresentation): BlockMenuAction[] {
+  const labelsByGroup: Record<BlockMenuGroupId, string[]> = {
+    copy: ["复制内容", "复制 Markdown", "复制纯文本", "复制块引用"],
+    reading: ["添加块书签", "取消块书签", "打开块模式", "折叠 / 展开本节", "折叠 / 展开此块"],
+    block: ["块级功能"],
+    style: ["粗体", "斜体", "文字字号", "文字颜色", "清除文字样式"],
+    structure: ["在上方插入段落", "在下方插入段落", "在本块前粘贴块", "在本块后粘贴块", "复制副本", "增加缩进", "减少缩进", "转换类型"],
+    selection: ["选择多个块"],
+    remove: ["剪切此块", "删除此块"],
+  };
+  const configured = Boolean(presentation?.enabled);
+  const order = configured ? presentation!.groupOrder : BLOCK_MENU_GROUPS.map(group => group.id);
+  const requested = configured ? new Set(presentation!.visibleGroups) : new Set(BLOCK_MENU_GROUPS.map(group => group.id));
+  // An empty configuration must not strand the user with a blank menu.
+  const visible = requested.size ? requested : new Set(BLOCK_MENU_GROUPS.map(group => group.id));
+  return order.flatMap<BlockMenuAction>(id => {
+    if (!visible.has(id)) return [];
+    const group = BLOCK_MENU_GROUPS.find(item => item.id === id)!;
+    return actions.filter(action => labelsByGroup[id].includes(action.label)).map(action => ({ ...action, group: group.label }));
+  }).concat(actions.filter(action => !BLOCK_MENU_GROUPS.some(group => labelsByGroup[group.id].includes(action.label))));
 }
 
 function ColorControl({ action, onClose }: { action: BlockMenuAction; onClose: () => void }) {
@@ -57,14 +73,20 @@ function menuPosition(rect: DOMRect, menu: DOMRect, placement: "side" | "below")
     y: Math.max(8, Math.min(y, window.innerHeight - menu.height - 8)),
   };
 }
-export function BlockActionMenu({ trigger, title, actions, onClose, placement = "side" }: {
-  trigger: HTMLElement; title: string; actions: BlockMenuAction[]; onClose: () => void; placement?: "side" | "below";
+export function BlockActionMenu({ trigger, title, actions, onClose, placement = "side", blockNumber, blockType }: {
+  trigger: HTMLElement; title: string; actions: BlockMenuAction[]; onClose: () => void; placement?: "side" | "below"; blockNumber?: number; blockType?: string;
 }) {
+  useSyncExternalStore(subscribeBlockMenuPresentation, blockMenuPresentationSnapshot);
+  const presentation = readBlockMenuPresentation();
+  const displayedTitle = presentation.enabled && blockNumber !== undefined && blockType
+    ? blockMenuTitle(presentation, blockNumber, blockType)
+    : title;
+  const presentedActions = groupBlockMenuActions(actions, presentation);
   const root = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x: 8, y: 8 });
   const [submenuPath, setSubmenuPath] = useState<string[]>([]);
   const [flyouts, setFlyouts] = useState<{ path: string[]; x: number; y: number }[]>([]);
-  let visibleActions = actions;
+  let visibleActions = presentedActions;
   for (const label of submenuPath) {
     visibleActions = visibleActions.find(action => action.label === label)?.children ?? [];
   }
@@ -94,7 +116,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
       window.removeEventListener("blur", onClose);
     };
   }, [onClose, trigger, placement]);
-  const actionsAt = (path: string[]) => path.reduce<BlockMenuAction[]>((items, label) => items.find(action => action.label === label)?.children ?? [], actions);
+  const actionsAt = (path: string[]) => path.reduce<BlockMenuAction[]>((items, label) => items.find(action => action.label === label)?.children ?? [], presentedActions);
   const showSubmenu = (button: HTMLElement, action: BlockMenuAction, path: string[]) => {
     const parent = button.closest(".block-action-menu-specific") ?? root.current!;
     const menu = parent.getBoundingClientRect(), item = button.getBoundingClientRect();
@@ -110,6 +132,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
       {!path.length && action.group && action.group !== items[index - 1]?.group && <div className={`block-action-menu-group${index === 0 ? " first-group" : ""}`} role="presentation">{action.group}</div>}
       {action.inputControl ? <InputControl action={action} onClose={onClose} /> : action.colorControl ? <ColorControl action={action} onClose={onClose} /> : <button type="button" role={action.checked === undefined ? "menuitem" : "menuitemcheckbox"} aria-checked={action.checked} className={`editor-context-item${action.danger ? " block-action-danger" : ""}`} disabled={action.disabled} aria-haspopup={action.children ? "menu" : undefined}
         aria-expanded={action.children ? flyouts.some(menu => menu.path.join("/") === [...path, action.label].join("/")) : undefined}
+        title={presentation?.enabled && presentation.showHints ? ACTION_HINTS[action.label] : undefined}
         onPointerEnter={event => {
           if (event.pointerType !== "mouse") return;
           if (action.children && !action.disabled) showSubmenu(event.currentTarget, action, path);
@@ -122,8 +145,21 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
         }}
         onClick={event => { if (action.children) { setFlyouts([]); setSubmenuPath([...path, action.label]); return; } action.run(); if (action.keepOpen) event.currentTarget.focus({ preventScroll: true }); else onClose(); }}>{action.checked !== undefined && <span aria-hidden="true" className="block-menu-check">{action.checked ? "✓" : ""}</span>}{action.label}{action.children ? " ›" : ""}</button>}
     </div>)}</>;
-  return createPortal(<div ref={root} role="menu" aria-label={title} className="editor-context-menu block-action-menu" onPointerLeave={() => setFlyouts([])}
-    style={{ left: position.x, top: position.y }} onMouseDown={event => event.stopPropagation()}
+  const font = presentation.enabled ? presentation.font : "inherit";
+  const color = presentation.enabled ? presentation.color : "secondary";
+  const menuStyle = {
+    left: position.x,
+    top: position.y,
+    ...(presentation.enabled ? {
+      "--block-menu-font": font === "system" ? "system-ui, sans-serif" : font === "monospace" ? "ui-monospace, monospace" : "inherit",
+      "--block-menu-font-size": `${presentation.fontSize}px`,
+      "--block-menu-title-font-size": `${Math.max(10, presentation.fontSize - 1)}px`,
+      "--block-menu-title-color": color === "accent" ? "var(--accent)" : color === "theme" ? "var(--text)" : "var(--text-secondary)",
+      "--block-menu-title-weight": presentation.boldTitle ? "700" : "500",
+    } as React.CSSProperties : {}),
+  };
+  return createPortal(<div ref={root} role="menu" aria-label={title} className={`editor-context-menu block-action-menu${presentation.enabled ? " block-menu-plugin-active" : ""}`} onPointerLeave={() => setFlyouts([])}
+    style={menuStyle} onMouseDown={event => event.stopPropagation()}
     onKeyDown={event => {
       if (event.key === "Tab" && root.current?.querySelector("input, textarea")) {
         event.preventDefault(); event.stopPropagation();
@@ -140,7 +176,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
       const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
       buttons[next]?.focus();
     }}>
-    <div className="block-action-menu-title">{title}{submenuPath.length ? ` · ${submenuPath.join(" · ")}` : ""}</div>
+    <div className="block-action-menu-title">{displayedTitle}{submenuPath.length ? ` · ${submenuPath.join(" · ")}` : ""}</div>
     {submenuPath.length > 0 && <button type="button" role="menuitem" className="editor-context-item" onClick={() => { setFlyouts([]); setSubmenuPath(path => path.slice(0, -1)); }}>← 返回</button>}
     <div>
       <div className="block-action-menu-panel">{renderActions(visibleActions, submenuPath)}</div>
