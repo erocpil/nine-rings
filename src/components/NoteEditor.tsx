@@ -108,6 +108,7 @@ import { openBlockWorkspace } from "../lib/block-workspace";
 import { BLOCK_WORKSPACE_DISPLAY_EVENT, codeLineNumbersEnabled, saveBlockWorkspacePreferences, watchBlockDisplaySettings } from "../lib/block-display-settings";
 import { DocumentPanelDrawer, type DocumentPanelPresentation } from "./DocumentPanelDrawer";
 import { useDocumentPanelPosition } from "../hooks/useDocumentPanelPosition";
+import { DocumentInfoCard } from "./DocumentInfoCard";
 import { storeImage } from "../lib/storage/db-images";
 import { blobToBase64 } from "../lib/storage/core";
 import { ProtectedNoteEditor } from "./ProtectedNoteEditor";
@@ -249,6 +250,11 @@ export interface NoteEditorProps {
   documentViewToggle?: React.ReactNode;
   unifiedTitleBar?: boolean;
   mobileTitleBar?: boolean;
+  documentCreatedAt?: string;
+  documentUpdatedAt?: string;
+  documentLastAccessedAt?: string | null;
+  documentType?: Note["docType"];
+  documentPath?: string;
   titleSecurityAction?: React.ReactNode;
   saveIssue?: "error" | "warning";
   onOpenSaveIssue?: () => void;
@@ -458,7 +464,7 @@ function DocumentEditor(input: NoteEditorProps) {
   return <FullNoteEditor {...props} readingBlockVersion={readingBlockVersion} initialPdfExportRequest={exportRequested} selectAllOnOpen={selectAllOnOpen} />;
 }
 
-function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
+function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, documentCreatedAt, documentUpdatedAt, documentLastAccessedAt, documentType, documentPath, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
   const statusBar = useStatusBarDisplay(showStatusBar, focusMode);
   const [documentSerializer] = useState(() => new IncrementalDocumentSerializer());
   const noteEditorRef = useRef<HTMLDivElement>(null);
@@ -501,6 +507,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
   const [debugOpen, setDebugOpen] = useState(isDebugOpen);
+  const [documentInfoOpen, setDocumentInfoOpen] = useState(false);
   useEffect(() => subscribeDebugOpen(setDebugOpen), []);
   const [editorFindOpen, setEditorFindOpen] = useState(false);
   const [editorFindQuery, setEditorFindQuery] = useState("");
@@ -4322,7 +4329,27 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       <div className="note-editor-scroll" ref={scrollRef}>
         <div className="note-editor-sticky">
           {/* ── 标题 ── */}
-        <div className="note-title-row" ref={titleRef}>
+        <div className="note-title-row" ref={titleRef}
+          onPointerEnter={event => { if (event.pointerType !== "touch") setDocumentInfoOpen(true); }}
+          onPointerLeave={() => setDocumentInfoOpen(false)}
+          onFocusCapture={() => setDocumentInfoOpen(true)}
+          onBlurCapture={event => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDocumentInfoOpen(false);
+          }}
+          onKeyDown={event => {
+            if (event.key === "Escape" && documentInfoOpen) { event.stopPropagation(); setDocumentInfoOpen(false); }
+          }}>
+          {documentInfoOpen && documentCreatedAt && documentUpdatedAt && <DocumentInfoCard
+            title={localTitle || "无标题"}
+            content={content}
+            createdAt={documentCreatedAt}
+            updatedAt={documentUpdatedAt}
+            lastAccessedAt={documentLastAccessedAt}
+            readonly={readonly}
+            docType={documentType}
+            tags={tags}
+            path={documentPath}
+          />}
           {titleSecurityAction}
           {onReadonlyChange ? (
             <button

@@ -371,6 +371,37 @@
   padding: 2px 12px;
   flex-shrink: 0;
 }
+.note-title-row { position: relative; z-index: 12; }
+.document-info-card {
+  position: absolute;
+  z-index: 120;
+  top: calc(100% - 1px);
+  left: 12px;
+  width: min(380px, calc(100vw - 32px));
+  padding: 14px 16px 13px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: var(--ui-shadow-popover, 0 8px 28px color-mix(in srgb, var(--text) 18%, transparent));
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: auto;
+}
+.document-info-card-title {
+  overflow: hidden;
+  margin-bottom: 9px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.document-info-card dl { display: grid; gap: 5px; margin: 0; }
+.document-info-card-row { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 10px; }
+.document-info-card-row dt { color: var(--text-secondary); }
+.document-info-card-row dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--text); }
+.prop-document-timestamp { font-variant-numeric: tabular-nums; }
 .app-desktop-workspace .note-title-row .note-title {
   margin-bottom: 0;
   padding-block: 0;

@@ -84,7 +84,7 @@ import { BackupRestoreStatus } from "./components/BackupRestoreStatus";
 import { withBackupRestoreReadLock } from "./lib/backup-restore-coordination";
 import { SearchResultsPanel } from "./components/SearchResultsPanel";
 import { subscribeToDataChanges } from "./lib/tab-coordination";
-import { rememberRecentNote, markRecentNoteEdited } from "./lib/quick-switcher";
+import { rememberRecentNote, markRecentNoteEdited, markRecentNoteAccessed } from "./lib/quick-switcher";
 import {
   cacheEditorDocument,
   promoteCachedEditorDocument,
@@ -199,6 +199,7 @@ function App() {
 
   const [startupRestoreComplete, setStartupRestoreComplete] = useState(false);
   const selectedNoteId = selectedNote?.id ?? null;
+  const [selectedNoteLastAccessedAt, setSelectedNoteLastAccessedAt] = useState<string | null>(null);
   const selectedNoteRef = useRef(selectedNote);
   selectedNoteRef.current = selectedNote;
   const { editorReadyNoteId, secondaryUiReady } = useEditorStartup({
@@ -829,7 +830,8 @@ function App() {
     if (!selectedNoteId || !startupRestoreCompleteRef.current) return;
     localStorage.setItem(LAST_NOTE_KEY, selectedNoteId);
     rememberRecentNote(selectedNoteId);
-  }, [selectedNoteId]);
+    setSelectedNoteLastAccessedAt(markRecentNoteAccessed(selectedNoteId));
+  }, [selectedNoteId, startupRestoreComplete]);
 
   useEffect(() => {
     if (!startupRestoreCompleteRef.current) return;
@@ -1946,6 +1948,11 @@ function App() {
                       noteId={selectedNote.id}
                       focusMode={focusMode}
                       readonly={selectedNote.readonly || syncBusy}
+                      documentCreatedAt={selectedNote.created_at}
+                      documentUpdatedAt={selectedNote.updated_at}
+                      documentLastAccessedAt={selectedNoteLastAccessedAt}
+                      documentType={selectedNote.docType}
+                      documentPath={selectedNote.storagePath}
                       onReadonlyChange={!syncBusy ? async (readonly) => {
                         // Persist pending text and block folds before switching
                         // renderers, so the readonly view never mounts old content.
@@ -2052,6 +2059,7 @@ function App() {
               readonlyChangeDisabled={syncBusy}
               securityDisabled={syncBusy || protectionBusy}
               note={selectedNote}
+              lastAccessedAt={selectedNoteLastAccessedAt}
               onMetadataUpdate={handleDocumentMetadataUpdate}
               onTagsUpdate={async tags => {
                 autoSave.markTagsDirty(tags);

@@ -18,6 +18,7 @@ import { documentSizeBytes, formatDocumentSize } from "../lib/document-size";
 
 interface PropertiesPanelProps {
   note: Note;
+  lastAccessedAt?: string | null;
   onNoteUpdate: (note: Note) => void;
   onClose: () => void;
   onRename: (title: string) => Promise<void>;
@@ -58,6 +59,13 @@ const PATH_ROOT_OPTIONS = [
   { value: "archives", label: "📦 Archives" },
 ];
 
+function formatPropertyTimestamp(value: string | null | undefined): string {
+  if (!value) return "暂无记录";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "暂无记录";
+  return new Intl.DateTimeFormat(undefined, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(date);
+}
+
 interface ExternalSourcePreview {
   title: string;
   content: DeltaOps;
@@ -71,6 +79,7 @@ interface ExternalSourcePreview {
 
 function PropertiesPanel({
   note,
+  lastAccessedAt,
   onNoteUpdate,
   onClose,
   onRename,
@@ -513,6 +522,18 @@ function PropertiesPanel({
           <div className="prop-empty" title="按正文内容的 UTF-8 存储大小估算">
             {formatDocumentSize(documentSizeBytes(note.content))}
           </div>
+        </div>
+        <div className="prop-section" aria-label="文档时间">
+          <div className="prop-label">创建时间</div>
+          <div className="prop-empty">{formatPropertyTimestamp(note.created_at)}</div>
+        </div>
+        <div className="prop-section" aria-label="文档修改时间">
+          <div className="prop-label">修改时间</div>
+          <div className="prop-empty">{formatPropertyTimestamp(note.updated_at)}</div>
+        </div>
+        <div className="prop-section" aria-label="文档最近访问时间">
+          <div className="prop-label">最近访问</div>
+          <div className="prop-empty">{formatPropertyTimestamp(lastAccessedAt)}</div>
         </div>
         <div className="prop-section" aria-label="文档标签">
           <div className="prop-label">标签</div>

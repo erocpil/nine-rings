@@ -2,7 +2,9 @@ import {
   filterQuickSwitcherNotes,
   rankQuickSwitcherNotes,
   readRecentNoteIds,
+  readRecentNoteAccessedAt,
   rememberRecentNote,
+  markRecentNoteAccessed,
 } from "../src/lib/quick-switcher";
 import type { Note } from "../src/types/models";
 import { DOCUMENT_FAVORITES_KEY, documentFolderPaths, readDocumentFavorites, toggleDocumentFavorite } from "../src/lib/document-favorites";
@@ -39,6 +41,8 @@ rememberRecentNote("a", storage);
 rememberRecentNote("b", storage);
 rememberRecentNote("a", storage);
 assert(readRecentNoteIds(storage).join(",") === "a,b", "重复访问置顶且不产生重复项");
+assert(markRecentNoteAccessed("a", "2026-08-22T12:30:00.000Z", storage) === "2026-08-22T12:30:00.000Z", "记录访问时间并返回当前值");
+assert(readRecentNoteAccessedAt("a", storage) === "2026-08-22T12:30:00.000Z", "可读取本机保存的最近访问时间");
 
 const notes = [
   note("a", "网络手册", "2026-08-20T00:00:00Z", { storagePath: "references/network", concepts: ["DPDK"] }),
