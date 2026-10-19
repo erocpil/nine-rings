@@ -508,6 +508,24 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
   const [debugOpen, setDebugOpen] = useState(isDebugOpen);
   const [documentInfoOpen, setDocumentInfoOpen] = useState(false);
+  const documentInfoCloseTimerRef = useRef<number | null>(null);
+  const clearDocumentInfoCloseTimer = () => {
+    if (documentInfoCloseTimerRef.current !== null) {
+      window.clearTimeout(documentInfoCloseTimerRef.current);
+      documentInfoCloseTimerRef.current = null;
+    }
+  };
+  const scheduleDocumentInfoClose = () => {
+    clearDocumentInfoCloseTimer();
+    documentInfoCloseTimerRef.current = window.setTimeout(() => {
+      setDocumentInfoOpen(false);
+      documentInfoCloseTimerRef.current = null;
+    }, 180);
+  };
+  useEffect(() => () => {
+    if (documentInfoCloseTimerRef.current !== null)
+      window.clearTimeout(documentInfoCloseTimerRef.current);
+  }, []);
   useEffect(() => subscribeDebugOpen(setDebugOpen), []);
   const [editorFindOpen, setEditorFindOpen] = useState(false);
   const [editorFindQuery, setEditorFindQuery] = useState("");
@@ -4331,7 +4349,11 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           {/* ── 标题 ── */}
         <div className="note-title-row" ref={titleRef}
           onKeyDown={event => {
-            if (event.key === "Escape" && documentInfoOpen) { event.stopPropagation(); setDocumentInfoOpen(false); }
+            if (event.key === "Escape" && documentInfoOpen) {
+              event.stopPropagation();
+              clearDocumentInfoCloseTimer();
+              setDocumentInfoOpen(false);
+            }
           }}>
           {titleSecurityAction}
           {onReadonlyChange ? (
@@ -4371,16 +4393,19 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
             docType={documentType}
             tags={tags}
             path={documentPath}
-            onPointerLeave={() => setDocumentInfoOpen(false)}
+            onPointerEnter={clearDocumentInfoCloseTimer}
+            onPointerLeave={scheduleDocumentInfoClose}
           />}
           <div className="note-title-field"
-            onPointerEnter={event => { if (event.pointerType !== "touch") setDocumentInfoOpen(true); }}
-            onPointerLeave={event => {
-              const nextTarget = event.relatedTarget;
-              if (nextTarget instanceof Element && nextTarget.closest(".document-info-card-title-hover")) return;
-              setDocumentInfoOpen(false);
+            onPointerEnter={event => {
+              clearDocumentInfoCloseTimer();
+              if (event.pointerType !== "touch") setDocumentInfoOpen(true);
             }}
-            onFocusCapture={() => setDocumentInfoOpen(false)}>
+            onPointerLeave={scheduleDocumentInfoClose}
+            onFocusCapture={() => {
+              clearDocumentInfoCloseTimer();
+              setDocumentInfoOpen(false);
+            }}>
             {mobileTitleBar && (focusMode || readonly) ? <DocumentTitlePreview key={noteId} title={localTitle || "无标题"}
               className={saveIssue ? `note-title-save-${saveIssue}` : ""} onOpenProperties={readonly ? onOpenProperties : undefined} /> : <input
               ref={titleInputRef}
