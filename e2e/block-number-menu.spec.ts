@@ -47,6 +47,26 @@ test("结构块复制保留 Markdown，折叠操作和菜单键盘关闭不改�
   expect(await root.evaluate(element => (element as any).editor.state.doc.textContent)).toBe("const x = 1;after");
 });
 
+test("块菜单关闭后重开仍可用上下方向键移动可见焦点", async ({ page }) => {
+  await setup(page);
+  const trigger = page.getByRole("button", { name: "第 1 块操作", exact: true });
+  const popup = page.getByRole("menu", { name: "第 1 块", exact: true });
+  await trigger.click();
+  await expect(popup).toBeVisible();
+  await trigger.click();
+  await expect(popup).toHaveCount(0);
+  await trigger.click();
+  await expect(popup).toBeVisible();
+
+  const items = popup.getByRole("menuitem");
+  await expect.poll(() => items.nth(0).evaluate(element => element === document.activeElement)).toBe(true);
+  await items.nth(0).press("ArrowDown");
+  await expect.poll(() => items.nth(1).evaluate(element => element === document.activeElement)).toBe(true);
+  await expect(items.nth(1)).toHaveCSS("outline-style", "solid");
+  await items.nth(1).press("ArrowUp");
+  await expect.poll(() => items.nth(0).evaluate(element => element === document.activeElement)).toBe(true);
+});
+
 test("分割线缩进只作用于此块，不把下一个段落当成目标", async ({ page }) => {
   await setup(page);
   const root = page.locator(".ProseMirror:visible");
