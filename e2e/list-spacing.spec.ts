@@ -33,14 +33,18 @@ for (const readonly of [false, true]) {
             const item = list.querySelector(":scope > li")!;
             const style = getComputedStyle(list);
             const marker = getComputedStyle(item, "::before");
+            const itemStyle = getComputedStyle(item);
             const padding = parseFloat(style.paddingInlineStart);
             const font = parseFloat(style.fontSize);
             return {
               topLevel: list.parentElement === root,
               left: list.getBoundingClientRect().left - paragraphLeft,
               textInset: item.getBoundingClientRect().left - list.getBoundingClientRect().left,
-              padding, font,
-              markerLeft: item.getBoundingClientRect().right - parseFloat(marker.right) - parseFloat(marker.width) - list.getBoundingClientRect().left,
+              padding, font, gap: parseFloat(itemStyle.columnGap),
+              markerColumn: parseFloat(itemStyle.gridTemplateColumns.split(" ")[0]),
+              markerLeft: list.tagName === "OL"
+                ? item.getBoundingClientRect().left - list.getBoundingClientRect().left
+                : item.getBoundingClientRect().right - parseFloat(marker.right) - parseFloat(marker.width) - list.getBoundingClientRect().left,
               bullet: list.tagName === "UL",
               counter: style.counterReset,
               decimal: style.getPropertyValue("--editor-ordered-decimal-column").trim(),
@@ -51,14 +55,17 @@ for (const readonly of [false, true]) {
         for (const list of geometry) {
           if (list.topLevel) expect(list.left).toBeCloseTo(0, 1);
           expect(list.textInset).toBeCloseTo(list.padding, 1);
-          expect(list.padding).toBeGreaterThanOrEqual(indent * list.font - 0.1);
           expect(list.markerLeft).toBeGreaterThanOrEqual(-1);
-          if (list.bullet) expect(list.markerLeft).toBeCloseTo(list.padding - (gap + 0.5) * list.font, 1);
+          if (list.bullet) {
+            expect(list.padding).toBeGreaterThanOrEqual(indent * list.font - 0.1);
+            expect(list.markerLeft).toBeCloseTo(list.padding - (gap + 0.5) * list.font, 1);
+          } else {
+            expect(list.markerLeft).toBeCloseTo(list.padding, 1);
+          }
           expect(list.native).toBe('""');
         }
         expect(geometry.at(-1)!.decimal).toBe("4ch");
         expect(geometry.at(-1)!.counter).toContain("98");
-        expect(geometry.at(-1)!.padding).toBeGreaterThanOrEqual(geometry.at(-2)!.padding);
       }
     }
     expect(await editor.evaluate(el => (el as HTMLElement & { editor: Editor }).editor.getJSON())).toEqual(original);

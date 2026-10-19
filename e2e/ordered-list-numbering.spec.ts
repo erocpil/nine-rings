@@ -91,7 +91,7 @@ test("有序列表的续行和后续列表项保持同一正文缩进", async ({
   textLefts.forEach((left) => expect(Math.abs(left - textLefts[0])).toBeLessThan(1));
 });
 
-test("两位数及以上的有序列表编号左边缘与正文起点分别对齐且不侵入 gutter", async ({ page }) => {
+test("多位数编号仍左对齐，正文紧跟各自编号且不侵入 gutter", async ({ page }) => {
   await createBlankDocument(page);
   const editor = page.locator(".ProseMirror");
   await expect(editor).toBeEditable();
@@ -109,24 +109,30 @@ test("两位数及以上的有序列表编号左边缘与正文起点分别对�
 
   const listItems = editor.locator(":scope > ol > li");
   await expect(listItems).toHaveCount(12);
-  const markerStyles = await listItems.evaluateAll((items) => items.map((item) => {
+  const itemStyles = await listItems.evaluateAll((items) => items.map((item) => {
+    const box = item.getBoundingClientRect();
     const style = getComputedStyle(item, "::before");
+    const grid = getComputedStyle(item);
+    const markerWidth = Number.parseFloat(grid.gridTemplateColumns.split(" ")[0]);
     return {
-      markerRight: item.getBoundingClientRect().right - parseFloat(style.right),
-      markerLeft: item.getBoundingClientRect().right - parseFloat(style.right) - parseFloat(style.width),
+      markerLeft: box.left,
+      markerWidth,
+      gap: Number.parseFloat(grid.columnGap),
       textLeft: item.querySelector("p")!.getBoundingClientRect().left,
       editorLeft: item.closest(".ProseMirror")!.getBoundingClientRect().left,
       textAlign: style.textAlign,
       transform: style.transform,
+      position: style.position,
     };
   }));
-  markerStyles.forEach((style) => {
-    expect(Math.abs(style.markerRight - markerStyles[0].markerRight)).toBeLessThan(1);
-    expect(Math.abs(style.textLeft - markerStyles[0].textLeft)).toBeLessThan(1);
+  itemStyles.forEach((style, index) => {
+    expect(Math.abs(style.markerLeft - itemStyles[0].markerLeft)).toBeLessThan(1);
+    expect(style.textLeft - style.markerLeft - style.markerWidth).toBeCloseTo(style.gap, 1);
     expect(style.markerLeft).toBeGreaterThanOrEqual(style.editorLeft);
-    expect(style.textLeft - style.markerRight).toBeGreaterThan(0);
     expect(style.textAlign).toBe("left");
     expect(style.transform).toBe("none");
+    expect(style.position).toBe("static");
+    if (index === 9) expect(style.textLeft).toBeGreaterThan(itemStyles[0].textLeft + 1);
   });
 });
 

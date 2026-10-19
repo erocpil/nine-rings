@@ -219,9 +219,49 @@
 /* 编号在预留列内左对齐；最长编号后采用用户设置的间距。
    上方列表缩进保证最长编号仍留在正文区域内，不侵入块号沟槽。 */
 :is(.editor-content, .editor-appearance-preview) ol > li::before {
-  right: calc(100% + var(--editor-list-marker-gap));
+  position: static;
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  align-self: baseline;
+  width: auto;
+  right: auto;
   left: auto;
-  width: var(--editor-ordered-marker-column);
   text-align: left;
   transform: none;
+}
+
+:is(.editor-content, .editor-appearance-preview) ol > li {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: var(--editor-list-marker-gap);
+  align-items: baseline;
+}
+
+:is(.editor-content, .editor-appearance-preview) ol > li > * {
+  grid-column: 2;
+  min-width: 0;
+}
+
+:is(.editor-content, .editor-appearance-preview) ol > li > p {
+  display: block;
+}
+
+:is(.editor-content, .editor-appearance-preview) ol {
+  --editor-ordered-marker-inset: max(
+    0px,
+    calc(var(--editor-list-indent) + var(--editor-ordered-list-offset) - var(--editor-ordered-marker-column) - var(--editor-list-marker-gap))
+  );
+  padding-inline-start: var(--editor-ordered-marker-inset);
+}
+
+/* Generated TOCs use their own compact navigation layout, not prose markers. */
+:is(.editor-content, .editor-appearance-preview) .document-toc-block ol > li {
+  display: block;
+  column-gap: normal;
+}
+
+:is(.editor-content, .editor-appearance-preview) .document-toc-block ol > li > * {
+  grid-column: auto;
+  min-width: 0;
 }
