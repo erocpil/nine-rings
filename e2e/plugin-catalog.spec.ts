@@ -118,6 +118,32 @@ for (const width of [390, 1280]) {
   });
 }
 
+for (const width of [390, 1280]) {
+  test(`块菜单插件设置按屏幕宽度分栏 ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/");
+    await openAdvanced(page);
+    await page.getByRole("checkbox", { name: "启用插件功能", exact: true }).check();
+    const catalog = page.getByRole("complementary", { name: "插件列表", exact: true });
+    await catalog.getByRole("button", { name: "块菜单展示", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "块菜单展示配置", exact: true });
+    const appearance = dialog.getByRole("region", { name: "菜单外观", exact: true });
+    const groups = dialog.getByRole("region", { name: "分组与操作", exact: true });
+    await expect(appearance).toBeVisible();
+    await expect(groups).toBeVisible();
+    const appearanceBox = (await appearance.boundingBox())!;
+    const groupsBox = (await groups.boundingBox())!;
+    if (width >= 760) {
+      expect(groupsBox.x).toBeGreaterThan(appearanceBox.x + appearanceBox.width / 2);
+      expect(Math.abs(groupsBox.y - appearanceBox.y)).toBeLessThan(4);
+    } else {
+      expect(Math.abs(groupsBox.x - appearanceBox.x)).toBeLessThan(2);
+      expect(groupsBox.y).toBeGreaterThanOrEqual(appearanceBox.y + appearanceBox.height - 1);
+    }
+    await expect(dialog.getByText(/块菜单插件只负责展示策略/)).toBeVisible();
+  });
+}
+
 test("另一窗口关闭插件撤销配置弹层，Tab 留在弹层且背景设置不可操作", async ({
   page,
   context,

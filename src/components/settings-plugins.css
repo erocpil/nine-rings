@@ -24,6 +24,7 @@
 .block-menu-plugin-reorder { display: inline-flex; gap: 4px; }
 .block-menu-plugin-reorder button { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--settings-input-bg); }
 .block-menu-plugin-reorder button:disabled { opacity: .4; }
+.block-menu-settings-note { grid-column: 1 / -1; margin-block: 0; }
 @media (min-width: 769px) {
   .settings-panel .settings-body[data-settings-page="advanced"]:has(> .settings-plugin-catalog) {
     min-height: 0;
