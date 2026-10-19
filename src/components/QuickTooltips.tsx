@@ -17,6 +17,16 @@ export function QuickTooltips() {
     if (!hint || !element) return;
     const box = hint.target.getBoundingClientRect(),
       popup = element.getBoundingClientRect();
+    const scrollViewport = hint.target
+      .closest<HTMLElement>(".note-editor-scroll")
+      ?.getBoundingClientRect();
+    const minTop = Math.max(8, (scrollViewport?.top ?? 0) + (scrollViewport ? 8 : 0));
+    const maxBottom = Math.min(
+      window.innerHeight - 8,
+      scrollViewport?.bottom !== undefined
+        ? scrollViewport.bottom - 8
+        : window.innerHeight - 8,
+    );
     const desiredLeft =
       hint.target.dataset.tooltipAlign === "start"
         ? box.left
@@ -25,8 +35,8 @@ export function QuickTooltips() {
       8,
       Math.min(desiredLeft, window.innerWidth - popup.width - 8),
     );
-    const above = box.bottom + 6 + popup.height > window.innerHeight - 8;
-    const maxTop = Math.max(8, window.innerHeight - popup.height - 8);
+    const above = box.bottom + 6 + popup.height > maxBottom;
+    const maxTop = Math.max(minTop, maxBottom - popup.height);
     const desiredTop = above
       ? box.top - popup.height - 6
       : box.bottom + 6;
@@ -34,7 +44,7 @@ export function QuickTooltips() {
     // (for example, when the last block is clipped by the editor viewport).
     // Flip first, then clamp the tooltip itself so it cannot be cut off at the
     // window edge even when the anchor is partially or entirely outside it.
-    const top = Math.max(8, Math.min(desiredTop, maxTop));
+    const top = Math.max(minTop, Math.min(desiredTop, maxTop));
     if (
       Math.abs(hint.left - left) > 0.5 ||
       Math.abs(hint.top - top) > 0.5
