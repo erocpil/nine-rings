@@ -8,7 +8,6 @@ export function QuickTooltips() {
     text: string;
     left: number;
     top: number;
-    above: boolean;
     host: Element;
     target: HTMLElement;
   } | null>(null);
@@ -27,15 +26,20 @@ export function QuickTooltips() {
       Math.min(desiredLeft, window.innerWidth - popup.width - 8),
     );
     const above = box.bottom + 6 + popup.height > window.innerHeight - 8;
-    const top = above
-      ? Math.max(popup.height + 8, box.top - 6)
+    const maxTop = Math.max(8, window.innerHeight - popup.height - 8);
+    const desiredTop = above
+      ? box.top - popup.height - 6
       : box.bottom + 6;
+    // A gutter control can move below the viewport after it triggered the hint
+    // (for example, when the last block is clipped by the editor viewport).
+    // Flip first, then clamp the tooltip itself so it cannot be cut off at the
+    // window edge even when the anchor is partially or entirely outside it.
+    const top = Math.max(8, Math.min(desiredTop, maxTop));
     if (
       Math.abs(hint.left - left) > 0.5 ||
-      Math.abs(hint.top - top) > 0.5 ||
-      hint.above !== above
+      Math.abs(hint.top - top) > 0.5
     )
-      setHint({ ...hint, left, top, above });
+      setHint({ ...hint, left, top });
   }, [hint]);
   useEffect(() => {
     let target: HTMLElement | null = null;
@@ -104,7 +108,6 @@ export function QuickTooltips() {
           // Measure before paint; no character-width estimate for multiline hints.
           left: 8,
           top: box.bottom + 6,
-          above: false,
           host: element.closest("dialog[open]") ?? document.body,
         });
       };
@@ -149,7 +152,6 @@ export function QuickTooltips() {
           style={{
             left: hint.left,
             top: hint.top,
-            transform: hint.above ? "translateY(-100%)" : undefined,
           }}
         >
           {hint.text}
