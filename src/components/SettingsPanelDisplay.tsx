@@ -48,6 +48,7 @@ export function SettingsPanelDisplay({
   const outline = configuration === "outline-display";
   const bookmark = configuration === "bookmark-display";
   const notes = configuration === "notes-display";
+  const tree = configuration === "tree-display";
   const name = outline ? "目录" : bookmark ? "书签" : notes ? "随记" : "文档树";
   useSyncExternalStore(controller.subscribe, controller.snapshot);
   const preference = controller.read();
@@ -140,7 +141,7 @@ export function SettingsPanelDisplay({
           </section>
           <section className="plugin-settings-group" aria-label="信息与工具">
             <h3>信息与工具</h3>
-            <Field label="悬停提示" desc="">
+            <Field label="悬停提示" desc={tree ? "信息卡复用文档树中的轻量元数据，不读取正文；目录仍显示路径提示。" : ""}>
               <select
                 aria-label={`${name}悬停提示`}
                 value={preference.display.tooltip}
@@ -159,6 +160,7 @@ export function SettingsPanelDisplay({
                       : "完整路径"}
                 </option>
                 <option value="name">名称</option>
+                {tree && <option value="info">完整文档信息</option>}
               </select>
             </Field>
             <Field label="辅助信息" desc="">

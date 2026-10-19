@@ -387,6 +387,22 @@
   font-size: 12px;
   line-height: 1.45;
   pointer-events: auto;
+  cursor: text;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.document-info-card * { -webkit-user-select: text; user-select: text; }
+.document-info-card-title-hover {
+  right: 0;
+  left: auto;
+}
+.document-info-card-tree {
+  position: fixed;
+  z-index: 2000;
+  top: auto;
+  left: auto;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
 }
 .document-info-card-title {
   margin-bottom: 9px;

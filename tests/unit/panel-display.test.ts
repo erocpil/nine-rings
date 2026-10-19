@@ -39,6 +39,10 @@ describe("panel display authority and fallback", () => {
         } as typeof DEFAULT_TREE_DISPLAY),
       ).toThrow();
   });
+  it("allows full document information only in the document-tree tooltip", () => {
+    expect(validatePanelDisplay({ ...DEFAULT_TREE_DISPLAY, tooltip: "info" }).tooltip).toBe("info");
+    expect(() => validatePanelDisplay({ ...DEFAULT_OUTLINE_DISPLAY, tooltip: "info" })).toThrow();
+  });
   it("freezes contributions, revokes commands and restores host fallback synchronously", () => {
     const runtime = new PluginRuntime();
     runtime.setEnabled(true);

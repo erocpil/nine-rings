@@ -434,7 +434,8 @@ export const idbAdapter: StorageAdapter = {
     const summaries = await this.getDocumentSummaries();
     const docs: FlatDocRecord[] = summaries.map(n => ({
       id: n.id, title: n.title, storage_path: n.storagePath!, doc_type: n.docType,
-      sourceFormat: n.sourceFormat, updated_at: n.updated_at, readonly: n.readonly,
+      sourceFormat: n.sourceFormat, created_at: n.created_at, updated_at: n.updated_at,
+      content_bytes: n.contentBytes, tags: n.tags, readonly: n.readonly,
     }));
     return buildDocTree(docs);
   },

@@ -1,4 +1,4 @@
-import { compareDocumentMetadata, extractPlainText } from "./core";
+import { buildDocTree, compareDocumentMetadata, extractPlainText } from "./core";
 import { rebuildNativeSearchText } from "./native-search-rebuild";
 import { noteToMarkdown } from "../markdown-serializer";
 /**
@@ -72,6 +72,21 @@ export const tauriAdapter: StorageAdapter = {
       return { ...summary, contentBytes: row.contentBytes, sourceFormat: row.sourceFormat ?? undefined, originalFileName: row.originalFileName ?? undefined };
     }).sort(compareDocumentMetadata);
   },
+  getPathTree: async () => {
+    const summaries = await tauriAdapter.getDocumentSummaries();
+    return buildDocTree(summaries.filter(note => note.storagePath).map(note => ({
+      id: note.id,
+      title: note.title,
+      storage_path: note.storagePath!,
+      doc_type: note.docType,
+      sourceFormat: note.sourceFormat,
+      created_at: note.created_at,
+      updated_at: note.updated_at,
+      content_bytes: note.contentBytes,
+      tags: note.tags,
+      readonly: note.readonly,
+    })));
+  },
   batchDelete: (ids) => tauriDriver.batchDelete(ids),
   batchSetReadonly: (ids, readonly) => tauriDriver.batchSetReadonly(ids, readonly),
   deleteNoteVersions: (noteId, ids) => tauriDriver.deleteNoteVersions(noteId, ids),
@@ -133,7 +148,6 @@ export const tauriAdapter: StorageAdapter = {
 
   // ══════ Doc Tree（getPathTree 已迁移，其余保留）══════
 
-  getPathTree: () => tauriDriver.getPathTree(),
   getNotesByPath: (pathPrefix) => invokeNotes("get_notes_by_path", { pathPrefix }),
   moveDocument: (noteId, targetFolderPath) => tauriDriver.moveDocument(noteId, targetFolderPath),
   batchMoveDocuments: (noteIds, targetFolderPath) => tauriDriver.batchMoveDocuments(noteIds, targetFolderPath),

@@ -99,6 +99,31 @@ for (const width of [390, 1280]) {
   });
 }
 
+test("文档树展示扩展可选择完整文档信息悬停卡", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nr:pluginsEnabled", "true");
+    localStorage.setItem("nr:pluginTreeDisplay", JSON.stringify({
+      enabled: true,
+      display: {
+        target: "document-tree", font: "inherit", fontSize: 14, rowHeight: 30,
+        labelColor: "inherit", tooltip: "info", showCounts: true,
+        showMetadata: true, toolbar: ["tree.expand-all", "tree.refresh"],
+      },
+    }));
+  });
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await openDocumentSidebar(page);
+  const document = page.locator(".app-sidebar .doc-tree-open").first();
+  await expect(document).toBeVisible();
+  await expect(document).not.toHaveAttribute("title");
+  await document.hover();
+  const info = page.getByRole("tooltip", { name: /的文档信息$/ });
+  await expect(info).toBeVisible({ timeout: 5000 });
+  for (const label of ["大小", "创建", "修改", "访问", "权限", "类型", "标签", "路径"])
+    await expect(info.getByText(label, { exact: true })).toBeVisible();
+});
+
 test("设置入口、浅深主题、独立停用及恢复默认", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();

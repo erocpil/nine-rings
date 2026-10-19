@@ -52,10 +52,10 @@ export function markRecentNoteAccessed(id: string, accessedAt = new Date().toISO
   try {
     const times = readNoteAccessTimes(storage);
     times[id] = accessedAt;
-    const retainedIds = new Set([id, ...readRecentNoteIds(storage)]);
-    storage.setItem(NOTE_ACCESS_TIMES_KEY, JSON.stringify(Object.fromEntries(
-      Object.entries(times).filter(([noteId]) => retainedIds.has(noteId)),
-    )));
+    const retained = Object.entries(times)
+      .sort((left, right) => right[1].localeCompare(left[1]))
+      .slice(0, 4096);
+    storage.setItem(NOTE_ACCESS_TIMES_KEY, JSON.stringify(Object.fromEntries(retained)));
   } catch { /* Access history is optional local presentation metadata. */ }
   return accessedAt;
 }

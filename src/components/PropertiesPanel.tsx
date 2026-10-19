@@ -15,6 +15,7 @@ import { extractPlainText } from "../lib/storage/core";
 import { useTransientMessage } from "../hooks/useTransientMessage";
 import { PropertyRename } from "./PropertyRename";
 import { documentSizeBytes, formatDocumentSize } from "../lib/document-size";
+import { formatDocumentTimestamp } from "../lib/document-info";
 
 interface PropertiesPanelProps {
   note: Note;
@@ -58,13 +59,6 @@ const PATH_ROOT_OPTIONS = [
   { value: "ideas", label: "💡 Ideas" },
   { value: "archives", label: "📦 Archives" },
 ];
-
-function formatPropertyTimestamp(value: string | null | undefined): string {
-  if (!value) return "暂无记录";
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return "暂无记录";
-  return new Intl.DateTimeFormat(undefined, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(date);
-}
 
 interface ExternalSourcePreview {
   title: string;
@@ -525,15 +519,15 @@ function PropertiesPanel({
         </div>
         <div className="prop-section" aria-label="文档时间">
           <div className="prop-label">创建时间</div>
-          <div className="prop-empty">{formatPropertyTimestamp(note.created_at)}</div>
+          <div className="prop-empty">{formatDocumentTimestamp(note.created_at)}</div>
         </div>
         <div className="prop-section" aria-label="文档修改时间">
           <div className="prop-label">修改时间</div>
-          <div className="prop-empty">{formatPropertyTimestamp(note.updated_at)}</div>
+          <div className="prop-empty">{formatDocumentTimestamp(note.updated_at)}</div>
         </div>
         <div className="prop-section" aria-label="文档最近访问时间">
           <div className="prop-label">最近访问</div>
-          <div className="prop-empty">{formatPropertyTimestamp(lastAccessedAt)}</div>
+          <div className="prop-empty">{formatDocumentTimestamp(lastAccessedAt)}</div>
         </div>
         <div className="prop-section" aria-label="文档标签">
           <div className="prop-label">标签</div>

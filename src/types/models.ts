@@ -49,6 +49,9 @@ export interface PathNode {
   docType?: DocType;    // document 时
   sourceFormat?: "text" | "markdown";
   updatedAt?: string;   // document 时
+  createdAt?: string;   // document 时
+  contentBytes?: number; // document 时，正文序列化大小
+  tags?: string[];      // document 时
   count?: number;       // folder 时，子文档数
   readonly?: boolean;   // document 时
 }

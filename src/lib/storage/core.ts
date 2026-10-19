@@ -143,6 +143,9 @@ export interface FlatDocRecord {
   storage_path: string;   // NOT NULL（已由 Op 的 where IS NOT NULL 保证）
   doc_type?: DocType;
   updated_at: string;
+  created_at?: string;
+  content_bytes?: number;
+  tags?: string[];
   readonly: boolean;
 }
 
@@ -184,6 +187,9 @@ export function buildDocTree(
       sourceFormat: d.sourceFormat,
       updatedAt: d.updated_at,
       readonly: d.readonly,
+      ...(d.created_at ? { createdAt: d.created_at } : {}),
+      ...(d.content_bytes !== undefined ? { contentBytes: d.content_bytes } : {}),
+      ...(d.tags ? { tags: d.tags } : {}),
     });
   }
 

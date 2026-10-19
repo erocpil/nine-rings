@@ -13,6 +13,9 @@ import MoveToDialog from "./MoveToDialog";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { copyToClipboard } from "../lib/clipboard";
 import { useTransientMessage } from "../hooks/useTransientMessage";
+import { DocumentInfoCard } from "./DocumentInfoCard";
+import { readRecentNoteAccessedAt } from "../lib/quick-switcher";
+import { formatDocumentInfoText } from "../lib/document-info";
 const DocumentCompareDialog = lazy(() => import("./DocumentCompareDialog"));
 import {
   getDocumentFolderPath,
@@ -71,6 +74,12 @@ interface ContextMenuState {
   noteId?: string;
   path: string;
   title: string;
+}
+
+interface TreeDocumentInfoTooltip {
+  node: PathNode;
+  left: number;
+  top: number;
 }
 
 interface TreeLongPressState {
@@ -193,6 +202,49 @@ function DocTree({
   const selectionRequestRef = useRef(0);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const { message: pathNotice, showMessage: showPathNotice, clearMessage: clearPathNotice } = useTransientMessage();
+  const [treeInfoTooltip, setTreeInfoTooltip] = useState<TreeDocumentInfoTooltip | null>(null);
+  const treeInfoTimerRef = useRef<number | null>(null);
+  const treeInfoCloseTimerRef = useRef<number | null>(null);
+  const treeInfoHoverPathRef = useRef<string | null>(null);
+  const clearTreeInfoTimer = () => {
+    if (treeInfoTimerRef.current !== null) window.clearTimeout(treeInfoTimerRef.current);
+    treeInfoTimerRef.current = null;
+  };
+  const cancelTreeInfoClose = () => {
+    if (treeInfoCloseTimerRef.current !== null) window.clearTimeout(treeInfoCloseTimerRef.current);
+    treeInfoCloseTimerRef.current = null;
+  };
+  const scheduleTreeInfoClose = () => {
+    cancelTreeInfoClose();
+    treeInfoCloseTimerRef.current = window.setTimeout(() => {
+      treeInfoHoverPathRef.current = null;
+      setTreeInfoTooltip(null);
+      treeInfoCloseTimerRef.current = null;
+    }, 180);
+  };
+  const showTreeDocumentInfo = (node: PathNode, row: HTMLDivElement, pointerType: string) => {
+    if (display?.tooltip !== "info" || !node.noteId || pointerType === "touch") return;
+    clearTreeInfoTimer();
+    cancelTreeInfoClose();
+    treeInfoHoverPathRef.current = node.path;
+    setTreeInfoTooltip(null);
+    treeInfoTimerRef.current = window.setTimeout(() => {
+      if (treeInfoHoverPathRef.current !== node.path || !row.isConnected) return;
+      const rect = row.getBoundingClientRect();
+      const width = Math.min(380, Math.max(220, window.innerWidth - 24));
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+      const estimatedHeight = 320;
+      const top = rect.bottom + estimatedHeight + 8 < window.innerHeight
+        ? rect.bottom + 8
+        : Math.max(8, rect.top - estimatedHeight - 8);
+      setTreeInfoTooltip({ node, left, top });
+      treeInfoTimerRef.current = null;
+    }, 320);
+  };
+  useEffect(() => () => {
+    if (treeInfoTimerRef.current !== null) window.clearTimeout(treeInfoTimerRef.current);
+    if (treeInfoCloseTimerRef.current !== null) window.clearTimeout(treeInfoCloseTimerRef.current);
+  }, []);
   useEffect(() => {
     const requests = selectionRequestRef;
     requests.current++;
@@ -432,6 +484,34 @@ function DocTree({
       showPathNotice(`已复制名称：${name}`);
     } catch {
       setSelectionError("复制名称失败，请检查剪贴板权限后重试");
+    }
+  };
+
+  const handleCopyDocumentInfo = async (noteId: string) => {
+    setContextMenu(null);
+    clearPathNotice();
+    setSelectionError(null);
+    const node = tree.find(item => item.type === "document" && item.noteId === noteId);
+    if (!node) {
+      setSelectionError("文档信息不可用，请刷新文档树后重试");
+      return;
+    }
+    const folderPath = getDocumentFolderPath(node.path, noteId);
+    try {
+      await copyToClipboard(formatDocumentInfoText({
+        title: node.name,
+        contentBytes: node.contentBytes ?? 0,
+        createdAt: node.createdAt,
+        updatedAt: node.updatedAt,
+        lastAccessedAt: readRecentNoteAccessedAt(noteId),
+        readonly: node.readonly,
+        docType: node.docType,
+        tags: node.tags,
+        path: folderPath,
+      }), { reportFailure: true });
+      showPathNotice(`已复制文档信息卡：${node.name}`);
+    } catch {
+      setSelectionError("复制文档信息卡失败，请检查剪贴板权限后重试");
     }
   };
 
@@ -774,7 +854,7 @@ function DocTree({
                 <span
                   className="doc-tree-name"
                   data-hierarchy-level={(depth % 6) + 1}
-                  title={display?.tooltip === "path" ? node.path : node.name}
+                  title={display?.tooltip === "name" ? node.name : node.path}
                 >
                   {node.name}
                 </span>
@@ -801,6 +881,8 @@ function DocTree({
         key={node.path}
         className={`doc-tree-node doc-tree-doc ${isSelected ? "doc-tree-selected" : ""}${node.noteId === revealId ? " doc-tree-revealed" : ""}`}
         style={{ paddingLeft: 6 + Math.max(0, depth - 1) * 12 }}
+        onPointerEnter={event => showTreeDocumentInfo(node, event.currentTarget, event.pointerType)}
+        onPointerLeave={scheduleTreeInfoClose}
         onClick={event => handleDocClick(node, documentOpenOptions(event))}
         onContextMenu={(e) => handleContextMenu(e, node)}
         onPointerDown={(event) => handleTreePointerDown(event, node)}
@@ -828,7 +910,7 @@ function DocTree({
             onCancel={() => setRenamingId(null)}
           />
         ) : (
-          <button type="button" className="doc-tree-name doc-tree-open" disabled={disabled} aria-current={isSelected ? "page" : undefined} title={display?.tooltip === "path" ? node.path : node.name}>{node.name}</button>
+        <button type="button" className="doc-tree-name doc-tree-open" disabled={disabled} aria-current={isSelected ? "page" : undefined} title={display?.tooltip === "path" ? node.path : display?.tooltip === "info" ? undefined : node.name}>{node.name}</button>
         )}
         {node.docType && !isRenaming && (!display || display.showMetadata) && (
           <span className="doc-tree-type">{DOC_TYPE_LABELS[node.docType] ?? node.docType}</span>
@@ -1002,6 +1084,21 @@ function DocTree({
         <button type="button" onClick={() => setCompareSelection(null)}>取消</button>
       </div>}
       {pathNotice && createPortal(<div role="status" className="doc-tree-path-toast">{pathNotice}</div>, document.body)}
+      {treeInfoTooltip && createPortal(<DocumentInfoCard
+        className="document-info-card-tree"
+        style={{ left: treeInfoTooltip.left, top: treeInfoTooltip.top }}
+        title={treeInfoTooltip.node.name}
+        contentBytes={treeInfoTooltip.node.contentBytes}
+        createdAt={treeInfoTooltip.node.createdAt ?? ""}
+        updatedAt={treeInfoTooltip.node.updatedAt ?? ""}
+        lastAccessedAt={treeInfoTooltip.node.noteId ? readRecentNoteAccessedAt(treeInfoTooltip.node.noteId) : null}
+        readonly={treeInfoTooltip.node.readonly}
+        docType={treeInfoTooltip.node.docType}
+        tags={treeInfoTooltip.node.tags ?? []}
+        path={treeInfoTooltip.node.path.slice(0, treeInfoTooltip.node.path.lastIndexOf("/"))}
+        onPointerEnter={cancelTreeInfoClose}
+        onPointerLeave={scheduleTreeInfoClose}
+      />, document.body)}
       {exportProgress && <div role="status" className="doc-tree-path-notice">{exportProgress}</div>}
       {toolbarHost === undefined
         ? <div className="doc-tree-toolbar-inline">{toolbar}</div>
@@ -1018,7 +1115,12 @@ function DocTree({
           "--panel-display-document-color": display.labelColor === "accent" ? "var(--accent)" : display.labelColor === "secondary" ? "var(--text-secondary)" : "var(--text)",
         } as CSSProperties : undefined}
         ref={treeScrollRef}
-        onScroll={(event) => localStorage.setItem(DOC_TREE_SCROLL_KEY, String(event.currentTarget.scrollTop))}
+        onScroll={(event) => {
+          localStorage.setItem(DOC_TREE_SCROLL_KEY, String(event.currentTarget.scrollTop));
+          treeInfoHoverPathRef.current = null;
+          setTreeInfoTooltip(null);
+          clearTreeInfoTimer();
+        }}
       >
       {roots.length === 0 ? (
         <div className="doc-tree-empty">暂无文档。点击 + 新建。</div>
@@ -1062,6 +1164,7 @@ function DocTree({
           ) : (
             <>
               <button className="doc-context-item" onClick={() => void handleCopyName(contextMenu.title)}>复制名称</button>
+              <button className="doc-context-item" onClick={() => void handleCopyDocumentInfo(contextMenu.noteId!)}>复制文档信息卡</button>
               <button className="doc-context-item" onClick={() => void handleCopyPath(getDocumentFolderPath(contextMenu.path, contextMenu.noteId!))}>复制所在路径</button>
               <button className="doc-context-item" disabled={disabled} onClick={() => { setCompareSelection([contextMenu.noteId!]); setCompareIds(null); setContextMenu(null); }}>与另一文档比较…</button>
                               <button className="doc-context-item" onClick={() => handleMoveDocument(contextMenu.noteId!, contextMenu.title, contextMenu.path)}>

@@ -1,23 +1,12 @@
-import { documentSizeBytes, formatDocumentSize } from "../lib/document-size";
+import { documentSizeBytes } from "../lib/document-size";
+import { documentInfoRows } from "../lib/document-info";
+import type { CSSProperties, PointerEventHandler } from "react";
 import type { DeltaOps, DocType } from "../types/models";
-
-const DOC_TYPE_LABELS: Record<DocType, string> = {
-  explanation: "解释",
-  "how-to": "指南",
-  reference: "参考",
-  tutorial: "教程",
-};
-
-function formatTimestamp(value: string | null | undefined): string {
-  if (!value) return "暂无记录";
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return "暂无记录";
-  return new Intl.DateTimeFormat(undefined, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(date);
-}
 
 export interface DocumentInfoCardProps {
   title: string;
-  content: DeltaOps;
+  content?: DeltaOps;
+  contentBytes?: number;
   createdAt: string;
   updatedAt: string;
   lastAccessedAt?: string | null;
@@ -25,21 +14,26 @@ export interface DocumentInfoCardProps {
   docType?: DocType;
   tags: string[];
   path?: string;
+  className?: string;
+  style?: CSSProperties;
+  onPointerEnter?: PointerEventHandler<HTMLDivElement>;
+  onPointerLeave?: PointerEventHandler<HTMLDivElement>;
 }
 
-export function DocumentInfoCard({ title, content, createdAt, updatedAt, lastAccessedAt, readonly, docType, tags, path }: DocumentInfoCardProps) {
-  const rows = [
-    ["大小", formatDocumentSize(documentSizeBytes(content))],
-    ["创建", formatTimestamp(createdAt)],
-    ["修改", formatTimestamp(updatedAt)],
-    ["访问", formatTimestamp(lastAccessedAt)],
-    ["权限", readonly ? "只读" : "可编辑"],
-    ["类型", docType ? DOC_TYPE_LABELS[docType] : "未分类"],
-    ["标签", tags.length ? tags.join(" · ") : "无"],
-    ["路径", path || "未归档"],
-  ] as const;
+export function DocumentInfoCard({ title, content, contentBytes, createdAt, updatedAt, lastAccessedAt, readonly, docType, tags, path, className, style, onPointerEnter, onPointerLeave }: DocumentInfoCardProps) {
+  const rows = documentInfoRows({
+    title,
+    contentBytes: contentBytes ?? documentSizeBytes(content ?? { ops: [] }),
+    createdAt,
+    updatedAt,
+    lastAccessedAt,
+    readonly,
+    docType,
+    tags,
+    path,
+  });
 
-  return <div className="document-info-card" role="tooltip" aria-label={`${title} 的文档信息`}>
+  return <div className={`document-info-card${className ? ` ${className}` : ""}`} style={style} role="tooltip" aria-label={`${title} 的文档信息`} onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave}>
     <div className="document-info-card-title">{title || "无标题"}</div>
     <dl>{rows.map(([label, value]) => <div className="document-info-card-row" key={label}>
       <dt>{label}</dt><dd>{value}</dd>

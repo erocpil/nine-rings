@@ -28,7 +28,7 @@ export interface PanelDisplayContribution {
   readonly fontSize: number;
   readonly rowHeight: number;
   readonly labelColor: "inherit" | "secondary" | "accent";
-  readonly tooltip: "name" | "path";
+  readonly tooltip: "name" | "path" | "info";
   readonly showCounts: boolean;
   readonly showMetadata: boolean;
   readonly toolbar: readonly PanelDisplayCommand[];
@@ -69,7 +69,8 @@ export function validatePanelDisplay(
     value.rowHeight < 28 ||
     value.rowHeight > 48 ||
     !["inherit", "secondary", "accent"].includes(value.labelColor) ||
-    !["name", "path"].includes(value.tooltip) ||
+    !["name", "path", "info"].includes(value.tooltip) ||
+    (value.tooltip === "info" && value.target !== "document-tree") ||
     typeof value.showCounts !== "boolean" ||
     typeof value.showMetadata !== "boolean" ||
     !Array.isArray(value.toolbar) ||

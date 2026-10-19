@@ -4363,11 +4363,9 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           <div className="note-title-field"
             onPointerEnter={event => { if (event.pointerType !== "touch") setDocumentInfoOpen(true); }}
             onPointerLeave={() => setDocumentInfoOpen(false)}
-            onFocusCapture={() => setDocumentInfoOpen(true)}
-            onBlurCapture={event => {
-              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDocumentInfoOpen(false);
-            }}>
+            onFocusCapture={() => setDocumentInfoOpen(false)}>
             {documentInfoOpen && documentCreatedAt && documentUpdatedAt && <DocumentInfoCard
+              className="document-info-card-title-hover"
               title={localTitle || "无标题"}
               content={content}
               createdAt={documentCreatedAt}
