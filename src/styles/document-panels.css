@@ -393,8 +393,8 @@
 }
 .document-info-card * { -webkit-user-select: text; user-select: text; }
 .document-info-card-title-hover {
-  right: 0;
-  left: auto;
+  right: auto;
+  left: 12px;
 }
 .document-info-card-tree {
   position: fixed;

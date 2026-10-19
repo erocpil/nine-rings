@@ -4360,22 +4360,27 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           ) : readonly ? (
             <span className="note-readonly-badge" data-document-readonly="true" title="只读"><ToolbarIcon name="lock" /></span>
           ) : null}
+          {documentInfoOpen && documentCreatedAt && documentUpdatedAt && <DocumentInfoCard
+            className="document-info-card-title-hover"
+            title={localTitle || "无标题"}
+            content={content}
+            createdAt={documentCreatedAt}
+            updatedAt={documentUpdatedAt}
+            lastAccessedAt={documentLastAccessedAt}
+            readonly={readonly}
+            docType={documentType}
+            tags={tags}
+            path={documentPath}
+            onPointerLeave={() => setDocumentInfoOpen(false)}
+          />}
           <div className="note-title-field"
             onPointerEnter={event => { if (event.pointerType !== "touch") setDocumentInfoOpen(true); }}
-            onPointerLeave={() => setDocumentInfoOpen(false)}
+            onPointerLeave={event => {
+              const nextTarget = event.relatedTarget;
+              if (nextTarget instanceof Node && event.currentTarget.parentElement?.contains(nextTarget)) return;
+              setDocumentInfoOpen(false);
+            }}
             onFocusCapture={() => setDocumentInfoOpen(false)}>
-            {documentInfoOpen && documentCreatedAt && documentUpdatedAt && <DocumentInfoCard
-              className="document-info-card-title-hover"
-              title={localTitle || "无标题"}
-              content={content}
-              createdAt={documentCreatedAt}
-              updatedAt={documentUpdatedAt}
-              lastAccessedAt={documentLastAccessedAt}
-              readonly={readonly}
-              docType={documentType}
-              tags={tags}
-              path={documentPath}
-            />}
             {mobileTitleBar && (focusMode || readonly) ? <DocumentTitlePreview key={noteId} title={localTitle || "无标题"}
               className={saveIssue ? `note-title-save-${saveIssue}` : ""} onOpenProperties={readonly ? onOpenProperties : undefined} /> : <input
               ref={titleInputRef}

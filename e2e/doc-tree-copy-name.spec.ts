@@ -82,20 +82,14 @@ test("标题悬停信息卡允许选择并复制文本，标题输入焦点不�
   await expect(tagInput).toHaveCount(1);
 
   await page.locator(".note-title-field").hover();
-  const card = page.locator(".note-title-field .document-info-card");
+  const card = page.locator(".note-title-row > .document-info-card");
   await expect(card).toBeVisible();
   await expect(card).toHaveCSS("user-select", "text");
-  const tagChip = page.locator(".tag-chip").first();
   const cardBox = await card.boundingBox();
-  const tagBox = await tagChip.boundingBox();
+  const lockBox = await page.locator(".note-readonly-badge").boundingBox();
   expect(cardBox).not.toBeNull();
-  expect(tagBox).not.toBeNull();
-  expect(
-    cardBox!.x >= tagBox!.x + tagBox!.width ||
-      tagBox!.x >= cardBox!.x + cardBox!.width ||
-      cardBox!.y >= tagBox!.y + tagBox!.height ||
-      tagBox!.y >= cardBox!.y + cardBox!.height,
-  ).toBe(true);
+  expect(lockBox).not.toBeNull();
+  expect(Math.abs(cardBox!.x - lockBox!.x)).toBeLessThan(2);
   const heading = card.locator(".document-info-card-title");
   await heading.selectText();
   await expect
