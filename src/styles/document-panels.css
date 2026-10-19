@@ -389,13 +389,12 @@
   pointer-events: auto;
 }
 .document-info-card-title {
-  overflow: hidden;
   margin-bottom: 9px;
   color: var(--text);
   font-size: 13px;
   font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .document-info-card dl { display: grid; gap: 5px; margin: 0; }
 .document-info-card-row { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 10px; }

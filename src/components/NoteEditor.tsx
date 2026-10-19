@@ -4330,26 +4330,9 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         <div className="note-editor-sticky">
           {/* ── 标题 ── */}
         <div className="note-title-row" ref={titleRef}
-          onPointerEnter={event => { if (event.pointerType !== "touch") setDocumentInfoOpen(true); }}
-          onPointerLeave={() => setDocumentInfoOpen(false)}
-          onFocusCapture={() => setDocumentInfoOpen(true)}
-          onBlurCapture={event => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDocumentInfoOpen(false);
-          }}
           onKeyDown={event => {
             if (event.key === "Escape" && documentInfoOpen) { event.stopPropagation(); setDocumentInfoOpen(false); }
           }}>
-          {documentInfoOpen && documentCreatedAt && documentUpdatedAt && <DocumentInfoCard
-            title={localTitle || "无标题"}
-            content={content}
-            createdAt={documentCreatedAt}
-            updatedAt={documentUpdatedAt}
-            lastAccessedAt={documentLastAccessedAt}
-            readonly={readonly}
-            docType={documentType}
-            tags={tags}
-            path={documentPath}
-          />}
           {titleSecurityAction}
           {onReadonlyChange ? (
             <button
@@ -4377,7 +4360,24 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           ) : readonly ? (
             <span className="note-readonly-badge" data-document-readonly="true" title="只读"><ToolbarIcon name="lock" /></span>
           ) : null}
-          <div className="note-title-field">
+          <div className="note-title-field"
+            onPointerEnter={event => { if (event.pointerType !== "touch") setDocumentInfoOpen(true); }}
+            onPointerLeave={() => setDocumentInfoOpen(false)}
+            onFocusCapture={() => setDocumentInfoOpen(true)}
+            onBlurCapture={event => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDocumentInfoOpen(false);
+            }}>
+            {documentInfoOpen && documentCreatedAt && documentUpdatedAt && <DocumentInfoCard
+              title={localTitle || "无标题"}
+              content={content}
+              createdAt={documentCreatedAt}
+              updatedAt={documentUpdatedAt}
+              lastAccessedAt={documentLastAccessedAt}
+              readonly={readonly}
+              docType={documentType}
+              tags={tags}
+              path={documentPath}
+            />}
             {mobileTitleBar && (focusMode || readonly) ? <DocumentTitlePreview key={noteId} title={localTitle || "无标题"}
               className={saveIssue ? `note-title-save-${saveIssue}` : ""} onOpenProperties={readonly ? onOpenProperties : undefined} /> : <input
               ref={titleInputRef}
