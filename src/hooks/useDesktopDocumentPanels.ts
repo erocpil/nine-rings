@@ -11,6 +11,7 @@ export function useDesktopDocumentPanels(
   enabled: boolean,
   outline: readonly { text: string; level: number }[] = EMPTY_ITEMS,
   bookmarks: readonly { label?: string; preview?: string }[] = EMPTY_ITEMS,
+  annotations: readonly { exact?: string; note?: string }[] = EMPTY_ITEMS,
 ) {
   const active = useDocumentActive();
   enabled = enabled && active;
@@ -46,8 +47,13 @@ export function useDesktopDocumentPanels(
           context.measureText(item.label || item.preview || "书签").width,
         ) + 136,
       );
+    for (const item of annotations)
+      sizes.bookmark = Math.max(
+        sizes.bookmark,
+        Math.ceil(context.measureText(item.note || item.exact || "高亮").width) + 136,
+      );
     return sizes;
-  }, [visible, outline, bookmarks]);
+  }, [visible, outline, bookmarks, annotations]);
   const autoWidth =
     layout.panelsArrangement === "horizontal" &&
     layout.outlinePinned &&

@@ -16,12 +16,14 @@ interface EditorContextMenuProps {
   setContextSubmenu: Dispatch<SetStateAction<string | null>>;
   hasCurrentBookmark: boolean;
   bookmarkCount: number;
+  annotationSelectionAvailable?: boolean;
+  onAnnotateSelection?: () => void;
   onCopyReference: (kind: "block" | "position") => Promise<void>;
   actions: Pick<EditorToolbarProps["actions"], "hasSelection" | "handleCut" | "handleClipboardPaste" | "handleCopy" | "handleCopyBlock" | "openDocumentBookmarks" | "toggleCurrentBookmark" | "convertSelectionFromMarkdown" | "changeSelectedBlockIndent" | "setLinkDialogUrl" | "setLinkDialog" | "setImageDialog">;
 }
 
 /** Grouped projection of the same live commands used by the toolbar and selection surface. */
-export function EditorContextMenu({ editor, toolbarRef, readonly, contextMenu, contextMenuRef, setContextMenu, contextSubmenu, setContextSubmenu, hasCurrentBookmark, bookmarkCount, actions, onCopyReference }: EditorContextMenuProps) {
+export function EditorContextMenu({ editor, toolbarRef, readonly, contextMenu, contextMenuRef, setContextMenu, contextSubmenu, setContextSubmenu, hasCurrentBookmark, bookmarkCount, annotationSelectionAvailable = false, onAnnotateSelection, actions, onCopyReference }: EditorContextMenuProps) {
   const [commands, setCommands] = useState<EditorSurfaceCommand[]>([]);
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
@@ -38,6 +40,7 @@ export function EditorContextMenu({ editor, toolbarRef, readonly, contextMenu, c
     onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }} onClick={event => event.stopPropagation()}>
     <button className="editor-context-item" onClick={() => run(() => selectWholeDocument(editor))}>全选</button>
     {readonly && <>
+      <button className="editor-context-item" disabled={!annotationSelectionAvailable} onClick={() => run(() => onAnnotateSelection?.())}>选中文字并添加阅读标注</button>
       <button className="editor-context-item" disabled={!actions.hasSelection()} onClick={() => run(() => { void actions.handleCopy(); })}>复制</button>
       <button className="editor-context-item" onClick={() => run(() => { void actions.handleCopyBlock(); })}>复制块</button>
       <button className="editor-context-item" onClick={() => run(() => { void onCopyReference("block"); })}>复制块引用</button>

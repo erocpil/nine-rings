@@ -6,7 +6,7 @@ import { editorForegroundStyle } from "../lib/editor-color";
 import { editorBackgroundStyle } from "../lib/editor-color";
 import { cjkSpacedText } from "./CjkSpacedText";
 import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
-import { panelDisplayStyle, bookmarkTooltip, sortedBookmarks } from "../lib/panel-display-view";
+import { panelDisplayStyle, bookmarkTooltip, sortedPanelItems } from "../lib/panel-display-view";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import { panelDisplays } from "../lib/plugin-system/panel-display";
 import { BlockNumber } from "./BlockNumber";
@@ -86,11 +86,38 @@ import { headingLinkTarget, outlineLabel } from "../lib/heading-links";
 import { useDocumentHoverPreview } from "./FootnoteHoverPreview";
 import { isRelativeMarkdownLink } from "../lib/relative-document-link";
 import { internalNoteId } from "../lib/internal-note-link";
+import { createReadingAnnotation, deleteReadingAnnotation, deleteReadingAnnotations, listReadingAnnotations, putReadingAnnotation, reanchorReadingAnnotations, type ReadingAnnotation } from "../lib/reading-annotations";
+import { ReadingAnnotationBubble } from "./ReadingAnnotationBubble";
 
 function readonlyLink(href: string, title: string | undefined, content: React.ReactNode) {
   if (/^(https?:|mailto:|tel:)/i.test(href)) return <a href={href} title={title} target="_blank" rel="noopener noreferrer">{content}</a>;
   if (href.startsWith("#") || isRelativeMarkdownLink(href) || internalNoteId(href)) return <a href={href} title={title}>{content}</a>;
   return content;
+}
+
+function readonlyDomPosition(root: HTMLElement, node: Node, offset: number): number | null {
+  const element = node instanceof Element ? node : node.parentElement;
+  const wrapper = element?.closest<HTMLElement>("[data-reading-text-start][data-reading-text-end]");
+  if (!wrapper || !root.contains(wrapper)) return null;
+  const from = Number(wrapper.dataset.readingTextStart);
+  const to = Number(wrapper.dataset.readingTextEnd);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return null;
+  try {
+    const range = document.createRange();
+    range.selectNodeContents(wrapper);
+    range.setEnd(node, offset);
+    return from + Math.min(to - from, range.toString().length);
+  } catch { return null; }
+}
+
+function selectedReadonlyRange(root: HTMLElement): { from: number; to: number } | null {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || !selection.anchorNode || !selection.focusNode
+    || !root.contains(selection.anchorNode) || !root.contains(selection.focusNode)) return null;
+  const anchor = readonlyDomPosition(root, selection.anchorNode, selection.anchorOffset);
+  const focus = readonlyDomPosition(root, selection.focusNode, selection.focusOffset);
+  if (anchor === null || focus === null || anchor === focus) return null;
+  return { from: Math.min(anchor, focus), to: Math.max(anchor, focus) };
 }
 
 export function renderReadonlyBlock(
@@ -103,6 +130,7 @@ export function renderReadonlyBlock(
   followsList = false,
   spaceText = true,
   previousText = "",
+  annotations: readonly ReadingAnnotation[] = [],
 ): React.ReactNode {
   if (node.isText) {
     const text = node.text ?? "";
@@ -110,18 +138,26 @@ export function renderReadonlyBlock(
       ? cjkSpacedText(part, previous) : part;
     const start = Math.max(0, (match?.from ?? Infinity) - pos);
     const end = Math.min(text.length, (match?.to ?? -1) - pos);
-    let rendered: React.ReactNode =
-      start < end ? (
-        <>
-          {spaced(text.slice(0, start), previousText)}
-          <mark className="search-match search-match-active">
-            {spaced(text.slice(start, end), start ? text[start - 1] : previousText)}
-          </mark>
-          {spaced(text.slice(end), text[end - 1])}
-        </>
-      ) : (
-        spaced(text, previousText)
-      );
+    const boundaries = new Set([0, text.length]);
+    if (start < end) { boundaries.add(start); boundaries.add(end); }
+    const overlapping = annotations.filter(item => item.from < pos + text.length && item.to > pos);
+    for (const item of overlapping) {
+      boundaries.add(Math.max(0, item.from - pos));
+      boundaries.add(Math.min(text.length, item.to - pos));
+    }
+    const points = [...boundaries].sort((a, b) => a - b);
+    let rendered: React.ReactNode = <>{points.slice(0, -1).map((from, index) => {
+      const to = points[index + 1];
+      if (to <= from) return null;
+      const activeSearch = from >= start && to <= end;
+      const activeAnnotations = overlapping.filter(item => item.from <= pos + from && item.to >= pos + to);
+      let segment: React.ReactNode = spaced(text.slice(from, to), from ? text[from - 1] : previousText);
+      if (activeSearch) segment = <mark className="search-match search-match-active">{segment}</mark>;
+      for (const annotation of activeAnnotations) {
+        segment = <mark className="reading-annotation-highlight" data-reading-annotation={annotation.id}>{segment}</mark>;
+      }
+      return <span key={from} data-reading-text-start={pos + from} data-reading-text-end={pos + to}>{segment}</span>;
+    })}</>;
     for (const mark of node.marks) {
       switch (mark.type.name) {
         case "bold":
@@ -186,6 +222,7 @@ export function renderReadonlyBlock(
           spaceText && node.type.name !== "codeBlock",
           node.isTextblock && offset > 0 && !node.childBefore(offset).node?.marks.some(mark => mark.type.name === "code")
             ? node.textBetween(offset - 1, offset) : "",
+          annotations,
         )}
       </React.Fragment>,
     ),
@@ -366,6 +403,10 @@ export function ReadonlyVirtualNote(
   const active = useDocumentActive();
   const outlineDisplayConfig = usePanelDisplay("document-outline");
   const bookmarkDisplayConfig = usePanelDisplay("bookmarks");
+  const [annotations, setAnnotations] = useState<ReadingAnnotation[]>([]);
+  const [annotationContext, setAnnotationContext] = useState<{ x: number; y: number; from: number; to: number } | null>(null);
+  const [annotationPopover, setAnnotationPopover] = useState<{ id: string; left: number; top: number } | null>(null);
+  const annotationLeaveTimer = useRef<number | null>(null);
   const bookmarkDisplayListRef = useRef<HTMLDivElement>(null);
   const documentHover = useDocumentHoverPreview(() => doc);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -377,6 +418,21 @@ export function ReadonlyVirtualNote(
   const pendingBlockJump = useRef<number | null>(null);
   const pendingFootnote = useRef<string | null>(null);
   const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    void listReadingAnnotations(noteId).then(async stored => {
+      if (cancelled) return;
+      const result = reanchorReadingAnnotations(doc, stored);
+      await Promise.all([
+        ...result.updates.map(item => putReadingAnnotation(item)),
+        deleteReadingAnnotations(result.removed),
+      ]);
+      if (!cancelled) setAnnotations(result.updates);
+    }).catch(error => {
+      if (!cancelled) setNotice(error instanceof Error ? error.message : "阅读标注加载失败");
+    });
+    return () => { cancelled = true; };
+  }, [noteId, doc]);
   useEffect(() => {
     const sync = () => setRevision(value => value + 1);
     window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
@@ -415,7 +471,7 @@ export function ReadonlyVirtualNote(
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
   const mobileDrawerViewport = useMobileViewport();
-  const desktopPanels = useDesktopDocumentPanels(!mobileDrawerViewport, sections, props.content.metadata?.bookmarks);
+  const desktopPanels = useDesktopDocumentPanels(!mobileDrawerViewport, sections, props.content.metadata?.bookmarks, annotations);
   const { openPreview, dismiss: dismissPreview, toggle: togglePinnedPanel } = desktopPanels;
   const [panel, setPanel] = useState<"outline" | "bookmarks" | "search" | null>(
     null,
@@ -551,6 +607,54 @@ export function ReadonlyVirtualNote(
     },
     [sections, doc, states, noteId],
   );
+  const revealAnnotation = useCallback((annotation: ReadingAnnotation, anchor?: HTMLElement | null) => {
+    if (annotationLeaveTimer.current !== null) window.clearTimeout(annotationLeaveTimer.current);
+    const rect = anchor?.getBoundingClientRect();
+    const width = Math.min(340, window.innerWidth - 24);
+    setAnnotationPopover({
+      id: annotation.id,
+      left: Math.max(12, Math.min(rect?.left ?? window.innerWidth / 2 - width / 2, window.innerWidth - width - 12)),
+      top: Math.max(12, Math.min((rect?.bottom ?? 80) + 6, window.innerHeight - 180)),
+    });
+  }, []);
+  const handleAnnotationPointerOver = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-reading-annotation]") : null;
+    if (!target) return;
+    const item = annotations.find(annotation => annotation.id === target.dataset.readingAnnotation);
+    if (item) revealAnnotation(item, target);
+  }, [annotations, revealAnnotation]);
+  const handleAnnotationPointerOut = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const target = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-reading-annotation]") : null;
+    const related = event.relatedTarget instanceof Element ? event.relatedTarget : null;
+    if (!target || related?.closest(`[data-reading-annotation="${target.dataset.readingAnnotation}"]`) || related?.closest(".reading-annotation-bubble")) return;
+    if (annotationLeaveTimer.current !== null) window.clearTimeout(annotationLeaveTimer.current);
+    annotationLeaveTimer.current = window.setTimeout(() => setAnnotationPopover(current => current?.id === target.dataset.readingAnnotation ? null : current), 180);
+  }, []);
+  useEffect(() => () => { if (annotationLeaveTimer.current !== null) window.clearTimeout(annotationLeaveTimer.current); }, []);
+  const addAnnotation = useCallback(async (range: { from: number; to: number }) => {
+    if (!props.readonly || annotations.some(item => range.from < item.to && range.to > item.from)) {
+      setNotice("该范围已有阅读标注");
+      return;
+    }
+    try {
+      const annotation = createReadingAnnotation(noteId, doc, range.from, range.to);
+      await putReadingAnnotation(annotation);
+      setAnnotations(current => [...current, annotation].sort((a, b) => a.from - b.from));
+      setAnnotationContext(null);
+    } catch (error) { setNotice(error instanceof Error ? error.message : "创建阅读标注失败"); }
+  }, [annotations, doc, noteId, props.readonly]);
+  const updateAnnotation = useCallback(async (id: string, note: string) => {
+    const current = annotations.find(item => item.id === id);
+    if (!current) return;
+    const updated = { ...current, note: note.trim(), updatedAt: new Date().toISOString() };
+    await putReadingAnnotation(updated);
+    setAnnotations(items => items.map(item => item.id === id ? updated : item));
+  }, [annotations]);
+  const removeAnnotation = useCallback(async (id: string) => {
+    await deleteReadingAnnotation(id);
+    setAnnotations(items => items.filter(item => item.id !== id));
+    setAnnotationPopover(current => current?.id === id ? null : current);
+  }, []);
   const navigationTarget = useNavigationStore(state => state.target?.noteId === noteId ? state.target : null);
   const navigateHeading = useCallback((item: { pos: number }) => {
     pendingBlockJump.current = item.pos;
@@ -1067,6 +1171,11 @@ export function ReadonlyVirtualNote(
   } | null>(null);
   const pointer = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const bookmarks = props.content.metadata?.bookmarks ?? [];
+  const annotationPanelItems = sortedPanelItems([
+    ...bookmarks.map(item => ({ kind: "bookmark" as const, id: item.id, position: item.position, text: item.label || item.preview || "书签", date: item.createdAt, bookmark: item })),
+    ...annotations.map(item => ({ kind: "annotation" as const, id: item.id, position: item.from, text: item.note || item.exact, date: item.createdAt, annotation: item })),
+  ], bookmarkDisplayConfig, item => item.text, item => item.date, item => item.id);
+  const annotationTotal = bookmarks.length + annotations.length;
   const { onBookmarkCountChange } = props;
   useEffect(() => { onBookmarkCountChange?.(bookmarks.length); }, [onBookmarkCountChange, bookmarks.length]);
   useEffect(() => () => onBookmarkCountChange?.(0), [onBookmarkCountChange]);
@@ -1123,15 +1232,15 @@ export function ReadonlyVirtualNote(
       <button
         ref={bookmarkTriggerRef}
         type="button"
-        title="文档书签"
-        aria-label="文档书签"
+        title="书签与标注"
+        aria-label="书签与标注"
         aria-expanded={mobileDrawerViewport ? panel === "bookmarks" : desktopPanels.pinned("bookmark") || preview === "bookmarks"}
         data-document-panel-trigger="bookmark" data-pinned={desktopPanels.pinned("bookmark")}
         onPointerEnter={event => desktopPanels.enter("bookmark", event.pointerType)} onPointerLeave={desktopPanels.leave}
         onClick={() => mobileDrawerViewport ? openPanel(panel === "bookmarks" ? null : "bookmarks") : togglePinnedPanel("bookmark")}
       >
         <FocusModeIcon name="bookmark" />
-        {bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}
+        {annotationTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{annotationTotal > 99 ? "99+" : annotationTotal}</span>}
       </button>
       {!statusBar.navigationInStatus && <NavigationButtons />}
       {mobileDrawerViewport && <button
@@ -1157,7 +1266,7 @@ export function ReadonlyVirtualNote(
               kind === "outline"
                 ? "文档目录"
                 : kind === "bookmarks"
-                  ? "文档书签"
+                  ? "书签与标注"
                   : "文内搜索"
             }
           >
@@ -1237,27 +1346,32 @@ export function ReadonlyVirtualNote(
             )}
             {kind === "bookmarks" && (
               <>
-                <h3><DocumentPanelTitle label="书签" pinned={!mobileDrawerViewport && desktopPanels.pinned("bookmark")} onCollapse={() => togglePinnedPanel("bookmark")} />{bookmarkDisplayConfig?.showCounts !== false && <span className="document-bookmark-count">{bookmarks.length} 项</span>}</h3>
-                <PanelDisplayTools target="bookmarks" disabled={!bookmarks.length} handlers={{ "bookmarks.reveal-current": () => { const position = capture().position; const nearest = bookmarks.reduce<(typeof bookmarks)[number] | undefined>((current, item) => !current || Math.abs(item.position - position) < Math.abs(current.position - position) ? item : current, undefined); revealPanelItem(bookmarkDisplayListRef.current, nearest?.id); } }} />
-                {bookmarks.length === 0 && <p>暂无书签</p>}
+                <h3><DocumentPanelTitle label="书签与标注" pinned={!mobileDrawerViewport && desktopPanels.pinned("bookmark")} onCollapse={() => togglePinnedPanel("bookmark")} />{bookmarkDisplayConfig?.showCounts !== false && <span className="document-bookmark-count">{annotationTotal} 项</span>}</h3>
+                <PanelDisplayTools target="bookmarks" disabled={!annotationTotal} handlers={{ "bookmarks.reveal-current": () => { const position = capture().position; const nearest = annotationPanelItems.reduce<(typeof annotationPanelItems)[number] | undefined>((current, item) => !current || Math.abs(item.position - position) < Math.abs(current.position - position) ? item : current, undefined); revealPanelItem(bookmarkDisplayListRef.current, nearest?.id); } }} />
+                {annotationTotal === 0 && <p>暂无书签或高亮标注</p>}
                 <div className="document-bookmark-list" ref={bookmarkDisplayListRef} data-panel-display={bookmarkDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(bookmarkDisplayConfig) as React.CSSProperties}>
-                {sortedBookmarks(bookmarks, bookmarkDisplayConfig).map((bookmark) => (
-                  <button
-                    type="button"
-                    className="vr-bookmark"
-                    data-bookmark-id={bookmark.id}
-                    title={bookmarkTooltip(bookmark, bookmarkDisplayConfig)}
-                    data-drawer-swipe-item
-                    key={bookmark.id}
-                    onClick={() => {
-                      jump(bookmark.position);
-                      setPanel(null); dismissPreview();
-                    }}
-                  >
-                    {bookmarkDisplayConfig?.showMetadata && <span className="document-bookmark-index">{doc.resolve(Math.min(doc.content.size, Math.max(0, bookmark.position))).index(0) + 1}</span>}
-                    {bookmark.label || bookmark.preview || "书签"}
-                  </button>
-                ))}
+                {annotationPanelItems.map(item => <button
+                  type="button"
+                  className={`vr-bookmark ${item.kind === "annotation" ? "vr-reading-annotation" : ""}`}
+                  data-bookmark-id={item.id}
+                  title={item.kind === "bookmark" ? bookmarkTooltip(item.bookmark, bookmarkDisplayConfig) : item.annotation.note || item.annotation.exact}
+                  data-drawer-swipe-item
+                  key={`${item.kind}:${item.id}`}
+                  onClick={() => {
+                    jump(item.position);
+                    if (item.kind === "annotation") {
+                      window.requestAnimationFrame(() => {
+                        const marker = bodyRef.current?.querySelector<HTMLElement>(`[data-reading-annotation="${CSS.escape(item.id)}"]`);
+                        revealAnnotation(item.annotation, marker);
+                      });
+                    }
+                    setPanel(null); dismissPreview();
+                  }}
+                >
+                  <span className="reading-panel-kind" aria-hidden="true">{item.kind === "annotation" ? "▰" : "◆"}</span>
+                  {bookmarkDisplayConfig?.showMetadata && <span className="document-bookmark-index">{doc.resolve(Math.min(doc.content.size, Math.max(0, item.position))).index(0) + 1}</span>}
+                  {item.text.length > 140 ? `${item.text.slice(0, 140)}…` : item.text}
+                </button>)}
                 </div>
                 <button type="button" onClick={fallback}>
                   管理书签（完整渲染）
@@ -1437,6 +1551,22 @@ export function ReadonlyVirtualNote(
           aria-label="只读正文"
           onPointerOver={documentHover.onPointerOver}
           onPointerOut={documentHover.onPointerOut}
+          onPointerOverCapture={handleAnnotationPointerOver}
+          onPointerOutCapture={handleAnnotationPointerOut}
+          onContextMenu={event => {
+            if (!props.readonly) return;
+            const root = bodyRef.current;
+            const range = root && selectedReadonlyRange(root);
+            if (!range) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setAnnotationContext({ x: event.clientX, y: event.clientY, ...range });
+          }}
+          onClick={event => {
+            const marker = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-reading-annotation]") : null;
+            const item = annotations.find(annotation => annotation.id === marker?.dataset.readingAnnotation);
+            if (item) revealAnnotation(item, marker);
+          }}
           onFocusCapture={documentHover.onFocusCapture}
           onBlurCapture={documentHover.onBlurCapture}
           onScrollCapture={documentHover.onScrollCapture}
@@ -1593,6 +1723,9 @@ export function ReadonlyVirtualNote(
                     activeMatch,
                     props.defaultCodeBlockWrap,
                     followupBlocks.has(block.pos),
+                    true,
+                    "",
+                    annotations,
                   ), flowAttributes.get(block.pos))}
                 </div>
               </div>
@@ -1608,6 +1741,21 @@ export function ReadonlyVirtualNote(
           />
         </div>
       </div>
+      {annotationContext && <div className="reading-annotation-context" role="menu" aria-label="选区标注操作" style={{ left: annotationContext.x, top: annotationContext.y }}
+        onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }} onClick={event => event.stopPropagation()}>
+        <button type="button" role="menuitem" onClick={() => { void addAnnotation(annotationContext); }}>添加阅读高亮</button>
+        <button type="button" role="menuitem" onClick={() => setAnnotationContext(null)}>取消</button>
+      </div>}
+      {annotationPopover && (() => {
+        const annotation = annotations.find(item => item.id === annotationPopover.id);
+        if (!annotation) return null;
+        return <ReadingAnnotationBubble annotation={annotation} left={annotationPopover.left} top={annotationPopover.top}
+          onPointerEnter={() => { if (annotationLeaveTimer.current !== null) window.clearTimeout(annotationLeaveTimer.current); }}
+          onPointerLeave={() => { if (annotationLeaveTimer.current !== null) window.clearTimeout(annotationLeaveTimer.current); annotationLeaveTimer.current = window.setTimeout(() => setAnnotationPopover(null), 180); }}
+          onSave={note => { void updateAnnotation(annotation.id, note); }}
+          onClear={() => { void updateAnnotation(annotation.id, ""); }}
+          onDelete={() => { void removeAnnotation(annotation.id); }} />;
+      })()}
       {documentHover.preview}
       <EditorStatusBar enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus ?? "clean"} block={`${doc.childCount} 块 · 已挂载 ${end - start} 块${selectionWindow ? " · 正在保留选区" : ""}`} onVersionOpen={props.onVersionOpen} />
 

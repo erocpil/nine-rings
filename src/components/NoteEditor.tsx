@@ -7,7 +7,7 @@ import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
 import { FontSize } from "../extensions/FontSize";
 import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
-import { panelDisplayStyle, sortedBookmarks } from "../lib/panel-display-view";
+import { panelDisplayStyle, sortedPanelItems } from "../lib/panel-display-view";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import { FootnoteNumbering } from "../extensions/FootnoteNumbering";
 import type { DocumentOpenOptions } from "../lib/document-open";
@@ -114,6 +114,9 @@ import { blobToBase64 } from "../lib/storage/core";
 import { ProtectedNoteEditor } from "./ProtectedNoteEditor";
 import { BlockSelectAll } from "../extensions/BlockSelectAll";
 import { api } from "../lib/api";
+import { createReadingAnnotation, deleteReadingAnnotation, deleteReadingAnnotations, listReadingAnnotations, putReadingAnnotation, reanchorReadingAnnotations, type ReadingAnnotation } from "../lib/reading-annotations";
+import { ReadingAnnotations, setReadingAnnotations } from "../extensions/ReadingAnnotations";
+import { ReadingAnnotationBubble } from "./ReadingAnnotationBubble";
 import { mdToDelta } from "../lib/md-parser";
 import { markdownToProseMirrorAsync } from "../lib/data-transform-client";
 import { centerSearchMatch } from "../lib/search-scroll";
@@ -563,6 +566,11 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   const outlinePanelRef = useRef<HTMLElement>(null);
   const bookmarkPanelRef = useRef<HTMLElement>(null);
   const [bookmarks, setBookmarks] = useState<DocumentBookmark[]>(bookmarksRef.current);
+  const [annotations, setAnnotations] = useState<ReadingAnnotation[]>([]);
+  const [annotationContextRange, setAnnotationContextRange] = useState<{ from: number; to: number } | null>(null);
+  const [annotationPopover, setAnnotationPopover] = useState<{ id: string; left: number; top: number } | null>(null);
+  const annotationLeaveTimerRef = useRef<number | null>(null);
+  const annotationContextRangeRef = useRef<{ from: number; to: number } | null>(null);
   useEffect(() => { onBookmarkCountChange?.(bookmarks.length); }, [bookmarks.length, onBookmarkCountChange]);
   useEffect(() => () => onBookmarkCountChange?.(0), [onBookmarkCountChange]);
   const [bookmarkJumpBlockIndex, setBookmarkJumpBlockIndex] = useState<number | null>(null);
@@ -672,7 +680,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     if (typeof window === "undefined") return false;
     return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
   });
-  const desktopPanels = useDesktopDocumentPanels(!isMobileToolbarViewport, documentOutline, bookmarks);
+  const desktopPanels = useDesktopDocumentPanels(!isMobileToolbarViewport, documentOutline, bookmarks, annotations);
   const { openPreview, dismiss: dismissPreview, toggle: togglePinnedPanel } = desktopPanels;
   const outlineOpen = documentActive && (isMobileToolbarViewport ? mobileOutlineOpen : desktopPanels.pinned("outline") || desktopPanels.preview === "outline");
   outlineOpenRef.current = outlineOpen;
@@ -1011,6 +1019,17 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           }, { metadataOnly: !docChanged, batch: docChanged ? docSnapshot : undefined });
         },
       }),
+      ReadingAnnotations.configure({
+        noteId,
+        initial: [],
+        enabled: Boolean(readonly),
+        onMapped: (items) => {
+          setAnnotations(items);
+          void Promise.all(items.map(item => putReadingAnnotation(item))).catch(error => {
+            addLog(`阅读标注位置保存失败: ${String(error)}`);
+          });
+        },
+      }),
       ReferenceAnchors.configure({
         initial: content.metadata?.referenceAnchors ?? [],
         onChange: (referenceAnchors, docSnapshot, docChanged) => {
@@ -1137,6 +1156,29 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     hostEditorReady.current?.(editor);
     return () => hostEditorReady.current?.(null);
   }, [editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+    let cancelled = false;
+    setAnnotations([]);
+    setReadingAnnotations(editor, [], readonly);
+    if (content.encrypted) return;
+    void listReadingAnnotations(noteId).then(async stored => {
+      if (cancelled || editor.isDestroyed) return;
+      const result = reanchorReadingAnnotations(editor.state.doc, stored);
+      await Promise.all([
+        ...result.updates.map(item => putReadingAnnotation(item)),
+        deleteReadingAnnotations(result.removed),
+      ]);
+      if (cancelled || editor.isDestroyed) return;
+      setAnnotations(result.updates);
+      setReadingAnnotations(editor, result.updates, readonly);
+    }).catch(error => addLog(`阅读标注加载失败: ${String(error)}`));
+    return () => { cancelled = true; };
+  }, [editor, noteId, content.encrypted, readonly]);
+  useEffect(() => {
+    if (editor) setReadingAnnotations(editor, annotations, readonly);
+  }, [editor, annotations, readonly]);
 
   // Keep the composing paragraph intact until the IME has committed its text.
   // WebKit may write composition updates without ProseMirror's text-input
@@ -3124,6 +3166,13 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     "format.link": { run: () => { setLinkDialogUrl(editor?.getAttributes("link").href || ""); setLinkDialog(true); }, enabled: !readonly, shortcut: nativeFormatShortcut },
     "format.clear": { run: () => editor?.chain().focus().unsetAllMarks().run(), shortcut: nativeFormatShortcut, enabled: !readonly },
   }, documentActive && Boolean(editor));
+  useEffect(() => {
+    if (!readonly) setAnnotationPopover(null);
+  }, [readonly, noteId]);
+  useEffect(() => () => {
+    if (annotationLeaveTimerRef.current !== null) window.clearTimeout(annotationLeaveTimerRef.current);
+  }, []);
+
   if (!editor) return <div className="note-editor"><div className="empty-state">加载中...</div></div>;
 
   const { rememberToolbarSelection, runToolbarFormat } = createToolbarSelectionCommands(editor, toolbarSelectionRef, toolbarCellSelectionRef);
@@ -3328,7 +3377,22 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
 
   // ── 正文右键菜单 ──
   const handleEditorContextMenu = (e: React.MouseEvent) => {
-    if (!useCustomContextMenu) return; // 关闭开关 → 系统原生菜单
+    let selectedRange: { from: number; to: number } | null = null;
+    const native = window.getSelection();
+    if (readonly && native && !native.isCollapsed && native.anchorNode && native.focusNode
+      && editor.view.dom.contains(native.anchorNode) && editor.view.dom.contains(native.focusNode)) {
+      try {
+        const from = editor.view.posAtDOM(native.anchorNode, native.anchorOffset);
+        const to = editor.view.posAtDOM(native.focusNode, native.focusOffset);
+        if (from !== to) selectedRange = { from: Math.min(from, to), to: Math.max(from, to) };
+      } catch { /* Keep the editor model's range when a special NodeView owns the DOM. */ }
+    }
+    if (!selectedRange && readonly && !editor.state.selection.empty) {
+      selectedRange = { from: editor.state.selection.from, to: editor.state.selection.to };
+    }
+    annotationContextRangeRef.current = selectedRange;
+    setAnnotationContextRange(selectedRange);
+    if (!useCustomContextMenu && !(readonly && selectedRange)) return; // 关闭开关 → 系统原生菜单；选区标注仍提供应用菜单
     e.preventDefault();
     e.stopPropagation();
     // Pseudo-element list markers belong to li; coordinate hit testing in
@@ -3345,6 +3409,59 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     if (at && (selection.empty || at.pos < selection.from || at.pos > selection.to)) editor.commands.setTextSelection(at.pos);
     setContextSubmenu(null);
     setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  const revealReadingAnnotation = (annotation: ReadingAnnotation, target?: HTMLElement | null) => {
+    if (annotationLeaveTimerRef.current !== null) window.clearTimeout(annotationLeaveTimerRef.current);
+    const marker = target ?? [...editor.view.dom.querySelectorAll<HTMLElement>("[data-reading-annotation]")]
+      .find(element => element.dataset.readingAnnotation === annotation.id) ?? null;
+    const rect = marker?.getBoundingClientRect();
+    const width = Math.min(340, window.innerWidth - 24);
+    setAnnotationPopover({
+      id: annotation.id,
+      left: Math.max(12, Math.min(rect?.left ?? window.innerWidth / 2 - width / 2, window.innerWidth - width - 12)),
+      top: Math.max(12, Math.min((rect?.bottom ?? 80) + 6, window.innerHeight - 180)),
+    });
+  };
+  const createSelectedReadingAnnotation = async () => {
+    const range = annotationContextRangeRef.current;
+    if (!readonly || !range || !editor || editor.isDestroyed) return;
+    if (annotations.some(item => range.from < item.to && range.to > item.from)) {
+      addLog("选区与已有阅读标注重叠");
+      return;
+    }
+    try {
+      const annotation = createReadingAnnotation(noteId, editor.state.doc, range.from, range.to);
+      await putReadingAnnotation(annotation);
+      setAnnotations(current => [...current, annotation].sort((a, b) => a.from - b.from));
+      annotationContextRangeRef.current = null;
+    } catch (error) { addLog(`创建阅读标注失败: ${String(error)}`); }
+  };
+  const updateReadingAnnotation = async (id: string, note: string) => {
+    const current = annotations.find(item => item.id === id);
+    if (!current) return;
+    const updated = { ...current, note: note.trim(), updatedAt: new Date().toISOString() };
+    await putReadingAnnotation(updated);
+    setAnnotations(items => items.map(item => item.id === id ? updated : item));
+  };
+  const removeReadingAnnotation = async (id: string) => {
+    await deleteReadingAnnotation(id);
+    setAnnotations(items => items.filter(item => item.id !== id));
+    setAnnotationPopover(current => current?.id === id ? null : current);
+  };
+  const handleReadingAnnotationPointerOver = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!readonly) return;
+    const marker = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-reading-annotation]") : null;
+    const item = annotations.find(annotation => annotation.id === marker?.dataset.readingAnnotation);
+    if (item) revealReadingAnnotation(item, marker);
+  };
+  const handleReadingAnnotationPointerOut = (event: React.PointerEvent<HTMLDivElement>) => {
+    const marker = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-reading-annotation]") : null;
+    const related = event.relatedTarget instanceof Element ? event.relatedTarget : null;
+    if (!marker || related?.closest(`[data-reading-annotation="${marker.dataset.readingAnnotation}"]`) || related?.closest(".reading-annotation-bubble")) return;
+    if (annotationLeaveTimerRef.current !== null) window.clearTimeout(annotationLeaveTimerRef.current);
+    const id = marker.dataset.readingAnnotation;
+    annotationLeaveTimerRef.current = window.setTimeout(() => setAnnotationPopover(current => current?.id === id ? null : current), 180);
   };
 
   const copyReference = async (kind: "block" | "position", position?: number) => {
@@ -4059,6 +4176,27 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     });
     return actions.map((action, index) => index >= editStart ? isolate(action) : action);
   };
+  const visibleReadingAnnotations = readonly ? annotations : [];
+  const bookmarkPanelItems = sortedPanelItems([
+    ...bookmarks.map(bookmark => ({ kind: "bookmark" as const, id: bookmark.id, position: bookmark.position, text: bookmark.label || bookmark.preview, date: bookmark.createdAt, bookmark })),
+    ...visibleReadingAnnotations.map(annotation => ({ kind: "annotation" as const, id: annotation.id, position: annotation.from, text: annotation.note || annotation.exact, date: annotation.createdAt, annotation })),
+  ], bookmarkDisplayConfig, item => item.text, item => item.date, item => item.id);
+  const bookmarkPanelTotal = bookmarks.length + visibleReadingAnnotations.length;
+  const jumpToReadingAnnotation = (annotation: ReadingAnnotation) => {
+    setBookmarkOpen(false);
+    const reveal = () => {
+      const marker = [...editor.view.dom.querySelectorAll<HTMLElement>("[data-reading-annotation]")]
+        .find(element => element.dataset.readingAnnotation === annotation.id);
+      marker?.scrollIntoView({ block: "center", behavior: "smooth" });
+      revealReadingAnnotation(annotation, marker);
+    };
+    const marker = [...editor.view.dom.querySelectorAll<HTMLElement>("[data-reading-annotation]")]
+      .find(element => element.dataset.readingAnnotation === annotation.id);
+    if (!marker) {
+      editor.commands.setTextSelection({ from: annotation.from, to: annotation.to });
+      window.requestAnimationFrame(reveal);
+    } else reveal();
+  };
   const bookmarkPanel = bookmarkOpen && (
         <nav
           ref={bookmarkPanelRef}
@@ -4066,37 +4204,40 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           style={desktopPanels.pinned("bookmark") ? undefined : documentPanelStyle}
           data-document-preview={!isMobileToolbarViewport && !desktopPanels.pinned("bookmark") || undefined}
           onPointerEnter={desktopPanels.cancel} onPointerLeave={desktopPanels.leave}
-          aria-label="文档书签"
+          aria-label="文档书签与高亮标注"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="document-bookmark-header">
-            <div className="document-bookmark-heading"><DocumentPanelTitle label="书签" pinned={!isMobileToolbarViewport && desktopPanels.pinned("bookmark")} onCollapse={() => togglePinnedPanel("bookmark")} /></div>
+            <div className="document-bookmark-heading"><DocumentPanelTitle label="书签与标注" pinned={!isMobileToolbarViewport && desktopPanels.pinned("bookmark")} onCollapse={() => togglePinnedPanel("bookmark")} /></div>
             <div className="document-bookmark-header-actions">
-              <PanelDisplayTools target="bookmarks" disabled={!currentBookmark} handlers={{ "bookmarks.reveal-current": () => revealPanelItem(bookmarkDisplayListRef.current, currentBookmark?.id) }} />
+              <PanelDisplayTools target="bookmarks" disabled={!bookmarkPanelTotal} handlers={{ "bookmarks.reveal-current": () => { const position = bookmarkCursorPosition; const nearest = bookmarkPanelItems.reduce<(typeof bookmarkPanelItems)[number] | undefined>((current, item) => !current || Math.abs(item.position - position) < Math.abs(current.position - position) ? item : current, undefined); revealPanelItem(bookmarkDisplayListRef.current, nearest?.id); } }} />
               {!currentBookmark && <button className="document-bookmark-add" type="button" onClick={toggleCurrentBookmark}
                 aria-label="添加当前位置书签">添加</button>}
               {!isMobileToolbarViewport && !desktopPanels.pinned("bookmark") && <button type="button" onClick={() => togglePinnedPanel("bookmark")} aria-label="固定书签">固定</button>}
-              {bookmarkDisplayConfig?.showCounts !== false && <span className="document-bookmark-count">{bookmarks.length} 项</span>}
+              {bookmarkDisplayConfig?.showCounts !== false && <span className="document-bookmark-count">{bookmarkPanelTotal} 项</span>}
             </div>
           </div>
           <div className="document-bookmark-list" ref={bookmarkDisplayListRef} data-panel-display={bookmarkDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(bookmarkDisplayConfig) as React.CSSProperties}>
-            {bookmarks.length === 0 ? (
-              <div className="document-bookmark-empty">当前文档还没有书签</div>
-            ) : sortedBookmarks(bookmarks, bookmarkDisplayConfig).map((bookmark) => (
-              <DocumentBookmarkRow
-                key={bookmark.id}
-                bookmark={bookmark}
+            {bookmarkPanelTotal === 0 ? <div className="document-bookmark-empty">当前文档还没有书签或高亮</div>
+              : bookmarkPanelItems.map(item => item.kind === "bookmark" ? <DocumentBookmarkRow
+                key={`bookmark:${item.id}`}
+                bookmark={item.bookmark}
                 display={bookmarkDisplayConfig}
-                blockNumber={bookmarkBlockNumber(bookmark)}
-                current={currentBookmark?.id === bookmark.id}
+                blockNumber={bookmarkBlockNumber(item.bookmark)}
+                current={currentBookmark?.id === item.id}
                 mobile={isMobileToolbarViewport}
-                open={openBookmarkActionsId === bookmark.id}
+                open={openBookmarkActionsId === item.id}
                 onOpenChange={setOpenBookmarkActionsId}
-                onJump={() => jumpToBookmark(bookmark)}
-                onEdit={() => editBookmarkLabel(bookmark)}
-                onDelete={() => removeBookmark(editor, bookmark.id)}
-              />
-            ))}
+                onJump={() => jumpToBookmark(item.bookmark)}
+                onEdit={() => editBookmarkLabel(item.bookmark)}
+                onDelete={() => removeBookmark(editor, item.id)}
+              /> : <button key={`annotation:${item.id}`} type="button" className="document-bookmark-item reading-annotation-panel-row"
+                data-bookmark-id={item.id} data-drawer-swipe-item title={item.annotation.note || item.annotation.exact}
+                onClick={() => jumpToReadingAnnotation(item.annotation)}>
+                <span className="reading-panel-kind" aria-hidden="true">▰</span>
+                {bookmarkDisplayConfig?.showMetadata && <span className="document-bookmark-index">{bookmarkBlockNumber({ id: item.id, position: item.position, preview: item.annotation.exact, createdAt: item.date })}</span>}
+                <span>{item.text.length > 140 ? `${item.text.slice(0, 140)}…` : item.text}</span>
+              </button>)}
           </div>
         </nav>
       );
@@ -4217,9 +4358,9 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
               event.stopPropagation();
                     toggleDocumentBookmarks();
             }}
-            title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
-            aria-label={bookmarks.length > 0 ? `文档书签，共 ${bookmarks.length} 项` : "文档书签"}
-          ><FocusModeIcon name="bookmark" />{bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}</button>
+            title={bookmarkPanelTotal > 0 ? `书签与标注（${bookmarkPanelTotal}）` : "添加书签"}
+            aria-label={bookmarkPanelTotal > 0 ? `书签与标注，共 ${bookmarkPanelTotal} 项` : "书签与标注"}
+          ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
           {!showLineNumbers && selectedBlockIndexes.size === 0 && <button type="button" title="块级操作" aria-label="块级操作" data-title-block-menu="true" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>}
           {!readonly && (
             <button
@@ -4472,11 +4613,11 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
               event.stopPropagation();
               toggleDocumentBookmarks();
             }}
-            title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
-            aria-label="文档书签"
+            title={bookmarkPanelTotal > 0 ? `书签与标注（${bookmarkPanelTotal}）` : "添加书签"}
+            aria-label="书签与标注"
             aria-expanded={bookmarkOpen}
             type="button"
-          ><FocusModeIcon name="bookmark" />{bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}</button>
+          ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
           {unifiedTitleBar && focusMode && !readonly && <button type="button" className="focus-btn" title={shortcutTitle("view.tools", "更多编辑工具")} aria-label="更多编辑工具" aria-expanded={focusToolbarExpanded} onClick={() => setFocusToolbarExpanded(value => !value)}><ToolbarIcon name="annotate" /></button>}
           {!statusBar.navigationInStatus && <NavigationButtons />}
           {isMobileToolbarViewport && <button
@@ -4739,12 +4880,22 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           <DocumentEditorContent
             editor={editor}
             className="editor-content"
+            onPointerOverCapture={handleReadingAnnotationPointerOver}
+            onPointerOutCapture={handleReadingAnnotationPointerOut}
             onPointerOver={documentHover.onPointerOver}
             onPointerOut={documentHover.onPointerOut}
             onFocusCapture={documentHover.onFocusCapture}
             onBlurCapture={documentHover.onBlurCapture}
             onScrollCapture={documentHover.onScrollCapture}
             onClickCapture={(event) => {
+              const marker = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-reading-annotation]") : null;
+              const annotation = annotations.find(item => item.id === marker?.dataset.readingAnnotation);
+              if (annotation && readonly) {
+                event.preventDefault();
+                event.stopPropagation();
+                revealReadingAnnotation(annotation, marker);
+                return;
+              }
               const heading = editor && headingLinkTarget(event.target, extractDocumentOutline(editor.state.doc), editor.state.doc);
               if (heading) {
                 event.preventDefault();
@@ -4768,6 +4919,16 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
           />
           {documentHover.preview}
         </div>
+        {readonly && annotationPopover && (() => {
+          const annotation = annotations.find(item => item.id === annotationPopover.id);
+          if (!annotation) return null;
+          return <ReadingAnnotationBubble annotation={annotation} left={annotationPopover.left} top={annotationPopover.top}
+            onPointerEnter={() => { if (annotationLeaveTimerRef.current !== null) window.clearTimeout(annotationLeaveTimerRef.current); }}
+            onPointerLeave={() => { if (annotationLeaveTimerRef.current !== null) window.clearTimeout(annotationLeaveTimerRef.current); annotationLeaveTimerRef.current = window.setTimeout(() => setAnnotationPopover(null), 180); }}
+            onSave={note => { void updateReadingAnnotation(annotation.id, note); }}
+            onClear={() => { void updateReadingAnnotation(annotation.id, ""); }}
+            onDelete={() => { void removeReadingAnnotation(annotation.id); }} />;
+        })()}
 
         {/* ── [[ 双向链接下拉 ── */}
         {wikiOpen && (
@@ -4818,6 +4979,8 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         contextSubmenu={contextSubmenu} setContextSubmenu={setContextSubmenu}
         setContextMenu={setContextMenu}
         hasCurrentBookmark={Boolean(currentBookmark)} bookmarkCount={bookmarks.length}
+        annotationSelectionAvailable={readonly && Boolean(annotationContextRange)}
+        onAnnotateSelection={() => { void createSelectedReadingAnnotation(); setAnnotationContextRange(null); }}
         onCopyReference={copyReference}
         actions={{ hasSelection, handleCut, handleClipboardPaste, handleCopy, handleCopyBlock, openDocumentBookmarks,
           toggleCurrentBookmark, convertSelectionFromMarkdown, changeSelectedBlockIndent,
