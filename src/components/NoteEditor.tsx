@@ -4377,7 +4377,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
             onPointerEnter={event => { if (event.pointerType !== "touch") setDocumentInfoOpen(true); }}
             onPointerLeave={event => {
               const nextTarget = event.relatedTarget;
-              if (nextTarget instanceof Node && event.currentTarget.parentElement?.contains(nextTarget)) return;
+              if (nextTarget instanceof Element && nextTarget.closest(".document-info-card-title-hover")) return;
               setDocumentInfoOpen(false);
             }}
             onFocusCapture={() => setDocumentInfoOpen(false)}>

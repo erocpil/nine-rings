@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
-import { SyncLogDialog } from "./SyncLogDialog";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   cancelGitHubPush,
   dismissGitHubPush,
   useGitHubPushJob,
 } from "../lib/sync/push-job";
+
+const SyncLogDialog = lazy(() =>
+  import("./SyncLogDialog").then((module) => ({ default: module.SyncLogDialog })),
+);
 
 const PHASE_LABELS = {
   preparing: "正在保存当前修改…",
@@ -39,7 +42,11 @@ export function GitHubPushStatus() {
       className={`github-push-status ${job.status}`}
       aria-label="GitHub 上传任务"
     >
-      {logsOpen && <SyncLogDialog onClose={() => setLogsOpen(false)} />}
+      {logsOpen && (
+        <Suspense fallback={null}>
+          <SyncLogDialog onClose={() => setLogsOpen(false)} />
+        </Suspense>
+      )}
       <div role="status" aria-live="polite" aria-atomic="true">
         <strong>
           {running

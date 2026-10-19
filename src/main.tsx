@@ -1,6 +1,5 @@
 import React, { Suspense } from "react";
 import ReactDOM from "react-dom/client";
-import { QuickTooltips } from "./components/QuickTooltips";
 import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { getAdapter } from "./lib/storage";
@@ -8,6 +7,12 @@ import "./styles.css";
 import { recordReaderDiagnostic } from "./lib/reader-diagnostics";
 import { PasswordDialogHost } from "./components/PasswordDialog";
 import { GitHubPushStatus } from "./components/GitHubPushStatus";
+
+const QuickTooltips = React.lazy(() =>
+  import("./components/QuickTooltips").then((module) => ({
+    default: module.QuickTooltips,
+  })),
+);
 
 recordReaderDiagnostic("boot");
 window.addEventListener("pagehide", () => recordReaderDiagnostic("pagehide"));
@@ -22,8 +27,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <PasswordDialogHost />
-      <QuickTooltips />
       <GitHubPushStatus />
+      <Suspense fallback={null}><QuickTooltips /></Suspense>
       <Suspense fallback={<div style={{ padding: "1rem", fontSize: 13, color: "var(--text-muted)" }}>加载中...</div>}>
         <App />
       </Suspense>
