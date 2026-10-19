@@ -62,9 +62,12 @@ test("块菜单关闭后重开仍可用上下方向键移动可见焦点", async
   await expect.poll(() => items.nth(0).evaluate(element => element === document.activeElement)).toBe(true);
   await items.nth(0).press("ArrowDown");
   await expect.poll(() => items.nth(1).evaluate(element => element === document.activeElement)).toBe(true);
-  await expect(items.nth(1)).toHaveCSS("outline-style", "solid");
-  await items.nth(1).press("ArrowUp");
-  await expect.poll(() => items.nth(0).evaluate(element => element === document.activeElement)).toBe(true);
+  await expect(items.nth(1)).toHaveCSS("outline-offset", "-1px");
+  await items.nth(3).hover();
+  await expect.poll(() => items.nth(3).evaluate(element => element === document.activeElement)).toBe(true);
+  await expect(items.nth(3)).toHaveCSS("outline-offset", "-1px");
+  await items.nth(3).press("ArrowUp");
+  await expect.poll(() => items.nth(2).evaluate(element => element === document.activeElement)).toBe(true);
 });
 
 test("分割线缩进只作用于此块，不把下一个段落当成目标", async ({ page }) => {

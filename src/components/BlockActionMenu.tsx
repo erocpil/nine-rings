@@ -135,6 +135,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
         title={presentation?.enabled && presentation.showHints ? ACTION_HINTS[action.label] : undefined}
         onPointerEnter={event => {
           if (event.pointerType !== "mouse") return;
+          event.currentTarget.focus({ preventScroll: true });
           if (action.children && !action.disabled) showSubmenu(event.currentTarget, action, path);
           else setFlyouts(current => current.slice(0, path.length - submenuPath.length));
         }}
