@@ -585,7 +585,20 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
         // 移动输入法可能复用空段 DOM / 延迟通知；仅重测坐标会保留旧索引，
         // 直到收起键盘触发布局刷新才恢复。普通块内输入仍走节流测量，
         // 不为每个字符重建整份文档的观察窗口。
-        if (editor.state.doc.childCount !== topLevelBlocks.length) scheduleRebuild();
+        const nextDoc = editor.state.doc;
+        const topLevelStructureChanged = nextDoc.childCount !== topLevelBlocks.length
+          || topLevelBlocks.some((block, index) => nextDoc.child(index)?.type !== block.node.type);
+        if (topLevelStructureChanged) {
+          // A replacement or block conversion can leave the old virtual gutter
+          // mounted until MutationObserver/the next animation frame runs. A
+          // click in that gap could pair the new document with an old row index
+          // (for example, a separator's menu opening on the paragraph below).
+          // Invalidate those targets in the transaction turn; the scheduled
+          // rebuild will repopulate them from the current ProseMirror document.
+          measuredBlocks.clear();
+          setBlocks([]);
+          scheduleRebuild();
+        }
         else {
           // Keep event targets and active ranges current during the throttled
           // geometry pass; stale ranges can briefly highlight the next number.
