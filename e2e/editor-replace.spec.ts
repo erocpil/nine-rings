@@ -49,6 +49,25 @@ test("正文全部替换保留结构格式并可一次撤销，实时刷新匹�
   await expect(page.getByRole("button", { name: "全部替换", exact: true })).toHaveCount(0);
 });
 
+test("查找弹层在点击标题空白或未按下的导航按钮后仍可用 Escape 关闭", async ({ page }) => {
+  await seed(page);
+  await page.keyboard.press("Alt+f");
+  const panel = page.locator(".editor-find-bar");
+  const header = panel.locator(".editor-find-header");
+  const headerBox = (await header.boundingBox())!;
+  // 点击标题行中标题与关闭按钮之间的空白，避免输入框继续持有焦点。
+  await header.click({ position: { x: Math.max(12, headerBox.width - 56), y: headerBox.height / 2 } });
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+
+  await page.keyboard.press("Alt+f");
+  await page.getByLabel("在当前文档中查找").fill("foobar");
+  await expect(panel.locator(".editor-find-count")).toHaveText("0/2");
+  await panel.getByRole("button", { name: "下一处匹配" }).click();
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+});
+
 test("手机从更多打开替换，横竖屏均不溢出", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 760 });
   await seed(page);

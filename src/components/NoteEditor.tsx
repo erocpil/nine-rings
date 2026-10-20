@@ -1941,6 +1941,17 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
     if (!editor) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.isComposing || event.keyCode === 229) return;
+      // The find panel is a floating surface inside the editor, but pointer
+      // clicks on its padding/header may leave focus on the page body. Handle
+      // Escape before editor inertness and focus-target checks so dismissal
+      // does not depend on which child was last clicked.
+      if (event.key === "Escape" && editorFindOpen) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeEditorFind();
+        if (editor.view.dom.getClientRects().length && !editor.view.dom.closest("[inert]")) editor.commands.focus();
+        return;
+      }
       if (editor.view.dom.closest("[inert]")) return;
       if (event.target instanceof Element && event.target.closest(".settings-overlay, .block-workspace")) return;
       // The visible reading library owns Cmd/Ctrl+F even when focus remains
@@ -1973,12 +1984,6 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
       if (event.key === "Escape" && lineJumpOpen) {
         event.preventDefault();
         closeLineJump();
-        editor.commands.focus();
-        return;
-      }
-      if (event.key === "Escape" && editorFindOpen) {
-        event.preventDefault();
-        closeEditorFind();
         editor.commands.focus();
         return;
       }
