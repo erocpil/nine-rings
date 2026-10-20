@@ -1419,7 +1419,7 @@
 .vr-actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 12px; padding: 4px 8px; border-bottom: 1px solid var(--border); }
 .vr-actions span { color: var(--text-secondary); margin-right: auto; }
 .vr-note .vr-scroll { display: block; padding-top: 0; }
-.vr-note .vr-body { flex: none; overflow: visible; padding: 0 10px 0 0; min-height: 0; outline: none; }
+.vr-note .vr-body { flex: none; overflow: visible; padding: var(--editor-content-top-gap, 6px) 10px 0 0; min-height: 0; outline: none; }
 .vr-row { position: relative; display: flow-root; padding-left: calc(var(--editor-gutter-width) + var(--editor-gutter-text-gap, 6px)); }
 /* No EditorView is created on a cold readonly launch, so its injected
    ProseMirror whitespace/wrapping defaults must be provided explicitly. */

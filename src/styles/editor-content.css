@@ -19,6 +19,7 @@
   /* 首块前的插入按钮以第一块顶部为圆心，会向上伸出半个按钮高度。
      给 gutter 留出独立净空，避免被上方 sticky 工具栏盖住。 */
   margin-top: 12px;
+  padding-top: var(--editor-content-top-gap, 6px);
 }
 
 @media (min-width: 769px) {

@@ -16,6 +16,7 @@ html, body, #root {
 
 /* Tauri frameless: 圆角窗口 */
 html {
+  --editor-content-top-gap: 6px;
   border-radius: 8px;
   /* 禁止 iOS Safari 在横竖屏切换时自行放大页面文字；编辑器字号仍由
      应用设置控制，用户的浏览器页面缩放能力不受此规则影响。 */

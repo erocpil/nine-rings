@@ -16,7 +16,7 @@ async function titlePointerPoints(title: import("@playwright/test").Locator) {
   });
 }
 
-test("源码标题回车恢复源码光标，状态栏加号紧邻格式选择且源码首行无额外顶距", async ({ page }) => {
+test("源码标题回车恢复源码光标，状态栏加号紧邻格式选择且源码首行保留紧凑顶距", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "calm" })));
   await createBlankDocument(page, "源码标题回车");
   await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
@@ -41,7 +41,7 @@ test("源码标题回车恢复源码光标，状态栏加号紧邻格式选择�
   const gap = createBox!.x - (formatBox!.x + formatBox!.width);
   expect(gap).toBeLessThanOrEqual(10);
 
-  expect(await area.evaluate(element => getComputedStyle(element).paddingTop)).toBe("0px");
+  expect(await area.evaluate(element => getComputedStyle(element).paddingTop)).toBe("6px");
 });
 
 test("文档信息卡只在标题文字范围内悬停时出现", async ({ page }) => {

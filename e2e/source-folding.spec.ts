@@ -178,5 +178,5 @@ test("源码折叠全部后展开恢复原可视行和行内偏移", async ({ pa
   await expect(toolbar.getByRole("button", { name: "展开全部", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBeCloseTo(beforeScrollTop, 0);
   await expect.poll(topLine).toEqual(before);
-  await expect.poll(() => page.locator(".cm-content").evaluate(element => getComputedStyle(element).paddingTop)).toBe("0px");
+  await expect.poll(() => page.locator(".cm-content").evaluate(element => getComputedStyle(element).paddingTop)).toBe("6px");
 });
