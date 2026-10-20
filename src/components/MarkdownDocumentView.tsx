@@ -19,7 +19,7 @@ import { MarkdownSplitPreview } from "./MarkdownSplitPreview";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { NavigationButtons } from "./NavigationButtons";
 import { useNavigationStore } from "../stores/useNavigationStore";
-import { Suspense, lazy, useEffect, useLayoutEffect, useCallback, useRef, useState, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useCallback, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import type { NoteEditorProps } from "./NoteEditor";
 import type { DeltaOps } from "../types/models";
 import { deltaToMarkdownAsync } from "../lib/data-transform-client";
@@ -31,6 +31,7 @@ import { deltaToProseMirror, isProseMirror, proseMirrorToDelta } from "../lib/de
 import { ToolbarIcon } from "./ToolbarIcon";
 import { DocumentTitlePreview } from "./DocumentTitlePreview";
 import { DocumentInfoCard } from "./DocumentInfoCard";
+import { isPointerOverTitleText } from "../lib/document-title-hit-test";
 import { MarkdownEscapeRepair } from "./MarkdownEscapeRepair";
 import { api } from "../lib/api";
 import { useMarkdownViewPosition } from "../hooks/useMarkdownViewPosition";
@@ -82,15 +83,27 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     clearSourceInfoTimer();
     sourceInfoTimer.current = window.setTimeout(() => setSourceInfoOpen(false), 180);
   };
+  const handleSourceTitlePointer = (event: PointerEvent<HTMLDivElement>) => {
+    clearSourceInfoTimer();
+    if (event.pointerType === "touch") return;
+    if (isPointerOverTitleText(event.currentTarget, event.clientX)) setSourceInfoOpen(true);
+    else if (sourceInfoOpen) closeSourceInfoLater();
+  };
   useEffect(() => () => clearSourceInfoTimer(), []);
   const sourceTitle = <>
     <div className="note-title-field"
-      onPointerEnter={event => { clearSourceInfoTimer(); if (event.pointerType !== "touch") setSourceInfoOpen(true); }}
+      onPointerEnter={handleSourceTitlePointer}
+      onPointerMove={handleSourceTitlePointer}
       onPointerLeave={closeSourceInfoLater}
       onFocusCapture={() => { clearSourceInfoTimer(); setSourceInfoOpen(false); }}>
       {props.readonly
         ? <DocumentTitlePreview title={props.title || "无标题"} onOpenProperties={props.onOpenProperties} />
-        : <input type="text" className="note-title" aria-label="文档标题" placeholder="输入文档标题" value={props.title ?? ""} onChange={event => props.onTitleChange(event.target.value)} />}
+        : <input type="text" className="note-title" aria-label="文档标题" placeholder="输入文档标题" value={props.title ?? ""} onChange={event => props.onTitleChange(event.target.value)} onKeyDown={event => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          event.stopPropagation();
+          viewPosition.sourceHandle?.focus();
+        }} />}
     </div>
     {sourceInfoOpen && props.documentCreatedAt && props.documentUpdatedAt && <DocumentInfoCard
       className="document-info-card-title-hover"

@@ -875,7 +875,7 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 }
 .editor-status-bar .editor-status-select:disabled { opacity: .58; cursor: not-allowed; }
 .editor-status-create {
-  margin-inline-start: auto;
+  margin-inline-start: 0;
   flex: 0 0 24px;
   width: 24px;
   height: 22px;

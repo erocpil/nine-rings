@@ -51,6 +51,7 @@ import { MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails,
 import { useDocumentHoverPreview } from "./FootnoteHoverPreview";
 import { footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
 import { createToolbarSelectionCommands } from "../lib/editor-toolbar-commands";
+import { isPointerOverTitleText } from "../lib/document-title-hit-test";
 import Placeholder from "@tiptap/extension-placeholder";
 import Heading from "@tiptap/extension-heading";
 import TextStyle from "@tiptap/extension-text-style";
@@ -526,6 +527,12 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
       setDocumentInfoOpen(false);
       documentInfoCloseTimerRef.current = null;
     }, 180);
+  };
+  const handleDocumentTitlePointer = (event: React.PointerEvent<HTMLDivElement>) => {
+    clearDocumentInfoCloseTimer();
+    if (event.pointerType === "touch") return;
+    if (isPointerOverTitleText(event.currentTarget, event.clientX)) setDocumentInfoOpen(true);
+    else if (documentInfoOpen) scheduleDocumentInfoClose();
   };
   useEffect(() => () => {
     if (documentInfoCloseTimerRef.current !== null)
@@ -4575,10 +4582,8 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
             onPointerLeave={scheduleDocumentInfoClose}
           />}
           <div className="note-title-field"
-            onPointerEnter={event => {
-              clearDocumentInfoCloseTimer();
-              if (event.pointerType !== "touch") setDocumentInfoOpen(true);
-            }}
+            onPointerEnter={handleDocumentTitlePointer}
+            onPointerMove={handleDocumentTitlePointer}
             onPointerLeave={scheduleDocumentInfoClose}
             onFocusCapture={() => {
               clearDocumentInfoCloseTimer();
