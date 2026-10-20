@@ -1736,19 +1736,17 @@
 }
 
 .document-outline-list[data-source-symbols="true"] .document-outline-level.is-symbol-marker {
-  width: 9px;
-  min-width: 9px;
-  justify-content: flex-start;
+  width: 14px;
+  min-width: 14px;
+  justify-content: flex-end;
 }
 
 .document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-nested="true"] .document-outline-level.is-symbol-marker {
   transform: translateX(-8px);
 }
 
-.document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-kind="类型"] .document-outline-level.is-symbol-marker {
-  width: 14px;
-  min-width: 14px;
-  justify-content: center;
+.document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-nested="true"] .document-outline-text {
+  transform: translateX(-8px);
 }
 
 .document-outline-text {

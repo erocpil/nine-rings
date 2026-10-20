@@ -46,16 +46,30 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   const panel = page.getByRole("navigation", { name: "源码符号" });
   await expect(panel.getByText("Packet", { exact: true })).toBeVisible();
   await expect(panel.getByText("length: int", { exact: true })).toBeVisible();
+  const packetRow = panel.locator('.document-outline-item[data-symbol-kind="类型"]').filter({ hasText: "Packet" });
   const memberRow = panel.locator('.document-outline-item[data-symbol-kind="成员"]').filter({ hasText: "length: int" });
-  await expect(memberRow.locator(".document-outline-level")).toHaveCSS("width", "9px");
+  await expect(packetRow.locator(".document-outline-level")).toHaveCSS("width", "14px");
+  await expect(memberRow.locator(".document-outline-level")).toHaveCSS("width", "14px");
   await expect(memberRow).toHaveAttribute("data-symbol-nested", "true");
   await expect(memberRow.locator(".document-outline-level")).toHaveCSS("transform", "matrix(1, 0, 0, 1, -8, 0)");
+  await expect(memberRow.locator(".document-outline-text")).toHaveCSS("transform", "matrix(1, 0, 0, 1, -8, 0)");
+  const visualMarkerGap = async (row: import("@playwright/test").Locator) => row.locator(".document-outline-link").evaluate(link => {
+    const marker = link.querySelector(".document-outline-level")!;
+    const label = link.querySelector(".document-outline-text")!;
+    const textBounds = (element: Element) => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return range.getBoundingClientRect();
+    };
+    return textBounds(label).left - textBounds(marker).right;
+  });
+  expect(await visualMarkerGap(memberRow)).toBeCloseTo(await visualMarkerGap(packetRow), 1);
   expect(await memberRow.locator(".document-outline-link").evaluate(link => getComputedStyle(link).gap)).toBe("2px");
   const functionMarker = panel.locator('.document-outline-item[data-symbol-kind="函数"] .document-outline-level').first();
-  await expect(functionMarker).toHaveCSS("width", "9px");
+  await expect(functionMarker).toHaveCSS("width", "14px");
   await expect(functionMarker).toHaveCSS("transform", "matrix(1, 0, 0, 1, -8, 0)");
   const macroMarker = panel.locator('.document-outline-item[data-symbol-kind="宏"] .document-outline-level').first();
-  await expect(macroMarker).toHaveCSS("width", "9px");
+  await expect(macroMarker).toHaveCSS("width", "14px");
   await expect(macroMarker).toHaveCSS("transform", "none");
   await expect(panel.locator(".document-outline-jumps")).toHaveCount(0);
   await expect(panel.locator(".document-outline-count")).toHaveCount(0);
