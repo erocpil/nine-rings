@@ -64,7 +64,7 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
     return textBounds(label).left - textBounds(marker).right;
   });
   expect(await visualMarkerGap(memberRow)).toBeCloseTo(await visualMarkerGap(packetRow), 1);
-  expect(await memberRow.locator(".document-outline-link").evaluate(link => getComputedStyle(link).gap)).toBe("2px");
+  expect(await memberRow.locator(".document-outline-link").evaluate(link => getComputedStyle(link).gap)).toBe("3px");
   const functionMarker = panel.locator('.document-outline-item[data-symbol-kind="函数"] .document-outline-level').first();
   await expect(functionMarker).toHaveCSS("width", "14px");
   await expect(functionMarker).toHaveCSS("transform", "matrix(1, 0, 0, 1, -8, 0)");

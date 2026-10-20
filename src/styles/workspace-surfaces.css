@@ -1732,7 +1732,7 @@
 }
 
 .document-outline-list[data-source-symbols="true"] .document-outline-link {
-  gap: 2px;
+  gap: 3px;
 }
 
 .document-outline-list[data-source-symbols="true"] .document-outline-level.is-symbol-marker {
