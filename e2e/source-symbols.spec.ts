@@ -21,6 +21,10 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   await expect(panel.locator(".document-outline-count")).toHaveCount(0);
   await expect(panel.getByRole("button", { name: "按字母顺序排序" })).toBeVisible();
   await expect(panel.getByRole("button", { name: "固定源码符号" })).toBeVisible();
+  const header = panel.locator(".document-outline-header");
+  const actions = header.locator(".is-source-symbol-actions");
+  await expect(actions).toBeVisible();
+  await expect(actions).toHaveCSS("justify-content", "flex-end");
   await expect(panel.locator('[aria-current="location"]')).toBeVisible();
   await expect(panel.locator(".document-outline-text").first()).toHaveCSS("white-space", "nowrap");
   const sourceOrder = await panel.locator(".document-outline-link").allTextContents();

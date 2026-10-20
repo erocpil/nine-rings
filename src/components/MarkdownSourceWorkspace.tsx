@@ -392,14 +392,19 @@ export function MarkdownSourceWorkspace({
           }
         >
           <div className="document-outline-header-primary">{isOutline ? (symbolOutline ? <DocumentPanelTitle label="源码符号" pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} /> : <OutlinePanelTitle pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} />) : <DocumentPanelTitle label="书签" pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} />}
-            {isOutline && <>
-              <OutlineDisplayTools listRef={listRef} target={symbolOutline ? "source-symbols" : "document-outline"} targetLabel={symbolOutline ? "定位当前符号" : "定位当前标题"} />
-              {symbolOutline && <button type="button" className="btn-icon" aria-label={symbolsAlphabetical ? "按源码出现顺序排序" : "按字母顺序排序"} title={symbolsAlphabetical ? "按源码出现顺序排序" : "按字母顺序排序"} aria-pressed={symbolsAlphabetical} onClick={() => setSymbolsAlphabetical(value => !value)}><ToolbarIcon name="sortAlpha" /></button>}
+            {isOutline && !symbolOutline && <>
+              <OutlineDisplayTools listRef={listRef} target="document-outline" targetLabel="定位当前标题" />
               <button type="button" aria-label="全部折叠" title="折叠目录" onClick={() => setFolds(new Set(outline.filter((item, i) => outline[i + 1]?.level > item.level).map(item => item.pos)))}>−</button>
               <button type="button" aria-label="全部展开" title="展开目录" onClick={() => setFolds(new Set())}>+</button>
             </>}
           </div>
-          <div className="document-outline-header-actions">
+          <div className={`document-outline-header-actions${isOutline && symbolOutline ? " is-source-symbol-actions" : ""}`}>
+            {isOutline && symbolOutline && <>
+              <OutlineDisplayTools listRef={listRef} target="source-symbols" targetLabel="定位当前符号" />
+              <button type="button" className="btn-icon" aria-label={symbolsAlphabetical ? "按源码出现顺序排序" : "按字母顺序排序"} title={symbolsAlphabetical ? "按源码出现顺序排序" : "按字母顺序排序"} aria-pressed={symbolsAlphabetical} onClick={() => setSymbolsAlphabetical(value => !value)}><ToolbarIcon name="sortAlpha" /></button>
+              <button type="button" aria-label="全部折叠" title="折叠目录" onClick={() => setFolds(new Set(outline.filter((item, i) => outline[i + 1]?.level > item.level).map(item => item.pos)))}>−</button>
+              <button type="button" aria-label="全部展开" title="展开目录" onClick={() => setFolds(new Set())}>+</button>
+            </>}
             {!isOutline && <>
               <PanelDisplayTools target="bookmarks" disabled={!nearestBookmark} handlers={{ "bookmarks.reveal-current": () => revealPanelItem(bookmarkDisplayListRef.current, nearestBookmark?.id) }} />
               {!currentBookmark && <button className="document-bookmark-add" type="button" onClick={() => onToggleBookmark(offset)} aria-label="添加当前位置书签">添加</button>}

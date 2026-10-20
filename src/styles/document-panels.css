@@ -40,6 +40,11 @@
   flex-wrap: wrap;
 }
 .desktop-document-panels .document-outline-header-actions { flex-wrap: nowrap; }
+.desktop-document-panels .document-outline-header-actions.is-source-symbol-actions {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  margin-left: auto;
+}
 .desktop-document-panels .document-bookmark-header > span + span {
   color: var(--text-secondary);
   font-size: 11px;
