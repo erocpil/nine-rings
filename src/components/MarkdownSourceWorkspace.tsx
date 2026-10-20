@@ -33,7 +33,7 @@ import { FocusModeIcon } from "./FocusModeBar";
 import { DocumentBookmarkRow } from "./DocumentBookmarkRow";
 import { BookmarkRenameDialog } from "./BookmarkRenameDialog";
 import { extractCSourceSymbols } from "../lib/source-symbols";
-import { focusSourceWordMatch, selectSourceWordAt, sourceWordState, type SourceWordMatch } from "../lib/source-word-occurrences";
+import { focusSourceWordMatch, groupSourceWordMatchesByLine, selectSourceWordAt, sourceWordState } from "../lib/source-word-occurrences";
 import type { DocumentOutlineItem } from "../lib/document-outline";
 import type { DocumentBookmark } from "../types/models";
 
@@ -228,6 +228,7 @@ export function MarkdownSourceWorkspace({
     return () => document.removeEventListener("mousedown", modifierClick, true);
   }, [areaRef, sourceHandle, mobile, sourceWordEnabled]);
   const wordState = sourceWordEnabled && sourceHandle ? sourceWordState(sourceHandle.view) : null;
+  const groupedWordMatches = useMemo(() => groupSourceWordMatchesByLine(wordState?.matches ?? []), [wordState?.matches]);
   const outlineTrigger = useRef<HTMLButtonElement>(null),
     bookmarkTrigger = useRef<HTMLButtonElement>(null);
   const outlinePanel = useRef<HTMLElement>(null),
@@ -400,10 +401,9 @@ export function MarkdownSourceWorkspace({
           ) : (
             <div className="document-bookmark-empty">{symbolOutline ? (symbolsBusy ? "正在分析源码符号…" : "当前文件没有可显示的符号") : "当前文档还没有标题"}</div>
           )
-        ) : (
+        ) : bookmarks.length > 0 ? (
           <div className="document-bookmark-list" ref={bookmarkDisplayListRef} data-panel-display={bookmarkDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(bookmarkDisplayConfig) as CSSProperties}>
-            {bookmarks.length ? (
-              sortedBookmarks(bookmarks, bookmarkDisplayConfig).map((bookmark) => (
+            {sortedBookmarks(bookmarks, bookmarkDisplayConfig).map((bookmark) => (
                 <DocumentBookmarkRow
                   key={bookmark.id}
                   bookmark={bookmark}
@@ -417,12 +417,9 @@ export function MarkdownSourceWorkspace({
                   onEdit={() => setRenamingBookmark(bookmark)}
                   onDelete={() => onRemoveBookmark(bookmark.id)}
                 />
-              ))
-            ) : (
-              <div className="document-bookmark-empty">当前文档还没有书签</div>
-            )}
+              ))}
           </div>
-        )}
+        ) : null}
       </nav>
     );
   };
@@ -444,19 +441,24 @@ export function MarkdownSourceWorkspace({
               <button type="button" aria-label="隐藏匹配列表" title="隐藏匹配列表" onClick={() => setMatchesOpen(false)}><ToolbarIcon name="close" /></button>
             </div>
             <div className="document-source-matches-list">
-              {wordState?.matches.length ? wordState.matches.map((match: SourceWordMatch) => <button
-                key={`${match.from}:${match.to}`}
+              {groupedWordMatches.length ? groupedWordMatches.map(group => {
+                const active = group.matches.find(match => match.from === wordState?.activeFrom);
+                const target = active ?? group.matches[0]!;
+                return <button
+                key={group.line}
                 type="button"
                 className="document-source-match-row"
-                aria-current={match.from === wordState.activeFrom ? "location" : undefined}
+                aria-current={active ? "location" : undefined}
+                aria-label={`第 ${group.line} 行${group.matches.length > 1 ? `，${group.matches.length} 处匹配` : ""}`}
                 onClick={() => {
                   if (!sourceHandle) return;
-                  focusSourceWordMatch(sourceHandle.view, match);
-                  sourceHandle.scrollToOffset(match.from, true);
-                  setOffset(match.from);
+                  focusSourceWordMatch(sourceHandle.view, target);
+                  sourceHandle.scrollToOffset(target.from, true);
+                  setOffset(target.from);
                 }}
-                title={`${match.line}: ${match.text}`}
-              ><span className="document-source-match-line">{match.line}</span><code>{match.text || wordState.word}</code></button>) : <div className="document-bookmark-empty">{wordState?.word ? "当前文档没有其它全词匹配" : "单击源码中的单词以查找相同词"}</div>}
+                title={`${group.line}: ${group.text}${group.matches.length > 1 ? ` · ${group.matches.length} 处匹配` : ""}`}
+              ><span className={`document-source-match-line${group.matches.length > 1 ? " is-repeated" : ""}`}>{group.matches.length > 1 ? <strong>{group.line}</strong> : group.line}</span><code>{group.text || wordState?.word}</code></button>;
+              }) : <div className="document-bookmark-empty">{wordState?.word ? "当前文档没有其它全词匹配" : "单击源码中的单词以查找相同词"}</div>}
             </div>
           </nav>}
           matchesOpen={matchesOpen && sourceWordEnabled}

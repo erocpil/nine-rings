@@ -11,6 +11,12 @@ export interface SourceWordMatch extends SourceWordRange {
   text: string;
 }
 
+export interface SourceWordLineMatch {
+  line: number;
+  text: string;
+  matches: SourceWordMatch[];
+}
+
 export interface SourceWordOccurrences {
   enabled: boolean;
   word: string;
@@ -64,6 +70,16 @@ export function findSourceWordMatches(source: string, word: string): SourceWordM
   return matches;
 }
 
+export function groupSourceWordMatchesByLine(matches: readonly SourceWordMatch[]): SourceWordLineMatch[] {
+  const groups = new Map<number, SourceWordLineMatch>();
+  for (const match of matches) {
+    const existing = groups.get(match.line);
+    if (existing) existing.matches.push(match);
+    else groups.set(match.line, { line: match.line, text: match.text, matches: [match] });
+  }
+  return [...groups.values()];
+}
+
 const setEnabled = StateEffect.define<boolean>();
 const setWord = StateEffect.define<{ word: string; activeFrom: number }>();
 
@@ -109,13 +125,13 @@ export const sourceWordOccurrences = [
       const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
       if (position === null) return false;
       const range = sourceWordAt(view.state.doc.toString(), position);
-      const word = range ? view.state.sliceDoc(range.from, range.to) : "";
+      if (!range) return false;
+      const word = view.state.sliceDoc(range.from, range.to);
       view.dispatch({ effects: setWord.of({
         word,
-        activeFrom: range?.from ?? -1,
+        activeFrom: range.from,
       }) });
       if (event.ctrlKey || event.metaKey) {
-        if (!range) return false;
         view.dom.dispatchEvent(new CustomEvent("nr:source-word-open", {
           bubbles: true,
           detail: { word, from: range.from },
@@ -143,11 +159,12 @@ export function sourceWordState(view: EditorView): SourceWordOccurrences {
 
 export function selectSourceWordAt(view: EditorView, position: number): SourceWordRange | null {
   const range = sourceWordAt(view.state.doc.toString(), position);
+  if (!range) return null;
   view.dispatch({
-    ...(range ? { selection: EditorSelection.cursor(range.from) } : {}),
+    selection: EditorSelection.cursor(range.from),
     effects: setWord.of({
-      word: range ? view.state.sliceDoc(range.from, range.to) : "",
-      activeFrom: range?.from ?? -1,
+      word: view.state.sliceDoc(range.from, range.to),
+      activeFrom: range.from,
     }),
   });
   return range;

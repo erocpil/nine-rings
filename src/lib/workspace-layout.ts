@@ -9,6 +9,7 @@ export interface WorkspaceLayout {
   panelsSide: "left" | "right";
   panelsArrangement: "vertical" | "horizontal";
   panelRatio: number;
+  matchesRatio: number;
   panelWidth: number;
   horizontalPanelWidth: number;
   outlinePinned: boolean;
@@ -23,6 +24,7 @@ export const DEFAULT_WORKSPACE_LAYOUT: WorkspaceLayout = {
   panelsSide: "right",
   panelsArrangement: "vertical",
   panelRatio: 2 / 3,
+  matchesRatio: 1 / 3,
   panelWidth: 280,
   horizontalPanelWidth: 520,
   outlinePinned: false,
@@ -47,6 +49,7 @@ export function normalizeWorkspaceLayout(value: unknown): WorkspaceLayout {
     panelsArrangement:
       v.panelsArrangement === "horizontal" ? "horizontal" : "vertical",
     panelRatio: number(v.panelRatio, 2 / 3, 0.15, 0.85),
+    matchesRatio: number(v.matchesRatio, 1 / 3, 0.15, 0.85),
     panelWidth: number(v.panelWidth, 280, 180, 600),
     horizontalPanelWidth: number(v.horizontalPanelWidth, 520, 280, 900),
     outlinePinned: v.outlinePinned === true,

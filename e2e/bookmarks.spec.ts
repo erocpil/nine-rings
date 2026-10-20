@@ -2,6 +2,16 @@ import { pressLineBoundary } from "./helpers/keyboard";
 import { createBlankDocument } from "./helpers/document";
 import { expect, test } from "@playwright/test";
 
+test("空书签面板不显示提示并收起内容区域", async ({ page }) => {
+  await createBlankDocument(page, "空书签面板");
+  await page.locator('[data-document-panel-trigger="bookmark"]:visible').first().click();
+  const panel = page.locator(".document-bookmark-panel:visible");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator(".document-bookmark-empty")).toHaveCount(0);
+  await expect(panel.locator(".document-bookmark-list")).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: "添加当前位置书签", exact: true })).toBeVisible();
+});
+
 for (const width of [1280, 390]) {
   for (const readonly of [false, true]) {
     test.describe(`书签当前项 ${width}px ${readonly ? "只读" : "编辑"}`, () => {

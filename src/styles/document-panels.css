@@ -118,7 +118,7 @@
   min-height: 0;
   overflow: hidden;
 }
-.document-panel-dock-main.has-matches { flex: 0 0 58%; }
+.document-panel-dock-main.has-matches { flex-shrink: 0; }
 .document-panel-matches-slot {
   flex: 1 1 0;
   min-width: 0;
@@ -126,6 +126,26 @@
   overflow: hidden;
 }
 .document-panel-matches-slot.has-pinned-panels { border-top: 1px solid var(--border); }
+.document-panel-matches-divider {
+  position: relative;
+  flex: 0 0 6px;
+  cursor: row-resize;
+  touch-action: none;
+}
+.document-panel-matches-divider::after {
+  content: "";
+  position: absolute;
+  inset: calc(50% - 0.5px) 0;
+  background: var(--border);
+  opacity: .55;
+  transition: inset .15s, background-color .15s, opacity .15s;
+}
+.document-panel-matches-divider:is(:hover, :focus-visible, :active)::after {
+  inset: calc(50% - 1px) 0;
+  background: var(--accent);
+  opacity: .75;
+}
+.document-panel-matches-divider:focus-visible { outline: none; }
 .document-source-matches-panel {
   display: flex;
   flex-direction: column;
@@ -165,10 +185,10 @@
 .document-source-matches-list { flex: 1; min-height: 0; overflow: auto; padding: 4px; }
 .document-source-match-row {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: 34px minmax(0, 1fr);
   align-items: start;
   width: 100%;
-  gap: 8px;
+  gap: 6px;
   padding: 6px 7px;
   border: 0;
   border-radius: 5px;
@@ -179,7 +199,8 @@
 }
 .document-source-match-row:hover,
 .document-source-match-row[aria-current="location"] { background: var(--active-bg); }
-.document-source-match-line { color: var(--text-muted); font: 11px/1.5 var(--mono, monospace); text-align: right; }
+.document-source-match-line { display: flex; align-items: flex-start; justify-content: flex-end; color: var(--text-muted); font: 11px/18px var(--mono, monospace); text-align: right; }
+.document-source-match-line.is-repeated { font-weight: 700; }
 .document-source-match-row code { display: block; min-width: 0; overflow: hidden; color: inherit; font: 12px/1.5 var(--mono, monospace); text-overflow: ellipsis; white-space: nowrap; }
 .document-panel-dock.dock-right {
   right: 0;

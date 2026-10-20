@@ -4252,9 +4252,8 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
               {bookmarkDisplayConfig?.showCounts !== false && <span className="document-bookmark-count">{bookmarkPanelTotal} 项</span>}
             </div>
           </div>
-          <div className="document-bookmark-list" ref={bookmarkDisplayListRef} data-panel-display={bookmarkDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(bookmarkDisplayConfig) as React.CSSProperties}>
-            {bookmarkPanelTotal === 0 ? <div className="document-bookmark-empty">当前文档还没有书签或高亮</div>
-              : bookmarkPanelItems.map(item => item.kind === "bookmark" ? <DocumentBookmarkRow
+          {bookmarkPanelTotal > 0 && <div className="document-bookmark-list" ref={bookmarkDisplayListRef} data-panel-display={bookmarkDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(bookmarkDisplayConfig) as React.CSSProperties}>
+            {bookmarkPanelItems.map(item => item.kind === "bookmark" ? <DocumentBookmarkRow
                 key={`bookmark:${item.id}`}
                 bookmark={item.bookmark}
                 display={bookmarkDisplayConfig}
@@ -4274,6 +4273,7 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
                 <span>{item.text.length > 140 ? `${item.text.slice(0, 140)}…` : item.text}</span>
               </button>)}
           </div>
+          }
         </nav>
       );
 

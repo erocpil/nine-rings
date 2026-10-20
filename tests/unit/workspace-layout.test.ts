@@ -63,6 +63,7 @@ describe("workspace layout preferences", () => {
     expect(
       normalizeWorkspaceLayout({
         panelRatio: 9,
+        matchesRatio: -1,
         panelWidth: -1,
         horizontalPanelWidth: Infinity,
         sidebarSide: "bad",
@@ -70,6 +71,7 @@ describe("workspace layout preferences", () => {
       }),
     ).toMatchObject({
       panelRatio: 0.85,
+      matchesRatio: 0.15,
       panelWidth: 180,
       horizontalPanelWidth: 520,
       sidebarSide: "left",
@@ -85,6 +87,7 @@ describe("workspace layout preferences", () => {
       summaryInteraction: "click",
       summaryVisibleRows: 8,
       panelRatio: 0.4,
+      matchesRatio: 0.45,
       sidebarSide: "right",
       outlinePinned: true,
     });
@@ -93,6 +96,7 @@ describe("workspace layout preferences", () => {
       panelsArrangement: "horizontal",
     });
     expect(notify).toHaveBeenCalledTimes(2);
+    expect(readWorkspaceLayout().matchesRatio).toBe(0.45);
     const original = readWorkspaceLayout();
     const backup = collectFrontendSettings(localStorage);
     values.clear();
