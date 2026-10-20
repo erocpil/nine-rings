@@ -37,7 +37,7 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   await format.selectOption("c");
   const area = page.locator(".cm-content");
   await expect(area).toBeVisible();
-  const source = `struct Packet {\n  int length;\n  void reset();\n};\n#define NR_PACKET_LIMIT 8\nstatic int packet_count;\n\nint zebra(void) { return 0; }\n\nint open_packet(int id) {\n  return id;\n}\n\nint alpha(void) { return 0; }\n`;
+  const source = `struct Packet {\n  int length;\n  void reset();\n};\n#define NR_PACKET_LIMIT 8\nstatic int packet_count;\n\nint zebra(void) { return 0; }\n\nint open_packet(int id) {\n  return id;\n}\n\nvoid alpha(void) { }\n`;
   await replaceSource(area, source);
 
   const symbolButton = page.getByRole("button", { name: "源码符号", exact: true }).first();
@@ -98,7 +98,37 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   await panel.getByRole("button", { name: "按字母顺序排序" }).click();
   const alphabeticalOrder = await panel.locator(".document-outline-link").allTextContents();
   expect(alphabeticalOrder.findIndex(text => text.includes("alpha"))).toBeLessThan(alphabeticalOrder.findIndex(text => text.includes("zebra")));
-  await panel.getByRole("button", { name: "按源码出现顺序排序" }).click();
+  const sortButton = panel.getByRole("button", { name: "按源码出现顺序排序" });
+  await expect(sortButton).toHaveAttribute("aria-pressed", "true");
+  const alphabeticalBackground = await sortButton.evaluate(button => getComputedStyle(button).backgroundColor);
+  await sortButton.click();
+  const sourceOrderButton = panel.getByRole("button", { name: "按字母顺序排序" });
+  await expect(sourceOrderButton).toHaveAttribute("aria-pressed", "false");
+  const sourceOrderBackground = await sourceOrderButton.evaluate(button => getComputedStyle(button).backgroundColor);
+  expect(alphabeticalBackground).not.toBe(sourceOrderBackground);
+
+  await page.evaluate(() => {
+    const key = "nr:workspaceLayout";
+    const layout = JSON.parse(localStorage.getItem(key) || "{}");
+    localStorage.setItem(key, JSON.stringify({ ...layout, outlinePinned: true, panelsSide: "right" }));
+    window.dispatchEvent(new Event("nr:workspace-layout-change"));
+  });
+  const dock = page.locator(".document-panel-dock.dock-right");
+  await expect(dock).toBeVisible();
+  const status = page.locator(".editor-status-bar");
+  await status.evaluate(element => { element.scrollLeft = element.scrollWidth; });
+  const statusGeometry = await status.evaluate(element => {
+    const line = getComputedStyle(element, "::before");
+    const rightInset = Number.parseFloat(line.right) || 0;
+    const rect = element.getBoundingClientRect();
+    const create = element.querySelector(".editor-status-create")!.getBoundingClientRect();
+    return { createRight: create.right, lineRight: rect.right - rightInset };
+  });
+  expect(statusGeometry.createRight).toBeLessThanOrEqual(statusGeometry.lineRight + 0.5);
+  const dockBox = await dock.boundingBox();
+  expect(dockBox).not.toBeNull();
+  expect(statusGeometry.createRight).toBeLessThanOrEqual(dockBox!.x + 0.5);
+
   const functionEntry = panel.locator(".document-outline-link").filter({ hasText: "int open_packet(int id)" });
   await functionEntry.click();
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("open_packet"));

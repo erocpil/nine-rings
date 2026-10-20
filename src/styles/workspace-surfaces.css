@@ -1597,6 +1597,12 @@
   color: var(--accent);
 }
 
+.document-outline-header-actions.is-source-symbol-actions > button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg));
+  color: var(--accent);
+}
+
 .document-outline-header-actions > .document-panel-pin-button {
   width: 24px;
   min-width: 24px;

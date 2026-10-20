@@ -1600,7 +1600,14 @@ html[data-interface-style] .editor-menu .toolbar-split-caret .toolbar-dropdown-c
 html[data-interface-style] .editor-menu .toolbar-split-button > .menu-btn:is(:hover, .active, [aria-expanded="true"]) { background: transparent; border-color: transparent; }
 
 /* Shared status widgets: host owns commands, presentation providers own appearance. */
-.editor-status-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.editor-status-bar {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  scrollbar-width: none;
+}
 .editor-status-bar::-webkit-scrollbar { display: none; }
 .editor-status-item { display: inline-flex; align-items: center; flex: 0 0 auto; white-space: nowrap; gap: inherit; }
 .editor-status-actions-start { margin-inline-start: auto; }

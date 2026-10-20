@@ -39,7 +39,24 @@ import { focusSourceWordMatch, groupSourceWordMatchesByLine, selectSourceWordAt,
 import type { DocumentOutlineItem } from "../lib/document-outline";
 import type { DocumentBookmark } from "../types/models";
 
-type SourceOutlineItem = DocumentOutlineItem & { offset: number };
+type SourceOutlineItem = DocumentOutlineItem & { offset: number; sortName?: string };
+
+function sourceSymbolSortName(identity: string, kind: string, fallback: string): string {
+  const withoutKind = identity.replace(/#(?:macro|[^#]+)$/u, "");
+  if (kind === "函数") {
+    const parameterStart = withoutKind.indexOf("(");
+    if (parameterStart >= 0) {
+      const prefix = withoutKind.slice(0, parameterStart);
+      const prefixParts = prefix.split("::");
+      const leaf = prefixParts[prefixParts.length - 1] || fallback;
+      if (leaf === "operator" && withoutKind.startsWith(`${prefix}()`)) return "operator()";
+      return leaf.toLocaleLowerCase("en");
+    }
+  }
+  const identityParts = withoutKind.split("::");
+  const leaf = identityParts[identityParts.length - 1] || fallback;
+  return leaf.toLocaleLowerCase("en");
+}
 
 function alphabetizeSymbolTree(items: SourceOutlineItem[]): SourceOutlineItem[] {
   type Branch = { item: SourceOutlineItem; children: Branch[] };
@@ -53,7 +70,7 @@ function alphabetizeSymbolTree(items: SourceOutlineItem[]): SourceOutlineItem[] 
   }
   const result: SourceOutlineItem[] = [];
   const visit = (branches: Branch[]) => {
-    branches.sort((left, right) => (left.item.displayText ?? left.item.text).localeCompare(right.item.displayText ?? right.item.text, "zh-CN", { numeric: true, sensitivity: "base" }));
+    branches.sort((left, right) => (left.item.sortName ?? left.item.text).localeCompare(right.item.sortName ?? right.item.text, "en", { numeric: true, sensitivity: "base" }));
     for (const branch of branches) { result.push(branch.item); visit(branch.children); }
   };
   visit(roots);
@@ -179,6 +196,7 @@ export function MarkdownSourceWorkspace({
               ...symbol,
               kindSymbol: SOURCE_KIND_MARKERS[symbol.kind],
               displayText: symbol.displayText ?? symbol.text,
+              sortName: sourceSymbolSortName(symbol.identity, symbol.kind, symbol.text),
               offset: symbol.pos,
             })));
             setSourceSymbolsSource(snapshotSource);

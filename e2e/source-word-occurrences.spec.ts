@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 import { replaceSource, sourceInfo } from "./helpers/source-editor";
 
-test("只有单次出现的词不单独高亮", async ({ page }) => {
+test("没有其它同词匹配时使用常规同词高亮", async ({ page }) => {
   await createBlankDocument(page, "单次源码词");
   await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
   const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
@@ -10,13 +10,15 @@ test("只有单次出现的词不单独高亮", async ({ page }) => {
   const source = "int only_once;\n";
   await replaceSource(area, source);
   const position = await area.evaluate(async (element, offset) => {
-    const { EditorView } = (window as any).sourceCM;
+    const { EditorView } = (window as unknown as { sourceCM: typeof import("@codemirror/view") }).sourceCM;
     const view = EditorView.findFromDOM(element)!;
     const coords = view.coordsAtPos(offset)!;
     return { x: coords.left + 2, y: (coords.top + coords.bottom) / 2 };
   }, source.indexOf("only_once") + 2);
   await page.mouse.click(position.x, position.y);
-  await expect(area.locator(".cm-source-word-match")).toHaveCount(0);
+  await expect(area.locator(".cm-source-word-match")).toHaveCount(1);
+  await expect(area.locator(".cm-source-word-match-active")).toHaveCount(0);
+  await expect.poll(() => area.locator(".cm-source-word-match").evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
 });
 
 test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹配面板", async ({ page }) => {
@@ -30,7 +32,7 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
   const word = "packet_count";
   const clickWord = async (offset: number, modifiers: ("Control" | "Meta")[] = []) => {
     const point = await area.evaluate(async (element, at) => {
-      const { EditorView } = (window as any).sourceCM;
+      const { EditorView } = (window as unknown as { sourceCM: typeof import("@codemirror/view") }).sourceCM;
       const view = EditorView.findFromDOM(element)!;
       const coords = view.coordsAtPos(at)!;
       return { x: coords.left + 2, y: (coords.top + coords.bottom) / 2 };

@@ -119,6 +119,12 @@ export function EditorStatusBar({
       aria-label={label}
       data-status-display={state.display ? "plugin" : undefined}
       data-status-show-in-focus={state.showInFocus || undefined}
+      onWheel={(event) => {
+        const bar = event.currentTarget;
+        if (bar.scrollWidth <= bar.clientWidth || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+        bar.scrollLeft += event.deltaY;
+        event.preventDefault();
+      }}
       style={
         state.display
           ? (statusDisplayStyle(state.display) as CSSProperties)

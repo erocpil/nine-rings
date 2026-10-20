@@ -44,6 +44,27 @@ test("源码标题回车恢复源码光标，状态栏加号紧邻格式选择�
   expect(await area.evaluate(element => getComputedStyle(element).paddingTop)).toBe("6px");
 });
 
+test("窄窗口的只读源码状态栏可通过鼠标滚轮横向浏览", async ({ page }) => {
+  await page.setViewportSize({ width: 820, height: 780 });
+  await createBlankDocument(page, "窄屏只读状态栏");
+  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  const area = page.locator(".cm-content");
+  await expect(area).toBeVisible();
+  await replaceSource(area, "int alpha(void) { return 1; }\n");
+  await page.getByRole("button", { name: "设置只读", exact: true }).click();
+
+  const status = page.getByRole("group", { name: "源码状态栏", exact: true });
+  await expect(status).toBeVisible();
+  const initial = await status.evaluate(element => ({ left: element.scrollLeft, overflow: element.scrollWidth - element.clientWidth }));
+  expect(initial.overflow).toBeGreaterThan(0);
+  const box = await status.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.wheel(0, 160);
+  await expect.poll(() => status.evaluate(element => element.scrollLeft)).toBeGreaterThan(initial.left);
+  await expect(status.getByRole("button", { name: "在当前路径新建文档", exact: true })).toHaveCount(0);
+});
+
 test("文档信息卡只在标题文字范围内悬停时出现", async ({ page }) => {
   await createBlankDocument(page, "标题信息卡范围测试");
   const title = page.locator(".note-title-row .note-title-field .note-title");

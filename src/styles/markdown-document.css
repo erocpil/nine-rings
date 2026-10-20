@@ -231,7 +231,7 @@ blockquote[data-alert] { border-left-color: var(--accent); }
 .markdown-source-toolbar-host { margin-inline: 12px; }
 .markdown-source-toolbar-host > .markdown-source-tools { padding-inline: 0; }
 
-.markdown-source-status-host { flex: 0 0 auto; min-width: 0; }
+.markdown-source-status-host { flex: 0 0 auto; min-width: 0; box-sizing: border-box; }
 /* Match the rendered reader's persistent tail-scroll gutter even for short source. */
 .markdown-cm-host .cm-scroller { overflow-y: scroll; scrollbar-gutter: stable; }
 /* Reserve the same viewport edge in both editor engines, including short notes. */

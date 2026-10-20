@@ -190,6 +190,14 @@
   > :is(.note-editor-scroll, .vr-title, .vr-actions, .vr-notice, .markdown-source-content, .editor-stats) {
   margin-left: min(var(--document-dock-width, 280px), 50%);
 }
+/* The source status bar is portaled into its own host, so the dock inset must
+   be applied to that host as well as to the rendered editor's direct footer. */
+.document-panels-right > .markdown-source-status-host {
+  margin-right: min(var(--document-dock-width, 280px), 50%);
+}
+.document-panels-left > .markdown-source-status-host {
+  margin-left: min(var(--document-dock-width, 280px), 50%);
+}
 /* Hover previews share the tree context menu's theme-aware halo. Docked panels
    have no preview attribute and retain their flat, edge-to-edge presentation. */
 @media (min-width: 769px) and (pointer: fine) {
