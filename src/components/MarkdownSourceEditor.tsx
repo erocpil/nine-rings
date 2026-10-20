@@ -642,10 +642,7 @@ export function MarkdownSourceEditor({
       { label: "显示行号", group: "行号", checked: sourceNumbersVisible, disabled: Boolean(numbering), keepOpen: true, run: () => saveBlockWorkspacePreferences({ sourceLineNumbers: !sourceNumbersVisible }) },
       { label: "相对行号", checked: sourceNumbersRelative, disabled: Boolean(numbering), keepOpen: true, run: () => saveBlockWorkspacePreferences({ relativeSourceLineNumbers: !sourceNumbersRelative, ...(!sourceNumbersRelative ? { sourceLineNumbers: true } : {}) }) },
       { label: "当前行号对齐", disabled: Boolean(numbering) || !sourceNumbersRelative, run: () => {}, children: (["left", "right"] as const).map(alignment => ({ label: alignment === "left" ? "左对齐" : "右对齐", checked: (numbering?.currentAlignment ?? preferences.relativeSourceLineNumberAlignment ?? "left") === alignment, run: () => saveBlockWorkspacePreferences({ relativeSourceLineNumberAlignment: alignment }) })) },
-      { label: "显示折叠按钮", group: "折叠", checked: preferences.sourceFoldGutter !== false, keepOpen: true, run: () => saveBlockWorkspacePreferences({ sourceFoldGutter: preferences.sourceFoldGutter === false }) },
-      { label: "折叠全部", run: () => run(collapseAllSource) },
-      { label: "展开全部", run: () => run(expandAllSource) },
-      ...(markupMode ? ([true, false] as const).map(collapse => ({ label: collapse ? "按标题级别折叠" : "按标题级别展开", run: () => {}, children: Array.from({ length: 6 }, (_, i) => ({ label: collapse ? `折叠 H${i + 1} 及更深标题` : `展开至 H${i + 1}`, run: () => run(editor => { foldViewportRestore.current = null; const effects = sourceHeadingFoldEffects(editor.state, i + 1, collapse); if (!effects) return false; editor.dispatch({ effects }); return true; }) })) })) : []),
+      { label: "显示折叠图标", group: "折叠图标", checked: preferences.sourceFoldGutter !== false, keepOpen: true, run: () => saveBlockWorkspacePreferences({ sourceFoldGutter: preferences.sourceFoldGutter === false }) },
     ]} />}
   </>;
   const indentationControls = !markupMode && <span className="source-indentation-controls">

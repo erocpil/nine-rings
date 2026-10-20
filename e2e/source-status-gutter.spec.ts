@@ -13,6 +13,7 @@ test("源码状态栏管理行号与折叠，保存偏好且尊重插件接管",
   const menu = page.getByRole("menu", { name: "行号与折叠设置", exact: true });
   await expect(page.locator(".cm-lineNumbers")).toHaveCount(1);
   await trigger.click();
+  await expect(menu.getByRole("menuitem", { name: /折叠全部|展开全部|按标题级别/ })).toHaveCount(0);
   await menu.getByRole("menuitemcheckbox", { name: "显示行号", exact: true }).click();
   await expect(page.locator(".cm-lineNumbers")).toHaveCount(0);
   await menu.getByRole("menuitemcheckbox", { name: "相对行号", exact: true }).click();
@@ -21,15 +22,15 @@ test("源码状态栏管理行号与折叠，保存偏好且尊重插件接管",
   await menu.getByRole("menuitem", { name: /^当前行号对齐/ }).click();
   await menu.getByRole("menuitemcheckbox", { name: "右对齐", exact: true }).click();
   await expect(page.locator(".cm-relative-current-right")).toHaveCount(1);
-  await trigger.click();
-  await menu.getByRole("menuitem", { name: "折叠全部", exact: true }).click();
+  await page.getByRole("button", { name: "折叠全部", exact: true }).click();
   await expect(page.locator(".cm-foldPlaceholder").first()).toBeVisible();
   const folded = await page.locator(".cm-foldPlaceholder").count();
   await trigger.click();
-  await menu.getByRole("menuitemcheckbox", { name: "显示折叠按钮", exact: true }).click();
+  await menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true }).click();
   await expect(page.locator(".cm-foldGutter")).toHaveCount(0);
   await expect(page.locator(".cm-foldPlaceholder")).toHaveCount(folded);
-  await menu.getByRole("menuitem", { name: "展开全部", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "展开全部", exact: true }).click();
   await expect(page.locator(".cm-foldPlaceholder")).toHaveCount(0);
   expect((await sourceInfo(area)).value).toBe(source);
   await waitForSavedText(page, "three");
@@ -38,7 +39,7 @@ test("源码状态栏管理行号与折叠，保存偏好且尊重插件接管",
   await expect(page.locator(".cm-relative-current-right")).toHaveCount(1);
   await expect(page.locator(".cm-foldGutter")).toHaveCount(0);
   await trigger.click();
-  await menu.getByRole("menuitemcheckbox", { name: "显示折叠按钮", exact: true }).click();
+  await menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true }).click();
   await expect(page.locator(".cm-foldGutter")).toHaveCount(1);
   await page.keyboard.press("Escape");
   await page.evaluate(async () => {
@@ -55,7 +56,7 @@ test("源码状态栏管理行号与折叠，保存偏好且尊重插件接管",
   await trigger.click();
   await expect(menu.getByRole("menuitemcheckbox", { name: "显示行号", exact: true })).toBeDisabled();
   await expect(menu.getByRole("menuitemcheckbox", { name: "相对行号", exact: true })).toBeDisabled();
-  await expect(menu.getByRole("menuitemcheckbox", { name: "显示折叠按钮", exact: true })).toBeEnabled();
+  await expect(menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true })).toBeEnabled();
   await page.keyboard.press("Escape");
   await page.evaluate(async () => {
     const path = "/src/lib/plugin-system/runtime.ts";

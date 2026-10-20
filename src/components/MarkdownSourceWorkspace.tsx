@@ -329,7 +329,7 @@ export function MarkdownSourceWorkspace({
       {sourceWordEnabled && <button
         type="button"
         className="btn-icon"
-        title={`同词匹配（${/Mac/i.test(navigator.platform) ? "⌘" : "Ctrl"}+单击单词）`}
+        title={`同词匹配：显示或隐藏匹配列表（${/Mac/i.test(navigator.platform) ? "⌘" : "Ctrl"}+单击单词可直接打开）`}
         aria-label="同词匹配"
         aria-expanded={matchesOpen}
         aria-pressed={matchesOpen}
@@ -471,9 +471,9 @@ export function MarkdownSourceWorkspace({
           outline={renderPanel("outline")}
           bookmark={renderPanel("bookmark")}
           matches={sourceWordEnabled && <nav className="document-source-matches-panel" aria-label="同词匹配列表" data-panel-display={sourceMatchDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(sourceMatchDisplayConfig) as CSSProperties}>
-            <div className="document-source-matches-header">
-              <span>{wordState?.word ? `“${wordState.word}”${sourceMatchDisplayConfig?.showCounts === false ? "" : ` · ${wordState.matches.length} 处`}` : "同词匹配"}</span>
-              <button type="button" aria-label="隐藏匹配列表" title="隐藏匹配列表" onClick={() => setMatchesOpen(false)}><ToolbarIcon name="close" /></button>
+            <div className="document-outline-header document-source-matches-header">
+              <div className="document-outline-header-primary"><span>{wordState?.word ? `“${wordState.word}”${sourceMatchDisplayConfig?.showCounts === false ? "" : ` · ${wordState.matches.length} 处`}` : "同词匹配"}</span></div>
+              <div className="document-outline-header-actions"><button type="button" aria-label="隐藏匹配列表" title="隐藏匹配列表" onClick={() => setMatchesOpen(false)}><ToolbarIcon name="close" /></button></div>
             </div>
             <div className="document-source-matches-list">
               {groupedWordMatches.length ? groupedWordMatches.map(group => {

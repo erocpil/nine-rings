@@ -125,27 +125,12 @@
   min-height: 0;
   overflow: hidden;
 }
-.document-panel-matches-slot.has-pinned-panels { border-top: 1px solid var(--border); }
 .document-panel-matches-divider {
   position: relative;
   flex: 0 0 6px;
   cursor: row-resize;
   touch-action: none;
 }
-.document-panel-matches-divider::after {
-  content: "";
-  position: absolute;
-  inset: calc(50% - 0.5px) 0;
-  background: var(--border);
-  opacity: .55;
-  transition: inset .15s, background-color .15s, opacity .15s;
-}
-.document-panel-matches-divider:is(:hover, :focus-visible, :active)::after {
-  inset: calc(50% - 1px) 0;
-  background: var(--accent);
-  opacity: .75;
-}
-.document-panel-matches-divider:focus-visible { outline: none; }
 .document-source-matches-panel {
   display: flex;
   flex-direction: column;
@@ -157,30 +142,8 @@
   color: var(--text);
   background: var(--bg);
 }
-.document-source-matches-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 38px;
-  padding: 0 10px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text-secondary);
-  font: 500 12px/1.3 var(--font);
-}
-.document-source-matches-header > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.document-source-matches-header > button {
-  display: inline-grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  padding: 4px;
-  color: var(--text-secondary);
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-}
-.document-source-matches-header > button:hover { color: var(--text); background: var(--bg-hover); }
+.document-source-matches-header .document-outline-header-primary { flex: 1; overflow: hidden; }
+.document-source-matches-header .document-outline-header-primary > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .document-source-matches-header .toolbar-icon { width: 15px; height: 15px; }
 .document-source-matches-list { flex: 1; min-height: 0; overflow: auto; padding: 4px; }
 .document-source-match-row {
@@ -263,7 +226,8 @@
   cursor: row-resize;
   touch-action: none;
 }
-.document-panel-divider::after {
+.document-panel-divider::after,
+.document-panel-matches-divider::after {
   content: "";
   position: absolute;
   inset: calc(50% - 0.5px) 0;
@@ -278,10 +242,12 @@
 .dock-horizontal > .document-panel-divider::after {
   inset: 0 calc(50% - 0.5px);
 }
-.document-panel-divider:focus-visible {
+.document-panel-divider:focus-visible,
+.document-panel-matches-divider:focus-visible {
   outline: none;
 }
-.document-panel-divider:is(:hover, :focus-visible, :active)::after {
+.document-panel-divider:is(:hover, :focus-visible, :active)::after,
+.document-panel-matches-divider:is(:hover, :focus-visible, :active)::after {
   inset: calc(50% - 0.5px) 0;
   background: var(--accent);
   opacity: 0.65;
@@ -446,6 +412,7 @@
   .vr-actions,
   .editor-menu,
   .document-panel-slot .document-outline-header,
+  .document-panel-matches-slot .document-outline-header,
   .document-panel-slot .document-bookmark-header,
   .document-panel-slot .vr-panel[data-document-kind] > h3,
   header.workspace-panel-heading,

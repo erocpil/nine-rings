@@ -87,7 +87,8 @@ export function QuickTooltips() {
       clear();
       if (!element || !element.title.trim()) return;
       const suppressDocumentPanelHint =
-        element.matches("[data-document-panel-trigger]") &&
+        // Hover previews provide their own context; click-only panels need a hint.
+        ["outline", "bookmark"].includes(element.dataset.documentPanelTrigger ?? "") &&
         element.dataset.pinned !== "true";
       // Touch/click focus must not leave a hover hint covering mobile controls.
       if (event.type === "focusin" && !element.matches(":focus-visible"))

@@ -30,6 +30,8 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
   await expect(area.locator(".cm-source-word-match")).toHaveCount(0);
   await expect(area.locator(".cm-source-word-match-active")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "同词匹配", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "同词匹配", exact: true }).hover();
+  await expect(page.getByRole("tooltip")).toContainText("同词匹配：显示或隐藏匹配列表");
 
   await page.getByRole("button", { name: "源码符号", exact: true }).click();
   await expect(page.getByRole("navigation", { name: "源码符号", exact: true })).toBeVisible();
@@ -84,6 +86,25 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
     await page.mouse.up();
     await expect.poll(async () => (await split.boundingBox())!.y).toBeGreaterThan(box.y + 10);
   }
+  const headers = await dock.evaluate(element => {
+    const outline = element.querySelector<HTMLElement>('.document-panel-slot[data-panel="outline"] .document-outline-header')!;
+    const bookmark = element.querySelector<HTMLElement>('.document-panel-slot[data-panel="bookmark"] .document-bookmark-header')!;
+    const matches = element.querySelector<HTMLElement>('.document-source-matches-header')!;
+    return [outline, bookmark, matches].map(header => ({
+      height: header.getBoundingClientRect().height,
+      rule: getComputedStyle(header).backgroundSize,
+      border: getComputedStyle(header).borderBottomColor,
+    }));
+  });
+  expect(headers[2]).toEqual(headers[0]);
+  expect(headers[2]).toEqual(headers[1]);
+  await expect(dock.locator(".document-panel-matches-slot")).toHaveCSS("border-top-width", "0px");
+  await page.mouse.move(5, 5);
+  const dividerStyle = (element: Element) => {
+    const style = getComputedStyle(element, "::after");
+    return { height: style.height, opacity: style.opacity, color: style.backgroundColor };
+  };
+  await expect.poll(async () => JSON.stringify(await heightDivider.evaluate(dividerStyle)) === JSON.stringify(await split.evaluate(dividerStyle))).toBe(true);
   await page.getByRole("button", { name: "隐藏匹配列表", exact: true }).click();
   await expect(panel).toHaveCount(0);
 });
