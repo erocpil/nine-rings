@@ -49,7 +49,10 @@ export default defineConfig(async () => {
     __APP_VERSION__: JSON.stringify(version),
   },
   build: {
-    chunkSizeWarningLimit: 500,
+    // NoteEditor is loaded on demand and is 607 kB minified but about 196 kB
+    // gzip. Keep Vite's raw-size warning above that known chunk; gzip budgets
+    // are enforced separately by `npm run bundle-size`.
+    chunkSizeWarningLimit: 650,
     rollupOptions: {
       input: { index: fileURLToPath(new URL("./index.html", import.meta.url)), pdfPrint: fileURLToPath(new URL("./pdf-print.html", import.meta.url)) },
       output: {
