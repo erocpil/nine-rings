@@ -67,6 +67,8 @@ const paths = {
   ordered: <><path d="M10 6h10M10 12h10M10 18h10M3 4h1v5M2 9h4M2 14c0-3 4-3 4 0 0 2-4 2-4 5h4" /></>,
   indent: <><path d="M10 5h10M10 12h10M10 19h10m-17-10 3 3-3 3" /></>,
   outdent: <><path d="M10 5h10M10 12h10M10 19h10m-4-10-3 3 3 3" /></>,
+  autoIndentSelection: <><path d="M10 5h10M10 12h10M10 19h10M3 9l3 3-3 3" /><path d="M6 12h2" strokeDasharray="1 2" /></>,
+  autoIndentDocument: <><path d="M5 3h10l4 4v14H5zM15 3v5h4M8 12h8M8 16h8" /><path d="M2 10l2 2-2 2" /></>,
   code: <><path d="m7 6-5 6 5 6m10-12 5 6-5 6M14 3l-4 18" /></>,
   table: <><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 3v18M3 15h18" /></>,
   copy: <><rect x="8" y="8" width="13" height="13" rx="2" /><path d="M16 8V3H3v13h5" /></>,

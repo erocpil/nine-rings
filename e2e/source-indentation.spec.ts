@@ -89,3 +89,25 @@ test("源码状态栏配置缩进、转换并撤销，重开保留配置，只�
   await expect(size).toBeDisabled();
   await expect(style).toBeDisabled();
 });
+
+test("源码自动缩进支持选区和全文，并可作为单次撤销", async ({ page }) => {
+  await createBlankDocument(page, "自动缩进");
+  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  const area = page.locator(".cm-content");
+  const raw = "int main() {\nint value = 1;\nif (value) {\nvalue++;\n}\n}";
+  await replaceSource(area, raw);
+  const selectionCommand = page.getByRole("button", { name: "自动缩进选区", exact: true });
+  await expect(selectionCommand).toBeDisabled();
+  await page.getByRole("button", { name: "自动缩进全文", exact: true }).click();
+  const formatted = "int main() {\n\tint value = 1;\n\tif (value) {\n\t\tvalue++;\n\t}\n}";
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(formatted);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
+
+  await selectSource(area, raw.indexOf("int value"), raw.indexOf("\n}\n}") + 2);
+  await expect(selectionCommand).toBeEnabled();
+  await selectionCommand.click();
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(
+    "int main() {\n\tint value = 1;\n\tif (value) {\n\t\tvalue++;\n\t}\n}",
+  );
+});

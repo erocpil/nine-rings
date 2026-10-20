@@ -191,6 +191,19 @@
             "checkable": true
           }
         ]
+      },
+      {
+        "text": "源码缩进",
+        "items": [
+          {
+            "id": "source.autoIndentSelection",
+            "text": "自动缩进选区"
+          },
+          {
+            "id": "source.autoIndentDocument",
+            "text": "自动缩进全文"
+          }
+        ]
       }
     ],
     "merge": "file"

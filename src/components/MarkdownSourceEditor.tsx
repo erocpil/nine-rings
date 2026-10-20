@@ -1,4 +1,5 @@
 import { sourceIndentationChange, type SourceIndentStyle } from "../lib/source-indentation";
+import { sourceAutoIndentChange, type SourceAutoIndentScope } from "../lib/source-auto-indent";
 import { insertSourceNewline } from "../lib/source-newline";
 import { cSourceSupport } from "../lib/source-code-highlighting";
 import { DOCUMENT_LANGUAGE_OPTIONS } from "../lib/document-language";
@@ -210,12 +211,12 @@ export function MarkdownSourceEditor({
   const [preferences, setPreferences] = useState(blockWorkspacePreferences);
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
   const [foldMenu, setFoldMenu] = useState<{ trigger: HTMLElement; collapse: boolean } | null>(null);
-  const [tools, setTools] = useState({ search: false, goto: false, undo: false, redo: false, folded: false });
+  const [tools, setTools] = useState({ search: false, goto: false, undo: false, redo: false, folded: false, selection: false });
   const [formats, setFormats] = useState(emptySourceFormats);
   const syncTools = (state: EditorState) => {
     const nextFormats = markupModeRef.current ? sourceFormats(state) : emptySourceFormats();
     setFormats(previous => Object.keys(nextFormats).every(key => previous[key as keyof typeof previous] === nextFormats[key as keyof typeof nextFormats]) ? previous : nextFormats);
-    const next = { folded: foldedRanges(state).size > 0, search: sourcePanelOpen(state, "search"), goto: sourcePanelOpen(state, "goto"), undo: undoDepth(state) > 0, redo: redoDepth(state) > 0 };
+    const next = { folded: foldedRanges(state).size > 0, search: sourcePanelOpen(state, "search"), goto: sourcePanelOpen(state, "goto"), undo: undoDepth(state) > 0, redo: redoDepth(state) > 0, selection: state.selection.ranges.some(range => !range.empty) };
     setTools(previous => Object.keys(next).every(key => previous[key as keyof typeof next] === next[key as keyof typeof next]) ? previous : next);
   };
   const displayExtensions = () => {
@@ -482,6 +483,23 @@ export function MarkdownSourceEditor({
       command(view.current);
     }
   };
+  const autoIndent = (scope: SourceAutoIndentScope) => run(editor => {
+    if (editor.composing || editor.state.readOnly) return false;
+    try {
+      const change = sourceAutoIndentChange(editor.state, scope);
+      if (!change) {
+        setSyntaxError("当前范围无需调整，或文件格式没有可用的自动缩进规则。");
+        return false;
+      }
+      editor.dispatch(change);
+      editor.focus();
+      setSyntaxError("");
+      return true;
+    } catch (error) {
+      setSyntaxError(error instanceof Error ? error.message : String(error));
+      return false;
+    }
+  });
   useLayoutEffect(() => {
     const root = host.current?.closest<HTMLElement>(".markdown-source-editor");
     const scroller = view.current?.scrollDOM;
@@ -605,6 +623,8 @@ export function MarkdownSourceEditor({
         </>}
         <button type="button" title="增加缩进" aria-label="增加缩进" disabled={editingReadonly} onClick={() => run(v => !v.composing && !v.state.readOnly && indentMore(v))}><ToolbarIcon name="indent" /></button>
         <button type="button" title="减少缩进" aria-label="减少缩进" disabled={editingReadonly} onClick={() => run(v => !v.composing && !v.state.readOnly && indentLess(v))}><ToolbarIcon name="outdent" /></button>
+        <button type="button" title="自动缩进选区" aria-label="自动缩进选区" disabled={editingReadonly || !tools.selection} onClick={() => autoIndent("selection")}><ToolbarIcon name="autoIndentSelection" /></button>
+        <button type="button" title="自动缩进全文" aria-label="自动缩进全文" disabled={editingReadonly} onClick={() => autoIndent("document")}><ToolbarIcon name="autoIndentDocument" /></button>
         {escapeRepair}
         </>}
         <span className="markdown-source-cursor" aria-label="光标位置">
@@ -618,6 +638,8 @@ export function MarkdownSourceEditor({
     "document.jump": { run: () => run(v => toggleSourcePanel(v, "goto")) },
     "edit.undo": { run: () => run(undo), enabled: !editingReadonly && tools.undo },
     "edit.redo": { run: () => run(redo), enabled: !editingReadonly && tools.redo },
+    "source.autoIndentSelection": { run: () => autoIndent("selection"), enabled: !editingReadonly && tools.selection },
+    "source.autoIndentDocument": { run: () => autoIndent("document"), enabled: !editingReadonly },
     "document.collapse": { run: () => run(foldAll) },
     "document.expand": { run: () => run(unfoldAll) },
     "source.wrap": { run: () => saveBlockWorkspacePreferences({ wrap: preferences.wrap === false }), checked: preferences.wrap !== false },
