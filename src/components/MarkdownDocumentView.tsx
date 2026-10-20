@@ -447,6 +447,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
       <MarkdownSourceEditor documentLanguage={documentLanguage} onDocumentLanguageChange={props.readonly || busy ? undefined : languageProps.onDocumentLanguageChange} onCreateDocument={props.readonly ? undefined : props.onCreateDocument} statusTarget={sourceStatusTarget} focusMode={props.focusMode} showStatusBar={props.showStatusBar} saveStatus={props.saveStatus} onVersionOpen={props.onVersionOpen} toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly)} editingDisabled={busy}
         areaRef={viewPosition.area} onReady={hostSourceReady} onSelectionChange={hostSelection} session={sourceEditorState} onChange={editSource}
+        onEditorConfigChange={props.onEditorConfigChange}
         showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine}
         escapeRepair={documentLanguage === "markdown" ? <MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={applyEscapeRepair} /> : undefined} />
       </Suspense>

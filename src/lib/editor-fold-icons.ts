@@ -11,6 +11,27 @@ export const DEFAULT_EDITOR_FOLD_ICONS: EditorFoldIconConfig = {
   editor_fold_icon_expanded: "▼",
 };
 
+export const EDITOR_FOLD_PRESETS = [
+  { id: "chevron", label: "线条箭头", style: "chevron" },
+  { id: "triangle", label: "实心三角 ▶ / ▼", style: "triangle" },
+  { id: "small-triangle", label: "小三角 ▸ / ▾", style: "custom", collapsed: "▸", expanded: "▾" },
+  { id: "plus-minus", label: "加减号 + / −", style: "custom", collapsed: "+", expanded: "−" },
+  { id: "boxed-plus-minus", label: "方框加减 ⊞ / ⊟", style: "custom", collapsed: "⊞", expanded: "⊟" },
+] as const;
+
+export function editorFoldPreset(config: Partial<EditorFoldIconConfig> | null): string {
+  if (config?.editor_fold_icon_style !== "custom") return config?.editor_fold_icon_style ?? "chevron";
+  return EDITOR_FOLD_PRESETS.find(preset => preset.style === "custom" && preset.collapsed === config.editor_fold_icon_collapsed && preset.expanded === config.editor_fold_icon_expanded)?.id ?? "custom";
+}
+
+export function editorFoldPresetPatch(id: string): Partial<EditorFoldIconConfig> {
+  const preset = EDITOR_FOLD_PRESETS.find(item => item.id === id);
+  if (!preset) return { editor_fold_icon_style: "custom" };
+  return preset.style === "custom"
+    ? { editor_fold_icon_style: "custom", editor_fold_icon_collapsed: preset.collapsed, editor_fold_icon_expanded: preset.expanded }
+    : { editor_fold_icon_style: preset.style };
+}
+
 /** Old custom symbols remain shared; otherwise the chapter outline defaults to triangles. */
 export function outlineFoldStyle(config: Partial<EditorFoldIconConfig> | null): "triangle" | "chevron" | "inherit" {
   const style = config?.editor_outline_fold_icon_style;

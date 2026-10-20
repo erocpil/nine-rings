@@ -180,7 +180,7 @@ test("编辑器折叠标识支持预设、自定义、立即应用及重启保�
   await page.reload();
   await expect(page.getByRole("button", { name: "折叠第 1 块章节", exact: true })).toHaveText("−");
   await openSettings();
-  await expect(style).toHaveValue("custom");
+  await expect(style).toHaveValue("plus-minus");
   await expect(page.getByRole("textbox", { name: "收起状态符号" })).toHaveValue("+");
   await style.selectOption("chevron");
   await page.locator(".settings-close").click();
@@ -214,6 +214,6 @@ test("手机自定义折叠符号在只读正文和目录中生效", async ({ pa
   await page.getByTitle("文档目录", { exact: true }).click();
   await openMobileSettings(page);
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
-  await expect(page.getByRole("combobox", { name: "折叠标识样式" })).toHaveValue("custom");
+  await expect(page.getByRole("combobox", { name: "折叠标识样式" })).toHaveValue("plus-minus");
   await expect(page.getByLabel("折叠标识预览").locator(".editor-fold-symbol")).toHaveText(["+", "−"]);
 });

@@ -1949,6 +1949,7 @@ function App() {
                     documentSessions={autoSave.documentSessions}
                       onOpenProperties={() => setPropertiesOpen(open => !open)}
                       onOpenSettings={() => setSettingsOpen(true)}
+                      onEditorConfigChange={async patch => handleConfigChange(await api.config.set(patch))}
                       key={`${selectedNote.id}:${externalReloadKey}`}
                       onFlush={flushAutoSave}
                       onOpenLinkedNote={async (note, referenceId, options) => {

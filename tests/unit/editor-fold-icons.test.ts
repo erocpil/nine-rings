@@ -2,11 +2,27 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_EDITOR_FOLD_ICONS,
   editorFoldSymbol,
+  EDITOR_FOLD_PRESETS,
+  editorFoldPreset,
+  editorFoldPresetPatch,
   outlineFoldStyle,
   outlineFoldSymbol,
 } from "../../src/lib/editor-fold-icons";
 
 describe("editor fold icons", () => {
+  it("shares paired presets through the existing system configuration", () => {
+    for (const preset of EDITOR_FOLD_PRESETS) {
+      const config = {
+        ...DEFAULT_EDITOR_FOLD_ICONS,
+        ...editorFoldPresetPatch(preset.id),
+      };
+      expect(editorFoldPreset(config)).toBe(preset.id);
+      if (preset.style === "custom") {
+        expect(editorFoldSymbol(config, false)).toBe(preset.collapsed);
+        expect(editorFoldSymbol(config, true)).toBe(preset.expanded);
+      }
+    }
+  });
   it("chapter outlines default to triangles without changing body folding", () => {
     for (const config of [null, {}, DEFAULT_EDITOR_FOLD_ICONS]) {
       expect(outlineFoldStyle(config)).toBe("triangle");

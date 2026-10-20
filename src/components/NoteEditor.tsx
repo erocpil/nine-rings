@@ -66,7 +66,7 @@ import {
   normalizeSingleParagraphPaste,
 } from "../extensions/NormalizeSingleParagraphPaste";
 import CharacterCount from "@tiptap/extension-character-count";
-import type { DeltaOps, DocumentBookmark, DocumentMetadata, Note, SearchNavigationTarget } from "../types/models";
+import type { AppConfig, DeltaOps, DocumentBookmark, DocumentMetadata, Note, SearchNavigationTarget } from "../types/models";
 import { BookmarkRenameDialog } from "./BookmarkRenameDialog";
 import { DocumentBookmarkRow } from "./DocumentBookmarkRow";
 import {
@@ -286,6 +286,7 @@ export interface NoteEditorProps {
   readonly?: boolean;
   onReadonlyChange?: (readonly: boolean) => Promise<void> | void;
   onOpenSettings?: () => void;
+  onEditorConfigChange?: (patch: Partial<AppConfig>) => Promise<void>;
   onOpenProperties?: () => void;
   focusMode: boolean;
   showLineNumbers: boolean;

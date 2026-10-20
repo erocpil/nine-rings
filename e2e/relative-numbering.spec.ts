@@ -273,13 +273,15 @@ test("设置可分别启用相对块号和行号并在刷新后保留", async ({
   });
   await expect(blockAlignment).toHaveValue("right");
   await expect(lineAlignment).toHaveValue("left");
+  await expect(lineAlignment).toBeDisabled();
   await blockAlignment.selectOption("left");
-  await lineAlignment.selectOption("right");
   await expect(blocks).not.toBeChecked();
   await expect(lines).not.toBeChecked();
   await blocks.check();
   await expect(lines).not.toBeChecked();
+  await page.getByRole("checkbox", { name: "显示块编号", exact: true }).check();
   await lines.check();
+  await lineAlignment.selectOption("right");
   await page.reload();
   await openSettings();
   await expect(blocks).toBeChecked();
@@ -300,13 +302,13 @@ test("源码相对行号排除折叠行，展开后恢复距离", async ({ page 
     .toEqual(["5", "4", "3", "2", "1", "6"]);
   await page
     .locator(".cm-foldGutter .cm-gutterElement:visible")
-    .filter({ hasText: "⌄" })
+    .filter({ has: page.locator('[data-fold-expanded="true"]') })
     .first()
     .click();
   await expect.poll(() => sourceLabels(page)).toEqual(["3", "2", "1", "6"]);
   await page
     .locator(".cm-foldGutter .cm-gutterElement:visible")
-    .filter({ hasText: "›" })
+    .filter({ has: page.locator('[data-fold-expanded="false"]') })
     .first()
     .click();
   await expect

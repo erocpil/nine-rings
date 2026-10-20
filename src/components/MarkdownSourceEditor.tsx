@@ -10,6 +10,9 @@ import { useDocumentActive } from "./RetainedDocument";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { EditorStatusBar } from "./EditorStatusBar";
 import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
+import { EditorFoldIconContext } from "./EditorFoldIconContext";
+import { EDITOR_FOLD_PRESETS, editorFoldPreset, editorFoldPresetPatch, editorFoldSymbol } from "../lib/editor-fold-icons";
+import type { AppConfig } from "../types/models";
 import { numberingDisplays } from "../lib/plugin-system/numbering-display";
 import { editorCommandTrigger } from "../lib/editor-command-surface";
 import { createPortal } from "react-dom";
@@ -24,6 +27,7 @@ import { setSourceWordEnabled, sourceWordOccurrences } from "../lib/source-word-
 import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import {
   useLayoutEffect,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -209,6 +213,7 @@ export function MarkdownSourceEditor({
   onCreateDocument,
   documentLanguage = "markdown",
   onDocumentLanguageChange,
+  onEditorConfigChange,
 }: {
   value: string;
   readonly: boolean;
@@ -231,8 +236,14 @@ export function MarkdownSourceEditor({
   onCreateDocument?: () => void;
   documentLanguage?: string;
   onDocumentLanguageChange?: (language: string) => void;
+  onEditorConfigChange?: (patch: Partial<AppConfig>) => Promise<void>;
 }) {
-  const numbering = useNumberingDisplay().source;
+  const numberingState = useNumberingDisplay();
+  const numbering = numberingState.source;
+  const sharedNumberingOwned = Boolean(numberingState.blocks || numberingState.source);
+  const foldConfig = useContext(EditorFoldIconContext);
+  const [configSaving, setConfigSaving] = useState(false);
+  const configSavingRef = useRef(false);
   const documentActive = useDocumentActive();
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -278,11 +289,21 @@ export function MarkdownSourceEditor({
   const displayExtensions = () => {
     const prefs = blockWorkspacePreferences();
     const plugin = numberingDisplays.getSnapshot().source;
-    const visible = plugin?.visible ?? prefs.sourceLineNumbers ?? showLineNumbers;
+    const visible = plugin?.visible ?? showLineNumbers;
     const relative = plugin?.relative ?? prefs.relativeSourceLineNumbers;
     return [
       codeFolding(),
-      prefs.sourceFoldGutter !== false ? foldGutter(plugin ? { markerDOM: expanded => { const span = document.createElement("span"); span.className = "plugin-source-fold-symbol"; span.textContent = expanded ? plugin.foldExpanded : plugin.foldCollapsed; return span; } } : {}) : [],
+      prefs.sourceFoldGutter !== false ? foldGutter({ markerDOM: expanded => {
+        const symbol = plugin ? expanded ? plugin.foldExpanded : plugin.foldCollapsed : editorFoldSymbol(foldConfig, expanded);
+        const span = document.createElement("span"); span.className = "plugin-source-fold-symbol"; span.setAttribute("aria-hidden", "true");
+        span.dataset.foldExpanded = String(expanded);
+        if (symbol !== null) { span.textContent = symbol; return span; }
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("width", "12"); svg.setAttribute("height", "12");
+        svg.style.transform = expanded ? "rotate(90deg)" : "none";
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", "m9 5 7 7-7 7"); path.setAttribute("fill", "none"); path.setAttribute("stroke", "currentColor"); path.setAttribute("stroke-width", "1.7"); svg.appendChild(path); span.appendChild(svg); return span;
+      } }) : [],
       visible ? (relative ? relativeLineNumbers(plugin?.currentAlignment ?? prefs.relativeSourceLineNumberAlignment) : lineNumbers()) : [],
       prefs.wrap !== false ? EditorView.lineWrapping : [],
       EditorState.tabSize.of(prefs.tabSize ?? 4),
@@ -537,7 +558,7 @@ export function MarkdownSourceEditor({
       window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
       window.removeEventListener("storage", sync);
     };
-  }, [highlightActiveLine, showLineNumbers, numbering, documentLanguage]);
+  }, [highlightActiveLine, showLineNumbers, numbering, documentLanguage, foldConfig?.editor_fold_icon_style, foldConfig?.editor_fold_icon_collapsed, foldConfig?.editor_fold_icon_expanded]);
   useEffect(() => {
     if (lastValue.current === value) return;
     lastValue.current = value;
@@ -631,7 +652,14 @@ export function MarkdownSourceEditor({
       setSourceMessage("");
     } catch (error) { setSourceMessage(error instanceof Error ? error.message : String(error)); }
   };
-  const sourceNumbersVisible = numbering?.visible ?? preferences.sourceLineNumbers ?? showLineNumbers;
+  const saveEditorSetting = async (patch: Partial<AppConfig>) => {
+    if (!onEditorConfigChange || configSavingRef.current) return;
+    configSavingRef.current = true; setConfigSaving(true);
+    try { await onEditorConfigChange(patch); }
+    catch (error) { setSourceMessage(error instanceof Error ? error.message : "设置保存失败，请重试。"); }
+    finally { configSavingRef.current = false; setConfigSaving(false); }
+  };
+  const sourceNumbersVisible = numbering?.visible ?? showLineNumbers;
   const sourceNumbersRelative = numbering?.relative ?? preferences.relativeSourceLineNumbers === true;
   const gutterControls = <>
     <button type="button" className="editor-status-select source-gutter-settings" aria-label="行号与折叠设置" title="行号与折叠设置" aria-haspopup="menu" aria-expanded={Boolean(gutterMenu)} onMouseDown={event => event.preventDefault()} onClick={event => { const trigger = editorCommandTrigger(event.currentTarget); setGutterMenu(previous => previous ? null : trigger); }}>
@@ -639,10 +667,11 @@ export function MarkdownSourceEditor({
     </button>
     {gutterMenu && <BlockActionMenu trigger={gutterMenu} placement="below" title="行号与折叠设置" onClose={() => setGutterMenu(null)} actions={[
       ...(numbering ? [{ label: "行号由编号展示插件管理", disabled: true, run: () => {} }] : []),
-      { label: "显示行号", group: "行号", checked: sourceNumbersVisible, disabled: Boolean(numbering), keepOpen: true, run: () => saveBlockWorkspacePreferences({ sourceLineNumbers: !sourceNumbersVisible }) },
-      { label: "相对行号", checked: sourceNumbersRelative, disabled: Boolean(numbering), keepOpen: true, run: () => saveBlockWorkspacePreferences({ relativeSourceLineNumbers: !sourceNumbersRelative, ...(!sourceNumbersRelative ? { sourceLineNumbers: true } : {}) }) },
-      { label: "当前行号对齐", disabled: Boolean(numbering) || !sourceNumbersRelative, run: () => {}, children: (["left", "right"] as const).map(alignment => ({ label: alignment === "left" ? "左对齐" : "右对齐", checked: (numbering?.currentAlignment ?? preferences.relativeSourceLineNumberAlignment ?? "left") === alignment, run: () => saveBlockWorkspacePreferences({ relativeSourceLineNumberAlignment: alignment }) })) },
+      { label: "显示行号", group: "行号", checked: sourceNumbersVisible, disabled: sharedNumberingOwned || configSaving || !onEditorConfigChange, keepOpen: true, run: () => { void saveEditorSetting({ editor_show_line_numbers: !sourceNumbersVisible }); } },
+      { label: "相对行号", checked: sourceNumbersRelative, disabled: Boolean(numbering) || !sourceNumbersVisible, keepOpen: true, run: () => saveBlockWorkspacePreferences({ relativeSourceLineNumbers: !sourceNumbersRelative }) },
+      { label: "当前行号对齐", disabled: Boolean(numbering) || !sourceNumbersVisible || !sourceNumbersRelative, run: () => {}, children: (["left", "right"] as const).map(alignment => ({ label: alignment === "left" ? "左对齐" : "右对齐", checked: (numbering?.currentAlignment ?? preferences.relativeSourceLineNumberAlignment ?? "left") === alignment, keepOpen: true, run: () => saveBlockWorkspacePreferences({ relativeSourceLineNumberAlignment: alignment }) })) },
       { label: "显示折叠图标", group: "折叠图标", checked: preferences.sourceFoldGutter !== false, keepOpen: true, run: () => saveBlockWorkspacePreferences({ sourceFoldGutter: preferences.sourceFoldGutter === false }) },
+      { label: "折叠图标样式", disabled: sharedNumberingOwned || preferences.sourceFoldGutter === false || configSaving || !onEditorConfigChange, run: () => {}, children: EDITOR_FOLD_PRESETS.map(preset => ({ label: preset.label, checked: editorFoldPreset(foldConfig) === preset.id, disabled: configSaving, keepOpen: true, run: () => { void saveEditorSetting(editorFoldPresetPatch(preset.id)); } })) },
     ]} />}
   </>;
   const indentationControls = !markupMode && <span className="source-indentation-controls">

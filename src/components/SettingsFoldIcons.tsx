@@ -1,6 +1,9 @@
 import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
 import {
   DEFAULT_EDITOR_FOLD_ICONS,
+  EDITOR_FOLD_PRESETS,
+  editorFoldPreset,
+  editorFoldPresetPatch,
   outlineFoldStyle,
   type EditorFoldIconConfig,
 } from "../lib/editor-fold-icons";
@@ -13,25 +16,23 @@ export function SettingsFoldIcons({
   config: EditorFoldIconConfig;
   onChange: (partial: Partial<EditorFoldIconConfig>) => void;
 }) {
-  const owned = Boolean(useNumberingDisplay().blocks);
+  const numbering = useNumberingDisplay();
+  const owned = Boolean(numbering.blocks || numbering.source);
   return (
     <div className="settings-fold-icons">
-      {owned && <p className="settings-desc">正文折叠符号由编号展示插件接管，原设置保留。</p>}
+      {owned && <p className="settings-desc">编号展示插件正在接管折叠符号，相关内置设置暂时禁用，原设置保留。</p>}
       <label>
-        正文折叠标识
+        正文与源码折叠标识
         <select
           className="settings-input"
           aria-label="折叠标识样式"
           disabled={owned}
-          value={config.editor_fold_icon_style ?? "chevron"}
+          value={editorFoldPreset(config)}
           onChange={(event) => {
-            const style = event.target.value;
-            if (style === "chevron" || style === "triangle" || style === "custom")
-              onChange({ editor_fold_icon_style: style });
+            onChange(editorFoldPresetPatch(event.target.value));
           }}
         >
-          <option value="chevron">线条箭头（默认）</option>
-          <option value="triangle">实心三角（原版）</option>
+          {EDITOR_FOLD_PRESETS.map(preset => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
           <option value="custom">自定义符号</option>
         </select>
       </label>

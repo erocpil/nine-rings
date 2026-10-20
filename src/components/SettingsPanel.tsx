@@ -1061,7 +1061,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             </Field>
             <Field label="相对行号" desc="Markdown 源码当前行显示绝对行号，其余显示可见行距；需开启显示块编号，折叠隐藏行和软换行不另计行数" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
-                <input type="checkbox" aria-label="相对行号" disabled={Boolean(numberingPlugins.source)} checked={relativeNumbering.relativeSourceLineNumbers} onChange={event => saveBlockWorkspacePreferences({ relativeSourceLineNumbers: event.target.checked })} />
+                <input type="checkbox" aria-label="相对行号" disabled={Boolean(numberingPlugins.source) || !config.editor_show_line_numbers} checked={relativeNumbering.relativeSourceLineNumbers} onChange={event => saveBlockWorkspacePreferences({ relativeSourceLineNumbers: event.target.checked })} />
                 <span className="toggle-track" /><span className="toggle-label">{relativeNumbering.relativeSourceLineNumbers ? "开" : "关"}</span>
               </label>
             </Field>
@@ -1072,9 +1072,15 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </select>
             </Field>
             <Field label="相对行号当前项对齐" desc="仅在相对行号开启时生效，默认左对齐；其它编号仍右对齐" visible={settingsPage === "editor"}>
-              <select aria-label="相对行号当前项对齐" disabled={Boolean(numberingPlugins.source)} value={relativeNumbering.relativeSourceLineNumberAlignment} onChange={event => saveBlockWorkspacePreferences({ relativeSourceLineNumberAlignment: event.target.value as "left" | "right" })}>
+              <select aria-label="相对行号当前项对齐" disabled={Boolean(numberingPlugins.source) || !config.editor_show_line_numbers || !relativeNumbering.relativeSourceLineNumbers} value={relativeNumbering.relativeSourceLineNumberAlignment} onChange={event => saveBlockWorkspacePreferences({ relativeSourceLineNumberAlignment: event.target.value as "left" | "right" })}>
                 <option value="left">左对齐</option><option value="right">右对齐</option>
               </select>
+            </Field>
+            <Field label="源码折叠图标" desc="控制源码左侧折叠图标是否显示；隐藏图标会保留正文折叠状态，与源码状态栏同步" visible={settingsPage === "editor"}>
+              <label className="settings-toggle">
+                <input type="checkbox" aria-label="显示源码折叠图标" checked={relativeNumbering.sourceFoldGutter} onChange={event => saveBlockWorkspacePreferences({ sourceFoldGutter: event.target.checked })} />
+                <span className="toggle-track" /><span className="toggle-label">{relativeNumbering.sourceFoldGutter ? "开" : "关"}</span>
+              </label>
             </Field>
             <Field label="状态栏块号" desc={config.editor_show_status_bar ? "显示光标所在的绝对块编号；相对编号不改变跳转或操作目标" : "请先开启状态栏；此选项的当前设置会保留"} visible={settingsPage === "editor"}>
               <label className="settings-toggle">

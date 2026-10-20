@@ -14,6 +14,7 @@ function read() {
       preferences.relativeSourceLineNumberAlignment ?? "left",
     relativeBlockNumbers: preferences.relativeBlockNumbers === true,
     relativeSourceLineNumbers: preferences.relativeSourceLineNumbers === true,
+    sourceFoldGutter: preferences.sourceFoldGutter !== false,
   };
 }
 export function useRelativeNumbering() {
@@ -25,6 +26,7 @@ export function useRelativeNumbering() {
       setValue((old) =>
         old.relativeBlockNumbers === next.relativeBlockNumbers &&
         old.relativeSourceLineNumbers === next.relativeSourceLineNumbers &&
+        old.sourceFoldGutter === next.sourceFoldGutter &&
         old.relativeBlockNumberAlignment ===
           next.relativeBlockNumberAlignment &&
         old.relativeSourceLineNumberAlignment ===
@@ -42,6 +44,7 @@ export function useRelativeNumbering() {
     };
   }, []);
   return {
+    sourceFoldGutter: value.sourceFoldGutter,
     relativeBlockNumbers: plugin.blocks?.relative ?? value.relativeBlockNumbers,
     relativeSourceLineNumbers: plugin.source?.relative ?? value.relativeSourceLineNumbers,
     relativeBlockNumberAlignment: plugin.blocks?.currentAlignment ?? value.relativeBlockNumberAlignment,

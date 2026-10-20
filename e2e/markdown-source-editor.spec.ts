@@ -142,7 +142,7 @@ test("手机源码引用续写、围栏高亮、折叠、跳转与只读保护",
   ).toBeVisible();
   await page
     .locator(".cm-foldGutter .cm-gutterElement")
-    .filter({ hasText: "⌄" })
+    .filter({ has: page.locator('[data-fold-expanded="true"]') })
     .first()
     .click();
   await expect(page.locator(".cm-foldPlaceholder")).toBeVisible();
@@ -201,7 +201,7 @@ test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page 
   await expect(page.locator(".markdown-cm-host .cm-cursor")).toHaveCount(0);
   expect((await sourceInfo(area)).value).toBe(value);
   await area.evaluate(() => window.getSelection()?.removeAllRanges());
-  const marker = page.locator(".cm-foldGutter .cm-gutterElement").filter({ hasText: "⌄" }).first();
+  const marker = page.locator(".cm-foldGutter .cm-gutterElement").filter({ has: page.locator('[data-fold-expanded="true"]') }).first();
   const number = page.locator(".cm-lineNumbers .cm-gutterElement").filter({ hasText: /^1$/ });
   const m = (await marker.boundingBox())!, n = (await number.boundingBox())!;
   expect(Math.abs(m.y - n.y)).toBeLessThan(1);
