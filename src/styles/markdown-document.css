@@ -22,6 +22,42 @@
 .markdown-source-tools button:hover, .markdown-source-tools button[aria-pressed="true"] { border-color: var(--border); background: var(--bg-active, var(--bg-secondary)); }
 .markdown-source-tools button:disabled { opacity: .45; }
 .markdown-source-cursor { margin-left: auto; color: var(--text-secondary); white-space: nowrap; }
+.source-indent-toast {
+  position: absolute;
+  z-index: 12;
+  right: 16px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(440px, calc(100% - 32px));
+  padding: 7px 8px 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 94%, var(--bg));
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--text) 12%, transparent);
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+.source-indent-toast > span { min-width: 0; }
+.source-indent-toast > button {
+  display: inline-flex;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.source-indent-toast > button:hover { color: var(--text); background: var(--hover); border-color: var(--border); }
 .markdown-source-tools > .markdown-escape-repair { display: contents; }
 .markdown-source-tools .markdown-escape-repair-trigger { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 28px; margin: 0; padding: 4px; }
 .markdown-source-tools .markdown-escape-repair-trigger .toolbar-icon { width: 16px; height: 16px; }

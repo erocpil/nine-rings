@@ -18,6 +18,11 @@ import {
 } from "../lib/workspace-summary";
 import type { Note } from "../types/models";
 
+// Keep a short ambiguity window for pointer clicks so a double-click closes a
+// background tab without briefly opening it first. The second mouse-down
+// cancels the pending activation before the browser emits its double-click.
+const TAB_DOUBLE_CLICK_GUARD_MS = 280;
+
 export function FocusDocumentTabs({
   noteId,
   refreshKey,
@@ -372,10 +377,11 @@ export function FocusDocumentTabs({
                   clickTimer.current = null;
                   void run(() => open(id, () => intent.canceled));
                 };
-                // A pointer double-click emits a click first. Wait for its
-                // second click before navigating; keyboard activation is immediate.
+                // A pointer double-click emits a click first. Briefly wait for
+                // its second mouse-down before navigating; keyboard activation
+                // is immediate and a second mouse-down cancels this timer.
                 if (event.detail === 0) activate();
-                else clickTimer.current = setTimeout(activate, 500);
+                else clickTimer.current = setTimeout(activate, TAB_DOUBLE_CLICK_GUARD_MS);
               }}
               onDoubleClick={() => close([id])}
               onContextMenu={(event) => {

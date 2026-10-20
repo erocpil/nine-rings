@@ -20,6 +20,7 @@ import { mobileSourceInput } from "../lib/mobile-source-input";
 import { sourceMicroHighlighting, sourceMicroSyntax } from "../lib/source-micro-rendering";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { readonlySourceSelection } from "../lib/readonly-source-selection";
+import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import {
   useLayoutEffect,
   useEffect,
@@ -205,11 +206,18 @@ export function MarkdownSourceEditor({
   const initial = useRef({ value, readonly: editingReadonly, sourceLabel });
   const lastValue = useRef(value);
   const syntax = useRef(new Compartment());
-  const [syntaxError, setSyntaxError] = useState("");
+  const [sourceMessage, setSourceMessage] = useState("");
   const access = useRef(new Compartment()),
     display = useRef(new Compartment());
   const [preferences, setPreferences] = useState(blockWorkspacePreferences);
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
+  const statusBar = useStatusBarDisplay(showStatusBar, focusMode);
+  const duplicateCursorPosition = statusBar.visible && (!statusBar.display || statusBar.items.includes("position"));
+  useEffect(() => {
+    if (!sourceMessage) return;
+    const timer = window.setTimeout(() => setSourceMessage(""), 4500);
+    return () => window.clearTimeout(timer);
+  }, [sourceMessage]);
   const [foldMenu, setFoldMenu] = useState<{ trigger: HTMLElement; collapse: boolean } | null>(null);
   const [tools, setTools] = useState({ search: false, goto: false, undo: false, redo: false, folded: false, selection: false });
   const [formats, setFormats] = useState(emptySourceFormats);
@@ -422,7 +430,7 @@ export function MarkdownSourceEditor({
     const editor = view.current;
     if (!editor) return;
     let cancelled = false;
-    setSyntaxError("");
+    setSourceMessage("");
     if (documentLanguage === "markdown" || documentLanguage === "flow") {
       editor.dispatch({ effects: syntax.current.reconfigure([
         markdown({ base: markdownLanguage, codeLanguages: languages, addKeymap: false, extensions: [sourceMicroSyntax] }),
@@ -437,7 +445,7 @@ export function MarkdownSourceEditor({
       const language = languages.find(item => item.alias.includes(documentLanguage));
       if (documentLanguage && language) void language.load().then(support => {
         if (!cancelled && view.current === editor) editor.dispatch({ effects: syntax.current.reconfigure(documentLanguage === "c" ? cSourceSupport(support) : support) });
-      }).catch(() => { if (!cancelled) setSyntaxError("语法高亮加载失败，请重新选择文件格式"); });
+      }).catch(() => { if (!cancelled) setSourceMessage("语法高亮加载失败，请重新选择文件格式"); });
     }
     return () => { cancelled = true; };
   }, [documentLanguage]);
@@ -488,15 +496,17 @@ export function MarkdownSourceEditor({
     try {
       const change = sourceAutoIndentChange(editor.state, scope);
       if (!change) {
-        setSyntaxError("当前范围无需调整，或文件格式没有可用的自动缩进规则。");
+        setSourceMessage("当前范围无需调整，或文件格式没有可用的自动缩进规则。");
+        editor.focus();
         return false;
       }
       editor.dispatch(change);
       editor.focus();
-      setSyntaxError("");
+      setSourceMessage(scope === "document" ? "已缩进全文" : "已缩进选区");
       return true;
     } catch (error) {
-      setSyntaxError(error instanceof Error ? error.message : String(error));
+      setSourceMessage(error instanceof Error ? error.message : String(error));
+      editor.focus();
       return false;
     }
   });
@@ -519,8 +529,8 @@ export function MarkdownSourceEditor({
       saveBlockWorkspacePreferences({ tabSize: size, sourceIndentStyle: style });
       if (change) editor.dispatch(change);
       editor.focus();
-      setSyntaxError("");
-    } catch (error) { setSyntaxError(error instanceof Error ? error.message : String(error)); }
+      setSourceMessage("");
+    } catch (error) { setSourceMessage(error instanceof Error ? error.message : String(error)); }
   };
   const indentationControls = !markupMode && <span className="source-indentation-controls">
     <select className="editor-document-language editor-status-select" aria-label="Tab Size" title="Tab 显示列数与缩进单位" value={preferences.tabSize ?? 4} disabled={editingReadonly} onChange={event => changeIndentation(Number(event.target.value), preferences.sourceIndentStyle ?? "tabs")}>
@@ -627,9 +637,9 @@ export function MarkdownSourceEditor({
         <button type="button" title="自动缩进全文" aria-label="自动缩进全文" disabled={editingReadonly} onClick={() => autoIndent("document")}><ToolbarIcon name="autoIndentDocument" /></button>
         {escapeRepair}
         </>}
-        <span className="markdown-source-cursor" aria-label="光标位置">
+        {!duplicateCursorPosition && <span className="markdown-source-cursor" aria-label="光标位置">
           行 {cursor.line}，列 {cursor.column}
-        </span>
+        </span>}
       </div>
   );
   useNativeMenuActions({
@@ -675,8 +685,11 @@ export function MarkdownSourceEditor({
       style={{ fontSize, "--source-font-size": `${fontSize}px` } as CSSProperties}
     >
       {toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbar}
-      {syntaxError && <span role="status">{syntaxError}</span>}
       <div ref={host} className="markdown-cm-host" />
+      {sourceMessage && <div className="source-indent-toast" role="status" aria-live="polite">
+        <span>{sourceMessage}</span>
+        <button type="button" aria-label="关闭提示" title="关闭提示" onMouseDown={event => event.preventDefault()} onClick={() => setSourceMessage("")}><ToolbarIcon name="close" /></button>
+      </div>}
       {statusTarget ? createPortal(<EditorStatusBar sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} /> : null}
     </div>
   );

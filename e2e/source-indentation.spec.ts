@@ -97,10 +97,23 @@ test("源码自动缩进支持选区和全文，并可作为单次撤销", async
   const raw = "int main() {\nint value = 1;\nif (value) {\nvalue++;\n}\n}";
   await replaceSource(area, raw);
   const selectionCommand = page.getByRole("button", { name: "自动缩进选区", exact: true });
+  await expect(page.locator(".markdown-source-cursor")).toHaveCount(0);
+  await expect(page.locator(".markdown-source-status")).toContainText("行 1，列");
   await expect(selectionCommand).toBeDisabled();
+  const sourceViewportBefore = await page.locator(".markdown-cm-host").boundingBox();
   await page.getByRole("button", { name: "自动缩进全文", exact: true }).click();
+  const toast = page.getByRole("status").filter({ hasText: "已缩进全文" });
+  await expect(toast).toBeVisible();
+  expect((await page.locator(".markdown-cm-host").boundingBox())!.height).toBe(sourceViewportBefore!.height);
+  await toast.getByRole("button", { name: "关闭提示" }).click();
+  await expect(toast).toHaveCount(0);
+  expect(await page.locator(".cm-content").evaluate(element => element === document.activeElement)).toBe(true);
   const formatted = "int main() {\n\tint value = 1;\n\tif (value) {\n\t\tvalue++;\n\t}\n}";
   await expect.poll(async () => (await sourceInfo(area)).value).toBe(formatted);
+  await page.getByRole("button", { name: "自动缩进全文", exact: true }).click();
+  const noChange = page.getByRole("status").filter({ hasText: "当前范围无需调整" });
+  await expect(noChange).toBeVisible();
+  await noChange.getByRole("button", { name: "关闭提示" }).click();
   await page.keyboard.press("ControlOrMeta+z");
   await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
 
