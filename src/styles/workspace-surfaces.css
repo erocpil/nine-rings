@@ -1597,6 +1597,12 @@
   color: var(--accent);
 }
 
+.document-outline-header-actions > .document-panel-pin-button {
+  width: 24px;
+  min-width: 24px;
+  padding: 2px;
+}
+
 .document-outline-resize-handle {
   position: absolute;
   top: 0;
@@ -1720,6 +1726,9 @@
 
 .document-outline-list[data-source-symbols="true"] .document-outline-text {
   font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .document-outline-text {
@@ -1960,11 +1969,15 @@
 }
 
 .document-bookmark-empty {
-  padding: 20px 10px;
+  padding: 4px 10px;
   color: var(--text-secondary);
   font-size: 12px;
-  text-align: center;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-align: left;
 }
+
+.document-bookmark-panel.is-empty { height: auto; max-height: none; }
 
 .document-bookmark-add {
   margin: 0;

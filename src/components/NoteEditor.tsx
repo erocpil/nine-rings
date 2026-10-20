@@ -4048,11 +4048,12 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
                   ? `${documentOutline.length} 项`
                   : `${visibleOutlineEntries.length}/${documentOutline.length} 项`}
               </span>}
-              {!isMobileToolbarViewport && !desktopPanels.pinned("outline") && <button type="button" onClick={() => togglePinnedPanel("outline")} aria-label="固定目录">固定</button>}
+              {!isMobileToolbarViewport && !desktopPanels.pinned("outline") && <button type="button" className="btn-icon document-panel-pin-button" onClick={() => togglePinnedPanel("outline")} aria-label="固定目录" title="固定目录"><ToolbarIcon name="pin" /></button>}
             </div>
           </div>
           <DocumentOutlineList
             entries={visibleOutlineEntries}
+            followActive
             activeOutlineIndex={activeOutlineIndex}
             outlineBaseLevel={outlineBaseLevel}
             listRef={outlineListRef}
@@ -4234,7 +4235,7 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
   const bookmarkPanel = bookmarkOpen && (
         <nav
           ref={bookmarkPanelRef}
-          className="document-bookmark-panel"
+          className={`document-bookmark-panel${bookmarkPanelTotal ? "" : " is-empty"}`}
           style={desktopPanels.pinned("bookmark") ? undefined : documentPanelStyle}
           data-document-preview={!isMobileToolbarViewport && !desktopPanels.pinned("bookmark") || undefined}
           onPointerEnter={desktopPanels.cancel} onPointerLeave={desktopPanels.leave}
@@ -4247,7 +4248,7 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
               <PanelDisplayTools target="bookmarks" disabled={!bookmarkPanelTotal} handlers={{ "bookmarks.reveal-current": () => { const position = bookmarkCursorPosition; const nearest = bookmarkPanelItems.reduce<(typeof bookmarkPanelItems)[number] | undefined>((current, item) => !current || Math.abs(item.position - position) < Math.abs(current.position - position) ? item : current, undefined); revealPanelItem(bookmarkDisplayListRef.current, nearest?.id); } }} />
               {!currentBookmark && <button className="document-bookmark-add" type="button" onClick={toggleCurrentBookmark}
                 aria-label="添加当前位置书签">添加</button>}
-              {!isMobileToolbarViewport && !desktopPanels.pinned("bookmark") && <button type="button" onClick={() => togglePinnedPanel("bookmark")} aria-label="固定书签">固定</button>}
+              {!isMobileToolbarViewport && !desktopPanels.pinned("bookmark") && <button type="button" className="btn-icon document-panel-pin-button" onClick={() => togglePinnedPanel("bookmark")} aria-label="固定书签" title="固定书签"><ToolbarIcon name="pin" /></button>}
               {bookmarkDisplayConfig?.showCounts !== false && <span className="document-bookmark-count">{bookmarkPanelTotal} 项</span>}
             </div>
           </div>

@@ -9,9 +9,10 @@ export type DocumentPanelKind = "outline" | "bookmark";
 const EMPTY_ITEMS: never[] = [];
 export function useDesktopDocumentPanels(
   enabled: boolean,
-  outline: readonly { text: string; level: number }[] = EMPTY_ITEMS,
+  outline: readonly { text: string; displayText?: string; level: number }[] = EMPTY_ITEMS,
   bookmarks: readonly { label?: string; preview?: string }[] = EMPTY_ITEMS,
   annotations: readonly { exact?: string; note?: string }[] = EMPTY_ITEMS,
+  outlineSingleLineLimit?: number,
 ) {
   const active = useDocumentActive();
   enabled = enabled && active;
@@ -36,7 +37,7 @@ export function useDesktopDocumentPanels(
     for (const item of outline)
       sizes.outline = Math.max(
         sizes.outline,
-        Math.ceil(context.measureText(item.text).width) +
+        Math.ceil(context.measureText(Array.from(item.displayText ?? item.text).slice(0, outlineSingleLineLimit).join("")).width) +
           76 +
           (item.level - base) * 14,
       );
@@ -53,7 +54,7 @@ export function useDesktopDocumentPanels(
         Math.ceil(context.measureText(item.note || item.exact || "高亮").width) + 136,
       );
     return sizes;
-  }, [visible, outline, bookmarks, annotations]);
+  }, [visible, outline, bookmarks, annotations, outlineSingleLineLimit]);
   const autoWidth =
     layout.panelsArrangement === "horizontal" &&
     layout.outlinePinned &&

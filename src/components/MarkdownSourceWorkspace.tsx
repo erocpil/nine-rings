@@ -39,6 +39,25 @@ import type { DocumentBookmark } from "../types/models";
 
 type SourceOutlineItem = DocumentOutlineItem & { offset: number };
 
+function alphabetizeSymbolTree(items: SourceOutlineItem[]): SourceOutlineItem[] {
+  type Branch = { item: SourceOutlineItem; children: Branch[] };
+  const roots: Branch[] = [];
+  const stack: Array<{ level: number; children: Branch[] }> = [{ level: 0, children: roots }];
+  for (const item of items) {
+    while (stack.length > 1 && stack[stack.length - 1]!.level >= item.level) stack.pop();
+    const branch: Branch = { item, children: [] };
+    stack[stack.length - 1]!.children.push(branch);
+    stack.push({ level: item.level, children: branch.children });
+  }
+  const result: SourceOutlineItem[] = [];
+  const visit = (branches: Branch[]) => {
+    branches.sort((left, right) => (left.item.displayText ?? left.item.text).localeCompare(right.item.displayText ?? right.item.text, "zh-CN", { numeric: true, sensitivity: "base" }));
+    for (const branch of branches) { result.push(branch.item); visit(branch.children); }
+  };
+  visit(roots);
+  return result;
+}
+
 const SOURCE_KIND_MARKERS: Record<string, string> = {
   "命名空间": "◇",
   "类型": "{}",
@@ -78,6 +97,7 @@ export function MarkdownSourceWorkspace({
   const snapshotLanguage = snapshot.language;
   const [sourceSymbols, setSourceSymbols] = useState<SourceOutlineItem[]>([]);
   const [symbolsBusy, setSymbolsBusy] = useState(false);
+  const [symbolsAlphabetical, setSymbolsAlphabetical] = useState(false);
   const [offset, setOffset] = useState(0);
   const [folds, setFolds] = useState<Set<number>>(() => new Set());
   const [renamingBookmark, setRenamingBookmark] = useState<DocumentBookmark | null>(null);
@@ -148,15 +168,19 @@ export function MarkdownSourceWorkspace({
   }, [sourceHandle, mobile]);
   const sourceWordEnabled = !["", "markdown", "flow", "mermaid"].includes(snapshotLanguage);
   const symbolOutline = snapshotLanguage === "c";
+  const sortedSourceSymbols = useMemo(
+    () => symbolsAlphabetical ? alphabetizeSymbolTree(sourceSymbols) : sourceSymbols,
+    [sourceSymbols, symbolsAlphabetical],
+  );
   const outline = useMemo<SourceOutlineItem[]>(
-    () => mobile ? [] : symbolOutline ? sourceSymbols : snapshot.outline.map((item) => ({ ...item, kind: undefined })),
-    [snapshot, mobile, sourceSymbols, symbolOutline],
+    () => mobile ? [] : symbolOutline ? sortedSourceSymbols : snapshot.outline.map((item) => ({ ...item, kind: undefined })),
+    [snapshot, mobile, sortedSourceSymbols, symbolOutline],
   );
   const bookmarks = useMemo(() => (mobile ? [] : revision.bookmarks), [revision, mobile]);
   const nearestBookmark = bookmarks.reduce<(typeof bookmarks)[number] | undefined>((current, item) => !current || Math.abs(item.offset - offset) < Math.abs(current.offset - offset) ? item : current, undefined);
   const currentSourceBlock = revision.blockAt(offset);
   const currentBookmark = bookmarks.find(bookmark => bookmark.position === (currentSourceBlock?.position ?? -2) + 1);
-  const controller = useDesktopDocumentPanels(!mobile, outline, bookmarks);
+  const controller = useDesktopDocumentPanels(!mobile, outline, bookmarks, [], symbolOutline ? 35 : undefined);
   const dismissPanelPreview = controller.dismiss;
   useEffect(() => {
     const view = sourceHandle?.view;
@@ -289,7 +313,7 @@ export function MarkdownSourceWorkspace({
           data-pinned={controller.pinned(kind)}
           onPointerEnter={(event) => controller.enter(kind, event.pointerType)}
           onPointerLeave={controller.leave}
-          onClick={() => controller.toggle(kind)}
+          onClick={() => { setOffset(sourceHandle?.selectionStart ?? offset); controller.toggle(kind); }}
         >
           <FocusModeIcon name={kind} />
         </button>
@@ -313,7 +337,7 @@ export function MarkdownSourceWorkspace({
       <nav
         ref={isOutline ? outlinePanel : bookmarkPanel}
         className={
-          isOutline ? "document-outline-panel" : "document-bookmark-panel"
+          isOutline ? "document-outline-panel" : `document-bookmark-panel${bookmarks.length ? "" : " is-empty"}`
         }
         aria-label={isOutline ? (symbolOutline ? "源码符号" : "文档目录") : "文档书签"}
         aria-busy={snapshot !== revision}
@@ -330,6 +354,7 @@ export function MarkdownSourceWorkspace({
           <div className="document-outline-header-primary">{isOutline ? (symbolOutline ? <DocumentPanelTitle label="源码符号" pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} /> : <OutlinePanelTitle pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} />) : <DocumentPanelTitle label="书签" pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} />}
             {isOutline && <>
               <OutlineDisplayTools listRef={listRef} targetLabel={symbolOutline ? "定位当前符号" : "定位当前标题"} />
+              {symbolOutline && <button type="button" className="btn-icon" aria-label={symbolsAlphabetical ? "按源码出现顺序排序" : "按字母顺序排序"} title={symbolsAlphabetical ? "按源码出现顺序排序" : "按字母顺序排序"} aria-pressed={symbolsAlphabetical} onClick={() => setSymbolsAlphabetical(value => !value)}><ToolbarIcon name="sortAlpha" /></button>}
               <button type="button" aria-label="全部折叠" title="折叠目录" onClick={() => setFolds(new Set(outline.filter((item, i) => outline[i + 1]?.level > item.level).map(item => item.pos)))}>−</button>
               <button type="button" aria-label="全部展开" title="展开目录" onClick={() => setFolds(new Set())}>+</button>
             </>}
@@ -339,12 +364,12 @@ export function MarkdownSourceWorkspace({
               <PanelDisplayTools target="bookmarks" disabled={!nearestBookmark} handlers={{ "bookmarks.reveal-current": () => revealPanelItem(bookmarkDisplayListRef.current, nearestBookmark?.id) }} />
               {!currentBookmark && <button className="document-bookmark-add" type="button" onClick={() => onToggleBookmark(offset)} aria-label="添加当前位置书签">添加</button>}
             </>}
-          {isOutline && <div className="document-outline-jumps" aria-label="目录快速滚动">{(["top", "middle", "bottom"] as const).map((target, i) => <button type="button" key={target} title={["滚动至顶部", "滚动至中部", "滚动至底部"][i]} aria-label={["滚动至顶部", "滚动至中部", "滚动至底部"][i]} onClick={() => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: target }))}>{<ToolbarIcon name={(["pageTop", "pageMiddle", "pageBottom"] as const)[i]} />}</button>)}</div>}
-          {(isOutline ? outlineDisplayConfig?.showCounts !== false : bookmarkDisplayConfig?.showCounts !== false) && <span className={isOutline ? "document-outline-count" : "document-bookmark-count"}>
+          {isOutline && !symbolOutline && <div className="document-outline-jumps" aria-label="目录快速滚动">{(["top", "middle", "bottom"] as const).map((target, i) => <button type="button" key={target} title={["滚动至顶部", "滚动至中部", "滚动至底部"][i]} aria-label={["滚动至顶部", "滚动至中部", "滚动至底部"][i]} onClick={() => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: target }))}>{<ToolbarIcon name={(["pageTop", "pageMiddle", "pageBottom"] as const)[i]} />}</button>)}</div>}
+          {(isOutline ? !symbolOutline && outlineDisplayConfig?.showCounts !== false : bookmarkDisplayConfig?.showCounts !== false) && <span className={isOutline ? "document-outline-count" : "document-bookmark-count"}>
             {isOutline ? outline.length : bookmarks.length} 项
           </span>}
-          {!controller.pinned(kind) && <button type="button" onClick={() => controller.toggle(kind)}>
-            {controller.pinned(kind) ? "收起" : "固定"}
+          {!controller.pinned(kind) && <button type="button" className="btn-icon document-panel-pin-button" onClick={() => controller.toggle(kind)} aria-label={isOutline ? (symbolOutline ? "固定源码符号" : "固定目录") : "固定书签"} title={isOutline ? (symbolOutline ? "固定源码符号" : "固定目录") : "固定书签"}>
+            <ToolbarIcon name="pin" />
           </button>}
           </div>
         </div>
