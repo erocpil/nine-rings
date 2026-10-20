@@ -33,3 +33,21 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   await functionEntry.click();
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("open_packet"));
 });
+
+test("源码编辑区右键使用应用内菜单", async ({ page }) => {
+  await createBlankDocument(page, "源码右键菜单");
+  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  await expect(area).toBeVisible({ timeout: 20000 });
+  await replaceSource(area, "int value = 1;\n");
+  await area.click({ button: "right", position: { x: 30, y: 12 } });
+  const menu = page.getByRole("menu", { name: "源码编辑菜单" });
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "复制" })).toBeDisabled();
+  await menu.getByRole("menuitem", { name: "全选" }).click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionEnd).toBe("int value = 1;\n".length);
+  await area.click({ button: "right", position: { x: 30, y: 12 } });
+  await expect(page.getByRole("menu", { name: "源码编辑菜单" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu", { name: "源码编辑菜单" })).toHaveCount(0);
+});

@@ -13,6 +13,7 @@
 | 定位 | `useEditorNavigation`、`document-navigation.ts`、源码位置映射 | 普通近距位置合并；显式跳转独立；选择、滚动、视图修订不是一个坐标 | [导航历史](document-navigation-history.md) |
 | 大文档 | `ReadonlyVirtualNote`、块号/目录视口控制、转换 Worker | 避免每次选区更新遍历全文；虚拟只读保留能力门禁与回退，不冒充编辑虚拟化 | [大文档](large-document-performance.md) |
 | 插件运行时 | `plugin-system/runtime.ts`、`lifecycle.ts`、各资源 registry | 激活身份由宿主签发且校验对象身份；块菜单展示只取得宿主菜单模型，不取得编辑器对象或命令回调 | [插件设计](plugin-system-design.md) |
+| 源码导航展示 | `MarkdownSourceWorkspace`、`source-symbols.ts`、`source-word-occurrences.ts`、`builtin-source-*-display.ts` | 符号解析、匹配、选区与导航由宿主持有；独立展示插件只调整两个侧栏的有限样式和辅助信息 | [源码类型与导航](document-source-languages.md) |
 | 声明式包 | `package-validation.ts`、`package-store.ts`、`installed-packages.ts` | ZIP/Schema/语义预算与指纹审查；更新重新确认；仅宿主执行固定动作，不加载包内代码 | [安装](plugin-package-installation.md) |
 | 分栏/主区域 | `panel-registry.ts`、`main-view-registry.ts` | 分栏与中央视图是不同贡献；pending 通过宿主保存边界后才能成为 current | [主区域](plugin-main-area-views.md) |
 | 图片 | `image-library/`、`ImageViewerDialog`、Rust image_library | 授权目录只读且设备本地；适窗与原始像素倍率分开；预览变换不改文件 | [图片插件](plugin-local-image-panel.md) |

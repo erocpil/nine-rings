@@ -597,6 +597,11 @@
 .document-outline-list[data-panel-display="plugin"] .document-outline-item { min-height: var(--outline-display-row-height); }
 .document-outline-list[data-panel-display="plugin"] .document-outline-link { font-family: var(--outline-display-font); color: var(--outline-display-color); }
 .document-outline-list[data-panel-display="plugin"] .document-outline-text { font-family: inherit; font-size: var(--outline-display-font-size); }
+.document-outline-list[data-panel-display-target="source-symbols"] .document-outline-item { min-height: var(--outline-display-row-height); }
+.document-outline-list[data-panel-display-target="source-symbols"] .document-outline-link { font-family: var(--outline-display-font); color: var(--outline-display-color); }
+.document-outline-list[data-panel-display-target="source-symbols"] .document-outline-text { font-size: var(--outline-display-font-size); }
+.document-source-matches-panel[data-panel-display="plugin"] .document-source-match-row { min-height: var(--list-display-row-height); font-family: var(--list-display-font); font-size: var(--list-display-font-size); color: var(--list-display-color); }
+.document-source-matches-panel[data-panel-display="plugin"] .document-source-match-row code { font: inherit; }
 .document-outline-list[data-panel-display="plugin"] .document-outline-item.current .document-outline-link { color: var(--accent); }
 @media (max-width: 768px), (pointer: coarse) {
   .document-outline-list[data-panel-display="plugin"] .document-outline-item { min-height: max(36px, var(--outline-display-row-height)); }

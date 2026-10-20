@@ -9,6 +9,8 @@ import { applyInterfaceAppearance, formatInterfaceAppearanceLog, resolveInterfac
 import { useState, useEffect, useRef, useMemo } from "react";
 import { startBuiltinImageViewer } from "../lib/plugin-system/builtin-image-viewer";
 import { outlineDisplay } from "../lib/plugin-system/builtin-outline-display";
+import { sourceSymbolDisplay } from "../lib/plugin-system/builtin-source-symbol-display";
+import { sourceMatchDisplay } from "../lib/plugin-system/builtin-source-match-display";
 import { startBuiltinTreeDisplay } from "../lib/plugin-system/builtin-tree-display";
 import { startPluginRuntime } from "../lib/plugin-system/runtime";
 import { api } from "../lib/api";
@@ -39,6 +41,8 @@ export function useSettings() {
   }, []);
   useEffect(startBuiltinTreeDisplay, []);
   useEffect(() => outlineDisplay.start(), []);
+  useEffect(() => sourceSymbolDisplay.start(), []);
+  useEffect(() => sourceMatchDisplay.start(), []);
   useEffect(() => bookmarkDisplay.start(), []);
   useEffect(() => notesDisplay.start(), []);
   useEffect(startBuiltinImageViewer, []);

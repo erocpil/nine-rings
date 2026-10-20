@@ -10,6 +10,8 @@ import {
   DEFAULT_OUTLINE_DISPLAY,
 } from "../../src/lib/plugin-system/builtin-outline-display";
 import { DEFAULT_TREE_DISPLAY } from "../../src/lib/plugin-system/builtin-tree-display";
+import { DEFAULT_SOURCE_SYMBOL_DISPLAY } from "../../src/lib/plugin-system/builtin-source-symbol-display";
+import { DEFAULT_SOURCE_MATCH_DISPLAY } from "../../src/lib/plugin-system/builtin-source-match-display";
 
 describe("panel display authority and fallback", () => {
   it("rejects forged identities, competing presenters, invalid tokens and commands", () => {
@@ -42,6 +44,11 @@ describe("panel display authority and fallback", () => {
   it("allows full document information only in the document-tree tooltip", () => {
     expect(validatePanelDisplay({ ...DEFAULT_TREE_DISPLAY, tooltip: "info" }).tooltip).toBe("info");
     expect(() => validatePanelDisplay({ ...DEFAULT_OUTLINE_DISPLAY, tooltip: "info" })).toThrow();
+  });
+  it("registers separate, presentation-only slots for source symbols and matches", () => {
+    expect(validatePanelDisplay(DEFAULT_SOURCE_SYMBOL_DISPLAY).target).toBe("source-symbols");
+    expect(validatePanelDisplay(DEFAULT_SOURCE_MATCH_DISPLAY).target).toBe("source-matches");
+    expect(() => validatePanelDisplay({ ...DEFAULT_SOURCE_MATCH_DISPLAY, toolbar: ["tree.refresh"] })).toThrow();
   });
   it("freezes contributions, revokes commands and restores host fallback synchronously", () => {
     const runtime = new PluginRuntime();

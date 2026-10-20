@@ -49,7 +49,9 @@ export function SettingsPanelDisplay({
   const bookmark = configuration === "bookmark-display";
   const notes = configuration === "notes-display";
   const tree = configuration === "tree-display";
-  const name = outline ? "目录" : bookmark ? "书签" : notes ? "随记" : "文档树";
+  const sourceSymbols = configuration === "source-symbol-display";
+  const sourceMatches = configuration === "source-match-display";
+  const name = sourceSymbols ? "源码符号" : sourceMatches ? "同词匹配" : outline ? "目录" : bookmark ? "书签" : notes ? "随记" : "文档树";
   useSyncExternalStore(controller.subscribe, controller.snapshot);
   const preference = controller.read();
   const save = (enabled: boolean, display = preference.display) => {
@@ -111,6 +113,10 @@ export function SettingsPanelDisplay({
               label={
                 outline
                   ? "标题颜色"
+                  : sourceSymbols
+                    ? "符号名称颜色"
+                    : sourceMatches
+                      ? "匹配文本颜色"
                   : bookmark
                     ? "书签名称颜色"
                     : "文档名称颜色"
@@ -141,7 +147,7 @@ export function SettingsPanelDisplay({
           </section>
           <section className="plugin-settings-group" aria-label="信息与工具">
             <h3>信息与工具</h3>
-            <Field label="悬停提示" desc={tree ? "信息卡复用文档树中的轻量元数据，不读取正文；目录仍显示路径提示。" : ""}>
+            {!sourceMatches && <Field label="悬停提示" desc={tree ? "信息卡复用文档树中的轻量元数据，不读取正文；目录仍显示路径提示。" : ""}>
               <select
                 aria-label={`${name}悬停提示`}
                 value={preference.display.tooltip}
@@ -155,6 +161,8 @@ export function SettingsPanelDisplay({
                 <option value="path">
                   {outline
                     ? "章节路径"
+                    : sourceSymbols
+                      ? "符号层级路径"
                     : bookmark
                       ? "名称与正文预览"
                       : "完整路径"}
@@ -162,7 +170,7 @@ export function SettingsPanelDisplay({
                 <option value="name">名称</option>
                 {tree && <option value="info">完整文档信息</option>}
               </select>
-            </Field>
+            </Field>}
             <Field label="辅助信息" desc="">
               <label>
                 <input
@@ -174,6 +182,10 @@ export function SettingsPanelDisplay({
                 />
                 {outline
                   ? "目录标题数"
+                  : sourceSymbols
+                    ? "符号数量"
+                    : sourceMatches
+                      ? "匹配数量与行号"
                   : bookmark
                     ? "书签数"
                     : notes
@@ -190,6 +202,10 @@ export function SettingsPanelDisplay({
                 />
                 {outline
                   ? "标题级别（H1～H6）"
+                  : sourceSymbols
+                    ? "符号类型标记"
+                    : sourceMatches
+                      ? "匹配行上下文"
                   : bookmark
                     ? "对应块号"
                     : notes
@@ -222,7 +238,7 @@ export function SettingsPanelDisplay({
                 </select>
               </Field>
             )}
-            <Field label="扩展工具栏" desc="">
+            {!sourceMatches && <Field label="扩展工具栏" desc="">
               <label>
                 <input
                   type="checkbox"
@@ -237,13 +253,15 @@ export function SettingsPanelDisplay({
                 />
                 {outline
                   ? "定位当前标题"
+                  : sourceSymbols
+                    ? "定位当前符号"
                   : bookmark
                     ? "定位当前书签"
                     : notes
                       ? "展开所有分组、刷新随记"
                       : "展开所有目录、刷新文档树"}
               </label>
-            </Field>
+            </Field>}
           </section>
         </div>
         <button

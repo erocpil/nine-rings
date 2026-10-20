@@ -31,6 +31,7 @@ import {
 import { DocumentOutlineList, OutlineDisplayTools, OUTLINE_SCROLL_EVENT } from "./DocumentOutlineList";
 import { FocusModeIcon } from "./FocusModeBar";
 import { DocumentBookmarkRow } from "./DocumentBookmarkRow";
+import { SourceEditorContextMenu, type SourceContextTarget } from "./SourceEditorContextMenu";
 import { BookmarkRenameDialog } from "./BookmarkRenameDialog";
 import { extractCSourceSymbols } from "../lib/source-symbols";
 import { focusSourceWordMatch, groupSourceWordMatchesByLine, selectSourceWordAt, sourceWordState } from "../lib/source-word-occurrences";
@@ -90,6 +91,8 @@ export function MarkdownSourceWorkspace({
   const documentActive = useDocumentActive();
   const mobile = useMobileViewport();
   const outlineDisplayConfig = usePanelDisplay("document-outline");
+  const sourceSymbolDisplayConfig = usePanelDisplay("source-symbols");
+  const sourceMatchDisplayConfig = usePanelDisplay("source-matches");
   const bookmarkDisplayConfig = usePanelDisplay("bookmarks");
   const bookmarkDisplayListRef = useRef<HTMLDivElement>(null);
   const [snapshot, setSnapshot] = useState(revision);
@@ -103,6 +106,7 @@ export function MarkdownSourceWorkspace({
   const [renamingBookmark, setRenamingBookmark] = useState<DocumentBookmark | null>(null);
   const [openBookmarkActionsId, setOpenBookmarkActionsId] = useState<string | null>(null);
   const [matchesOpen, setMatchesOpen] = useState(false);
+  const [sourceContextMenu, setSourceContextMenu] = useState<SourceContextTarget | null>(null);
   const [, refreshMatches] = useState(0);
   useEffect(() => {
     // Coalesce typing and reuse the same lazy parse as autosave; no hidden rich editor.
@@ -354,7 +358,7 @@ export function MarkdownSourceWorkspace({
         >
           <div className="document-outline-header-primary">{isOutline ? (symbolOutline ? <DocumentPanelTitle label="源码符号" pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} /> : <OutlinePanelTitle pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} />) : <DocumentPanelTitle label="书签" pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} />}
             {isOutline && <>
-              <OutlineDisplayTools listRef={listRef} targetLabel={symbolOutline ? "定位当前符号" : "定位当前标题"} />
+              <OutlineDisplayTools listRef={listRef} target={symbolOutline ? "source-symbols" : "document-outline"} targetLabel={symbolOutline ? "定位当前符号" : "定位当前标题"} />
               {symbolOutline && <button type="button" className="btn-icon" aria-label={symbolsAlphabetical ? "按源码出现顺序排序" : "按字母顺序排序"} title={symbolsAlphabetical ? "按源码出现顺序排序" : "按字母顺序排序"} aria-pressed={symbolsAlphabetical} onClick={() => setSymbolsAlphabetical(value => !value)}><ToolbarIcon name="sortAlpha" /></button>}
               <button type="button" aria-label="全部折叠" title="折叠目录" onClick={() => setFolds(new Set(outline.filter((item, i) => outline[i + 1]?.level > item.level).map(item => item.pos)))}>−</button>
               <button type="button" aria-label="全部展开" title="展开目录" onClick={() => setFolds(new Set())}>+</button>
@@ -366,7 +370,7 @@ export function MarkdownSourceWorkspace({
               {!currentBookmark && <button className="document-bookmark-add" type="button" onClick={() => onToggleBookmark(offset)} aria-label="添加当前位置书签">添加</button>}
             </>}
           {isOutline && !symbolOutline && <div className="document-outline-jumps" aria-label="目录快速滚动">{(["top", "middle", "bottom"] as const).map((target, i) => <button type="button" key={target} title={["滚动至顶部", "滚动至中部", "滚动至底部"][i]} aria-label={["滚动至顶部", "滚动至中部", "滚动至底部"][i]} onClick={() => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: target }))}>{<ToolbarIcon name={(["pageTop", "pageMiddle", "pageBottom"] as const)[i]} />}</button>)}</div>}
-          {(isOutline ? !symbolOutline && outlineDisplayConfig?.showCounts !== false : bookmarkDisplayConfig?.showCounts !== false) && <span className={isOutline ? "document-outline-count" : "document-bookmark-count"}>
+          {(isOutline ? (symbolOutline ? sourceSymbolDisplayConfig?.showCounts === true : outlineDisplayConfig?.showCounts !== false) : bookmarkDisplayConfig?.showCounts !== false) && <span className={isOutline ? "document-outline-count" : "document-bookmark-count"}>
             {isOutline ? outline.length : bookmarks.length} 项
           </span>}
           {!controller.pinned(kind) && <button type="button" className="btn-icon document-panel-pin-button" onClick={() => controller.toggle(kind)} aria-label={isOutline ? (symbolOutline ? "固定源码符号" : "固定目录") : "固定书签"} title={isOutline ? (symbolOutline ? "固定源码符号" : "固定目录") : "固定书签"}>
@@ -381,6 +385,7 @@ export function MarkdownSourceWorkspace({
               followActive
               activeOutlineIndex={active}
               compactSymbols={symbolOutline}
+              displayTarget={symbolOutline ? "source-symbols" : "document-outline"}
               outlineBaseLevel={outline.reduce(
                 (level, item) => Math.min(level, item.level),
                 6,
@@ -428,6 +433,19 @@ export function MarkdownSourceWorkspace({
       className={`note-editor markdown-source-editor ${desktopPanelClass(controller, true, matchesOpen && sourceWordEnabled)}`}
       style={desktopPanelStyle(controller)}
       aria-label="Markdown 源码编辑区"
+      onContextMenu={event => {
+        if (!sourceHandle) return;
+        if (!(event.target instanceof Element) || !event.target.closest(".cm-editor")) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const view = sourceHandle.view;
+        const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
+        const current = view.state.selection.main;
+        if (position !== null && (current.empty || position < current.from || position > current.to)) {
+          view.dispatch({ selection: { anchor: position } });
+        }
+        setSourceContextMenu({ x: event.clientX, y: event.clientY, view, readonly: view.state.readOnly, trigger: event.currentTarget });
+      }}
     >
       <div className="markdown-source-content">{children(controls)}</div>
       {!mobile && (
@@ -435,9 +453,9 @@ export function MarkdownSourceWorkspace({
           controller={controller}
           outline={renderPanel("outline")}
           bookmark={renderPanel("bookmark")}
-          matches={sourceWordEnabled && <nav className="document-source-matches-panel" aria-label="同词匹配列表">
+          matches={sourceWordEnabled && <nav className="document-source-matches-panel" aria-label="同词匹配列表" data-panel-display={sourceMatchDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(sourceMatchDisplayConfig) as CSSProperties}>
             <div className="document-source-matches-header">
-              <span>{wordState?.word ? `“${wordState.word}” · ${wordState.matches.length} 处` : "同词匹配"}</span>
+              <span>{wordState?.word ? `“${wordState.word}”${sourceMatchDisplayConfig?.showCounts === false ? "" : ` · ${wordState.matches.length} 处`}` : "同词匹配"}</span>
               <button type="button" aria-label="隐藏匹配列表" title="隐藏匹配列表" onClick={() => setMatchesOpen(false)}><ToolbarIcon name="close" /></button>
             </div>
             <div className="document-source-matches-list">
@@ -448,6 +466,7 @@ export function MarkdownSourceWorkspace({
                 key={group.line}
                 type="button"
                 className="document-source-match-row"
+                style={sourceMatchDisplayConfig ? { minHeight: `${sourceMatchDisplayConfig.rowHeight}px`, fontFamily: sourceMatchDisplayConfig.font === "mono" ? "var(--font-mono)" : sourceMatchDisplayConfig.font === "sans" ? "var(--font)" : undefined, fontSize: `${sourceMatchDisplayConfig.fontSize}px`, color: sourceMatchDisplayConfig.labelColor === "secondary" ? "var(--text-secondary)" : sourceMatchDisplayConfig.labelColor === "accent" ? "var(--accent)" : undefined } : undefined}
                 aria-current={active ? "location" : undefined}
                 aria-label={`第 ${group.line} 行${group.matches.length > 1 ? `，${group.matches.length} 处匹配` : ""}`}
                 onClick={() => {
@@ -470,6 +489,7 @@ export function MarkdownSourceWorkspace({
         onSave={label => { onRenameBookmark(renamingBookmark.id, label); setRenamingBookmark(null); }}
         onClose={() => setRenamingBookmark(null)}
       />}
+      {sourceContextMenu && <SourceEditorContextMenu target={sourceContextMenu} close={() => setSourceContextMenu(null)} />}
     </section>
   );
 }

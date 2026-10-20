@@ -7,17 +7,20 @@ import {
 
 /** Presentation only. Host controllers retain data, focus, navigation and selection. */
 export type PanelDisplayTarget =
-  "document-tree" | "document-outline" | "bookmarks" | "notes";
+  "document-tree" | "document-outline" | "source-symbols" | "source-matches" | "bookmarks" | "notes";
 export type PanelDisplayCommand =
   | "tree.expand-all"
   | "tree.refresh"
   | "outline.reveal-current"
+  | "source-symbols.reveal-current"
   | "bookmarks.reveal-current"
   | "notes.expand-all"
   | "notes.refresh";
 const COMMANDS: Record<PanelDisplayTarget, readonly PanelDisplayCommand[]> = {
   "document-tree": ["tree.expand-all", "tree.refresh"],
   "document-outline": ["outline.reveal-current"],
+  "source-symbols": ["source-symbols.reveal-current"],
+  "source-matches": [],
   bookmarks: ["bookmarks.reveal-current"],
   notes: ["notes.expand-all", "notes.refresh"],
 };
@@ -36,6 +39,8 @@ export interface PanelDisplayContribution {
 const TARGETS = new Set<PanelDisplayTarget>([
   "document-tree",
   "document-outline",
+  "source-symbols",
+  "source-matches",
   "bookmarks",
   "notes",
 ]);

@@ -21,6 +21,7 @@ export interface SourceWordOccurrences {
   enabled: boolean;
   word: string;
   activeFrom: number;
+  highlighted: boolean;
   matches: SourceWordMatch[];
 }
 
@@ -82,33 +83,50 @@ export function groupSourceWordMatchesByLine(matches: readonly SourceWordMatch[]
 
 const setEnabled = StateEffect.define<boolean>();
 const setWord = StateEffect.define<{ word: string; activeFrom: number }>();
+const setHighlighted = StateEffect.define<boolean>();
 
 const occurrenceField = StateField.define<SourceWordOccurrences>({
-  create: () => ({ enabled: false, word: "", activeFrom: -1, matches: [] }),
+  create: () => ({ enabled: false, word: "", activeFrom: -1, highlighted: false, matches: [] }),
   update(value, transaction) {
     let enabled = value.enabled;
     let word = value.word;
     let activeFrom = value.activeFrom;
+    let highlighted = value.highlighted;
+    let wordSelected = false;
     for (const effect of transaction.effects) {
       if (effect.is(setEnabled)) {
         enabled = effect.value;
-        if (!enabled) { word = ""; activeFrom = -1; }
+        if (!enabled) { word = ""; activeFrom = -1; highlighted = false; }
       } else if (effect.is(setWord)) {
         word = effect.value.word;
         activeFrom = effect.value.activeFrom;
+        highlighted = Boolean(word);
+        wordSelected = true;
+      } else if (effect.is(setHighlighted)) {
+        highlighted = effect.value;
       }
     }
-    if (!enabled || !word) return { enabled, word, activeFrom, matches: [] };
-    if (!transaction.docChanged && word === value.word && activeFrom === value.activeFrom && enabled === value.enabled) return value;
+    if (!enabled || !word) return { enabled, word, activeFrom, highlighted: false, matches: [] };
+    if (transaction.selection && !wordSelected) {
+      const selection = transaction.newSelection;
+      const position = selection.main.empty ? selection.main.head : -1;
+      if (!sourceWordAt(transaction.newDoc.toString(), position)) highlighted = false;
+    }
+    if (!transaction.docChanged
+      && word === value.word
+      && activeFrom === value.activeFrom
+      && highlighted === value.highlighted
+      && enabled === value.enabled) return value;
     const matches = findSourceWordMatches(transaction.newDoc.toString(), word);
     if (transaction.docChanged && !matches.some(match => match.from === activeFrom)) {
       const mapped = transaction.changes.mapPos(activeFrom, 1);
       activeFrom = mapped;
     }
-    return { enabled, word, activeFrom, matches };
+    return { enabled, word, activeFrom, highlighted, matches };
   },
   provide(field) {
     return EditorView.decorations.from(field, occurrences => {
+      if (!occurrences.highlighted) return Decoration.none;
       return Decoration.set(occurrences.matches.map(match => Decoration.mark({
         class: match.from === occurrences.activeFrom ? "cm-source-word-match cm-source-word-match-active" : "cm-source-word-match",
       }).range(match.from, match.to)), true);
@@ -125,7 +143,10 @@ export const sourceWordOccurrences = [
       const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
       if (position === null) return false;
       const range = sourceWordAt(view.state.doc.toString(), position);
-      if (!range) return false;
+      if (!range) {
+        if (state.highlighted) view.dispatch({ effects: setHighlighted.of(false) });
+        return false;
+      }
       const word = view.state.sliceDoc(range.from, range.to);
       view.dispatch({ effects: setWord.of({
         word,

@@ -32,6 +32,7 @@ interface DocumentOutlineListProps {
   onToggleFold: (position: number) => void;
   onJump: (item: DocumentOutlineItem) => void;
   compactSymbols?: boolean;
+  displayTarget?: "document-outline" | "source-symbols";
 }
 
 const VIRTUALIZE_AFTER = 100;
@@ -134,8 +135,9 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
   onToggleFold,
   onJump,
   compactSymbols = false,
+  displayTarget = "document-outline",
 }: DocumentOutlineListProps) {
-  const display = usePanelDisplay("document-outline");
+  const display = usePanelDisplay(displayTarget);
   const minimumHeight = display ? Math.max(display.rowHeight, window.matchMedia("(max-width: 768px), (pointer: coarse)").matches ? 36 : 0) : compactSymbols ? COMPACT_SYMBOL_ROW_HEIGHT : SINGLE_ROW_HEIGHT;
   const paths = useMemo(() => {
     if (display?.tooltip !== "path") return [];
@@ -412,6 +414,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
       className={`document-outline-list ${virtualized ? "is-virtualized" : ""}`}
       data-source-symbols={compactSymbols ? "true" : undefined}
       data-panel-display={display ? "plugin" : undefined}
+      data-panel-display-target={display ? displayTarget : undefined}
       style={display ? {
         "--outline-display-font": display.font === "mono" ? "var(--font-mono)" : display.font === "sans" ? "var(--font)" : "inherit",
         "--outline-display-font-size": `${display.fontSize}px`,
@@ -433,10 +436,11 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
   );
 });
 
-export function OutlineDisplayTools({ listRef, targetLabel = "定位当前标题" }: { listRef: MutableRefObject<HTMLDivElement | null>; targetLabel?: string }) {
-  const display = usePanelDisplay("document-outline");
-  return <>{display?.toolbar.map(command => <button key={command} type="button" title={targetLabel} aria-label={targetLabel} data-panel-display-command={command}
-    onClick={() => panelDisplays.run("document-outline", display, command, {
+export function OutlineDisplayTools({ listRef, targetLabel = "定位当前标题", target = "document-outline" }: { listRef: MutableRefObject<HTMLDivElement | null>; targetLabel?: string; target?: "document-outline" | "source-symbols" }) {
+  const display = usePanelDisplay(target);
+  return <>{display?.toolbar.map(itemCommand => <button key={itemCommand} type="button" title={targetLabel} aria-label={targetLabel} data-panel-display-command={itemCommand}
+    onClick={() => panelDisplays.run(target, display, itemCommand, {
       "outline.reveal-current": () => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: "current" })),
+      "source-symbols.reveal-current": () => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: "current" })),
     })}><ToolbarIcon name="search" /></button>)}</>;
 }

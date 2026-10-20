@@ -27,8 +27,8 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
   await expect.poll(() => area.locator(".cm-source-word-match").count()).toBe(4);
   await expect(area.locator(".cm-source-word-match-active")).toHaveCount(1);
   await clickWord(source.indexOf("=") + 1);
-  await expect(area.locator(".cm-source-word-match")).toHaveCount(4);
-  await expect(area.locator(".cm-source-word-match-active")).toHaveCount(1);
+  await expect(area.locator(".cm-source-word-match")).toHaveCount(0);
+  await expect(area.locator(".cm-source-word-match-active")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "同词匹配", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "源码符号", exact: true }).click();
@@ -36,6 +36,11 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
   await clickWord(source.lastIndexOf(word) + 2, ["Control", "Meta"]);
   const panel = page.getByRole("navigation", { name: "同词匹配列表", exact: true });
   await expect(panel).toBeVisible();
+  await expect(area.locator(".cm-source-word-match")).toHaveCount(4);
+  await clickWord(source.indexOf("=") + 1);
+  await expect(area.locator(".cm-source-word-match")).toHaveCount(0);
+  await expect(panel.locator(".document-source-match-row")).toHaveCount(3);
+  await expect(panel.locator(".document-source-matches-header")).toContainText("packet_count");
   const dock = page.getByRole("complementary", { name: "固定阅读面板" });
   await expect(dock.locator(".document-panel-slot[data-panel='outline']")).toBeVisible();
   await expect(dock.locator(".document-panel-matches-slot")).toBeVisible();

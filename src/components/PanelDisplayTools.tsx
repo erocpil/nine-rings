@@ -9,6 +9,7 @@ const labels: Record<PanelDisplayCommand, string> = {
   "tree.expand-all": "展开所有目录",
   "tree.refresh": "刷新文档树",
   "outline.reveal-current": "定位当前标题",
+  "source-symbols.reveal-current": "定位当前符号",
   "bookmarks.reveal-current": "定位当前书签",
   "notes.expand-all": "展开所有分组",
   "notes.refresh": "刷新随记",

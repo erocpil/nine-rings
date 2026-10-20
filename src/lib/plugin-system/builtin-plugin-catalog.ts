@@ -5,6 +5,8 @@ import { THEME_PLUGIN_ID } from "./builtin-theme-resources";
 import { BOOKMARK_DISPLAY_PLUGIN_ID } from "./builtin-bookmark-display";
 import { NOTES_DISPLAY_PLUGIN_ID } from "./builtin-notes-display";
 import { OUTLINE_DISPLAY_PLUGIN_ID } from "./builtin-outline-display";
+import { SOURCE_SYMBOL_DISPLAY_PLUGIN_ID } from "./builtin-source-symbol-display";
+import { SOURCE_MATCH_DISPLAY_PLUGIN_ID } from "./builtin-source-match-display";
 import { TREE_DISPLAY_PLUGIN_ID } from "./builtin-tree-display";
 import { BLOCK_MENU_PLUGIN_ID } from "./builtin-block-menu";
 
@@ -35,6 +37,8 @@ export const BUILTIN_PLUGIN_CATALOG = Object.freeze([
     description: "统一渲染与源码目录的字体、字号、行高、标题提示和层级标记，保留折叠、跳转和自动跟随。",
     configuration: "outline-display" as const,
   }),
+  Object.freeze({ id: SOURCE_SYMBOL_DISPLAY_PLUGIN_ID, name: "源码符号展示", type: "分栏展示", description: "定制源码文件的符号树字体、字号、行高和类型标记显示；符号识别及安全跳转由宿主负责。", configuration: "source-symbol-display" as const }),
+  Object.freeze({ id: SOURCE_MATCH_DISPLAY_PLUGIN_ID, name: "同词匹配展示", type: "分栏展示", description: "定制源码同词匹配列表的字体、字号、行高及上下文显示；全词搜索和跳转由宿主负责。", configuration: "source-match-display" as const }),
   Object.freeze({ id: BOOKMARK_DISPLAY_PLUGIN_ID, name: "书签展示", type: "分栏展示", description: "定制书签列表排版、预览提示、块号和展示排序，保留锚点及原有管理操作。", configuration: "bookmark-display" as const }),
   Object.freeze({ id: NOTES_DISPLAY_PLUGIN_ID, name: "随记展示", type: "分栏展示", description: "定制随记排版、分组计数、日期、路径提示与展示排序，提供展开和刷新工具。", configuration: "notes-display" as const }),
   Object.freeze({
