@@ -15,9 +15,9 @@ test("C/C++ 源码目录显示本文件符号并按源码偏移跳转", async ({
   await expect(symbolButton).toBeVisible();
   await symbolButton.click();
   const panel = page.getByRole("navigation", { name: "源码符号" });
-  await expect(panel.getByText("struct Packet", { exact: true })).toBeVisible();
-  await expect(panel.getByText("length", { exact: true })).toBeVisible();
-  const functionEntry = panel.locator(".document-outline-link").filter({ hasText: "open_packet(int id)" });
+  await expect(panel.getByText("Packet", { exact: true })).toBeVisible();
+  await expect(panel.getByText("length: int", { exact: true })).toBeVisible();
+  const functionEntry = panel.locator(".document-outline-link").filter({ hasText: "int open_packet(int id)" });
   await functionEntry.click();
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("open_packet"));
 });

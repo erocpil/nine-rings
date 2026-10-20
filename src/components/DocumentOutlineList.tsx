@@ -31,10 +31,12 @@ interface DocumentOutlineListProps {
   listRef: MutableRefObject<HTMLDivElement | null>;
   onToggleFold: (position: number) => void;
   onJump: (item: DocumentOutlineItem) => void;
+  compactSymbols?: boolean;
 }
 
 const VIRTUALIZE_AFTER = 100;
 const SINGLE_ROW_HEIGHT = 26;
+const COMPACT_SYMBOL_ROW_HEIGHT = 22;
 // Two lines at the mobile navigation line-height plus vertical padding. Keep
 // enough room before the first measurement arrives; a fixed 42px row lets a
 // wrapped title paint over the following virtualized row on WebKit.
@@ -42,6 +44,7 @@ const WRAPPED_ROW_HEIGHT = 48;
 // .document-outline-item 的 padding-block 固定为 3px（上下各 3px）。测量内容
 // 元素的自然高度后需加回这段固定垂直内边距，才是行的真实自然高度。
 const VERTICAL_PADDING = 6;
+const COMPACT_VERTICAL_PADDING = 2;
 const DEFAULT_LIST_WIDTH = 360;
 const OVERSCAN_PX = SINGLE_ROW_HEIGHT * 8;
 // Session objects only: reopening an unchanged outline reuses size estimates.
@@ -50,7 +53,11 @@ const rowEstimateCache = new WeakMap<DocumentOutlineItem, Map<string, number>>()
 export const OUTLINE_SCROLL_EVENT = "nine-rings:outline-scroll";
 
 function entryKey(entry: VisibleOutlineEntry): string {
-  return `${entry.index}:${entry.item.pos}:${outlineLabel(entry.item.text)}`;
+  return `${entry.index}:${entry.item.pos}:${outlineLabel(entry.item.displayText ?? entry.item.text)}`;
+}
+
+function outlineText(item: DocumentOutlineItem): string {
+  return item.displayText ?? item.text;
 }
 
 function approximateTextWidth(text: string): number {
@@ -71,8 +78,9 @@ function estimatedRowHeight(
   outlineBaseLevel: number,
   listWidth: number,
   display: PanelDisplayContribution | null,
+  compactSymbols: boolean,
 ): number {
-  const cacheKey = `${outlineBaseLevel}:${listWidth}:${display?.font}:${display?.fontSize}:${display?.rowHeight}:${display?.showMetadata}`;
+  const cacheKey = `${outlineBaseLevel}:${listWidth}:${display?.font}:${display?.fontSize}:${display?.rowHeight}:${display?.showMetadata}:${compactSymbols}`;
   const cached = rowEstimateCache.get(entry.item);
   const existing = cached?.get(cacheKey);
   if (existing !== undefined) return existing;
@@ -80,9 +88,11 @@ function estimatedRowHeight(
   // 行内固定区域：左缩进、折叠按钮、Hn 标签、间距及右内边距。
   const availableTextWidth = Math.max(80, listWidth - indentation - 60);
   const scale = (display?.fontSize ?? 13) / 13;
-  const height = Math.max(display?.rowHeight ?? 0, approximateTextWidth(outlineLabel(entry.item.text)) * scale > availableTextWidth
-    ? WRAPPED_ROW_HEIGHT * scale
-    : SINGLE_ROW_HEIGHT * scale);
+  const singleHeight = compactSymbols ? COMPACT_SYMBOL_ROW_HEIGHT : SINGLE_ROW_HEIGHT;
+  const wrappedHeight = compactSymbols ? 42 : WRAPPED_ROW_HEIGHT;
+  const height = Math.max(display?.rowHeight ?? 0, approximateTextWidth(outlineLabel(outlineText(entry.item))) * scale > availableTextWidth
+    ? wrappedHeight * scale
+    : singleHeight * scale);
   const sizes = cached ?? new Map<string, number>();
   if (sizes.size >= 4) sizes.clear();
   sizes.set(cacheKey, height);
@@ -123,15 +133,16 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
   listRef,
   onToggleFold,
   onJump,
+  compactSymbols = false,
 }: DocumentOutlineListProps) {
   const display = usePanelDisplay("document-outline");
-  const minimumHeight = display ? Math.max(display.rowHeight, window.matchMedia("(max-width: 768px), (pointer: coarse)").matches ? 36 : 0) : SINGLE_ROW_HEIGHT;
+  const minimumHeight = display ? Math.max(display.rowHeight, window.matchMedia("(max-width: 768px), (pointer: coarse)").matches ? 36 : 0) : compactSymbols ? COMPACT_SYMBOL_ROW_HEIGHT : SINGLE_ROW_HEIGHT;
   const paths = useMemo(() => {
     if (display?.tooltip !== "path") return [];
     const ancestors: string[] = [];
     return entries.map(({ item }) => {
       ancestors.length = item.level - 1;
-      ancestors[item.level - 1] = outlineLabel(item.text, 500);
+      ancestors[item.level - 1] = outlineLabel(outlineText(item), 500);
       return ancestors.filter(Boolean).join(" / ");
     });
   }, [entries, display?.tooltip]);
@@ -152,13 +163,13 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
     let totalHeight = 0;
     for (const entry of entries) {
       const height = measuredHeights.get(entryKey(entry))
-        ?? Math.max(minimumHeight, estimatedRowHeight(entry, outlineBaseLevel, listWidth, display));
+        ?? Math.max(minimumHeight, estimatedRowHeight(entry, outlineBaseLevel, listWidth, display, compactSymbols));
       tops.push(totalHeight);
       heights.push(height);
       totalHeight += height;
     }
     return { tops, heights, totalHeight };
-  }, [entries, measuredHeights, listWidth, outlineBaseLevel, display, minimumHeight]);
+  }, [entries, measuredHeights, listWidth, outlineBaseLevel, display, minimumHeight, compactSymbols]);
   const rowLayoutRef = useRef(rowLayout);
   rowLayoutRef.current = rowLayout;
 
@@ -306,7 +317,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
         // 的自然高度 + 固定垂直 padding，高估的行才能被实测值回缩。
         const measured = Math.max(
           minimumHeight,
-          Math.round((record.borderBoxSize?.[0]?.blockSize ?? record.contentRect.height) * 2) / 2 + VERTICAL_PADDING,
+          Math.round((record.borderBoxSize?.[0]?.blockSize ?? record.contentRect.height) * 2) / 2 + (compactSymbols ? COMPACT_VERTICAL_PADDING : VERTICAL_PADDING),
         );
         const previous = measuredHeightsRef.current.get(key) ?? layout.heights[visibleIndex];
         measuredHeightsRef.current.set(key, measured);
@@ -331,7 +342,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
       observedRowsRef.current.clear();
       if (rowObserverRef.current === observer) rowObserverRef.current = null;
     };
-  }, [listRef, virtualized, display, minimumHeight]);
+  }, [listRef, virtualized, display, minimumHeight, compactSymbols]);
 
   useLayoutEffect(() => {
     if (!virtualized) return;
@@ -370,10 +381,11 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
         data-level={item.level}
         data-hierarchy-level={((item.level - 1) % 6) + 1}
         data-outline-index={index}
+        data-compact-symbols={compactSymbols ? "true" : undefined}
         data-outline-row-key={entryKey(entry)}
         data-visible-index={visibleIndex}
         aria-current={index === activeOutlineIndex ? "location" : undefined}
-        title={display?.tooltip === "path" ? paths[visibleIndex] : outlineLabel(item.text, 500)}
+        title={display?.tooltip === "path" ? paths[visibleIndex] : item.detail || outlineLabel(item.text, 500)}
       >
         {entry.foldable ? <button
           className="document-outline-fold"
@@ -383,9 +395,9 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
           aria-expanded={!folded}
         ><EditorFoldIcon outline expanded={!folded} /></button>
           : <span className="document-outline-fold-placeholder" aria-hidden="true" />}
-        <button className="document-outline-link" type="button" onClick={() => onJump(item)}>
-          {display?.showMetadata !== false && <span className="document-outline-level">{item.kind ?? `H${item.level}`}</span>}
-          <span className="document-outline-text">{outlineLabel(item.text)}</span>
+        <button className="document-outline-link" type="button" onClick={() => onJump(item)} aria-label={item.kind ? `${item.kind}：${item.detail || item.text}` : `H${item.level} ${item.text}`}>
+          {display?.showMetadata !== false && <span className={`document-outline-level ${item.kindSymbol ? "is-symbol-marker" : ""}`} aria-hidden="true">{item.kindSymbol ?? item.kind ?? `H${item.level}`}</span>}
+          <span className="document-outline-text">{outlineLabel(outlineText(item))}</span>
         </button>
       </div>
     );
@@ -398,6 +410,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
   return (
     <div
       className={`document-outline-list ${virtualized ? "is-virtualized" : ""}`}
+      data-source-symbols={compactSymbols ? "true" : undefined}
       data-panel-display={display ? "plugin" : undefined}
       style={display ? {
         "--outline-display-font": display.font === "mono" ? "var(--font-mono)" : display.font === "sans" ? "var(--font)" : "inherit",

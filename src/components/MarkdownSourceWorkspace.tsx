@@ -34,6 +34,16 @@ import type { DocumentOutlineItem } from "../lib/document-outline";
 
 type SourceOutlineItem = DocumentOutlineItem & { offset: number };
 
+const SOURCE_KIND_MARKERS: Record<string, string> = {
+  "命名空间": "◇",
+  "类型": "{}",
+  "别名": "T",
+  "函数": "ƒ",
+  "变量": "v",
+  "成员": "·",
+  "枚举值": "e",
+};
+
 export function MarkdownSourceWorkspace({
   revision,
   sourceHandle,
@@ -78,7 +88,12 @@ export function MarkdownSourceWorkspace({
       void extractCSourceSymbols(snapshot.source, controller.signal)
         .then((symbols) => {
           if (!controller.signal.aborted && symbols) {
-            setSourceSymbols(symbols.map((symbol) => ({ ...symbol, offset: symbol.pos })));
+            setSourceSymbols(symbols.map((symbol) => ({
+              ...symbol,
+              kindSymbol: SOURCE_KIND_MARKERS[symbol.kind],
+              displayText: symbol.displayText ?? symbol.text,
+              offset: symbol.pos,
+            })));
           }
         })
         .catch(() => {
@@ -148,6 +163,40 @@ export function MarkdownSourceWorkspace({
     const next = sourceEditMapping(snapshot.source, revision.source)(target);
     onJump(next);
     setOffset(next);
+    controller.dismiss();
+  };
+  const jumpSourceSymbol = async (item: SourceOutlineItem) => {
+    const liveSource = () => sourceHandle?.value ?? revision.source;
+    const currentSource = liveSource();
+    let targetSource = currentSource;
+    let next = item.offset;
+    if (snapshot.source !== currentSource) {
+      // The outline parse is intentionally debounced. If the user clicks during
+      // that short window, re-resolve the symbol against the latest buffer by
+      // semantic identity, preferring the occurrence nearest the mapped offset.
+      let resolved = false;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const parsedSource = liveSource();
+        const approximateOffset = sourceEditMapping(snapshot.source, parsedSource)(item.offset);
+        const latest = await extractCSourceSymbols(parsedSource);
+        if (liveSource() !== parsedSource) continue;
+        const candidates = latest?.filter(symbol => symbol.kind === item.kind && symbol.identity === item.identity) ?? [];
+        if (!candidates.length) return; // The old row was renamed or deleted.
+        next = candidates.reduce((best, symbol) => Math.abs(symbol.pos - approximateOffset) < Math.abs(best.pos - approximateOffset) ? symbol : best).pos;
+        targetSource = parsedSource;
+        resolved = true;
+        break;
+      }
+      // If the source kept changing while it was parsed, do not guess an offset.
+      if (!resolved) return;
+    }
+    const latestSource = liveSource();
+    // A final edit may land between parse and navigation. Reparse is required
+    // to preserve identity, so defer instead of using an offset from old text.
+    if (latestSource !== targetSource) return;
+    const safeOffset = Math.max(0, Math.min(latestSource.length, next));
+    onJump(safeOffset);
+    setOffset(safeOffset);
     controller.dismiss();
   };
   useNativeMenuActions({
@@ -221,6 +270,7 @@ export function MarkdownSourceWorkspace({
               entries={entries}
               followActive
               activeOutlineIndex={active}
+              compactSymbols={symbolOutline}
               outlineBaseLevel={outline.reduce(
                 (level, item) => Math.min(level, item.level),
                 6,
@@ -234,11 +284,9 @@ export function MarkdownSourceWorkspace({
                   return next;
                 })
               }
-              onJump={(item) =>
-                jump(
-                  outline.find((heading) => heading.pos === item.pos)?.offset ?? item.pos,
-                )
-              }
+              onJump={(item) => symbolOutline
+                ? void jumpSourceSymbol(item as SourceOutlineItem)
+                : jump(outline.find((heading) => heading.pos === item.pos)?.offset ?? item.pos)}
             />
           ) : (
             <div className="document-bookmark-empty">{symbolOutline ? (symbolsBusy ? "正在分析源码符号…" : "当前文件没有可显示的符号") : "当前文档还没有标题"}</div>

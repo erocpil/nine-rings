@@ -7,6 +7,14 @@ export interface DocumentOutlineItem {
   pos: number;
   /** Optional semantic label used by source-symbol outlines. */
   kind?: string;
+  /** Short symbol marker such as `{}` or `ƒ`, for compact source outlines. */
+  kindSymbol?: string;
+  /** Optional presentation label; `text` remains the semantic/source name. */
+  displayText?: string;
+  /** Full semantic text for tooltips and assistive technology. */
+  detail?: string;
+  /** Stable symbol name used to resolve offsets against a newer source snapshot. */
+  identity?: string;
 }
 
 const outlineCache = new WeakMap<ProseMirrorNode, DocumentOutlineItem[]>();

@@ -4,7 +4,13 @@ export type SourceSymbolKind = "命名空间" | "类型" | "别名" | "函数" |
 
 export interface SourceSymbol {
   level: number;
+  /** Stable source identity used to re-resolve a stale outline entry after edits. */
+  identity: string;
   text: string;
+  /** Compact outline label with declaration type information when available. */
+  displayText?: string;
+  /** Full declaration text for hover and assistive labels. */
+  detail?: string;
   /** Raw CodeMirror source offset. */
   pos: number;
   kind: SourceSymbolKind;
@@ -79,10 +85,12 @@ function addSymbol(
   level: number,
   kind: SourceSymbolKind,
   text?: string | null,
+  displayText?: string,
+  identity?: string,
 ) {
   const label = text?.trim();
   if (!label) return;
-  symbols.push({ level, kind, text: label, pos: node.from });
+  symbols.push({ level, kind, text: label, displayText: displayText?.trim(), detail: displayText?.trim() || label, identity: identity || label, pos: node.from });
 }
 
 const TYPE_NODES = new Map<string, string>([
@@ -94,26 +102,41 @@ const TYPE_NODES = new Map<string, string>([
 
 function declarationSymbols(source: string, node: NodeLike, level: number, member: boolean, symbols: SourceSymbol[]) {
   const direct = children(node);
+  const declaratorNodes = ["InitDeclarator", "PointerDeclarator", "ReferenceDeclarator", "ArrayDeclarator", "Declarator"];
   const functionDeclarator = direct.find(child => child.name === "FunctionDeclarator");
   if (functionDeclarator) {
     const name = namedToken(source, functionDeclarator, ["Identifier", "FieldIdentifier", "ScopedIdentifier"]);
-    addSymbol(symbols, functionDeclarator, level, "函数", functionLabel(source, functionDeclarator, name ?? "函数"));
+    const signature = functionLabel(source, functionDeclarator, name ?? "函数");
+    const returnType = source.slice(node.from, functionDeclarator.from).replace(/\b(?:static|extern|register|inline|constexpr|virtual|friend)\b/g, " ").replace(/\s+/g, " ").trim();
+    addSymbol(symbols, functionDeclarator, level, "函数", signature, `${returnType ? `${returnType} ` : ""}${signature}`, name ?? signature);
     return;
   }
+  const declarators = direct.filter(child => declaratorNodes.includes(child.name));
+  const firstDeclarator = declarators[0] ?? direct.find(candidate => candidate.name === "Identifier" || candidate.name === "FieldIdentifier");
+  const baseType = firstDeclarator
+    ? source.slice(node.from, firstDeclarator.from).replace(/\b(?:static|extern|register|inline|constexpr|virtual|friend)\b/g, " ").replace(/\s+/g, " ").trim()
+    : "";
   const names = direct.flatMap(child => {
     if (["InitDeclarator", "PointerDeclarator", "ReferenceDeclarator", "ArrayDeclarator", "Declarator"].includes(child.name)) {
+      const root = child.name === "InitDeclarator"
+        ? children(child).find(candidate => declaratorNodes.includes(candidate.name) || candidate.name === "Identifier" || candidate.name === "FieldIdentifier") ?? child
+        : child;
       return descendants(child, candidate => candidate.name === "Identifier" || candidate.name === "FieldIdentifier")
         .filter(candidate => !descendants(candidate, nested => nested !== candidate && nested.name === "FunctionDeclarator").length)
-        .map(candidate => ({ node: candidate, text: sourceText(source, candidate) }));
+        .map(candidate => ({ node: candidate, root, text: sourceText(source, candidate) }));
     }
     return [child].filter(candidate => candidate.name === "Identifier" || candidate.name === "FieldIdentifier")
-      .map(candidate => ({ node: candidate, text: sourceText(source, candidate) }));
+      .map(candidate => ({ node: candidate, root: candidate, text: sourceText(source, candidate) }));
   });
   const seen = new Set<number>();
   for (const entry of names) {
     if (seen.has(entry.node.from) || !entry.text) continue;
     seen.add(entry.node.from);
-    addSymbol(symbols, entry.node, level, member ? "成员" : "变量", entry.text);
+    const rootText = sourceText(source, entry.root);
+    const declaratorSuffix = rootText.replace(entry.text, "").trim();
+    const type = `${baseType}${declaratorSuffix ? ` ${declaratorSuffix}` : ""}`.trim();
+    const visible = type ? `${entry.text}: ${type}` : entry.text;
+    addSymbol(symbols, entry.node, level, member ? "成员" : "变量", entry.text, visible, entry.text);
   }
 }
 
@@ -123,7 +146,7 @@ function collectTree(source: string, tree: Tree): SourceSymbol[] {
     for (const node of children(scope)) {
       if (node.name === "NamespaceDefinition") {
         const name = namedToken(source, node, ["Identifier"]);
-        if (name) addSymbol(symbols, node, level, "命名空间", `namespace ${name}`);
+        if (name) addSymbol(symbols, node, level, "命名空间", `namespace ${name}`, name, name);
         const body = firstDirect(node, "CompoundStatement");
         if (body) walkScope(body, level + Number(Boolean(name)));
         continue;
@@ -131,7 +154,7 @@ function collectTree(source: string, tree: Tree): SourceSymbol[] {
       if (TYPE_NODES.has(node.name)) {
         const type = TYPE_NODES.get(node.name)!;
         const name = typeName(source, node);
-        if (name) addSymbol(symbols, node, level, "类型", `${type} ${name}`);
+        if (name) addSymbol(symbols, node, level, "类型", `${type} ${name}`, name, name);
         const body = firstDirect(node, type === "enum" ? "EnumeratorList" : "FieldDeclarationList");
         if (body) {
           if (type === "enum") {
@@ -149,7 +172,7 @@ function collectTree(source: string, tree: Tree): SourceSymbol[] {
         const nestedType = children(node).find(child => TYPE_NODES.has(child.name));
         const aliases = children(node).filter(child => child.name === "TypeIdentifier");
         const alias = aliases[aliases.length - 1];
-        if (alias) addSymbol(symbols, alias, level, "别名", `typedef ${sourceText(source, alias)}`);
+        if (alias) addSymbol(symbols, alias, level, "别名", `typedef ${sourceText(source, alias)}`, sourceText(source, alias), sourceText(source, alias));
         if (nestedType) {
           const body = firstDirect(nestedType, TYPE_NODES.get(nestedType.name) === "enum" ? "EnumeratorList" : "FieldDeclarationList");
           if (body && TYPE_NODES.get(nestedType.name) !== "enum") walkScope(body, level + 1);
@@ -160,7 +183,9 @@ function collectTree(source: string, tree: Tree): SourceSymbol[] {
         const declarator = firstDirect(node, "FunctionDeclarator");
         if (declarator) {
           const name = namedToken(source, declarator, ["Identifier", "FieldIdentifier", "ScopedIdentifier"]);
-          addSymbol(symbols, declarator, level, "函数", functionLabel(source, declarator, name ?? "函数"));
+          const signature = functionLabel(source, declarator, name ?? "函数");
+          const returnType = source.slice(node.from, declarator.from).replace(/\b(?:static|extern|register|inline|constexpr|virtual|friend)\b/g, " ").replace(/\s+/g, " ").trim();
+          addSymbol(symbols, declarator, level, "函数", signature, `${returnType ? `${returnType} ` : ""}${signature}`, name ?? signature);
         }
         continue;
       }

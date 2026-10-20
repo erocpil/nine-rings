@@ -35,6 +35,11 @@ assert.deepEqual(symbols.map(({ kind, text }) => [kind, text]), [
 assert.equal(source.slice(symbols.find((symbol) => symbol.text === "open(Port port)")!.pos).startsWith("open("), true);
 assert.equal(source.slice(symbols.find((symbol) => symbol.text === "struct Packet")!.pos).startsWith("struct Packet"), true);
 assert.ok(symbols.every((symbol) => symbol.pos >= 0 && symbol.pos < source.length));
+assert.equal(symbols.find((symbol) => symbol.text === "length")?.displayText, "length: int");
+assert.equal(symbols.find((symbol) => symbol.text === "data")?.displayText, "data: const char *");
+assert.equal(symbols.find((symbol) => symbol.text === "reset(int value)")?.displayText, "void reset(int value)");
+assert.equal(symbols.find((symbol) => symbol.text === "open(Port port)")?.displayText, "int open(Port port)");
+assert.equal(symbols.find((symbol) => symbol.text === "struct Packet")?.identity, "Packet");
 
 const controller = new AbortController();
 controller.abort();

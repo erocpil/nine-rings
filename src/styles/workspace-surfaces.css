@@ -1508,6 +1508,18 @@
      height immediately, so edge buttons do not target placeholder geometry. */
 }
 
+.document-outline-list[data-source-symbols="true"] .document-outline-item[data-compact-symbols="true"] {
+  min-height: 22px;
+  padding-block: 1px;
+  gap: 2px;
+}
+
+.document-outline-list[data-source-symbols="true"] .document-outline-fold,
+.document-outline-list[data-source-symbols="true"] .document-outline-fold-placeholder {
+  flex-basis: 16px;
+  width: 16px;
+}
+
 .document-outline-item:hover,
 .document-outline-item:focus-within {
   background: var(--hover-bg);
@@ -1685,6 +1697,29 @@
   color: var(--text-secondary);
   font-family: var(--font-mono);
   font-size: 10px;
+}
+
+.document-outline-level.is-symbol-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  min-height: 16px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.document-outline-list[data-source-symbols="true"] .document-outline-link {
+  gap: 5px;
+  line-height: 1.25;
+}
+
+.document-outline-list[data-source-symbols="true"] .document-outline-text {
+  font-size: 12px;
 }
 
 .document-outline-text {
