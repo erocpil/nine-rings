@@ -830,7 +830,11 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       host.style.setProperty("--editor-tail-space", `${Math.round(tailSpace)}px`);
       // The sticky title lives inside the scroll viewport; the footer does not.
       // Account for classic WebKit/Windows scrollbars as well as overlay ones.
-      host.style.setProperty("--editor-scrollbar-width", `${Math.max(0, root.offsetWidth - root.clientWidth)}px`);
+      const scrollbarWidth = `${Math.max(0, root.offsetWidth - root.clientWidth)}px`;
+      host.style.setProperty("--editor-scrollbar-width", scrollbarWidth);
+      // The diagnostics panel is a sibling of this editor, so mirror the
+      // measured inset on their common parent as well.
+      host.closest<HTMLElement>(".app-main-editor")?.style.setProperty("--editor-scrollbar-width", scrollbarWidth);
     };
 
     updateTailSpace();
@@ -844,6 +848,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
     return () => {
       observer?.disconnect();
       window.visualViewport?.removeEventListener("resize", updateTailSpace);
+      host.closest<HTMLElement>(".app-main-editor")?.style.removeProperty("--editor-scrollbar-width");
     };
   }, [focusMode]);
 

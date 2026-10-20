@@ -1,6 +1,13 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-20",
+    title: "状态栏对齐",
+    changes: [
+      "调试日志弹层宽度与状态栏上方分隔线对齐；固定左侧或右侧目录、书签时同步保留面板宽度和滚动条边距。",
+    ],
+  },
+  {
     date: "2026-10-19",
     title: "设置界面整理",
     changes: [

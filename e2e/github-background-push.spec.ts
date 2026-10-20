@@ -235,8 +235,13 @@ for (const style of ["classic", "mono-aware"]) for (const side of ["left", "righ
     const debug = page.locator(".debug-panel");
     await expect(debug).toBeVisible();
     await expect.poll(async () => {
-      const a = (await footer.boundingBox())!, b = (await debug.boundingBox())!;
-      return Math.max(Math.abs(a.x - b.x), Math.abs(a.x + a.width - b.x - b.width));
+      const expected = await footer.evaluate(element => {
+        const rect = element.getBoundingClientRect();
+        const scrollbar = Number.parseFloat(getComputedStyle(element).getPropertyValue("--editor-scrollbar-width")) || 0;
+        return { left: rect.left + 12, right: rect.right - 12 - scrollbar };
+      });
+      const actual = (await debug.boundingBox())!;
+      return Math.max(Math.abs(expected.left - actual.x), Math.abs(expected.right - actual.x - actual.width));
     }).toBeLessThanOrEqual(1);
     await page.getByRole("button", { name: "关闭调试日志", exact: true }).click();
     await page.getByRole("button", { name: "打开本机版本历史", exact: true }).click();

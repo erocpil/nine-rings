@@ -445,13 +445,17 @@
   background-repeat: no-repeat;
 }
 
-/* The debug panel is a sibling of NoteEditor, so mirror its status-bar inset
-   when a document outline/bookmark is pinned inside the editor. */
+/* The debug panel is a sibling of NoteEditor. Match the status rule's inset;
+   when a panel is pinned, preserve the same dock reservation as the editor. */
+.app-desktop-workspace .app-main-editor > .debug-panel {
+  margin-left: 12px;
+  margin-right: calc(12px + var(--editor-scrollbar-width, 0px));
+}
 .app-main-editor:has(.document-panels-right) > .debug-panel {
-  margin-right: min(var(--document-dock-width, 280px), 50%);
+  margin-right: calc(min(var(--document-dock-width, 280px), 50%) + 12px + var(--editor-scrollbar-width, 0px));
 }
 .app-main-editor:has(.document-panels-left) > .debug-panel {
-  margin-left: min(var(--document-dock-width, 280px), 50%);
+  margin-left: calc(min(var(--document-dock-width, 280px), 50%) + 12px);
 }
 
 /* Desktop editing controls share the title row inset and leave more breathing room. */
