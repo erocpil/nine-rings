@@ -288,6 +288,49 @@ export class SourceNavigationDocument {
         : [];
     }).sort((left, right) => left.position - right.position || left.createdAt.localeCompare(right.createdAt));
   }
+  private withBookmarkAnchors(anchors: Anchor[]) {
+    let unchanged = this.unchanged;
+    if (unchanged) {
+      const metadata = { ...unchanged.metadata };
+      const bookmarks = anchors.map(anchor => anchor.bookmark);
+      if (bookmarks.length) metadata.bookmarks = bookmarks;
+      else delete metadata.bookmarks;
+      unchanged = { ...unchanged, metadata };
+    }
+    return new SourceNavigationDocument(this.source, anchors, this.metadata, unchanged, this.referenceBase);
+  }
+  toggleBookmarkAt(offset: number) {
+    const block = this.blockAt(Math.max(0, Math.min(this.source.length, offset)));
+    if (!block) return this;
+    const position = block.position + 1;
+    const existing = this.bookmarks.find(bookmark => bookmark.position === position);
+    if (existing) return this.withBookmarkAnchors(this.anchors.filter(anchor => anchor.bookmark.id !== existing.id));
+
+    const bookmark: DocumentBookmark = {
+      id: globalThis.crypto?.randomUUID?.() ?? `bookmark-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      position,
+      preview: block.text.trim().slice(0, 80) || "空白段落",
+      createdAt: new Date().toISOString(),
+    };
+    const sourceOffset = this.offsetAt(position);
+    const span = this.model.map.find(entry => entry.to >= sourceOffset);
+    const candidates = span
+      ? this.model.blocks.filter(candidate => candidate.from < span.weightTo && candidate.to > span.weightFrom)
+      : [];
+    const part = Math.max(0, candidates.findIndex(candidate => candidate.position === block.position));
+    return this.withBookmarkAnchors([...this.anchors, { bookmark, offset: sourceOffset, part }]);
+  }
+  removeBookmark(id: string) {
+    if (!this.anchors.some(anchor => anchor.bookmark.id === id)) return this;
+    return this.withBookmarkAnchors(this.anchors.filter(anchor => anchor.bookmark.id !== id));
+  }
+  renameBookmark(id: string, label: string) {
+    if (!this.anchors.some(anchor => anchor.bookmark.id === id)) return this;
+    const normalized = label.trim();
+    return this.withBookmarkAnchors(this.anchors.map(anchor => anchor.bookmark.id === id
+      ? { ...anchor, bookmark: { ...anchor.bookmark, ...(normalized ? { label: normalized } : { label: undefined }) } }
+      : anchor));
+  }
   read(): DeltaOps {
     if (this.unchanged) return this.unchanged;
     return (this.cached ??= {
@@ -374,6 +417,8 @@ export class SourceNavigationSession {
     this.remember(this.current);
   }
   private remember(document: SourceNavigationDocument) {
+    const previous = this.history.get(document.source);
+    if (previous) this.size -= document.source.length;
     this.history.set(document.source, document.copy());
     this.size += document.source.length;
     while (
@@ -389,6 +434,21 @@ export class SourceNavigationSession {
     const old = this.history.get(text);
     this.current = old?.copy() ?? this.current.next(text, range);
     if (!old) this.remember(this.current);
+    return this.current;
+  }
+  toggleBookmarkAt(offset: number) {
+    this.current = this.current.toggleBookmarkAt(offset);
+    this.remember(this.current);
+    return this.current;
+  }
+  removeBookmark(id: string) {
+    this.current = this.current.removeBookmark(id);
+    this.remember(this.current);
+    return this.current;
+  }
+  renameBookmark(id: string, label: string) {
+    this.current = this.current.renameBookmark(id, label);
+    this.remember(this.current);
     return this.current;
   }
 }

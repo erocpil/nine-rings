@@ -121,6 +121,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     />}
   </>;
   const [snapshot, setSnapshot] = useState<{ base: DeltaOps; content: DeltaOps } | null>(null);
+  const [, forceSourceMetadataUpdate] = useState(0);
   const latestProps = useRef(props);
   latestProps.current = props;
   const latestReader = useRef<(() => DeltaOps) | null>(null);
@@ -171,6 +172,37 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     latestReader.current = read;
     props.onContentChange(read, { batch: revision });
   };
+  const { noteId: sourceBookmarkNoteId, onContentChange: saveSourceBookmark, onBookmarkCountChange: updateBookmarkCount } = props;
+  const mutateSourceBookmark = useCallback((mutate: (session: SourceNavigationSession) => void) => {
+    const session = sourceSession.current;
+    if (!session) return;
+    mutate(session);
+    const revision = session.current;
+    const language = documentLanguageRef.current;
+    let cached: DeltaOps | undefined;
+    const read = () => cached ??= (() => {
+      const content = revision.read();
+      return { ...content, metadata: { ...content.metadata, sourceLanguage: language } };
+    })();
+    invalidateEditorDocument(sourceBookmarkNoteId);
+    latestReader.current = read;
+    saveSourceBookmark(read, { metadataOnly: true });
+    updateBookmarkCount?.(revision.bookmarks.length);
+    forceSourceMetadataUpdate(value => value + 1);
+  }, [sourceBookmarkNoteId, saveSourceBookmark, updateBookmarkCount]);
+  useEffect(() => {
+    if (source === null || !active) return;
+    const toggleAtSelection = (event: KeyboardEvent) => {
+      if (event.isComposing || event.repeat || !event.shiftKey || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "m") return;
+      const handle = viewPosition.sourceHandle;
+      if (!handle) return;
+      event.preventDefault();
+      event.stopPropagation();
+      mutateSourceBookmark(session => { session.toggleBookmarkAt(handle.selectionStart); });
+    };
+    window.addEventListener("keydown", toggleAtSelection, true);
+    return () => window.removeEventListener("keydown", toggleAtSelection, true);
+  }, [source, active, viewPosition.sourceHandle, mutateSourceBookmark]);
   const changeView = async (restoreSourceTop?: number) => {
     if (busy || !hasPreview) return;
     setBusy(true); setError("");
@@ -390,7 +422,11 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         latestReader.current = read;
         props.onContentChange(read, options);
       },
-    }) : <MarkdownSourceWorkspace revision={sourceSession.current!.current} areaRef={viewPosition.area} sourceHandle={viewPosition.sourceHandle} onJump={offset => jumpSourceRef.current(offset)}>{controls => <>
+    }) : <MarkdownSourceWorkspace revision={sourceSession.current!.current} areaRef={viewPosition.area} sourceHandle={viewPosition.sourceHandle}
+      onJump={offset => jumpSourceRef.current(offset)}
+      onToggleBookmark={offset => mutateSourceBookmark(session => { session.toggleBookmarkAt(offset); })}
+      onRemoveBookmark={id => mutateSourceBookmark(session => { session.removeBookmark(id); })}
+      onRenameBookmark={(id, label) => mutateSourceBookmark(session => { session.renameBookmark(id, label); })}>{controls => <>
       <div className="note-title-row markdown-source-title-row">
         {props.titleSecurityAction}
         {props.onReadonlyChange && <button type="button" className="note-readonly-badge note-readonly-action" data-document-readonly={props.readonly === true} aria-pressed={props.readonly === true} disabled={busy}

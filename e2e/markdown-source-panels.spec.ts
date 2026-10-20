@@ -3,6 +3,10 @@ import { createBlankDocument } from "./helpers/document";
 import { replaceSource } from "./helpers/source-editor";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+function panelTrigger(page: Page, kind: "outline" | "bookmark") {
+  return page.locator(`[data-document-panel-trigger="${kind}"]:visible`).first();
+}
+
 async function replace(page: Page, area: Locator, old: string, value: string) {
   const from = old ? (await sourceInfo(area)).value.indexOf(old) : 0;
   if (from < 0) throw new Error(`Missing text ${old}`);
@@ -13,8 +17,8 @@ async function replace(page: Page, area: Locator, old: string, value: string) {
 test("源码目录跟随光标，悬浮与固定面板均显示远处章节，视图按钮统一图标", async ({ page }) => {
   await createBlankDocument(page, "源码目录跟随");
   await page.locator(".ProseMirror:visible").evaluate(element => (element as any).editor.commands.setContent("<h2>起始</h2><p>正文</p>", true));
-  const outlineButton = page.getByRole("button", { name: "文档目录", exact: true });
-  const bookmarkButton = page.getByRole("button", { name: "文档书签", exact: true });
+  const outlineButton = panelTrigger(page, "outline");
+  const bookmarkButton = panelTrigger(page, "bookmark");
   const icons = await Promise.all([outlineButton, bookmarkButton].map(button => button.locator("svg").evaluate(svg => svg.innerHTML)));
   await page.getByRole("button", { name: "源码", exact: true }).click();
   const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
@@ -43,6 +47,44 @@ test("源码目录跟随光标，悬浮与固定面板均显示远处章节，�
   await expect.poll(inList).toBe(true);
   await page.getByRole("button", { name: "渲染", exact: true }).click();
   for (const [i, button] of [outlineButton, bookmarkButton].entries()) expect(await button.locator("svg").evaluate(svg => svg.innerHTML)).toBe(icons[i]);
+});
+
+test("源码模式添加、重命名和删除的书签与渲染模式共享", async ({ page }) => {
+  await createBlankDocument(page, "源码书签共享");
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  const source = "# 标题\n\n第一段\n\n第二段\n";
+  await replaceSource(area, source);
+  await selectSource(area, source.indexOf("第二段"));
+  await panelTrigger(page, "bookmark").click();
+  const panel = page.getByRole("navigation", { name: "文档书签", exact: true });
+  await panel.getByRole("button", { name: "添加当前位置书签", exact: true }).click();
+  const row = panel.locator(".document-bookmark-item").first();
+  await expect(row).toContainText("第二段");
+  await row.hover();
+  await row.getByRole("button", { name: "重命名书签 第二段", exact: true }).click();
+  await page.getByRole("textbox", { name: "书签名称", exact: true }).fill("待复查");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(row).toContainText("待复查");
+
+  await selectSource(area, source.indexOf("第一段"));
+  await page.keyboard.press("ControlOrMeta+Shift+m");
+  await expect(panel.locator(".document-bookmark-item")).toHaveCount(2);
+  await page.keyboard.press("ControlOrMeta+Shift+m");
+  await expect(panel.locator(".document-bookmark-item")).toHaveCount(1);
+
+  await page.getByRole("button", { name: "渲染", exact: true }).click();
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "文档书签" }).locator(".document-bookmark-jump")).toContainText("待复查");
+
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const sourcePanel = page.getByRole("navigation", { name: "文档书签", exact: true });
+  const sourceRow = sourcePanel.locator(".document-bookmark-item").first();
+  await sourceRow.hover();
+  await sourceRow.getByRole("button", { name: "删除书签 待复查", exact: true }).click();
+  await expect(sourcePanel.locator(".document-bookmark-item")).toHaveCount(0);
+  await page.getByRole("button", { name: "渲染", exact: true }).click();
+  await expect(page.getByRole("navigation", { name: "文档书签" }).locator(".document-bookmark-item")).toHaveCount(0);
 });
 
 for (const virtual of [false, true])
@@ -112,8 +154,8 @@ for (const virtual of [false, true])
     await expect(
       page.locator(virtual ? ".vr-title" : ".note-title"),
     ).toBeVisible();
-    for (const name of ["文档目录", "文档书签"])
-      await page.getByRole("button", { name, exact: true }).click();
+    for (const kind of ["outline", "bookmark"] as const)
+      await panelTrigger(page, kind).click();
     const dock = page.getByRole("complementary", { name: "固定阅读面板" });
     await expect(dock.locator(".document-panel-slot")).toHaveCount(2);
     const collapseBookmark = dock.getByRole("button", { name: "收起固定书签", exact: true });
@@ -129,7 +171,7 @@ for (const virtual of [false, true])
     await expect(dock.getByRole("button", { name: "收起", exact: true })).toHaveCount(0);
     await collapseBookmark.click();
     await expect(dock.locator(".document-panel-slot")).toHaveCount(1);
-    await page.getByRole("button", { name: "文档书签", exact: true }).click();
+    await panelTrigger(page, "bookmark").click();
     await expect(dock.locator(".document-panel-slot")).toHaveCount(2);
     await page.getByRole("button", { name: "源码", exact: true }).click();
     const area = page.getByRole("textbox", {
@@ -142,7 +184,7 @@ for (const virtual of [false, true])
     await expectCountOnRight();
     await collapseBookmark.click();
     await expect(dock.locator(".document-panel-slot")).toHaveCount(1);
-    await page.getByRole("button", { name: "文档书签", exact: true }).click();
+    await panelTrigger(page, "bookmark").click();
     await expect(dock.locator(".document-panel-slot")).toHaveCount(2);
     await expect(dock).toHaveClass(
       virtual ? /dock-left dock-horizontal/ : /dock-right dock-vertical/,

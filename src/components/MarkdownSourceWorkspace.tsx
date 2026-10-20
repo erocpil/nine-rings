@@ -3,7 +3,7 @@ import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { DocumentPanelTitle, OutlinePanelTitle } from "./OutlinePanelTitle";
 import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
-import { panelDisplayStyle, bookmarkTooltip, sortedBookmarks } from "../lib/panel-display-view";
+import { panelDisplayStyle, sortedBookmarks } from "../lib/panel-display-view";
 import type { CSSProperties } from "react";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import {
@@ -29,8 +29,11 @@ import {
 } from "./DesktopDocumentPanels";
 import { DocumentOutlineList, OutlineDisplayTools, OUTLINE_SCROLL_EVENT } from "./DocumentOutlineList";
 import { FocusModeIcon } from "./FocusModeBar";
+import { DocumentBookmarkRow } from "./DocumentBookmarkRow";
+import { BookmarkRenameDialog } from "./BookmarkRenameDialog";
 import { extractCSourceSymbols } from "../lib/source-symbols";
 import type { DocumentOutlineItem } from "../lib/document-outline";
+import type { DocumentBookmark } from "../types/models";
 
 type SourceOutlineItem = DocumentOutlineItem & { offset: number };
 
@@ -48,12 +51,18 @@ export function MarkdownSourceWorkspace({
   revision,
   sourceHandle,
   onJump,
+  onToggleBookmark,
+  onRemoveBookmark,
+  onRenameBookmark,
   children,
 }: {
   revision: SourceNavigationDocument;
   areaRef: RefObject<SourceEditorHandle>;
   sourceHandle: SourceEditorHandle | null;
   onJump: (offset: number) => void;
+  onToggleBookmark: (offset: number) => void;
+  onRemoveBookmark: (id: string) => void;
+  onRenameBookmark: (id: string, label: string) => void;
   children: (controls: ReactNode) => ReactNode;
 }) {
   const documentActive = useDocumentActive();
@@ -62,21 +71,31 @@ export function MarkdownSourceWorkspace({
   const bookmarkDisplayConfig = usePanelDisplay("bookmarks");
   const bookmarkDisplayListRef = useRef<HTMLDivElement>(null);
   const [snapshot, setSnapshot] = useState(revision);
+  const snapshotSource = snapshot.source;
+  const snapshotLanguage = snapshot.language;
   const [sourceSymbols, setSourceSymbols] = useState<SourceOutlineItem[]>([]);
   const [symbolsBusy, setSymbolsBusy] = useState(false);
   const [offset, setOffset] = useState(0);
   const [folds, setFolds] = useState<Set<number>>(() => new Set());
+  const [renamingBookmark, setRenamingBookmark] = useState<DocumentBookmark | null>(null);
+  const [openBookmarkActionsId, setOpenBookmarkActionsId] = useState<string | null>(null);
   useEffect(() => {
     // Coalesce typing and reuse the same lazy parse as autosave; no hidden rich editor.
     if (mobile) return;
+    const previousBookmarks = snapshot.bookmarks.map(item => `${item.id}:${item.position}:${item.label ?? ""}`).join("|");
+    const nextBookmarks = revision.bookmarks.map(item => `${item.id}:${item.position}:${item.label ?? ""}`).join("|");
+    if (snapshot.source === revision.source && previousBookmarks !== nextBookmarks) {
+      setSnapshot(revision);
+      return;
+    }
     const timer = setTimeout(() => {
       setSnapshot(revision);
       setFolds(new Set());
     }, 160);
     return () => clearTimeout(timer);
-  }, [revision, mobile]);
+  }, [revision, mobile, snapshot]);
   useEffect(() => {
-    if (mobile || snapshot.language !== "c") {
+    if (mobile || snapshotLanguage !== "c") {
       setSourceSymbols([]);
       setSymbolsBusy(false);
       return;
@@ -85,7 +104,7 @@ export function MarkdownSourceWorkspace({
     setSourceSymbols([]);
     setSymbolsBusy(true);
     const timer = setTimeout(() => {
-      void extractCSourceSymbols(snapshot.source, controller.signal)
+      void extractCSourceSymbols(snapshotSource, controller.signal)
         .then((symbols) => {
           if (!controller.signal.aborted && symbols) {
             setSourceSymbols(symbols.map((symbol) => ({
@@ -107,7 +126,7 @@ export function MarkdownSourceWorkspace({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [snapshot, mobile]);
+  }, [snapshotSource, snapshotLanguage, mobile]);
   useEffect(() => {
     const area = sourceHandle;
     if (!area || mobile) return;
@@ -122,16 +141,15 @@ export function MarkdownSourceWorkspace({
       area.removeEventListener("click", sync);
     };
   }, [sourceHandle, mobile]);
-  const symbolOutline = snapshot.language === "c";
+  const symbolOutline = snapshotLanguage === "c";
   const outline = useMemo<SourceOutlineItem[]>(
     () => mobile ? [] : symbolOutline ? sourceSymbols : snapshot.outline.map((item) => ({ ...item, kind: undefined })),
     [snapshot, mobile, sourceSymbols, symbolOutline],
   );
-  const bookmarks = useMemo(
-    () => (mobile ? [] : snapshot.bookmarks),
-    [snapshot, mobile],
-  );
+  const bookmarks = useMemo(() => (mobile ? [] : revision.bookmarks), [revision, mobile]);
   const nearestBookmark = bookmarks.reduce<(typeof bookmarks)[number] | undefined>((current, item) => !current || Math.abs(item.offset - offset) < Math.abs(current.offset - offset) ? item : current, undefined);
+  const currentSourceBlock = revision.blockAt(offset);
+  const currentBookmark = bookmarks.find(bookmark => bookmark.position === (currentSourceBlock?.position ?? -2) + 1);
   const controller = useDesktopDocumentPanels(!mobile, outline, bookmarks);
   const outlineTrigger = useRef<HTMLButtonElement>(null),
     bookmarkTrigger = useRef<HTMLButtonElement>(null);
@@ -254,7 +272,10 @@ export function MarkdownSourceWorkspace({
             </>}
           </div>
           <div className="document-outline-header-actions">
-          {!isOutline && <PanelDisplayTools target="bookmarks" disabled={!nearestBookmark} handlers={{ "bookmarks.reveal-current": () => revealPanelItem(bookmarkDisplayListRef.current, nearestBookmark?.id) }} />}
+            {!isOutline && <>
+              <PanelDisplayTools target="bookmarks" disabled={!nearestBookmark} handlers={{ "bookmarks.reveal-current": () => revealPanelItem(bookmarkDisplayListRef.current, nearestBookmark?.id) }} />
+              {!currentBookmark && <button className="document-bookmark-add" type="button" onClick={() => onToggleBookmark(offset)} aria-label="添加当前位置书签">添加</button>}
+            </>}
           {isOutline && <div className="document-outline-jumps" aria-label="目录快速滚动">{(["top", "middle", "bottom"] as const).map((target, i) => <button type="button" key={target} title={["滚动至顶部", "滚动至中部", "滚动至底部"][i]} aria-label={["滚动至顶部", "滚动至中部", "滚动至底部"][i]} onClick={() => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: target }))}>{<ToolbarIcon name={(["pageTop", "pageMiddle", "pageBottom"] as const)[i]} />}</button>)}</div>}
           {(isOutline ? outlineDisplayConfig?.showCounts !== false : bookmarkDisplayConfig?.showCounts !== false) && <span className={isOutline ? "document-outline-count" : "document-bookmark-count"}>
             {isOutline ? outline.length : bookmarks.length} 项
@@ -295,19 +316,19 @@ export function MarkdownSourceWorkspace({
           <div className="document-bookmark-list" ref={bookmarkDisplayListRef} data-panel-display={bookmarkDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(bookmarkDisplayConfig) as CSSProperties}>
             {bookmarks.length ? (
               sortedBookmarks(bookmarks, bookmarkDisplayConfig).map((bookmark) => (
-                <div key={bookmark.id} className={`document-bookmark-item${bookmarkDisplayConfig && nearestBookmark?.id === bookmark.id ? " is-current" : ""}`} data-bookmark-id={bookmark.id}>
-                  <button
-                    type="button"
-                    className="document-bookmark-jump"
-                    title={bookmarkTooltip(bookmark, bookmarkDisplayConfig)}
-                    onClick={() => jump(bookmark.offset)}
-                  >
-                    {bookmarkDisplayConfig?.showMetadata !== false && <span className="document-bookmark-index">
-                      {bookmark.blockNumber}
-                    </span>}
-                    <span>{bookmark.label || bookmark.preview}</span>
-                  </button>
-                </div>
+                <DocumentBookmarkRow
+                  key={bookmark.id}
+                  bookmark={bookmark}
+                  display={bookmarkDisplayConfig}
+                  blockNumber={bookmark.blockNumber}
+                  current={currentBookmark?.id === bookmark.id}
+                  mobile={false}
+                  open={openBookmarkActionsId === bookmark.id}
+                  onOpenChange={setOpenBookmarkActionsId}
+                  onJump={() => { onJump(bookmark.offset); controller.dismiss(); }}
+                  onEdit={() => setRenamingBookmark(bookmark)}
+                  onDelete={() => onRemoveBookmark(bookmark.id)}
+                />
               ))
             ) : (
               <div className="document-bookmark-empty">当前文档还没有书签</div>
@@ -331,6 +352,12 @@ export function MarkdownSourceWorkspace({
           bookmark={renderPanel("bookmark")}
         />
       )}
+      {renamingBookmark && <BookmarkRenameDialog
+        key={renamingBookmark.id}
+        bookmark={renamingBookmark}
+        onSave={label => { onRenameBookmark(renamingBookmark.id, label); setRenamingBookmark(null); }}
+        onClose={() => setRenamingBookmark(null)}
+      />}
     </section>
   );
 }
