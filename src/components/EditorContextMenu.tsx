@@ -40,7 +40,7 @@ export function EditorContextMenu({ editor, toolbarRef, readonly, contextMenu, c
     onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }} onClick={event => event.stopPropagation()}>
     <button className="editor-context-item" onClick={() => run(() => selectWholeDocument(editor))}>全选</button>
     {readonly && <>
-      <button className="editor-context-item" disabled={!annotationSelectionAvailable} onClick={() => run(() => onAnnotateSelection?.())}>选中文字并添加阅读标注</button>
+      {annotationSelectionAvailable && <button className="editor-context-item" onClick={() => run(() => onAnnotateSelection?.())}>选中文字并添加阅读标注</button>}
       <button className="editor-context-item" disabled={!actions.hasSelection()} onClick={() => run(() => { void actions.handleCopy(); })}>复制</button>
       <button className="editor-context-item" onClick={() => run(() => { void actions.handleCopyBlock(); })}>复制块</button>
       <button className="editor-context-item" onClick={() => run(() => { void onCopyReference("block"); })}>复制块引用</button>

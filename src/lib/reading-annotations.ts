@@ -3,6 +3,9 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 const DATABASE = "nine_rings_reading_annotations";
 const VERSION = 1;
 const STORE = "annotations";
+
+/** Temporarily paused pending completion of docs/reading-annotations-design.md review. */
+export const READING_ANNOTATIONS_ENABLED = false;
 const NOTE_INDEX = "noteId";
 
 export interface ReadingAnnotation {

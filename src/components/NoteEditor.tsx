@@ -114,7 +114,7 @@ import { blobToBase64 } from "../lib/storage/core";
 import { ProtectedNoteEditor } from "./ProtectedNoteEditor";
 import { BlockSelectAll } from "../extensions/BlockSelectAll";
 import { api } from "../lib/api";
-import { createReadingAnnotation, deleteReadingAnnotation, deleteReadingAnnotations, listReadingAnnotations, putReadingAnnotation, reanchorReadingAnnotations, type ReadingAnnotation } from "../lib/reading-annotations";
+import { createReadingAnnotation, deleteReadingAnnotation, deleteReadingAnnotations, listReadingAnnotations, putReadingAnnotation, reanchorReadingAnnotations, READING_ANNOTATIONS_ENABLED, type ReadingAnnotation } from "../lib/reading-annotations";
 import { ReadingAnnotations, setReadingAnnotations } from "../extensions/ReadingAnnotations";
 import { ReadingAnnotationBubble } from "./ReadingAnnotationBubble";
 import { mdToDelta } from "../lib/md-parser";
@@ -567,6 +567,7 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onHostEdit
   const bookmarkPanelRef = useRef<HTMLElement>(null);
   const [bookmarks, setBookmarks] = useState<DocumentBookmark[]>(bookmarksRef.current);
   const [annotations, setAnnotations] = useState<ReadingAnnotation[]>([]);
+  const bookmarkPanelLabel = READING_ANNOTATIONS_ENABLED ? "书签与标注" : "书签";
   const [annotationContextRange, setAnnotationContextRange] = useState<{ from: number; to: number } | null>(null);
   const [annotationPopover, setAnnotationPopover] = useState<{ id: string; left: number; top: number } | null>(null);
   const annotationLeaveTimerRef = useRef<number | null>(null);
@@ -1028,8 +1029,9 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onHostEdit
       ReadingAnnotations.configure({
         noteId,
         initial: [],
-        enabled: Boolean(readonly),
+        enabled: READING_ANNOTATIONS_ENABLED && Boolean(readonly),
         onMapped: (items) => {
+          if (!READING_ANNOTATIONS_ENABLED) return;
           setAnnotations(items);
           void Promise.all(items.map(item => putReadingAnnotation(item))).catch(error => {
             addLog(`阅读标注位置保存失败: ${String(error)}`);
@@ -1167,7 +1169,8 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onHostEdit
     if (!editor) return;
     let cancelled = false;
     setAnnotations([]);
-    setReadingAnnotations(editor, [], readonly);
+    setReadingAnnotations(editor, [], READING_ANNOTATIONS_ENABLED && readonly);
+    if (!READING_ANNOTATIONS_ENABLED) return () => { cancelled = true; };
     if (content.encrypted) return;
     void listReadingAnnotations(noteId).then(async stored => {
       if (cancelled || editor.isDestroyed) return;
@@ -1183,10 +1186,10 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onHostEdit
     return () => { cancelled = true; };
   }, [editor, noteId, content.encrypted, readonly]);
   useEffect(() => {
-    if (editor) setReadingAnnotations(editor, annotations, readonly);
+    if (editor) setReadingAnnotations(editor, READING_ANNOTATIONS_ENABLED ? annotations : [], READING_ANNOTATIONS_ENABLED && readonly);
   }, [editor, annotations, readonly]);
   useEffect(() => {
-    if (!editor || !readonly) return;
+    if (!READING_ANNOTATIONS_ENABLED || !editor || !readonly) return;
     const captureSelection = () => {
       const native = window.getSelection();
       if (!native || native.isCollapsed || !native.anchorNode || !native.focusNode
@@ -3408,8 +3411,8 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onHostEdit
     } catch { return null; }
   };
   const handleEditorContextMenu = (e: React.MouseEvent) => {
-    let selectedRange = readNativeAnnotationSelection() ?? lastReadonlySelectionRef.current;
-    if (!selectedRange && readonly && !editor.state.selection.empty) {
+    let selectedRange = READING_ANNOTATIONS_ENABLED ? readNativeAnnotationSelection() ?? lastReadonlySelectionRef.current : null;
+    if (READING_ANNOTATIONS_ENABLED && !selectedRange && readonly && !editor.state.selection.empty) {
       selectedRange = { from: editor.state.selection.from, to: editor.state.selection.to };
     }
     annotationContextRangeRef.current = selectedRange;
@@ -4231,7 +4234,7 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onHostEdit
           onClick={(event) => event.stopPropagation()}
         >
           <div className="document-bookmark-header">
-            <div className="document-bookmark-heading"><DocumentPanelTitle label="书签与标注" pinned={!isMobileToolbarViewport && desktopPanels.pinned("bookmark")} onCollapse={() => togglePinnedPanel("bookmark")} /></div>
+            <div className="document-bookmark-heading"><DocumentPanelTitle label={bookmarkPanelLabel} pinned={!isMobileToolbarViewport && desktopPanels.pinned("bookmark")} onCollapse={() => togglePinnedPanel("bookmark")} /></div>
             <div className="document-bookmark-header-actions">
               <PanelDisplayTools target="bookmarks" disabled={!bookmarkPanelTotal} handlers={{ "bookmarks.reveal-current": () => { const position = bookmarkCursorPosition; const nearest = bookmarkPanelItems.reduce<(typeof bookmarkPanelItems)[number] | undefined>((current, item) => !current || Math.abs(item.position - position) < Math.abs(current.position - position) ? item : current, undefined); revealPanelItem(bookmarkDisplayListRef.current, nearest?.id); } }} />
               {!currentBookmark && <button className="document-bookmark-add" type="button" onClick={toggleCurrentBookmark}
@@ -4391,8 +4394,8 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onHostEdit
               event.stopPropagation();
                     toggleDocumentBookmarks();
             }}
-            title={bookmarkPanelTotal > 0 ? `书签与标注（${bookmarkPanelTotal}）` : "添加书签"}
-            aria-label={bookmarkPanelTotal > 0 ? `书签与标注，共 ${bookmarkPanelTotal} 项` : "书签与标注"}
+            title={bookmarkPanelTotal > 0 ? `${bookmarkPanelLabel}（${bookmarkPanelTotal}）` : "添加书签"}
+            aria-label={bookmarkPanelLabel}
           ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
           {!showLineNumbers && selectedBlockIndexes.size === 0 && <button type="button" title="块级操作" aria-label="块级操作" data-title-block-menu="true" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>}
           {!readonly && (
@@ -4646,8 +4649,8 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onHostEdit
               event.stopPropagation();
               toggleDocumentBookmarks();
             }}
-            title={bookmarkPanelTotal > 0 ? `书签与标注（${bookmarkPanelTotal}）` : "添加书签"}
-            aria-label="书签与标注"
+            title={bookmarkPanelTotal > 0 ? `${bookmarkPanelLabel}（${bookmarkPanelTotal}）` : "添加书签"}
+            aria-label={bookmarkPanelLabel}
             aria-expanded={bookmarkOpen}
             type="button"
           ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
@@ -5012,7 +5015,7 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onHostEdit
         contextSubmenu={contextSubmenu} setContextSubmenu={setContextSubmenu}
         setContextMenu={setContextMenu}
         hasCurrentBookmark={Boolean(currentBookmark)} bookmarkCount={bookmarks.length}
-        annotationSelectionAvailable={readonly && Boolean(annotationContextRange)}
+        annotationSelectionAvailable={READING_ANNOTATIONS_ENABLED && readonly && Boolean(annotationContextRange)}
         onAnnotateSelection={() => { void createSelectedReadingAnnotation(); setAnnotationContextRange(null); }}
         onCopyReference={copyReference}
         actions={{ hasSelection, handleCut, handleClipboardPaste, handleCopy, handleCopyBlock, openDocumentBookmarks,

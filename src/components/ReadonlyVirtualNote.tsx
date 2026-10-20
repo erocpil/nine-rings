@@ -86,7 +86,7 @@ import { headingLinkTarget, outlineLabel } from "../lib/heading-links";
 import { useDocumentHoverPreview } from "./FootnoteHoverPreview";
 import { isRelativeMarkdownLink } from "../lib/relative-document-link";
 import { internalNoteId } from "../lib/internal-note-link";
-import { createReadingAnnotation, deleteReadingAnnotation, deleteReadingAnnotations, listReadingAnnotations, putReadingAnnotation, reanchorReadingAnnotations, type ReadingAnnotation } from "../lib/reading-annotations";
+import { createReadingAnnotation, deleteReadingAnnotation, deleteReadingAnnotations, listReadingAnnotations, putReadingAnnotation, reanchorReadingAnnotations, READING_ANNOTATIONS_ENABLED, type ReadingAnnotation } from "../lib/reading-annotations";
 import { ReadingAnnotationBubble } from "./ReadingAnnotationBubble";
 
 function readonlyLink(href: string, title: string | undefined, content: React.ReactNode) {
@@ -404,6 +404,7 @@ export function ReadonlyVirtualNote(
   const outlineDisplayConfig = usePanelDisplay("document-outline");
   const bookmarkDisplayConfig = usePanelDisplay("bookmarks");
   const [annotations, setAnnotations] = useState<ReadingAnnotation[]>([]);
+  const bookmarkPanelLabel = READING_ANNOTATIONS_ENABLED ? "书签与标注" : "书签";
   const [annotationContext, setAnnotationContext] = useState<{ x: number; y: number; from: number; to: number } | null>(null);
   const [annotationPopover, setAnnotationPopover] = useState<{ id: string; left: number; top: number } | null>(null);
   const annotationLeaveTimer = useRef<number | null>(null);
@@ -421,6 +422,10 @@ export function ReadonlyVirtualNote(
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     let cancelled = false;
+    if (!READING_ANNOTATIONS_ENABLED) {
+      setAnnotations([]);
+      return () => { cancelled = true; };
+    }
     void listReadingAnnotations(noteId).then(async stored => {
       if (cancelled) return;
       const result = reanchorReadingAnnotations(doc, stored);
@@ -435,7 +440,7 @@ export function ReadonlyVirtualNote(
     return () => { cancelled = true; };
   }, [noteId, doc]);
   useEffect(() => {
-    if (!props.readonly) return;
+    if (!READING_ANNOTATIONS_ENABLED || !props.readonly) return;
     const captureSelection = () => {
       const root = bodyRef.current;
       const range = root && selectedReadonlyRange(root);
@@ -629,6 +634,7 @@ export function ReadonlyVirtualNote(
     });
   }, []);
   const handleAnnotationPointerOver = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!READING_ANNOTATIONS_ENABLED) return;
     const target = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-reading-annotation]") : null;
     if (!target) return;
     const item = annotations.find(annotation => annotation.id === target.dataset.readingAnnotation);
@@ -643,6 +649,7 @@ export function ReadonlyVirtualNote(
   }, []);
   useEffect(() => () => { if (annotationLeaveTimer.current !== null) window.clearTimeout(annotationLeaveTimer.current); }, []);
   const addAnnotation = useCallback(async (range: { from: number; to: number }) => {
+    if (!READING_ANNOTATIONS_ENABLED) return;
     if (!props.readonly || annotations.some(item => range.from < item.to && range.to > item.from)) {
       setNotice("该范围已有阅读标注");
       return;
@@ -1243,8 +1250,8 @@ export function ReadonlyVirtualNote(
       <button
         ref={bookmarkTriggerRef}
         type="button"
-        title="书签与标注"
-        aria-label="书签与标注"
+        title={bookmarkPanelLabel}
+        aria-label={bookmarkPanelLabel}
         aria-expanded={mobileDrawerViewport ? panel === "bookmarks" : desktopPanels.pinned("bookmark") || preview === "bookmarks"}
         data-document-panel-trigger="bookmark" data-pinned={desktopPanels.pinned("bookmark")}
         onPointerEnter={event => desktopPanels.enter("bookmark", event.pointerType)} onPointerLeave={desktopPanels.leave}
@@ -1277,7 +1284,7 @@ export function ReadonlyVirtualNote(
               kind === "outline"
                 ? "文档目录"
                 : kind === "bookmarks"
-                  ? "书签与标注"
+                  ? bookmarkPanelLabel
                   : "文内搜索"
             }
           >
@@ -1357,9 +1364,9 @@ export function ReadonlyVirtualNote(
             )}
             {kind === "bookmarks" && (
               <>
-                <h3><DocumentPanelTitle label="书签与标注" pinned={!mobileDrawerViewport && desktopPanels.pinned("bookmark")} onCollapse={() => togglePinnedPanel("bookmark")} />{bookmarkDisplayConfig?.showCounts !== false && <span className="document-bookmark-count">{annotationTotal} 项</span>}</h3>
+                <h3><DocumentPanelTitle label={bookmarkPanelLabel} pinned={!mobileDrawerViewport && desktopPanels.pinned("bookmark")} onCollapse={() => togglePinnedPanel("bookmark")} />{bookmarkDisplayConfig?.showCounts !== false && <span className="document-bookmark-count">{annotationTotal} 项</span>}</h3>
                 <PanelDisplayTools target="bookmarks" disabled={!annotationTotal} handlers={{ "bookmarks.reveal-current": () => { const position = capture().position; const nearest = annotationPanelItems.reduce<(typeof annotationPanelItems)[number] | undefined>((current, item) => !current || Math.abs(item.position - position) < Math.abs(current.position - position) ? item : current, undefined); revealPanelItem(bookmarkDisplayListRef.current, nearest?.id); } }} />
-                {annotationTotal === 0 && <p>暂无书签或高亮标注</p>}
+                {annotationTotal === 0 && <p>暂无书签</p>}
                 <div className="document-bookmark-list" ref={bookmarkDisplayListRef} data-panel-display={bookmarkDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(bookmarkDisplayConfig) as React.CSSProperties}>
                 {annotationPanelItems.map(item => <button
                   type="button"
@@ -1568,7 +1575,7 @@ export function ReadonlyVirtualNote(
           onPointerOverCapture={handleAnnotationPointerOver}
           onPointerOutCapture={handleAnnotationPointerOut}
           onContextMenu={event => {
-            if (!props.readonly) return;
+            if (!READING_ANNOTATIONS_ENABLED || !props.readonly) return;
             const root = bodyRef.current;
             const range = (root && selectedReadonlyRange(root)) ?? lastAnnotationSelection.current;
             if (!range) return;
