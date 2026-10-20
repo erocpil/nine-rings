@@ -26,6 +26,23 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
   await clickWord(source.indexOf(word) + 2);
   await expect.poll(() => area.locator(".cm-source-word-match").count()).toBe(4);
   await expect(area.locator(".cm-source-word-match-active")).toHaveCount(1);
+  const highlightPalettes = await area.evaluate(element => {
+    const root = document.documentElement;
+    const oldClass = root.className;
+    const styleFor = (theme: "theme-light" | "theme-dark") => {
+      root.classList.remove("theme-light", "theme-dark", "theme-azure-dark", "theme-nord", "theme-dracula");
+      root.classList.add(theme);
+      const regular = getComputedStyle(element.querySelector(".cm-source-word-match:not(.cm-source-word-match-active)")!).backgroundColor;
+      const active = getComputedStyle(element.querySelector(".cm-source-word-match-active")!).backgroundColor;
+      return { regular, active };
+    };
+    try { return { light: styleFor("theme-light"), dark: styleFor("theme-dark") }; }
+    finally { root.className = oldClass; }
+  });
+  expect(highlightPalettes.light.regular).not.toBe(highlightPalettes.dark.regular);
+  expect(highlightPalettes.light.active).not.toBe(highlightPalettes.dark.active);
+  expect(highlightPalettes.light.regular).not.toBe(highlightPalettes.light.active);
+  expect(highlightPalettes.dark.regular).not.toBe(highlightPalettes.dark.active);
   await clickWord(source.indexOf("=") + 1);
   await expect(area.locator(".cm-source-word-match")).toHaveCount(0);
   await expect(area.locator(".cm-source-word-match-active")).toHaveCount(0);

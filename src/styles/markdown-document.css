@@ -244,12 +244,14 @@ blockquote[data-alert] { border-left-color: var(--accent); }
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
-/* C/C++ categories use the active style's palette in light and dark modes. */
+/* Parser-derived source categories share the active style's palette. */
 .markdown-cm-source .source-code-keyword,
 .markdown-cm-source .source-code-control { color: color-mix(in srgb, var(--syntax-keyword-color) 85%, var(--text)); font-weight: 600; }
 .markdown-cm-source .source-code-definition { color: color-mix(in srgb, var(--syntax-keyword-color) 85%, var(--text)); }
 .markdown-cm-source .source-code-modifier { color: color-mix(in srgb, var(--syntax-keyword-color) 75%, var(--text)); }
 .markdown-cm-source .source-code-type { color: var(--syntax-type-color); }
+.markdown-cm-source .source-code-name-definition { color: var(--syntax-value-color); font-weight: 600; }
+.markdown-cm-source .source-code-constant { color: color-mix(in srgb, var(--syntax-value-color) 80%, var(--syntax-meta-color)); }
 .markdown-cm-source .source-code-function { color: var(--syntax-value-color); }
 .markdown-cm-source .source-code-function-definition { font-weight: 600; }
 .markdown-cm-source .source-code-member { color: color-mix(in srgb, var(--syntax-type-color) 60%, var(--text)); }
@@ -260,6 +262,7 @@ blockquote[data-alert] { border-left-color: var(--accent); }
 .markdown-cm-source .source-code-value { color: color-mix(in srgb, var(--syntax-value-color) 70%, var(--syntax-meta-color)); }
 .markdown-cm-source .source-code-comment { color: var(--text-secondary); font-style: italic; }
 .markdown-cm-source .source-code-operator { color: color-mix(in srgb, var(--text) 80%, var(--syntax-keyword-color)); }
+.markdown-cm-source .source-code-label { color: var(--syntax-meta-color); }
 .markdown-cm-source[data-source-highlighting="false"] .cm-content [class*="source-code-"] { color: var(--text); font-weight: inherit; font-style: normal; }
 
 .source-indentation-controls { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; }

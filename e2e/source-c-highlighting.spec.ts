@@ -64,6 +64,11 @@ test("合并的 C/C++ 类型识别 C++ 类型、模板和成员调用，切换�
   await expect(area.locator(".source-code-function").filter({ hasText: "get" }).first()).toBeVisible();
   await expect(area.locator(".source-code-definition").filter({ hasText: "template" }).first()).toBeVisible();
   await picker.selectOption("python");
-  await expect(area.locator('[class*="source-code-"]')).toHaveCount(0);
-  expect((await sourceInfo(area)).value).toBe(raw);
+  const python = '@dataclass\nclass Packet:\n    size: int\n\ndef parse_packet(data: bytes) -> bool:\n    return data is not None\n';
+  await replaceSource(area, python);
+  await expect(area.locator(".source-code-definition").filter({ hasText: "def" }).first()).toBeVisible();
+  await expect(area.locator(".source-code-type").filter({ hasText: "Packet" }).first()).toBeVisible();
+  await expect(area.locator(".source-code-function-definition").filter({ hasText: "parse_packet" }).first()).toBeVisible();
+  await expect(area.locator(".source-code-value").filter({ hasText: "None" }).first()).toBeVisible();
+  expect((await sourceInfo(area)).value).toBe(python);
 });
