@@ -37,9 +37,18 @@ test("专注标签切换先保存、独立重排关闭、双击标题显隐和�
   await page.mouse.wheel(0, 350);
   await expect.poll(() => tabs.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
   const dismissed = tabs.getByRole("tab", { name: "标签文档14很长的名称", exact: true });
-  await dismissed.dblclick();
+  // Closing a background tab must never load it, even transiently between clicks.
+  await page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    const get = api.notes.get.bind(api.notes);
+    const reads: string[] = [];
+    (window as unknown as { tabReads: string[] }).tabReads = reads;
+    api.notes.get = async id => { reads.push(id); return get(id); };
+  });
+  await dismissed.dblclick({ delay: 120 });
   await expect(tabs.getByRole("tab")).toHaveCount(31);
   await expect(page.locator(".note-title")).toHaveValue("标签当前文档较长名称");
+  expect(await page.evaluate(() => (window as unknown as { tabReads: string[] }).tabReads)).not.toContain(ids[14]);
   const a = tabs.getByRole("tab", { name: "标签文档33很长的名称", exact: true });
   const b = tabs.getByRole("tab", { name: "标签文档32很长的名称", exact: true });
   await a.dragTo(b);

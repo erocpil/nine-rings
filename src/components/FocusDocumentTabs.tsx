@@ -52,9 +52,18 @@ export function FocusDocumentTabs({
   const suppressClick = useRef(false);
   const clickOrigin = useRef<{
     id: string;
-    previous?: string;
     canceled: boolean;
   } | null>(null);
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelClick = () => {
+    if (clickTimer.current !== null) clearTimeout(clickTimer.current);
+    clickTimer.current = null;
+    if (clickOrigin.current) clickOrigin.current.canceled = true;
+  };
+  useEffect(() => () => {
+    if (clickTimer.current !== null) clearTimeout(clickTimer.current);
+    if (clickOrigin.current) clickOrigin.current.canceled = true;
+  }, [noteId, prefs.visible]);
   const operation = useRef(Promise.resolve());
   const activeId = useRef(noteId);
   activeId.current = noteId;
@@ -203,7 +212,8 @@ export function FocusDocumentTabs({
     await onOpen(note);
     activeId.current = id;
   };
-  const close = (closing: string[], preferred?: string) => {
+  const close = (closing: string[]) => {
+    cancelClick();
     setMenu(null);
     // Closing tabs must reduce the open set instead of refilling it from older
     // visits. History itself is retained; opening one again restores its tab.
@@ -214,10 +224,7 @@ export function FocusDocumentTabs({
       const currentId = activeId.current;
       if (currentId && closing.includes(currentId)) {
         const remaining = ids.filter((id) => !closing.includes(id));
-        const neighbor =
-          preferred && remaining.includes(preferred)
-            ? preferred
-            : remaining[Math.min(ids.indexOf(currentId), remaining.length - 1)];
+        const neighbor = remaining[Math.min(ids.indexOf(currentId), remaining.length - 1)];
         if (neighbor) await open(neighbor);
         else {
           await onCloseLast();
@@ -281,6 +288,9 @@ export function FocusDocumentTabs({
               aria-busy={busy || undefined}
               data-tab-id={id}
               data-tauri-drag-region="false"
+              onMouseDown={(event) => {
+                if (event.detail >= 2) cancelClick();
+              }}
               onPointerDown={(event) => {
                 if (event.button !== 0) return;
                 drag.current = {
@@ -302,6 +312,7 @@ export function FocusDocumentTabs({
                   ) < 5
                 )
                   return;
+                cancelClick();
                 current.moved = true;
                 event.preventDefault();
                 const root = strip.current;
@@ -353,27 +364,22 @@ export function FocusDocumentTabs({
                   event.preventDefault();
                   return;
                 }
-                if (event.detail < 2) {
-                  const intent = {
-                    id,
-                    previous: activeId.current,
-                    canceled: false,
-                  };
-                  clickOrigin.current = intent;
+                cancelClick();
+                if (event.detail >= 2) return;
+                const intent = { id, canceled: false };
+                clickOrigin.current = intent;
+                const activate = () => {
+                  clickTimer.current = null;
                   void run(() => open(id, () => intent.canceled));
-                }
+                };
+                // A pointer double-click emits a click first. Wait for its
+                // second click before navigating; keyboard activation is immediate.
+                if (event.detail === 0) activate();
+                else clickTimer.current = setTimeout(activate, 500);
               }}
-              onDoubleClick={() => {
-                const intent = clickOrigin.current;
-                if (intent?.id === id) intent.canceled = true;
-                close(
-                  [id],
-                  intent?.id === id && intent.previous !== id
-                    ? intent.previous
-                    : undefined,
-                );
-              }}
+              onDoubleClick={() => close([id])}
               onContextMenu={(event) => {
+                cancelClick();
                 event.preventDefault();
                 setMenu({
                   id,
