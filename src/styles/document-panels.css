@@ -422,6 +422,28 @@
   padding-block: 0;
   line-height: 1.2;
 }
+/* Icon-only title actions share one target size, including plugin insertion. */
+.app :is(.note-title-row, .vr-title) { --title-action-width: 36px; --title-action-height: 30px; }
+.app.app-mobile-workspace :is(.note-title-row, .vr-title) { --title-action-width: 32px; --title-action-height: 36px; }
+@media (max-width: 360px) {
+  .app.app-mobile-workspace :is(.note-title-row, .vr-title) { --title-action-width: 28px; }
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
+  .app.app-mobile-workspace :is(.note-title-row, .vr-title) { --title-action-width: 44px; }
+}
+.app :is(.note-title-row, .vr-title) > :is(.markdown-view-toggle, .focus-btn:not(.pdf-excerpt-source-button)),
+.app :is(.note-title-row, .vr-title) > :is(.document-outline-control, .document-bookmark-control) > .focus-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 var(--title-action-width);
+  width: var(--title-action-width);
+  min-width: var(--title-action-width);
+  height: var(--title-action-height);
+  min-height: var(--title-action-height);
+  padding: 2px 6px;
+}
 .app-desktop-workspace .document-panel-slot .vr-panel[data-document-kind] {
   padding-top: 0;
 }

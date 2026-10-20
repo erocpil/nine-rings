@@ -199,6 +199,106 @@
     "text": "格式",
     "items": [
       {
+        "text": "文件格式",
+        "items": [
+          {
+            "id": "format.language.c",
+            "text": "C",
+            "checkable": true
+          },
+          {
+            "id": "format.language.csharp",
+            "text": "C#",
+            "checkable": true
+          },
+          {
+            "id": "format.language.cpp",
+            "text": "C++",
+            "checkable": true
+          },
+          {
+            "id": "format.language.css",
+            "text": "CSS",
+            "checkable": true
+          },
+          {
+            "id": "format.language.flow",
+            "text": "Flow / 流程",
+            "checkable": true
+          },
+          {
+            "id": "format.language.go",
+            "text": "Go",
+            "checkable": true
+          },
+          {
+            "id": "format.language.xml",
+            "text": "HTML / XML",
+            "checkable": true
+          },
+          {
+            "id": "format.language.java",
+            "text": "Java",
+            "checkable": true
+          },
+          {
+            "id": "format.language.javascript",
+            "text": "JavaScript",
+            "checkable": true
+          },
+          {
+            "id": "format.language.json",
+            "text": "JSON",
+            "checkable": true
+          },
+          {
+            "id": "format.language.markdown",
+            "text": "Markdown",
+            "checkable": true
+          },
+          {
+            "id": "format.language.mermaid",
+            "text": "Mermaid",
+            "checkable": true
+          },
+          {
+            "id": "format.language.python",
+            "text": "Python",
+            "checkable": true
+          },
+          {
+            "id": "format.language.rust",
+            "text": "Rust",
+            "checkable": true
+          },
+          {
+            "id": "format.language.bash",
+            "text": "Shell / Bash",
+            "checkable": true
+          },
+          {
+            "id": "format.language.sql",
+            "text": "SQL",
+            "checkable": true
+          },
+          {
+            "id": "format.language.text",
+            "text": "text",
+            "checkable": true
+          },
+          {
+            "id": "format.language.typescript",
+            "text": "TypeScript",
+            "checkable": true
+          },
+          {
+            "id": "format.language.yaml",
+            "text": "YAML",
+            "checkable": true
+          }
+        ]
+      },
+      {
         "id": "format.bold",
         "text": "粗体",
         "checkable": true,

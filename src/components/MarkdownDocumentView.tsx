@@ -1,3 +1,5 @@
+import { CODE_LANGUAGE_OPTIONS } from "../lib/code-language-options";
+import { documentSourceLanguage, documentLanguageCommand } from "../lib/document-language";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import { useFocusEditorTools } from "../stores/useFocusEditorTools";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
@@ -37,6 +39,11 @@ const MarkdownSourceEditor = lazy(() => import("./MarkdownSourceEditor").then(mo
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
   const statusBar = useStatusBarDisplay(props.showStatusBar, props.focusMode);
   const active = useDocumentActive();
+  const storedDocumentLanguage = documentSourceLanguage(props.content.metadata);
+  const [documentLanguage, setDocumentLanguage] = useState(storedDocumentLanguage);
+  const documentLanguageRef = useRef(documentLanguage);
+  documentLanguageRef.current = documentLanguage;
+  useEffect(() => setDocumentLanguage(storedDocumentLanguage), [storedDocumentLanguage]);
   const moreTools = useFocusEditorTools(state => state.expanded);
   const setMoreTools = useFocusEditorTools(state => state.setExpanded);
   const sourceOpenTarget = useDocumentOpenStore(state => state.target?.noteId === props.noteId ? state.target : null);
@@ -83,7 +90,11 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     setSource(text);
     const revision = sourceSession.current?.update(text, range);
     if (!revision) return;
-    const read = () => revision.read();
+    const language = documentLanguageRef.current;
+    const read = () => {
+      const content = revision.read();
+      return { ...content, metadata: { ...content.metadata, sourceLanguage: language } };
+    };
     invalidateEditorDocument(props.noteId);
     latestReader.current = read;
     props.onContentChange(read, { batch: revision });
@@ -215,12 +226,31 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     window.addEventListener(IMAGE_VIEW_EVENT, enrich, true);
     return () => window.removeEventListener(IMAGE_VIEW_EVENT, enrich, true);
   }, [active]);
+  const changeDocumentLanguage = async (language: string) => {
+    if (busyRef.current || latestProps.current.readonly || !CODE_LANGUAGE_OPTIONS.some(option => option.value === language)) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      await latestProps.current.onFlush?.();
+      if (!alive.current || latestProps.current.readonly) return;
+      const current = latestReader.current?.() ?? latestProps.current.content;
+      const next = { ...current, metadata: { ...current.metadata, sourceLanguage: language } };
+      documentLanguageRef.current = language;
+      setDocumentLanguage(language);
+      latestReader.current = () => next;
+      latestProps.current.onContentChange(() => next, { metadataOnly: true });
+    } catch (cause) {
+      setError(`文件格式设置失败：${cause instanceof Error ? cause.message : String(cause)}`);
+    } finally { busyRef.current = false; if (alive.current) setBusy(false); }
+  };
+  const languageProps = { documentLanguage, onDocumentLanguageChange: busy || props.readonly ? undefined : (language: string) => { void changeDocumentLanguage(language); } };
   useNativeMenuActions({
+    ...Object.fromEntries(CODE_LANGUAGE_OPTIONS.map(option => [documentLanguageCommand(option.value), { run: () => changeDocumentLanguage(option.value), checked: documentLanguage === option.value, enabled: !props.readonly && !busy }])),
     "view.tools": { run: () => setMoreTools(value => !value), checked: moreTools, enabled: props.focusMode && !props.readonly },
     "document.source": { run: () => changeView(), checked: source !== null, enabled: supported && !busy },
     "document.readonly": { run: () => props.onReadonlyChange?.(!props.readonly), checked: Boolean(props.readonly), enabled: Boolean(props.onReadonlyChange) && !busy },
   }, active);
-  if (!supported) return render({ ...props, onHostSelection: hostSelection, onHostEditorReady: hostRenderedReady });
+  if (!supported) return render({ ...props, ...languageProps, onHostSelection: hostSelection, onHostEditorReady: hostRenderedReady });
   const toggle = <><button type="button" className="markdown-view-toggle" disabled={busy}
     title={shortcutTitle("document.source", source === null ? "切换到 Markdown 源码" : "切换到渲染视图")}
     aria-label={source === null ? "源码" : "渲染"}
@@ -230,6 +260,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     {error && <div role="alert" className="markdown-source-hint">{error}</div>}
     {source === null ? render({
       ...props,
+      ...languageProps,
       documentViewToggle: toggle,
       onHostSelection: hostSelection,
       onHostEditorReady: hostRenderedReady,
@@ -238,11 +269,12 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         const originalSource = options?.metadataOnly
           ? (latestReader.current?.() ?? latestProps.current.content).metadata?.markdownSource
           : undefined;
+        const language = documentLanguageRef.current;
         let cached: DeltaOps | undefined;
         const read = () => {
           if (cached) return cached;
           const content = reader();
-          const metadata = { ...content.metadata };
+          const metadata = { ...content.metadata, sourceLanguage: language };
           // Rendered edits invalidate the original spelling/spacing, not other metadata.
           if (typeof originalSource === "string") metadata.markdownSource = originalSource;
           else delete metadata.markdownSource;
@@ -271,7 +303,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       <div className="markdown-source-toolbar-host" ref={setSourceToolbarTarget} />
       <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
-      <MarkdownSourceEditor statusTarget={sourceStatusTarget} focusMode={props.focusMode} showStatusBar={props.showStatusBar} saveStatus={props.saveStatus} onVersionOpen={props.onVersionOpen} toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly)} editingDisabled={busy}
+      <MarkdownSourceEditor documentLanguage={documentLanguage} onDocumentLanguageChange={props.readonly || busy ? undefined : languageProps.onDocumentLanguageChange} statusTarget={sourceStatusTarget} focusMode={props.focusMode} showStatusBar={props.showStatusBar} saveStatus={props.saveStatus} onVersionOpen={props.onVersionOpen} toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly)} editingDisabled={busy}
         areaRef={viewPosition.area} onReady={hostSourceReady} onSelectionChange={hostSelection} session={sourceEditorState} onChange={editSource}
         showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine}
         escapeRepair={<MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={applyEscapeRepair} />} />

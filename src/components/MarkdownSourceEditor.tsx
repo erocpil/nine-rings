@@ -155,6 +155,8 @@ export function MarkdownSourceEditor({
   focusMode = false,
   saveStatus,
   onVersionOpen,
+  documentLanguage = "markdown",
+  onDocumentLanguageChange,
 }: {
   value: string;
   readonly: boolean;
@@ -174,6 +176,8 @@ export function MarkdownSourceEditor({
   focusMode?: boolean;
   saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
   onVersionOpen?: () => void;
+  documentLanguage?: string;
+  onDocumentLanguageChange?: (language: string) => void;
 }) {
   const numbering = useNumberingDisplay().source;
   const documentActive = useDocumentActive();
@@ -188,6 +192,8 @@ export function MarkdownSourceEditor({
 
   const initial = useRef({ value, readonly: editingReadonly });
   const lastValue = useRef(value);
+  const syntax = useRef(new Compartment());
+  const [syntaxError, setSyntaxError] = useState("");
   const access = useRef(new Compartment()),
     display = useRef(new Compartment());
   const [preferences, setPreferences] = useState(blockWorkspacePreferences);
@@ -228,13 +234,13 @@ export function MarkdownSourceEditor({
       scrollPastEnd(),
       bracketMatching(),
       closeBrackets(),
-      markdown({
+      syntax.current.of([markdown({
         base: markdownLanguage,
         codeLanguages: languages,
         addKeymap: false,
         extensions: [sourceMicroSyntax],
       }),
-      sourceMicroHighlighting,
+      sourceMicroHighlighting]),
       syntaxHighlighting(
         HighlightStyle.define([
           {
@@ -400,6 +406,27 @@ export function MarkdownSourceEditor({
       onReady?.(null);
     };
   }, [areaRef, session, onReady]);
+  useEffect(() => {
+    const editor = view.current;
+    if (!editor) return;
+    let cancelled = false;
+    setSyntaxError("");
+    if (documentLanguage === "markdown") {
+      editor.dispatch({ effects: syntax.current.reconfigure([
+        markdown({ base: markdownLanguage, codeLanguages: languages, addKeymap: false, extensions: [sourceMicroSyntax] }),
+        sourceMicroHighlighting,
+      ]) });
+    } else {
+      // Remove the previous parser immediately; a slow import must never
+      // install its language after the user has made another selection.
+      editor.dispatch({ effects: syntax.current.reconfigure([]) });
+      const language = languages.find(item => item.alias.includes(documentLanguage));
+      if (documentLanguage && language) void language.load().then(support => {
+        if (!cancelled && view.current === editor) editor.dispatch({ effects: syntax.current.reconfigure(support) });
+      }).catch(() => { if (!cancelled) setSyntaxError("语法高亮加载失败，请重新选择文件格式"); });
+    }
+    return () => { cancelled = true; };
+  }, [documentLanguage]);
   useEffect(() => {
     view.current?.dispatch({
       effects: access.current.reconfigure([
@@ -585,13 +612,15 @@ export function MarkdownSourceEditor({
   return (
     <div
       className="markdown-source-input markdown-cm-source"
-      data-micro-rendering={preferences.sourceMicroRendering === true}
+      data-document-language={documentLanguage || "text"}
+      data-micro-rendering={documentLanguage === "markdown" && preferences.sourceMicroRendering === true}
       data-source-highlighting={preferences.sourceSyntaxHighlighting !== false}
       style={{ fontSize, "--source-font-size": `${fontSize}px` } as CSSProperties}
     >
       {toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbar}
+      {syntaxError && <span role="status">{syntaxError}</span>}
       <div ref={host} className="markdown-cm-host" />
-      {statusTarget ? createPortal(<EditorStatusBar enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} /> : null}
+      {statusTarget ? createPortal(<EditorStatusBar documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} /> : null}
     </div>
   );
 }

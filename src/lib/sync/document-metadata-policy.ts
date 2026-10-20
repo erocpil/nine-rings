@@ -1,4 +1,5 @@
 import type { JSONContent } from "@tiptap/core";
+import { CODE_LANGUAGE_OPTIONS } from "../code-language-options";
 import { isCertifiedHTMLSource } from "./html-body-policy";
 import { isCertifiedLinkDestination } from "./link-body-policy";
 
@@ -38,6 +39,7 @@ const webURL = (value: unknown): boolean =>
   /^https?:\/\//i.test(value) &&
   isCertifiedLinkDestination(value);
 const strings = [
+  "sourceLanguage",
   "originalFileName",
   "markdownSource",
   "author",
@@ -69,6 +71,7 @@ export function isCertifiedDocumentMetadata(
   if (!keys(metadata, allowed)) return false;
   for (const key of strings)
     if (metadata[key] !== undefined && !text(metadata[key])) return false;
+  if (metadata.sourceLanguage !== undefined && !CODE_LANGUAGE_OPTIONS.some(option => option.value === metadata.sourceLanguage)) return false;
   if (
     metadata.keywords !== undefined &&
     (!Array.isArray(metadata.keywords) ||

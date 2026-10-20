@@ -7,6 +7,7 @@ import {
 import { toggleDebug } from "../lib/debugLog";
 import { NavigationButtons } from "./NavigationButtons";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { CODE_LANGUAGE_OPTIONS } from "../lib/code-language-options";
 type SaveStatus = "clean" | "dirty" | "saving" | "saved" | "error";
 export function EditorStatusBar({
   enabled,
@@ -23,6 +24,8 @@ export function EditorStatusBar({
   onVersionOpen,
   children,
   fallbackVisible = false,
+  documentLanguage,
+  onDocumentLanguageChange,
 }: {
   enabled: boolean;
   debugOpen?: boolean;
@@ -38,6 +41,8 @@ export function EditorStatusBar({
   onVersionOpen?: () => void;
   children?: ReactNode;
   fallbackVisible?: boolean;
+  documentLanguage?: string;
+  onDocumentLanguageChange?: (language: string) => void;
 }) {
   const state = useStatusBarDisplay(enabled, focusMode);
   if (!state.visible && !fallbackVisible) return null;
@@ -165,6 +170,16 @@ export function EditorStatusBar({
           </span>
         );
       })}
+      {state.visible && documentLanguage !== undefined && <select
+        className="editor-document-language"
+        aria-label="文件格式"
+        title="文件格式 / 源码语法高亮；不改写正文或文件名"
+        value={documentLanguage}
+        disabled={!onDocumentLanguageChange}
+        onChange={event => onDocumentLanguageChange?.(event.target.value)}
+      >
+        {CODE_LANGUAGE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>}
     </div>
   );
 }

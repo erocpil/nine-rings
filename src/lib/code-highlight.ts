@@ -1,3 +1,4 @@
+export { CODE_LANGUAGE_OPTIONS, type CodeLanguageOption } from "./code-language-options";
 import bash from "highlight.js/lib/languages/bash";
 import c from "highlight.js/lib/languages/c";
 import cpp from "highlight.js/lib/languages/cpp";
@@ -16,11 +17,6 @@ import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
 import { createLowlight } from "lowlight";
 
-export interface CodeLanguageOption {
-  value: string;
-  label: string;
-}
-
 export interface SyntaxToken {
   from: number;
   to: number;
@@ -31,27 +27,6 @@ export const MAX_HIGHLIGHT_CODE_LENGTH = 20_000;
 const MAX_HIGHLIGHT_CACHE_ENTRIES = 32;
 const highlightCache = new Map<string, SyntaxToken[]>();
 
-export const CODE_LANGUAGE_OPTIONS: readonly CodeLanguageOption[] = [
-  { value: "c", label: "C" },
-  { value: "csharp", label: "C#" },
-  { value: "cpp", label: "C++" },
-  { value: "css", label: "CSS" },
-  { value: "flow", label: "Flow / 流程" },
-  { value: "go", label: "Go" },
-  { value: "xml", label: "HTML / XML" },
-  { value: "java", label: "Java" },
-  { value: "javascript", label: "JavaScript" },
-  { value: "json", label: "JSON" },
-  { value: "markdown", label: "Markdown" },
-  { value: "mermaid", label: "Mermaid" },
-  { value: "python", label: "Python" },
-  { value: "rust", label: "Rust" },
-  { value: "bash", label: "Shell / Bash" },
-  { value: "sql", label: "SQL" },
-  { value: "", label: "text" },
-  { value: "typescript", label: "TypeScript" },
-  { value: "yaml", label: "YAML" },
-] as const;
 
 const lowlight = createLowlight({
   bash,

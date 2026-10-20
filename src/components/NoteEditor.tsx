@@ -299,6 +299,8 @@ export interface NoteEditorProps {
   editorFontSize: number;
   onEditorFontSizeChange: (size: number) => void;
   onTitleChange: (title: string) => void;
+  documentLanguage?: string;
+  onDocumentLanguageChange?: (language: string) => void;
   onContentChange: (readContent: () => DeltaOps, options?: { metadataOnly?: boolean; batch?: object }) => void;
   onTagsChange: (tags: string[]) => void;
   onVersionOpen?: () => void;
@@ -467,7 +469,7 @@ function DocumentEditor(input: NoteEditorProps) {
   return <FullNoteEditor {...props} readingBlockVersion={readingBlockVersion} initialPdfExportRequest={exportRequested} selectAllOnOpen={selectAllOnOpen} />;
 }
 
-function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, documentCreatedAt, documentUpdatedAt, documentLastAccessedAt, documentType, documentPath, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
+function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, documentCreatedAt, documentUpdatedAt, documentLastAccessedAt, documentType, documentPath, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
   const statusBar = useStatusBarDisplay(showStatusBar, focusMode);
   const [documentSerializer] = useState(() => new IncrementalDocumentSerializer());
   const noteEditorRef = useRef<HTMLDivElement>(null);
@@ -4988,7 +4990,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       </div>
 
       {/* ── 文档状态栏：本机保存状态、位置统计与诊断/历史入口 ── */}
-      <EditorStatusBar debugOpen={debugOpen} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} block={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? `块 ${currentStatusBlock}/${totalBlocks}` : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} onVersionOpen={onVersionOpen} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
+      <EditorStatusBar documentLanguage={documentLanguage} onDocumentLanguageChange={readonly ? undefined : onDocumentLanguageChange} debugOpen={debugOpen} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} block={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? `块 ${currentStatusBlock}/${totalBlocks}` : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} onVersionOpen={onVersionOpen} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
         {saveIssue && <button type="button" className="workspace-error-indicator" onClick={onOpenSaveIssue}>保存异常 · 查看详情</button>}
         {searchMatches.length > 0 && !editorFindOpen && (
           <span className="editor-search-navigation" role="status" aria-live="polite">

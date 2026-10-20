@@ -841,6 +841,19 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 .editor-stats-search-only {
   min-height: 24px;
 }
+.editor-document-language {
+  flex: 0 0 auto;
+  max-width: 145px;
+  padding: 1px 3px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.editor-document-language:hover:not(:disabled) { border-color: var(--border); background: var(--hover); }
+.editor-document-language option { color: var(--text); background: var(--bg); }
 
 .editor-status-secondary {
   flex: 1 1 auto;
