@@ -94,12 +94,25 @@ function qualify(scope: readonly string[], name: string): string {
 
 function functionIdentity(source: string, scope: readonly string[], name: string, declarator: NodeLike): string {
   let signature = source.slice(declarator.from, declarator.to);
-  const parameterNames = descendants(declarator, candidate => candidate.name === "ParameterDeclaration")
-    .flatMap(parameter => declaredNames(parameter))
+  const optionalParameters = descendants(declarator, candidate => candidate.name === "OptionalParameterDeclaration");
+  const parameterNames = descendants(declarator, candidate => candidate.name === "ParameterDeclaration" || candidate.name === "OptionalParameterDeclaration")
+    .flatMap(parameter => {
+      const equals = parameter.name === "OptionalParameterDeclaration" ? source.indexOf("=", parameter.from) : -1;
+      const declarationEnd = equals >= parameter.from && equals < parameter.to ? equals : parameter.to;
+      return declaredNames(parameter).filter(name => name.to <= declarationEnd);
+    })
     .sort((left, right) => right.from - left.from);
-  for (const parameter of parameterNames) {
-    const from = parameter.from - declarator.from;
-    const to = parameter.to - declarator.from;
+  const ignored = [
+    ...parameterNames.map(node => ({ from: node.from, to: node.to })),
+    ...descendants(declarator, candidate => candidate.name === "DefaultValue").map(node => ({ from: node.from, to: node.to })),
+    ...optionalParameters.flatMap(node => {
+      const equals = source.indexOf("=", node.from);
+      return equals >= node.from && equals < node.to ? [{ from: equals, to: node.to }] : [];
+    }),
+  ].sort((left, right) => right.from - left.from);
+  for (const range of ignored) {
+    const from = range.from - declarator.from;
+    const to = range.to - declarator.from;
     signature = `${signature.slice(0, from)}${signature.slice(to)}`;
   }
   signature = signature.replace(/\s+/g, " ").replace(/\s+([,)\]])/g, "$1").trim();
@@ -109,7 +122,7 @@ function functionIdentity(source: string, scope: readonly string[], name: string
     ? signature.slice(name.length)
     : signature.startsWith(unqualifiedName)
       ? signature.slice(unqualifiedName.length)
-      : `(${signature})`;
+      : signature.replace(unqualifiedName, "");
   return `${qualify(scope, name)}${suffix}`;
 }
 
@@ -167,7 +180,10 @@ function isFunctionPointerVariable(functionDeclarator: NodeLike): boolean {
 
 function functionDeclarators(node: NodeLike): NodeLike[] {
   return descendants(node, candidate => FUNCTION_DECLARATOR_NODES.has(candidate.name))
-    .filter(candidate => !isFunctionPointerVariable(candidate));
+    .filter(candidate => !isFunctionPointerVariable(candidate))
+    // When a function returns a function pointer, the outer declarator carries
+    // the full signature and is the declaration we want to show.
+    .sort((left, right) => left.from - right.from || right.to - left.to);
 }
 
 function declaratorRoot(node: NodeLike): NodeLike {
@@ -199,6 +215,29 @@ function declaredNames(node: NodeLike): NodeLike[] {
   return result.sort((left, right) => left.from - right.from);
 }
 
+function typedefNames(node: NodeLike): NodeLike[] {
+  const result: NodeLike[] = [];
+  const visit = (current: NodeLike) => {
+    if (current.name === "ParameterList" || current.name === "Initializer" || current.name === "DefaultValue") return;
+    if (current.name === "TypeIdentifier" || current.name === "ScopedIdentifier") {
+      result.push(current);
+      return;
+    }
+    if (current.name === "ArrayDeclarator" || current.name === "FunctionDeclarator") {
+      const declarator = children(current).find(child => DECLARATOR_NODES.has(child.name) || child.name === "TypeIdentifier" || child.name === "ScopedIdentifier");
+      if (declarator) visit(declarator);
+      return;
+    }
+    for (let child = current.firstChild; child; child = child.nextSibling) {
+      if (DECLARATOR_NODES.has(child.name) || child.name === "TypeIdentifier" || child.name === "ScopedIdentifier") visit(child);
+    }
+  };
+  for (const child of children(node)) {
+    if (DECLARATOR_NODES.has(child.name) || child.name === "TypeIdentifier" || child.name === "ScopedIdentifier") visit(child);
+  }
+  return result.sort((left, right) => left.from - right.from);
+}
+
 function declarationTypePrefix(source: string, from: number, to: number): string {
   return source.slice(from, to)
     .replace(/\b(?:static|extern|register|inline|constexpr|virtual|friend|typedef)\b/g, " ")
@@ -227,7 +266,7 @@ function declarationSymbols(
     // A declaration can contain more than one declarator. Handle each root
     // independently so `int a, *b;` produces two entries with the right types.
     if (callable.length && !(child.name === "InitDeclarator" && root.name === "FunctionDeclarator" && isFunctionPointerVariable(root))) {
-      const fn = callable[callable.length - 1];
+      const fn = callable[0];
       const name = namedToken(source, fn);
       if (name) {
         const signature = functionLabel(source, fn, name);
@@ -290,12 +329,18 @@ function collectTree(source: string, tree: Tree): SourceSymbol[] {
         continue;
       }
       if (node.name === "NamespaceDefinition") {
-        const nameNode = children(node).find(child => ["NamespaceIdentifier", "Identifier", "ScopedIdentifier"].includes(child.name));
-        const name = nameNode ? sourceText(source, nameNode) : null;
         const body = firstDirect(node, "CompoundStatement");
+        const declaration = sourceText(source, node);
+        const namespaceName = /^inline\s+namespace\s+([A-Za-z_]\w*(?:\s*::\s*[A-Za-z_]\w*)*)|^namespace\s+([A-Za-z_]\w*(?:\s*::\s*[A-Za-z_]\w*)*)/.exec(declaration);
+        const name = (namespaceName?.[1] ?? namespaceName?.[2])?.replace(/\s*::\s*/g, "::") ?? null;
         if (name) {
-          addSymbol(symbols, node, level, "命名空间", `namespace ${name}`, name, qualify(scope, name));
-          if (body) walkScope(body, level + 1, [...scope, ...name.split("::")], access);
+          if (!body) {
+            const alias = /^namespace\s+([A-Za-z_]\w*)\s*=/.exec(declaration)?.[1];
+            if (alias) addSymbol(symbols, node, level, "别名", alias, alias, qualify(scope, alias), declaration);
+          } else {
+            addSymbol(symbols, node, level, "命名空间", `namespace ${name}`, name, qualify(scope, name));
+            walkScope(body, level + 1, [...scope, ...name.split("::")], access);
+          }
         } else if (body) {
           // Anonymous namespaces are useful scopes for their declarations even
           // though they do not need a visible outline row.
@@ -309,9 +354,7 @@ function collectTree(source: string, tree: Tree): SourceSymbol[] {
       }
       if (node.name === "TypeDefinition") {
         const nestedType = children(node).find(child => TYPE_NODES.has(child.name));
-        const aliases = children(node).filter(child => child.name === "TypeIdentifier");
-        const alias = aliases[aliases.length - 1];
-        if (alias) {
+        for (const alias of typedefNames(node)) {
           const name = sourceText(source, alias);
           const declaration = sourceText(source, node);
           addSymbol(symbols, alias, level, "别名", name, name, qualify(scope, name), declaration);
@@ -340,7 +383,7 @@ function collectTree(source: string, tree: Tree): SourceSymbol[] {
       }
       if (node.name === "FunctionDefinition") {
         const functions = functionDeclarators(node);
-        const declarator = functions[functions.length - 1];
+        const declarator = functions[0];
         if (declarator) {
           const name = namedToken(source, declarator);
           if (name) {

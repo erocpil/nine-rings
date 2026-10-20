@@ -80,7 +80,7 @@ test("标题右侧源码、插件、目录与书签按钮等宽", async ({ page 
   for (const width of [1280, 390, 350]) {
     await page.setViewportSize({ width, height: 844 });
     await expect.poll(async () => {
-      const widths = await row.locator('button[aria-label="源码"], button[aria-label="文档目录"], button[aria-label="书签与标注"], button[aria-label="内置插件"]').evaluateAll(elements => elements.map(element => element.getBoundingClientRect().width));
+      const widths = await row.locator('button[aria-label="源码"], button[aria-label="文档目录"], button[aria-label="书签"], button[aria-label="书签与标注"], button[aria-label="内置插件"]').evaluateAll(elements => elements.map(element => element.getBoundingClientRect().width));
       return widths.length === 4 && Math.min(...widths) > 0 ? Math.max(...widths) - Math.min(...widths) : Infinity;
     }).toBeLessThan(1);
   }

@@ -44,7 +44,11 @@ assert.equal(symbols.find((symbol) => symbol.text === "reset(int value)")?.ident
 
 const edgeCases = `#define NR_LIMIT 8
 #define NR_MAX(a, b) ((a) > (b) ? (a) : (b))
+namespace fs = std::filesystem;
+namespace outer::inner { int nestedNamespaceValue; }
 using PortNumber = unsigned short;
+typedef int *IntPointer;
+typedef int (*CompareCallback)(const char *);
 namespace outer {
 template <typename T>
 struct Box {
@@ -58,6 +62,8 @@ struct Box {
 template <class T> T identity(T value) { return value; }
 int overloaded(int value);
 int overloaded(double value);
+void configured(int value = 7);
+void configured(int other);
 int process(int declaredName);
 }
 class Access {
@@ -77,6 +83,7 @@ struct Widget;
 int Widget::run(int value) { return value; }
 int outer::process(int definitionName) { return definitionName; }
 int (*globalCallback)(int);
+int (*factory(void))(int);
 int values[4];
 int first = helper(1), *second;
 `;
@@ -86,6 +93,11 @@ const findSymbol = (text: string, kind?: string) => edgeSymbols.find(symbol => s
 assert.equal(findSymbol("NR_LIMIT", "宏")?.detail, "#define NR_LIMIT 8");
 assert.equal(findSymbol("NR_MAX", "宏")?.detail, "#define NR_MAX(a, b) ((a) > (b) ? (a) : (b))");
 assert.equal(findSymbol("PortNumber", "别名")?.detail, "using PortNumber = unsigned short;");
+assert.equal(findSymbol("fs", "别名")?.detail, "namespace fs = std::filesystem;");
+assert.equal(findSymbol("namespace outer::inner", "命名空间")?.level, 1);
+assert.equal(findSymbol("nestedNamespaceValue", "变量")?.identity, "outer::inner::nestedNamespaceValue#变量");
+assert.equal(findSymbol("IntPointer", "别名")?.detail, "typedef int *IntPointer;");
+assert.equal(findSymbol("CompareCallback", "别名")?.detail, "typedef int (*CompareCallback)(const char *);");
 assert.ok(findSymbol("struct Box", "类型"));
 assert.equal(findSymbol("value", "成员")?.identity, "outer::Box::value#成员");
 assert.equal(findSymbol("callback", "成员")?.displayText, "callback: int (*)(int)");
@@ -102,12 +114,14 @@ assert.equal(edgeSymbols.filter(symbol => symbol.kind === "命名空间" && symb
 assert.ok(findSymbol("hidden()", "函数"));
 assert.equal(edgeSymbols.filter(symbol => symbol.kind === "函数" && symbol.text.startsWith("overloaded(")).length, 2);
 assert.equal(new Set(edgeSymbols.filter(symbol => symbol.kind === "函数" && symbol.text.startsWith("overloaded(")).map(symbol => symbol.identity)).size, 2);
+assert.equal(new Set(edgeSymbols.filter(symbol => symbol.kind === "函数" && symbol.text.startsWith("configured(")).map(symbol => symbol.identity)).size, 1);
 assert.equal(edgeSymbols.filter(symbol => symbol.kind === "函数" && symbol.identity === "outer::process(int)").length, 2);
 assert.equal(findSymbol("Widget::run(int value)", "函数")?.identity, "Widget::run(int)");
 assert.equal(findSymbol("Widget::run(int value)", "函数")?.level, findSymbol("struct Widget", "类型")!.level + 1);
 assert.equal(findSymbol("shown", "成员")?.detail, "public · shown: int");
 assert.equal(findSymbol("hidden", "成员")?.detail, "private · hidden: int");
 assert.equal(findSymbol("globalCallback", "变量")?.displayText, "globalCallback: int (*)(int)");
+assert.equal(edgeSymbols.find(symbol => symbol.kind === "函数" && symbol.displayText === "int (*factory(void))(int)")?.displayText, "int (*factory(void))(int)");
 assert.equal(findSymbol("values", "变量")?.displayText, "values: int [4]");
 assert.equal(findSymbol("first", "变量")?.displayText, "first: int");
 assert.equal(findSymbol("second", "变量")?.displayText, "second: int *");
