@@ -30,6 +30,7 @@ import { invalidateEditorDocument } from "../lib/editor-session-cache";
 import { deltaToProseMirror, isProseMirror, proseMirrorToDelta } from "../lib/delta-converter";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { DocumentTitlePreview } from "./DocumentTitlePreview";
+import { DocumentInfoCard } from "./DocumentInfoCard";
 import { MarkdownEscapeRepair } from "./MarkdownEscapeRepair";
 import { api } from "../lib/api";
 import { useMarkdownViewPosition } from "../hooks/useMarkdownViewPosition";
@@ -71,6 +72,41 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const [error, setError] = useState("");
+  const [sourceInfoOpen, setSourceInfoOpen] = useState(false);
+  const sourceInfoTimer = useRef<number | null>(null);
+  const clearSourceInfoTimer = () => {
+    if (sourceInfoTimer.current !== null) window.clearTimeout(sourceInfoTimer.current);
+    sourceInfoTimer.current = null;
+  };
+  const closeSourceInfoLater = () => {
+    clearSourceInfoTimer();
+    sourceInfoTimer.current = window.setTimeout(() => setSourceInfoOpen(false), 180);
+  };
+  useEffect(() => () => clearSourceInfoTimer(), []);
+  const sourceTitle = <>
+    <div className="note-title-field"
+      onPointerEnter={event => { clearSourceInfoTimer(); if (event.pointerType !== "touch") setSourceInfoOpen(true); }}
+      onPointerLeave={closeSourceInfoLater}
+      onFocusCapture={() => { clearSourceInfoTimer(); setSourceInfoOpen(false); }}>
+      {props.readonly
+        ? <DocumentTitlePreview title={props.title || "无标题"} onOpenProperties={props.onOpenProperties} />
+        : <input type="text" className="note-title" aria-label="文档标题" placeholder="输入文档标题" value={props.title ?? ""} onChange={event => props.onTitleChange(event.target.value)} />}
+    </div>
+    {sourceInfoOpen && props.documentCreatedAt && props.documentUpdatedAt && <DocumentInfoCard
+      className="document-info-card-title-hover"
+      title={props.title || "无标题"}
+      content={props.content}
+      createdAt={props.documentCreatedAt}
+      updatedAt={props.documentUpdatedAt}
+      lastAccessedAt={props.documentLastAccessedAt}
+      readonly={props.readonly}
+      docType={props.documentType}
+      tags={props.tags}
+      path={props.documentPath}
+      onPointerEnter={clearSourceInfoTimer}
+      onPointerLeave={closeSourceInfoLater}
+    />}
+  </>;
   const [snapshot, setSnapshot] = useState<{ base: DeltaOps; content: DeltaOps } | null>(null);
   const latestProps = useRef(props);
   latestProps.current = props;
@@ -308,13 +344,13 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       <div className="note-title-row markdown-source-title-row">
         {props.titleSecurityAction}
         {props.onReadonlyChange && <button type="button" className="note-readonly-badge note-readonly-action" data-document-readonly={props.readonly === true} disabled={busy} aria-label={props.readonly ? "切换为可编辑" : "设置只读"} title={props.readonly ? "切换为可编辑" : "设置只读"} onClick={() => props.onReadonlyChange?.(!props.readonly)}><ToolbarIcon name={props.readonly ? "lock" : "unlock"} /></button>}
-        <div className="note-title-field"><DocumentTitlePreview title={props.title || "无标题"} onOpenProperties={props.onOpenProperties} /></div>
+        {sourceTitle}
         {toggle}
       </div>
       <Suspense fallback={<div role="status">正在加载预览…</div>}>
         <SourceDocumentPreview language={documentLanguage} source={sourceSession.current?.current.source ?? readDocumentSource(props.content)} fontSize={props.editorFontSize} />
       </Suspense>
-      <EditorStatusBar enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus} documentLanguage={documentLanguage} onDocumentLanguageChange={languageProps.onDocumentLanguageChange} onVersionOpen={props.onVersionOpen} />
+      <EditorStatusBar enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus} documentLanguage={documentLanguage} onDocumentLanguageChange={languageProps.onDocumentLanguageChange} onCreateDocument={props.readonly ? undefined : props.onCreateDocument} onVersionOpen={props.onVersionOpen} />
     </> : source === null ? render({
       ...props,
       ...languageProps,
@@ -347,7 +383,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         {props.onReadonlyChange && <button type="button" className="note-readonly-badge note-readonly-action" data-document-readonly={props.readonly === true} aria-pressed={props.readonly === true} disabled={busy}
           aria-label={props.readonly ? "切换为可编辑" : "设置只读"} title={props.readonly ? "切换为可编辑" : "设置只读"}
           onClick={() => props.onReadonlyChange?.(!props.readonly)}><ToolbarIcon name={props.readonly ? "lock" : "unlock"} /></button>}
-        <div className="note-title-field"><DocumentTitlePreview title={props.title || "无标题"} /></div>
+        {sourceTitle}
         {toggle}
         {props.focusMode && !props.readonly && <button type="button" className="markdown-view-toggle" title={shortcutTitle("view.tools", "更多编辑工具")} aria-label="更多编辑工具" aria-expanded={moreTools} onClick={() => setMoreTools(value => !value)}><ToolbarIcon name="annotate" /></button>}
         {!mobile && hasPreview && <button type="button" className="markdown-view-toggle" title="并排预览" aria-label="并排预览" aria-pressed={preview} onClick={() => { setPreview(!preview); localStorage.setItem("nr:markdownSplitPreview", String(!preview)); }}><ToolbarIcon name="panel" /></button>}
@@ -360,7 +396,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       <div className="markdown-source-toolbar-host" ref={setSourceToolbarTarget} />
       <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={hasPreview && preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
-      <MarkdownSourceEditor documentLanguage={documentLanguage} onDocumentLanguageChange={props.readonly || busy ? undefined : languageProps.onDocumentLanguageChange} statusTarget={sourceStatusTarget} focusMode={props.focusMode} showStatusBar={props.showStatusBar} saveStatus={props.saveStatus} onVersionOpen={props.onVersionOpen} toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly)} editingDisabled={busy}
+      <MarkdownSourceEditor documentLanguage={documentLanguage} onDocumentLanguageChange={props.readonly || busy ? undefined : languageProps.onDocumentLanguageChange} onCreateDocument={props.readonly ? undefined : props.onCreateDocument} statusTarget={sourceStatusTarget} focusMode={props.focusMode} showStatusBar={props.showStatusBar} saveStatus={props.saveStatus} onVersionOpen={props.onVersionOpen} toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly)} editingDisabled={busy}
         areaRef={viewPosition.area} onReady={hostSourceReady} onSelectionChange={hostSelection} session={sourceEditorState} onChange={editSource}
         showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine}
         escapeRepair={documentLanguage === "markdown" ? <MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={applyEscapeRepair} /> : undefined} />

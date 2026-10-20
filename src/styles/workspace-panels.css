@@ -1829,6 +1829,19 @@
 .doc-tree-path-lock .toolbar-icon { width: 13px; height: 13px; color: var(--text-secondary); }
 .doc-tree-folder .doc-tree-name { font-size: 13px; }
 .doc-tree-folder .doc-tree-count { font-size: 10px; padding-inline: 3px; }
+.doc-tree-folder-add {
+  width: 20px;
+  height: 20px;
+  margin-inline-start: auto;
+  opacity: 0;
+  pointer-events: none;
+  color: var(--text-secondary);
+  transition: opacity 100ms ease;
+}
+.doc-tree-folder:is(:hover, :focus-within) .doc-tree-folder-add {
+  opacity: 1;
+  pointer-events: auto;
+}
 
 .doc-tree-doc {
   color: var(--text);

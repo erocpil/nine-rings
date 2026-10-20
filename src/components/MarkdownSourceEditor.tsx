@@ -204,6 +204,7 @@ export function MarkdownSourceEditor({
   focusMode = false,
   saveStatus,
   onVersionOpen,
+  onCreateDocument,
   documentLanguage = "markdown",
   onDocumentLanguageChange,
 }: {
@@ -225,6 +226,7 @@ export function MarkdownSourceEditor({
   focusMode?: boolean;
   saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
   onVersionOpen?: () => void;
+  onCreateDocument?: () => void;
   documentLanguage?: string;
   onDocumentLanguageChange?: (language: string) => void;
 }) {
@@ -782,7 +784,7 @@ export function MarkdownSourceEditor({
         <span>{sourceMessage}</span>
         <button type="button" aria-label="关闭提示" title="关闭提示" onMouseDown={event => event.preventDefault()} onClick={() => setSourceMessage("")}><ToolbarIcon name="close" /></button>
       </div>}
-      {statusTarget ? createPortal(<EditorStatusBar sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} /> : null}
+      {statusTarget ? createPortal(<EditorStatusBar sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={readonly ? undefined : onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={readonly ? undefined : onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} /> : null}
     </div>
   );
 }

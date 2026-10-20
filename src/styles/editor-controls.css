@@ -874,6 +874,23 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
 }
 .editor-status-bar .editor-status-select:disabled { opacity: .58; cursor: not-allowed; }
+.editor-status-create {
+  margin-inline-start: auto;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.editor-status-create:hover { color: var(--text); background: var(--hover); }
+.editor-status-create .toolbar-icon { width: 15px; height: 15px; }
 
 .editor-status-secondary {
   flex: 1 1 auto;

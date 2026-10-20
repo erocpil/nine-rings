@@ -31,7 +31,7 @@ interface DocTreeProps {
   revealSequence?: number;
   selectedTitle?: string;
   selectedFolderPath?: string | null;
-  onCreate: () => void;
+  onCreate: (path?: string) => void;
   onPathSecurity?: (path: string, action: "set" | "remove" | "delete") => Promise<boolean>;
   refreshKey?: number;
   onRename?: (id: string, title: string) => void;
@@ -859,6 +859,14 @@ function DocTree({
                   {node.name}
                 </span>
                 {(!display || display.showCounts) && <span className="doc-tree-count">{node.count ?? 0}</span>}
+                <button
+                  type="button"
+                  className="btn-icon doc-tree-folder-add"
+                  title={`在 ${node.path} 中新建文档`}
+                  aria-label={`在路径 ${node.path} 中新建文档`}
+                  disabled={disabled}
+                  onClick={event => { event.stopPropagation(); onCreate(node.path); }}
+                ><ToolbarIcon name="plus" /></button>
               </>
             )}
           </div>
@@ -1052,7 +1060,7 @@ function DocTree({
             >
               <ToolbarIcon name="rename" />
             </button>
-            <button className="btn-icon doc-tree-add" onClick={disabled ? undefined : onCreate} disabled={disabled} title="新建文档" aria-label="新建文档">
+            <button className="btn-icon doc-tree-add" onClick={disabled ? undefined : () => onCreate()} disabled={disabled} title="新建文档" aria-label="新建文档">
               <ToolbarIcon name="plus" />
             </button>
           </>

@@ -25,6 +25,7 @@ export function EditorStatusBar({
   fallbackVisible = false,
   documentLanguage,
   onDocumentLanguageChange,
+  onCreateDocument,
 }: {
   enabled: boolean;
   focusMode?: boolean;
@@ -42,6 +43,7 @@ export function EditorStatusBar({
   fallbackVisible?: boolean;
   documentLanguage?: string;
   onDocumentLanguageChange?: (language: string) => void;
+  onCreateDocument?: () => void;
 }) {
   const state = useStatusBarDisplay(enabled, focusMode);
   if (!state.visible && !fallbackVisible) return null;
@@ -167,6 +169,13 @@ export function EditorStatusBar({
       >
         {DOCUMENT_LANGUAGE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>}
+      {state.visible && onCreateDocument && <button
+        type="button"
+        className="editor-status-create"
+        aria-label="在当前路径新建文档"
+        title="在当前路径新建同格式文档"
+        onClick={onCreateDocument}
+      ><ToolbarIcon name="plus" /></button>}
     </div>
   );
 }

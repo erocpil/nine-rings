@@ -73,6 +73,8 @@ import { isTauriRuntime } from "./lib/runtime";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { editorAppearanceVariables } from "./lib/editor-appearance";
 import { isPathUnder } from "./lib/storage/core";
+import { normalizeStoragePath } from "./lib/storage/core";
+import { documentSourceLanguage } from "./lib/document-language";
 import { getPathAncestors } from "./lib/move-to";
 import { resolveFolderRename } from "./lib/folder-rename";
 import { useWebPlatform } from "./hooks/useWebPlatform";
@@ -602,6 +604,35 @@ function App() {
     // 用户在手机上再次打开时也会直接看到当前文档所在位置。
     revealDocTreePath(documentPath);
   }, [revealDocTreePath, selectedNote?.id, selectedNote?.storagePath]);
+
+  const createQuickDocument = useCallback(async (storagePath: string, language = "") => {
+    if (syncBusy) return;
+    try {
+      await flushAutoSave();
+      const normalizedPath = normalizeStoragePath(storagePath || "ideas");
+      const existing = await api.notes.all();
+      const names = new Set(existing
+        .filter(note => (note.storagePath ?? "") === normalizedPath)
+        .map(note => note.title ?? ""));
+      let title = "未命名";
+      for (let index = 2; names.has(title); index += 1) title = `未命名 ${index}`;
+      const metadata: DocumentMetadata = language
+        ? { sourceLanguage: language }
+        : { sourceFormat: "text", sourceLanguage: "" };
+      const note = await api.notes.create({
+        date: localDateKey(),
+        title,
+        storagePath: normalizedPath,
+        content: { ops: [], metadata },
+      });
+      setDocTreeKey(key => key + 1);
+      revealDocTreePath(normalizedPath);
+      handleSelectNote(note);
+      refreshNotes();
+    } catch (error) {
+      useNotesStore.setState({ error: `新建文档失败：${error instanceof Error ? error.message : String(error)}` });
+    }
+  }, [syncBusy, flushAutoSave, revealDocTreePath, handleSelectNote, refreshNotes]);
 
   const handleMoveDocument = useCallback(async (id: string, targetPath: string) => {
     const currentSelected = useNotesStore.getState().selectedNote;
@@ -1748,7 +1779,7 @@ function App() {
               selectedId={workspaceHome ? null : selectedNote?.id ?? null}
               selectedTitle={workspaceHome ? undefined : selectedNote?.title ?? undefined}
               selectedFolderPath={workspaceHome ? null : selectedFolderPath}
-              onCreate={() => setDocCreateOpen(true)}
+              onCreate={path => path === undefined ? setDocCreateOpen(true) : void createQuickDocument(path, "")}
               refreshKey={docTreeKey}
               onRename={(id, title) => updateNote(id, { title })}
               onRenameFolder={handleRenameFolder}
@@ -1961,6 +1992,10 @@ function App() {
                         setDocTreeKey(k => k + 1);
                       } : undefined}
                       title={selectedNote.title}
+                      onCreateDocument={() => void createQuickDocument(
+                        selectedNote.storagePath ?? "",
+                        documentSourceLanguage(selectedNote.content.metadata),
+                      )}
                       content={selectedNote.content}
                       pdfExcerptSource={selectedNote.content.metadata?.pdfExcerpt}
                       onOpenPdfExcerpt={async (source) => {
