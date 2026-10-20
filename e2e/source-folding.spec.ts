@@ -104,7 +104,8 @@ test("不提供级别选择的源码折叠按钮不预留三角区域", async ({
   const picker = page.getByRole("combobox", { name: "文件格式", exact: true });
   await picker.selectOption("c");
   const groups = page.locator(".source-fold-tool");
-  await expect(groups).toHaveCount(2);
+  await expect(groups).toHaveCount(1);
+  await expect(groups.getByRole("button", { name: "折叠全部", exact: true })).toBeVisible();
   for (const group of await groups.all()) {
     await expect(group.locator("button")).toHaveCount(1);
     expect(await group.evaluate(el => el.getBoundingClientRect().width)).toBe(28);
@@ -115,6 +116,13 @@ test("不提供级别选择的源码折叠按钮不预留三角区域", async ({
     expect(await group.evaluate(el => el.getBoundingClientRect().width)).toBe(44);
   }
   await picker.selectOption("c");
+  const source = page.locator(".cm-content");
+  await replaceSource(source, "int main() {\nreturn 0;\n}");
+  const toggle = page.getByRole("toolbar", { name: "源码编辑工具" }).getByRole("button", { name: "折叠全部", exact: true });
+  await toggle.click();
+  await expect(page.getByRole("toolbar", { name: "源码编辑工具" }).getByRole("button", { name: "展开全部", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("toolbar", { name: "源码编辑工具" }).getByRole("button", { name: "展开全部", exact: true }).click();
+  await expect(page.getByRole("toolbar", { name: "源码编辑工具" }).getByRole("button", { name: "折叠全部", exact: true })).toHaveAttribute("aria-pressed", "false");
   for (const group of await groups.all()) {
     await expect(group.locator("button")).toHaveCount(1);
     expect(await group.evaluate(el => el.getBoundingClientRect().width)).toBe(28);
