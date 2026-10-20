@@ -1,4 +1,3 @@
-import { isDebugOpen, subscribeDebugOpen, toggleDebug } from "./lib/debugLog";
 import { useNativeMenuHost } from "./hooks/useNativeMenuHost";
 import { useNativeMenuActions } from "./hooks/useNativeMenuActions";
 import { useDocumentSequence } from "./hooks/useDocumentSequence";
@@ -106,7 +105,6 @@ const ImageViewerHost = lazy(() => import("./components/ImageViewerDialog").then
 const RecycleBin = lazy(() => import("./components/RecycleBin").then((module) => ({ default: module.RecycleBin })));
 const VersionHistory = lazy(() => import("./components/VersionHistory").then((module) => ({ default: module.VersionHistory })));
 const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((module) => ({ default: module.SettingsPanel })));
-const DebugPanel = lazy(() => import("./components/DebugPanel").then((module) => ({ default: module.DebugPanel })));
 const VocabularyPanel = lazy(() => import("./components/VocabularyPanel").then(module => ({ default: module.VocabularyPanel })));
 const VocabularyLearningView = lazy(() => import("./components/VocabularyLearningView").then(module => ({ default: module.VocabularyLearningView })));
 const TitleBar = lazy(() => import("./components/TitleBar"));
@@ -1015,7 +1013,6 @@ function App() {
     }
     sidebarHover.click(panel);
   };
-  const nativeDebugOpen = useSyncExternalStore(subscribeDebugOpen, isDebugOpen);
   useNativeMenuHost(searchExpanded || errorDetailsOpen || settingsOpen || quickSwitcherOpen || docCreateOpen || versionOpen || protectionBusy || syncBusy || applyingWebUpdate || recycleOpen, error => useNotesStore.setState({ error }));
   useNativeMenuActions({
     "workspace.new": { run: () => setDocCreateOpen(true) },
@@ -1024,7 +1021,6 @@ function App() {
     "workspace.switch": { run: () => setQuickSwitcherOpen(true) },
     "workspace.recycle": { run: () => setRecycleOpen(true) },
     "document.save": { run: flushAutoSave, enabled: Boolean(selectedNote) },
-    "document.logs": { run: toggleDebug, checked: nativeDebugOpen },
     "document.properties": { run: () => setPropertiesOpen(value => !value), checked: propertiesOpen, enabled: !workspaceHomeRequested && !pluginMainActive && Boolean(selectedNote || selectedFolderPath) },
     "document.history": { run: () => setVersionOpen(true), enabled: Boolean(selectedNote) && !workspaceHomeRequested && !pluginMainActive },
     "view.focus": { run: () => preserveReadingPositions(() => setFocusMode(value => !value)), checked: focusMode },
@@ -2040,9 +2036,6 @@ function App() {
                   </div>
                 ))}
                 </RetainedDocument>
-                <Suspense fallback={null}>
-                  <DebugPanel />
-                </Suspense>
               </div>
             </div>
         </main>

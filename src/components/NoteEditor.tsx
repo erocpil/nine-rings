@@ -83,7 +83,7 @@ import { Plugin, TextSelection, Selection, type Transaction } from "@tiptap/pm/s
 import type { EditorView } from "@tiptap/pm/view";
 import { closeHistory } from "@tiptap/pm/history";
 import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
-import { addLog, isDebugOpen, subscribeDebugOpen } from "../lib/debugLog";
+import { addLog } from "../lib/debugLog";
 import { copyToClipboard } from "../lib/clipboard";
 import {
   CodeBlockLineNumbers,
@@ -511,7 +511,6 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onHostEdit
   const bookmarkJumpPulseTimerRef = useRef<number | null>(null);
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
-  const [debugOpen, setDebugOpen] = useState(isDebugOpen);
   const [documentInfoOpen, setDocumentInfoOpen] = useState(false);
   const documentInfoCloseTimerRef = useRef<number | null>(null);
   const clearDocumentInfoCloseTimer = () => {
@@ -531,7 +530,6 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onHostEdit
     if (documentInfoCloseTimerRef.current !== null)
       window.clearTimeout(documentInfoCloseTimerRef.current);
   }, []);
-  useEffect(() => subscribeDebugOpen(setDebugOpen), []);
   const [editorFindOpen, setEditorFindOpen] = useState(false);
   const [editorFindQuery, setEditorFindQuery] = useState("");
   const [editorReplaceOpen, setEditorReplaceOpen] = useState(false);
@@ -4990,7 +4988,7 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onHostEdit
       </div>
 
       {/* ── 文档状态栏：本机保存状态、位置统计与诊断/历史入口 ── */}
-      <EditorStatusBar documentLanguage={documentLanguage} onDocumentLanguageChange={readonly ? undefined : onDocumentLanguageChange} debugOpen={debugOpen} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} block={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? `块 ${currentStatusBlock}/${totalBlocks}` : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} onVersionOpen={onVersionOpen} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
+      <EditorStatusBar documentLanguage={documentLanguage} onDocumentLanguageChange={readonly ? undefined : onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} block={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? `块 ${currentStatusBlock}/${totalBlocks}` : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} onVersionOpen={onVersionOpen} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
         {saveIssue && <button type="button" className="workspace-error-indicator" onClick={onOpenSaveIssue}>保存异常 · 查看详情</button>}
         {searchMatches.length > 0 && !editorFindOpen && (
           <span className="editor-search-navigation" role="status" aria-live="polite">

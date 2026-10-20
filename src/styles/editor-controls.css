@@ -887,8 +887,6 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
   font-variant-numeric: tabular-nums;
 }
 
-.editor-stats .btn-debug-toggle-wrapper { display: inline-flex; }
-
 .editor-status-actions {
   flex-shrink: 0;
   display: inline-flex;
@@ -1044,29 +1042,6 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 
 /* ── 调试日志面板 ── */
 
-.btn-debug-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  color: var(--text-secondary);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 10px;
-  line-height: 1.2;
-  transition: color var(--transition), background var(--transition), border-color var(--transition);
-}
-.btn-debug-toggle:hover,
-.btn-debug-toggle.active {
-  color: var(--accent);
-  background: var(--hover);
-  border-color: var(--border);
-}
-.btn-debug-toggle .toolbar-icon { width: 14px; height: 14px; }
-
 .debug-panel {
   max-height: 200px;
   overflow: hidden;
@@ -1075,6 +1050,34 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
   background: var(--surface);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+}
+.settings-debug-log { margin-top: 12px; }
+.settings-debug-log-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-small, 6px);
+  cursor: pointer;
+  font: inherit;
+}
+.settings-debug-log-toggle:hover,
+.settings-debug-log-toggle[aria-expanded="true"] {
+  color: var(--text);
+  background: var(--hover);
+  border-color: var(--border);
+}
+.settings-debug-log-toggle > .toolbar-icon:first-child { color: var(--accent); }
+.settings-debug-log-toggle > .toolbar-icon:last-child { width: 12px; height: 12px; }
+.debug-panel-inline {
+  max-height: min(320px, 45vh);
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--ui-radius-small, 6px);
 }
 .debug-panel-header {
   display: flex;
@@ -1574,20 +1577,20 @@ html[data-interface-style] .editor-menu .toolbar-split-button > .menu-btn:is(:ho
   padding-block: var(--statusbar-padding, 4px); gap: var(--statusbar-gap, 10px);
   color: var(--statusbar-color-light, var(--text-secondary)); background-color: var(--statusbar-background-light, transparent);
 }
-.editor-status-bar[data-status-display="plugin"] :is(.editor-status-item, .editor-status-block, .btn-debug-toggle, .btn-version-icon, .document-navigation .focus-btn) { font: inherit; color: inherit; }
+.editor-status-bar[data-status-display="plugin"] :is(.editor-status-item, .editor-status-block, .btn-version-icon, .document-navigation .focus-btn) { font: inherit; color: inherit; }
 html:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) .editor-status-bar[data-status-display="plugin"] { color: var(--statusbar-color-dark, var(--text-secondary)); background-color: var(--statusbar-background-dark, transparent); }
 .focus-mode .editor-status-bar[data-status-show-in-focus="true"] { display: flex !important; }
 .status-display-items { padding: 0; list-style: none; }
 .status-display-items li { display: flex; align-items: center; gap: 6px; padding-block: 4px; }
 .status-display-items label { flex: 1; display: inline-flex; align-items: center; gap: 6px; }
 @media (max-width: 768px) {
-  .editor-status-bar .editor-status-item:is([data-status-item="characters"], [data-status-item="words"], [data-status-item="diagnostics"]) { display: none; }
+  .editor-status-bar .editor-status-item:is([data-status-item="characters"], [data-status-item="words"]) { display: none; }
   .editor-status-bar { gap: 6px; }
 }
 
 /* Adapt to the editor pane, including a narrow pane on a wide desktop. */
 .editor-status-bar { container: nr-status / inline-size; }
 @container nr-status (max-width: 320px) {
-  .editor-status-bar :is(.btn-debug-toggle, .btn-version-icon) > span { display: none; }
+  .editor-status-bar .btn-version-icon > span { display: none; }
   .editor-status-bar [data-status-item="block"] { max-width: 64px; overflow: hidden; text-overflow: ellipsis; }
 }

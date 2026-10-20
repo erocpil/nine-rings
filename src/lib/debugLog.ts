@@ -30,24 +30,3 @@ export function clearLogs(): void {
   _logs = [];
   _listeners.forEach((fn) => fn());
 }
-
-// ── 面板开关（模块级，跨组件挂载保持）──
-
-let _debugOpen = false;
-const _openListeners = new Set<(v: boolean) => void>();
-
-export function isDebugOpen(): boolean {
-  return _debugOpen;
-}
-
-export function toggleDebug(): void {
-  _debugOpen = !_debugOpen;
-  _openListeners.forEach((fn) => fn(_debugOpen));
-}
-
-export function subscribeDebugOpen(fn: (v: boolean) => void): () => void {
-  _openListeners.add(fn);
-  // 立即推送当前值
-  fn(_debugOpen);
-  return () => { _openListeners.delete(fn); };
-}

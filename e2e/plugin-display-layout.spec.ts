@@ -79,11 +79,11 @@ test("阅读展示组合包可审查安装、重启恢复、停用和卸载", as
   const bar = page.getByRole("group", { name: "文档状态栏", exact: true });
   await expect(bar).toHaveCSS("font-size", "12px");
   await expect(bar).toHaveAttribute("data-status-display", "plugin");
+  await expect(bar.locator('[data-status-item="diagnostics"]')).toHaveCount(0);
   await expect(page.locator("html")).toHaveAttribute("data-numbering-blocks", "");
   await expect(page.locator("html")).toHaveAttribute("data-numbering-source", "");
   const nav = await bar.locator('[data-status-item="navigation"]').boundingBox();
-  const log = await bar.locator('[data-status-item="diagnostics"]').boundingBox();
-  expect(nav!.x + nav!.width).toBeLessThanOrEqual(log!.x);
+  expect(nav!.x).toBeGreaterThan(0);
   await page.reload();
   await expect(bar).toHaveAttribute("data-status-display", "plugin");
   await page.getByRole("button", { name: "源码", exact: true }).click();

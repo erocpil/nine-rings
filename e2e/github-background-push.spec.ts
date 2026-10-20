@@ -134,7 +134,7 @@ test("取消上传不会写 latest，也不会显示成功或记录成功版本"
   expect(version).toBeNull();
 });
 
-for (const style of ["classic", "mono-aware"]) test(`桌面正文变窄仍可见日志和版本历史：${style}`, async ({ page }) => {
+for (const style of ["classic", "mono-aware"]) test(`桌面正文变窄仍可见版本历史；调试日志可从系统信息设置访问：${style}`, async ({ page }) => {
   await page.setViewportSize({ width: 1728, height: 1005 });
   await page.addInitScript(style => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: style, workspace_layout: style === "classic" ? "standard" : "exhibition", editor_show_status_bar: true })), style);
   const { createBlankDocument } = await import("./helpers/document");
@@ -146,18 +146,23 @@ for (const style of ["classic", "mono-aware"]) test(`桌面正文变窄仍可见
   await page.addStyleTag({ content: ".app-main-editor { flex: 0 0 260px !important; max-width: 260px !important; }" });
   const footer = page.locator(".editor-stats:visible");
   const bounds = (await footer.boundingBox())!;
-  for (const label of ["打开调试日志", "打开本机版本历史"]) {
-    const button = page.getByRole("button", { name: label, exact: true });
-    await expect(button).toBeVisible();
-    const rect = (await button.boundingBox())!;
-    expect(rect.x).toBeGreaterThanOrEqual(bounds.x);
-    expect(rect.x + rect.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
-  }
+  const history = page.getByRole("button", { name: "打开本机版本历史", exact: true });
+  await expect(history).toBeVisible();
+  const rect = (await history.boundingBox())!;
+  expect(rect.x).toBeGreaterThanOrEqual(bounds.x);
+  expect(rect.x + rect.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
+  await expect(page.getByRole("button", { name: /调试日志/ })).toHaveCount(0);
   await page.evaluate(async () => (await import("/src/lib/debugLog.ts")).addLog("[Sync] 打开前已存在的诊断"));
-  await page.getByRole("button", { name: "打开调试日志", exact: true }).click();
-  await expect(page.locator(".debug-panel")).toContainText("打开前已存在的诊断");
-  await page.getByRole("button", { name: "关闭调试日志", exact: true }).click();
-  await expect(page.locator(".debug-panel")).toHaveCount(0);
+  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => {} } }));
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^系统信息/ }).click();
+  await page.getByRole("button", { name: "调试日志", exact: true }).click();
+  const debug = page.locator(".debug-panel-inline");
+  await expect(debug).toContainText("打开前已存在的诊断");
+  await debug.getByRole("button", { name: "复制" }).click();
+  await expect(debug.getByRole("status")).toHaveText("已复制");
+  await debug.getByRole("button", { name: "清空" }).click();
+  await expect(debug).toContainText("暂无日志");
 });
 
 
@@ -213,7 +218,7 @@ test("上传 HTTP 400 不发布 latest，失败提示可独立查看带请求 ID
 });
 
 for (const style of ["classic", "mono-aware"]) for (const side of ["left", "right"])
-  test(`固定目录不遮挡日志与历史：${style}/${side}`, async ({ page }) => {
+  test(`固定目录不遮挡版本历史：${style}/${side}`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 844 });
     await page.addInitScript(style => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: style, editor_show_status_bar: true })), style);
     const { createBlankDocument } = await import("./helpers/document");
@@ -231,19 +236,6 @@ for (const style of ["classic", "mono-aware"]) for (const side of ["left", "righ
       const a = (await footer.boundingBox())!, b = (await dock.boundingBox())!;
       return side === "right" ? a.x + a.width <= b.x + 1 : a.x >= b.x + b.width - 1;
     }).toBe(true);
-    await page.getByRole("button", { name: "打开调试日志", exact: true }).click();
-    const debug = page.locator(".debug-panel");
-    await expect(debug).toBeVisible();
-    await expect.poll(async () => {
-      const expected = await footer.evaluate(element => {
-        const rect = element.getBoundingClientRect();
-        const rule = getComputedStyle(element, "::before");
-        return { left: rect.left + Number.parseFloat(rule.left), right: rect.right - Number.parseFloat(rule.right) };
-      });
-      const actual = (await debug.boundingBox())!;
-      return Math.max(Math.abs(expected.left - actual.x), Math.abs(expected.right - actual.x - actual.width));
-    }).toBeLessThanOrEqual(1);
-    await page.getByRole("button", { name: "关闭调试日志", exact: true }).click();
     await page.getByRole("button", { name: "打开本机版本历史", exact: true }).click();
     await expect(page.locator(".version-panel")).toBeVisible();
   });

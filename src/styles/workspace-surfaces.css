@@ -2000,10 +2000,6 @@
   display: flex !important;
 }
 
-.focus-mode .debug-panel {
-  display: none !important;
-}
-
 /* ── 全局专注模式：压缩 header ── */
 
 .app-focus-mode .app-header {

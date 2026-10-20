@@ -7,6 +7,7 @@ import { formatElapsedTime, formatSystemBytes, readNativeSystemInfo, type Native
 import { isTauri } from "../lib/tauri-desktop";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { SettingsSection } from "./SettingsFields";
+import { DebugPanel } from "./DebugPanel";
 
 interface FolderSummary {
   path: string;
@@ -128,6 +129,7 @@ export function SettingsSystemInformation() {
       <button className="settings-btn-secondary" type="button" disabled={loading} onClick={() => void load()}>
         <ToolbarIcon name="refresh" />{loading ? "正在读取…" : "刷新信息"}
       </button>
+      <DebugPanel />
     </SettingsSection>
 
     <SettingsSection title="文档路径占用" desc="展开路径可查看子路径；数量和大小均包含下级路径中的文档。">

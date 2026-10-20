@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("路径目录可搜索文档名称和子路径，并在状态栏区分本机保存、日志与版本历史", async ({ page }) => {
+test("路径目录过滤完整显示名称；调试日志位于系统信息设置", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
   const longTitle = "很长的文档名称用于验证标题在路径页中可以完整显示".repeat(2);
@@ -58,11 +58,14 @@ test("路径目录可搜索文档名称和子路径，并在状态栏区分本�
 
   const status = page.locator(".editor-stats");
   await expect(status.locator(".editor-save-state")).toHaveAttribute("aria-label", "已保存到本机；GitHub 备份需要单独 Push");
-  const logsButton = status.getByRole("button", { name: "打开调试日志" });
-  await logsButton.click();
-  await expect(status.getByRole("button", { name: "关闭调试日志" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".debug-panel")).toBeVisible();
-  await status.getByRole("button", { name: "关闭调试日志" }).click();
+  await expect(status.getByRole("button", { name: /调试日志/ })).toHaveCount(0);
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^系统信息/ }).click();
+  await page.getByRole("button", { name: "调试日志", exact: true }).click();
+  await expect(page.locator(".debug-panel-inline")).toBeVisible();
+  await expect(page.locator(".debug-panel-inline").getByRole("button", { name: "复制" })).toBeVisible();
+  await expect(page.locator(".debug-panel-inline").getByRole("button", { name: "清空" })).toBeVisible();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await status.getByRole("button", { name: "打开本机版本历史" }).click();
   await expect(page.getByRole("dialog", { name: "版本历史" })).toBeVisible();
 });

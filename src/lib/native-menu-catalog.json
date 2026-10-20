@@ -150,11 +150,6 @@
         "text": "版本历史…"
       },
       {
-        "id": "document.logs",
-        "text": "调试日志",
-        "checkable": true
-      },
-      {
         "id": "document.export-md",
         "text": "导出 Markdown…",
         "accelerator": "Command+Shift+E"

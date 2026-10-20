@@ -411,8 +411,7 @@
     user-select: none;
   }
 
-  .editor-status-secondary,
-  .editor-stats .btn-debug-toggle-wrapper {
+  .editor-status-secondary {
     display: none;
   }
 

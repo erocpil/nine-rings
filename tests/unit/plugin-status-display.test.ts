@@ -37,6 +37,14 @@ it("keeps immutable fields, paired colors and host-safe style values", () => {
   expect(statusDisplayStyle(value)["--statusbar-color-dark"]).toBe("#aabbcc");
   expect(value.items).toEqual(["history", "navigation"]);
 });
+it("moves the legacy diagnostics status item out of the status bar without invalidating saved preferences", () => {
+  const legacy = validateStatusDisplay({
+    ...DEFAULT_STATUS_DISPLAY,
+    items: [...DEFAULT_STATUS_DISPLAY.items, "diagnostics"],
+  });
+  expect(legacy.items).not.toContain("diagnostics");
+  expect(legacy.items).toEqual(DEFAULT_STATUS_DISPLAY.items);
+});
 it("rejects overlapping owners, revokes by activation and ignores stale cleanup", () => {
   pluginRuntime.setEnabled(true);
   const a = pluginRuntime.activate("test.status-a", []),

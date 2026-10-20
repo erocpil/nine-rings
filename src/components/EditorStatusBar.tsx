@@ -4,14 +4,12 @@ import {
   statusDisplayStyle,
   type StatusItem,
 } from "../lib/plugin-system/status-display";
-import { toggleDebug } from "../lib/debugLog";
 import { NavigationButtons } from "./NavigationButtons";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { DOCUMENT_LANGUAGE_OPTIONS } from "../lib/document-language";
 type SaveStatus = "clean" | "dirty" | "saving" | "saved" | "error";
 export function EditorStatusBar({
   enabled,
-  debugOpen,
   focusMode = false,
   label = "文档状态栏",
   className = "",
@@ -29,7 +27,6 @@ export function EditorStatusBar({
   onDocumentLanguageChange,
 }: {
   enabled: boolean;
-  debugOpen?: boolean;
   focusMode?: boolean;
   label?: string;
   className?: string;
@@ -94,19 +91,6 @@ export function EditorStatusBar({
       ) : null,
     characters: characters !== undefined ? `${characters} 字符` : null,
     words: words !== undefined ? `${words} 词` : null,
-    diagnostics: (
-      <button
-        type="button"
-        className={`btn-debug-toggle${debugOpen ? " active" : ""}`}
-        aria-pressed={debugOpen}
-        onClick={toggleDebug}
-        title={debugOpen ? "关闭调试日志" : "打开调试日志"}
-        aria-label={debugOpen ? "关闭调试日志" : "打开调试日志"}
-      >
-        <ToolbarIcon name="bug" />
-        <span>日志</span>
-      </button>
-    ),
     history: onVersionOpen ? (
       <button
         type="button"
@@ -123,7 +107,7 @@ export function EditorStatusBar({
   const items = state.visible
     ? state.items.filter((k) => content[k] != null)
     : [];
-  const firstAction = items.find((k) => k === "navigation" || k === "diagnostics" || k === "history");
+  const firstAction = items.find((k) => k === "navigation" || k === "history");
   return (
     <div
       className={`editor-stats editor-status-bar ${className}`}

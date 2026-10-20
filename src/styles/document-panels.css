@@ -475,19 +475,6 @@
   pointer-events: none;
 }
 
-/* The debug panel is a sibling of NoteEditor. Match the status rule's inset;
-   when a panel is pinned, preserve the same dock reservation as the editor. */
-.app-desktop-workspace .app-main-editor > .debug-panel {
-  margin-left: 12px;
-  margin-right: calc(12px + var(--editor-scrollbar-width, 0px));
-}
-.app-main-editor:has(.document-panels-right) > .debug-panel {
-  margin-right: calc(min(var(--document-dock-width, 280px), 50%) + 12px + var(--editor-scrollbar-width, 0px));
-}
-.app-main-editor:has(.document-panels-left) > .debug-panel {
-  margin-left: calc(min(var(--document-dock-width, 280px), 50%) + 12px);
-}
-
 /* Desktop editing controls share the title row inset and leave more breathing room. */
 .app-desktop-workspace .note-editor .editor-menu {
   padding: 5px 12px;

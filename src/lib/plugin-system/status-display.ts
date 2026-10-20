@@ -11,7 +11,6 @@ export const STATUS_ITEMS = [
   "characters",
   "words",
   "navigation",
-  "diagnostics",
   "history",
 ] as const;
 export type StatusItem = (typeof STATUS_ITEMS)[number];
@@ -74,9 +73,9 @@ export function validateStatusDisplay(input: unknown): StatusDisplay {
       return invalid();
   if (
     !Array.isArray(v.items) ||
-    v.items.length > STATUS_ITEMS.length ||
+    v.items.length > STATUS_ITEMS.length + 1 ||
     new Set(v.items).size !== v.items.length ||
-    v.items.some((k) => !STATUS_ITEMS.includes(k))
+    v.items.some((k) => k !== "diagnostics" && !STATUS_ITEMS.includes(k))
   )
     return invalid();
   const color = (value: unknown): NumberingColor => {
@@ -112,7 +111,13 @@ export function validateStatusDisplay(input: unknown): StatusDisplay {
     ...v,
     color: color(v.color),
     background: color(v.background),
-    items: Object.freeze([...v.items]),
+    // Older saved preferences and packages may still list the former status-bar
+    // diagnostics action. Keep accepting it, but move the action to System Info.
+    items: Object.freeze(
+      (v.items as StatusItem[]).filter(
+        (k) => k !== ("diagnostics" as StatusItem),
+      ),
+    ),
   }) as unknown as StatusDisplay;
 }
 class StatusDisplayRegistry {
