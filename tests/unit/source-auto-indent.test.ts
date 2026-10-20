@@ -48,4 +48,78 @@ describe("source automatic indentation", () => {
       "document",
     )).toBeNull();
   });
+
+  it("keeps C++ class and later member scopes stable after a parser recovery", () => {
+    const raw = [
+      "class LRUCache {",
+      "\tpublic:",
+      "\t\tLRUCache(size_t capacity) : size(capacity), num(0) {",
+      "\t\t\thead = new Entry();",
+      "\t\t};",
+      "\t\t~LRUCache() {",
+      "\t\t\t// TODO delete all Entries",
+      "\t\t\tdelete head;",
+      "\t\t};",
+      "\t\tint get(int key) {",
+      "\t\t\tauto it = cache.find(key);",
+      "\t\t\tif (it == cache.end()) return -1;",
+      "\t\t\tEntry *e = it->second;",
+      "\t\t\tdel(e);",
+      "\t\t\tadd(e);",
+      "\t\t\treturn e->val;",
+      "\t\t}",
+      "};",
+    ].join("\n");
+    const state = EditorState.create({
+      doc: raw,
+      extensions: [cpp(), indentUnit.of("\t")],
+    });
+    const change = sourceAutoIndentChange(state, "document");
+    expect(change).not.toBeNull();
+    expect(state.update(change!).state.doc.toString()).toBe([
+      "class LRUCache {",
+      "public:",
+      "\tLRUCache(size_t capacity) : size(capacity), num(0) {",
+      "\t\thead = new Entry();",
+      "\t};",
+      "\t~LRUCache() {",
+      "\t\t// TODO delete all Entries",
+      "\t\tdelete head;",
+      "\t};",
+      "\tint get(int key) {",
+      "\t\tauto it = cache.find(key);",
+      "\t\tif (it == cache.end()) return -1;",
+      "\t\tEntry *e = it->second;",
+      "\t\tdel(e);",
+      "\t\tadd(e);",
+      "\t\treturn e->val;",
+      "\t}",
+      "};",
+    ].join("\n"));
+  });
+
+  it("does not alter braces or indentation inside a multiline raw string", () => {
+    const raw = [
+      "int main() {",
+      "const char *value = R\"tag({",
+      "    literal indentation stays",
+      "})tag\";",
+      "run();",
+      "}",
+    ].join("\n");
+    const state = EditorState.create({
+      doc: raw,
+      extensions: [cpp(), indentUnit.of("\t")],
+    });
+    const change = sourceAutoIndentChange(state, "document");
+    expect(change).not.toBeNull();
+    expect(state.update(change!).state.doc.toString()).toBe([
+      "int main() {",
+      "\tconst char *value = R\"tag({",
+      "    literal indentation stays",
+      "})tag\";",
+      "\trun();",
+      "}",
+    ].join("\n"));
+  });
 });

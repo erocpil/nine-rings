@@ -111,3 +111,51 @@ test("源码自动缩进支持选区和全文，并可作为单次撤销", async
     "int main() {\n\tint value = 1;\n\tif (value) {\n\t\tvalue++;\n\t}\n}",
   );
 });
+
+test("C++ 自动缩进在成员定义后保留类作用域", async ({ page }) => {
+  await createBlankDocument(page, "C++ 类缩进");
+  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  const area = page.locator(".cm-content");
+  const raw = [
+    "class LRUCache {",
+    "\tpublic:",
+    "\t\tLRUCache(size_t capacity) : size(capacity), num(0) {",
+    "\t\t\thead = new Entry();",
+    "\t\t};",
+    "\t\t~LRUCache() {",
+    "\t\t\t// TODO delete all Entries",
+    "\t\t\tdelete head;",
+    "\t\t};",
+    "\t\tint get(int key) {",
+    "\t\t\tauto it = cache.find(key);",
+    "\t\t\tif (it == cache.end()) return -1;",
+    "\t\t\tEntry *e = it->second;",
+    "\t\t\tdel(e);",
+    "\t\t\tadd(e);",
+    "\t\t\treturn e->val;",
+    "\t\t}",
+    "};",
+  ].join("\n");
+  await replaceSource(area, raw);
+  await page.getByRole("button", { name: "自动缩进全文", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe([
+    "class LRUCache {",
+    "public:",
+    "\tLRUCache(size_t capacity) : size(capacity), num(0) {",
+    "\t\thead = new Entry();",
+    "\t};",
+    "\t~LRUCache() {",
+    "\t\t// TODO delete all Entries",
+    "\t\tdelete head;",
+    "\t};",
+    "\tint get(int key) {",
+    "\t\tauto it = cache.find(key);",
+    "\t\tif (it == cache.end()) return -1;",
+    "\t\tEntry *e = it->second;",
+    "\t\tdel(e);",
+    "\t\tadd(e);",
+    "\t\treturn e->val;",
+    "\t}",
+    "};",
+  ].join("\n"));
+});
