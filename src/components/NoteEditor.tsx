@@ -4437,6 +4437,10 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
       )}
       {editorFindOpen && (
         <div className={`editor-find-bar${editorReplaceOpen && !readonly ? " editor-find-bar-replace" : ""}`} role="search" onClick={(event) => event.stopPropagation()}>
+          <div className="editor-find-header">
+            <span>查找与替换</span>
+            <button type="button" className="editor-find-close" onClick={() => { closeEditorFind(); editor.commands.focus(); }} title="关闭查找" aria-label="关闭查找">×</button>
+          </div>
           <div className="editor-find-row">
           <input
             ref={editorFindInputRef}
@@ -4462,7 +4466,6 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
           <button type="button" onClick={() => navigateEditorFind(-1)} disabled={searchMatches.length === 0} title="上一处匹配" aria-label="上一处匹配">↑</button>
           <button type="button" onClick={() => navigateEditorFind(1)} disabled={searchMatches.length === 0} title="下一处匹配" aria-label="下一处匹配">↓</button>
           {!readonly && <button type="button" className="editor-find-replace-toggle" onClick={() => setEditorReplaceOpen(open => !open)} aria-expanded={editorReplaceOpen} aria-label="显示替换">替换</button>}
-          <button type="button" onClick={() => { closeEditorFind(); editor.commands.focus(); }} title="关闭查找" aria-label="关闭查找">×</button>
           </div>
           <div className="editor-find-options"><span className="search-scope-label">当前文档</span>
             <label><input type="checkbox" checked={editorFindCaseSensitive} onChange={event => setEditorFindCaseSensitive(event.target.checked)} />区分大小写</label>

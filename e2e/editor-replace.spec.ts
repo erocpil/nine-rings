@@ -19,6 +19,12 @@ async function seed(page: Page) {
 test("正文全部替换保留结构格式并可一次撤销，实时刷新匹配", async ({ page }) => {
   await seed(page);
   await page.keyboard.press("Alt+f");
+  const findPanel = page.locator(".editor-find-bar");
+  const findHeader = findPanel.locator(".editor-find-header");
+  await expect(findHeader.locator("span")).toHaveText("查找与替换");
+  await expect(findHeader.getByRole("button", { name: "关闭查找" })).toHaveText("×");
+  await expect(findPanel.locator(":scope > .editor-find-header > .editor-find-close")).toHaveCount(1);
+  await expect(findPanel.locator(":scope > .editor-find-row > .editor-find-close")).toHaveCount(0);
   await page.getByRole("button", { name: "显示替换", exact: true }).click();
   await page.getByLabel("在当前文档中查找").fill("foobar");
   await expect(page.locator(".editor-find-count")).toHaveText("0/2");
