@@ -30,7 +30,7 @@
   font: 600 12px/20px var(--font);
 }
 .desktop-document-panels :is(.document-outline-list, .document-bookmark-list) {
-  padding: 2px 0 4px;
+  padding: 4px 0 4px;
 }
 .desktop-document-panels :is(.document-outline-header, .document-outline-header-primary, .document-outline-header-actions, .document-bookmark-header) > button {
   font: 400 11px/14px var(--font);

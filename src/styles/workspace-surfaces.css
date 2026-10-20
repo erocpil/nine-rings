@@ -1473,7 +1473,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-anchor: none;
-  padding: 2px 0 4px;
+  padding: 4px 0 4px;
 }
 
 .document-outline-window {
@@ -1826,7 +1826,7 @@
 .document-bookmark-list {
   min-height: 0;
   overflow-y: auto;
-  padding: 2px 4px 4px;
+  padding: 4px 4px 4px;
 }
 
 .document-bookmark-item {

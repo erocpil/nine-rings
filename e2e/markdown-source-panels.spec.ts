@@ -31,7 +31,9 @@ test("源码目录跟随光标，悬浮与固定面板均显示远处章节，�
   await outlineButton.hover();
   const panel = page.getByRole("navigation", { name: "文档目录", exact: true });
   await expect(panel).toBeVisible();
-  await expect(panel.locator(".document-outline-list")).toHaveCSS("padding-top", "2px");
+  await expect(panel.locator(".document-outline-list")).toHaveCSS("padding-top", "4px");
+  await page.evaluate(() => { document.documentElement.dataset.interfaceStyle = "paper"; });
+  await expect(panel.locator(".document-outline-list")).toHaveCSS("padding-top", "4px");
   await expect(panel.locator(".document-outline-count")).toHaveText("150 项");
   const current = panel.locator('[aria-current="location"]');
   const inList = async () => current.evaluate(item => {
@@ -60,7 +62,9 @@ test("源码模式添加、重命名和删除的书签与渲染模式共享", as
   await panelTrigger(page, "bookmark").click();
   const panel = page.getByRole("navigation", { name: "文档书签", exact: true });
   await panel.getByRole("button", { name: "添加当前位置书签", exact: true }).click();
-  await expect(panel.locator(".document-bookmark-list")).toHaveCSS("padding-top", "2px");
+  await expect(panel.locator(".document-bookmark-list")).toHaveCSS("padding-top", "4px");
+  await page.evaluate(() => { document.documentElement.dataset.interfaceStyle = "paper"; });
+  await expect(panel.locator(".document-bookmark-list")).toHaveCSS("padding-top", "4px");
   const row = panel.locator(".document-bookmark-item").first();
   await expect(row).toContainText("第二段");
   await row.hover();

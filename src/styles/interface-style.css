@@ -104,7 +104,7 @@
 :root:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]) {
   --style-control-height: 32px;
   --style-header-height: 48px;
-  --style-panel-gap: 16px;
+  --style-panel-gap: 4px;
   --style-rule: color-mix(in srgb, var(--border) 65%, var(--bg));
   --ui-radius-small: 4px;
   --ui-radius-medium: 6px;
@@ -116,7 +116,7 @@
 :root[data-interface-style="calm-compact"] {
   --style-control-height: 28px;
   --style-header-height: 42px;
-  --style-panel-gap: 10px;
+  --style-panel-gap: 4px;
   --ui-control-height: 28px;
 }
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
