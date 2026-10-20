@@ -203,17 +203,7 @@
         "items": [
           {
             "id": "format.language.c",
-            "text": "C",
-            "checkable": true
-          },
-          {
-            "id": "format.language.csharp",
-            "text": "C#",
-            "checkable": true
-          },
-          {
-            "id": "format.language.cpp",
-            "text": "C++",
+            "text": "C/C++",
             "checkable": true
           },
           {

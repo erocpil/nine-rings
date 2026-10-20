@@ -1,4 +1,4 @@
-import { CODE_LANGUAGE_OPTIONS } from "../lib/code-language-options";
+import { DOCUMENT_LANGUAGE_OPTIONS } from "../lib/document-language";
 import { mermaidSourceLanguage } from "../lib/source-mermaid-language";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import { emptySourceFormats, sourceFormats, sourceHeadingChange, removeSourceInlineFormat, type SourceInlineFormat } from "../lib/source-format-state";
@@ -195,7 +195,7 @@ export function MarkdownSourceEditor({
   const markupModeRef = useRef(markupMode);
   markupModeRef.current = markupMode;
 
-  const sourceLabel = `${CODE_LANGUAGE_OPTIONS.find(option => option.value === documentLanguage)?.label ?? "text"} 源码`;
+  const sourceLabel = `${DOCUMENT_LANGUAGE_OPTIONS.find(option => option.value === documentLanguage)?.label ?? "text"} 源码`;
   const initial = useRef({ value, readonly: editingReadonly, sourceLabel });
   const lastValue = useRef(value);
   const syntax = useRef(new Compartment());

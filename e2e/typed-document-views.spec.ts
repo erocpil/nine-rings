@@ -102,3 +102,33 @@ test("源码专用文档重开恢复位置，只读后保留浏览能力并禁�
   await expect.poll(async () => (await sourceInfo(area)).offset).toBe(locked.offset);
   await expect(page.getByRole("combobox", { name: "文件格式", exact: true })).toBeDisabled();
 });
+
+test("Markdown 源码粘贴 C 文本并切换 C/C++ 保留原文和等宽字体", async ({ page }) => {
+  await createBlankDocument(page, "粘贴原始代码");
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const area = page.locator(".cm-content");
+  const raw = '#include <stdio.h>\n\n/* *literal* [a](b) */\nint main(void) {\n\tprintf("a\\nb");  \n\treturn 0;\n}\n\n';
+  await selectSource(area, 0);
+  await area.evaluate((element, text) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", text);
+    clipboardData.setData("text/html", "<h1>incorrect rich clipboard</h1>");
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  }, raw);
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
+  await page.getByRole("button", { name: "渲染", exact: true }).click();
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
+  const picker = page.getByRole("combobox", { name: "文件格式", exact: true });
+  await expect(picker.locator('option[value="csharp"], option[value="cpp"]')).toHaveCount(0);
+  await picker.selectOption("c");
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
+  await expect(page.locator(".cm-scroller")).toHaveCSS("font-family", /monospace/);
+  await expect.poll(() => page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    return (await api.notes.get(localStorage.getItem("nr:lastNote")!))?.content.metadata?.sourceText;
+  })).toBe(raw);
+  await page.reload();
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
+});

@@ -1,7 +1,7 @@
 import { readDocumentSource, writeDocumentSource } from "../lib/document-source";
 import { mapSourceReferences } from "../lib/markdown-source-navigation";
 import { EditorStatusBar } from "./EditorStatusBar";
-import { CODE_LANGUAGE_OPTIONS } from "../lib/code-language-options";
+import { DOCUMENT_LANGUAGE_OPTIONS } from "../lib/document-language";
 import { documentSourceLanguage, documentLanguageCommand, documentHasPreview } from "../lib/document-language";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import { useFocusEditorTools } from "../stores/useFocusEditorTools";
@@ -255,7 +255,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     return () => window.removeEventListener(IMAGE_VIEW_EVENT, enrich, true);
   }, [active]);
   const changeDocumentLanguage = async (language: string) => {
-    if (language === documentLanguageRef.current || busyRef.current || latestProps.current.readonly || !CODE_LANGUAGE_OPTIONS.some(option => option.value === language)) return;
+    if (language === documentLanguageRef.current || busyRef.current || latestProps.current.readonly || !DOCUMENT_LANGUAGE_OPTIONS.some(option => option.value === language)) return;
     busyRef.current = true;
     setBusy(true);
     try {
@@ -291,7 +291,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   };
   const languageProps = { documentLanguage, onDocumentLanguageChange: busy || props.readonly ? undefined : (language: string) => { void changeDocumentLanguage(language); } };
   useNativeMenuActions({
-    ...Object.fromEntries(CODE_LANGUAGE_OPTIONS.map(option => [documentLanguageCommand(option.value), { run: () => changeDocumentLanguage(option.value), checked: documentLanguage === option.value, enabled: !props.readonly && !busy }])),
+    ...Object.fromEntries(DOCUMENT_LANGUAGE_OPTIONS.map(option => [documentLanguageCommand(option.value), { run: () => changeDocumentLanguage(option.value), checked: documentLanguage === option.value, enabled: !props.readonly && !busy }])),
     "view.tools": { run: () => setMoreTools(value => !value), checked: moreTools, enabled: props.focusMode && !props.readonly },
     "document.source": { run: () => changeView(), checked: source !== null, enabled: supported && hasPreview && !busy },
     "document.readonly": { run: () => props.onReadonlyChange?.(!props.readonly), checked: Boolean(props.readonly), enabled: Boolean(props.onReadonlyChange) && !busy },

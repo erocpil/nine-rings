@@ -202,3 +202,8 @@ blockquote[data-alert] { border-left-color: var(--accent); }
 .note-editor-scroll { overflow-y: scroll; scrollbar-gutter: stable; }
 
 .markdown-document-view[data-source-tools-hidden] .markdown-source-toolbar-host { display: none; }
+
+/* Code and plain text are literal source, independent of prose typography. */
+.markdown-cm-source:not([data-document-language="markdown"]):not([data-document-language="flow"]) .cm-scroller {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+}

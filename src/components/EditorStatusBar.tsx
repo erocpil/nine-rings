@@ -7,7 +7,7 @@ import {
 import { toggleDebug } from "../lib/debugLog";
 import { NavigationButtons } from "./NavigationButtons";
 import { ToolbarIcon } from "./ToolbarIcon";
-import { CODE_LANGUAGE_OPTIONS } from "../lib/code-language-options";
+import { DOCUMENT_LANGUAGE_OPTIONS } from "../lib/document-language";
 type SaveStatus = "clean" | "dirty" | "saving" | "saved" | "error";
 export function EditorStatusBar({
   enabled,
@@ -178,7 +178,7 @@ export function EditorStatusBar({
         disabled={!onDocumentLanguageChange}
         onChange={event => onDocumentLanguageChange?.(event.target.value)}
       >
-        {CODE_LANGUAGE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+        {DOCUMENT_LANGUAGE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>}
     </div>
   );
