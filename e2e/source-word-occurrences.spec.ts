@@ -72,7 +72,11 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.lastIndexOf(word));
   await expect.poll(async () => (await sourceInfo(area)).selectionEnd).toBe(source.lastIndexOf(word) + word.length);
   await page.getByRole("button", { name: "文档书签", exact: true }).click();
+  const emptyBookmark = dock.locator(".document-panel-slot[data-panel='bookmark']");
+  await expect.poll(() => emptyBookmark.evaluate(element => element.getBoundingClientRect().height)).toBeLessThan(65);
+  await expect(emptyBookmark.locator(".document-bookmark-list")).toHaveCount(0);
   await page.getByRole("button", { name: "添加当前位置书签", exact: true }).click();
+  await expect.poll(() => emptyBookmark.evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThan(65);
   const split = page.getByRole("separator", { name: "调整目录与书签比例" });
   await expect(split).toBeVisible();
   for (let attempt = 0; attempt < 2; attempt++) {

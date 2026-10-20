@@ -1558,7 +1558,7 @@ export function ReadonlyVirtualNote(
         {mobileDrawerViewport && panel && renderPanel(panel)}
       </DocumentPanelDrawer>
       {!mobileDrawerViewport && <>
-        <DesktopDocumentPanels controller={desktopPanels}
+        <DesktopDocumentPanels controller={desktopPanels} bookmarkEmpty={annotationTotal === 0}
           outline={(desktopPanels.pinned("outline") || preview === "outline") && sections.length > 0 ? renderPanel("outline") : null}
           bookmark={(desktopPanels.pinned("bookmark") || preview === "bookmarks") ? renderPanel("bookmarks") : null} />
         {panel === "search" && renderPanel("search")}

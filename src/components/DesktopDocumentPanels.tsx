@@ -36,12 +36,14 @@ export function DesktopDocumentPanels({
   bookmark,
   matches,
   matchesOpen = false,
+  bookmarkEmpty = false,
 }: {
   controller: DesktopDocumentPanelController;
   outline: ReactNode;
   bookmark: ReactNode;
   matches?: ReactNode;
   matchesOpen?: boolean;
+  bookmarkEmpty?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const cleanup = useRef<() => void>();
@@ -59,6 +61,8 @@ export function DesktopDocumentPanels({
   const first = controller.pinned("outline") && outline;
   const second = controller.pinned("bookmark") && bookmark;
   const hasPinned = Boolean(first || second);
+  const compactBookmarks = Boolean(second && bookmarkEmpty);
+  const compactMain = compactBookmarks && !first;
   const showMatches = controller.enabled && matchesOpen && matches;
   const saveRatio = (value: number) => {
     setError("");
@@ -196,9 +200,9 @@ export function DesktopDocumentPanels({
             style={{
               [horizontal ? "gridTemplateColumns" : "gridTemplateRows"]:
               first && second
-                ? `${ratio}fr 6px ${1 - ratio}fr`
-                : "minmax(0, 1fr)",
-              ...(showMatches ? { flex: `0 0 calc(${(1 - matchesRatio) * 100}% - 3px)` } : {}),
+                ? compactBookmarks && !horizontal ? "minmax(0, 1fr) 6px max-content" : `${ratio}fr 6px ${1 - ratio}fr`
+                : compactMain ? "max-content" : "minmax(0, 1fr)",
+              ...(compactMain ? { flex: "0 0 auto" } : showMatches ? { flex: `0 0 calc(${(1 - matchesRatio) * 100}% - 3px)` } : {}),
             }}
           >
           {first && (
@@ -239,7 +243,7 @@ export function DesktopDocumentPanels({
             />
           )}
           {second && (
-            <div className="document-panel-slot" data-panel="bookmark">
+            <div className={`document-panel-slot${compactBookmarks ? " is-empty-bookmark" : ""}`} data-panel="bookmark">
               {second}
             </div>
           )}
@@ -264,7 +268,7 @@ export function DesktopDocumentPanels({
                 if (!saveWorkspaceLayout({ matchesRatio: next })) setError("匹配列表高度保存失败，请重试。");
               }}
             />}
-            <div className={`document-panel-matches-slot${hasPinned ? " has-pinned-panels" : ""}`} data-panel="matches" style={hasPinned ? { flex: `0 0 calc(${matchesRatio * 100}% - 3px)` } : undefined}>{matches}</div>
+            <div className={`document-panel-matches-slot${hasPinned ? " has-pinned-panels" : ""}`} data-panel="matches" style={hasPinned && !compactMain ? { flex: `0 0 calc(${matchesRatio * 100}% - 3px)` } : undefined}>{matches}</div>
           </>}
         </aside>
       )}

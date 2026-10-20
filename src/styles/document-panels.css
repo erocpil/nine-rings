@@ -214,6 +214,7 @@
   overflow: auto;
 }
 .document-panel-slot > .document-outline-panel { overflow: hidden; }
+.document-panel-slot.is-empty-bookmark > :is(.document-bookmark-panel, .vr-panel),
 .document-panel-slot > .document-bookmark-panel.is-empty { height: auto; max-height: none; }
 .document-panel-slot :is(.document-outline-list, .document-bookmark-list) {
   min-height: 0;

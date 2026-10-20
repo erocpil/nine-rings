@@ -4528,7 +4528,7 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
         }}
         onClose={() => { setOutlineOpen(false); setBookmarkOpen(false); }}
       >
-      {isMobileToolbarViewport ? <>{outlinePanel}{bookmarkPanel}</> : <DesktopDocumentPanels controller={desktopPanels} outline={outlinePanel} bookmark={bookmarkPanel} />}
+      {isMobileToolbarViewport ? <>{outlinePanel}{bookmarkPanel}</> : <DesktopDocumentPanels controller={desktopPanels} bookmarkEmpty={bookmarkPanelTotal === 0} outline={outlinePanel} bookmark={bookmarkPanel} />}
       </DocumentPanelDrawer>
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
       <div className="note-editor-scroll" ref={scrollRef}>

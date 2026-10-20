@@ -468,6 +468,7 @@ export function MarkdownSourceWorkspace({
       {!mobile && (
         <DesktopDocumentPanels
           controller={controller}
+          bookmarkEmpty={bookmarks.length === 0}
           outline={renderPanel("outline")}
           bookmark={renderPanel("bookmark")}
           matches={sourceWordEnabled && <nav className="document-source-matches-panel" aria-label="同词匹配列表" data-panel-display={sourceMatchDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(sourceMatchDisplayConfig) as CSSProperties}>
