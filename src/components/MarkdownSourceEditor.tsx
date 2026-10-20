@@ -1,3 +1,4 @@
+import { cSourceSupport } from "../lib/source-code-highlighting";
 import { DOCUMENT_LANGUAGE_OPTIONS } from "../lib/document-language";
 import { mermaidSourceLanguage } from "../lib/source-mermaid-language";
 import { shortcutTitle } from "../lib/editor-shortcuts";
@@ -429,7 +430,7 @@ export function MarkdownSourceEditor({
       editor.dispatch({ effects: syntax.current.reconfigure([]) });
       const language = languages.find(item => item.alias.includes(documentLanguage));
       if (documentLanguage && language) void language.load().then(support => {
-        if (!cancelled && view.current === editor) editor.dispatch({ effects: syntax.current.reconfigure(support) });
+        if (!cancelled && view.current === editor) editor.dispatch({ effects: syntax.current.reconfigure(documentLanguage === "c" ? cSourceSupport(support) : support) });
       }).catch(() => { if (!cancelled) setSyntaxError("语法高亮加载失败，请重新选择文件格式"); });
     }
     return () => { cancelled = true; };
