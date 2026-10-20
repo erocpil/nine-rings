@@ -120,3 +120,26 @@ test("不提供级别选择的源码折叠按钮不预留三角区域", async ({
     expect(await group.evaluate(el => el.getBoundingClientRect().width)).toBe(28);
   }
 });
+
+
+test("源码折叠和展开按钮按当前折叠状态互斥高亮", async ({ page }) => {
+  await createBlankDocument(page);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const area = page.locator(".cm-content");
+  await replaceSource(area, "# 第一节\n正文\n## 第二节\n内容\n# 第三节\n正文");
+  const toolbar = page.getByRole("toolbar", { name: "源码编辑工具" });
+  const collapse = toolbar.getByRole("button", { name: "折叠全部", exact: true });
+  const expand = toolbar.getByRole("button", { name: "展开全部", exact: true });
+  await collapse.click();
+  await expect(collapse).toHaveAttribute("aria-pressed", "true");
+  await expect(expand).toHaveAttribute("aria-pressed", "false");
+  expect(await collapse.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(await toolbar.getByRole("button", { name: "语法高亮", exact: true }).evaluate(el => getComputedStyle(el).backgroundColor));
+  await expand.click();
+  await expect(expand).toHaveAttribute("aria-pressed", "true");
+  await expect(collapse).toHaveAttribute("aria-pressed", "false");
+  await toolbar.getByRole("button", { name: "选择折叠标题级别", exact: true }).click();
+  await page.getByRole("menuitem", { name: "折叠 H2 及更深标题", exact: true }).click();
+  await expect(collapse).toHaveAttribute("aria-pressed", "true");
+  await expand.click();
+  await expect(expand).toHaveAttribute("aria-pressed", "true");
+});
