@@ -2,6 +2,25 @@ import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 import { replaceSource, selectDocumentLanguage, scrollSourceTo, sourceInfo } from "./helpers/source-editor";
 
+test("C/C++ 折叠 if 后 else 保留独立折叠入口", async ({ page }) => {
+  await createBlankDocument(page);
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  const source = "if (outer) {\n  first();\n} else {\n  second();\n}";
+  await replaceSource(area, source);
+  const controls = page.locator(".cm-foldGutter .cm-gutterElement:visible").filter({ has: page.locator("span") });
+  await controls.first().click();
+  await expect(page.locator(".cm-foldPlaceholder")).toHaveCount(1);
+  await expect(area).toContainText("second();");
+  // The first control opens if again. The next independently folds else.
+  await controls.nth(1).click();
+  await expect(page.locator(".cm-foldPlaceholder")).toHaveCount(2);
+  await expect(area).not.toContainText("second();");
+  await page.locator(".cm-foldPlaceholder").last().click();
+  await expect(area).toContainText("second();");
+  expect((await sourceInfo(area)).value).toBe(source);
+});
+
 test("源码标题级别菜单保留源码与只读保护，并排工具栏无竖向溢出", async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 850 });
   await createBlankDocument(page);

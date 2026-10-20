@@ -1,4 +1,4 @@
-import { HighlightStyle, syntaxHighlighting, LanguageSupport, LRLanguage } from "@codemirror/language";
+import { HighlightStyle, syntaxHighlighting, LanguageSupport, LRLanguage, foldInside, foldNodeProp } from "@codemirror/language";
 import { styleTags, tags } from "@lezer/highlight";
 
 /** Parser-derived categories only: no regex guesses about symbol identity. */
@@ -36,7 +36,22 @@ export function sourceCodeSupport(
   cFamily = false,
 ): LanguageSupport {
   const language = cFamily && support.language instanceof LRLanguage
-    ? support.language.configure({ props: [styleTags({ "PreprocDirective/Identifier": tags.special(tags.name) })] })
+    ? support.language.configure({ props: [
+      styleTags({ "PreprocDirective/Identifier": tags.special(tags.name) }),
+      foldNodeProp.add({ CompoundStatement: (node, state) => {
+        const range = foldInside(node);
+        if (!range) return null;
+        const closingLine = state.doc.lineAt(range.to);
+        // Keep a following branch on its own visual line, with its own gutter
+        // control. Otherwise folding the first branch merges both controls.
+        if (/^}\s*(?:else|catch)\b/.test(state.doc.sliceString(range.to, closingLine.to))
+          && /^\s*$/.test(state.doc.sliceString(closingLine.from, range.to))
+          && closingLine.from > range.from) {
+          return { from: range.from, to: closingLine.from - 1 };
+        }
+        return range;
+      } }),
+    ] })
     : support.language;
   return new LanguageSupport(language, [support.support, sourceCodeHighlighting]);
 }
