@@ -18,6 +18,7 @@ import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
 import { useDocumentPanelPosition } from "../hooks/useDocumentPanelPosition";
+import { EditorView } from "@codemirror/view";
 import {
   SourceNavigationDocument,
   sourceEditMapping,
@@ -32,6 +33,7 @@ import { FocusModeIcon } from "./FocusModeBar";
 import { DocumentBookmarkRow } from "./DocumentBookmarkRow";
 import { BookmarkRenameDialog } from "./BookmarkRenameDialog";
 import { extractCSourceSymbols } from "../lib/source-symbols";
+import { focusSourceWordMatch, selectSourceWordAt, sourceWordState, type SourceWordMatch } from "../lib/source-word-occurrences";
 import type { DocumentOutlineItem } from "../lib/document-outline";
 import type { DocumentBookmark } from "../types/models";
 
@@ -49,6 +51,7 @@ const SOURCE_KIND_MARKERS: Record<string, string> = {
 
 export function MarkdownSourceWorkspace({
   revision,
+  areaRef,
   sourceHandle,
   onJump,
   onToggleBookmark,
@@ -79,6 +82,8 @@ export function MarkdownSourceWorkspace({
   const [folds, setFolds] = useState<Set<number>>(() => new Set());
   const [renamingBookmark, setRenamingBookmark] = useState<DocumentBookmark | null>(null);
   const [openBookmarkActionsId, setOpenBookmarkActionsId] = useState<string | null>(null);
+  const [matchesOpen, setMatchesOpen] = useState(false);
+  const [, refreshMatches] = useState(0);
   useEffect(() => {
     // Coalesce typing and reuse the same lazy parse as autosave; no hidden rich editor.
     if (mobile) return;
@@ -141,6 +146,7 @@ export function MarkdownSourceWorkspace({
       area.removeEventListener("click", sync);
     };
   }, [sourceHandle, mobile]);
+  const sourceWordEnabled = !["", "markdown", "flow", "mermaid"].includes(snapshotLanguage);
   const symbolOutline = snapshotLanguage === "c";
   const outline = useMemo<SourceOutlineItem[]>(
     () => mobile ? [] : symbolOutline ? sourceSymbols : snapshot.outline.map((item) => ({ ...item, kind: undefined })),
@@ -151,6 +157,53 @@ export function MarkdownSourceWorkspace({
   const currentSourceBlock = revision.blockAt(offset);
   const currentBookmark = bookmarks.find(bookmark => bookmark.position === (currentSourceBlock?.position ?? -2) + 1);
   const controller = useDesktopDocumentPanels(!mobile, outline, bookmarks);
+  const dismissPanelPreview = controller.dismiss;
+  useEffect(() => {
+    const view = sourceHandle?.view;
+    if (!view || mobile || !sourceWordEnabled) return;
+    const update = () => refreshMatches(value => value + 1);
+    view.dom.addEventListener("nr:source-word-update", update);
+    return () => view.dom.removeEventListener("nr:source-word-update", update);
+  }, [sourceHandle, mobile, sourceWordEnabled]);
+  useEffect(() => {
+    if (mobile || !sourceWordEnabled) {
+      setMatchesOpen(false);
+      return;
+    }
+    const openMatches = (event: Event) => {
+      const detail = (event as CustomEvent<{ from: number }>).detail;
+      if (!detail) return;
+      setOffset(detail.from);
+      setMatchesOpen(true);
+      dismissPanelPreview();
+    };
+    window.addEventListener("nr:source-word-open", openMatches);
+    return () => {
+      window.removeEventListener("nr:source-word-open", openMatches);
+    };
+  }, [mobile, sourceWordEnabled, dismissPanelPreview]);
+  useEffect(() => {
+    if (mobile || !sourceWordEnabled) return;
+    const modifierClick = (event: globalThis.MouseEvent) => {
+      if (event.button !== 0 || !(event.ctrlKey || event.metaKey)) return;
+      const target = event.target;
+      if (!(target instanceof Element) || !target.closest(".cm-content")) return;
+      const editorRoot = target.closest<HTMLElement>(".cm-editor");
+      const view = sourceHandle?.view ?? areaRef.current?.view ?? (editorRoot ? EditorView.findFromDOM(editorRoot) : null);
+      if (!view) return;
+      const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
+      if (position === null) return;
+      const range = selectSourceWordAt(view, position);
+      if (!range) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      window.dispatchEvent(new CustomEvent("nr:source-word-open", { detail: { from: range.from } }));
+    };
+    document.addEventListener("mousedown", modifierClick, true);
+    return () => document.removeEventListener("mousedown", modifierClick, true);
+  }, [areaRef, sourceHandle, mobile, sourceWordEnabled]);
+  const wordState = sourceWordEnabled && sourceHandle ? sourceWordState(sourceHandle.view) : null;
   const outlineTrigger = useRef<HTMLButtonElement>(null),
     bookmarkTrigger = useRef<HTMLButtonElement>(null);
   const outlinePanel = useRef<HTMLElement>(null),
@@ -241,6 +294,16 @@ export function MarkdownSourceWorkspace({
           <FocusModeIcon name={kind} />
         </button>
       ))}
+      {sourceWordEnabled && <button
+        type="button"
+        className="btn-icon"
+        title={`同词匹配（${/Mac/i.test(navigator.platform) ? "⌘" : "Ctrl"}+单击单词）`}
+        aria-label="同词匹配"
+        aria-expanded={matchesOpen}
+        aria-pressed={matchesOpen}
+        data-document-panel-trigger="matches"
+          onClick={() => { dismissPanelPreview(); setMatchesOpen(open => !open); }}
+      ><ToolbarIcon name="search" /></button>}
     </>
   );
   const renderPanel = (kind: "outline" | "bookmark") => {
@@ -340,7 +403,7 @@ export function MarkdownSourceWorkspace({
   };
   return (
     <section
-      className={`note-editor markdown-source-editor ${desktopPanelClass(controller, true)}`}
+      className={`note-editor markdown-source-editor ${desktopPanelClass(controller, true, matchesOpen && sourceWordEnabled)}`}
       style={desktopPanelStyle(controller)}
       aria-label="Markdown 源码编辑区"
     >
@@ -350,6 +413,28 @@ export function MarkdownSourceWorkspace({
           controller={controller}
           outline={renderPanel("outline")}
           bookmark={renderPanel("bookmark")}
+          matches={sourceWordEnabled && <nav className="document-source-matches-panel" aria-label="同词匹配列表">
+            <div className="document-source-matches-header">
+              <span>{wordState?.word ? `“${wordState.word}” · ${wordState.matches.length} 处` : "同词匹配"}</span>
+              <button type="button" aria-label="隐藏匹配列表" title="隐藏匹配列表" onClick={() => setMatchesOpen(false)}><ToolbarIcon name="close" /></button>
+            </div>
+            <div className="document-source-matches-list">
+              {wordState?.matches.length ? wordState.matches.map((match: SourceWordMatch) => <button
+                key={`${match.from}:${match.to}`}
+                type="button"
+                className="document-source-match-row"
+                aria-current={match.from === wordState.activeFrom ? "location" : undefined}
+                onClick={() => {
+                  if (!sourceHandle) return;
+                  focusSourceWordMatch(sourceHandle.view, match);
+                  sourceHandle.scrollToOffset(match.from, true);
+                  setOffset(match.from);
+                }}
+                title={`${match.line}: ${match.text}`}
+              ><span className="document-source-match-line">{match.line}</span><code>{match.text || wordState.word}</code></button>) : <div className="document-bookmark-empty">{wordState?.word ? "当前文档没有其它全词匹配" : "单击源码中的单词以查找相同词"}</div>}
+            </div>
+          </nav>}
+          matchesOpen={matchesOpen && sourceWordEnabled}
         />
       )}
       {renamingBookmark && <BookmarkRenameDialog

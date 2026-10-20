@@ -18,12 +18,14 @@ export function desktopPanelStyle(
 export function desktopPanelClass(
   controller: DesktopDocumentPanelController,
   hasOutline: boolean,
+  hasTransientPanel = false,
 ): string {
   if (!controller.enabled) return "";
   return (
     "desktop-document-panels " +
     ((hasOutline && controller.pinned("outline")) ||
     controller.pinned("bookmark")
+      || (hasTransientPanel && controller.enabled)
       ? `document-panels-pinned document-panels-${controller.layout.panelsSide}`
       : "")
   );
@@ -32,10 +34,14 @@ export function DesktopDocumentPanels({
   controller,
   outline,
   bookmark,
+  matches,
+  matchesOpen = false,
 }: {
   controller: DesktopDocumentPanelController;
   outline: ReactNode;
   bookmark: ReactNode;
+  matches?: ReactNode;
+  matchesOpen?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const cleanup = useRef<() => void>();
@@ -50,6 +56,8 @@ export function DesktopDocumentPanels({
   const horizontal = controller.layout.panelsArrangement === "horizontal";
   const first = controller.pinned("outline") && outline;
   const second = controller.pinned("bookmark") && bookmark;
+  const hasPinned = Boolean(first || second);
+  const showMatches = controller.enabled && matchesOpen && matches;
   const saveRatio = (value: number) => {
     setError("");
     if (!saveWorkspaceLayout({ panelRatio: value })) {
@@ -153,17 +161,13 @@ export function DesktopDocumentPanels({
     <>
       {!controller.pinned("outline") && outline}
       {!controller.pinned("bookmark") && bookmark}
-      {(first || second) && (
+      {(hasPinned || showMatches) && (
         <aside
           ref={root}
           className={`document-panel-dock dock-${controller.layout.panelsSide} dock-${horizontal ? "horizontal" : "vertical"}`}
           aria-label="固定阅读面板"
           style={{
             ...(width === null ? {} : { width: `min(${width}px, 50%)` }),
-            [horizontal ? "gridTemplateColumns" : "gridTemplateRows"]:
-              first && second
-                ? `${ratio}fr 6px ${1 - ratio}fr`
-                : "minmax(0, 1fr)",
           }}
         >
           <div
@@ -173,6 +177,15 @@ export function DesktopDocumentPanels({
             aria-orientation="vertical"
             onPointerDown={(event) => drag(event, true)}
           />
+          {hasPinned && <div
+            className={`document-panel-dock-main dock-${horizontal ? "horizontal" : "vertical"}${showMatches ? " has-matches" : ""}`}
+            style={{
+              [horizontal ? "gridTemplateColumns" : "gridTemplateRows"]:
+              first && second
+                ? `${ratio}fr 6px ${1 - ratio}fr`
+                : "minmax(0, 1fr)",
+            }}
+          >
           {first && (
             <div className="document-panel-slot" data-panel="outline">
               {first}
@@ -215,6 +228,8 @@ export function DesktopDocumentPanels({
               {second}
             </div>
           )}
+          </div>}
+          {showMatches && <div className={`document-panel-matches-slot${hasPinned ? " has-pinned-panels" : ""}`} data-panel="matches">{matches}</div>}
         </aside>
       )}
       {(controller.error || error) && (

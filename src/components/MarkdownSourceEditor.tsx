@@ -20,6 +20,7 @@ import { mobileSourceInput } from "../lib/mobile-source-input";
 import { sourceMicroHighlighting, sourceMicroSyntax } from "../lib/source-micro-rendering";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { readonlySourceSelection } from "../lib/readonly-source-selection";
+import { setSourceWordEnabled, sourceWordOccurrences } from "../lib/source-word-occurrences";
 import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import {
   useLayoutEffect,
@@ -334,6 +335,7 @@ export function MarkdownSourceEditor({
         ]),
       ),
       sourceSearchExtension,
+      sourceWordOccurrences,
       EditorState.phrases.of({
         Find: "查找",
         Replace: "替换",
@@ -486,6 +488,7 @@ export function MarkdownSourceEditor({
   useEffect(() => {
     const editor = view.current;
     if (!editor) return;
+    setSourceWordEnabled(editor, !["", "markdown", "flow", "mermaid"].includes(documentLanguage));
     let cancelled = false;
     setSourceMessage("");
     if (documentLanguage === "markdown" || documentLanguage === "flow") {
