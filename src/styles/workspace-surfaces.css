@@ -1731,6 +1731,22 @@
   text-overflow: ellipsis;
 }
 
+.document-outline-list[data-source-symbols="true"] .document-outline-link {
+  gap: 2px;
+}
+
+.document-outline-list[data-source-symbols="true"] .document-outline-level.is-symbol-marker {
+  width: 9px;
+  min-width: 9px;
+  justify-content: flex-start;
+}
+
+.document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-kind="类型"] .document-outline-level.is-symbol-marker {
+  width: 14px;
+  min-width: 14px;
+  justify-content: center;
+}
+
 .document-outline-text {
   display: -webkit-box;
   flex: 1;

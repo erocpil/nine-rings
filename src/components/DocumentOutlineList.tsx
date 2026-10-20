@@ -381,6 +381,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
           ...(virtualized ? { top: `${rowLayout.tops[visibleIndex]}px`, minHeight: `${rowLayout.heights[visibleIndex]}px` } : {}),
         }}
         data-level={item.level}
+        data-symbol-kind={compactSymbols ? item.kind : undefined}
         data-hierarchy-level={((item.level - 1) % 6) + 1}
         data-outline-index={index}
         data-compact-symbols={compactSymbols ? "true" : undefined}

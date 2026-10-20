@@ -37,7 +37,7 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   await format.selectOption("c");
   const area = page.locator(".cm-content");
   await expect(area).toBeVisible();
-  const source = `struct Packet {\n  int length;\n  void reset();\n};\n\nint zebra(void) { return 0; }\n\nint open_packet(int id) {\n  return id;\n}\n\nint alpha(void) { return 0; }\n`;
+  const source = `struct Packet {\n  int length;\n  void reset();\n};\n#define NR_PACKET_LIMIT 8\n\nint zebra(void) { return 0; }\n\nint open_packet(int id) {\n  return id;\n}\n\nint alpha(void) { return 0; }\n`;
   await replaceSource(area, source);
 
   const symbolButton = page.getByRole("button", { name: "源码符号", exact: true }).first();
@@ -46,6 +46,13 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   const panel = page.getByRole("navigation", { name: "源码符号" });
   await expect(panel.getByText("Packet", { exact: true })).toBeVisible();
   await expect(panel.getByText("length: int", { exact: true })).toBeVisible();
+  const memberRow = panel.locator('.document-outline-item[data-symbol-kind="成员"]').filter({ hasText: "length: int" });
+  await expect(memberRow.locator(".document-outline-level")).toHaveCSS("width", "9px");
+  expect(await memberRow.locator(".document-outline-link").evaluate(link => getComputedStyle(link).gap)).toBe("2px");
+  const functionMarker = panel.locator('.document-outline-item[data-symbol-kind="函数"] .document-outline-level').first();
+  await expect(functionMarker).toHaveCSS("width", "9px");
+  const macroMarker = panel.locator('.document-outline-item[data-symbol-kind="宏"] .document-outline-level').first();
+  await expect(macroMarker).toHaveCSS("width", "9px");
   await expect(panel.locator(".document-outline-jumps")).toHaveCount(0);
   await expect(panel.locator(".document-outline-count")).toHaveCount(0);
   await expect(panel.getByRole("button", { name: "按字母顺序排序" })).toBeVisible();
