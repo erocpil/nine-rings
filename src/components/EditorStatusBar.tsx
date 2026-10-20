@@ -173,7 +173,7 @@ export function EditorStatusBar({
       {state.visible && documentLanguage !== undefined && <select
         className="editor-document-language"
         aria-label="文件格式"
-        title="文件格式 / 源码语法高亮；不改写正文或文件名"
+        title="文件格式；保留原始源码，控制可用视图与语法高亮"
         value={documentLanguage}
         disabled={!onDocumentLanguageChange}
         onChange={event => onDocumentLanguageChange?.(event.target.value)}

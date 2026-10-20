@@ -51,7 +51,7 @@ function previewDocument(revision: SourceNavigationDocument) {
     MarkdownTaskState, FootnoteNumbering,
     MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes, HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline,
   ]);
-  const doc = schema.nodeFromJSON(revision.document);
+  const doc = schema.nodeFromJSON(revision.previewDocument);
   doc.check();
   return { doc, revision };
 }
@@ -207,7 +207,7 @@ export function MarkdownSplitPreview({
       {enabled && (
         <section
           className="markdown-preview-pane"
-          aria-label="Markdown 实时预览"
+          aria-label={`${revision.language === "flow" ? "Flow" : revision.language === "mermaid" ? "Mermaid" : "Markdown"} 实时预览`}
         >
           {error && <div role="status">{error}</div>}
           <div

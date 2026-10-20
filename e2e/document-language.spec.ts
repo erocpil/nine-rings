@@ -16,7 +16,8 @@ test("状态栏文件格式与系统菜单共享设置，切换语法保留正�
   await format.selectOption("python");
   await expect.poll(async () => (await persisted()).metadata?.sourceLanguage).toBe("python");
   expect((await persisted()).ops).toEqual(before.ops);
-  await page.getByRole("button", { name: "源码", exact: true }).click();
+  await expect(page.getByRole("button", { name: "源码", exact: true })).toHaveCount(0);
+  await expect(page.locator(".cm-content")).toBeVisible();
   const area = page.locator(".cm-content");
   await replaceSource(area, 'def greet(name):\n    return "Hello " + name\n');
   await expect(area.locator("span").filter({ hasText: /^def$/ })).toBeVisible();
@@ -49,7 +50,7 @@ test("状态栏文件格式与系统菜单共享设置，切换语法保留正�
     await menu.runNativeMenuAction("edit.redo");
   });
   await expect(area).toContainText("def greet(name)");
-  await expect.poll(async () => (await persisted()).metadata?.markdownSource).toContain("def greet(name)");
+  await expect.poll(async () => (await persisted()).metadata?.sourceText).toContain("def greet(name)");
   await page.reload();
   await expect(format).toHaveValue("python");
   await expect(page.locator(".cm-content")).toContainText("def greet(name)");

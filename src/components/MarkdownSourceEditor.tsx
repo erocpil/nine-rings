@@ -1,3 +1,5 @@
+import { CODE_LANGUAGE_OPTIONS } from "../lib/code-language-options";
+import { mermaidSourceLanguage } from "../lib/source-mermaid-language";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import { emptySourceFormats, sourceFormats, sourceHeadingChange, removeSourceInlineFormat, type SourceInlineFormat } from "../lib/source-format-state";
 import { useDocumentActive } from "./RetainedDocument";
@@ -189,8 +191,12 @@ export function MarkdownSourceEditor({
   selectionCallback.current = onSelectionChange;
   callback.current = onChange;
   const editingReadonly = readonly || editingDisabled;
+  const markupMode = documentLanguage === "markdown" || documentLanguage === "flow";
+  const markupModeRef = useRef(markupMode);
+  markupModeRef.current = markupMode;
 
-  const initial = useRef({ value, readonly: editingReadonly });
+  const sourceLabel = `${CODE_LANGUAGE_OPTIONS.find(option => option.value === documentLanguage)?.label ?? "text"} 源码`;
+  const initial = useRef({ value, readonly: editingReadonly, sourceLabel });
   const lastValue = useRef(value);
   const syntax = useRef(new Compartment());
   const [syntaxError, setSyntaxError] = useState("");
@@ -202,7 +208,7 @@ export function MarkdownSourceEditor({
   const [tools, setTools] = useState({ search: false, goto: false, undo: false, redo: false });
   const [formats, setFormats] = useState(emptySourceFormats);
   const syncTools = (state: EditorState) => {
-    const nextFormats = sourceFormats(state);
+    const nextFormats = markupModeRef.current ? sourceFormats(state) : emptySourceFormats();
     setFormats(previous => Object.keys(nextFormats).every(key => previous[key as keyof typeof previous] === nextFormats[key as keyof typeof nextFormats]) ? previous : nextFormats);
     const next = { search: sourcePanelOpen(state, "search"), goto: sourcePanelOpen(state, "goto"), undo: undoDepth(state) > 0, redo: redoDepth(state) > 0 };
     setTools(previous => Object.keys(next).every(key => previous[key as keyof typeof next] === next[key as keyof typeof next]) ? previous : next);
@@ -289,7 +295,7 @@ export function MarkdownSourceEditor({
         {
           key: "Enter",
           run: (editor) => {
-            if (editor.state.readOnly || editor.composing) return false;
+            if (!markupModeRef.current || editor.state.readOnly || editor.composing) return false;
             const range = editor.state.selection.main,
               line = editor.state.doc.lineAt(range.head);
             let items = 0,
@@ -326,11 +332,11 @@ export function MarkdownSourceEditor({
             );
           },
         },
-        { key: "Backspace", run: deleteMarkupBackward },
-        { key: "Mod-b", run: (v) => wrapSelection(v, "**") },
-        { key: "Mod-i", run: (v) => wrapSelection(v, "*") },
-        { key: "Mod-e", run: (v) => wrapSelection(v, "`") },
-        { key: "Mod-k", run: (v) => wrapSelection(v, "[", "](https://)") },
+        { key: "Backspace", run: v => markupModeRef.current && deleteMarkupBackward(v) },
+        { key: "Mod-b", run: (v) => markupModeRef.current && wrapSelection(v, "**") },
+        { key: "Mod-i", run: (v) => markupModeRef.current && wrapSelection(v, "*") },
+        { key: "Mod-e", run: (v) => markupModeRef.current && wrapSelection(v, "`") },
+        { key: "Mod-k", run: (v) => markupModeRef.current && wrapSelection(v, "[", "](https://)") },
         { key: "Mod-g", run: v => toggleSourcePanel(v, "goto") },
         ...closeBracketsKeymap,
         ...defaultKeymap,
@@ -343,11 +349,10 @@ export function MarkdownSourceEditor({
         EditorState.readOnly.of(initial.current.readonly),
         EditorView.editable.of(!initial.current.readonly),
         initial.current.readonly ? readonlySourceSelection : drawSelection(),
-        EditorView.contentAttributes.of({ "aria-readonly": String(initial.current.readonly) }),
+        EditorView.contentAttributes.of({ "aria-readonly": String(initial.current.readonly), "aria-label": initial.current.sourceLabel }),
       ]),
       display.current.of(displayRef.current()),
       EditorView.contentAttributes.of({
-        "aria-label": "Markdown 源码",
         tabindex: "0",
         spellcheck: "false",
         autocorrect: "off",
@@ -411,11 +416,13 @@ export function MarkdownSourceEditor({
     if (!editor) return;
     let cancelled = false;
     setSyntaxError("");
-    if (documentLanguage === "markdown") {
+    if (documentLanguage === "markdown" || documentLanguage === "flow") {
       editor.dispatch({ effects: syntax.current.reconfigure([
         markdown({ base: markdownLanguage, codeLanguages: languages, addKeymap: false, extensions: [sourceMicroSyntax] }),
         sourceMicroHighlighting,
       ]) });
+    } else if (documentLanguage === "mermaid") {
+      editor.dispatch({ effects: syntax.current.reconfigure(mermaidSourceLanguage) });
     } else {
       // Remove the previous parser immediately; a slow import must never
       // install its language after the user has made another selection.
@@ -433,10 +440,10 @@ export function MarkdownSourceEditor({
         EditorState.readOnly.of(editingReadonly),
         EditorView.editable.of(!editingReadonly),
         editingReadonly ? readonlySourceSelection : drawSelection(),
-        EditorView.contentAttributes.of({ "aria-readonly": String(editingReadonly) }),
+        EditorView.contentAttributes.of({ "aria-readonly": String(editingReadonly), "aria-label": sourceLabel }),
       ]),
     });
-  }, [editingReadonly]);
+  }, [editingReadonly, sourceLabel]);
   useEffect(() => {
     const sync = () => {
       setPreferences(blockWorkspacePreferences());
@@ -506,13 +513,13 @@ export function MarkdownSourceEditor({
           onClick={() => saveBlockWorkspacePreferences({ sourceSyntaxHighlighting: preferences.sourceSyntaxHighlighting === false })}>
           <ToolbarIcon name="highlight" />
         </button>
-        <button type="button" title="源码微渲染" aria-label="源码微渲染" aria-pressed={preferences.sourceMicroRendering === true}
+        {markupMode && <button type="button" title="源码微渲染" aria-label="源码微渲染" aria-pressed={preferences.sourceMicroRendering === true}
           onClick={() => saveBlockWorkspacePreferences({ sourceMicroRendering: preferences.sourceMicroRendering !== true })}>
           <ToolbarIcon name="font" />
-        </button>
+        </button>}
         {[true, false].map(collapse => <span className="source-fold-tool" key={String(collapse)}>
           <button type="button" title={collapse ? "折叠全部" : "展开全部"} aria-label={collapse ? "折叠全部" : "展开全部"} onClick={() => run(collapse ? foldAll : unfoldAll)}><ToolbarIcon name={collapse ? "folderCollapse" : "folderKeep"} /></button>
-          <button type="button" className="source-fold-level-trigger" title={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-label={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-haspopup="menu" aria-expanded={foldMenu?.collapse === collapse} onClick={event => { const trigger = editorCommandTrigger(event.currentTarget); setFoldMenu(previous => previous?.collapse === collapse ? null : { trigger, collapse }); }}><svg className="source-fold-level-icon" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1h8L5 5z" fill="currentColor" /></svg></button>
+          {markupMode && <button type="button" className="source-fold-level-trigger" title={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-label={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-haspopup="menu" aria-expanded={foldMenu?.collapse === collapse} onClick={event => { const trigger = editorCommandTrigger(event.currentTarget); setFoldMenu(previous => previous?.collapse === collapse ? null : { trigger, collapse }); }}><svg className="source-fold-level-icon" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1h8L5 5z" fill="currentColor" /></svg></button>}
         </span>)}
         {foldMenu && <BlockActionMenu trigger={foldMenu.trigger} placement="below" title={foldMenu.collapse ? "折叠标题级别" : "展开标题级别"} onClose={() => setFoldMenu(null)} actions={[{ label: foldMenu.collapse ? "折叠全部" : "展开全部", run: () => run(foldMenu.collapse ? foldAll : unfoldAll) }, ...Array.from({ length: 6 }, (_, i) => ({ label: foldMenu.collapse ? `折叠 H${i + 1} 及更深标题` : `展开至 H${i + 1}`, run: () => run(view => { const effects = sourceHeadingFoldEffects(view.state, i + 1, foldMenu.collapse); if (!effects) return false; view.dispatch({ effects }); return true; }) }))]} />}
         {!readonly && <>
@@ -522,7 +529,7 @@ export function MarkdownSourceEditor({
         <button type="button" title={shortcutTitle("edit.redo", "重做")} aria-label="重做" disabled={editingReadonly || !tools.redo} onClick={() => run(redo)}>
           <ToolbarIcon name="redo" />
         </button>
-        <button
+        {markupMode && <><button
           type="button"
           title={shortcutTitle("format.bold", "加粗")}
           aria-label="加粗" aria-pressed={formats.bold} className={formats.bold ? "active" : undefined}
@@ -568,6 +575,7 @@ export function MarkdownSourceEditor({
           if (!spec) return false;
           v.dispatch(spec); v.focus(); return true;
         })}><ToolbarIcon name={icon} /></button>)}
+        </>}
         <button type="button" title="增加缩进" aria-label="增加缩进" disabled={editingReadonly} onClick={() => run(v => !v.composing && !v.state.readOnly && indentMore(v))}><ToolbarIcon name="indent" /></button>
         <button type="button" title="减少缩进" aria-label="减少缩进" disabled={editingReadonly} onClick={() => run(v => !v.composing && !v.state.readOnly && indentLess(v))}><ToolbarIcon name="outdent" /></button>
         {escapeRepair}
@@ -587,33 +595,33 @@ export function MarkdownSourceEditor({
     "document.expand": { run: () => run(unfoldAll) },
     "source.wrap": { run: () => saveBlockWorkspacePreferences({ wrap: preferences.wrap === false }), checked: preferences.wrap !== false },
     "source.highlight": { run: () => saveBlockWorkspacePreferences({ sourceSyntaxHighlighting: preferences.sourceSyntaxHighlighting === false }), checked: preferences.sourceSyntaxHighlighting !== false },
-    "source.micro": { run: () => saveBlockWorkspacePreferences({ sourceMicroRendering: preferences.sourceMicroRendering !== true }), checked: preferences.sourceMicroRendering === true },
-    ...Object.fromEntries([["bold", "**"], ["italic", "*"], ["strike", "~~"], ["code", "`"]].map(([kind, marker]) => [`format.${kind}`, { run: () => run(v => wrapSelection(v, marker)), enabled: !editingReadonly && !formats.codeblock && (kind === "code" || !formats.code), checked: formats[kind as SourceInlineFormat] }])),
+    "source.micro": { run: () => saveBlockWorkspacePreferences({ sourceMicroRendering: preferences.sourceMicroRendering !== true }), checked: markupMode && preferences.sourceMicroRendering === true, enabled: markupMode },
+    ...Object.fromEntries([["bold", "**"], ["italic", "*"], ["strike", "~~"], ["code", "`"]].map(([kind, marker]) => [`format.${kind}`, { run: () => run(v => wrapSelection(v, marker)), enabled: markupMode && !editingReadonly && !formats.codeblock && (kind === "code" || !formats.code), checked: formats[kind as SourceInlineFormat] }])),
     ...Object.fromEntries((["quote", "bullet", "ordered", "task"] as const).map(kind => [`format.${kind === "task" ? "todo" : kind}`, { run: () => run(v => {
       if (v.composing) return false;
       const spec = formatSourceLines(v.state, kind);
       if (!spec) return false;
       v.dispatch(spec); v.focus(); return true;
-    }), enabled: !editingReadonly && !formats.codeblock, checked: formats[kind === "task" ? "todo" : kind] }])),
+    }), enabled: markupMode && !editingReadonly && !formats.codeblock, checked: formats[kind === "task" ? "todo" : kind] }])),
     ...Object.fromEntries(Array.from({ length: 7 }, (_, level) => [`format.${level ? `h${level}` : "paragraph"}`, { run: () => run(v => {
       if (v.composing) return false;
       const spec = sourceHeadingChange(v.state, level);
       if (!spec) return false;
       v.dispatch({ ...spec, annotations: isolateHistory.of("full") }); v.focus(); return true;
-    }), enabled: !editingReadonly && !formats.codeblock, checked: formats[level ? `h${level}` as keyof typeof formats : "paragraph"] }])),
-    "format.link": { run: () => run(v => wrapSelection(v, "[", "](https://)")), enabled: !editingReadonly && !formats.codeblock && !formats.code },
+    }), enabled: markupMode && !editingReadonly && !formats.codeblock, checked: formats[level ? `h${level}` as keyof typeof formats : "paragraph"] }])),
+    "format.link": { run: () => run(v => wrapSelection(v, "[", "](https://)")), enabled: markupMode && !editingReadonly && !formats.codeblock && !formats.code },
     "format.codeblock": { run: () => run(v => {
       if (v.composing) return false;
       const spec = insertSourceBlock(v.state, "code");
       if (!spec) return false;
       v.dispatch(spec); v.focus(); return true;
-    }), enabled: !editingReadonly, checked: formats.codeblock },
+    }), enabled: markupMode && !editingReadonly, checked: formats.codeblock },
   }, documentActive);
   return (
     <div
       className="markdown-source-input markdown-cm-source"
       data-document-language={documentLanguage || "text"}
-      data-micro-rendering={documentLanguage === "markdown" && preferences.sourceMicroRendering === true}
+      data-micro-rendering={markupMode && preferences.sourceMicroRendering === true}
       data-source-highlighting={preferences.sourceSyntaxHighlighting !== false}
       style={{ fontSize, "--source-font-size": `${fontSize}px` } as CSSProperties}
     >

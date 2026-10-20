@@ -79,8 +79,10 @@ export interface DocumentMetadata {
   presentationMode?: "flow";
   flowHeadingLevel?: number;
   sourceFormat?: "text" | "markdown";
-  /** Source syntax selection; does not rewrite document content or filename. */
+  /** Document type and source syntax; determines available views. */
   sourceLanguage?: string;
+  /** Authoritative raw source for non-Markdown document types. */
+  sourceText?: string;
   /** Filename at import time, retained when the displayed title changes. */
   originalFileName?: string;
   /** Original Markdown, retained until the rendered body is edited. */

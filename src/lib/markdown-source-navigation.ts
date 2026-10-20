@@ -1,3 +1,6 @@
+import { plainTextToDelta } from "./plain-text-delta";
+import { documentSourceLanguage } from "./document-language";
+import { textWeight } from "./delta-content-weight";
 import type { DeltaOps, DocumentBookmark, DocumentReferenceAnchor } from "../types/models";
 import type { JSONContent } from "@tiptap/core";
 import { deltaToProseMirror } from "./delta-converter";
@@ -111,11 +114,23 @@ function sourceAnchorMapping(
   };
 }
 
-function parse(source: string) {
+function parse(source: string, plain = false) {
   const spans: MarkdownSourceSpan[] = [];
-  const delta = mdToDelta(source, spans);
+  const delta = plain ? { ...plainTextToDelta(source), metadata: { sourceFormat: "text" as const } } : mdToDelta(source, spans);
   const doc = deltaToProseMirror(delta);
-  const map = sourcePositionMap(source, { delta, spans });
+  let map = sourcePositionMap(source, { delta, spans });
+  if (plain) {
+    let offset = 0, weight = 0;
+    map = source.split("\n").map(line => {
+      const from = offset, weightFrom = weight;
+      const textOffsets = new Uint32Array(textWeight(line));
+      let index = 0;
+      for (let i = 0; i < line.length; i++) if (!/\s/.test(line[i])) textOffsets[index++] = from + i;
+      offset += line.length + 1;
+      weight += textWeight(line);
+      return { from, to: from + line.length, weightFrom, weightTo: weight, textOffsets: textOffsets.length ? textOffsets : undefined };
+    });
+  }
   const blocks = renderedTextblockMap(doc);
   const outline = renderedPositionMap(doc).flatMap((entry) => {
     const node = doc.content?.[entry.index];
@@ -187,17 +202,27 @@ export class SourceNavigationDocument {
     private referenceBase?: DeltaOps,
   ) {}
   private get model() {
-    return (this.parsed ??= parse(this.source));
+    return (this.parsed ??= parse(this.source, documentSourceLanguage(this.metadata) !== "markdown"));
   }
   get document() { return this.model.doc; }
+  get language() { return documentSourceLanguage(this.metadata); }
+  get previewDocument(): JSONContent {
+    const language = documentSourceLanguage(this.metadata);
+    return language === "flow" || language === "mermaid"
+      ? { type: "doc", content: [{ type: "codeBlock", attrs: { language, diagram: true }, content: this.source ? [{ type: "text", text: this.source }] : [] }] }
+      : this.document;
+  }
   get referenceAnchors() {
     if (this.unchanged) return this.unchanged.metadata?.referenceAnchors ?? [];
     const base = this.referenceBase ?? this.unchanged;
-    return base ? mapSourceReferences(deltaToProseMirror(base), this.model.doc, base.metadata?.referenceAnchors ?? []) : this.metadata?.referenceAnchors ?? [];
+    const anchors = base?.metadata?.referenceAnchors ?? this.metadata?.referenceAnchors ?? [];
+    if (!anchors.length) return [];
+    return base ? mapSourceReferences(deltaToProseMirror(base), this.model.doc, anchors) : anchors;
   }
   referenceOffset(id: string) {
     const anchor = this.referenceAnchors.find(item => item.id === id && !item.deleted);
     if (!anchor) return undefined;
+    if (documentSourceLanguage(this.metadata) !== "markdown") return this.offsetAt(anchor.from);
     const block = this.model.blocks.find((_block, i) => anchor.from < (this.model.blocks[i + 1]?.position ?? Infinity));
     if (!block) return 0;
     const span = this.model.map.find(item => item.weightTo > block.from);
@@ -206,6 +231,7 @@ export class SourceNavigationDocument {
     return textStart >= 0 ? span!.from + textStart + Math.max(0, anchor.from - block.position - 1) : this.offsetAt(anchor.from);
   }
   get outline() {
+    if (documentSourceLanguage(this.metadata) !== "markdown") return [];
     return this.model.outline;
   }
   offsetAt(position: number) {
@@ -216,11 +242,17 @@ export class SourceNavigationDocument {
           entry.position <= position &&
           (blocks[i + 1]?.position ?? Infinity) > position,
       ) ?? blocks[0];
-    return block
-      ? weightToSourceOffset(this.source, block.from, this.model.map)
-      : 0;
+    if (block && documentSourceLanguage(this.metadata) !== "markdown") {
+      const span = this.model.map[block.index];
+      return Math.min(this.source.length, (span?.from ?? 0) + Math.max(0, Math.min(block.text.length, position - block.position - 1)));
+    }
+    return block ? weightToSourceOffset(this.source, block.from, this.model.map) : 0;
   }
   blockAt(offset: number) {
+    if (documentSourceLanguage(this.metadata) !== "markdown") {
+      const index = this.model.map.findIndex((span, i, all) => span.from <= offset && (all[i + 1]?.from ?? Infinity) > offset);
+      return this.model.blocks[Math.min(Math.max(0, index), this.model.blocks.length - 1)];
+    }
     const weight = sourceOffsetToWeight(this.source, offset, this.model.map);
     return (
       this.model.blocks.find((block) => block.to > weight) ??
@@ -229,7 +261,8 @@ export class SourceNavigationDocument {
   }
   get bookmarks(): SourceBookmark[] {
     return this.anchors.flatMap(({ bookmark, offset, part }) => {
-      const span = this.model.map.find((entry) => entry.to >= offset);
+      const plain = documentSourceLanguage(this.metadata) !== "markdown";
+      const span = plain ? undefined : this.model.map.find((entry) => entry.to >= offset);
       const candidates = span
         ? this.model.blocks.filter(
             (block) => block.from < span.weightTo && block.to > span.weightFrom,
@@ -246,7 +279,7 @@ export class SourceNavigationDocument {
               ...bookmark,
               offset,
               blockNumber: block.index + 1,
-              position: this.unchanged ? bookmark.position : block.position + 1,
+              position: this.unchanged ? bookmark.position : block.position + 1 + (plain ? Math.max(0, offset - (this.model.map[block.index]?.from ?? 0)) : 0),
               preview: this.unchanged
                 ? bookmark.preview
                 : block.text.trim().slice(0, 80) || "空白段落",
@@ -258,11 +291,11 @@ export class SourceNavigationDocument {
   read(): DeltaOps {
     if (this.unchanged) return this.unchanged;
     return (this.cached ??= {
-      ...this.model.delta,
+      ...(documentSourceLanguage(this.metadata) === "markdown" ? this.model.delta : plainTextToDelta(this.source)),
       metadata: {
         ...this.metadata,
-        sourceFormat: "markdown",
-        markdownSource: this.source,
+        sourceFormat: documentSourceLanguage(this.metadata) === "markdown" ? "markdown" : "text",
+        ...(documentSourceLanguage(this.metadata) === "markdown" ? { markdownSource: this.source } : { sourceText: this.source }),
         referenceAnchors: this.referenceAnchors,
         bookmarks: this.bookmarks.map(
           ({ offset: _offset, blockNumber: _block, ...bookmark }) => bookmark,
@@ -299,6 +332,10 @@ export class SourceNavigationDocument {
       content,
     );
     if (!content.metadata?.bookmarks?.length) return result;
+    if (documentSourceLanguage(content.metadata) !== "markdown") {
+      result.anchors = content.metadata.bookmarks.map(bookmark => ({ bookmark, offset: result.offsetAt(bookmark.position), part: 0 }));
+      return result;
+    }
     const map = result.model.map;
     const blocks = renderedTextblockMap(deltaToProseMirror(content));
     result.anchors = content.metadata.bookmarks.map((bookmark) => {

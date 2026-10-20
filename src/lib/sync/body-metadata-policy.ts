@@ -10,10 +10,20 @@ import {
 } from "./document-metadata-policy";
 import type { JSONContent } from "@tiptap/core";
 import { deltaToProseMirror } from "../delta-converter";
+import { plainTextToDelta } from "../plain-text-delta";
 
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
+function sourcePreview(metadata: Record<string, unknown>): JSONContent | null {
+  return typeof metadata.sourceText === "string" && ["flow", "mermaid"].includes(String(metadata.sourceLanguage))
+    ? { type: "codeBlock", attrs: { language: metadata.sourceLanguage }, content: [{ type: "text", text: metadata.sourceText }] }
+    : null;
+}
 export function metadataResourceFeatures(metadata: unknown): string[] {
+  if (record(metadata)) {
+    const preview = sourcePreview(metadata);
+    if (preview) return renderedResourceFeatures(preview);
+  }
   if (
     !record(metadata) ||
     typeof metadata.markdownSource !== "string" ||
@@ -69,6 +79,14 @@ export function isCertifiedBodyMetadata(
   body: Record<string, unknown>,
 ): boolean {
   if (!record(metadata) || !isCertifiedDocumentMetadata(metadata)) return false;
+  const documentBody = metadata.sourceFormat === "text" ? { ...body, metadata: { sourceFormat: "text" } } : body;
+  if (typeof metadata.sourceText === "string") {
+    if (metadata.sourceFormat !== "text" || metadata.sourceLanguage === "markdown") return false;
+    const expected = deltaToProseMirror({ ...plainTextToDelta(metadata.sourceText), metadata: { sourceFormat: "text" } });
+    if (JSON.stringify(expected.content) !== JSON.stringify(deltaToProseMirror(documentBody).content)) return false;
+    const preview = sourcePreview(metadata);
+    if (preview && !hasPortableRenderedResources(preview)) return false;
+  }
   if (
     typeof metadata.markdownSource === "string" &&
     metadata.sourceFormat !== "text"
@@ -89,7 +107,7 @@ export function isCertifiedBodyMetadata(
       if (
         !isCertifiedBookmarks(
           metadata.bookmarks,
-          deltaToProseMirror(body),
+          deltaToProseMirror(documentBody),
           nodeSize,
         )
       )
@@ -104,7 +122,7 @@ export function isCertifiedBodyMetadata(
   if (!anchors.length) return true;
   let size: number;
   try {
-    size = deltaToProseMirror(body).content.reduce(
+    size = deltaToProseMirror(documentBody).content.reduce(
       (sum, node) => sum + nodeSize(node),
       0,
     );

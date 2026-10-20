@@ -371,6 +371,8 @@ function serialize(root: Root): string {
 }
 /** One structured serializer for the UI, storage, Workers and CLI. */
 export function deltaToMarkdown(content: unknown): string {
+  const raw = (content as { metadata?: { sourceText?: unknown; sourceFormat?: unknown } } | null)?.metadata;
+  if (raw?.sourceFormat === "text" && typeof raw.sourceText === "string") return raw.sourceText;
   const doc = isProseMirror(content)
     ? content
     : deltaToProseMirror(Array.isArray(content) ? { ops: content } : content);
@@ -383,6 +385,8 @@ export function noteToMarkdown(
   title: string | null | undefined,
   content: unknown,
 ): string {
+  const metadata = (content as { metadata?: { sourceText?: unknown; sourceFormat?: unknown } } | null)?.metadata;
+  if (metadata?.sourceFormat === "text" && typeof metadata.sourceText === "string") return metadata.sourceText;
   const normalizedTitle = title?.trim() || "无标题";
   const body = deltaToMarkdown(content);
   const heading = `# ${normalizedTitle}`;

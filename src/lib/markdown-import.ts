@@ -1,3 +1,4 @@
+import { documentLanguageFromFilename } from "./document-language";
 import type { CreateNoteInput, DocType } from "../types/models";
 import { extractTitle, mdToDelta } from "./md-parser";
 import { plainTextToDelta } from "./plain-text-delta";
@@ -12,7 +13,7 @@ export interface MarkdownImportOptions {
 }
 
 /** Explicit text formats only: directory import must never ingest arbitrary binaries. */
-export const TEXT_IMPORT_EXTENSIONS = ["md", "markdown", "txt", "text", "log", "csv", "tsv", "rst", "adoc"];
+export const TEXT_IMPORT_EXTENSIONS = ["md", "markdown", "txt", "text", "log", "csv", "tsv", "rst", "adoc", "c", "h", "cpp", "hpp", "cxx", "cs", "css", "flow", "go", "html", "xml", "java", "js", "jsx", "json", "mermaid", "mmd", "py", "rs", "sh", "bash", "sql", "ts", "tsx", "yaml", "yml"];
 export const TEXT_IMPORT_ACCEPT = TEXT_IMPORT_EXTENSIONS.map(extension => `.${extension}`).join(",");
 
 export function isTextImportFile(fileName: string): boolean {
@@ -64,7 +65,7 @@ export function buildTextImportInput(file: TextImportSource, options: MarkdownIm
   // Build metadata through the same path but keep plain text out of the Markdown parser.
   const input = buildMarkdownImportInput(file.fileName, "", { ...options, storagePath });
   input.title = file.fileName.replace(/\.[^.]+$/, "");
-  input.content = { ...plainTextToDelta(source), metadata: { sourceFormat: "text", originalFileName: file.fileName } };
+  input.content = { ...plainTextToDelta(source), metadata: { sourceFormat: "text", sourceText: source, sourceLanguage: documentLanguageFromFilename(file.fileName), originalFileName: file.fileName } };
   return input;
 }
 

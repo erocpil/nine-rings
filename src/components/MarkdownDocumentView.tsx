@@ -1,5 +1,8 @@
+import { readDocumentSource, writeDocumentSource } from "../lib/document-source";
+import { mapSourceReferences } from "../lib/markdown-source-navigation";
+import { EditorStatusBar } from "./EditorStatusBar";
 import { CODE_LANGUAGE_OPTIONS } from "../lib/code-language-options";
-import { documentSourceLanguage, documentLanguageCommand } from "../lib/document-language";
+import { documentSourceLanguage, documentLanguageCommand, documentHasPreview } from "../lib/document-language";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import { useFocusEditorTools } from "../stores/useFocusEditorTools";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
@@ -33,12 +36,15 @@ import { useMarkdownViewPosition } from "../hooks/useMarkdownViewPosition";
 import { patchReadingState, readReadingState } from "../lib/reading-state";
 import { useDocumentOpenStore } from "../stores/useDocumentOpenStore";
 
+const SourceDocumentPreview = lazy(() => import("./SourceDocumentPreview").then(module => ({ default: module.SourceDocumentPreview })));
 const MarkdownSourceEditor = lazy(() => import("./MarkdownSourceEditor").then(module => ({ default: module.MarkdownSourceEditor })));
 
 /** One visible editing surface, one canonical autosave stream for both views. */
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
   const statusBar = useStatusBarDisplay(props.showStatusBar, props.focusMode);
   const active = useDocumentActive();
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const storedDocumentLanguage = documentSourceLanguage(props.content.metadata);
   const [documentLanguage, setDocumentLanguage] = useState(storedDocumentLanguage);
   const documentLanguageRef = useRef(documentLanguage);
@@ -55,7 +61,11 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const [previewSync, setPreviewSync] = useState(() => localStorage.getItem("nr:markdownPreviewSync") !== "false");
   const hostOwner = useRef({});
   const renderedHost = useRef<Parameters<NonNullable<NoteEditorProps["onHostEditorReady"]>>[0]>(null);
-  const [source, setSource] = useState<string | null>(null);
+  const [initialReading] = useState(() => props.sensitive ? null : readReadingState(props.noteId));
+  const [initialRaw] = useState(() => storedDocumentLanguage !== "markdown" ? readDocumentSource(props.content) : null);
+  const hasPreview = documentHasPreview(documentLanguage);
+  const [source, setSource] = useState<string | null>(initialRaw);
+
   const viewPosition = useMarkdownViewPosition(props.noteId, source !== null, props.sensitive);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(busy);
@@ -67,7 +77,9 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const latestReader = useRef<(() => DeltaOps) | null>(null);
   const initial = useRef<{ text: string; content: DeltaOps } | null>(null);
   const sourceSession = useRef<SourceNavigationSession | null>(null);
+  if (initialRaw !== null && !sourceSession.current) sourceSession.current = new SourceNavigationSession(initialRaw, props.content);
   const sourceEditorState = useRef<EditorState | null>(null);
+  const rawRestoreTop = useRef(initialRaw !== null ? initialReading?.source?.scrollTop : undefined);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => props.documentSessions?.retain(props.noteId), [props.documentSessions, props.noteId]);
@@ -83,24 +95,35 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const onSourceReady = viewPosition.onSourceReady;
   const hostSourceReady = useCallback((handle: import("../lib/source-editor-handle").SourceEditorHandle | null) => {
     onSourceReady(handle);
+    if (handle && rawRestoreTop.current !== undefined) {
+      const top = rawRestoreTop.current;
+      const view = handle.view;
+      view.requestMeasure({ read: () => top, write: value => {
+        if (handle.view !== view || !view.dom.isConnected) return;
+        handle.scrollTop = value;
+        rawRestoreTop.current = undefined;
+      } });
+    }
     props.documentSessions?.bind(props.noteId, hostOwner.current, "source", handle ? sourceEditAdapter(handle, () => Boolean(latestProps.current.readonly) || busyRef.current) : null);
   }, [onSourceReady, props.documentSessions, props.noteId]);
-  const supported = props.content.metadata?.sourceFormat !== "text" && !props.pdfExcerptSource && !props.epubExcerptSource;
+  const supported = !props.pdfExcerptSource && !props.epubExcerptSource;
   const editSource = (text: string, range?: SourceEditRange) => {
     setSource(text);
     const revision = sourceSession.current?.update(text, range);
     if (!revision) return;
     const language = documentLanguageRef.current;
+    let cached: DeltaOps | undefined;
     const read = () => {
+      if (cached) return cached;
       const content = revision.read();
-      return { ...content, metadata: { ...content.metadata, sourceLanguage: language } };
+      return (cached = { ...content, metadata: { ...content.metadata, sourceLanguage: language } });
     };
     invalidateEditorDocument(props.noteId);
     latestReader.current = read;
     props.onContentChange(read, { batch: revision });
   };
   const changeView = async (restoreSourceTop?: number) => {
-    if (busy) return;
+    if (busy || !hasPreview) return;
     setBusy(true); setError("");
     try {
       await latestProps.current.onFlush?.();
@@ -110,21 +133,22 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       const raw = latestReader.current?.() ?? latestProps.current.content;
       const content: DeltaOps = isProseMirror(raw) ? { ...proseMirrorToDelta(raw), metadata: raw.metadata } : raw;
       if (source === null) {
-        const originalSource = content.metadata?.markdownSource;
+        const originalSource = content.metadata?.sourceText ?? content.metadata?.markdownSource;
         const text = typeof originalSource === "string" ? originalSource : await deltaToMarkdownAsync(content);
         if (!alive.current) return;
         // An edit during the worker conversion must never be replaced by its stale result.
         if ((latestReader.current?.() ?? latestProps.current.content) !== raw) throw new Error("转换期间正文已变化，请再次切换");
         initial.current = { text, content };
         sourceSession.current = new SourceNavigationSession(text, content);
-        viewPosition.toSource(text, deltaToProseMirror(content), restoreSourceTop, (renderedHost.current ? activeLinePluginKey.getState(renderedHost.current.state)?.readingBlockPosition ?? renderedHost.current.state.selection.from : renderedSelection.current));
+        if (documentLanguage === "markdown") viewPosition.toSource(text, deltaToProseMirror(content), restoreSourceTop, (renderedHost.current ? activeLinePluginKey.getState(renderedHost.current.state)?.readingBlockPosition ?? renderedHost.current.state.selection.from : renderedSelection.current));
         setSource(text);
       } else {
         // A bookmark destination takes priority over the source viewport.
         if (latestProps.current.searchTarget?.bookmarkId || latestProps.current.searchTarget?.referenceId) viewPosition.cancelHandoff();
-        else viewPosition.toRendered(source, deltaToProseMirror(content));
+        else if (documentLanguage === "markdown") viewPosition.toRendered(source, deltaToProseMirror(content));
         invalidateEditorDocument(props.noteId);
         setSnapshot({ base: latestProps.current.content, content });
+        if (documentLanguage !== "markdown" && !props.sensitive) patchReadingState(props.noteId, { view: "rendered" });
         setSource(null);
       }
       // Keep the handoff snapshot even if React has not received the saved
@@ -140,10 +164,14 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   useEffect(() => {
     if (restoredView.current) return;
     restoredView.current = true;
-    const saved = props.sensitive ? null : readReadingState(props.noteId);
+    const saved = initialReading;
+    if (initialRaw !== null) {
+      if (documentHasPreview(storedDocumentLanguage) && saved?.view === "rendered") void restoreViewRef.current();
+      return;
+    }
     if (useDocumentOpenStore.getState().target?.noteId === props.noteId) return;
     if (!useNavigationStore.getState().target && !props.searchTarget?.bookmarkId && !props.searchTarget?.referenceId && supported && saved?.view === "source" && saved.source) void restoreViewRef.current(saved.source.scrollTop);
-  }, [props.noteId, props.sensitive, props.searchTarget?.bookmarkId, props.searchTarget?.referenceId, supported]);
+  }, [props.noteId, props.sensitive, props.searchTarget?.bookmarkId, props.searchTarget?.referenceId, supported, storedDocumentLanguage, initialRaw, initialReading]);
   const handledSourceOpen = useRef<number>();
   useEffect(() => {
     if (!active || !sourceOpenTarget || busy) return;
@@ -195,8 +223,8 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   }, [navigationTarget, source, busy, active]);
   useEffect(() => {
     // Source cleanup runs before this effect; explicit return to rendered wins.
-    if (source === null && !props.sensitive && initial.current) patchReadingState(props.noteId, { view: "rendered" });
-  }, [source, props.noteId, props.sensitive]);
+    if (source === null && !props.sensitive && (initial.current || initialRaw !== null)) patchReadingState(props.noteId, { view: "rendered" });
+  }, [source, props.noteId, props.sensitive, initialRaw]);
   const applyEscapeRepair = async (before: string, after: string) => {
     if (before !== source || busy || latestProps.current.readonly) throw new Error("文档状态已变化，请重新扫描");
     if (!latestProps.current.onFlush) throw new Error("无法确认保存状态，已取消修复");
@@ -227,18 +255,36 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     return () => window.removeEventListener(IMAGE_VIEW_EVENT, enrich, true);
   }, [active]);
   const changeDocumentLanguage = async (language: string) => {
-    if (busyRef.current || latestProps.current.readonly || !CODE_LANGUAGE_OPTIONS.some(option => option.value === language)) return;
+    if (language === documentLanguageRef.current || busyRef.current || latestProps.current.readonly || !CODE_LANGUAGE_OPTIONS.some(option => option.value === language)) return;
     busyRef.current = true;
     setBusy(true);
     try {
       await latestProps.current.onFlush?.();
-      if (!alive.current || latestProps.current.readonly) return;
+      if (!alive.current || !activeRef.current || latestProps.current.readonly) return;
       const current = latestReader.current?.() ?? latestProps.current.content;
-      const next = { ...current, metadata: { ...current.metadata, sourceLanguage: language } };
+      const preserved = current.metadata?.sourceText ?? current.metadata?.markdownSource;
+      const text = source !== null ? viewPosition.area.current?.value ?? source
+        : typeof preserved === "string" || current.metadata?.sourceFormat === "text" ? readDocumentSource(current)
+        : await deltaToMarkdownAsync(current);
+      if (!alive.current || !activeRef.current || latestProps.current.readonly) return;
+      if ((latestReader.current?.() ?? latestProps.current.content) !== current) throw new Error("转换期间正文已变化，请重新选择文件格式");
+      const next = writeDocumentSource(text, language, current.metadata);
+      if (current.metadata?.referenceAnchors?.length || current.metadata?.bookmarks?.length) {
+        const before = deltaToProseMirror(current), after = deltaToProseMirror(next);
+        if (current.metadata.referenceAnchors?.length) next.metadata!.referenceAnchors = mapSourceReferences(before, after, current.metadata.referenceAnchors);
+        if (current.metadata.bookmarks?.length) next.metadata!.bookmarks = current.metadata.bookmarks.map(bookmark => {
+          const [mapped] = mapSourceReferences(before, after, [{ id: bookmark.id, kind: "position", from: bookmark.position, to: bookmark.position, preview: bookmark.preview }]);
+          return { ...bookmark, position: mapped.from };
+        });
+      }
+      sourceSession.current = new SourceNavigationSession(text, next);
+      setSource(documentHasPreview(language) && source === null ? null : text);
+      setSnapshot({ base: latestProps.current.content, content: next });
+      invalidateEditorDocument(props.noteId);
       documentLanguageRef.current = language;
       setDocumentLanguage(language);
       latestReader.current = () => next;
-      latestProps.current.onContentChange(() => next, { metadataOnly: true });
+      latestProps.current.onContentChange(() => next);
     } catch (cause) {
       setError(`文件格式设置失败：${cause instanceof Error ? cause.message : String(cause)}`);
     } finally { busyRef.current = false; if (alive.current) setBusy(false); }
@@ -247,18 +293,29 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   useNativeMenuActions({
     ...Object.fromEntries(CODE_LANGUAGE_OPTIONS.map(option => [documentLanguageCommand(option.value), { run: () => changeDocumentLanguage(option.value), checked: documentLanguage === option.value, enabled: !props.readonly && !busy }])),
     "view.tools": { run: () => setMoreTools(value => !value), checked: moreTools, enabled: props.focusMode && !props.readonly },
-    "document.source": { run: () => changeView(), checked: source !== null, enabled: supported && !busy },
+    "document.source": { run: () => changeView(), checked: source !== null, enabled: supported && hasPreview && !busy },
     "document.readonly": { run: () => props.onReadonlyChange?.(!props.readonly), checked: Boolean(props.readonly), enabled: Boolean(props.onReadonlyChange) && !busy },
   }, active);
   if (!supported) return render({ ...props, ...languageProps, onHostSelection: hostSelection, onHostEditorReady: hostRenderedReady });
-  const toggle = <><button type="button" className="markdown-view-toggle" disabled={busy}
-    title={shortcutTitle("document.source", source === null ? "切换到 Markdown 源码" : "切换到渲染视图")}
+  const toggle = <>{hasPreview && <button type="button" className="markdown-view-toggle" disabled={busy}
+    title={shortcutTitle("document.source", source === null ? "切换到源码" : "切换到渲染视图")}
     aria-label={source === null ? "源码" : "渲染"}
-    aria-busy={busy} onClick={() => void changeView()}><ToolbarIcon name={source === null ? "code" : "document"} /></button>
-    {props.documentSessions && <BuiltinPluginTools onOpenNote={props.onOpenLinkedNote} sessions={props.documentSessions} active={active} disabled={busy} readonly={Boolean(props.readonly)} onFocusEditor={() => { if (source !== null) viewPosition.sourceHandle?.focus(); else renderedHost.current?.view.focus(); }} context={{ platform: runtimeKind(), view: props.readonly ? "readonly" : source === null ? "render" : "source", documentId: props.noteId }} />}</>;
+    aria-busy={busy} onClick={() => void changeView()}><ToolbarIcon name={source === null ? "code" : "document"} /></button>}
+    {props.documentSessions && <BuiltinPluginTools onOpenNote={props.onOpenLinkedNote} sessions={props.documentSessions} active={active} disabled={busy} readonly={Boolean(props.readonly) || source === null && documentLanguage !== "markdown"} onFocusEditor={() => { if (source !== null) viewPosition.sourceHandle?.focus(); else renderedHost.current?.view.focus(); }} context={{ platform: runtimeKind(), view: props.readonly || source === null && documentLanguage !== "markdown" ? "readonly" : source === null ? "render" : "source", documentId: props.noteId }} />}</>;
   return <div className="markdown-document-view" data-source-tools-hidden={props.focusMode && !props.readonly && !moreTools || undefined} ref={viewPosition.host}>
     {error && <div role="alert" className="markdown-source-hint">{error}</div>}
-    {source === null ? render({
+    {source === null && documentLanguage !== "markdown" ? <>
+      <div className="note-title-row markdown-source-title-row">
+        {props.titleSecurityAction}
+        {props.onReadonlyChange && <button type="button" className="note-readonly-badge note-readonly-action" data-document-readonly={props.readonly === true} disabled={busy} aria-label={props.readonly ? "切换为可编辑" : "设置只读"} title={props.readonly ? "切换为可编辑" : "设置只读"} onClick={() => props.onReadonlyChange?.(!props.readonly)}><ToolbarIcon name={props.readonly ? "lock" : "unlock"} /></button>}
+        <div className="note-title-field"><DocumentTitlePreview title={props.title || "无标题"} onOpenProperties={props.onOpenProperties} /></div>
+        {toggle}
+      </div>
+      <Suspense fallback={<div role="status">正在加载预览…</div>}>
+        <SourceDocumentPreview language={documentLanguage} source={sourceSession.current?.current.source ?? readDocumentSource(props.content)} fontSize={props.editorFontSize} />
+      </Suspense>
+      <EditorStatusBar enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus} documentLanguage={documentLanguage} onDocumentLanguageChange={languageProps.onDocumentLanguageChange} onVersionOpen={props.onVersionOpen} />
+    </> : source === null ? render({
       ...props,
       ...languageProps,
       documentViewToggle: toggle,
@@ -293,20 +350,20 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         <div className="note-title-field"><DocumentTitlePreview title={props.title || "无标题"} /></div>
         {toggle}
         {props.focusMode && !props.readonly && <button type="button" className="markdown-view-toggle" title={shortcutTitle("view.tools", "更多编辑工具")} aria-label="更多编辑工具" aria-expanded={moreTools} onClick={() => setMoreTools(value => !value)}><ToolbarIcon name="annotate" /></button>}
-        {!mobile && <button type="button" className="markdown-view-toggle" title="并排预览" aria-label="并排预览" aria-pressed={preview} onClick={() => { setPreview(!preview); localStorage.setItem("nr:markdownSplitPreview", String(!preview)); }}><ToolbarIcon name="panel" /></button>}
-        {!mobile && preview && <label className="markdown-preview-sync"><input type="checkbox" checked={previewSync} onChange={event => { setPreviewSync(event.target.checked); localStorage.setItem("nr:markdownPreviewSync", String(event.target.checked)); }} />同步滚动</label>}
+        {!mobile && hasPreview && <button type="button" className="markdown-view-toggle" title="并排预览" aria-label="并排预览" aria-pressed={preview} onClick={() => { setPreview(!preview); localStorage.setItem("nr:markdownSplitPreview", String(!preview)); }}><ToolbarIcon name="panel" /></button>}
+        {!mobile && hasPreview && preview && <label className="markdown-preview-sync"><input type="checkbox" checked={previewSync} onChange={event => { setPreviewSync(event.target.checked); localStorage.setItem("nr:markdownPreviewSync", String(event.target.checked)); }} />同步滚动</label>}
         {controls}
         {!(statusBar.navigationInStatus) && <NavigationButtons />}
         {mobile && props.onFocusModeChange && <button type="button" className="focus-btn document-focus-toggle" aria-label={props.focusMode ? "退出专注模式" : "专注模式"}
           onClick={() => props.onFocusModeChange?.(!props.focusMode)}><ToolbarIcon name={props.focusMode ? "compress" : "expand"} /></button>}
       </div>
       <div className="markdown-source-toolbar-host" ref={setSourceToolbarTarget} />
-      <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
+      <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={hasPreview && preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
       <MarkdownSourceEditor documentLanguage={documentLanguage} onDocumentLanguageChange={props.readonly || busy ? undefined : languageProps.onDocumentLanguageChange} statusTarget={sourceStatusTarget} focusMode={props.focusMode} showStatusBar={props.showStatusBar} saveStatus={props.saveStatus} onVersionOpen={props.onVersionOpen} toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly)} editingDisabled={busy}
         areaRef={viewPosition.area} onReady={hostSourceReady} onSelectionChange={hostSelection} session={sourceEditorState} onChange={editSource}
         showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine}
-        escapeRepair={<MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={applyEscapeRepair} />} />
+        escapeRepair={documentLanguage === "markdown" ? <MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={applyEscapeRepair} /> : undefined} />
       </Suspense>
       </MarkdownSplitPreview>
       <div className="markdown-source-status-host" ref={setSourceStatusTarget} />

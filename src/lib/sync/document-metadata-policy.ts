@@ -56,6 +56,7 @@ const allowed = [
   ...strings,
   "keywords",
   "sourceFormat",
+  "sourceText",
   "presentationMode",
   "flowHeadingLevel",
   "externalSource",
@@ -69,6 +70,8 @@ export function isCertifiedDocumentMetadata(
   metadata: Record<string, unknown>,
 ): boolean {
   if (!keys(metadata, allowed)) return false;
+  // Source is displayed as text, never injected as HTML.
+  if (metadata.sourceText !== undefined && typeof metadata.sourceText !== "string") return false;
   for (const key of strings)
     if (metadata[key] !== undefined && !text(metadata[key])) return false;
   if (metadata.sourceLanguage !== undefined && !CODE_LANGUAGE_OPTIONS.some(option => option.value === metadata.sourceLanguage)) return false;
