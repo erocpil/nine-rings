@@ -152,9 +152,20 @@ export function MarkdownSourceWorkspace({
     return () => clearTimeout(timer);
   }, [revision, mobile, snapshot]);
   useEffect(() => {
-    if (mobile || !documentActive || snapshotLanguage !== "c") {
+    if (mobile || snapshotLanguage !== "c") {
       setSourceSymbols([]);
       setSourceSymbolsSource(null);
+      setSymbolsBusy(false);
+      return;
+    }
+    // RetainedDocument keeps a separate mounted editor tree per document. Leave
+    // its last completed parse in place while parked, then refresh it when that
+    // same document becomes active again.
+    if (!documentActive) {
+      setSymbolsBusy(false);
+      return;
+    }
+    if (sourceSymbolsSource === snapshotSource) {
       setSymbolsBusy(false);
       return;
     }
@@ -184,7 +195,7 @@ export function MarkdownSourceWorkspace({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [snapshotSource, snapshotLanguage, mobile, documentActive]);
+  }, [snapshotSource, snapshotLanguage, sourceSymbolsSource, mobile, documentActive]);
   useEffect(() => {
     const area = sourceHandle;
     if (!area || mobile) return;
@@ -383,7 +394,7 @@ export function MarkdownSourceWorkspace({
           isOutline ? "document-outline-panel" : `document-bookmark-panel${bookmarks.length ? "" : " is-empty"}`
         }
         aria-label={isOutline ? (symbolOutline ? "源码符号" : "文档目录") : "文档书签"}
-        aria-busy={snapshot !== revision}
+        aria-busy={snapshot !== revision || (symbolOutline && symbolsBusy)}
         style={controller.pinned(kind) ? undefined : style}
         data-document-preview={!controller.pinned(kind) || undefined}
         onPointerEnter={controller.cancel}

@@ -2,6 +2,35 @@ import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 import { replaceSource, sourceInfo } from "./helpers/source-editor";
 
+test("切换文档时保留各自的源码符号缓存", async ({ page }) => {
+  await createBlankDocument(page, "符号缓存 A");
+  const firstId = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  const source = page.locator(".cm-content");
+  await expect(source).toBeVisible();
+  await replaceSource(source, "struct CachedType {\n  int cached_member;\n};\n");
+  await page.getByRole("button", { name: "源码符号", exact: true }).click();
+  const firstPanel = page.getByRole("navigation", { name: "源码符号", exact: true });
+  await expect(firstPanel.getByText("cached_member: int", { exact: true })).toBeVisible();
+
+  const secondId = await page.evaluate(async () => {
+    const { api } = await import(/* @vite-ignore */ "/src/lib/api.ts");
+    const note = await api.notes.create({ title: "符号缓存 B", date: "2026-10-20", storagePath: "", docType: "note", content: { ops: [{ insert: "other document\n" }] } });
+    return note.id;
+  });
+  const selectDocument = async (id: string) => page.evaluate(async documentId => {
+    const { api } = await import(/* @vite-ignore */ "/src/lib/api.ts");
+    const { useNotesStore } = await import(/* @vite-ignore */ "/src/stores/useNotesStore.ts");
+    useNotesStore.getState().selectNote(await api.notes.get(documentId));
+  }, id);
+  await selectDocument(secondId);
+  await expect(page.locator(".note-title")).toHaveValue("符号缓存 B");
+  await page.waitForTimeout(180);
+  await selectDocument(firstId!);
+  await expect(page.locator(".note-title")).toHaveValue("符号缓存 A");
+  await expect(page.getByRole("navigation", { name: "源码符号", exact: true }).getByText("cached_member: int", { exact: true })).toBeVisible({ timeout: 80 });
+});
+
 test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", async ({ page }) => {
   await createBlankDocument(page, "本文件符号目录");
   const format = page.getByRole("combobox", { name: "文件格式", exact: true });
