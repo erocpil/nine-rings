@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../lib/api";
 import { ListState, PathPreview } from "./ListPresentation";
@@ -27,18 +27,21 @@ function destinationLabel(subject: MoveToSubject): string {
 export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDialogProps) {
   const searchRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const folderListRef = useRef<HTMLDivElement>(null);
+  const revealedCurrentPath = useRef(false);
   useDialogFocus(dialogRef, true, searchRef);
   const [loadedPaths, setLoadedPaths] = useState<string[]>(folderPaths ?? []);
   const [loading, setLoading] = useState(folderPaths === undefined);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [destination, setDestination] = useState(() => (
+  const initialDestination = (
     subject.kind === "document"
       ? subject.currentPath
       : subject.kind === "folder"
         ? subject.sourcePath.split("/").slice(0, -1).join("/")
         : ""
-  ));
+  );
+  const [destination, setDestination] = useState(initialDestination);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [reload, setReload] = useState(0);
@@ -81,13 +84,27 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
     return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [onClose, saving]);
 
-  const allFolders = useMemo(() => collectMoveFolderPaths(loadedPaths), [loadedPaths]);
+  const allFolders = useMemo(() => collectMoveFolderPaths(initialDestination ? [...loadedPaths, initialDestination] : loadedPaths), [loadedPaths, initialDestination]);
   const existingFolderSet = useMemo(() => new Set(allFolders), [allFolders]);
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const filteredFolders = useMemo(() => allFolders.filter((path) => (
     !normalizedSearch || path.toLocaleLowerCase().includes(normalizedSearch)
   )), [allFolders, normalizedSearch]);
-  const visibleFolders = filteredFolders.slice(0, MAX_VISIBLE_FOLDERS);
+  const currentIndex = normalizedSearch ? -1 : filteredFolders.indexOf(initialDestination);
+  const windowStart = Math.max(0, Math.min(currentIndex - Math.floor(MAX_VISIBLE_FOLDERS / 2), filteredFolders.length - MAX_VISIBLE_FOLDERS));
+  const visibleFolders = filteredFolders.slice(windowStart, windowStart + MAX_VISIBLE_FOLDERS);
+  useLayoutEffect(() => {
+    if (subject.kind === "documents" || subject.kind === "document" && !initialDestination) return;
+    if (loading || loadError || normalizedSearch || revealedCurrentPath.current) return;
+    const list = folderListRef.current;
+    const selected = list?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!list || !selected) return;
+    // Scroll only this list, including disabled "current location" rows.
+    // scrollIntoView can also move the dialog body and hide its search input.
+    const bounds = list.getBoundingClientRect(), row = selected.getBoundingClientRect();
+    list.scrollTop += row.top - bounds.top - (list.clientHeight - row.height) / 2;
+    revealedCurrentPath.current = true;
+  }, [loading, loadError, normalizedSearch, visibleFolders, initialDestination, subject.kind]);
 
   const resolved = useMemo(() => {
     try {
@@ -183,7 +200,7 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
             />
           </label>
 
-          <div className="move-to-folder-list" role="listbox" aria-label="已有目录">
+          <div ref={folderListRef} className="move-to-folder-list" role="listbox" aria-label="已有目录">
             {subject.kind === "folder" && !normalizedSearch && (() => {
               const rootState = candidateState("");
               return (
@@ -229,7 +246,7 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
             })}
           </div>
           {filteredFolders.length > MAX_VISIBLE_FOLDERS && (
-            <div className="move-to-limit-hint">仅显示前 {MAX_VISIBLE_FOLDERS} 项，请继续输入以缩小范围。</div>
+            <div className="move-to-limit-hint">显示第 {windowStart + 1}～{Math.min(windowStart + MAX_VISIBLE_FOLDERS, filteredFolders.length)} 项（共 {filteredFolders.length} 项），可搜索其它目录。</div>
           )}
 
           <label className="dialog-field move-to-path-field">

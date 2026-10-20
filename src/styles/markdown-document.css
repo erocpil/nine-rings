@@ -263,3 +263,4 @@ blockquote[data-alert] { border-left-color: var(--accent); }
 .markdown-cm-source[data-source-highlighting="false"] .cm-content [class*="source-code-"] { color: var(--text); font-weight: inherit; font-style: normal; }
 
 .source-indentation-controls { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; }
+.source-gutter-settings { flex: 0 0 auto; white-space: nowrap; font: inherit; cursor: pointer; border: 1px solid var(--border); }

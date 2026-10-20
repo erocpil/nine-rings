@@ -69,6 +69,7 @@ import {
 import { languages } from "@codemirror/language-data";
 import {
   syntaxTree,
+  codeFolding,
   foldGutter,
   foldKeymap,
   foldAll,
@@ -264,6 +265,8 @@ export function MarkdownSourceEditor({
     return () => window.clearTimeout(timer);
   }, [sourceMessage]);
   const [foldMenu, setFoldMenu] = useState<{ trigger: HTMLElement; collapse: boolean } | null>(null);
+  const [gutterMenu, setGutterMenu] = useState<HTMLElement | null>(null);
+  useEffect(() => { if (!documentActive || !statusBar.visible) setGutterMenu(null); }, [documentActive, statusBar.visible]);
   const [tools, setTools] = useState({ search: false, goto: false, undo: false, redo: false, folded: false, selection: false });
   const [formats, setFormats] = useState(emptySourceFormats);
   const syncTools = (state: EditorState) => {
@@ -275,10 +278,11 @@ export function MarkdownSourceEditor({
   const displayExtensions = () => {
     const prefs = blockWorkspacePreferences();
     const plugin = numberingDisplays.getSnapshot().source;
-    const visible = plugin?.visible ?? showLineNumbers;
+    const visible = plugin?.visible ?? prefs.sourceLineNumbers ?? showLineNumbers;
     const relative = plugin?.relative ?? prefs.relativeSourceLineNumbers;
     return [
-      foldGutter(plugin ? { markerDOM: expanded => { const span = document.createElement("span"); span.className = "plugin-source-fold-symbol"; span.textContent = expanded ? plugin.foldExpanded : plugin.foldCollapsed; return span; } } : {}),
+      codeFolding(),
+      prefs.sourceFoldGutter !== false ? foldGutter(plugin ? { markerDOM: expanded => { const span = document.createElement("span"); span.className = "plugin-source-fold-symbol"; span.textContent = expanded ? plugin.foldExpanded : plugin.foldCollapsed; return span; } } : {}) : [],
       visible ? (relative ? relativeLineNumbers(plugin?.currentAlignment ?? prefs.relativeSourceLineNumberAlignment) : lineNumbers()) : [],
       prefs.wrap !== false ? EditorView.lineWrapping : [],
       EditorState.tabSize.of(prefs.tabSize ?? 4),
@@ -627,6 +631,23 @@ export function MarkdownSourceEditor({
       setSourceMessage("");
     } catch (error) { setSourceMessage(error instanceof Error ? error.message : String(error)); }
   };
+  const sourceNumbersVisible = numbering?.visible ?? preferences.sourceLineNumbers ?? showLineNumbers;
+  const sourceNumbersRelative = numbering?.relative ?? preferences.relativeSourceLineNumbers === true;
+  const gutterControls = <>
+    <button type="button" className="editor-status-select source-gutter-settings" aria-label="行号与折叠设置" title="行号与折叠设置" aria-haspopup="menu" aria-expanded={Boolean(gutterMenu)} onMouseDown={event => event.preventDefault()} onClick={event => { const trigger = editorCommandTrigger(event.currentTarget); setGutterMenu(previous => previous ? null : trigger); }}>
+      行号与折叠 <span aria-hidden="true">▾</span>
+    </button>
+    {gutterMenu && <BlockActionMenu trigger={gutterMenu} placement="below" title="行号与折叠设置" onClose={() => setGutterMenu(null)} actions={[
+      ...(numbering ? [{ label: "行号由编号展示插件管理", disabled: true, run: () => {} }] : []),
+      { label: "显示行号", group: "行号", checked: sourceNumbersVisible, disabled: Boolean(numbering), keepOpen: true, run: () => saveBlockWorkspacePreferences({ sourceLineNumbers: !sourceNumbersVisible }) },
+      { label: "相对行号", checked: sourceNumbersRelative, disabled: Boolean(numbering), keepOpen: true, run: () => saveBlockWorkspacePreferences({ relativeSourceLineNumbers: !sourceNumbersRelative, ...(!sourceNumbersRelative ? { sourceLineNumbers: true } : {}) }) },
+      { label: "当前行号对齐", disabled: Boolean(numbering) || !sourceNumbersRelative, run: () => {}, children: (["left", "right"] as const).map(alignment => ({ label: alignment === "left" ? "左对齐" : "右对齐", checked: (numbering?.currentAlignment ?? preferences.relativeSourceLineNumberAlignment ?? "left") === alignment, run: () => saveBlockWorkspacePreferences({ relativeSourceLineNumberAlignment: alignment }) })) },
+      { label: "显示折叠按钮", group: "折叠", checked: preferences.sourceFoldGutter !== false, keepOpen: true, run: () => saveBlockWorkspacePreferences({ sourceFoldGutter: preferences.sourceFoldGutter === false }) },
+      { label: "折叠全部", run: () => run(collapseAllSource) },
+      { label: "展开全部", run: () => run(expandAllSource) },
+      ...(markupMode ? ([true, false] as const).map(collapse => ({ label: collapse ? "按标题级别折叠" : "按标题级别展开", run: () => {}, children: Array.from({ length: 6 }, (_, i) => ({ label: collapse ? `折叠 H${i + 1} 及更深标题` : `展开至 H${i + 1}`, run: () => run(editor => { foldViewportRestore.current = null; const effects = sourceHeadingFoldEffects(editor.state, i + 1, collapse); if (!effects) return false; editor.dispatch({ effects }); return true; }) })) })) : []),
+    ]} />}
+  </>;
   const indentationControls = !markupMode && <span className="source-indentation-controls">
     <select className="editor-document-language editor-status-select" aria-label="Tab Size" title="Tab 显示列数与缩进单位" value={preferences.tabSize ?? 4} disabled={editingReadonly} onChange={event => changeIndentation(Number(event.target.value), preferences.sourceIndentStyle ?? "tabs")}>
       {![2, 4, 8].includes(preferences.tabSize ?? 4) && <option value={preferences.tabSize}>Tab Size: {preferences.tabSize}</option>}
@@ -787,7 +808,7 @@ export function MarkdownSourceEditor({
         <span>{sourceMessage}</span>
         <button type="button" aria-label="关闭提示" title="关闭提示" onMouseDown={event => event.preventDefault()} onClick={() => setSourceMessage("")}><ToolbarIcon name="close" /></button>
       </div>}
-      {statusTarget ? createPortal(<EditorStatusBar sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={readonly ? undefined : onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={readonly ? undefined : onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} /> : null}
+      {statusTarget ? createPortal(<EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={readonly ? undefined : onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={readonly ? undefined : onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} /> : null}
     </div>
   );
 }

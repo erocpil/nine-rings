@@ -22,6 +22,7 @@ export function EditorStatusBar({
   onVersionOpen,
   children,
   sourceIndentControls,
+  sourceViewControls,
   fallbackVisible = false,
   documentLanguage,
   onDocumentLanguageChange,
@@ -40,6 +41,7 @@ export function EditorStatusBar({
   onVersionOpen?: () => void;
   children?: ReactNode;
   sourceIndentControls?: ReactNode;
+  sourceViewControls?: ReactNode;
   fallbackVisible?: boolean;
   documentLanguage?: string;
   onDocumentLanguageChange?: (language: string) => void;
@@ -158,6 +160,7 @@ export function EditorStatusBar({
           </span>
         );
       })}
+      {state.visible && sourceViewControls}
       {state.visible && sourceIndentControls}
       {state.visible && documentLanguage !== undefined && <select
         className="editor-document-language editor-status-select"
