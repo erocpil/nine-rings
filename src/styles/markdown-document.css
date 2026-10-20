@@ -225,3 +225,5 @@ blockquote[data-alert] { border-left-color: var(--accent); }
 .markdown-cm-source .source-code-comment { color: var(--text-secondary); font-style: italic; }
 .markdown-cm-source .source-code-operator { color: color-mix(in srgb, var(--text) 80%, var(--syntax-keyword-color)); }
 .markdown-cm-source[data-source-highlighting="false"] .cm-content [class*="source-code-"] { color: var(--text); font-weight: inherit; font-style: normal; }
+
+.source-indentation-controls { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; }

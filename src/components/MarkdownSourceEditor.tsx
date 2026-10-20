@@ -1,3 +1,5 @@
+import { sourceIndentationChange, type SourceIndentStyle } from "../lib/source-indentation";
+import { insertSourceNewline } from "../lib/source-newline";
 import { cSourceSupport } from "../lib/source-code-highlighting";
 import { DOCUMENT_LANGUAGE_OPTIONS } from "../lib/document-language";
 import { mermaidSourceLanguage } from "../lib/source-mermaid-language";
@@ -69,6 +71,7 @@ import {
   foldAll,
   unfoldAll,
   indentUnit,
+  language as sourceLanguageFacet,
   syntaxHighlighting,
   HighlightStyle,
   bracketMatching,
@@ -224,7 +227,7 @@ export function MarkdownSourceEditor({
       visible ? (relative ? relativeLineNumbers(plugin?.currentAlignment ?? prefs.relativeSourceLineNumberAlignment) : lineNumbers()) : [],
       prefs.wrap !== false ? EditorView.lineWrapping : [],
       EditorState.tabSize.of(prefs.tabSize ?? 4),
-      indentUnit.of(" ".repeat(prefs.tabSize ?? 4)),
+      indentUnit.of(!markupModeRef.current && prefs.sourceIndentStyle !== "spaces" ? "\t" : " ".repeat(prefs.tabSize ?? 4)),
       highlightActiveLine ? [activeLine(), highlightActiveLineGutter()] : plugin ? [highlightActiveLineGutter()] : [],
     ];
   };
@@ -296,7 +299,8 @@ export function MarkdownSourceEditor({
         {
           key: "Enter",
           run: (editor) => {
-            if (!markupModeRef.current || editor.state.readOnly || editor.composing) return false;
+            if (editor.state.readOnly || editor.composing) return false;
+            if (!markupModeRef.current) return insertSourceNewline(editor);
             const range = editor.state.selection.main,
               line = editor.state.doc.lineAt(range.head);
             let items = 0,
@@ -459,7 +463,7 @@ export function MarkdownSourceEditor({
       window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
       window.removeEventListener("storage", sync);
     };
-  }, [highlightActiveLine, showLineNumbers, numbering]);
+  }, [highlightActiveLine, showLineNumbers, numbering, documentLanguage]);
   useEffect(() => {
     if (lastValue.current === value) return;
     lastValue.current = value;
@@ -487,6 +491,27 @@ export function MarkdownSourceEditor({
     observer.observe(scroller);
     return () => { observer.disconnect(); root.style.removeProperty("--editor-scrollbar-width"); };
   }, [areaRef, session, onReady]);
+  const changeIndentation = (size: number, style: SourceIndentStyle) => {
+    const editor = view.current;
+    if (!editor || editingReadonly || editor.composing) return;
+    try {
+      if (documentLanguage && !editor.state.facet(sourceLanguageFacet)) throw new Error("语法支持仍在加载，请稍后重试缩进转换。");
+      const change = sourceIndentationChange(editor.state, size, style);
+      saveBlockWorkspacePreferences({ tabSize: size, sourceIndentStyle: style });
+      if (change) editor.dispatch(change);
+      editor.focus();
+      setSyntaxError("");
+    } catch (error) { setSyntaxError(error instanceof Error ? error.message : String(error)); }
+  };
+  const indentationControls = !markupMode && <span className="source-indentation-controls">
+    <select className="editor-document-language" aria-label="Tab Size" title="Tab 显示列数与缩进单位" value={preferences.tabSize ?? 4} disabled={editingReadonly} onChange={event => changeIndentation(Number(event.target.value), preferences.sourceIndentStyle ?? "tabs")}>
+      {![2, 4, 8].includes(preferences.tabSize ?? 4) && <option value={preferences.tabSize}>Tab Size: {preferences.tabSize}</option>}
+      {[2, 4, 8].map(size => <option key={size} value={size}>Tab Size: {size}</option>)}
+    </select>
+    <select className="editor-document-language" aria-label="缩进方式" title="转换行首缩进；可撤销" value={preferences.sourceIndentStyle ?? "tabs"} disabled={editingReadonly} onChange={event => changeIndentation(preferences.tabSize ?? 4, event.target.value as SourceIndentStyle)}>
+      <option value="tabs">缩进：Tab</option><option value="spaces">缩进：空格</option>
+    </select>
+  </span>;
   const toolbar = (
       <div
         className="markdown-source-tools"
@@ -629,7 +654,7 @@ export function MarkdownSourceEditor({
       {toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbar}
       {syntaxError && <span role="status">{syntaxError}</span>}
       <div ref={host} className="markdown-cm-host" />
-      {statusTarget ? createPortal(<EditorStatusBar documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} /> : null}
+      {statusTarget ? createPortal(<EditorStatusBar children={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar children={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} /> : null}
     </div>
   );
 }
