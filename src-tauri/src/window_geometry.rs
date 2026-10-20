@@ -116,31 +116,34 @@ pub fn restore(window: &WebviewWindow, app_data_dir: &Path) {
 
 /// Save ordinary resizes, but never replace the normal size with temporary
 /// maximized, fullscreen, or full-height presentation geometry.
-pub fn save_if_normal(window: &WebviewWindow, app_data_dir: &Path) {
+pub fn save_if_normal(window: &WebviewWindow, app_data_dir: &Path) -> bool {
     if window.is_fullscreen().unwrap_or(true)
         || window.is_minimized().unwrap_or(false)
         || window.is_maximized().unwrap_or(false)
     {
-        return;
+        return false;
     }
     #[cfg(target_os = "macos")]
     if crate::macos_window::is_temporarily_expanded(window).unwrap_or(true) {
-        return;
+        return false;
     }
 
     let scale = window.scale_factor().unwrap_or(1.0).max(0.1);
     let Ok(size) = window.inner_size() else {
-        return;
+        return false;
     };
     let geometry = WindowGeometry {
         width: size.width as f64 / scale,
         height: size.height as f64 / scale,
     };
-    if geometry.valid() {
-        if let Err(error) = write_geometry(app_data_dir, geometry) {
-            log::warn!("failed to persist main window size: {error}");
-        }
+    if !geometry.valid() {
+        return false;
     }
+    if let Err(error) = write_geometry(app_data_dir, geometry) {
+        log::warn!("failed to persist main window size: {error}");
+        return false;
+    }
+    true
 }
 
 #[cfg(test)]

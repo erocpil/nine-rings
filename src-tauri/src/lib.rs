@@ -243,6 +243,24 @@ fn graceful_quit(app: &tauri::AppHandle, source: &str) {
         source,
         JOB_OBJECT_ENABLED.load(std::sync::atomic::Ordering::Relaxed)
     );
+    if let (Some(data_dir), Some(window)) =
+        (app.try_state::<DataDir>(), app.get_webview_window("main"))
+    {
+        let saved = window_geometry::save_if_normal(&window, &data_dir.0);
+        startup_log!(
+            "window geometry exit save source={} saved={} size={:?} maximized={} minimized={} fullscreen={}",
+            source,
+            saved,
+            window.inner_size().ok(),
+            window.is_maximized().unwrap_or(false),
+            window.is_minimized().unwrap_or(false),
+            window.is_fullscreen().unwrap_or(false)
+        );
+    } else {
+        startup_log!(
+            "window geometry exit save skipped: main window or data directory unavailable"
+        );
+    }
     let lifecycle = app.try_state::<desktop_lifecycle::DesktopLifecycle>();
     if let Some(ref status) = lifecycle {
         status.phase("checkpoint", None);
@@ -526,6 +544,11 @@ pub fn run() {
             std::fs::create_dir_all(&app_dir)?;
             if let Some(window) = app.get_webview_window("main") {
                 window_geometry::restore(&window, &app_dir);
+                startup_log!(
+                    "window geometry startup restore path={:?} size={:?}",
+                    app_dir.join("window-geometry.json"),
+                    window.inner_size().ok()
+                );
             }
             let job = if cfg!(target_os = "windows") {
                 Some(JOB_OBJECT_ENABLED.load(std::sync::atomic::Ordering::Relaxed))
