@@ -370,7 +370,7 @@
 .exhibition-shell[data-density="comfortable"] {
   --style-control-height: 32px;
   --style-header-height: 48px;
-  --style-panel-gap: 16px;
+  --style-panel-gap: 4px;
   --ui-control-height: 32px;
   --style-content-inset: 32px;
   --style-content-top: 20px;
@@ -378,7 +378,7 @@
 .exhibition-shell[data-density="compact"] {
   --style-control-height: 28px;
   --style-header-height: 42px;
-  --style-panel-gap: 10px;
+  --style-panel-gap: 4px;
   --ui-control-height: 28px;
   --style-content-inset: 28px;
   --style-content-top: 14px;

@@ -56,6 +56,17 @@ for (const style of ["calm", "mono-aware"] as const) {
     await sample.click();
     await expect(page.locator(".note-title")).toHaveValue("物哀、幽玄与侘寂：风格设计与验证");
     await expect(page.locator(".exhibition-masthead")).toBeVisible();
+    const outlineTrigger = page.locator('[data-document-panel-trigger="outline"]:visible').first();
+    await outlineTrigger.hover();
+    const outlinePanel = page.getByRole("navigation", { name: "文档目录", exact: true });
+    await expect(outlinePanel).toBeVisible();
+    const outlineList = outlinePanel.locator(".document-outline-list");
+    const exhibitionShell = page.locator(".exhibition-shell");
+    for (const density of ["comfortable", "compact"] as const) {
+      await exhibitionShell.evaluate((element, value) => { element.dataset.density = value; }, density);
+      await expect(exhibitionShell).toHaveCSS("--style-panel-gap", "4px");
+      await expect(outlineList).toHaveCSS("padding-top", "4px");
+    }
     const framedApp = page.locator(".is-exhibition > .app");
     await expect(framedApp).toHaveCSS("overflow", "hidden");
     await expect(framedApp).toHaveCSS("border-top-left-radius", "10px");
