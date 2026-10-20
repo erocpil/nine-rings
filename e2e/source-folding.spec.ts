@@ -97,3 +97,26 @@ test("源码目录悬浮与固定均支持折叠展开及 Top Mid Bot", async ({
     await expect(panel.locator(".document-outline-text").filter({ hasText: /^Child / }).first()).toBeVisible();
   }
 });
+
+
+test("不提供级别选择的源码折叠按钮不预留三角区域", async ({ page }) => {
+  await createBlankDocument(page);
+  const picker = page.getByRole("combobox", { name: "文件格式", exact: true });
+  await picker.selectOption("c");
+  const groups = page.locator(".source-fold-tool");
+  await expect(groups).toHaveCount(2);
+  for (const group of await groups.all()) {
+    await expect(group.locator("button")).toHaveCount(1);
+    expect(await group.evaluate(el => el.getBoundingClientRect().width)).toBe(28);
+  }
+  await picker.selectOption("markdown");
+  for (const group of await groups.all()) {
+    await expect(group.locator("button")).toHaveCount(2);
+    expect(await group.evaluate(el => el.getBoundingClientRect().width)).toBe(44);
+  }
+  await picker.selectOption("c");
+  for (const group of await groups.all()) {
+    await expect(group.locator("button")).toHaveCount(1);
+    expect(await group.evaluate(el => el.getBoundingClientRect().width)).toBe(28);
+  }
+});

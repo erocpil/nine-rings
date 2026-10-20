@@ -164,7 +164,7 @@ blockquote[data-alert] { border-left-color: var(--accent); }
 .markdown-source-tools::-webkit-scrollbar { display: none; height: 0; width: 0; }
 .markdown-source-tools::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-secondary) 35%, transparent); border-radius: 3px; }
 .markdown-source-tools::-webkit-scrollbar-track { background: transparent; }
-.source-fold-tool { display: inline-flex; align-items: center; flex: 0 0 44px; height: 28px; }
+.source-fold-tool { display: inline-flex; align-items: center; flex: 0 0 auto; height: 28px; }
 .markdown-source-tools .source-fold-tool > button { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-height: 28px; flex: 0 0 28px; box-sizing: border-box; padding: 0; }
 .markdown-source-tools .source-fold-tool .toolbar-icon { width: 16px; height: 16px; }
 .markdown-source-tools .source-fold-tool > .source-fold-level-trigger { width: 16px; height: 28px; min-height: 28px; flex-basis: 16px; border: 0; background: transparent; }
