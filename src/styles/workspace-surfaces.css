@@ -2116,8 +2116,8 @@
   left: 50%;
   width: 1px;
   transform: translateX(-50%);
-  background: color-mix(in srgb, var(--border) 45%, transparent);
-  opacity: 0.12;
+  background: var(--border);
+  opacity: 1;
   pointer-events: none;
   transition: background-color 0.15s, opacity 0.15s;
 }

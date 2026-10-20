@@ -107,6 +107,29 @@ export function MarkdownSourceWorkspace({
   const [renamingBookmark, setRenamingBookmark] = useState<DocumentBookmark | null>(null);
   const [openBookmarkActionsId, setOpenBookmarkActionsId] = useState<string | null>(null);
   const [matchesOpen, setMatchesOpen] = useState(false);
+  const [matchesPreview, setMatchesPreview] = useState(false);
+  const matchesTrigger = useRef<HTMLButtonElement>(null);
+  const matchesPanel = useRef<HTMLElement>(null);
+  const matchesTimer = useRef<ReturnType<typeof setTimeout>>();
+  const cancelMatchesPreview = () => clearTimeout(matchesTimer.current);
+  const leaveMatchesPreview = () => {
+    cancelMatchesPreview();
+    matchesTimer.current = setTimeout(() => setMatchesPreview(false), 220);
+  };
+  useEffect(() => () => clearTimeout(matchesTimer.current), []);
+
+  useEffect(() => {
+    if (!matchesPreview) return;
+    const dismiss = (event: Event) => {
+      if (event instanceof KeyboardEvent && event.key !== "Escape") return;
+      if (event instanceof MouseEvent && event.target instanceof Node && (matchesPanel.current?.contains(event.target) || matchesTrigger.current?.contains(event.target))) return;
+      setMatchesPreview(false);
+    };
+    document.addEventListener("click", dismiss);
+    window.addEventListener("keydown", dismiss);
+    return () => { document.removeEventListener("click", dismiss); window.removeEventListener("keydown", dismiss); };
+  }, [matchesPreview]);
+  const matchesStyle = useDocumentPanelPosition({ open: matchesPreview && !matchesOpen, compact: false, triggerRef: matchesTrigger, panelRef: matchesPanel });
   const [sourceContextMenu, setSourceContextMenu] = useState<SourceContextTarget | null>(null);
   const closeSourceContextMenu = useCallback(() => setSourceContextMenu(null), []);
   useEffect(closeSourceContextMenu, [closeSourceContextMenu, documentActive, sourceHandle]);
@@ -174,6 +197,12 @@ export function MarkdownSourceWorkspace({
     };
   }, [sourceHandle, mobile]);
   const sourceWordEnabled = !["", "markdown", "flow", "mermaid"].includes(snapshotLanguage);
+  useEffect(() => {
+    if (matchesOpen || !documentActive || mobile || !sourceWordEnabled) {
+      clearTimeout(matchesTimer.current);
+      setMatchesPreview(false);
+    }
+  }, [matchesOpen, documentActive, mobile, sourceWordEnabled]);
   const symbolOutline = snapshotLanguage === "c";
   const sortedSourceSymbols = useMemo(
     () => symbolsAlphabetical ? alphabetizeSymbolTree(sourceSymbols) : sourceSymbols,
@@ -319,7 +348,7 @@ export function MarkdownSourceWorkspace({
           aria-expanded={controller.pinned(kind) || controller.preview === kind}
           data-document-panel-trigger={kind}
           data-pinned={controller.pinned(kind)}
-          onPointerEnter={(event) => controller.enter(kind, event.pointerType)}
+          onPointerEnter={(event) => { cancelMatchesPreview(); setMatchesPreview(false); controller.enter(kind, event.pointerType); }}
           onPointerLeave={controller.leave}
           onClick={() => { setOffset(sourceHandle?.selectionStart ?? offset); controller.toggle(kind); }}
         >
@@ -331,10 +360,13 @@ export function MarkdownSourceWorkspace({
         className="btn-icon"
         title={`同词匹配：显示或隐藏匹配列表（${/Mac/i.test(navigator.platform) ? "⌘" : "Ctrl"}+单击单词可直接打开）`}
         aria-label="同词匹配"
-        aria-expanded={matchesOpen}
+        ref={matchesTrigger}
+        aria-expanded={matchesOpen || matchesPreview}
         aria-pressed={matchesOpen}
         data-document-panel-trigger="matches"
-          onClick={() => { dismissPanelPreview(); setMatchesOpen(open => !open); }}
+        onPointerEnter={event => { if (event.pointerType !== "mouse" || matchesOpen) return; cancelMatchesPreview(); matchesTimer.current = setTimeout(() => { dismissPanelPreview(); setMatchesPreview(true); }, 140); }}
+        onPointerLeave={leaveMatchesPreview}
+        onClick={() => { cancelMatchesPreview(); setMatchesPreview(false); dismissPanelPreview(); setMatchesOpen(open => !open); }}
       ><ToolbarIcon name="search" /></button>}
     </>
   );
@@ -431,6 +463,33 @@ export function MarkdownSourceWorkspace({
       </nav>
     );
   };
+  const matchesList = sourceWordEnabled && <nav ref={matchesPanel} data-document-preview={!matchesOpen || undefined} onPointerEnter={cancelMatchesPreview} onPointerLeave={leaveMatchesPreview} className={`document-source-matches-panel${matchesOpen ? "" : " document-source-matches-preview"}`} aria-label="同词匹配列表" data-panel-display={sourceMatchDisplayConfig ? "plugin" : undefined} style={{ ...panelDisplayStyle(sourceMatchDisplayConfig), ...(!matchesOpen ? matchesStyle : undefined) } as CSSProperties}>
+            <div className="document-outline-header document-source-matches-header">
+              <div className="document-outline-header-primary"><span>{wordState?.word ? `“${wordState.word}”${sourceMatchDisplayConfig?.showCounts === false ? "" : ` · ${wordState.matches.length} 处`}` : "同词匹配"}</span></div>
+              <div className="document-outline-header-actions"><button type="button" aria-label="隐藏匹配列表" title="隐藏匹配列表" onClick={() => { setMatchesOpen(false); setMatchesPreview(false); }}><ToolbarIcon name="close" /></button></div>
+            </div>
+            <div className="document-source-matches-list">
+              {groupedWordMatches.length ? groupedWordMatches.map(group => {
+                const active = group.matches.find(match => match.from === wordState?.activeFrom);
+                const target = active ?? group.matches[0]!;
+                return <button
+                key={group.line}
+                type="button"
+                className="document-source-match-row"
+                style={sourceMatchDisplayConfig ? { minHeight: `${sourceMatchDisplayConfig.rowHeight}px`, fontFamily: sourceMatchDisplayConfig.font === "mono" ? "var(--font-mono)" : sourceMatchDisplayConfig.font === "sans" ? "var(--font)" : undefined, fontSize: `${sourceMatchDisplayConfig.fontSize}px`, color: sourceMatchDisplayConfig.labelColor === "secondary" ? "var(--text-secondary)" : sourceMatchDisplayConfig.labelColor === "accent" ? "var(--accent)" : undefined } : undefined}
+                aria-current={active ? "location" : undefined}
+                aria-label={`第 ${group.line} 行${group.matches.length > 1 ? `，${group.matches.length} 处匹配` : ""}`}
+                onClick={() => {
+                  if (!sourceHandle) return;
+                  focusSourceWordMatch(sourceHandle.view, target);
+                  sourceHandle.scrollToOffset(target.from, true);
+                  setOffset(target.from);
+                }}
+                title={`${group.line}: ${group.text}${group.matches.length > 1 ? ` · ${group.matches.length} 处匹配` : ""}`}
+              ><span className={`document-source-match-line${group.matches.length > 1 ? " is-repeated" : ""}`}>{group.matches.length > 1 ? <strong>{group.line}</strong> : group.line}</span><code>{group.text || wordState?.word}</code></button>;
+              }) : <div className="document-bookmark-empty">{wordState?.word ? "当前文档没有其它全词匹配" : "单击源码中的单词以查找相同词"}</div>}
+            </div>
+          </nav>;
   return (
     <section
       className={`note-editor markdown-source-editor ${desktopPanelClass(controller, true, matchesOpen && sourceWordEnabled)}`}
@@ -465,39 +524,14 @@ export function MarkdownSourceWorkspace({
       }}
     >
       <div className="markdown-source-content">{children(controls)}</div>
+      {!mobile && matchesPreview && !matchesOpen && matchesList}
       {!mobile && (
         <DesktopDocumentPanels
           controller={controller}
           bookmarkEmpty={bookmarks.length === 0}
           outline={renderPanel("outline")}
           bookmark={renderPanel("bookmark")}
-          matches={sourceWordEnabled && <nav className="document-source-matches-panel" aria-label="同词匹配列表" data-panel-display={sourceMatchDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(sourceMatchDisplayConfig) as CSSProperties}>
-            <div className="document-outline-header document-source-matches-header">
-              <div className="document-outline-header-primary"><span>{wordState?.word ? `“${wordState.word}”${sourceMatchDisplayConfig?.showCounts === false ? "" : ` · ${wordState.matches.length} 处`}` : "同词匹配"}</span></div>
-              <div className="document-outline-header-actions"><button type="button" aria-label="隐藏匹配列表" title="隐藏匹配列表" onClick={() => setMatchesOpen(false)}><ToolbarIcon name="close" /></button></div>
-            </div>
-            <div className="document-source-matches-list">
-              {groupedWordMatches.length ? groupedWordMatches.map(group => {
-                const active = group.matches.find(match => match.from === wordState?.activeFrom);
-                const target = active ?? group.matches[0]!;
-                return <button
-                key={group.line}
-                type="button"
-                className="document-source-match-row"
-                style={sourceMatchDisplayConfig ? { minHeight: `${sourceMatchDisplayConfig.rowHeight}px`, fontFamily: sourceMatchDisplayConfig.font === "mono" ? "var(--font-mono)" : sourceMatchDisplayConfig.font === "sans" ? "var(--font)" : undefined, fontSize: `${sourceMatchDisplayConfig.fontSize}px`, color: sourceMatchDisplayConfig.labelColor === "secondary" ? "var(--text-secondary)" : sourceMatchDisplayConfig.labelColor === "accent" ? "var(--accent)" : undefined } : undefined}
-                aria-current={active ? "location" : undefined}
-                aria-label={`第 ${group.line} 行${group.matches.length > 1 ? `，${group.matches.length} 处匹配` : ""}`}
-                onClick={() => {
-                  if (!sourceHandle) return;
-                  focusSourceWordMatch(sourceHandle.view, target);
-                  sourceHandle.scrollToOffset(target.from, true);
-                  setOffset(target.from);
-                }}
-                title={`${group.line}: ${group.text}${group.matches.length > 1 ? ` · ${group.matches.length} 处匹配` : ""}`}
-              ><span className={`document-source-match-line${group.matches.length > 1 ? " is-repeated" : ""}`}>{group.matches.length > 1 ? <strong>{group.line}</strong> : group.line}</span><code>{group.text || wordState?.word}</code></button>;
-              }) : <div className="document-bookmark-empty">{wordState?.word ? "当前文档没有其它全词匹配" : "单击源码中的单词以查找相同词"}</div>}
-            </div>
-          </nav>}
+          matches={matchesList}
           matchesOpen={matchesOpen && sourceWordEnabled}
         />
       )}

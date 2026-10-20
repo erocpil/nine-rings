@@ -460,7 +460,7 @@ body {
   width: 240px;
   flex: 0 0 auto;
   min-width: 0;
-  border-right: 1px solid var(--border);
+  border-right: 0;
   overflow: hidden;
   transition: border-color var(--transition);
   display: flex;

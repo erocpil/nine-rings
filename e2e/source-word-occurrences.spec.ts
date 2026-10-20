@@ -31,7 +31,13 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
   await expect(area.locator(".cm-source-word-match-active")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "同词匹配", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "同词匹配", exact: true }).hover();
-  await expect(page.getByRole("tooltip")).toContainText("同词匹配：显示或隐藏匹配列表");
+  const preview = page.getByRole("navigation", { name: "同词匹配列表", exact: true });
+  await expect(preview).toBeVisible();
+  await expect(page.locator(".document-panel-dock")).toHaveCount(0);
+  await preview.locator(".document-source-match-row").last().click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.lastIndexOf(word));
+  await page.mouse.move(10, 300);
+  await expect(preview).toBeHidden();
 
   await page.getByRole("button", { name: "源码符号", exact: true }).click();
   await expect(page.getByRole("navigation", { name: "源码符号", exact: true })).toBeVisible();

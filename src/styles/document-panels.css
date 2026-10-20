@@ -311,7 +311,7 @@
 }
 .workspace-sidebar-right > .app-sidebar {
   border-right: 0;
-  border-left: 1px solid var(--border);
+  border-left: 0;
 }
 .workspace-sidebar-right.sidebar-hover-enabled:not(.app-reader-focus)
   > .app-sidebar {
@@ -612,3 +612,14 @@
 /* Fixed source chrome and rendered sticky chrome share the scroll viewport edge. */
 .app-desktop-workspace .markdown-source-title-row { margin-inline-end: var(--editor-scrollbar-width, 0px); }
 .app-desktop-workspace .markdown-source-toolbar-host { margin-inline-end: calc(12px + var(--editor-scrollbar-width, 0px)); }
+
+.document-source-matches-preview {
+  position: fixed;
+  z-index: 120;
+  height: auto;
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
+}
