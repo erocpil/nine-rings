@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
-import { replaceSource, sourceInfo } from "./helpers/source-editor";
+import { replaceSource, scrollSourceTo, sourceInfo } from "./helpers/source-editor";
 
 test("源码标题级别菜单保留源码与只读保护，并排工具栏无竖向溢出", async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 850 });
@@ -150,4 +150,33 @@ test("源码折叠和展开按钮按当前折叠状态互斥高亮", async ({ pa
   await expect(collapse).toHaveAttribute("aria-pressed", "true");
   await expand.click();
   await expect(expand).toHaveAttribute("aria-pressed", "true");
+});
+
+test("源码折叠全部后展开恢复原可视行和行内偏移", async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 820 });
+  await createBlankDocument(page);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  await replaceSource(source, Array.from({ length: 90 }, (_, index) => `# Section ${index}\nopening ${index}\n## Detail ${index}\nbody ${index}\nmore ${index}`).join("\n"));
+  const scroller = page.locator(".cm-scroller");
+  await scrollSourceTo(source, "## Detail 45");
+  const topLine = async () => scroller.evaluate(element => {
+    const bounds = element.getBoundingClientRect();
+    const line = [...element.querySelectorAll<HTMLElement>(".cm-line")]
+      .find(candidate => candidate.getBoundingClientRect().bottom > bounds.top + 1);
+    return line ? {
+      text: line.textContent?.trim(),
+      offset: Math.round(line.getBoundingClientRect().top - bounds.top),
+    } : null;
+  });
+  const before = await topLine();
+  const beforeScrollTop = await scroller.evaluate(element => element.scrollTop);
+  const toolbar = page.getByRole("toolbar", { name: "源码编辑工具" });
+  await toolbar.getByRole("button", { name: "折叠全部", exact: true }).click();
+  await expect(toolbar.getByRole("button", { name: "折叠全部", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await toolbar.getByRole("button", { name: "展开全部", exact: true }).click();
+  await expect(toolbar.getByRole("button", { name: "展开全部", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBeCloseTo(beforeScrollTop, 0);
+  await expect.poll(topLine).toEqual(before);
+  await expect.poll(() => page.locator(".cm-content").evaluate(element => getComputedStyle(element).paddingTop)).toBe("0px");
 });

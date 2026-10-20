@@ -91,6 +91,46 @@ import {
 } from "../lib/block-display-settings";
 import type { SourceEditRange } from "../lib/markdown-source-navigation";
 
+type SourceFoldViewportSnapshot = {
+  doc: EditorState["doc"];
+  anchor: number;
+  topOffset: number;
+  selection: EditorSelection;
+};
+
+function captureSourceFoldViewport(view: EditorView): SourceFoldViewportSnapshot {
+  const scrollTop = view.scrollDOM.scrollTop;
+  const visibleBlock = view.lineBlockAtHeight(scrollTop);
+  const anchor = view.state.doc.lineAt(Math.min(visibleBlock.from, view.state.doc.length)).from;
+  return {
+    doc: view.state.doc,
+    anchor,
+    topOffset: visibleBlock.top - scrollTop,
+    selection: view.state.selection,
+  };
+}
+
+function visibleFoldAnchor(view: EditorView, position: number): number {
+  let anchor = position;
+  foldedRanges(view.state).between(position, position, (from, to) => {
+    if (position > from && position < to) {
+      anchor = view.state.doc.lineAt(Math.max(0, from - 1)).from;
+    }
+  });
+  return anchor;
+}
+
+function restoreSourceFoldViewport(view: EditorView, snapshot: SourceFoldViewportSnapshot, restoreSelection: boolean) {
+  requestAnimationFrame(() => {
+    if (view.state.doc !== snapshot.doc) return;
+    if (restoreSelection && !view.state.selection.eq(snapshot.selection)) {
+      view.dispatch({ selection: snapshot.selection });
+    }
+    const block = view.lineBlockAt(visibleFoldAnchor(view, snapshot.anchor));
+    view.scrollDOM.scrollTop = Math.max(0, block.top - snapshot.topOffset);
+  });
+}
+
 function wrapSelection(view: EditorView, before: string, after = before) {
   if (view.state.readOnly || view.composing) return false;
   const inlineKind = ({ "**": "bold", "*": "italic", "~~": "strike", "`": "code" } as const)[before as "**" | "*" | "~~" | "`"];
@@ -192,6 +232,8 @@ export function MarkdownSourceEditor({
   const documentActive = useDocumentActive();
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
+  const foldViewportRestore = useRef<{ snapshot: SourceFoldViewportSnapshot; baseline: number | null } | null>(null);
+  const foldViewportMutation = useRef(false);
   const handleRef = useRef<SourceEditorHandle | null>(null);
   const callback = useRef(onChange);
   const selectionCallback = useRef(onSelectionChange);
@@ -374,6 +416,12 @@ export function MarkdownSourceEditor({
         autocapitalize: "off",
       }),
       EditorView.updateListener.of((update) => {
+        const pendingFoldRestore = foldViewportRestore.current;
+        if (pendingFoldRestore && !foldViewportMutation.current) {
+          if (update.docChanged || update.selectionSet && !update.state.selection.eq(pendingFoldRestore.snapshot.selection)) {
+            foldViewportRestore.current = null;
+          }
+        }
         syncTools(update.state);
         session.current = update.state;
         if (update.docChanged) {
@@ -415,7 +463,14 @@ export function MarkdownSourceEditor({
     areaRef.current = handle;
     onReady?.(handle);
     selectionCallback.current?.({ from: editor.state.selection.main.from, to: editor.state.selection.main.to });
-    const scroll = () => handle.dispatchEvent(new Event("scroll"));
+    const scroll = () => {
+      const pending = foldViewportRestore.current;
+      if (pending && !foldViewportMutation.current && pending.baseline !== null
+        && Math.abs(editor.scrollDOM.scrollTop - pending.baseline) > 2) {
+        foldViewportRestore.current = null;
+      }
+      handle.dispatchEvent(new Event("scroll"));
+    };
     editor.scrollDOM.addEventListener("scroll", scroll, { passive: true });
     return () => {
       session.current = editor.state;
@@ -490,6 +545,41 @@ export function MarkdownSourceEditor({
       view.current.contentDOM.dispatchEvent(new Event("nr:editor-navigation"));
       command(view.current);
     }
+  };
+  const collapseAllSource = (editor: EditorView) => {
+    const snapshot = foldViewportRestore.current?.snapshot ?? captureSourceFoldViewport(editor);
+    foldViewportMutation.current = true;
+    foldViewportRestore.current = { snapshot, baseline: null };
+    const handled = foldAll(editor);
+    if (!handled || foldedRanges(editor.state).size === 0) {
+      foldViewportRestore.current = null;
+      foldViewportMutation.current = false;
+      return handled;
+    }
+    restoreSourceFoldViewport(editor, snapshot, false);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      foldViewportMutation.current = false;
+      if (foldViewportRestore.current?.snapshot === snapshot) {
+        foldViewportRestore.current.baseline = editor.scrollDOM.scrollTop;
+      }
+    }));
+    return true;
+  };
+  const expandAllSource = (editor: EditorView) => {
+    const pending = foldViewportRestore.current;
+    const snapshot = pending?.snapshot && pending.snapshot.doc === editor.state.doc
+      ? pending.snapshot
+      : captureSourceFoldViewport(editor);
+    foldViewportMutation.current = true;
+    foldViewportRestore.current = null;
+    const handled = unfoldAll(editor);
+    if (!handled) {
+      foldViewportMutation.current = false;
+      return false;
+    }
+    restoreSourceFoldViewport(editor, snapshot, true);
+    requestAnimationFrame(() => requestAnimationFrame(() => { foldViewportMutation.current = false; }));
+    return true;
   };
   const autoIndent = (scope: SourceAutoIndentScope) => run(editor => {
     if (editor.composing || editor.state.readOnly) return false;
@@ -573,12 +663,12 @@ export function MarkdownSourceEditor({
           <ToolbarIcon name="font" />
         </button>}
         {markupMode ? [true, false].map(collapse => <span className="source-fold-tool" key={String(collapse)}>
-          <button type="button" title={collapse ? "折叠全部" : "展开全部"} aria-label={collapse ? "折叠全部" : "展开全部"} aria-pressed={collapse ? tools.folded : !tools.folded} onClick={() => run(collapse ? foldAll : unfoldAll)}><ToolbarIcon name={collapse ? "folderCollapse" : "folderKeep"} /></button>
+          <button type="button" title={collapse ? "折叠全部" : "展开全部"} aria-label={collapse ? "折叠全部" : "展开全部"} aria-pressed={collapse ? tools.folded : !tools.folded} onClick={() => run(collapse ? collapseAllSource : expandAllSource)}><ToolbarIcon name={collapse ? "folderCollapse" : "folderKeep"} /></button>
           <button type="button" className="source-fold-level-trigger" title={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-label={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-haspopup="menu" aria-expanded={foldMenu?.collapse === collapse} onClick={event => { const trigger = editorCommandTrigger(event.currentTarget); setFoldMenu(previous => previous?.collapse === collapse ? null : { trigger, collapse }); }}><svg className="source-fold-level-icon" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1h8L5 5z" fill="currentColor" /></svg></button>
         </span>) : <span className="source-fold-tool">
-          <button type="button" title={tools.folded ? "展开全部" : "折叠全部"} aria-label={tools.folded ? "展开全部" : "折叠全部"} aria-pressed={tools.folded} onClick={() => run(tools.folded ? unfoldAll : foldAll)}><ToolbarIcon name={tools.folded ? "folderKeep" : "folderCollapse"} /></button>
+          <button type="button" title={tools.folded ? "展开全部" : "折叠全部"} aria-label={tools.folded ? "展开全部" : "折叠全部"} aria-pressed={tools.folded} onClick={() => run(tools.folded ? expandAllSource : collapseAllSource)}><ToolbarIcon name={tools.folded ? "folderKeep" : "folderCollapse"} /></button>
         </span>}
-        {foldMenu && <BlockActionMenu trigger={foldMenu.trigger} placement="below" title={foldMenu.collapse ? "折叠标题级别" : "展开标题级别"} onClose={() => setFoldMenu(null)} actions={[{ label: foldMenu.collapse ? "折叠全部" : "展开全部", run: () => run(foldMenu.collapse ? foldAll : unfoldAll) }, ...Array.from({ length: 6 }, (_, i) => ({ label: foldMenu.collapse ? `折叠 H${i + 1} 及更深标题` : `展开至 H${i + 1}`, run: () => run(view => { const effects = sourceHeadingFoldEffects(view.state, i + 1, foldMenu.collapse); if (!effects) return false; view.dispatch({ effects }); return true; }) }))]} />}
+        {foldMenu && <BlockActionMenu trigger={foldMenu.trigger} placement="below" title={foldMenu.collapse ? "折叠标题级别" : "展开标题级别"} onClose={() => setFoldMenu(null)} actions={[{ label: foldMenu.collapse ? "折叠全部" : "展开全部", run: () => run(foldMenu.collapse ? collapseAllSource : expandAllSource) }, ...Array.from({ length: 6 }, (_, i) => ({ label: foldMenu.collapse ? `折叠 H${i + 1} 及更深标题` : `展开至 H${i + 1}`, run: () => run(view => { foldViewportRestore.current = null; const effects = sourceHeadingFoldEffects(view.state, i + 1, foldMenu.collapse); if (!effects) return false; view.dispatch({ effects }); return true; }) }))]} />}
         {!readonly && <>
         <button type="button" title={shortcutTitle("edit.undo", "撤销")} aria-label="撤销" disabled={editingReadonly || !tools.undo} onClick={() => run(undo)}>
           <ToolbarIcon name="undo" />
@@ -652,8 +742,8 @@ export function MarkdownSourceEditor({
     "edit.redo": { run: () => run(redo), enabled: !editingReadonly && tools.redo },
     "source.autoIndentSelection": { run: () => autoIndent("selection"), enabled: !editingReadonly && tools.selection },
     "source.autoIndentDocument": { run: () => autoIndent("document"), enabled: !editingReadonly },
-    "document.collapse": { run: () => run(foldAll) },
-    "document.expand": { run: () => run(unfoldAll) },
+    "document.collapse": { run: () => run(collapseAllSource) },
+    "document.expand": { run: () => run(expandAllSource) },
     "source.wrap": { run: () => saveBlockWorkspacePreferences({ wrap: preferences.wrap === false }), checked: preferences.wrap !== false },
     "source.highlight": { run: () => saveBlockWorkspacePreferences({ sourceSyntaxHighlighting: preferences.sourceSyntaxHighlighting === false }), checked: preferences.sourceSyntaxHighlighting !== false },
     "source.micro": { run: () => saveBlockWorkspacePreferences({ sourceMicroRendering: preferences.sourceMicroRendering !== true }), checked: markupMode && preferences.sourceMicroRendering === true, enabled: markupMode },
