@@ -8,6 +8,7 @@ import type { CSSProperties } from "react";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import {
   useEffect,
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -107,6 +108,8 @@ export function MarkdownSourceWorkspace({
   const [openBookmarkActionsId, setOpenBookmarkActionsId] = useState<string | null>(null);
   const [matchesOpen, setMatchesOpen] = useState(false);
   const [sourceContextMenu, setSourceContextMenu] = useState<SourceContextTarget | null>(null);
+  const closeSourceContextMenu = useCallback(() => setSourceContextMenu(null), []);
+  useEffect(closeSourceContextMenu, [closeSourceContextMenu, documentActive, sourceHandle]);
   const [, refreshMatches] = useState(0);
   useEffect(() => {
     // Coalesce typing and reuse the same lazy parse as autosave; no hidden rich editor.
@@ -433,6 +436,20 @@ export function MarkdownSourceWorkspace({
       className={`note-editor markdown-source-editor ${desktopPanelClass(controller, true, matchesOpen && sourceWordEnabled)}`}
       style={desktopPanelStyle(controller)}
       aria-label="Markdown 源码编辑区"
+      onClickCapture={event => {
+        if (!sourceHandle || !(event.target instanceof Element)) return;
+        const number = event.target.closest(".cm-lineNumbers .cm-gutterElement");
+        if (!number || !number.textContent?.trim()) return;
+        event.preventDefault(); event.stopPropagation();
+        const view = sourceHandle.view;
+        const block = view.lineBlockAtHeight(event.clientY - view.documentTop);
+        const line = view.state.doc.lineAt(block.from);
+        setSourceContextMenu(previous => previous?.lineNumber === line.number ? null : {
+          x: event.clientX, y: event.clientY, view, readonly: view.state.readOnly,
+          trigger: view.contentDOM, lineNumber: line.number,
+          onToggleBookmark: () => onToggleBookmark(line.from),
+        });
+      }}
       onContextMenu={event => {
         if (!sourceHandle) return;
         if (!(event.target instanceof Element) || !event.target.closest(".cm-editor")) return;
@@ -444,7 +461,7 @@ export function MarkdownSourceWorkspace({
         if (position !== null && (current.empty || position < current.from || position > current.to)) {
           view.dispatch({ selection: { anchor: position } });
         }
-        setSourceContextMenu({ x: event.clientX, y: event.clientY, view, readonly: view.state.readOnly, trigger: event.currentTarget });
+        setSourceContextMenu({ x: event.clientX, y: event.clientY, view, readonly: view.state.readOnly, trigger: view.contentDOM });
       }}
     >
       <div className="markdown-source-content">{children(controls)}</div>
@@ -489,7 +506,7 @@ export function MarkdownSourceWorkspace({
         onSave={label => { onRenameBookmark(renamingBookmark.id, label); setRenamingBookmark(null); }}
         onClose={() => setRenamingBookmark(null)}
       />}
-      {sourceContextMenu && <SourceEditorContextMenu target={sourceContextMenu} close={() => setSourceContextMenu(null)} />}
+      {sourceContextMenu && <SourceEditorContextMenu target={sourceContextMenu} close={closeSourceContextMenu} />}
     </section>
   );
 }
