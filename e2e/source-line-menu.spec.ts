@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
-import { replaceSource, selectSource, sourceInfo } from "./helpers/source-editor";
+import { replaceSource, selectDocumentLanguage, selectSource, sourceInfo } from "./helpers/source-editor";
 
 async function openLine(page: Page, area: Locator, number: number) {
   await sourceInfo(area);
@@ -27,7 +27,7 @@ test("源码行号菜单操作实际行并保留换行、撤销与只读边界",
     } });
   });
   await createBlankDocument(page, "源码行菜单");
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
   const original = "first\nsecond\nthird";
   await replaceSource(area, original);

@@ -436,10 +436,13 @@ it("packs a desktop-only reading preset and rejects it on web", async () => {
     const parsed = await validatePluginPackage(files, "0.3.0", "tauri");
     expect(parsed.id).toBe("erocpil.reading-display");
     expect(parsed.gutters).toHaveLength(2);
-    expect(parsed.statusBar?.items.slice(-3)).toEqual([
+    expect(parsed.statusBar?.items).toEqual([
+      "save",
+      "block",
+      "position",
+      "characters",
+      "words",
       "navigation",
-      "diagnostics",
-      "history",
     ]);
     await expect(validatePluginPackage(files, "0.3.0", "web")).rejects.toThrow(
       "当前平台",

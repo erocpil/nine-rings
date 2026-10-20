@@ -19,7 +19,6 @@ const names: Record<StatusItem, string> = {
   position: "阅读或光标位置",
   characters: "字符数",
   words: "词数",
-  history: "版本历史",
 };
 export function SettingsStatusDisplay({
   onMessage,

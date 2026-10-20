@@ -119,6 +119,31 @@ test("专注模式源码更多工具和渲染模式共享展开状态", async ({
   await expect(toolbar).toBeVisible();
 });
 
+test("更多工具按钮在普通渲染、源码和专注模式共享显隐状态", async ({ page }) => {
+  await createBlankDocument(page, "普通模式更多工具");
+  const tools = page.getByRole("button", { name: "更多工具", exact: true });
+  const renderToolbar = page.locator(".editor-menu");
+  await expect(page.getByRole("combobox", { name: "文件格式", exact: true })).toHaveCount(0);
+  await expect(page.getByText("历史", { exact: true })).toHaveCount(0);
+  await expect(tools).toBeVisible();
+  await expect(tools).toHaveAttribute("aria-expanded", "true");
+  await tools.click();
+  await expect(tools).toHaveAttribute("aria-expanded", "false");
+  await expect(renderToolbar).toBeHidden();
+
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const sourceToolbar = page.locator(".markdown-source-toolbar-host");
+  await expect(page.getByRole("combobox", { name: "文件格式", exact: true })).toBeVisible();
+  await expect(tools).toHaveAttribute("aria-expanded", "false");
+  await expect(sourceToolbar).toBeHidden();
+  await tools.click();
+  await expect(sourceToolbar).toBeVisible();
+
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  await expect(tools).toHaveAttribute("aria-expanded", "true");
+  await expect(sourceToolbar).toBeVisible();
+});
+
 test("渲染快捷键只执行一次，源码快捷键保留跳转面板切换与只读保护", async ({ page }) => {
   await createBlankDocument(page, "共享快捷键");
   const primary = process.platform === "darwin" ? "Meta" : "Control";

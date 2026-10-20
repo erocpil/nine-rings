@@ -11,7 +11,6 @@ export const STATUS_ITEMS = [
   "characters",
   "words",
   "navigation",
-  "history",
 ] as const;
 export type StatusItem = (typeof STATUS_ITEMS)[number];
 export interface StatusDisplay {
@@ -73,9 +72,9 @@ export function validateStatusDisplay(input: unknown): StatusDisplay {
       return invalid();
   if (
     !Array.isArray(v.items) ||
-    v.items.length > STATUS_ITEMS.length + 1 ||
+    v.items.length > STATUS_ITEMS.length + 2 ||
     new Set(v.items).size !== v.items.length ||
-    v.items.some((k) => k !== "diagnostics" && !STATUS_ITEMS.includes(k))
+    v.items.some((k) => k !== "diagnostics" && k !== "history" && !STATUS_ITEMS.includes(k))
   )
     return invalid();
   const color = (value: unknown): NumberingColor => {
@@ -111,11 +110,12 @@ export function validateStatusDisplay(input: unknown): StatusDisplay {
     ...v,
     color: color(v.color),
     background: color(v.background),
-    // Older saved preferences and packages may still list the former status-bar
-    // diagnostics action. Keep accepting it, but move the action to System Info.
+    // Older saved preferences and packages may still list retired actions.
+    // Keep accepting them, but leave history in the document menu and diagnostics
+    // in System Info rather than restoring them to the status bar.
     items: Object.freeze(
       (v.items as StatusItem[]).filter(
-        (k) => k !== ("diagnostics" as StatusItem),
+        (k) => k !== ("diagnostics" as StatusItem) && k !== ("history" as StatusItem),
       ),
     ),
   }) as unknown as StatusDisplay;

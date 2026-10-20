@@ -1792,7 +1792,7 @@ export function ReadonlyVirtualNote(
           onDelete={() => { void removeAnnotation(annotation.id); }} />;
       })()}
       {documentHover.preview}
-      <EditorStatusBar documentLanguage={props.documentLanguage} enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus ?? "clean"} block={`${doc.childCount} 块 · 已挂载 ${end - start} 块${selectionWindow ? " · 正在保留选区" : ""}`} onVersionOpen={props.onVersionOpen} />
+      <EditorStatusBar enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus ?? "clean"} block={`${doc.childCount} 块 · 已挂载 ${end - start} 块${selectionWindow ? " · 正在保留选区" : ""}`} />
 
     </div></DocumentOutlineContext.Provider>
   );

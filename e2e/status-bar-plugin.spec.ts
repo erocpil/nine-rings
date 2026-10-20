@@ -82,7 +82,7 @@ test('专注更多编辑工具跨文档与源码往返保持展开',async({page}
  await createBlankDocument(page,'工具栏保持'); await closeDocumentSidebar(page);
  const first=await page.evaluate(()=>localStorage.getItem('nr:lastNote'));
  await page.getByRole('button',{name:'专注模式',exact:true}).click();
- await page.getByRole('button',{name:'更多编辑工具',exact:true}).click();
+ await page.getByRole('button',{name:'更多工具',exact:true}).click();
  await expect(page.locator('.note-editor:visible .editor-menu')).toBeVisible();
  await page.getByRole('button',{name:'源码',exact:true}).click();
  await page.getByRole('button',{name:'渲染',exact:true}).click();
@@ -96,7 +96,7 @@ test('专注更多编辑工具跨文档与源码往返保持展开',async({page}
  await expect(page.locator('.note-title:visible')).toHaveValue('工具栏另一份');
  await page.evaluate(async()=>{const {api}=await import('/src/lib/api.ts');const {useNotesStore}=await import('/src/stores/useNotesStore.ts');useNotesStore.getState().selectNote(await api.notes.get((window as any).focusToolsFirst));});
  await expect(page.locator('.note-editor:visible .editor-menu')).toBeVisible();
- await expect(page.getByRole('button',{name:'更多编辑工具',exact:true})).toHaveAttribute('aria-expanded','true');
+ await expect(page.getByRole('button',{name:'更多工具',exact:true})).toHaveAttribute('aria-expanded','true');
 });
 
 
@@ -109,8 +109,8 @@ test('声明式状态栏包启用与卸载恢复内置展示',async({page})=>{
  await section.getByLabel('选择声明式插件包').setInputFiles({name:'status.nrplugin.zip',mimeType:'application/zip',buffer:Buffer.from(zipSync({'manifest.json':strToU8(JSON.stringify(manifest))}))});
  const review=page.getByRole('dialog',{name:'审查声明式插件包'});
  await expect(review).toContainText('状态栏展示');
- await review.getByRole('checkbox').check(); await review.getByRole('button',{name:'确认安装',exact:true}).click();
- await section.getByRole('checkbox',{name:'启用 示例状态栏',exact:true}).check();
+  await review.getByRole('button',{name:/点击确认：我已检查来源/}).click(); await review.getByRole('button',{name:'确认安装',exact:true}).click();
+ await section.getByRole('checkbox',{name:'切换 示例状态栏',exact:true}).check();
  await page.getByRole('button',{name:'关闭设置',exact:true}).click();
  await expect(page.getByRole('group',{name:'文档状态栏',exact:true})).toHaveAttribute('data-status-display','plugin');
  await settings(page,/^高级/);

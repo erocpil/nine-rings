@@ -45,6 +45,7 @@ import { DocumentOutlineContext } from "./TableOfContentsBlock";
 import { headingLinkTarget } from "../lib/heading-links";
 import { ReferenceAnchors, createReferenceAnchor, referenceAnchorPluginKey } from "../extensions/ReferenceAnchors";
 import { deltaToMarkdown } from "../lib/markdown-serializer";
+import { exportDocumentPlainText } from "../lib/markdown-export";
 import { OrderedListLayout } from "../extensions/OrderedListLayout";
 import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
 import { MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes, HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline } from "../extensions/MarkdownExtras";
@@ -472,7 +473,7 @@ function DocumentEditor(input: NoteEditorProps) {
   return <FullNoteEditor {...props} readingBlockVersion={readingBlockVersion} initialPdfExportRequest={exportRequested} selectAllOnOpen={selectAllOnOpen} />;
 }
 
-function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDocument, onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, documentCreatedAt, documentUpdatedAt, documentLastAccessedAt, documentType, documentPath, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
+function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, documentCreatedAt, documentUpdatedAt, documentLastAccessedAt, documentType, documentPath, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
   const statusBar = useStatusBarDisplay(showStatusBar, focusMode);
   const [documentSerializer] = useState(() => new IncrementalDocumentSerializer());
   const noteEditorRef = useRef<HTMLDivElement>(null);
@@ -508,6 +509,7 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
   const editorFindInputRef = useRef<HTMLInputElement>(null);
   const editorReplaceInputRef = useRef<HTMLInputElement>(null);
   const lineJumpInputRef = useRef<HTMLInputElement>(null);
+  const contextMenuHandlerRef = useRef<(event: MouseEvent) => void>(() => {});
   const outlineListRef = useRef<HTMLDivElement>(null);
   const bookmarksRef = useRef<DocumentBookmark[]>(content.metadata?.bookmarks ?? []);
   const referenceAnchorsRef = useRef(content.metadata?.referenceAnchors ?? []);
@@ -670,8 +672,9 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
       setLocalTitle(title ?? "");
     }
   }, [title]);
-  const focusToolbarExpanded = useFocusEditorTools(state => state.expanded);
-  const setFocusToolbarExpanded = useFocusEditorTools(state => state.setExpanded);
+  const toolbarExpandedPreference = useFocusEditorTools(state => state.expanded);
+  const setToolbarExpandedPreference = useFocusEditorTools(state => state.setExpanded);
+  const focusToolbarExpanded = toolbarExpandedPreference ?? !focusMode;
   const dismissNativeSelectionMenu = useCallback(() => {
     const selection = window.getSelection();
     // iOS 没有供网页主动关闭/重新打开编辑菜单的 API。清除当前 DOM Range
@@ -1168,6 +1171,13 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
       }
     },
   }, [noteId]);
+  useEffect(() => {
+    if (!editor) return;
+    const root = editor.view.dom;
+    const handle = (event: MouseEvent) => contextMenuHandlerRef.current(event);
+    root.addEventListener("contextmenu", handle, true);
+    return () => root.removeEventListener("contextmenu", handle, true);
+  }, [editor]);
   useEffect(() => {
     if (!editor) return;
     hostEditorReady.current?.(editor);
@@ -3192,6 +3202,7 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
     "document.replace": { run: openEditorReplace, enabled: !readonly },
     "document.jump": { run: openLineJump },
     "document.export-md": { run: () => handleExportMarkdown() },
+    "document.export-text": { run: () => { void handleExportText(); } },
     "document.export-pdf": { run: handleExportPdf },
     ...Object.fromEntries((["bold", "italic", "strike", "code"] as const).map(mark => [`format.${mark}`, { run: () => editor?.chain().focus().toggleMark(mark).run(), checked: editor?.isActive(mark), shortcut: nativeFormatShortcut, enabled: !readonly && editor?.can().toggleMark(mark) }])),
     ...Object.fromEntries(([1, 2, 3, 4, 5, 6] as const).map(level => [`format.h${level}`, { run: () => editor?.chain().focus().toggleHeading({ level }).run(), checked: editor?.isActive("heading", { level }), shortcut: nativeFormatShortcut, enabled: !readonly }])),
@@ -3445,10 +3456,33 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
     }
     const at = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
     const selection = editor.state.selection;
-    if (at && (selection.empty || at.pos < selection.from || at.pos > selection.to)) editor.commands.setTextSelection(at.pos);
+    let nativeSelectionContainsPoint = false;
+    const native = window.getSelection();
+    if (!selection.empty && native && !native.isCollapsed && native.rangeCount > 0
+      && native.anchorNode && native.focusNode
+      && editor.view.dom.contains(native.anchorNode) && editor.view.dom.contains(native.focusNode)) {
+      const range = native.getRangeAt(0);
+      const point = (document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null })
+        .caretRangeFromPoint?.(e.clientX, e.clientY);
+      if (point) nativeSelectionContainsPoint = range.isPointInRange(point.startContainer, point.startOffset);
+      else {
+        const caret = (document as Document & { caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null })
+          .caretPositionFromPoint?.(e.clientX, e.clientY);
+        if (caret) nativeSelectionContainsPoint = range.isPointInRange(caret.offsetNode, caret.offset);
+      }
+      if (!nativeSelectionContainsPoint) {
+        const rect = range.getBoundingClientRect();
+        nativeSelectionContainsPoint = e.clientX >= rect.left && e.clientX <= rect.right
+          && e.clientY >= rect.top && e.clientY <= rect.bottom;
+      }
+    }
+    if (at && (selection.empty || ((at.pos < selection.from || at.pos > selection.to) && !nativeSelectionContainsPoint))) {
+      editor.commands.setTextSelection(at.pos);
+    }
     setContextSubmenu(null);
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
+  contextMenuHandlerRef.current = event => handleEditorContextMenu(event as unknown as React.MouseEvent);
 
   const revealReadingAnnotation = (annotation: ReadingAnnotation, target?: HTMLElement | null) => {
     if (annotationLeaveTimerRef.current !== null) window.clearTimeout(annotationLeaveTimerRef.current);
@@ -3640,6 +3674,17 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
 
   const handleExportMarkdown = async () => {
     await exportDocumentMarkdown(localTitle, proseMirrorToDelta(editor.getJSON()));
+  };
+
+  const handleExportText = async () => {
+    if (!editor) return;
+    const title = localTitle.trim() || "无标题";
+    const metadata = content.metadata;
+    const sourceText = metadata?.sourceFormat && metadata.sourceFormat !== "markdown"
+      && typeof metadata.sourceText === "string" ? metadata.sourceText : null;
+    const fragment = new Slice(editor.state.doc.content, 1, 1);
+    const text = sourceText ?? clipboardSliceToPlainText(fragment, editor.state.doc).trimEnd();
+    await exportDocumentPlainText(title, text);
   };
 
   const getTableCellContext = () => {
@@ -4421,10 +4466,10 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
               onClick={() => {
                 setOutlineOpen(false);
                 setBookmarkOpen(false);
-                setFocusToolbarExpanded((expanded) => !expanded);
+                setToolbarExpandedPreference(!focusToolbarExpanded);
               }}
-              title={shortcutTitle("view.tools", "更多编辑工具")}
-              aria-label="更多编辑工具"
+              title={shortcutTitle("view.tools", "更多工具")}
+              aria-label="更多工具"
             ><FocusModeIcon name="tools" /></button>
           )}
           {!statusBar.navigationInStatus && <NavigationButtons />}
@@ -4670,7 +4715,7 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
             aria-expanded={bookmarkOpen}
             type="button"
           ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
-          {unifiedTitleBar && focusMode && !readonly && <button type="button" className="focus-btn" title={shortcutTitle("view.tools", "更多编辑工具")} aria-label="更多编辑工具" aria-expanded={focusToolbarExpanded} onClick={() => setFocusToolbarExpanded(value => !value)}><ToolbarIcon name="annotate" /></button>}
+          {!readonly && <button type="button" className="focus-btn" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={focusToolbarExpanded} onClick={() => setToolbarExpandedPreference(!focusToolbarExpanded)}><ToolbarIcon name="annotate" /></button>}
           {!statusBar.navigationInStatus && <NavigationButtons />}
           {isMobileToolbarViewport && <button
             className={`focus-btn document-focus-toggle ${focusMode ? "active" : ""}`}
@@ -4967,7 +5012,6 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
             onPointerMove={handleReadonlyHeadingPointerMove}
             onPointerCancel={handleReadonlyHeadingPointerCancel}
             onPointerUp={handleReadonlyHeadingPointerUp}
-            onContextMenu={handleEditorContextMenu}
           />
           {documentHover.preview}
         </div>
@@ -5007,7 +5051,7 @@ function FullNoteEditor({ documentLanguage, onDocumentLanguageChange, onCreateDo
       </div>
 
       {/* ── 文档状态栏：本机保存状态、位置统计与诊断/历史入口 ── */}
-      <EditorStatusBar documentLanguage={documentLanguage} onDocumentLanguageChange={readonly ? undefined : onDocumentLanguageChange} onCreateDocument={readonly ? undefined : onCreateDocument} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} block={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? `块 ${currentStatusBlock}/${totalBlocks}` : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} onVersionOpen={onVersionOpen} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
+      <EditorStatusBar onCreateDocument={readonly ? undefined : onCreateDocument} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} block={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? `块 ${currentStatusBlock}/${totalBlocks}` : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
         {saveIssue && <button type="button" className="workspace-error-indicator" onClick={onOpenSaveIssue}>保存异常 · 查看详情</button>}
         {searchMatches.length > 0 && !editorFindOpen && (
           <span className="editor-search-navigation" role="status" aria-live="polite">

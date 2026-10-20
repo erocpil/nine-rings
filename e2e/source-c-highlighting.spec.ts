@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
-import { replaceSource, sourceInfo } from "./helpers/source-editor";
+import { replaceSource, selectDocumentLanguage, sourceInfo } from "./helpers/source-editor";
 
 test("C/C++ 分类高亮随风格配色切换，可关闭且不改写源码", async ({ page }) => {
   await createBlankDocument(page, "代码分类");
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const area = page.locator(".cm-content");
   const raw = '#include <stdio.h>\n#define LIMIT 42\n// comment\nstruct Point { int x; };\nstatic int run(int n) {\n  struct Point p;\n  p.x = 42;\n  if (n > 0) return printf("hello\\n");\n  return 0;\n}\n';
   await replaceSource(area, raw);
@@ -55,15 +55,14 @@ test("C/C++ 分类高亮随风格配色切换，可关闭且不改写源码", as
 
 test("合并的 C/C++ 类型识别 C++ 类型、模板和成员调用，切换语言不残留分类", async ({ page }) => {
   await createBlankDocument(page, "C++ 分类");
-  const picker = page.getByRole("combobox", { name: "文件格式", exact: true });
-  await picker.selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const area = page.locator(".cm-content");
   const raw = 'namespace app {\ntemplate <typename T> class Box {\npublic:\n  T value;\n  T get() const { return value; }\n};\nint main() { Box<int> box; return box.get(); }\n}\n';
   await replaceSource(area, raw);
   await expect(area.locator(".source-code-type").filter({ hasText: "Box" }).first()).toBeVisible();
   await expect(area.locator(".source-code-function").filter({ hasText: "get" }).first()).toBeVisible();
   await expect(area.locator(".source-code-definition").filter({ hasText: "template" }).first()).toBeVisible();
-  await picker.selectOption("python");
+  await selectDocumentLanguage(page, "python");
   const python = '@dataclass\nclass Packet:\n    size: int\n\ndef parse_packet(data: bytes) -> bool:\n    return data is not None\n';
   await replaceSource(area, python);
   await expect(area.locator(".source-code-definition").filter({ hasText: "def" }).first()).toBeVisible();

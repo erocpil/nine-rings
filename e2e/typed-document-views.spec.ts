@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
-import { replaceSource, sourceInfo, selectSource, scrollSourceTo } from "./helpers/source-editor";
+import { replaceSource, selectDocumentLanguage, sourceInfo, selectSource, scrollSourceTo } from "./helpers/source-editor";
 
 for (const language of ["", "python", "json"]) test(`${language || "text"} 仅提供源码，保存重开保留字面内容且不继续 Markdown 列表`, async ({ page }) => {
   await createBlankDocument(page, "原始文本");
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption(language);
+  await selectDocumentLanguage(page, language);
   const area = page.locator(".cm-content");
   await expect(area).toBeVisible();
   await expect(page.getByRole("button", { name: "渲染", exact: true })).toHaveCount(0);
@@ -30,7 +30,7 @@ for (const language of ["", "python", "json"]) test(`${language || "text"} 仅�
 
 for (const language of ["flow", "mermaid"]) test(`${language} 整份文档支持源码、渲染及并排预览，不需要围栏`, async ({ page }) => {
   await createBlankDocument(page, "独立图文");
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption(language);
+  await selectDocumentLanguage(page, language);
   const area = page.locator(".cm-content");
   // Switching an empty Markdown render to a renderable type starts in render.
   if (await page.getByRole("button", { name: "源码", exact: true }).isVisible()) await page.getByRole("button", { name: "源码", exact: true }).click();
@@ -64,22 +64,22 @@ for (const language of ["flow", "mermaid"]) test(`${language} 整份文档支持
 
 test("Text 与 Markdown 往返只改变解释方式，不增加反斜线或丢失换行", async ({ page }) => {
   await createBlankDocument(page, "往返格式");
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("");
+  await selectDocumentLanguage(page, "");
   const area = page.locator(".cm-content");
   const raw = "## 标题\n\n*斜体* 与 `代码`\n\n- 列表\n\n";
   await replaceSource(area, raw);
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("markdown");
+  await selectDocumentLanguage(page, "markdown");
   await page.getByRole("button", { name: "渲染", exact: true }).click();
   await expect(page.locator(".ProseMirror h2")).toHaveText("标题");
   await page.getByRole("button", { name: "源码", exact: true }).click();
   await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("");
+  await selectDocumentLanguage(page, "");
   await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
 });
 
 test("源码专用文档重开恢复位置，只读后保留浏览能力并禁止编辑", async ({ page }) => {
   await createBlankDocument(page, "源码恢复位置");
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("");
+  await selectDocumentLanguage(page, "");
   const area = page.locator(".cm-content");
   const raw = Array.from({ length: 220 }, (_, index) => `line ${String(index).padStart(3, "0")} literal *Markdown*`).join("\n");
   await replaceSource(area, raw);

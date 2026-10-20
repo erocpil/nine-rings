@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
-import { replaceSource, scrollSourceTo, sourceInfo } from "./helpers/source-editor";
+import { replaceSource, selectDocumentLanguage, scrollSourceTo, sourceInfo } from "./helpers/source-editor";
 
 test("源码标题级别菜单保留源码与只读保护，并排工具栏无竖向溢出", async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 850 });
@@ -83,7 +83,7 @@ test("源码目录悬浮与固定均支持折叠展开及 Top Mid Bot", async ({
   await expect(panel).toBeVisible();
   await expect(panel.locator(".document-outline-count")).toHaveText("160 项");
   for (const pinned of [false, true]) {
-    if (pinned) await panel.getByRole("button", { name: "固定", exact: true }).click();
+    if (pinned) await panel.getByRole("button", { name: /^固定目录$/ }).click();
     const list = panel.locator(".document-outline-list");
     await panel.getByRole("button", { name: "滚动至底部", exact: true }).click();
     await expect.poll(() => list.evaluate(el => el.scrollHeight - el.clientHeight - el.scrollTop)).toBeLessThan(2);
@@ -101,8 +101,7 @@ test("源码目录悬浮与固定均支持折叠展开及 Top Mid Bot", async ({
 
 test("不提供级别选择的源码折叠按钮不预留三角区域", async ({ page }) => {
   await createBlankDocument(page);
-  const picker = page.getByRole("combobox", { name: "文件格式", exact: true });
-  await picker.selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const groups = page.locator(".source-fold-tool");
   await expect(groups).toHaveCount(1);
   await expect(groups.getByRole("button", { name: "折叠全部", exact: true })).toBeVisible();
@@ -110,12 +109,12 @@ test("不提供级别选择的源码折叠按钮不预留三角区域", async ({
     await expect(group.locator("button")).toHaveCount(1);
     expect(await group.evaluate(el => el.getBoundingClientRect().width)).toBe(28);
   }
-  await picker.selectOption("markdown");
+  await selectDocumentLanguage(page, "markdown");
   for (const group of await groups.all()) {
     await expect(group.locator("button")).toHaveCount(2);
     expect(await group.evaluate(el => el.getBoundingClientRect().width)).toBe(44);
   }
-  await picker.selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const source = page.locator(".cm-content");
   await replaceSource(source, "int main() {\nreturn 0;\n}");
   const toggle = page.getByRole("toolbar", { name: "源码编辑工具" }).getByRole("button", { name: "折叠全部", exact: true });

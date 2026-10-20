@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
-import { replaceSource, sourceInfo } from "./helpers/source-editor";
+import { replaceSource, selectDocumentLanguage, selectSource, sourceInfo } from "./helpers/source-editor";
 
 test("切换文档时保留各自的源码符号缓存", async ({ page }) => {
   await createBlankDocument(page, "符号缓存 A");
   const firstId = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const source = page.locator(".cm-content");
   await expect(source).toBeVisible();
   await replaceSource(source, "struct CachedType {\n  int cached_member;\n};\n");
@@ -33,8 +33,7 @@ test("切换文档时保留各自的源码符号缓存", async ({ page }) => {
 
 test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", async ({ page }) => {
   await createBlankDocument(page, "本文件符号目录");
-  const format = page.getByRole("combobox", { name: "文件格式", exact: true });
-  await format.selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const area = page.locator(".cm-content");
   await expect(area).toBeVisible();
   const source = `struct Packet {\n  int length;\n  void reset();\n};\n#define NR_PACKET_LIMIT 8\nstatic int packet_count;\n\nint zebra(void) { return 0; }\n\nint open_packet(int id) {\n  return id;\n}\n\nvoid alpha(void) { }\n`;
@@ -136,7 +135,7 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
 
 test("源码编辑区右键使用应用内菜单", async ({ page }) => {
   await createBlankDocument(page, "源码右键菜单");
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
   await expect(area).toBeVisible({ timeout: 20000 });
   await replaceSource(area, "int value = 1;\n");
@@ -150,4 +149,23 @@ test("源码编辑区右键使用应用内菜单", async ({ page }) => {
   await expect(page.getByRole("menu", { name: "源码编辑菜单" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("menu", { name: "源码编辑菜单" })).toHaveCount(0);
+});
+
+test("源码选区右键菜单保持选区可见，关闭后也保留选区", async ({ page }) => {
+  await createBlankDocument(page, "源码选区右键菜单");
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  await expect(area).toBeVisible({ timeout: 20000 });
+  const text = "int preserve_selection = 42;\n";
+  await replaceSource(area, text);
+  await selectSource(area, 0, text.trimEnd().length);
+  await expect.poll(async () => (await sourceInfo(area)).selectionEnd - (await sourceInfo(area)).selectionStart).toBeGreaterThan(0);
+  const menu = page.getByRole("menu", { name: "源码编辑菜单" });
+  await area.click({ button: "right", position: { x: 40, y: 10 } });
+  await expect(menu).toBeVisible();
+  await expect(page.locator(".markdown-source-editor")).toHaveClass(/has-source-context-menu/);
+  await expect.poll(async () => (await sourceInfo(area)).selectionEnd - (await sourceInfo(area)).selectionStart).toBeGreaterThan(0);
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect.poll(async () => (await sourceInfo(area)).selectionEnd - (await sourceInfo(area)).selectionStart).toBeGreaterThan(0);
 });

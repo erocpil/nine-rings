@@ -48,6 +48,20 @@ export async function exportMarkdownWithDialog(data: string, defaultName: string
   return path;
 }
 
+/** 原生保存对话框 — 导出单篇纯文本。 */
+export async function exportTextWithDialog(data: string, defaultName: string): Promise<string | null> {
+  if (!isTauri()) return null;
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const { invoke } = await import("@tauri-apps/api/core");
+  const path = await save({
+    defaultPath: defaultName,
+    filters: [{ name: "纯文本", extensions: ["txt"] }],
+  });
+  if (!path) return null;
+  await invoke("export_to_file", { path, content: data });
+  return path;
+}
+
 /** 原生保存对话框 — 导出路径下的 Markdown ZIP。 */
 export async function exportZipWithDialog(data: Uint8Array, defaultName: string): Promise<string | null> {
   if (!isTauri()) return null;

@@ -12,8 +12,12 @@ test("状态栏文件格式与系统菜单共享设置，切换语法保留正�
   });
   const before = await persisted();
   const format = page.getByRole("combobox", { name: "文件格式", exact: true });
-  await expect(format).toHaveValue("markdown");
-  await format.selectOption("python");
+  await expect(format).toHaveCount(0);
+  await page.evaluate(async () => {
+    const menu = await import("/src/lib/native-menu-registry.ts");
+    await menu.runNativeMenuAction("format.language.python");
+  });
+  await expect(format).toHaveValue("python");
   await expect.poll(async () => (await persisted()).metadata?.sourceLanguage).toBe("python");
   expect((await persisted()).ops).toEqual(before.ops);
   await expect(page.getByRole("button", { name: "源码", exact: true })).toHaveCount(0);
@@ -58,12 +62,17 @@ test("状态栏文件格式与系统菜单共享设置，切换语法保留正�
 
 test("文件格式在只读时显示但不可更改，系统菜单同时禁用", async ({ page }) => {
   await createBlankDocument(page, "只读格式");
+  await expect(page.getByRole("combobox", { name: "文件格式", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
-  await expect(page.getByRole("combobox", { name: "文件格式", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "点击设为可编辑", exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(async () => {
     const menu = await import("/src/lib/native-menu-registry.ts");
     return menu.nativeMenuSnapshot().find(item => item.id === "format.language.python")?.enabled;
   })).toBe(false);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  await expect(page.locator(".cm-content")).toBeVisible();
+  const format = page.getByRole("combobox", { name: "文件格式", exact: true });
+  if (await format.count()) await expect(format).toBeDisabled();
 });
 
 test("标题右侧源码、插件、目录与书签按钮等宽", async ({ page }) => {

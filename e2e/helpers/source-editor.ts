@@ -1,4 +1,17 @@
 import { expect, type Locator } from "@playwright/test";
+
+export async function selectDocumentLanguage(page: import("@playwright/test").Page, language: string) {
+  const picker = page.getByRole("combobox", { name: "文件格式", exact: true });
+  if (await picker.isVisible().catch(() => false)) {
+    await picker.selectOption(language);
+    return;
+  }
+  await page.evaluate(async value => {
+    const { runNativeMenuAction } = await import("/src/lib/native-menu-registry.ts");
+    runNativeMenuAction(`format.language.${value || "text"}`);
+  }, language);
+}
+
 async function prepare(area: Locator) {
   await area.page().evaluate(async () => {
     (

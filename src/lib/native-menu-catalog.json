@@ -1,6 +1,6 @@
 [
   {
-    "text": "工作区",
+    "text": "Workspace",
     "items": [
       {
         "id": "workspace.home",
@@ -150,14 +150,23 @@
         "text": "版本历史…"
       },
       {
-        "id": "document.export-md",
-        "text": "导出 Markdown…",
-        "accelerator": "Command+Shift+E"
-      },
-      {
-        "id": "document.export-pdf",
-        "text": "导出／打印 PDF…",
-        "accelerator": "Command+Alt+P"
+        "text": "导出",
+        "items": [
+          {
+            "id": "document.export-md",
+            "text": "导出 Markdown…",
+            "accelerator": "Command+Shift+E"
+          },
+          {
+            "id": "document.export-text",
+            "text": "导出纯文本…"
+          },
+          {
+            "id": "document.export-pdf",
+            "text": "导出／打印 PDF…",
+            "accelerator": "Command+Alt+P"
+          }
+        ]
       },
       {
         "id": "document.collapse",
@@ -204,7 +213,7 @@
     "merge": "file"
   },
   {
-    "text": "格式",
+    "text": "Format",
     "items": [
       {
         "text": "文件格式",
@@ -409,7 +418,7 @@
     ]
   },
   {
-    "text": "界面",
+    "text": "View",
     "items": [
       {
         "id": "view.focus",
@@ -419,7 +428,7 @@
       },
       {
         "id": "view.tools",
-        "text": "更多编辑工具",
+        "text": "更多工具",
         "checkable": true,
         "accelerator": "Command+Alt+T"
       },

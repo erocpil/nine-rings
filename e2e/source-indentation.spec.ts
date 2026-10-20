@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
-import { replaceSource, selectSource, sourceInfo } from "./helpers/source-editor";
+import { replaceSource, selectDocumentLanguage, selectSource, sourceInfo } from "./helpers/source-editor";
 
 for (const language of ["c", "python", "javascript", "rust", "json", ""]) {
   test(`${language || "text"} 换行继承手动缩进，保留 Tab 与空格`, async ({ page }) => {
     await createBlankDocument(page, "源码缩进");
-    await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption(language);
+    await selectDocumentLanguage(page, language);
     const area = page.locator(".cm-content");
     for (const prefix of ["    ", "\t", "\t  "]) {
       const raw = prefix + "value";
@@ -21,19 +21,18 @@ for (const language of ["c", "python", "javascript", "rust", "json", ""]) {
 
 test("C 与 Python 保留语言缩进，Markdown 继续列表", async ({ page }) => {
   await createBlankDocument(page, "语言缩进");
-  const picker = page.getByRole("combobox", { name: "文件格式", exact: true });
-  await picker.selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const area = page.locator(".cm-content");
   await replaceSource(area, "int main() {}");
   await selectSource(area, 12);
   await page.keyboard.press("Enter");
   await expect.poll(async () => (await sourceInfo(area)).value).toBe("int main() {\n\t\n}");
-  await picker.selectOption("python");
+  await selectDocumentLanguage(page, "python");
   await replaceSource(area, "if True:");
   await selectSource(area, 8);
   await page.keyboard.press("Enter");
   await expect.poll(async () => (await sourceInfo(area)).value).toBe("if True:\n\t");
-  await picker.selectOption("markdown");
+  await selectDocumentLanguage(page, "markdown");
   await replaceSource(area, "- item");
   await selectSource(area, 6);
   await page.keyboard.press("Enter");
@@ -43,7 +42,7 @@ test("C 与 Python 保留语言缩进，Markdown 继续列表", async ({ page })
 
 test("源码状态栏配置缩进、转换并撤销，重开保留配置，只读禁止转换", async ({ page }) => {
   await createBlankDocument(page, "缩进选项");
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const area = page.locator(".cm-content");
   const size = page.getByRole("combobox", { name: "Tab Size", exact: true });
   const style = page.getByRole("combobox", { name: "缩进方式", exact: true });
@@ -92,7 +91,7 @@ test("源码状态栏配置缩进、转换并撤销，重开保留配置，只�
 
 test("源码自动缩进支持选区和全文，并可作为单次撤销", async ({ page }) => {
   await createBlankDocument(page, "自动缩进");
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const area = page.locator(".cm-content");
   const raw = "int main() {\nint value = 1;\nif (value) {\nvalue++;\n}\n}";
   await replaceSource(area, raw);
@@ -127,7 +126,7 @@ test("源码自动缩进支持选区和全文，并可作为单次撤销", async
 
 test("C++ 自动缩进在成员定义后保留类作用域", async ({ page }) => {
   await createBlankDocument(page, "C++ 类缩进");
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const area = page.locator(".cm-content");
   const raw = [
     "class LRUCache {",

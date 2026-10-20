@@ -107,6 +107,32 @@ test.describe("正文右键菜单：视口边界", () => {
 });
 
 test.describe("正文右键菜单：菜单项显示与禁用", () => {
+  test("选中引用块中的文本后右键仍打开编辑菜单并保留选区", async ({ page }) => {
+    const editor = await createBlankNote(page);
+    await editor.evaluate((element) => {
+      const ed = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      ed.commands.setContent({
+        type: "doc",
+        content: [{ type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "引用块内的可编辑文字" }] }] }],
+      });
+      ed.commands.setTextSelection({ from: 2, to: 5 });
+    });
+    const rect = await editor.evaluate((element) => {
+      const selection = window.getSelection()!;
+      const range = selection.getRangeAt(0).getBoundingClientRect();
+      return { x: range.left + range.width / 2, y: range.top + range.height / 2 };
+    });
+    await page.mouse.move(rect.x, rect.y);
+    await expect(page.locator(".selection-hover-toolbar")).toBeVisible();
+    await page.mouse.click(rect.x, rect.y, { button: "right" });
+    await expect(menu(page)).toBeVisible();
+    await expect(page.locator(".selection-hover-toolbar")).toHaveCount(0);
+    await expect.poll(() => editor.evaluate((element) => {
+      const ed = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      return ed.state.doc.textBetween(ed.state.selection.from, ed.state.selection.to);
+    })).toBe("引用块");
+  });
+
   test("插入链接与宿主工具栏一致，无选区可输入链接", async ({ page }) => {
     const editor = await createBlankNote(page);
 

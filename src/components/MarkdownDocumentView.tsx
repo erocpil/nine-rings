@@ -52,8 +52,9 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const documentLanguageRef = useRef(documentLanguage);
   documentLanguageRef.current = documentLanguage;
   useEffect(() => setDocumentLanguage(storedDocumentLanguage), [storedDocumentLanguage]);
-  const moreTools = useFocusEditorTools(state => state.expanded);
+  const moreToolsPreference = useFocusEditorTools(state => state.expanded);
   const setMoreTools = useFocusEditorTools(state => state.setExpanded);
+  const moreTools = moreToolsPreference ?? !props.focusMode;
   const sourceOpenTarget = useDocumentOpenStore(state => state.target?.noteId === props.noteId ? state.target : null);
   const navigationTarget = useNavigationStore(state => state.target?.noteId === props.noteId ? state.target : null);
   const mobile = useMobileViewport();
@@ -373,7 +374,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const languageProps = { documentLanguage, onDocumentLanguageChange: busy || props.readonly ? undefined : (language: string) => { void changeDocumentLanguage(language); } };
   useNativeMenuActions({
     ...Object.fromEntries(DOCUMENT_LANGUAGE_OPTIONS.map(option => [documentLanguageCommand(option.value), { run: () => changeDocumentLanguage(option.value), checked: documentLanguage === option.value, enabled: !props.readonly && !busy }])),
-    "view.tools": { run: () => setMoreTools(value => !value), checked: moreTools, enabled: props.focusMode && (!props.readonly || source !== null) },
+    "view.tools": { run: () => setMoreTools(!moreTools), checked: moreTools, enabled: !props.readonly || source !== null },
     "document.source": { run: () => changeView(), checked: source !== null, enabled: supported && hasPreview && !busy },
     "document.readonly": { run: () => props.onReadonlyChange?.(!props.readonly), checked: Boolean(props.readonly), enabled: Boolean(props.onReadonlyChange) && !busy },
   }, active);
@@ -383,7 +384,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     aria-label={source === null ? "源码" : "渲染"}
     aria-busy={busy} onClick={() => void changeView()}><ToolbarIcon name={source === null ? "code" : "document"} /></button>}
     {props.documentSessions && <BuiltinPluginTools onOpenNote={props.onOpenLinkedNote} sessions={props.documentSessions} active={active} disabled={busy} readonly={Boolean(props.readonly) || source === null && documentLanguage !== "markdown"} onFocusEditor={() => { if (source !== null) viewPosition.sourceHandle?.focus(); else renderedHost.current?.view.focus(); }} context={{ platform: runtimeKind(), view: props.readonly || source === null && documentLanguage !== "markdown" ? "readonly" : source === null ? "render" : "source", documentId: props.noteId }} />}</>;
-  return <div className="markdown-document-view" data-source-tools-hidden={props.focusMode && !moreTools || undefined} ref={viewPosition.host}>
+  return <div className="markdown-document-view" data-tools-hidden={!moreTools || undefined} ref={viewPosition.host}>
     {error && <div role="alert" className="markdown-source-hint">{error}</div>}
     {source === null && documentLanguage !== "markdown" ? <>
       <div className="note-title-row markdown-source-title-row">
@@ -395,7 +396,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       <Suspense fallback={<div role="status">正在加载预览…</div>}>
         <SourceDocumentPreview language={documentLanguage} source={sourceSession.current?.current.source ?? readDocumentSource(props.content)} fontSize={props.editorFontSize} />
       </Suspense>
-      <EditorStatusBar enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus} documentLanguage={documentLanguage} onDocumentLanguageChange={languageProps.onDocumentLanguageChange} onCreateDocument={props.readonly ? undefined : props.onCreateDocument} onVersionOpen={props.onVersionOpen} />
+      <EditorStatusBar enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus} onCreateDocument={props.readonly ? undefined : props.onCreateDocument} />
     </> : source === null ? render({
       ...props,
       ...languageProps,
@@ -434,7 +435,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           onClick={() => props.onReadonlyChange?.(!props.readonly)}><ToolbarIcon name={props.readonly ? "lock" : "unlock"} /></button>}
         {sourceTitle}
         {toggle}
-        {props.focusMode && <button type="button" className="markdown-view-toggle" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(value => !value)}><ToolbarIcon name="annotate" /></button>}
+        {(!props.readonly || source !== null) && <button type="button" className="markdown-view-toggle" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(!moreTools)}><ToolbarIcon name="annotate" /></button>}
         {!mobile && hasPreview && <button type="button" className="markdown-view-toggle" title="并排预览" aria-label="并排预览" aria-pressed={preview} onClick={() => { setPreview(!preview); localStorage.setItem("nr:markdownSplitPreview", String(!preview)); }}><ToolbarIcon name="panel" /></button>}
         {!mobile && hasPreview && preview && <label className="markdown-preview-sync"><input type="checkbox" checked={previewSync} onChange={event => { setPreviewSync(event.target.checked); localStorage.setItem("nr:markdownPreviewSync", String(event.target.checked)); }} />同步滚动</label>}
         {controls}
@@ -445,7 +446,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       <div className="markdown-source-toolbar-host" ref={setSourceToolbarTarget} />
       <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={hasPreview && preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
-      <MarkdownSourceEditor documentLanguage={documentLanguage} onDocumentLanguageChange={props.readonly || busy ? undefined : languageProps.onDocumentLanguageChange} onCreateDocument={props.readonly ? undefined : props.onCreateDocument} statusTarget={sourceStatusTarget} focusMode={props.focusMode} showStatusBar={props.showStatusBar} saveStatus={props.saveStatus} onVersionOpen={props.onVersionOpen} toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly)} editingDisabled={busy}
+      <MarkdownSourceEditor documentLanguage={documentLanguage} onDocumentLanguageChange={props.readonly || busy ? undefined : languageProps.onDocumentLanguageChange} onCreateDocument={props.readonly ? undefined : props.onCreateDocument} statusTarget={sourceStatusTarget} focusMode={props.focusMode} showStatusBar={props.showStatusBar} saveStatus={props.saveStatus} toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly)} editingDisabled={busy}
         areaRef={viewPosition.area} onReady={hostSourceReady} onSelectionChange={hostSelection} session={sourceEditorState} onChange={editSource}
         onEditorConfigChange={props.onEditorConfigChange}
         showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine}

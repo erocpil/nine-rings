@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
-import { replaceSource, sourceInfo } from "./helpers/source-editor";
+import { replaceSource, selectDocumentLanguage, sourceInfo } from "./helpers/source-editor";
 
 test("没有其它同词匹配时使用常规同词高亮", async ({ page }) => {
   await createBlankDocument(page, "单次源码词");
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
   await expect(area).toBeVisible({ timeout: 20000 });
   const source = "int only_once;\n";
@@ -23,7 +23,7 @@ test("没有其它同词匹配时使用常规同词高亮", async ({ page }) => 
 
 test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹配面板", async ({ page }) => {
   await createBlankDocument(page, "源码全词匹配");
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
   await expect(area).toBeVisible({ timeout: 20000 });
   const source = "int packet_count = 0;\nint packet_counted = packet_count + packet_count;\nvoid use_packet_count(void) { packet_count++; }\n";
@@ -76,7 +76,8 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
   await expect(preview).toBeHidden();
 
   await page.getByRole("button", { name: "源码符号", exact: true }).click();
-  await expect(page.getByRole("navigation", { name: "源码符号", exact: true })).toBeVisible();
+  const symbolsPanel = page.getByRole("navigation", { name: "源码符号", exact: true });
+  await expect(symbolsPanel).toBeVisible();
   await clickWord(source.lastIndexOf(word) + 2, ["Control", "Meta"]);
   const panel = page.getByRole("navigation", { name: "同词匹配列表", exact: true });
   await expect(panel).toBeVisible();
@@ -84,6 +85,13 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
   await clickWord(source.indexOf("=") + 1);
   await expect(area.locator(".cm-source-word-match")).toHaveCount(0);
   await expect(panel.locator(".document-source-match-row")).toHaveCount(3);
+  const symbolLeadingInset = await symbolsPanel.evaluate(element => {
+    const list = element.querySelector(".document-outline-list")!.getBoundingClientRect();
+    const fold = element.querySelector(".document-outline-fold, .document-outline-fold-placeholder")!.getBoundingClientRect();
+    return fold.left - list.left;
+  });
+  const matchLeadingInset = await panel.locator(".document-source-match-line").first().evaluate(element => element.getBoundingClientRect().left - element.closest(".document-source-matches-list")!.getBoundingClientRect().left);
+  expect(Math.abs(symbolLeadingInset - matchLeadingInset)).toBeLessThanOrEqual(1);
   await expect(panel.locator(".document-source-matches-header")).toContainText("packet_count");
   const dock = page.getByRole("complementary", { name: "固定阅读面板" });
   await expect(dock.locator(".document-panel-slot[data-panel='outline']")).toBeVisible();
@@ -119,6 +127,8 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
   await expect(emptyBookmark.locator(".document-bookmark-list")).toHaveCount(0);
   await page.getByRole("button", { name: "添加当前位置书签", exact: true }).click();
   await expect.poll(() => emptyBookmark.evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThan(65);
+  const bookmarkLeadingInset = await emptyBookmark.locator(".document-bookmark-index").first().evaluate(element => element.getBoundingClientRect().left - element.closest(".document-bookmark-list")!.getBoundingClientRect().left);
+  expect(Math.abs(symbolLeadingInset - bookmarkLeadingInset)).toBeLessThanOrEqual(1);
   const split = page.getByRole("separator", { name: "调整目录与书签比例" });
   await expect(split).toBeVisible();
   for (let attempt = 0; attempt < 2; attempt++) {

@@ -26,9 +26,9 @@ test("独立搜索不卸载正文、不退出专注模式，关闭后恢复焦�
   await expect(dialog).toHaveCount(0);
   await expect(editor).toHaveAttribute("data-test-identity", "original-editor");
   await expect(page.locator(".search-match")).toHaveCount(1);
-  await page.getByRole("button", { name: "更多编辑工具" }).click();
+  await page.getByRole("button", { name: "更多工具" }).click();
   await expect(page.locator(".editor-menu")).toBeVisible();
-  await page.getByRole("button", { name: "更多编辑工具" }).click();
+  await page.getByRole("button", { name: "更多工具" }).click();
   await expect(page.locator(".editor-menu")).toBeHidden();
   await page.getByRole("button", { name: "退出专注模式" }).click();
   await expect(page.locator(".editor-menu")).toBeVisible();

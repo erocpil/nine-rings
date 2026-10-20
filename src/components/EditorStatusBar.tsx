@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode, RefObject } from "react";
+import { useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import {
   statusDisplayStyle,
@@ -19,7 +19,6 @@ export function EditorStatusBar({
   positionRef,
   characters,
   words,
-  onVersionOpen,
   children,
   sourceIndentControls,
   sourceViewControls,
@@ -38,7 +37,6 @@ export function EditorStatusBar({
   positionRef?: RefObject<HTMLSpanElement>;
   characters?: number;
   words?: number;
-  onVersionOpen?: () => void;
   children?: ReactNode;
   sourceIndentControls?: ReactNode;
   sourceViewControls?: ReactNode;
@@ -48,6 +46,7 @@ export function EditorStatusBar({
   onCreateDocument?: () => void;
 }) {
   const state = useStatusBarDisplay(enabled, focusMode);
+  const tooltipTitles = useRef(new Map<HTMLElement, string>());
   if (!state.visible && !fallbackVisible) return null;
   const saveLabel =
     saveStatus === "dirty"
@@ -95,28 +94,28 @@ export function EditorStatusBar({
       ) : null,
     characters: characters !== undefined ? `${characters} 字符` : null,
     words: words !== undefined ? `${words} 词` : null,
-    history: onVersionOpen ? (
-      <button
-        type="button"
-        className="btn-version-icon"
-        onClick={onVersionOpen}
-        title="版本历史"
-        aria-label="打开本机版本历史"
-      >
-        <ToolbarIcon name="history" />
-        <span>历史</span>
-      </button>
-    ) : null,
   };
   const items = state.visible
     ? state.items.filter((k) => content[k] != null)
     : [];
-  const firstAction = items.find((k) => k === "navigation" || k === "history");
+  const firstAction = items.find((k) => k === "navigation");
   return (
     <div
       className={`editor-stats editor-status-bar ${className}`}
       role="group"
       aria-label={label}
+      onPointerDownCapture={event => {
+        const target = event.target instanceof Element ? event.target.closest<HTMLElement>("[aria-haspopup], select") : null;
+        if (!target?.title) return;
+        tooltipTitles.current.set(target, target.title);
+        target.removeAttribute("title");
+      }}
+      onPointerLeave={() => {
+        for (const [element, title] of tooltipTitles.current) {
+          if (element.isConnected && !element.title) element.title = title;
+        }
+        tooltipTitles.current.clear();
+      }}
       data-status-display={state.display ? "plugin" : undefined}
       data-status-show-in-focus={state.showInFocus || undefined}
       onWheel={(event) => {

@@ -150,14 +150,14 @@
 .document-source-matches-header .document-outline-header-primary { flex: 1; overflow: hidden; }
 .document-source-matches-header .document-outline-header-primary > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .document-source-matches-header .toolbar-icon { width: 15px; height: 15px; }
-.document-source-matches-list { flex: 1; min-height: 0; overflow: auto; padding: 4px; }
+.document-source-matches-list { flex: 1; min-height: 0; overflow: auto; padding: 4px 4px 4px 0; }
 .document-source-match-row {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
   align-items: start;
   width: 100%;
   gap: 6px;
-  padding: 6px 7px;
+  padding: 6px 7px 6px 4px;
   border: 0;
   border-radius: 5px;
   color: var(--text);

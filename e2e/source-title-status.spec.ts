@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
-import { replaceSource, selectSource, sourceInfo } from "./helpers/source-editor";
+import { replaceSource, selectDocumentLanguage, selectSource, sourceInfo } from "./helpers/source-editor";
 
 async function titlePointerPoints(title: import("@playwright/test").Locator) {
   return title.evaluate(element => {
@@ -19,7 +19,7 @@ async function titlePointerPoints(title: import("@playwright/test").Locator) {
 test("源码标题回车恢复源码光标，状态栏加号紧邻格式选择且源码首行保留紧凑顶距", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "calm" })));
   await createBlankDocument(page, "源码标题回车");
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const area = page.locator(".cm-content");
   await expect(area).toBeVisible();
   const source = "int first;\nint second;\n";
@@ -47,7 +47,7 @@ test("源码标题回车恢复源码光标，状态栏加号紧邻格式选择�
 test("窄窗口的只读源码状态栏可通过鼠标滚轮横向浏览", async ({ page }) => {
   await page.setViewportSize({ width: 820, height: 780 });
   await createBlankDocument(page, "窄屏只读状态栏");
-  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  await selectDocumentLanguage(page, "c");
   const area = page.locator(".cm-content");
   await expect(area).toBeVisible();
   await replaceSource(area, "int alpha(void) { return 1; }\n");

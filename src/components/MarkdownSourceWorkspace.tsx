@@ -529,9 +529,22 @@ export function MarkdownSourceWorkspace({
           </nav>;
   return (
     <section
-      className={`note-editor markdown-source-editor ${desktopPanelClass(controller, true, matchesOpen && sourceWordEnabled)}`}
+      className={`note-editor markdown-source-editor ${sourceContextMenu ? "has-source-context-menu" : ""} ${desktopPanelClass(controller, true, matchesOpen && sourceWordEnabled)}`}
       style={desktopPanelStyle(controller)}
       aria-label="Markdown 源码编辑区"
+      onPointerDownCapture={event => {
+        if (event.button !== 2 || !(event.target instanceof Element) || !event.target.closest(".cm-content")) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onMouseDownCapture={event => {
+        if (event.button !== 2 || !(event.target instanceof Element) || !event.target.closest(".cm-content")) return;
+        // CodeMirror may move its selection to the right-click position on
+        // mousedown. Keep an existing selection stable until the contextmenu
+        // handler decides whether the pointer is inside that selection.
+        event.preventDefault();
+        event.stopPropagation();
+      }}
       onClickCapture={event => {
         if (!sourceHandle || !(event.target instanceof Element)) return;
         const number = event.target.closest(".cm-lineNumbers .cm-gutterElement");
@@ -546,7 +559,7 @@ export function MarkdownSourceWorkspace({
           onToggleBookmark: () => onToggleBookmark(line.from),
         });
       }}
-      onContextMenu={event => {
+      onContextMenuCapture={event => {
         if (!sourceHandle) return;
         if (!(event.target instanceof Element) || !event.target.closest(".cm-editor")) return;
         event.preventDefault();

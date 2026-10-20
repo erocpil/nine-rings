@@ -13,7 +13,7 @@ for (const [width, height] of [[390, 800], [844, 390], [1280, 800]]) {
       // Focus controls now share the document title row in unified chrome.
       const bar = page.locator(".note-title-row");
       const copy = bar.getByRole("button", { name: "块级操作", exact: true });
-      const tools = bar.getByRole("button", { name: "更多编辑工具", exact: true });
+      const tools = bar.getByRole("button", { name: "更多工具", exact: true });
       await expect(copy).toBeVisible();
       const focusButtons = bar.locator("button.focus-btn");
       const geometry = await focusButtons.evaluateAll(buttons => buttons

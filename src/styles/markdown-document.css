@@ -77,6 +77,7 @@
    paints its light default over every host dark style. */
 .markdown-cm-host .cm-selectionBackground,
 .markdown-cm-host .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground { background: var(--source-selection-bg); }
+.markdown-source-editor.has-source-context-menu .cm-selectionLayer { visibility: visible !important; }
 :root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) .markdown-cm-host { --source-selection-bg: color-mix(in srgb, var(--accent) 16%, transparent); }
 .markdown-cm-host .cm-panels { background: var(--bg-secondary); color: var(--text); }
 .markdown-cm-host .cm-textfield, .markdown-cm-host .cm-button { color: var(--text); background: var(--bg); border-color: var(--border); }
@@ -237,7 +238,8 @@ blockquote[data-alert] { border-left-color: var(--accent); }
 /* Reserve the same viewport edge in both editor engines, including short notes. */
 .note-editor-scroll { overflow-y: scroll; scrollbar-gutter: stable; }
 
-.markdown-document-view[data-source-tools-hidden] .markdown-source-toolbar-host { display: none; }
+.markdown-document-view[data-tools-hidden] .markdown-source-toolbar-host,
+.markdown-document-view[data-tools-hidden] .editor-menu { display: none !important; }
 
 /* Code and plain text are literal source, independent of prose typography. */
 .markdown-cm-source:not([data-document-language="markdown"]):not([data-document-language="flow"]) .cm-scroller {

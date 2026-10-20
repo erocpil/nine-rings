@@ -74,4 +74,14 @@ describe("macOS 菜单命令", () => {
     expect(ids.length).toBeGreaterThan(50);
     expect(ids.some((id) => /quit|close|copy|paste/.test(id))).toBe(false);
   });
+  it("uses English top-level menu names and groups all three export formats", () => {
+    expect(catalog.map(entry => entry.text)).toEqual(["Workspace", "File", "Format", "View"]);
+    const file = catalog.find(entry => entry.text === "File")!;
+    const exportMenu = file.items?.find((entry: { text: string }) => entry.text === "导出");
+    expect(exportMenu?.items?.map((entry: { id: string }) => entry.id)).toEqual([
+      "document.export-md",
+      "document.export-text",
+      "document.export-pdf",
+    ]);
+  });
 });

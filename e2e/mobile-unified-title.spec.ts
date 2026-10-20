@@ -92,12 +92,12 @@ for (const mode of ["edit", "readonly", "virtual"] as const) {
       await expect.poll(() => scroll.evaluate(node => node.scrollTop)).toBeGreaterThan(100);
       expect((await row.boundingBox())!.y).toBe(top);
       if (mode === "edit") {
-        await row.getByRole("button", { name: "更多编辑工具" }).click();
+        await row.getByRole("button", { name: "更多工具" }).click();
         await expect(page.locator(".editor-menu")).toBeVisible();
         const menu = (await page.locator(".editor-menu").boundingBox())!;
         const header = (await row.boundingBox())!;
         expect(menu.y).toBeGreaterThanOrEqual(header.y + header.height - 1);
-        await row.getByRole("button", { name: "更多编辑工具" }).click();
+        await row.getByRole("button", { name: "更多工具" }).click();
       }
       await row.getByRole("button", { name: "退出专注模式", exact: true }).click();
       await expect(row).toHaveCount(1);
@@ -140,7 +140,7 @@ test("统一标题栏保留左右分区滑动和反向收回", async ({ page }) 
 test("软键盘缩小可视区时标题、编辑工具与正文不重叠", async ({ page }) => {
   const row = await fixture(page);
   await row.getByRole("button", { name: "专注模式", exact: true }).click();
-  await row.getByRole("button", { name: "更多编辑工具" }).click();
+  await row.getByRole("button", { name: "更多工具" }).click();
   await page.locator(".ProseMirror").focus();
   await page.evaluate(() => {
     const viewport = window.visualViewport!;
@@ -159,7 +159,7 @@ test("软键盘缩小可视区时标题、编辑工具与正文不重叠", async
   expect((await page.locator(".editor-content-shell").boundingBox())!.y).toBeGreaterThanOrEqual(menu.y + menu.height - 1);
   expect(body.y + body.height).toBeLessThanOrEqual(391);
   expect(body.height).toBeGreaterThan(100);
-  await row.getByRole("button", { name: "更多编辑工具" }).click();
+  await row.getByRole("button", { name: "更多工具" }).click();
   await row.getByRole("button", { name: "退出专注模式", exact: true }).click();
   await expect(page.locator(".app-header, .mobile-focus-bar")).toHaveCount(0);
 });

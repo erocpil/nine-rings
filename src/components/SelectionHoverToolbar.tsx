@@ -19,6 +19,7 @@ export function SelectionHoverToolbar() {
     const update = () => {
       frame = 0;
       if (buttons || !window.matchMedia("(min-width: 769px) and (pointer: fine)").matches) return;
+      if (document.querySelector(".editor-context-menu, .source-context-menu")) { hide(); return; }
       const target = document.elementFromPoint(x, y);
       if (host.current?.contains(target) || target?.closest(".menu-dropdown-list:popover-open, .block-action-menu")) { clear(); return; }
       const selection = document.getSelection();
@@ -48,11 +49,40 @@ export function SelectionHoverToolbar() {
     const focus = (event: FocusEvent) => { if ((event.target as Element)?.closest("[role=dialog], .image-dialog")) hide(); };
     document.addEventListener("focusin", focus);
     const selectionChanged = () => { if (document.getSelection()?.isCollapsed) hide(); };
+    const contextMenu = (event: MouseEvent) => {
+      const toolbar = host.current;
+      if (!toolbar?.contains(event.target as Node)) return;
+      const range = active.current?.range;
+      const owner = range?.commonAncestorContainer instanceof Element
+        ? range.commonAncestorContainer
+        : range?.commonAncestorContainer.parentElement;
+      const editor = owner?.closest<HTMLElement>(".ProseMirror, .cm-content");
+      if (!editor) return;
+      // The floating selection toolbar may cover the selected text. Forward a
+      // right click on it to the editor under the selection so the editor's
+      // own context menu handles the selection without moving it to the toolbar.
+      event.preventDefault();
+      event.stopPropagation();
+      editor.dispatchEvent(new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        button: 2,
+        buttons: 2,
+      }));
+      hide();
+    };
     const scroll = (event: Event) => { if (!host.current?.contains(event.target as Node) && !(event.target instanceof Element && event.target.closest(".block-action-menu"))) hide(); };
     const key = (event: KeyboardEvent) => { if (event.key === "Escape" && active.current) { hide(); event.preventDefault(); event.stopPropagation(); } };
     document.addEventListener("pointermove", move); document.addEventListener("selectionchange", selectionChanged);
+    document.addEventListener("contextmenu", contextMenu, true);
     window.addEventListener("scroll", scroll, true); window.addEventListener("resize", hide); document.addEventListener("keydown", key);
-    return () => { document.removeEventListener("focusin", focus); cancelAnimationFrame(frame); clear(); document.removeEventListener("pointermove", move); document.removeEventListener("selectionchange", selectionChanged); window.removeEventListener("scroll", scroll, true); window.removeEventListener("resize", hide); document.removeEventListener("keydown", key); };
+    const menuObserver = new MutationObserver(() => {
+      if (document.querySelector(".editor-context-menu, .source-context-menu")) hide();
+    });
+    menuObserver.observe(document.body, { childList: true, subtree: true });
+    return () => { menuObserver.disconnect(); document.removeEventListener("focusin", focus); cancelAnimationFrame(frame); clear(); document.removeEventListener("pointermove", move); document.removeEventListener("selectionchange", selectionChanged); document.removeEventListener("contextmenu", contextMenu, true); window.removeEventListener("scroll", scroll, true); window.removeEventListener("resize", hide); document.removeEventListener("keydown", key); };
   }, []);
   useLayoutEffect(() => {
     const container = host.current;
