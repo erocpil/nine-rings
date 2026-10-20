@@ -384,7 +384,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
         ><EditorFoldIcon outline expanded={!folded} /></button>
           : <span className="document-outline-fold-placeholder" aria-hidden="true" />}
         <button className="document-outline-link" type="button" onClick={() => onJump(item)}>
-          {display?.showMetadata !== false && <span className="document-outline-level">H{item.level}</span>}
+          {display?.showMetadata !== false && <span className="document-outline-level">{item.kind ?? `H${item.level}`}</span>}
           <span className="document-outline-text">{outlineLabel(item.text)}</span>
         </button>
       </div>
@@ -420,9 +420,9 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
   );
 });
 
-export function OutlineDisplayTools({ listRef }: { listRef: MutableRefObject<HTMLDivElement | null> }) {
+export function OutlineDisplayTools({ listRef, targetLabel = "定位当前标题" }: { listRef: MutableRefObject<HTMLDivElement | null>; targetLabel?: string }) {
   const display = usePanelDisplay("document-outline");
-  return <>{display?.toolbar.map(command => <button key={command} type="button" title="定位当前标题" aria-label="定位当前标题" data-panel-display-command={command}
+  return <>{display?.toolbar.map(command => <button key={command} type="button" title={targetLabel} aria-label={targetLabel} data-panel-display-command={command}
     onClick={() => panelDisplays.run("document-outline", display, command, {
       "outline.reveal-current": () => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: "current" })),
     })}><ToolbarIcon name="search" /></button>)}</>;

@@ -29,6 +29,10 @@ import {
 } from "./DesktopDocumentPanels";
 import { DocumentOutlineList, OutlineDisplayTools, OUTLINE_SCROLL_EVENT } from "./DocumentOutlineList";
 import { FocusModeIcon } from "./FocusModeBar";
+import { extractCSourceSymbols } from "../lib/source-symbols";
+import type { DocumentOutlineItem } from "../lib/document-outline";
+
+type SourceOutlineItem = DocumentOutlineItem & { offset: number };
 
 export function MarkdownSourceWorkspace({
   revision,
@@ -48,6 +52,8 @@ export function MarkdownSourceWorkspace({
   const bookmarkDisplayConfig = usePanelDisplay("bookmarks");
   const bookmarkDisplayListRef = useRef<HTMLDivElement>(null);
   const [snapshot, setSnapshot] = useState(revision);
+  const [sourceSymbols, setSourceSymbols] = useState<SourceOutlineItem[]>([]);
+  const [symbolsBusy, setSymbolsBusy] = useState(false);
   const [offset, setOffset] = useState(0);
   const [folds, setFolds] = useState<Set<number>>(() => new Set());
   useEffect(() => {
@@ -59,6 +65,34 @@ export function MarkdownSourceWorkspace({
     }, 160);
     return () => clearTimeout(timer);
   }, [revision, mobile]);
+  useEffect(() => {
+    if (mobile || snapshot.language !== "c") {
+      setSourceSymbols([]);
+      setSymbolsBusy(false);
+      return;
+    }
+    const controller = new AbortController();
+    setSourceSymbols([]);
+    setSymbolsBusy(true);
+    const timer = setTimeout(() => {
+      void extractCSourceSymbols(snapshot.source, controller.signal)
+        .then((symbols) => {
+          if (!controller.signal.aborted && symbols) {
+            setSourceSymbols(symbols.map((symbol) => ({ ...symbol, offset: symbol.pos })));
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setSourceSymbols([]);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setSymbolsBusy(false);
+        });
+    }, 120);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [snapshot, mobile]);
   useEffect(() => {
     const area = sourceHandle;
     if (!area || mobile) return;
@@ -73,9 +107,10 @@ export function MarkdownSourceWorkspace({
       area.removeEventListener("click", sync);
     };
   }, [sourceHandle, mobile]);
-  const outline = useMemo(
-    () => (mobile ? [] : snapshot.outline),
-    [snapshot, mobile],
+  const symbolOutline = snapshot.language === "c";
+  const outline = useMemo<SourceOutlineItem[]>(
+    () => mobile ? [] : symbolOutline ? sourceSymbols : snapshot.outline.map((item) => ({ ...item, kind: undefined })),
+    [snapshot, mobile, sourceSymbols, symbolOutline],
   );
   const bookmarks = useMemo(
     () => (mobile ? [] : snapshot.bookmarks),
@@ -127,8 +162,8 @@ export function MarkdownSourceWorkspace({
           ref={kind === "outline" ? outlineTrigger : bookmarkTrigger}
           type="button"
           className="btn-icon"
-          title={kind === "outline" ? "文档目录" : "文档书签"}
-          aria-label={kind === "outline" ? "文档目录" : "文档书签"}
+          title={kind === "outline" ? (symbolOutline ? "源码符号" : "文档目录") : "文档书签"}
+          aria-label={kind === "outline" ? (symbolOutline ? "源码符号" : "文档目录") : "文档书签"}
           aria-expanded={controller.pinned(kind) || controller.preview === kind}
           data-document-panel-trigger={kind}
           data-pinned={controller.pinned(kind)}
@@ -150,7 +185,7 @@ export function MarkdownSourceWorkspace({
         className={
           isOutline ? "document-outline-panel" : "document-bookmark-panel"
         }
-        aria-label={isOutline ? "文档目录" : "文档书签"}
+        aria-label={isOutline ? (symbolOutline ? "源码符号" : "文档目录") : "文档书签"}
         aria-busy={snapshot !== revision}
         style={controller.pinned(kind) ? undefined : style}
         data-document-preview={!controller.pinned(kind) || undefined}
@@ -162,9 +197,9 @@ export function MarkdownSourceWorkspace({
             isOutline ? "document-outline-header" : "document-bookmark-header"
           }
         >
-          <div className="document-outline-header-primary">{isOutline ? <OutlinePanelTitle pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} /> : <DocumentPanelTitle label="书签" pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} />}
+          <div className="document-outline-header-primary">{isOutline ? (symbolOutline ? <DocumentPanelTitle label="源码符号" pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} /> : <OutlinePanelTitle pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} />) : <DocumentPanelTitle label="书签" pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} />}
             {isOutline && <>
-              <OutlineDisplayTools listRef={listRef} />
+              <OutlineDisplayTools listRef={listRef} targetLabel={symbolOutline ? "定位当前符号" : "定位当前标题"} />
               <button type="button" aria-label="全部折叠" title="折叠目录" onClick={() => setFolds(new Set(outline.filter((item, i) => outline[i + 1]?.level > item.level).map(item => item.pos)))}>−</button>
               <button type="button" aria-label="全部展开" title="展开目录" onClick={() => setFolds(new Set())}>+</button>
             </>}
@@ -201,12 +236,12 @@ export function MarkdownSourceWorkspace({
               }
               onJump={(item) =>
                 jump(
-                  outline.find((heading) => heading.pos === item.pos)!.offset,
+                  outline.find((heading) => heading.pos === item.pos)?.offset ?? item.pos,
                 )
               }
             />
           ) : (
-            <div className="document-bookmark-empty">当前文档还没有标题</div>
+            <div className="document-bookmark-empty">{symbolOutline ? (symbolsBusy ? "正在分析源码符号…" : "当前文件没有可显示的符号") : "当前文档还没有标题"}</div>
           )
         ) : (
           <div className="document-bookmark-list" ref={bookmarkDisplayListRef} data-panel-display={bookmarkDisplayConfig ? "plugin" : undefined} style={panelDisplayStyle(bookmarkDisplayConfig) as CSSProperties}>

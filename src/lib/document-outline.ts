@@ -5,6 +5,8 @@ export interface DocumentOutlineItem {
   text: string;
   /** Heading 节点在 ProseMirror 文档中的起始位置。 */
   pos: number;
+  /** Optional semantic label used by source-symbol outlines. */
+  kind?: string;
 }
 
 const outlineCache = new WeakMap<ProseMirrorNode, DocumentOutlineItem[]>();
