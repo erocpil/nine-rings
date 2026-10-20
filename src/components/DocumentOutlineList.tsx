@@ -382,6 +382,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
         }}
         data-level={item.level}
         data-symbol-kind={compactSymbols ? item.kind : undefined}
+        data-symbol-nested={compactSymbols && item.level > outlineBaseLevel ? "true" : undefined}
         data-hierarchy-level={((item.level - 1) % 6) + 1}
         data-outline-index={index}
         data-compact-symbols={compactSymbols ? "true" : undefined}

@@ -48,11 +48,15 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   await expect(panel.getByText("length: int", { exact: true })).toBeVisible();
   const memberRow = panel.locator('.document-outline-item[data-symbol-kind="成员"]').filter({ hasText: "length: int" });
   await expect(memberRow.locator(".document-outline-level")).toHaveCSS("width", "9px");
+  await expect(memberRow).toHaveAttribute("data-symbol-nested", "true");
+  await expect(memberRow.locator(".document-outline-level")).toHaveCSS("transform", "matrix(1, 0, 0, 1, -8, 0)");
   expect(await memberRow.locator(".document-outline-link").evaluate(link => getComputedStyle(link).gap)).toBe("2px");
   const functionMarker = panel.locator('.document-outline-item[data-symbol-kind="函数"] .document-outline-level').first();
   await expect(functionMarker).toHaveCSS("width", "9px");
+  await expect(functionMarker).toHaveCSS("transform", "matrix(1, 0, 0, 1, -8, 0)");
   const macroMarker = panel.locator('.document-outline-item[data-symbol-kind="宏"] .document-outline-level').first();
   await expect(macroMarker).toHaveCSS("width", "9px");
+  await expect(macroMarker).toHaveCSS("transform", "none");
   await expect(panel.locator(".document-outline-jumps")).toHaveCount(0);
   await expect(panel.locator(".document-outline-count")).toHaveCount(0);
   await expect(panel.getByRole("button", { name: "按字母顺序排序" })).toBeVisible();

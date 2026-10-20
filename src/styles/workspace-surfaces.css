@@ -1741,6 +1741,10 @@
   justify-content: flex-start;
 }
 
+.document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-nested="true"] .document-outline-level.is-symbol-marker {
+  transform: translateX(-8px);
+}
+
 .document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-kind="类型"] .document-outline-level.is-symbol-marker {
   width: 14px;
   min-width: 14px;
