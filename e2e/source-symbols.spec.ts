@@ -44,11 +44,19 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   await expect(symbolButton).toBeVisible();
   await symbolButton.click();
   const panel = page.getByRole("navigation", { name: "源码符号" });
+  await expect(panel.locator(".document-outline-list")).toHaveCSS("padding-top", "2px");
   await expect(panel.getByText("Packet", { exact: true })).toBeVisible();
   await expect(panel.getByText("length: int", { exact: true })).toBeVisible();
   const packetRow = panel.locator('.document-outline-item[data-symbol-kind="类型"]').filter({ hasText: "Packet" });
+  const packetFold = packetRow.locator(".document-outline-fold");
   const memberRow = panel.locator('.document-outline-item[data-symbol-kind="成员"]').filter({ hasText: "length: int" });
+  await expect(packetFold).toHaveCSS("width", "12px");
   await expect(packetRow.locator(".document-outline-level")).toHaveCSS("width", "14px");
+  expect(await packetRow.evaluate(row => {
+    const fold = row.querySelector(".document-outline-fold")!.getBoundingClientRect();
+    const marker = row.querySelector(".document-outline-level")!.getBoundingClientRect();
+    return marker.left - fold.right;
+  })).toBeCloseTo(2, 1);
   await expect(memberRow.locator(".document-outline-level")).toHaveCSS("width", "14px");
   await expect(memberRow).toHaveAttribute("data-symbol-nested", "true");
   await expect(memberRow.locator(".document-outline-level")).toHaveCSS("transform", "matrix(1, 0, 0, 1, -8, 0)");

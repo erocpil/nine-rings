@@ -1473,7 +1473,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-anchor: none;
-  padding: 4px 0;
+  padding: 2px 0 4px;
 }
 
 .document-outline-window {
@@ -1516,8 +1516,8 @@
 
 .document-outline-list[data-source-symbols="true"] .document-outline-fold,
 .document-outline-list[data-source-symbols="true"] .document-outline-fold-placeholder {
-  flex-basis: 16px;
-  width: 16px;
+  flex-basis: 12px;
+  width: 12px;
 }
 
 .document-outline-item:hover,
@@ -1826,7 +1826,7 @@
 .document-bookmark-list {
   min-height: 0;
   overflow-y: auto;
-  padding: 4px;
+  padding: 2px 4px 4px;
 }
 
 .document-bookmark-item {
