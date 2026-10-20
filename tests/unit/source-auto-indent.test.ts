@@ -98,6 +98,77 @@ describe("source automatic indentation", () => {
     ].join("\n"));
   });
 
+  it("preserves nested namespace and function levels around local classes", () => {
+    const raw = [
+      "namespace app {",
+      "void create() {",
+      "class Local {",
+      "public:",
+      "void run() {",
+      "if (ready) {",
+      "execute();",
+      "}",
+      "}",
+      "private:",
+      "int value;",
+      "};",
+      "}",
+      "}",
+    ].join("\n");
+    const state = EditorState.create({
+      doc: raw,
+      extensions: [cpp(), indentUnit.of("  ")],
+    });
+    const change = sourceAutoIndentChange(state, "document");
+    expect(change).not.toBeNull();
+    expect(state.update(change!).state.doc.toString()).toBe([
+      "namespace app {",
+      "  void create() {",
+      "    class Local {",
+      "    public:",
+      "      void run() {",
+      "        if (ready) {",
+      "          execute();",
+      "        }",
+      "      }",
+      "    private:",
+      "      int value;",
+      "    };",
+      "  }",
+      "}",
+    ].join("\n"));
+  });
+
+  it("aligns Qt access labels with the containing class", () => {
+    const raw = [
+      "namespace app {",
+      "class Worker {",
+      "public slots:",
+      "void run() {",
+      "work();",
+      "}",
+      "signals:",
+      "void finished();",
+      "};",
+      "}",
+    ].join("\n");
+    const state = EditorState.create({ doc: raw, extensions: [cpp(), indentUnit.of("  ")] });
+    const change = sourceAutoIndentChange(state, "document");
+    expect(change).not.toBeNull();
+    expect(state.update(change!).state.doc.toString()).toBe([
+      "namespace app {",
+      "  class Worker {",
+      "  public slots:",
+      "    void run() {",
+      "      work();",
+      "    }",
+      "  signals:",
+      "    void finished();",
+      "  };",
+      "}",
+    ].join("\n"));
+  });
+
   it("does not alter braces or indentation inside a multiline raw string", () => {
     const raw = [
       "int main() {",

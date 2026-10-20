@@ -81,7 +81,8 @@ function cppIndentChanges(
     for (let count = 0; count < leadingClosers; count++) scopes.pop();
 
     const top = scopes[scopes.length - 1];
-    const accessLabel = top?.kind === "class" && /^(?:public|protected|private)\s*:/.test(text);
+    const accessLabel = top?.kind === "class"
+      && /^(?:(?:public|protected|private)(?:\s+slots)?|signals|slots|Q_SIGNALS|Q_SLOTS)\s*:/.test(text);
     const columns = !text.trim()
       ? 0
       : accessLabel
