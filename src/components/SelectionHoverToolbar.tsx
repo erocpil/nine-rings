@@ -13,7 +13,11 @@ export function SelectionHoverToolbar() {
     let frame = 0, x = 0, y = 0, buttons = 0, hideTimer = 0;
     const clear = () => { window.clearTimeout(hideTimer); hideTimer = 0; };
     const hide = () => { clear();
-      for (const button of active.current?.toolbar.querySelectorAll<HTMLButtonElement>("button[aria-expanded=true]") ?? []) if (!button.closest(".menu-dropdown-list")) button.click();
+      // Closing this transient surface dismisses its submenus, not independent
+      // tools such as source search/goto that move focus outside the selection.
+      for (const button of active.current?.toolbar.querySelectorAll<HTMLButtonElement>("button[aria-expanded=true]") ?? []) {
+        if (!button.closest(".menu-dropdown-list") && (button.closest(".menu-dropdown") || button.getAttribute("aria-haspopup") === "menu")) button.click();
+      }
       setHover(null);
     };
     const update = () => {

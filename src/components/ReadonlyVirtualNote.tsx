@@ -1251,7 +1251,7 @@ export function ReadonlyVirtualNote(
         ref={bookmarkTriggerRef}
         type="button"
         title={bookmarkPanelLabel}
-        aria-label={bookmarkPanelLabel}
+        aria-label="文档书签"
         aria-expanded={mobileDrawerViewport ? panel === "bookmarks" : desktopPanels.pinned("bookmark") || preview === "bookmarks"}
         data-document-panel-trigger="bookmark" data-pinned={desktopPanels.pinned("bookmark")}
         onPointerEnter={event => desktopPanels.enter("bookmark", event.pointerType)} onPointerLeave={desktopPanels.leave}
@@ -1284,7 +1284,7 @@ export function ReadonlyVirtualNote(
               kind === "outline"
                 ? "文档目录"
                 : kind === "bookmarks"
-                  ? bookmarkPanelLabel
+                  ? "文档书签"
                   : "文内搜索"
             }
           >

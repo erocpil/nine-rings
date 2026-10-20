@@ -1,6 +1,14 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-21",
+    title: "源码交互与回归修复",
+    changes: [
+      "修复选区工具栏触发查找替换或跳转行后，面板因选区收起而立即关闭的问题；双击括号只命中括号字符，不影响紧邻单词的双击选择。",
+      "统一渲染、局部只读和源码视图的书签入口与面板可访问名称。",
+    ],
+  },
+  {
     date: "2026-10-20",
     title: "文档类型与源码视图",
     changes: [

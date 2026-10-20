@@ -127,12 +127,16 @@ function visibleFoldAnchor(view: EditorView, position: number): number {
   return anchor;
 }
 
-function matchingBracketContents(view: EditorView, position: number) {
+function matchingBracketContents(view: EditorView, position: number, point: { x: number; y: number }) {
   for (const candidate of [position, position - 1]) {
     if (candidate < 0 || candidate >= view.state.doc.length) continue;
     const bracket = view.state.doc.sliceString(candidate, candidate + 1);
     const pair = "()[]{}".indexOf(bracket);
     if (pair < 0) continue;
+    const before = view.coordsAtPos(candidate, 1);
+    const after = view.coordsAtPos(candidate + 1, -1);
+    if (!before || !after || point.y < before.top || point.y > before.bottom
+      || point.x < Math.min(before.left, after.left) || point.x > Math.max(before.left, after.left)) continue;
     const direction = pair % 2 === 0 ? 1 : -1;
     // CodeMirror expects the cursor immediately after a closing bracket when
     // searching backwards, but at the opening bracket when searching forward.
@@ -570,7 +574,7 @@ export function MarkdownSourceEditor({
       if (event.detail !== 2) return;
       const position = editor.posAtCoords({ x: event.clientX, y: event.clientY });
       if (position === null) return;
-      const selection = matchingBracketContents(editor, position);
+      const selection = matchingBracketContents(editor, position, { x: event.clientX, y: event.clientY });
       if (!selection) return;
       event.preventDefault();
       event.stopPropagation();

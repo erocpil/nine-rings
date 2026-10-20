@@ -40,7 +40,7 @@ for (const virtual of [false, true]) {
     const body = page.locator(virtual ? ".vr-body" : ".editor-content").last();
     await expect(body).toContainText(SAMPLE);
     await expect(body.locator("[data-reading-annotation]")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "书签", exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "文档书签", exact: true }).first()).toBeVisible();
 
     if (!virtual) {
       await body.evaluate(element => element.dispatchEvent(new MouseEvent("contextmenu", {

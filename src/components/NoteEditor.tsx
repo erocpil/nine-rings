@@ -4290,7 +4290,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
           style={desktopPanels.pinned("bookmark") ? undefined : documentPanelStyle}
           data-document-preview={!isMobileToolbarViewport && !desktopPanels.pinned("bookmark") || undefined}
           onPointerEnter={desktopPanels.cancel} onPointerLeave={desktopPanels.leave}
-          aria-label="文档书签与高亮标注"
+          aria-label={READING_ANNOTATIONS_ENABLED ? "文档书签与高亮标注" : "文档书签"}
           onClick={(event) => event.stopPropagation()}
         >
           <div className="document-bookmark-header">
@@ -4455,7 +4455,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
                     toggleDocumentBookmarks();
             }}
             title={bookmarkPanelTotal > 0 ? `${bookmarkPanelLabel}（${bookmarkPanelTotal}）` : "添加书签"}
-            aria-label={bookmarkPanelLabel}
+            aria-label="文档书签"
           ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
           {!showLineNumbers && selectedBlockIndexes.size === 0 && <button type="button" title="块级操作" aria-label="块级操作" data-title-block-menu="true" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>}
           {!readonly && (
@@ -4711,7 +4711,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
               toggleDocumentBookmarks();
             }}
             title={bookmarkPanelTotal > 0 ? `${bookmarkPanelLabel}（${bookmarkPanelTotal}）` : "添加书签"}
-            aria-label={bookmarkPanelLabel}
+            aria-label="文档书签"
             aria-expanded={bookmarkOpen}
             type="button"
           ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
