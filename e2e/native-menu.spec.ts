@@ -104,7 +104,7 @@ test("专注模式源码更多工具和渲染模式共享展开状态", async ({
   await run(page, "view.focus");
   await run(page, "document.source");
   const toolbar = page.locator(".markdown-source-toolbar-host");
-  const tools = page.getByRole("button", { name: "更多编辑工具", exact: true });
+  const tools = page.getByRole("button", { name: "更多工具", exact: true });
   await expect(tools).toBeVisible();
   await expect(toolbar).toBeHidden();
   await tools.click();

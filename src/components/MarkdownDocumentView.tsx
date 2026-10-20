@@ -373,7 +373,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const languageProps = { documentLanguage, onDocumentLanguageChange: busy || props.readonly ? undefined : (language: string) => { void changeDocumentLanguage(language); } };
   useNativeMenuActions({
     ...Object.fromEntries(DOCUMENT_LANGUAGE_OPTIONS.map(option => [documentLanguageCommand(option.value), { run: () => changeDocumentLanguage(option.value), checked: documentLanguage === option.value, enabled: !props.readonly && !busy }])),
-    "view.tools": { run: () => setMoreTools(value => !value), checked: moreTools, enabled: props.focusMode && !props.readonly },
+    "view.tools": { run: () => setMoreTools(value => !value), checked: moreTools, enabled: props.focusMode && (!props.readonly || source !== null) },
     "document.source": { run: () => changeView(), checked: source !== null, enabled: supported && hasPreview && !busy },
     "document.readonly": { run: () => props.onReadonlyChange?.(!props.readonly), checked: Boolean(props.readonly), enabled: Boolean(props.onReadonlyChange) && !busy },
   }, active);
@@ -383,7 +383,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     aria-label={source === null ? "源码" : "渲染"}
     aria-busy={busy} onClick={() => void changeView()}><ToolbarIcon name={source === null ? "code" : "document"} /></button>}
     {props.documentSessions && <BuiltinPluginTools onOpenNote={props.onOpenLinkedNote} sessions={props.documentSessions} active={active} disabled={busy} readonly={Boolean(props.readonly) || source === null && documentLanguage !== "markdown"} onFocusEditor={() => { if (source !== null) viewPosition.sourceHandle?.focus(); else renderedHost.current?.view.focus(); }} context={{ platform: runtimeKind(), view: props.readonly || source === null && documentLanguage !== "markdown" ? "readonly" : source === null ? "render" : "source", documentId: props.noteId }} />}</>;
-  return <div className="markdown-document-view" data-source-tools-hidden={props.focusMode && !props.readonly && !moreTools || undefined} ref={viewPosition.host}>
+  return <div className="markdown-document-view" data-source-tools-hidden={props.focusMode && !moreTools || undefined} ref={viewPosition.host}>
     {error && <div role="alert" className="markdown-source-hint">{error}</div>}
     {source === null && documentLanguage !== "markdown" ? <>
       <div className="note-title-row markdown-source-title-row">
@@ -434,7 +434,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           onClick={() => props.onReadonlyChange?.(!props.readonly)}><ToolbarIcon name={props.readonly ? "lock" : "unlock"} /></button>}
         {sourceTitle}
         {toggle}
-        {props.focusMode && !props.readonly && <button type="button" className="markdown-view-toggle" title={shortcutTitle("view.tools", "更多编辑工具")} aria-label="更多编辑工具" aria-expanded={moreTools} onClick={() => setMoreTools(value => !value)}><ToolbarIcon name="annotate" /></button>}
+        {props.focusMode && <button type="button" className="markdown-view-toggle" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(value => !value)}><ToolbarIcon name="annotate" /></button>}
         {!mobile && hasPreview && <button type="button" className="markdown-view-toggle" title="并排预览" aria-label="并排预览" aria-pressed={preview} onClick={() => { setPreview(!preview); localStorage.setItem("nr:markdownSplitPreview", String(!preview)); }}><ToolbarIcon name="panel" /></button>}
         {!mobile && hasPreview && preview && <label className="markdown-preview-sync"><input type="checkbox" checked={previewSync} onChange={event => { setPreviewSync(event.target.checked); localStorage.setItem("nr:markdownPreviewSync", String(event.target.checked)); }} />同步滚动</label>}
         {controls}

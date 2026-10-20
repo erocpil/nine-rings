@@ -99,3 +99,27 @@ test("源码常用格式操作单步撤销，只读隐藏写入而保留折叠",
   await expect(page.getByRole("search", { name: "源码查找与替换" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "替换为", exact: true })).toBeHidden();
 });
+
+test("专注模式只读源码可用更多工具，和编辑视图共享展开状态", async ({ page }) => {
+  await createBlankDocument(page, "只读源码更多工具");
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const tools = page.getByRole("button", { name: "更多工具", exact: true });
+  const sourceToolbar = page.locator(".markdown-source-toolbar-host");
+  await expect(tools).toBeVisible();
+  await expect(tools).toHaveAttribute("aria-expanded", "false");
+  await page.getByRole("button", { name: "设置只读", exact: true }).click();
+  await expect(sourceToolbar).toBeHidden();
+
+  await tools.click();
+  await expect(tools).toHaveAttribute("aria-expanded", "true");
+  await expect(sourceToolbar).toBeVisible();
+  await page.getByRole("button", { name: "渲染", exact: true }).click();
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  await expect(tools).toHaveAttribute("aria-expanded", "true");
+  await expect(sourceToolbar).toBeVisible();
+
+  await tools.click();
+  await expect(tools).toHaveAttribute("aria-expanded", "false");
+  await expect(sourceToolbar).toBeHidden();
+});
