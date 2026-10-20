@@ -505,11 +505,11 @@ export function MarkdownSourceEditor({
     } catch (error) { setSyntaxError(error instanceof Error ? error.message : String(error)); }
   };
   const indentationControls = !markupMode && <span className="source-indentation-controls">
-    <select className="editor-document-language" aria-label="Tab Size" title="Tab 显示列数与缩进单位" value={preferences.tabSize ?? 4} disabled={editingReadonly} onChange={event => changeIndentation(Number(event.target.value), preferences.sourceIndentStyle ?? "tabs")}>
+    <select className="editor-document-language editor-status-select" aria-label="Tab Size" title="Tab 显示列数与缩进单位" value={preferences.tabSize ?? 4} disabled={editingReadonly} onChange={event => changeIndentation(Number(event.target.value), preferences.sourceIndentStyle ?? "tabs")}>
       {![2, 4, 8].includes(preferences.tabSize ?? 4) && <option value={preferences.tabSize}>Tab Size: {preferences.tabSize}</option>}
       {[2, 4, 8].map(size => <option key={size} value={size}>Tab Size: {size}</option>)}
     </select>
-    <select className="editor-document-language" aria-label="缩进方式" title="转换行首缩进；可撤销" value={preferences.sourceIndentStyle ?? "tabs"} disabled={editingReadonly} onChange={event => changeIndentation(preferences.tabSize ?? 4, event.target.value as SourceIndentStyle)}>
+    <select className="editor-document-language editor-status-select" aria-label="缩进方式" title="转换行首缩进；可撤销" value={preferences.sourceIndentStyle ?? "tabs"} disabled={editingReadonly} onChange={event => changeIndentation(preferences.tabSize ?? 4, event.target.value as SourceIndentStyle)}>
       <option value="tabs">缩进：Tab</option><option value="spaces">缩进：空格</option>
     </select>
   </span>;
@@ -655,7 +655,7 @@ export function MarkdownSourceEditor({
       {toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbar}
       {syntaxError && <span role="status">{syntaxError}</span>}
       <div ref={host} className="markdown-cm-host" />
-      {statusTarget ? createPortal(<EditorStatusBar children={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar children={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} /> : null}
+      {statusTarget ? createPortal(<EditorStatusBar sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} onVersionOpen={onVersionOpen} /> : null}
     </div>
   );
 }

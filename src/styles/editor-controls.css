@@ -854,6 +854,26 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 }
 .editor-document-language:hover:not(:disabled) { border-color: var(--border); background: var(--hover); }
 .editor-document-language option { color: var(--text); background: var(--bg); }
+.editor-status-bar .editor-status-select {
+  min-height: 22px;
+  padding: 2px 7px;
+  border-color: color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 6px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  line-height: 1.2;
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+.editor-status-bar .editor-status-select:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: var(--hover);
+}
+.editor-status-bar .editor-status-select:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.editor-status-bar .editor-status-select:disabled { opacity: .58; cursor: not-allowed; }
 
 .editor-status-secondary {
   flex: 1 1 auto;

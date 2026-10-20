@@ -23,6 +23,7 @@ export function EditorStatusBar({
   words,
   onVersionOpen,
   children,
+  sourceIndentControls,
   fallbackVisible = false,
   documentLanguage,
   onDocumentLanguageChange,
@@ -40,6 +41,7 @@ export function EditorStatusBar({
   words?: number;
   onVersionOpen?: () => void;
   children?: ReactNode;
+  sourceIndentControls?: ReactNode;
   fallbackVisible?: boolean;
   documentLanguage?: string;
   onDocumentLanguageChange?: (language: string) => void;
@@ -170,8 +172,9 @@ export function EditorStatusBar({
           </span>
         );
       })}
+      {state.visible && sourceIndentControls}
       {state.visible && documentLanguage !== undefined && <select
-        className="editor-document-language"
+        className="editor-document-language editor-status-select"
         aria-label="文件格式"
         title="文件格式；保留原始源码，控制可用视图与语法高亮"
         value={documentLanguage}

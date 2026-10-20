@@ -49,6 +49,15 @@ test("源码状态栏配置缩进、转换并撤销，重开保留配置，只�
   const style = page.getByRole("combobox", { name: "缩进方式", exact: true });
   await expect(size).toHaveValue("4");
   await expect(style).toHaveValue("tabs");
+  const format = page.getByRole("combobox", { name: "文件格式", exact: true });
+  const [sizeBox, styleBox, formatBox] = await Promise.all([
+    size.boundingBox(), style.boundingBox(), format.boundingBox(),
+  ]);
+  expect(sizeBox).not.toBeNull();
+  expect(styleBox).not.toBeNull();
+  expect(formatBox).not.toBeNull();
+  expect(sizeBox!.x).toBeLessThan(styleBox!.x);
+  expect(styleBox!.x).toBeLessThan(formatBox!.x);
   const raw = '    int n;\n\tprintf("a  b");';
   await replaceSource(area, raw);
   await style.selectOption("spaces");
