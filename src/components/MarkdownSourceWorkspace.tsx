@@ -567,7 +567,16 @@ export function MarkdownSourceWorkspace({
         const view = sourceHandle.view;
         const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
         const current = view.state.selection.main;
-        if (position !== null && (current.empty || position < current.from || position > current.to)) {
+        const nativeSelection = view.state.readOnly ? document.getSelection() : null;
+        const hasNativeRange = Boolean(nativeSelection && !nativeSelection.isCollapsed
+          && nativeSelection.anchorNode && nativeSelection.focusNode
+          && view.contentDOM.contains(nativeSelection.anchorNode)
+          && view.contentDOM.contains(nativeSelection.focusNode));
+        if (hasNativeRange && nativeSelection?.anchorNode && nativeSelection.focusNode) {
+          const anchor = view.posAtDOM(nativeSelection.anchorNode, nativeSelection.anchorOffset);
+          const head = view.posAtDOM(nativeSelection.focusNode, nativeSelection.focusOffset);
+          if (anchor !== current.anchor || head !== current.head) view.dispatch({ selection: { anchor, head } });
+        } else if (position !== null && (current.empty || position < current.from || position > current.to)) {
           view.dispatch({ selection: { anchor: position } });
         }
         setSourceContextMenu({ x: event.clientX, y: event.clientY, view, readonly: view.state.readOnly, trigger: view.contentDOM });

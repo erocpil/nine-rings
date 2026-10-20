@@ -1,7 +1,8 @@
-import { EditorView } from "@codemirror/view";
+import { drawSelection, EditorView } from "@codemirror/view";
 
 /** Keep native selection/callouts and current-line navigation, without a caret. */
 export const readonlySourceSelection = [
+  drawSelection(),
   EditorView.domEventHandlers({
     click(event, view) {
       if (!view.contentDOM.contains(event.target as Node)) return false;

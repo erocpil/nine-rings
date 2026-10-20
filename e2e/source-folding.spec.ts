@@ -179,3 +179,35 @@ test("源码折叠全部后展开恢复原可视行和行内偏移", async ({ pa
   await expect.poll(topLine).toEqual(before);
   await expect.poll(() => page.locator(".cm-content").evaluate(element => getComputedStyle(element).paddingTop)).toBe("6px");
 });
+
+test("C/C++ 折叠占位符悬停预览受视口行数限制，点击仍展开", async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 700 });
+  await createBlankDocument(page);
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  await expect(area).toBeVisible({ timeout: 20000 });
+  const body = Array.from({ length: 32 }, (_, index) => `  int value${index} = ${index};`).join("\n");
+  const source = `struct Preview {\n${body}\n};`;
+  await replaceSource(area, source);
+  const toolbar = page.getByRole("toolbar", { name: "源码编辑工具" });
+  await toolbar.getByRole("button", { name: "折叠全部", exact: true }).click();
+  const placeholder = page.locator(".cm-foldPlaceholder").first();
+  await expect(placeholder).toBeVisible();
+  await placeholder.hover();
+  const bubble = page.locator(".cm-fold-preview-bubble");
+  await expect(bubble).toBeVisible();
+  await expect(bubble).toContainText("int value0 = 0;");
+  const limits = await bubble.evaluate(element => ({
+    maximum: Number((element as HTMLElement).dataset.maxLines),
+    shown: Number((element as HTMLElement).dataset.shownLines),
+    lines: element.textContent?.split("\n").length ?? 0,
+  }));
+  expect(limits.maximum).toBeGreaterThan(0);
+  expect(limits.maximum).toBeLessThanOrEqual(15);
+  expect(limits.shown).toBeLessThanOrEqual(limits.maximum);
+  expect(limits.lines).toBeLessThanOrEqual(15);
+  await placeholder.click();
+  await expect(page.locator(".cm-foldPlaceholder")).toHaveCount(0);
+  await expect(bubble).toHaveCount(0);
+  expect((await sourceInfo(area)).value).toBe(source);
+});

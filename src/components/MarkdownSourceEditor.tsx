@@ -126,6 +126,70 @@ function visibleFoldAnchor(view: EditorView, position: number): number {
   return anchor;
 }
 
+function sourceFoldPreviewPlaceholder(
+  view: EditorView,
+  onclick: (event: Event) => void,
+  prepared: { text: string } | null,
+) {
+  const placeholder = document.createElement("span");
+  placeholder.className = "cm-foldPlaceholder";
+  placeholder.textContent = "…";
+  placeholder.setAttribute("aria-label", "折叠代码；悬停预览，点击展开");
+  placeholder.title = "悬停预览，点击展开";
+  placeholder.addEventListener("click", onclick);
+  if (!prepared) return placeholder;
+
+  let bubble: HTMLDivElement | null = null;
+  let observer: MutationObserver | null = null;
+  const showPreview = () => {
+    if (bubble || !placeholder.isConnected) return;
+    const viewportRows = Math.floor(view.scrollDOM.clientHeight / Math.max(1, view.defaultLineHeight));
+    const maximumRows = Math.max(1, Math.min(15, Math.floor(viewportRows / 2)));
+    const lines = prepared.text.split("\n");
+    const shown = lines.slice(0, maximumRows);
+    if (lines.length > maximumRows) {
+      const last = shown.length - 1;
+      shown[last] = `${shown[last] ?? ""} … (+${lines.length - maximumRows} 行)`;
+    }
+
+    bubble = document.createElement("div");
+    bubble.className = "cm-fold-preview-bubble";
+    bubble.textContent = shown.join("\n");
+    bubble.dataset.maxLines = String(maximumRows);
+    bubble.dataset.shownLines = String(shown.length);
+    bubble.style.maxHeight = `${Math.max(48, maximumRows * view.defaultLineHeight + 18)}px`;
+    document.body.appendChild(bubble);
+
+    const anchor = placeholder.getBoundingClientRect();
+    const bounds = bubble.getBoundingClientRect();
+    const margin = 8;
+    const left = Math.max(margin, Math.min(anchor.left, window.innerWidth - bounds.width - margin));
+    const below = window.innerHeight - anchor.bottom - margin;
+    const above = anchor.top - margin;
+    const top = below >= bounds.height || below >= above
+      ? Math.min(window.innerHeight - bounds.height - margin, anchor.bottom + 6)
+      : Math.max(margin, anchor.top - bounds.height - 6);
+    bubble.style.left = `${left}px`;
+    bubble.style.top = `${top}px`;
+    observer = new MutationObserver(() => {
+      if (!placeholder.isConnected) hidePreview();
+    });
+    observer.observe(view.dom, { subtree: true, childList: true });
+  };
+  const hidePreview = () => {
+    observer?.disconnect();
+    observer = null;
+    bubble?.remove();
+    bubble = null;
+  };
+  placeholder.addEventListener("mouseenter", showPreview);
+  placeholder.addEventListener("mouseleave", hidePreview);
+  placeholder.addEventListener("keydown", event => {
+    if (event.key === "Enter" || event.key === " ") onclick(event);
+  });
+  return placeholder;
+}
+
 function restoreSourceFoldViewport(view: EditorView, snapshot: SourceFoldViewportSnapshot, restoreSelection: boolean) {
   requestAnimationFrame(() => {
     if (view.state.doc !== snapshot.doc) return;
@@ -289,8 +353,12 @@ export function MarkdownSourceEditor({
     const plugin = numberingDisplays.getSnapshot().source;
     const visible = plugin?.visible ?? showLineNumbers;
     const relative = plugin?.relative ?? prefs.relativeSourceLineNumbers;
+    const previewFoldedCode = documentLanguage === "c" || documentLanguage === "cpp";
     return [
-      codeFolding(),
+      codeFolding(previewFoldedCode ? {
+        preparePlaceholder: (state, range) => ({ text: state.doc.sliceString(range.from, range.to) }),
+        placeholderDOM: sourceFoldPreviewPlaceholder,
+      } : undefined),
       prefs.sourceFoldGutter !== false ? foldGutter({ markerDOM: expanded => {
         const symbol = plugin ? expanded ? plugin.foldExpanded : plugin.foldCollapsed : editorFoldSymbol(foldConfig, expanded);
         const span = document.createElement("span"); span.className = "plugin-source-fold-symbol"; span.setAttribute("aria-hidden", "true");

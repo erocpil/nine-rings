@@ -89,3 +89,30 @@ test("源码行号菜单操作实际行并保留换行、撤销与只读边界",
   await expect(menu.getByRole("menuitem", { name: "在本行后粘贴", exact: true })).toBeDisabled();
   await expect(menu.getByRole("menuitem", { name: "复制行", exact: true })).toBeEnabled();
 });
+
+test("只读源码的文字选区在右键菜单打开期间保持高亮", async ({ page }) => {
+  await createBlankDocument(page, "只读源码选区右键");
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  const text = "selected source text remains visible";
+  await replaceSource(area, text);
+  await page.getByRole("button", { name: "设置只读", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).readonly).toBe(true);
+  const line = area.locator(".cm-line").first();
+  await line.selectText();
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe(text);
+  await line.click({ button: "right", position: { x: 24, y: 8 } });
+  const menu = page.getByRole("menu", { name: "源码编辑菜单", exact: true });
+  await expect(menu).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe(text);
+  const selectionLayer = page.locator(".markdown-source-editor.has-source-context-menu .cm-selectionLayer");
+  await expect(selectionLayer).toHaveCSS("visibility", "visible");
+  const paintedSelection = await selectionLayer.locator(".cm-selectionBackground").evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
+  expect(paintedSelection).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe(text);
+});
