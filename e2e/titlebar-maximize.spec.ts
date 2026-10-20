@@ -109,7 +109,10 @@ async function mountTitlebar(
           {
             exhibition,
             wordmark: focusTabs,
-            focusTabs: focusTabs ? React.createElement("div", { className: "titlebar-controls" }, "测试标签") : undefined,
+            focusTabs: focusTabs ? React.createElement("div", {
+              className: "focus-document-tabs titlebar-controls",
+              style: { width: 240, height: 32 },
+            }, React.createElement("button", { role: "tab", "aria-label": "测试标签" }, "测试标签")) : undefined,
             workspace: exhibition
               ? React.createElement(
                   "button",
@@ -367,4 +370,12 @@ test("最大化后的 NINE RINGS 及其内部字母只切换标签，不拖动�
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nr:focusTabs") || "{}").visible)).toBe(true);
   await expect(page.locator("body")).toHaveAttribute("data-maximized", "true");
   expect(await mutations()).toEqual(before);
+});
+
+test("专注标签栏空白处双击仍执行标题栏最大化", async ({ page }) => {
+  await mountTitlebar(page, "MacIntel", false, false, false, true);
+  const tabs = page.locator("#titlebar-test-host .focus-document-tabs");
+  await tabs.dblclick({ position: { x: 220, y: 16 } });
+  await expect.poll(async () => (await commands(page)).filter(command => command === "toggle_window_maximize").length).toBe(1);
+  await expect(tabs.getByRole("tab", { name: "测试标签" })).toBeVisible();
 });

@@ -49,8 +49,11 @@ export default function TitleBar({
 
   const isTitlebarBackground = (event: MouseEvent<HTMLDivElement>) =>
     event.target instanceof Element &&
+    // In focus mode the tab strip is a titlebar drag region. Its unused
+    // space must keep the normal titlebar double-click behavior, while the
+    // actual tabs remain controls (and keep their own double-click-to-close).
     !event.target.closest(
-      ".titlebar-controls, button, a, input, select, textarea, [contenteditable], .titlebar-title[title]",
+      ".titlebar-controls:not(.focus-document-tabs), button, a, input, select, textarea, [contenteditable], .titlebar-title[title]",
     );
 
   const isTopEdge = (event: MouseEvent<HTMLDivElement>) =>
