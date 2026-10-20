@@ -68,6 +68,7 @@ const SOURCE_KIND_MARKERS: Record<string, string> = {
   "变量": "v",
   "成员": "·",
   "枚举值": "e",
+  "宏": "#",
 };
 
 export function MarkdownSourceWorkspace({
@@ -100,6 +101,7 @@ export function MarkdownSourceWorkspace({
   const snapshotSource = snapshot.source;
   const snapshotLanguage = snapshot.language;
   const [sourceSymbols, setSourceSymbols] = useState<SourceOutlineItem[]>([]);
+  const [sourceSymbolsSource, setSourceSymbolsSource] = useState<string | null>(null);
   const [symbolsBusy, setSymbolsBusy] = useState(false);
   const [symbolsAlphabetical, setSymbolsAlphabetical] = useState(false);
   const [offset, setOffset] = useState(0);
@@ -150,13 +152,13 @@ export function MarkdownSourceWorkspace({
     return () => clearTimeout(timer);
   }, [revision, mobile, snapshot]);
   useEffect(() => {
-    if (mobile || snapshotLanguage !== "c") {
+    if (mobile || !documentActive || snapshotLanguage !== "c") {
       setSourceSymbols([]);
+      setSourceSymbolsSource(null);
       setSymbolsBusy(false);
       return;
     }
     const controller = new AbortController();
-    setSourceSymbols([]);
     setSymbolsBusy(true);
     const timer = setTimeout(() => {
       void extractCSourceSymbols(snapshotSource, controller.signal)
@@ -168,10 +170,11 @@ export function MarkdownSourceWorkspace({
               displayText: symbol.displayText ?? symbol.text,
               offset: symbol.pos,
             })));
+            setSourceSymbolsSource(snapshotSource);
           }
         })
         .catch(() => {
-          if (!controller.signal.aborted) setSourceSymbols([]);
+          // Keep the last complete outline visible while a subsequent parse retries.
         })
         .finally(() => {
           if (!controller.signal.aborted) setSymbolsBusy(false);
@@ -181,7 +184,7 @@ export function MarkdownSourceWorkspace({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [snapshotSource, snapshotLanguage, mobile]);
+  }, [snapshotSource, snapshotLanguage, mobile, documentActive]);
   useEffect(() => {
     const area = sourceHandle;
     if (!area || mobile) return;
@@ -302,7 +305,7 @@ export function MarkdownSourceWorkspace({
     const currentSource = liveSource();
     let targetSource = currentSource;
     let next = item.offset;
-    if (snapshot.source !== currentSource) {
+    if (sourceSymbolsSource !== currentSource || snapshot.source !== currentSource) {
       // The outline parse is intentionally debounced. If the user clicks during
       // that short window, re-resolve the symbol against the latest buffer by
       // semantic identity, preferring the occurrence nearest the mapped offset.

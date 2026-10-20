@@ -126,7 +126,9 @@ const occurrenceField = StateField.define<SourceWordOccurrences>({
   },
   provide(field) {
     return EditorView.decorations.from(field, occurrences => {
-      if (!occurrences.highlighted) return Decoration.none;
+      // A single occurrence has no peer to compare against, so highlighting it
+      // would add noise without conveying a match.
+      if (!occurrences.highlighted || occurrences.matches.length < 2) return Decoration.none;
       return Decoration.set(occurrences.matches.map(match => Decoration.mark({
         class: match.from === occurrences.activeFrom ? "cm-source-word-match cm-source-word-match-active" : "cm-source-word-match",
       }).range(match.from, match.to)), true);

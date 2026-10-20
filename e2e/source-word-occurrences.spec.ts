@@ -2,6 +2,23 @@ import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 import { replaceSource, sourceInfo } from "./helpers/source-editor";
 
+test("只有单次出现的词不单独高亮", async ({ page }) => {
+  await createBlankDocument(page, "单次源码词");
+  await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  await expect(area).toBeVisible({ timeout: 20000 });
+  const source = "int only_once;\n";
+  await replaceSource(area, source);
+  const position = await area.evaluate(async (element, offset) => {
+    const { EditorView } = (window as any).sourceCM;
+    const view = EditorView.findFromDOM(element)!;
+    const coords = view.coordsAtPos(offset)!;
+    return { x: coords.left + 2, y: (coords.top + coords.bottom) / 2 };
+  }, source.indexOf("only_once") + 2);
+  await page.mouse.click(position.x, position.y);
+  await expect(area.locator(".cm-source-word-match")).toHaveCount(0);
+});
+
 test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹配面板", async ({ page }) => {
   await createBlankDocument(page, "源码全词匹配");
   await page.getByRole("combobox", { name: "文件格式", exact: true }).selectOption("c");
