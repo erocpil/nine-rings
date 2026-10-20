@@ -7,6 +7,10 @@ pub struct WindowPlacement<T> {
 }
 
 impl<T: Copy> WindowPlacement<T> {
+    pub fn has_zoom_restore_frame(&self) -> bool {
+        self.normal.is_some()
+    }
+
     pub fn toggle_zoom(&mut self, current: T, maximized: T, is_maximized: bool) -> T {
         // Our saved normal frame is the authoritative zoom state. AppKit can
         // adjust a zoomed frame later (Dock/menu-bar/work-area changes), so an

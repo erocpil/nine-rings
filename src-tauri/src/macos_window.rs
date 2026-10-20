@@ -60,6 +60,19 @@ pub fn toggle_maximize(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     Ok(())
 }
 
+/// Whether custom window chrome currently owns a temporary expanded frame.
+/// Such a frame must not replace the user's ordinary size on disk.
+pub fn is_temporarily_expanded(window: &tauri::WebviewWindow) -> tauri::Result<bool> {
+    let _native = unsafe { &*window.ns_window()?.cast::<NSWindow>() };
+    Ok(STATES.with(|states| {
+        states.borrow().get(window.label()).is_some_and(|state| {
+            state.placement.has_zoom_restore_frame()
+                || state.placement.transitioning()
+                || state.vertical_restore.is_some()
+        })
+    }))
+}
+
 /// Preserve horizontal geometry and use Cocoa's work area in native coordinates.
 pub fn toggle_vertical_extent(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     // SAFETY: this command is dispatched to the UI thread, as is toggle_maximize.

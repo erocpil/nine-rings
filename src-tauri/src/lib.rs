@@ -13,6 +13,7 @@ mod macos_window;
 pub mod service;
 #[cfg(any(target_os = "windows", test))]
 mod webview_profile;
+mod window_geometry;
 #[cfg(any(target_os = "macos", test))]
 mod window_placement;
 
@@ -523,6 +524,9 @@ pub fn run() {
                 startup_log!("legacy application data copied to the current identifier directory");
             }
             std::fs::create_dir_all(&app_dir)?;
+            if let Some(window) = app.get_webview_window("main") {
+                window_geometry::restore(&window, &app_dir);
+            }
             let job = if cfg!(target_os = "windows") {
                 Some(JOB_OBJECT_ENABLED.load(std::sync::atomic::Ordering::Relaxed))
             } else {
@@ -738,6 +742,18 @@ pub fn run() {
             }
         })
         .on_window_event(|window, event| {
+            if window.label() == "main"
+                && matches!(
+                    event,
+                    tauri::WindowEvent::Resized(_) | tauri::WindowEvent::CloseRequested { .. }
+                )
+            {
+                if let Some(data_dir) = window.app_handle().try_state::<DataDir>() {
+                    if let Some(webview) = window.app_handle().get_webview_window("main") {
+                        window_geometry::save_if_normal(&webview, &data_dir.0);
+                    }
+                }
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() != "main" {
                     return;
