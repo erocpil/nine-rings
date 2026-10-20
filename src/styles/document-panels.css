@@ -437,12 +437,20 @@
 
 /* Match the title rule's inset, including classic and docked document layouts. */
 .app-desktop-workspace .editor-stats {
+  position: relative;
   border-top-style: none;
   padding-inline: 12px calc(12px + var(--editor-scrollbar-width, 0px));
-  background-image: linear-gradient(var(--border), var(--border));
-  background-size: calc(100% - 24px - var(--editor-scrollbar-width, 0px)) 1px;
-  background-position: 12px top;
-  background-repeat: no-repeat;
+  background-image: none;
+}
+.app-desktop-workspace .editor-stats::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: calc(12px + var(--editor-scrollbar-width, 0px));
+  left: 12px;
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
 }
 
 /* The debug panel is a sibling of NoteEditor. Match the status rule's inset;

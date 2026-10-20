@@ -407,6 +407,7 @@ export function ReadonlyVirtualNote(
   const [annotationContext, setAnnotationContext] = useState<{ x: number; y: number; from: number; to: number } | null>(null);
   const [annotationPopover, setAnnotationPopover] = useState<{ id: string; left: number; top: number } | null>(null);
   const annotationLeaveTimer = useRef<number | null>(null);
+  const lastAnnotationSelection = useRef<{ from: number; to: number } | null>(null);
   const bookmarkDisplayListRef = useRef<HTMLDivElement>(null);
   const documentHover = useDocumentHoverPreview(() => doc);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -433,6 +434,16 @@ export function ReadonlyVirtualNote(
     });
     return () => { cancelled = true; };
   }, [noteId, doc]);
+  useEffect(() => {
+    if (!props.readonly) return;
+    const captureSelection = () => {
+      const root = bodyRef.current;
+      const range = root && selectedReadonlyRange(root);
+      if (range) lastAnnotationSelection.current = range;
+    };
+    document.addEventListener("selectionchange", captureSelection);
+    return () => document.removeEventListener("selectionchange", captureSelection);
+  }, [props.readonly, noteId]);
   useEffect(() => {
     const sync = () => setRevision(value => value + 1);
     window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
@@ -1429,6 +1440,9 @@ export function ReadonlyVirtualNote(
     <div
       className={`note-editor note-editor-readonly vr-note ${desktopPanelClass(desktopPanels, sections.length > 0)} ${props.cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${props.focusMode ? "focus-mode" : ""} ${props.showLineNumbers ? "show-line-numbers" : ""} ${props.highlightActiveLine ? "" : "no-active-line"}`}
       data-virtual-reader="true"
+      onPointerDownCapture={event => {
+        if (event.button === 0) lastAnnotationSelection.current = null;
+      }}
       onClick={event => {
         const trigger = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-workspace-position]") : null;
         if (!trigger) return;
@@ -1556,11 +1570,25 @@ export function ReadonlyVirtualNote(
           onContextMenu={event => {
             if (!props.readonly) return;
             const root = bodyRef.current;
-            const range = root && selectedReadonlyRange(root);
+            const range = (root && selectedReadonlyRange(root)) ?? lastAnnotationSelection.current;
             if (!range) return;
             event.preventDefault();
             event.stopPropagation();
             setAnnotationContext({ x: event.clientX, y: event.clientY, ...range });
+          }}
+          onPointerDownCapture={event => {
+            if (event.button === 0) lastAnnotationSelection.current = null;
+          }}
+          onPointerUpCapture={() => {
+            const root = bodyRef.current;
+            const range = root && selectedReadonlyRange(root);
+            if (range) lastAnnotationSelection.current = range;
+          }}
+          onKeyUpCapture={event => {
+            if (!props.readonly || !(event.shiftKey || event.key.startsWith("Arrow"))) return;
+            const root = bodyRef.current;
+            const range = root && selectedReadonlyRange(root);
+            if (range) lastAnnotationSelection.current = range;
           }}
           onClick={event => {
             const marker = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-reading-annotation]") : null;
@@ -1743,7 +1771,7 @@ export function ReadonlyVirtualNote(
       </div>
       {annotationContext && <div className="reading-annotation-context" role="menu" aria-label="选区标注操作" style={{ left: annotationContext.x, top: annotationContext.y }}
         onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }} onClick={event => event.stopPropagation()}>
-        <button type="button" role="menuitem" onClick={() => { void addAnnotation(annotationContext); }}>添加阅读高亮</button>
+        <button type="button" role="menuitem" onClick={() => { lastAnnotationSelection.current = null; void addAnnotation(annotationContext); }}>添加阅读高亮</button>
         <button type="button" role="menuitem" onClick={() => setAnnotationContext(null)}>取消</button>
       </div>}
       {annotationPopover && (() => {

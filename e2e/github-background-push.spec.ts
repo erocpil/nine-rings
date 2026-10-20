@@ -237,8 +237,8 @@ for (const style of ["classic", "mono-aware"]) for (const side of ["left", "righ
     await expect.poll(async () => {
       const expected = await footer.evaluate(element => {
         const rect = element.getBoundingClientRect();
-        const scrollbar = Number.parseFloat(getComputedStyle(element).getPropertyValue("--editor-scrollbar-width")) || 0;
-        return { left: rect.left + 12, right: rect.right - 12 - scrollbar };
+        const rule = getComputedStyle(element, "::before");
+        return { left: rect.left + Number.parseFloat(rule.left), right: rect.right - Number.parseFloat(rule.right) };
       });
       const actual = (await debug.boundingBox())!;
       return Math.max(Math.abs(expected.left - actual.x), Math.abs(expected.right - actual.x - actual.width));
@@ -259,6 +259,11 @@ for (const style of ["classic", "mono-aware"]) test(`状态栏与标题分隔线
   await expect(footer).toBeVisible();
   const line = (element: Element) => {
     const css = getComputedStyle(element), box = element.getBoundingClientRect();
+    const rule = getComputedStyle(element, "::before");
+    if (rule.content !== "none") {
+      const left = Number.parseFloat(rule.left), right = Number.parseFloat(rule.right);
+      return {left:box.left+left,right:box.right-right,inset:left+right,repeat:css.backgroundRepeat};
+    }
     const inset = Number(css.backgroundSize.match(/calc\(100% - ([\d.]+)px\) 1px/)?.[1]);
     const offset = css.backgroundPositionX === "50%" ? inset/2 : Number.parseFloat(css.backgroundPositionX);
     return {left:box.left+offset, right:box.right-inset+offset, inset, repeat:css.backgroundRepeat};

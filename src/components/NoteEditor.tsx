@@ -571,6 +571,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   const [annotationPopover, setAnnotationPopover] = useState<{ id: string; left: number; top: number } | null>(null);
   const annotationLeaveTimerRef = useRef<number | null>(null);
   const annotationContextRangeRef = useRef<{ from: number; to: number } | null>(null);
+  const lastReadonlySelectionRef = useRef<{ from: number; to: number } | null>(null);
   useEffect(() => { onBookmarkCountChange?.(bookmarks.length); }, [bookmarks.length, onBookmarkCountChange]);
   useEffect(() => () => onBookmarkCountChange?.(0), [onBookmarkCountChange]);
   const [bookmarkJumpBlockIndex, setBookmarkJumpBlockIndex] = useState<number | null>(null);
@@ -1184,6 +1185,21 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   useEffect(() => {
     if (editor) setReadingAnnotations(editor, annotations, readonly);
   }, [editor, annotations, readonly]);
+  useEffect(() => {
+    if (!editor || !readonly) return;
+    const captureSelection = () => {
+      const native = window.getSelection();
+      if (!native || native.isCollapsed || !native.anchorNode || !native.focusNode
+        || !editor.view.dom.contains(native.anchorNode) || !editor.view.dom.contains(native.focusNode)) return;
+      try {
+        const from = editor.view.posAtDOM(native.anchorNode, native.anchorOffset);
+        const to = editor.view.posAtDOM(native.focusNode, native.focusOffset);
+        if (from !== to) lastReadonlySelectionRef.current = { from: Math.min(from, to), to: Math.max(from, to) };
+      } catch { /* Special NodeViews may not expose a ProseMirror text position. */ }
+    };
+    document.addEventListener("selectionchange", captureSelection);
+    return () => document.removeEventListener("selectionchange", captureSelection);
+  }, [editor, readonly]);
 
   // Keep the composing paragraph intact until the IME has committed its text.
   // WebKit may write composition updates without ProseMirror's text-input
@@ -3381,17 +3397,18 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
   };
 
   // ── 正文右键菜单 ──
-  const handleEditorContextMenu = (e: React.MouseEvent) => {
-    let selectedRange: { from: number; to: number } | null = null;
+  const readNativeAnnotationSelection = () => {
     const native = window.getSelection();
-    if (readonly && native && !native.isCollapsed && native.anchorNode && native.focusNode
-      && editor.view.dom.contains(native.anchorNode) && editor.view.dom.contains(native.focusNode)) {
-      try {
-        const from = editor.view.posAtDOM(native.anchorNode, native.anchorOffset);
-        const to = editor.view.posAtDOM(native.focusNode, native.focusOffset);
-        if (from !== to) selectedRange = { from: Math.min(from, to), to: Math.max(from, to) };
-      } catch { /* Keep the editor model's range when a special NodeView owns the DOM. */ }
-    }
+    if (!readonly || !native || native.isCollapsed || !native.anchorNode || !native.focusNode
+      || !editor.view.dom.contains(native.anchorNode) || !editor.view.dom.contains(native.focusNode)) return null;
+    try {
+      const from = editor.view.posAtDOM(native.anchorNode, native.anchorOffset);
+      const to = editor.view.posAtDOM(native.focusNode, native.focusOffset);
+      return from === to ? null : { from: Math.min(from, to), to: Math.max(from, to) };
+    } catch { return null; }
+  };
+  const handleEditorContextMenu = (e: React.MouseEvent) => {
+    let selectedRange = readNativeAnnotationSelection() ?? lastReadonlySelectionRef.current;
     if (!selectedRange && readonly && !editor.state.selection.empty) {
       selectedRange = { from: editor.state.selection.from, to: editor.state.selection.to };
     }
@@ -3440,6 +3457,7 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
       await putReadingAnnotation(annotation);
       setAnnotations(current => [...current, annotation].sort((a, b) => a.from - b.from));
       annotationContextRangeRef.current = null;
+      lastReadonlySelectionRef.current = null;
     } catch (error) { addLog(`创建阅读标注失败: ${String(error)}`); }
   };
   const updateReadingAnnotation = async (id: string, note: string) => {
@@ -4299,12 +4317,22 @@ function FullNoteEditor({ onHostEditorReady, onHostSelection, documentViewToggle
         setToolbarSelectionHighlight(editor, null);
       }}
       onPointerDownCapture={(event) => {
+        if (event.button === 0) lastReadonlySelectionRef.current = null;
         if (event.target instanceof Element && event.target.closest(".flow-block-content")) return;
         if (!(event.target instanceof Element) || !event.target.closest(".ProseMirror")) return;
         if (readonly) readonlyCopyPosition.current = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? null;
         toolbarSelectionRef.current = null;
         toolbarCellSelectionRef.current = null;
         setToolbarSelectionHighlight(editor, null);
+      }}
+      onPointerUpCapture={() => {
+        const range = readNativeAnnotationSelection();
+        if (range) lastReadonlySelectionRef.current = range;
+      }}
+      onKeyUpCapture={(event) => {
+        if (!readonly || !(event.shiftKey || event.key.startsWith("Arrow"))) return;
+        const range = readNativeAnnotationSelection();
+        if (range) lastReadonlySelectionRef.current = range;
       }}
     >
       {focusMode && !unifiedTitleBar && (

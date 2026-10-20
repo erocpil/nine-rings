@@ -92,6 +92,62 @@ for (const virtual of [false, true]) {
   });
 }
 
+for (const virtual of [false, true]) {
+  test(`只读${virtual ? "虚拟" : "完整"}渲染：右键触发标注菜单时保留已捕获选区`, async ({ page }) => {
+    const { body } = await createBlankNote(page).then(async editor => {
+      await editor.fill(SAMPLE);
+      await expect.poll(async () => page.evaluate(async () => {
+        const { api } = await import(/* @vite-ignore */ "/src/lib/api.ts");
+        return JSON.stringify((await api.notes.get(localStorage.getItem("nr:lastNote")))?.content.ops);
+      })).toContain(SAMPLE);
+      if (virtual) {
+        await page.evaluate(() => {
+          localStorage.setItem("nr:experimentalReadonlyRendering", "true");
+          window.dispatchEvent(new Event("nine-rings:readonly-rendering-change"));
+        });
+      }
+      await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+      const renderedBody = page.locator(virtual ? ".vr-body" : ".editor-content").last();
+      await expect(renderedBody).toContainText(SAMPLE);
+      return { body: renderedBody };
+    });
+    const points = await body.evaluate((element, selected) => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        const offset = (node.textContent ?? "").indexOf(selected);
+        if (offset < 0) continue;
+        const first = document.createRange();
+        first.setStart(node, offset);
+        first.setEnd(node, offset + 1);
+        const last = document.createRange();
+        last.setStart(node, offset + selected.length - 1);
+        last.setEnd(node, offset + selected.length);
+        const start = first.getBoundingClientRect();
+        const end = last.getBoundingClientRect();
+        return {
+          start: { x: start.left + 0.25, y: start.top + start.height / 2 },
+          end: { x: end.right - 0.25, y: end.top + end.height / 2 },
+          context: { x: (start.left + end.right) / 2, y: start.top + start.height / 2 },
+        };
+      }
+      throw new Error("selection target was not rendered in a single text node");
+    }, SELECTED);
+    await page.mouse.move(points.start.x, points.start.y);
+    await page.mouse.down();
+    await page.mouse.move(points.end.x, points.end.y, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe(SELECTED);
+    // Tauri/WebKit may clear its native selection as the secondary-click
+    // context menu opens. The selection captured on pointerup must survive it.
+    await page.evaluate(() => window.getSelection()?.removeAllRanges());
+    await page.mouse.click(points.context.x, points.context.y, { button: "right" });
+    const menu = page.locator(virtual ? ".reading-annotation-context" : ".editor-context-menu");
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole(virtual ? "menuitem" : "button", { name: virtual ? "添加阅读高亮" : "选中文字并添加阅读标注" })).toBeEnabled();
+  });
+}
+
 test("只读标注锚点在切换可编辑后跟随编辑，完全删除选区后自动清除", async ({ page }) => {
   const { body } = await createReadonlySelection(page, false);
   await page.locator(".editor-context-menu").getByRole("button", { name: "选中文字并添加阅读标注", exact: true }).click();
