@@ -1738,7 +1738,7 @@
 .document-outline-list[data-source-symbols="true"] .document-outline-level.is-symbol-marker {
   width: 14px;
   min-width: 14px;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-nested="true"] .document-outline-level.is-symbol-marker {

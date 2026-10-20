@@ -37,7 +37,7 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   await format.selectOption("c");
   const area = page.locator(".cm-content");
   await expect(area).toBeVisible();
-  const source = `struct Packet {\n  int length;\n  void reset();\n};\n#define NR_PACKET_LIMIT 8\n\nint zebra(void) { return 0; }\n\nint open_packet(int id) {\n  return id;\n}\n\nint alpha(void) { return 0; }\n`;
+  const source = `struct Packet {\n  int length;\n  void reset();\n};\n#define NR_PACKET_LIMIT 8\nstatic int packet_count;\n\nint zebra(void) { return 0; }\n\nint open_packet(int id) {\n  return id;\n}\n\nint alpha(void) { return 0; }\n`;
   await replaceSource(area, source);
 
   const symbolButton = page.getByRole("button", { name: "源码符号", exact: true }).first();
@@ -61,24 +61,27 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   await expect(memberRow).toHaveAttribute("data-symbol-nested", "true");
   await expect(memberRow.locator(".document-outline-level")).toHaveCSS("transform", "matrix(1, 0, 0, 1, -8, 0)");
   await expect(memberRow.locator(".document-outline-text")).toHaveCSS("transform", "matrix(1, 0, 0, 1, -8, 0)");
-  const visualMarkerGap = async (row: import("@playwright/test").Locator) => row.locator(".document-outline-link").evaluate(link => {
-    const marker = link.querySelector(".document-outline-level")!;
-    const label = link.querySelector(".document-outline-text")!;
-    const textBounds = (element: Element) => {
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      return range.getBoundingClientRect();
-    };
-    return textBounds(label).left - textBounds(marker).right;
-  });
-  expect(await visualMarkerGap(memberRow)).toBeCloseTo(await visualMarkerGap(packetRow), 1);
   expect(await memberRow.locator(".document-outline-link").evaluate(link => getComputedStyle(link).gap)).toBe("3px");
   const functionMarker = panel.locator('.document-outline-item[data-symbol-kind="函数"] .document-outline-level').first();
   await expect(functionMarker).toHaveCSS("width", "14px");
   await expect(functionMarker).toHaveCSS("transform", "matrix(1, 0, 0, 1, -8, 0)");
-  const macroMarker = panel.locator('.document-outline-item[data-symbol-kind="宏"] .document-outline-level').first();
+  const macroRow = panel.locator('.document-outline-item[data-symbol-kind="宏"]').first();
+  const macroMarker = macroRow.locator(".document-outline-level");
   await expect(macroMarker).toHaveCSS("width", "14px");
   await expect(macroMarker).toHaveCSS("transform", "none");
+  const variableRow = panel.locator('.document-outline-item[data-symbol-kind="变量"]').filter({ hasText: "packet_count" });
+  const functionRow = panel.locator('.document-outline-item[data-symbol-kind="函数"]').filter({ hasText: "zebra" });
+  const topLevelRows = [packetRow, macroRow, variableRow, functionRow];
+  const markerAndLabelPositions = await Promise.all(topLevelRows.map(row => row.evaluate(element => {
+    const marker = element.querySelector(".document-outline-level")!.getBoundingClientRect();
+    const label = element.querySelector(".document-outline-text")!.getBoundingClientRect();
+    return { markerLeft: marker.left, labelLeft: label.left };
+  })));
+  expect(Math.max(...markerAndLabelPositions.map(position => position.markerLeft)) - Math.min(...markerAndLabelPositions.map(position => position.markerLeft))).toBeLessThan(0.5);
+  expect(Math.max(...markerAndLabelPositions.map(position => position.labelLeft)) - Math.min(...markerAndLabelPositions.map(position => position.labelLeft))).toBeLessThan(0.5);
+  for (const row of topLevelRows) {
+    await expect(row.locator(".document-outline-level")).toHaveCSS("justify-content", "flex-start");
+  }
   await expect(panel.locator(".document-outline-jumps")).toHaveCount(0);
   await expect(panel.locator(".document-outline-count")).toHaveCount(0);
   await expect(panel.getByRole("button", { name: "按字母顺序排序" })).toBeVisible();
