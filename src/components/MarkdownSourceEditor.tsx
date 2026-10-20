@@ -84,6 +84,7 @@ import {
   syntaxHighlighting,
   HighlightStyle,
   bracketMatching,
+  matchBrackets,
 } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
@@ -124,6 +125,24 @@ function visibleFoldAnchor(view: EditorView, position: number): number {
     }
   });
   return anchor;
+}
+
+function matchingBracketContents(view: EditorView, position: number) {
+  for (const candidate of [position, position - 1]) {
+    if (candidate < 0 || candidate >= view.state.doc.length) continue;
+    const bracket = view.state.doc.sliceString(candidate, candidate + 1);
+    const pair = "()[]{}".indexOf(bracket);
+    if (pair < 0) continue;
+    const direction = pair % 2 === 0 ? 1 : -1;
+    // CodeMirror expects the cursor immediately after a closing bracket when
+    // searching backwards, but at the opening bracket when searching forward.
+    const match = matchBrackets(view.state, candidate + (direction < 0 ? 1 : 0), direction);
+    if (!match?.matched || !match.end) continue;
+    const opening = direction > 0 ? match.start : match.end;
+    const closing = direction > 0 ? match.end : match.start;
+    return { anchor: opening.to, head: closing.from };
+  }
+  return null;
 }
 
 function sourceFoldPreviewPlaceholder(
@@ -383,7 +402,8 @@ export function MarkdownSourceEditor({
     view.current?.requestMeasure();
   }, [preferences.sourceMicroRendering]);
   useLayoutEffect(() => {
-    if (!host.current) return;
+    const editorHost = host.current;
+    if (!editorHost) return;
     const extensions = [
       history(),
       mobileSourceInput(),
@@ -544,8 +564,20 @@ export function MarkdownSourceEditor({
         ? saved.update({ effects: StateEffect.reconfigure.of(extensions) })
             .state
         : EditorState.create({ doc: initial.current.value, extensions });
-    const editor = new EditorView({ state, parent: host.current });
+    const editor = new EditorView({ state, parent: editorHost });
     view.current = editor;
+    const selectBracketContents = (event: MouseEvent) => {
+      if (event.detail !== 2) return;
+      const position = editor.posAtCoords({ x: event.clientX, y: event.clientY });
+      if (position === null) return;
+      const selection = matchingBracketContents(editor, position);
+      if (!selection) return;
+      event.preventDefault();
+      event.stopPropagation();
+      editor.dispatch({ selection, userEvent: "select" });
+      editor.focus();
+    };
+    editorHost.addEventListener("mousedown", selectBracketContents, true);
     syncTools(editor.state);
     // Keep subscriptions alive across React StrictMode effect remounts.
     const handle = (handleRef.current ??= new SourceEditorHandle(editor));
@@ -569,6 +601,7 @@ export function MarkdownSourceEditor({
     editor.scrollDOM.addEventListener("scroll", scroll, { passive: true });
     return () => {
       session.current = editor.state;
+      editorHost.removeEventListener("mousedown", selectBracketContents, true);
       editor.scrollDOM.removeEventListener("scroll", scroll);
       editor.destroy();
       view.current = null;
