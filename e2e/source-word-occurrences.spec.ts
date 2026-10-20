@@ -69,6 +69,21 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
   await panel.locator(".document-source-match-row").last().click();
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.lastIndexOf(word));
   await expect.poll(async () => (await sourceInfo(area)).selectionEnd).toBe(source.lastIndexOf(word) + word.length);
+  await page.getByRole("button", { name: "文档书签", exact: true }).click();
+  await page.getByRole("button", { name: "添加当前位置书签", exact: true }).click();
+  const split = page.getByRole("separator", { name: "调整目录与书签比例" });
+  await expect(split).toBeVisible();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const box = (await split.boundingBox())!;
+    const x = box.x + box.width / 2, y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y + 3);
+    await expect.poll(async () => (await split.boundingBox())!.y).toBeGreaterThanOrEqual(box.y);
+    await page.mouse.move(x, y + 16, { steps: 4 });
+    await page.mouse.up();
+    await expect.poll(async () => (await split.boundingBox())!.y).toBeGreaterThan(box.y + 10);
+  }
   await page.getByRole("button", { name: "隐藏匹配列表", exact: true }).click();
   await expect(panel).toHaveCount(0);
 });

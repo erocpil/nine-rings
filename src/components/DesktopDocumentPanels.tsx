@@ -77,6 +77,10 @@ export function DesktopDocumentPanels({
     const handle = event.currentTarget;
     const pointer = event.pointerId;
     const rect = root.current.getBoundingClientRect();
+    // The outline/bookmark split occupies only the main grid when matches
+    // are open. Preserve the grab offset instead of snapping to the pointer.
+    const mainRect = handle.parentElement!.getBoundingClientRect();
+    const startRatio = mode === "matches" ? matchesRatio : ratio;
     const owner = root.current.closest<HTMLElement>(".note-editor");
     const oldCursor = document.body.style.cursor,
       oldSelect = document.body.style.userSelect,
@@ -110,16 +114,16 @@ export function DesktopDocumentPanels({
         setWidth(nextWidth);
         owner?.style.setProperty("--document-dock-width", `${nextWidth}px`);
       } else if (mode === "matches") {
-        nextRatio = Math.max(0.15, Math.min(0.85, (rect.bottom - e.clientY) / rect.height));
+        nextRatio = Math.max(0.15, Math.min(0.85, startRatio - (e.clientY - event.clientY) / Math.max(1, rect.height - 6)));
         setMatchesRatio(nextRatio);
       } else {
         nextRatio = Math.max(
           0.15,
           Math.min(
             0.85,
-            horizontal
-              ? (e.clientX - rect.left) / rect.width
-              : (e.clientY - rect.top) / rect.height,
+            startRatio + (horizontal
+              ? (e.clientX - event.clientX) / Math.max(1, mainRect.width - 6)
+              : (e.clientY - event.clientY) / Math.max(1, mainRect.height - 6)),
           ),
         );
         setRatio(nextRatio);
