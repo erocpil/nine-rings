@@ -1725,7 +1725,7 @@
 }
 
 .document-outline-list[data-source-symbols="true"] .document-outline-text {
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

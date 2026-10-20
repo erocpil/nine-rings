@@ -45,6 +45,7 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   await symbolButton.click();
   const panel = page.getByRole("navigation", { name: "源码符号" });
   await expect(panel.locator(".document-outline-list")).toHaveCSS("padding-top", "4px");
+  await expect(panel.locator(".document-outline-text").first()).toHaveCSS("font-size", "13px");
   await expect(panel.getByText("Packet", { exact: true })).toBeVisible();
   await expect(panel.getByText("length: int", { exact: true })).toBeVisible();
   const packetRow = panel.locator('.document-outline-item[data-symbol-kind="类型"]').filter({ hasText: "Packet" });
