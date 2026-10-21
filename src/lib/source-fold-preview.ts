@@ -74,7 +74,7 @@ export function sourceFoldPreviewPlaceholder(
           EditorView.theme({
             "&": { height: "100%" },
             ".cm-scroller": { overflow: "auto" },
-            ".cm-content": { padding: "6px 8px" },
+            ".cm-content": { padding: "4px 6px" },
           }),
         ],
       }),
@@ -87,8 +87,8 @@ export function sourceFoldPreviewPlaceholder(
     const lines = prepared.text.split("\n");
     const contentWidth = lines.reduce((width, line) => Math.max(width,
       context?.measureText(line.replace(/\t/g, " ".repeat(view.state.tabSize))).width ?? 0), 0);
-    bubble.style.width = `${Math.min(maxWidth, Math.max(80, contentWidth + 58))}px`;
-    bubble.style.height = `${Math.min(maxHeight, lines.length * preview.defaultLineHeight + 48)}px`;
+    bubble.style.width = `${Math.min(maxWidth, Math.max(80, contentWidth + 42))}px`;
+    bubble.style.height = `${Math.min(maxHeight, lines.length * preview.defaultLineHeight + 32)}px`;
     // Keep wheel events inside this independent preview; editor-level handlers
     // must not reinterpret trackpad scrolling as navigation of the main view.
     bubble.addEventListener("wheel", (event) => event.stopPropagation());
