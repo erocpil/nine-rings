@@ -509,7 +509,8 @@
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
   .app.app-mobile-workspace :is(.note-title-row, .vr-title) { --title-action-width: 44px; }
 }
-.app :is(.note-title-row, .vr-title) > :is(.markdown-view-toggle, .focus-btn:not(.pdf-excerpt-source-button)),
+.app :is(.note-title-row, .vr-title) > :is(.markdown-view-toggle, .focus-btn:not(.pdf-excerpt-source-button), .btn-icon[data-document-panel-trigger]),
+.app .markdown-source-title-row > .document-navigation > .focus-btn,
 .app :is(.note-title-row, .vr-title) > :is(.document-outline-control, .document-bookmark-control) > .focus-btn {
   box-sizing: border-box;
   display: inline-flex;

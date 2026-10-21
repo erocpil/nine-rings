@@ -1,8 +1,32 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
-import { replaceSource, selectSource, sourceInfo } from "./helpers/source-editor";
+import { replaceSource, selectSource, sourceInfo, selectDocumentLanguage } from "./helpers/source-editor";
 
 const jumpShortcut = process.platform === "darwin" ? "Meta+g" : "Control+g";
+
+for (const width of [900, 1440]) {
+  for (const language of ["markdown", "c"]) {
+    test(`源码标题按钮与内置插件尺寸一致 ${width} ${language}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_status_bar: false })));
+      await createBlankDocument(page);
+      await page.evaluate(async () => (await import("/src/lib/plugin-system/runtime.ts")).setPluginsEnabled(true));
+      if (language === "markdown") await page.getByRole("button", { name: "源码", exact: true }).click();
+      else await selectDocumentLanguage(page, language);
+      const row = page.locator(".markdown-source-title-row");
+      const plugin = row.getByRole("button", { name: "内置插件", exact: true });
+      await expect(plugin).toBeVisible();
+      const reference = (await plugin.boundingBox())!;
+      const buttons = row.locator(".markdown-view-toggle, [data-document-panel-trigger], .document-navigation > button");
+      expect(await buttons.count()).toBeGreaterThanOrEqual(5);
+      for (const button of await buttons.all()) {
+        const bounds = (await button.boundingBox())!;
+        expect(bounds.width).toBeCloseTo(reference.width, 1);
+        expect(bounds.height).toBeCloseTo(reference.height, 1);
+      }
+    });
+  }
+}
 
 for (const width of [390, 1440]) {
   test(`源码顶部工具面板互斥、按钮收回及跳转校验 ${width}`, async ({ page }) => {
