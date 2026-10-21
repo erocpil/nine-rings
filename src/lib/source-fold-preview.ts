@@ -48,10 +48,14 @@ export function sourceFoldPreviewPlaceholder(
     bubble.setAttribute("popover", "manual");
     bubble.setAttribute("role", "region");
     bubble.setAttribute("aria-label", "折叠代码预览");
-    bubble.style.width = `${Math.min(window.innerWidth - 16, Math.max(160, viewport.width * 0.75))}px`;
-    bubble.style.height = `${Math.min(window.innerHeight - 16, Math.max(80, viewport.height * 0.5))}px`;
+    const maxWidth = Math.min(window.innerWidth - 16, viewport.width * 0.75);
+    const maxHeight = Math.min(window.innerHeight - 16, viewport.height * 0.5);
+    bubble.style.width = `${maxWidth}px`;
+    bubble.style.height = `${maxHeight}px`;
     const host = document.createElement("div");
     host.className = "markdown-cm-host markdown-cm-source";
+    host.style.height = "100%";
+    host.style.minHeight = "0";
     bubble.appendChild(host);
     document.body.appendChild(bubble);
     bubble.showPopover();
@@ -75,6 +79,19 @@ export function sourceFoldPreviewPlaceholder(
         ],
       }),
     });
+    // Size to the code, retaining the viewport fractions as upper bounds.
+    // CodeMirror virtualizes lines, so measure the source rather than only DOM rows.
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (context) context.font = getComputedStyle(preview.contentDOM).font;
+    const lines = prepared.text.split("\n");
+    const contentWidth = lines.reduce((width, line) => Math.max(width,
+      context?.measureText(line.replace(/\t/g, " ".repeat(view.state.tabSize))).width ?? 0), 0);
+    bubble.style.width = `${Math.min(maxWidth, Math.max(80, contentWidth + 58))}px`;
+    bubble.style.height = `${Math.min(maxHeight, lines.length * preview.defaultLineHeight + 48)}px`;
+    // Keep wheel events inside this independent preview; editor-level handlers
+    // must not reinterpret trackpad scrolling as navigation of the main view.
+    bubble.addEventListener("wheel", (event) => event.stopPropagation());
     const anchor = placeholder.getBoundingClientRect();
     const bounds = bubble.getBoundingClientRect();
     const below = window.innerHeight - anchor.bottom - 8;

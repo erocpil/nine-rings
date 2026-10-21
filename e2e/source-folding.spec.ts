@@ -368,7 +368,7 @@ test("C/C++ 折叠占位符预览完整源码并支持高亮与滚动，点击�
   await expect(area).toBeVisible({ timeout: 20000 });
   const body = Array.from(
     { length: 32 },
-    (_, index) => `  int value${index} = ${index};`,
+    (_, index) => `  int value${index} = ${index}; // ${"long comment ".repeat(30)}`,
   ).join("\n");
   const source = `struct Preview {\n${body}\n};`;
   await replaceSource(area, source);
@@ -392,13 +392,21 @@ test("C/C++ 折叠占位符预览完整源码并支持高亮与滚动，点击�
   expect(previewBox.height).toBeLessThanOrEqual(editorBox.height * 0.5 + 3);
   await bubble.hover();
   const scroll = bubble.locator(".cm-scroller");
-  await scroll.evaluate((element) => {
-    element.scrollTop = element.scrollHeight;
-  });
+  await page.mouse.wheel(240, 1000);
+  await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await expect.poll(() => scroll.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  await page.mouse.wheel(0, 2000);
   await expect(bubble).toContainText("int value31 = 31;");
   await expect(bubble).toBeVisible();
   await placeholder.click();
   await expect(page.locator(".cm-foldPlaceholder")).toHaveCount(0);
   await expect(bubble).toHaveCount(0);
   expect((await sourceInfo(area)).value).toBe(source);
+  await replaceSource(area, "void small() {\n  return;\n}");
+  await toolbar.getByRole("button", { name: "折叠全部", exact: true }).click();
+  await page.locator(".cm-foldPlaceholder").first().hover();
+  await expect(bubble).toBeVisible();
+  const compactBox = (await bubble.boundingBox())!;
+  expect(compactBox.width).toBeLessThan(previewBox.width / 2);
+  expect(compactBox.height).toBeLessThan(previewBox.height / 2);
 });
