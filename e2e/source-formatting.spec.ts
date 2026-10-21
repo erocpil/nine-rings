@@ -21,6 +21,8 @@ test("C/C++ 本地格式化全文、风格配置、选区、撤销与只读保�
   await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
   await toolbar.getByRole("button", { name: "代码格式风格", exact: true }).click();
   await page.getByRole("menuitemcheckbox", { name: "Microsoft", exact: true }).click();
+  const styleButton = toolbar.getByRole("button", { name: "代码格式风格", exact: true });
+  await expect.poll(() => styleButton.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
   await page.evaluate(async () => (await import("/src/lib/native-menu-registry.ts")).runNativeMenuAction("source.formatDocument"));
   await expect.poll(async () => (await sourceInfo(area)).value).toContain("main()\n{");
   // Change the same source again, then format only one function after Unicode.
@@ -35,7 +37,11 @@ test("C/C++ 本地格式化全文、风格配置、选区、撤销与只读保�
   const dialog = page.getByRole("dialog", { name: "代码格式配置", exact: true });
   await dialog.getByRole("textbox", { name: ".clang-format 配置", exact: true }).fill("UnknownNineRingsOption: true");
   await dialog.getByRole("button", { name: "使用此配置", exact: true }).click();
+  await expect.poll(() => styleButton.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
   const beforeError = (await sourceInfo(area)).value;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => styleButton.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+  await page.setViewportSize({ width: 1280, height: 850 });
   await document.click();
   await expect(page.getByRole("status").filter({ hasText: "格式化失败" })).toBeVisible();
   expect((await sourceInfo(area)).value).toBe(beforeError);
