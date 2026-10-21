@@ -1643,12 +1643,34 @@ html[data-interface-style] .editor-menu .toolbar-split-button > .menu-btn:is(:ho
   transition: transform 180ms ease-out;
   will-change: transform;
 }
+.editor-status-bar .document-navigation .focus-btn {
+  transition: color 220ms ease-out, opacity var(--transition);
+}
 .editor-status-bar[data-status-idle-glow] [data-status-item="navigation"] {
-  animation: status-navigation-idle-drift 8s ease-in-out infinite alternate;
+  animation: status-navigation-idle-drift var(--status-navigation-idle-duration, 6s) cubic-bezier(.42, 0, .58, 1) infinite alternate;
 }
 @keyframes status-navigation-idle-drift {
   from { transform: translateX(0); }
   to { transform: translateX(var(--status-navigation-idle-travel, 0px)); }
+}
+.editor-status-bar[data-status-idle-glow] .document-navigation .focus-btn {
+  animation: status-navigation-idle-breathe var(--status-navigation-idle-duration, 6s) cubic-bezier(.42, 0, .58, 1) infinite alternate;
+}
+@keyframes status-navigation-idle-breathe {
+  from { color: color-mix(in srgb, #45a8dd 58%, var(--text-secondary)); }
+  to { color: color-mix(in srgb, #e28a38 64%, var(--text-secondary)); }
+}
+html:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) .editor-status-bar[data-status-idle-glow] .document-navigation .focus-btn {
+  animation-name: status-navigation-idle-breathe-dark;
+}
+@keyframes status-navigation-idle-breathe-dark {
+  from { color: color-mix(in srgb, #72d7f3 70%, var(--text-secondary)); }
+  to { color: color-mix(in srgb, #ffc078 72%, var(--text-secondary)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .editor-status-bar [data-status-item="navigation"] { transition: none; }
+  .editor-status-bar[data-status-idle-glow] [data-status-item="navigation"],
+  .editor-status-bar[data-status-idle-glow] .document-navigation .focus-btn { animation: none; }
 }
 .editor-status-bar .document-navigation button { width: 24px; height: 24px; padding: 2px; border: 1px solid transparent; background: transparent; }
 :root .editor-status-bar[data-status-display="plugin"] {

@@ -85,12 +85,17 @@ export function EditorStatusBar({
         );
       }
       const gap = navigation.offsetLeft - precedingRight;
-      // Keep an 8px safety margin at both ends and cap long travel on wide
-      // screens so the controls stay within the visual center of the bar.
-      const travel = Math.min(220, Math.max(0, gap - 16));
+      // Use the whole empty span and stop just before the preceding status
+      // item, so the navigation controls travel until the whitespace ends.
+      const travel = Math.max(0, gap - 8);
+      const duration = Math.min(8, Math.max(3.2, travel / 100));
       navigation.style.setProperty(
         "--status-navigation-idle-travel",
         `${-travel}px`,
+      );
+      navigation.style.setProperty(
+        "--status-navigation-idle-duration",
+        `${duration}s`,
       );
     };
 
@@ -106,6 +111,9 @@ export function EditorStatusBar({
       bar
         .querySelector<HTMLElement>(':scope > [data-status-item="navigation"]')
         ?.style.removeProperty("--status-navigation-idle-travel");
+      bar
+        .querySelector<HTMLElement>(':scope > [data-status-item="navigation"]')
+        ?.style.removeProperty("--status-navigation-idle-duration");
     };
   }, [idleGlow, statusItemsKey, state.visible]);
   useEffect(() => {
