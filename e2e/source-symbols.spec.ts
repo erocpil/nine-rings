@@ -64,7 +64,7 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   await selectDocumentLanguage(page, "c");
   const area = page.locator(".cm-content");
   await expect(area).toBeVisible();
-  const source = `struct Packet {\n  int length;\n  void reset();\n};\n#define NR_PACKET_LIMIT 8\nstatic int packet_count;\n\nint zebra(void) { return 0; }\n\nint open_packet(int id) {\n  return id;\n}\n\nvoid alpha(void) { }\n`;
+  const source = `struct Packet {\n  int length;\n  void reset();\n};\n#define NR_PACKET_LIMIT 8\n#define MOD 769\nstatic int packet_count;\n\nint zebra(void) { return 0; }\n\nint open_packet(int id) {\n  return id;\n}\n\nbool ht_init(void) { return true; }\n\nvoid alpha(void) { }\n`;
   await replaceSource(area, source);
 
   const symbolButton = page
@@ -216,6 +216,18 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   expect(
     alphabeticalOrder.findIndex((text) => text.includes("alpha")),
   ).toBeLessThan(alphabeticalOrder.findIndex((text) => text.includes("zebra")));
+  const htInitRow = panel
+    .locator('.document-outline-item[data-symbol-kind="函数"]')
+    .filter({ hasText: "ht_init" });
+  await htInitRow.getByRole("button").click();
+  await expect(
+    panel.locator('.document-outline-item[aria-current="location"]'),
+  ).toContainText("ht_init");
+  await expect(
+    panel
+      .locator('.document-outline-item[data-symbol-kind="宏"]')
+      .filter({ hasText: "MOD" }),
+  ).not.toHaveAttribute("aria-current", "location");
   const sortButton = panel.getByRole("button", {
     name: "当前按字母顺序排序，切换为源码出现顺序",
   });

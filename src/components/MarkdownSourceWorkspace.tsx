@@ -34,7 +34,10 @@ import { FocusModeIcon } from "./FocusModeBar";
 import { DocumentBookmarkRow } from "./DocumentBookmarkRow";
 import { SourceEditorContextMenu, type SourceContextTarget } from "./SourceEditorContextMenu";
 import { BookmarkRenameDialog } from "./BookmarkRenameDialog";
-import { extractCSourceSymbols } from "../lib/source-symbols";
+import {
+  extractSourceSymbols,
+  hasSourceSymbolProvider,
+} from "../lib/source-symbol-provider";
 import { focusSourceWordMatch, groupSourceWordMatchesByLine, selectSourceWordAt, sourceWordState } from "../lib/source-word-occurrences";
 import type { DocumentOutlineItem } from "../lib/document-outline";
 import type { DocumentBookmark } from "../types/models";
@@ -169,7 +172,7 @@ export function MarkdownSourceWorkspace({
     return () => clearTimeout(timer);
   }, [revision, mobile, snapshot]);
   useEffect(() => {
-    if (mobile || snapshotLanguage !== "c") {
+    if (mobile || !hasSourceSymbolProvider(snapshotLanguage)) {
       setSourceSymbols([]);
       setSourceSymbolsSource(null);
       setSymbolsBusy(false);
@@ -189,7 +192,7 @@ export function MarkdownSourceWorkspace({
     const controller = new AbortController();
     setSymbolsBusy(true);
     const timer = setTimeout(() => {
-      void extractCSourceSymbols(snapshotSource, controller.signal)
+      void extractSourceSymbols(snapshotLanguage, snapshotSource, controller.signal)
         .then((symbols) => {
           if (!controller.signal.aborted && symbols) {
             setSourceSymbols(symbols.map((symbol) => ({
@@ -235,7 +238,7 @@ export function MarkdownSourceWorkspace({
       setMatchesPreview(false);
     }
   }, [matchesOpen, documentActive, mobile, sourceWordEnabled]);
-  const symbolOutline = snapshotLanguage === "c";
+  const symbolOutline = hasSourceSymbolProvider(snapshotLanguage);
   const sortedSourceSymbols = useMemo(
     () => symbolsAlphabetical ? alphabetizeSymbolTree(sourceSymbols) : sourceSymbols,
     [sourceSymbols, symbolsAlphabetical],
@@ -311,10 +314,18 @@ export function MarkdownSourceWorkspace({
     width: controller.widths[kind ?? "outline"],
     layoutKey: kind ?? "",
   });
-  const active = outline.reduce(
-    (index, item, i) => (item.offset <= offset ? i : index),
-    -1,
-  );
+  const activeSymbol = symbolOutline && sourceSymbolsSource === snapshotSource
+    ? sourceSymbols.reduce<SourceOutlineItem | null>(
+      (current, item) => item.offset <= offset && (!current || item.offset > current.offset) ? item : current,
+      null,
+    )
+    : null;
+  const active = symbolOutline
+    ? activeSymbol ? outline.indexOf(activeSymbol) : -1
+    : outline.reduce(
+      (index, item, i) => (item.offset <= offset ? i : index),
+      -1,
+    );
   const entries = useMemo(() => {
     let hiddenBelow = 7;
     return outline.flatMap((item, index) => {
@@ -342,7 +353,7 @@ export function MarkdownSourceWorkspace({
       for (let attempt = 0; attempt < 3; attempt += 1) {
         const parsedSource = liveSource();
         const approximateOffset = sourceEditMapping(snapshot.source, parsedSource)(item.offset);
-        const latest = await extractCSourceSymbols(parsedSource);
+        const latest = await extractSourceSymbols(snapshotLanguage, parsedSource);
         if (liveSource() !== parsedSource) continue;
         const candidates = latest?.filter(symbol => symbol.kind === item.kind && symbol.identity === item.identity) ?? [];
         if (!candidates.length) return; // The old row was renamed or deleted.
