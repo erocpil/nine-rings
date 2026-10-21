@@ -183,7 +183,9 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   await expect(panel.locator(".document-outline-jumps")).toHaveCount(0);
   await expect(panel.locator(".document-outline-count")).toHaveCount(0);
   await expect(
-    panel.getByRole("button", { name: "按字母顺序排序" }),
+    panel.getByRole("button", {
+      name: "当前按源码出现顺序排序，切换为字母顺序",
+    }),
   ).toBeVisible();
   await expect(
     panel.getByRole("button", { name: "固定源码符号" }),
@@ -203,27 +205,39 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   expect(sourceOrder.findIndex((text) => text.includes("zebra"))).toBeLessThan(
     sourceOrder.findIndex((text) => text.includes("alpha")),
   );
-  await panel.getByRole("button", { name: "按字母顺序排序" }).click();
+  await panel
+    .getByRole("button", {
+      name: "当前按源码出现顺序排序，切换为字母顺序",
+    })
+    .click();
   const alphabeticalOrder = await panel
     .locator(".document-outline-link")
     .allTextContents();
   expect(
     alphabeticalOrder.findIndex((text) => text.includes("alpha")),
   ).toBeLessThan(alphabeticalOrder.findIndex((text) => text.includes("zebra")));
-  const sortButton = panel.getByRole("button", { name: "按源码出现顺序排序" });
+  const sortButton = panel.getByRole("button", {
+    name: "当前按字母顺序排序，切换为源码出现顺序",
+  });
   await expect(sortButton).toHaveAttribute("aria-pressed", "true");
-  const alphabeticalBackground = await sortButton.evaluate(
-    (button) => getComputedStyle(button).backgroundColor,
-  );
+  const alphabeticalAppearance = await sortButton.evaluate((button) => ({
+    background: getComputedStyle(button).backgroundColor,
+    icon: button.querySelector("svg path")?.getAttribute("d"),
+  }));
+  await expect(sortButton.locator("svg")).toBeVisible();
   await sortButton.click();
   const sourceOrderButton = panel.getByRole("button", {
-    name: "按字母顺序排序",
+    name: "当前按源码出现顺序排序，切换为字母顺序",
   });
   await expect(sourceOrderButton).toHaveAttribute("aria-pressed", "false");
-  const sourceOrderBackground = await sourceOrderButton.evaluate(
-    (button) => getComputedStyle(button).backgroundColor,
+  const sourceOrderAppearance = await sourceOrderButton.evaluate((button) => ({
+    background: getComputedStyle(button).backgroundColor,
+    icon: button.querySelector("svg path")?.getAttribute("d"),
+  }));
+  expect(alphabeticalAppearance.background).not.toBe(
+    sourceOrderAppearance.background,
   );
-  expect(alphabeticalBackground).not.toBe(sourceOrderBackground);
+  expect(alphabeticalAppearance.icon).not.toBe(sourceOrderAppearance.icon);
 
   await page.evaluate(() => {
     const key = "nr:workspaceLayout";

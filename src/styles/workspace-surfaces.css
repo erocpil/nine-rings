@@ -1603,7 +1603,13 @@
   color: var(--accent);
 }
 
-.document-outline-header-actions.is-source-symbol-actions > button[aria-pressed="true"] {
+.document-outline-header-actions.is-source-symbol-actions > .source-symbol-sort-button[data-sort-mode="source"] {
+  border-color: color-mix(in srgb, var(--text-secondary) 40%, var(--border));
+  background: color-mix(in srgb, var(--text-secondary) 9%, var(--bg));
+  color: var(--text-secondary);
+}
+
+.document-outline-header-actions.is-source-symbol-actions > .source-symbol-sort-button[data-sort-mode="alphabetical"] {
   border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
   background: color-mix(in srgb, var(--accent) 14%, var(--bg));
   color: var(--accent);

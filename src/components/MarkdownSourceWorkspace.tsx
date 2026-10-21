@@ -433,7 +433,17 @@ export function MarkdownSourceWorkspace({
           <div className={`document-outline-header-actions${isOutline && symbolOutline ? " is-source-symbol-actions" : ""}`}>
             {isOutline && symbolOutline && <>
               <OutlineDisplayTools listRef={listRef} target="source-symbols" targetLabel="定位当前符号" />
-              <button type="button" className="btn-icon" aria-label={symbolsAlphabetical ? "按源码出现顺序排序" : "按字母顺序排序"} title={symbolsAlphabetical ? "按源码出现顺序排序" : "按字母顺序排序"} aria-pressed={symbolsAlphabetical} onClick={() => setSymbolsAlphabetical(value => !value)}><ToolbarIcon name="sortAlpha" /></button>
+              <button
+                type="button"
+                className="btn-icon source-symbol-sort-button"
+                data-sort-mode={symbolsAlphabetical ? "alphabetical" : "source"}
+                aria-label={symbolsAlphabetical ? "当前按字母顺序排序，切换为源码出现顺序" : "当前按源码出现顺序排序，切换为字母顺序"}
+                title={symbolsAlphabetical ? "当前：字母顺序；点击切换为源码出现顺序" : "当前：源码出现顺序；点击切换为字母顺序"}
+                aria-pressed={symbolsAlphabetical}
+                onClick={() => setSymbolsAlphabetical(value => !value)}
+              >
+                <ToolbarIcon name={symbolsAlphabetical ? "sortAlpha" : "sortSource"} />
+              </button>
               <button type="button" aria-label="全部折叠" title="折叠目录" onClick={() => setFolds(new Set(outline.filter((item, i) => outline[i + 1]?.level > item.level).map(item => item.pos)))}>−</button>
               <button type="button" aria-label="全部展开" title="展开目录" onClick={() => setFolds(new Set())}>+</button>
             </>}
