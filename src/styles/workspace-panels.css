@@ -160,6 +160,16 @@
   padding-left: 0;
 }
 
+.status-idle-glow-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+}
+.status-idle-glow-settings-grid .settings-field { margin-bottom: 0; }
+@media (max-width: 560px) {
+  .status-idle-glow-settings-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
 .user-profile-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

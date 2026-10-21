@@ -1132,17 +1132,20 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="光泽等待时间" desc="前台无操作多久后开始扫光；默认 60 秒。" visible={settingsPage === "editor"}>
-              <select aria-label="光泽等待时间" disabled={!statusBarIdleGlow} value={statusBarIdleDelay} onChange={event => saveBlockWorkspacePreferences({ statusBarIdleDelaySeconds: Number(event.target.value) as 15 | 30 | 60 | 120 })}>
-                <option value={15}>15 秒</option><option value={30}>30 秒</option><option value={60}>60 秒</option><option value={120}>120 秒</option>
-              </select>
-            </Field>
-
-            <Field label="光泽强度" desc="调节扫光的宽度和明暗；默认柔和。" visible={settingsPage === "editor"}>
-              <select aria-label="光泽强度" disabled={!statusBarIdleGlow} value={statusBarIdleIntensity} onChange={event => saveBlockWorkspacePreferences({ statusBarIdleGlowIntensity: event.target.value as "soft" | "balanced" | "prominent" })}>
-                <option value="soft">柔和</option><option value="balanced">标准</option><option value="prominent">醒目</option>
-              </select>
-            </Field>
+            <SettingsSection title="光泽设置" desc="调整空闲光泽的启动等待时间，以及扫光的宽度和明暗强度。" visible={settingsPage === "editor" && statusBarIdleGlow}>
+              <div className="status-idle-glow-settings-grid">
+                <Field label="等待时间" desc="前台无操作多久后启动；默认 60 秒。">
+                  <select aria-label="光泽等待时间" value={statusBarIdleDelay} onChange={event => saveBlockWorkspacePreferences({ statusBarIdleDelaySeconds: Number(event.target.value) as 15 | 30 | 60 | 120 })}>
+                    <option value={15}>15 秒</option><option value={30}>30 秒</option><option value={60}>60 秒</option><option value={120}>120 秒</option>
+                  </select>
+                </Field>
+                <Field label="强度" desc="调节扫光的宽度和明暗；默认柔和。">
+                  <select aria-label="光泽强度" value={statusBarIdleIntensity} onChange={event => saveBlockWorkspacePreferences({ statusBarIdleGlowIntensity: event.target.value as "soft" | "balanced" | "prominent" })}>
+                    <option value="soft">柔和</option><option value="balanced">标准</option><option value="prominent">醒目</option>
+                  </select>
+                </Field>
+              </div>
+            </SettingsSection>
 
             <Field label="只读文档双击标题折叠" desc="专注模式下，双击标题或正文可折叠所属章节（桌面端与手机安装版）" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
