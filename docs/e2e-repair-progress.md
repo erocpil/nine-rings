@@ -1883,3 +1883,12 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - 新增快照隔离/最新覆盖单元测试及两项真实浏览器回归，覆盖提示入口、相同行展开、特殊字符、编辑/撤销后的旧快照、文档切换、长代码双轴正反滚动、固定标题和关闭。滚动断言在两侧共有的可滚动范围比较位置，不把较短一侧的正常边界钳制误报为不同步。
 - 完整 `npm run check` 通过：207 单元文件 / 2381 项及原有独立脚本、格式、schema、IPC；最终滚动细化后完整 typecheck/lint 再通过。`source-format-diff`、`document-comparison`、`source-formatting` Chromium/WebKit 各 11 项通过，包含原有手机文档对比和 Pull 冲突预览。
 - 最终生产 Chromium 1 项通过，在真实预缓存、离线重启后执行 WASM 格式化并打开惰性差异弹层；测试等待实际文件类型落盘后再重启，避免保存未完成造成假失败。生产构建通过，差异弹层约 1.79 kB、共用文本 diff 约 2.54 kB；原有 NoteEditor 715.42 kB 警告仍在，未改变阈值。未执行本批全产品 E2E、Tauri 原生 GUI 或 Flutter。日志：`/tmp/nr-format-diff-check.log`、`/tmp/nr-format-diff-chromium.log`、`/tmp/nr-format-diff-webkit.log`、`/tmp/nr-format-diff-production.log`、`/tmp/nr-format-diff-build-final.log`。
+
+
+## 2026-10-21：自定义格式诊断与配置高度
+
+- 配置弹层使用可视区剩余高度，textarea 自适应伸展，头部/操作区保留，短屏允许内部滚动。桌面和 390px 配置布局纳入真实浏览器回归。
+- clang-format 的 JS 异常仅包含通用 Invalid argument，详细 YAML 错误写入 stderr。Worker 在 WASM 初始化前捕获本线程的 console.error，保留最多 16 KiB 诊断；仍输出原日志，结束后恢复 console，不修改 UI 主线程。补充已知错误类别说明和能唯一确定的配置行列，保留原始异常、代码片段及定位箭头。
+- 配置错误与加载/超时错误分开传输。当前编辑状态未变化时重新打开配置页持续展示错误；执行期间已继续编辑则只提供“查看错误”入口。修正配置后清除旧提示，错误不修改正文或替换格式化快照。YAML # 整行/行尾注释由真实格式化器解析，配置文本不自行删除注释。
+- 新增 7 项诊断单元测试，覆盖未知键、数字/枚举值、YAML 语法、重复行不猜位置、无诊断回退和输出上限。完整 npm run check 通过：208 文件 / 2388 项以及既有独立脚本、类型、lint、格式、Schema、IPC；生产构建通过，仍有原有 NoteEditor chunk 警告。
+- source-formatting Chromium/WebKit 各 4 项通过，含错误后的修正、# 注释及配置高度。最终生产 Chromium 1 项通过，离线重启后可格式化、查看差异，并显示真实 IndentWidth 非法值与第 3 行诊断。未执行本批全产品 E2E 或 Tauri GUI。日志：/tmp/nr-format-diagnostics-check.log、/tmp/nr-format-diagnostics-webkit.log、/tmp/nr-format-diagnostics-build.log、/tmp/nr-format-diff-production.log。

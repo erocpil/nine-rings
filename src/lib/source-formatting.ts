@@ -1,5 +1,6 @@
 import { ChangeSet, type EditorState, type TransactionSpec } from "@codemirror/state";
 import { isolateHistory } from "@codemirror/commands";
+import { SourceFormatConfigurationError } from "./source-format-diagnostics";
 
 export const SOURCE_FORMAT_STYLES = ["LLVM", "Google", "Chromium", "Mozilla", "WebKit", "Microsoft", "GNU"] as const;
 export type SourceFormatStyle = typeof SOURCE_FORMAT_STYLES[number] | "custom";
@@ -24,8 +25,8 @@ export function saveSourceFormatSettings(settings: SourceFormatSettings) {
 }
 export function sourceFormatStyle(settings: SourceFormatSettings, tabSize: number, tabs: boolean): string {
   if (settings.style === "custom") {
-    if (!settings.custom.trim()) throw Error("请先导入或填写 .clang-format 配置。");
-    if (settings.custom.length > 65536) throw Error("格式配置不能超过 64 KiB。");
+    if (!settings.custom.trim()) throw new SourceFormatConfigurationError("请先导入或填写 .clang-format 配置。");
+    if (settings.custom.length > 65536) throw new SourceFormatConfigurationError("格式配置不能超过 64 KiB。");
     return settings.custom;
   }
   return JSON.stringify({ BasedOnStyle: settings.style, IndentWidth: tabSize, TabWidth: tabSize, UseTab: tabs ? "ForIndentation" : "Never" });
@@ -45,8 +46,8 @@ export function formatSource(request: SourceFormatRequest): Promise<string> {
       if (error) reject(error); else resolve(result!);
     };
     const timer = setTimeout(() => finish(Error("代码格式化超时，原文未修改。")), 60000);
-    worker.onmessage = (event: MessageEvent<{ result?: string; error?: string }>) => {
-      if (event.data.error) finish(Error(event.data.error));
+    worker.onmessage = (event: MessageEvent<{ result?: string; error?: string; configurationError?: boolean }>) => {
+      if (event.data.error) finish(event.data.configurationError ? new SourceFormatConfigurationError(event.data.error) : Error(event.data.error));
       else if (typeof event.data.result !== "string") finish(Error("格式化器返回了无效结果。"));
       else finish(undefined, event.data.result);
     };

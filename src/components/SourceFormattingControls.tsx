@@ -7,6 +7,7 @@ import { EditorStatusSelect } from "./EditorStatusSelect";
 import { WorkspaceDialog } from "./WorkspaceDialog";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { sourceFormatRecord, rememberSourceFormat, type SourceFormatRecord } from "../lib/source-format-history";
+import { SourceFormatConfigurationError } from "../lib/source-format-diagnostics";
 
 const SourceFormatDiffDialog = lazy(() => import("./SourceFormatDiffDialog"));
 export interface SourceMessageAction { label: string; run: () => void }
@@ -72,7 +73,15 @@ export function SourceFormattingControls({ editorRef, sessionKey, language, read
         onMessage("代码已符合当前格式。");
       }
     } catch (error) {
-      if (mounted.current && latest.current.active) onMessage(`格式化失败：${error instanceof Error ? error.message : String(error)}；原文未修改。`);
+      if (mounted.current && latest.current.active && editorRef.current === editor && latest.current.language === language) {
+        if (settings.style === "custom" && error instanceof SourceFormatConfigurationError) {
+          const showError = () => { setDraft(settings.custom); setConfigError(error.message); setConfigOpen(true); };
+          if (current()) {
+            showError();
+            onMessage("格式化失败，配置错误详情已显示；原文未修改。");
+          } else onMessage("格式化失败，原文未修改。", { label: "查看错误", run: showError });
+        } else onMessage(`格式化失败：${error instanceof Error ? error.message : String(error)}；原文未修改。`);
+      }
     } finally {
       busyRef.current = false;
       if (mounted.current) setBusy(false);
@@ -90,7 +99,7 @@ export function SourceFormattingControls({ editorRef, sessionKey, language, read
       onMouseDown={event => event.preventDefault()} onClick={() => void format("document")}><ToolbarIcon name="formatDocument" /></button>
     <button type="button" title="查看上次格式化差异（会话快照）" aria-label="查看上次格式化差异" disabled={!record || busy}
       onMouseDown={event => event.preventDefault()} onClick={() => { if (record) openComparison(record); }}><ToolbarIcon name="compare" /></button>
-    <EditorStatusSelect label="代码格式风格" title="代码格式风格；预设跟随 Tab 设置，自定义配置优先" value={settings.style}
+    <EditorStatusSelect label="代码格式风格" title="代码格式风格；预设跟随 Tab 设置，自定义配置优先" value={settings.style} disabled={busy}
       options={[...SOURCE_FORMAT_STYLES.map(value => ({ value, label: value })), { value: "custom", label: "自定义 .clang-format" }]}
       onChange={value => {
         if (value === "custom") { setDraft(settings.custom); setConfigError(""); setConfigOpen(true); }
@@ -98,15 +107,15 @@ export function SourceFormattingControls({ editorRef, sessionKey, language, read
       }} />
     {configOpen && <WorkspaceDialog title="代码格式配置" onClose={() => setConfigOpen(false)}>
       <form className="source-format-config" onSubmit={event => { event.preventDefault(); update({ style: "custom", custom: draft }); setConfigOpen(false); }}>
-        <p>粘贴或导入 .clang-format（YAML / JSON）。配置优先于 Tab Size 与 Tab/空格偏好，仅保存在本机。</p>
+        <p>粘贴或导入 .clang-format（YAML / JSON）。YAML 支持 # 整行和行尾注释。配置优先于 Tab Size 与 Tab/空格偏好，仅保存在本机。</p>
         <label>选择 .clang-format 文件<input type="file" aria-label="导入格式配置" onChange={async event => {
           const file = event.target.files?.[0];
           if (!file) return;
           if (file.size > 65536) { setConfigError("格式配置不能超过 64 KiB。"); return; }
           try { setDraft(await file.text()); setConfigError(""); } catch { setConfigError("读取格式配置失败。"); }
         }} /></label>
-        <textarea aria-label=".clang-format 配置" value={draft} maxLength={65536} spellCheck={false} onChange={event => setDraft(event.target.value)} placeholder={'BasedOnStyle: LLVM\nIndentWidth: 4\nColumnLimit: 100'} />
-        {configError && <p role="alert">{configError}</p>}
+        <textarea aria-label=".clang-format 配置" value={draft} maxLength={65536} spellCheck={false} onChange={event => { setDraft(event.target.value); setConfigError(""); }} placeholder={'# 以 LLVM 风格为基础\nBasedOnStyle: LLVM\nIndentWidth: 4 # 缩进宽度\nColumnLimit: 100'} />
+        {configError && <pre className="source-format-error" role="alert">{configError}</pre>}
         <p>手动执行；选区格式化可能连同相邻语法结构调整。配置无效时保留原文并报告错误。</p>
         <div className="image-dialog-actions"><button className="menu-btn" type="button" onClick={() => setConfigOpen(false)}>取消</button>
           <button className="menu-btn active" type="submit" disabled={!draft.trim()}>使用此配置</button></div>

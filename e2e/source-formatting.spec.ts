@@ -35,6 +35,15 @@ test("C/C++ 本地格式化全文、风格配置、选区、撤销与只读保�
   await toolbar.getByRole("button", { name: "代码格式风格", exact: true }).click();
   await page.getByRole("menuitemcheckbox", { name: "自定义 .clang-format", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "代码格式配置", exact: true });
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 850 });
+    const box = (await dialog.boundingBox())!;
+    expect(box.height).toBeGreaterThan(750);
+    expect(box.y + box.height).toBeLessThanOrEqual(850);
+    expect((await dialog.getByRole("textbox", { name: ".clang-format 配置", exact: true }).boundingBox())!.height).toBeGreaterThan(350);
+    await expect(dialog.getByRole("button", { name: "使用此配置", exact: true })).toBeInViewport();
+  }
+  await page.setViewportSize({ width: 1280, height: 850 });
   await dialog.getByRole("textbox", { name: ".clang-format 配置", exact: true }).fill("UnknownNineRingsOption: true");
   await dialog.getByRole("button", { name: "使用此配置", exact: true }).click();
   await expect.poll(() => styleButton.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
@@ -44,10 +53,42 @@ test("C/C++ 本地格式化全文、风格配置、选区、撤销与只读保�
   await page.setViewportSize({ width: 1280, height: 850 });
   await document.click();
   await expect(page.getByRole("status").filter({ hasText: "格式化失败" })).toBeVisible();
+  await expect(dialog.getByRole("alert")).toContainText("UnknownNineRingsOption");
+  await expect(dialog.getByRole("alert")).toContainText("第 1 行");
   expect((await sourceInfo(area)).value).toBe(beforeError);
+  await dialog.getByRole("button", { name: "关闭代码格式配置", exact: true }).click();
   await page.getByRole("button", { name: "设置只读", exact: true }).click();
   await expect(document).toBeDisabled();
   await expect(selection).toBeDisabled();
+});
+
+test("自定义格式诊断指出设置及位置，修正后支持 YAML 注释", async ({ page }) => {
+  await createBlankDocument(page);
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  const raw = "int main(){int value=1;return value;}";
+  await replaceSource(area, raw);
+  await page.getByRole("button", { name: "代码格式风格", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "自定义 .clang-format", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "代码格式配置", exact: true });
+  for (const [config, expected, line] of [
+    ["# comment\nBasedOnStyle: LLVM\nIndentWidth: nope", "IndentWidth", "第 3 行"],
+    ["BasedOnStyle: LLVM\nBreakBeforeBraces: Wrong", "BreakBeforeBraces", "第 2 行"],
+    ["BasedOnStyle: LLVM\nIndentWidth: [4", "closing ]", "第 2 行"],
+  ]) {
+    await dialog.getByRole("textbox", { name: ".clang-format 配置", exact: true }).fill(config);
+    await dialog.getByRole("button", { name: "使用此配置", exact: true }).click();
+    await page.getByRole("button", { name: "格式化全文", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toContainText(expected);
+    await expect(dialog.getByRole("alert")).toContainText(line);
+    expect((await sourceInfo(area)).value).toBe(raw);
+  }
+  await dialog.getByRole("textbox", { name: ".clang-format 配置", exact: true }).fill("# 整行注释\nBasedOnStyle: LLVM # 行尾注释\nIndentWidth: 4");
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "使用此配置", exact: true }).click();
+  await page.getByRole("button", { name: "格式化全文", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "已格式化全文" })).toBeVisible();
+  await expect(area).toContainText("int value = 1;");
 });
 
 test("导入配置可重开，长代码格式化保持当前词与阅读位置", async ({ page }) => {

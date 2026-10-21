@@ -55,4 +55,13 @@ test("生产包本地 WASM 格式化在 CSP 下运行，冷启动离线可用", 
   await expect(diff).toBeVisible();
   await expect(diff.locator(".document-diff-scroll-pane").first()).toContainText("int main(){int other=2;return other;}");
   await expect(diff.locator(".document-diff-scroll-pane").last()).toContainText("int other = 2;");
+  await diff.getByRole("button", { name: "关闭格式化差异", exact: true }).click();
+  await page.getByRole("button", { name: "代码格式风格", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "自定义 .clang-format", exact: true }).click();
+  const config = page.getByRole("dialog", { name: "代码格式配置", exact: true });
+  await config.getByRole("textbox", { name: ".clang-format 配置", exact: true }).fill("# comment\nBasedOnStyle: LLVM\nIndentWidth: nope");
+  await config.getByRole("button", { name: "使用此配置", exact: true }).click();
+  await page.getByRole("button", { name: "格式化全文", exact: true }).click();
+  await expect(config.getByRole("alert")).toContainText("IndentWidth: nope");
+  await expect(config.getByRole("alert")).toContainText("第 3 行");
 });
