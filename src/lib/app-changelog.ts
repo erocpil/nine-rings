@@ -1,6 +1,13 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-22",
+    title: "状态栏空闲反馈",
+    changes: [
+      "状态栏空闲光泽增加等待时间（15/30/60/120 秒）与柔和、标准、醒目三档强度设置；默认仍为 60 秒和柔和效果。",
+    ],
+  },
+  {
     date: "2026-10-21",
     title: "源码交互与回归修复",
     changes: [

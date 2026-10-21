@@ -2,9 +2,10 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   blockWorkspacePreferences,
   BLOCK_WORKSPACE_DISPLAY_EVENT,
+  type StatusBarIdleGlowIntensity,
 } from "../lib/block-display-settings";
 
-const IDLE_DELAY_MS = 60_000;
+const DEFAULT_IDLE_DELAY_SECONDS = 60;
 
 function subscribePreference(listener: () => void) {
   window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, listener);
@@ -15,13 +16,24 @@ function subscribePreference(listener: () => void) {
   };
 }
 
-function readPreference() {
-  return blockWorkspacePreferences().statusBarIdleGlow === true;
+function readPreferences() {
+  const preferences = blockWorkspacePreferences();
+  return [
+    preferences.statusBarIdleGlow === true,
+    preferences.statusBarIdleDelaySeconds ?? DEFAULT_IDLE_DELAY_SECONDS,
+    preferences.statusBarIdleGlowIntensity ?? "soft",
+  ].join(":");
 }
 
-/** Starts a subtle status-bar sheen only after a full minute of foreground inactivity. */
+/** Starts a status-bar sheen after the configured foreground idle interval. */
 export function useStatusBarIdleGlow(visible: boolean) {
-  const enabled = useSyncExternalStore(subscribePreference, readPreference);
+  const snapshot = useSyncExternalStore(subscribePreference, readPreferences);
+  const [enabledText, delayText, intensityText] = snapshot.split(":");
+  const enabled = enabledText === "true";
+  const delaySeconds = Number(delayText) || DEFAULT_IDLE_DELAY_SECONDS;
+  const intensity = (intensityText === "balanced" || intensityText === "prominent"
+    ? intensityText
+    : "soft") as StatusBarIdleGlowIntensity;
   const [idle, setIdle] = useState(false);
 
   useEffect(() => {
@@ -40,7 +52,7 @@ export function useStatusBarIdleGlow(visible: boolean) {
       clearTimer();
       setIdle(false);
       if (foreground && !reducedMotion.matches) {
-        timer = setTimeout(() => setIdle(true), IDLE_DELAY_MS);
+        timer = setTimeout(() => setIdle(true), delaySeconds * 1_000);
       }
     };
     const onBlur = () => {
@@ -92,7 +104,7 @@ export function useStatusBarIdleGlow(visible: boolean) {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       reducedMotion.removeEventListener("change", onMotionChange);
     };
-  }, [enabled, visible]);
+  }, [delaySeconds, enabled, visible]);
 
-  return enabled && visible && idle;
+  return enabled && visible && idle ? intensity : null;
 }

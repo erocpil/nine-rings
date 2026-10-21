@@ -147,6 +147,8 @@ const subscribeStatusBarIdleGlow = (listener: () => void) => {
   };
 };
 const readStatusBarIdleGlow = () => blockWorkspacePreferences().statusBarIdleGlow === true;
+const readStatusBarIdleDelay = () => blockWorkspacePreferences().statusBarIdleDelaySeconds ?? 60;
+const readStatusBarIdleIntensity = () => blockWorkspacePreferences().statusBarIdleGlowIntensity ?? "soft";
 function normalizeVimConfig(value: string): string {
   const lines = value.split(/\r?\n/).filter(Boolean);
   const options = new Map<string, string>();
@@ -164,6 +166,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const statusBarPreference = useStatusBarDisplay(false);
   const statusPlugin = statusBarPreference.display;
   const statusBarIdleGlow = useSyncExternalStore(subscribeStatusBarIdleGlow, readStatusBarIdleGlow);
+  const statusBarIdleDelay = useSyncExternalStore(subscribeStatusBarIdleGlow, readStatusBarIdleDelay);
+  const statusBarIdleIntensity = useSyncExternalStore(subscribeStatusBarIdleGlow, readStatusBarIdleIntensity);
   const pluginsEnabled = useSyncExternalStore(pluginRuntime.subscribe, pluginRuntime.isEnabled);
   const contributedThemes = useSyncExternalStore(themeResources.subscribe, themeResources.getSnapshot);
   useSyncExternalStore(subscribeThemePreference, themePreferenceSnapshot);
@@ -1121,11 +1125,23 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="状态栏空闲光泽" desc="开启后，前台界面连续 60 秒无操作时，状态栏会缓慢扫过一道淡光；任何输入或滚动都会立即停止。默认关闭，并尊重系统减少动态效果设置。" visible={settingsPage === "editor"}>
+            <Field label="状态栏空闲光泽" desc="开启后，前台界面持续无操作时，状态栏会缓慢扫过一道淡光；任何输入或滚动都会立即停止。强度和等待时间可在下方调整。默认关闭，并尊重系统减少动态效果设置。" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input type="checkbox" aria-label="状态栏空闲光泽" checked={statusBarIdleGlow} onChange={event => saveBlockWorkspacePreferences({ statusBarIdleGlow: event.target.checked })} />
                 <span className="toggle-track" /><span className="toggle-label">{statusBarIdleGlow ? "开" : "关"}</span>
               </label>
+            </Field>
+
+            <Field label="光泽等待时间" desc="前台无操作多久后开始扫光；默认 60 秒。" visible={settingsPage === "editor"}>
+              <select aria-label="光泽等待时间" disabled={!statusBarIdleGlow} value={statusBarIdleDelay} onChange={event => saveBlockWorkspacePreferences({ statusBarIdleDelaySeconds: Number(event.target.value) as 15 | 30 | 60 | 120 })}>
+                <option value={15}>15 秒</option><option value={30}>30 秒</option><option value={60}>60 秒</option><option value={120}>120 秒</option>
+              </select>
+            </Field>
+
+            <Field label="光泽强度" desc="调节扫光的宽度和明暗；默认柔和。" visible={settingsPage === "editor"}>
+              <select aria-label="光泽强度" disabled={!statusBarIdleGlow} value={statusBarIdleIntensity} onChange={event => saveBlockWorkspacePreferences({ statusBarIdleGlowIntensity: event.target.value as "soft" | "balanced" | "prominent" })}>
+                <option value="soft">柔和</option><option value="balanced">标准</option><option value="prominent">醒目</option>
+              </select>
             </Field>
 
             <Field label="只读文档双击标题折叠" desc="专注模式下，双击标题或正文可折叠所属章节（桌面端与手机安装版）" visible={settingsPage === "editor"}>

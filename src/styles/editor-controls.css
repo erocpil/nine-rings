@@ -1611,10 +1611,22 @@ html[data-interface-style] .editor-menu .toolbar-split-button > .menu-btn:is(:ho
   scrollbar-width: none;
 }
 .editor-status-bar::-webkit-scrollbar { display: none; }
-.editor-status-bar[data-status-idle-glow="true"] {
-  background-image: linear-gradient(105deg, transparent 0%, color-mix(in srgb, var(--accent) 14%, transparent) 50%, transparent 100%) !important;
+.editor-status-bar[data-status-idle-glow="soft"] {
+  --status-idle-glow-accent: 14%;
+  --status-idle-glow-width: 34%;
+}
+.editor-status-bar[data-status-idle-glow="balanced"] {
+  --status-idle-glow-accent: 24%;
+  --status-idle-glow-width: 38%;
+}
+.editor-status-bar[data-status-idle-glow="prominent"] {
+  --status-idle-glow-accent: 36%;
+  --status-idle-glow-width: 44%;
+}
+.editor-status-bar[data-status-idle-glow] {
+  background-image: linear-gradient(105deg, transparent 0%, color-mix(in srgb, var(--accent) var(--status-idle-glow-accent), transparent) 50%, transparent 100%) !important;
   background-repeat: no-repeat;
-  background-size: 34% 100%;
+  background-size: var(--status-idle-glow-width) 100%;
   animation: status-bar-idle-sheen 12s ease-in-out infinite;
 }
 @keyframes status-bar-idle-sheen {
@@ -1622,7 +1634,7 @@ html[data-interface-style] .editor-menu .toolbar-split-button > .menu-btn:is(:ho
   52%, 100% { background-position: 150% 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .editor-status-bar[data-status-idle-glow="true"] { animation: none; background-position: -120% 0; }
+  .editor-status-bar[data-status-idle-glow] { animation: none; background-position: -120% 0; }
 }
 .editor-status-item { display: inline-flex; align-items: center; flex: 0 0 auto; white-space: nowrap; gap: inherit; }
 .editor-status-actions-start { margin-inline-start: auto; }

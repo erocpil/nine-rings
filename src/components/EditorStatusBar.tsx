@@ -159,7 +159,7 @@ export function EditorStatusBar({
       }}
       data-status-display={state.display ? "plugin" : undefined}
       data-status-show-in-focus={state.showInFocus || undefined}
-      data-status-idle-glow={idleGlow ? "true" : undefined}
+      data-status-idle-glow={idleGlow ?? undefined}
       style={
         state.display
           ? (statusDisplayStyle(state.display) as CSSProperties)
