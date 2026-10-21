@@ -958,7 +958,7 @@
   padding: 4px 6px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-raised, var(--surface)), black 8%);
+  background: var(--surface-raised, var(--surface));
   color: var(--text);
   box-shadow: 0 8px 28px rgb(0 0 0 / 24%);
   font: 14px/1.5 var(--editor-code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
