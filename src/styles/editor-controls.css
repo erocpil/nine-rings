@@ -1611,6 +1611,19 @@ html[data-interface-style] .editor-menu .toolbar-split-button > .menu-btn:is(:ho
   scrollbar-width: none;
 }
 .editor-status-bar::-webkit-scrollbar { display: none; }
+.editor-status-bar[data-status-idle-glow="true"] {
+  background-image: linear-gradient(105deg, transparent 0%, color-mix(in srgb, var(--accent) 14%, transparent) 50%, transparent 100%) !important;
+  background-repeat: no-repeat;
+  background-size: 34% 100%;
+  animation: status-bar-idle-sheen 12s ease-in-out infinite;
+}
+@keyframes status-bar-idle-sheen {
+  0%, 3% { background-position: -120% 0; }
+  52%, 100% { background-position: 150% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .editor-status-bar[data-status-idle-glow="true"] { animation: none; background-position: -120% 0; }
+}
 .editor-status-item { display: inline-flex; align-items: center; flex: 0 0 auto; white-space: nowrap; gap: inherit; }
 .editor-status-actions-start { margin-inline-start: auto; }
 .editor-status-bar .document-navigation button { width: 24px; height: 24px; padding: 2px; border: 1px solid transparent; background: transparent; }

@@ -138,6 +138,15 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
 };
 
 const VIM_CONFIG_KEY = "nr:vim-config";
+const subscribeStatusBarIdleGlow = (listener: () => void) => {
+  window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, listener);
+  window.addEventListener("storage", listener);
+  return () => {
+    window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, listener);
+    window.removeEventListener("storage", listener);
+  };
+};
+const readStatusBarIdleGlow = () => blockWorkspacePreferences().statusBarIdleGlow === true;
 function normalizeVimConfig(value: string): string {
   const lines = value.split(/\r?\n/).filter(Boolean);
   const options = new Map<string, string>();
@@ -154,6 +163,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const numberingPlugins = useNumberingDisplay();
   const statusBarPreference = useStatusBarDisplay(false);
   const statusPlugin = statusBarPreference.display;
+  const statusBarIdleGlow = useSyncExternalStore(subscribeStatusBarIdleGlow, readStatusBarIdleGlow);
   const pluginsEnabled = useSyncExternalStore(pluginRuntime.subscribe, pluginRuntime.isEnabled);
   const contributedThemes = useSyncExternalStore(themeResources.subscribe, themeResources.getSnapshot);
   useSyncExternalStore(subscribeThemePreference, themePreferenceSnapshot);
@@ -1108,6 +1118,13 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <label className="settings-toggle">
                 <input type="checkbox" aria-label="专注模式状态栏" disabled={Boolean(statusPlugin) || !config.editor_show_status_bar} checked={statusBarPreference.showInFocus} onChange={event => saveBlockWorkspacePreferences({ statusBarInFocus: event.target.checked })} />
                 <span className="toggle-track" /><span className="toggle-label">{statusBarPreference.showInFocus ? "显示" : "隐藏"}</span>
+              </label>
+            </Field>
+
+            <Field label="状态栏空闲光泽" desc="开启后，前台界面连续 60 秒无操作时，状态栏会缓慢扫过一道淡光；任何输入或滚动都会立即停止。默认关闭，并尊重系统减少动态效果设置。" visible={settingsPage === "editor"}>
+              <label className="settings-toggle">
+                <input type="checkbox" aria-label="状态栏空闲光泽" checked={statusBarIdleGlow} onChange={event => saveBlockWorkspacePreferences({ statusBarIdleGlow: event.target.checked })} />
+                <span className="toggle-track" /><span className="toggle-label">{statusBarIdleGlow ? "开" : "关"}</span>
               </label>
             </Field>
 

@@ -14,6 +14,7 @@ import {
 import { NavigationButtons } from "./NavigationButtons";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { DOCUMENT_LANGUAGE_OPTIONS } from "../lib/document-language";
+import { useStatusBarIdleGlow } from "../hooks/useStatusBarIdleGlow";
 type SaveStatus = "clean" | "dirty" | "saving" | "saved" | "error";
 export function EditorStatusBar({
   enabled,
@@ -53,6 +54,7 @@ export function EditorStatusBar({
   onCreateDocument?: () => void;
 }) {
   const state = useStatusBarDisplay(enabled, focusMode);
+  const idleGlow = useStatusBarIdleGlow(state.visible);
   const barRef = useRef<HTMLDivElement>(null);
   const tooltipTitles = useRef(new Map<HTMLElement, string>());
   useEffect(() => {
@@ -157,6 +159,7 @@ export function EditorStatusBar({
       }}
       data-status-display={state.display ? "plugin" : undefined}
       data-status-show-in-focus={state.showInFocus || undefined}
+      data-status-idle-glow={idleGlow ? "true" : undefined}
       style={
         state.display
           ? (statusDisplayStyle(state.display) as CSSProperties)
