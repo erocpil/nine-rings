@@ -18,7 +18,7 @@ for (const width of [390, 1280]) test(`内置 Markdown 全景演示 ${width}`, a
   await expect.poll(() => page.evaluate(async () => {
     const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
     return useNotesStore.getState().selectedNote?.storagePath;
-  })).toBe("ideas");
+  })).toBe("ideas/demo");
   const readonlyToggle = page.getByRole("button", { name: "点击设为只读", exact: true });
   if (await readonlyToggle.isVisible()) await readonlyToggle.click();
   const root = page.locator(".note-editor:visible .editor-content").first();

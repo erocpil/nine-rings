@@ -53,7 +53,7 @@ async function install(page: import("@playwright/test").Page) {
   await review.getByRole("button", { name: /点击确认：我已检查来源/ }).click();
   await review.getByRole("button", { name: "确认安装", exact: true }).click();
   await section
-    .getByRole("checkbox", { name: "启用 写作模板与片段", exact: true })
+    .getByRole("checkbox", { name: "切换 写作模板与片段", exact: true })
     .check();
   await page.getByRole("button", { name: "关闭设置", exact: true }).click();
 }
@@ -135,7 +135,7 @@ for (const source of [false, true])
     ).toBeVisible();
     await results.getByRole("button", { name: /^打开 会议验收/ }).click();
     await expect(results).toHaveCount(0);
-    if (source) await expect(page.locator(".note-title")).toContainText("会议验收");
+    if (source) await expect(page.locator(".note-title")).toHaveValue(/会议验收/);
     else await expect(page.locator(".note-title")).toHaveValue(/^会议验收/);
   });
 test("模板在确认创建之前被停用，不回退成空白文档", async ({ page }) => {

@@ -63,7 +63,7 @@ test("源码格式文档标题可编辑，悬停仍显示文档信息，状态�
   await title.press("Tab");
   await expect.poll(async () => (await getNote(page, sourceId))?.title).toBe("重命名后的 C 文档");
 
-  await page.locator(".markdown-source-title-row .note-title-field").hover();
+  await page.locator(".markdown-source-title-row .note-title-field").hover({ position: { x: 12, y: 15 } });
   await expect(page.getByRole("tooltip", { name: /重命名后的 C 文档 的文档信息/ })).toBeVisible();
 
   await page.getByRole("button", { name: "在当前路径新建文档" }).click();

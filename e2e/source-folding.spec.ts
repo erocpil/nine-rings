@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
-import { replaceSource, selectDocumentLanguage, scrollSourceTo, sourceInfo } from "./helpers/source-editor";
+import {
+  replaceSource,
+  selectDocumentLanguage,
+  scrollSourceTo,
+  sourceInfo,
+} from "./helpers/source-editor";
 
 test("C/C++ 折叠 if 后 else 保留独立折叠入口", async ({ page }) => {
   await createBlankDocument(page);
@@ -8,7 +13,9 @@ test("C/C++ 折叠 if 后 else 保留独立折叠入口", async ({ page }) => {
   const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
   const source = "if (outer) {\n  first();\n} else {\n  second();\n}";
   await replaceSource(area, source);
-  const controls = page.locator(".cm-foldGutter .cm-gutterElement:visible").filter({ has: page.locator("span") });
+  const controls = page
+    .locator(".cm-foldGutter .cm-gutterElement:visible")
+    .filter({ has: page.locator("span") });
   await controls.first().click();
   await expect(page.locator(".cm-foldPlaceholder")).toHaveCount(1);
   await expect(area).toContainText("second();");
@@ -21,69 +28,126 @@ test("C/C++ 折叠 if 后 else 保留独立折叠入口", async ({ page }) => {
   expect((await sourceInfo(area)).value).toBe(source);
 });
 
-test("源码标题级别菜单保留源码与只读保护，并排工具栏无竖向溢出", async ({ page }) => {
+test("源码标题级别菜单保留源码与只读保护，并排工具栏无竖向溢出", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1000, height: 850 });
   await createBlankDocument(page);
   await page.getByRole("button", { name: "源码", exact: true }).click();
-  const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
-  const text = "# One\nintro\n## Two\nbody\n### Three\nnested\n## Four\nbody\n# Five\ntail\n```\n# not a heading\n```";
+  const area = page.getByRole("textbox", {
+    name: "Markdown 源码",
+    exact: true,
+  });
+  const text =
+    "# One\nintro\n## Two\nbody\n### Three\nnested\n## Four\nbody\n# Five\ntail\n```\n# not a heading\n```";
   await page.mouse.move(500, 700);
-  await expect(page.getByRole("navigation", { name: "文档目录", exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "文档目录", exact: true }),
+  ).toHaveCount(0);
   await replaceSource(area, text);
   const toolbar = page.getByRole("toolbar", { name: "源码编辑工具" });
-  for (const [action, menu] of [["折叠全部", "选择折叠标题级别"], ["展开全部", "选择展开标题级别"]]) {
+  for (const [action, menu] of [
+    ["折叠全部", "选择折叠标题级别"],
+    ["展开全部", "选择展开标题级别"],
+  ]) {
     const arrow = toolbar.getByRole("button", { name: menu, exact: true });
     await arrow.scrollIntoViewIfNeeded();
-    const main = (await toolbar.getByRole("button", { name: action, exact: true }).boundingBox())!;
+    const main = (await toolbar
+      .getByRole("button", { name: action, exact: true })
+      .boundingBox())!;
     const arrowBox = (await arrow.boundingBox())!;
     const toolbarBox = (await toolbar.boundingBox())!;
     expect(arrowBox.x).toBeGreaterThanOrEqual(main.x + main.width - 1);
     expect(Math.abs(arrowBox.y - main.y)).toBeLessThanOrEqual(1);
-    expect(arrowBox.y + arrowBox.height).toBeLessThanOrEqual(toolbarBox.y + toolbarBox.height);
-    await expect.poll(() => arrow.locator("svg").evaluate(el => {
-      const rect = el.getBoundingClientRect();
-      return document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)?.closest("button") === el.closest("button");
-    })).toBe(true);
+    expect(arrowBox.y + arrowBox.height).toBeLessThanOrEqual(
+      toolbarBox.y + toolbarBox.height,
+    );
+    await expect
+      .poll(() =>
+        arrow.locator("svg").evaluate((el) => {
+          const rect = el.getBoundingClientRect();
+          return (
+            document
+              .elementFromPoint(
+                rect.x + rect.width / 2,
+                rect.y + rect.height / 2,
+              )
+              ?.closest("button") === el.closest("button")
+          );
+        }),
+      )
+      .toBe(true);
   }
-  const triangle = toolbar.getByRole("button", { name: "选择折叠标题级别", exact: true });
+  const triangle = toolbar.getByRole("button", {
+    name: "选择折叠标题级别",
+    exact: true,
+  });
   await triangle.scrollIntoViewIfNeeded();
   await expect(triangle.locator("svg")).toBeVisible();
   const glyph = (await triangle.locator("svg").boundingBox())!;
   const triangleBox = (await triangle.boundingBox())!;
   expect(glyph.height).toBeGreaterThanOrEqual(6);
   expect(glyph.y).toBeGreaterThanOrEqual(triangleBox.y);
-  expect(glyph.y + glyph.height).toBeLessThanOrEqual(triangleBox.y + triangleBox.height);
+  expect(glyph.y + glyph.height).toBeLessThanOrEqual(
+    triangleBox.y + triangleBox.height,
+  );
   await triangle.click();
-  await page.getByRole("menuitem", { name: "折叠 H2 及更深标题", exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: "折叠 H2 及更深标题", exact: true })
+    .click();
   await expect(area).toContainText("## Two");
   await expect(area).not.toContainText("### Three");
   await expect(area).toContainText("intro");
   await toolbar.getByRole("button", { name: "折叠全部", exact: true }).click();
-  await toolbar.getByRole("button", { name: "选择展开标题级别", exact: true }).click();
+  await toolbar
+    .getByRole("button", { name: "选择展开标题级别", exact: true })
+    .click();
   await page.getByRole("menuitem", { name: "展开至 H2", exact: true }).click();
   await expect(area).toContainText("### Three");
   await expect(area).not.toContainText("nested");
   await page.getByRole("button", { name: "设置只读", exact: true }).click();
-  await toolbar.getByRole("button", { name: "选择展开标题级别", exact: true }).click();
+  await toolbar
+    .getByRole("button", { name: "选择展开标题级别", exact: true })
+    .click();
   await page.getByRole("menuitem", { name: "展开至 H6", exact: true }).click();
   await expect(area).toContainText("nested");
   expect((await sourceInfo(area)).value).toBe(text);
   const singleToolbarBox = (await toolbar.boundingBox())!;
   await page.getByRole("button", { name: "并排预览", exact: true }).click();
-  await expect.poll(async () => (await toolbar.boundingBox())!.width).toBeCloseTo(singleToolbarBox.width, 0);
-  await expect.poll(async () => (await toolbar.boundingBox())!.y).toBeCloseTo(singleToolbarBox.y, 0);
-  const sourceBox = (await page.locator(".markdown-split-source").boundingBox())!;
-  const previewBox = (await page.getByRole("region", { name: "Markdown 实时预览" }).boundingBox())!;
+  await expect
+    .poll(async () => (await toolbar.boundingBox())!.width)
+    .toBeCloseTo(singleToolbarBox.width, 0);
+  await expect
+    .poll(async () => (await toolbar.boundingBox())!.y)
+    .toBeCloseTo(singleToolbarBox.y, 0);
+  const sourceBox = (await page
+    .locator(".markdown-split-source")
+    .boundingBox())!;
+  const previewBox = (await page
+    .getByRole("region", { name: "Markdown 实时预览" })
+    .boundingBox())!;
   expect(Math.abs(sourceBox.y - previewBox.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(sourceBox.y - singleToolbarBox.y - singleToolbarBox.height)).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(sourceBox.y - singleToolbarBox.y - singleToolbarBox.height),
+  ).toBeLessThanOrEqual(1);
   await expect(page.locator(".markdown-preview-header")).toHaveCount(0);
   const sync = page.getByRole("checkbox", { name: "同步滚动", exact: true });
   await expect(sync).toBeVisible();
-  await expect(toolbar.getByRole("button", { name: "加粗", exact: true })).toHaveCount(0);
-  expect(await toolbar.evaluate(el => getComputedStyle(el).overflowY)).toBe("hidden");
-  expect(await toolbar.evaluate(el => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
-  expect(await toolbar.evaluate(el => el.getBoundingClientRect().height)).toBe(36);
-  await toolbar.getByRole("button", { name: "选择折叠标题级别", exact: true }).click();
+  await expect(
+    toolbar.getByRole("button", { name: "加粗", exact: true }),
+  ).toHaveCount(0);
+  expect(await toolbar.evaluate((el) => getComputedStyle(el).overflowY)).toBe(
+    "hidden",
+  );
+  expect(
+    await toolbar.evaluate((el) => el.scrollHeight - el.clientHeight),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    await toolbar.evaluate((el) => el.getBoundingClientRect().height),
+  ).toBe(36);
+  await toolbar
+    .getByRole("button", { name: "选择折叠标题级别", exact: true })
+    .click();
   await expect(page.getByRole("menu", { name: "折叠标题级别" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("menu", { name: "折叠标题级别" })).toHaveCount(0);
@@ -94,8 +158,17 @@ test("源码标题级别菜单保留源码与只读保护，并排工具栏无�
 test("源码目录悬浮与固定均支持折叠展开及 Top Mid Bot", async ({ page }) => {
   await createBlankDocument(page);
   await page.getByRole("button", { name: "源码", exact: true }).click();
-  const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
-  await replaceSource(area, Array.from({ length: 80 }, (_, i) => `# Parent ${i}\n## Child ${i}\ntext`).join("\n"));
+  const area = page.getByRole("textbox", {
+    name: "Markdown 源码",
+    exact: true,
+  });
+  await replaceSource(
+    area,
+    Array.from(
+      { length: 80 },
+      (_, i) => `# Parent ${i}\n## Child ${i}\ntext`,
+    ).join("\n"),
+  );
   const trigger = page.getByRole("button", { name: "文档目录", exact: true });
   await trigger.hover();
   const panel = page.getByRole("navigation", { name: "文档目录", exact: true });
@@ -104,49 +177,93 @@ test("源码目录悬浮与固定均支持折叠展开及 Top Mid Bot", async ({
   for (const pinned of [false, true]) {
     if (pinned) await panel.getByRole("button", { name: /^固定目录$/ }).click();
     const list = panel.locator(".document-outline-list");
-    await panel.getByRole("button", { name: "滚动至底部", exact: true }).click();
-    await expect.poll(() => list.evaluate(el => el.scrollHeight - el.clientHeight - el.scrollTop)).toBeLessThan(2);
-    await panel.getByRole("button", { name: "滚动至中部", exact: true }).click();
-    await expect.poll(() => list.evaluate(el => el.scrollTop / (el.scrollHeight - el.clientHeight))).toBeCloseTo(.5, 1);
-    await panel.getByRole("button", { name: "滚动至顶部", exact: true }).click();
-    await expect.poll(() => list.evaluate(el => el.scrollTop)).toBeLessThan(2);
+    await panel
+      .getByRole("button", { name: "滚动至底部", exact: true })
+      .click();
+    await expect
+      .poll(() =>
+        list.evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop),
+      )
+      .toBeLessThan(2);
+    await panel
+      .getByRole("button", { name: "滚动至中部", exact: true })
+      .click();
+    await expect
+      .poll(() =>
+        list.evaluate(
+          (el) => el.scrollTop / (el.scrollHeight - el.clientHeight),
+        ),
+      )
+      .toBeCloseTo(0.5, 1);
+    await panel
+      .getByRole("button", { name: "滚动至顶部", exact: true })
+      .click();
+    await expect
+      .poll(() => list.evaluate((el) => el.scrollTop))
+      .toBeLessThan(2);
     await panel.getByRole("button", { name: "全部折叠", exact: true }).click();
-    await expect(panel.locator(".document-outline-text").filter({ hasText: /^Child / })).toHaveCount(0);
+    await expect(
+      panel.locator(".document-outline-text").filter({ hasText: /^Child / }),
+    ).toHaveCount(0);
     await panel.getByRole("button", { name: "全部展开", exact: true }).click();
-    await expect(panel.locator(".document-outline-text").filter({ hasText: /^Child / }).first()).toBeVisible();
+    await expect(
+      panel
+        .locator(".document-outline-text")
+        .filter({ hasText: /^Child / })
+        .first(),
+    ).toBeVisible();
   }
 });
-
 
 test("不提供级别选择的源码折叠按钮不预留三角区域", async ({ page }) => {
   await createBlankDocument(page);
   await selectDocumentLanguage(page, "c");
   const groups = page.locator(".source-fold-tool");
   await expect(groups).toHaveCount(1);
-  await expect(groups.getByRole("button", { name: "折叠全部", exact: true })).toBeVisible();
+  await expect(
+    groups.getByRole("button", { name: "折叠全部", exact: true }),
+  ).toBeVisible();
   for (const group of await groups.all()) {
     await expect(group.locator("button")).toHaveCount(1);
-    expect(await group.evaluate(el => el.getBoundingClientRect().width)).toBe(28);
+    expect(await group.evaluate((el) => el.getBoundingClientRect().width)).toBe(
+      28,
+    );
   }
   await selectDocumentLanguage(page, "markdown");
   for (const group of await groups.all()) {
     await expect(group.locator("button")).toHaveCount(2);
-    expect(await group.evaluate(el => el.getBoundingClientRect().width)).toBe(44);
+    expect(await group.evaluate((el) => el.getBoundingClientRect().width)).toBe(
+      44,
+    );
   }
   await selectDocumentLanguage(page, "c");
   const source = page.locator(".cm-content");
   await replaceSource(source, "int main() {\nreturn 0;\n}");
-  const toggle = page.getByRole("toolbar", { name: "源码编辑工具" }).getByRole("button", { name: "折叠全部", exact: true });
+  const toggle = page
+    .getByRole("toolbar", { name: "源码编辑工具" })
+    .getByRole("button", { name: "折叠全部", exact: true });
   await toggle.click();
-  await expect(page.getByRole("toolbar", { name: "源码编辑工具" }).getByRole("button", { name: "展开全部", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("toolbar", { name: "源码编辑工具" }).getByRole("button", { name: "展开全部", exact: true }).click();
-  await expect(page.getByRole("toolbar", { name: "源码编辑工具" }).getByRole("button", { name: "折叠全部", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    page
+      .getByRole("toolbar", { name: "源码编辑工具" })
+      .getByRole("button", { name: "展开全部", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page
+    .getByRole("toolbar", { name: "源码编辑工具" })
+    .getByRole("button", { name: "展开全部", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("toolbar", { name: "源码编辑工具" })
+      .getByRole("button", { name: "折叠全部", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
   for (const group of await groups.all()) {
     await expect(group.locator("button")).toHaveCount(1);
-    expect(await group.evaluate(el => el.getBoundingClientRect().width)).toBe(28);
+    expect(await group.evaluate((el) => el.getBoundingClientRect().width)).toBe(
+      28,
+    );
   }
 });
-
 
 test("源码折叠和展开按钮按当前折叠状态互斥高亮", async ({ page }) => {
   await createBlankDocument(page);
@@ -154,17 +271,30 @@ test("源码折叠和展开按钮按当前折叠状态互斥高亮", async ({ pa
   const area = page.locator(".cm-content");
   await replaceSource(area, "# 第一节\n正文\n## 第二节\n内容\n# 第三节\n正文");
   const toolbar = page.getByRole("toolbar", { name: "源码编辑工具" });
-  const collapse = toolbar.getByRole("button", { name: "折叠全部", exact: true });
+  const collapse = toolbar.getByRole("button", {
+    name: "折叠全部",
+    exact: true,
+  });
   const expand = toolbar.getByRole("button", { name: "展开全部", exact: true });
   await collapse.click();
   await expect(collapse).toHaveAttribute("aria-pressed", "true");
   await expect(expand).toHaveAttribute("aria-pressed", "false");
-  expect(await collapse.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(await toolbar.getByRole("button", { name: "语法高亮", exact: true }).evaluate(el => getComputedStyle(el).backgroundColor));
+  expect(
+    await collapse.evaluate((el) => getComputedStyle(el).backgroundColor),
+  ).toBe(
+    await toolbar
+      .getByRole("button", { name: "语法高亮", exact: true })
+      .evaluate((el) => getComputedStyle(el).backgroundColor),
+  );
   await expand.click();
   await expect(expand).toHaveAttribute("aria-pressed", "true");
   await expect(collapse).toHaveAttribute("aria-pressed", "false");
-  await toolbar.getByRole("button", { name: "选择折叠标题级别", exact: true }).click();
-  await page.getByRole("menuitem", { name: "折叠 H2 及更深标题", exact: true }).click();
+  await toolbar
+    .getByRole("button", { name: "选择折叠标题级别", exact: true })
+    .click();
+  await page
+    .getByRole("menuitem", { name: "折叠 H2 及更深标题", exact: true })
+    .click();
   await expect(collapse).toHaveAttribute("aria-pressed", "true");
   await expand.click();
   await expect(expand).toHaveAttribute("aria-pressed", "true");
@@ -174,38 +304,72 @@ test("源码折叠全部后展开恢复原可视行和行内偏移", async ({ pa
   await page.setViewportSize({ width: 1000, height: 820 });
   await createBlankDocument(page);
   await page.getByRole("button", { name: "源码", exact: true }).click();
-  const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
-  await replaceSource(source, Array.from({ length: 90 }, (_, index) => `# Section ${index}\nopening ${index}\n## Detail ${index}\nbody ${index}\nmore ${index}`).join("\n"));
+  const source = page.getByRole("textbox", {
+    name: "Markdown 源码",
+    exact: true,
+  });
+  await replaceSource(
+    source,
+    Array.from(
+      { length: 90 },
+      (_, index) =>
+        `# Section ${index}\nopening ${index}\n## Detail ${index}\nbody ${index}\nmore ${index}`,
+    ).join("\n"),
+  );
   const scroller = page.locator(".cm-scroller");
   await scrollSourceTo(source, "## Detail 45");
-  const topLine = async () => scroller.evaluate(element => {
-    const bounds = element.getBoundingClientRect();
-    const line = [...element.querySelectorAll<HTMLElement>(".cm-line")]
-      .find(candidate => candidate.getBoundingClientRect().bottom > bounds.top + 1);
-    return line ? {
-      text: line.textContent?.trim(),
-      offset: Math.round(line.getBoundingClientRect().top - bounds.top),
-    } : null;
-  });
+  const topLine = async () =>
+    scroller.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      const line = [...element.querySelectorAll<HTMLElement>(".cm-line")].find(
+        (candidate) =>
+          candidate.getBoundingClientRect().bottom > bounds.top + 1,
+      );
+      return line
+        ? {
+            text: line.textContent?.trim(),
+            offset: Math.round(line.getBoundingClientRect().top - bounds.top),
+          }
+        : null;
+    });
   const before = await topLine();
-  const beforeScrollTop = await scroller.evaluate(element => element.scrollTop);
+  const beforeScrollTop = await scroller.evaluate(
+    (element) => element.scrollTop,
+  );
   const toolbar = page.getByRole("toolbar", { name: "源码编辑工具" });
   await toolbar.getByRole("button", { name: "折叠全部", exact: true }).click();
-  await expect(toolbar.getByRole("button", { name: "折叠全部", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    toolbar.getByRole("button", { name: "折叠全部", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   await toolbar.getByRole("button", { name: "展开全部", exact: true }).click();
-  await expect(toolbar.getByRole("button", { name: "展开全部", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBeCloseTo(beforeScrollTop, 0);
+  await expect(
+    toolbar.getByRole("button", { name: "展开全部", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect
+    .poll(() => scroller.evaluate((element) => element.scrollTop))
+    .toBeCloseTo(beforeScrollTop, 0);
   await expect.poll(topLine).toEqual(before);
-  await expect.poll(() => page.locator(".cm-content").evaluate(element => getComputedStyle(element).paddingTop)).toBe("6px");
+  await expect
+    .poll(() =>
+      page
+        .locator(".cm-content")
+        .evaluate((element) => getComputedStyle(element).paddingTop),
+    )
+    .toBe("6px");
 });
 
-test("C/C++ 折叠占位符悬停预览受视口行数限制，点击仍展开", async ({ page }) => {
+test("C/C++ 折叠占位符预览完整源码并支持高亮与滚动，点击仍展开", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1000, height: 700 });
   await createBlankDocument(page);
   await selectDocumentLanguage(page, "c");
   const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
   await expect(area).toBeVisible({ timeout: 20000 });
-  const body = Array.from({ length: 32 }, (_, index) => `  int value${index} = ${index};`).join("\n");
+  const body = Array.from(
+    { length: 32 },
+    (_, index) => `  int value${index} = ${index};`,
+  ).join("\n");
   const source = `struct Preview {\n${body}\n};`;
   await replaceSource(area, source);
   const toolbar = page.getByRole("toolbar", { name: "源码编辑工具" });
@@ -216,15 +380,23 @@ test("C/C++ 折叠占位符悬停预览受视口行数限制，点击仍展开",
   const bubble = page.locator(".cm-fold-preview-bubble");
   await expect(bubble).toBeVisible();
   await expect(bubble).toContainText("int value0 = 0;");
-  const limits = await bubble.evaluate(element => ({
-    maximum: Number((element as HTMLElement).dataset.maxLines),
-    shown: Number((element as HTMLElement).dataset.shownLines),
-    lines: element.textContent?.split("\n").length ?? 0,
-  }));
-  expect(limits.maximum).toBeGreaterThan(0);
-  expect(limits.maximum).toBeLessThanOrEqual(15);
-  expect(limits.shown).toBeLessThanOrEqual(limits.maximum);
-  expect(limits.lines).toBeLessThanOrEqual(15);
+  await expect(
+    bubble.locator(".source-code-type, .source-code-keyword").first(),
+  ).toBeVisible();
+  const editorBox = (await page
+    .locator(".markdown-cm-host")
+    .first()
+    .boundingBox())!;
+  const previewBox = (await bubble.boundingBox())!;
+  expect(Math.abs(previewBox.width - editorBox.width * 0.75)).toBeLessThan(3);
+  expect(previewBox.height).toBeLessThanOrEqual(editorBox.height * 0.5 + 3);
+  await bubble.hover();
+  const scroll = bubble.locator(".cm-scroller");
+  await scroll.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect(bubble).toContainText("int value31 = 31;");
+  await expect(bubble).toBeVisible();
   await placeholder.click();
   await expect(page.locator(".cm-foldPlaceholder")).toHaveCount(0);
   await expect(bubble).toHaveCount(0);

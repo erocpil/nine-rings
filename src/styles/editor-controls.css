@@ -891,7 +891,7 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
   outline: none;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
 }
-.editor-status-bar .editor-status-select:disabled { opacity: .58; cursor: not-allowed; }
+.editor-status-bar .editor-status-select:disabled { opacity: .58; pointer-events: none; }
 .editor-status-create {
   margin-inline-start: 0;
   flex: 0 0 24px;

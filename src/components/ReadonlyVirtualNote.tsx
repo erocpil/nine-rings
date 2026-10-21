@@ -552,10 +552,12 @@ export function ReadonlyVirtualNote(
   const capture = useCallback((): ReadingAnchor => {
     const root = rootRef.current;
     const current = layoutRef.current;
-    const index = current.atOffset(root?.scrollTop ?? 0);
+    const inset = bodyRef.current ? Number.parseFloat(getComputedStyle(bodyRef.current).paddingTop) || 0 : 0;
+    const top = (root?.scrollTop ?? 0) - inset;
+    const index = current.atOffset(Math.max(0, top));
     return {
       position: current.blocks[index]?.pos ?? 0,
-      offset: (root?.scrollTop ?? 0) - current.offsets[index],
+      offset: top - current.offsets[index],
     };
   }, []);
   useEffect(() => {
@@ -758,7 +760,8 @@ export function ReadonlyVirtualNote(
     if (pendingAnchor.current && !scrollBusy.current) {
       const anchor = pendingAnchor.current;
       const index = layout.atPosition(anchor.position);
-      root.scrollTop = Math.max(0, layout.offsets[index] + anchor.offset);
+      const inset = bodyRef.current ? Number.parseFloat(getComputedStyle(bodyRef.current).paddingTop) || 0 : 0;
+      root.scrollTop = Math.max(0, inset + layout.offsets[index] + anchor.offset);
       pendingAnchor.current = null;
       const requestId = pendingNavigationRequest.current;
       if (requestId !== null) {
@@ -1792,7 +1795,7 @@ export function ReadonlyVirtualNote(
           onDelete={() => { void removeAnnotation(annotation.id); }} />;
       })()}
       {documentHover.preview}
-      <EditorStatusBar enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus ?? "clean"} block={`${doc.childCount} 块 · 已挂载 ${end - start} 块${selectionWindow ? " · 正在保留选区" : ""}`} />
+      <EditorStatusBar onCreateDocument={props.onCreateDocument} enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus ?? "clean"} block={`${doc.childCount} 块 · 已挂载 ${end - start} 块${selectionWindow ? " · 正在保留选区" : ""}`} />
 
     </div></DocumentOutlineContext.Provider>
   );

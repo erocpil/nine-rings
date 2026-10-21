@@ -66,7 +66,7 @@ test("路径目录过滤完整显示名称；调试日志位于系统信息设�
   await expect(page.locator(".debug-panel-inline").getByRole("button", { name: "复制" })).toBeVisible();
   await expect(page.locator(".debug-panel-inline").getByRole("button", { name: "清空" })).toBeVisible();
   await page.getByRole("button", { name: "关闭设置", exact: true }).click();
-  await status.getByRole("button", { name: "打开本机版本历史" }).click();
+  await page.evaluate(async () => (await import("/src/lib/native-menu-registry.ts")).runNativeMenuAction("document.history"));
   await expect(page.getByRole("dialog", { name: "版本历史" })).toBeVisible();
 });
 

@@ -66,7 +66,7 @@ test("属性页可预览、版本化更新并解除外部 Markdown 来源", asyn
   await expect(properties.locator(".prop-source-status")).toContainText("GitHub");
   await expect(page.locator(".note-title")).toHaveValue("外部来源测试");
 
-  await page.getByTitle("版本历史").click();
+  await page.evaluate(async () => (await import("/src/lib/native-menu-registry.ts")).runNativeMenuAction("document.history"));
   await expect(page.locator(".version-item")).toHaveCount(1);
   await expect(page.locator(".version-item")).toContainText("外部来源测试");
   await page.locator(".version-close").click();

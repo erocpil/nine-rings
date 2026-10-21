@@ -146,7 +146,8 @@ for (const width of [1440, 390]) {
         const editor = page.locator(".ProseMirror");
         await editor.fill("按钮功能正文");
         const action = async (_group: string, _mobile: string, desktop: string) => {
-          const button = page.getByTitle(desktop, { exact: true });
+          const name = desktop.split(" (")[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const button = page.getByTitle(new RegExp(`^${name}(?: \\(|$)`));
           if (width < 768) await button.tap();
           else await button.click();
         };
@@ -159,7 +160,7 @@ for (const width of [1440, 390]) {
         }
         for (const level of [3, 4, 5, 1, 2, 6]) {
           if (level === 1) await page.getByTitle("H1–2 H6", { exact: true }).click();
-          await page.getByTitle(`标题 ${level}`, { exact: true }).click();
+          await page.getByRole("button", { name: `标题 ${level}`, exact: true }).click();
           await expect(editor.locator(`h${level}`)).toHaveText("按钮功能正文");
         }
         await page.getByRole("button", { name: "标题 6", exact: true }).click();

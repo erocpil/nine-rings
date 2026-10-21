@@ -46,7 +46,7 @@ export function SearchBar({ initialQuery, onQueryChange, inputRef, onSearch, onD
   const [typeFilter, setTypeFilter] = useState<DocType | "">(initialQuery?.docType ?? "");
   const [conceptInput, setConceptInput] = useState(initialQuery?.concept ?? "");
   const [conceptFilter, setConceptFilter] = useState(initialQuery?.concept ?? "");
-  useEffect(() => {
+  useLayoutEffect(() => {
     inputRef?.current?.focus({ preventScroll: true });
   }, [inputRef]);
   useEffect(() => {

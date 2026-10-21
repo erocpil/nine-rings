@@ -321,7 +321,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
 
     {/* 分隔后右区：字号 / 颜色 / 图片 */}
     <div className="menu-dropdown" data-toolbar-tool="size">
-      <button className="menu-btn" onClick={(e) => { e.stopPropagation(); if (!readonly) toggleMobileToolbarMenu("size", sizeOpen); }} type="button" title="字号" aria-expanded={sizeOpen} disabled={readonly}>
+      <button className="menu-btn" onClick={(e) => { e.stopPropagation(); if (!readonly) toggleMobileToolbarMenu("size", sizeOpen); }} type="button" title="字号" aria-label="字号" aria-expanded={sizeOpen} disabled={readonly}>
         {selectionSize}{dropdownCaret}
       </button>
       {sizeOpen && (

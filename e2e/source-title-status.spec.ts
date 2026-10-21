@@ -1,9 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
-import { replaceSource, selectDocumentLanguage, selectSource, sourceInfo } from "./helpers/source-editor";
+import {
+  replaceSource,
+  selectDocumentLanguage,
+  selectSource,
+  sourceInfo,
+} from "./helpers/source-editor";
 
 async function titlePointerPoints(title: import("@playwright/test").Locator) {
-  return title.evaluate(element => {
+  return title.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     const style = getComputedStyle(element);
     const context = document.createElement("canvas").getContext("2d")!;
@@ -12,12 +17,22 @@ async function titlePointerPoints(title: import("@playwright/test").Locator) {
     const width = context.measureText(input.value).width;
     const left = rect.left + (Number.parseFloat(style.paddingLeft) || 0);
     const y = rect.top + rect.height / 2;
-    return { text: { x: left + Math.min(width / 2, 12), y }, blank: { x: Math.min(rect.right - 3, left + width + 40), y } };
+    return {
+      text: { x: left + Math.min(width / 2, 12), y },
+      blank: { x: Math.min(rect.right - 3, left + width + 40), y },
+    };
   });
 }
 
-test("源码标题回车恢复源码光标，状态栏加号紧邻格式选择且源码首行保留紧凑顶距", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "calm" })));
+test("源码标题回车恢复源码光标，状态栏加号紧邻格式选择且源码首行保留紧凑顶距", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nine_rings_config",
+      JSON.stringify({ interface_style: "calm" }),
+    ),
+  );
   await createBlankDocument(page, "源码标题回车");
   await selectDocumentLanguage(page, "c");
   const area = page.locator(".cm-content");
@@ -29,11 +44,16 @@ test("源码标题回车恢复源码光标，状态栏加号紧邻格式选择�
   const title = page.locator(".markdown-source-title-row .note-title");
   await title.fill("改过名称");
   await title.press("Enter");
-  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(oldCaret);
+  await expect
+    .poll(async () => (await sourceInfo(area)).selectionStart)
+    .toBe(oldCaret);
 
   const status = page.locator(".editor-status-bar");
-  const format = status.getByRole("combobox", { name: "文件格式", exact: true });
-  const create = status.getByRole("button", { name: "在当前路径新建文档", exact: true });
+  const format = status.getByRole("button", { name: "文件格式", exact: true });
+  const create = status.getByRole("button", {
+    name: "在当前路径新建文档",
+    exact: true,
+  });
   const formatBox = await format.boundingBox();
   const createBox = await create.boundingBox();
   expect(formatBox).not.toBeNull();
@@ -41,7 +61,9 @@ test("源码标题回车恢复源码光标，状态栏加号紧邻格式选择�
   const gap = createBox!.x - (formatBox!.x + formatBox!.width);
   expect(gap).toBeLessThanOrEqual(10);
 
-  expect(await area.evaluate(element => getComputedStyle(element).paddingTop)).toBe("6px");
+  expect(
+    await area.evaluate((element) => getComputedStyle(element).paddingTop),
+  ).toBe("6px");
 });
 
 test("窄窗口的只读源码状态栏可通过鼠标滚轮横向浏览", async ({ page }) => {
@@ -55,14 +77,28 @@ test("窄窗口的只读源码状态栏可通过鼠标滚轮横向浏览", async
 
   const status = page.getByRole("group", { name: "源码状态栏", exact: true });
   await expect(status).toBeVisible();
-  const initial = await status.evaluate(element => ({ left: element.scrollLeft, overflow: element.scrollWidth - element.clientWidth }));
+  await status.evaluate((element) => {
+    (element as HTMLElement).style.width = "260px";
+    (element as HTMLElement).style.flex = "0 0 260px";
+  });
+  await expect
+    .poll(() => status.evaluate((element) => element.scrollWidth - element.clientWidth))
+    .toBeGreaterThan(0);
+  const initial = await status.evaluate((element) => ({
+    left: element.scrollLeft,
+    overflow: element.scrollWidth - element.clientWidth,
+  }));
   expect(initial.overflow).toBeGreaterThan(0);
   const box = await status.boundingBox();
   expect(box).not.toBeNull();
-  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.move(box!.x + 4, box!.y + box!.height / 2);
   await page.mouse.wheel(0, 160);
-  await expect.poll(() => status.evaluate(element => element.scrollLeft)).toBeGreaterThan(initial.left);
-  await expect(status.getByRole("button", { name: "在当前路径新建文档", exact: true })).toHaveCount(0);
+  await expect
+    .poll(() => status.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(initial.left);
+  await expect(
+    status.getByRole("button", { name: "在当前路径新建文档", exact: true }),
+  ).toBeEnabled();
 });
 
 test("文档信息卡只在标题文字范围内悬停时出现", async ({ page }) => {
@@ -71,7 +107,52 @@ test("文档信息卡只在标题文字范围内悬停时出现", async ({ page 
   await expect(title).toBeVisible();
   const points = await titlePointerPoints(title);
   await page.mouse.move(points.blank.x, points.blank.y);
-  await expect(page.getByRole("tooltip", { name: /标题信息卡范围测试 的文档信息/ })).toHaveCount(0);
+  await expect(
+    page.getByRole("tooltip", { name: /标题信息卡范围测试 的文档信息/ }),
+  ).toHaveCount(0);
   await page.mouse.move(points.text.x, points.text.y);
-  await expect(page.getByRole("tooltip", { name: /标题信息卡范围测试 的文档信息/ })).toBeVisible();
+  await expect(
+    page.getByRole("tooltip", { name: /标题信息卡范围测试 的文档信息/ }),
+  ).toBeVisible();
 });
+
+for (const mode of ["source", "render", "virtual"] as const)
+  test(`只读 ${mode} 状态栏仍可在当前路径新建文档`, async ({ page }) => {
+    if (mode === "virtual")
+      await page.addInitScript(() =>
+        localStorage.setItem("nr:experimentalReadonlyRendering", "true"),
+      );
+    await createBlankDocument(page, "只读新建入口");
+    if (mode === "source") await selectDocumentLanguage(page, "c");
+    await page
+      .getByRole("button", {
+        name: mode === "source" ? "设置只读" : "点击设为只读",
+        exact: true,
+      })
+      .click();
+    if (mode === "virtual")
+      await expect(page.locator(".vr-note")).toBeVisible();
+    const id = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+    const create = page.getByRole("button", {
+      name: "在当前路径新建文档",
+      exact: true,
+    });
+    await expect(create).toBeEnabled();
+    await create.scrollIntoViewIfNeeded();
+    await create.click();
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("nr:lastNote")))
+      .not.toBe(id);
+    await expect(page.locator(".note-title:visible")).toHaveValue(/未命名/);
+    await expect
+      .poll(() =>
+        page.evaluate(async () => {
+          const { api } = await import("/src/lib/api.ts");
+          return (
+            (await api.notes.get(localStorage.getItem("nr:lastNote")!))!.content
+              .metadata?.sourceLanguage ?? "markdown"
+          );
+        }),
+      )
+      .toBe(mode === "source" ? "c" : "markdown");
+  });

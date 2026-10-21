@@ -163,7 +163,7 @@ test("可安装编号数据包无需权限或代码，启用和卸载恢复宿�
   await review.getByRole("button", { name: /点击确认：我已检查来源/ }).click();
   await review.getByRole("button", { name: "确认安装", exact: true }).click();
   await section
-    .getByRole("checkbox", { name: "启用 示例编号展示", exact: true })
+    .getByRole("checkbox", { name: "切换 示例编号展示", exact: true })
     .check();
   await expect(page.locator("html")).toHaveAttribute(
     "data-numbering-source",

@@ -114,7 +114,9 @@ test("排版设置中的调整即时生效并在重载后保持", async ({ page 
   expect(previewSpacing.nestedTop).toBe(0);
   expect(previewSpacing.unorderedIndent).toBeCloseTo(1.05, 2);
   expect(previewSpacing.orderedOffset).toBe(0);
-  expect(previewSpacing.orderedIndent).toBeGreaterThanOrEqual(previewSpacing.unorderedIndent);
+  // Ordered markers are now inline with each item's text; their parent no longer
+  // reserves a fixed marker column. Unordered lists retain a hanging marker.
+  expect(previewSpacing.orderedIndent).toBe(0);
   expect(previewSpacing.nestedOrderedIndent).toBeCloseTo(previewSpacing.orderedIndent, 2);
   expect(previewSpacing.unorderedMarker).toContain("•");
   expect(previewSpacing.orderedMarker).toContain("counter(editor-list-item)");

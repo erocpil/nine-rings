@@ -12,13 +12,28 @@ test("源码编辑高亮、列表续写、Tab、搜索替换和视图切换撤�
 }) => {
   await createBlankDocument(page);
   await page.getByRole("button", { name: "源码", exact: true }).click();
-  const toolbar = page.getByRole("toolbar", { name: "源码编辑工具", exact: true });
+  const toolbar = page.getByRole("toolbar", {
+    name: "源码编辑工具",
+    exact: true,
+  });
   await page.mouse.move(600, 600);
-  for (const name of ["查找替换", "跳转行", "软换行", "撤销", "重做", "加粗", "行内代码", "链接"]) {
+  for (const name of [
+    "查找替换",
+    "跳转行",
+    "软换行",
+    "撤销",
+    "重做",
+    "加粗",
+    "行内代码",
+    "链接",
+  ]) {
     const button = toolbar.getByRole("button", { name, exact: true });
     await expect(button).toHaveText("");
     await expect(button.locator("svg")).toBeVisible();
-    await expect(button).toHaveAttribute("title", new RegExp(`^${name}(?: [(]|$)`));
+    await expect(button).toHaveAttribute(
+      "title",
+      new RegExp(`^${name}(?: [(]|$)`),
+    );
   }
   await toolbar.getByRole("button", { name: "查找替换", exact: true }).hover();
   await expect(page.getByRole("tooltip")).toHaveText(/^查找替换/);
@@ -161,49 +176,99 @@ test("手机源码引用续写、围栏高亮、折叠、跳转与只读保护",
   ).toHaveCount(0);
 });
 
-
 test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true, highlight_active_line: true })));
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nine_rings_config",
+      JSON.stringify({
+        editor_show_line_numbers: true,
+        highlight_active_line: true,
+      }),
+    ),
+  );
   await createBlankDocument(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
   await page.getByRole("button", { name: "源码", exact: true }).click();
-  const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  const area = page.getByRole("textbox", {
+    name: "Markdown 源码",
+    exact: true,
+  });
   const value = "# Heading\n\nfirst body\n\n## Child\n\nsecond body";
   await replaceSource(area, value);
   await page.getByRole("button", { name: "设置只读", exact: true }).click();
   for (const text of ["first body", "second body"]) {
     await area.locator(".cm-line").filter({ hasText: text }).click();
     await expect(area.locator(".cm-activeLine")).toHaveText(text);
-    await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toHaveCount(0);
-    expect(await area.evaluate(el => getComputedStyle(el).caretColor)).toBe("rgba(0, 0, 0, 0)");
-
+    await expect(
+      page.locator(".markdown-cm-host .cm-cursorLayer"),
+    ).toBeHidden();
+    expect(await area.evaluate((el) => getComputedStyle(el).caretColor)).toBe(
+      "rgba(0, 0, 0, 0)",
+    );
   }
   await expect(area).toHaveAttribute("contenteditable", "false");
-  await expect(page.locator(".markdown-cm-host .cm-selectionLayer")).toHaveCount(0);
-  const copied = await area.evaluate(el => {
+  await expect(
+    page.locator(
+      ".markdown-cm-host .cm-selectionLayer .cm-selectionBackground",
+    ),
+  ).toHaveCount(0);
+  const copied = await area.evaluate((el) => {
     const lines = [...el.querySelectorAll(".cm-line")];
-    const first = lines.find(line => line.textContent === "first body")!;
-    const last = lines.find(line => line.textContent === "second body")!;
-    const start = document.createTreeWalker(first, NodeFilter.SHOW_TEXT).nextNode()!;
-    const end = document.createTreeWalker(last, NodeFilter.SHOW_TEXT).nextNode()!;
+    const first = lines.find((line) => line.textContent === "first body")!;
+    const last = lines.find((line) => line.textContent === "second body")!;
+    const start = document
+      .createTreeWalker(first, NodeFilter.SHOW_TEXT)
+      .nextNode()!;
+    const end = document
+      .createTreeWalker(last, NodeFilter.SHOW_TEXT)
+      .nextNode()!;
     // Native mobile handles can extend a selection in either direction.
     const selection = window.getSelection()!;
     selection.setBaseAndExtent(end, 6, start, 2);
     const clipboardData = new DataTransfer();
-    el.dispatchEvent(new ClipboardEvent("copy", { clipboardData, bubbles: true, cancelable: true }));
-    return { text: clipboardData.getData("text/plain"), selected: selection.toString(), color: getComputedStyle(first, "::selection").backgroundColor, selectable: getComputedStyle(first).getPropertyValue("user-select") || getComputedStyle(first).getPropertyValue("-webkit-user-select") };
+    el.dispatchEvent(
+      new ClipboardEvent("copy", {
+        clipboardData,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    return {
+      text: clipboardData.getData("text/plain"),
+      selected: selection.toString(),
+      color: getComputedStyle(first, "::selection").backgroundColor,
+      selectable:
+        getComputedStyle(first).getPropertyValue("user-select") ||
+        getComputedStyle(first).getPropertyValue("-webkit-user-select"),
+    };
   });
   expect(copied.text).toBe("rst body\n\n## Child\n\nsecond");
   expect(copied.selected).toContain("rst body");
   expect(copied.selectable).toBe("text");
-  expect(copied.color).not.toBe("rgba(0, 0, 0, 0)");
-  await expect(page.locator(".markdown-cm-host .cm-cursor")).toHaveCount(0);
+  await expect(
+    page.locator(".markdown-cm-host .cm-selectionBackground").first(),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .locator(".markdown-cm-host .cm-selectionBackground")
+        .first()
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+    )
+    .not.toBe("rgba(0, 0, 0, 0)");
+  await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toBeHidden();
   expect((await sourceInfo(area)).value).toBe(value);
   await area.evaluate(() => window.getSelection()?.removeAllRanges());
-  const marker = page.locator(".cm-foldGutter .cm-gutterElement").filter({ has: page.locator('[data-fold-expanded="true"]') }).first();
-  const number = page.locator(".cm-lineNumbers .cm-gutterElement").filter({ hasText: /^1$/ });
-  const m = (await marker.boundingBox())!, n = (await number.boundingBox())!;
+  const marker = page
+    .locator(".cm-foldGutter .cm-gutterElement")
+    .filter({ has: page.locator('[data-fold-expanded="true"]') })
+    .first();
+  const number = page
+    .locator(".cm-lineNumbers .cm-gutterElement")
+    .filter({ hasText: /^1$/ });
+  const m = (await marker.boundingBox())!,
+    n = (await number.boundingBox())!;
   expect(Math.abs(m.y - n.y)).toBeLessThan(1);
   expect(m.width).toBeGreaterThanOrEqual(28);
   const arrow = (await marker.locator("span").boundingBox())!;
@@ -213,8 +278,11 @@ test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page 
   await expect(page.locator(".cm-foldPlaceholder")).toBeVisible();
   await page.getByRole("button", { name: "切换为可编辑", exact: true }).click();
   await expect(area).toHaveAttribute("contenteditable", "true");
-  await expect(page.locator(".markdown-cm-host .cm-selectionLayer")).toHaveCount(1);
+  await expect(
+    page.locator(".markdown-cm-host .cm-selectionLayer"),
+  ).toHaveCount(1);
   await expect(area).toHaveAttribute("aria-readonly", "false");
-  await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toHaveCount(1);
-
+  await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toHaveCount(
+    1,
+  );
 });

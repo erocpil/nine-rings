@@ -396,7 +396,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       <Suspense fallback={<div role="status">正在加载预览…</div>}>
         <SourceDocumentPreview language={documentLanguage} source={sourceSession.current?.current.source ?? readDocumentSource(props.content)} fontSize={props.editorFontSize} />
       </Suspense>
-      <EditorStatusBar enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus} onCreateDocument={props.readonly ? undefined : props.onCreateDocument} />
+      <EditorStatusBar enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus} onCreateDocument={props.onCreateDocument} />
     </> : source === null ? render({
       ...props,
       ...languageProps,
@@ -446,7 +446,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       <div className="markdown-source-toolbar-host" ref={setSourceToolbarTarget} />
       <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={hasPreview && preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
-      <MarkdownSourceEditor documentLanguage={documentLanguage} onDocumentLanguageChange={props.readonly || busy ? undefined : languageProps.onDocumentLanguageChange} onCreateDocument={props.readonly ? undefined : props.onCreateDocument} statusTarget={sourceStatusTarget} focusMode={props.focusMode} showStatusBar={props.showStatusBar} saveStatus={props.saveStatus} toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly)} editingDisabled={busy}
+      <MarkdownSourceEditor documentLanguage={documentLanguage} onDocumentLanguageChange={props.readonly || busy ? undefined : languageProps.onDocumentLanguageChange} onCreateDocument={props.onCreateDocument} statusTarget={sourceStatusTarget} focusMode={props.focusMode} showStatusBar={props.showStatusBar} saveStatus={props.saveStatus} toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly)} editingDisabled={busy}
         areaRef={viewPosition.area} onReady={hostSourceReady} onSelectionChange={hostSelection} session={sourceEditorState} onChange={editSource}
         onEditorConfigChange={props.onEditorConfigChange}
         showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine}

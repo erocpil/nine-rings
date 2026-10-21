@@ -14,8 +14,20 @@ import { DEFAULT_CONFIG } from "../../src/lib/storage/types";
 
 afterEach(() => vi.unstubAllGlobals());
 test("appearance diagnostics distinguish classic theme from interface style", () => {
-  expect(formatInterfaceAppearanceLog({ ...DEFAULT_CONFIG, interface_style: "classic", theme: "nord" })).toBe("主题: nord");
-  expect(formatInterfaceAppearanceLog({ ...DEFAULT_CONFIG, interface_style: "mono-aware", interface_color_mode: "dark" })).toBe("风格: 物哀 | 配色: 深色");
+  expect(
+    formatInterfaceAppearanceLog({
+      ...DEFAULT_CONFIG,
+      interface_style: "classic",
+      theme: "nord",
+    }),
+  ).toBe("主题: nord");
+  expect(
+    formatInterfaceAppearanceLog({
+      ...DEFAULT_CONFIG,
+      interface_style: "mono-aware",
+      interface_color_mode: "dark",
+    }),
+  ).toBe("风格: 物哀 | 配色: 深色");
 });
 test("classic displays standard layout without replacing the saved layout for other styles", () => {
   for (const workspace_layout of ["standard", "exhibition"] as const) {

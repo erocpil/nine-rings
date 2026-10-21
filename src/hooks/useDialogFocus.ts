@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from "react";
+import { useLayoutEffect, useRef, type RefObject } from "react";
 
 /** Keep Tab within a visible dialog and restore its trigger after dismissal. */
 export function useDialogFocus(
@@ -10,7 +10,7 @@ export function useDialogFocus(
 ) {
   const restoreFrameRef = useRef<number | null>(null);
   const previousFocusRef = useRef<Element | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = containerRef.current;
     if (!active || !container) return;
     // Strict Mode replays effects; a pending cleanup must not steal focus

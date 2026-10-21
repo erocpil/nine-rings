@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { findSourceWordMatches, groupSourceWordMatchesByLine, sourceWordAt } from "../../src/lib/source-word-occurrences";
+import {
+  findSourceWordMatches,
+  groupSourceWordMatchesByLine,
+  sourceWordAt,
+} from "../../src/lib/source-word-occurrences";
 
 describe("源码全词匹配", () => {
   it("从光标位置取得完整标识符，包含下划线和数字", () => {
@@ -21,6 +25,14 @@ describe("源码全词匹配", () => {
 
   it("将同一行的多个匹配归并为一条结果", () => {
     const matches = findSourceWordMatches("word + word\nword", "word");
-    expect(groupSourceWordMatchesByLine(matches).map(group => [group.line, group.matches.length])).toEqual([[1, 2], [2, 1]]);
+    expect(
+      groupSourceWordMatchesByLine(matches).map((group) => [
+        group.line,
+        group.matches.length,
+      ]),
+    ).toEqual([
+      [1, 2],
+      [2, 1],
+    ]);
   });
 });

@@ -49,7 +49,7 @@ test.describe("移动端视图切换", () => {
     await expect(selected).toContainText("手机启动恢复文档");
     await expect(selected).toBeVisible();
     for (const folder of ["references", "mobile-startup", "deep"]) {
-      const name = page.locator(`.doc-tree-folder > .doc-tree-name[title="${folder}"]`);
+      const name = page.locator(".doc-tree-folder > .doc-tree-name").filter({ hasText: new RegExp(`^${folder}$`) });
       await expect(name).toBeVisible();
       await expect(name.locator("..").locator(":scope > .doc-tree-toggle"))
         .toHaveAttribute("aria-expanded", "true");

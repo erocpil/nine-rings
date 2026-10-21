@@ -121,7 +121,8 @@ test("手机局部只读书签应用同一展示，跳转后收回面板", async
   const panel = page.locator(".vr-panel[data-document-kind=bookmarks]");
   const list = panel.locator(".document-bookmark-list");
   await expect(list).toHaveAttribute("data-panel-display", "plugin");
-  await expect(list.locator(".vr-bookmark")).toHaveText(["Alpha", "Zeta"]);
+  await expect(list.locator(".vr-bookmark").nth(0)).toHaveAccessibleName("Alpha");
+  await expect(list.locator(".vr-bookmark").nth(1)).toHaveAccessibleName("Zeta");
   await expect(list.locator(".vr-bookmark").first()).toHaveCSS("font-size", "18px");
   expect(await list.locator(".vr-bookmark").first().evaluate(el => el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(42);
   await list.locator(".vr-bookmark").first().click();

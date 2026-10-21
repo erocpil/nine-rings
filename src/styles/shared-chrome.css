@@ -950,6 +950,8 @@
 .cm-fold-preview-bubble {
   position: fixed;
   z-index: 12000;
+  inset: auto;
+  margin: 0;
   box-sizing: border-box;
   width: min(560px, calc(100vw - 16px));
   overflow: hidden;
@@ -962,7 +964,7 @@
   font: 12px/1.5 var(--editor-code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .doc-tree-path-toast {
@@ -982,3 +984,7 @@
   overflow-wrap: anywhere;
   pointer-events: none;
 }
+
+/* Keep horizontal source and rendered editor rails unobtrusive. */
+.note-editor-scroll::-webkit-scrollbar:horizontal,
+.markdown-cm-host .cm-scroller::-webkit-scrollbar:horizontal { height: 4px; }

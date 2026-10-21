@@ -429,17 +429,14 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     else setEditorAppearanceOpen(false);
   }, [clearMessage, open]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
     const previouslyFocused = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    const frame = window.requestAnimationFrame(() => {
-      const target = mobileSettingsViewport ? settingsPanelRef.current : closeButtonRef.current;
-      target?.focus({ preventScroll: true });
-    });
+    const target = mobileSettingsViewport ? settingsPanelRef.current : closeButtonRef.current;
+    target?.focus({ preventScroll: true });
     return () => {
-      window.cancelAnimationFrame(frame);
       previouslyFocused?.focus();
     };
   }, [open, mobileSettingsViewport]);

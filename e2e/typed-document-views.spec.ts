@@ -25,7 +25,7 @@ for (const language of ["", "python", "json"]) test(`${language || "text"} 仅�
   await page.reload();
   await expect(area).toBeVisible();
   await expect.poll(async () => (await sourceInfo(area)).value).toBe(afterEnter);
-  await expect(page.getByRole("combobox", { name: "文件格式", exact: true })).toHaveValue(language);
+  await expect(page.locator(".editor-status-bar").getByRole("button", { name: "文件格式", exact: true })).toBeVisible();
 });
 
 for (const language of ["flow", "mermaid"]) test(`${language} 整份文档支持源码、渲染及并排预览，不需要围栏`, async ({ page }) => {
@@ -100,7 +100,7 @@ test("源码专用文档重开恢复位置，只读后保留浏览能力并禁�
   // CM may adjust virtual spacer pixels after mounting read-only content;
   // the actual first visible source character is the reading-position contract.
   await expect.poll(async () => (await sourceInfo(area)).offset).toBe(locked.offset);
-  await expect(page.getByRole("combobox", { name: "文件格式", exact: true })).toBeDisabled();
+  await expect(page.locator(".editor-status-bar").getByRole("button", { name: "文件格式", exact: true })).toBeDisabled();
 });
 
 test("Markdown 源码粘贴 C 文本并切换 C/C++ 保留原文和等宽字体", async ({ page }) => {
@@ -120,9 +120,10 @@ test("Markdown 源码粘贴 C 文本并切换 C/C++ 保留原文和等宽字体"
   await expect(page.locator(".ProseMirror")).toBeVisible();
   await page.getByRole("button", { name: "源码", exact: true }).click();
   await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
-  const picker = page.getByRole("combobox", { name: "文件格式", exact: true });
-  await expect(picker.locator('option[value="csharp"], option[value="cpp"]')).toHaveCount(0);
-  await picker.selectOption("c");
+  const picker = page.locator(".editor-status-bar").getByRole("button", { name: "文件格式", exact: true });
+  await picker.click();
+  await expect(page.getByRole("menuitemcheckbox", { name: "C#", exact: true })).toHaveCount(0);
+  await page.getByRole("menuitemcheckbox", { name: "C/C++", exact: true }).click();
   await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
   await expect(page.locator(".cm-scroller")).toHaveCSS("font-family", /monospace/);
   await expect.poll(() => page.evaluate(async () => {

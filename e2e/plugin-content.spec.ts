@@ -65,7 +65,7 @@ for (const { source, width } of [
     await review.getByRole("button", { name: /点击确认：我已检查来源/ }).click();
     await review.getByRole("button", { name: "确认安装", exact: true }).click();
     await section
-      .getByRole("checkbox", { name: "启用 写作模板与片段", exact: true })
+      .getByRole("checkbox", { name: "切换 写作模板与片段", exact: true })
       .check();
     await page.getByRole("button", { name: "关闭设置", exact: true }).click();
     if (source)

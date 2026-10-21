@@ -123,7 +123,7 @@ test("更多工具按钮在普通渲染、源码和专注模式共享显隐状�
   await createBlankDocument(page, "普通模式更多工具");
   const tools = page.getByRole("button", { name: "更多工具", exact: true });
   const renderToolbar = page.locator(".editor-menu");
-  await expect(page.getByRole("combobox", { name: "文件格式", exact: true })).toHaveCount(0);
+  await expect(page.locator(".editor-status-bar").getByRole("button", { name: "文件格式", exact: true })).toHaveCount(0);
   await expect(page.getByText("历史", { exact: true })).toHaveCount(0);
   await expect(tools).toBeVisible();
   await expect(tools).toHaveAttribute("aria-expanded", "true");
@@ -133,7 +133,7 @@ test("更多工具按钮在普通渲染、源码和专注模式共享显隐状�
 
   await page.getByRole("button", { name: "源码", exact: true }).click();
   const sourceToolbar = page.locator(".markdown-source-toolbar-host");
-  await expect(page.getByRole("combobox", { name: "文件格式", exact: true })).toBeVisible();
+  await expect(page.locator(".editor-status-bar").getByRole("button", { name: "文件格式", exact: true })).toBeVisible();
   await expect(tools).toHaveAttribute("aria-expanded", "false");
   await expect(sourceToolbar).toBeHidden();
   await tools.click();

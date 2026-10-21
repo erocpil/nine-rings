@@ -151,14 +151,27 @@ it("adds, renames, removes, and round-trips source bookmarks through shared docu
   expect(added.bookmarks[0].preview).toBe("第二段");
   const saved = added.read();
   const renderedBlocks = renderedTextblockMap(deltaToProseMirror(saved));
-  expect(renderedBlocks.find(block => block.position + 1 === saved.metadata?.bookmarks?.[0].position)?.text).toBe("第二段");
+  expect(
+    renderedBlocks.find(
+      (block) => block.position + 1 === saved.metadata?.bookmarks?.[0].position,
+    )?.text,
+  ).toBe("第二段");
 
   const reopened = new SourceNavigationSession(source, saved);
-  expect(reopened.current.bookmarks.map(({ id, label, preview }) => ({ id, label, preview }))).toEqual(
+  expect(
+    reopened.current.bookmarks.map(({ id, label, preview }) => ({
+      id,
+      label,
+      preview,
+    })),
+  ).toEqual(
     added.bookmarks.map(({ id, label, preview }) => ({ id, label, preview })),
   );
   reopened.renameBookmark(added.bookmarks[0].id, "稍后处理");
-  expect(reopened.current.read().metadata?.bookmarks?.[0]).toMatchObject({ id: added.bookmarks[0].id, label: "稍后处理" });
+  expect(reopened.current.read().metadata?.bookmarks?.[0]).toMatchObject({
+    id: added.bookmarks[0].id,
+    label: "稍后处理",
+  });
 
   const moved = reopened.update(`前言\n\n${source}`);
   expect(moved.bookmarks[0].offset).toBe(moved.source.indexOf("第二段"));

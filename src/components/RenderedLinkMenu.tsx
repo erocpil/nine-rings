@@ -1,62 +1,156 @@
-import { canRemoveRenderedLink, removeRenderedLink } from "../lib/rendered-link-editing";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  canRemoveRenderedLink,
+  removeRenderedLink,
+} from "../lib/rendered-link-editing";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { copyToClipboard } from "../lib/clipboard";
 import { isTauriRuntime } from "../lib/runtime";
 import { useTransientMessage } from "../hooks/useTransientMessage";
 import { api } from "../lib/api";
-import { isRelativeMarkdownLink, resolveRelativeDocumentLink, type LinkDocument } from "../lib/relative-document-link";
+import {
+  isRelativeMarkdownLink,
+  resolveRelativeDocumentLink,
+  type LinkDocument,
+} from "../lib/relative-document-link";
 import { internalNoteId, internalReferenceId } from "../lib/internal-note-link";
 import type { Note } from "../types/models";
-import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
+import {
+  documentOpenOptions,
+  type DocumentOpenOptions,
+} from "../lib/document-open";
 
 function linkAt(target: EventTarget | null): HTMLAnchorElement | null {
-  if (!(target instanceof Element) || target.closest(".block-selection-active")) return null;
+  if (!(target instanceof Element) || target.closest(".block-selection-active"))
+    return null;
   const link = target.closest<HTMLAnchorElement>("a[href]");
   return link?.closest(".editor-content") ? link : null;
 }
 
-export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { children: ReactNode; noteId: string; onOpenLinkedNote?: (note: Note, referenceId?: string, options?: DocumentOpenOptions) => Promise<void> }) {
-  const [menu, setMenu] = useState<{ url: string; x: number; y: number; anchor: HTMLAnchorElement } | null>(null);
-  const [suggestion, setSuggestion] = useState<{ path: string; candidates: LinkDocument[]; x: number; y: number; options?: DocumentOpenOptions } | null>(null);
+export function RenderedLinkMenu({
+  children,
+  noteId,
+  onOpenLinkedNote,
+}: {
+  children: ReactNode;
+  noteId: string;
+  onOpenLinkedNote?: (
+    note: Note,
+    referenceId?: string,
+    options?: DocumentOpenOptions,
+  ) => Promise<void>;
+}) {
+  const [menu, setMenu] = useState<{
+    url: string;
+    x: number;
+    y: number;
+    anchor: HTMLAnchorElement;
+  } | null>(null);
+  const [suggestion, setSuggestion] = useState<{
+    path: string;
+    candidates: LinkDocument[];
+    x: number;
+    y: number;
+    options?: DocumentOpenOptions;
+  } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const scope = useRef<HTMLDivElement>(null);
   const focus = useRef<HTMLElement | null>(null);
-  const press = useRef<{ x: number; y: number; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const press = useRef<{
+    x: number;
+    y: number;
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
   const suppressClickUntil = useRef(0);
   const longPressed = useRef(false);
   const { message, showMessage } = useTransientMessage();
-  const cancelPress = () => {
+  const cancelPress = useCallback(() => {
     if (press.current) clearTimeout(press.current.timer);
     press.current = null;
-  };
+  }, []);
   const close = () => {
     setMenu(null);
     setSuggestion(null);
     focus.current?.focus({ preventScroll: true });
   };
-  const show = (link: HTMLAnchorElement, x: number, y: number) => {
-    cancelPress();
-    if (!ref.current?.contains(document.activeElement)) focus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setSuggestion(null);
-    setMenu({ url: link.getAttribute("href") ?? link.href, x, y, anchor: link });
-  };
-  const openRelative = async (href: string, label: string, x: number, y: number, options?: DocumentOpenOptions) => {
+  const show = useCallback(
+    (link: HTMLAnchorElement, x: number, y: number) => {
+      cancelPress();
+      if (!ref.current?.contains(document.activeElement))
+        focus.current =
+          document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+      setSuggestion(null);
+      setMenu({
+        url: link.getAttribute("href") ?? link.href,
+        x,
+        y,
+        anchor: link,
+      });
+    },
+    [cancelPress],
+  );
+  useEffect(() => {
+    const root = scope.current;
+    if (!root) return;
+    // TipTap node views use separate React roots. Native capture reaches links
+    // in quotes/code projections before the editor's generic context menu.
+    const contextMenu = (event: MouseEvent) => {
+      const link = linkAt(event.target);
+      if (!link) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (press.current) {
+        longPressed.current = true;
+        suppressClickUntil.current = Infinity;
+      }
+      const rect = link.getBoundingClientRect();
+      show(link, event.clientX || rect.left, event.clientY || rect.bottom);
+    };
+    root.addEventListener("contextmenu", contextMenu, true);
+    return () => root.removeEventListener("contextmenu", contextMenu, true);
+  }, [show]);
+  const openRelative = async (
+    href: string,
+    label: string,
+    x: number,
+    y: number,
+    options?: DocumentOpenOptions,
+  ) => {
     if (!onOpenLinkedNote) return;
     try {
-      const [source, notes] = await Promise.all([api.notes.get(noteId), api.notes.all()]);
+      const [source, notes] = await Promise.all([
+        api.notes.get(noteId),
+        api.notes.all(),
+      ]);
       if (!source) throw new Error("当前文档已不存在");
-      const documents: LinkDocument[] = notes.filter(note => !note.deleted_at).map(note => ({
-        id: note.id,
-        title: note.title,
-        storagePath: note.storagePath,
-        originalFileName: note.content.metadata?.originalFileName,
-      }));
-      const target = resolveRelativeDocumentLink({
-        id: source.id,
-        title: source.title,
-        storagePath: source.storagePath,
-        originalFileName: source.content.metadata?.originalFileName,
-      }, href, label, documents);
+      const documents: LinkDocument[] = notes
+        .filter((note) => !note.deleted_at)
+        .map((note) => ({
+          id: note.id,
+          title: note.title,
+          storagePath: note.storagePath,
+          originalFileName: note.content.metadata?.originalFileName,
+        }));
+      const target = resolveRelativeDocumentLink(
+        {
+          id: source.id,
+          title: source.title,
+          storagePath: source.storagePath,
+          originalFileName: source.content.metadata?.originalFileName,
+        },
+        href,
+        label,
+        documents,
+      );
       if (!target) throw new Error("无法解析此文档路径");
       if (target.exact) {
         const note = await api.notes.get(target.exact.id);
@@ -66,12 +160,24 @@ export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { child
         return;
       }
       setMenu(null);
-      setSuggestion({ path: `${target.folder}/${target.fileName}`, candidates: target.suggestions, x, y, options });
+      setSuggestion({
+        path: `${target.folder}/${target.fileName}`,
+        candidates: target.suggestions,
+        x,
+        y,
+        options,
+      });
     } catch (error) {
-      showMessage(`打开文档链接失败：${error instanceof Error ? error.message : String(error)}`);
+      showMessage(
+        `打开文档链接失败：${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   };
-  const openInternal = async (id: string, referenceId?: string, options?: DocumentOpenOptions) => {
+  const openInternal = async (
+    id: string,
+    referenceId?: string,
+    options?: DocumentOpenOptions,
+  ) => {
     if (!onOpenLinkedNote) return;
     try {
       const note = await api.notes.get(id);
@@ -79,10 +185,12 @@ export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { child
       close();
       await onOpenLinkedNote(note, referenceId, options);
     } catch (error) {
-      showMessage(`打开文档链接失败：${error instanceof Error ? error.message : String(error)}`);
+      showMessage(
+        `打开文档链接失败：${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   };
-  useEffect(() => () => cancelPress(), []);
+  useEffect(() => () => cancelPress(), [cancelPress]);
   useLayoutEffect(() => {
     const popup = menu ?? suggestion;
     if (!popup || !ref.current) return;
@@ -92,14 +200,22 @@ export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { child
     const top = viewport?.offsetTop ?? 0;
     ref.current.style.left = `${Math.max(left + 8, Math.min(popup.x, left + (viewport?.width ?? innerWidth) - box.width - 8))}px`;
     ref.current.style.top = `${Math.max(top + 8, Math.min(popup.y, top + (viewport?.height ?? innerHeight) - box.height - 8))}px`;
-    ref.current.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+    ref.current
+      .querySelector<HTMLButtonElement>("button")
+      ?.focus({ preventScroll: true });
   }, [menu, suggestion]);
   useEffect(() => {
     if (!menu && !suggestion) return;
     const outside = (event: Event) => {
-      if (!ref.current?.contains(event.target as Node)) { setMenu(null); setSuggestion(null); }
+      if (!ref.current?.contains(event.target as Node)) {
+        setMenu(null);
+        setSuggestion(null);
+      }
     };
-    const dismiss = () => { setMenu(null); setSuggestion(null); };
+    const dismiss = () => {
+      setMenu(null);
+      setSuggestion(null);
+    };
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("scroll", outside, true);
     window.addEventListener("resize", dismiss);
@@ -125,102 +241,247 @@ export function RenderedLinkMenu({ children, noteId, onOpenLinkedNote }: { child
       return;
     }
     try {
-      if (!/^(https?:|mailto:|tel:)/i.test(new URL(url).protocol)) throw new Error("不支持打开此类链接");
+      if (!/^(https?:|mailto:|tel:)/i.test(new URL(url).protocol))
+        throw new Error("不支持打开此类链接");
       if (isTauriRuntime()) {
         const { invoke } = await import("@tauri-apps/api/core");
         await invoke("open_external_link", { url });
       } else {
         // Keep the document/PWA open; never navigate the editor away from unsaved work.
-        window.open(url, "_blank", `noopener,noreferrer${newWindow ? ",popup=yes,width=1100,height=800" : ""}`);
+        window.open(
+          url,
+          "_blank",
+          `noopener,noreferrer${newWindow ? ",popup=yes,width=1100,height=800" : ""}`,
+        );
       }
     } catch (error) {
-      showMessage(`打开链接失败：${error instanceof Error ? error.message : String(error)}`);
+      showMessage(
+        `打开链接失败：${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   };
-  return <div className="rendered-link-scope"
-    onContextMenuCapture={event => {
-      const link = linkAt(event.target);
-      if (!link) return;
-      event.preventDefault(); event.stopPropagation();
-      if (press.current) { longPressed.current = true; suppressClickUntil.current = Infinity; }
-      const rect = link.getBoundingClientRect();
-      show(link, event.clientX || rect.left, event.clientY || rect.bottom);
-    }}
-    onPointerDownCapture={event => {
-      cancelPress();
-      const link = linkAt(event.target);
-      if (!link || event.pointerType !== "touch" || !event.isPrimary) return;
-      longPressed.current = false;
-      const { clientX: x, clientY: y } = event;
-      press.current = { x, y, timer: setTimeout(() => {
-        if (!link.isConnected || !linkAt(link)) return;
-        longPressed.current = true;
-        suppressClickUntil.current = Infinity;
-        show(link, x, y);
-      }, 550) };
-    }}
-    onPointerMoveCapture={event => {
-      if (press.current && Math.hypot(event.clientX - press.current.x, event.clientY - press.current.y) > 10) cancelPress();
-    }}
-    onPointerUpCapture={() => { cancelPress(); if (longPressed.current) suppressClickUntil.current = Date.now() + 800; longPressed.current = false; }}
-    onPointerCancelCapture={() => { cancelPress(); if (longPressed.current) suppressClickUntil.current = Date.now() + 800; longPressed.current = false; }}
-    onClickCapture={event => {
-      if (Date.now() < suppressClickUntil.current && linkAt(event.target)) {
-        event.preventDefault(); event.stopPropagation();
-        return;
-      }
-      const link = linkAt(event.target);
-      const href = link?.getAttribute("href") ?? "";
-      const id = internalNoteId(href);
-      if (!link || (!id && !isRelativeMarkdownLink(href))) return;
-      event.preventDefault(); event.stopPropagation();
-      const options = documentOpenOptions(event);
-      if (id) { void openInternal(id, internalReferenceId(href) ?? undefined, options); return; }
-      const rect = link.getBoundingClientRect();
-      void openRelative(href, link.textContent ?? "", rect.left, rect.bottom + 4, options);
-    }}>
-    {children}
-    {menu && createPortal(<div ref={ref} role="menu" aria-label="链接操作" className="rendered-link-menu" style={{ left: menu.x, top: menu.y }}
-      onKeyDown={event => {
-        event.stopPropagation();
-        if (event.key === "Escape") { event.preventDefault(); close(); }
-        if (["ArrowDown", "ArrowUp", "Home", "End", "Tab"].includes(event.key)) {
+  return (
+    <div
+      ref={scope}
+      className="rendered-link-scope"
+      onPointerDownCapture={(event) => {
+        cancelPress();
+        const link = linkAt(event.target);
+        if (!link || event.pointerType !== "touch" || !event.isPrimary) return;
+        longPressed.current = false;
+        const { clientX: x, clientY: y } = event;
+        press.current = {
+          x,
+          y,
+          timer: setTimeout(() => {
+            if (!link.isConnected || !linkAt(link)) return;
+            longPressed.current = true;
+            suppressClickUntil.current = Infinity;
+            show(link, x, y);
+          }, 550),
+        };
+      }}
+      onPointerMoveCapture={(event) => {
+        if (
+          press.current &&
+          Math.hypot(
+            event.clientX - press.current.x,
+            event.clientY - press.current.y,
+          ) > 10
+        )
+          cancelPress();
+      }}
+      onPointerUpCapture={() => {
+        cancelPress();
+        if (longPressed.current) suppressClickUntil.current = Date.now() + 800;
+        longPressed.current = false;
+      }}
+      onPointerCancelCapture={() => {
+        cancelPress();
+        if (longPressed.current) suppressClickUntil.current = Date.now() + 800;
+        longPressed.current = false;
+      }}
+      onClickCapture={(event) => {
+        if (Date.now() < suppressClickUntil.current && linkAt(event.target)) {
           event.preventDefault();
-          const buttons = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
-          const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-          const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1
-            : (index + (event.key === "ArrowUp" || event.shiftKey ? -1 : 1) + buttons.length) % buttons.length;
-          buttons[next]?.focus();
+          event.stopPropagation();
+          return;
         }
-      }}>
-      <div className="rendered-link-address" title={menu.url}>{menu.url}</div>
-      <button role="menuitem" onClick={async () => {
-        const url = menu.url; close();
-        try { await copyToClipboard(url, { reportFailure: true }); showMessage("已复制链接"); }
-        catch { showMessage("复制链接失败，请检查剪贴板权限"); }
-      }}>复制链接</button>
-      <button role="menuitem" onClick={() => void open(false)}>打开链接</button>
-      {canRemoveRenderedLink(menu.anchor) && <button role="menuitem" onClick={() => {
-        const anchor = menu.anchor; close();
-        if (!removeRenderedLink(anchor)) showMessage("链接位置已变化，请重新选择");
-      }}>移除链接</button>}
-      {!isTauriRuntime() && !internalNoteId(menu.url) && !isRelativeMarkdownLink(menu.url) && <button role="menuitem" onClick={() => void open(true)}>在新窗口打开</button>}
-    </div>, document.body)}
-    {suggestion && createPortal(<div ref={ref} role="dialog" aria-label="文档链接建议" className="rendered-link-menu" style={{ left: suggestion.x, top: suggestion.y }} onKeyDown={event => {
-      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); }
-    }}>
-      <div className="rendered-link-address" title={suggestion.path}>目标：{suggestion.path}</div>
-      {suggestion.candidates.length ? suggestion.candidates.map(candidate => <button key={candidate.id} type="button" onClick={() => void (async () => {
-        try {
-          const note = await api.notes.get(candidate.id);
-          if (!note) throw new Error("目标文档已不存在");
-          close();
-          await onOpenLinkedNote?.(note, undefined, suggestion.options);
-        } catch (error) { showMessage(`打开文档链接失败：${error instanceof Error ? error.message : String(error)}`); }
-      })()}>{candidate.title || candidate.originalFileName || "无标题"}<small>{candidate.storagePath}</small></button>)
-        : <div className="rendered-link-address">未找到对应文档。重新导入目标文件可记录原始文件名。</div>}
-      <button type="button" onClick={close}>关闭</button>
-    </div>, document.body)}
-    {message && createPortal(<div className="rendered-link-notice" role="status">{message}</div>, document.body)}
-  </div>;
+        const link = linkAt(event.target);
+        const href = link?.getAttribute("href") ?? "";
+        const id = internalNoteId(href);
+        if (!link || (!id && !isRelativeMarkdownLink(href))) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const options = documentOpenOptions(event);
+        if (id) {
+          void openInternal(
+            id,
+            internalReferenceId(href) ?? undefined,
+            options,
+          );
+          return;
+        }
+        const rect = link.getBoundingClientRect();
+        void openRelative(
+          href,
+          link.textContent ?? "",
+          rect.left,
+          rect.bottom + 4,
+          options,
+        );
+      }}
+    >
+      {children}
+      {menu &&
+        createPortal(
+          <div
+            ref={ref}
+            role="menu"
+            aria-label="链接操作"
+            className="rendered-link-menu"
+            style={{ left: menu.x, top: menu.y }}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === "Escape") {
+                event.preventDefault();
+                close();
+              }
+              if (
+                ["ArrowDown", "ArrowUp", "Home", "End", "Tab"].includes(
+                  event.key,
+                )
+              ) {
+                event.preventDefault();
+                const buttons = Array.from(
+                  ref.current?.querySelectorAll<HTMLButtonElement>("button") ??
+                    [],
+                );
+                const index = buttons.indexOf(
+                  document.activeElement as HTMLButtonElement,
+                );
+                const next =
+                  event.key === "Home"
+                    ? 0
+                    : event.key === "End"
+                      ? buttons.length - 1
+                      : (index +
+                          (event.key === "ArrowUp" || event.shiftKey ? -1 : 1) +
+                          buttons.length) %
+                        buttons.length;
+                buttons[next]?.focus();
+              }
+            }}
+          >
+            <div className="rendered-link-address" title={menu.url}>
+              {menu.url}
+            </div>
+            <button
+              role="menuitem"
+              onClick={async () => {
+                const url = menu.url;
+                close();
+                try {
+                  await copyToClipboard(url, { reportFailure: true });
+                  showMessage("已复制链接");
+                } catch {
+                  showMessage("复制链接失败，请检查剪贴板权限");
+                }
+              }}
+            >
+              复制链接
+            </button>
+            <button role="menuitem" onClick={() => void open(false)}>
+              打开链接
+            </button>
+            {canRemoveRenderedLink(menu.anchor) && (
+              <button
+                role="menuitem"
+                onClick={() => {
+                  const anchor = menu.anchor;
+                  close();
+                  if (!removeRenderedLink(anchor))
+                    showMessage("链接位置已变化，请重新选择");
+                }}
+              >
+                移除链接
+              </button>
+            )}
+            {!isTauriRuntime() &&
+              !internalNoteId(menu.url) &&
+              !isRelativeMarkdownLink(menu.url) && (
+                <button role="menuitem" onClick={() => void open(true)}>
+                  在新窗口打开
+                </button>
+              )}
+          </div>,
+          document.body,
+        )}
+      {suggestion &&
+        createPortal(
+          <div
+            ref={ref}
+            role="dialog"
+            aria-label="文档链接建议"
+            className="rendered-link-menu"
+            style={{ left: suggestion.x, top: suggestion.y }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                close();
+              }
+            }}
+          >
+            <div className="rendered-link-address" title={suggestion.path}>
+              目标：{suggestion.path}
+            </div>
+            {suggestion.candidates.length ? (
+              suggestion.candidates.map((candidate) => (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  onClick={() =>
+                    void (async () => {
+                      try {
+                        const note = await api.notes.get(candidate.id);
+                        if (!note) throw new Error("目标文档已不存在");
+                        close();
+                        await onOpenLinkedNote?.(
+                          note,
+                          undefined,
+                          suggestion.options,
+                        );
+                      } catch (error) {
+                        showMessage(
+                          `打开文档链接失败：${error instanceof Error ? error.message : String(error)}`,
+                        );
+                      }
+                    })()
+                  }
+                >
+                  {candidate.title || candidate.originalFileName || "无标题"}
+                  <small>{candidate.storagePath}</small>
+                </button>
+              ))
+            ) : (
+              <div className="rendered-link-address">
+                未找到对应文档。重新导入目标文件可记录原始文件名。
+              </div>
+            )}
+            <button type="button" onClick={close}>
+              关闭
+            </button>
+          </div>,
+          document.body,
+        )}
+      {message &&
+        createPortal(
+          <div className="rendered-link-notice" role="status">
+            {message}
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
 }

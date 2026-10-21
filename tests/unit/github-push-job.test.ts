@@ -53,7 +53,9 @@ describe("application-owned GitHub upload", () => {
     await vi.waitFor(() =>
       expect(useGitHubPushJob.getState().phase).toBe("uploading"),
     );
-    expect(useGitHubPushJob.getState().requestStartedAt).toEqual(expect.any(Number));
+    expect(useGitHubPushJob.getState().requestStartedAt).toEqual(
+      expect.any(Number),
+    );
     expect(pushSnapshotBusy(useGitHubPushJob.getState())).toBe(false);
     await startGitHubPush(config());
     expect(pushToGitHub).toHaveBeenCalledTimes(1);

@@ -1,3 +1,4 @@
+import { openVersionHistory } from "./helpers/version-history";
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 
@@ -13,7 +14,7 @@ test("历史预览对比、多选删除与保留最近版本不改变当前正�
     await db.updateNote(id, { content: { ops: [{ insert: "当前正文\n" }] } });
     return id;
   });
-  await page.getByRole("button", { name: "打开本机版本历史" }).click();
+  await openVersionHistory(page);
   const dialog = page.getByRole("dialog", { name: "版本历史", exact: true });
   await expect(dialog.locator(".version-item")).toHaveCount(6);
   await dialog.getByRole("button", { name: "预览", exact: true }).first().click();
@@ -45,7 +46,7 @@ test("历史预览对比、多选删除与保留最近版本不改变当前正�
   await dialog.getByRole("button", { name: "恢复", exact: true }).first().click();
   await page.getByRole("button", { name: "恢复此版本", exact: true }).click();
   await expect(dialog).toBeHidden();
-  await page.getByRole("button", { name: "打开本机版本历史" }).click();
+  await openVersionHistory(page);
   await expect(dialog.locator(".version-item")).toHaveCount(4);
   await dialog.getByRole("button", { name: "预览", exact: true }).first().click();
   await expect(dialog.getByRole("region", { name: "历史版本预览" }).locator(".document-comparison")).toContainText("当前正文");

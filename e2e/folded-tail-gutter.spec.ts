@@ -74,9 +74,10 @@ for (const staleIntersection of [false, true]) {
 
     const alignTail = async () => {
       await editor
-        .locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /章节标题 252$/ })
+        .locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /章节标题 337$/ })
         .evaluate((element) => {
           const root = element.closest(".note-editor-scroll")!;
+          root.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
           root.scrollTop +=
             element.getBoundingClientRect().top -
             root.getBoundingClientRect().top -
@@ -87,7 +88,9 @@ for (const staleIntersection of [false, true]) {
       await page.waitForTimeout(350);
     };
     const assertTailControls = async () => {
-      for (const index of headings.filter((value) => value >= 252)) {
+      // Current H1 typography fits the final four sparse sections in one phone
+      // viewport; earlier sections are tested after their own explicit scroll.
+      for (const index of headings.filter((value) => value >= 337)) {
         const heading = editor.locator("h1").filter({ hasText: new RegExp(`章节标题 ${index}$`) });
         const fold = page.getByRole("button", {
           name: new RegExp(`^(展开|折叠)第 ${index} 块章节$`),

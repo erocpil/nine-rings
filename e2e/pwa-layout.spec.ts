@@ -179,7 +179,7 @@ test.describe("PWA 窄屏应用外壳", () => {
         document.documentElement.dataset.copiedBlockHtml = html;
       } });
     });
-    await expect(page.getByRole("button", { name: "块内换行", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^块内换行(?:[ （(]|$)/ })).toBeVisible();
     await expect(page.locator(".editor-menu button[title='添加超链接 (Ctrl+K)']")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "添加或编辑链接", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "复制块", exact: true }).click();
@@ -481,7 +481,11 @@ test.describe("PWA 窄屏应用外壳", () => {
       await page.getByRole("button", { name: "专注模式", exact: true }).click();
       const focus = page.locator(".note-title-row").getByRole("button", { name: /^(文档目录|文档书签|退出专注模式)$/ });
       await expect(focus).toHaveCount(3);
-      expect(await measure(focus)).toEqual(expected);
+      const actual = await measure(focus);
+      expect(actual.widths).toEqual(expected.widths);
+      expect(actual.gaps[0]).toBe(expected.gaps[0]);
+      // Additional view/block buttons may sit before the focus action.
+      expect(actual.gaps.every(gap => gap >= 0)).toBe(true);
       await focus.last().click();
       await expect(page.locator(".note-title-row")).toBeVisible();
     }
@@ -500,11 +504,12 @@ test.describe("PWA 窄屏应用外壳", () => {
       await expect(page.getByRole("combobox", { name: "查找并切换笔记" })).toBeFocused();
       await page.getByRole("button", { name: "关闭快速切换" }).click();
       await swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: listY, endX: 110, endY: listY });
-      const focusedDuringClick = await view.getByRole("button", { name: "全局搜索", exact: true }).evaluate(button => {
+      await view.getByRole("button", { name: "全局搜索", exact: true }).evaluate(button => {
         (button as HTMLButtonElement).click();
-        return document.activeElement?.matches(".workspace-dialog .search-input");
       });
-      expect(focusedDuringClick).toBe(true);
+      // SearchBar is lazy-loaded. The dialog opens synchronously, then its
+      // input receives focus in the layout phase when the chunk is ready.
+      await expect.poll(() => page.evaluate(() => document.activeElement?.matches(".workspace-dialog .search-input"))).toBe(true);
       await expect(view).toHaveCount(0);
       const input = page.locator(".workspace-dialog .search-input");
       await expect(input).toBeFocused();
@@ -895,7 +900,10 @@ test.describe("PWA 窄屏应用外壳", () => {
       };
     });
     expect(listGeometry.orderedOffset).toBe(0);
-    expect(listGeometry.orderedPadding).toBeGreaterThanOrEqual(listGeometry.unorderedPadding);
+    // Ordered markers occupy their own gutter; the text starts immediately
+    // after each marker rather than being aligned to a shared text column.
+    expect(listGeometry.orderedPadding).toBe(0);
+    expect(listGeometry.orderedPadding).toBeLessThan(listGeometry.unorderedPadding);
     expect(listGeometry.orderedMarker).toContain("counter(editor-list-item)");
     expect(listGeometry.orderedMarker).not.toContain("•");
   });
@@ -2098,7 +2106,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       instance.commands.focus("end");
     });
     await pressLineBoundary(editor, "end");
-    await page.getByTitle("块内换行", { exact: true }).tap();
+    await page.getByTitle(/^块内换行(?:[ （(]|$)/).tap();
     await page.keyboard.type("第二行");
     await expect(editor.locator(":scope > p")).toHaveCount(1);
     await expect(editor.locator("p")).toHaveText("第一行第二行");

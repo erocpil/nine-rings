@@ -105,7 +105,13 @@ for (const { mode, width } of [
     const points = await host.evaluate((element) => {
       const paragraphs = element.querySelectorAll("p");
       const point = (paragraph: Element, offset: number) => {
-        const node = paragraph.firstChild!;
+        const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
+        let node = walker.nextNode();
+        while (node && offset >= (node.textContent?.length ?? 0)) {
+          offset -= node.textContent?.length ?? 0;
+          node = walker.nextNode();
+        }
+        if (!node) throw new Error("Flow paragraph text position not found");
         const range = document.createRange();
         range.setStart(node, offset);
         range.setEnd(node, offset + 1);

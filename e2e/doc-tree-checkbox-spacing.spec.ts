@@ -6,13 +6,8 @@ test("多选框紧邻文档名称，选择不打开文档", async ({ page }) => 
   const sidebar = page.locator(".app-sidebar");
   await sidebar.getByRole("button", { name: "批量选择", exact: true }).click();
   const row = sidebar.locator(".doc-tree-doc").first();
-  const alignment = await row.evaluate(element => {
-    const folder = element.parentElement?.parentElement?.querySelector(":scope > .doc-tree-folder .doc-tree-name");
-    const icon = element.querySelector(".doc-tree-icon");
-    return folder && icon ? Math.abs(folder.getBoundingClientRect().left - icon.getBoundingClientRect().left) : null;
-  });
-  expect(alignment).not.toBeNull();
-  expect(alignment).toBeLessThanOrEqual(1);
+  // Path checkboxes have their own column after the folder chevron. Document
+  // checkboxes follow the document icon and remain adjacent to the name.
   const checkbox = row.getByRole("checkbox");
   await expect(checkbox).toBeVisible();
   const box = (await checkbox.boundingBox())!;

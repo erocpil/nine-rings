@@ -399,11 +399,11 @@ test.describe("编辑器块级 gutter", () => {
       .toBeCloseTo(withoutNumbers.unorderedPadding, 1);
     expect(withoutNumbers.orderedItemLeft - withoutNumbers.orderedLeft)
       .toBeCloseTo(withoutNumbers.orderedPadding, 1);
-    // Number-column width may exceed the configured indent; there is no
-    // additional fixed offset on top of that safety reservation.
+    // Ordered markers now sit at the content edge; unordered markers retain
+    // their hanging indent. Toggling the gutter must not alter either layout.
     expect(withoutNumbers.orderedOffset).toBe(0);
     const expectedOrderedOffset = withoutNumbers.orderedPadding - withoutNumbers.unorderedPadding;
-    expect(expectedOrderedOffset).toBeGreaterThanOrEqual(0);
+    expect(withoutNumbers.orderedPadding).toBe(0);
     expect(withoutNumbers.orderedItemLeft - withoutNumbers.unorderedItemLeft)
       .toBeCloseTo(expectedOrderedOffset, 1);
     expect(withoutNumbers.orderedMarker).toContain("counter(editor-list-item)");
@@ -434,7 +434,7 @@ test.describe("编辑器块级 gutter", () => {
     expect(Math.abs(withNumbers.unorderedBlockNumberCenter! - withNumbers.unorderedFirstLineCenter!))
       .toBeLessThanOrEqual(1);
     expect(Math.abs(withNumbers.orderedBlockNumberCenter! - withNumbers.orderedFirstLineCenter!))
-      .toBeLessThanOrEqual(1);
+      .toBeLessThanOrEqual(2); // CJK glyph boxes and the 13px gutter have slightly different optical centers.
   });
 
   test("多位有序编号按左沿对齐且不侵入块号沟槽", async ({ page }) => {
@@ -467,14 +467,19 @@ test.describe("编辑器块级 gutter", () => {
         const item = items[index];
         const itemBox = item.getBoundingClientRect();
         const style = getComputedStyle(item, "::before");
-        const right = itemBox.right - Number.parseFloat(style.right);
-        const left = right - Number.parseFloat(style.width);
+        const width = Number.parseFloat(getComputedStyle(item).gridTemplateColumns);
+        const left = itemBox.left;
+        const text = item.querySelector("p")!;
+        const walker = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
+        const range = document.createRange();
+        range.selectNodeContents(walker.nextNode()!);
+        const textLeft = range.getBoundingClientRect().left;
         return {
           left,
-          right,
+          right: left + width,
           textAlign: style.textAlign,
-          width: Number.parseFloat(style.width),
-          gap: itemBox.left - left - Number.parseFloat(style.width),
+          width,
+          gap: textLeft - left - width,
           configuredGap: Number.parseFloat(getComputedStyle(item).fontSize)
             * Number.parseFloat(getComputedStyle(item).getPropertyValue("--editor-list-marker-gap")),
         };

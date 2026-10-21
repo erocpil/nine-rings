@@ -34,7 +34,7 @@ for (const mobile of [false, true]) {
     await page.reload();
     const folder = page
       .locator(".doc-tree-folder")
-      .filter({ has: page.locator('[title="导出验证"]') });
+      .filter({ has: page.getByText("导出验证", { exact: true }) });
     const downloadPromise = page.waitForEvent("download");
     if (mobile) {
       await folder.click();

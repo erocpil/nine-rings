@@ -1,3 +1,5 @@
+import { EditorStatusSelect } from "./EditorStatusSelect";
+import { sourceFoldPreviewPlaceholder } from "../lib/source-fold-preview";
 import { sourceIndentationChange, type SourceIndentStyle } from "../lib/source-indentation";
 import { sourceAutoIndentChange, type SourceAutoIndentScope } from "../lib/source-auto-indent";
 import { insertSourceNewline } from "../lib/source-newline";
@@ -147,70 +149,6 @@ function matchingBracketContents(view: EditorView, position: number, point: { x:
     return { anchor: opening.to, head: closing.from };
   }
   return null;
-}
-
-function sourceFoldPreviewPlaceholder(
-  view: EditorView,
-  onclick: (event: Event) => void,
-  prepared: { text: string } | null,
-) {
-  const placeholder = document.createElement("span");
-  placeholder.className = "cm-foldPlaceholder";
-  placeholder.textContent = "…";
-  placeholder.setAttribute("aria-label", "折叠代码；悬停预览，点击展开");
-  placeholder.title = "悬停预览，点击展开";
-  placeholder.addEventListener("click", onclick);
-  if (!prepared) return placeholder;
-
-  let bubble: HTMLDivElement | null = null;
-  let observer: MutationObserver | null = null;
-  const showPreview = () => {
-    if (bubble || !placeholder.isConnected) return;
-    const viewportRows = Math.floor(view.scrollDOM.clientHeight / Math.max(1, view.defaultLineHeight));
-    const maximumRows = Math.max(1, Math.min(15, Math.floor(viewportRows / 2)));
-    const lines = prepared.text.split("\n");
-    const shown = lines.slice(0, maximumRows);
-    if (lines.length > maximumRows) {
-      const last = shown.length - 1;
-      shown[last] = `${shown[last] ?? ""} … (+${lines.length - maximumRows} 行)`;
-    }
-
-    bubble = document.createElement("div");
-    bubble.className = "cm-fold-preview-bubble";
-    bubble.textContent = shown.join("\n");
-    bubble.dataset.maxLines = String(maximumRows);
-    bubble.dataset.shownLines = String(shown.length);
-    bubble.style.maxHeight = `${Math.max(48, maximumRows * view.defaultLineHeight + 18)}px`;
-    document.body.appendChild(bubble);
-
-    const anchor = placeholder.getBoundingClientRect();
-    const bounds = bubble.getBoundingClientRect();
-    const margin = 8;
-    const left = Math.max(margin, Math.min(anchor.left, window.innerWidth - bounds.width - margin));
-    const below = window.innerHeight - anchor.bottom - margin;
-    const above = anchor.top - margin;
-    const top = below >= bounds.height || below >= above
-      ? Math.min(window.innerHeight - bounds.height - margin, anchor.bottom + 6)
-      : Math.max(margin, anchor.top - bounds.height - 6);
-    bubble.style.left = `${left}px`;
-    bubble.style.top = `${top}px`;
-    observer = new MutationObserver(() => {
-      if (!placeholder.isConnected) hidePreview();
-    });
-    observer.observe(view.dom, { subtree: true, childList: true });
-  };
-  const hidePreview = () => {
-    observer?.disconnect();
-    observer = null;
-    bubble?.remove();
-    bubble = null;
-  };
-  placeholder.addEventListener("mouseenter", showPreview);
-  placeholder.addEventListener("mouseleave", hidePreview);
-  placeholder.addEventListener("keydown", event => {
-    if (event.key === "Enter" || event.key === " ") onclick(event);
-  });
-  return placeholder;
 }
 
 function restoreSourceFoldViewport(view: EditorView, snapshot: SourceFoldViewportSnapshot, restoreSelection: boolean) {
@@ -766,7 +704,7 @@ export function MarkdownSourceEditor({
   const sourceNumbersRelative = numbering?.relative ?? preferences.relativeSourceLineNumbers === true;
   const gutterControls = <>
     <button type="button" className="editor-status-select source-gutter-settings" aria-label="行号与折叠设置" title="行号与折叠设置" aria-haspopup="menu" aria-expanded={Boolean(gutterMenu)} onMouseDown={event => event.preventDefault()} onClick={event => { const trigger = editorCommandTrigger(event.currentTarget); setGutterMenu(previous => previous ? null : trigger); }}>
-      行号与折叠 <span aria-hidden="true">▾</span>
+      # <span aria-hidden="true">▾</span>
     </button>
     {gutterMenu && <BlockActionMenu trigger={gutterMenu} placement="below" title="行号与折叠设置" onClose={() => setGutterMenu(null)} actions={[
       ...(numbering ? [{ label: "行号由编号展示插件管理", disabled: true, run: () => {} }] : []),
@@ -778,13 +716,12 @@ export function MarkdownSourceEditor({
     ]} />}
   </>;
   const indentationControls = !markupMode && <span className="source-indentation-controls">
-    <select className="editor-document-language editor-status-select" aria-label="Tab Size" title="Tab 显示列数与缩进单位" value={preferences.tabSize ?? 4} disabled={editingReadonly} onChange={event => changeIndentation(Number(event.target.value), preferences.sourceIndentStyle ?? "tabs")}>
-      {![2, 4, 8].includes(preferences.tabSize ?? 4) && <option value={preferences.tabSize}>Tab Size: {preferences.tabSize}</option>}
-      {[2, 4, 8].map(size => <option key={size} value={size}>Tab Size: {size}</option>)}
-    </select>
-    <select className="editor-document-language editor-status-select" aria-label="缩进方式" title="转换行首缩进；可撤销" value={preferences.sourceIndentStyle ?? "tabs"} disabled={editingReadonly} onChange={event => changeIndentation(preferences.tabSize ?? 4, event.target.value as SourceIndentStyle)}>
-      <option value="tabs">缩进：Tab</option><option value="spaces">缩进：空格</option>
-    </select>
+    <EditorStatusSelect label="Tab Size" title="Tab 显示列数与缩进单位" value={String(preferences.tabSize ?? 4)} disabled={editingReadonly}
+      options={[...new Set([2, 4, 8, preferences.tabSize ?? 4])].sort((a, b) => a - b).map(size => ({ value: String(size), label: `Tab ${size}` }))}
+      onChange={value => changeIndentation(Number(value), preferences.sourceIndentStyle ?? "tabs")} />
+    <EditorStatusSelect label="缩进方式" title="转换行首缩进；可撤销" value={preferences.sourceIndentStyle ?? "tabs"} disabled={editingReadonly}
+      options={[{ value: "tabs", label: "Tab" }, { value: "spaces", label: "Spaces" }]}
+      onChange={value => changeIndentation(preferences.tabSize ?? 4, value as SourceIndentStyle)} />
   </span>;
   const toolbar = (
       <div
@@ -885,7 +822,7 @@ export function MarkdownSourceEditor({
         {escapeRepair}
         </>}
         {!duplicateCursorPosition && <span className="markdown-source-cursor" aria-label="光标位置">
-          行 {cursor.line}，列 {cursor.column}
+          Ln {cursor.line}, Col {cursor.column}
         </span>}
       </div>
   );
@@ -937,7 +874,7 @@ export function MarkdownSourceEditor({
         <span>{sourceMessage}</span>
         <button type="button" aria-label="关闭提示" title="关闭提示" onMouseDown={event => event.preventDefault()} onClick={() => setSourceMessage("")}><ToolbarIcon name="close" /></button>
       </div>}
-      {statusTarget ? createPortal(<EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={readonly ? undefined : onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={readonly ? undefined : onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`行 ${cursor.line}，列 ${cursor.column}`} characters={value.length} /> : null}
+      {statusTarget ? createPortal(<EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`Ln ${cursor.line}, Col ${cursor.column}`} characters={value.length} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`Ln ${cursor.line}, Col ${cursor.column}`} characters={value.length} /> : null}
     </div>
   );
 }

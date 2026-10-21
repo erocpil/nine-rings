@@ -4,7 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function fixture(page: Page, options: { text?: boolean; readonly?: boolean; virtual?: boolean; legacy?: boolean } = {}) {
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15000 });
+  await expect(page.locator(".note-title-row:visible")).toBeVisible({ timeout: 15000 });
   const id = await page.evaluate(async options => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts");
@@ -18,15 +18,16 @@ async function fixture(page: Page, options: { text?: boolean; readonly?: boolean
     localStorage.setItem("nr:experimentalReadonlyRendering", String(Boolean(options.virtual)));
     return note.id;
   }, options);
-  await expect(page.locator(".editor-content")).toContainText(options.text || options.legacy ? "首行" : "最后一段");
+  const body = page.locator(options.text ? ".cm-content" : ".editor-content");
+  await expect(body).toContainText(options.text || options.legacy ? "首行" : "最后一段");
   await page.reload();
-  await expect(page.locator(".editor-content")).toContainText(options.text || options.legacy ? "首行" : "最后一段");
+  await expect(body).toContainText(options.text || options.legacy ? "首行" : "最后一段");
   return id;
 }
 
 test("TXT 换行/空行及独立图标，历史合并文本片段兼容", async ({ page }) => {
   await fixture(page, { text: true });
-  await expect(page.locator(".ProseMirror p")).toHaveText(["首行", "", "# 原样标题", "末行"]);
+  await expect.poll(async () => (await sourceInfo(page.locator(".cm-content"))).value).toBe("首行\n\n# 原样标题\n末行\n");
   await expect(page.locator(".doc-tree-doc").filter({ hasText: "多行文本" }).getByTitle("纯文本文档")).toHaveText("📄");
   await expect(page.getByRole("button", { name: "源码", exact: true })).toHaveCount(0);
   await fixture(page, { legacy: true });

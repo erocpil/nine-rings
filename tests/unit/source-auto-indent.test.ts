@@ -24,7 +24,10 @@ describe("source automatic indentation", () => {
     const raw = "int main() {\nint value = 1;\nif (value) {\nvalue++;\n}\n}";
     const state = EditorState.create({
       doc: raw,
-      selection: EditorSelection.range(raw.indexOf("int value"), raw.indexOf("\n}\n}") + 2),
+      selection: EditorSelection.range(
+        raw.indexOf("int value"),
+        raw.indexOf("\n}\n}") + 2,
+      ),
       extensions: [cpp(), indentUnit.of("\t")],
     });
     const change = sourceAutoIndentChange(state, "selection");
@@ -41,12 +44,22 @@ describe("source automatic indentation", () => {
     });
     state = state.update(sourceAutoIndentChange(state, "document")!).state;
     expect(state.doc.toString()).not.toBe(unindented);
-    undo({ state, dispatch: transaction => { state = transaction.state; } });
+    undo({
+      state,
+      dispatch: (transaction) => {
+        state = transaction.state;
+      },
+    });
     expect(state.doc.toString()).toBe(unindented);
-    expect(sourceAutoIndentChange(
-      EditorState.create({ doc: unindented, extensions: [EditorState.readOnly.of(true)] }),
-      "document",
-    )).toBeNull();
+    expect(
+      sourceAutoIndentChange(
+        EditorState.create({
+          doc: unindented,
+          extensions: [EditorState.readOnly.of(true)],
+        }),
+        "document",
+      ),
+    ).toBeNull();
   });
 
   it("keeps C++ class and later member scopes stable after a parser recovery", () => {
@@ -76,26 +89,28 @@ describe("source automatic indentation", () => {
     });
     const change = sourceAutoIndentChange(state, "document");
     expect(change).not.toBeNull();
-    expect(state.update(change!).state.doc.toString()).toBe([
-      "class LRUCache {",
-      "public:",
-      "\tLRUCache(size_t capacity) : size(capacity), num(0) {",
-      "\t\thead = new Entry();",
-      "\t};",
-      "\t~LRUCache() {",
-      "\t\t// TODO delete all Entries",
-      "\t\tdelete head;",
-      "\t};",
-      "\tint get(int key) {",
-      "\t\tauto it = cache.find(key);",
-      "\t\tif (it == cache.end()) return -1;",
-      "\t\tEntry *e = it->second;",
-      "\t\tdel(e);",
-      "\t\tadd(e);",
-      "\t\treturn e->val;",
-      "\t}",
-      "};",
-    ].join("\n"));
+    expect(state.update(change!).state.doc.toString()).toBe(
+      [
+        "class LRUCache {",
+        "public:",
+        "\tLRUCache(size_t capacity) : size(capacity), num(0) {",
+        "\t\thead = new Entry();",
+        "\t};",
+        "\t~LRUCache() {",
+        "\t\t// TODO delete all Entries",
+        "\t\tdelete head;",
+        "\t};",
+        "\tint get(int key) {",
+        "\t\tauto it = cache.find(key);",
+        "\t\tif (it == cache.end()) return -1;",
+        "\t\tEntry *e = it->second;",
+        "\t\tdel(e);",
+        "\t\tadd(e);",
+        "\t\treturn e->val;",
+        "\t}",
+        "};",
+      ].join("\n"),
+    );
   });
 
   it("preserves nested namespace and function levels around local classes", () => {
@@ -121,22 +136,24 @@ describe("source automatic indentation", () => {
     });
     const change = sourceAutoIndentChange(state, "document");
     expect(change).not.toBeNull();
-    expect(state.update(change!).state.doc.toString()).toBe([
-      "namespace app {",
-      "  void create() {",
-      "    class Local {",
-      "    public:",
-      "      void run() {",
-      "        if (ready) {",
-      "          execute();",
-      "        }",
-      "      }",
-      "    private:",
-      "      int value;",
-      "    };",
-      "  }",
-      "}",
-    ].join("\n"));
+    expect(state.update(change!).state.doc.toString()).toBe(
+      [
+        "namespace app {",
+        "  void create() {",
+        "    class Local {",
+        "    public:",
+        "      void run() {",
+        "        if (ready) {",
+        "          execute();",
+        "        }",
+        "      }",
+        "    private:",
+        "      int value;",
+        "    };",
+        "  }",
+        "}",
+      ].join("\n"),
+    );
   });
 
   it("aligns Qt access labels with the containing class", () => {
@@ -152,29 +169,34 @@ describe("source automatic indentation", () => {
       "};",
       "}",
     ].join("\n");
-    const state = EditorState.create({ doc: raw, extensions: [cpp(), indentUnit.of("  ")] });
+    const state = EditorState.create({
+      doc: raw,
+      extensions: [cpp(), indentUnit.of("  ")],
+    });
     const change = sourceAutoIndentChange(state, "document");
     expect(change).not.toBeNull();
-    expect(state.update(change!).state.doc.toString()).toBe([
-      "namespace app {",
-      "  class Worker {",
-      "  public slots:",
-      "    void run() {",
-      "      work();",
-      "    }",
-      "  signals:",
-      "    void finished();",
-      "  };",
-      "}",
-    ].join("\n"));
+    expect(state.update(change!).state.doc.toString()).toBe(
+      [
+        "namespace app {",
+        "  class Worker {",
+        "  public slots:",
+        "    void run() {",
+        "      work();",
+        "    }",
+        "  signals:",
+        "    void finished();",
+        "  };",
+        "}",
+      ].join("\n"),
+    );
   });
 
   it("does not alter braces or indentation inside a multiline raw string", () => {
     const raw = [
       "int main() {",
-      "const char *value = R\"tag({",
+      'const char *value = R"tag({',
       "    literal indentation stays",
-      "})tag\";",
+      '})tag";',
       "run();",
       "}",
     ].join("\n");
@@ -184,13 +206,15 @@ describe("source automatic indentation", () => {
     });
     const change = sourceAutoIndentChange(state, "document");
     expect(change).not.toBeNull();
-    expect(state.update(change!).state.doc.toString()).toBe([
-      "int main() {",
-      "\tconst char *value = R\"tag({",
-      "    literal indentation stays",
-      "})tag\";",
-      "\trun();",
-      "}",
-    ].join("\n"));
+    expect(state.update(change!).state.doc.toString()).toBe(
+      [
+        "int main() {",
+        '\tconst char *value = R"tag({',
+        "    literal indentation stays",
+        '})tag";',
+        "\trun();",
+        "}",
+      ].join("\n"),
+    );
   });
 });

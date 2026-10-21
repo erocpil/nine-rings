@@ -99,7 +99,7 @@ test(`源码选区折叠菜单锚定实际按钮并保持可操作 readonly=${re
   await createBlankDocument(page);
   await page.getByRole("button", { name: "源码", exact: true }).click();
   const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
-  const text = Array.from({ length: 12 }, (_, i) => `正文 ${i}`).join("\n") + "\n## target\nchild";
+  const text = "# Chapter\n" + Array.from({ length: 12 }, (_, i) => `正文 ${i}`).join("\n") + "\n## target\nchild";
   await replaceSource(source, text);
   if (readonly) await page.getByRole("button", { name: "设置只读", exact: true }).click();
   await selectSource(source, text.indexOf("target"), text.indexOf("target") + 6);

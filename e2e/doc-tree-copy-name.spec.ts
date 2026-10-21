@@ -81,14 +81,14 @@ test("标题悬停信息卡允许选择并复制文本，标题输入焦点不�
   const tagInput = page.locator(".tag-input");
   await expect(tagInput).toHaveCount(1);
 
-  await page.locator(".note-title-field").hover();
+  await page.locator(".note-title-field").hover({ position: { x: 12, y: 15 } });
   const card = page.locator(".note-title-row > .document-info-card");
   await expect(card).toBeVisible();
   await card.hover();
   await expect(card).toBeVisible();
   await page.locator(".note-readonly-badge").hover();
   await expect(card).toHaveCount(0);
-  await page.locator(".note-title-field").hover();
+  await page.locator(".note-title-field").hover({ position: { x: 12, y: 15 } });
   await expect(card).toBeVisible();
   await expect(card).toHaveCSS("user-select", "text");
   const cardBox = await card.boundingBox();

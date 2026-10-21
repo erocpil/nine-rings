@@ -31,6 +31,8 @@ test("独立搜索不卸载正文、不退出专注模式，关闭后恢复焦�
   await page.getByRole("button", { name: "更多工具" }).click();
   await expect(page.locator(".editor-menu")).toBeHidden();
   await page.getByRole("button", { name: "退出专注模式" }).click();
+  await expect(page.locator(".editor-menu")).toBeHidden();
+  await page.getByRole("button", { name: "更多工具", exact: true }).click();
   await expect(page.locator(".editor-menu")).toBeVisible();
 });
 

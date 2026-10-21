@@ -6,6 +6,13 @@ export async function selectDocumentLanguage(page: import("@playwright/test").Pa
     await picker.selectOption(language);
     return;
   }
+  const button = page.locator(".editor-status-bar").getByRole("button", { name: "文件格式", exact: true });
+  if (await button.isVisible().catch(() => false) && await button.isEnabled()) {
+    await button.click();
+    const options = await page.evaluate(async () => (await import("/src/lib/document-language.ts")).DOCUMENT_LANGUAGE_OPTIONS);
+    await page.getByRole("menuitemcheckbox", { name: options.find(option => option.value === language)!.label, exact: true }).click();
+    return;
+  }
   await page.evaluate(async value => {
     const { runNativeMenuAction } = await import("/src/lib/native-menu-registry.ts");
     runNativeMenuAction(`format.language.${value || "text"}`);

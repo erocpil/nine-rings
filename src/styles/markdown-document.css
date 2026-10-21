@@ -238,8 +238,15 @@ blockquote[data-alert] { border-left-color: var(--accent); }
 /* Reserve the same viewport edge in both editor engines, including short notes. */
 .note-editor-scroll { overflow-y: scroll; scrollbar-gutter: stable; }
 
-.markdown-document-view[data-tools-hidden] .markdown-source-toolbar-host,
-.markdown-document-view[data-tools-hidden] .editor-menu { display: none !important; }
+.markdown-document-view[data-tools-hidden] .markdown-source-toolbar-host { display: none !important; }
+.markdown-document-view[data-tools-hidden] .editor-menu {
+  display: flex !important; position: absolute; visibility: hidden;
+  height: 0; min-height: 0; padding-block: 0; margin-block: 0;
+  border: 0; overflow: visible; pointer-events: none;
+}
+.markdown-document-view[data-tools-hidden] .editor-menu .menu-dropdown-list {
+  visibility: visible; pointer-events: auto;
+}
 
 /* Code and plain text are literal source, independent of prose typography. */
 .markdown-cm-source:not([data-document-language="markdown"]):not([data-document-language="flow"]) .cm-scroller {

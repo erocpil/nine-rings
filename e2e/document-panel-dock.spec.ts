@@ -111,7 +111,7 @@ for (const virtual of [false, true])
         title: "布局验证",
         date: useNotesStore.getState().currentDate,
         storagePath: "tests",
-        content,
+        content: { ...content, metadata: { ...content.metadata, bookmarks: Array.from({ length: 20 }, (_, index) => ({ id: `layout-${index}`, position: index + 1, preview: `书签 ${index}`, createdAt: "2026-10-21T00:00:00Z" })) } },
       });
       useNotesStore
         .getState()

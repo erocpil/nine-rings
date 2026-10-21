@@ -329,7 +329,8 @@ test("桌面工具栏对齐与按钮状态、固定标识和最近三批记录",
   await bookmark.click();
   await expect(bookmark).toHaveCSS("box-shadow", "none");
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByRole("button", { name: /^更新记录/ }).click();
+  await page.getByRole("button", { name: /^高级/ }).click();
+  await page.getByRole("button", { name: "查看更新记录", exact: true }).click();
   await expect(page.locator(".settings-changelog-entry")).toHaveCount(3);
 });
 

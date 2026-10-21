@@ -3211,7 +3211,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     "format.ordered": { checked: editor?.isActive("orderedList") && typeof editor.getAttributes("listItem").taskChecked !== "boolean", run: () => editor?.chain().focus().toggleOrderedList().run(), shortcut: nativeFormatShortcut, enabled: !readonly },
     "format.todo": { checked: typeof editor?.getAttributes("listItem").taskChecked === "boolean", run: () => editor?.chain().focus().wrapInList("bulletList").updateAttributes("listItem", { taskChecked: false }).run(), shortcut: nativeFormatShortcut, enabled: !readonly },
     "format.quote": { checked: editor?.isActive("blockquote"), run: () => editor?.chain().focus().toggleBlockquote().run(), shortcut: nativeFormatShortcut, enabled: !readonly },
-    "format.codeblock": { checked: editor?.isActive("codeBlock"), run: () => editor?.chain().focus().toggleCodeBlock().run(), shortcut: nativeFormatShortcut, enabled: !readonly },
+    "format.codeblock": { checked: editor?.isActive("codeBlock"), run: () => handleToggleCodeBlock(), shortcut: nativeFormatShortcut, enabled: !readonly },
     "format.link": { run: () => { setLinkDialogUrl(editor?.getAttributes("link").href || ""); setLinkDialog(true); }, enabled: !readonly, shortcut: nativeFormatShortcut },
     "format.clear": { run: () => editor?.chain().focus().unsetAllMarks().run(), shortcut: nativeFormatShortcut, enabled: !readonly },
   }, documentActive && Boolean(editor));
@@ -3605,6 +3605,9 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
   // ── 代码块：多段选区合并为单个代码块 ──
   const handleToggleCodeBlock = () => {
     if (!editor) return;
+    // Complete focus transfer in this gesture. TipTap's deferred focus can
+    // otherwise steal a subsequent title edit after the toolbar has closed.
+    editor.view.focus();
 
     // 已在代码块中 → 转为普通段落
     if (editor.isActive('codeBlock')) {
@@ -5051,7 +5054,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
       </div>
 
       {/* ── 文档状态栏：本机保存状态、位置统计与诊断/历史入口 ── */}
-      <EditorStatusBar onCreateDocument={readonly ? undefined : onCreateDocument} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} block={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? `块 ${currentStatusBlock}/${totalBlocks}` : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
+      <EditorStatusBar onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} block={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? `块 ${currentStatusBlock}/${totalBlocks}` : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
         {saveIssue && <button type="button" className="workspace-error-indicator" onClick={onOpenSaveIssue}>保存异常 · 查看详情</button>}
         {searchMatches.length > 0 && !editorFindOpen && (
           <span className="editor-search-navigation" role="status" aria-live="polite">

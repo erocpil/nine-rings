@@ -100,7 +100,6 @@ test("PDF 打印视图用语义标题生成侧栏书签且不在正文插入目�
   await page.getByRole("button", { name: "新建文档", exact: true }).click();
   await page.getByPlaceholder("文档标题...").fill("书签大纲导出测试");
   await page.getByRole("button", { name: "创建", exact: true }).click();
-  await page.getByRole("button", { name: "显示属性面板", exact: true }).click();
 
   const editor = page.locator(".ProseMirror");
   await editor.fill("导出标题");
@@ -122,6 +121,7 @@ test("PDF 打印视图用语义标题生成侧栏书签且不在正文插入目�
   await foldToggle.click();
   await expect(editor.getByText("折叠后仍应导出的正文", { exact: true })).toBeHidden();
 
+  await page.getByRole("button", { name: "显示属性面板", exact: true }).click();
   const popupPromise = page.waitForEvent("popup");
   await page.locator(".properties-panel").getByRole("button", { name: "导出 PDF（书签大纲）" }).click();
   const printPage = await popupPromise;

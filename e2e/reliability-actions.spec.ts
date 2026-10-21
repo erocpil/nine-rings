@@ -1,3 +1,4 @@
+import { openVersionHistory } from "./helpers/version-history";
 import { expect, test, type Page } from "@playwright/test";
 
 async function mountDialog(page: Page, kind: "recycle" | "versions") {
@@ -235,7 +236,7 @@ test("工作区恢复历史版本直接刷新当前文档且重载后仍保留",
   }, id);
   const editor = page.locator(".ProseMirror");
   await editor.fill("恢复前的未保存正文");
-  await page.getByTitle("版本历史", { exact: true }).click();
+  await openVersionHistory(page);
   const panel = page.getByRole("dialog", { name: "版本历史", exact: true });
   await panel.getByRole("button", { name: "恢复", exact: true }).first().click();
   await page.locator(".ui-confirm-dialog").getByRole("button", { name: /永久删除|永久清理|恢复此版本/, exact: true }).click();

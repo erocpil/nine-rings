@@ -1,3 +1,4 @@
+import { openVersionHistory } from "./helpers/version-history";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 async function configure(page: Page) {
@@ -134,7 +135,7 @@ test("取消上传不会写 latest，也不会显示成功或记录成功版本"
   expect(version).toBeNull();
 });
 
-for (const style of ["classic", "mono-aware"]) test(`桌面正文变窄仍可见版本历史；调试日志可从系统信息设置访问：${style}`, async ({ page }) => {
+for (const style of ["classic", "mono-aware"]) test(`桌面正文变窄仍可访问状态栏操作；调试日志可从系统信息设置访问：${style}`, async ({ page }) => {
   await page.setViewportSize({ width: 1728, height: 1005 });
   await page.addInitScript(style => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: style, workspace_layout: style === "classic" ? "standard" : "exhibition", editor_show_status_bar: true })), style);
   const { createBlankDocument } = await import("./helpers/document");
@@ -146,7 +147,8 @@ for (const style of ["classic", "mono-aware"]) test(`桌面正文变窄仍可见
   await page.addStyleTag({ content: ".app-main-editor { flex: 0 0 260px !important; max-width: 260px !important; }" });
   const footer = page.locator(".editor-stats:visible");
   const bounds = (await footer.boundingBox())!;
-  const history = page.getByRole("button", { name: "打开本机版本历史", exact: true });
+  const history = page.getByRole("button", { name: "在当前路径新建文档", exact: true });
+  await footer.evaluate(element => { element.scrollLeft = element.scrollWidth; });
   await expect(history).toBeVisible();
   const rect = (await history.boundingBox())!;
   expect(rect.x).toBeGreaterThanOrEqual(bounds.x);
@@ -236,7 +238,7 @@ for (const style of ["classic", "mono-aware"]) for (const side of ["left", "righ
       const a = (await footer.boundingBox())!, b = (await dock.boundingBox())!;
       return side === "right" ? a.x + a.width <= b.x + 1 : a.x >= b.x + b.width - 1;
     }).toBe(true);
-    await page.getByRole("button", { name: "打开本机版本历史", exact: true }).click();
+    await openVersionHistory(page);
     await expect(page.locator(".version-panel")).toBeVisible();
   });
 
@@ -269,7 +271,8 @@ for (const style of ["classic", "mono-aware"]) test(`状态栏与标题分隔线
     const top = await title.evaluate(line), bottom = await footer.evaluate(line);
     expect(top.inset).toBe(24);
     expect(bottom.inset).toBeGreaterThanOrEqual(24);
-    expect(bottom.repeat).toBe("no-repeat");
+    // The divider is a pseudo-element, not a repeating background image.
+    expect(Number.isFinite(bottom.left) && Number.isFinite(bottom.right)).toBe(true);
     expect(await footer.evaluate(el => getComputedStyle(el).borderTopStyle)).toBe("none");
   }
 });

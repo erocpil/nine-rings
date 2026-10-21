@@ -14,7 +14,8 @@ export async function toolbarAction(page: Page, action: Action) {
     image: ["插入图片", "", "插入图片"],
   }[action];
   const toolbar = page.locator(".editor-menu");
-  const direct = toolbar.getByRole("button", { name: labels[0], exact: true });
+  const name = labels[0].split(" (")[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const direct = toolbar.getByRole("button", { name: new RegExp(`^${name}(?: \\(|$)`) });
   await expect(toolbar).toBeVisible();
   await expect(direct).toBeVisible();
   await direct.scrollIntoViewIfNeeded();
