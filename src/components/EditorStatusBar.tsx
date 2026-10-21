@@ -1,6 +1,7 @@
 import { EditorStatusSelect } from "./EditorStatusSelect";
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   type CSSProperties,
   type ReactNode,
@@ -55,8 +56,58 @@ export function EditorStatusBar({
 }) {
   const state = useStatusBarDisplay(enabled, focusMode);
   const idleGlow = useStatusBarIdleGlow(state.visible);
+  const statusItemsKey = state.items.join("|");
   const barRef = useRef<HTMLDivElement>(null);
   const tooltipTitles = useRef(new Map<HTMLElement, string>());
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    if (!bar || !idleGlow) return;
+
+    const updateTravel = () => {
+      const navigation = bar.querySelector<HTMLElement>(
+        ':scope > [data-status-item="navigation"]',
+      );
+      if (!navigation || navigation.offsetWidth === 0) return;
+
+      // offsetLeft/offsetWidth measure flex layout before transforms, so this
+      // remains stable while the navigation controls are animating.
+      const navigationIndex = Array.prototype.indexOf.call(
+        bar.children,
+        navigation,
+      ) as number;
+      let precedingRight = 0;
+      for (let index = 0; index < navigationIndex; index += 1) {
+        const child = bar.children[index] as HTMLElement | undefined;
+        if (!child || child.offsetWidth === 0) continue;
+        precedingRight = Math.max(
+          precedingRight,
+          child.offsetLeft + child.offsetWidth,
+        );
+      }
+      const gap = navigation.offsetLeft - precedingRight;
+      // Keep an 8px safety margin at both ends and cap long travel on wide
+      // screens so the controls stay within the visual center of the bar.
+      const travel = Math.min(220, Math.max(0, gap - 16));
+      navigation.style.setProperty(
+        "--status-navigation-idle-travel",
+        `${-travel}px`,
+      );
+    };
+
+    updateTravel();
+    const resizeObserver = new ResizeObserver(updateTravel);
+    resizeObserver.observe(bar);
+    for (const child of Array.from(bar.children)) resizeObserver.observe(child);
+    const mutationObserver = new MutationObserver(updateTravel);
+    mutationObserver.observe(bar, { childList: true, subtree: true });
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      bar
+        .querySelector<HTMLElement>(':scope > [data-status-item="navigation"]')
+        ?.style.removeProperty("--status-navigation-idle-travel");
+    };
+  }, [idleGlow, statusItemsKey, state.visible]);
   useEffect(() => {
     const wheel = (event: WheelEvent) => {
       const target = event.target instanceof Element ? event.target : null;

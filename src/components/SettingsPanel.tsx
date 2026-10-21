@@ -1125,7 +1125,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="状态栏空闲光泽" desc="开启后，前台界面持续无操作时，状态栏会缓慢扫过一道淡光；任何输入或滚动都会立即停止。强度和等待时间可在下方调整。默认关闭，并尊重系统减少动态效果设置。" visible={settingsPage === "editor"}>
+            <Field label="状态栏空闲光泽" desc="开启后，前台界面持续无操作时，状态栏会缓慢扫过一道淡光，后退和前进按钮也会在中间空白处平移；鼠标、键盘或滚动活动会让动画立即停止并复位。强度和等待时间可在下方调整。默认关闭，并尊重系统减少动态效果设置。" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input type="checkbox" aria-label="状态栏空闲光泽" checked={statusBarIdleGlow} onChange={event => saveBlockWorkspacePreferences({ statusBarIdleGlow: event.target.checked })} />
                 <span className="toggle-track" /><span className="toggle-label">{statusBarIdleGlow ? "开" : "关"}</span>

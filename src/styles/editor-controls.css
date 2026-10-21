@@ -1638,6 +1638,18 @@ html[data-interface-style] .editor-menu .toolbar-split-button > .menu-btn:is(:ho
 }
 .editor-status-item { display: inline-flex; align-items: center; flex: 0 0 auto; white-space: nowrap; gap: inherit; }
 .editor-status-actions-start { margin-inline-start: auto; }
+.editor-status-bar [data-status-item="navigation"] {
+  transform: translateX(0);
+  transition: transform 180ms ease-out;
+  will-change: transform;
+}
+.editor-status-bar[data-status-idle-glow] [data-status-item="navigation"] {
+  animation: status-navigation-idle-drift 8s ease-in-out infinite alternate;
+}
+@keyframes status-navigation-idle-drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(var(--status-navigation-idle-travel, 0px)); }
+}
 .editor-status-bar .document-navigation button { width: 24px; height: 24px; padding: 2px; border: 1px solid transparent; background: transparent; }
 :root .editor-status-bar[data-status-display="plugin"] {
   font-family: var(--statusbar-font, inherit); font-size: var(--statusbar-size, 11px); font-weight: var(--statusbar-weight, 400); font-style: var(--statusbar-style, normal);
