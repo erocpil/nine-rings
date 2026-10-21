@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { EditorView } from "@codemirror/view";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { blockWorkspacePreferences } from "../lib/block-display-settings";
@@ -6,11 +6,21 @@ import { formatSource, sourceFormatChange, sourceFormatSettings, saveSourceForma
 import { EditorStatusSelect } from "./EditorStatusSelect";
 import { WorkspaceDialog } from "./WorkspaceDialog";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { sourceFormatRecord, rememberSourceFormat, type SourceFormatRecord } from "../lib/source-format-history";
 
-export function SourceFormattingControls({ editorRef, language, readonly, active, hasSelection, onMessage }: {
+const SourceFormatDiffDialog = lazy(() => import("./SourceFormatDiffDialog"));
+export interface SourceMessageAction { label: string; run: () => void }
+
+export function SourceFormattingControls({ editorRef, sessionKey, language, readonly, active, hasSelection, onMessage }: {
+  sessionKey: object;
   editorRef: MutableRefObject<EditorView | null>; language: string; readonly: boolean; active: boolean;
-  hasSelection: boolean; onMessage: (message: string) => void;
+  hasSelection: boolean; onMessage: (message: string, action?: SourceMessageAction) => void;
 }) {
+  const [saved, setSaved] = useState(() => ({ key: sessionKey, record: sourceFormatRecord(sessionKey) }));
+  const record = saved.key === sessionKey ? saved.record : sourceFormatRecord(sessionKey);
+  const [comparison, setComparison] = useState<{ key: object; record: SourceFormatRecord; currentMatches: boolean } | null>(null);
+  useEffect(() => { if (!active) setComparison(null); }, [active]);
+  const openComparison = (snapshot: SourceFormatRecord) => setComparison({ key: sessionKey, record: snapshot, currentMatches: editorRef.current?.state.doc.toString() === snapshot.after });
   const [settings, setSettings] = useState(sourceFormatSettings);
   const [configOpen, setConfigOpen] = useState(false);
   const [draft, setDraft] = useState("");
@@ -51,9 +61,16 @@ export function SourceFormattingControls({ editorRef, language, readonly, active
         const changes = state.changes(change.changes);
         const snapshot = editor.scrollSnapshot().map(changes);
         editor.dispatch({ ...change, ...(snapshot ? { effects: snapshot } : {}) });
+        const record: SourceFormatRecord = { before: state.doc.toString(), after: editor.state.doc.toString(), scope,
+          style: settings.style === "custom" ? "自定义 .clang-format" : settings.style, createdAt: Date.now() };
+        rememberSourceFormat(sessionKey, record);
+        setSaved({ key: sessionKey, record });
+        editor.focus();
+        onMessage(scope === "document" ? "已格式化全文" : "已格式化选区（可能扩展至完整语法结构）", { label: "查看差异", run: () => openComparison(record) });
+      } else {
+        editor.focus();
+        onMessage("代码已符合当前格式。");
       }
-      editor.focus();
-      onMessage(change ? scope === "document" ? "已格式化全文" : "已格式化选区（可能扩展至完整语法结构）" : "代码已符合当前格式。" );
     } catch (error) {
       if (mounted.current && latest.current.active) onMessage(`格式化失败：${error instanceof Error ? error.message : String(error)}；原文未修改。`);
     } finally {
@@ -71,6 +88,8 @@ export function SourceFormattingControls({ editorRef, language, readonly, active
       onMouseDown={event => event.preventDefault()} onClick={() => void format("selection")}><ToolbarIcon name="formatSelection" /></button>
     <button type="button" title="格式化全文 · clang-format" aria-label="格式化全文" aria-busy={busy} disabled={readonly || busy}
       onMouseDown={event => event.preventDefault()} onClick={() => void format("document")}><ToolbarIcon name="formatDocument" /></button>
+    <button type="button" title="查看上次格式化差异（会话快照）" aria-label="查看上次格式化差异" disabled={!record || busy}
+      onMouseDown={event => event.preventDefault()} onClick={() => { if (record) openComparison(record); }}><ToolbarIcon name="compare" /></button>
     <EditorStatusSelect label="代码格式风格" title="代码格式风格；预设跟随 Tab 设置，自定义配置优先" value={settings.style}
       options={[...SOURCE_FORMAT_STYLES.map(value => ({ value, label: value })), { value: "custom", label: "自定义 .clang-format" }]}
       onChange={value => {
@@ -93,5 +112,6 @@ export function SourceFormattingControls({ editorRef, language, readonly, active
           <button className="menu-btn active" type="submit" disabled={!draft.trim()}>使用此配置</button></div>
       </form>
     </WorkspaceDialog>}
+    {active && comparison?.key === sessionKey && <Suspense fallback={null}><SourceFormatDiffDialog record={comparison.record} currentMatches={comparison.currentMatches} onClose={() => setComparison(null)} /></Suspense>}
   </>;
 }

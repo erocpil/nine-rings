@@ -43,6 +43,7 @@
   pointer-events: none;
 }
 .source-indent-toast > span { min-width: 0; }
+.source-indent-toast > .source-message-action { flex: 0 0 auto; width: auto; padding: 3px 7px; color: var(--accent); white-space: nowrap; }
 .source-indent-toast > button {
   display: inline-flex;
   flex: 0 0 24px;

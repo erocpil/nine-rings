@@ -1875,3 +1875,11 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - Chromium/WebKit 的 `source-formatting`、`source-indentation`、`source-toolbar` 各 17 项通过。包括导入配置重开、当前选词/阅读行保留、原生菜单命令分派、选区旁函数不改写、错误不改正文及新输入保护。此前重开断言过早读取尚未保存的文件类型，现等待实际元数据落盘；长代码测试也暴露并修复了通用 diff 的选区丢失问题。
 - 最终生产包 Chromium 1 项通过：实际 Worker/WASM 在限制 JavaScript eval 的 CSP 下执行，资源完成真实预缓存后离线重启仍能格式化。构建通过，Worker 约 29.58 kB、WASM 约 2.57 MB（gzip 1.10 MB）；原有 NoteEditor 约 715.42 kB 的 650 kB 警告仍在，未提高阈值。
 - 完整检查的 tsx IPC 和一次浏览器端口启动受到沙箱限制，获准后重跑通过。未执行本批全产品 E2E、真实 Tauri GUI 菜单或 Flutter；浏览器 CSP 验证不能替代原生真机验收。日志：`/tmp/nr-format-check-final.log`、`/tmp/nr-format-chromium.log`、`/tmp/nr-format-webkit.log`、`/tmp/nr-format-production.log`、`/tmp/nr-format-build-final.log`。
+
+## 2026-10-21：格式化前后差异快照
+
+- 成功应用格式化后，下方提示提供“查看差异”，源码工具栏也提供可再次打开的入口。每个保留的源码会话只存最近一次成功操作的原始前/后源码与时间、范围、风格；失败、无变化和过期结果不覆盖记录。弱引用缓存随会话释放，不创建文档副本、不持久化或备份；当前正文不同于后快照时明确提示。
+- 抽出 `TextDiffView`，复用原文档对比的逐行差异、行号、相同行折叠与滚动逻辑，格式化源码不经过 Markdown 序列化。差异弹层固定居中，标题和关闭按钮保留，代码长行不换行；同步仅忽略程序设置产生的事件，避免按帧锁遗漏新的双轴输入。两侧超出各自可滚动范围时自然钳制。
+- 新增快照隔离/最新覆盖单元测试及两项真实浏览器回归，覆盖提示入口、相同行展开、特殊字符、编辑/撤销后的旧快照、文档切换、长代码双轴正反滚动、固定标题和关闭。滚动断言在两侧共有的可滚动范围比较位置，不把较短一侧的正常边界钳制误报为不同步。
+- 完整 `npm run check` 通过：207 单元文件 / 2381 项及原有独立脚本、格式、schema、IPC；最终滚动细化后完整 typecheck/lint 再通过。`source-format-diff`、`document-comparison`、`source-formatting` Chromium/WebKit 各 11 项通过，包含原有手机文档对比和 Pull 冲突预览。
+- 最终生产 Chromium 1 项通过，在真实预缓存、离线重启后执行 WASM 格式化并打开惰性差异弹层；测试等待实际文件类型落盘后再重启，避免保存未完成造成假失败。生产构建通过，差异弹层约 1.79 kB、共用文本 diff 约 2.54 kB；原有 NoteEditor 715.42 kB 警告仍在，未改变阈值。未执行本批全产品 E2E、Tauri 原生 GUI 或 Flutter。日志：`/tmp/nr-format-diff-check.log`、`/tmp/nr-format-diff-chromium.log`、`/tmp/nr-format-diff-webkit.log`、`/tmp/nr-format-diff-production.log`、`/tmp/nr-format-diff-build-final.log`。

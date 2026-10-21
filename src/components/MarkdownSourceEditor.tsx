@@ -1,5 +1,5 @@
 import { EditorStatusSelect } from "./EditorStatusSelect";
-import { SourceFormattingControls } from "./SourceFormattingControls";
+import { SourceFormattingControls, type SourceMessageAction } from "./SourceFormattingControls";
 import { sourceFoldPreviewPlaceholder } from "../lib/source-fold-preview";
 import { sourceIndentationChange, type SourceIndentStyle } from "../lib/source-indentation";
 import { sourceAutoIndentChange, type SourceAutoIndentScope } from "../lib/source-auto-indent";
@@ -288,6 +288,7 @@ export function MarkdownSourceEditor({
   const lastValue = useRef(value);
   const syntax = useRef(new Compartment());
   const [sourceMessage, setSourceMessage] = useState("");
+  const [sourceMessageAction, setSourceMessageAction] = useState<(SourceMessageAction & { message: string }) | null>(null);
   const access = useRef(new Compartment()),
     display = useRef(new Compartment());
   const [preferences, setPreferences] = useState(blockWorkspacePreferences);
@@ -822,7 +823,10 @@ export function MarkdownSourceEditor({
         <button type="button" title="自动缩进全文" aria-label="自动缩进全文" disabled={editingReadonly} onClick={() => autoIndent("document")}><ToolbarIcon name="autoIndentDocument" /></button>
         {escapeRepair}
         </>}
-        <SourceFormattingControls editorRef={view} language={documentLanguage} readonly={editingReadonly} active={documentActive} hasSelection={tools.selection} onMessage={setSourceMessage} />
+        <SourceFormattingControls editorRef={view} sessionKey={session} language={documentLanguage} readonly={editingReadonly} active={documentActive} hasSelection={tools.selection} onMessage={(message, action) => {
+          setSourceMessageAction(action ? { ...action, message } : null);
+          setSourceMessage(message);
+        }} />
         {!duplicateCursorPosition && <span className="markdown-source-cursor" aria-label="光标位置">
           Ln {cursor.line}, Col {cursor.column}
         </span>}
@@ -874,6 +878,7 @@ export function MarkdownSourceEditor({
       <div ref={host} className="markdown-cm-host" />
       {sourceMessage && <div className="source-indent-toast" role="status" aria-live="polite">
         <span>{sourceMessage}</span>
+        {sourceMessageAction?.message === sourceMessage && <button type="button" className="source-message-action" onMouseDown={event => event.preventDefault()} onClick={sourceMessageAction.run}>{sourceMessageAction.label}</button>}
         <button type="button" aria-label="关闭提示" title="关闭提示" onMouseDown={event => event.preventDefault()} onClick={() => setSourceMessage("")}><ToolbarIcon name="close" /></button>
       </div>}
       {statusTarget ? createPortal(<EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`Ln ${cursor.line}, Col ${cursor.column}`} characters={value.length} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`Ln ${cursor.line}, Col ${cursor.column}`} characters={value.length} /> : null}

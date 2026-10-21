@@ -1,0 +1,77 @@
+import { expect, test } from "@playwright/test";
+import { createBlankDocument } from "./helpers/document";
+import { replaceSource, selectDocumentLanguage, sourceInfo } from "./helpers/source-editor";
+
+test("格式化差异保留原始代码，支持相同行折叠和过期快照说明，不影响撤销", async ({ page }) => {
+  await createBlankDocument(page, "格式化差异甲");
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  const toolbar = page.getByRole("toolbar", { name: "源码编辑工具" });
+  const history = toolbar.getByRole("button", { name: "查看上次格式化差异", exact: true });
+  await expect(history).toBeDisabled();
+  const raw = '// 原样保留 ** [x] <tag>\n// second comment\nint main(){\nint value=1;\nreturn value;\n}';
+  await replaceSource(area, raw);
+  await toolbar.getByRole("button", { name: "格式化全文", exact: true }).click();
+  const toast = page.locator(".source-indent-toast");
+  await toast.getByRole("button", { name: "查看差异", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "格式化差异", exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("当前正文与格式化后快照一致");
+  const panes = dialog.locator(".document-diff-scroll-pane");
+  await expect(panes.nth(0)).toContainText("int value=1;");
+  await expect(panes.nth(1)).toContainText("int value = 1;");
+  await dialog.locator(".document-diff-collapsed").first().click();
+  await expect(panes.nth(0)).toContainText("** [x] <tag>");
+  await expect(dialog.getByRole("checkbox", { name: "显示相同行", exact: true })).toBeChecked();
+  const formatted = (await sourceInfo(area)).value;
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  expect((await sourceInfo(area)).value).toBe(formatted);
+  await toolbar.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
+  await history.click();
+  await expect(dialog).toContainText("当前正文已变化");
+  await expect(dialog.locator(".document-diff-scroll-pane").nth(1)).toContainText("int value = 1;");
+  await dialog.getByRole("button", { name: "关闭格式化差异", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+});
+
+test("格式化快照按文档隔离，长代码对比同步滚动且标题固定", async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 700 });
+  await createBlankDocument(page, "格式化快照甲");
+  const first = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  const raw = `void test(){\n${Array.from({ length: 150 }, (_, n) => `int value${n}=${n}; // ${"long text ".repeat(20)}`).join("\n")}\n}`;
+  await replaceSource(area, raw);
+  await page.getByRole("button", { name: "格式化全文", exact: true }).click();
+  await expect(page.getByRole("button", { name: "查看上次格式化差异", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "新建文档", exact: true }).click();
+  await page.getByPlaceholder("文档标题...").fill("格式化快照乙");
+  await page.getByRole("button", { name: "创建", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:lastNote"))).not.toBe(first);
+  await selectDocumentLanguage(page, "c");
+  const history = page.getByRole("button", { name: "查看上次格式化差异", exact: true });
+  await expect(history).toBeDisabled();
+  await page.getByRole("button", { name: "格式化快照甲", exact: true }).click();
+  await expect(history).toBeEnabled();
+  await history.click();
+  const dialog = page.getByRole("dialog", { name: "格式化差异", exact: true });
+  await expect(dialog).toBeVisible();
+  const panes = dialog.locator(".document-diff-scroll-pane");
+  await panes.first().hover();
+  // Stay inside the horizontal range shared by both sides (formatting wraps
+  // long comments, so their maximum horizontal extents intentionally differ).
+  await page.mouse.wheel(80, 350);
+  await expect.poll(() => panes.first().evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  await expect.poll(async () => Math.abs(await panes.first().evaluate(element => element.scrollTop) - await panes.last().evaluate(element => element.scrollTop))).toBeLessThan(2);
+  await expect.poll(() => panes.first().evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+  await expect.poll(async () => Math.abs(await panes.first().evaluate(element => element.scrollLeft) - await panes.last().evaluate(element => element.scrollLeft))).toBeLessThan(2);
+  await panes.last().hover();
+  await page.mouse.wheel(-35, 120);
+  await expect.poll(() => panes.last().evaluate(element => element.scrollLeft)).toBeLessThan(80);
+  await expect.poll(async () => Math.abs(await panes.first().evaluate(element => element.scrollLeft) - await panes.last().evaluate(element => element.scrollLeft))).toBeLessThan(2);
+  await expect.poll(async () => Math.abs(await panes.first().evaluate(element => element.scrollTop) - await panes.last().evaluate(element => element.scrollTop))).toBeLessThan(2);
+  await expect(dialog.getByRole("heading", { name: "格式化差异", exact: true })).toBeInViewport();
+  await expect(dialog.getByRole("button", { name: "关闭格式化差异", exact: true })).toBeInViewport();
+});
