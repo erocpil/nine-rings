@@ -1866,3 +1866,12 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - 审查发现选区工具栏清理逻辑会再次点击已展开的源码查找/跳转按钮，导致新面板立即关闭。现仅关闭该工具栏的子菜单，独立工具面板继续运行。
 - 双击括号补充字符坐标命中检查，避免双击括号旁单词时误选整个括号区域。
 - 括号、真实选区弹层查找/跳转、书签图标和书签交互定向 Chromium 回归通过；日志位于 `.local-tools/e2e/review-20261021/`（本机，不入库）。
+
+## 2026-10-21：C/C++ 本地代码格式化
+
+- 新增全文/连续选区格式化、七种预设及粘贴/导入 `.clang-format`，预设衔接 Tab 设置，显式配置优先；工具栏和原生菜单共用执行入口。Web/Tauri 共用固定版本的本地 WASM Worker，执行结束或超时释放，不安装系统工具、不上传源码、不自动保存时格式化。
+- 结果应用前核验文档、修订、选区、语言和读写状态；继续输入时丢弃旧结果。仅空白变化采用线性字符映射，避免大差异回退吞并长代码选区；非空白变化使用有预算的差异回退，单次撤销并映射滚动快照。
+- 新增 9 项单元测试，真实格式化器覆盖所有预设、自定义配置/错误、UTF-8 范围、千行选区映射、include 排序、只读/撤销及 Worker 超时/释放。完整 `npm run check` 通过：206 文件 / 2380 项、原有独立脚本、类型、lint、格式、schema 与 IPC 检查；覆盖率继续通过。
+- Chromium/WebKit 的 `source-formatting`、`source-indentation`、`source-toolbar` 各 17 项通过。包括导入配置重开、当前选词/阅读行保留、原生菜单命令分派、选区旁函数不改写、错误不改正文及新输入保护。此前重开断言过早读取尚未保存的文件类型，现等待实际元数据落盘；长代码测试也暴露并修复了通用 diff 的选区丢失问题。
+- 最终生产包 Chromium 1 项通过：实际 Worker/WASM 在限制 JavaScript eval 的 CSP 下执行，资源完成真实预缓存后离线重启仍能格式化。构建通过，Worker 约 29.58 kB、WASM 约 2.57 MB（gzip 1.10 MB）；原有 NoteEditor 约 715.42 kB 的 650 kB 警告仍在，未提高阈值。
+- 完整检查的 tsx IPC 和一次浏览器端口启动受到沙箱限制，获准后重跑通过。未执行本批全产品 E2E、真实 Tauri GUI 菜单或 Flutter；浏览器 CSP 验证不能替代原生真机验收。日志：`/tmp/nr-format-check-final.log`、`/tmp/nr-format-chromium.log`、`/tmp/nr-format-webkit.log`、`/tmp/nr-format-production.log`、`/tmp/nr-format-build-final.log`。

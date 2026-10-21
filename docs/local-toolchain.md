@@ -164,3 +164,9 @@ bash scripts/with-local-flutter.sh --project dart format --output=none --set-exi
 ## 0.3.0 同步验证工具（2026-10-17）
 
 同步验收沿用仓库 `.local-tools` 的 Node、Rust 和 Playwright，不调整系统工具链。原生完整备份测试是显式忽略用例，通过 `NR_SYNC_DRY_RUN_INPUT` 指定只读输入；真实 GitHub 测试是单独 opt-in 脚本。命令、隔离目录、凭据和数据边界见[本机演练说明](../tests/local/README.md)。普通 check/CI 不读取私有文件或 gh 凭据，不运行真实远端写测试。
+
+## C/C++ 格式化工具（2026-10-21）
+
+项目 npm 依赖固定为 `@wasm-fmt/clang-format@23.1.1`，差异映射回退使用 `@codemirror/merge@6.11.2`，均通过 package-lock 锁定。无需 Homebrew、全局 clang-format 或 clangd；标准 `npm ci` 安装至本仓库 node_modules，Vite 为 Web/Tauri 生成独立 module Worker 和约 2.57 MB（gzip 约 1.10 MB）的 WASM 资源。首次执行按需加载，执行完成/失败或 60 秒超时后终止 Worker，不常驻后台进程。生产 PWA 将资源预缓存，可在离线冷启动后使用。
+
+验证入口为 `tests/unit/source-formatting.test.ts`、`e2e/source-formatting.spec.ts` 和生产包 `e2e/source-formatting-production.spec.ts`；后者纳入 `playwright.pwa.config.ts`，先构建再运行。CSP 保留 `wasm-unsafe-eval`，不增加 JavaScript `unsafe-eval` 或远端代码服务。产品操作与配置优先级见[源码语言文档](document-source-languages.md)。

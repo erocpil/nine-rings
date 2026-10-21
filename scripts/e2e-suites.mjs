@@ -4,6 +4,7 @@ export const productionOnlyFiles = [
   "settings-search-production",
   "toolbar-overflow-production",
   "search-production",
+  "source-formatting-production",
 ].map((name) => `${name}.spec.ts`);
 
 /** Conservative CI ownership: unfamiliar/shared changes always select the full suite. */

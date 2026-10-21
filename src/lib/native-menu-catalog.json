@@ -197,7 +197,7 @@
         ]
       },
       {
-        "text": "源码缩进",
+        "text": "源码整理",
         "items": [
           {
             "id": "source.autoIndentSelection",
@@ -206,6 +206,14 @@
           {
             "id": "source.autoIndentDocument",
             "text": "自动缩进全文"
+          },
+          {
+            "id": "source.formatSelection",
+            "text": "格式化选区"
+          },
+          {
+            "id": "source.formatDocument",
+            "text": "格式化全文"
           }
         ]
       }

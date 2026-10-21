@@ -1,4 +1,5 @@
 import { EditorStatusSelect } from "./EditorStatusSelect";
+import { SourceFormattingControls } from "./SourceFormattingControls";
 import { sourceFoldPreviewPlaceholder } from "../lib/source-fold-preview";
 import { sourceIndentationChange, type SourceIndentStyle } from "../lib/source-indentation";
 import { sourceAutoIndentChange, type SourceAutoIndentScope } from "../lib/source-auto-indent";
@@ -821,6 +822,7 @@ export function MarkdownSourceEditor({
         <button type="button" title="自动缩进全文" aria-label="自动缩进全文" disabled={editingReadonly} onClick={() => autoIndent("document")}><ToolbarIcon name="autoIndentDocument" /></button>
         {escapeRepair}
         </>}
+        <SourceFormattingControls editorRef={view} language={documentLanguage} readonly={editingReadonly} active={documentActive} hasSelection={tools.selection} onMessage={setSourceMessage} />
         {!duplicateCursorPosition && <span className="markdown-source-cursor" aria-label="光标位置">
           Ln {cursor.line}, Col {cursor.column}
         </span>}

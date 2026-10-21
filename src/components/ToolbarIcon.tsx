@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 
 const paths = {
+  formatDocument: <><path d="M5 3h9l5 5v13H5ZM14 3v5h5M8 12h8M8 16h6" /><path d="m2 9 2-2m16 10 2-2" /></>,
+  formatSelection: <><path d="M3 3h6M3 3v5M21 3h-6M21 3v5M3 21h6M3 21v-5M21 21h-6M21 21v-5M7 9h10M7 13h8M7 17h6" /></>,
   focus: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></>,
   book: <><path d="M3 4h7l2 2 2-2h7v16h-7l-2 2-2-2H3ZM12 6v16M6 8h3M15 8h3" /></>,
   highlight: <><path d="m4 14 10-10 6 6-10 10H5ZM9 9l6 6M3 22h18" /></>,
