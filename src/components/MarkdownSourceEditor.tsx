@@ -286,7 +286,7 @@ export function MarkdownSourceEditor({
   const markupModeRef = useRef(markupMode);
   markupModeRef.current = markupMode;
 
-  const sourceLabel = `${DOCUMENT_LANGUAGE_OPTIONS.find(option => option.value === documentLanguage)?.label ?? "text"} 源码`;
+  const sourceLabel = `${DOCUMENT_LANGUAGE_OPTIONS.find(option => option.value === documentLanguage)?.label ?? "Text"} 源码`;
   const initial = useRef({ value, readonly: editingReadonly, sourceLabel });
   const lastValue = useRef(value);
   const syntax = useRef(new Compartment());

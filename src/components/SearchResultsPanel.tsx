@@ -34,7 +34,7 @@ export function SearchResultsPanel({
   const formatLabel = (note: SearchNote | Note) => {
     const metadata = "content" in note ? note.content.metadata : note;
     const language = documentSourceLanguage(metadata);
-    return DOCUMENT_LANGUAGE_OPTIONS.find(option => option.value === language)?.label ?? "text";
+    return DOCUMENT_LANGUAGE_OPTIONS.find(option => option.value === language)?.label ?? "Text";
   };
 
   useEffect(() => setVisibleCount(PAGE_SIZE), [notes, searchTerm]);
