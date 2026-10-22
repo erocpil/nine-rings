@@ -4,11 +4,12 @@ import type { EditorState, TransactionSpec } from "@codemirror/state";
 
 export type SourceAutoIndentScope = "selection" | "document";
 
-type CppScope = { kind: "class" | "block"; openingIndent: number };
+type CppScope = { kind: "class" | "block" | "continuation"; delimiter: string; openingIndent: number };
 type CppLexState = { blockComment: boolean; rawStringEnd: string | null };
+type CppDelimiter = { position: number; kind: "open" | "close"; delimiter: string };
 
-function cppBraceTokens(text: string, state: CppLexState): { position: number; kind: "open" | "close" }[] {
-  const tokens: { position: number; kind: "open" | "close" }[] = [];
+function cppDelimiterTokens(text: string, state: CppLexState): CppDelimiter[] {
+  const tokens: CppDelimiter[] = [];
   if (!state.blockComment && !state.rawStringEnd && /^\s*#/.test(text)) return tokens;
   for (let index = 0; index < text.length;) {
     if (state.blockComment) {
@@ -46,8 +47,8 @@ function cppBraceTokens(text: string, state: CppLexState): { position: number; k
       }
       continue;
     }
-    if (char === "{") tokens.push({ position: index, kind: "open" });
-    else if (char === "}") tokens.push({ position: index, kind: "close" });
+    if ("{([".includes(char)) tokens.push({ position: index, kind: "open", delimiter: char });
+    else if ("})]".includes(char)) tokens.push({ position: index, kind: "close", delimiter: "{(["["})]".indexOf(char)] });
     index++;
   }
   return tokens;
@@ -55,7 +56,8 @@ function cppBraceTokens(text: string, state: CppLexState): { position: number; k
 
 /** C++'s grammar recovery can lose the class scope after an otherwise harmless
  * parse error (for example, a temporary `};` after a member definition). Use
- * braces and lexical comment/string boundaries for stable class/member levels. */
+ * delimiters and lexical comment/string boundaries for stable class/member
+ * levels and one additional indent for multiline calls and expressions. */
 function cppIndentChanges(
   state: EditorState,
   selectedLines: Set<number>,
@@ -64,28 +66,38 @@ function cppIndentChanges(
   const lex: CppLexState = { blockComment: false, rawStringEnd: null };
   const unitColumns = Math.max(1, getIndentUnit(state));
   const changes: { from: number; to: number; insert: string }[] = [];
+  const closeScope = (delimiter: string) => {
+    for (let index = scopes.length - 1; index >= 0; index--) {
+      if (scopes[index].delimiter !== delimiter) continue;
+      const scope = scopes[index];
+      scopes.splice(index);
+      return scope;
+    }
+  };
 
   for (let number = 1; number <= state.doc.lines; number++) {
     const line = state.doc.line(number);
     const leading = /^\s*/.exec(line.text)![0];
     const text = line.text.slice(leading.length);
     const insideRawString = lex.rawStringEnd !== null;
-    const tokens = cppBraceTokens(line.text, lex);
+    const tokens = cppDelimiterTokens(line.text, lex);
     let leadingClosers = 0;
+    let closingIndent: number | undefined;
     let nextLeadingPosition = leading.length;
     for (const token of tokens) {
       if (token.kind !== "close" || line.text.slice(nextLeadingPosition, token.position).trim()) break;
       leadingClosers++;
+      closingIndent = closeScope(token.delimiter)?.openingIndent ?? closingIndent;
       nextLeadingPosition = token.position + 1;
     }
-    for (let count = 0; count < leadingClosers; count++) scopes.pop();
-
     const top = scopes[scopes.length - 1];
     const accessLabel = top?.kind === "class"
       && /^(?:(?:public|protected|private)(?:\s+slots)?|signals|slots|Q_SIGNALS|Q_SLOTS)\s*:/.test(text);
     const columns = !text.trim()
       ? 0
-      : accessLabel
+      : closingIndent !== undefined
+        ? closingIndent
+        : accessLabel
         ? top!.openingIndent
         : top
           ? top.openingIndent + unitColumns
@@ -102,13 +114,19 @@ function cppIndentChanges(
           skippedClosers--;
           continue;
         }
-        scopes.pop();
+        closeScope(token.delimiter);
         continue;
       }
       const beforeBrace = line.text.slice(0, token.position);
-      const opensClass = /^\s*(?:(?:template\s*<.*>\s*)?)(?:class|struct|union)\b/.test(beforeBrace)
+      const opensClass = token.delimiter === "{" && /^\s*(?:(?:template\s*<.*>\s*)?)(?:class|struct|union)\b/.test(beforeBrace)
         && !/^\s*enum\b/.test(beforeBrace);
-      scopes.push({ kind: opensClass ? "class" : "block", openingIndent: columns });
+      const parent = scopes[scopes.length - 1];
+      // A signature's final parameter can close ')' before '{' on the same
+      // line. The body belongs to the enclosing scope, not the parameter indent.
+      const openingIndent = token.delimiter === "{"
+        ? Math.min(columns, parent ? parent.openingIndent + unitColumns : 0)
+        : columns;
+      scopes.push({ kind: token.delimiter !== "{" ? "continuation" : opensClass ? "class" : "block", delimiter: token.delimiter, openingIndent });
     }
   }
   return changes;

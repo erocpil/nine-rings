@@ -8,6 +8,53 @@ import { sourceAutoIndentChange } from "../../src/lib/source-auto-indent";
 const unindented = "int main() {\nint value = 1;\nif (value) {\nvalue++;\n}\n}";
 
 describe("source automatic indentation", () => {
+  it.each([2, 4, 8])("indents multiline C/C++ calls and restores the following statement (Tab %i)", size => {
+    const raw = [
+      "void split() {",
+      "n = block_init((struct Block *)((uintptr_t)b + BLOCK_SIZE + size),",
+      "b->size - size - BLOCK_SIZE, b, b->next);",
+      "run();",
+      "}",
+    ].join("\n");
+    const state = EditorState.create({ doc: raw, extensions: [cpp(), EditorState.tabSize.of(size), indentUnit.of("\t")] });
+    const formatted = state.update(sourceAutoIndentChange(state, "document")!).state;
+    expect(formatted.doc.toString()).toBe([
+      "void split() {",
+      "\tn = block_init((struct Block *)((uintptr_t)b + BLOCK_SIZE + size),",
+      "\t\tb->size - size - BLOCK_SIZE, b, b->next);",
+      "\trun();",
+      "}",
+    ].join("\n"));
+    expect(sourceAutoIndentChange(formatted, "document")).toBeNull();
+  });
+
+  it.each([
+    ["nested calls", ["void f() {", "call(", "nested(", "value", "),", "other", ");", "next();", "}"], [0, 1, 2, 3, 2, 2, 1, 1, 0]],
+    ["subscript and grouped condition", ["void f() {", "if (ready &&", "array[", "index", "]) {", "work();", "}", "}"], [0, 1, 2, 3, 1, 2, 1, 0]],
+    ["multiline signature", ["namespace app {", "void f(int first,", "int second) {", "work();", "}", "}"], [0, 1, 2, 2, 1, 0]],
+    ["initializer inside a call", ["void f() {", "call((struct Item){", ".value = 1,", "},", "other);", "next();", "}"], [0, 1, 2, 1, 2, 1, 0]],
+    ["lambda argument", ["void f() {", "call(", "[](int value) {", "return value;", "}", ");", "}"], [0, 1, 2, 3, 2, 1, 0]],
+    ["comments and strings", ["void f() {", 'call("([)]", // ) ]', "/* ) ] */ value);", "next();", "}"], [0, 1, 2, 1, 0]],
+  ] as const)("handles %s without accumulating continuation indentation", (_name, lines, levels) => {
+    const state = EditorState.create({ doc: lines.join("\n"), extensions: [cpp(), indentUnit.of("  ")] });
+    const formatted = state.update(sourceAutoIndentChange(state, "document")!).state;
+    expect(formatted.doc.toString()).toBe(lines.map((line, index) => "  ".repeat(levels[index]) + line).join("\n"));
+    expect(sourceAutoIndentChange(formatted, "document")).toBeNull();
+  });
+
+  it("reindents a selected continuation using the full preceding source context", () => {
+    const raw = "void f() {\n\tcall(first,\nlast);\n\tnext();\n}";
+    const state = EditorState.create({
+      doc: raw,
+      selection: EditorSelection.range(raw.indexOf("last"), raw.indexOf("last") + 4),
+      extensions: [cpp(), indentUnit.of("\t"), history()],
+    });
+    let updated = state.update(sourceAutoIndentChange(state, "selection")!).state;
+    expect(updated.doc.toString()).toBe(raw.replace("\nlast", "\n\t\tlast"));
+    undo({ state: updated, dispatch: transaction => { updated = transaction.state; } });
+    expect(updated.doc.toString()).toBe(raw);
+  });
+
   it("formats the whole document using the selected tab width and style", () => {
     const state = EditorState.create({
       doc: unindented,

@@ -220,6 +220,27 @@ test("源码自动缩进支持选区和全文，并可作为单次撤销", async
     );
 });
 
+test("C 自动缩进保留函数参数续行并恢复后续语句缩进", async ({ page }) => {
+  await createBlankDocument(page, "函数参数续行");
+  await selectDocumentLanguage(page, "c");
+  const area = page.locator(".cm-content");
+  const lines = [
+    "void split() {",
+    "n = block_init((struct Block *)((uintptr_t)b + BLOCK_SIZE + size),",
+    "b->size - size - BLOCK_SIZE, b, b->next);",
+    "run();",
+    "}",
+  ];
+  const raw = lines.join("\n");
+  await replaceSource(area, raw);
+  await page.getByRole("button", { name: "自动缩进全文", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(
+    lines.map((line, index) => "\t".repeat([0, 1, 2, 1, 0][index]) + line).join("\n"),
+  );
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
+});
+
 test("C++ 自动缩进在成员定义后保留类作用域", async ({ page }) => {
   await createBlankDocument(page, "C++ 类缩进");
   await selectDocumentLanguage(page, "c");
