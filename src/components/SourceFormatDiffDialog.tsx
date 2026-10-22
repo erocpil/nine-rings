@@ -15,7 +15,6 @@ export default function SourceFormatDiffDialog({ record, currentMatches, onClose
   const dialog = useRef<HTMLDialogElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-  const [showUnchanged, setShowUnchanged] = useState(false);
   const [showWhitespace, setShowWhitespace] = useState(
     () => blockWorkspacePreferences().sourceWhitespace === true,
   );
@@ -59,12 +58,11 @@ export default function SourceFormatDiffDialog({ record, currentMatches, onClose
     onCancel={event => { event.preventDefault(); onClose(); }} onKeyDown={event => event.stopPropagation()}>
     <header><h3>格式化差异</h3><button type="button" className="btn-icon" aria-label="关闭格式化差异" title="关闭" onClick={onClose}><ToolbarIcon name="close" /></button></header>
     <p className="source-format-diff-summary">{record.scope === "document" ? "全文" : "选区"} · {record.style} · {new Date(record.createdAt).toLocaleString()}</p>
-    <p className="source-format-diff-notice">{currentMatches
+    <p className="source-format-diff-notice" data-stale={!currentMatches || undefined}>{currentMatches
       ? "当前源码与上次格式化结果一致。"
       : "源码在上次格式化后已修改；下方仍是上次格式化记录。若要查看当前格式化效果，请重新执行格式化。"}</p>
     <div className="document-comparison">
-      <div className="document-compare-controls"><label><input type="checkbox" checked={showUnchanged} onChange={event => setShowUnchanged(event.target.checked)} />显示相同行</label><SourceWhitespaceToggle className="document-diff-whitespace-toggle" /></div>
-      <TextDiffView left={record.before} right={record.after} leftLabel="格式化前" rightLabel="格式化后" showUnchanged={showUnchanged} showWhitespace={showWhitespace} onShowUnchanged={() => setShowUnchanged(true)} />
+      <TextDiffView left={record.before} right={record.after} leftLabel="格式化前" rightLabel="格式化后" showWhitespace={showWhitespace} controls={<SourceWhitespaceToggle className="document-diff-whitespace-toggle" />} />
     </div>
   </dialog>, document.body);
 }

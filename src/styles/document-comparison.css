@@ -23,8 +23,8 @@
 .document-diff-header { border: 1px solid var(--border); border-bottom: 0; }
 .document-diff-header span { padding: 6px 8px; background: var(--hover); font-weight: 600; font-size: 12px; }
 .document-diff-columns { min-height: 160px; height: min(420px, 48dvh); border: 1px solid var(--border); }
-.document-diff-scroll-pane { min-width: 0; overflow: auto; background: var(--bg); scrollbar-gutter: stable; }
-.document-diff-line { display: grid; grid-template-columns: 3.5em minmax(0, 1fr); min-height: 22px; font-size: 12px; }
+.document-diff-scroll-pane { min-width: 0; overflow: auto; overflow-anchor: none; background: var(--bg); scrollbar-gutter: stable; }
+.document-diff-line { display: grid; grid-template-columns: calc(3.5em + 12px) minmax(0, 1fr); min-height: 22px; font-size: 12px; }
 .document-diff-line code { white-space: pre-wrap; overflow-wrap: anywhere; tab-size: var(--code-tab-size, 4); }
 .document-diff-line code[data-whitespace-visible="true"] { tab-size: var(--code-tab-size, 4); }
 .document-diff-line code[data-whitespace-visible="true"]::after { content: "↵"; margin-left: .35em; color: var(--text-secondary); opacity: .58; font-size: .72em; user-select: none; }
@@ -34,6 +34,13 @@
 .document-diff-line.added { background: color-mix(in srgb, #36b36b 18%, transparent); }
 .document-diff-line.removed { background: color-mix(in srgb, #e45757 18%, transparent); }
 .document-diff-collapsed { display: block; width: 100%; min-height: 22px; border: 0; border-bottom: 1px dashed var(--border); background: var(--hover); color: var(--text-muted); font: inherit; font-size: 12px; cursor: pointer; }
+.document-diff-same-group { position: relative; }
+.document-diff-same-collapse { position: absolute; z-index: 1; inset: 0 auto 0 0; width: 12px; padding: 0; border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.document-diff-same-collapse::after { content: ""; position: absolute; top: 20px; bottom: 2px; left: 5px; width: 2px; border-radius: 1px; background: color-mix(in srgb, var(--text-secondary) 32%, transparent); }
+.document-diff-same-collapse > span { position: absolute; top: 2px; left: 1px; font-size: 11px; }
+.document-diff-same-collapse:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.document-diff-same-collapse:hover::after { background: var(--accent); }
+.document-diff-same-collapse:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .document-compare-dialog { box-sizing: border-box; position: fixed; inset: 50% auto auto 50%; transform: translate(-50%, -50%); margin: 0; width: min(1180px, calc(100vw - 32px)); height: min(800px, calc(100dvh - 32px)); overflow: hidden; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--ui-shadow-dialog, 0 18px 48px rgb(0 0 0 / 28%)); }
 .document-compare-dialog::backdrop { background: #0006; }
 .source-format-diff-dialog[open] { display: flex; flex-direction: column; gap: 8px; }
@@ -41,6 +48,15 @@
 .source-format-diff-dialog > header { flex: 0 0 auto; }
 .source-format-diff-dialog > header h3 { margin: 0; }
 .source-format-diff-dialog > .source-format-diff-summary, .source-format-diff-dialog > .source-format-diff-notice { flex: 0 0 auto; margin: 0; font-size: 12px; color: var(--text-secondary); }
+.source-format-diff-dialog > .source-format-diff-notice[data-stale="true"] {
+  --format-notice-color: var(--warning, var(--hierarchy-default-2, #9a5b00));
+  color: var(--format-notice-color);
+  background: color-mix(in srgb, var(--format-notice-color) 10%, transparent);
+  border-inline-start: 2px solid var(--format-notice-color);
+  border-radius: 3px;
+  padding: 6px 8px;
+  font-weight: 600;
+}
 .source-format-diff-dialog > .document-comparison { flex: 1; min-height: 0; height: auto; overflow: hidden; padding: 0; display: flex; flex-direction: column; }
 .source-format-diff-dialog .document-diff-columns { flex: 1; min-height: 0; height: auto; }
 .source-format-diff-dialog .document-diff-whitespace-toggle { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 4px; border: 1px solid transparent; border-radius: 4px; color: var(--text-secondary); background: transparent; cursor: pointer; }

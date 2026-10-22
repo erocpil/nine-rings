@@ -2,6 +2,71 @@ import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 import { replaceSource, selectDocumentLanguage, sourceInfo } from "./helpers/source-editor";
 
+test("相同行按段展开和收起，保持双侧可视位置并支持键盘与全部开关", async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 700 });
+  await createBlankDocument(page, "差异逐段折叠位置");
+  await selectDocumentLanguage(page, "c");
+  const area = page.locator(".cm-content");
+  const comments = (prefix: string, length: number) => Array.from({ length }, (_, index) => `// ${prefix} unchanged ${index + 1}`);
+  const raw = [...comments("first", 50), "int first=1;", ...comments("middle", 70),
+    ...Array.from({ length: 45 }, (_, index) => `int tail${index}=${index};`), ...comments("last", 40)].join("\n");
+  await replaceSource(area, raw);
+  await page.getByRole("button", { name: "格式化全文", exact: true }).click();
+  await page.locator(".source-indent-toast").getByRole("button", { name: "查看差异", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "格式化差异", exact: true });
+  const panes = dialog.locator(".document-diff-scroll-pane");
+  const left = panes.first();
+  const right = panes.last();
+  const showAll = dialog.getByRole("checkbox", { name: "显示相同行", exact: true });
+  await expect(left.locator(".document-diff-collapsed")).toHaveCount(3);
+  await left.getByRole("button", { name: "展开 50 行相同内容", exact: true }).click();
+  await expect(left.locator(".document-diff-collapsed")).toHaveCount(2);
+  await expect(right.locator(".document-diff-same-collapse")).toHaveCount(1);
+  expect(await showAll.evaluate(element => (element as HTMLInputElement).indeterminate)).toBe(true);
+
+  const middle = left.getByRole("button", { name: "展开 70 行相同内容", exact: true });
+  await middle.scrollIntoViewIfNeeded();
+  const topBefore = (await middle.boundingBox())!.y;
+  await middle.click();
+  const group = left.locator(".document-diff-same-group").filter({ hasText: "// middle unchanged 1" });
+  await expect.poll(async () => Math.abs((await group.boundingBox())!.y - topBefore)).toBeLessThan(2);
+  await group.evaluate(element => {
+    const pane = element.closest<HTMLElement>(".document-diff-scroll-pane")!;
+    pane.scrollTop += element.getBoundingClientRect().top - pane.getBoundingClientRect().top + 350;
+  });
+  await expect.poll(async () => Math.abs(await left.evaluate(el => el.scrollTop) - await right.evaluate(el => el.scrollTop))).toBeLessThan(2);
+  const paneBox = (await left.boundingBox())!;
+  const rail = group.getByRole("button", { name: "收起 70 行相同内容", exact: true });
+  const railBox = (await rail.boundingBox())!;
+  const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.outerHTML, { x: railBox.x + railBox.width / 2, y: paneBox.y + 70 });
+  expect(hit).toContain("document-diff-same-collapse");
+  // Click the rail in the visible middle of a long group, without scrolling its
+  // first row back into view as locator.click() would do for a large button.
+  await page.mouse.click(railBox.x + railBox.width / 2, paneBox.y + 70);
+  await expect(left.locator(".document-diff-same-collapse")).toHaveCount(1);
+  await expect(right.locator(".document-diff-same-collapse")).toHaveCount(1);
+  const folded = left.getByRole("button", { name: "展开 70 行相同内容", exact: true });
+  await expect.poll(async () => Math.abs((await folded.boundingBox())!.y - paneBox.y)).toBeLessThan(3);
+  expect(await left.evaluate(element => element.scrollTop)).toBeGreaterThan(500);
+  await expect.poll(async () => Math.abs(await left.evaluate(el => el.scrollTop) - await right.evaluate(el => el.scrollTop))).toBeLessThan(2);
+
+  await showAll.check();
+  await expect(left.locator(".document-diff-same-collapse")).toHaveCount(3);
+  const keyboardRail = left.getByRole("button", { name: "收起 70 行相同内容", exact: true });
+  await keyboardRail.focus();
+  await page.keyboard.press("Space");
+  await expect(folded).toBeFocused();
+  expect(await showAll.evaluate(element => (element as HTMLInputElement).indeterminate)).toBe(true);
+  await showAll.check();
+  await showAll.uncheck();
+  await expect(left.locator(".document-diff-same-collapse")).toHaveCount(0);
+  await expect(left.locator(".document-diff-collapsed")).toHaveCount(3);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole("toolbar", { name: "源码编辑工具" }).getByRole("button", { name: "撤销", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
+});
+
 test("格式化差异保留原始代码，支持相同行折叠和过期快照说明，不影响撤销", async ({ page }) => {
   await createBlankDocument(page, "格式化差异甲");
   await selectDocumentLanguage(page, "c");

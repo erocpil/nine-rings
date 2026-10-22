@@ -8,7 +8,6 @@ export function DocumentComparison({ left, right, leftLabel = "左侧", rightLab
   left: SyncRemoteDocumentPreview; right: SyncRemoteDocumentPreview; leftLabel?: string; rightLabel?: string;
 }) {
   const [mode, setMode] = useState("text");
-  const [showUnchanged, setShowUnchanged] = useState(false);
   const unavailable = (left.encrypted || right.encrypted) && mode !== "properties";
   const sources = useMemo(() => {
     if (unavailable) return null;
@@ -16,15 +15,12 @@ export function DocumentComparison({ left, right, leftLabel = "左侧", rightLab
       : mode === "structure" ? JSON.stringify(doc.content, null, 2) : deltaToMarkdown(doc.content);
     return [source(left), source(right)];
   }, [left, right, mode, unavailable]);
-  return <div className="document-comparison">
-    <div className="document-compare-controls">
-      <label>差异视图 <select value={mode} onChange={event => setMode(event.target.value)}>
+  const modeControl = <label>差异视图 <select value={mode} onChange={event => setMode(event.target.value)}>
         <option value="text">正文（Markdown）</option><option value="structure">排版与正文结构</option><option value="properties">标题、路径与属性</option>
-      </select></label>
-      <label><input type="checkbox" checked={showUnchanged} onChange={event => setShowUnchanged(event.target.checked)} />显示相同行</label>
-    </div>
-    {unavailable ? <p>含加密正文，不能比较正文差异；仍可查看标题、路径与属性。</p> : sources &&
-      <TextDiffView left={sources[0]} right={sources[1]} leftLabel={leftLabel} rightLabel={rightLabel} showUnchanged={showUnchanged} onShowUnchanged={() => setShowUnchanged(true)} />}
+      </select></label>;
+  return <div className="document-comparison">
+    {unavailable ? <><div className="document-compare-controls">{modeControl}</div><p>含加密正文，不能比较正文差异；仍可查看标题、路径与属性。</p></> : sources &&
+      <TextDiffView left={sources[0]} right={sources[1]} leftLabel={leftLabel} rightLabel={rightLabel} controls={modeControl} />}
     <div className="document-comparison-previews">
       {[{ doc: left, label: leftLabel }, { doc: right, label: rightLabel }].map(({ doc, label }) => <section key={label}>
         <h4>{label}：{doc.title}</h4><small>{doc.storagePath || doc.date || "无路径"} · {doc.updatedAt || "无修改时间"}</small>
