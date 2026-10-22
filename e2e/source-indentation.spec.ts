@@ -56,6 +56,38 @@ test("C 与 Python 保留语言缩进，Markdown 继续列表", async ({ page })
     .toBe("- item\n- ");
 });
 
+test("C 源码在新行输入右花括号时自动回退一级缩进", async ({ page }) => {
+  await createBlankDocument(page, "右花括号自动退格");
+  await selectDocumentLanguage(page, "c");
+  const area = page.locator(".cm-content");
+  await replaceSource(area, "if (!s) {");
+  await selectSource(area, "if (!s) {".length);
+  await page.keyboard.press("Enter");
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe("if (!s) {\n\t");
+  await page.keyboard.type("}");
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe("if (!s) {\n}");
+});
+
+test("源码在新行输入右圆括号和右方括号时按语法缩进对齐", async ({ page }) => {
+  await createBlankDocument(page, "右括号自动对齐");
+  await selectDocumentLanguage(page, "c");
+  const area = page.locator(".cm-content");
+
+  const call = "call(";
+  await replaceSource(area, call);
+  await selectSource(area, call.length);
+  await page.keyboard.press("Enter");
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe("call(\n\t");
+  await page.keyboard.type(")");
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe("call(\n)");
+
+  const subscript = "if (x) {\n\tint x = array[\n\t\tindex\n\t\t";
+  await replaceSource(area, subscript);
+  await selectSource(area, subscript.length);
+  await page.keyboard.type("]");
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe("if (x) {\n\tint x = array[\n\t\tindex\n\t]");
+});
+
 test("源码状态栏配置缩进、转换并撤销，重开保留配置，只读禁止转换", async ({
   page,
 }) => {

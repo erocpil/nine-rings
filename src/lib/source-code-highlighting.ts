@@ -1,4 +1,5 @@
 import { HighlightStyle, syntaxHighlighting, LanguageSupport, LRLanguage, foldInside, foldNodeProp } from "@codemirror/language";
+import { EditorState } from "@codemirror/state";
 import { styleTags, tags } from "@lezer/highlight";
 
 /** Parser-derived categories only: no regex guesses about symbol identity. */
@@ -53,7 +54,13 @@ export function sourceCodeSupport(
       } }),
     ] })
     : support.language;
-  return new LanguageSupport(language, [support.support, sourceCodeHighlighting]);
+  return new LanguageSupport(language, [
+    support.support,
+    sourceCodeHighlighting,
+    // Bundled parsers vary in which closing delimiters trigger reindentation.
+    // Use the active language's indentation service for all three closers.
+    EditorState.languageData.of(() => [{ indentOnInput: /^\s*(?:\)|\])$/ }]),
+  ]);
 }
 
 /** Kept as a named helper for C-family callers and tests. */

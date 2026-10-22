@@ -90,6 +90,7 @@ import {
   HighlightStyle,
   bracketMatching,
   matchBrackets,
+  indentOnInput,
 } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
@@ -357,6 +358,7 @@ export function MarkdownSourceEditor({
       scrollPastEnd(),
       bracketMatching(),
       closeBrackets(),
+      indentOnInput(),
       syntax.current.of([markdown({
         base: markdownLanguage,
         codeLanguages: languages,
