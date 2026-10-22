@@ -89,6 +89,20 @@ test("状态栏新建文档后重命名会立即同步专注标签", async ({ pa
   await expect(activeTab).toHaveAttribute("title", new RegExp(`${renamed}\\n`));
 });
 
+test("已有文档从文档树重命名后专注标签显示新名称", async ({ page }) => {
+  await createBlankDocument(page, "文档树改名前");
+  await page.getByTitle("重命名当前文档", { exact: true }).click();
+  const rename = page.locator(".doc-tree-rename-input");
+  await rename.fill("文档树改名后");
+  await rename.press("Enter");
+  await expect(page.locator(".note-title")).toHaveValue("文档树改名后");
+
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  const tab = page.getByRole("tab", { selected: true });
+  await expect(tab).toHaveAttribute("aria-label", "文档树改名后");
+  await expect(tab).toHaveAttribute("title", /文档树改名后\n/);
+});
+
 test("专注标签数量可在外观设置调整并在重新打开后保留", async ({ page }) => {
   await createBlankDocument(page);
   await page.getByRole("button", { name: "设置", exact: true }).click();
