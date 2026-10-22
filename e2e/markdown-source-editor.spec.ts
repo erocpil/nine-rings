@@ -234,12 +234,13 @@ test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page 
   const value = "# Heading\n\nfirst body\n\n## Child\n\nsecond body";
   await replaceSource(area, value);
   await page.getByRole("button", { name: "设置只读", exact: true }).click();
+  await expect(page.locator(".markdown-cm-source")).toHaveAttribute("data-source-readonly", "true");
   for (const text of ["first body", "second body"]) {
     await area.locator(".cm-line").filter({ hasText: text }).click();
     await expect(area.locator(".cm-activeLine")).toHaveText(text);
-    await expect(
-      page.locator(".markdown-cm-host .cm-cursorLayer"),
-    ).toBeHidden();
+    await expect(page.locator(".markdown-cm-host .cm-editor")).toHaveClass(/cm-focused/);
+    await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("display", "none");
+    await expect(page.locator(".markdown-cm-source .cm-cursor")).toHaveCSS("display", "none");
     expect(await area.evaluate((el) => getComputedStyle(el).caretColor)).toBe(
       "rgba(0, 0, 0, 0)",
     );
@@ -300,7 +301,8 @@ test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page 
   await area.locator(".cm-line").filter({ hasText: "second body" }).click();
   await page.keyboard.press("ArrowRight");
   expect((await sourceInfo(area)).value).toBe(value);
-  await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toBeHidden();
+  await expect(page.locator(".markdown-cm-host .cm-editor")).toHaveClass(/cm-focused/);
+  await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("display", "none");
   expect(await area.evaluate(el => getComputedStyle(el).caretColor)).toBe("rgba(0, 0, 0, 0)");
   await page.getByRole("button", { name: "查找替换", exact: true }).click();
   const search = page.locator(".cm-search");
@@ -311,11 +313,12 @@ test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page 
     const info = await sourceInfo(area);
     return info.value.slice(info.selectionStart, info.selectionEnd);
   }).toBe("first body");
-  await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toBeHidden();
+  await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("display", "none");
   expect((await sourceInfo(area)).value).toBe(value);
   await page.keyboard.press("Escape");
   await expect(search).toHaveCount(0);
-  await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toBeHidden();
+  await expect(page.locator(".markdown-cm-host .cm-editor")).toHaveClass(/cm-focused/);
+  await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("display", "none");
   const marker = page
     .locator(".cm-foldGutter .cm-gutterElement")
     .filter({ has: page.locator('[data-fold-expanded="true"]') })

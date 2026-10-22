@@ -875,6 +875,7 @@ export function MarkdownSourceEditor({
     <div
       className="markdown-source-input markdown-cm-source"
       data-document-language={documentLanguage || "text"}
+      data-source-readonly={editingReadonly}
       data-micro-rendering={markupMode && preferences.sourceMicroRendering === true}
       data-source-highlighting={preferences.sourceSyntaxHighlighting !== false}
       style={{ fontSize, "--source-font-size": `${fontSize}px` } as CSSProperties}
