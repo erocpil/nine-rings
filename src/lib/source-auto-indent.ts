@@ -57,7 +57,8 @@ function cppDelimiterTokens(text: string, state: CppLexState): CppDelimiter[] {
 /** C++'s grammar recovery can lose the class scope after an otherwise harmless
  * parse error (for example, a temporary `};` after a member definition). Use
  * delimiters and lexical comment/string boundaries for stable class/member
- * levels and one additional indent for multiline calls and expressions. */
+ * levels. Like Vim cindent, round-parenthesis continuations use two indent
+ * units while brackets and ordinary blocks use one. */
 function cppIndentChanges(
   state: EditorState,
   selectedLines: Set<number>,
@@ -65,6 +66,7 @@ function cppIndentChanges(
   const scopes: CppScope[] = [];
   const lex: CppLexState = { blockComment: false, rawStringEnd: null };
   const unitColumns = Math.max(1, getIndentUnit(state));
+  const innerIndent = (scope: CppScope) => scope.openingIndent + unitColumns * (scope.delimiter === "(" ? 2 : 1);
   const changes: { from: number; to: number; insert: string }[] = [];
   const closeScope = (delimiter: string) => {
     for (let index = scopes.length - 1; index >= 0; index--) {
@@ -100,7 +102,7 @@ function cppIndentChanges(
         : accessLabel
         ? top!.openingIndent
         : top
-          ? top.openingIndent + unitColumns
+          ? innerIndent(top)
           : 0;
     const replacement = indentString(state, columns);
     if (!insideRawString && selectedLines.has(number) && leading !== replacement) {
@@ -124,7 +126,7 @@ function cppIndentChanges(
       // A signature's final parameter can close ')' before '{' on the same
       // line. The body belongs to the enclosing scope, not the parameter indent.
       const openingIndent = token.delimiter === "{"
-        ? Math.min(columns, parent ? parent.openingIndent + unitColumns : 0)
+        ? Math.min(columns, parent ? innerIndent(parent) : 0)
         : columns;
       scopes.push({ kind: token.delimiter !== "{" ? "continuation" : opensClass ? "class" : "block", delimiter: token.delimiter, openingIndent });
     }

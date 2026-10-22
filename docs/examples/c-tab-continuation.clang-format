@@ -1,0 +1,29 @@
+# Tab Size 4；函数参数等续行额外缩进两级（8 列）。
+# 可在 Nine Rings → 代码格式风格 → 自定义 .clang-format 中导入。
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Always
+ContinuationIndentWidth: 8
+BreakBeforeBraces: Linux
+ColumnLimit: 0
+SortIncludes: Never
+IncludeBlocks: Preserve
+SeparateDefinitionBlocks: Leave
+PointerAlignment: Right
+DerivePointerAlignment: false
+SpaceBeforeParens: ControlStatements
+SpaceAfterCStyleCast: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AlignAfterOpenBracket: false
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
+SkipMacroDefinitionBody: true
+ReflowComments: Never
+MaxEmptyLinesToKeep: 1
+KeepEmptyLines:
+  AtStartOfFile: false
+  AtEndOfFile: false
+  AtStartOfBlock: false

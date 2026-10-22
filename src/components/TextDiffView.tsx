@@ -47,24 +47,35 @@ export function TextDiffView({ left, right, leftLabel, rightLabel, showWhitespac
   const leftScroll = useRef<HTMLDivElement>(null);
   const rightScroll = useRef<HTMLDivElement>(null);
   const mirrored = useRef(new WeakMap<HTMLElement, { top: number; left: number }>());
-  const pendingScroll = useRef<{ pane: HTMLDivElement; anchor: string; offset: number; left: number; focus: boolean }[]>([]);
+  const pendingScroll = useRef<{ pane: HTMLDivElement; anchor: string; offset: number; left: number; focusAnchor?: string }[]>([]);
   const changeExpansion = (groups: Set<number>, index?: number) => {
     pendingScroll.current = [leftScroll.current, rightScroll.current].flatMap(pane => {
       if (!pane) return [];
       const top = pane.getBoundingClientRect().top + pane.clientTop;
-      const anchor = index !== undefined ? pane.querySelector<HTMLElement>(`[data-diff-anchor="${index}"]`)
-        : [...pane.querySelectorAll<HTMLElement>("[data-diff-anchor]")].find(element => element.getBoundingClientRect().bottom > top);
-      return anchor ? [{ pane, anchor: anchor.dataset.diffAnchor!, offset: Math.max(0, anchor.getBoundingClientRect().top - top), left: pane.scrollLeft, focus: anchor.contains(document.activeElement) }] : [];
+      const anchors = index === undefined ? [...pane.querySelectorAll<HTMLElement>("[data-diff-anchor]")] : [];
+      let anchor = index !== undefined ? pane.querySelector<HTMLElement>(`[data-diff-anchor="${index}"]`)
+        : anchors.find(element => element.dataset.diffKind === "changed" && element.getBoundingClientRect().bottom > top && element.getBoundingClientRect().top < top + pane.clientHeight)
+          ?? anchors.find(element => element.getBoundingClientRect().bottom > top);
+      const focusAnchor = anchor?.contains(document.activeElement) ? anchor.dataset.diffAnchor : undefined;
+      if (index !== undefined) {
+        const following = pane.querySelector<HTMLElement>(`[data-diff-anchor="${index + 1}"]`);
+        const followingTop = following?.getBoundingClientRect().top;
+        // Expanding context above a change must keep that change on screen,
+        // rather than replace it with the first line of the unchanged region.
+        // On collapse, retain the following change if it is already visible.
+        if (following && (groups.has(index) || followingTop! >= top && followingTop! < top + pane.clientHeight)) anchor = following;
+      }
+      return anchor ? [{ pane, anchor: anchor.dataset.diffAnchor!, offset: Math.max(0, anchor.getBoundingClientRect().top - top), left: pane.scrollLeft, focusAnchor }] : [];
     });
     setExpansion({ diff, groups });
   };
   useLayoutEffect(() => {
-    for (const { pane, anchor, offset, left: scrollLeft, focus } of pendingScroll.current) {
+    for (const { pane, anchor, offset, left: scrollLeft, focusAnchor } of pendingScroll.current) {
       const element = pane.querySelector<HTMLElement>(`[data-diff-anchor="${anchor}"]`);
       if (!element) continue;
       pane.scrollTop += element.getBoundingClientRect().top - pane.getBoundingClientRect().top - pane.clientTop - offset;
       pane.scrollLeft = scrollLeft;
-      if (focus) element.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+      if (focusAnchor !== undefined) pane.querySelector<HTMLButtonElement>(`[data-diff-anchor="${focusAnchor}"] button`)?.focus({ preventScroll: true });
       mirrored.current.set(pane, { top: pane.scrollTop, left: pane.scrollLeft });
     }
     pendingScroll.current = [];
@@ -92,7 +103,7 @@ export function TextDiffView({ left, right, leftLabel, rightLabel, showWhitespac
     <div className="document-diff-header"><span>{leftLabel}</span><span>{rightLabel}</span></div>
     <div className="document-diff-columns" aria-label="逐行差异">
       {(["left", "right"] as const).map(side => <div key={side} ref={side === "left" ? leftScroll : rightScroll} className="document-diff-scroll-pane" aria-label={side === "left" ? leftLabel : rightLabel} onScroll={() => syncScroll(side)}>
-        {rows.map((row, index) => <div key={index} data-diff-anchor={index} className={row.same && expanded.has(index) ? "document-diff-same-group" : undefined}>
+        {rows.map((row, index) => <div key={index} data-diff-anchor={index} data-diff-kind={row.kind} className={row.same && expanded.has(index) ? "document-diff-same-group" : undefined}>
           {row.same && row.same.length > 1 && !expanded.has(index)
             ? <button type="button" className="document-diff-collapsed" aria-label={`展开 ${row.same.length} 行相同内容`} onClick={() => changeExpansion(new Set(expanded).add(index), index)}>⋯ {row.same.length} 行相同</button>
             : row.same ? <>

@@ -19,17 +19,26 @@ test("相同行按段展开和收起，保持双侧可视位置并支持键盘�
   const right = panes.last();
   const showAll = dialog.getByRole("checkbox", { name: "显示相同行", exact: true });
   await expect(left.locator(".document-diff-collapsed")).toHaveCount(3);
+  const firstChange = left.locator(".document-diff-line.removed").first();
+  const firstChangeY = (await firstChange.boundingBox())!.y;
+  await showAll.check();
+  await expect.poll(async () => Math.abs((await firstChange.boundingBox())!.y - firstChangeY)).toBeLessThan(2);
+  await showAll.uncheck();
+  await expect.poll(async () => Math.abs((await firstChange.boundingBox())!.y - firstChangeY)).toBeLessThan(2);
   await left.getByRole("button", { name: "展开 50 行相同内容", exact: true }).click();
+  await expect.poll(async () => Math.abs((await firstChange.boundingBox())!.y - firstChangeY)).toBeLessThan(2);
+  expect(await left.evaluate(element => element.scrollTop)).toBeGreaterThan(500);
   await expect(left.locator(".document-diff-collapsed")).toHaveCount(2);
   await expect(right.locator(".document-diff-same-collapse")).toHaveCount(1);
   expect(await showAll.evaluate(element => (element as HTMLInputElement).indeterminate)).toBe(true);
 
   const middle = left.getByRole("button", { name: "展开 70 行相同内容", exact: true });
   await middle.scrollIntoViewIfNeeded();
-  const topBefore = (await middle.boundingBox())!.y;
+  const followingChange = left.locator(".document-diff-line.removed").nth(1);
+  const topBefore = (await followingChange.boundingBox())!.y;
   await middle.click();
   const group = left.locator(".document-diff-same-group").filter({ hasText: "// middle unchanged 1" });
-  await expect.poll(async () => Math.abs((await group.boundingBox())!.y - topBefore)).toBeLessThan(2);
+  await expect.poll(async () => Math.abs((await followingChange.boundingBox())!.y - topBefore)).toBeLessThan(2);
   await group.evaluate(element => {
     const pane = element.closest<HTMLElement>(".document-diff-scroll-pane")!;
     pane.scrollTop += element.getBoundingClientRect().top - pane.getBoundingClientRect().top + 350;
@@ -49,6 +58,13 @@ test("相同行按段展开和收起，保持双侧可视位置并支持键盘�
   await expect.poll(async () => Math.abs((await folded.boundingBox())!.y - paneBox.y)).toBeLessThan(3);
   expect(await left.evaluate(element => element.scrollTop)).toBeGreaterThan(500);
   await expect.poll(async () => Math.abs(await left.evaluate(el => el.scrollTop) - await right.evaluate(el => el.scrollTop))).toBeLessThan(2);
+
+  await folded.click();
+  const changeYBeforeCollapse = (await followingChange.boundingBox())!.y;
+  const expandedRail = (await group.locator(".document-diff-same-collapse").boundingBox())!;
+  await page.mouse.click(expandedRail.x + expandedRail.width / 2, changeYBeforeCollapse - 8);
+  await expect(folded).toBeVisible();
+  await expect.poll(async () => Math.abs((await followingChange.boundingBox())!.y - changeYBeforeCollapse)).toBeLessThan(2);
 
   await showAll.check();
   await expect(left.locator(".document-diff-same-collapse")).toHaveCount(3);

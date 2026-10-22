@@ -21,7 +21,7 @@ describe("source automatic indentation", () => {
     expect(formatted.doc.toString()).toBe([
       "void split() {",
       "\tn = block_init((struct Block *)((uintptr_t)b + BLOCK_SIZE + size),",
-      "\t\tb->size - size - BLOCK_SIZE, b, b->next);",
+      "\t\t\tb->size - size - BLOCK_SIZE, b, b->next);",
       "\trun();",
       "}",
     ].join("\n"));
@@ -29,12 +29,12 @@ describe("source automatic indentation", () => {
   });
 
   it.each([
-    ["nested calls", ["void f() {", "call(", "nested(", "value", "),", "other", ");", "next();", "}"], [0, 1, 2, 3, 2, 2, 1, 1, 0]],
-    ["subscript and grouped condition", ["void f() {", "if (ready &&", "array[", "index", "]) {", "work();", "}", "}"], [0, 1, 2, 3, 1, 2, 1, 0]],
-    ["multiline signature", ["namespace app {", "void f(int first,", "int second) {", "work();", "}", "}"], [0, 1, 2, 2, 1, 0]],
-    ["initializer inside a call", ["void f() {", "call((struct Item){", ".value = 1,", "},", "other);", "next();", "}"], [0, 1, 2, 1, 2, 1, 0]],
-    ["lambda argument", ["void f() {", "call(", "[](int value) {", "return value;", "}", ");", "}"], [0, 1, 2, 3, 2, 1, 0]],
-    ["comments and strings", ["void f() {", 'call("([)]", // ) ]', "/* ) ] */ value);", "next();", "}"], [0, 1, 2, 1, 0]],
+    ["nested calls", ["void f() {", "call(", "nested(", "value", "),", "other", ");", "next();", "}"], [0, 1, 3, 5, 3, 3, 1, 1, 0]],
+    ["subscript and grouped condition", ["void f() {", "if (ready &&", "array[", "index", "]) {", "work();", "}", "}"], [0, 1, 3, 4, 1, 2, 1, 0]],
+    ["multiline signature", ["namespace app {", "void f(int first,", "int second) {", "work();", "}", "}"], [0, 1, 3, 2, 1, 0]],
+    ["initializer inside a call", ["void f() {", "call((struct Item){", ".value = 1,", "},", "other);", "next();", "}"], [0, 1, 2, 1, 3, 1, 0]],
+    ["lambda argument", ["void f() {", "call(", "[](int value) {", "return value;", "}", ");", "}"], [0, 1, 3, 4, 3, 1, 0]],
+    ["comments and strings", ["void f() {", 'call("([)]", // ) ]', "/* ) ] */ value);", "next();", "}"], [0, 1, 3, 1, 0]],
   ] as const)("handles %s without accumulating continuation indentation", (_name, lines, levels) => {
     const state = EditorState.create({ doc: lines.join("\n"), extensions: [cpp(), indentUnit.of("  ")] });
     const formatted = state.update(sourceAutoIndentChange(state, "document")!).state;
@@ -50,7 +50,7 @@ describe("source automatic indentation", () => {
       extensions: [cpp(), indentUnit.of("\t"), history()],
     });
     let updated = state.update(sourceAutoIndentChange(state, "selection")!).state;
-    expect(updated.doc.toString()).toBe(raw.replace("\nlast", "\n\t\tlast"));
+    expect(updated.doc.toString()).toBe(raw.replace("\nlast", "\n\t\t\tlast"));
     undo({ state: updated, dispatch: transaction => { updated = transaction.state; } });
     expect(updated.doc.toString()).toBe(raw);
   });
