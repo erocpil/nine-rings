@@ -31,6 +31,12 @@ test("格式化差异保留原始代码，支持相同行折叠和过期快照�
   await expect(dialog.getByRole("checkbox", { name: "显示相同行", exact: true })).toBeChecked();
   const formatted = (await sourceInfo(area)).value;
   const whitespaceToggle = dialog.getByRole("button", { name: "显示不可见字符", exact: true });
+  await whitespaceToggle.hover();
+  const tooltip = page.getByRole("tooltip");
+  await expect(tooltip).toBeVisible();
+  const tooltipGap = await whitespaceToggle.evaluate(button => document.querySelector('[role="tooltip"]')!.getBoundingClientRect().top - button.getBoundingClientRect().bottom);
+  expect(tooltipGap).toBeGreaterThanOrEqual(4);
+  expect(tooltipGap).toBeLessThanOrEqual(8);
   await whitespaceToggle.click();
   await expect(dialog.getByRole("button", { name: "隐藏不可见字符", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(panes.first().locator(".diff-whitespace-space").first()).toBeVisible();

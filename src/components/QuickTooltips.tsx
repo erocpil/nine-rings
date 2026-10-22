@@ -153,21 +153,35 @@ export function QuickTooltips() {
       window.removeEventListener("resize", clear);
     };
   }, [id]);
-  return hint
-    ? createPortal(
+  if (!hint) return null;
+  // A tooltip portaled into a modal dialog must remain in the dialog's top
+  // layer. Since the dialog is transformed to center it, fixed-position
+  // coordinates inside it are relative to the dialog, not the viewport.
+  const dialog =
+    hint.host instanceof HTMLElement && hint.host.tagName === "DIALOG"
+      ? hint.host
+      : null;
+  const dialogBounds = dialog?.getBoundingClientRect();
+  const dialogStyle = dialog ? getComputedStyle(dialog) : null;
+  const left = dialogBounds
+    ? hint.left - dialogBounds.left - Number.parseFloat(dialogStyle?.borderLeftWidth ?? "0")
+    : hint.left;
+  const top = dialogBounds
+    ? hint.top - dialogBounds.top - Number.parseFloat(dialogStyle?.borderTopWidth ?? "0")
+    : hint.top;
+  return createPortal(
         <div
           ref={tooltipRef}
           id={id}
           role="tooltip"
           className="quick-tooltip"
           style={{
-            left: hint.left,
-            top: hint.top,
+            left,
+            top,
           }}
         >
           {hint.text}
         </div>,
         hint.host,
-      )
-    : null;
+      );
 }

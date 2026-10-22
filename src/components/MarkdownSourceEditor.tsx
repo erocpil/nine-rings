@@ -708,6 +708,7 @@ export function MarkdownSourceEditor({
   const sourceNumbersVisible = numbering?.visible ?? showLineNumbers;
   const sourceNumbersRelative = numbering?.relative ?? preferences.relativeSourceLineNumbers === true;
   const gutterControls = <>
+    <SourceWhitespaceToggle className="source-status-whitespace" />
     <button type="button" className="editor-status-select source-gutter-settings" aria-label="行号与折叠设置" title="行号与折叠设置" aria-haspopup="menu" aria-expanded={Boolean(gutterMenu)} onMouseDown={event => event.preventDefault()} onClick={event => { const trigger = editorCommandTrigger(event.currentTarget); setGutterMenu(previous => previous ? null : trigger); }}>
       # <span aria-hidden="true">▾</span>
     </button>
@@ -751,7 +752,7 @@ export function MarkdownSourceEditor({
         >
           <ToolbarIcon name="wrap" />
         </button>
-        <SourceWhitespaceToggle />
+        {!statusBar.visible && <SourceWhitespaceToggle />}
         <button type="button" title="语法高亮" aria-label="语法高亮" aria-pressed={preferences.sourceSyntaxHighlighting !== false}
           onClick={() => saveBlockWorkspacePreferences({ sourceSyntaxHighlighting: preferences.sourceSyntaxHighlighting === false })}>
           <ToolbarIcon name="highlight" />

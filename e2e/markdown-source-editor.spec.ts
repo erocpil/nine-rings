@@ -97,7 +97,9 @@ test("源码不可见字符切换显示空格、Tab 与行尾标记但不修改�
   const source = "alpha \t\nbeta  ";
   await replaceSource(area, source);
   const before = await sourceInfo(area);
-  const toggle = page.getByRole("button", { name: "显示不可见字符", exact: true });
+  const status = page.getByRole("group", { name: "源码状态栏", exact: true });
+  const toggle = status.getByRole("button", { name: "显示不可见字符", exact: true });
+  expect(await toggle.evaluate(button => button.nextElementSibling?.getAttribute("aria-label"))).toBe("行号与折叠设置");
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
   await toggle.click();
   await expect(page.getByRole("button", { name: "隐藏不可见字符", exact: true })).toHaveAttribute("aria-pressed", "true");
@@ -108,6 +110,20 @@ test("源码不可见字符切换显示空格、Tab 与行尾标记但不修改�
   await page.getByRole("button", { name: "隐藏不可见字符", exact: true }).click();
   await expect(area.locator(".cm-source-whitespace-space")).toHaveCount(0);
   await expect(area.locator(".cm-source-whitespace-tab")).toHaveCount(0);
+});
+
+test("状态栏隐藏时源码不可见字符按钮留在源码工具栏", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_status_bar: false }));
+  });
+  await createBlankDocument(page);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  await expect(page.getByRole("group", { name: "源码状态栏", exact: true })).toHaveCount(0);
+  const toolbar = page.getByRole("toolbar", { name: "源码编辑工具", exact: true });
+  const toggle = toolbar.getByRole("button", { name: "显示不可见字符", exact: true });
+  await expect(toggle).toBeVisible();
+  await toggle.click();
+  await expect(toolbar.getByRole("button", { name: "隐藏不可见字符", exact: true })).toHaveAttribute("aria-pressed", "true");
 });
 
 test("5000 行源码按视口挂载，末行滚到顶部并保留保存的原文", async ({
