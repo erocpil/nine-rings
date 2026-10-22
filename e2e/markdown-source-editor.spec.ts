@@ -297,6 +297,25 @@ test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page 
   await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toBeHidden();
   expect((await sourceInfo(area)).value).toBe(value);
   await area.evaluate(() => window.getSelection()?.removeAllRanges());
+  await area.locator(".cm-line").filter({ hasText: "second body" }).click();
+  await page.keyboard.press("ArrowRight");
+  expect((await sourceInfo(area)).value).toBe(value);
+  await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toBeHidden();
+  expect(await area.evaluate(el => getComputedStyle(el).caretColor)).toBe("rgba(0, 0, 0, 0)");
+  await page.getByRole("button", { name: "查找替换", exact: true }).click();
+  const search = page.locator(".cm-search");
+  await search.locator('input[name="search"]').fill("first body");
+  await expect(search.locator(".editor-find-count")).toHaveText("1 处");
+  await search.getByRole("button", { name: "下一处", exact: true }).click();
+  await expect.poll(async () => {
+    const info = await sourceInfo(area);
+    return info.value.slice(info.selectionStart, info.selectionEnd);
+  }).toBe("first body");
+  await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toBeHidden();
+  expect((await sourceInfo(area)).value).toBe(value);
+  await page.keyboard.press("Escape");
+  await expect(search).toHaveCount(0);
+  await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toBeHidden();
   const marker = page
     .locator(".cm-foldGutter .cm-gutterElement")
     .filter({ has: page.locator('[data-fold-expanded="true"]') })
