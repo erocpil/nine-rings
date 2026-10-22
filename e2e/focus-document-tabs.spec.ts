@@ -72,6 +72,23 @@ test("专注标签切换先保存、独立重排关闭、双击标题显隐和�
   await expect(page.locator(".note-title:visible")).toHaveCount(0);
 });
 
+test("状态栏新建文档后重命名会立即同步专注标签", async ({ page }) => {
+  await createBlankDocument(page, "标签重命名来源文档");
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  await page.getByRole("button", { name: "在当前路径新建文档", exact: true }).click();
+
+  await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
+  const title = page.locator(".note-title:visible");
+  await expect(title).toHaveValue("未命名");
+  const renamed = "状态栏新建后重命名";
+  await title.fill(renamed);
+
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  const activeTab = page.getByRole("tab", { selected: true });
+  await expect(activeTab).toHaveAttribute("aria-label", renamed);
+  await expect(activeTab).toHaveAttribute("title", new RegExp(`${renamed}\\n`));
+});
+
 test("专注标签数量可在外观设置调整并在重新打开后保留", async ({ page }) => {
   await createBlankDocument(page);
   await page.getByRole("button", { name: "设置", exact: true }).click();

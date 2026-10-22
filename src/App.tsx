@@ -1657,7 +1657,7 @@ function App() {
       {((isTauriRuntime() || desktopWorkspace) && !(exhibitionEnabled && desktopWorkspace && !effectiveFocusMode)) && (
         <Suspense fallback={null}>
           <TitleBar focus={focusMode} onFocusChange={desktopWorkspace ? next => preserveReadingPositions(() => setFocusMode(next)) : undefined} wordmark={desktopWorkspace && effectiveFocusMode} focusTabs={desktopWorkspace && effectiveFocusMode ? <FocusDocumentTabs
-            noteId={workspaceHome ? undefined : selectedNote?.id} refreshKey={docTreeKey}
+            noteId={workspaceHome ? undefined : selectedNote?.id} noteTitle={workspaceHome ? undefined : selectedNote?.title ?? undefined} refreshKey={docTreeKey}
             onOpen={async note => { await flushAutoSave(); setQuery(""); setDocResults(null); handleSelectNote(note); }}
             onReveal={async (id, path) => {
               setDocTreeKey(key => key + 1);

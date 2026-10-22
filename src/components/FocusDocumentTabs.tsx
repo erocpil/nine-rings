@@ -25,12 +25,14 @@ const TAB_DOUBLE_CLICK_GUARD_MS = 280;
 
 export function FocusDocumentTabs({
   noteId,
+  noteTitle,
   refreshKey,
   onOpen,
   onCloseLast,
   onReveal,
 }: {
   noteId?: string;
+  noteTitle?: string;
   refreshKey: number;
   onOpen: (note: Note) => Promise<void>;
   onCloseLast: () => Promise<void>;
@@ -169,10 +171,24 @@ export function FocusDocumentTabs({
       window.removeEventListener("resize", dismiss);
     };
   }, [menu]);
-  const byId = useMemo(
-    () => new Map(documents.map((note) => [note.id, note])),
-    [documents],
-  );
+  const byId = useMemo(() => {
+    const result = new Map(documents.map((note) => [note.id, note]));
+    // The active editor updates its title optimistically while persistence and
+    // the document-tree refresh are still pending. Prefer that live value so
+    // its tab label and tooltip change in the same render as the title field.
+    if (noteId && noteTitle !== undefined) {
+      const active = result.get(noteId);
+      if (active) {
+        const parent = active.fullPath.lastIndexOf("/");
+        result.set(noteId, {
+          ...active,
+          title: noteTitle,
+          fullPath: `${parent >= 0 ? active.fullPath.slice(0, parent + 1) : ""}${noteTitle || "未命名文档"}`,
+        });
+      }
+    }
+    return result;
+  }, [documents, noteId, noteTitle]);
   const baseIds = useMemo(() => {
     const result = focusTabIds(
       recent.filter((id) => byId.has(id)),
