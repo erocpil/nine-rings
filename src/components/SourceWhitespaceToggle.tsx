@@ -26,7 +26,7 @@ export function SourceWhitespaceToggle({ className = "" }: { className?: string 
     <button
       type="button"
       className={className || undefined}
-      title={`${label}（Vim: set ${enabled ? "nolist" : "list"}）`}
+      title={label}
       aria-label={label}
       aria-pressed={enabled}
       onMouseDown={(event) => event.preventDefault()}

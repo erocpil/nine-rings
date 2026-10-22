@@ -22,7 +22,7 @@ test("格式化差异保留原始代码，支持相同行折叠和过期快照�
   await expect(dialog).toHaveCount(0);
   await history.click();
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("当前正文与格式化后快照一致");
+  await expect(dialog).toContainText("当前源码与上次格式化结果一致");
   const panes = dialog.locator(".document-diff-scroll-pane");
   await expect(panes.nth(0)).toContainText("int value=1;");
   await expect(panes.nth(1)).toContainText("int value = 1;");
@@ -47,7 +47,7 @@ test("格式化差异保留原始代码，支持相同行折叠和过期快照�
   await toolbar.getByRole("button", { name: "撤销", exact: true }).click();
   await expect.poll(async () => (await sourceInfo(area)).value).toBe(raw);
   await history.click();
-  await expect(dialog).toContainText("当前正文已变化");
+  await expect(dialog).toContainText("源码在上次格式化后已修改；下方仍是上次格式化记录。若要查看当前格式化效果，请重新执行格式化。");
   await expect(dialog.locator(".document-diff-scroll-pane").nth(1)).toContainText("int value = 1;");
   await dialog.getByRole("button", { name: "关闭格式化差异", exact: true }).click();
   await expect(dialog).toHaveCount(0);

@@ -100,6 +100,7 @@ test("源码不可见字符切换显示空格、Tab 与行尾标记但不修改�
   const status = page.getByRole("group", { name: "源码状态栏", exact: true });
   const toggle = status.getByRole("button", { name: "显示不可见字符", exact: true });
   expect(await toggle.evaluate(button => button.nextElementSibling?.getAttribute("aria-label"))).toBe("行号与折叠设置");
+  await expect(toggle).toHaveAttribute("title", "显示不可见字符");
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
   await toggle.click();
   await expect(page.getByRole("button", { name: "隐藏不可见字符", exact: true })).toHaveAttribute("aria-pressed", "true");
