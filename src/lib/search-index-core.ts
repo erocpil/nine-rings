@@ -18,11 +18,23 @@ interface IndexedNote {
   text: string;
 }
 
-export type SearchNote = Omit<Note, "content"> & { search_text: string; search_parts?: SnippetPart[] };
+export type SearchNote = Omit<Note, "content"> & {
+  search_text: string;
+  search_parts?: SnippetPart[];
+  sourceFormat?: "text" | "markdown";
+  sourceLanguage?: string;
+};
 export function toSearchNote(note: Note | SearchNote): SearchNote {
   const { content, ...metadata } = note as Note;
   if (isEncrypted(content)) return { ...metadata, tags: [], concepts: [], search_text: "" };
-  return { ...metadata, search_text: content !== undefined ? extractPlainText(content) : (note as SearchNote).search_text ?? "" };
+  const sourceFormat = content?.metadata?.sourceFormat ?? (note as SearchNote).sourceFormat;
+  const sourceLanguage = content?.metadata?.sourceLanguage ?? (note as SearchNote).sourceLanguage;
+  return {
+    ...metadata,
+    ...(sourceFormat ? { sourceFormat } : {}),
+    ...(sourceLanguage ? { sourceLanguage } : {}),
+    search_text: content !== undefined ? extractPlainText(content) : (note as SearchNote).search_text ?? "",
+  };
 }
 
 /** Shared cross-platform in-memory index. Raw notes remain in the storage adapter. */

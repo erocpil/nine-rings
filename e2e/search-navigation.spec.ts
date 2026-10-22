@@ -1,12 +1,53 @@
 import { pressLineBoundary } from "./helpers/keyboard";
-import { createBlankDocument } from "./helpers/document";
+import { createBlankDocument, waitForSavedText } from "./helpers/document";
 import { test, expect, type Page } from "@playwright/test";
+import { selectDocumentLanguage, sourceInfo } from "./helpers/source-editor";
 
 async function createDocument(page: Page, title: string) {
   await createBlankDocument(page, title);
 }
 
 test.describe("搜索定位与编辑器布局锚点", () => {
+  test("全局搜索同行展示路径、实际格式和日期，并定位到源码命中", async ({ page }) => {
+    await createDocument(page, "源码搜索结果展示");
+    const sourceText = [...Array.from({ length: 24 }, (_, index) => `line ${index + 1}: unrelated text`), "int source-search-target = 1;"].join("\n");
+    await page.locator(".ProseMirror").fill(sourceText);
+    await waitForSavedText(page, "unrelated text");
+    await selectDocumentLanguage(page, "c");
+    await expect.poll(() => page.evaluate(async () => {
+      const { api } = await import("/src/lib/api.ts");
+      const id = localStorage.getItem("nr:lastNote");
+      return (await api.notes.get(id!))?.content.metadata?.sourceLanguage;
+    })).toBe("c");
+
+    await page.keyboard.press("ControlOrMeta+Shift+f");
+    await page.locator(".search-input").fill("source-search-target");
+    const result = page.locator(".search-hit").filter({ hasText: "源码搜索结果展示" });
+    await expect(result).toBeVisible();
+    await expect(page.locator(".search-section-label")).toHaveCount(0);
+    await expect(result.locator(".search-hit-format")).toHaveText("C/C++");
+    await expect(result.locator(".search-hit-path")).toBeVisible();
+    const date = await page.evaluate(async () => {
+      const { api } = await import("/src/lib/api.ts");
+      return (await api.notes.get(localStorage.getItem("nr:lastNote")!))!.date;
+    });
+    await expect(result.locator(".search-hit-date")).toHaveText(date);
+    const titleBox = await result.locator(".search-hit-title").boundingBox();
+    const metaBox = await result.locator(".search-hit-meta").boundingBox();
+    expect(titleBox).not.toBeNull();
+    expect(metaBox).not.toBeNull();
+    expect(Math.abs(titleBox!.y - metaBox!.y)).toBeLessThan(2);
+    expect(metaBox!.x).toBeGreaterThan(titleBox!.x);
+
+    await result.click();
+    const area = page.locator(".cm-content");
+    await expect(area).toBeVisible();
+    await expect.poll(async () => {
+      const state = await sourceInfo(area);
+      return state.selectionStart - state.value.indexOf("source-search-target");
+    }).toBe(0);
+  });
+
   test("点击搜索结果定位正文命中，并可在多处命中间导航", async ({ page }) => {
     await createDocument(page, "搜索定位测试");
     const editor = page.locator(".ProseMirror");

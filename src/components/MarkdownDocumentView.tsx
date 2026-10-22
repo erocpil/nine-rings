@@ -34,6 +34,7 @@ import { DocumentInfoCard } from "./DocumentInfoCard";
 import { isPointerOverTitleText } from "../lib/document-title-hit-test";
 import { MarkdownEscapeRepair } from "./MarkdownEscapeRepair";
 import { api } from "../lib/api";
+import { findTextMatches, initializeSearchRegex } from "../lib/search-matching";
 import { useMarkdownViewPosition } from "../hooks/useMarkdownViewPosition";
 import { patchReadingState, readReadingState } from "../lib/reading-state";
 import { useDocumentOpenStore } from "../stores/useDocumentOpenStore";
@@ -295,6 +296,33 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     else setError("引用目标已删除或不存在");
     onSearchTargetConsumed?.(target.requestId);
   }, [props.searchTarget, onSearchTargetConsumed, source, busy]);
+  const sourceSearchRequest = useRef<number>();
+  useEffect(() => {
+    const target = props.searchTarget;
+    if (!target || target.noteId !== props.noteId || target.bookmarkId || target.referenceId || source === null || busy || !viewPosition.sourceHandle || sourceSearchRequest.current === target.requestId) return;
+    let cancelled = false;
+    void (async () => {
+      if (target.options?.regex) await initializeSearchRegex();
+      if (cancelled) return;
+      const text = sourceSession.current?.current.source;
+      if (text === undefined) return;
+      let matches = findTextMatches(text, target.query, target.options);
+      if (!matches.length && !target.options?.regex) {
+        const terms = [...new Set(target.query.trim().split(/\s+/).filter(Boolean))];
+        if (terms.length > 1) matches = terms.flatMap(term => findTextMatches(text, term, target.options)).sort((a, b) => a.from - b.from);
+      }
+      sourceSearchRequest.current = target.requestId;
+      if (matches[0]) jumpSourceRef.current(matches[0].from);
+      onSearchTargetConsumed?.(target.requestId);
+    })().catch(error => {
+      if (!cancelled) {
+        sourceSearchRequest.current = target.requestId;
+        setError(`无法定位搜索结果：${error instanceof Error ? error.message : String(error)}`);
+        onSearchTargetConsumed?.(target.requestId);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [props.searchTarget, props.noteId, onSearchTargetConsumed, source, busy, viewPosition.sourceHandle]);
   const historyViewRequest = useRef<number>();
   useEffect(() => {
     if (active && navigationTarget && source !== null && !busy && historyViewRequest.current !== navigationTarget.requestId) {

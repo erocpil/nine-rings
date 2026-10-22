@@ -23,3 +23,15 @@ test("搜索索引使用 NFKC 规范化并优先标题命中", () => {
   index.rebuild([note("body", "其他", "ＡＢＣ"), note("title", "ABC", "正文")]);
   assert.deepEqual(index.search("abc").map((item) => item.id), ["title", "body"]);
 });
+
+test("搜索结果保留文档源码格式供全局搜索展示", () => {
+  const source = {
+    ...note("source", "C source", "int main(void) {}"),
+    content: { ops: [{ insert: "int main(void) {}" }], metadata: { sourceFormat: "text" as const, sourceLanguage: "c" } },
+  };
+  const index = new NoteSearchIndex();
+  index.rebuild([source]);
+  const [result] = index.search("main");
+  assert.equal(result.sourceFormat, "text");
+  assert.equal(result.sourceLanguage, "c");
+});
