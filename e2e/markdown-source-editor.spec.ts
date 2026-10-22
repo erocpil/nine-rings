@@ -90,6 +90,26 @@ test("源码编辑高亮、列表续写、Tab、搜索替换和视图切换撤�
     .toContain("**updated**");
 });
 
+test("源码不可见字符切换显示空格、Tab 与行尾标记但不修改源码", async ({ page }) => {
+  await createBlankDocument(page);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  const source = "alpha \t\nbeta  ";
+  await replaceSource(area, source);
+  const before = await sourceInfo(area);
+  const toggle = page.getByRole("button", { name: "显示不可见字符", exact: true });
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
+  await expect(page.getByRole("button", { name: "隐藏不可见字符", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(area.locator(".cm-source-whitespace-space").first()).toBeVisible();
+  await expect(area.locator(".cm-source-whitespace-tab")).toHaveCount(1);
+  await expect(area.locator(".cm-source-whitespace-eol")).toHaveCount(2);
+  expect((await sourceInfo(area)).value).toBe(before.value);
+  await page.getByRole("button", { name: "隐藏不可见字符", exact: true }).click();
+  await expect(area.locator(".cm-source-whitespace-space")).toHaveCount(0);
+  await expect(area.locator(".cm-source-whitespace-tab")).toHaveCount(0);
+});
+
 test("5000 行源码按视口挂载，末行滚到顶部并保留保存的原文", async ({
   page,
 }) => {

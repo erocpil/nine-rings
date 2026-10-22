@@ -20,15 +20,17 @@ function makeRows(lines: DiffLine[], showUnchanged: boolean): DiffRow[] {
   }
   return rows;
 }
-function DiffLineView({ line }: { line?: DiffLine }) {
+function DiffLineView({ line, showWhitespace = false }: { line?: DiffLine; showWhitespace?: boolean }) {
   if (!line) return <div className="document-diff-line empty"><span className="document-diff-number"> </span><code>&nbsp;</code></div>;
-  return <div className={`document-diff-line ${line.kind}`}><span className="document-diff-number">{line.left ?? line.right ?? ""}</span><code>{line.text || "\u00a0"}</code></div>;
+  return <div className={`document-diff-line ${line.kind}`}><span className="document-diff-number">{line.left ?? line.right ?? ""}</span><code data-whitespace-visible={showWhitespace || undefined}>{showWhitespace ? Array.from(line.text, (character, index) => character === " "
+    ? <span className="diff-whitespace-space" key={index}>{character}</span>
+    : character === "\t" ? <span className="diff-whitespace-tab" key={index}>{character}</span> : character) : line.text || "\u00a0"}</code></div>;
 }
 
 /** Shared raw-text diff: never serializes code through Markdown. */
-export function TextDiffView({ left, right, leftLabel, rightLabel, showUnchanged, onShowUnchanged }: {
+export function TextDiffView({ left, right, leftLabel, rightLabel, showUnchanged, showWhitespace, onShowUnchanged }: {
   left: string; right: string; leftLabel: string; rightLabel: string;
-  showUnchanged: boolean; onShowUnchanged: () => void;
+  showUnchanged: boolean; showWhitespace?: boolean; onShowUnchanged: () => void;
 }) {
   const diff = useMemo(() => diffDocumentLines(left, right), [left, right]);
   const rows = useMemo(() => makeRows(diff.lines, showUnchanged), [diff, showUnchanged]);
@@ -59,7 +61,7 @@ export function TextDiffView({ left, right, leftLabel, rightLabel, showUnchanged
       {(["left", "right"] as const).map(side => <div key={side} ref={side === "left" ? leftScroll : rightScroll} className="document-diff-scroll-pane" aria-label={side === "left" ? leftLabel : rightLabel} onScroll={() => syncScroll(side)}>
         {rows.map((row, index) => row.kind === "same" && row.same && row.same.length > 1
           ? <button type="button" className="document-diff-collapsed" key={index} onClick={onShowUnchanged}>⋯ {row.same.length} 行相同</button>
-          : <DiffLineView key={index} line={row.kind === "same" ? row.same?.[0] : row[side]} />)}
+          : <DiffLineView key={index} line={row.kind === "same" ? row.same?.[0] : row[side]} showWhitespace={showWhitespace} />)}
       </div>)}
     </div>
   </>;

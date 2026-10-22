@@ -68,6 +68,7 @@ const paths = {
   quote: <><path d="M4 6h6v7H5c0 3-1 4-2 5M14 6h6v7h-5c0 3-1 4-2 5" /></>,
   bullet: <><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></>,
   ordered: <><path d="M10 6h10M10 12h10M10 18h10M3 4h1v5M2 9h4M2 14c0-3 4-3 4 0 0 2-4 2-4 5h4" /></>,
+  listChars: <><circle cx="4" cy="6" r="1" /><circle cx="4" cy="12" r="1" /><circle cx="4" cy="18" r="1" /><path d="M9 6h12M9 12h12M9 18h12" /></>,
   sortAlpha: <><path d="M4 17 8 7l4 10M5.5 13h5M16 7h4l-4 5h4M16 17h4" /></>,
   sortSource: <><path d="M3 5h3v4H3zm0 5h3v4H3zm0 5h3v4H3zM10 7h11M10 12h11M10 17h11" /></>,
   indent: <><path d="M10 5h10M10 12h10M10 19h10m-17-10 3 3-3 3" /></>,

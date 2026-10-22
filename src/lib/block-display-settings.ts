@@ -2,7 +2,7 @@ const KEY = "nr:codeBlockHeightPercent";
 const EVENT = "nine-rings:block-display-change";
 export const BLOCK_WORKSPACE_DISPLAY_EVENT = "nine-rings:block-workspace-display-change";
 export type StatusBarIdleGlowIntensity = "soft" | "balanced" | "prominent";
-export type WorkspacePreferences = { sourceLineNumbers?: boolean; sourceFoldGutter?: boolean; quoteAlertColors?: "semantic" | "style"; mermaidDisplay?: "fit" | "scroll"; fontSize?: number; tabSize?: number; sourceIndentStyle?: "tabs" | "spaces"; whitespace?: "off" | "all" | "abnormal"; lineNumbers?: boolean; wrap?: boolean; listFollowupIndent?: boolean; statusBarInFocus?: boolean; statusBarIdleGlow?: boolean; statusBarIdleDelaySeconds?: 15 | 30 | 60 | 120; statusBarIdleGlowIntensity?: StatusBarIdleGlowIntensity; sourceMicroRendering?: boolean; sourceSyntaxHighlighting?: boolean; relativeBlockNumbers?: boolean; relativeSourceLineNumbers?: boolean; relativeBlockNumberAlignment?: "left" | "right"; relativeSourceLineNumberAlignment?: "left" | "right" };
+export type WorkspacePreferences = { sourceLineNumbers?: boolean; sourceFoldGutter?: boolean; sourceWhitespace?: boolean; quoteAlertColors?: "semantic" | "style"; mermaidDisplay?: "fit" | "scroll"; fontSize?: number; tabSize?: number; sourceIndentStyle?: "tabs" | "spaces"; whitespace?: "off" | "all" | "abnormal"; lineNumbers?: boolean; wrap?: boolean; listFollowupIndent?: boolean; statusBarInFocus?: boolean; statusBarIdleGlow?: boolean; statusBarIdleDelaySeconds?: 15 | 30 | 60 | 120; statusBarIdleGlowIntensity?: StatusBarIdleGlowIntensity; sourceMicroRendering?: boolean; sourceSyntaxHighlighting?: boolean; relativeBlockNumbers?: boolean; relativeSourceLineNumbers?: boolean; relativeBlockNumberAlignment?: "left" | "right"; relativeSourceLineNumberAlignment?: "left" | "right" };
 const WORKSPACE_KEY = "nr:blockWorkspaceDisplay";
 const CODE_LINE_NUMBERS_KEY = "nr:codeLineNumbers";
 export function codeLineNumbersEnabled(): boolean {
@@ -39,6 +39,7 @@ export function blockWorkspacePreferences(): WorkspacePreferences {
     if (typeof value.relativeSourceLineNumbers === "boolean") preferences.relativeSourceLineNumbers = value.relativeSourceLineNumbers;
     if (typeof value.sourceLineNumbers === "boolean") preferences.sourceLineNumbers = value.sourceLineNumbers;
     if (typeof value.sourceFoldGutter === "boolean") preferences.sourceFoldGutter = value.sourceFoldGutter;
+    if (typeof value.sourceWhitespace === "boolean") preferences.sourceWhitespace = value.sourceWhitespace;
     if (typeof value.listFollowupIndent === "boolean") preferences.listFollowupIndent = value.listFollowupIndent;
     return preferences;
   } catch { return preferences; }

@@ -24,7 +24,9 @@ import { BlockActionMenu } from "./BlockActionMenu";
 import { sourceHeadingFoldEffects } from "../lib/source-heading-fold";
 import { mobileSourceInput } from "../lib/mobile-source-input";
 import { sourceMicroHighlighting, sourceMicroSyntax } from "../lib/source-micro-rendering";
+import { sourceWhitespaceMarkers } from "../lib/source-whitespace-markers";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { SourceWhitespaceToggle } from "./SourceWhitespaceToggle";
 import { readonlySourceSelection } from "../lib/readonly-source-selection";
 import { setSourceWordEnabled, sourceWordOccurrences } from "../lib/source-word-occurrences";
 import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
@@ -335,6 +337,7 @@ export function MarkdownSourceEditor({
       } }) : [],
       visible ? (relative ? relativeLineNumbers(plugin?.currentAlignment ?? prefs.relativeSourceLineNumberAlignment) : lineNumbers()) : [],
       prefs.wrap !== false ? EditorView.lineWrapping : [],
+      prefs.sourceWhitespace === true ? sourceWhitespaceMarkers : [],
       EditorState.tabSize.of(prefs.tabSize ?? 4),
       indentUnit.of(!markupModeRef.current && prefs.sourceIndentStyle !== "spaces" ? "\t" : " ".repeat(prefs.tabSize ?? 4)),
       highlightActiveLine ? [activeLine(), highlightActiveLineGutter()] : plugin ? [highlightActiveLineGutter()] : [],
@@ -748,6 +751,7 @@ export function MarkdownSourceEditor({
         >
           <ToolbarIcon name="wrap" />
         </button>
+        <SourceWhitespaceToggle />
         <button type="button" title="语法高亮" aria-label="语法高亮" aria-pressed={preferences.sourceSyntaxHighlighting !== false}
           onClick={() => saveBlockWorkspacePreferences({ sourceSyntaxHighlighting: preferences.sourceSyntaxHighlighting === false })}>
           <ToolbarIcon name="highlight" />

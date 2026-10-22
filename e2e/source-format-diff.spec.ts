@@ -16,6 +16,12 @@ test("格式化差异保留原始代码，支持相同行折叠和过期快照�
   await toast.getByRole("button", { name: "查看差异", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "格式化差异", exact: true });
   await expect(dialog).toBeVisible();
+  const closeButton = dialog.getByRole("button", { name: "关闭格式化差异", exact: true });
+  expect(await closeButton.evaluate(button => document.activeElement === button)).toBe(false);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await history.click();
+  await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("当前正文与格式化后快照一致");
   const panes = dialog.locator(".document-diff-scroll-pane");
   await expect(panes.nth(0)).toContainText("int value=1;");
@@ -24,6 +30,11 @@ test("格式化差异保留原始代码，支持相同行折叠和过期快照�
   await expect(panes.nth(0)).toContainText("** [x] <tag>");
   await expect(dialog.getByRole("checkbox", { name: "显示相同行", exact: true })).toBeChecked();
   const formatted = (await sourceInfo(area)).value;
+  const whitespaceToggle = dialog.getByRole("button", { name: "显示不可见字符", exact: true });
+  await whitespaceToggle.click();
+  await expect(dialog.getByRole("button", { name: "隐藏不可见字符", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(panes.first().locator(".diff-whitespace-space").first()).toBeVisible();
+  expect((await sourceInfo(area)).value).toBe(formatted);
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   expect((await sourceInfo(area)).value).toBe(formatted);
@@ -74,4 +85,23 @@ test("格式化快照按文档隔离，长代码对比同步滚动且标题固�
   await expect.poll(async () => Math.abs(await panes.first().evaluate(element => element.scrollTop) - await panes.last().evaluate(element => element.scrollTop))).toBeLessThan(2);
   await expect(dialog.getByRole("heading", { name: "格式化差异", exact: true })).toBeInViewport();
   await expect(dialog.getByRole("button", { name: "关闭格式化差异", exact: true })).toBeInViewport();
+});
+
+test("格式化差异中的 Tab 宽度与源码编辑区状态栏设置一致", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nr:blockWorkspaceDisplay", JSON.stringify({ tabSize: 8 }));
+  });
+  await createBlankDocument(page, "格式化差异 Tab 宽度");
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  await replaceSource(area, "void f(){\n\treturn;\n}");
+  const editorTabSize = await page.locator(".cm-content").evaluate(element => getComputedStyle(element).tabSize);
+  expect(editorTabSize).toBe("8");
+  await page.getByRole("button", { name: "格式化全文", exact: true }).click();
+  await page.locator(".source-indent-toast").getByRole("button", { name: "查看差异", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "格式化差异", exact: true });
+  const diffTabSize = await dialog.locator(".document-diff-line code").first().evaluate(element => getComputedStyle(element).tabSize);
+  expect(diffTabSize).toBe(editorTabSize);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
 });

@@ -25,7 +25,11 @@
 .document-diff-columns { min-height: 160px; height: min(420px, 48dvh); border: 1px solid var(--border); }
 .document-diff-scroll-pane { min-width: 0; overflow: auto; background: var(--bg); scrollbar-gutter: stable; }
 .document-diff-line { display: grid; grid-template-columns: 3.5em minmax(0, 1fr); min-height: 22px; font-size: 12px; }
-.document-diff-line code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.document-diff-line code { white-space: pre-wrap; overflow-wrap: anywhere; tab-size: var(--code-tab-size, 4); }
+.document-diff-line code[data-whitespace-visible="true"] { tab-size: var(--code-tab-size, 4); }
+.document-diff-line code[data-whitespace-visible="true"]::after { content: "↵"; margin-left: .35em; color: var(--text-secondary); opacity: .58; font-size: .72em; user-select: none; }
+.document-diff-line code .diff-whitespace-space { background-image: radial-gradient(circle, color-mix(in srgb, var(--text-secondary) 72%, transparent) .75px, transparent .9px); background-repeat: no-repeat; background-position: center; }
+.document-diff-line code .diff-whitespace-tab { background-image: linear-gradient(currentColor, currentColor), linear-gradient(45deg, transparent 44%, currentColor 46% 57%, transparent 59%), linear-gradient(-45deg, transparent 44%, currentColor 46% 57%, transparent 59%); background-repeat: no-repeat; background-size: calc(100% - 4px) 1px, 4px 4px, 4px 4px; background-position: left center, right center, right center; color: color-mix(in srgb, var(--text-secondary) 72%, transparent); }
 .document-diff-number { text-align: right; padding-right: .6em; opacity: .65; user-select: none; }
 .document-diff-line.added { background: color-mix(in srgb, #36b36b 18%, transparent); }
 .document-diff-line.removed { background: color-mix(in srgb, #e45757 18%, transparent); }
@@ -33,12 +37,16 @@
 .document-compare-dialog { box-sizing: border-box; position: fixed; inset: 50% auto auto 50%; transform: translate(-50%, -50%); margin: 0; width: min(1180px, calc(100vw - 32px)); height: min(800px, calc(100dvh - 32px)); overflow: hidden; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--ui-shadow-dialog, 0 18px 48px rgb(0 0 0 / 28%)); }
 .document-compare-dialog::backdrop { background: #0006; }
 .source-format-diff-dialog[open] { display: flex; flex-direction: column; gap: 8px; }
+.source-format-diff-dialog:focus { outline: none; }
 .source-format-diff-dialog > header { flex: 0 0 auto; }
 .source-format-diff-dialog > header h3 { margin: 0; }
 .source-format-diff-dialog > .source-format-diff-summary, .source-format-diff-dialog > .source-format-diff-notice { flex: 0 0 auto; margin: 0; font-size: 12px; color: var(--text-secondary); }
 .source-format-diff-dialog > .document-comparison { flex: 1; min-height: 0; height: auto; overflow: hidden; padding: 0; display: flex; flex-direction: column; }
 .source-format-diff-dialog .document-diff-columns { flex: 1; min-height: 0; height: auto; }
-.source-format-diff-dialog .document-diff-line code { white-space: pre; overflow-wrap: normal; width: max-content; }
+.source-format-diff-dialog .document-diff-whitespace-toggle { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 4px; border: 1px solid transparent; border-radius: 4px; color: var(--text-secondary); background: transparent; cursor: pointer; }
+.source-format-diff-dialog .document-diff-whitespace-toggle:is(:hover, [aria-pressed="true"]) { color: var(--text); background: var(--hover); border-color: var(--border); }
+.source-format-diff-dialog .document-diff-whitespace-toggle .toolbar-icon { width: 16px; height: 16px; }
+.source-format-diff-dialog .document-diff-line code { white-space: pre; overflow-wrap: normal; width: max-content; tab-size: var(--code-tab-size, 4); }
 .document-compare-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .document-compare-dialog > .document-comparison, .document-compare-dialog > p { overflow: auto; }
 .document-compare-dialog > .document-comparison { height: calc(100% - 112px); padding-right: 4px; }

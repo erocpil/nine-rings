@@ -78,6 +78,19 @@
 .markdown-cm-host .cm-scroller { overflow: auto; font-family: var(--editor-font-family, monospace); line-height: var(--editor-line-height, 1.7); }
 .markdown-cm-host .cm-content { padding: var(--editor-content-top-gap, 6px) 0 16px; caret-color: var(--editor-caret-color); }
 .markdown-cm-host .cm-line { padding: 0 12px; }
+.markdown-cm-host .cm-source-whitespace-space {
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--text-secondary) 72%, transparent) 0.75px, transparent 0.9px);
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.markdown-cm-host .cm-source-whitespace-tab {
+  background-image: linear-gradient(currentColor, currentColor), linear-gradient(45deg, transparent 44%, currentColor 46% 57%, transparent 59%), linear-gradient(-45deg, transparent 44%, currentColor 46% 57%, transparent 59%);
+  background-repeat: no-repeat;
+  background-size: calc(100% - 4px) 1px, 4px 4px, 4px 4px;
+  background-position: left center, right center, right center;
+  color: color-mix(in srgb, var(--text-secondary) 72%, transparent);
+}
+.markdown-cm-host .cm-source-whitespace-eol { margin-left: 3px; color: var(--text-secondary); opacity: .58; font-size: .72em; user-select: none; }
 .markdown-cm-host .cm-gutters { background: var(--bg); color: var(--text-secondary); border-color: var(--border); font-size: min(.85em, 16px); line-height: calc(var(--source-font-size, 16px) * var(--editor-line-height, 1.7)); }
 .markdown-cm-host .cm-activeLine, .markdown-cm-host .cm-activeLineGutter { background: color-mix(in srgb, var(--activeline-bg) 55%, transparent); }
 .note-editor.no-active-line .markdown-cm-host .cm-activeLine,
