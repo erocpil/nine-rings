@@ -196,7 +196,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
 
   const panel = activePanel && <aside className="local-file-dock document-panel-dock dock-right" style={{ "--local-file-panel-width": `${panelWidth}px` } as CSSProperties} aria-label={activePanel === "symbols" ? "本地源码符号" : activePanel === "bookmarks" ? "本地文件书签" : "本地文件同词匹配"}>
     <div className="document-dock-width-handle" role="separator" aria-orientation="vertical" aria-label="调整本地文件工具栏宽度" onPointerDown={beginPanelResize} />
-    <div className="document-outline-header">
+    <div className="document-outline-header local-file-panel-header">
       <div className="document-outline-header-primary"><strong>{activePanel === "symbols" ? "源码符号" : activePanel === "bookmarks" ? "书签" : wordState?.word ? `“${wordState.word}” · ${wordState.matches.length} 处` : "同词匹配"}</strong></div>
       <div className={`document-outline-header-actions${activePanel === "symbols" ? " is-source-symbol-actions" : ""}`}>
         {activePanel === "symbols" && <>

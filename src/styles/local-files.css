@@ -124,12 +124,14 @@
 .local-file-editor-shell > .markdown-source-input { flex: 1; min-height: 0; }
 .local-file-workspace.has-local-file-dock .local-file-editor-shell { margin-right: min(var(--local-file-panel-width, 300px), 50%); }
 .local-file-dock { width: min(var(--local-file-panel-width, 300px), 50%); z-index: 5; }
-.local-file-dock .document-outline-header {
-  flex: 0 0 var(--desktop-header-height, 37px);
-  height: var(--desktop-header-height, 37px);
-  min-height: var(--desktop-header-height, 37px);
+.local-file-view .local-file-dock.document-panel-dock > .local-file-panel-header {
+  flex: 0 0 36px;
+  height: 36px;
+  min-height: 36px;
   box-sizing: border-box;
-  background: transparent;
+  padding-block: 3px;
+  background-color: var(--bg);
+  background-image: none;
   color: var(--text);
 }
 .local-file-dock .document-outline-header-actions button { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 4px; }
@@ -176,4 +178,12 @@
   }
   .local-file-dock { width: min(var(--local-file-panel-width, 300px), 72%); }
   .local-file-workspace.has-local-file-dock .local-file-editor-shell { margin-right: min(var(--local-file-panel-width, 300px), 72%); }
+}
+@media (max-width: 768px) {
+  .local-file-view .local-file-dock.document-panel-dock > .local-file-panel-header {
+    flex-basis: 40px;
+    height: 40px;
+    min-height: 40px;
+    padding-block: 5px;
+  }
 }
