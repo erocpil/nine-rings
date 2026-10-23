@@ -41,44 +41,13 @@ import {
 import { focusSourceWordMatch, groupSourceWordMatchesByLine, selectSourceWordAt, sourceWordState } from "../lib/source-word-occurrences";
 import type { DocumentOutlineItem } from "../lib/document-outline";
 import type { DocumentBookmark } from "../types/models";
+import {
+  alphabetizeSymbolTree,
+  filterSymbolTree,
+  sourceSymbolSortName,
+} from "../lib/source-symbol-sort";
 
 type SourceOutlineItem = DocumentOutlineItem & { offset: number; sortName?: string };
-
-function sourceSymbolSortName(identity: string, kind: string, fallback: string): string {
-  const withoutKind = identity.replace(/#(?:macro|[^#]+)$/u, "");
-  if (kind === "函数") {
-    const parameterStart = withoutKind.indexOf("(");
-    if (parameterStart >= 0) {
-      const prefix = withoutKind.slice(0, parameterStart);
-      const prefixParts = prefix.split("::");
-      const leaf = prefixParts[prefixParts.length - 1] || fallback;
-      if (leaf === "operator" && withoutKind.startsWith(`${prefix}()`)) return "operator()";
-      return leaf.toLocaleLowerCase("en");
-    }
-  }
-  const identityParts = withoutKind.split("::");
-  const leaf = identityParts[identityParts.length - 1] || fallback;
-  return leaf.toLocaleLowerCase("en");
-}
-
-function alphabetizeSymbolTree(items: SourceOutlineItem[]): SourceOutlineItem[] {
-  type Branch = { item: SourceOutlineItem; children: Branch[] };
-  const roots: Branch[] = [];
-  const stack: Array<{ level: number; children: Branch[] }> = [{ level: 0, children: roots }];
-  for (const item of items) {
-    while (stack.length > 1 && stack[stack.length - 1]!.level >= item.level) stack.pop();
-    const branch: Branch = { item, children: [] };
-    stack[stack.length - 1]!.children.push(branch);
-    stack.push({ level: item.level, children: branch.children });
-  }
-  const result: SourceOutlineItem[] = [];
-  const visit = (branches: Branch[]) => {
-    branches.sort((left, right) => (left.item.sortName ?? left.item.text).localeCompare(right.item.sortName ?? right.item.text, "en", { numeric: true, sensitivity: "base" }));
-    for (const branch of branches) { result.push(branch.item); visit(branch.children); }
-  };
-  visit(roots);
-  return result;
-}
 
 const SOURCE_KIND_MARKERS: Record<string, string> = {
   "命名空间": "◇",
@@ -124,6 +93,8 @@ export function MarkdownSourceWorkspace({
   const [sourceSymbolsSource, setSourceSymbolsSource] = useState<string | null>(null);
   const [symbolsBusy, setSymbolsBusy] = useState(false);
   const [symbolsAlphabetical, setSymbolsAlphabetical] = useState(false);
+  const [symbolSearchOpen, setSymbolSearchOpen] = useState(false);
+  const [symbolQuery, setSymbolQuery] = useState("");
   const [offset, setOffset] = useState(0);
   const [folds, setFolds] = useState<Set<number>>(() => new Set());
   const [renamingBookmark, setRenamingBookmark] = useState<DocumentBookmark | null>(null);
@@ -243,9 +214,13 @@ export function MarkdownSourceWorkspace({
     () => symbolsAlphabetical ? alphabetizeSymbolTree(sourceSymbols) : sourceSymbols,
     [sourceSymbols, symbolsAlphabetical],
   );
+  const visibleSourceSymbols = useMemo(
+    () => filterSymbolTree(sortedSourceSymbols, symbolQuery),
+    [sortedSourceSymbols, symbolQuery],
+  );
   const outline = useMemo<SourceOutlineItem[]>(
-    () => mobile ? [] : symbolOutline ? sortedSourceSymbols : snapshot.outline.map((item) => ({ ...item, kind: undefined })),
-    [snapshot, mobile, sortedSourceSymbols, symbolOutline],
+    () => mobile ? [] : symbolOutline ? visibleSourceSymbols : snapshot.outline.map((item) => ({ ...item, kind: undefined })),
+    [snapshot, mobile, visibleSourceSymbols, symbolOutline],
   );
   const bookmarks = useMemo(() => (mobile ? [] : revision.bookmarks), [revision, mobile]);
   const nearestBookmark = bookmarks.reduce<(typeof bookmarks)[number] | undefined>((current, item) => !current || Math.abs(item.offset - offset) < Math.abs(current.offset - offset) ? item : current, undefined);
@@ -330,10 +305,11 @@ export function MarkdownSourceWorkspace({
     let hiddenBelow = 7;
     return outline.flatMap((item, index) => {
       if (item.level > hiddenBelow) return [];
-      hiddenBelow = folds.has(item.pos) ? item.level : 7;
-      return [{ item, index, folded: folds.has(item.pos), foldable: outline[index + 1]?.level > item.level }];
+      const folded = !symbolQuery.trim() && folds.has(item.pos);
+      hiddenBelow = folded ? item.level : 7;
+      return [{ item, index, folded, foldable: outline[index + 1]?.level > item.level }];
     });
-  }, [outline, folds]);
+  }, [outline, folds, symbolQuery]);
   const jump = (target: number) => {
     const next = sourceEditMapping(snapshot.source, revision.source)(target);
     onJump(next);
@@ -444,6 +420,7 @@ export function MarkdownSourceWorkspace({
           <div className={`document-outline-header-actions${isOutline && symbolOutline ? " is-source-symbol-actions" : ""}`}>
             {isOutline && symbolOutline && <>
               <OutlineDisplayTools listRef={listRef} target="source-symbols" targetLabel="定位当前符号" />
+              <button type="button" className="btn-icon" aria-label="查找符号" title="查找符号" aria-pressed={symbolSearchOpen} onClick={() => { setSymbolSearchOpen(value => !value); if (symbolSearchOpen) setSymbolQuery(""); }}><ToolbarIcon name="search" /></button>
               <button
                 type="button"
                 className="btn-icon source-symbol-sort-button"
@@ -471,6 +448,11 @@ export function MarkdownSourceWorkspace({
           </button>}
           </div>
         </div>
+        {isOutline && symbolOutline && symbolSearchOpen && <div className="source-symbol-search" role="search">
+          <ToolbarIcon name="search" />
+          <input autoFocus value={symbolQuery} onChange={event => setSymbolQuery(event.target.value)} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); setSymbolQuery(""); setSymbolSearchOpen(false); } }} placeholder="查找符号" aria-label="查找符号" />
+          <button type="button" className="btn-icon" aria-label="关闭符号查找" title="关闭" onClick={() => { setSymbolQuery(""); setSymbolSearchOpen(false); }}><ToolbarIcon name="close" /></button>
+        </div>}
         {isOutline ? (
           outline.length ? (
             <DocumentOutlineList

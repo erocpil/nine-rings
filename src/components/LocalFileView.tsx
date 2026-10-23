@@ -9,6 +9,7 @@ import type { SourceSymbol } from "../lib/source-symbols";
 import type { DocumentOutlineItem } from "../lib/document-outline";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import { focusSourceWordMatch, groupSourceWordMatchesByLine, sourceWordState } from "../lib/source-word-occurrences";
+import { alphabetizeSymbolTree, filterSymbolTree, sourceSymbolSortName } from "../lib/source-symbol-sort";
 import type { AppConfig } from "../types/models";
 import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
 import { DocumentOutlineList, OutlineDisplayTools } from "./DocumentOutlineList";
@@ -69,6 +70,9 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [symbols, setSymbols] = useState<SourceSymbol[]>([]);
+  const [symbolsAlphabetical, setSymbolsAlphabetical] = useState(false);
+  const [symbolSearchOpen, setSymbolSearchOpen] = useState(false);
+  const [symbolQuery, setSymbolQuery] = useState("");
   const [symbolsBusy, setSymbolsBusy] = useState(false);
   const [foldedSymbols, setFoldedSymbols] = useState<Set<string>>(() => loadSymbolFolds(identity));
   const symbolListRef = useRef<HTMLDivElement>(null);
@@ -153,7 +157,18 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     handle.setSelectionRange(at, at); handle.scrollToOffset(at, true); setActiveOffset(at); handle.focus();
   };
   const activeSymbol = useMemo(() => symbols.reduce<SourceSymbol | null>((current, item) => item.pos <= activeOffset && (!current || item.pos > current.pos) ? item : current, null), [symbols, activeOffset]);
-  const symbolOutline = useMemo<DocumentOutlineItem[]>(() => symbols.map(symbol => ({
+  const orderedSymbols = useMemo(() => {
+    if (!symbolsAlphabetical) return symbols;
+    return alphabetizeSymbolTree(symbols.map(symbol => ({
+      ...symbol,
+      sortName: sourceSymbolSortName(symbol.identity, symbol.kind, symbol.text),
+    })));
+  }, [symbols, symbolsAlphabetical]);
+  const visibleSymbols = useMemo(
+    () => filterSymbolTree(orderedSymbols, symbolQuery),
+    [orderedSymbols, symbolQuery],
+  );
+  const symbolOutline = useMemo<DocumentOutlineItem[]>(() => visibleSymbols.map(symbol => ({
     level: symbol.level,
     text: symbol.text,
     displayText: symbol.displayText,
@@ -162,17 +177,17 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     kind: symbol.kind,
     kindSymbol: SOURCE_KIND_MARKERS[symbol.kind],
     pos: symbol.pos,
-  })), [symbols]);
+  })), [visibleSymbols]);
   const symbolEntries = useMemo(() => {
     let hiddenBelow = Number.POSITIVE_INFINITY;
     return symbolOutline.flatMap((item, index) => {
       if (item.level > hiddenBelow) return [];
-      const folded = foldedSymbols.has(item.identity ?? "");
+      const folded = !symbolQuery.trim() && foldedSymbols.has(item.identity ?? "");
       hiddenBelow = folded ? item.level : Number.POSITIVE_INFINITY;
       return [{ item, index, folded, foldable: (symbolOutline[index + 1]?.level ?? 0) > item.level }];
     });
-  }, [foldedSymbols, symbolOutline]);
-  const activeSymbolIndex = activeSymbol ? symbols.indexOf(activeSymbol) : -1;
+  }, [foldedSymbols, symbolOutline, symbolQuery]);
+  const activeSymbolIndex = activeSymbol ? orderedSymbols.findIndex(symbol => symbol.identity === activeSymbol.identity) : -1;
   const symbolBaseLevel = symbolOutline.reduce((level, item) => Math.min(level, item.level), 6);
   const wordState = editorHandle ? sourceWordState(editorHandle.view) : null;
   const matches = groupSourceWordMatchesByLine(wordState?.matches ?? []);
@@ -201,6 +216,18 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       <div className={`document-outline-header-actions${activePanel === "symbols" ? " is-source-symbol-actions" : ""}`}>
         {activePanel === "symbols" && <>
           <OutlineDisplayTools listRef={symbolListRef} target="source-symbols" targetLabel="定位当前符号" />
+          <button type="button" className="btn-icon" aria-label="查找符号" title="查找符号" aria-pressed={symbolSearchOpen} onClick={() => { setSymbolSearchOpen(value => !value); if (symbolSearchOpen) setSymbolQuery(""); }}><ToolbarIcon name="search" /></button>
+          <button
+            type="button"
+            className="btn-icon source-symbol-sort-button"
+            data-sort-mode={symbolsAlphabetical ? "alphabetical" : "source"}
+            aria-label={symbolsAlphabetical ? "当前按字母顺序排序，切换为源码出现顺序" : "当前按源码出现顺序排序，切换为字母顺序"}
+            title={symbolsAlphabetical ? "当前：字母顺序；点击切换为源码出现顺序" : "当前：源码出现顺序；点击切换为字母顺序"}
+            aria-pressed={symbolsAlphabetical}
+            onClick={() => setSymbolsAlphabetical(value => !value)}
+          >
+            <ToolbarIcon name={symbolsAlphabetical ? "sortAlpha" : "sortSource"} />
+          </button>
           <button type="button" aria-label="全部折叠" title="折叠源码符号" onClick={() => setFoldedSymbols(new Set(symbolOutline.filter((item, index) => (symbolOutline[index + 1]?.level ?? 0) > item.level).map(item => item.identity ?? "")))}>−</button>
           <button type="button" aria-label="全部展开" title="展开源码符号" onClick={() => setFoldedSymbols(new Set())}>+</button>
         </>}
@@ -208,6 +235,11 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
         <button type="button" onClick={() => setActivePanel(null)} title="收起侧栏" aria-label="收起侧栏"><ToolbarIcon name="close" /></button>
       </div>
     </div>
+    {activePanel === "symbols" && symbolSearchOpen && <div className="source-symbol-search" role="search">
+      <ToolbarIcon name="search" />
+      <input autoFocus value={symbolQuery} onChange={event => setSymbolQuery(event.target.value)} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); setSymbolQuery(""); setSymbolSearchOpen(false); } }} placeholder="查找符号" aria-label="查找符号" />
+      <button type="button" className="btn-icon" aria-label="关闭符号查找" title="关闭" onClick={() => { setSymbolQuery(""); setSymbolSearchOpen(false); }}><ToolbarIcon name="close" /></button>
+    </div>}
     {activePanel === "symbols" ? symbols.length ? <DocumentOutlineList entries={symbolEntries} followActive activeOutlineIndex={activeSymbolIndex} compactSymbols displayTarget="source-symbols" outlineBaseLevel={symbolBaseLevel} listRef={symbolListRef} onToggleFold={position => { const identity = symbolOutline.find(item => item.pos === position)?.identity; if (!identity) return; setFoldedSymbols(current => { const next = new Set(current); if (next.has(identity)) next.delete(identity); else next.add(identity); return next; }); }} onJump={item => jump(item.pos)} /> : <div className="local-file-panel-list"><p>{symbolsBusy ? "正在分析源码符号…" : "当前文件没有可显示的符号"}</p></div> : activePanel === "bookmarks" ? <div className="local-file-panel-list local-file-bookmark-list">
       {bookmarks.length ? bookmarks.map(bookmark => <div key={bookmark.offset} className="local-file-bookmark-row"><button type="button" onClick={() => jump(bookmark.offset)} title={bookmark.label}><span>{bookmark.line}</span><span>{bookmark.label}</span></button><button type="button" aria-label={`删除第 ${bookmark.line} 行书签`} title="删除书签" onClick={() => setBookmarks(current => current.filter(item => item !== bookmark))}><ToolbarIcon name="close" /></button></div>) : <p>当前文件还没有书签</p>}
     </div> : <div className="document-source-matches-list">

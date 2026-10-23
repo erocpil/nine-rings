@@ -444,5 +444,5 @@ export function OutlineDisplayTools({ listRef, targetLabel = "定位当前标题
     onClick={() => panelDisplays.run(target, display, itemCommand, {
       "outline.reveal-current": () => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: "current" })),
       "source-symbols.reveal-current": () => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: "current" })),
-    })}><ToolbarIcon name="search" /></button>)}</>;
+    })}><ToolbarIcon name={target === "source-symbols" ? "focus" : "search"} /></button>)}</>;
 }

@@ -151,6 +151,31 @@
 .document-source-matches-header .document-outline-header-primary > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .document-source-matches-header .toolbar-icon { width: 15px; height: 15px; }
 .document-source-matches-list { flex: 1; min-height: 0; overflow: auto; padding: 4px 4px 4px 0; }
+.source-symbol-search {
+  display: flex;
+  align-items: center;
+  flex: 0 0 36px;
+  min-height: 36px;
+  gap: 6px;
+  padding: 4px 8px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  background: var(--bg);
+}
+.source-symbol-search > .toolbar-icon { flex: 0 0 15px; width: 15px; height: 15px; }
+.source-symbol-search > input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  background: var(--surface, var(--bg));
+  font: 12px/18px var(--font);
+}
+.source-symbol-search > button { flex: 0 0 26px; width: 26px; height: 26px; padding: 4px; }
 .document-source-match-row {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
