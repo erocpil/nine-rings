@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type SetStateAction } from "react";
 import {
   localFileService,
   type FileRoot,
-  type FilePage,
 } from "../lib/local-files/service";
 import { LOCAL_FILE_VIEW_ID } from "../lib/plugin-system/builtin-local-files";
 import { workspacePanels } from "../lib/plugin-system/panel-registry";
@@ -16,6 +15,9 @@ import { migrateLocalFilePathState } from "../lib/local-files/path-state";
 import { renameLocalFocusTabPaths } from "../lib/focus-tabs";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
+import { BlockActionMenu } from "./BlockActionMenu";
+import { useLocalFileTree } from "../hooks/useLocalFileTree";
+import { appendLocalFileNodes, localFileListKey, localFileTreeNodes, readLocalFileTreePreferences, saveLocalFileTreePreferences, type ListedFilePage } from "../lib/local-files/tree";
 import "../styles/local-files.css";
 
 const NAVIGATION_KEY = "nr:local-files-navigation";
@@ -60,18 +62,25 @@ function fileSize(size: number) {
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function LocalFilesPanel({ onBack }: {
+export function LocalFilesPanel({ active, onBack }: {
   active: boolean;
   onBack?: () => void;
 }) {
   const [restored] = useState(readNavigation);
   const [roots, setRoots] = useState<FileRoot[]>([]);
-  const [pages, setPages] = useState<Record<string, FilePage>>({});
+  const [pages, setPageState] = useState<Record<string, ListedFilePage>>({});
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(restored.expanded),
   );
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
+  const [preferences, setPreferences] = useState(readLocalFileTreePreferences);
+  const [query, setQuery] = useState("");
+  const [appliedQuery, setAppliedQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [viewMenu, setViewMenu] = useState<HTMLElement | null>(null);
+  const [revealRequest, setRevealRequest] = useState<{ rootId: string; nodeId: string; name: string; sequence: number } | null>(null);
+  const [pendingReveal, setPendingReveal] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState(restored.file);
   const [selected, setSelected] = useState(
     restored.file ? `${restored.file.rootId}:${restored.file.nodeId}` : "",
@@ -83,6 +92,45 @@ export function LocalFilesPanel({ onBack }: {
   const input = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
   const revision = useRef({ value: 0 });
+  const startupRestored = useRef(false);
+  const tree = useRef<HTMLDivElement>(null);
+  const treeScrollVersion = useRef(0);
+  const treeAnchor = useRef<{ rows: Array<{ id: string; offset: number }>; scrollTop: number; version: number } | null>(null);
+  const setPages = useCallback((next: SetStateAction<Record<string, ListedFilePage>>) => {
+    const host = tree.current;
+    if (host && host.clientHeight > 0) {
+      const bounds = host.getBoundingClientRect();
+      const rows: Array<{ id: string; offset: number }> = [];
+      for (const row of host.querySelectorAll<HTMLElement>("[data-local-file-id]")) {
+        const rect = row.getBoundingClientRect();
+        if (rect.top >= bounds.bottom) break;
+        if (rect.bottom <= bounds.top) continue;
+        rows.push({ id: row.dataset.localFileId!, offset: rect.top - bounds.top });
+        if (rows.length === 3) break;
+      }
+      treeAnchor.current = { rows, scrollTop: host.scrollTop, version: treeScrollVersion.current };
+    } else treeAnchor.current = null;
+    setPageState(next);
+  }, []);
+  useLayoutEffect(() => {
+    const saved = treeAnchor.current, host = tree.current;
+    treeAnchor.current = null;
+    if (!saved || !host || saved.version !== treeScrollVersion.current) return;
+    const rows = [...host.querySelectorAll<HTMLElement>("[data-local-file-id]")];
+    for (const anchor of saved.rows) {
+      const row = rows.find(item => item.dataset.localFileId === anchor.id);
+      if (row) { host.scrollTop += row.getBoundingClientRect().top - host.getBoundingClientRect().top - anchor.offset; return; }
+    }
+    host.scrollTop = saved.scrollTop;
+  }, [pages]);
+  const filterInput = useRef<HTMLInputElement>(null);
+  const listOptions = useMemo(() => ({ ...preferences, query: appliedQuery }), [preferences, appliedQuery]);
+  const listingKey = localFileListKey(listOptions);
+  const { readPage, reload: reloadTree } = useLocalFileTree({ active, ready: rootsReady, roots, expanded, pages, options: listOptions, busy: busy.size > 0, setPages, onError: setError });
+  useEffect(() => { saveLocalFileTreePreferences(preferences); }, [preferences]);
+  useEffect(() => { const timer = window.setTimeout(() => setAppliedQuery(query), 180); return () => window.clearTimeout(timer); }, [query]);
+  useEffect(() => { if (searchOpen) filterInput.current?.focus(); }, [searchOpen]);
+  useEffect(() => { if (!active) { setViewMenu(null); setContextMenu(null); } }, [active]);
   useEffect(() => {
     const opened = (event: Event) => {
       const file = (event as CustomEvent<{ rootId?: unknown; rootName?: unknown; nodeId?: unknown; name?: unknown }>).detail;
@@ -98,30 +146,69 @@ export function LocalFilesPanel({ onBack }: {
       const file = (event as CustomEvent<{ rootId?: string; nodeId?: string; name?: string }>).detail;
       if (!file?.rootId || !file.nodeId || !file.name) return;
       if (!roots.some(root => root.id === file.rootId)) { setError("此文件对应的目录授权已失效，请重新选择目录。"); return; }
-      const parts = file.nodeId.split("/");
-      const directories = ["", ...parts.slice(0, -1).map((_, index) => parts.slice(0, index + 1).join("/"))];
-      setSelectedFile({ rootId: file.rootId, rootName: roots.find(root => root.id === file.rootId)?.name, nodeId: file.nodeId, name: file.name });
-      setSelected(`${file.rootId}:${file.nodeId}`);
-      setExpanded(current => new Set([...current, ...directories.map(node => `${file.rootId}:${node}`)]));
-      void (async () => {
-        for (const node of directories) {
-          const key = `${file.rootId}:${node}`;
-          if (pages[key]) continue;
-          try { const page = await localFileService.list(file.rootId!, node); setPages(current => ({ ...current, [key]: page })); }
-          catch (reason) { setError(String(reason)); break; }
-        }
-      })();
+      setQuery(""); setAppliedQuery("");
+      if (file.nodeId.split("/").some(part => part.startsWith("."))) setPreferences(current => current.showHidden ? current : { ...current, showHidden: true });
+      setRevealRequest({ rootId: file.rootId, nodeId: file.nodeId, name: file.name, sequence: Date.now() });
     };
     window.addEventListener(LOCAL_FILE_REVEAL_EVENT, reveal);
     return () => window.removeEventListener(LOCAL_FILE_REVEAL_EVENT, reveal);
-  }, [pages, roots]);
+  }, [roots]);
+  useEffect(() => {
+    if (!revealRequest || appliedQuery) return;
+    let cancelled = false;
+    const { rootId, nodeId } = revealRequest;
+    const parts = nodeId.split("/");
+    const directories = ["", ...parts.slice(0, -1).map((_, index) => parts.slice(0, index + 1).join("/"))];
+    void (async () => {
+      try {
+        for (let index = 0; index < directories.length; index++) {
+          const node = directories[index]!, target = parts.slice(0, index + 1).join("/");
+          let page = await readPage(rootId, node);
+          while (!page.nodes.some(child => child.id === target) && page.next !== null) {
+            const next = await readPage(rootId, node, page.next);
+            page = { ...next, nodes: appendLocalFileNodes(page.nodes, next.nodes) };
+          }
+          if (cancelled) return;
+          if (!page.nodes.some(child => child.id === target)) {
+            // Windows hidden attributes cannot be inferred from the path name.
+            if (!listOptions.showHidden) { setPreferences(current => ({ ...current, showHidden: true })); return; }
+            throw new Error("目标文件或目录已移动，无法在树中定位");
+          }
+          setPages(current => ({ ...current, [`${rootId}:${node}`]: page }));
+        }
+        if (cancelled) return;
+        setExpanded(current => new Set([...current, ...directories.map(node => `${rootId}:${node}`)]));
+        setSelected(`${rootId}:${nodeId}`);
+        setPendingReveal(`${rootId}:${nodeId}`);
+        setRevealRequest(null);
+      } catch (reason) {
+        if (!cancelled && !(reason instanceof DOMException && reason.name === "AbortError")) { setError(String(reason)); setRevealRequest(null); }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [appliedQuery, listOptions, readPage, revealRequest, setPages]);
+  useEffect(() => {
+    if (!pendingReveal || !active) return;
+    const frame = requestAnimationFrame(() => {
+      const host = tree.current;
+      const row = [...(host?.querySelectorAll<HTMLElement>("[data-local-file-id]") ?? [])].find(item => item.dataset.localFileId === pendingReveal);
+      if (!host || !row) return;
+      const bounds = host.getBoundingClientRect(), rect = row.getBoundingClientRect();
+      if (rect.top < bounds.top) host.scrollTop += rect.top - bounds.top - 4;
+      else if (rect.bottom > bounds.bottom) host.scrollTop += rect.bottom - bounds.bottom + 4;
+      setPendingReveal(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [active, expanded, pages, pendingReveal]);
   useEffect(() => {
     const lifetime = revision.current;
+    const initialRevision = lifetime.value;
+    let cancelled = false;
     mounted.current = true;
     void localFileService
       .roots()
       .then(async (value) => {
-        if (!mounted.current) return;
+        if (cancelled || !mounted.current || lifetime.value !== initialRevision) return;
         setRoots(value);
         const rootIds = new Set(value.map((root) => root.id));
         if (restored.file && rootIds.has(restored.file.rootId)) {
@@ -138,33 +225,34 @@ export function LocalFilesPanel({ onBack }: {
             rootId = key.slice(0, at),
             node = key.slice(at + 1);
           try {
-            const page = await localFileService.list(rootId, node, 0);
-            if (!mounted.current || lifetime.value !== 0) return;
+            const page = await readPage(rootId, node, 0);
+            if (cancelled || !mounted.current || lifetime.value !== initialRevision) return;
             available.add(key);
             setPages((current) => ({ ...current, [key]: page }));
           } catch {
             // A directory may have moved since the last session; retain the
             // remaining valid expansion state instead of blocking restoration.
           }
-          if (!mounted.current || lifetime.value !== 0) return;
+          if (cancelled || !mounted.current || lifetime.value !== initialRevision) return;
         }
         setExpanded(available);
-        if (!mounted.current) return;
+        if (cancelled || !mounted.current) return;
         if (restored.file && !rootIds.has(restored.file.rootId))
           setError("上次打开的本地文件目录尚未授权。重新选择同一目录后会尝试恢复文件。");
         setRootsReady(true);
       })
       .catch((reason) => {
-        if (mounted.current) {
+        if (!cancelled && mounted.current) {
           setError(String(reason));
           setRootsReady(true);
         }
       });
     return () => {
+      cancelled = true;
       mounted.current = false;
       lifetime.value++;
     };
-  }, [restored]);
+  }, [readPage, restored, setPages]);
   useEffect(() => {
     if (!rootsReady) return;
     try {
@@ -177,20 +265,23 @@ export function LocalFilesPanel({ onBack }: {
     }
   }, [expanded, selectedFile, rootsReady, mainViewState]);
   useEffect(() => {
-    if (!restored.open || !rootsReady || !selectedFile) return;
+    if (startupRestored.current || !restored.open || !rootsReady || !selectedFile) return;
     if (!roots.some((root) => root.id === selectedFile.rootId)) return;
     const view = mainViews.getSnapshot();
     if (
       sameLocalFile(view.current, selectedFile) ||
       sameLocalFile(view.pending, selectedFile)
-    )
+    ) {
+      startupRestored.current = true;
       return;
+    }
     try {
+      startupRestored.current = true;
       const rootName = roots.find(root => root.id === selectedFile.rootId)?.name ?? selectedFile.rootName ?? "本地文件";
       rememberRecentLocalFile({ rootId: selectedFile.rootId, rootName, nodeId: selectedFile.nodeId, name: selectedFile.name });
       mainViews
         .bind(workspacePanels.assert("files"))
-        .open(LOCAL_FILE_VIEW_ID, selectedFile);
+        .open(LOCAL_FILE_VIEW_ID, { rootId: selectedFile.rootId, nodeId: selectedFile.nodeId, name: selectedFile.name });
     } catch (reason) {
       setError(String(reason));
     }
@@ -202,7 +293,7 @@ export function LocalFilesPanel({ onBack }: {
     try {
       await action();
     } catch (reason) {
-      if (mounted.current && version === revision.current.value)
+      if (mounted.current && version === revision.current.value && !(reason instanceof DOMException && reason.name === "AbortError"))
         setError(String(reason));
     } finally {
       if (mounted.current && version === revision.current.value)
@@ -216,14 +307,15 @@ export function LocalFilesPanel({ onBack }: {
   const load = async (rootId: string, node: string, offset = 0) => {
     const key = rootId + ":" + node,
       version = revision.current.value;
-    const page = await localFileService.list(rootId, node, offset);
+    const effectiveOffset = offset && pages[key]?.listingKey === listingKey ? offset : 0;
+    const page = await readPage(rootId, node, effectiveOffset);
     if (!mounted.current || version !== revision.current.value) return;
     setPages((value) => ({
       ...value,
       [key]: {
         ...page,
-        nodes: offset
-          ? [...(value[key]?.nodes ?? []), ...page.nodes]
+        nodes: effectiveOffset
+          ? appendLocalFileNodes(value[key]?.nodes ?? [], page.nodes)
           : page.nodes,
       },
     }));
@@ -253,7 +345,7 @@ export function LocalFilesPanel({ onBack }: {
       void (async () => {
         for (const key of restoreKeys.sort((a, b) => a.split("/").length - b.split("/").length)) {
           const at = key.indexOf(":");
-          try { const page = await localFileService.list(root.id, key.slice(at + 1)); setPages(current => ({ ...current, [key]: page })); }
+          try { const page = await readPage(root.id, key.slice(at + 1)); setPages(current => ({ ...current, [key]: page })); }
           catch { /* The saved folder may have moved since last use. */ }
         }
       })();
@@ -312,12 +404,7 @@ export function LocalFilesPanel({ onBack }: {
     { label: isLocalFileReadOnly(contextMenu.rootId, contextMenu.nodeId) ? "允许编辑" : "设为只读", run: () => setLocalFileReadOnly(contextMenu.rootId, contextMenu.nodeId, !isLocalFileReadOnly(contextMenu.rootId, contextMenu.nodeId)) },
   ] : [];
   const refreshExpanded = () =>
-    void run("refresh", async () => {
-      for (const key of expanded) {
-        const at = key.indexOf(":");
-        await load(key.slice(0, at), key.slice(at + 1));
-      }
-    });
+    void run("refresh", () => reloadTree());
   const children = (
     rootId: string,
     node: string,
@@ -325,16 +412,18 @@ export function LocalFilesPanel({ onBack }: {
   ): React.ReactNode => {
     const key = rootId + ":" + node,
       page = pages[key];
+    const visibleNodes = page ? localFileTreeNodes(page.nodes, { ...preferences, query }) : [];
     if (!expanded.has(key)) return null;
     return (
       <div role="group">
-        {page?.nodes.map((child) => {
+        {visibleNodes.map((child) => {
           const childKey = rootId + ":" + child.id;
           return (
             <div key={child.id}>
               <button
                 type="button"
                 className="local-file-row"
+                data-local-file-id={childKey}
                 style={{ paddingInlineStart: 12 + depth * 14 }}
                 aria-expanded={
                   child.directory ? expanded.has(childKey) : undefined
@@ -381,14 +470,14 @@ export function LocalFilesPanel({ onBack }: {
         {page?.next != null && (
           <button
             type="button"
-            disabled={busy.has(key)}
+            disabled={busy.has(key) || page.listingKey !== listingKey || query !== appliedQuery}
             onClick={() => void run(key, () => load(rootId, node, page.next!))}
           >
             加载更多
           </button>
         )}
-        {page && !page.nodes.length && (
-          <p className="local-files-message">空目录</p>
+        {page && !visibleNodes.length && (
+          <p className="local-files-message">{query.trim() ? "没有匹配的文件" : "空目录"}</p>
         )}
       </div>
     );
@@ -410,6 +499,12 @@ export function LocalFilesPanel({ onBack }: {
           </button>
         )}
         <strong>本地文件</strong>
+        <button type="button" className="btn-icon" title="按文件名筛选" aria-label="按文件名筛选" aria-expanded={searchOpen} aria-pressed={searchOpen} onClick={() => { setSearchOpen(value => !value); if (searchOpen) { setQuery(""); setAppliedQuery(""); } }}><ToolbarIcon name="search" /></button>
+        <button type="button" className="btn-icon" title="文件树显示与排序" aria-label="文件树显示与排序" aria-haspopup="menu" aria-expanded={Boolean(viewMenu)} onClick={event => setViewMenu(current => current ? null : event.currentTarget)}><ToolbarIcon name="sliders" /></button>
+        {viewMenu && <BlockActionMenu trigger={viewMenu} placement="below" title="文件树显示" onClose={() => setViewMenu(null)} actions={[
+          ...([['name', '名称升序'], ['name-desc', '名称降序'], ['type', '文件类型']] as const).map(([sort, label], index) => ({ label, group: index === 0 ? "排序（目录优先）" : undefined, checked: preferences.sort === sort, keepOpen: true, run: () => setPreferences(current => ({ ...current, sort })) })),
+          { label: "显示隐藏文件与目录", group: "显示", checked: preferences.showHidden, keepOpen: true, run: () => setPreferences(current => ({ ...current, showHidden: !current.showHidden })) },
+        ]} />}
         <button
           type="button"
           className="btn-icon"
@@ -460,6 +555,11 @@ export function LocalFilesPanel({ onBack }: {
           <ToolbarIcon name="refresh" />
         </button>}
       </header>
+      {searchOpen && <div className="local-files-filter" role="search" aria-label="本地文件名过滤">
+        <ToolbarIcon name="filter" />
+        <input ref={filterInput} value={query} maxLength={256} aria-label="筛选已展开目录中的文件名" placeholder="筛选已展开目录中的文件名" onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setQuery(""); setAppliedQuery(""); setSearchOpen(false); } }} />
+        <button type="button" className="btn-icon" aria-label="关闭文件名过滤" title="关闭文件名过滤" onClick={() => { setQuery(""); setAppliedQuery(""); setSearchOpen(false); }}><ToolbarIcon name="close" /></button>
+      </div>}
       <input
         ref={input}
         type="file"
@@ -477,14 +577,16 @@ export function LocalFilesPanel({ onBack }: {
           event.target.value = "";
         }}
       />
-      <p className="local-files-message">只读 · 原文件不会导入或同步</p>
+      <p className="local-files-message">本地文件不会导入或同步{searchOpen ? " · 过滤时保留目录" : ""}</p>
       {error && (
         <p role="alert" className="local-files-message">
           {error}
         </p>
       )}
       <div
+        ref={tree}
         className="local-files-tree"
+        onScroll={() => { treeScrollVersion.current++; }}
         role="tree"
         data-panel-display={display ? "plugin" : undefined}
         style={display ? {
@@ -500,6 +602,7 @@ export function LocalFilesPanel({ onBack }: {
               <button
                 type="button"
                 className="local-file-row"
+                data-local-file-id={`${root.id}:`}
                 title={root.name}
                 onContextMenu={event => {
                   event.preventDefault(); event.stopPropagation();

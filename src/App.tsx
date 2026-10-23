@@ -1687,7 +1687,7 @@ function App() {
             activeLocalIdentity={pluginMainView?.renderer === "local-file" ? localFileIdentity(pluginMainView.data) : undefined}
             onOpenLocal={openRecentLocalFile}
             onRevealLocal={async file => {
-              await activateSidebarPanel("files");
+              sidebarHover.restore({ panel: "files", hidden: false, pinned: true });
               window.dispatchEvent(new CustomEvent(LOCAL_FILE_REVEAL_EVENT, { detail: file }));
             }}
             onOpen={async note => { await flushAutoSave(); setQuery(""); setDocResults(null); handleSelectNote(note); }}

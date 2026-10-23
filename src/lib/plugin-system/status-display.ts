@@ -16,6 +16,7 @@ export type StatusItem = (typeof STATUS_ITEMS)[number];
 export interface StatusDisplay {
   readonly visible: boolean;
   readonly showInFocus: boolean;
+  readonly showTotals?: boolean;
   readonly font: "inherit" | "mono" | "sans" | "serif";
   readonly fontSize: number;
   readonly bold: boolean;
@@ -29,6 +30,7 @@ export interface StatusDisplay {
 export const DEFAULT_STATUS_DISPLAY: StatusDisplay = Object.freeze({
   visible: true,
   showInFocus: true,
+  showTotals: true,
   font: "inherit",
   fontSize: 11,
   bold: false,
@@ -47,10 +49,11 @@ export function validateStatusDisplay(input: unknown): StatusDisplay {
     return invalid();
   const v = input as Record<string, unknown>;
   if (
-    Object.keys(v).length !== Object.keys(DEFAULT_STATUS_DISPLAY).length ||
+    Object.keys(DEFAULT_STATUS_DISPLAY).some(key => key !== "showTotals" && !(key in v)) ||
     Object.keys(v).some((k) => !(k in DEFAULT_STATUS_DISPLAY))
   )
     return invalid();
+  if (v.showTotals !== undefined && typeof v.showTotals !== "boolean") return invalid();
   if (
     !["visible", "showInFocus", "bold", "italic"].every(
       (k) => typeof v[k] === "boolean",
@@ -108,6 +111,7 @@ export function validateStatusDisplay(input: unknown): StatusDisplay {
   };
   return Object.freeze({
     ...v,
+    showTotals: v.showTotals !== false,
     color: color(v.color),
     background: color(v.background),
     // Older saved preferences and packages may still list retired actions.

@@ -24,6 +24,8 @@ export function EditorStatusBar({
   className = "",
   saveStatus,
   block,
+  blockPosition,
+  sourcePosition,
   position,
   positionRef,
   characters,
@@ -44,6 +46,8 @@ export function EditorStatusBar({
   className?: string;
   saveStatus?: SaveStatus;
   block?: ReactNode;
+  blockPosition?: { current: number; total: number };
+  sourcePosition?: { line: number; column: number; total: number };
   position?: ReactNode;
   positionRef?: RefObject<HTMLSpanElement>;
   characters?: number;
@@ -183,13 +187,13 @@ export function EditorStatusBar({
         </span>
       ) : null,
     block:
-      block !== undefined ? (
-        <span className="editor-status-block">{block}</span>
+      blockPosition || block !== undefined ? (
+        <span className="editor-status-block">{blockPosition ? `Block ${blockPosition.current}${state.showTotals ? `/${blockPosition.total}` : ""}` : block}</span>
       ) : null,
     position:
-      position !== undefined ? (
+      sourcePosition || position !== undefined ? (
         <span ref={positionRef} className="editor-status-position">
-          {position}
+          {sourcePosition ? `Ln ${sourcePosition.line}${state.showTotals ? `/${sourcePosition.total}` : ""}, Col ${sourcePosition.column}` : position}
         </span>
       ) : null,
     characters: characters !== undefined ? `${characters} chars` : null,

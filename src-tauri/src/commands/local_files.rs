@@ -303,7 +303,40 @@ pub fn local_files_rename(
         },
     })
 }
-fn list(root: &Path, node: &str, offset: usize) -> Result<Page, String> {
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum FileSort {
+    #[default]
+    Name,
+    NameDesc,
+    Type,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ListOptions {
+    sort: FileSort,
+    show_hidden: bool,
+    query: String,
+}
+impl Default for ListOptions {
+    fn default() -> Self {
+        Self {
+            sort: FileSort::Name,
+            show_hidden: true,
+            query: String::new(),
+        }
+    }
+}
+fn list_with_options(
+    root: &Path,
+    node: &str,
+    offset: usize,
+    options: &ListOptions,
+) -> Result<Page, String> {
+    if options.query.len() > 1024 {
+        return Err("文件名过滤条件过长".into());
+    }
+    let query = options.query.trim().to_lowercase();
     let path = checked_path(root, node)?;
     let mut nodes = Vec::new();
     for (count, item) in fs::read_dir(path).map_err(|e| e.to_string())?.enumerate() {
@@ -311,7 +344,11 @@ fn list(root: &Path, node: &str, offset: usize) -> Result<Page, String> {
             return Err("单目录超过 10000 项，请选择更具体的目录".into());
         }
         let item = item.map_err(|e| e.to_string())?;
-        let meta = fs::symlink_metadata(item.path()).map_err(|e| e.to_string())?;
+        let meta = match fs::symlink_metadata(item.path()) {
+            Ok(meta) => meta,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.to_string()),
+        };
         if is_link(&meta) || (!meta.is_dir() && !meta.is_file()) {
             continue;
         }
@@ -319,6 +356,18 @@ fn list(root: &Path, node: &str, offset: usize) -> Result<Page, String> {
             continue;
         };
         if name.contains(['\\', ':', '\0']) {
+            continue;
+        }
+        let hidden = name.starts_with('.');
+        #[cfg(windows)]
+        let hidden = {
+            use std::os::windows::fs::MetadataExt;
+            hidden || meta.file_attributes() & 0x2 != 0
+        };
+        if !options.show_hidden && hidden {
+            continue;
+        }
+        if !meta.is_dir() && !query.is_empty() && !name.to_lowercase().contains(&query) {
             continue;
         }
         nodes.push(Node {
@@ -333,9 +382,29 @@ fn list(root: &Path, node: &str, offset: usize) -> Result<Page, String> {
         });
     }
     nodes.sort_by(|a, b| {
+        let extension = |item: &Node| {
+            item.name
+                .rsplit_once('.')
+                .filter(|(stem, _)| !stem.is_empty())
+                .map(|(_, ext)| ext.to_lowercase())
+                .unwrap_or_default()
+        };
         b.directory
             .cmp(&a.directory)
-            .then_with(|| a.name.cmp(&b.name))
+            .then_with(|| {
+                if matches!(options.sort, FileSort::Type) && !a.directory {
+                    extension(a).cmp(&extension(b))
+                } else {
+                    std::cmp::Ordering::Equal
+                }
+            })
+            .then_with(|| {
+                if matches!(options.sort, FileSort::NameDesc) {
+                    b.name.cmp(&a.name)
+                } else {
+                    a.name.cmp(&b.name)
+                }
+            })
     });
     let next = if offset.saturating_add(200) < nodes.len() {
         Some(offset + 200)
@@ -347,6 +416,10 @@ fn list(root: &Path, node: &str, offset: usize) -> Result<Page, String> {
         next,
     })
 }
+#[cfg(test)]
+fn list(root: &Path, node: &str, offset: usize) -> Result<Page, String> {
+    list_with_options(root, node, offset, &ListOptions::default())
+}
 #[tauri::command]
 pub async fn local_files_list(
     window: tauri::WebviewWindow,
@@ -354,12 +427,15 @@ pub async fn local_files_list(
     root_id: String,
     node: String,
     offset: usize,
+    options: Option<ListOptions>,
 ) -> Result<Page, String> {
     caller(&window)?;
     let root = library.root(&root_id)?;
-    let page = tauri::async_runtime::spawn_blocking(move || list(&root, &node, offset))
-        .await
-        .map_err(|e| e.to_string())??;
+    let page = tauri::async_runtime::spawn_blocking(move || {
+        list_with_options(&root, &node, offset, &options.unwrap_or_default())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
     library.root(&root_id)?;
     Ok(page)
 }

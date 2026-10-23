@@ -9,6 +9,7 @@ import {
 } from "../lib/plugin-system/status-display";
 const readFocusPreference = () =>
   blockWorkspacePreferences().statusBarInFocus !== false;
+const readTotalsPreference = () => blockWorkspacePreferences().statusBarTotals !== false;
 function subscribeFocusPreference(listener: () => void) {
   window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, listener);
   window.addEventListener("storage", listener);
@@ -27,12 +28,15 @@ export function useStatusBarDisplay(enabled: boolean, focusMode = false) {
     readFocusPreference,
   );
   const showInFocus = display?.showInFocus ?? hostShowInFocus;
+  const hostShowTotals = useSyncExternalStore(subscribeFocusPreference, readTotalsPreference);
+  const showTotals = display ? display.showTotals !== false : hostShowTotals;
   const visible = (display?.visible ?? enabled) && (!focusMode || showInFocus);
   const items = display?.items ?? STATUS_ITEMS;
   return {
     display,
     visible,
     showInFocus,
+    showTotals,
     items,
     navigationInStatus: visible && items.includes("navigation"),
   };

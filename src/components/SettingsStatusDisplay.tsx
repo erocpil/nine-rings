@@ -55,6 +55,7 @@ export function SettingsStatusDisplay({
             [
               ["visible", "显示状态栏"],
               ["showInFocus", "专注模式显示状态栏"],
+              ["showTotals", "显示总行数与总块数"],
               ["bold", "状态栏粗体"],
               ["italic", "状态栏斜体"],
             ] as const
@@ -63,7 +64,7 @@ export function SettingsStatusDisplay({
               <input
                 type="checkbox"
                 aria-label={label}
-                checked={display[key]}
+                checked={key === "showTotals" ? display.showTotals !== false : display[key]}
                 onChange={(e) => update({ [key]: e.target.checked })}
               />
             </Field>

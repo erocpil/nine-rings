@@ -5049,7 +5049,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
       </div>
 
       {/* ── 文档状态栏：本机保存状态、位置统计与诊断/历史入口 ── */}
-      <EditorStatusBar onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} block={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? `块 ${currentStatusBlock}/${totalBlocks}` : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
+      <EditorStatusBar onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} blockPosition={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? { current: currentStatusBlock, total: totalBlocks } : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
         {saveIssue && <button type="button" className="workspace-error-indicator" onClick={onOpenSaveIssue}>保存异常 · 查看详情</button>}
         {searchMatches.length > 0 && !editorFindOpen && (
           <span className="editor-search-navigation" role="status" aria-live="polite">

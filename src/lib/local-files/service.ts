@@ -3,6 +3,7 @@ import { isTauriRuntime } from "../runtime";
 import { workspacePanels } from "../plugin-system/panel-registry";
 import { pluginRuntime } from "../plugin-system/runtime";
 import { clearLocalFileAccessRules, isLocalFileReadOnly } from "./access";
+import { DEFAULT_LOCAL_FILE_LIST, localFileTreeNodes, type LocalFileListOptions } from "./tree";
 
 export interface FileRoot {
   id: string;
@@ -121,6 +122,7 @@ export const localFileService = {
       .showDirectoryPicker === "function",
   supportsSaveAs: () => isTauriRuntime() || typeof (window as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker === "function",
   canSaveOriginal: (rootId: string) => isTauriRuntime() || Boolean(roots.get(rootId)?.handle),
+  supportsDirectoryChanges: (rootId: string) => isTauriRuntime() || Boolean(roots.get(rootId)?.handle),
   canRename: (rootId: string) => isTauriRuntime() || Boolean(roots.get(rootId)?.handle),
   async roots(): Promise<FileRoot[]> {
     const check = guard();
@@ -262,7 +264,7 @@ export const localFileService = {
     check();
     return { root, nodeId: nextNode };
   },
-  async list(rootId: string, node = "", offset = 0): Promise<FilePage> {
+  async list(rootId: string, node = "", offset = 0, options?: LocalFileListOptions): Promise<FilePage> {
     const check = guard();
     fileSegments(node);
     if (!Number.isSafeInteger(offset) || offset < 0)
@@ -272,6 +274,7 @@ export const localFileService = {
         rootId,
         node,
         offset,
+        ...(options ? { options } : {}),
       });
       check();
       return page;
@@ -310,11 +313,7 @@ export const localFileService = {
       }
     }
     check();
-    const sorted = [...nodes.values()].sort(
-      (a, b) =>
-        Number(b.directory) - Number(a.directory) ||
-        a.name.localeCompare(b.name),
-    );
+    const sorted = localFileTreeNodes(nodes.values(), options ?? DEFAULT_LOCAL_FILE_LIST);
     return {
       nodes: sorted.slice(offset, offset + 200),
       next: offset + 200 < sorted.length ? offset + 200 : null,

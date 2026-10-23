@@ -1106,7 +1106,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="编辑器状态栏" desc="渲染与源码模式显示底部位置、字数、保存状态、版本历史和调试入口；关闭后搜索导航仍会按需出现" visible={settingsPage === "editor"}>
+            <Field label="编辑器状态栏" desc="渲染与源码模式显示底部位置、字数和保存状态；关闭后搜索导航仍会按需出现" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -1115,6 +1115,13 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 />
                 <span className="toggle-track" />
                 <span className="toggle-label">{config.editor_show_status_bar ? "开" : "关"}</span>
+              </label>
+            </Field>
+
+            <Field label="显示总行数与总块数" desc={statusPlugin ? "由状态栏展示插件接管；停用插件后恢复此处保存的选择" : "合并到当前位置，例如 Ln 80/320 或 Block 8/45；包含折叠内容，默认显示"} visible={settingsPage === "editor"}>
+              <label className="settings-toggle">
+                <input type="checkbox" aria-label="状态栏显示总行数与总块数" disabled={Boolean(statusPlugin) || !config.editor_show_status_bar} checked={statusBarPreference.showTotals} onChange={event => saveBlockWorkspacePreferences({ statusBarTotals: event.target.checked })} />
+                <span className="toggle-track" /><span className="toggle-label">{statusBarPreference.showTotals ? "显示" : "隐藏"}</span>
               </label>
             </Field>
 

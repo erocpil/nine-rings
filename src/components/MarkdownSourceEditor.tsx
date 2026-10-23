@@ -303,7 +303,7 @@ export function MarkdownSourceEditor({
   const access = useRef(new Compartment()),
     display = useRef(new Compartment());
   const [preferences, setPreferences] = useState(blockWorkspacePreferences);
-  const [cursor, setCursor] = useState({ line: 1, column: 1 });
+  const [cursor, setCursor] = useState({ line: 1, column: 1, total: 1 });
   const statusBar = useStatusBarDisplay(showStatusBar, focusMode);
   const duplicateCursorPosition = statusBar.visible && (!statusBar.display || statusBar.items.includes("position"));
   useEffect(() => {
@@ -512,7 +512,7 @@ export function MarkdownSourceEditor({
           selectionCallback.current?.({ from: update.state.selection.main.from, to: update.state.selection.main.to });
           const pos = update.state.selection.main.head,
             line = update.state.doc.lineAt(pos);
-          setCursor({ line: line.number, column: pos - line.from + 1 });
+          setCursor({ line: line.number, column: pos - line.from + 1, total: update.state.doc.lines });
           handleRef.current?.dispatchEvent(new Event("select"));
         }
       }),
@@ -545,6 +545,7 @@ export function MarkdownSourceEditor({
     setCursor({
       line: editor.state.doc.lineAt(head).number,
       column: head - editor.state.doc.lineAt(head).from + 1,
+      total: editor.state.doc.lines,
     });
     areaRef.current = handle;
     onReady?.(handle);
@@ -924,7 +925,7 @@ export function MarkdownSourceEditor({
         {sourceMessageAction?.message === sourceMessage && <button type="button" className="source-message-action" onMouseDown={event => event.preventDefault()} onClick={sourceMessageAction.run}>{sourceMessageAction.label}</button>}
         <button type="button" aria-label="关闭提示" title="关闭提示" onMouseDown={event => event.preventDefault()} onClick={() => setSourceMessage("")}><ToolbarIcon name="close" /></button>
       </div>}
-      {statusTarget ? createPortal(<EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} documentLanguageValue={documentLanguageValue} documentLanguageOptions={documentLanguageOptions} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`Ln ${cursor.line}, Col ${cursor.column}`} characters={value.length} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} documentLanguageValue={documentLanguageValue} documentLanguageOptions={documentLanguageOptions} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`Ln ${cursor.line}, Col ${cursor.column}`} characters={value.length} /> : null}
+      {statusTarget ? createPortal(<EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} documentLanguageValue={documentLanguageValue} documentLanguageOptions={documentLanguageOptions} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} sourcePosition={cursor} characters={value.length} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} documentLanguageValue={documentLanguageValue} documentLanguageOptions={documentLanguageOptions} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} sourcePosition={cursor} characters={value.length} /> : null}
     </div>
   );
 }

@@ -28,7 +28,8 @@
         "navigation",
         "diagnostics",
         "history"
-      ]
+      ],
+      "showTotals": true
     }
   }
 }

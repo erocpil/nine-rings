@@ -184,7 +184,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
       "--block-menu-title-weight": presentation.boldTitle ? "700" : "500",
     } as React.CSSProperties : {}),
   };
-  return createPortal(<div ref={root} role="menu" aria-label={title} className={`editor-context-menu block-action-menu${presentation.enabled ? " block-menu-plugin-active" : ""}`} onPointerLeave={() => setFlyouts([])}
+  return createPortal(<div ref={root} role="menu" aria-label={title} data-sidebar-owned={trigger.closest("#workspace-sidebar") ? "true" : undefined} className={`editor-context-menu block-action-menu${presentation.enabled ? " block-menu-plugin-active" : ""}`} onPointerLeave={() => setFlyouts([])}
     style={menuStyle} onMouseDown={event => event.stopPropagation()}
     onKeyDown={event => {
       if (event.key === "Tab" && root.current?.querySelector("input, textarea")) {

@@ -2,7 +2,7 @@ const KEY = "nr:codeBlockHeightPercent";
 const EVENT = "nine-rings:block-display-change";
 export const BLOCK_WORKSPACE_DISPLAY_EVENT = "nine-rings:block-workspace-display-change";
 export type StatusBarIdleGlowIntensity = "soft" | "balanced" | "prominent";
-export type WorkspacePreferences = { sourceLineNumbers?: boolean; sourceFoldGutter?: boolean; sourceWhitespace?: boolean; quoteAlertColors?: "semantic" | "style"; mermaidDisplay?: "fit" | "scroll"; fontSize?: number; tabSize?: number; sourceIndentStyle?: "tabs" | "spaces"; whitespace?: "off" | "all" | "abnormal"; lineNumbers?: boolean; wrap?: boolean; listFollowupIndent?: boolean; statusBarInFocus?: boolean; statusBarIdleGlow?: boolean; statusBarIdleDelaySeconds?: 15 | 30 | 60 | 120; statusBarIdleGlowIntensity?: StatusBarIdleGlowIntensity; sourceMicroRendering?: boolean; sourceSyntaxHighlighting?: boolean; relativeBlockNumbers?: boolean; relativeSourceLineNumbers?: boolean; relativeBlockNumberAlignment?: "left" | "right"; relativeSourceLineNumberAlignment?: "left" | "right" };
+export type WorkspacePreferences = { sourceLineNumbers?: boolean; sourceFoldGutter?: boolean; sourceWhitespace?: boolean; quoteAlertColors?: "semantic" | "style"; mermaidDisplay?: "fit" | "scroll"; fontSize?: number; tabSize?: number; sourceIndentStyle?: "tabs" | "spaces"; whitespace?: "off" | "all" | "abnormal"; lineNumbers?: boolean; wrap?: boolean; listFollowupIndent?: boolean; statusBarInFocus?: boolean; statusBarTotals?: boolean; statusBarIdleGlow?: boolean; statusBarIdleDelaySeconds?: 15 | 30 | 60 | 120; statusBarIdleGlowIntensity?: StatusBarIdleGlowIntensity; sourceMicroRendering?: boolean; sourceSyntaxHighlighting?: boolean; relativeBlockNumbers?: boolean; relativeSourceLineNumbers?: boolean; relativeBlockNumberAlignment?: "left" | "right"; relativeSourceLineNumberAlignment?: "left" | "right" };
 const WORKSPACE_KEY = "nr:blockWorkspaceDisplay";
 const CODE_LINE_NUMBERS_KEY = "nr:codeLineNumbers";
 export function codeLineNumbersEnabled(): boolean {
@@ -28,6 +28,7 @@ export function blockWorkspacePreferences(): WorkspacePreferences {
     if (value.mermaidDisplay === "fit" || value.mermaidDisplay === "scroll") preferences.mermaidDisplay = value.mermaidDisplay;
     if (typeof value.wrap === "boolean") preferences.wrap = value.wrap;
     if (typeof value.statusBarInFocus === "boolean") preferences.statusBarInFocus = value.statusBarInFocus;
+    if (typeof value.statusBarTotals === "boolean") preferences.statusBarTotals = value.statusBarTotals;
     if (typeof value.statusBarIdleGlow === "boolean") preferences.statusBarIdleGlow = value.statusBarIdleGlow;
     if (value.statusBarIdleDelaySeconds === 15 || value.statusBarIdleDelaySeconds === 30 || value.statusBarIdleDelaySeconds === 60 || value.statusBarIdleDelaySeconds === 120) preferences.statusBarIdleDelaySeconds = value.statusBarIdleDelaySeconds;
     if (value.statusBarIdleGlowIntensity === "soft" || value.statusBarIdleGlowIntensity === "balanced" || value.statusBarIdleGlowIntensity === "prominent") preferences.statusBarIdleGlowIntensity = value.statusBarIdleGlowIntensity;

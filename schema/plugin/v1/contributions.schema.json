@@ -1304,6 +1304,11 @@
               "history"
             ]
           }
+        },
+        "showTotals": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show total lines or blocks alongside the current position. Optional for older packages."
         }
       },
       "required": [

@@ -179,7 +179,7 @@ test("源码自动缩进支持选区和全文，并可作为单次撤销", async
   });
   await expect(page.locator(".markdown-source-cursor")).toHaveCount(0);
   await expect(page.locator(".markdown-source-status")).toContainText(
-    "Ln 1, Col",
+    "Ln 1/6, Col",
   );
   await expect(selectionCommand).toBeDisabled();
   const sourceViewportBefore = await page
