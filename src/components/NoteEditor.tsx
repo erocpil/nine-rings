@@ -68,6 +68,7 @@ import {
 } from "../extensions/NormalizeSingleParagraphPaste";
 import CharacterCount from "@tiptap/extension-character-count";
 import type { AppConfig, DeltaOps, DocumentBookmark, DocumentMetadata, Note, SearchNavigationTarget } from "../types/models";
+import { useDocumentTitleDraft } from "../hooks/useDocumentTitleDraft";
 import { BookmarkRenameDialog } from "./BookmarkRenameDialog";
 import { DocumentBookmarkRow } from "./DocumentBookmarkRow";
 import {
@@ -664,14 +665,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
   const scrollPositionRef = useRef<HTMLSpanElement>(null);
 
   // 受控标题：本地状态 + 从 prop 同步（支持外部重命名如 DocTree 右键改名）
-  const [localTitle, setLocalTitle] = useState(title ?? "");
-  const prevTitleRef = useRef(title);
-  useEffect(() => {
-    if (title !== prevTitleRef.current) {
-      prevTitleRef.current = title;
-      setLocalTitle(title ?? "");
-    }
-  }, [title]);
+  const { draft: localTitle, setDraft: setLocalTitle, finish: finishTitleDraft } = useDocumentTitleDraft(title, titleInputRef);
   const toolbarExpandedPreference = useFocusEditorTools(state => state.expanded);
   const setToolbarExpandedPreference = useFocusEditorTools(state => state.setExpanded);
   const focusToolbarExpanded = toolbarExpandedPreference ?? !focusMode;
@@ -4661,6 +4655,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
               } : undefined}
               placeholder="输入文档标题"
               value={localTitle}
+              onBlur={finishTitleDraft}
               onChange={(e) => { setLocalTitle(e.target.value); onTitleChange(e.target.value); }}
               readOnly={readonly || (unifiedTitleBar && focusMode)}
             />}

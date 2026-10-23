@@ -180,7 +180,7 @@ export function buildDocTree(
     }
     tree.push({
       path: `${path}/${d.id}`,
-      name: d.title || "无标题",
+      name: d.title?.trim() || "未命名",
       type: "document",
       noteId: d.id,
       docType: d.doc_type,

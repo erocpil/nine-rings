@@ -67,6 +67,7 @@ import { NotesPanel, type NotesPanelSession } from "./components/NotesPanel";
 import { DocumentBrowser, type DocumentBrowserSession, type DocumentBrowserRequest } from "./components/DocumentBrowser";
 import { DocMOC } from "./components/DocMOC";
 import type { DeltaOps, DocumentMetadata, ExternalMarkdownSource, Note, DocType, SearchNavigationTarget } from "./types/models";
+import { untitledDocumentName } from "./lib/untitled-document";
 import { pushSnapshotBusy, useGitHubPushJob } from "./lib/sync/push-job";
 import { ExhibitionWorkspace, ExhibitionWelcome } from "./components/ExhibitionWorkspace";
 import { isTauriRuntime } from "./lib/runtime";
@@ -209,6 +210,13 @@ function App() {
   // ── 自动保存 Hook ──
   const autoSave = useAutoSave({
     onSave: async (noteId, data) => {
+      if (typeof data.title === "string" && !data.title.trim()) {
+        const [note, documents] = await Promise.all([api.notes.get(noteId), api.docs.summaries()]);
+        if (!note) throw new Error("文档已不存在，无法保存标题");
+        // Preserve the queue-owned snapshot identity: copying it would route
+        // this save back through the coordinator and wait on its own job.
+        data.title = untitledDocumentName(documents, note.storagePath ?? "", noteId, note.title);
+      }
       const updated = await updateNote(noteId, data);
       promoteCachedEditorDocument(noteId, updated.updated_at);
       markRecentNoteEdited(noteId);
@@ -611,11 +619,7 @@ function App() {
       await flushAutoSave();
       const normalizedPath = normalizeStoragePath(storagePath || "ideas");
       const existing = await api.notes.all();
-      const names = new Set(existing
-        .filter(note => (note.storagePath ?? "") === normalizedPath)
-        .map(note => note.title ?? ""));
-      let title = "未命名";
-      for (let index = 2; names.has(title); index += 1) title = `未命名 ${index}`;
+      const title = untitledDocumentName(existing, normalizedPath);
       const metadata: DocumentMetadata = language
         ? { sourceLanguage: language }
         : { sourceFormat: "text", sourceLanguage: "" };

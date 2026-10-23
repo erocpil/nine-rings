@@ -323,7 +323,7 @@ function DocTree({
   // 标题输入先更新界面、随后由自动保存持久化。不要在每次按键时重新查询
   // 数据库，否则会在防抖保存完成前把旧标题重新显示到文档树中。
   useEffect(() => {
-    if (!selectedId || selectedTitle === undefined) return;
+    if (!selectedId || selectedTitle === undefined || !selectedTitle.trim()) return;
     setTree((previous) => previous.map((node) =>
       node.noteId === selectedId && node.name !== selectedTitle
         ? { ...node, name: selectedTitle }

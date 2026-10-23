@@ -1,6 +1,14 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-23",
+    title: "文档默认命名",
+    changes: [
+      "清空文档标题后，保存时自动分配同一路径内不冲突的“未命名”编号；已有默认编号保留，连续新建和重新打开时名称保持一致。",
+      "标题输入框保留临时空白草稿以便重命名，文档树不再实时变为空名称；源码与渲染视图共用该行为。",
+    ],
+  },
+  {
     date: "2026-10-22",
     title: "状态栏与源码显示",
     changes: [

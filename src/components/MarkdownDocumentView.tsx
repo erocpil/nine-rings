@@ -38,6 +38,7 @@ import { findTextMatches, initializeSearchRegex } from "../lib/search-matching";
 import { useMarkdownViewPosition } from "../hooks/useMarkdownViewPosition";
 import { patchReadingState, readReadingState } from "../lib/reading-state";
 import { useDocumentOpenStore } from "../stores/useDocumentOpenStore";
+import { useDocumentTitleDraft } from "../hooks/useDocumentTitleDraft";
 
 const SourceDocumentPreview = lazy(() => import("./SourceDocumentPreview").then(module => ({ default: module.SourceDocumentPreview })));
 const MarkdownSourceEditor = lazy(() => import("./MarkdownSourceEditor").then(module => ({ default: module.MarkdownSourceEditor })));
@@ -76,6 +77,8 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   busyRef.current = busy;
   const [error, setError] = useState("");
   const [sourceInfoOpen, setSourceInfoOpen] = useState(false);
+  const sourceTitleInput = useRef<HTMLInputElement>(null);
+  const sourceTitleDraft = useDocumentTitleDraft(props.title, sourceTitleInput);
   const sourceInfoTimer = useRef<number | null>(null);
   const clearSourceInfoTimer = () => {
     if (sourceInfoTimer.current !== null) window.clearTimeout(sourceInfoTimer.current);
@@ -100,7 +103,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       onFocusCapture={() => { clearSourceInfoTimer(); setSourceInfoOpen(false); }}>
       {props.readonly
         ? <DocumentTitlePreview title={props.title || "无标题"} onOpenProperties={props.onOpenProperties} />
-        : <input type="text" className="note-title" aria-label="文档标题" placeholder="输入文档标题" value={props.title ?? ""} onChange={event => props.onTitleChange(event.target.value)} onKeyDown={event => {
+        : <input ref={sourceTitleInput} type="text" className="note-title" aria-label="文档标题" placeholder="输入文档标题" value={sourceTitleDraft.draft} onBlur={sourceTitleDraft.finish} onChange={event => { sourceTitleDraft.setDraft(event.target.value); props.onTitleChange(event.target.value); }} onKeyDown={event => {
           if (event.key !== "Enter") return;
           event.preventDefault();
           event.stopPropagation();
