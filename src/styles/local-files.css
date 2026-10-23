@@ -82,48 +82,61 @@
   color: var(--text);
   background: var(--bg);
 }
-.local-file-body {
+.local-file-workspace {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
+  position: relative;
+  overflow: hidden;
 }
-.local-file-source {
+.local-file-editor-shell {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  font-size: var(--editor-font-size, 16px);
 }
-.local-file-source .cm-editor {
-  height: 100%;
-}
-.local-file-source .cm-cursor {
-  display: none;
-}
-.local-file-symbols {
-  width: min(35%, 320px);
-  overflow: auto;
-  border-left: 1px solid var(--border);
-}
-.local-file-symbols button {
-  display: block;
+.local-file-editor-shell > .markdown-source-input { flex: 1; min-height: 0; }
+.local-file-workspace.has-local-file-dock .local-file-editor-shell { margin-right: min(var(--local-file-panel-width, 300px), 50%); }
+.local-file-dock { width: min(var(--local-file-panel-width, 300px), 50%); z-index: 5; }
+.local-file-dock .document-outline-header { flex: 0 0 auto; }
+.local-file-dock .document-outline-header-actions button { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 4px; }
+.local-file-panel-list,
+.local-file-dock .document-source-matches-list { flex: 1; min-height: 0; overflow: auto; padding: 4px 4px 4px 0; }
+.local-file-panel-list > button,
+.local-file-bookmark-row > button:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
   width: 100%;
   border: 0;
   color: inherit;
   background: transparent;
-  padding: 5px 8px;
+  padding-block: 4px;
+  padding-inline-end: 8px;
   text-align: start;
   white-space: nowrap;
+  overflow: hidden;
 }
-.local-file-symbols button:hover {
-  background: var(--hover-bg);
-}
-.local-file-footer {
-  border-top: 1px solid var(--border);
-  padding: 5px 12px;
+.local-file-panel-list > button > span:last-child,
+.local-file-bookmark-row > button:first-child > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.local-file-panel-list > button:hover,
+.local-file-panel-list > button.is-current,
+.local-file-bookmark-row:hover { background: var(--active-bg); }
+.local-file-symbol-kind,
+.local-file-bookmark-row > button:first-child > span:first-child {
+  flex: 0 0 18px;
   color: var(--text-muted);
-  font-size: 12px;
+  font: 11px/1.4 var(--font-mono, monospace);
+  text-align: center;
 }
+.local-file-bookmark-row { display: flex; align-items: center; }
+.local-file-bookmark-row > button:first-child { flex: 1; min-width: 0; padding-left: 5px; }
+.local-file-bookmark-row > button:last-child { flex: 0 0 26px; width: 26px; height: 26px; padding: 5px; }
+.local-file-panel-list > p,
+.local-file-dock .document-source-matches-list > p { margin: 0; padding: 8px 12px; color: var(--text-muted); font-size: 12px; }
 @media (pointer: coarse) {
   .local-file-row {
     min-height: 36px;
@@ -131,4 +144,6 @@
   .local-files-toolbar {
     flex-wrap: wrap;
   }
+  .local-file-dock { width: min(var(--local-file-panel-width, 300px), 72%); }
+  .local-file-workspace.has-local-file-dock .local-file-editor-shell { margin-right: min(var(--local-file-panel-width, 300px), 72%); }
 }
