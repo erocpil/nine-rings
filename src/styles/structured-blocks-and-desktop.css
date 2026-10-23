@@ -745,6 +745,10 @@
 }
 .focus-document-tab:hover { background: var(--bg-hover); color: var(--text); }
 .focus-document-tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); background: var(--bg-hover); }
+.focus-document-tab-local { display: inline-flex; align-items: center; gap: 5px; }
+.focus-document-tab-local svg { width: 13px; height: 13px; flex: 0 0 13px; color: var(--text-secondary); }
+.focus-document-tab-local[aria-selected="true"] svg { color: var(--accent); }
+.focus-document-tabs-divider { flex: 0 0 1px; height: 15px; margin: 0 4px; background: color-mix(in srgb, var(--text-secondary) 30%, transparent); }
 .focus-tabs-window-space { flex: 0 0 36px; height: 100%; -webkit-app-region: drag; }
 .focus-tabs-context.editor-dropdown-list { position: fixed; z-index: 10000; min-width: 180px; }
 .focus-tabs-error { font-size: 11px; color: var(--text-muted); }

@@ -184,6 +184,17 @@
   white-space: nowrap;
   text-align: left;
 }
+.exhibition-local-recent { margin-top: 8px; }
+.exhibition-local-recent h4 {
+  margin: 0 0 3px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+}
+.exhibition-recent-group-title { margin: 0 0 2px; color: var(--text-secondary); font-size: 10px; font-weight: 600; }
+.exhibition-local-recent p { margin: 0; color: var(--text-secondary); font-size: 11px; }
+.exhibition-local-recent li button { display: inline-flex; align-items: center; gap: 5px; }
+.exhibition-local-recent svg { flex: 0 0 13px; width: 13px; height: 13px; color: var(--accent); }
 .exhibition-muted {
   font-size: 12px;
   color: var(--text-secondary);

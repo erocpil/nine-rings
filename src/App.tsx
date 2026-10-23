@@ -15,7 +15,8 @@ import { documentToolEnabled } from "./lib/plugin-system/builtin-tool-preference
 import { workspacePanels } from "./lib/plugin-system/panel-registry";
 import { pluginRuntime } from "./lib/plugin-system/runtime";
 import { imageViewerEnabled } from "./lib/plugin-system/builtin-image-viewer";
-import { localFilesEnabled } from "./lib/plugin-system/builtin-local-files";
+import { LOCAL_FILE_VIEW_ID, localFilesEnabled } from "./lib/plugin-system/builtin-local-files";
+import { announceLocalFileOpened, localFileIdentity, rememberRecentLocalFile, type RecentLocalFile } from "./lib/local-files/recent";
 
 import { suspendPluginWork } from "./lib/plugin-system/runtime";
 import { DesktopRecoveryNotice } from "./components/DesktopRecoveryStatus";
@@ -1051,6 +1052,21 @@ function App() {
     }
     sidebarHover.click(panel);
   };
+  const openRecentLocalFile = async (file: RecentLocalFile) => {
+    try {
+      await flushAutoSave();
+      mainViews.bind(workspacePanels.assert("files")).open(LOCAL_FILE_VIEW_ID, {
+        rootId: file.rootId,
+        nodeId: file.nodeId,
+        name: file.name,
+      });
+      announceLocalFileOpened(file);
+      rememberRecentLocalFile({ rootId: file.rootId, rootName: file.rootName, nodeId: file.nodeId, name: file.name });
+    } catch (reason) {
+      useNotesStore.setState({ error: `无法打开本地文件：${String(reason)}` });
+      throw reason;
+    }
+  };
   useNativeMenuHost(searchExpanded || errorDetailsOpen || settingsOpen || quickSwitcherOpen || docCreateOpen || versionOpen || protectionBusy || syncBusy || applyingWebUpdate || recycleOpen, error => useNotesStore.setState({ error }));
   useNativeMenuActions({
     "workspace.new": { run: () => setDocCreateOpen(true) },
@@ -1538,6 +1554,8 @@ function App() {
     <ReadingTypographyProvider config={config}><EditorFoldIconContext.Provider value={config}>
     <ExhibitionWorkspace home={workspaceHome} desktop={desktopWorkspace} enabled={exhibitionEnabled && !mobileReaderOpen} focus={effectiveFocusMode} onFocusChange={next => preserveReadingPositions(() => setFocusMode(next))} config={config}
       latestNote={selectedNote} activeSummary={activeWorkspaceSummary}
+      localFilesAvailable={contributedPanels.some(panel => panel.id === "files")}
+      onOpenLocalFile={file => { void openRecentLocalFile(file).catch(() => {}); }}
       onSummary={kind => {
         const saved = summarySidebarSnapshot.current;
         if (saved?.kind === kind) {
@@ -1664,7 +1682,10 @@ function App() {
       {((isTauriRuntime() || desktopWorkspace) && !(exhibitionEnabled && desktopWorkspace && !effectiveFocusMode)) && (
         <Suspense fallback={null}>
           <TitleBar focus={focusMode} onFocusChange={desktopWorkspace ? next => preserveReadingPositions(() => setFocusMode(next)) : undefined} wordmark={desktopWorkspace && effectiveFocusMode} focusTabs={desktopWorkspace && effectiveFocusMode ? <FocusDocumentTabs
-            noteId={workspaceHome ? undefined : selectedNote?.id} noteTitle={workspaceHome ? undefined : selectedNote?.title ?? undefined} refreshKey={docTreeKey}
+            noteId={workspaceHome || pluginMainView?.renderer === "local-file" ? undefined : selectedNote?.id} noteTitle={workspaceHome || pluginMainView?.renderer === "local-file" ? undefined : selectedNote?.title ?? undefined} refreshKey={docTreeKey}
+            localFilesAvailable={contributedPanels.some(panel => panel.id === "files")}
+            activeLocalIdentity={pluginMainView?.renderer === "local-file" ? localFileIdentity(pluginMainView.data) : undefined}
+            onOpenLocal={openRecentLocalFile}
             onOpen={async note => { await flushAutoSave(); setQuery(""); setDocResults(null); handleSelectNote(note); }}
             onReveal={async (id, path) => {
               setDocTreeKey(key => key + 1);

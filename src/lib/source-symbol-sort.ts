@@ -1,10 +1,66 @@
 export interface SortableSourceSymbol {
   level: number;
   text: string;
+  kind?: string;
+  pos?: number;
   sortName?: string;
   displayText?: string;
   detail?: string;
   identity?: string;
+}
+
+function sourceSymbolCategory(kind = ""): number {
+  // Keep the declaration outline scannable in either ordering mode. Namespaces
+  // establish context; the four common top-level groups then remain stable.
+  if (kind === "命名空间") return 0;
+  if (kind === "变量") return 1;
+  if (kind === "宏") return 2;
+  if (kind === "类型" || kind === "别名") return 3;
+  if (kind === "枚举值") return 4;
+  if (kind === "函数") return 5;
+  if (kind === "成员") return 6;
+  return 7;
+}
+
+/** Sort each sibling group by the fixed symbol categories, then by its mode. */
+export function sortSourceSymbolTree<T extends SortableSourceSymbol>(
+  items: readonly T[],
+  alphabetical: boolean,
+): T[] {
+  type Branch = { item: T; children: Branch[]; sourceOrder: number };
+  const roots: Branch[] = [];
+  const stack: Array<{ level: number; children: Branch[] }> = [
+    { level: 0, children: roots },
+  ];
+  items.forEach((item, sourceOrder) => {
+    while (stack.length > 1 && stack[stack.length - 1]!.level >= item.level)
+      stack.pop();
+    const branch: Branch = { item, children: [], sourceOrder };
+    stack[stack.length - 1]!.children.push(branch);
+    stack.push({ level: item.level, children: branch.children });
+  });
+  const result: T[] = [];
+  const visit = (branches: Branch[]) => {
+    branches.sort((left, right) => {
+      const category = sourceSymbolCategory(left.item.kind) - sourceSymbolCategory(right.item.kind);
+      if (category) return category;
+      if (alphabetical) {
+        const name = (left.item.sortName ?? left.item.text).localeCompare(
+          right.item.sortName ?? right.item.text,
+          "en",
+          { numeric: true, sensitivity: "base" },
+        );
+        if (name) return name;
+      }
+      return left.sourceOrder - right.sourceOrder;
+    });
+    for (const branch of branches) {
+      result.push(branch.item);
+      visit(branch.children);
+    }
+  };
+  visit(roots);
+  return result;
 }
 
 /** Keep matching symbols and their ancestors so filtered results retain context. */

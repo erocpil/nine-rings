@@ -42,9 +42,9 @@ import { focusSourceWordMatch, groupSourceWordMatchesByLine, selectSourceWordAt,
 import type { DocumentOutlineItem } from "../lib/document-outline";
 import type { DocumentBookmark } from "../types/models";
 import {
-  alphabetizeSymbolTree,
   filterSymbolTree,
   sourceSymbolSortName,
+  sortSourceSymbolTree,
 } from "../lib/source-symbol-sort";
 
 type SourceOutlineItem = DocumentOutlineItem & { offset: number; sortName?: string };
@@ -211,7 +211,7 @@ export function MarkdownSourceWorkspace({
   }, [matchesOpen, documentActive, mobile, sourceWordEnabled]);
   const symbolOutline = hasSourceSymbolProvider(snapshotLanguage);
   const sortedSourceSymbols = useMemo(
-    () => symbolsAlphabetical ? alphabetizeSymbolTree(sourceSymbols) : sourceSymbols,
+    () => sortSourceSymbolTree(sourceSymbols, symbolsAlphabetical),
     [sourceSymbols, symbolsAlphabetical],
   );
   const visibleSourceSymbols = useMemo(
@@ -425,8 +425,8 @@ export function MarkdownSourceWorkspace({
                 type="button"
                 className="btn-icon source-symbol-sort-button"
                 data-sort-mode={symbolsAlphabetical ? "alphabetical" : "source"}
-                aria-label={symbolsAlphabetical ? "当前按字母顺序排序，切换为源码出现顺序" : "当前按源码出现顺序排序，切换为字母顺序"}
-                title={symbolsAlphabetical ? "当前：字母顺序；点击切换为源码出现顺序" : "当前：源码出现顺序；点击切换为字母顺序"}
+                aria-label={symbolsAlphabetical ? "当前为分类后按字母排序，切换为分类后按源码顺序" : "当前为分类后按源码顺序，切换为分类后按字母排序"}
+                title={symbolsAlphabetical ? "当前：分类固定，类别内按字母排序；点击切换为源码顺序" : "当前：分类固定，类别内按源码出现顺序；点击切换为字母顺序"}
                 aria-pressed={symbolsAlphabetical}
                 onClick={() => setSymbolsAlphabetical(value => !value)}
               >

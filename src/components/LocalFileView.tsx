@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import type { EditorState } from "@codemirror/state";
 import { localFileService } from "../lib/local-files/service";
 import { localFileSessions, localFileSessionEpoch } from "../lib/local-files/session";
+import { readLocalFilePosition, saveLocalFilePosition } from "../lib/local-files/position";
 import type { LocalFileViewData } from "../lib/plugin-system/main-view-registry";
 import { AUTO_DOCUMENT_LANGUAGE, documentLanguageFromFilename, documentLanguageViewOptions, saveSourceViewLanguageOverride, sourceViewLanguageOverride } from "../lib/document-language";
 import { extractSourceSymbols } from "../lib/source-symbol-provider";
@@ -9,7 +10,7 @@ import type { SourceSymbol } from "../lib/source-symbols";
 import type { DocumentOutlineItem } from "../lib/document-outline";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import { focusSourceWordMatch, groupSourceWordMatchesByLine, sourceWordState } from "../lib/source-word-occurrences";
-import { alphabetizeSymbolTree, filterSymbolTree, sourceSymbolSortName } from "../lib/source-symbol-sort";
+import { filterSymbolTree, sortSourceSymbolTree, sourceSymbolSortName } from "../lib/source-symbol-sort";
 import type { AppConfig } from "../types/models";
 import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
 import { DocumentOutlineList, OutlineDisplayTools } from "./DocumentOutlineList";
@@ -66,6 +67,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const sessionEpochRef = useRef(localFileSessionEpoch);
   const [editorHandle, setEditorHandle] = useState<SourceEditorHandle | null>(null);
   const restoredScroll = useRef(false);
+  const positionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [source, setSource] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -118,6 +120,11 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const bindHandle = useCallback((handle: SourceEditorHandle | null) => {
     const previous = sourceHandle.current;
     if (!handle && previous && sessionEpochRef.current === localFileSessionEpoch) {
+      saveLocalFilePosition(identity, {
+        offset: previous.selectionStart,
+        scrollTop: previous.view.scrollDOM.scrollTop,
+        scrollLeft: previous.view.scrollDOM.scrollLeft,
+      });
       localFileSessions.delete(identity);
       localFileSessions.set(identity, { state: previous.view.state, source: sourceRef.current, scrollTop: previous.view.scrollDOM.scrollTop, scrollLeft: previous.view.scrollDOM.scrollLeft });
       while (localFileSessions.size > 3) localFileSessions.delete(localFileSessions.keys().next().value!);
@@ -126,14 +133,35 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     setEditorHandle(handle);
     if (!handle) return;
     const cached = localFileSessions.get(identity);
-    if (cached && !restoredScroll.current) {
+    if (cached?.source === sourceRef.current && !restoredScroll.current) {
       restoredScroll.current = true;
       requestAnimationFrame(() => { if (sourceHandle.current === handle) { handle.view.scrollDOM.scrollTop = cached.scrollTop; handle.view.scrollDOM.scrollLeft = cached.scrollLeft; } });
+    } else if (!restoredScroll.current) {
+      const position = readLocalFilePosition(identity);
+      if (position) {
+        restoredScroll.current = true;
+        requestAnimationFrame(() => {
+          if (sourceHandle.current !== handle) return;
+          const offset = Math.max(0, Math.min(handle.value.length, position.offset));
+          handle.setSelectionRange(offset, offset);
+          handle.view.scrollDOM.scrollTop = position.scrollTop;
+          handle.view.scrollDOM.scrollLeft = position.scrollLeft;
+        });
+      }
     }
   }, [identity]);
   useEffect(() => {
     if (!editorHandle) return;
-    const sync = () => { setActiveOffset(editorHandle.selectionStart); refreshMatches(value => value + 1); };
+    const persistPosition = () => saveLocalFilePosition(identity, {
+      offset: editorHandle.selectionStart,
+      scrollTop: editorHandle.view.scrollDOM.scrollTop,
+      scrollLeft: editorHandle.view.scrollDOM.scrollLeft,
+    });
+    const schedulePositionSave = () => {
+      if (positionSaveTimer.current !== null) clearTimeout(positionSaveTimer.current);
+      positionSaveTimer.current = setTimeout(persistPosition, 180);
+    };
+    const sync = () => { setActiveOffset(editorHandle.selectionStart); refreshMatches(value => value + 1); schedulePositionSave(); };
     const openMatches = () => { sync(); setActivePanel("matches"); };
     sync();
     editorHandle.addEventListener("select", sync);
@@ -141,14 +169,20 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     editorHandle.addEventListener("click", sync);
     editorHandle.view.dom.addEventListener("nr:source-word-update", sync);
     editorHandle.view.dom.addEventListener("nr:source-word-open", openMatches);
+    editorHandle.view.scrollDOM.addEventListener("scroll", schedulePositionSave, { passive: true });
+    window.addEventListener("pagehide", persistPosition);
     return () => {
+      if (positionSaveTimer.current !== null) clearTimeout(positionSaveTimer.current);
+      persistPosition();
       editorHandle.removeEventListener("select", sync);
       editorHandle.removeEventListener("keyup", sync);
       editorHandle.removeEventListener("click", sync);
       editorHandle.view.dom.removeEventListener("nr:source-word-update", sync);
       editorHandle.view.dom.removeEventListener("nr:source-word-open", openMatches);
+      editorHandle.view.scrollDOM.removeEventListener("scroll", schedulePositionSave);
+      window.removeEventListener("pagehide", persistPosition);
     };
-  }, [editorHandle]);
+  }, [editorHandle, identity]);
 
   const jump = (offset: number) => {
     const handle = sourceHandle.current;
@@ -157,13 +191,13 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     handle.setSelectionRange(at, at); handle.scrollToOffset(at, true); setActiveOffset(at); handle.focus();
   };
   const activeSymbol = useMemo(() => symbols.reduce<SourceSymbol | null>((current, item) => item.pos <= activeOffset && (!current || item.pos > current.pos) ? item : current, null), [symbols, activeOffset]);
-  const orderedSymbols = useMemo(() => {
-    if (!symbolsAlphabetical) return symbols;
-    return alphabetizeSymbolTree(symbols.map(symbol => ({
+  const orderedSymbols = useMemo(
+    () => sortSourceSymbolTree(symbols.map(symbol => ({
       ...symbol,
       sortName: sourceSymbolSortName(symbol.identity, symbol.kind, symbol.text),
-    })));
-  }, [symbols, symbolsAlphabetical]);
+    })), symbolsAlphabetical),
+    [symbols, symbolsAlphabetical],
+  );
   const visibleSymbols = useMemo(
     () => filterSymbolTree(orderedSymbols, symbolQuery),
     [orderedSymbols, symbolQuery],
@@ -221,8 +255,8 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
             type="button"
             className="btn-icon source-symbol-sort-button"
             data-sort-mode={symbolsAlphabetical ? "alphabetical" : "source"}
-            aria-label={symbolsAlphabetical ? "当前按字母顺序排序，切换为源码出现顺序" : "当前按源码出现顺序排序，切换为字母顺序"}
-            title={symbolsAlphabetical ? "当前：字母顺序；点击切换为源码出现顺序" : "当前：源码出现顺序；点击切换为字母顺序"}
+            aria-label={symbolsAlphabetical ? "当前为分类后按字母排序，切换为分类后按源码顺序" : "当前为分类后按源码顺序，切换为分类后按字母排序"}
+            title={symbolsAlphabetical ? "当前：分类固定，类别内按字母排序；点击切换为源码顺序" : "当前：分类固定，类别内按源码出现顺序；点击切换为字母顺序"}
             aria-pressed={symbolsAlphabetical}
             onClick={() => setSymbolsAlphabetical(value => !value)}
           >

@@ -17,6 +17,8 @@ import {
   type WorkspaceDocumentSummary,
 } from "../lib/workspace-summary";
 import type { Note } from "../types/models";
+import { LOCAL_FILE_RECENT_CHANGED_EVENT, localFileIdentity, readRecentLocalFiles, type RecentLocalFile } from "../lib/local-files/recent";
+import { ToolbarIcon } from "./ToolbarIcon";
 
 // Keep a short ambiguity window for pointer clicks so a double-click closes a
 // background tab without briefly opening it first. The second mouse-down
@@ -30,6 +32,9 @@ export function FocusDocumentTabs({
   onOpen,
   onCloseLast,
   onReveal,
+  localFilesAvailable,
+  activeLocalIdentity,
+  onOpenLocal,
 }: {
   noteId?: string;
   noteTitle?: string;
@@ -37,9 +42,13 @@ export function FocusDocumentTabs({
   onOpen: (note: Note) => Promise<void>;
   onCloseLast: () => Promise<void>;
   onReveal: (id: string, path: string) => Promise<void>;
+  localFilesAvailable: boolean;
+  activeLocalIdentity?: string;
+  onOpenLocal: (file: RecentLocalFile) => Promise<void>;
 }) {
   const prefs = useFocusTabs();
   const [recent, setRecent] = useState(readRecentNoteIds);
+  const [recentLocalFiles, setRecentLocalFiles] = useState(readRecentLocalFiles);
   const [documents, setDocuments] = useState<
     (WorkspaceDocumentSummary & { fullPath: string })[]
   >([]);
@@ -74,6 +83,8 @@ export function FocusDocumentTabs({
   const operation = useRef(Promise.resolve());
   const activeId = useRef(noteId);
   activeId.current = noteId;
+  const activeLocalId = useRef(activeLocalIdentity);
+  activeLocalId.current = activeLocalIdentity;
   const membership = [...recent].sort().join("|");
   const menuRef = useRef<HTMLDivElement>(null);
   const strip = useRef<HTMLDivElement>(null);
@@ -91,6 +102,15 @@ export function FocusDocumentTabs({
     window.addEventListener("storage", update);
     return () => {
       window.removeEventListener(RECENT_NOTES_CHANGED_EVENT, update);
+      window.removeEventListener("storage", update);
+    };
+  }, []);
+  useEffect(() => {
+    const update = () => setRecentLocalFiles(readRecentLocalFiles());
+    window.addEventListener(LOCAL_FILE_RECENT_CHANGED_EVENT, update);
+    window.addEventListener("storage", update);
+    return () => {
+      window.removeEventListener(LOCAL_FILE_RECENT_CHANGED_EVENT, update);
       window.removeEventListener("storage", update);
     };
   }, []);
@@ -129,7 +149,7 @@ export function FocusDocumentTabs({
     strip.current
       ?.querySelector('[aria-selected="true"]')
       ?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [noteId, prefs.visible, documents]);
+  }, [noteId, activeLocalIdentity, prefs.visible, documents, recentLocalFiles]);
   useEffect(() => {
     const element = strip.current;
     if (!element || !prefs.visible) return;
@@ -416,6 +436,30 @@ export function FocusDocumentTabs({
               {Array.from(note.title || "未命名文档").length > 8 ? "..." : ""}
             </button>
           );
+        })}
+        {localFilesAvailable && recentLocalFiles.slice(0, prefs.limit).length > 0 && <span className="focus-document-tabs-divider" role="separator" aria-orientation="vertical" />}
+        {localFilesAvailable && recentLocalFiles.slice(0, prefs.limit).map(file => {
+          const identity = localFileIdentity(file);
+          return <button
+            key={identity}
+            type="button"
+            role="tab"
+            aria-selected={identity === activeLocalIdentity}
+            aria-label={file.name}
+            className="focus-document-tab focus-document-tab-local"
+            title={`${file.rootName}/${file.nodeId}`}
+            data-tauri-drag-region="false"
+            onClick={() => {
+              if (activeLocalId.current === identity) return;
+              void run(async () => {
+                await onOpenLocal(file);
+                activeLocalId.current = identity;
+              });
+            }}
+          >
+            <ToolbarIcon name="disk" />
+            <span>{Array.from(file.name).slice(0, 8).join("")}{Array.from(file.name).length > 8 ? "..." : ""}</span>
+          </button>;
         })}
       </div>
       {error && (

@@ -14,6 +14,8 @@ import { WorkspaceSummaryPreview } from "./WorkspaceSummaryPreview";
 import { useLocalDay } from "../hooks/useLocalDay";
 import { readRecentNoteIds, readRecentEditedNoteIds, RECENT_NOTES_CHANGED_EVENT } from "../lib/quick-switcher";
 import type { Note } from "../types/models";
+import { LOCAL_FILE_RECENT_CHANGED_EVENT, readRecentLocalFiles, type RecentLocalFile } from "../lib/local-files/recent";
+import { ToolbarIcon } from "./ToolbarIcon";
 import "./ExhibitionWorkspace.css";
 
 const TitleBar = lazy(() => import("./TitleBar"));
@@ -41,6 +43,8 @@ interface Props {
   activeSummary?: WorkspaceSummaryKind | null;
   onSummary: (kind: WorkspaceSummaryKind) => void;
   latestNote: Pick<Note, "id" | "updated_at"> | null;
+  localFilesAvailable: boolean;
+  onOpenLocalFile: (file: RecentLocalFile) => void;
 }
 
 export function ExhibitionWorkspace(props: Props) {
@@ -56,6 +60,7 @@ export function ExhibitionWorkspace(props: Props) {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
   const [recentEdited, setRecentEdited] = useState<string[]>([]);
+  const [recentLocalFiles, setRecentLocalFiles] = useState<RecentLocalFile[]>(readRecentLocalFiles);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -95,16 +100,19 @@ export function ExhibitionWorkspace(props: Props) {
   const previewDocuments = useMemo(() => summaryPreview
     ? workspaceSummaryPreviewDocuments(documents, summaryPreview.kind, favorites, day, recent)
     : [], [documents, summaryPreview, favorites, day, recent]);
+  const previewLocalFiles = summaryPreview?.kind === "recent" && props.localFilesAvailable ? recentLocalFiles.slice(0, 16) : [];
   const previewTitle = summaryPreview ? { all: "全部文档", notes: "随记", today: "今日修改", favorites: "收藏", recent: "最近打开" }[summaryPreview.kind] : "";
   useEffect(() => {
-    const refresh = () => { setFavorites(readDocumentFavorites()); setRecent(readRecentNoteIds()); setRecentEdited(readRecentEditedNoteIds()); };
+    const refresh = () => { setFavorites(readDocumentFavorites()); setRecent(readRecentNoteIds()); setRecentEdited(readRecentEditedNoteIds()); setRecentLocalFiles(readRecentLocalFiles()); };
     window.addEventListener("storage", refresh);
     window.addEventListener(DOCUMENT_FAVORITES_CHANGED_EVENT, refresh);
     window.addEventListener(RECENT_NOTES_CHANGED_EVENT, refresh);
+    window.addEventListener(LOCAL_FILE_RECENT_CHANGED_EVENT, refresh);
     return () => {
       window.removeEventListener("storage", refresh);
       window.removeEventListener(DOCUMENT_FAVORITES_CHANGED_EVENT, refresh);
       window.removeEventListener(RECENT_NOTES_CHANGED_EVENT, refresh);
+      window.removeEventListener(LOCAL_FILE_RECENT_CHANGED_EVENT, refresh);
     };
   }, []);
   const latestId = props.latestNote?.id;
@@ -120,6 +128,7 @@ export function ExhibitionWorkspace(props: Props) {
     setLoading(true);
     setFavorites(readDocumentFavorites());
     setRecent(readRecentNoteIds()); setRecentEdited(readRecentEditedNoteIds());
+    setRecentLocalFiles(readRecentLocalFiles());
     void api.docs
       .tree()
       .then(
@@ -296,7 +305,7 @@ export function ExhibitionWorkspace(props: Props) {
                   if (summaryLayout.summaryInteraction === "click" && summaryPreview?.kind === kind) { closeSummary(); return; }
                   keepSummary(); setSummaryPreview({ kind, trigger: event.currentTarget, keyboard: false });
                 }}>
-                <strong>{loading || error ? "…" : kind === "recent" && summaryLayout.summaryInteraction !== "sidebar" ? workspaceSummaryPreviewDocuments(documents, "recent", favorites, day, recent).length : counts[kind]}</strong><span>{label}</span>
+                <strong>{loading || error ? "…" : kind === "recent" ? workspaceSummaryPreviewDocuments(documents, "recent", favorites, day, recent).length + (props.localFilesAvailable ? Math.min(16, recentLocalFiles.length) : 0) : counts[kind]}</strong><span>{label}</span>
               </button>)}
             </nav>
           </div>
@@ -328,12 +337,21 @@ export function ExhibitionWorkspace(props: Props) {
                   <h3>
                     <span>01 /</span> 继续阅读
                   </h3>
+                  {props.localFilesAvailable && <h4 className="exhibition-recent-group-title">Nine Rings 文档</h4>}
                   {rows(
                     recent.flatMap((id) =>
                       documents.filter((note) => note.id === id),
                     ),
                     "打开文档后，会在这里留下阅读入口。",
                   )}
+                  {props.localFilesAvailable && <div className="exhibition-local-recent">
+                    <h4>本地文件</h4>
+                    {recentLocalFiles.length ? <ul>{recentLocalFiles.slice(0, 3).map(file => <li key={`${file.rootId}:${file.nodeId}`}>
+                      <button type="button" title={`${file.rootName}/${file.nodeId}`} disabled={busy || blocked} onClick={() => props.onOpenLocalFile(file)}>
+                        <ToolbarIcon name="disk" />{file.name}
+                      </button>
+                    </li>)}</ul> : <p>打开本地文件后，会在这里留下入口。</p>}
+                  </div>}
                 </section>
                 <section>
                   <h3>
@@ -394,7 +412,7 @@ export function ExhibitionWorkspace(props: Props) {
           )}
         </section>
       )}
-      {previewEnabled && summaryPreview && <WorkspaceSummaryPreview key={summaryPreview.kind} title={previewTitle} documents={previewDocuments}
+      {previewEnabled && summaryPreview && <WorkspaceSummaryPreview key={summaryPreview.kind} title={previewTitle} documents={previewDocuments} localFiles={previewLocalFiles} showLocalFilesSection={summaryPreview.kind === "recent" && props.localFilesAvailable} onOpenLocal={file => { closeSummary(); props.onOpenLocalFile(file); }}
         numbered={summaryPreview.kind !== "all"} editedIds={summaryPreview.kind === "recent" ? recentEdited : undefined} trigger={summaryPreview.trigger} keyboard={summaryPreview.keyboard} visibleRows={summaryLayout.summaryVisibleRows} compact={!props.desktop} onEnter={keepSummary} onLeave={leaveSummary} onClose={closeSummary}
         onOpen={(id, options) => { closeSummary(); open(id, options); }} />}
     </div>

@@ -4,15 +4,18 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDocumentPanelPosition } from "../hooks/useDocumentPanelPosition";
 import { workspaceSummaryShortcutIndex, type WorkspaceDocumentSummary } from "../lib/workspace-summary";
+import type { RecentLocalFile } from "../lib/local-files/recent";
 import { ToolbarIcon } from "./ToolbarIcon";
 import "./WorkspaceSummaryPreview.css";
 
 const ROW_HEIGHT = 28;
 
 /** A metadata-only preview, independent of sidebar widths and editor layout. */
-export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, numbered = false, editedIds, visibleRows = DEFAULT_WORKSPACE_LAYOUT.summaryVisibleRows, compact = false, onOpen, onClose, onEnter, onLeave }: {
+export function WorkspaceSummaryPreview({ title, documents, localFiles = [], showLocalFilesSection = false, trigger, keyboard, numbered = false, editedIds, visibleRows = DEFAULT_WORKSPACE_LAYOUT.summaryVisibleRows, compact = false, onOpen, onOpenLocal, onClose, onEnter, onLeave }: {
   title: string;
   documents: WorkspaceDocumentSummary[];
+  localFiles?: RecentLocalFile[];
+  showLocalFilesSection?: boolean;
   trigger: HTMLButtonElement;
   keyboard: boolean;
   numbered?: boolean;
@@ -20,6 +23,7 @@ export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, n
   visibleRows?: number;
   compact?: boolean;
   onOpen: (id: string, options?: DocumentOpenOptions) => void;
+  onOpenLocal?: (file: RecentLocalFile) => void;
   onClose: (restoreFocus?: boolean) => void;
   onEnter: () => void;
   onLeave: () => void;
@@ -91,11 +95,13 @@ export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, n
   }, [trigger]);
   return createPortal(<div ref={panelRef} className="workspace-summary-preview" style={style} role="dialog" aria-label={`${title}预览`} tabIndex={-1}
     onPointerEnter={onEnter} onPointerLeave={onLeave}>
-    <div className="workspace-summary-preview-heading"><strong>{title}<span>{documents.length}</span></strong>
+    <div className="workspace-summary-preview-heading"><strong>{title}<span>{documents.length + localFiles.length}</span></strong>
       {numbered && <kbd className="workspace-summary-shortcut-hint" title="输入行首十六进制编号直接打开文档">0–f</kbd>}
       <button type="button" aria-label="关闭文档预览" onClick={() => onClose(true)}><ToolbarIcon name="close" /></button>
     </div>
-    {documents.length ? <ul ref={listRef} style={{ maxHeight: ROW_HEIGHT * visibleRows + 8 }} onScroll={event => setScrollTop(event.currentTarget.scrollTop)}
+    {(showLocalFilesSection || localFiles.length > 0) && <h4 className="workspace-summary-preview-section-title">Nine Rings 文档</h4>}
+    {documents.length > 0 && <>
+    <ul ref={listRef} style={{ maxHeight: ROW_HEIGHT * visibleRows + 8 }} onScroll={event => setScrollTop(event.currentTarget.scrollTop)}
       onKeyDown={event => {
         if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
         const current = Number((event.target as HTMLElement).closest<HTMLElement>("[data-summary-index]")?.dataset.summaryIndex ?? 0);
@@ -115,6 +121,19 @@ export function WorkspaceSummaryPreview({ title, documents, trigger, keyboard, n
         <button type="button" data-summary-index={start + offset} aria-label={note.title || "未命名文档"} data-edit-status={editedIds ? editedIds.includes(note.id) ? "edited" : "viewed" : undefined} aria-description={editedIds ? editedIds.includes(note.id) ? "已记录编辑" : "仅浏览，尚未记录编辑" : undefined} title={`${note.title || "未命名文档"}${editedIds ? editedIds.includes(note.id) ? " — 已记录编辑" : " — 仅浏览，尚未记录编辑" : ""}`} onClick={event => onOpen(note.id, documentOpenOptions(event))}>{numbered && <span aria-hidden="true" className="workspace-summary-shortcut">{(start + offset).toString(16)}</span>}{note.title || "未命名文档"}</button>
       </li>)}
       {end < documents.length && <li aria-hidden="true" style={{ height: (documents.length - end) * ROW_HEIGHT }} />}
-    </ul> : <p className="workspace-summary-preview-empty">暂无文档</p>}
+    </ul></>}
+    {showLocalFilesSection && documents.length === 0 && <p className="workspace-summary-preview-local-empty">暂无最近打开的 Nine Rings 文档</p>}
+    {showLocalFilesSection && <h4 className="workspace-summary-preview-section-title">本地文件</h4>}
+    {localFiles.length > 0 && <>
+      <ul className="workspace-summary-preview-local-list" style={{ maxHeight: ROW_HEIGHT * Math.min(visibleRows, localFiles.length) + 8 }}>
+        {localFiles.slice(0, visibleRows).map(file => <li key={`${file.rootId}:${file.nodeId}`}>
+          <button type="button" className="workspace-summary-preview-local-file" title={`${file.rootName}/${file.nodeId}`} onClick={() => onOpenLocal?.(file)}>
+            <ToolbarIcon name="disk" /><span>{file.name}</span><small>{file.rootName}</small>
+          </button>
+        </li>)}
+      </ul>
+    </>}
+    {showLocalFilesSection && localFiles.length === 0 && <p className="workspace-summary-preview-local-empty">暂无本地文件记录</p>}
+    {!documents.length && !localFiles.length && !showLocalFilesSection && <p className="workspace-summary-preview-empty">暂无记录</p>}
   </div>, document.body);
 }

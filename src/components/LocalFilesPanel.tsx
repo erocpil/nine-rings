@@ -9,6 +9,7 @@ import { workspacePanels } from "../lib/plugin-system/panel-registry";
 import { mainViews } from "../lib/plugin-system/main-view-registry";
 import { panelDisplays } from "../lib/plugin-system/panel-display";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
+import { LOCAL_FILE_OPENED_EVENT, rememberRecentLocalFile } from "../lib/local-files/recent";
 import { ToolbarIcon } from "./ToolbarIcon";
 import "../styles/local-files.css";
 
@@ -76,6 +77,16 @@ export function LocalFilesPanel({
   const input = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
   const revision = useRef({ value: 0 });
+  useEffect(() => {
+    const opened = (event: Event) => {
+      const file = (event as CustomEvent<{ rootId?: unknown; nodeId?: unknown; name?: unknown }>).detail;
+      if (!file || typeof file.rootId !== "string" || !file.rootId || typeof file.nodeId !== "string" || !file.nodeId || typeof file.name !== "string" || !file.name) return;
+      setSelectedFile({ rootId: file.rootId, nodeId: file.nodeId, name: file.name });
+      setSelected(`${file.rootId}:${file.nodeId}`);
+    };
+    window.addEventListener(LOCAL_FILE_OPENED_EVENT, opened);
+    return () => window.removeEventListener(LOCAL_FILE_OPENED_EVENT, opened);
+  }, []);
   useEffect(() => {
     const lifetime = revision.current;
     mounted.current = true;
@@ -243,6 +254,12 @@ export function LocalFilesPanel({
                           nodeId: child.id,
                           name: child.name,
                         });
+                      rememberRecentLocalFile({
+                        rootId,
+                        rootName: roots.find(root => root.id === rootId)?.name ?? "本地文件",
+                        nodeId: child.id,
+                        name: child.name,
+                      });
                       setSelectedFile({
                         rootId,
                         nodeId: child.id,

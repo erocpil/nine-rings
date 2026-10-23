@@ -60,6 +60,24 @@
   border-radius: 4px;
 }
 .workspace-summary-preview-empty { margin: 0; padding: 16px 12px; color: var(--text-secondary); }
+.workspace-summary-preview-section-title {
+  flex: 0 0 auto;
+  margin: 5px 12px 1px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .04em;
+}
+.workspace-summary-preview-local-list { border-top: 1px solid var(--border); }
+.workspace-summary-preview-local-empty { margin: 0; padding: 3px 12px 8px; color: var(--text-secondary); font-size: 11px; }
+.workspace-summary-preview-local-file {
+  display: flex !important;
+  align-items: center;
+  gap: 7px;
+}
+.workspace-summary-preview-local-file > svg { flex: 0 0 14px; width: 14px; height: 14px; color: var(--accent); }
+.workspace-summary-preview-local-file > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.workspace-summary-preview-local-file > small { flex: 0 0 auto; max-width: 35%; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary); font-size: 10px; }
 
 .workspace-summary-shortcut {
   display: inline-block;
