@@ -252,10 +252,13 @@ export function LocalFilesPanel({
                     });
                 }}
               >
-                <span aria-hidden="true">
-                  {child.directory ? (expanded.has(childKey) ? "▾" : "▸") : "·"}
+                <span className="local-file-disclosure" aria-hidden="true">
+                  {child.directory ? (expanded.has(childKey) ? "▾" : "▸") : ""}
                 </span>
-                <span>{child.name}</span>
+                <span className={`local-file-kind-icon ${child.directory ? "is-directory" : "is-file"}`} aria-hidden="true">
+                  <ToolbarIcon name={child.directory ? "folder" : "document"} />
+                </span>
+                <span className={`local-file-name ${child.directory ? "is-directory" : "is-file"}`}>{child.name}</span>
                 {display?.showCounts && child.directory && pages[childKey] && (
                   <span className="local-file-row-meta">
                     {pages[childKey].nodes.length}{pages[childKey].next != null ? "+" : ""}
@@ -397,8 +400,9 @@ export function LocalFilesPanel({
                 aria-expanded={expanded.has(root.id + ":")}
                 onClick={() => toggle(root.id, "")}
               >
-                <span>{expanded.has(root.id + ":") ? "▾" : "▸"}</span>
-                <span>
+                <span className="local-file-disclosure" aria-hidden="true">{expanded.has(root.id + ":") ? "▾" : "▸"}</span>
+                <span className="local-file-kind-icon is-directory" aria-hidden="true"><ToolbarIcon name="folder" /></span>
+                <span className="local-file-name is-directory">
                   {root.name}
                   {root.transient ? "（会话）" : ""}
                 </span>
