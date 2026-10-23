@@ -734,13 +734,14 @@ export function MarkdownSourceEditor({
       options={[{ value: "tabs", label: "Tab" }, { value: "spaces", label: "Spaces" }]}
       onChange={value => changeIndentation(preferences.tabSize ?? 4, value as SourceIndentStyle)} />
   </span>;
+  const findLabel = editingReadonly ? "查找" : "查找替换";
   const toolbar = (
       <div
         className="markdown-source-tools"
         role="toolbar"
         aria-label="源码编辑工具"
       >
-        <button type="button" title={shortcutTitle("document.find", "查找替换")} aria-label="查找替换" aria-expanded={tools.search} aria-pressed={tools.search} onClick={() => run(v => toggleSourcePanel(v, "search"))}>
+        <button type="button" title={shortcutTitle("document.find", findLabel)} aria-label={findLabel} aria-expanded={tools.search} aria-pressed={tools.search} onClick={() => run(v => toggleSourcePanel(v, "search"))}>
           <ToolbarIcon name="search" />
         </button>
         <button type="button" title={shortcutTitle("document.jump", "跳转行")} aria-label="跳转行" aria-expanded={tools.goto} aria-pressed={tools.goto} onClick={() => run(v => toggleSourcePanel(v, "goto"))}>

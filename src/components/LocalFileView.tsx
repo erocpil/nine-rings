@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { EditorState } from "@codemirror/state";
-import { openSearchPanel } from "@codemirror/search";
 import { localFileService } from "../lib/local-files/service";
 import { localFileSessions, localFileSessionEpoch } from "../lib/local-files/session";
 import type { LocalFileViewData } from "../lib/plugin-system/main-view-registry";
 import { AUTO_DOCUMENT_LANGUAGE, documentLanguageFromFilename, documentLanguageViewOptions, saveSourceViewLanguageOverride, sourceViewLanguageOverride } from "../lib/document-language";
 import { extractSourceSymbols } from "../lib/source-symbol-provider";
 import type { SourceSymbol } from "../lib/source-symbols";
+import type { DocumentOutlineItem } from "../lib/document-outline";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import { focusSourceWordMatch, groupSourceWordMatchesByLine, sourceWordState } from "../lib/source-word-occurrences";
 import type { AppConfig } from "../types/models";
 import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
+import { DocumentOutlineList, OutlineDisplayTools } from "./DocumentOutlineList";
 import { ToolbarIcon } from "./ToolbarIcon";
 import "../styles/local-files.css";
 
@@ -27,11 +28,18 @@ function storedPanelWidth() {
   return Number.isFinite(value) && value >= MIN_PANEL_WIDTH ? value : 300;
 }
 function bookmarkStorageKey(identity: string) { return `nr:local-file-bookmarks:${identity}`; }
+function symbolFoldsStorageKey(identity: string) { return `nr:local-file-symbol-folds:${identity}`; }
 function loadBookmarks(identity: string): LocalBookmark[] {
   try {
     const value = JSON.parse(localStorage.getItem(bookmarkStorageKey(identity)) ?? "[]");
     return Array.isArray(value) ? value.filter((item): item is LocalBookmark => typeof item?.offset === "number" && typeof item?.line === "number" && typeof item?.label === "string") : [];
   } catch { return []; }
+}
+function loadSymbolFolds(identity: string) {
+  try {
+    const value = JSON.parse(localStorage.getItem(symbolFoldsStorageKey(identity)) ?? "[]");
+    return new Set<string>(Array.isArray(value) ? value.filter(item => typeof item === "string") : []);
+  } catch { return new Set<string>(); }
 }
 
 export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange }: {
@@ -55,6 +63,8 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const [loading, setLoading] = useState(true);
   const [symbols, setSymbols] = useState<SourceSymbol[]>([]);
   const [symbolsBusy, setSymbolsBusy] = useState(false);
+  const [foldedSymbols, setFoldedSymbols] = useState<Set<string>>(() => loadSymbolFolds(identity));
+  const symbolListRef = useRef<HTMLDivElement>(null);
   const [activePanel, setActivePanel] = useState<LocalPanel | null>(null);
   const [activeOffset, setActiveOffset] = useState(0);
   const [, refreshMatches] = useState(0);
@@ -70,9 +80,11 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     setBookmarks(loadBookmarks(identity));
     setActivePanel(null);
     setActiveOffset(0);
+    setFoldedSymbols(loadSymbolFolds(identity));
     setLanguageOverride(sourceViewLanguageOverride(languageOverrideIdentity));
   }, [identity, languageOverrideIdentity]);
   useEffect(() => { localStorage.setItem(bookmarkStorageKey(identity), JSON.stringify(bookmarks)); }, [bookmarks, identity]);
+  useEffect(() => { localStorage.setItem(symbolFoldsStorageKey(identity), JSON.stringify([...foldedSymbols])); }, [foldedSymbols, identity]);
   useEffect(() => {
     let disposed = false;
     const controller = new AbortController();
@@ -130,6 +142,27 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     handle.setSelectionRange(at, at); handle.scrollToOffset(at, true); setActiveOffset(at); handle.focus();
   };
   const activeSymbol = useMemo(() => symbols.reduce<SourceSymbol | null>((current, item) => item.pos <= activeOffset && (!current || item.pos > current.pos) ? item : current, null), [symbols, activeOffset]);
+  const symbolOutline = useMemo<DocumentOutlineItem[]>(() => symbols.map(symbol => ({
+    level: symbol.level,
+    text: symbol.text,
+    displayText: symbol.displayText,
+    detail: symbol.detail,
+    identity: symbol.identity,
+    kind: symbol.kind,
+    kindSymbol: SOURCE_KIND_MARKERS[symbol.kind],
+    pos: symbol.pos,
+  })), [symbols]);
+  const symbolEntries = useMemo(() => {
+    let hiddenBelow = Number.POSITIVE_INFINITY;
+    return symbolOutline.flatMap((item, index) => {
+      if (item.level > hiddenBelow) return [];
+      const folded = foldedSymbols.has(item.identity ?? "");
+      hiddenBelow = folded ? item.level : Number.POSITIVE_INFINITY;
+      return [{ item, index, folded, foldable: (symbolOutline[index + 1]?.level ?? 0) > item.level }];
+    });
+  }, [foldedSymbols, symbolOutline]);
+  const activeSymbolIndex = activeSymbol ? symbols.indexOf(activeSymbol) : -1;
+  const symbolBaseLevel = symbolOutline.reduce((level, item) => Math.min(level, item.level), 6);
   const wordState = editorHandle ? sourceWordState(editorHandle.view) : null;
   const matches = groupSourceWordMatchesByLine(wordState?.matches ?? []);
   const toggleBookmark = () => {
@@ -154,14 +187,17 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     <div className="document-dock-width-handle" role="separator" aria-orientation="vertical" aria-label="调整本地文件工具栏宽度" onPointerDown={beginPanelResize} />
     <div className="document-outline-header">
       <div className="document-outline-header-primary"><strong>{activePanel === "symbols" ? "源码符号" : activePanel === "bookmarks" ? "书签" : wordState?.word ? `“${wordState.word}” · ${wordState.matches.length} 处` : "同词匹配"}</strong></div>
-      <div className="document-outline-header-actions">
+      <div className={`document-outline-header-actions${activePanel === "symbols" ? " is-source-symbol-actions" : ""}`}>
+        {activePanel === "symbols" && <>
+          <OutlineDisplayTools listRef={symbolListRef} target="source-symbols" targetLabel="定位当前符号" />
+          <button type="button" aria-label="全部折叠" title="折叠源码符号" onClick={() => setFoldedSymbols(new Set(symbolOutline.filter((item, index) => (symbolOutline[index + 1]?.level ?? 0) > item.level).map(item => item.identity ?? "")))}>−</button>
+          <button type="button" aria-label="全部展开" title="展开源码符号" onClick={() => setFoldedSymbols(new Set())}>+</button>
+        </>}
         {activePanel === "bookmarks" && <button type="button" onClick={toggleBookmark} title="添加或移除当前行书签"><ToolbarIcon name="plus" /></button>}
         <button type="button" onClick={() => setActivePanel(null)} title="收起侧栏" aria-label="收起侧栏"><ToolbarIcon name="close" /></button>
       </div>
     </div>
-    {activePanel === "symbols" ? <div className="local-file-panel-list local-file-symbol-list">
-      {symbols.length ? symbols.map((symbol, index) => <button type="button" key={`${symbol.identity}:${index}`} className={symbol === activeSymbol ? "is-current" : ""} title={symbol.detail ?? symbol.text} style={{ paddingInlineStart: 8 + (symbol.level - 1) * 14 }} onClick={() => jump(symbol.pos)}><span className="local-file-symbol-kind">{SOURCE_KIND_MARKERS[symbol.kind]}</span><span>{symbol.displayText ?? symbol.text}</span></button>) : <p>{symbolsBusy ? "正在分析源码符号…" : "当前文件没有可显示的符号"}</p>}
-    </div> : activePanel === "bookmarks" ? <div className="local-file-panel-list local-file-bookmark-list">
+    {activePanel === "symbols" ? symbols.length ? <DocumentOutlineList entries={symbolEntries} followActive activeOutlineIndex={activeSymbolIndex} compactSymbols displayTarget="source-symbols" outlineBaseLevel={symbolBaseLevel} listRef={symbolListRef} onToggleFold={position => { const identity = symbolOutline.find(item => item.pos === position)?.identity; if (!identity) return; setFoldedSymbols(current => { const next = new Set(current); if (next.has(identity)) next.delete(identity); else next.add(identity); return next; }); }} onJump={item => jump(item.pos)} /> : <div className="local-file-panel-list"><p>{symbolsBusy ? "正在分析源码符号…" : "当前文件没有可显示的符号"}</p></div> : activePanel === "bookmarks" ? <div className="local-file-panel-list local-file-bookmark-list">
       {bookmarks.length ? bookmarks.map(bookmark => <div key={bookmark.offset} className="local-file-bookmark-row"><button type="button" onClick={() => jump(bookmark.offset)} title={bookmark.label}><span>{bookmark.line}</span><span>{bookmark.label}</span></button><button type="button" aria-label={`删除第 ${bookmark.line} 行书签`} title="删除书签" onClick={() => setBookmarks(current => current.filter(item => item !== bookmark))}><ToolbarIcon name="close" /></button></div>) : <p>当前文件还没有书签</p>}
     </div> : <div className="document-source-matches-list">
       {matches.length ? matches.map(group => { const active = group.matches.find(match => match.from === wordState?.activeFrom), target = active ?? group.matches[0]!; return <button key={group.line} type="button" className="document-source-match-row" aria-current={active ? "location" : undefined} onClick={() => { const handle = sourceHandle.current; if (!handle) return; focusSourceWordMatch(handle.view, target); handle.scrollToOffset(target.from, true); setActiveOffset(target.from); }} title={`${group.line}: ${group.text}`}><span className={`document-source-match-line${group.matches.length > 1 ? " is-repeated" : ""}`}>{group.line}</span><code>{group.text || wordState?.word}</code></button>; }) : <p>{wordState?.word ? "当前文件没有其它全词匹配" : "单击源码中的单词以查找相同词"}</p>}
@@ -171,7 +207,6 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   return <section className="local-file-view" aria-label="只读本地源码">
     <header className="local-files-toolbar local-file-titlebar"><strong title={data.nodeId}>{data.name}</strong><span>只读 · 本地文件 · 不参与备份</span>
       {(["symbols", "bookmarks", "matches"] as const).map(kind => <button type="button" key={kind} className="btn-icon" title={kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-label={kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-pressed={activePanel === kind} disabled={loading || !!error || (kind === "symbols" && !symbols.length && !symbolsBusy)} onClick={() => setActivePanel(current => current === kind ? null : kind)}><ToolbarIcon name={kind === "symbols" ? "bullet" : kind === "bookmarks" ? "bookmark" : "search"} /></button>)}
-      <button type="button" className="btn-icon" title="当前文件查找" aria-label="当前文件查找" disabled={loading || !!error} onClick={() => sourceHandle.current && openSearchPanel(sourceHandle.current.view)}><ToolbarIcon name="search" /></button>
       <button type="button" className="btn-icon" title="重新读取原文件" aria-label="重新读取原文件" disabled={loading} onClick={() => { editorSession.current = null; setReload(value => value + 1); }}><ToolbarIcon name="refresh" /></button>
       <button type="button" className="btn-icon" title="返回原视图" aria-label="返回原视图" onClick={onClose}><ToolbarIcon name="chevronLeft" /></button>
     </header>

@@ -1801,6 +1801,14 @@
   min-width: 14px;
   justify-content: flex-start;
 }
+.document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-kind="类型"] .document-outline-level.is-symbol-marker,
+.document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-kind="别名"] .document-outline-level.is-symbol-marker,
+.document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-kind="命名空间"] .document-outline-level.is-symbol-marker { color: var(--syntax-type-color); }
+.document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-kind="函数"] .document-outline-level.is-symbol-marker { color: var(--syntax-value-color); }
+.document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-kind="宏"] .document-outline-level.is-symbol-marker { color: var(--syntax-meta-color); }
+.document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-kind="变量"] .document-outline-level.is-symbol-marker,
+.document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-kind="成员"] .document-outline-level.is-symbol-marker,
+.document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-kind="枚举值"] .document-outline-level.is-symbol-marker { color: color-mix(in srgb, var(--syntax-type-color) 62%, var(--text)); }
 
 .document-outline-list[data-source-symbols="true"] .document-outline-item[data-symbol-nested="true"] .document-outline-level.is-symbol-marker {
   transform: translateX(-8px);
