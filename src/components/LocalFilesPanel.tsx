@@ -500,7 +500,10 @@ export function LocalFilesPanel({ active, onBack }: {
         )}
         <strong>本地文件</strong>
         <button type="button" className="btn-icon" title="按文件名筛选" aria-label="按文件名筛选" aria-expanded={searchOpen} aria-pressed={searchOpen} onClick={() => { setSearchOpen(value => !value); if (searchOpen) { setQuery(""); setAppliedQuery(""); } }}><ToolbarIcon name="search" /></button>
-        <button type="button" className="btn-icon" title="文件树显示与排序" aria-label="文件树显示与排序" aria-haspopup="menu" aria-expanded={Boolean(viewMenu)} onClick={event => setViewMenu(current => current ? null : event.currentTarget)}><ToolbarIcon name="sliders" /></button>
+        <button type="button" className="btn-icon" title="文件树显示与排序" aria-label="文件树显示与排序" aria-haspopup="menu" aria-expanded={Boolean(viewMenu)} onClick={event => {
+          const trigger = event.currentTarget;
+          setViewMenu(current => current ? null : trigger);
+        }}><ToolbarIcon name="sliders" /></button>
         {viewMenu && <BlockActionMenu trigger={viewMenu} placement="below" title="文件树显示" onClose={() => setViewMenu(null)} actions={[
           ...([['name', '名称升序'], ['name-desc', '名称降序'], ['type', '文件类型']] as const).map(([sort, label], index) => ({ label, group: index === 0 ? "排序（目录优先）" : undefined, checked: preferences.sort === sort, keepOpen: true, run: () => setPreferences(current => ({ ...current, sort })) })),
           { label: "显示隐藏文件与目录", group: "显示", checked: preferences.showHidden, keepOpen: true, run: () => setPreferences(current => ({ ...current, showHidden: !current.showHidden })) },
