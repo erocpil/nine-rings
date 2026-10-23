@@ -33,6 +33,8 @@ export function EditorStatusBar({
   sourceViewControls,
   fallbackVisible = false,
   documentLanguage,
+  documentLanguageValue,
+  documentLanguageOptions,
   onDocumentLanguageChange,
   onCreateDocument,
 }: {
@@ -51,6 +53,8 @@ export function EditorStatusBar({
   sourceViewControls?: ReactNode;
   fallbackVisible?: boolean;
   documentLanguage?: string;
+  documentLanguageValue?: string;
+  documentLanguageOptions?: ReadonlyArray<{ value: string; label: string }>;
   onDocumentLanguageChange?: (language: string) => void;
   onCreateDocument?: () => void;
 }) {
@@ -266,9 +270,9 @@ export function EditorStatusBar({
         <EditorStatusSelect
           label="文件格式"
           title="文件格式；保留原始源码，控制可用视图与语法高亮"
-          value={documentLanguage}
+          value={documentLanguageValue ?? documentLanguage}
           disabled={!onDocumentLanguageChange}
-          options={DOCUMENT_LANGUAGE_OPTIONS}
+          options={documentLanguageOptions ?? DOCUMENT_LANGUAGE_OPTIONS}
           onChange={(language) => onDocumentLanguageChange?.(language)}
         />
       )}

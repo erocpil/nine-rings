@@ -6,6 +6,26 @@ export const DOCUMENT_LANGUAGE_OPTIONS = CODE_LANGUAGE_OPTIONS
   .filter(option => option.value !== "csharp" && option.value !== "cpp")
   .map(option => option.value === "c" ? { ...option, label: "C/C++" } : option);
 
+export const AUTO_DOCUMENT_LANGUAGE = "__auto__";
+export function documentLanguageViewOptions(detected: string) {
+  const label = DOCUMENT_LANGUAGE_OPTIONS.find(option => option.value === detected)?.label ?? "Text";
+  return [{ value: AUTO_DOCUMENT_LANGUAGE, label: `自动识别（${label}）` }, ...DOCUMENT_LANGUAGE_OPTIONS];
+}
+
+const VIEW_LANGUAGE_PREFIX = "nr:source-view-language:";
+export function sourceViewLanguageOverride(identity: string): string | null {
+  try {
+    const value = localStorage.getItem(VIEW_LANGUAGE_PREFIX + identity);
+    return value !== null && DOCUMENT_LANGUAGE_OPTIONS.some(option => option.value === value) ? value : null;
+  } catch { return null; }
+}
+export function saveSourceViewLanguageOverride(identity: string, language: string | null) {
+  try {
+    if (language === null) localStorage.removeItem(VIEW_LANGUAGE_PREFIX + identity);
+    else if (DOCUMENT_LANGUAGE_OPTIONS.some(option => option.value === language)) localStorage.setItem(VIEW_LANGUAGE_PREFIX + identity, language);
+  } catch { /* A view override remains optional when local storage is unavailable. */ }
+}
+
 export function documentSourceLanguage(metadata?: DocumentMetadata): string {
   if (metadata?.sourceLanguage === "cpp") return "c";
   if (metadata?.sourceLanguage === "csharp") return "";

@@ -4,7 +4,7 @@ import { openSearchPanel } from "@codemirror/search";
 import { localFileService } from "../lib/local-files/service";
 import { localFileSessions, localFileSessionEpoch } from "../lib/local-files/session";
 import type { LocalFileViewData } from "../lib/plugin-system/main-view-registry";
-import { documentLanguageFromFilename } from "../lib/document-language";
+import { AUTO_DOCUMENT_LANGUAGE, documentLanguageFromFilename, documentLanguageViewOptions, saveSourceViewLanguageOverride, sourceViewLanguageOverride } from "../lib/document-language";
 import { extractSourceSymbols } from "../lib/source-symbol-provider";
 import type { SourceSymbol } from "../lib/source-symbols";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
@@ -61,9 +61,17 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const [bookmarks, setBookmarks] = useState<LocalBookmark[]>(() => loadBookmarks(identity));
   const [panelWidth, setPanelWidth] = useState(storedPanelWidth);
   const [reload, setReload] = useState(0);
-  const language = documentLanguageFromFilename(data.name);
+  const detectedLanguage = documentLanguageFromFilename(data.name);
+  const languageOverrideIdentity = `local-file:${identity}`;
+  const [languageOverride, setLanguageOverride] = useState<string | null>(() => sourceViewLanguageOverride(languageOverrideIdentity));
+  const language = languageOverride ?? detectedLanguage;
 
-  useEffect(() => { setBookmarks(loadBookmarks(identity)); setActivePanel(null); setActiveOffset(0); }, [identity]);
+  useEffect(() => {
+    setBookmarks(loadBookmarks(identity));
+    setActivePanel(null);
+    setActiveOffset(0);
+    setLanguageOverride(sourceViewLanguageOverride(languageOverrideIdentity));
+  }, [identity, languageOverrideIdentity]);
   useEffect(() => { localStorage.setItem(bookmarkStorageKey(identity), JSON.stringify(bookmarks)); }, [bookmarks, identity]);
   useEffect(() => {
     let disposed = false;
@@ -170,7 +178,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     {loading && <p role="status" className="local-files-message">正在读取文件…</p>}
     {error && <p role="alert" className="local-files-message">{error}</p>}
     {!loading && !error && <div className={`local-file-workspace${activePanel ? " has-local-file-dock" : ""}`} style={{ "--local-file-panel-width": `${panelWidth}px` } as CSSProperties}>
-      <div className="local-file-editor-shell"><MarkdownSourceEditor value={source} readonly areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={() => {}} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus="clean" documentLanguage={language || "text"} onEditorConfigChange={onEditorConfigChange} /></div>{panel}
+      <div className="local-file-editor-shell"><MarkdownSourceEditor value={source} readonly areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={() => {}} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus="clean" documentLanguage={language} documentLanguageValue={languageOverride ?? AUTO_DOCUMENT_LANGUAGE} documentLanguageOptions={documentLanguageViewOptions(detectedLanguage)} onDocumentLanguageChange={next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); }} onEditorConfigChange={onEditorConfigChange} /></div>{panel}
     </div>}
   </section>;
 }

@@ -1,7 +1,8 @@
 import { readDocumentSource, writeDocumentSource } from "../lib/document-source";
 import { mapSourceReferences } from "../lib/markdown-source-navigation";
 import { EditorStatusBar } from "./EditorStatusBar";
-import { DOCUMENT_LANGUAGE_OPTIONS } from "../lib/document-language";
+import { SourceTabWidthSelect } from "./SourceTabWidthSelect";
+import { AUTO_DOCUMENT_LANGUAGE, DOCUMENT_LANGUAGE_OPTIONS, documentLanguageViewOptions, saveSourceViewLanguageOverride, sourceViewLanguageOverride } from "../lib/document-language";
 import { documentSourceLanguage, documentLanguageCommand, documentHasPreview } from "../lib/document-language";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import { useFocusEditorTools } from "../stores/useFocusEditorTools";
@@ -50,10 +51,16 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const activeRef = useRef(active);
   activeRef.current = active;
   const storedDocumentLanguage = documentSourceLanguage(props.content.metadata);
-  const [documentLanguage, setDocumentLanguage] = useState(storedDocumentLanguage);
+  const languageOverrideIdentity = `document:${props.noteId}`;
+  const [readonlyLanguageOverride, setReadonlyLanguageOverride] = useState<string | null>(() => sourceViewLanguageOverride(languageOverrideIdentity));
+  const [documentLanguage, setDocumentLanguage] = useState(() => props.readonly ? readonlyLanguageOverride ?? storedDocumentLanguage : storedDocumentLanguage);
   const documentLanguageRef = useRef(documentLanguage);
   documentLanguageRef.current = documentLanguage;
-  useEffect(() => setDocumentLanguage(storedDocumentLanguage), [storedDocumentLanguage]);
+  useEffect(() => {
+    const override = sourceViewLanguageOverride(languageOverrideIdentity);
+    setReadonlyLanguageOverride(override);
+    setDocumentLanguage(props.readonly ? override ?? storedDocumentLanguage : storedDocumentLanguage);
+  }, [languageOverrideIdentity, props.readonly, storedDocumentLanguage]);
   const moreToolsPreference = useFocusEditorTools(state => state.expanded);
   const setMoreTools = useFocusEditorTools(state => state.setExpanded);
   const moreTools = moreToolsPreference ?? !props.focusMode;
@@ -137,6 +144,24 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const rawRestoreTop = useRef(initialRaw !== null ? initialReading?.source?.scrollTop : undefined);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  useEffect(() => {
+    if (!props.readonly || source !== null || documentHasPreview(documentLanguage)) return;
+    let cancelled = false;
+    const current = latestReader.current?.() ?? props.content;
+    const preserved = current.metadata?.sourceText ?? current.metadata?.markdownSource;
+    void (typeof preserved === "string" || current.metadata?.sourceFormat === "text"
+      ? Promise.resolve(readDocumentSource(current))
+      : deltaToMarkdownAsync(current))
+      .then(text => {
+        if (cancelled || !alive.current) return;
+        sourceSession.current = new SourceNavigationSession(text, current);
+        setSource(text);
+      })
+      .catch(cause => {
+        if (!cancelled && alive.current) setError(`只读查看格式加载失败：${cause instanceof Error ? cause.message : String(cause)}`);
+      });
+    return () => { cancelled = true; };
+  }, [documentLanguage, props.content, props.readonly, source]);
   useEffect(() => props.documentSessions?.retain(props.noteId), [props.documentSessions, props.noteId]);
   const hostView = source === null ? "rendered" : "source";
   useLayoutEffect(() => {
@@ -402,9 +427,40 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       setError(`文件格式设置失败：${cause instanceof Error ? cause.message : String(cause)}`);
     } finally { busyRef.current = false; if (alive.current) setBusy(false); }
   };
-  const languageProps = { documentLanguage, onDocumentLanguageChange: busy || props.readonly ? undefined : (language: string) => { void changeDocumentLanguage(language); } };
+  const changeReadonlyViewLanguage = async (language: string) => {
+    if (!props.readonly || busyRef.current) return;
+    const override = language === AUTO_DOCUMENT_LANGUAGE ? null : language;
+    if (override !== null && !DOCUMENT_LANGUAGE_OPTIONS.some(option => option.value === override)) return;
+    const effective = override ?? storedDocumentLanguage;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      if (source === null && !documentHasPreview(effective)) {
+        const current = latestReader.current?.() ?? latestProps.current.content;
+        const preserved = current.metadata?.sourceText ?? current.metadata?.markdownSource;
+        const text = typeof preserved === "string" || current.metadata?.sourceFormat === "text"
+          ? readDocumentSource(current)
+          : await deltaToMarkdownAsync(current);
+        if (!alive.current || !latestProps.current.readonly) return;
+        sourceSession.current = new SourceNavigationSession(text, current);
+        setSource(text);
+      }
+      saveSourceViewLanguageOverride(languageOverrideIdentity, override);
+      setReadonlyLanguageOverride(override);
+      setDocumentLanguage(effective);
+      setError("");
+    } catch (cause) {
+      setError(`只读查看格式设置失败：${cause instanceof Error ? cause.message : String(cause)}`);
+    } finally {
+      busyRef.current = false;
+      if (alive.current) setBusy(false);
+    }
+  };
+  const languageProps = { documentLanguage, onDocumentLanguageChange: busy ? undefined : props.readonly ? (language: string) => { void changeReadonlyViewLanguage(language); } : (language: string) => { void changeDocumentLanguage(language); } };
+  const languageSelectionValue = props.readonly ? readonlyLanguageOverride ?? AUTO_DOCUMENT_LANGUAGE : documentLanguage;
+  const languageOptions = props.readonly ? documentLanguageViewOptions(storedDocumentLanguage) : DOCUMENT_LANGUAGE_OPTIONS;
   useNativeMenuActions({
-    ...Object.fromEntries(DOCUMENT_LANGUAGE_OPTIONS.map(option => [documentLanguageCommand(option.value), { run: () => changeDocumentLanguage(option.value), checked: documentLanguage === option.value, enabled: !props.readonly && !busy }])),
+    ...Object.fromEntries(DOCUMENT_LANGUAGE_OPTIONS.map(option => [documentLanguageCommand(option.value), { run: () => props.readonly ? void changeReadonlyViewLanguage(option.value) : void changeDocumentLanguage(option.value), checked: documentLanguage === option.value, enabled: !busy }])),
     "view.tools": { run: () => setMoreTools(!moreTools), checked: moreTools, enabled: !props.readonly || source !== null },
     "document.source": { run: () => changeView(), checked: source !== null, enabled: supported && hasPreview && !busy },
     "document.readonly": { run: () => props.onReadonlyChange?.(!props.readonly), checked: Boolean(props.readonly), enabled: Boolean(props.onReadonlyChange) && !busy },
@@ -427,7 +483,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       <Suspense fallback={<div role="status">正在加载预览…</div>}>
         <SourceDocumentPreview language={documentLanguage} source={sourceSession.current?.current.source ?? readDocumentSource(props.content)} fontSize={props.editorFontSize} />
       </Suspense>
-      <EditorStatusBar enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus} onCreateDocument={props.onCreateDocument} />
+      <EditorStatusBar enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus} onCreateDocument={props.onCreateDocument} sourceIndentControls={<span className="source-indentation-controls"><SourceTabWidthSelect /></span>} documentLanguage={documentLanguage} documentLanguageValue={languageSelectionValue} documentLanguageOptions={languageOptions} onDocumentLanguageChange={languageProps.onDocumentLanguageChange} />
     </> : source === null ? render({
       ...props,
       ...languageProps,
@@ -477,7 +533,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       <div className="markdown-source-toolbar-host" ref={setSourceToolbarTarget} />
       <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={hasPreview && preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
-      <MarkdownSourceEditor documentLanguage={documentLanguage} onDocumentLanguageChange={props.readonly || busy ? undefined : languageProps.onDocumentLanguageChange} onCreateDocument={props.onCreateDocument} statusTarget={sourceStatusTarget} focusMode={props.focusMode} showStatusBar={props.showStatusBar} saveStatus={props.saveStatus} toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly)} editingDisabled={busy}
+      <MarkdownSourceEditor documentLanguage={documentLanguage} documentLanguageValue={languageSelectionValue} documentLanguageOptions={languageOptions} onDocumentLanguageChange={languageProps.onDocumentLanguageChange} onCreateDocument={props.onCreateDocument} statusTarget={sourceStatusTarget} focusMode={props.focusMode} showStatusBar={props.showStatusBar} saveStatus={props.saveStatus} toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly)} editingDisabled={busy}
         areaRef={viewPosition.area} onReady={hostSourceReady} onSelectionChange={hostSelection} session={sourceEditorState} onChange={editSource}
         onEditorConfigChange={props.onEditorConfigChange}
         showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine}

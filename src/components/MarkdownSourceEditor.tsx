@@ -12,6 +12,7 @@ import { emptySourceFormats, sourceFormats, sourceHeadingChange, removeSourceInl
 import { useDocumentActive } from "./RetainedDocument";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { EditorStatusBar } from "./EditorStatusBar";
+import { SourceTabWidthSelect } from "./SourceTabWidthSelect";
 import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
 import { EditorFoldIconContext } from "./EditorFoldIconContext";
 import { EDITOR_FOLD_PRESETS, editorFoldPreset, editorFoldPresetPatch, editorFoldSymbol } from "../lib/editor-fold-icons";
@@ -240,6 +241,8 @@ export function MarkdownSourceEditor({
   saveStatus,
   onCreateDocument,
   documentLanguage = "markdown",
+  documentLanguageValue,
+  documentLanguageOptions,
   onDocumentLanguageChange,
   onEditorConfigChange,
 }: {
@@ -262,6 +265,8 @@ export function MarkdownSourceEditor({
   saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
   onCreateDocument?: () => void;
   documentLanguage?: string;
+  documentLanguageValue?: string;
+  documentLanguageOptions?: ReadonlyArray<{ value: string; label: string }>;
   onDocumentLanguageChange?: (language: string) => void;
   onEditorConfigChange?: (patch: Partial<AppConfig>) => Promise<void>;
 }) {
@@ -724,9 +729,7 @@ export function MarkdownSourceEditor({
     ]} />}
   </>;
   const indentationControls = !markupMode && <span className="source-indentation-controls">
-    <EditorStatusSelect label="Tab Size" title="Tab 显示列数与缩进单位" value={String(preferences.tabSize ?? 4)} disabled={editingReadonly}
-      options={[...new Set([2, 4, 8, preferences.tabSize ?? 4])].sort((a, b) => a - b).map(size => ({ value: String(size), label: `Tab ${size}` }))}
-      onChange={value => changeIndentation(Number(value), preferences.sourceIndentStyle ?? "tabs")} />
+    <SourceTabWidthSelect />
     <EditorStatusSelect label="缩进方式" title="转换行首缩进；可撤销" value={preferences.sourceIndentStyle ?? "tabs"} disabled={editingReadonly}
       options={[{ value: "tabs", label: "Tab" }, { value: "spaces", label: "Spaces" }]}
       onChange={value => changeIndentation(preferences.tabSize ?? 4, value as SourceIndentStyle)} />
@@ -889,7 +892,7 @@ export function MarkdownSourceEditor({
         {sourceMessageAction?.message === sourceMessage && <button type="button" className="source-message-action" onMouseDown={event => event.preventDefault()} onClick={sourceMessageAction.run}>{sourceMessageAction.label}</button>}
         <button type="button" aria-label="关闭提示" title="关闭提示" onMouseDown={event => event.preventDefault()} onClick={() => setSourceMessage("")}><ToolbarIcon name="close" /></button>
       </div>}
-      {statusTarget ? createPortal(<EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`Ln ${cursor.line}, Col ${cursor.column}`} characters={value.length} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`Ln ${cursor.line}, Col ${cursor.column}`} characters={value.length} /> : null}
+      {statusTarget ? createPortal(<EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} documentLanguageValue={documentLanguageValue} documentLanguageOptions={documentLanguageOptions} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`Ln ${cursor.line}, Col ${cursor.column}`} characters={value.length} />, statusTarget) : statusTarget === undefined ? <EditorStatusBar sourceViewControls={gutterControls} sourceIndentControls={indentationControls} documentLanguage={documentLanguage} documentLanguageValue={documentLanguageValue} documentLanguageOptions={documentLanguageOptions} onDocumentLanguageChange={onDocumentLanguageChange} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} className="markdown-source-status" label="源码状态栏" saveStatus={saveStatus ?? "clean"} position={`Ln ${cursor.line}, Col ${cursor.column}`} characters={value.length} /> : null}
     </div>
   );
 }
