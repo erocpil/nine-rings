@@ -81,6 +81,11 @@ test("只读文件夹入口按需展开、源码查找和符号跳转，不创�
   await panel.getByRole("button", { name: "sample.c", exact: true }).click();
   const viewer = page.getByRole("region", { name: "只读本地源码" });
   await expect(viewer).toBeVisible();
+  await expect(viewer.getByRole("button", { name: "专注模式", exact: true })).toHaveCount(0);
+  await expect(viewer.locator(".local-file-path")).toHaveCount(0);
+  await expect(viewer.locator("header strong")).toHaveText("sample.c");
+  await expect(viewer.locator(".cm-content")).toHaveCSS("caret-color", "rgba(0, 0, 0, 0)");
+  await expect(viewer.locator(".cm-activeLine")).toHaveCount(1);
   await expect(viewer.locator(".cm-content")).toHaveAttribute(
     "contenteditable",
     "false",
@@ -94,6 +99,11 @@ test("只读文件夹入口按需展开、源码查找和符号跳转，不创�
     .getByRole("button", { name: "local_function", exact: false })
     .click();
   await expect(viewer.locator("footer")).toContainText("Ln 62");
+  await expect(viewer.locator(".cm-activeLine")).toContainText("local_function");
+  await expect(viewer.locator(".cm-lineNumbers .cm-activeLineGutter")).toHaveText("62");
+  for (const cursor of await viewer.locator(".cm-cursor, .cm-cursorLayer").all()) await expect(cursor).not.toBeVisible();
+  await viewer.locator(".cm-activeLine").click();
+  await expect(viewer.locator(".cm-content")).toHaveCSS("caret-color", "rgba(0, 0, 0, 0)");
   await expect
     .poll(() =>
       viewer.locator(".cm-scroller").evaluate((element) => element.scrollTop),

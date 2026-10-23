@@ -5,6 +5,8 @@ import {
   keymap,
   lineNumbers,
   drawSelection,
+  highlightActiveLine,
+  highlightActiveLineGutter,
 } from "@codemirror/view";
 import { foldGutter, bracketMatching } from "@codemirror/language";
 import { defaultKeymap } from "@codemirror/commands";
@@ -32,14 +34,10 @@ import "../styles/local-files.css";
 export function LocalFileView({
   data,
   onClose,
-  focus,
-  onFocus,
   fontSize,
 }: {
   data: Readonly<LocalFileViewData>;
   onClose: () => void;
-  focus: boolean;
-  onFocus: (value: boolean) => void;
   fontSize: number;
 }) {
   const container = useRef<HTMLDivElement>(null);
@@ -76,6 +74,8 @@ export function LocalFileView({
             spellcheck: "false",
           }),
           lineNumbers(),
+          highlightActiveLine(),
+          highlightActiveLineGutter(),
           foldGutter(),
           drawSelection(),
           readonlySourceSelection,
@@ -244,16 +244,6 @@ export function LocalFileView({
         <button
           type="button"
           className="btn-icon"
-          title="专注模式"
-          aria-label="专注模式"
-          aria-pressed={focus}
-          onClick={() => onFocus(!focus)}
-        >
-          <ToolbarIcon name="focus" />
-        </button>
-        <button
-          type="button"
-          className="btn-icon"
           title="返回原视图"
           aria-label="返回原视图"
           onClick={onClose}
@@ -261,9 +251,6 @@ export function LocalFileView({
           <ToolbarIcon name="chevronLeft" />
         </button>
       </header>
-      <div className="local-file-path" title={data.nodeId}>
-        {data.nodeId}
-      </div>
       {loading && (
         <p role="status" className="local-files-message">
           正在读取文件…
@@ -280,6 +267,7 @@ export function LocalFileView({
           className="local-file-source markdown-cm-source markdown-cm-host"
           style={{ fontSize }}
           data-document-language={language || "text"}
+          data-source-readonly="true"
         />
         {showSymbols && symbols.length > 0 && (
           <aside className="local-file-symbols" aria-label="本地源码符号">
