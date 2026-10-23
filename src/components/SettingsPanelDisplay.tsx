@@ -49,9 +49,10 @@ export function SettingsPanelDisplay({
   const bookmark = configuration === "bookmark-display";
   const notes = configuration === "notes-display";
   const tree = configuration === "tree-display";
+  const localFiles = configuration === "local-file-display";
   const sourceSymbols = configuration === "source-symbol-display";
   const sourceMatches = configuration === "source-match-display";
-  const name = sourceSymbols ? "源码符号" : sourceMatches ? "同词匹配" : outline ? "目录" : bookmark ? "书签" : notes ? "随记" : "文档树";
+  const name = localFiles ? "本地文件" : sourceSymbols ? "源码符号" : sourceMatches ? "同词匹配" : outline ? "目录" : bookmark ? "书签" : notes ? "随记" : "文档树";
   useSyncExternalStore(controller.subscribe, controller.snapshot);
   const preference = controller.read();
   const save = (enabled: boolean, display = preference.display) => {
@@ -190,7 +191,9 @@ export function SettingsPanelDisplay({
                     ? "书签数"
                     : notes
                       ? "分组文档数"
-                      : "路径文档数"}
+                      : localFiles
+                        ? "已读取目录项数"
+                        : "路径文档数"}
               </label>
               <label>
                 <input
@@ -210,7 +213,9 @@ export function SettingsPanelDisplay({
                     ? "对应块号"
                     : notes
                       ? "最近修改日期"
-                      : "文档类型"}
+                      : localFiles
+                        ? "文件大小"
+                        : "文档类型"}
               </label>
             </Field>
             {(bookmark || notes) && (
@@ -259,6 +264,8 @@ export function SettingsPanelDisplay({
                     ? "定位当前书签"
                     : notes
                       ? "展开所有分组、刷新随记"
+                      : localFiles
+                        ? "折叠所有目录、刷新本地文件"
                       : "展开所有目录、刷新文档树"}
               </label>
             </Field>}

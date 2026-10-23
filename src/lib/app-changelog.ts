@@ -1,6 +1,15 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-24",
+    title: "本地文件展示与会话恢复",
+    changes: [
+      "本地文件插件新增与文档树一致的展示配置，可调整字体、字号、行高、名称颜色、悬停提示、目录项数、文件大小及扩展工具栏。",
+      "本地文件分栏保留已展开目录、当前文件和源码符号/书签/同词匹配面板；关闭应用时分栏处于打开或固定状态，重启后继续恢复该布局。",
+      "本地文件分栏使用独立磁盘图标，右侧源码工具标题栏移除深色背景并与左侧工具栏等高。",
+    ],
+  },
+  {
     date: "2026-10-23",
     title: "本地文件只读入口与文档交互",
     changes: [

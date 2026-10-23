@@ -140,7 +140,10 @@ function PluginConfigurationDialog({
           <Field label="例句默认折叠" desc="控制尚无阅读记录的例句默认状态；译文默认折叠，已记录的展开状态优先恢复。"><input type="checkbox" aria-label="例句默认折叠" checked={readVocabularyPreference().collapseExamples} onChange={event => { saveVocabularyPreference({ ...readVocabularyPreference(), collapseExamples: event.target.checked }); showMessage("已更新"); }} /></Field>
           <SettingsVocabularyAppearance onMessage={showMessage} />
           <p className="settings-desc">首版不联网抓取、不改写正文；受保护正文不交给插件。普通文档入口用于编辑和导出，阅读语境关联将在后续接入。</p>
-        </> : plugin.configuration === "local-files" ? (<p className="settings-desc">在「本地文件」分栏选择只读目录，按需展开并查看 UTF-8 源码（最多 4 MiB）。不导入数据库、不参与同步；不提供写入。浏览器目录授权和快照仅在本次会话有效。</p>) : plugin.configuration === "image-viewer" ? (
+        </> : plugin.configuration === "local-files" ? (<>
+          <p className="settings-desc">在「本地文件」分栏选择只读目录，按需展开并查看 UTF-8 源码（最多 4 MiB）。不导入数据库、不参与同步；不提供写入。浏览器目录授权和快照仅在本次会话有效。</p>
+          <SettingsPanelDisplay configuration="local-file-display" onMessage={showMessage} />
+        </>) : plugin.configuration === "image-viewer" ? (
           <p className="settings-desc">
             在左侧「图片」分栏选择目录；手机从文档树工具栏进入。目录授权仅保存在本机，不进入备份。浏览器能力不足时，文件选择仅在当前会话有效。预览旋转不修改原图，图片处理功能将在后续独立接入。
           </p>

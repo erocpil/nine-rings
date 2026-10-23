@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   localFileService,
   type FileRoot,
@@ -7,6 +7,8 @@ import {
 import { LOCAL_FILE_VIEW_ID } from "../lib/plugin-system/builtin-local-files";
 import { workspacePanels } from "../lib/plugin-system/panel-registry";
 import { mainViews } from "../lib/plugin-system/main-view-registry";
+import { panelDisplays } from "../lib/plugin-system/panel-display";
+import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import { ToolbarIcon } from "./ToolbarIcon";
 import "../styles/local-files.css";
 
@@ -44,6 +46,11 @@ function sameLocalFile(
     view.data.nodeId === file.nodeId
   );
 }
+function fileSize(size: number) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(size < 10240 ? 1 : 0)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
 
 export function LocalFilesPanel({
   active,
@@ -65,6 +72,7 @@ export function LocalFilesPanel({
     restored.file ? `${restored.file.rootId}:${restored.file.nodeId}` : "",
   );
   const [rootsReady, setRootsReady] = useState(false);
+  const display = usePanelDisplay("local-files");
   const input = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
   const revision = useRef({ value: 0 });
@@ -191,6 +199,13 @@ export function LocalFilesPanel({
     setRoots((value) => [...value, root]);
     toggle(root.id, "");
   };
+  const refreshExpanded = () =>
+    void run("refresh", async () => {
+      for (const key of expanded) {
+        const at = key.indexOf(":");
+        await load(key.slice(0, at), key.slice(at + 1));
+      }
+    });
   const children = (
     rootId: string,
     node: string,
@@ -215,7 +230,7 @@ export function LocalFilesPanel({
                 aria-pressed={
                   !child.directory ? selected === childKey : undefined
                 }
-                title={child.id}
+                title={display?.tooltip === "name" ? child.name : child.id}
                 onClick={() => {
                   if (child.directory) toggle(rootId, child.id);
                   else
@@ -241,6 +256,14 @@ export function LocalFilesPanel({
                   {child.directory ? (expanded.has(childKey) ? "▾" : "▸") : "·"}
                 </span>
                 <span>{child.name}</span>
+                {display?.showCounts && child.directory && pages[childKey] && (
+                  <span className="local-file-row-meta">
+                    {pages[childKey].nodes.length}{pages[childKey].next != null ? "+" : ""}
+                  </span>
+                )}
+                {display?.showMetadata && !child.directory && (
+                  <span className="local-file-row-meta">{fileSize(child.size)}</span>
+                )}
               </button>
               {child.directory && children(rootId, child.id, depth + 1)}
             </div>
@@ -297,23 +320,38 @@ export function LocalFilesPanel({
         >
           <ToolbarIcon name="folder" />
         </button>
-        <button
+        {display?.toolbar.includes("local-files.collapse-all") && <button
+          type="button"
+          className="btn-icon"
+          title="折叠所有目录"
+          aria-label="折叠所有目录"
+          disabled={!expanded.size}
+          onClick={() =>
+            panelDisplays.run(
+              "local-files",
+              display,
+              "local-files.collapse-all",
+              { "local-files.collapse-all": () => setExpanded(new Set()) },
+            )
+          }
+        >
+          <ToolbarIcon name="folderCollapse" />
+        </button>}
+        {(!display || display.toolbar.includes("local-files.refresh")) && <button
           type="button"
           className="btn-icon"
           title="刷新已展开目录"
           aria-label="刷新已展开目录"
           disabled={busy.size > 0}
-          onClick={() =>
-            void run("refresh", async () => {
-              for (const key of expanded) {
-                const at = key.indexOf(":");
-                await load(key.slice(0, at), key.slice(at + 1));
-              }
-            })
-          }
+          onClick={() => {
+            if (!display) refreshExpanded();
+            else panelDisplays.run("local-files", display, "local-files.refresh", {
+              "local-files.refresh": refreshExpanded,
+            });
+          }}
         >
           <ToolbarIcon name="refresh" />
-        </button>
+        </button>}
       </header>
       <input
         ref={input}
@@ -338,13 +376,24 @@ export function LocalFilesPanel({
           {error}
         </p>
       )}
-      <div className="local-files-tree" role="tree">
+      <div
+        className="local-files-tree"
+        role="tree"
+        data-panel-display={display ? "plugin" : undefined}
+        style={display ? {
+          "--panel-display-font": display.font === "mono" ? "var(--font-mono)" : display.font === "sans" ? "var(--font)" : "inherit",
+          "--panel-display-font-size": `${display.fontSize}px`,
+          "--panel-display-row-height": `${display.rowHeight}px`,
+          "--panel-display-document-color": display.labelColor === "accent" ? "var(--accent)" : display.labelColor === "secondary" ? "var(--text-secondary)" : "var(--text)",
+        } as CSSProperties : undefined}
+      >
         {roots.map((root) => (
           <div key={root.id}>
             <div className="local-file-root">
               <button
                 type="button"
                 className="local-file-row"
+                title={root.name}
                 aria-expanded={expanded.has(root.id + ":")}
                 onClick={() => toggle(root.id, "")}
               >
@@ -353,6 +402,11 @@ export function LocalFilesPanel({
                   {root.name}
                   {root.transient ? "（会话）" : ""}
                 </span>
+                {display?.showCounts && pages[root.id + ":"] && (
+                  <span className="local-file-row-meta">
+                    {pages[root.id + ":"].nodes.length}{pages[root.id + ":"].next != null ? "+" : ""}
+                  </span>
+                )}
               </button>
               <button
                 type="button"

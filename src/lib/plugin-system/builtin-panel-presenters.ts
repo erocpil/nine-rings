@@ -4,6 +4,7 @@ import { bookmarkDisplay } from "./builtin-bookmark-display";
 import { notesDisplay } from "./builtin-notes-display";
 import { sourceSymbolDisplay } from "./builtin-source-symbol-display";
 import { sourceMatchDisplay } from "./builtin-source-match-display";
+import { localFileDisplay } from "./builtin-local-file-display";
 const presenters = {
   "tree-display": treeDisplay,
   "outline-display": outlineDisplay,
@@ -11,6 +12,7 @@ const presenters = {
   "notes-display": notesDisplay,
   "source-symbol-display": sourceSymbolDisplay,
   "source-match-display": sourceMatchDisplay,
+  "local-file-display": localFileDisplay,
 };
 export function panelPresenter(configuration: string) {
   return Object.prototype.hasOwnProperty.call(presenters, configuration)

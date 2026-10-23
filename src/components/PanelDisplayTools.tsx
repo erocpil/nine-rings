@@ -8,6 +8,8 @@ import { ToolbarIcon } from "./ToolbarIcon";
 const labels: Record<PanelDisplayCommand, string> = {
   "tree.expand-all": "展开所有目录",
   "tree.refresh": "刷新文档树",
+  "local-files.collapse-all": "折叠所有目录",
+  "local-files.refresh": "刷新本地文件",
   "outline.reveal-current": "定位当前标题",
   "source-symbols.reveal-current": "定位当前符号",
   "bookmarks.reveal-current": "定位当前书签",
@@ -44,6 +46,8 @@ export function PanelDisplayTools({
             name={
               command.endsWith("refresh")
                 ? "refresh"
+                : command.endsWith("collapse-all")
+                  ? "folderCollapse"
                 : command.endsWith("expand-all")
                   ? "expand"
                   : "search"

@@ -7,10 +7,12 @@ import {
 
 /** Presentation only. Host controllers retain data, focus, navigation and selection. */
 export type PanelDisplayTarget =
-  "document-tree" | "document-outline" | "source-symbols" | "source-matches" | "bookmarks" | "notes";
+  "document-tree" | "local-files" | "document-outline" | "source-symbols" | "source-matches" | "bookmarks" | "notes";
 export type PanelDisplayCommand =
   | "tree.expand-all"
   | "tree.refresh"
+  | "local-files.collapse-all"
+  | "local-files.refresh"
   | "outline.reveal-current"
   | "source-symbols.reveal-current"
   | "bookmarks.reveal-current"
@@ -18,6 +20,7 @@ export type PanelDisplayCommand =
   | "notes.refresh";
 const COMMANDS: Record<PanelDisplayTarget, readonly PanelDisplayCommand[]> = {
   "document-tree": ["tree.expand-all", "tree.refresh"],
+  "local-files": ["local-files.collapse-all", "local-files.refresh"],
   "document-outline": ["outline.reveal-current"],
   "source-symbols": ["source-symbols.reveal-current"],
   "source-matches": [],
@@ -38,6 +41,7 @@ export interface PanelDisplayContribution {
 }
 const TARGETS = new Set<PanelDisplayTarget>([
   "document-tree",
+  "local-files",
   "document-outline",
   "source-symbols",
   "source-matches",

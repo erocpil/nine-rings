@@ -18,6 +18,7 @@ import "../styles/local-files.css";
 type LocalPanel = "symbols" | "bookmarks" | "matches";
 type LocalBookmark = { offset: number; line: number; label: string };
 const PANEL_WIDTH_KEY = "nr:local-file-panel-width";
+const ACTIVE_PANEL_KEY = "nr:local-file-active-panel";
 const MIN_PANEL_WIDTH = 220;
 const SOURCE_KIND_MARKERS: Record<SourceSymbol["kind"], string> = {
   命名空间: "◇", 类型: "{}", 别名: "T", 函数: "ƒ", 变量: "v", 成员: "·", 枚举值: "e", 宏: "#",
@@ -26,6 +27,12 @@ const SOURCE_KIND_MARKERS: Record<SourceSymbol["kind"], string> = {
 function storedPanelWidth() {
   const value = Number(localStorage.getItem(PANEL_WIDTH_KEY));
   return Number.isFinite(value) && value >= MIN_PANEL_WIDTH ? value : 300;
+}
+function storedActivePanel(): LocalPanel | null {
+  const value = localStorage.getItem(ACTIVE_PANEL_KEY);
+  return value === "symbols" || value === "bookmarks" || value === "matches"
+    ? value
+    : null;
 }
 function bookmarkStorageKey(identity: string) { return `nr:local-file-bookmarks:${identity}`; }
 function symbolFoldsStorageKey(identity: string) { return `nr:local-file-symbol-folds:${identity}`; }
@@ -65,7 +72,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const [symbolsBusy, setSymbolsBusy] = useState(false);
   const [foldedSymbols, setFoldedSymbols] = useState<Set<string>>(() => loadSymbolFolds(identity));
   const symbolListRef = useRef<HTMLDivElement>(null);
-  const [activePanel, setActivePanel] = useState<LocalPanel | null>(null);
+  const [activePanel, setActivePanel] = useState<LocalPanel | null>(storedActivePanel);
   const [activeOffset, setActiveOffset] = useState(0);
   const [, refreshMatches] = useState(0);
   const [bookmarks, setBookmarks] = useState<LocalBookmark[]>(() => loadBookmarks(identity));
@@ -78,13 +85,17 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
 
   useEffect(() => {
     setBookmarks(loadBookmarks(identity));
-    setActivePanel(null);
+    setActivePanel(storedActivePanel());
     setActiveOffset(0);
     setFoldedSymbols(loadSymbolFolds(identity));
     setLanguageOverride(sourceViewLanguageOverride(languageOverrideIdentity));
   }, [identity, languageOverrideIdentity]);
   useEffect(() => { localStorage.setItem(bookmarkStorageKey(identity), JSON.stringify(bookmarks)); }, [bookmarks, identity]);
   useEffect(() => { localStorage.setItem(symbolFoldsStorageKey(identity), JSON.stringify([...foldedSymbols])); }, [foldedSymbols, identity]);
+  useEffect(() => {
+    if (activePanel) localStorage.setItem(ACTIVE_PANEL_KEY, activePanel);
+    else localStorage.removeItem(ACTIVE_PANEL_KEY);
+  }, [activePanel]);
   useEffect(() => {
     let disposed = false;
     const controller = new AbortController();

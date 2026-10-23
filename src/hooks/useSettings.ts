@@ -13,6 +13,7 @@ import { outlineDisplay } from "../lib/plugin-system/builtin-outline-display";
 import { sourceSymbolDisplay } from "../lib/plugin-system/builtin-source-symbol-display";
 import { sourceMatchDisplay } from "../lib/plugin-system/builtin-source-match-display";
 import { startBuiltinTreeDisplay } from "../lib/plugin-system/builtin-tree-display";
+import { localFileDisplay } from "../lib/plugin-system/builtin-local-file-display";
 import { startPluginRuntime } from "../lib/plugin-system/runtime";
 import { api } from "../lib/api";
 import type { AppConfig } from "../lib/storage/types";
@@ -41,6 +42,7 @@ export function useSettings() {
     return () => { disposed = true; stop?.(); };
   }, []);
   useEffect(startBuiltinTreeDisplay, []);
+  useEffect(() => localFileDisplay.start(), []);
   useEffect(() => outlineDisplay.start(), []);
   useEffect(() => sourceSymbolDisplay.start(), []);
   useEffect(() => sourceMatchDisplay.start(), []);

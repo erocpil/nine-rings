@@ -15,6 +15,7 @@ import { documentToolEnabled } from "./lib/plugin-system/builtin-tool-preference
 import { workspacePanels } from "./lib/plugin-system/panel-registry";
 import { pluginRuntime } from "./lib/plugin-system/runtime";
 import { imageViewerEnabled } from "./lib/plugin-system/builtin-image-viewer";
+import { localFilesEnabled } from "./lib/plugin-system/builtin-local-files";
 
 import { suspendPluginWork } from "./lib/plugin-system/runtime";
 import { DesktopRecoveryNotice } from "./components/DesktopRecoveryStatus";
@@ -470,7 +471,7 @@ function App() {
   const contributedPanels = useSyncExternalStore(workspacePanels.subscribe, workspacePanels.getSnapshot);
   const [desktopPanel, setDesktopPanel] = useState(() => readDesktopSidebarState().panel);
   useEffect(() => {
-    if (((desktopPanel === "images" && (!pluginRuntime.isEnabled() || !imageViewerEnabled())) || desktopPanel === "vocabulary" || desktopPanel === "files") && !contributedPanels.some(panel => panel.id === desktopPanel)) {
+    if (((desktopPanel === "images" && (!pluginRuntime.isEnabled() || !imageViewerEnabled())) || desktopPanel === "vocabulary" || (desktopPanel === "files" && (!pluginRuntime.isEnabled() || !localFilesEnabled()))) && !contributedPanels.some(panel => panel.id === desktopPanel)) {
       setDesktopPanel("tree");
       setSidebarHidden(true);
     }
