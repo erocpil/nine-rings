@@ -62,7 +62,7 @@ export function startBuiltinLocalFiles() {
               workspacePanels.register(owner.activation, {
                 id: "files",
                 label: "本地文件",
-                icon: "folder",
+                icon: "disk",
                 renderer: "local-files",
               });
               owner.own(() => {

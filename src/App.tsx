@@ -1718,7 +1718,7 @@ function App() {
           {((() => {
             return normalizeSidebarOrder(localStorage.getItem('nr:sidebarOrder')?.split(',') ?? [], contributedPanels.map(panel => panel.id)).map((panel) => [panel,
               sidebarPanelLabel(panel),
-              panel === 'files' ? 'folder' : panel === 'tree' ? 'folder' : panel === 'list' ? 'bullet' : panel === 'notes' ? 'note' : panel === 'vocabulary' ? 'book' : panel === 'images' ? 'image' : 'document'] as const);
+              panel === 'files' ? 'disk' : panel === 'tree' ? 'folder' : panel === 'list' ? 'bullet' : panel === 'notes' ? 'note' : panel === 'vocabulary' ? 'book' : panel === 'images' ? 'image' : 'document'] as const);
           })()).map(([panel, label, icon]) => <button key={panel} type="button" className="btn-icon"
             title={`${label}${sidebarHoverEnabled ? sidebarHover.pinned && !sidebarHidden && desktopPanel === panel ? "（已固定并排，点击收起）" : "（悬停预览，点击固定，方向键进入）" : ""}`} aria-label={label} aria-pressed={!sidebarHidden && desktopPanel === panel}
             data-sidebar-panel={panel} data-pinned={sidebarHoverEnabled && sidebarHover.pinned && !sidebarHidden && desktopPanel === panel || undefined}
@@ -1748,7 +1748,7 @@ function App() {
           <div className="desktop-panel-content" style={mobileDrawerViewport ? { display: desktopPanel === 'notes' || desktopPanel === 'images' || desktopPanel === 'vocabulary' || desktopPanel === 'files' ? 'none' : 'contents' } : undefined} hidden={desktopPanel === 'notes' || desktopPanel === 'images' || desktopPanel === 'vocabulary' || desktopPanel === 'files' || (!mobileDrawerViewport && desktopPanel !== 'tree')}>
           <WorkspacePanelHeading className="sidebar-tabs" title={mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : null}>
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
-            {mobileDrawerViewport && contributedPanels.some(panel => panel.id === "files") && <button type="button" className="btn-icon" aria-label="本地文件" title="本地文件" onClick={() => setDesktopPanel("files")}><ToolbarIcon name="folder" /></button>}
+            {mobileDrawerViewport && contributedPanels.some(panel => panel.id === "files") && <button type="button" className="btn-icon" aria-label="本地文件" title="本地文件" onClick={() => setDesktopPanel("files")}><ToolbarIcon name="disk" /></button>}
             {mobileDrawerViewport && contributedPanels.some(panel => panel.id === "images") && <button type="button" className="btn-icon" aria-label="图片" title="图片" onClick={() => setDesktopPanel("images")}><ToolbarIcon name="image" /></button>}
             {mobileDrawerViewport && contributedPanels.some(panel => panel.id === "vocabulary") && <button type="button" className="btn-icon" aria-label="词汇学习" title="词汇学习" onClick={() => setDesktopPanel("vocabulary")}><ToolbarIcon name="book" /></button>}
             {mobileDrawerViewport && <button type="button" className="btn-icon" aria-label="随记" title="随记（Notes）" onClick={() => setDesktopPanel("notes")}><ToolbarIcon name="note" /></button>}

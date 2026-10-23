@@ -15,7 +15,7 @@ import * as environment from "../../src/lib/runtime";
 const panel = {
   id: "files",
   label: "本地文件",
-  icon: "folder",
+  icon: "disk",
   renderer: "local-files",
 } as const;
 function activate() {

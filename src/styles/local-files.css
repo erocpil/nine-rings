@@ -15,6 +15,8 @@
   padding: 8px;
   border-bottom: 1px solid var(--border);
   min-width: 0;
+  min-height: var(--desktop-header-height, 37px);
+  box-sizing: border-box;
 }
 .local-files-toolbar strong {
   flex: 1;
@@ -101,7 +103,14 @@
 .local-file-editor-shell > .markdown-source-input { flex: 1; min-height: 0; }
 .local-file-workspace.has-local-file-dock .local-file-editor-shell { margin-right: min(var(--local-file-panel-width, 300px), 50%); }
 .local-file-dock { width: min(var(--local-file-panel-width, 300px), 50%); z-index: 5; }
-.local-file-dock .document-outline-header { flex: 0 0 auto; }
+.local-file-dock .document-outline-header {
+  flex: 0 0 var(--desktop-header-height, 37px);
+  height: var(--desktop-header-height, 37px);
+  min-height: var(--desktop-header-height, 37px);
+  box-sizing: border-box;
+  background: transparent;
+  color: var(--text);
+}
 .local-file-dock .document-outline-header-actions button { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 4px; }
 .local-file-panel-list,
 .local-file-dock .document-source-matches-list { flex: 1; min-height: 0; overflow: auto; padding: 4px 4px 4px 0; }

@@ -6,7 +6,7 @@ import {
 } from "./runtime";
 /** Declarative slot, never a plugin-supplied React component or DOM callback. */
 export type WorkspacePanelContribution = { label: string } & (
-  | { id: "files"; icon: "folder"; renderer: "local-files" }
+  | { id: "files"; icon: "disk"; renderer: "local-files" }
   | { id: "images"; icon: "image"; renderer: "image-library" }
   | { id: "vocabulary"; icon: "book"; renderer: "vocabulary-library" }
 );
@@ -44,7 +44,7 @@ export class WorkspacePanelRegistry {
       !(
         (value.id === "files" &&
           value.renderer === "local-files" &&
-          value.icon === "folder") ||
+          value.icon === "disk") ||
         (value.id === "images" &&
           value.renderer === "image-library" &&
           value.icon === "image") ||

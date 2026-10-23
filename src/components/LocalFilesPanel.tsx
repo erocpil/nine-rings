@@ -10,6 +10,41 @@ import { mainViews } from "../lib/plugin-system/main-view-registry";
 import { ToolbarIcon } from "./ToolbarIcon";
 import "../styles/local-files.css";
 
+const NAVIGATION_KEY = "nr:local-files-navigation";
+interface LocalFilesNavigation {
+  expanded: string[];
+  file: { rootId: string; nodeId: string; name: string } | null;
+}
+function readNavigation(): LocalFilesNavigation {
+  try {
+    const value = JSON.parse(localStorage.getItem(NAVIGATION_KEY) ?? "null") as Partial<LocalFilesNavigation> | null;
+    return {
+      expanded: Array.isArray(value?.expanded)
+        ? value.expanded.filter((item): item is string => typeof item === "string" && item.includes(":"))
+        : [],
+      file:
+        value?.file &&
+        [value.file.rootId, value.file.nodeId, value.file.name].every(
+          (item) => typeof item === "string" && item.length > 0,
+        )
+          ? value.file
+          : null,
+    };
+  } catch {
+    return { expanded: [], file: null };
+  }
+}
+function sameLocalFile(
+  view: ReturnType<typeof mainViews.getSnapshot>["current"],
+  file: NonNullable<LocalFilesNavigation["file"]>,
+) {
+  return (
+    view?.renderer === "local-file" &&
+    view.data.rootId === file.rootId &&
+    view.data.nodeId === file.nodeId
+  );
+}
+
 export function LocalFilesPanel({
   active,
   onBack,
@@ -17,12 +52,19 @@ export function LocalFilesPanel({
   active: boolean;
   onBack?: () => void;
 }) {
+  const [restored] = useState(readNavigation);
   const [roots, setRoots] = useState<FileRoot[]>([]);
   const [pages, setPages] = useState<Record<string, FilePage>>({});
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(restored.expanded),
+  );
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
-  const [selected, setSelected] = useState("");
+  const [selectedFile, setSelectedFile] = useState(restored.file);
+  const [selected, setSelected] = useState(
+    restored.file ? `${restored.file.rootId}:${restored.file.nodeId}` : "",
+  );
+  const [rootsReady, setRootsReady] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
   const revision = useRef({ value: 0 });
@@ -31,17 +73,75 @@ export function LocalFilesPanel({
     mounted.current = true;
     void localFileService
       .roots()
-      .then((value) => {
-        if (mounted.current) setRoots(value);
+      .then(async (value) => {
+        if (!mounted.current) return;
+        setRoots(value);
+        const rootIds = new Set(value.map((root) => root.id));
+        const restorable = restored.expanded
+          .filter((key) => rootIds.has(key.slice(0, key.indexOf(":"))))
+          .sort((a, b) => a.split("/").length - b.split("/").length);
+        const available = new Set<string>();
+        for (const key of restorable) {
+          const at = key.indexOf(":"),
+            rootId = key.slice(0, at),
+            node = key.slice(at + 1);
+          try {
+            const page = await localFileService.list(rootId, node, 0);
+            if (!mounted.current || lifetime.value !== 0) return;
+            available.add(key);
+            setPages((current) => ({ ...current, [key]: page }));
+          } catch {
+            // A directory may have moved since the last session; retain the
+            // remaining valid expansion state instead of blocking restoration.
+          }
+          if (!mounted.current || lifetime.value !== 0) return;
+        }
+        setExpanded(available);
+        if (!mounted.current) return;
+        if (restored.file && !rootIds.has(restored.file.rootId)) {
+          setSelectedFile(null);
+          setSelected("");
+        }
+        setRootsReady(true);
       })
       .catch((reason) => {
-        if (mounted.current) setError(String(reason));
+        if (mounted.current) {
+          setError(String(reason));
+          setRootsReady(true);
+        }
       });
     return () => {
       mounted.current = false;
       lifetime.value++;
     };
-  }, []);
+  }, [restored]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        NAVIGATION_KEY,
+        JSON.stringify({ expanded: [...expanded], file: selectedFile }),
+      );
+    } catch {
+      /* Device-local navigation state is optional. */
+    }
+  }, [expanded, selectedFile]);
+  useEffect(() => {
+    if (!active || !rootsReady || !selectedFile) return;
+    if (!roots.some((root) => root.id === selectedFile.rootId)) return;
+    const view = mainViews.getSnapshot();
+    if (
+      sameLocalFile(view.current, selectedFile) ||
+      sameLocalFile(view.pending, selectedFile)
+    )
+      return;
+    try {
+      mainViews
+        .bind(workspacePanels.assert("files"))
+        .open(LOCAL_FILE_VIEW_ID, selectedFile);
+    } catch (reason) {
+      setError(String(reason));
+    }
+  }, [active, roots, rootsReady, selectedFile]);
   const run = async (key: string, action: () => Promise<void>) => {
     const version = revision.current.value;
     setError("");
@@ -128,6 +228,11 @@ export function LocalFilesPanel({
                           nodeId: child.id,
                           name: child.name,
                         });
+                      setSelectedFile({
+                        rootId,
+                        nodeId: child.id,
+                        name: child.name,
+                      });
                       setSelected(childKey);
                     });
                 }}
@@ -278,6 +383,10 @@ export function LocalFilesPanel({
                           ),
                         ),
                     );
+                    if (selectedFile?.rootId === root.id) {
+                      setSelectedFile(null);
+                      setSelected("");
+                    }
                     const view = mainViews.getSnapshot();
                     if (
                       [view.current, view.pending].some(
