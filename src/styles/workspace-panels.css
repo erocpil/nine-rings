@@ -1848,9 +1848,31 @@
   color: var(--text-secondary);
   transition: opacity 100ms ease;
 }
-.doc-tree-folder:is(:hover, :focus-within) .doc-tree-folder-add {
+.doc-tree-folder:focus-within .doc-tree-folder-add {
   opacity: 1;
   pointer-events: auto;
+}
+@media (hover: hover) {
+  .doc-tree-folder:hover .doc-tree-folder-add {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+/* Touch browsers may consume the first tap as hover when it exposes another
+ * interactive control. Keep row controls stable before and after a tap. */
+@media (hover: none), (pointer: coarse) {
+  .doc-tree-folder-add {
+    opacity: 1;
+    pointer-events: auto;
+    width: 28px;
+    height: 28px;
+  }
+  .doc-tree-folder button.doc-tree-toggle {
+    flex-basis: 28px;
+    width: 28px;
+    height: 28px;
+    touch-action: manipulation;
+  }
 }
 
 .doc-tree-doc {
