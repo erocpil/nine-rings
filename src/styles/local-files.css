@@ -116,6 +116,7 @@
   font-size: 11px;
   white-space: nowrap;
 }
+.local-file-readonly-indicator .toolbar-icon { width: 13px; height: 13px; vertical-align: middle; }
 .local-files-tree[data-panel-display="plugin"] .local-file-row {
   min-height: var(--panel-display-row-height);
   font-family: var(--panel-display-font);

@@ -6,6 +6,10 @@ import {
   focusTabIds,
   readFocusTabs,
   saveFocusTabs,
+  localFocusTabIds,
+  readLocalFocusTabs,
+  saveLocalFocusTabs,
+  FOCUS_TABS_CHANGED_EVENT,
   useFocusTabs,
 } from "../lib/focus-tabs";
 import {
@@ -17,7 +21,7 @@ import {
   type WorkspaceDocumentSummary,
 } from "../lib/workspace-summary";
 import type { Note } from "../types/models";
-import { LOCAL_FILE_RECENT_CHANGED_EVENT, localFileIdentity, readRecentLocalFiles, type RecentLocalFile } from "../lib/local-files/recent";
+import { LOCAL_FILE_RECENT_CHANGED_EVENT, LOCAL_FILE_REVEAL_EVENT, localFileIdentity, readRecentLocalFiles, type RecentLocalFile } from "../lib/local-files/recent";
 import { ToolbarIcon } from "./ToolbarIcon";
 
 // Keep a short ambiguity window for pointer clicks so a double-click closes a
@@ -35,6 +39,7 @@ export function FocusDocumentTabs({
   localFilesAvailable,
   activeLocalIdentity,
   onOpenLocal,
+  onRevealLocal,
 }: {
   noteId?: string;
   noteTitle?: string;
@@ -45,19 +50,22 @@ export function FocusDocumentTabs({
   localFilesAvailable: boolean;
   activeLocalIdentity?: string;
   onOpenLocal: (file: RecentLocalFile) => Promise<void>;
+  onRevealLocal?: (file: RecentLocalFile) => Promise<void>;
 }) {
   const prefs = useFocusTabs();
   const [recent, setRecent] = useState(readRecentNoteIds);
   const [recentLocalFiles, setRecentLocalFiles] = useState(readRecentLocalFiles);
+  const [localTabState, setLocalTabState] = useState(readLocalFocusTabs);
   const [documents, setDocuments] = useState<
     (WorkspaceDocumentSummary & { fullPath: string })[]
   >([]);
-  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(
+  const [menu, setMenu] = useState<{ id: string; kind: "document" | "local"; x: number; y: number } | null>(
     null,
   );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [dragOrder, setDragOrder] = useState<string[] | null>(null);
+  const [localDragOrder, setLocalDragOrder] = useState<string[] | null>(null);
   const drag = useRef<{
     id: string;
     x: number;
@@ -106,12 +114,14 @@ export function FocusDocumentTabs({
     };
   }, []);
   useEffect(() => {
-    const update = () => setRecentLocalFiles(readRecentLocalFiles());
+    const update = () => { setRecentLocalFiles(readRecentLocalFiles()); setLocalTabState(readLocalFocusTabs()); };
     window.addEventListener(LOCAL_FILE_RECENT_CHANGED_EVENT, update);
     window.addEventListener("storage", update);
+    window.addEventListener(FOCUS_TABS_CHANGED_EVENT, update);
     return () => {
       window.removeEventListener(LOCAL_FILE_RECENT_CHANGED_EVENT, update);
       window.removeEventListener("storage", update);
+      window.removeEventListener(FOCUS_TABS_CHANGED_EVENT, update);
     };
   }, []);
   useEffect(() => {
@@ -223,12 +233,23 @@ export function FocusDocumentTabs({
       result.splice(Math.max(0, result.length - 1), 1, noteId);
     return result;
   }, [byId, recent, prefs, noteId]);
+  const localById = useMemo(() => new Map(recentLocalFiles.map(file => [localFileIdentity(file), file])), [recentLocalFiles]);
+  const localIds = useMemo(() => localFocusTabIds(recentLocalFiles.map(localFileIdentity), localTabState, prefs.limit), [recentLocalFiles, localTabState, prefs.limit]);
   // Visit ordering is shared; tab ordering is fixed until explicitly dragged.
   useEffect(() => {
     const state = readFocusTabs();
     if (baseIds.length && baseIds.join("|") !== state.order.join("|"))
       saveFocusTabs({ order: baseIds });
   }, [baseIds]);
+  useEffect(() => {
+    if (localIds.length && localIds.join("|") !== localTabState.order.join("|"))
+      saveLocalFocusTabs({ order: localIds });
+  }, [localIds, localTabState.order]);
+  useEffect(() => {
+    if (!activeLocalIdentity) return;
+    if (localTabState.closed.includes(activeLocalIdentity))
+      saveLocalFocusTabs({ closed: localTabState.closed.filter(id => id !== activeLocalIdentity) });
+  }, [activeLocalIdentity, localTabState.closed]);
   const ids = dragOrder ?? baseIds;
   const run = (action: () => Promise<void>) => {
     const next = operation.current.then(async () => {
@@ -281,6 +302,26 @@ export function FocusDocumentTabs({
           ]),
         ],
         order: state.order.filter((id) => !closing.includes(id)),
+      });
+    });
+  };
+  const closeLocal = (closing: string[]) => {
+    cancelClick();
+    setMenu(null);
+    const dismissed = [...new Set([...closing, ...recentLocalFiles.map(localFileIdentity).filter(id => !localIds.includes(id))])];
+    void run(async () => {
+      const current = activeLocalId.current;
+      if (current && closing.includes(current)) {
+        const remaining = localIds.filter(id => !closing.includes(id));
+        const neighborId = remaining[Math.min(localIds.indexOf(current), remaining.length - 1)];
+        const neighbor = neighborId ? localById.get(neighborId) : undefined;
+        if (neighbor) { await onOpenLocal(neighbor); activeLocalId.current = neighborId; }
+        else { await onCloseLast(); activeLocalId.current = undefined; }
+      }
+      const currentState = readLocalFocusTabs();
+      saveLocalFocusTabs({
+        closed: [...new Set([...currentState.closed, ...dismissed])],
+        order: currentState.order.filter(id => !closing.includes(id)),
       });
     });
   };
@@ -425,6 +466,7 @@ export function FocusDocumentTabs({
                 event.preventDefault();
                 setMenu({
                   id,
+                  kind: "document",
                   x: Math.min(event.clientX, window.innerWidth - 200),
                   y: Math.min(event.clientY, window.innerHeight - 260),
                 });
@@ -437,9 +479,9 @@ export function FocusDocumentTabs({
             </button>
           );
         })}
-        {localFilesAvailable && recentLocalFiles.slice(0, prefs.limit).length > 0 && <span className="focus-document-tabs-divider" role="separator" aria-orientation="vertical" />}
-        {localFilesAvailable && recentLocalFiles.slice(0, prefs.limit).map(file => {
-          const identity = localFileIdentity(file);
+        {localFilesAvailable && (localDragOrder ?? localIds).map(identity => {
+          const file = localById.get(identity);
+          if (!file) return null;
           return <button
             key={identity}
             type="button"
@@ -449,13 +491,52 @@ export function FocusDocumentTabs({
             className="focus-document-tab focus-document-tab-local"
             title={`${file.rootName}/${file.nodeId}`}
             data-tauri-drag-region="false"
-            onClick={() => {
-              if (activeLocalId.current === identity) return;
-              void run(async () => {
-                await onOpenLocal(file);
-                activeLocalId.current = identity;
-              });
+            data-tab-id={identity}
+            onMouseDown={event => { if (event.detail >= 2) cancelClick(); }}
+            onPointerDown={event => {
+              if (event.button !== 0) return;
+              drag.current = { id: identity, x: event.clientX, y: event.clientY, moved: false };
+              event.currentTarget.setPointerCapture(event.pointerId);
             }}
+            onPointerMove={event => {
+              const current = drag.current;
+              if (!current) return;
+              if (!current.moved && Math.hypot(event.clientX - current.x, event.clientY - current.y) < 5) return;
+              cancelClick(); current.moved = true; event.preventDefault();
+              const root = strip.current;
+              if (!root) return;
+              const rect = root.getBoundingClientRect();
+              if (event.clientX < rect.left + 24) root.scrollLeft -= 18;
+              else if (event.clientX > rect.right - 24) root.scrollLeft += 18;
+              const target = Array.from(root.querySelectorAll<HTMLElement>(".focus-document-tab-local[data-tab-id]"))
+                .find(element => { const box = element.getBoundingClientRect(); return event.clientX >= box.left && event.clientX <= box.right; })?.dataset.tabId;
+              const order = localDragOrder ?? localIds;
+              if (!target || target === current.id || !order.includes(target)) return;
+              const next = order.filter(candidate => candidate !== current.id);
+              next.splice(order.indexOf(target), 0, current.id);
+              setLocalDragOrder(next);
+            }}
+            onPointerUp={event => {
+              const moved = drag.current?.moved;
+              if (moved && localDragOrder) saveLocalFocusTabs({ order: localDragOrder });
+              drag.current = null; setLocalDragOrder(null);
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+              if (moved) { suppressClick.current = true; requestAnimationFrame(() => { suppressClick.current = false; }); }
+            }}
+            onPointerCancel={() => { drag.current = null; setLocalDragOrder(null); }}
+            onClick={event => {
+              if (suppressClick.current || clickTimer.current !== null && clickOrigin.current?.canceled) return;
+              cancelClick();
+              if (event.detail >= 2) return;
+              if (activeLocalId.current === identity) return;
+              const intent = { id: identity, canceled: false };
+              clickOrigin.current = intent;
+              const activate = () => { clickTimer.current = null; void run(async () => { await onOpenLocal(file); activeLocalId.current = identity; }); };
+              if (event.detail === 0) activate();
+              else clickTimer.current = setTimeout(activate, TAB_DOUBLE_CLICK_GUARD_MS);
+            }}
+            onDoubleClick={() => closeLocal([identity])}
+            onContextMenu={event => { cancelClick(); event.preventDefault(); setMenu({ id: identity, kind: "local", x: Math.min(event.clientX, window.innerWidth - 200), y: Math.min(event.clientY, window.innerHeight - 300) }); }}
           >
             <ToolbarIcon name="disk" />
             <span>{Array.from(file.name).slice(0, 8).join("")}{Array.from(file.name).length > 8 ? "..." : ""}</span>
@@ -475,6 +556,20 @@ export function FocusDocumentTabs({
             ref={menuRef}
             style={{ left: Math.max(0, menu.x), top: Math.max(0, menu.y) }}
           >
+            {menu.kind === "local" ? (() => {
+              const file = localById.get(menu.id);
+              if (!file) return null;
+              const index = localIds.indexOf(menu.id);
+              return <>
+                <button role="menuitem" onClick={() => { setMenu(null); void copyToClipboard(`${file.rootName}/${file.nodeId}`, { reportFailure: true }).catch(reason => setError(String(reason))); }}>复制路径</button>
+                <button role="menuitem" onClick={() => { setMenu(null); if (onRevealLocal) void run(() => onRevealLocal(file)); else window.dispatchEvent(new CustomEvent(LOCAL_FILE_REVEAL_EVENT, { detail: file })); }}>在本地文件树中显示</button>
+                <hr />
+                <button role="menuitem" onClick={() => closeLocal([menu.id])}>关闭此文件</button>
+                <button role="menuitem" disabled={index === localIds.length - 1} onClick={() => closeLocal(localIds.slice(index + 1))}>关闭右侧所有文件</button>
+                <button role="menuitem" disabled={localIds.length < 2} onClick={() => closeLocal(localIds.filter(id => id !== menu.id))}>关闭其它文件</button>
+                <button role="menuitem" onClick={() => closeLocal(localIds)}>关闭所有文件</button>
+              </>;
+            })() : <>
             <button
               role="menuitem"
               onClick={() => {
@@ -523,6 +618,7 @@ export function FocusDocumentTabs({
             <button role="menuitem" onClick={() => close(recent)}>
               关闭所有文件
             </button>
+            </>}
           </div>,
           document.body,
         )}

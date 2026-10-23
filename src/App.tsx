@@ -16,7 +16,7 @@ import { workspacePanels } from "./lib/plugin-system/panel-registry";
 import { pluginRuntime } from "./lib/plugin-system/runtime";
 import { imageViewerEnabled } from "./lib/plugin-system/builtin-image-viewer";
 import { LOCAL_FILE_VIEW_ID, localFilesEnabled } from "./lib/plugin-system/builtin-local-files";
-import { announceLocalFileOpened, localFileIdentity, rememberRecentLocalFile, type RecentLocalFile } from "./lib/local-files/recent";
+import { announceLocalFileOpened, LOCAL_FILE_REVEAL_EVENT, localFileIdentity, rememberRecentLocalFile, type RecentLocalFile } from "./lib/local-files/recent";
 
 import { suspendPluginWork } from "./lib/plugin-system/runtime";
 import { DesktopRecoveryNotice } from "./components/DesktopRecoveryStatus";
@@ -1686,6 +1686,10 @@ function App() {
             localFilesAvailable={contributedPanels.some(panel => panel.id === "files")}
             activeLocalIdentity={pluginMainView?.renderer === "local-file" ? localFileIdentity(pluginMainView.data) : undefined}
             onOpenLocal={openRecentLocalFile}
+            onRevealLocal={async file => {
+              await activateSidebarPanel("files");
+              window.dispatchEvent(new CustomEvent(LOCAL_FILE_REVEAL_EVENT, { detail: file }));
+            }}
             onOpen={async note => { await flushAutoSave(); setQuery(""); setDocResults(null); handleSelectNote(note); }}
             onReveal={async (id, path) => {
               setDocTreeKey(key => key + 1);

@@ -790,7 +790,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::local_files::local_files_choose,
             commands::local_files::local_files_roots,
+            commands::local_files::local_files_display_path,
             commands::local_files::local_files_remove,
+            commands::local_files::local_files_rename,
             commands::local_files::local_files_list,
             commands::local_files::local_files_read,
             commands::local_files::local_files_write,

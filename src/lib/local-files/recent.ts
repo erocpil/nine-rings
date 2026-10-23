@@ -9,6 +9,7 @@ export interface RecentLocalFile {
 const KEY = "nr:local-file-recent";
 export const LOCAL_FILE_RECENT_CHANGED_EVENT = "nr:local-file-recent-changed";
 export const LOCAL_FILE_OPENED_EVENT = "nr:local-file-opened";
+export const LOCAL_FILE_REVEAL_EVENT = "nr:local-file-reveal";
 const LIMIT = 64;
 
 export function localFileIdentity(file: Pick<RecentLocalFile, "rootId" | "nodeId">) {
@@ -41,7 +42,25 @@ export function rememberRecentLocalFile(file: Omit<RecentLocalFile, "openedAt">)
   }
 }
 
-export function announceLocalFileOpened(file: Pick<RecentLocalFile, "rootId" | "nodeId" | "name">) {
+export function renameRecentLocalPath(rootId: string, oldNode: string, newNode: string, rootName?: string) {
+  const prefix = oldNode ? `${oldNode}/` : "";
+  const recent = readRecentLocalFiles().map(item => {
+    if (item.rootId !== rootId) return item;
+    const isTarget = oldNode ? item.nodeId === oldNode || item.nodeId.startsWith(prefix) : true;
+    if (!isTarget) return item;
+    const suffix = oldNode ? item.nodeId.slice(oldNode.length) : item.nodeId ? `/${item.nodeId}` : "";
+    const nodeId = oldNode ? `${newNode}${suffix}` : suffix.replace(/^\//, "");
+    const pathParts = nodeId.split("/");
+    const name = pathParts[pathParts.length - 1] || rootName || item.name;
+    return { ...item, nodeId, name, rootName: rootName ?? item.rootName };
+  });
+  try {
+    localStorage.setItem(KEY, JSON.stringify(recent));
+    window.dispatchEvent(new Event(LOCAL_FILE_RECENT_CHANGED_EVENT));
+  } catch { /* recent path updates are optional */ }
+}
+
+export function announceLocalFileOpened(file: Pick<RecentLocalFile, "rootId" | "nodeId" | "name"> & Partial<Pick<RecentLocalFile, "rootName">>) {
   try {
     window.dispatchEvent(new CustomEvent(LOCAL_FILE_OPENED_EVENT, { detail: file }));
   } catch {

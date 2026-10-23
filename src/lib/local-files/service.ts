@@ -2,6 +2,7 @@ import { clearLocalFileSessions } from "./session";
 import { isTauriRuntime } from "../runtime";
 import { workspacePanels } from "../plugin-system/panel-registry";
 import { pluginRuntime } from "../plugin-system/runtime";
+import { clearLocalFileAccessRules, isLocalFileReadOnly } from "./access";
 
 export interface FileRoot {
   id: string;
@@ -80,6 +81,7 @@ interface FileHandle {
   createWritable?(): Promise<{ write(data: string): Promise<void>; close(): Promise<void>; abort?(): Promise<void> }>;
   queryPermission?(options: { mode: "readwrite" }): Promise<PermissionState>;
   requestPermission?(options: { mode: "readwrite" }): Promise<PermissionState>;
+  move?(name: string): Promise<void>;
 }
 interface DirectoryHandle {
   kind: "directory";
@@ -89,6 +91,7 @@ interface DirectoryHandle {
   getFileHandle(name: string): Promise<FileHandle>;
   queryPermission?(options: { mode: "readwrite" }): Promise<PermissionState>;
   requestPermission?(options: { mode: "readwrite" }): Promise<PermissionState>;
+  move?(name: string): Promise<void>;
 }
 const roots = new Map<
   string,
@@ -118,6 +121,7 @@ export const localFileService = {
       .showDirectoryPicker === "function",
   supportsSaveAs: () => isTauriRuntime() || typeof (window as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker === "function",
   canSaveOriginal: (rootId: string) => isTauriRuntime() || Boolean(roots.get(rootId)?.handle),
+  canRename: (rootId: string) => isTauriRuntime() || Boolean(roots.get(rootId)?.handle),
   async roots(): Promise<FileRoot[]> {
     const check = guard();
     const result = isTauriRuntime()
@@ -125,6 +129,20 @@ export const localFileService = {
       : [...roots.values()].map((entry) => entry.root);
     check();
     return result;
+  },
+  async displayPath(rootId: string, node: string): Promise<string> {
+    const check = guard();
+    const owner = workspacePanels.assert("files");
+    pluginRuntime.assert(owner, "filesystem.files.read");
+    fileSegments(node);
+    if (isTauriRuntime()) {
+      const result = await native<string>("local_files_display_path", { rootId, node });
+      check();
+      return result;
+    }
+    const root = roots.get(rootId)?.root;
+    if (!root) throw new Error("目录授权已失效");
+    return [root.name, node].filter(Boolean).join("/");
   },
   async choose(): Promise<FileRoot | null> {
     const check = guard();
@@ -183,6 +201,66 @@ export const localFileService = {
     generation++;
     roots.delete(rootId);
     clearLocalFileSessions(rootId);
+    clearLocalFileAccessRules(rootId);
+  },
+  async rename(rootId: string, node: string, requestedName: string): Promise<{ root: FileRoot; nodeId: string }> {
+    const check = guard();
+    const owner = workspacePanels.assert("files");
+    pluginRuntime.assert(owner, "filesystem.files.write");
+    const name = requestedName.trim();
+    if (!name || name === "." || name === ".." || /[\\/:\0]/.test(name))
+      throw new Error("名称不能为空，也不能包含路径分隔符");
+    fileSegments(node);
+    if (isTauriRuntime()) {
+      const result = await native<{ root: FileRoot; nodeId: string }>("local_files_rename", { rootId, node, name });
+      check();
+      return result;
+    }
+    const entry = roots.get(rootId);
+    if (!entry) throw new Error("目录授权已失效");
+    const nextNode = node ? `${node.slice(0, node.lastIndexOf("/") + 1)}${name}` : "";
+    if (entry.handle) {
+      let permission = await entry.handle.queryPermission?.({ mode: "readwrite" });
+      if (permission !== "granted") permission = await entry.handle.requestPermission?.({ mode: "readwrite" });
+      check();
+      if (permission !== "granted") throw new Error("浏览器未授予目录写入权限，无法重命名");
+      const parts = fileSegments(node);
+      let parent = entry.handle;
+      for (const part of parts.slice(0, -1)) parent = await parent.getDirectoryHandle(part);
+      let child: DirectoryHandle | FileHandle = entry.handle;
+      if (parts.length) {
+        try { child = await parent.getDirectoryHandle(parts[parts.length - 1]!); }
+        catch { child = await parent.getFileHandle(parts[parts.length - 1]!); }
+      }
+      if (!child.move) throw new Error("当前浏览器不支持在授权目录内重命名");
+      await child.move(name);
+      check();
+      if (!node) {
+        const root = { ...entry.root, name };
+        roots.set(rootId, { ...entry, root });
+        return { root, nodeId: "" };
+      }
+      return { root: entry.root, nodeId: nextNode };
+    }
+    const files = entry.files;
+    if (!files) throw new Error("目录授权不可用");
+    const prefix = node ? `${node}/` : "";
+    const moved = [...files.entries()].filter(([path]) => node ? path === node || path.startsWith(prefix) : true);
+    if (!moved.length) throw new Error("目录或文件已不存在");
+    const replacement = new Map(files);
+    for (const [path] of moved) replacement.delete(path);
+    const oldParts = node.split("/");
+    const oldName = oldParts[oldParts.length - 1] || entry.root.name;
+    const newPrefix = node ? `${node.slice(0, node.length - oldName.length)}${name}` : "";
+    for (const [path, file] of moved) {
+      const target = node ? `${newPrefix}${path.slice(node.length)}` : path;
+      if (replacement.has(target)) throw new Error("同名文件或目录已存在");
+      replacement.set(target, file);
+    }
+    const root = !node ? { ...entry.root, name } : entry.root;
+    roots.set(rootId, { ...entry, root, files: replacement });
+    check();
+    return { root, nodeId: nextNode };
   },
   async list(rootId: string, node = "", offset = 0): Promise<FilePage> {
     const check = guard();
@@ -313,6 +391,7 @@ export const localFileService = {
   async read(rootId: string, node: string): Promise<string> { return (await this.readSnapshot(rootId, node)).source; },
   async write(rootId: string, node: string, source: string, base: LocalFileSnapshot): Promise<LocalFileSnapshot> {
     const check = guard();
+    if (isLocalFileReadOnly(rootId, node)) throw new Error("此本地文件当前为只读，请先切换为可编辑。");
     const owner = workspacePanels.assert("files");
     pluginRuntime.assert(owner, "filesystem.files.write");
     if (new TextEncoder().encode(source).length > MAX_SOURCE_BYTES) throw new Error("文件超过 4 MiB");

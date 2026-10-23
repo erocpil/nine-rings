@@ -79,25 +79,39 @@ export function sourceFoldPreviewPlaceholder(
         ],
       }),
     });
-    // Size to the code, retaining the viewport fractions as upper bounds.
-    // CodeMirror virtualizes lines, so measure the source rather than only DOM rows.
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
-    if (context) context.font = getComputedStyle(preview.contentDOM).font;
     const lines = prepared.text.split("\n");
-    const contentWidth = lines.reduce((width, line) => Math.max(width,
-      context?.measureText(line.replace(/\t/g, " ".repeat(view.state.tabSize))).width ?? 0), 0);
-    bubble.style.width = `${Math.min(maxWidth, Math.max(80, contentWidth + 42))}px`;
-    bubble.style.height = `${Math.min(maxHeight, lines.length * preview.defaultLineHeight + 32)}px`;
+    // Size to the code, retaining the viewport fractions as upper bounds.
+    // A small minimum keeps short blocks readable; CodeMirror may report a
+    // zero line height on its first layout, so measure again after a frame.
+    const fit = () => {
+      if (!bubble || !preview || !bubble.isConnected) return;
+      const style = getComputedStyle(preview.contentDOM);
+      const fontSize = Number.parseFloat(style.fontSize) || 14;
+      const lineHeight = Math.max(
+        preview.defaultLineHeight || 0,
+        Number.parseFloat(style.lineHeight) || 0,
+        fontSize * 1.45,
+      );
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      if (context) context.font = style.font || `${fontSize}px monospace`;
+      const contentWidth = lines.reduce((width, line) => Math.max(width,
+        context?.measureText(line.replace(/\t/g, " ".repeat(view.state.tabSize))).width ?? 0), 0);
+      bubble.style.width = `${Math.min(maxWidth, Math.max(Math.min(maxWidth, 260), contentWidth + 42))}px`;
+      bubble.style.height = `${Math.min(maxHeight, Math.max(Math.min(maxHeight, 120), lines.length * lineHeight + 24))}px`;
+      const anchor = placeholder.getBoundingClientRect();
+      const bounds = bubble.getBoundingClientRect();
+      const below = window.innerHeight - anchor.bottom - 8;
+      const above = anchor.top - 8;
+      bubble.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - bounds.width - 8))}px`;
+      bubble.style.top = `${Math.max(8, below >= bounds.height || below >= above ? Math.min(window.innerHeight - bounds.height - 8, anchor.bottom + 6) : anchor.top - bounds.height - 6)}px`;
+    };
+    fit();
+    requestAnimationFrame(fit);
+    void document.fonts?.ready.then(fit);
     // Keep wheel events inside this independent preview; editor-level handlers
     // must not reinterpret trackpad scrolling as navigation of the main view.
     bubble.addEventListener("wheel", (event) => event.stopPropagation());
-    const anchor = placeholder.getBoundingClientRect();
-    const bounds = bubble.getBoundingClientRect();
-    const below = window.innerHeight - anchor.bottom - 8;
-    const above = anchor.top - 8;
-    bubble.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - bounds.width - 8))}px`;
-    bubble.style.top = `${Math.max(8, below >= bounds.height || below >= above ? Math.min(window.innerHeight - bounds.height - 8, anchor.bottom + 6) : anchor.top - bounds.height - 6)}px`;
     bubble.addEventListener("mouseenter", cancelHide);
     bubble.addEventListener("mouseleave", scheduleHide);
     bubble.addEventListener("keydown", (event) => {

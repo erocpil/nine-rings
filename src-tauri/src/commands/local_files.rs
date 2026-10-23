@@ -206,6 +206,17 @@ pub fn local_files_roots(
         .collect())
 }
 #[tauri::command]
+pub fn local_files_display_path(
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    node: String,
+) -> Result<String, String> {
+    caller(&window)?;
+    let root = library.root(&root_id)?;
+    Ok(checked_path(&root, &node)?.to_string_lossy().into_owned())
+}
+#[tauri::command]
 pub fn local_files_remove(
     app: tauri::AppHandle,
     window: tauri::WebviewWindow,
@@ -219,6 +230,78 @@ pub fn local_files_remove(
         .map_err(|_| "目录状态不可用")?
         .remove(&root_id);
     library.save(&app)
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenameResult {
+    root: Root,
+    node_id: String,
+}
+#[tauri::command]
+pub fn local_files_rename(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    node: String,
+    name: String,
+) -> Result<RenameResult, String> {
+    caller(&window)?;
+    if name.trim().is_empty()
+        || name.trim() != name
+        || name == "."
+        || name == ".."
+        || name.contains(['/', '\\', ':', '\0'])
+    {
+        return Err("名称不能为空，也不能包含路径分隔符".into());
+    }
+    let root = library.root(&root_id)?;
+    let source = checked_path(&root, &node)?;
+    let parent = source.parent().ok_or("不能重命名文件系统根目录")?;
+    let target = parent.join(&name);
+    if target.exists() {
+        return Err("同名文件或目录已存在".into());
+    }
+    fs::rename(&source, &target).map_err(|error| error.to_string())?;
+    let updated_root = if node.is_empty() {
+        target.clone()
+    } else {
+        root.clone()
+    };
+    library
+        .roots
+        .lock()
+        .map_err(|_| "目录状态不可用")?
+        .insert(root_id.clone(), updated_root.clone());
+    if let Err(error) = library.save(&app) {
+        if fs::rename(&target, &source).is_ok() {
+            library
+                .roots
+                .lock()
+                .map_err(|_| "目录状态不可用")?
+                .insert(root_id.clone(), root.clone());
+        }
+        return Err(error);
+    }
+    Ok(RenameResult {
+        root: Root {
+            id: root_id,
+            name: updated_root
+                .file_name()
+                .unwrap_or(updated_root.as_os_str())
+                .to_string_lossy()
+                .into_owned(),
+        },
+        node_id: if node.is_empty() {
+            String::new()
+        } else {
+            let parent = node.rsplit_once('/').map(|(parent, _)| parent);
+            match parent {
+                Some(parent) => format!("{parent}/{name}"),
+                None => name,
+            }
+        },
+    })
 }
 fn list(root: &Path, node: &str, offset: usize) -> Result<Page, String> {
     let path = checked_path(root, node)?;

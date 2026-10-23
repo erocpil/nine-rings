@@ -28,6 +28,7 @@ import { sourceMicroHighlighting, sourceMicroSyntax } from "../lib/source-micro-
 import { sourceWhitespaceMarkers } from "../lib/source-whitespace-markers";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { SourceWhitespaceToggle } from "./SourceWhitespaceToggle";
+import { SourceEditorContextMenu, type SourceContextTarget } from "./SourceEditorContextMenu";
 import { readonlySourceSelection } from "../lib/readonly-source-selection";
 import { setSourceWordEnabled, sourceWordOccurrences } from "../lib/source-word-occurrences";
 import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
@@ -245,6 +246,7 @@ export function MarkdownSourceEditor({
   documentLanguageOptions,
   onDocumentLanguageChange,
   onEditorConfigChange,
+  contextMenuEnabled = false,
 }: {
   value: string;
   readonly: boolean;
@@ -269,6 +271,7 @@ export function MarkdownSourceEditor({
   documentLanguageOptions?: ReadonlyArray<{ value: string; label: string }>;
   onDocumentLanguageChange?: (language: string) => void;
   onEditorConfigChange?: (patch: Partial<AppConfig>) => Promise<void>;
+  contextMenuEnabled?: boolean;
 }) {
   const numberingState = useNumberingDisplay();
   const numbering = numberingState.source;
@@ -310,6 +313,8 @@ export function MarkdownSourceEditor({
   }, [sourceMessage]);
   const [foldMenu, setFoldMenu] = useState<{ trigger: HTMLElement; collapse: boolean } | null>(null);
   const [gutterMenu, setGutterMenu] = useState<HTMLElement | null>(null);
+  const [sourceContextMenu, setSourceContextMenu] = useState<SourceContextTarget | null>(null);
+  useEffect(() => { setSourceContextMenu(null); }, [contextMenuEnabled, editingReadonly]);
   useEffect(() => { if (!documentActive || !statusBar.visible) setGutterMenu(null); }, [documentActive, statusBar.visible]);
   const [tools, setTools] = useState({ search: false, goto: false, undo: false, redo: false, folded: false, selection: false });
   const [formats, setFormats] = useState(emptySourceFormats);
@@ -885,9 +890,35 @@ export function MarkdownSourceEditor({
       data-micro-rendering={markupMode && preferences.sourceMicroRendering === true}
       data-source-highlighting={preferences.sourceSyntaxHighlighting !== false}
       style={{ fontSize, "--source-font-size": `${fontSize}px` } as CSSProperties}
+      onPointerDownCapture={event => {
+        if (!contextMenuEnabled || event.button !== 2 || !(event.target instanceof Element) || !event.target.closest(".cm-content")) return;
+        event.preventDefault(); event.stopPropagation();
+      }}
+      onMouseDownCapture={event => {
+        if (!contextMenuEnabled || event.button !== 2 || !(event.target instanceof Element) || !event.target.closest(".cm-content")) return;
+        event.preventDefault(); event.stopPropagation();
+      }}
+      onContextMenuCapture={event => {
+        if (!contextMenuEnabled || !view.current || !(event.target instanceof Element) || !event.target.closest(".cm-editor")) return;
+        event.preventDefault(); event.stopPropagation();
+        const currentView = view.current;
+        const position = currentView.posAtCoords({ x: event.clientX, y: event.clientY });
+        const current = currentView.state.selection.main;
+        const nativeSelection = currentView.state.readOnly ? document.getSelection() : null;
+        const hasNativeRange = Boolean(nativeSelection && !nativeSelection.isCollapsed && nativeSelection.anchorNode && nativeSelection.focusNode && currentView.contentDOM.contains(nativeSelection.anchorNode) && currentView.contentDOM.contains(nativeSelection.focusNode));
+        if (hasNativeRange && nativeSelection?.anchorNode && nativeSelection.focusNode) {
+          const anchor = currentView.posAtDOM(nativeSelection.anchorNode, nativeSelection.anchorOffset);
+          const head = currentView.posAtDOM(nativeSelection.focusNode, nativeSelection.focusOffset);
+          if (anchor !== current.anchor || head !== current.head) currentView.dispatch({ selection: { anchor, head } });
+        } else if (position !== null && (current.empty || position < current.from || position > current.to)) {
+          currentView.dispatch({ selection: { anchor: position } });
+        }
+        setSourceContextMenu({ x: event.clientX, y: event.clientY, view: currentView, readonly: currentView.state.readOnly, trigger: currentView.contentDOM });
+      }}
     >
       {toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbar}
       <div ref={host} className="markdown-cm-host" />
+      {sourceContextMenu && <SourceEditorContextMenu target={sourceContextMenu} close={() => setSourceContextMenu(null)} />}
       {sourceMessage && <div className="source-indent-toast" role="status" aria-live="polite">
         <span>{sourceMessage}</span>
         {sourceMessageAction?.message === sourceMessage && <button type="button" className="source-message-action" onMouseDown={event => event.preventDefault()} onClick={sourceMessageAction.run}>{sourceMessageAction.label}</button>}

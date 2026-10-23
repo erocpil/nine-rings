@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import type { EditorState } from "@codemirror/state";
 import { localFileService, resolveRelativeNode, type LocalFileSnapshot } from "../lib/local-files/service";
 import { readLocalDraft, removeLocalDraft, writeLocalDraft } from "../lib/local-files/recovery";
-import { localFileSessions, localFileSessionEpoch } from "../lib/local-files/session";
+import { localFileSessions, localFileSessionEpoch, setLocalFileDirty } from "../lib/local-files/session";
 import { readLocalFilePosition, saveLocalFilePosition } from "../lib/local-files/position";
+import { isLocalFileReadOnly, LOCAL_FILE_ACCESS_CHANGED_EVENT, setLocalFileReadOnly } from "../lib/local-files/access";
 import type { LocalFileViewData } from "../lib/plugin-system/main-view-registry";
 import { AUTO_DOCUMENT_LANGUAGE, documentLanguageFromFilename, documentLanguageViewOptions, saveSourceViewLanguageOverride, sourceViewLanguageOverride } from "../lib/document-language";
 import { extractSourceSymbols } from "../lib/source-symbol-provider";
@@ -25,6 +26,8 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { LOCAL_FILE_VIEW_ID } from "../lib/plugin-system/builtin-local-files";
 import { mainViews } from "../lib/plugin-system/main-view-registry";
 import { workspacePanels } from "../lib/plugin-system/panel-registry";
+import { copyToClipboard } from "../lib/clipboard";
+import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
 import "../styles/local-files.css";
 
 type LocalPanel = "symbols" | "bookmarks" | "matches";
@@ -61,11 +64,26 @@ function loadSymbolFolds(identity: string) {
   } catch { return new Set<string>(); }
 }
 
-function LocalMarkdownPreview({ doc, onClick }: { doc: ProseMirrorNode; onClick: (event: MouseEvent<HTMLDivElement>) => void }) {
+function LocalMarkdownPreview({ doc, source, onClick }: { doc: ProseMirrorNode; source: string; onClick: (event: MouseEvent<HTMLDivElement>) => void }) {
   const [states, setStates] = useState(new Map<number, ReadingBlockState>());
+  const [menu, setMenu] = useState<(NotesMenuTarget & { selectedText: string }) | null>(null);
+  const content = useRef<HTMLDivElement>(null);
   const blocks: Array<{ node: ProseMirrorNode; pos: number }> = [];
   doc.forEach((node, pos) => blocks.push({ node, pos }));
-  return <div className="editor-content local-file-preview" onClick={onClick}><div className="ProseMirror">{blocks.map(({ node, pos }) => <div className="ProseMirror vr-block" key={pos}>{renderReadonlyBlock(node, pos, states, (position, value) => setStates(previous => new Map(previous).set(position, { ...previous.get(position), ...value })), undefined, true)}</div>)}</div></div>;
+  return <div ref={content} className="editor-content local-file-preview" onClick={onClick} onContextMenu={event => {
+    const selection = document.getSelection();
+    const selectedText = selection && !selection.isCollapsed && selection.anchorNode && event.currentTarget.contains(selection.anchorNode) ? selection.toString() : "";
+    event.preventDefault();
+    setMenu({ id: "local-markdown-preview", title: "本地 Markdown 预览", x: event.clientX, y: event.clientY, trigger: event.currentTarget, selectedText });
+  }}><div className="ProseMirror">{blocks.map(({ node, pos }) => <div className="ProseMirror vr-block" key={pos}>{renderReadonlyBlock(node, pos, states, (position, value) => setStates(previous => new Map(previous).set(position, { ...previous.get(position), ...value })), undefined, true)}</div>)}</div>
+    <div className="editor-menu local-preview-selection-commands" aria-hidden="true" hidden><button type="button" data-context-visible="true" aria-label="复制选中文本" title="复制选中文本" onClick={() => { const text = document.getSelection()?.toString(); if (text) void copyToClipboard(text, { reportFailure: true }); }}>复制</button></div>
+    {menu && <NotesContextMenu target={menu} close={() => setMenu(null)} actions={menu.selectedText
+      ? [{ label: "复制选中文本", run: () => { void copyToClipboard(menu.selectedText, { reportFailure: true }); } }]
+      : [
+        { label: "复制 Markdown 原文", run: () => { void copyToClipboard(source, { reportFailure: true }); } },
+        { label: "选择全部文本", run: () => { const range = document.createRange(); if (content.current) range.selectNodeContents(content.current); const selection = document.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); } },
+      ]} />}
+  </div>;
 }
 
 export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange }: {
@@ -89,7 +107,8 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const [source, setSource] = useState("");
   const [baseSnapshot, setBaseSnapshot] = useState<LocalFileSnapshot | null>(null);
   const [externalSnapshot, setExternalSnapshot] = useState<LocalFileSnapshot | null>(null);
-  const [editing, setEditing] = useState(true);
+  const [readOnly, setReadOnly] = useState(() => isLocalFileReadOnly(data.rootId, data.nodeId));
+  const editing = !readOnly;
   const [preview, setPreview] = useState(false);
   const [saveState, setSaveState] = useState<"clean" | "dirty" | "saving" | "saved" | "error">("clean");
   const [recoveryNotice, setRecoveryNotice] = useState("");
@@ -116,6 +135,27 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const [languageOverride, setLanguageOverride] = useState<string | null>(() => sourceViewLanguageOverride(languageOverrideIdentity));
   const language = languageOverride ?? detectedLanguage;
   latestDraft.current = { source, base: baseSnapshot };
+  useEffect(() => {
+    setLocalFileDirty(identity, saveState === "dirty" || saveState === "saving");
+    return () => setLocalFileDirty(identity, false);
+  }, [identity, saveState]);
+
+  useEffect(() => {
+    const sync = (event: Event) => {
+      const changed = (event as CustomEvent<{ rootId?: string; nodeId?: string }>).detail;
+      if (changed?.rootId !== data.rootId) return;
+      const changedNode = changed.nodeId ?? "";
+      const prefix = changedNode ? `${changedNode}/` : "";
+      if (data.nodeId === changedNode || data.nodeId.startsWith(prefix) || changedNode.startsWith(`${data.nodeId}/`)) {
+        const next = isLocalFileReadOnly(data.rootId, data.nodeId);
+        setReadOnly(next);
+        if (next && sourceRef.current !== baseSnapshot?.source)
+          setRecoveryNotice("此路径已设为只读；未保存的编辑仍保留在本机草稿中。取消只读后可继续保存。");
+      }
+    };
+    window.addEventListener(LOCAL_FILE_ACCESS_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(LOCAL_FILE_ACCESS_CHANGED_EVENT, sync);
+  }, [baseSnapshot?.source, data.nodeId, data.rootId]);
 
   useEffect(() => {
     setBookmarks(loadBookmarks(identity));
@@ -264,6 +304,10 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     handle.setSelectionRange(at, at); handle.scrollToOffset(at, true); setActiveOffset(at); handle.focus();
   };
   const save = useCallback(async (overwriteExternal = false) => {
+    if (isLocalFileReadOnly(data.rootId, data.nodeId)) {
+      setError("此本地文件当前为只读。请先在文件树右键菜单中切换为可编辑。");
+      return;
+    }
     if (!editing && !overwriteExternal) return;
     const base = overwriteExternal && externalSnapshot ? externalSnapshot : baseSnapshot;
     if (!base) return;
@@ -449,7 +493,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
 
   return <section className="local-file-view" aria-label="本地文件工作区">
     <header className="local-files-toolbar local-file-titlebar"><strong title={data.nodeId}>{data.name}</strong><span>{saveState === "saving" ? "正在保存…" : saveState === "dirty" ? "未保存" : saveState === "saved" ? "已保存" : "本地文件 · 不参与备份"}</span>
-      <button type="button" className="btn-icon" title={editing ? "切换为只读" : "开始编辑"} aria-label={editing ? "切换为只读" : "开始编辑"} aria-pressed={editing} onClick={() => setEditing(value => !value)}><ToolbarIcon name={editing ? "edit" : "lock"} /></button>
+      <button type="button" className="btn-icon" title={editing ? "设为只读" : "允许编辑"} aria-label={editing ? "设为只读" : "允许编辑"} aria-pressed={readOnly} onClick={() => setLocalFileReadOnly(data.rootId, data.nodeId, !readOnly)}><ToolbarIcon name={editing ? "edit" : "lock"} /></button>
       {editing && <button type="button" className="btn-icon" title={localFileService.canSaveOriginal(data.rootId) ? "保存到原文件（⌘S / Ctrl+S）" : "目录快照不能覆盖原文件，请另存为"} aria-label="保存文件" disabled={!baseSnapshot || !localFileService.canSaveOriginal(data.rootId) || saveState === "saving" || source === baseSnapshot.source} onClick={() => void save()}><ToolbarIcon name="save" /></button>}
       <button type="button" className="btn-icon" title="另存为副本" aria-label="另存为副本" onClick={saveCopy}><ToolbarIcon name="download" /></button>
       {(isMarkdown || isMermaid || isFlow) && <button type="button" className="btn-icon" title={preview ? "显示源码" : "预览"} aria-label={preview ? "显示源码" : "预览"} aria-pressed={preview} onClick={() => setPreview(value => !value)}><ToolbarIcon name={preview ? "code" : "eye"} /></button>}
@@ -465,7 +509,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       <div><button type="button" onClick={() => { setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
     </section>}
     {!loading && !error && <div className={`local-file-workspace${activePanel ? " has-local-file-dock" : ""}`} style={{ "--local-file-panel-width": `${panelWidth}px` } as CSSProperties}>
-      <div className="local-file-editor-shell">{preview ? isMarkdown && markdownDoc ? <LocalMarkdownPreview doc={markdownDoc} onClick={openRelative} /> : <div className="editor-content local-file-preview">{previewError && <p role="status" className="local-files-message">{previewError}</p>}{isMermaid ? <DeferredMermaidDiagram source={source} /> : isFlow ? <FlowBlockContent source={source} /> : <pre>{source}</pre>}</div> : <MarkdownSourceEditor value={source} readonly={!editing} areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={next => { sourceRef.current = next; setSource(next); }} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus={saveState} documentLanguage={language} documentLanguageValue={languageOverride ?? AUTO_DOCUMENT_LANGUAGE} documentLanguageOptions={documentLanguageViewOptions(detectedLanguage)} onDocumentLanguageChange={next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); }} onEditorConfigChange={onEditorConfigChange} />}</div>{panel}
+      <div className="local-file-editor-shell">{preview ? isMarkdown && markdownDoc ? <LocalMarkdownPreview doc={markdownDoc} source={source} onClick={openRelative} /> : <div className="editor-content local-file-preview">{previewError && <p role="status" className="local-files-message">{previewError}</p>}{isMermaid ? <DeferredMermaidDiagram source={source} /> : isFlow ? <FlowBlockContent source={source} /> : <pre>{source}</pre>}</div> : <MarkdownSourceEditor value={source} readonly={!editing} contextMenuEnabled areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={next => { sourceRef.current = next; setSource(next); }} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus={saveState} documentLanguage={language} documentLanguageValue={languageOverride ?? AUTO_DOCUMENT_LANGUAGE} documentLanguageOptions={documentLanguageViewOptions(detectedLanguage)} onDocumentLanguageChange={next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); }} onEditorConfigChange={onEditorConfigChange} />}</div>{panel}
     </div>}
   </section>;
 }

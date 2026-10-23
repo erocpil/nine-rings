@@ -77,7 +77,7 @@ export function SelectionHoverToolbar() {
           : range?.commonAncestorContainer.parentElement;
       const editor = owner?.closest(".ProseMirror, .cm-content");
       const toolbar = editor
-        ?.closest(".note-editor, .markdown-document-view")
+        ?.closest(".note-editor, .markdown-document-view, .local-file-view")
         ?.querySelector<HTMLElement>(
           editor.classList.contains("cm-content")
             ? ".markdown-source-tools"
