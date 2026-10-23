@@ -1,0 +1,332 @@
+//! Read-only directory grants. Deliberately independent of image grants and document storage.
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashMap,
+    fs,
+    io::Read,
+    path::{Component, Path, PathBuf},
+    sync::Mutex,
+};
+use tauri::{Manager, State};
+use tauri_plugin_dialog::DialogExt;
+const MAX_BYTES: u64 = 4 * 1024 * 1024;
+#[derive(Default)]
+pub struct LocalFiles {
+    roots: Mutex<HashMap<String, PathBuf>>,
+}
+#[derive(Serialize, Deserialize)]
+struct Grant {
+    id: String,
+    path: PathBuf,
+}
+#[derive(Serialize)]
+pub struct Root {
+    id: String,
+    name: String,
+}
+#[derive(Serialize)]
+pub struct Node {
+    id: String,
+    name: String,
+    directory: bool,
+    size: u64,
+}
+#[derive(Serialize)]
+pub struct Page {
+    nodes: Vec<Node>,
+    next: Option<usize>,
+}
+fn caller(window: &tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("文件目录仅允许主窗口访问".into());
+    }
+    Ok(())
+}
+fn is_link(meta: &fs::Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        meta.file_attributes() & 0x400 != 0
+    }
+    #[cfg(not(windows))]
+    {
+        meta.file_type().is_symlink()
+    }
+}
+fn checked_path(root: &Path, node: &str) -> Result<PathBuf, String> {
+    if !root.is_dir()
+        || is_link(&fs::symlink_metadata(root).map_err(|e| e.to_string())?)
+        || fs::canonicalize(root).map_err(|e| e.to_string())? != root
+    {
+        return Err("授权目录已变化，请重新选择".into());
+    }
+    if node.contains(['\\', ':', '\0'])
+        || (!node.is_empty()
+            && node
+                .split('/')
+                .any(|part| part.is_empty() || part == "." || part == ".."))
+    {
+        return Err("无效的文件节点".into());
+    }
+    let mut path = root.to_path_buf();
+    for part in Path::new(node).components() {
+        if !matches!(part, Component::Normal(_)) {
+            return Err("无效的文件节点".into());
+        }
+        path.push(part);
+        if is_link(&fs::symlink_metadata(&path).map_err(|e| e.to_string())?) {
+            return Err("不读取符号链接".into());
+        }
+    }
+    let resolved = fs::canonicalize(path).map_err(|e| e.to_string())?;
+    if !resolved.starts_with(root) {
+        return Err("文件超出授权目录".into());
+    }
+    Ok(resolved)
+}
+impl LocalFiles {
+    pub fn load(dir: &Path) -> Self {
+        let grants: Vec<Grant> = fs::read(dir.join("local-file-roots.json"))
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
+        Self {
+            roots: Mutex::new(grants.into_iter().map(|g| (g.id, g.path)).collect()),
+        }
+    }
+    fn root(&self, id: &str) -> Result<PathBuf, String> {
+        self.roots
+            .lock()
+            .map_err(|_| "目录状态不可用")?
+            .get(id)
+            .cloned()
+            .ok_or("目录授权已撤销".into())
+    }
+    fn save(&self, app: &tauri::AppHandle) -> Result<(), String> {
+        let data: Vec<Grant> = self
+            .roots
+            .lock()
+            .map_err(|_| "目录状态不可用")?
+            .iter()
+            .map(|(id, path)| Grant {
+                id: id.clone(),
+                path: path.clone(),
+            })
+            .collect();
+        fs::write(
+            app.state::<crate::DataDir>()
+                .0
+                .join("local-file-roots.json"),
+            serde_json::to_vec(&data).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())
+    }
+}
+#[tauri::command]
+pub async fn local_files_choose(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+) -> Result<Option<Root>, String> {
+    caller(&window)?;
+    let picker = app.clone();
+    let chosen =
+        tauri::async_runtime::spawn_blocking(move || picker.dialog().file().blocking_pick_folder())
+            .await
+            .map_err(|e| e.to_string())?;
+    let Some(chosen) = chosen else {
+        return Ok(None);
+    };
+    let path = fs::canonicalize(chosen.into_path().map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    if !path.is_dir() {
+        return Err("请选择目录".into());
+    }
+    let library = app.state::<LocalFiles>();
+    let id = uuid::Uuid::new_v4().to_string();
+    library
+        .roots
+        .lock()
+        .map_err(|_| "目录状态不可用")?
+        .insert(id.clone(), path.clone());
+    if let Err(error) = library.save(&app) {
+        library
+            .roots
+            .lock()
+            .map_err(|_| "目录状态不可用")?
+            .remove(&id);
+        return Err(error);
+    }
+    Ok(Some(Root {
+        id,
+        name: path
+            .file_name()
+            .unwrap_or(path.as_os_str())
+            .to_string_lossy()
+            .into_owned(),
+    }))
+}
+#[tauri::command]
+pub fn local_files_roots(
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+) -> Result<Vec<Root>, String> {
+    caller(&window)?;
+    Ok(library
+        .roots
+        .lock()
+        .map_err(|_| "目录状态不可用")?
+        .iter()
+        .map(|(id, path)| Root {
+            id: id.clone(),
+            name: path
+                .file_name()
+                .unwrap_or(path.as_os_str())
+                .to_string_lossy()
+                .into_owned(),
+        })
+        .collect())
+}
+#[tauri::command]
+pub fn local_files_remove(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+) -> Result<(), String> {
+    caller(&window)?;
+    library
+        .roots
+        .lock()
+        .map_err(|_| "目录状态不可用")?
+        .remove(&root_id);
+    library.save(&app)
+}
+fn list(root: &Path, node: &str, offset: usize) -> Result<Page, String> {
+    let path = checked_path(root, node)?;
+    let mut nodes = Vec::new();
+    for (count, item) in fs::read_dir(path).map_err(|e| e.to_string())?.enumerate() {
+        if count >= 10000 {
+            return Err("单目录超过 10000 项，请选择更具体的目录".into());
+        }
+        let item = item.map_err(|e| e.to_string())?;
+        let meta = fs::symlink_metadata(item.path()).map_err(|e| e.to_string())?;
+        if is_link(&meta) || (!meta.is_dir() && !meta.is_file()) {
+            continue;
+        }
+        let Ok(name) = item.file_name().into_string() else {
+            continue;
+        };
+        if name.contains(['\\', ':', '\0']) {
+            continue;
+        }
+        nodes.push(Node {
+            id: if node.is_empty() {
+                name.clone()
+            } else {
+                format!("{node}/{name}")
+            },
+            name,
+            directory: meta.is_dir(),
+            size: meta.len(),
+        });
+    }
+    nodes.sort_by(|a, b| {
+        b.directory
+            .cmp(&a.directory)
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    let next = if offset.saturating_add(200) < nodes.len() {
+        Some(offset + 200)
+    } else {
+        None
+    };
+    Ok(Page {
+        nodes: nodes.into_iter().skip(offset).take(200).collect(),
+        next,
+    })
+}
+#[tauri::command]
+pub async fn local_files_list(
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    node: String,
+    offset: usize,
+) -> Result<Page, String> {
+    caller(&window)?;
+    let root = library.root(&root_id)?;
+    let page = tauri::async_runtime::spawn_blocking(move || list(&root, &node, offset))
+        .await
+        .map_err(|e| e.to_string())??;
+    library.root(&root_id)?;
+    Ok(page)
+}
+fn read(root: &Path, node: &str) -> Result<Vec<u8>, String> {
+    if node.is_empty() {
+        return Err("请选择文件".into());
+    }
+    let path = checked_path(root, node)?;
+    let file = fs::File::open(path).map_err(|e| e.to_string())?;
+    let meta = file.metadata().map_err(|e| e.to_string())?;
+    if !meta.is_file() || meta.len() > MAX_BYTES {
+        return Err("只读源码入口最多打开 4 MiB 普通文件".into());
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() as u64 > MAX_BYTES {
+        return Err("文件超过 4 MiB".into());
+    }
+    let text = std::str::from_utf8(&bytes).map_err(|_| "仅支持 UTF-8 文本文件")?;
+    if text
+        .chars()
+        .any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t' | '\x0b' | '\x0c'))
+    {
+        return Err("这是二进制或不支持的文本文件".into());
+    }
+    Ok(bytes)
+}
+#[tauri::command]
+pub async fn local_files_read(
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    node: String,
+) -> Result<tauri::ipc::Response, String> {
+    caller(&window)?;
+    let root = library.root(&root_id)?;
+    let bytes = tauri::async_runtime::spawn_blocking(move || read(&root, &node))
+        .await
+        .map_err(|e| e.to_string())??;
+    library.root(&root_id)?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn scope_paging_and_text_limits() {
+        let dir = std::env::temp_dir().join(format!("nr-files-{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&dir).unwrap();
+        let dir = fs::canonicalize(dir).unwrap();
+        fs::write(dir.join("sample.c"), "int main() {}\r\n").unwrap();
+        fs::write(dir.join("binary"), [0u8, 1]).unwrap();
+        for i in 0..205 {
+            fs::write(dir.join(format!("item{i}")), "").unwrap();
+        }
+        assert_eq!(list(&dir, "", 0).unwrap().nodes.len(), 200);
+        assert_eq!(list(&dir, "", 0).unwrap().next, Some(200));
+        assert_eq!(read(&dir, "sample.c").unwrap(), b"int main() {}\r\n");
+        assert!(read(&dir, "binary").is_err());
+        assert!(checked_path(&dir, "../secret").is_err());
+        assert!(checked_path(&dir, "/etc/passwd").is_err());
+        assert!(checked_path(&dir, "a\\b").is_err());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(dir.join("sample.c"), dir.join("link")).unwrap();
+            assert!(read(&dir, "link").is_err());
+        }
+        fs::remove_dir_all(dir).unwrap();
+    }
+}

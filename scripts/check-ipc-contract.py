@@ -98,6 +98,13 @@ def main():
         for match in re.finditer(r'native(?:<[^;]*?>)?\("(image_library_[^"]+)"', image_source)
     ]
 
+    with open(os.path.join(PROJECT_ROOT, "src", "lib", "local-files", "service.ts")) as source:
+        file_source = source.read()
+    image_invokes += [
+        (match.group(1), file_source[:match.start()].count("\n") + 1, match.group(0))
+        for match in re.finditer(r'native(?:<[^;]*?>)?\("(local_files_[^"]+)"', file_source)
+    ]
+
     # 4.2 提取后端注册列表
     registered = extract_registered_commands(LIB_RS)
 
@@ -126,7 +133,7 @@ def main():
     for cmd, line, raw in image_invokes:
         if cmd not in registered:
             unregistered.append((cmd, line, "directory-service.ts", raw))
-    print(f"图片目录调用: {len(image_invokes)}")
+    print(f"目录服务调用（图片/本地文件）: {len(image_invokes)}")
 
     print(f"搜索重建 invoke 调用: {len(native_search_invokes)}")
     print(f"\n前端 invoke 调用: {len(tauri_invokes)} (tauri.ts) + {len(driver_invokes)} (tauri-driver.ts)")

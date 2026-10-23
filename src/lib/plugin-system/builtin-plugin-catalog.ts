@@ -12,6 +12,7 @@ import { BLOCK_MENU_PLUGIN_ID } from "./builtin-block-menu";
 
 /** Installed trusted modules, independent of whether an invocation is currently active. */
 export const BUILTIN_PLUGIN_CATALOG = Object.freeze([
+  Object.freeze({ id: "nine-rings.builtin-local-files", name: "本地文件", type: "分栏 · 只读源码", description: "按需浏览授权的本机目录，在中央区域只读查看源码，不导入文档、不上传备份。", configuration: "local-files" as const }),
   Object.freeze({ id: BLOCK_MENU_PLUGIN_ID, name: "块菜单展示", type: "编辑区展示", description: "通过受限配置调整块菜单分组、可见操作、标题、字体、字号、字重和主题配色；编辑命令仍由宿主校验与执行。", configuration: "block-menu" as const }),
   Object.freeze({ id: STATUS_PLUGIN_ID, name: "状态栏展示", type: "编辑区展示", description: "定制渲染与源码状态栏的字体、配色、间距、信息项及顺序，保留宿主保存与位置导航。", configuration: "status" as const }),
   Object.freeze({ id: NUMBERING_PLUGIN_ID, name: "编号展示", type: "编辑区展示", description: "分别定制渲染块号和源码行号的字体、颜色、当前项及折叠符号，停用后恢复内置设置。", configuration: "numbering" as const }),

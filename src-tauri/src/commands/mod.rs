@@ -14,3 +14,5 @@ pub mod system_info;
 pub mod image_library;
 
 pub mod native_menu;
+
+pub mod local_files;

@@ -1,12 +1,12 @@
 # 插件主区域视图贡献
 
-状态：2026-10-14，可信内置图片查看与词汇学习插件已接入。当前是内部 TypeScript 宿主能力，未开放第三方安装、任意 HTML/React renderer 或公开 SDK JSON 方法。
+状态：2026-10-23，可信内置图片查看、词汇学习与本地文件只读插件已接入。当前是内部 TypeScript 宿主能力，未开放第三方安装、任意 HTML/React renderer 或公开 SDK JSON 方法。
 
 ## 职责边界
 
 插件声明名称、视图 ID、宿主支持的 renderer 和数据，调用绑定到当前激活的视图接口。宿主管理中央区域、保存门禁、前后视图切换、编辑器保留、焦点、手机抽屉和资源释放。展示权限 `views.present` 不包含文档写入权限；目录图片另需 `filesystem.images.read`。
 
-`MainViewRegistry` 是独立于左侧 `WorkspacePanelRegistry` 的贡献点。当前 renderer 为 `image` 与 `vocabulary`，贡献 ID 由宿主注册且全局唯一。以后文档统计、搜索结果、对比和图片处理结果可增加明确的数据 schema 与受认可 renderer，不需要插件选择 DOM 容器或复制导航机制。
+`MainViewRegistry` 是独立于左侧 `WorkspacePanelRegistry` 的贡献点。当前 renderer 为 `image`、`vocabulary` 与 `local-file`，贡献 ID 由宿主注册且全局唯一。以后文档统计、搜索结果、对比和图片处理结果可增加明确的数据 schema 与受认可 renderer，不需要插件选择 DOM 容器或复制导航机制。
 
 可信模块绑定示例：
 
@@ -53,3 +53,7 @@ PDF/EPUB 及路径页作为原视图时隐藏但保留布局，而非 display:no
 词汇分栏调用受限宿主读服务并提交文档身份、名称与 Markdown 快照。`documents.vocabulary.read` 与 `views.present` 分开核验；不开放任意文档读取或正文写入。词汇视图复用主区域保存与恢复门禁，未知格式保留完整原文；预算、保护检查、手机入口和未来文章关系详见[词汇学习插件](plugin-vocabulary-learning.md)。
 
 词汇主区域已接入激活绑定的同组顺序导航适配点；排序和分组由提供者决定，宿主管理快捷键冲突、并发操作和关闭后的迟到结果。普通文档复用邻居选择算法，不依赖启用插件。具体契约见[词汇学习同路径导航](plugin-vocabulary-learning.md#同路径前后导航)。
+
+## 本地文件只读视图（2026-10-23）
+
+新增 `local-file` renderer，只接受授权根 ID、根内相对节点和名称，不接受正文、任意路径或插件 renderer。`filesystem.files.read` 与展示能力独立检查；宿主接受 pending 后由 `LocalFileView` 再通过只读服务读取原文件。分栏插件不取得数据库编辑接口，原文档继续驻留。目录撤权/插件停用关闭视图并清理对应缓存；普通返回保留本次会话最近三份文件的查看状态。范围与未实现部分见[本地文件夹工作区](local-folder-workspace.md)。

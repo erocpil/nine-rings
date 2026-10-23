@@ -102,6 +102,8 @@ const PDF_DOC_TYPE_LABELS: Record<DocType, string> = {
   tutorial: "教程",
 };
 
+const LocalFilesPanel = lazy(() => import("./components/LocalFilesPanel").then(module => ({ default: module.LocalFilesPanel })));
+const LocalFileView = lazy(() => import("./components/LocalFileView").then(module => ({ default: module.LocalFileView })));
 const ImageLibraryPanel = lazy(() => import("./components/ImageLibraryPanel").then(module => ({ default: module.ImageLibraryPanel })));
 const ImageViewer = lazy(() => import("./components/ImageViewerDialog").then(module => ({ default: module.ImageViewer })));
 const ImageViewerHost = lazy(() => import("./components/ImageViewerDialog").then(module => ({ default: module.ImageViewerHost })));
@@ -468,7 +470,7 @@ function App() {
   const contributedPanels = useSyncExternalStore(workspacePanels.subscribe, workspacePanels.getSnapshot);
   const [desktopPanel, setDesktopPanel] = useState(() => readDesktopSidebarState().panel);
   useEffect(() => {
-    if (((desktopPanel === "images" && (!pluginRuntime.isEnabled() || !imageViewerEnabled())) || desktopPanel === "vocabulary") && !contributedPanels.some(panel => panel.id === desktopPanel)) {
+    if (((desktopPanel === "images" && (!pluginRuntime.isEnabled() || !imageViewerEnabled())) || desktopPanel === "vocabulary" || desktopPanel === "files") && !contributedPanels.some(panel => panel.id === desktopPanel)) {
       setDesktopPanel("tree");
       setSidebarHidden(true);
     }
@@ -1030,9 +1032,9 @@ function App() {
   });
 
   const activateSidebarPanel = async (panel: typeof desktopPanel) => {
-    if (!workspaceHome && (panel === "images" || panel === "vocabulary") && pluginViewState.suspended && ((panel === "images" && pluginMainView?.renderer === "image") || (panel === "vocabulary" && pluginMainView?.renderer === "vocabulary"))) {
+    if (!workspaceHome && (panel === "images" || panel === "vocabulary" || panel === "files") && pluginViewState.suspended && ((panel === "images" && pluginMainView?.renderer === "image") || (panel === "vocabulary" && pluginMainView?.renderer === "vocabulary") || (panel === "files" && pluginMainView?.renderer === "local-file"))) {
       try { await flushAutoSave(); }
-      catch (saveError) { useNotesStore.setState({ error: `保存失败，未切换图片视图：${String(saveError)}` }); return; }
+      catch (saveError) { useNotesStore.setState({ error: `保存失败，未切换主区域视图：${String(saveError)}` }); return; }
     }
     if (workspaceHome) {
       setWorkspaceHomePanelActivated(true);
@@ -1040,11 +1042,11 @@ function App() {
     } else setExhibitionReaderActive(false);
     summarySidebarSnapshot.current = null;
     setActiveWorkspaceSummary(null);
-    // Switching navigation panels parks the image session rather than
-    // closing it, so the image button can restore its current position.
+    // Switching navigation panels parks the plugin view rather than closing
+    // it, so its panel button can restore the current position.
     if (!workspaceHome) {
       if (panel === "tree") mainViews.suspend();
-      else if ((panel === "images" && pluginMainView?.renderer === "image") || (panel === "vocabulary" && pluginMainView?.renderer === "vocabulary")) mainViews.resume();
+      else if ((panel === "images" && pluginMainView?.renderer === "image") || (panel === "vocabulary" && pluginMainView?.renderer === "vocabulary") || (panel === "files" && pluginMainView?.renderer === "local-file")) mainViews.resume();
     }
     sidebarHover.click(panel);
   };
@@ -1716,7 +1718,7 @@ function App() {
           {((() => {
             return normalizeSidebarOrder(localStorage.getItem('nr:sidebarOrder')?.split(',') ?? [], contributedPanels.map(panel => panel.id)).map((panel) => [panel,
               sidebarPanelLabel(panel),
-              panel === 'tree' ? 'folder' : panel === 'list' ? 'bullet' : panel === 'notes' ? 'note' : panel === 'vocabulary' ? 'book' : panel === 'images' ? 'image' : 'document'] as const);
+              panel === 'files' ? 'folder' : panel === 'tree' ? 'folder' : panel === 'list' ? 'bullet' : panel === 'notes' ? 'note' : panel === 'vocabulary' ? 'book' : panel === 'images' ? 'image' : 'document'] as const);
           })()).map(([panel, label, icon]) => <button key={panel} type="button" className="btn-icon"
             title={`${label}${sidebarHoverEnabled ? sidebarHover.pinned && !sidebarHidden && desktopPanel === panel ? "（已固定并排，点击收起）" : "（悬停预览，点击固定，方向键进入）" : ""}`} aria-label={label} aria-pressed={!sidebarHidden && desktopPanel === panel}
             data-sidebar-panel={panel} data-pinned={sidebarHoverEnabled && sidebarHover.pinned && !sidebarHidden && desktopPanel === panel || undefined}
@@ -1743,9 +1745,10 @@ function App() {
           aria-modal={mobileDrawerViewport && !mobileReaderOpen && !sidebarHidden || undefined}
           aria-hidden={(mobileDrawerViewport || sidebarOverlay) && sidebarHidden && !mobileReaderOpen || undefined}
           {...((mobileDrawerViewport || sidebarOverlay) && sidebarHidden && !mobileReaderOpen ? { inert: "" } : {})}>
-          <div className="desktop-panel-content" style={mobileDrawerViewport ? { display: desktopPanel === 'notes' || desktopPanel === 'images' || desktopPanel === 'vocabulary' ? 'none' : 'contents' } : undefined} hidden={desktopPanel === 'notes' || desktopPanel === 'images' || desktopPanel === 'vocabulary' || (!mobileDrawerViewport && desktopPanel !== 'tree')}>
+          <div className="desktop-panel-content" style={mobileDrawerViewport ? { display: desktopPanel === 'notes' || desktopPanel === 'images' || desktopPanel === 'vocabulary' || desktopPanel === 'files' ? 'none' : 'contents' } : undefined} hidden={desktopPanel === 'notes' || desktopPanel === 'images' || desktopPanel === 'vocabulary' || desktopPanel === 'files' || (!mobileDrawerViewport && desktopPanel !== 'tree')}>
           <WorkspacePanelHeading className="sidebar-tabs" title={mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : null}>
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
+            {mobileDrawerViewport && contributedPanels.some(panel => panel.id === "files") && <button type="button" className="btn-icon" aria-label="本地文件" title="本地文件" onClick={() => setDesktopPanel("files")}><ToolbarIcon name="folder" /></button>}
             {mobileDrawerViewport && contributedPanels.some(panel => panel.id === "images") && <button type="button" className="btn-icon" aria-label="图片" title="图片" onClick={() => setDesktopPanel("images")}><ToolbarIcon name="image" /></button>}
             {mobileDrawerViewport && contributedPanels.some(panel => panel.id === "vocabulary") && <button type="button" className="btn-icon" aria-label="词汇学习" title="词汇学习" onClick={() => setDesktopPanel("vocabulary")}><ToolbarIcon name="book" /></button>}
             {mobileDrawerViewport && <button type="button" className="btn-icon" aria-label="随记" title="随记（Notes）" onClick={() => setDesktopPanel("notes")}><ToolbarIcon name="note" /></button>}
@@ -1806,6 +1809,7 @@ function App() {
             />
           )}
           </div>
+          {contributedPanels.some(panel => panel.renderer === "local-files") && <div style={{ height: "100%", minHeight: 0 }} hidden={desktopPanel !== "files"} {...(desktopPanel !== "files" ? { inert: "", "aria-hidden": true } : {})}><Suspense fallback={<p>正在加载文件分栏…</p>}><LocalFilesPanel active={desktopPanel === "files" && !sidebarHidden} onBack={mobileDrawerViewport ? () => setDesktopPanel("tree") : undefined} /></Suspense></div>}
           {contributedPanels.some(panel => panel.renderer === "image-library") && <div className="image-library-retained" hidden={desktopPanel !== "images"} {...(desktopPanel !== "images" ? { inert: "", "aria-hidden": true } : {})}><Suspense fallback={desktopPanel === "images" ? <p>正在加载图片分栏…</p> : null}><ImageLibraryPanel active={desktopPanel === "images" && !sidebarHidden} onClose={() => setSidebarHidden(true)} onBack={mobileDrawerViewport ? () => setDesktopPanel("tree") : undefined} /></Suspense></div>}
           {contributedPanels.some(panel => panel.renderer === "vocabulary-library") && <div className="vocabulary-panel-retained" style={{ height: "100%", minHeight: 0 }} hidden={desktopPanel !== "vocabulary"} {...(desktopPanel !== "vocabulary" ? { inert: "", "aria-hidden": true } : {})}><Suspense fallback={<p>正在加载词汇分栏…</p>}><VocabularyPanel selectedDocumentId={selectedNote?.id} active={desktopPanel === "vocabulary" && !sidebarHidden} refreshKey={docTreeKey} onBack={mobileDrawerViewport ? () => setDesktopPanel("tree") : undefined} onOpen={async id => {
             await flushAutoSave();
@@ -1916,7 +1920,7 @@ function App() {
           </div>
           {pluginMainView && <div className="plugin-main-view-host" hidden={!pluginMainActive} {...(!pluginMainActive ? { inert: "", "aria-hidden": true } : {})}>
             <Suspense fallback={<div className="empty-state">正在打开视图…</div>}>
-              {pluginMainView.renderer === "vocabulary" ? <VocabularyLearningView key={`${pluginMainView.owner.generation}:${pluginMainView.view.id}:${pluginMainView.data.documentId}`} data={pluginMainView.data} active={pluginMainActive} focus={focusMode} onFocus={next => preserveReadingPositions(() => setFocusMode(next))} onClose={() => mainViews.close(pluginMainView.id)} onDocument={async id => { await flushAutoSave(); const note = await api.notes.get(id); if (!note) throw new Error("词汇文档已不存在"); handleSelectNote(note); }} /> : <ImageViewer key={`${pluginMainView.owner.generation}:${pluginMainView.view.id}`} presentation="main" focusMode={focusMode} onFocusChange={next => preserveReadingPositions(() => setFocusMode(next))} active={pluginMainActive} initial={pluginMainView.data.image} images={pluginMainView.data.images}
+              {pluginMainView.renderer === "local-file" ? <LocalFileView key={`${pluginMainView.owner.generation}:${pluginMainView.data.rootId}:${pluginMainView.data.nodeId}`} data={pluginMainView.data} fontSize={config?.note_font_size ?? 16} onClose={() => mainViews.close(pluginMainView.id)} focus={focusMode} onFocus={next => preserveReadingPositions(() => setFocusMode(next))} /> : pluginMainView.renderer === "vocabulary" ? <VocabularyLearningView key={`${pluginMainView.owner.generation}:${pluginMainView.view.id}:${pluginMainView.data.documentId}`} data={pluginMainView.data} active={pluginMainActive} focus={focusMode} onFocus={next => preserveReadingPositions(() => setFocusMode(next))} onClose={() => mainViews.close(pluginMainView.id)} onDocument={async id => { await flushAutoSave(); const note = await api.notes.get(id); if (!note) throw new Error("词汇文档已不存在"); handleSelectNote(note); }} /> : <ImageViewer key={`${pluginMainView.owner.generation}:${pluginMainView.view.id}`} presentation="main" focusMode={focusMode} onFocusChange={next => preserveReadingPositions(() => setFocusMode(next))} active={pluginMainActive} initial={pluginMainView.data.image} images={pluginMainView.data.images}
                 canInsert={Boolean(selectedNote && !selectedNote.readonly && !syncBusy && documentToolEnabled("image"))}
                 onClose={() => mainViews.close(pluginMainView.id)}
                 onInsert={image => {

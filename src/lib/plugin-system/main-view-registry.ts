@@ -11,11 +11,16 @@ import type { ViewedImage } from "../image-library/viewer-request";
 export interface MainViewContribution {
   id: string;
   label: string;
-  renderer: "image" | "vocabulary";
+  renderer: "image" | "vocabulary" | "local-file";
 }
 export interface ImageViewData {
   image: ViewedImage;
   images: readonly ViewedImage[];
+}
+export interface LocalFileViewData {
+  rootId: string;
+  nodeId: string;
+  name: string;
 }
 export interface VocabularyViewData {
   resource?: VocabularyResourceRef;
@@ -30,6 +35,7 @@ interface RequestBase {
 }
 export type MainViewRequest = RequestBase &
   (
+    | { readonly renderer: "local-file"; readonly data: Readonly<LocalFileViewData> }
     | { readonly renderer: "image"; readonly data: Readonly<ImageViewData> }
     | {
         readonly renderer: "vocabulary";
@@ -106,7 +112,7 @@ export class MainViewRegistry {
       !/^[a-z][a-z0-9.-]{0,95}$/.test(declaration.id) ||
       !declaration.label?.trim() ||
       declaration.label.length > 32 ||
-      !(["image", "vocabulary"] as string[]).includes(declaration.renderer) ||
+      !(["image", "vocabulary", "local-file"] as string[]).includes(declaration.renderer) ||
       Object.keys(declaration).some(
         (key) => !["id", "label", "renderer"].includes(key),
       ) ||
@@ -128,7 +134,7 @@ export class MainViewRegistry {
   open(
     owner: PluginActivation,
     id: string,
-    data: ImageViewData | VocabularyViewData,
+    data: ImageViewData | VocabularyViewData | LocalFileViewData,
   ): number {
     this.runtime.assert(owner, "views.present");
     const contribution = this.contributions.get(id);
@@ -138,7 +144,15 @@ export class MainViewRegistry {
         "视图未注册或不属于当前插件",
       );
     let request: MainViewRequest;
-    if (contribution.view.renderer === "vocabulary") {
+    if (contribution.view.renderer === "local-file") {
+      this.runtime.assert(owner, "filesystem.files.read");
+      const value = data as LocalFileViewData;
+      if (!value || Object.keys(value).some(key => !["rootId", "nodeId", "name"].includes(key)) ||
+        [value.rootId, value.nodeId, value.name].some(item => typeof item !== "string" || !item || item.length > 4096) ||
+        value.nodeId.split("/").some(part => !part || part === "." || part === ".." || /[\\:\0]/.test(part)))
+        throw new PluginHostError("INVALID_ARGUMENT", "本地文件身份无效");
+      request = Object.freeze({ id: ++this.sequence, owner, view: contribution.view, renderer: "local-file", data: Object.freeze({ ...value }) });
+    } else if (contribution.view.renderer === "vocabulary") {
       this.runtime.assert(owner, "documents.vocabulary.read");
       const value = data as VocabularyViewData;
       if (
@@ -193,7 +207,7 @@ export class MainViewRegistry {
     this.runtime.assert(owner, "views.present");
     return Object.freeze({
       register: (view: MainViewContribution) => this.register(owner, view),
-      open: (id: string, data: ImageViewData | VocabularyViewData) =>
+      open: (id: string, data: ImageViewData | VocabularyViewData | LocalFileViewData) =>
         this.open(owner, id, data),
       close: (id: number) => {
         this.runtime.assert(owner, "views.present");
@@ -217,6 +231,7 @@ export class MainViewRegistry {
     const pending = this.snapshot.pending;
     if (!pending || pending.id !== id) return false;
     this.runtime.assert(pending.owner, "views.present");
+    if (pending.renderer === "local-file") this.runtime.assert(pending.owner, "filesystem.files.read");
     if (pending.renderer === "vocabulary")
       this.runtime.assert(pending.owner, "documents.vocabulary.read");
     this.publish({ current: pending, pending: null, suspended: false });

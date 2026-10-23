@@ -607,6 +607,7 @@ pub fn run() {
             app.manage(Mutex::new(user_config));
             app.manage(DataDir(app_dir.clone()));
             app.manage(commands::image_library::ImageLibrary::load(&app_dir));
+            app.manage(commands::local_files::LocalFiles::load(&app_dir));
             startup_log!("state managed (config)");
 
             app.manage(AppState {
@@ -787,6 +788,11 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::local_files::local_files_choose,
+            commands::local_files::local_files_roots,
+            commands::local_files::local_files_remove,
+            commands::local_files::local_files_list,
+            commands::local_files::local_files_read,
             commands::image_library::image_library_choose,
             commands::image_library::image_library_roots,
             commands::image_library::image_library_remove,
