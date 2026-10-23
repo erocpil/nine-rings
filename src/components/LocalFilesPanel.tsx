@@ -326,8 +326,8 @@ export function LocalFilesPanel({
         <button
           type="button"
           className="btn-icon"
-          title="选择只读目录"
-          aria-label="选择只读目录"
+          title="选择本地目录"
+          aria-label="选择本地目录"
           disabled={busy.has("choose")}
           onClick={() => {
             if (!localFileService.supportsDirectoryPicker())
@@ -483,7 +483,7 @@ export function LocalFilesPanel({
       </div>
       {!roots.length && (
         <p className="local-files-message">
-          选择本机目录后，展开文件夹查看 UTF-8 源码。此入口不提供写入。
+          选择本机目录后，展开文件夹查看、编辑和保存 UTF-8 文件。
         </p>
       )}
     </section>

@@ -51,12 +51,12 @@ export function startBuiltinLocalFiles() {
           return;
         await pluginLifecycle.activate(
           LOCAL_FILES_ID,
-          ["panels.present", "filesystem.files.read", "views.present"],
+          ["panels.present", "filesystem.files.read", "filesystem.files.write", "views.present"],
           {
             activate(owner) {
               mainViews.bind(owner.activation).register({
                 id: LOCAL_FILE_VIEW_ID,
-                label: "本地源码",
+                label: "本地文件",
                 renderer: "local-file",
               });
               workspacePanels.register(owner.activation, {

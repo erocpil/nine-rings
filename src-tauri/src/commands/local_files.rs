@@ -1,18 +1,35 @@
-//! Read-only directory grants. Deliberately independent of image grants and document storage.
+//! Scoped local-file grants. Deliberately independent of image grants and document storage.
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     fs,
-    io::Read,
+    io::{Read, Write},
     path::{Component, Path, PathBuf},
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
 const MAX_BYTES: u64 = 4 * 1024 * 1024;
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Snapshot {
+    source: String,
+    revision: String,
+    bom: bool,
+    line_ending: String,
+    modified_ms: u128,
+    size: u64,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Fingerprint {
+    modified_ms: u128,
+    size: u64,
+}
 #[derive(Default)]
 pub struct LocalFiles {
-    roots: Mutex<HashMap<String, PathBuf>>,
+    roots: Arc<Mutex<HashMap<String, PathBuf>>>,
 }
 #[derive(Serialize, Deserialize)]
 struct Grant {
@@ -91,7 +108,9 @@ impl LocalFiles {
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
         Self {
-            roots: Mutex::new(grants.into_iter().map(|g| (g.id, g.path)).collect()),
+            roots: Arc::new(Mutex::new(
+                grants.into_iter().map(|g| (g.id, g.path)).collect(),
+            )),
         }
     }
     fn root(&self, id: &str) -> Result<PathBuf, String> {
@@ -261,7 +280,7 @@ pub async fn local_files_list(
     library.root(&root_id)?;
     Ok(page)
 }
-fn read(root: &Path, node: &str) -> Result<Vec<u8>, String> {
+fn read(root: &Path, node: &str) -> Result<Snapshot, String> {
     if node.is_empty() {
         return Err("请选择文件".into());
     }
@@ -285,7 +304,69 @@ fn read(root: &Path, node: &str) -> Result<Vec<u8>, String> {
     {
         return Err("这是二进制或不支持的文本文件".into());
     }
-    Ok(bytes)
+    let bom = bytes.starts_with(&[0xef, 0xbb, 0xbf]);
+    let content = if bom { &bytes[3..] } else { &bytes[..] };
+    let decoded = std::str::from_utf8(content).map_err(|_| "仅支持 UTF-8 文本文件")?;
+    let without_crlf = decoded.replace("\r\n", "");
+    let kinds = usize::from(decoded.contains("\r\n"))
+        + usize::from(without_crlf.contains('\n'))
+        + usize::from(without_crlf.contains('\r'));
+    let line_ending = if kinds > 1 {
+        "mixed"
+    } else if decoded.contains("\r\n") {
+        "crlf"
+    } else if decoded.contains('\r') {
+        "cr"
+    } else {
+        "lf"
+    };
+    let source = decoded.replace("\r\n", "\n").replace('\r', "\n");
+    let modified_ms = meta
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default();
+    Ok(Snapshot {
+        source,
+        revision: format!("{:x}", Sha256::digest(&bytes)),
+        bom,
+        line_ending: line_ending.into(),
+        modified_ms,
+        size: meta.len(),
+    })
+}
+fn stat(root: &Path, node: &str) -> Result<Fingerprint, String> {
+    let path = checked_path(root, node)?;
+    let meta = fs::metadata(path).map_err(|error| error.to_string())?;
+    if !meta.is_file() {
+        return Err("节点不是普通文件".into());
+    }
+    let modified_ms = meta
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default();
+    Ok(Fingerprint {
+        modified_ms,
+        size: meta.len(),
+    })
+}
+#[tauri::command]
+pub async fn local_files_stat(
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    node: String,
+) -> Result<Fingerprint, String> {
+    caller(&window)?;
+    let root = library.root(&root_id)?;
+    let result = tauri::async_runtime::spawn_blocking(move || stat(&root, &node))
+        .await
+        .map_err(|error| error.to_string())??;
+    library.root(&root_id)?;
+    Ok(result)
 }
 #[tauri::command]
 pub async fn local_files_read(
@@ -293,14 +374,296 @@ pub async fn local_files_read(
     library: State<'_, LocalFiles>,
     root_id: String,
     node: String,
-) -> Result<tauri::ipc::Response, String> {
+) -> Result<Snapshot, String> {
     caller(&window)?;
     let root = library.root(&root_id)?;
     let bytes = tauri::async_runtime::spawn_blocking(move || read(&root, &node))
         .await
         .map_err(|e| e.to_string())??;
     library.root(&root_id)?;
+    Ok(bytes)
+}
+
+fn write(
+    root: &Path,
+    node: &str,
+    source: &str,
+    expected_revision: &str,
+    bom: bool,
+    line_ending: &str,
+    roots: Arc<Mutex<HashMap<String, PathBuf>>>,
+    root_id: String,
+) -> Result<Snapshot, String> {
+    if source.len() as u64 > MAX_BYTES {
+        return Err("文件超过 4 MiB".into());
+    }
+    if source
+        .chars()
+        .any(|c| c.is_control() && !matches!(c, '\n' | '\t'))
+    {
+        return Err("文本包含不支持的控制字符".into());
+    }
+    if line_ending == "mixed" {
+        return Err("文件包含混合换行符；为避免静默改写格式，请使用另存为副本".into());
+    }
+    if !matches!(line_ending, "lf" | "crlf" | "cr") {
+        return Err("换行格式无效".into());
+    }
+    let target = checked_path(root, node)?;
+    let current = fs::read(&target).map_err(|error| error.to_string())?;
+    let actual_revision = format!("{:x}", Sha256::digest(&current));
+    if actual_revision != expected_revision {
+        return Err("STALE_REVISION: 磁盘文件已被外部修改".into());
+    }
+    let target_permissions = fs::metadata(&target)
+        .map_err(|error| error.to_string())?
+        .permissions();
+    if target_permissions.readonly() {
+        return Err("文件为只读权限，无法保存".into());
+    }
+    let normalized = source.replace("\r\n", "\n").replace('\r', "\n");
+    let encoded = match line_ending {
+        "crlf" => normalized.replace('\n', "\r\n"),
+        "cr" => normalized.replace('\n', "\r"),
+        _ => normalized,
+    };
+    let mut bytes = Vec::with_capacity(encoded.len() + usize::from(bom) * 3);
+    if bom {
+        bytes.extend_from_slice(&[0xef, 0xbb, 0xbf]);
+    }
+    bytes.extend_from_slice(encoded.as_bytes());
+    if bytes.len() as u64 > MAX_BYTES {
+        return Err("按原换行格式编码后文件超过 4 MiB".into());
+    }
+    let parent = target.parent().ok_or("文件路径无效")?;
+    let temp = parent.join(format!(".nr-save-{}.tmp", uuid::Uuid::new_v4()));
+    let result: Result<(), String> = (|| {
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp)
+            .map_err(|error| error.to_string())?;
+        file.write_all(&bytes).map_err(|error| error.to_string())?;
+        file.sync_all().map_err(|error| error.to_string())?;
+        fs::set_permissions(&temp, target_permissions.clone())
+            .map_err(|error| error.to_string())?;
+        // Revalidate the authorized root immediately before replacing the file.
+        if checked_path(root, node)? != target {
+            return Err("授权路径在保存期间发生变化".into());
+        }
+        let latest = fs::read(&target).map_err(|error| error.to_string())?;
+        if format!("{:x}", Sha256::digest(&latest)) != expected_revision {
+            return Err("STALE_REVISION: 磁盘文件在保存期间被外部修改".into());
+        }
+        // Keep revocation from racing the final replacement. If the grant was
+        // removed while the temporary file was being prepared, abort instead.
+        let grants = roots.lock().map_err(|_| "目录状态不可用")?;
+        if grants.get(&root_id).map(PathBuf::as_path) != Some(root) {
+            return Err("目录授权已撤销，未写入文件".into());
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::ffi::OsStrExt;
+            use windows::Win32::Storage::FileSystem::{
+                MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+            };
+            let from: Vec<u16> = temp.as_os_str().encode_wide().chain(Some(0)).collect();
+            let to: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
+            unsafe {
+                MoveFileExW(
+                    windows::core::PCWSTR(from.as_ptr()),
+                    windows::core::PCWSTR(to.as_ptr()),
+                    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+                )
+            }
+            .map_err(|error| error.to_string())?;
+        }
+        #[cfg(not(windows))]
+        fs::rename(&temp, &target).map_err(|error| error.to_string())?;
+        drop(grants);
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temp);
+    }
+    result?;
+    read(root, node)
+}
+
+#[tauri::command]
+pub async fn local_files_write(
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    node: String,
+    source: String,
+    expected_revision: String,
+    bom: bool,
+    line_ending: String,
+) -> Result<Snapshot, String> {
+    caller(&window)?;
+    let root = library.root(&root_id)?;
+    let roots = library.roots.clone();
+    let write_root_id = root_id.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        write(
+            &root,
+            &node,
+            &source,
+            &expected_revision,
+            bom,
+            &line_ending,
+            roots,
+            write_root_id,
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+    library.root(&root_id)?;
+    Ok(result)
+}
+
+fn read_asset(root: &Path, node: &str) -> Result<Vec<u8>, String> {
+    let path = checked_path(root, node)?;
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if !matches!(
+        extension.as_str(),
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "avif"
+    ) {
+        return Err("仅允许预览常见图片文件".into());
+    }
+    let file = fs::File::open(path).map_err(|error| error.to_string())?;
+    let meta = file.metadata().map_err(|error| error.to_string())?;
+    if !meta.is_file() || meta.len() > 20 * 1024 * 1024 {
+        return Err("图片超过 20 MiB 或不是普通文件".into());
+    }
+    let mut bytes = Vec::with_capacity(meta.len() as usize);
+    file.take(20 * 1024 * 1024 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
+    if bytes.len() > 20 * 1024 * 1024 {
+        return Err("图片超过 20 MiB".into());
+    }
+    Ok(bytes)
+}
+#[tauri::command]
+pub async fn local_files_read_asset(
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    node: String,
+) -> Result<tauri::ipc::Response, String> {
+    caller(&window)?;
+    let root = library.root(&root_id)?;
+    let bytes = tauri::async_runtime::spawn_blocking(move || read_asset(&root, &node))
+        .await
+        .map_err(|error| error.to_string())??;
+    library.root(&root_id)?;
     Ok(tauri::ipc::Response::new(bytes))
+}
+
+#[tauri::command]
+pub async fn local_files_save_as(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    name: String,
+    source: String,
+    bom: bool,
+    line_ending: String,
+) -> Result<bool, String> {
+    caller(&window)?;
+    if name.is_empty() || name.len() > 255 || name.contains(['/', '\\', ':', '\0']) {
+        return Err("文件名无效".into());
+    }
+    if source.len() as u64 > MAX_BYTES {
+        return Err("文件超过 4 MiB".into());
+    }
+    if source
+        .chars()
+        .any(|character| character.is_control() && !matches!(character, '\n' | '\t'))
+    {
+        return Err("文本包含不支持的控制字符".into());
+    }
+    let eol = if matches!(line_ending.as_str(), "lf" | "crlf" | "cr") {
+        line_ending
+    } else {
+        "lf".into()
+    };
+    let normalized = source.replace("\r\n", "\n").replace('\r', "\n");
+    let text = match eol.as_str() {
+        "crlf" => normalized.replace('\n', "\r\n"),
+        "cr" => normalized.replace('\n', "\r"),
+        _ => normalized,
+    };
+    let mut bytes = Vec::with_capacity(text.len() + usize::from(bom) * 3);
+    if bom {
+        bytes.extend_from_slice(&[0xef, 0xbb, 0xbf]);
+    }
+    bytes.extend_from_slice(text.as_bytes());
+    if bytes.len() as u64 > MAX_BYTES {
+        return Err("另存后文件超过 4 MiB".into());
+    }
+    let dialog = app.clone();
+    tauri::async_runtime::spawn_blocking(move || -> Result<bool, String> {
+        let Some(chosen) = dialog
+            .dialog()
+            .file()
+            .set_file_name(name)
+            .blocking_save_file()
+        else {
+            return Ok(false);
+        };
+        let selected = chosen.into_path().map_err(|error| error.to_string())?;
+        let parent = fs::canonicalize(selected.parent().ok_or("保存路径无效")?)
+            .map_err(|error| error.to_string())?;
+        let target = parent.join(selected.file_name().ok_or("保存路径无效")?);
+        if let Ok(meta) = fs::symlink_metadata(&target) {
+            if is_link(&meta) || !meta.is_file() {
+                return Err("目标不是普通文件，拒绝覆盖".into());
+            }
+        }
+        let temp = parent.join(format!(".nr-save-as-{}.tmp", uuid::Uuid::new_v4()));
+        let result: Result<(), String> = (|| {
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&temp)
+                .map_err(|error| error.to_string())?;
+            file.write_all(&bytes).map_err(|error| error.to_string())?;
+            file.sync_all().map_err(|error| error.to_string())?;
+            #[cfg(windows)]
+            {
+                use std::os::windows::ffi::OsStrExt;
+                use windows::Win32::Storage::FileSystem::{
+                    MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+                };
+                let from: Vec<u16> = temp.as_os_str().encode_wide().chain(Some(0)).collect();
+                let to: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
+                unsafe {
+                    MoveFileExW(
+                        windows::core::PCWSTR(from.as_ptr()),
+                        windows::core::PCWSTR(to.as_ptr()),
+                        MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+                    )
+                }
+                .map_err(|error| error.to_string())?;
+            }
+            #[cfg(not(windows))]
+            fs::rename(&temp, &target).map_err(|error| error.to_string())?;
+            Ok(())
+        })();
+        if result.is_err() {
+            let _ = fs::remove_file(&temp);
+        }
+        result?;
+        Ok(true)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 #[cfg(test)]
 mod tests {
@@ -317,7 +680,10 @@ mod tests {
         }
         assert_eq!(list(&dir, "", 0).unwrap().nodes.len(), 200);
         assert_eq!(list(&dir, "", 0).unwrap().next, Some(200));
-        assert_eq!(read(&dir, "sample.c").unwrap(), b"int main() {}\r\n");
+        let snapshot = read(&dir, "sample.c").unwrap();
+        assert_eq!(snapshot.source, "int main() {}\n");
+        assert_eq!(snapshot.line_ending, "crlf");
+        assert_eq!(snapshot.revision.len(), 64);
         assert!(read(&dir, "binary").is_err());
         assert!(checked_path(&dir, "../secret").is_err());
         assert!(checked_path(&dir, "/etc/passwd").is_err());

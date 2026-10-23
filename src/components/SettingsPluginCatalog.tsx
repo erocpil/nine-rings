@@ -141,7 +141,7 @@ function PluginConfigurationDialog({
           <SettingsVocabularyAppearance onMessage={showMessage} />
           <p className="settings-desc">首版不联网抓取、不改写正文；受保护正文不交给插件。普通文档入口用于编辑和导出，阅读语境关联将在后续接入。</p>
         </> : plugin.configuration === "local-files" ? (<>
-          <p className="settings-desc">在「本地文件」分栏选择只读目录，按需展开并查看 UTF-8 源码（最多 4 MiB）。不导入数据库、不参与同步；不提供写入。浏览器目录授权和快照仅在本次会话有效。</p>
+          <p className="settings-desc">在「本地文件」分栏按需浏览目录、编辑并保存 UTF-8 文件（最多 4 MiB），支持磁盘变化比较、崩溃草稿恢复及 Markdown、Mermaid、Flow 预览。资源不会导入数据库或参与同步；混合换行文件只能另存为。浏览器目录授权仍需按会话重新选择，保存时另行请求写入许可。</p>
           <SettingsPanelDisplay configuration="local-file-display" onMessage={showMessage} />
         </>) : plugin.configuration === "image-viewer" ? (
           <p className="settings-desc">
@@ -235,7 +235,7 @@ function PluginConfigurationDialog({
               ? active.permissions.join("、")
               : plugin.configuration === "vocabulary"
                 ? "分栏与主区域展示、配置路径内的未保护词汇正文读取"
-                : plugin.configuration === "local-files" ? "分栏与主区域展示、用户授权目录的只读文件访问"
+                : plugin.configuration === "local-files" ? "分栏与主区域展示、用户授权目录的本机文件读写"
                 : plugin.configuration === "image-viewer"
                 ? "分栏展示、授权图片目录读取；插入文档另经编辑插件命令"
                 : presenter || plugin.configuration === "block-menu" || plugin.configuration === "theme" || plugin.configuration === "numbering" || plugin.configuration === "status"

@@ -27,6 +27,7 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
 notify = "8.2"
+sha2 = "0.10"
 log = "0.4"
 env_logger = { version = "0.11", default-features = false }
 
@@ -45,4 +46,5 @@ windows = { version = "0.58", features = [
     "Win32_Foundation",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
+    "Win32_Storage_FileSystem",
 ] }
