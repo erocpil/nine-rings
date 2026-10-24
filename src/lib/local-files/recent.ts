@@ -59,6 +59,11 @@ export function renameRecentLocalPath(rootId: string, oldNode: string, newNode: 
     window.dispatchEvent(new Event(LOCAL_FILE_RECENT_CHANGED_EVENT));
   } catch { /* recent path updates are optional */ }
 }
+export function removeRecentLocalPath(rootId: string, node: string) {
+  const recent = readRecentLocalFiles().filter(item => item.rootId !== rootId || !(item.nodeId === node || item.nodeId.startsWith(`${node}/`)));
+  localStorage.setItem(KEY, JSON.stringify(recent));
+  window.dispatchEvent(new Event(LOCAL_FILE_RECENT_CHANGED_EVENT));
+}
 
 export function announceLocalFileOpened(file: Pick<RecentLocalFile, "rootId" | "nodeId" | "name"> & Partial<Pick<RecentLocalFile, "rootName">>) {
   try {

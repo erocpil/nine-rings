@@ -82,8 +82,9 @@ export function findTextMatches(
   text: string,
   query: string,
   options: SearchOptions = {},
+  maxMatches = Infinity,
 ): TextMatch[] {
-  if (!query || searchPatternError(query, options)) return [];
+  if (!query || maxMatches <= 0 || searchPatternError(query, options)) return [];
   if (options.regex) {
     const result: TextMatch[] = [];
     for (const match of perlPattern(query, options).matchAllIterator(text, {
@@ -100,6 +101,7 @@ export function findTextMatches(
         captures: [match.match, ...match.groups],
         namedCaptures: match.namedGroups,
       });
+      if (result.length >= maxMatches) break;
     }
     return result;
   }
@@ -124,6 +126,7 @@ export function findTextMatches(
         ? { captures: [...match], namedCaptures: match.groups }
         : {}),
     });
+    if (matches.length >= maxMatches) break;
   }
   return matches;
 }

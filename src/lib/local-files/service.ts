@@ -1,4 +1,4 @@
-import { clearLocalFileSessions } from "./session";
+import { checkpointLocalFilePath, clearLocalFileSessions } from "./session";
 import { isTauriRuntime } from "../runtime";
 import { workspacePanels } from "../plugin-system/panel-registry";
 import { pluginRuntime } from "../plugin-system/runtime";
@@ -82,17 +82,17 @@ interface FileHandle {
   createWritable?(): Promise<{ write(data: string): Promise<void>; close(): Promise<void>; abort?(): Promise<void> }>;
   queryPermission?(options: { mode: "readwrite" }): Promise<PermissionState>;
   requestPermission?(options: { mode: "readwrite" }): Promise<PermissionState>;
-  move?(name: string): Promise<void>;
+  move?(destination: DirectoryHandle | string, name?: string): Promise<void>;
 }
 interface DirectoryHandle {
   kind: "directory";
   name: string;
   values(): AsyncIterable<DirectoryHandle | FileHandle>;
-  getDirectoryHandle(name: string): Promise<DirectoryHandle>;
-  getFileHandle(name: string): Promise<FileHandle>;
+  getDirectoryHandle(name: string, options?: { create: boolean }): Promise<DirectoryHandle>;
+  getFileHandle(name: string, options?: { create: boolean }): Promise<FileHandle>;
   queryPermission?(options: { mode: "readwrite" }): Promise<PermissionState>;
   requestPermission?(options: { mode: "readwrite" }): Promise<PermissionState>;
-  move?(name: string): Promise<void>;
+  move?(destination: DirectoryHandle | string, name?: string): Promise<void>;
 }
 const roots = new Map<
   string,
@@ -115,6 +115,12 @@ function guard() {
       throw new Error("文件目录授权已变化，请重新打开");
   };
 }
+async function requestWritePermission(handle: DirectoryHandle, check: () => void) {
+  let permission = await handle.queryPermission?.({ mode: "readwrite" });
+  if (permission !== "granted") permission = await handle.requestPermission?.({ mode: "readwrite" });
+  check();
+  if (permission !== "granted") throw new Error("浏览器未授予目录写入权限");
+}
 export const localFileService = {
   supportsDirectoryPicker: () =>
     isTauriRuntime() ||
@@ -124,6 +130,66 @@ export const localFileService = {
   canSaveOriginal: (rootId: string) => isTauriRuntime() || Boolean(roots.get(rootId)?.handle),
   supportsDirectoryChanges: (rootId: string) => isTauriRuntime() || Boolean(roots.get(rootId)?.handle),
   canRename: (rootId: string) => isTauriRuntime() || Boolean(roots.get(rootId)?.handle),
+  canTrash: () => isTauriRuntime(),
+  async create(rootId: string, parent: string, requestedName: string, directory: boolean): Promise<string> {
+    const check = guard();
+    pluginRuntime.assert(workspacePanels.assert("files"), "filesystem.files.write");
+    const name = requestedName.trim();
+    if (fileSegments(name).length !== 1) throw new Error("请输入单个文件或目录名称");
+    fileSegments(parent);
+    if (isLocalFileReadOnly(rootId, parent)) throw new Error("此目录被设置为只读");
+    if (isTauriRuntime()) {
+      const result = await native<string>("local_files_create", { rootId, parent, name, directory });
+      check(); return result;
+    }
+    const root = roots.get(rootId)?.handle;
+    if (!root) throw new Error("目录快照不能新建文件，请授权原目录");
+    await requestWritePermission(root, check);
+    let destination = root;
+    for (const part of fileSegments(parent)) destination = await destination.getDirectoryHandle(part);
+    // File System Access has no exclusive-create primitive; do not write or truncate an existing file.
+    for await (const child of destination.values()) if (child.name === name) throw new Error("目标名称已存在，未覆盖");
+    check();
+    if (directory) await destination.getDirectoryHandle(name, { create: true });
+    else await destination.getFileHandle(name, { create: true });
+    check(); return parent ? `${parent}/${name}` : name;
+  },
+  async move(rootId: string, node: string, parent: string, requestedName: string): Promise<string> {
+    const check = guard();
+    pluginRuntime.assert(workspacePanels.assert("files"), "filesystem.files.write");
+    const name = requestedName.trim();
+    if (fileSegments(name).length !== 1 || !fileSegments(node).length) throw new Error("不能移动授权根目录或使用无效名称");
+    fileSegments(parent);
+    if (parent === node || parent.startsWith(`${node}/`)) throw new Error("不能移动到自身或其子目录");
+    if (isLocalFileReadOnly(rootId, node) || isLocalFileReadOnly(rootId, parent)) throw new Error("来源或目标被设置为只读");
+    if (isTauriRuntime()) {
+      const result = await native<string>("local_files_move", { rootId, node, parent, name });
+      check(); return result;
+    }
+    const root = roots.get(rootId)?.handle;
+    if (!root) throw new Error("目录快照不能移动文件，请授权原目录");
+    await requestWritePermission(root, check);
+    let destination = root;
+    for (const part of fileSegments(parent)) destination = await destination.getDirectoryHandle(part);
+    let sourceParent = root;
+    const parts = fileSegments(node);
+    for (const part of parts.slice(0, -1)) sourceParent = await sourceParent.getDirectoryHandle(part);
+    let child: DirectoryHandle | FileHandle;
+    try { child = await sourceParent.getDirectoryHandle(parts[parts.length - 1]!); }
+    catch { child = await sourceParent.getFileHandle(parts[parts.length - 1]!); }
+    if (!child.move) throw new Error("当前浏览器不支持安全移动；请使用系统文件管理器");
+    for await (const entry of destination.values()) if (entry.name === name) throw new Error("目标名称已存在，未覆盖");
+    check(); await child.move(destination, name); check();
+    return parent ? `${parent}/${name}` : name;
+  },
+  async trash(rootId: string, node: string): Promise<void> {
+    const check = guard();
+    pluginRuntime.assert(workspacePanels.assert("files"), "filesystem.files.write");
+    if (!fileSegments(node).length) throw new Error("不能删除授权根目录");
+    if (isLocalFileReadOnly(rootId, node)) throw new Error("此路径被设置为只读");
+    if (!isTauriRuntime()) throw new Error("浏览器不支持系统回收站，请使用系统文件管理器");
+    await native("local_files_trash", { rootId, node }); check();
+  },
   async roots(): Promise<FileRoot[]> {
     const check = guard();
     const result = isTauriRuntime()
@@ -198,6 +264,8 @@ export const localFileService = {
   },
   async remove(rootId: string) {
     const check = guard();
+    await checkpointLocalFilePath(rootId, "");
+    check();
     if (isTauriRuntime()) await native("local_files_remove", { rootId });
     check();
     generation++;
@@ -209,6 +277,7 @@ export const localFileService = {
     const check = guard();
     const owner = workspacePanels.assert("files");
     pluginRuntime.assert(owner, "filesystem.files.write");
+    if (isLocalFileReadOnly(rootId, node)) throw new Error("此路径被设置为只读");
     const name = requestedName.trim();
     if (!name || name === "." || name === ".." || /[\\/:\0]/.test(name))
       throw new Error("名称不能为空，也不能包含路径分隔符");

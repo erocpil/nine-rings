@@ -1,3 +1,4 @@
+import { announceLocalFileSessions } from "./session";
 const DB = "nine-rings-local-file-recovery";
 const STORE = "drafts";
 const DRAFT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -38,8 +39,20 @@ export async function readLocalDraft(identity: string): Promise<LocalFileDraft |
   }
   finally { db.close(); }
 }
+export async function listLocalDrafts(): Promise<LocalFileDraft[]> {
+  await Promise.allSettled([...pending.values()]);
+  const db = await openDb();
+  try {
+    const drafts = await new Promise<LocalFileDraft[]>((resolve, reject) => {
+      const request = db.transaction(STORE).objectStore(STORE).getAll();
+      request.onsuccess = () => resolve(request.result as LocalFileDraft[]);
+      request.onerror = () => reject(request.error);
+    });
+    return drafts.filter(draft => Date.now() - draft.savedAt <= DRAFT_RETENTION_MS).sort((a, b) => b.savedAt - a.savedAt);
+  } finally { db.close(); }
+}
 export function writeLocalDraft(value: LocalFileDraft): Promise<void> {
-  return enqueue(value.identity, () => writeDraft(value));
+  return enqueue(value.identity, async () => { await writeDraft(value); announceLocalFileSessions(); });
 }
 async function writeDraft(value: LocalFileDraft): Promise<void> {
   const db = await openDb();
@@ -59,7 +72,7 @@ async function writeDraft(value: LocalFileDraft): Promise<void> {
   finally { db.close(); }
 }
 export function removeLocalDraft(identity: string): Promise<void> {
-  return enqueue(identity, () => removeDraft(identity));
+  return enqueue(identity, async () => { await removeDraft(identity); announceLocalFileSessions(); });
 }
 async function removeDraft(identity: string): Promise<void> {
   const db = await openDb();

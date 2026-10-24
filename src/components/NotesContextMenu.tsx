@@ -5,7 +5,7 @@ export interface NotesMenuTarget { id: string; title: string; x: number; y: numb
 export function NotesContextMenu({ target, close, actions }: {
   target: NotesMenuTarget;
   close: () => void;
-  actions: { label: string; run: () => void }[];
+  actions: { label: string; run: () => void; disabled?: boolean }[];
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -14,7 +14,7 @@ export function NotesContextMenu({ target, close, actions }: {
     const rect = el.getBoundingClientRect();
     el.style.left = `${Math.max(8, Math.min(target.x, innerWidth - rect.width - 8))}px`;
     el.style.top = `${Math.max(8, Math.min(target.y, innerHeight - rect.height - 8))}px`;
-    el.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+    el.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
   }, [target]);
   useEffect(() => {
     const outside = (event: Event) => { if (!ref.current?.contains(event.target as Node)) close(); };
@@ -37,12 +37,12 @@ export function NotesContextMenu({ target, close, actions }: {
       if (event.key === "Tab") close();
       if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
         event.preventDefault(); event.stopPropagation();
-        const buttons = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
+        const buttons = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []);
         const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
         const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
         buttons[next]?.focus();
       }
     }}>
-    {actions.map(action => <button key={action.label} type="button" role="menuitem" className="doc-context-item" onClick={() => { close(); action.run(); }}>{action.label}</button>)}
+    {actions.map(action => <button key={action.label} type="button" role="menuitem" className="doc-context-item" disabled={action.disabled} onClick={() => { close(); action.run(); }}>{action.label}</button>)}
   </div>, document.body);
 }

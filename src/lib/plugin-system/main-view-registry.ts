@@ -21,6 +21,7 @@ export interface LocalFileViewData {
   rootId: string;
   nodeId: string;
   name: string;
+  location?: { from: number; to: number; revision: string };
 }
 export interface VocabularyViewData {
   resource?: VocabularyResourceRef;
@@ -147,11 +148,13 @@ export class MainViewRegistry {
     if (contribution.view.renderer === "local-file") {
       this.runtime.assert(owner, "filesystem.files.read");
       const value = data as LocalFileViewData;
-      if (!value || Object.keys(value).some(key => !["rootId", "nodeId", "name"].includes(key)) ||
+      if (!value || Object.keys(value).some(key => !["rootId", "nodeId", "name", "location"].includes(key)) ||
         [value.rootId, value.nodeId, value.name].some(item => typeof item !== "string" || !item || item.length > 4096) ||
         value.nodeId.split("/").some(part => !part || part === "." || part === ".." || /[\\:\0]/.test(part)))
         throw new PluginHostError("INVALID_ARGUMENT", "本地文件身份无效");
-      request = Object.freeze({ id: ++this.sequence, owner, view: contribution.view, renderer: "local-file", data: Object.freeze({ ...value }) });
+      if (value.location !== undefined && (!value.location || typeof value.location !== "object" || Object.keys(value.location).some(key => !["from", "to", "revision"].includes(key)) || !Number.isSafeInteger(value.location.from) || value.location.from < 0 || !Number.isSafeInteger(value.location.to) || value.location.to < value.location.from || !/^[a-f0-9]{64}$/.test(value.location.revision)))
+        throw new PluginHostError("INVALID_ARGUMENT", "本地搜索位置无效");
+      request = Object.freeze({ id: ++this.sequence, owner, view: contribution.view, renderer: "local-file", data: Object.freeze({ ...value, ...(value.location ? { location: Object.freeze({ ...value.location }) } : {}) }) });
     } else if (contribution.view.renderer === "vocabulary") {
       this.runtime.assert(owner, "documents.vocabulary.read");
       const value = data as VocabularyViewData;

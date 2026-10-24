@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import type { EditorState } from "@codemirror/state";
 import { localFileService, resolveRelativeNode, type LocalFileSnapshot } from "../lib/local-files/service";
 import { readLocalDraft, removeLocalDraft, writeLocalDraft } from "../lib/local-files/recovery";
-import { localFileSessions, localFileSessionEpoch, registerLocalFileCheckpoint, setLocalFileDirty } from "../lib/local-files/session";
+import { localFileSessions, localFileSessionEpoch, registerLocalFileCheckpoint, registerLocalFileSaver, setLocalFileDirty } from "../lib/local-files/session";
 import { readLocalFilePosition, saveLocalFilePosition } from "../lib/local-files/position";
 import { isLocalFileReadOnly, LOCAL_FILE_ACCESS_CHANGED_EVENT, setLocalFileReadOnly } from "../lib/local-files/access";
 import type { LocalFileViewData } from "../lib/plugin-system/main-view-registry";
@@ -102,6 +102,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const sessionEpochRef = useRef(localFileSessionEpoch);
   const [editorHandle, setEditorHandle] = useState<SourceEditorHandle | null>(null);
   const restoredScroll = useRef(false);
+  const appliedSearchLocation = useRef<LocalFileViewData["location"]>();
   const positionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deepFileCheckAt = useRef(0);
   const [source, setSource] = useState("");
@@ -136,23 +137,29 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const language = languageOverride ?? detectedLanguage;
   latestDraft.current = { source, base: baseSnapshot };
   const saveBusy = useRef(false);
+  const savingOperation = useRef(false);
   saveBusy.current = saveState === "saving";
   useEffect(() => registerLocalFileCheckpoint(identity, async () => {
+    const handle = sourceHandle.current;
+    if (handle) {
+      saveLocalFilePosition(identity, { offset: handle.selectionStart, scrollTop: handle.view.scrollDOM.scrollTop, scrollLeft: handle.view.scrollDOM.scrollLeft });
+      localFileSessions.set(identity, { state: handle.view.state, scrollTop: handle.view.scrollDOM.scrollTop, scrollLeft: handle.view.scrollDOM.scrollLeft, source: handle.value });
+    }
     for (let attempt = 0; attempt < 3; attempt++) {
       if (saveBusy.current) throw new Error("文件正在保存，请等待保存完成后关闭。");
       const current = latestDraft.current;
       const text = sourceHandle.current?.value ?? current.source;
       if (!current.base) return;
-      if (text === current.base.source) { if (attempt) await removeLocalDraft(identity); return; }
+      if (text === current.base.source) { await removeLocalDraft(identity); return; }
       await writeLocalDraft({ identity, source: text, baseSource: current.base.source, baseRevision: current.base.revision, bom: current.base.bom, lineEnding: current.base.lineEnding, savedAt: Date.now() });
       if (!saveBusy.current && (sourceHandle.current?.value ?? latestDraft.current.source) === text && latestDraft.current.base === current.base) return;
     }
     throw new Error("文件在关闭准备期间持续变化，请停止输入后重试。");
   }), [identity]);
   useEffect(() => {
-    setLocalFileDirty(identity, saveState === "dirty" || saveState === "saving");
+    setLocalFileDirty(identity, Boolean(baseSnapshot && source !== baseSnapshot.source) || saveState === "saving");
     return () => setLocalFileDirty(identity, false);
-  }, [identity, saveState]);
+  }, [identity, saveState, baseSnapshot, source]);
 
   useEffect(() => {
     const sync = (event: Event) => {
@@ -197,12 +204,19 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       const shown = draft?.source ?? snapshot.source;
       editorSession.current = cached?.source === shown ? cached.state : null;
       sourceRef.current = shown;
-      setBaseSnapshot(snapshot);
+      setBaseSnapshot(draft && draft.source !== snapshot.source && draft.baseRevision !== snapshot.revision
+        ? { ...snapshot, source: draft.baseSource, revision: draft.baseRevision, bom: draft.bom, lineEnding: draft.lineEnding }
+        : snapshot);
       setSource(shown);
       setSaveState(shown === snapshot.source ? "clean" : "dirty");
       if (recovered) {
-        setRecoveryNotice(draft.baseRevision === snapshot.revision ? "已恢复未保存的本机编辑草稿。" : "发现上次未保存草稿，磁盘文件已变化；请比较后决定保留哪一份。");
-        if (draft.baseRevision !== snapshot.revision) setExternalSnapshot(snapshot);
+        if (draft.source === snapshot.source) {
+          setRecoveryNotice("恢复草稿与磁盘内容一致，文件已保存。");
+          void removeLocalDraft(identity).catch(() => {});
+        } else {
+          setRecoveryNotice(draft.baseRevision === snapshot.revision ? "已恢复未保存的本机编辑草稿。" : "发现上次未保存草稿，磁盘文件已变化；请比较后决定保留哪一份。");
+          if (draft.baseRevision !== snapshot.revision) setExternalSnapshot(snapshot);
+        }
       }
       setLoading(false); setSymbolsBusy(true);
       const result = await extractSourceSymbols(language, shown, controller.signal);
@@ -224,6 +238,23 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       void writeLocalDraft({ identity, source: current.source, baseSource: current.base.source, baseRevision: current.base.revision, bom: current.base.bom, lineEnding: current.base.lineEnding, savedAt: Date.now() }).catch(() => {});
     }
   }, [identity]);
+  useEffect(() => {
+    const location = data.location;
+    if (!location || appliedSearchLocation.current === location || loading || !baseSnapshot || !editorHandle || preview) return;
+    if (location.revision !== baseSnapshot.revision || sourceRef.current !== baseSnapshot.source) {
+      setRecoveryNotice("文件在搜索后已变化或存在未保存编辑，未按旧位置跳转；请保存后重新搜索。");
+      appliedSearchLocation.current = location;
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      if (sourceHandle.current !== editorHandle) return;
+      appliedSearchLocation.current = location;
+      const from = Math.min(location.from, editorHandle.value.length), to = Math.min(location.to, editorHandle.value.length);
+      editorHandle.setSelectionRange(from, to); editorHandle.scrollToOffset(from, true); setActiveOffset(from);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [data.location, loading, baseSnapshot, editorHandle, preview]);
+  useEffect(() => { if (data.location) setPreview(false); }, [data.location]);
   useEffect(() => {
     if (!baseSnapshot) return;
     const timer = window.setInterval(() => {
@@ -318,16 +349,18 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     handle.setSelectionRange(at, at); handle.scrollToOffset(at, true); setActiveOffset(at); handle.focus();
   };
   const save = useCallback(async (overwriteExternal = false) => {
+    if (savingOperation.current) return false;
     if (isLocalFileReadOnly(data.rootId, data.nodeId)) {
       setError("此本地文件当前为只读。请先在文件树右键菜单中切换为可编辑。");
-      return;
+      return false;
     }
     if (!editing && !overwriteExternal) return;
     const base = overwriteExternal && externalSnapshot ? externalSnapshot : baseSnapshot;
     if (!base) return;
+    savingOperation.current = true;
     setSaveState("saving"); setError("");
     try {
-      const savingSource = source;
+      const savingSource = sourceHandle.current?.value ?? sourceRef.current;
       const saved = await localFileService.write(data.rootId, data.nodeId, savingSource, base);
       setBaseSnapshot(saved); setExternalSnapshot(null);
       const currentSource = sourceRef.current;
@@ -339,6 +372,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
         void writeLocalDraft({ identity, source: currentSource, baseSource: saved.source, baseRevision: saved.revision, bom: saved.bom, lineEnding: saved.lineEnding, savedAt: Date.now() }).catch(() => {});
       }
       window.setTimeout(() => setSaveState(current => current === "saved" ? "clean" : current), 1800);
+      return true;
     } catch (reason) {
       const message = String(reason);
       setSaveState("error"); setError(message.includes("STALE_REVISION") ? "磁盘文件已变化，请在下方比较后选择重载或覆盖。" : message);
@@ -346,8 +380,15 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
         const latest = await localFileService.readSnapshot(data.rootId, data.nodeId).catch(() => null);
         if (latest) { setExternalSnapshot(latest); setError(""); }
       }
+      return false;
+    } finally {
+      savingOperation.current = false;
     }
-  }, [baseSnapshot, data.nodeId, data.rootId, editing, externalSnapshot, identity, source]);
+  }, [baseSnapshot, data.nodeId, data.rootId, editing, externalSnapshot, identity]);
+  useEffect(() => registerLocalFileSaver(identity, async () => {
+    if (saveBusy.current) throw new Error("文件正在保存，请稍后重试");
+    return (await save()) === true;
+  }), [identity, save]);
   const saveCopy = async () => {
     try {
       const result = await localFileService.saveAs(data.name, source, baseSnapshot);

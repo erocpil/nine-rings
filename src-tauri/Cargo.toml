@@ -30,6 +30,8 @@ notify = "8.2"
 sha2 = "0.10"
 log = "0.4"
 env_logger = { version = "0.11", default-features = false }
+trash = "5.2"
+libc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

@@ -8,11 +8,16 @@ import { workspacePanels } from "../lib/plugin-system/panel-registry";
 import { mainViews } from "../lib/plugin-system/main-view-registry";
 import { panelDisplays } from "../lib/plugin-system/panel-display";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
-import { LOCAL_FILE_OPENED_EVENT, LOCAL_FILE_REVEAL_EVENT, rememberRecentLocalFile, renameRecentLocalPath } from "../lib/local-files/recent";
+import { LOCAL_FILE_OPENED_EVENT, LOCAL_FILE_REVEAL_EVENT, rememberRecentLocalFile, renameRecentLocalPath, removeRecentLocalPath } from "../lib/local-files/recent";
 import { isLocalFileReadOnly, setLocalFileReadOnly } from "../lib/local-files/access";
-import { isLocalFileDirty } from "../lib/local-files/session";
+import { localFileSessions, invalidateLocalFileSessionMounts } from "../lib/local-files/session";
+import { assertLocalPathClean, localPathContains, migrateLocalFileSessions } from "../lib/local-files/operations";
 import { migrateLocalFilePathState } from "../lib/local-files/path-state";
-import { renameLocalFocusTabPaths } from "../lib/focus-tabs";
+import { renameLocalFocusTabPaths, removeLocalFocusTabPaths } from "../lib/focus-tabs";
+import { LocalFileOperationDialog, type LocalFileOperation } from "./LocalFileOperationDialog";
+import { LocalFileDrafts } from "./LocalFileDrafts";
+import { LocalFileSearch } from "./LocalFileSearch";
+import type { LocalFileSearchHit } from "../lib/local-files/search";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
 import { BlockActionMenu } from "./BlockActionMenu";
@@ -79,6 +84,9 @@ export function LocalFilesPanel({ active, onBack }: {
   const [appliedQuery, setAppliedQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [viewMenu, setViewMenu] = useState<HTMLElement | null>(null);
+  const [operation, setOperation] = useState<LocalFileOperation | null>(null);
+  const [task, setTask] = useState<"drafts" | "search" | null>(null);
+  const [searchScope, setSearchScope] = useState<{ rootId: string; node: string } | undefined>();
   const [revealRequest, setRevealRequest] = useState<{ rootId: string; nodeId: string; name: string; sequence: number } | null>(null);
   const [pendingReveal, setPendingReveal] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState(restored.file);
@@ -352,9 +360,9 @@ export function LocalFilesPanel({ active, onBack }: {
     }
     if (!restorePrevious) toggle(root.id, "");
   };
-  const openFile = (rootId: string, nodeId: string, name: string) => {
+  const openFile = (rootId: string, nodeId: string, name: string, hit?: LocalFileSearchHit) => {
     const rootName = roots.find(root => root.id === rootId)?.name ?? "本地文件";
-    mainViews.bind(workspacePanels.assert("files")).open(LOCAL_FILE_VIEW_ID, { rootId, nodeId, name });
+    mainViews.bind(workspacePanels.assert("files")).open(LOCAL_FILE_VIEW_ID, { rootId, nodeId, name, ...(hit ? { location: { from: hit.from, to: hit.to, revision: hit.revision } } : {}) });
     rememberRecentLocalFile({ rootId, rootName, nodeId, name });
     setSelectedFile({ rootId, rootName, nodeId, name });
     setSelected(`${rootId}:${nodeId}`);
@@ -364,17 +372,21 @@ export function LocalFilesPanel({ active, onBack }: {
     await navigator.clipboard.writeText(path);
     setError(`已复制路径：${path}`);
   };
-  const renameLocalPath = async (rootId: string, nodeId: string, oldName: string, directory: boolean) => {
+  const renameLocalPath = async (rootId: string, nodeId: string, oldName: string, directory: boolean, destination?: { parent: string; name: string }) => {
     if (!localFileService.canRename(rootId)) throw new Error("目录快照无法重命名，请重新授权原目录");
     const view = mainViews.getSnapshot();
     const activeView = [view.current, view.pending].find(item => item?.renderer === "local-file" && item.data.rootId === rootId && (item.data.nodeId === nodeId || (directory && (!nodeId || item.data.nodeId.startsWith(`${nodeId}/`)))));
-    if (activeView?.renderer === "local-file" && isLocalFileDirty(`${rootId}:${activeView.data.nodeId}`))
-      throw new Error("此路径中有未保存编辑，请保存或关闭文件后再重命名");
-    const name = window.prompt("重命名", oldName);
-    if (name === null || name.trim() === oldName) return;
+    await assertLocalPathClean(rootId, nodeId);
+    const name = destination?.name ?? window.prompt("重命名", oldName);
+    if (name === null || (!destination && name.trim() === oldName)) return;
     const oldRootName = roots.find(item => item.id === rootId)?.name ?? "本地文件";
-    const { root, nodeId: nextNodeId } = await localFileService.rename(rootId, nodeId, name);
+    const result = destination
+      ? { root: roots.find(item => item.id === rootId)!, nodeId: await localFileService.move(rootId, nodeId, destination.parent, name) }
+      : await localFileService.rename(rootId, nodeId, name);
+    const { root, nodeId: nextNodeId } = result;
     migrateLocalFilePathState(rootId, nodeId, nextNodeId);
+    if (nodeId && activeView?.id === view.current?.id) invalidateLocalFileSessionMounts();
+    migrateLocalFileSessions(rootId, nodeId, nextNodeId);
     renameLocalFocusTabPaths(rootId, nodeId, nextNodeId);
     setRoots(current => current.map(item => item.id === rootId ? root : item));
     const oldPrefix = `${rootId}:${nodeId}`;
@@ -398,9 +410,47 @@ export function LocalFilesPanel({ active, onBack }: {
       .sort((left, right) => left.split("/").length - right.split("/").length);
     for (const node of reloadNodes) await load(rootId, node);
   };
+  const applyOperation = async (parent: string, name: string) => {
+    if (!operation) return;
+    const { rootId, nodeId, kind } = operation;
+    if (kind === "move") {
+      await renameLocalPath(rootId, nodeId, operation.name, operation.directory, { parent, name });
+      setQuery(""); setAppliedQuery("");
+      setRevealRequest({ rootId, nodeId: parent ? `${parent}/${name}` : name, name, sequence: Date.now() });
+      return;
+    }
+    if (kind === "trash") {
+      await assertLocalPathClean(rootId, nodeId);
+      await localFileService.trash(rootId, nodeId);
+      const current = mainViews.getSnapshot().current;
+      if (current?.renderer === "local-file" && localPathContains(rootId, nodeId, `${current.data.rootId}:${current.data.nodeId}`)) invalidateLocalFileSessionMounts();
+      for (const item of [mainViews.getSnapshot().current, mainViews.getSnapshot().pending])
+        if (item?.renderer === "local-file" && localPathContains(rootId, nodeId, `${item.data.rootId}:${item.data.nodeId}`)) {
+          if (item.id === mainViews.getSnapshot().current?.id) mainViews.close(item.id);
+          else mainViews.reject(item.id);
+        }
+      for (const id of localFileSessions.keys()) if (localPathContains(rootId, nodeId, id)) localFileSessions.delete(id);
+      removeRecentLocalPath(rootId, nodeId);
+      removeLocalFocusTabPaths(rootId, nodeId);
+      setExpanded(current => new Set([...current].filter(id => !localPathContains(rootId, nodeId, id))));
+      if (selectedFile && localPathContains(rootId, nodeId, `${selectedFile.rootId}:${selectedFile.nodeId}`)) { setSelectedFile(null); setSelected(""); }
+      setPages(current => Object.fromEntries(Object.entries(current).filter(([id]) => !localPathContains(rootId, nodeId, id))));
+      await load(rootId, nodeId.split("/").slice(0, -1).join("/"));
+      return;
+    }
+    const created = await localFileService.create(rootId, parent, name, kind === "directory");
+    setExpanded(current => new Set([...current, `${rootId}:${parent}`]));
+    setQuery(""); setAppliedQuery("");
+    await load(rootId, parent);
+    if (kind === "file") openFile(rootId, created, name);
+    setRevealRequest({ rootId, nodeId: created, name, sequence: Date.now() });
+  };
   const menuActions = contextMenu ? [
     { label: "复制路径", run: () => void copyLocalPath(contextMenu.rootId, contextMenu.nodeId).catch(reason => setError(String(reason))) },
-    { label: "重命名", run: () => void run(`rename:${contextMenu.rootId}:${contextMenu.nodeId}`, () => renameLocalPath(contextMenu.rootId, contextMenu.nodeId, contextMenu.name, contextMenu.directory)) },
+    ...(contextMenu.directory ? [{ label: "在此目录搜索正文…", run: () => { setSearchScope({ rootId: contextMenu.rootId, node: contextMenu.nodeId }); setTask("search"); } }] : []),
+    { label: "重命名", disabled: !localFileService.canRename(contextMenu.rootId) || isLocalFileReadOnly(contextMenu.rootId, contextMenu.nodeId), run: () => void run(`rename:${contextMenu.rootId}:${contextMenu.nodeId}`, () => renameLocalPath(contextMenu.rootId, contextMenu.nodeId, contextMenu.name, contextMenu.directory)) },
+    ...(["file", "directory"] as const).map(kind => ({ label: kind === "file" ? "新建文件…" : "新建文件夹…", disabled: !localFileService.canSaveOriginal(contextMenu.rootId), run: () => setOperation({ ...contextMenu, kind }) })),
+    ...(contextMenu.nodeId ? [{ label: "移动到…", disabled: !localFileService.canRename(contextMenu.rootId) || isLocalFileReadOnly(contextMenu.rootId, contextMenu.nodeId), run: () => setOperation({ ...contextMenu, kind: "move" }) }, ...(localFileService.canTrash() ? [{ label: "移入系统回收站…", disabled: isLocalFileReadOnly(contextMenu.rootId, contextMenu.nodeId), run: () => setOperation({ ...contextMenu, kind: "trash" }) }] : [])] : []),
     { label: isLocalFileReadOnly(contextMenu.rootId, contextMenu.nodeId) ? "允许编辑" : "设为只读", run: () => setLocalFileReadOnly(contextMenu.rootId, contextMenu.nodeId, !isLocalFileReadOnly(contextMenu.rootId, contextMenu.nodeId)) },
   ] : [];
   const refreshExpanded = () =>
@@ -499,7 +549,9 @@ export function LocalFilesPanel({ active, onBack }: {
           </button>
         )}
         <strong>本地文件</strong>
-        <button type="button" className="btn-icon" title="按文件名筛选" aria-label="按文件名筛选" aria-expanded={searchOpen} aria-pressed={searchOpen} onClick={() => { setSearchOpen(value => !value); if (searchOpen) { setQuery(""); setAppliedQuery(""); } }}><ToolbarIcon name="search" /></button>
+        <button type="button" className="btn-icon" title="按文件名筛选" aria-label="按文件名筛选" aria-expanded={searchOpen} aria-pressed={searchOpen} onClick={() => { setSearchOpen(value => !value); if (searchOpen) { setQuery(""); setAppliedQuery(""); } }}><ToolbarIcon name="filter" /></button>
+        <button type="button" className="btn-icon" title="目录全文搜索" aria-label="目录全文搜索" aria-expanded={task === "search"} aria-pressed={task === "search"} onClick={() => { setSearchScope(undefined); setTask(current => current === "search" ? null : "search"); }}><ToolbarIcon name="search" /></button>
+        <button type="button" className="btn-icon" title="未保存文件与恢复草稿" aria-label="未保存文件与恢复草稿" aria-expanded={task === "drafts"} aria-pressed={task === "drafts"} onClick={() => setTask(current => current === "drafts" ? null : "drafts")}><ToolbarIcon name="save" /></button>
         <button type="button" className="btn-icon" title="文件树显示与排序" aria-label="文件树显示与排序" aria-haspopup="menu" aria-expanded={Boolean(viewMenu)} onClick={event => {
           const trigger = event.currentTarget;
           setViewMenu(current => current ? null : trigger);
@@ -581,6 +633,8 @@ export function LocalFilesPanel({ active, onBack }: {
         }}
       />
       <p className="local-files-message">本地文件不会导入或同步{searchOpen ? " · 过滤时保留目录" : ""}</p>
+      {task === "drafts" && <LocalFileDrafts roots={roots} onOpen={openFile} onClose={() => setTask(null)} />}
+      {task === "search" && <LocalFileSearch key={searchScope ? `${searchScope.rootId}:${searchScope.node}` : "all"} roots={roots} showHidden={preferences.showHidden} active={active} initialScope={searchScope} onOpen={hit => { try { openFile(hit.rootId, hit.node, hit.node.split("/").slice(-1)[0]!, hit); } catch (cause) { setError(String(cause)); } }} onClose={() => setTask(null)} />}
       {error && (
         <p role="alert" className="local-files-message">
           {error}
@@ -680,6 +734,11 @@ export function LocalFilesPanel({ active, onBack }: {
         ))}
       </div>
       {contextMenu && <NotesContextMenu target={contextMenu} close={() => setContextMenu(null)} actions={menuActions} />}
+      {operation && <LocalFileOperationDialog operation={operation} directories={["", ...Object.keys(pages).filter(key => key.startsWith(`${operation.rootId}:`)).map(key => key.slice(operation.rootId.length + 1))]} onApply={async (parent, name) => {
+        setBusy(current => new Set(current).add("mutation"));
+        try { await applyOperation(parent, name); }
+        finally { if (mounted.current) setBusy(current => { const next = new Set(current); next.delete("mutation"); return next; }); }
+      }} onClose={() => setOperation(null)} />}
       {!roots.length && (
         <p className="local-files-message">
           选择本机目录后，展开文件夹查看、编辑和保存 UTF-8 文件。

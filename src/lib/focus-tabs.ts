@@ -78,6 +78,12 @@ export function renameLocalFocusTabPaths(rootId: string, oldNode: string, newNod
   const current = readLocalFocusTabs();
   saveLocalFocusTabs({ order: current.order.map(rewrite), closed: current.closed.map(rewrite) });
 }
+export function removeLocalFocusTabPaths(rootId: string, node: string) {
+  const prefix = `${rootId}:${node}`;
+  const keep = (id: string) => id !== prefix && !id.startsWith(`${prefix}/`);
+  const current = readLocalFocusTabs();
+  saveLocalFocusTabs({ order: current.order.filter(keep), closed: current.closed.filter(keep) });
+}
 export function focusTabIds(recent: string[], state: FocusTabState): string[] {
   const candidates = new Set(recent.filter((id) => !state.closed.includes(id)));
   return [

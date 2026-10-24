@@ -17,8 +17,8 @@ export function migrateLocalFilePathState(rootId: string, oldNode: string, newNo
     const rules = JSON.parse(localStorage.getItem(ruleKey) ?? "{}") as Record<string, unknown>;
     for (const [key, value] of Object.entries(rules)) {
       if (!key.startsWith(`${rootId}:`)) continue;
-      const target = rewrite(key.slice(rootId.length + 1));
-      if (target) { rules[`${rootId}:${target}`] = value; delete rules[key]; }
+      const target = rewrite(key);
+      if (target) { rules[target] = value; delete rules[key]; }
     }
     localStorage.setItem(ruleKey, JSON.stringify(rules));
     const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter((key): key is string => !!key);

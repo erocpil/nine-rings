@@ -237,6 +237,175 @@ pub struct RenameResult {
     root: Root,
     node_id: String,
 }
+fn valid_name(name: &str) -> Result<(), String> {
+    if name.trim().is_empty()
+        || name.trim() != name
+        || name == "."
+        || name == ".."
+        || name.contains(['/', '\\', ':', '\0'])
+    {
+        return Err("名称不能为空，也不能包含路径分隔符".into());
+    }
+    Ok(())
+}
+// Never replace an entry created by another process between validation and rename.
+fn move_exclusive(source: &Path, target: &Path) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let from =
+            std::ffi::CString::new(source.as_os_str().as_bytes()).map_err(|e| e.to_string())?;
+        let to =
+            std::ffi::CString::new(target.as_os_str().as_bytes()).map_err(|e| e.to_string())?;
+        #[cfg(target_os = "macos")]
+        let result = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
+        #[cfg(target_os = "linux")]
+        let result = unsafe {
+            libc::renameat2(
+                libc::AT_FDCWD,
+                from.as_ptr(),
+                libc::AT_FDCWD,
+                to.as_ptr(),
+                libc::RENAME_NOREPLACE,
+            )
+        };
+        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+        return Err("当前平台不支持安全移动".into());
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        if result != 0 {
+            return Err(std::io::Error::last_os_error().to_string());
+        }
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        use windows::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_WRITE_THROUGH};
+        let from: Vec<u16> = source.as_os_str().encode_wide().chain(Some(0)).collect();
+        let to: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
+        unsafe {
+            MoveFileExW(
+                windows::core::PCWSTR(from.as_ptr()),
+                windows::core::PCWSTR(to.as_ptr()),
+                MOVEFILE_WRITE_THROUGH,
+            )
+        }
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+fn create_entry(root: &Path, parent: &str, name: &str, directory: bool) -> Result<String, String> {
+    valid_name(name)?;
+    let parent_path = checked_path(root, parent)?;
+    if !parent_path.is_dir() {
+        return Err("目标不是目录".into());
+    }
+    let target = parent_path.join(name);
+    if directory {
+        fs::create_dir(&target).map_err(|e| e.to_string())?;
+    } else {
+        fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&target)
+            .map_err(|e| e.to_string())?
+            .sync_all()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(if parent.is_empty() {
+        name.into()
+    } else {
+        format!("{parent}/{name}")
+    })
+}
+#[tauri::command]
+pub async fn local_files_create(
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    parent: String,
+    name: String,
+    directory: bool,
+) -> Result<String, String> {
+    caller(&window)?;
+    let root = library.root(&root_id)?;
+    let grants = library.roots.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let grants = grants.lock().map_err(|_| "目录状态不可用")?;
+        if grants.get(&root_id) != Some(&root) {
+            return Err("目录授权已变化".into());
+        }
+        create_entry(&root, &parent, &name, directory)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+fn move_entry(root: &Path, node: &str, parent: &str, name: &str) -> Result<String, String> {
+    if node.is_empty() {
+        return Err("不能移动授权根目录".into());
+    }
+    valid_name(name)?;
+    let source = checked_path(root, node)?;
+    let destination = checked_path(root, parent)?;
+    if !destination.is_dir() || destination.starts_with(&source) {
+        return Err("不能移动到自身或其子目录".into());
+    }
+    let target = destination.join(name);
+    if fs::symlink_metadata(&target).is_ok() {
+        return Err("目标名称已存在，未覆盖".into());
+    }
+    move_exclusive(&source, &target)?;
+    Ok(if parent.is_empty() {
+        name.into()
+    } else {
+        format!("{parent}/{name}")
+    })
+}
+#[tauri::command]
+pub async fn local_files_move(
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    node: String,
+    parent: String,
+    name: String,
+) -> Result<String, String> {
+    caller(&window)?;
+    let root = library.root(&root_id)?;
+    let grants = library.roots.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let grants = grants.lock().map_err(|_| "目录状态不可用")?;
+        if grants.get(&root_id) != Some(&root) {
+            return Err("目录授权已变化".into());
+        }
+        move_entry(&root, &node, &parent, &name)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+#[tauri::command]
+pub async fn local_files_trash(
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    node: String,
+) -> Result<(), String> {
+    caller(&window)?;
+    if node.is_empty() {
+        return Err("不能删除授权根目录；可撤销其授权".into());
+    }
+    let root = library.root(&root_id)?;
+    let grants = library.roots.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let grants = grants.lock().map_err(|_| "目录状态不可用")?;
+        if grants.get(&root_id) != Some(&root) {
+            return Err("目录授权已变化".into());
+        }
+        let target = checked_path(&root, &node)?;
+        trash::delete(target).map_err(|e| format!("移入系统回收站失败（未执行永久删除）：{e}"))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
 #[tauri::command]
 pub fn local_files_rename(
     app: tauri::AppHandle,
@@ -262,7 +431,7 @@ pub fn local_files_rename(
     if target.exists() {
         return Err("同名文件或目录已存在".into());
     }
-    fs::rename(&source, &target).map_err(|error| error.to_string())?;
+    move_exclusive(&source, &target)?;
     let updated_root = if node.is_empty() {
         target.clone()
     } else {
@@ -274,7 +443,7 @@ pub fn local_files_rename(
         .map_err(|_| "目录状态不可用")?
         .insert(root_id.clone(), updated_root.clone());
     if let Err(error) = library.save(&app) {
-        if fs::rename(&target, &source).is_ok() {
+        if move_exclusive(&target, &source).is_ok() {
             library
                 .roots
                 .lock()
@@ -827,6 +996,49 @@ pub async fn local_files_save_as(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn create_and_move_are_scoped_and_never_replace_existing_entries() {
+        let dir = std::env::temp_dir().join(format!("nr-file-ops-{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&dir).unwrap();
+        let dir = fs::canonicalize(dir).unwrap();
+        assert_eq!(create_entry(&dir, "", "src", true).unwrap(), "src");
+        create_entry(&dir, "", "dest", true).unwrap();
+        create_entry(&dir, "src", "file.c", false).unwrap();
+        fs::write(dir.join("src/file.c"), "preserve").unwrap();
+        assert!(create_entry(&dir, "src", "file.c", false).is_err());
+        assert!(create_entry(&dir, "", "../escape", false).is_err());
+        assert!(move_entry(&dir, "src", "src", "nested").is_err());
+        assert!(move_entry(&dir, "", "dest", "root").is_err());
+        assert!(move_entry(&dir, "src/file.c", "../", "escape").is_err());
+        assert_eq!(
+            move_entry(&dir, "src/file.c", "dest", "file.c").unwrap(),
+            "dest/file.c"
+        );
+        assert!(!dir.join("src/file.c").exists());
+        assert_eq!(
+            fs::read_to_string(dir.join("dest/file.c")).unwrap(),
+            "preserve"
+        );
+        create_entry(&dir, "src", "file.c", false).unwrap();
+        assert!(move_entry(&dir, "src/file.c", "dest", "file.c").is_err());
+        assert_eq!(
+            fs::read_to_string(dir.join("dest/file.c")).unwrap(),
+            "preserve"
+        );
+        create_entry(&dir, "src", "nested", true).unwrap();
+        assert!(move_entry(&dir, "src", "src/nested", "cycle").is_err());
+        assert_eq!(
+            move_entry(&dir, "src", "dest", "moved").unwrap(),
+            "dest/moved"
+        );
+        assert!(dir.join("dest/moved/nested").is_dir());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(dir.join("dest"), dir.join("link")).unwrap();
+            assert!(create_entry(&dir, "link", "escape", false).is_err());
+        }
+        fs::remove_dir_all(dir).unwrap();
+    }
     #[test]
     fn scope_paging_and_text_limits() {
         let dir = std::env::temp_dir().join(format!("nr-files-{}", uuid::Uuid::new_v4()));
