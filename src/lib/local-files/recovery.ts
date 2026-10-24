@@ -2,6 +2,15 @@ const DB = "nine-rings-local-file-recovery";
 const STORE = "drafts";
 const DRAFT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_RECOVERY_DRAFTS = 5;
+const pending = new Map<string, Promise<void>>();
+/** Autosave, explicit close and successful-save cleanup share one ordered lane. */
+function enqueue(identity: string, operation: () => Promise<void>): Promise<void> {
+  const next = (pending.get(identity) ?? Promise.resolve()).catch(() => {}).then(operation);
+  pending.set(identity, next);
+  const finished = () => { if (pending.get(identity) === next) pending.delete(identity); };
+  void next.then(finished, finished);
+  return next;
+}
 export interface LocalFileDraft {
   identity: string;
   source: string;
@@ -20,6 +29,7 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 export async function readLocalDraft(identity: string): Promise<LocalFileDraft | null> {
+  await pending.get(identity)?.catch(() => {});
   const db = await openDb();
   try {
     const draft = await new Promise<LocalFileDraft | null>((resolve, reject) => { const request = db.transaction(STORE).objectStore(STORE).get(identity); request.onsuccess = () => resolve((request.result as LocalFileDraft | undefined) ?? null); request.onerror = () => reject(request.error); });
@@ -28,7 +38,10 @@ export async function readLocalDraft(identity: string): Promise<LocalFileDraft |
   }
   finally { db.close(); }
 }
-export async function writeLocalDraft(value: LocalFileDraft): Promise<void> {
+export function writeLocalDraft(value: LocalFileDraft): Promise<void> {
+  return enqueue(value.identity, () => writeDraft(value));
+}
+async function writeDraft(value: LocalFileDraft): Promise<void> {
   const db = await openDb();
   try { await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(STORE, "readwrite"); const store = transaction.objectStore(STORE);
@@ -45,7 +58,10 @@ export async function writeLocalDraft(value: LocalFileDraft): Promise<void> {
   }); }
   finally { db.close(); }
 }
-export async function removeLocalDraft(identity: string): Promise<void> {
+export function removeLocalDraft(identity: string): Promise<void> {
+  return enqueue(identity, () => removeDraft(identity));
+}
+async function removeDraft(identity: string): Promise<void> {
   const db = await openDb();
   try { await new Promise<void>((resolve, reject) => { const request = db.transaction(STORE, "readwrite").objectStore(STORE).delete(identity); request.onsuccess = () => resolve(); request.onerror = () => reject(request.error); }); }
   finally { db.close(); }

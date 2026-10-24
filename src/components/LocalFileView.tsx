@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import type { EditorState } from "@codemirror/state";
 import { localFileService, resolveRelativeNode, type LocalFileSnapshot } from "../lib/local-files/service";
 import { readLocalDraft, removeLocalDraft, writeLocalDraft } from "../lib/local-files/recovery";
-import { localFileSessions, localFileSessionEpoch, setLocalFileDirty } from "../lib/local-files/session";
+import { localFileSessions, localFileSessionEpoch, registerLocalFileCheckpoint, setLocalFileDirty } from "../lib/local-files/session";
 import { readLocalFilePosition, saveLocalFilePosition } from "../lib/local-files/position";
 import { isLocalFileReadOnly, LOCAL_FILE_ACCESS_CHANGED_EVENT, setLocalFileReadOnly } from "../lib/local-files/access";
 import type { LocalFileViewData } from "../lib/plugin-system/main-view-registry";
@@ -135,6 +135,20 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const [languageOverride, setLanguageOverride] = useState<string | null>(() => sourceViewLanguageOverride(languageOverrideIdentity));
   const language = languageOverride ?? detectedLanguage;
   latestDraft.current = { source, base: baseSnapshot };
+  const saveBusy = useRef(false);
+  saveBusy.current = saveState === "saving";
+  useEffect(() => registerLocalFileCheckpoint(identity, async () => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (saveBusy.current) throw new Error("文件正在保存，请等待保存完成后关闭。");
+      const current = latestDraft.current;
+      const text = sourceHandle.current?.value ?? current.source;
+      if (!current.base) return;
+      if (text === current.base.source) { if (attempt) await removeLocalDraft(identity); return; }
+      await writeLocalDraft({ identity, source: text, baseSource: current.base.source, baseRevision: current.base.revision, bom: current.base.bom, lineEnding: current.base.lineEnding, savedAt: Date.now() });
+      if (!saveBusy.current && (sourceHandle.current?.value ?? latestDraft.current.source) === text && latestDraft.current.base === current.base) return;
+    }
+    throw new Error("文件在关闭准备期间持续变化，请停止输入后重试。");
+  }), [identity]);
   useEffect(() => {
     setLocalFileDirty(identity, saveState === "dirty" || saveState === "saving");
     return () => setLocalFileDirty(identity, false);

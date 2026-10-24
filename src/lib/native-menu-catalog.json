@@ -94,6 +94,16 @@
         "accelerator": "Command+S"
       },
       {
+        "id": "document.close",
+        "text": "关闭当前文件",
+        "accelerator": "Command+W"
+      },
+      {
+        "id": "window.hide",
+        "text": "关闭到托盘",
+        "accelerator": "Command+Shift+W"
+      },
+      {
         "id": "edit.undo",
         "text": "撤销正文编辑"
       },

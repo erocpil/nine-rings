@@ -18,8 +18,10 @@ describe("shared editor shortcuts", () => {
     expect(
       new Set(editorShortcutSpecs.map((spec) => spec.accelerator)).size,
     ).toBe(editorShortcutSpecs.length);
-    for (const code of ["KeyZ", "KeyX", "KeyC", "KeyV", "KeyA", "KeyQ", "KeyW"])
+    for (const code of ["KeyZ", "KeyX", "KeyC", "KeyV", "KeyA", "KeyQ"])
       expect(editorShortcutAction(key(code), "MacIntel")).toBeUndefined();
+    expect(editorShortcutAction(key("KeyW"), "MacIntel")).toBe("document.close");
+    expect(editorShortcutAction(key("KeyW", { shiftKey: true }), "MacIntel")).toBe("window.hide");
   });
   it("uses the platform primary modifier with exact modifiers", () => {
     expect(editorShortcutAction(key("KeyB"), "MacIntel")).toBe("format.bold");

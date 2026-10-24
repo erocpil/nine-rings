@@ -41,8 +41,9 @@ export function useAppKeyboardShortcuts(actions: AppShortcutActions): void {
   // ── 浏览器 keydown（Web 端快捷键）──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // On macOS, Command+W closes the Tauri window to the tray. Handle this
-      // before editor guards so it works while the document has focus too.
+      if (e.defaultPrevented) return;
+      // Command+Shift+W hides the macOS Tauri window; Command+W is a file
+      // command handled by the shared editor/native-menu command registry.
       if (
         isTauriRuntime() && isCloseToTrayShortcut(e)
       ) {
@@ -53,9 +54,6 @@ export function useAppKeyboardShortcuts(actions: AppShortcutActions): void {
           .catch((error) => console.warn("[Window] 隐藏到托盘失败:", error));
         return;
       }
-      // 编辑器扩展（尤其 Vim Normal/Visual）已经认领的组合键不能再次
-      // 触发 App 级动作，例如 Ctrl+P 不应同时打开快速切换器。
-      if (e.defaultPrevented) return;
       if (shouldIgnoreShortcut(e, e.target)) return;
       const action = resolveShortcut(e);
       if (!action) return;

@@ -93,6 +93,23 @@ mod macos {
         // Preserve the existing Cocoa application/Edit/Window menus and their
         // standard responders, including the save-before-quit replacement.
         let original = menu.items()?;
+        // Tauri's default File and Window menus both install a Cocoa Close
+        // responder with Command+W. The application now owns that shortcut for
+        // closing a file, and exposes window hiding separately as Shift+Command+W.
+        for item in &original {
+            if let MenuItemKind::Submenu(submenu) = item {
+                for child in submenu.items()? {
+                    if let MenuItemKind::Predefined(predefined) = &child {
+                        if matches!(
+                            predefined.text()?.as_str(),
+                            "Close" | "Close Window" | "C&lose Window"
+                        ) {
+                            submenu.remove(&child)?;
+                        }
+                    }
+                }
+            }
+        }
         let help = original
             .iter()
             .find(|item| item.id().as_ref() == HELP_SUBMENU_ID);
@@ -112,9 +129,9 @@ mod macos {
                     _ => None,
                 });
                 if let Some(file) = file {
-                    // Keep the native Close responder, appending it after the
-                    // document actions and a separator rather than duplicating it.
-                    file.insert(&PredefinedMenuItem::separator(app)?, 0)?;
+                    if !file.items()?.is_empty() {
+                        file.insert(&PredefinedMenuItem::separator(app)?, 0)?;
+                    }
                     for (index, child) in entry
                         .items
                         .take()

@@ -40,6 +40,7 @@ export function FocusDocumentTabs({
   activeLocalIdentity,
   onOpenLocal,
   onRevealLocal,
+  onCloseCurrent,
 }: {
   noteId?: string;
   noteTitle?: string;
@@ -51,6 +52,7 @@ export function FocusDocumentTabs({
   activeLocalIdentity?: string;
   onOpenLocal: (file: RecentLocalFile) => Promise<void>;
   onRevealLocal?: (file: RecentLocalFile) => Promise<void>;
+  onCloseCurrent?: () => Promise<void>;
 }) {
   const prefs = useFocusTabs();
   const [recent, setRecent] = useState(readRecentNoteIds);
@@ -277,6 +279,7 @@ export function FocusDocumentTabs({
   const close = (closing: string[]) => {
     cancelClick();
     setMenu(null);
+    if (onCloseCurrent && closing.length === 1 && closing[0] === activeId.current) { void run(onCloseCurrent); return; }
     // Closing tabs must reduce the open set instead of refilling it from older
     // visits. History itself is retained; opening one again restores its tab.
     const dismissed = [
@@ -308,6 +311,7 @@ export function FocusDocumentTabs({
   const closeLocal = (closing: string[]) => {
     cancelClick();
     setMenu(null);
+    if (onCloseCurrent && closing.length === 1 && closing[0] === activeLocalId.current) { void run(onCloseCurrent); return; }
     const dismissed = [...new Set([...closing, ...recentLocalFiles.map(localFileIdentity).filter(id => !localIds.includes(id))])];
     void run(async () => {
       const current = activeLocalId.current;

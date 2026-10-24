@@ -23,6 +23,10 @@ React 活动视图向 `native-menu-registry.ts` 注册现有回调及 enabled/ch
 
 ## 原生行为与快捷键
 
+`⌘W` 关闭当前数据库文档或本地文本文件，优先切换到同类 tab 中右侧相邻文件，再尝试左侧；没有其它 tab 时回到空工作区。关闭不删除文件或最近访问记录，非专注模式、隐藏 tab 时同样生效。数据库文档先完成保存，本地文件先等待恢复草稿写入；失败时保留当前文件。活动 tab 的双击关闭与菜单单项关闭复用此入口。
+
+`⌘⇧W` 关闭到托盘，现有 Option+Y 的唤回／隐藏行为保留。移除 Tauri 默认 File 与 Window 菜单占用 `⌘W` 的原生 Close responder，由 File 中的“关闭当前文件”明确接管；窗口关闭按钮仍关闭到托盘。Windows/Linux 对应 Ctrl+W、Ctrl+Shift+W。普通网页能否收到关闭标签页组合键由浏览器决定，不能保证覆盖浏览器自身的关闭行为；仍可通过 tab 双击或右键菜单关闭文件。
+
 保留 Cocoa 标准编辑响应、窗口管理和已经实现的全屏及退出确认。系统编辑菜单服务于当前原生响应者；正文自己的撤销和重做另外列在 File 菜单，明确使用 ProseMirror/CodeMirror 历史。快捷键由同一命令表供原生菜单、两种编辑模式和按钮提示使用。macOS 使用 Command，Windows/Linux 使用 Ctrl；原生 Edit 菜单的撤销、重做、剪切、复制和粘贴继续交给当前响应者，不额外注册重复的加速键。网页中浏览器保留的快捷键能否覆盖取决于浏览器；无法覆盖时仍可用工具栏和原有入口。
 
 常用分配参考 [Notion 官方快捷键](https://www.notion.com/help/keyboard-shortcuts)，结合编辑器已有操作：
@@ -38,6 +42,7 @@ React 活动视图向 `native-menu-registry.ts` 注册现有回调及 enabled/ch
 | 查找／替换／跳转行或块 | ⌘F / ⌥⌘F / ⌘G | Ctrl+F / Ctrl+Alt+F / Ctrl+G |
 | 全局搜索／快速切换 | ⇧⌘F / ⌘P | Ctrl+Shift+F / Ctrl+P |
 | 新建／保存 | ⌘N / ⌘S | Ctrl+N / Ctrl+S |
+| 关闭当前文件／关闭到托盘 | ⌘W / ⇧⌘W | Ctrl+W / Ctrl+Shift+W |
 | 设置 | ⌘, | Ctrl+, |
 | 源码／专注／更多编辑工具 | ⌥⌘S / ⇧⌘↩ / ⌥⌘T | Ctrl+Alt+S / Ctrl+Shift+Enter / Ctrl+Alt+T |
 | 属性／目录／书签 | ⌥⌘↩ / ⌥⌘O / ⌥⌘B | Ctrl+Alt+Enter / Ctrl+Alt+O / Ctrl+Alt+B |

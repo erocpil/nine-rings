@@ -16,7 +16,9 @@ import { workspacePanels } from "./lib/plugin-system/panel-registry";
 import { pluginRuntime } from "./lib/plugin-system/runtime";
 import { imageViewerEnabled } from "./lib/plugin-system/builtin-image-viewer";
 import { LOCAL_FILE_VIEW_ID, localFilesEnabled } from "./lib/plugin-system/builtin-local-files";
-import { announceLocalFileOpened, LOCAL_FILE_REVEAL_EVENT, localFileIdentity, rememberRecentLocalFile, type RecentLocalFile } from "./lib/local-files/recent";
+import { announceLocalFileOpened, LOCAL_FILE_REVEAL_EVENT, localFileIdentity, readRecentLocalFiles, rememberRecentLocalFile, type RecentLocalFile } from "./lib/local-files/recent";
+import { checkpointLocalFile } from "./lib/local-files/session";
+import { focusTabIds, localFocusTabIds, readFocusTabs, readLocalFocusTabs, saveFocusTabs, saveLocalFocusTabs } from "./lib/focus-tabs";
 
 import { suspendPluginWork } from "./lib/plugin-system/runtime";
 import { DesktopRecoveryNotice } from "./components/DesktopRecoveryStatus";
@@ -1067,6 +1069,61 @@ function App() {
       throw reason;
     }
   };
+  const closingFile = useRef(false);
+  const closeCurrentFile = async () => {
+    if (closingFile.current) return;
+    const initialView = mainViews.getSnapshot();
+    if (initialView.pending) return;
+    const local = !initialView.suspended && initialView.current?.renderer === "local-file" ? initialView.current : null;
+    const note = useNotesStore.getState().selectedNote;
+    if (!local && (workspaceHomeRequested || selectedFolderPath || selectedConcept || readingLibraryOpen)) return;
+    if (!local && (initialView.current && !initialView.suspended || !note)) return;
+    const neighbors = (ids: string[], current: string) => {
+      const index = ids.indexOf(current);
+      return index < 0 ? ids.filter(id => id !== current) : [...ids.slice(index + 1), ...ids.slice(0, index).reverse()];
+    };
+    closingFile.current = true;
+    try {
+      if (local) {
+        const identity = localFileIdentity(local.data);
+        await flushAutoSave();
+        await checkpointLocalFile(identity);
+        if (mainViews.getSnapshot().current?.id !== local.id || mainViews.getSnapshot().pending) return;
+        const state = readLocalFocusTabs();
+        const files = readRecentLocalFiles();
+        const ids = localFocusTabIds(files.map(localFileIdentity), { ...state, closed: state.closed.filter(id => id !== identity) }, readFocusTabs().limit);
+        const neighborId = neighbors(ids, identity)[0];
+        const neighbor = files.find(file => localFileIdentity(file) === neighborId);
+        if (neighbor) {
+          mainViews.close(local.id);
+          mainViews.bind(workspacePanels.assert("files")).open(LOCAL_FILE_VIEW_ID, { rootId: neighbor.rootId, nodeId: neighbor.nodeId, name: neighbor.name });
+          announceLocalFileOpened(neighbor);
+          rememberRecentLocalFile(neighbor);
+        } else { handleSelectNote(null); setSelectedFolderPath(null); setSelectedConcept(null); }
+        const current = readLocalFocusTabs();
+        saveLocalFocusTabs({ closed: [...new Set([...current.closed, identity])], order: current.order.filter(id => id !== identity) });
+      } else if (note) {
+        await flushAutoSave();
+        const view = mainViews.getSnapshot();
+        if (useNotesStore.getState().selectedNote?.id !== note.id || view.pending || view.current && !view.suspended) return;
+        const state = readFocusTabs();
+        const ids = focusTabIds(readRecentNoteIds(), { ...state, closed: state.closed.filter(id => id !== note.id) });
+        let next: Note | null = null;
+        for (const id of neighbors(ids, note.id)) {
+          next = await api.notes.get(id);
+          if (next) break;
+        }
+        await flushAutoSave();
+        const latestView = mainViews.getSnapshot();
+        if (useNotesStore.getState().selectedNote?.id !== note.id || latestView.pending || latestView.current && !latestView.suspended) return;
+        setQuery(""); setDocResults(null);
+        handleSelectNote(next);
+        setSelectedFolderPath(null); setSelectedConcept(null);
+        const current = readFocusTabs();
+        saveFocusTabs({ closed: [...new Set([...current.closed, note.id])], order: current.order.filter(id => id !== note.id) });
+      }
+    } finally { closingFile.current = false; }
+  };
   useNativeMenuHost(searchExpanded || errorDetailsOpen || settingsOpen || quickSwitcherOpen || docCreateOpen || versionOpen || protectionBusy || syncBusy || applyingWebUpdate || recycleOpen, error => useNotesStore.setState({ error }));
   useNativeMenuActions({
     "workspace.new": { run: () => setDocCreateOpen(true) },
@@ -1075,6 +1132,8 @@ function App() {
     "workspace.switch": { run: () => setQuickSwitcherOpen(true) },
     "workspace.recycle": { run: () => setRecycleOpen(true) },
     "document.save": { run: flushAutoSave, enabled: Boolean(selectedNote) },
+    "document.close": { run: closeCurrentFile, enabled: !pluginViewState.pending && (pluginMainActive ? pluginMainView?.renderer === "local-file" : !workspaceHomeRequested && !selectedFolderPath && !selectedConcept && !readingLibraryOpen && Boolean(selectedNote)) },
+    "window.hide": { run: async () => { if (isTauriRuntime()) { const { getCurrentWindow } = await import("@tauri-apps/api/window"); await getCurrentWindow().hide(); } }, enabled: isTauriRuntime() },
     "document.properties": { run: () => setPropertiesOpen(value => !value), checked: propertiesOpen, enabled: !workspaceHomeRequested && !pluginMainActive && Boolean(selectedNote || selectedFolderPath) },
     "document.history": { run: () => setVersionOpen(true), enabled: Boolean(selectedNote) && !workspaceHomeRequested && !pluginMainActive },
     "view.focus": { run: () => preserveReadingPositions(() => setFocusMode(value => !value)), checked: focusMode },
@@ -1686,6 +1745,7 @@ function App() {
             localFilesAvailable={contributedPanels.some(panel => panel.id === "files")}
             activeLocalIdentity={pluginMainView?.renderer === "local-file" ? localFileIdentity(pluginMainView.data) : undefined}
             onOpenLocal={openRecentLocalFile}
+            onCloseCurrent={closeCurrentFile}
             onRevealLocal={async file => {
               sidebarHover.restore({ panel: "files", hidden: false, pinned: true });
               window.dispatchEvent(new CustomEvent(LOCAL_FILE_REVEAL_EVENT, { detail: file }));
