@@ -84,8 +84,10 @@ const searchState = StateField.define<SourceSearch>({
     }
   },
   provide: (field) => [
-    showPanel.from(field, (state) => (state.open ? createSearchPanel : null)),
-    showPanel.from(field, (state) => (state.gotoOpen ? createGotoPanel : null)),
+    // One panel slot guarantees that switching tools removes the previous DOM.
+    showPanel.from(field, (state) =>
+      state.open ? createSearchPanel : state.gotoOpen ? createGotoPanel : null,
+    ),
     EditorView.decorations.from(field, (state) =>
       Decoration.set(
         state.matches.map((match, index) =>

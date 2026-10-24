@@ -96,7 +96,7 @@ import {
 } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
-import { sourceSearchExtension, sourceSearchKeymap, sourcePanelOpen, toggleSourcePanel } from "../lib/source-search";
+import { sourceSearchExtension, sourceSearchKeymap, sourcePanelOpen, toggleSourcePanel, closeSourcePanels } from "../lib/source-search";
 import { formatSourceLines, insertSourceBlock } from "../lib/source-editing";
 import { SourceEditorHandle } from "../lib/source-editor-handle";
 import {
@@ -322,6 +322,10 @@ export function MarkdownSourceEditor({
     const nextFormats = markupModeRef.current ? sourceFormats(state) : emptySourceFormats();
     setFormats(previous => Object.keys(nextFormats).every(key => previous[key as keyof typeof previous] === nextFormats[key as keyof typeof nextFormats]) ? previous : nextFormats);
     const next = { folded: foldedRanges(state).size > 0, search: sourcePanelOpen(state, "search"), goto: sourcePanelOpen(state, "goto"), undo: undoDepth(state) > 0, redo: redoDepth(state) > 0, selection: state.selection.ranges.some(range => !range.empty) };
+    if (next.search || next.goto) {
+      setFoldMenu(null);
+      setGutterMenu(null);
+    }
     setTools(previous => Object.keys(next).every(key => previous[key as keyof typeof next] === next[key as keyof typeof next]) ? previous : next);
   };
   const displayExtensions = () => {
@@ -728,7 +732,7 @@ export function MarkdownSourceEditor({
   const sourceNumbersRelative = numbering?.relative ?? preferences.relativeSourceLineNumbers === true;
   const gutterControls = <>
     <SourceWhitespaceToggle className="source-status-whitespace" />
-    <button type="button" className="editor-status-select source-gutter-settings" aria-label="行号与折叠设置" title="行号与折叠设置" aria-haspopup="menu" aria-expanded={Boolean(gutterMenu)} onMouseDown={event => event.preventDefault()} onClick={event => { const trigger = editorCommandTrigger(event.currentTarget); setGutterMenu(previous => previous ? null : trigger); }}>
+    <button type="button" className="editor-status-select source-gutter-settings" aria-label="行号与折叠设置" title="行号与折叠设置" aria-haspopup="menu" aria-expanded={Boolean(gutterMenu)} onMouseDown={event => event.preventDefault()} onClick={event => { if (view.current) closeSourcePanels(view.current); setFoldMenu(null); const trigger = editorCommandTrigger(event.currentTarget); setGutterMenu(previous => previous ? null : trigger); }}>
       # <span aria-hidden="true">▾</span>
     </button>
     {gutterMenu && <BlockActionMenu trigger={gutterMenu} placement="below" title="行号与折叠设置" onClose={() => setGutterMenu(null)} actions={[
@@ -781,7 +785,7 @@ export function MarkdownSourceEditor({
         </button>}
         {markupMode ? [true, false].map(collapse => <span className="source-fold-tool" key={String(collapse)}>
           <button type="button" title={collapse ? "折叠全部" : "展开全部"} aria-label={collapse ? "折叠全部" : "展开全部"} aria-pressed={collapse ? tools.folded : !tools.folded} onClick={() => run(collapse ? collapseAllSource : expandAllSource)}><ToolbarIcon name={collapse ? "folderCollapse" : "folderKeep"} /></button>
-          <button type="button" className="source-fold-level-trigger" title={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-label={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-haspopup="menu" aria-expanded={foldMenu?.collapse === collapse} onClick={event => { const trigger = editorCommandTrigger(event.currentTarget); setFoldMenu(previous => previous?.collapse === collapse ? null : { trigger, collapse }); }}><svg className="source-fold-level-icon" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1h8L5 5z" fill="currentColor" /></svg></button>
+          <button type="button" className="source-fold-level-trigger" title={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-label={collapse ? "选择折叠标题级别" : "选择展开标题级别"} aria-haspopup="menu" aria-expanded={foldMenu?.collapse === collapse} onClick={event => { if (view.current) closeSourcePanels(view.current); setGutterMenu(null); const trigger = editorCommandTrigger(event.currentTarget); setFoldMenu(previous => previous?.collapse === collapse ? null : { trigger, collapse }); }}><svg className="source-fold-level-icon" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1h8L5 5z" fill="currentColor" /></svg></button>
         </span>) : <span className="source-fold-tool">
           <button type="button" title={tools.folded ? "展开全部" : "折叠全部"} aria-label={tools.folded ? "展开全部" : "折叠全部"} aria-pressed={tools.folded} onClick={() => run(tools.folded ? expandAllSource : collapseAllSource)}><ToolbarIcon name={tools.folded ? "folderKeep" : "folderCollapse"} /></button>
         </span>}
