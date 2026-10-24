@@ -199,6 +199,9 @@
   color: var(--text);
 }
 .local-file-dock .document-outline-header-actions button { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 4px; }
+.local-file-dock .document-outline-header-primary > .local-file-panel-title { height: auto; padding: 0; border: 0; border-radius: 3px; background: transparent; color: inherit; font: inherit; text-align: start; }
+.local-file-dock .document-outline-header-primary > .local-file-panel-title:hover { color: var(--accent); }
+.local-file-dock .document-outline-header-primary > .local-file-panel-title:focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; }
 .local-file-panel-list,
 .local-file-dock .document-source-matches-list { flex: 1; min-height: 0; overflow: auto; padding: 4px 4px 4px 0; }
 .local-file-panel-list > button,

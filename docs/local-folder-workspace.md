@@ -14,6 +14,8 @@
 - 权限 `filesystem.files.read`、`filesystem.files.write` 与 `filesystem.images.read` 分离；读写能力只由可信内置插件声明，不对可安装声明式包开放。停用会撤销视图和分栏贡献、清理内存会话；异步操作返回前重查激活与授权代次。
 - UTF-8 文本上限 4 MiB，保留 BOM 与统一 LF、CRLF 或 CR 换行。混合换行可编辑、比较和另存为，但原位保存会拒绝，避免静默统一换行。二进制、无效 UTF-8 与超限文件明确拒绝。
 
+源码符号和书签侧栏可点击各自标题收起，再通过文件标题栏右侧的原有按钮重新打开；收起不删除书签或重置符号折叠状态，侧栏关闭状态沿用现有本机记忆。
+
 主要实现：`src/lib/local-files/`、`LocalFilesPanel.tsx`、`LocalFileView.tsx`、`MarkdownSourceEditor.tsx`、`builtin-local-files.ts`、`src-tauri/src/commands/local_files.rs`。本地文件仍使用独立会话和存储服务，不复用数据库文档写入接口。停靠区宽度、本地书签、未保存草稿属于设备本地状态，不进入文档备份；编辑器使用 LF 内部文本，统一换行在写入时还原。
 
 验证入口：`tests/unit/local-files.test.ts`、`tests/unit/local-file-operations.test.ts`、`e2e/local-files.spec.ts`、`e2e/local-file-operations.spec.ts` 和 Rust `commands::local_files::tests`。当前定向结果见[验证记录](e2e-repair-progress.md#2026-10-24本地文件操作未保存汇总和目录全文搜索)，不再沿用只读阶段“尚未运行自动化”的旧状态。真实目录授权、系统回收站恢复、Tauri 系统另存为及浏览器读写权限续期仍需真机验收；模拟句柄和临时目录测试不能代替这些验证。
