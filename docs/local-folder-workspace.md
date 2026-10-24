@@ -16,6 +16,8 @@
 
 源码符号和书签侧栏可点击各自标题收起，再通过文件标题栏右侧的原有按钮重新打开；收起不删除书签或重置符号折叠状态，侧栏关闭状态沿用现有本机记忆。
 
+文件切换的位置以各文件独立记录为准：最新写入覆盖旧坐标，并在 64 份记录中保留最近更新项；编辑器卸载须在清空引用、销毁 CodeMirror DOM 之前捕获位置，已销毁界面的零坐标不参与保存。三份内存会话使用 CodeMirror 原生滚动快照；缓存失效时使用持久化的顶部文本锚点、行内偏移及横向坐标，在初始定位／测量完成后恢复。恢复期间不保存中间坐标，真实指针／滚轮／键盘操作取消尚未完成的恢复。数据库文档与本地文件的 tab 激活状态按实际显示的主区域计算，后台保留的磁盘视图不冒充当前文件。
+
 主要实现：`src/lib/local-files/`、`LocalFilesPanel.tsx`、`LocalFileView.tsx`、`MarkdownSourceEditor.tsx`、`builtin-local-files.ts`、`src-tauri/src/commands/local_files.rs`。本地文件仍使用独立会话和存储服务，不复用数据库文档写入接口。停靠区宽度、本地书签、未保存草稿属于设备本地状态，不进入文档备份；编辑器使用 LF 内部文本，统一换行在写入时还原。
 
 验证入口：`tests/unit/local-files.test.ts`、`tests/unit/local-file-operations.test.ts`、`e2e/local-files.spec.ts`、`e2e/local-file-operations.spec.ts` 和 Rust `commands::local_files::tests`。当前定向结果见[验证记录](e2e-repair-progress.md#2026-10-24本地文件操作未保存汇总和目录全文搜索)，不再沿用只读阶段“尚未运行自动化”的旧状态。真实目录授权、系统回收站恢复、Tauri 系统另存为及浏览器读写权限续期仍需真机验收；模拟句柄和临时目录测试不能代替这些验证。

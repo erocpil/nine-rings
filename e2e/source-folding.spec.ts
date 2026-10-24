@@ -407,6 +407,10 @@ test("C/C++ 折叠占位符预览完整源码并支持高亮与滚动，点击�
   await page.locator(".cm-foldPlaceholder").first().hover();
   await expect(bubble).toBeVisible();
   const compactBox = (await bubble.boundingBox())!;
-  expect(compactBox.width).toBeLessThan(previewBox.width / 2);
+  // A compact preview keeps a readable minimum width, even when the available
+  // source pane is narrow. It must shrink below the large preview and fit text.
+  expect(compactBox.width).toBeLessThan(previewBox.width);
   expect(compactBox.height).toBeLessThan(previewBox.height / 2);
+  await expect(bubble).toContainText("return;");
+  expect(await bubble.locator(".cm-scroller").evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(2);
 });

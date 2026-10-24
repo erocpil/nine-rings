@@ -1,7 +1,9 @@
-interface LocalFilePosition {
+export interface LocalFilePosition {
   offset: number;
   scrollTop: number;
   scrollLeft: number;
+  anchor?: number;
+  topOffset?: number;
 }
 
 const KEY = "nr:local-file-positions";
@@ -27,6 +29,7 @@ export function readLocalFilePosition(identity: string): LocalFilePosition | nul
 export function saveLocalFilePosition(identity: string, position: LocalFilePosition) {
   try {
     const current = readAll();
+    delete current[identity];
     const next = { [identity]: position, ...current };
     const entries = Object.entries(next).slice(0, LIMIT);
     localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(entries)));

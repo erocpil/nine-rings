@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import type { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import { localFileService, resolveRelativeNode, type LocalFileSnapshot } from "../lib/local-files/service";
 import { readLocalDraft, removeLocalDraft, writeLocalDraft } from "../lib/local-files/recovery";
 import { localFileSessions, localFileSessionEpoch, registerLocalFileCheckpoint, registerLocalFileSaver, setLocalFileDirty } from "../lib/local-files/session";
@@ -51,6 +52,11 @@ function storedActivePanel(): LocalPanel | null {
 }
 function bookmarkStorageKey(identity: string) { return `nr:local-file-bookmarks:${identity}`; }
 function symbolFoldsStorageKey(identity: string) { return `nr:local-file-symbol-folds:${identity}`; }
+function localFilePosition(handle: SourceEditorHandle) {
+  const view = handle.view, scrollTop = view.scrollDOM.scrollTop;
+  const block = view.lineBlockAtHeight(scrollTop);
+  return { offset: handle.selectionStart, scrollTop, scrollLeft: view.scrollDOM.scrollLeft, anchor: block.from, topOffset: block.top - scrollTop };
+}
 function loadBookmarks(identity: string): LocalBookmark[] {
   try {
     const value = JSON.parse(localStorage.getItem(bookmarkStorageKey(identity)) ?? "[]");
@@ -102,7 +108,11 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const sessionEpochRef = useRef(localFileSessionEpoch);
   const [editorHandle, setEditorHandle] = useState<SourceEditorHandle | null>(null);
   const restoredScroll = useRef(false);
+  const restoringPosition = useRef(false);
+  const restorePositionCleanup = useRef<(() => void) | null>(null);
   const appliedSearchLocation = useRef<LocalFileViewData["location"]>();
+  const searchLocation = useRef(data.location);
+  searchLocation.current = data.location;
   const positionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deepFileCheckAt = useRef(0);
   const [source, setSource] = useState("");
@@ -141,9 +151,9 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   saveBusy.current = saveState === "saving";
   useEffect(() => registerLocalFileCheckpoint(identity, async () => {
     const handle = sourceHandle.current;
-    if (handle) {
-      saveLocalFilePosition(identity, { offset: handle.selectionStart, scrollTop: handle.view.scrollDOM.scrollTop, scrollLeft: handle.view.scrollDOM.scrollLeft });
-      localFileSessions.set(identity, { state: handle.view.state, scrollTop: handle.view.scrollDOM.scrollTop, scrollLeft: handle.view.scrollDOM.scrollLeft, source: handle.value });
+    if (handle && !restoringPosition.current && handle.view.scrollDOM.clientHeight > 0) {
+      saveLocalFilePosition(identity, localFilePosition(handle));
+      localFileSessions.set(identity, { state: handle.view.state, scrollTop: handle.view.scrollDOM.scrollTop, scrollLeft: handle.view.scrollDOM.scrollLeft, source: handle.value, scrollSnapshot: handle.view.scrollSnapshot() });
     }
     for (let attempt = 0; attempt < 3; attempt++) {
       if (saveBusy.current) throw new Error("文件正在保存，请等待保存完成后关闭。");
@@ -277,44 +287,76 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   }, [baseSnapshot, data.rootId, data.nodeId]);
   const bindHandle = useCallback((handle: SourceEditorHandle | null) => {
     const previous = sourceHandle.current;
-    if (!handle && previous && sessionEpochRef.current === localFileSessionEpoch) {
-      saveLocalFilePosition(identity, {
-        offset: previous.selectionStart,
-        scrollTop: previous.view.scrollDOM.scrollTop,
-        scrollLeft: previous.view.scrollDOM.scrollLeft,
-      });
+    if (!handle && previous && !restoringPosition.current && sessionEpochRef.current === localFileSessionEpoch) {
+      const visible = previous.view.scrollDOM.clientHeight > 0;
+      const position = visible ? localFilePosition(previous) : readLocalFilePosition(identity);
+      const saved = localFileSessions.get(identity);
+      if (visible && position) saveLocalFilePosition(identity, position);
       localFileSessions.delete(identity);
-      localFileSessions.set(identity, { state: previous.view.state, source: sourceRef.current, scrollTop: previous.view.scrollDOM.scrollTop, scrollLeft: previous.view.scrollDOM.scrollLeft });
+      localFileSessions.set(identity, { state: previous.view.state, source: sourceRef.current, scrollTop: position?.scrollTop ?? saved?.scrollTop ?? 0, scrollLeft: position?.scrollLeft ?? saved?.scrollLeft ?? 0, scrollSnapshot: visible ? previous.view.scrollSnapshot() : saved?.source === sourceRef.current ? saved.scrollSnapshot : undefined });
       while (localFileSessions.size > 3) localFileSessions.delete(localFileSessions.keys().next().value!);
     }
     sourceHandle.current = handle;
     setEditorHandle(handle);
-    if (!handle) return;
-    const cached = localFileSessions.get(identity);
-    if (cached?.source === sourceRef.current && !restoredScroll.current) {
-      restoredScroll.current = true;
-      requestAnimationFrame(() => { if (sourceHandle.current === handle) { handle.view.scrollDOM.scrollTop = cached.scrollTop; handle.view.scrollDOM.scrollLeft = cached.scrollLeft; } });
-    } else if (!restoredScroll.current) {
-      const position = readLocalFilePosition(identity);
-      if (position) {
-        restoredScroll.current = true;
-        requestAnimationFrame(() => {
-          if (sourceHandle.current !== handle) return;
-          const offset = Math.max(0, Math.min(handle.value.length, position.offset));
-          handle.setSelectionRange(offset, offset);
-          handle.view.scrollDOM.scrollTop = position.scrollTop;
-          handle.view.scrollDOM.scrollLeft = position.scrollLeft;
-        });
-      }
+    if (!handle) {
+      restorePositionCleanup.current?.(); restorePositionCleanup.current = null;
+      restoredScroll.current = false; restoringPosition.current = false; return;
     }
+    const requested = searchLocation.current, base = latestDraft.current.base;
+    if (requested && requested !== appliedSearchLocation.current && requested.revision === base?.revision && sourceRef.current === base.source) return;
+    const cached = localFileSessions.get(identity);
+    if (restoredScroll.current) return;
+    const position = readLocalFilePosition(identity);
+    const memory = cached?.source === sourceRef.current ? cached : null;
+    if (!memory && !position) return;
+    restoredScroll.current = true; restoringPosition.current = true;
+    const view = handle.view;
+    let cancelled = false;
+    const detach = () => {
+      view.dom.removeEventListener("wheel", cancel, true);
+      view.dom.removeEventListener("pointerdown", cancel, true);
+      view.dom.removeEventListener("keydown", cancel, true);
+    };
+    const cancel = () => { cancelled = true; restoringPosition.current = false; detach(); };
+    restorePositionCleanup.current = () => { cancelled = true; detach(); };
+    view.dom.addEventListener("wheel", cancel, { capture: true, passive: true });
+    view.dom.addEventListener("pointerdown", cancel, true);
+    view.dom.addEventListener("keydown", cancel, true);
+    const current = () => !cancelled && sourceHandle.current === handle && handle.view === view && view.dom.isConnected;
+    if (memory?.scrollSnapshot) view.dispatch({ effects: memory.scrollSnapshot });
+    else if (position) {
+      const offset = Math.max(0, Math.min(view.state.doc.length, position.offset));
+      const anchor = Number.isSafeInteger(position.anchor) ? Math.max(0, Math.min(view.state.doc.length, position.anchor!)) : null;
+      view.dispatch({ selection: { anchor: offset }, ...(anchor !== null ? { effects: EditorView.scrollIntoView(anchor, { y: "start", yMargin: Number.isFinite(position.topOffset) ? position.topOffset : 0 }) } : {}) });
+    }
+    // Let the initial reveal finish before applying the within-line offset.
+    // CodeMirror processes scroll targets after measurement writes.
+    view.requestMeasure({ read: () => null, write: () => queueMicrotask(() => {
+      if (!current()) return;
+      view.requestMeasure({
+        read: () => position?.anchor !== undefined && Number.isSafeInteger(position.anchor) && Number.isFinite(position.topOffset)
+          ? view.lineBlockAt(Math.max(0, Math.min(view.state.doc.length, position.anchor))).top - position.topOffset!
+          : memory?.scrollTop ?? position?.scrollTop ?? 0,
+        write: top => {
+          if (!current()) return;
+          if (!memory?.scrollSnapshot) {
+            view.scrollDOM.scrollTop = top;
+            view.scrollDOM.scrollLeft = memory?.scrollLeft ?? position?.scrollLeft ?? 0;
+            view.dispatch({ effects: view.scrollSnapshot() });
+          }
+          detach(); restorePositionCleanup.current = null;
+          restoringPosition.current = false;
+        },
+      });
+    }) });
   }, [identity]);
   useEffect(() => {
     if (!editorHandle) return;
-    const persistPosition = () => saveLocalFilePosition(identity, {
-      offset: editorHandle.selectionStart,
-      scrollTop: editorHandle.view.scrollDOM.scrollTop,
-      scrollLeft: editorHandle.view.scrollDOM.scrollLeft,
-    });
+    const persistPosition = () => {
+      // Passive effect cleanup can run after CodeMirror has removed its scroller.
+      if (!editorHandle.view.dom.isConnected || !editorHandle.view.scrollDOM.clientHeight || restoringPosition.current || sessionEpochRef.current !== localFileSessionEpoch) return;
+      saveLocalFilePosition(identity, localFilePosition(editorHandle));
+    };
     const schedulePositionSave = () => {
       if (positionSaveTimer.current !== null) clearTimeout(positionSaveTimer.current);
       positionSaveTimer.current = setTimeout(persistPosition, 180);

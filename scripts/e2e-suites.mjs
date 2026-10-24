@@ -41,6 +41,7 @@ export const coreFiles = [
   "plugin-editor-intents",
   "reader-sidebar-resize",
   "local-file-operations",
+  "local-file-position",
 ].map((name) => `${name}.spec.ts`);
 
 const rules = [
@@ -141,7 +142,7 @@ export function selectE2E(
 // One Playwright invocation for the existing WebKit risk gates. Each file has
 // one owner, so readers already covered by the Reading workspace job are omitted.
 export const webkitGates = [
-  { name: "local-files", files: ["local-files", "local-file-operations"] },
+  { name: "local-files", files: ["local-files", "local-file-operations", "local-file-position"] },
   {
     name: "folding",
     files: [
@@ -149,6 +150,7 @@ export const webkitGates = [
       "heading-fold",
       "readonly-heading-fold",
       "mobile-fold",
+      "source-fold-cursor",
     ],
   },
   {

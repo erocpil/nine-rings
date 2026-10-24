@@ -12,7 +12,10 @@ export function sourceFoldPreviewPlaceholder(
   const placeholder = document.createElement("span");
   placeholder.className = "cm-foldPlaceholder";
   placeholder.textContent = "…";
-  placeholder.setAttribute("aria-label", "折叠代码；悬停预览，点击展开");
+  placeholder.setAttribute("aria-label", prepared ? "折叠代码；悬停预览，点击展开" : "折叠内容；点击展开");
+  // Clicking the placeholder unfolds it; it must not first move the cursor and
+  // invalidate the position remembered before folding.
+  placeholder.addEventListener("mousedown", event => event.preventDefault());
   placeholder.addEventListener("click", onclick);
   if (!prepared) return placeholder;
   let bubble: HTMLDivElement | null = null;

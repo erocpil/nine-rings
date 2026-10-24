@@ -26,6 +26,7 @@ import { sourceHeadingFoldEffects } from "../lib/source-heading-fold";
 import { mobileSourceInput } from "../lib/mobile-source-input";
 import { sourceMicroHighlighting, sourceMicroSyntax } from "../lib/source-micro-rendering";
 import { sourceWhitespaceMarkers } from "../lib/source-whitespace-markers";
+import { sourceFoldCursor } from "../lib/source-fold-cursor";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { SourceWhitespaceToggle } from "./SourceWhitespaceToggle";
 import { SourceEditorContextMenu, type SourceContextTarget } from "./SourceEditorContextMenu";
@@ -157,12 +158,9 @@ function matchingBracketContents(view: EditorView, position: number, point: { x:
   return null;
 }
 
-function restoreSourceFoldViewport(view: EditorView, snapshot: SourceFoldViewportSnapshot, restoreSelection: boolean) {
+function restoreSourceFoldViewport(view: EditorView, snapshot: SourceFoldViewportSnapshot) {
   requestAnimationFrame(() => {
     if (view.state.doc !== snapshot.doc) return;
-    if (restoreSelection && !view.state.selection.eq(snapshot.selection)) {
-      view.dispatch({ selection: snapshot.selection });
-    }
     const block = view.lineBlockAt(visibleFoldAnchor(view, snapshot.anchor));
     view.scrollDOM.scrollTop = Math.max(0, block.top - snapshot.topOffset);
   });
@@ -335,10 +333,10 @@ export function MarkdownSourceEditor({
     const relative = plugin?.relative ?? prefs.relativeSourceLineNumbers;
     const previewFoldedCode = documentLanguage === "c" || documentLanguage === "cpp";
     return [
-      codeFolding(previewFoldedCode ? {
-        preparePlaceholder: (state, range) => ({ text: state.doc.sliceString(range.from, range.to) }),
+      codeFolding({
+        ...(previewFoldedCode ? { preparePlaceholder: (state: EditorState, range: { from: number; to: number }) => ({ text: state.doc.sliceString(range.from, range.to) }) } : {}),
         placeholderDOM: sourceFoldPreviewPlaceholder,
-      } : undefined),
+      }),
       prefs.sourceFoldGutter !== false ? foldGutter({ markerDOM: expanded => {
         const symbol = plugin ? expanded ? plugin.foldExpanded : plugin.foldCollapsed : editorFoldSymbol(foldConfig, expanded);
         const span = document.createElement("span"); span.className = "plugin-source-fold-symbol"; span.setAttribute("aria-hidden", "true");
@@ -368,6 +366,7 @@ export function MarkdownSourceEditor({
     if (!editorHost) return;
     const extensions = [
       history(),
+      sourceFoldCursor,
       EditorView.scrollMargins.of(view => {
         const gutter = view.scrollDOM.querySelector<HTMLElement>(".cm-gutters-before");
         if (!gutter) return null;
@@ -573,10 +572,11 @@ export function MarkdownSourceEditor({
       session.current = editor.state;
       editorHost.removeEventListener("mousedown", selectBracketContents, true);
       editor.scrollDOM.removeEventListener("scroll", scroll);
+      // Let hosts capture the live selection and viewport before refs/DOM disappear.
+      onReady?.(null);
       editor.destroy();
       view.current = null;
       areaRef.current = null;
-      onReady?.(null);
     };
   }, [areaRef, session, onReady]);
   useEffect(() => {
@@ -655,7 +655,7 @@ export function MarkdownSourceEditor({
       foldViewportMutation.current = false;
       return handled;
     }
-    restoreSourceFoldViewport(editor, snapshot, false);
+    restoreSourceFoldViewport(editor, snapshot);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       foldViewportMutation.current = false;
       if (foldViewportRestore.current?.snapshot === snapshot) {
@@ -676,7 +676,7 @@ export function MarkdownSourceEditor({
       foldViewportMutation.current = false;
       return false;
     }
-    restoreSourceFoldViewport(editor, snapshot, true);
+    restoreSourceFoldViewport(editor, snapshot);
     requestAnimationFrame(() => requestAnimationFrame(() => { foldViewportMutation.current = false; }));
     return true;
   };

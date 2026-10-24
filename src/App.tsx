@@ -1741,9 +1741,9 @@ function App() {
       {((isTauriRuntime() || desktopWorkspace) && !(exhibitionEnabled && desktopWorkspace && !effectiveFocusMode)) && (
         <Suspense fallback={null}>
           <TitleBar focus={focusMode} onFocusChange={desktopWorkspace ? next => preserveReadingPositions(() => setFocusMode(next)) : undefined} wordmark={desktopWorkspace && effectiveFocusMode} focusTabs={desktopWorkspace && effectiveFocusMode ? <FocusDocumentTabs
-            noteId={workspaceHome || pluginMainView?.renderer === "local-file" ? undefined : selectedNote?.id} noteTitle={workspaceHome || pluginMainView?.renderer === "local-file" ? undefined : selectedNote?.title ?? undefined} refreshKey={docTreeKey}
+            noteId={workspaceHome || pluginMainActive ? undefined : selectedNote?.id} noteTitle={workspaceHome || pluginMainActive ? undefined : selectedNote?.title ?? undefined} refreshKey={docTreeKey}
             localFilesAvailable={contributedPanels.some(panel => panel.id === "files")}
-            activeLocalIdentity={pluginMainView?.renderer === "local-file" ? localFileIdentity(pluginMainView.data) : undefined}
+            activeLocalIdentity={!workspaceHome && pluginMainActive && pluginMainView?.renderer === "local-file" ? localFileIdentity(pluginMainView.data) : undefined}
             onOpenLocal={openRecentLocalFile}
             onCloseCurrent={closeCurrentFile}
             onRevealLocal={async file => {

@@ -1,6 +1,14 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-25",
+    title: "磁盘文件位置恢复与标签切换",
+    changes: [
+      "源码区域展开后恢复折叠前的行列位置；折叠期间主动移动光标或编辑则保留新位置，支持嵌套、只读及 Markdown 标题折叠。",
+      "修复磁盘文件切换时旧位置覆盖新位置及卸载时写入零位置的问题；恢复滚动快照、顶部文本锚点和横向位置。修复从数据库文档再次点击磁盘文件 tab 无法切换的问题。",
+    ],
+  },
+  {
     date: "2026-10-24",
     title: "本地文件编辑、预览与会话恢复",
     changes: [

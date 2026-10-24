@@ -1,8 +1,9 @@
 import type { EditorState } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
 /** Device-session only; never exported with documents or sync settings. */
 export const localFileSessions = new Map<
   string,
-  { state: EditorState; scrollTop: number; scrollLeft: number; source: string }
+  { state: EditorState; scrollTop: number; scrollLeft: number; source: string; scrollSnapshot?: ReturnType<EditorView["scrollSnapshot"]> }
 >();
 export let localFileSessionEpoch = 0;
 /** A path mutation must not let an unmount recreate the former path's cached session. */

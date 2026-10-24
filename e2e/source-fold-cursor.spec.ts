@@ -1,0 +1,67 @@
+import { expect, test } from "@playwright/test";
+import { createBlankDocument } from "./helpers/document";
+import { replaceSource, selectDocumentLanguage, selectSource, sourceInfo } from "./helpers/source-editor";
+
+for (const readonly of [false, true]) test(`源码折叠展开恢复行列，主动移动光标优先 readonly=${readonly}`, async ({ page }) => {
+  await createBlankDocument(page, "源码折叠位置");
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  const text = "int main() {\n  first();\n  second();\n  return 0;\n}\n// outside\n" + "// padding\n".repeat(100);
+  await replaceSource(area, text);
+  if (readonly) {
+    await page.getByRole("button", { name: "设置只读", exact: true }).click();
+    await expect(area).not.toBeEditable();
+  }
+  const offset = text.indexOf("second") + 3;
+  await selectSource(area, offset);
+  const point = await area.evaluate((element, offset) => {
+    const { EditorView } = (window as any).sourceCM;
+    const rect = EditorView.findFromDOM(element)!.coordsAtPos(offset)!;
+    return { x: rect.left + 1, y: (rect.top + rect.bottom) / 2 };
+  }, offset);
+  await page.mouse.click(point.x, point.y);
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
+  const gutter = area.locator("..").locator(".cm-foldGutter .cm-gutterElement:visible").filter({ has: page.locator("span") }).first();
+  await gutter.click();
+  await expect(area.locator(".cm-foldPlaceholder")).toHaveCount(1);
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(text.indexOf("{") + 1);
+  const scroller = area.locator("..");
+  await scroller.hover();
+  await page.mouse.wheel(0, 900);
+  await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBeGreaterThan(200);
+  await page.mouse.wheel(0, -3000);
+  await expect.poll(() => scroller.evaluate(element => element.scrollTop)).toBeLessThan(2);
+  await area.locator(".cm-foldPlaceholder").click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
+  await expect(area.locator(".cm-foldPlaceholder")).toHaveCount(0);
+  await gutter.click();
+  const outside = text.indexOf("outside") + 2;
+  await selectSource(area, outside);
+  await gutter.click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(outside);
+  // Toolbar operations follow the same rule as gutter and placeholder clicks.
+  await selectSource(area, offset);
+  const toolbar = page.getByRole("toolbar", { name: "源码编辑工具", exact: true });
+  await toolbar.getByRole("button", { name: "折叠全部", exact: true }).click();
+  await toolbar.getByRole("button", { name: "展开全部", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
+  expect((await sourceInfo(area)).value).toBe(text);
+});
+
+test("Markdown 标题折叠使用相同的光标恢复规则", async ({ page }) => {
+  await createBlankDocument(page, "标题折叠光标");
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  const text = "# One\n\nparagraph\nmore text\n\n# Two\n\nother\n";
+  await replaceSource(area, text);
+  const offset = text.indexOf("more") + 2;
+  await selectSource(area, offset);
+  await area.locator("..").locator(".cm-foldGutter .cm-gutterElement:visible").filter({ has: page.locator("span") }).first().click();
+  await expect(area.locator(".cm-foldPlaceholder")).toHaveCount(1);
+  await area.locator(".cm-foldPlaceholder").click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
+  const toolbar = page.getByRole("toolbar", { name: "源码编辑工具", exact: true });
+  await toolbar.getByRole("button", { name: "折叠全部", exact: true }).click();
+  await toolbar.getByRole("button", { name: "展开全部", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
+});
