@@ -77,7 +77,18 @@
 .markdown-cm-host .cm-editor.cm-focused { outline: none; }
 .markdown-cm-host .cm-scroller { overflow: auto; font-family: var(--editor-font-family, monospace); line-height: var(--editor-line-height, 1.7); }
 .markdown-cm-host .cm-content { padding: var(--editor-content-top-gap, 6px) 0 16px; caret-color: var(--editor-caret-color); }
-.markdown-cm-host .cm-line { padding: 0 12px; }
+.markdown-cm-host { --source-text-inset: 12px; }
+.markdown-cm-host .cm-line { padding: 0 var(--source-text-inset); }
+/* Keep the text inset opaque when content scrolls underneath the sticky gutter. */
+.markdown-cm-source .cm-gutters-before::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: calc(100% + 1px);
+  width: var(--source-text-inset);
+  background: var(--bg);
+  pointer-events: none;
+}
 .markdown-cm-host .cm-source-whitespace-space {
   background-image: radial-gradient(circle, color-mix(in srgb, var(--text-secondary) 72%, transparent) 0.75px, transparent 0.9px);
   background-repeat: no-repeat;

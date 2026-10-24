@@ -364,6 +364,12 @@ export function MarkdownSourceEditor({
     if (!editorHost) return;
     const extensions = [
       history(),
+      EditorView.scrollMargins.of(view => {
+        const gutter = view.scrollDOM.querySelector<HTMLElement>(".cm-gutters-before");
+        if (!gutter) return null;
+        const inset = Number.parseFloat(getComputedStyle(view.dom).getPropertyValue("--source-text-inset")) || 12;
+        return { left: (gutter.offsetWidth + inset) * view.scaleX };
+      }),
       mobileSourceInput(),
       scrollPastEnd(),
       bracketMatching(),
