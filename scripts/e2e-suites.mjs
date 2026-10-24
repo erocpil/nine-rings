@@ -40,6 +40,7 @@ export const coreFiles = [
   "builtin-plugin-pilots",
   "plugin-editor-intents",
   "reader-sidebar-resize",
+  "local-file-operations",
 ].map((name) => `${name}.spec.ts`);
 
 const rules = [
@@ -140,6 +141,7 @@ export function selectE2E(
 // One Playwright invocation for the existing WebKit risk gates. Each file has
 // one owner, so readers already covered by the Reading workspace job are omitted.
 export const webkitGates = [
+  { name: "local-files", files: ["local-files", "local-file-operations"] },
   {
     name: "folding",
     files: [

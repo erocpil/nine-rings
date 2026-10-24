@@ -71,19 +71,24 @@ test("只读文件夹入口按需展开、源码查找和符号跳转，不创�
   });
   await page.getByRole("button", { name: "本地文件", exact: true }).click();
   const panel = page.getByRole("region", { name: "本地文件树" });
-  await panel.getByRole("button", { name: "选择只读目录" }).click();
+  await panel.getByRole("button", { name: "选择本地目录" }).click();
   const folder = panel.getByRole("button", { name: "src", exact: true });
   await expect(folder).toBeVisible();
-  expect(await page.evaluate(() => (window as any).__fileCalls)).toEqual([
-    "list:local-project",
-  ]);
+  const initialCalls = await page.evaluate(() => (window as any).__fileCalls as string[]);
+  expect(initialCalls.length).toBeGreaterThan(0);
+  // Visible roots may refresh; unopened descendants and file bodies must stay unread.
+  expect(initialCalls.every(call => call === "list:local-project")).toBe(true);
   await folder.click();
-  await panel.getByRole("button", { name: "sample.c", exact: true }).click();
-  const viewer = page.getByRole("region", { name: "只读本地源码" });
+  // The workspace now defaults to editable. Make this fixture explicitly readonly.
+  const sample = panel.locator(".local-file-row").filter({ has: page.locator(".local-file-name", { hasText: /^sample\.c$/ }) });
+  await sample.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "设为只读", exact: true }).click();
+  await sample.click();
+  const viewer = page.getByRole("region", { name: "本地文件工作区" });
   await expect(viewer).toBeVisible();
   await expect(viewer.getByRole("button", { name: "专注模式", exact: true })).toHaveCount(0);
   await expect(viewer.locator(".local-file-path")).toHaveCount(0);
-  await expect(viewer.locator("header strong")).toHaveText("sample.c");
+  await expect(viewer.locator(".local-file-titlebar strong")).toHaveText("sample.c");
   await expect(viewer.locator(".cm-content")).toHaveCSS("caret-color", "rgba(0, 0, 0, 0)");
   await expect(viewer.locator(".cm-activeLine")).toHaveCount(1);
   await expect(viewer.locator(".cm-content")).toHaveAttribute(
@@ -93,12 +98,16 @@ test("只读文件夹入口按需展开、源码查找和符号跳转，不创�
   await expect(
     viewer.getByRole("button", { name: "源码符号", exact: true }),
   ).toBeEnabled();
+  await viewer.getByRole("button", { name: "行号与折叠设置" }).click();
+  const lineNumbers = page.getByRole("menuitemcheckbox", { name: "显示行号", exact: true });
+  if (await lineNumbers.getAttribute("aria-checked") !== "true") await lineNumbers.click();
+  await page.keyboard.press("Escape");
   await viewer.getByRole("button", { name: "源码符号", exact: true }).click();
   await viewer
     .getByRole("complementary", { name: "本地源码符号" })
     .getByRole("button", { name: "local_function", exact: false })
     .click();
-  await expect(viewer.locator("footer")).toContainText("Ln 62");
+  await expect(viewer.locator(".markdown-source-status")).toContainText("Ln 62");
   await expect(viewer.locator(".cm-activeLine")).toContainText("local_function");
   await expect(viewer.locator(".cm-lineNumbers .cm-activeLineGutter")).toHaveText("62");
   for (const cursor of await viewer.locator(".cm-cursor, .cm-cursorLayer").all()) await expect(cursor).not.toBeVisible();
@@ -109,11 +118,19 @@ test("只读文件夹入口按需展开、源码查找和符号跳转，不创�
       viewer.locator(".cm-scroller").evaluate((element) => element.scrollTop),
     )
     .toBeGreaterThan(0);
-  await viewer.getByRole("button", { name: "当前文件查找" }).click();
+  await viewer.getByRole("button", { name: "查找", exact: true }).click();
   await expect(viewer.locator(".cm-search")).toBeVisible();
   await viewer.locator(".cm-search input[name=search]").fill("value");
   await viewer.locator(".cm-search input[name=search]").press("Enter");
   await expect(viewer.locator(".cm-searchMatch").first()).toBeVisible();
+  await viewer.getByRole("button", { name: "跳转行", exact: true }).click();
+  await expect(viewer.locator(".cm-search")).toHaveCount(0);
+  await expect(viewer.locator(".cm-goto-line")).toBeVisible();
+  await viewer.getByRole("button", { name: "查找", exact: true }).click();
+  await expect(viewer.locator(".cm-goto-line")).toHaveCount(0);
+  await expect(viewer.locator(".cm-search input[name=search]")).toHaveValue("value");
+  await page.keyboard.press("Escape");
+  await expect(viewer.locator(".source-tool-panel")).toHaveCount(0);
   const now = await page.evaluate(async () => {
     const { api } = await import("/src/lib/api.ts");
     return {
@@ -174,7 +191,7 @@ test("手机通过目录快照打开源码后收起抽屉，撤销目录授权�
   );
   await panel.locator("input[type=file]").setInputFiles(directory);
   await panel.getByRole("button", { name: "note.md", exact: true }).click();
-  const viewer = page.getByRole("region", { name: "只读本地源码" });
+  const viewer = page.getByRole("region", { name: "本地文件工作区" });
   await expect(viewer.locator(".cm-content")).toContainText("**不转成富文本**");
   await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
   await openDocumentSidebar(page);
