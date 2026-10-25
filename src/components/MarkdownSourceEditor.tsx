@@ -246,6 +246,7 @@ export function MarkdownSourceEditor({
   onDocumentLanguageChange,
   onEditorConfigChange,
   contextMenuEnabled = false,
+  onToggleLineBookmark,
 }: {
   value: string;
   readonly: boolean;
@@ -271,6 +272,7 @@ export function MarkdownSourceEditor({
   onDocumentLanguageChange?: (language: string) => void;
   onEditorConfigChange?: (patch: Partial<AppConfig>) => Promise<void>;
   contextMenuEnabled?: boolean;
+  onToggleLineBookmark?: (offset: number) => void;
 }) {
   const numberingState = useNumberingDisplay();
   const numbering = numberingState.source;
@@ -903,7 +905,8 @@ export function MarkdownSourceEditor({
       data-source-highlighting={preferences.sourceSyntaxHighlighting !== false}
       style={{ fontSize, "--source-font-size": `${fontSize}px` } as CSSProperties}
       onPointerDownCapture={event => {
-        if (event.pointerType !== "touch" && event.button === 0 && isSourceGutterControl(event.target)) {
+        const localLineGutter = contextMenuEnabled && event.target instanceof Element && event.target.closest(".cm-lineNumbers");
+        if (event.pointerType !== "touch" && event.button === 0 && (isSourceGutterControl(event.target) || localLineGutter)) {
           event.preventDefault();
           return;
         }
@@ -911,12 +914,25 @@ export function MarkdownSourceEditor({
         event.preventDefault(); event.stopPropagation();
       }}
       onMouseDownCapture={event => {
-        if (event.button === 0 && isSourceGutterControl(event.target)) {
+        const localLineGutter = contextMenuEnabled && event.target instanceof Element && event.target.closest(".cm-lineNumbers");
+        if (event.button === 0 && (isSourceGutterControl(event.target) || localLineGutter)) {
           event.preventDefault();
           return;
         }
         if (!contextMenuEnabled || event.button !== 2 || !(event.target instanceof Element) || !event.target.closest(".cm-content")) return;
         event.preventDefault(); event.stopPropagation();
+      }}
+      onClickCapture={event => {
+        if (!contextMenuEnabled || !view.current || !(event.target instanceof Element) || !event.target.closest(".cm-lineNumbers")) return;
+        event.preventDefault(); event.stopPropagation();
+        const currentView = view.current;
+        const block = currentView.lineBlockAtHeight(event.clientY - currentView.documentTop);
+        const line = currentView.state.doc.lineAt(block.from);
+        setSourceContextMenu(previous => previous?.lineNumber === line.number ? null : {
+          x: event.clientX, y: event.clientY, view: currentView, readonly: currentView.state.readOnly,
+          trigger: currentView.contentDOM, lineNumber: line.number,
+          onToggleBookmark: onToggleLineBookmark ? () => onToggleLineBookmark(line.from) : undefined,
+        });
       }}
       onContextMenuCapture={event => {
         if (!contextMenuEnabled || !view.current || !(event.target instanceof Element) || !event.target.closest(".cm-editor")) return;

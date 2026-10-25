@@ -119,7 +119,13 @@ test("只读文件夹入口按需展开、源码查找和符号跳转，不创�
   await selectSource(area, cursorOffset);
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await clickLineNumberAt();
+  const lineNumber = sourceBeforeGutterActions.slice(0, functionStart).split("\n").length;
+  const lineMenu = page.getByRole("menu", { name: "源码行菜单", exact: true });
+  await expect(lineMenu).toContainText(`第 ${lineNumber} 行`);
+  await expect(lineMenu.getByRole("menuitem", { name: "添加/移除本行书签", exact: true })).toBeVisible();
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(cursorOffset);
+  await page.keyboard.press("Escape");
+  await expect(lineMenu).toHaveCount(0);
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   const foldPoint = await area.evaluate((element, offset) => {
     const view = (window as any).sourceCM.EditorView.findFromDOM(element)!;

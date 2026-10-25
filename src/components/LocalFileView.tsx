@@ -532,10 +532,10 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const symbolBaseLevel = symbolOutline.reduce((level, item) => Math.min(level, item.level), 6);
   const wordState = editorHandle ? sourceWordState(editorHandle.view) : null;
   const matches = groupSourceWordMatchesByLine(wordState?.matches ?? []);
-  const toggleBookmark = () => {
+  const toggleBookmark = (offset?: number) => {
     const handle = sourceHandle.current;
     if (!handle) return;
-    const line = handle.view.state.doc.lineAt(handle.selectionStart);
+    const line = handle.view.state.doc.lineAt(offset ?? handle.selectionStart);
     setBookmarks(current => {
       const existing = current.find(item => item.line === line.number);
       if (existing) return current.filter(item => item !== existing);
@@ -574,7 +574,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
           <button type="button" aria-label="全部折叠" title="折叠源码符号" onClick={() => setFoldedSymbols(new Set(symbolOutline.filter((item, index) => (symbolOutline[index + 1]?.level ?? 0) > item.level).map(item => item.identity ?? "")))}>−</button>
           <button type="button" aria-label="全部展开" title="展开源码符号" onClick={() => setFoldedSymbols(new Set())}>+</button>
         </>}
-        {activePanel === "bookmarks" && <button type="button" onClick={toggleBookmark} title="添加或移除当前行书签"><ToolbarIcon name="plus" /></button>}
+        {activePanel === "bookmarks" && <button type="button" onClick={() => toggleBookmark()} title="添加或移除当前行书签"><ToolbarIcon name="plus" /></button>}
         <button type="button" onClick={() => setActivePanel(null)} title="收起侧栏" aria-label="收起侧栏"><ToolbarIcon name="close" /></button>
       </div>
     </div>
@@ -608,7 +608,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       <div><button type="button" onClick={() => { setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
     </section>}
     {!loading && !error && <div className={`local-file-workspace${activePanel ? " has-local-file-dock" : ""}`} style={{ "--local-file-panel-width": `${panelWidth}px` } as CSSProperties}>
-      <div className="local-file-editor-shell">{preview ? isMarkdown && markdownDoc ? <LocalMarkdownPreview doc={markdownDoc} source={source} onClick={openRelative} /> : <div className="editor-content local-file-preview">{previewError && <p role="status" className="local-files-message">{previewError}</p>}{isMermaid ? <DeferredMermaidDiagram source={source} /> : isFlow ? <FlowBlockContent source={source} /> : <pre>{source}</pre>}</div> : <MarkdownSourceEditor value={source} readonly={!editing} contextMenuEnabled areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={next => { sourceRef.current = next; setSource(next); }} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus={saveState} documentLanguage={language} documentLanguageValue={languageOverride ?? AUTO_DOCUMENT_LANGUAGE} documentLanguageOptions={documentLanguageViewOptions(detectedLanguage)} onDocumentLanguageChange={next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); }} onEditorConfigChange={onEditorConfigChange} />}</div>{panel}
+      <div className="local-file-editor-shell">{preview ? isMarkdown && markdownDoc ? <LocalMarkdownPreview doc={markdownDoc} source={source} onClick={openRelative} /> : <div className="editor-content local-file-preview">{previewError && <p role="status" className="local-files-message">{previewError}</p>}{isMermaid ? <DeferredMermaidDiagram source={source} /> : isFlow ? <FlowBlockContent source={source} /> : <pre>{source}</pre>}</div> : <MarkdownSourceEditor value={source} readonly={!editing} contextMenuEnabled onToggleLineBookmark={toggleBookmark} areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={next => { sourceRef.current = next; setSource(next); }} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus={saveState} documentLanguage={language} documentLanguageValue={languageOverride ?? AUTO_DOCUMENT_LANGUAGE} documentLanguageOptions={documentLanguageViewOptions(detectedLanguage)} onDocumentLanguageChange={next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); }} onEditorConfigChange={onEditorConfigChange} />}</div>{panel}
     </div>}
   </section>;
 }

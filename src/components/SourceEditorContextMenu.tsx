@@ -51,10 +51,13 @@ export function SourceEditorContextMenu({ target, close }: {
     };
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("keydown", keydown, true);
-    document.addEventListener("scroll", outside, true);
+    // WebKit can emit a delayed scroll event while the menu's first action is
+    // focused. Do not let that initialization event immediately close the menu.
+    const scrollListenerTimer = window.setTimeout(() => document.addEventListener("scroll", outside, true), 100);
     window.addEventListener("resize", close);
     return () => {
       snapshot.active = false;
+      window.clearTimeout(scrollListenerTimer);
       document.removeEventListener("pointerdown", outside, true);
       document.removeEventListener("keydown", keydown, true);
       document.removeEventListener("scroll", outside, true);
