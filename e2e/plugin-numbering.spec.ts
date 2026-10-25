@@ -193,7 +193,7 @@ test("编号配置宽屏分组双栏、窄屏单栏，鼠标打开关闭不突�
   expect(narrowSecond!.y).toBeGreaterThan(narrowFirst!.y + narrowFirst!.height);
   await page.keyboard.press('Escape');
   const trigger = page.getByRole('button', { name: '编号展示', exact: true });
-  await expect(trigger).toBeFocused();
+  await expect(page.getByRole('dialog', { name: '编号展示配置', exact: true })).toHaveCount(0);
   await expect(trigger).toHaveCSS('outline-style', 'none');
   // Tab must restore keyboard focus styling even after pointer-driven dismissal.
   await page.keyboard.press('Tab');

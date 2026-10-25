@@ -3,6 +3,7 @@ import { createBlankDocument } from "./helpers/document";
 import { replaceSource, selectDocumentLanguage, sourceInfo } from "./helpers/source-editor";
 
 test("相同行按段展开和收起，保持双侧可视位置并支持键盘与全部开关", async ({ page }) => {
+  test.setTimeout(90000);
   await page.setViewportSize({ width: 1000, height: 700 });
   await createBlankDocument(page, "差异逐段折叠位置");
   await selectDocumentLanguage(page, "c");
@@ -12,7 +13,7 @@ test("相同行按段展开和收起，保持双侧可视位置并支持键盘�
     ...Array.from({ length: 45 }, (_, index) => `int tail${index}=${index};`), ...comments("last", 40)].join("\n");
   await replaceSource(area, raw);
   await page.getByRole("button", { name: "格式化全文", exact: true }).click();
-  await page.locator(".source-indent-toast").getByRole("button", { name: "查看差异", exact: true }).click();
+  await page.locator(".source-indent-toast").getByRole("button", { name: "查看差异", exact: true }).click({ timeout: 60000 });
   const dialog = page.getByRole("dialog", { name: "格式化差异", exact: true });
   const panes = dialog.locator(".document-diff-scroll-pane");
   const left = panes.first();

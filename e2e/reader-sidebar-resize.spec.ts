@@ -12,13 +12,28 @@ for (const format of ["pdf", "epub"] as const) {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
-    await page.evaluate(async () => {
+    await page.evaluate(() => {
       const load = (path: string) => import(/* @vite-ignore */ path);
-      const { api } = await load("/src/lib/api.ts");
-      const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
-      const note = await api.notes.create({ title: "长文档拖动回归", date: useNotesStore.getState().currentDate,
-        storagePath: "tests/reader-resize", content: { ops: Array.from({ length: 300 }, (_, i) => ({ insert: `段落 ${i}：${"正文需要在阅读分栏缩放时保持内容和编辑状态。".repeat(6)}\n` })) } });
-      useNotesStore.getState().selectNote(note);
+      const fixture = { result: "pending", task: Promise.resolve() };
+      (window as typeof window & { __readerResizeFixture?: typeof fixture }).__readerResizeFixture = fixture;
+      fixture.task = (async () => {
+        try {
+          const { api } = await load("/src/lib/api.ts");
+          const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
+          const note = await api.notes.create({ title: "长文档拖动回归", date: useNotesStore.getState().currentDate,
+            storagePath: "tests/reader-resize", content: { ops: Array.from({ length: 300 }, (_, i) => ({ insert: `段落 ${i}：${"正文需要在阅读分栏缩放时保持内容和编辑状态。".repeat(6)}\n` })) } });
+          useNotesStore.getState().selectNote(note);
+          fixture.result = "ready";
+        } catch (error) {
+          fixture.result = `error:${String(error)}`;
+        }
+      })();
+    });
+    await expect.poll(() => page.evaluate(() =>
+      (window as typeof window & { __readerResizeFixture?: { result: string } }).__readerResizeFixture?.result ?? "missing",
+    )).toBe("ready");
+    await page.evaluate(() => {
+      delete (window as typeof window & { __readerResizeFixture?: unknown }).__readerResizeFixture;
     });
     await expect(page.locator(".note-title")).toHaveValue("长文档拖动回归");
     await page.getByRole("button", { name: "PDF / EPUB 阅读", exact: true }).click();
