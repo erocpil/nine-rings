@@ -5,7 +5,12 @@ import { closeDocumentSidebar } from "./helpers/workspace";
 test("本地目录创建、保存汇总、移动和 Worker 全文搜索跳转", async ({ page }) => {
   await createBlankDocument(page, "本地文件操作回归");
   await closeDocumentSidebar(page);
-  await page.evaluate(async () => {
+  await page.evaluate(() => {
+    // Keep asynchronous fixture initialization rooted in the page instead of
+    // awaiting a long-lived promise through Chromium's remote evaluator.
+    const setup = { result: "", task: undefined as Promise<void> | undefined };
+    (window as any).__localFixtureSetup = setup;
+    setup.task = (async () => {
     const { setPluginsEnabled } = await import("/src/lib/plugin-system/runtime.ts");
     const { saveLocalFilesEnabled } = await import("/src/lib/plugin-system/builtin-local-files.ts");
     setPluginsEnabled(true); saveLocalFilesEnabled(true);
@@ -42,7 +47,12 @@ test("本地目录创建、保存汇总、移动和 Worker 全文搜索跳转", 
     src.children.set("sample.c", file("sample.c", "// heading\n".repeat(70) + "return needle; // needle\n", src));
     (window as any).showDirectoryPicker = async () => root;
     (window as any).__localFixture = root;
+    setup.result = "ready";
+    })().catch(error => { setup.result = String(error); });
   });
+  await expect.poll(() => page.evaluate(() => (window as any).__localFixtureSetup.result)).not.toBe("");
+  expect(await page.evaluate(() => (window as any).__localFixtureSetup.result)).toBe("ready");
+  await page.evaluate(() => { delete (window as any).__localFixtureSetup; });
   await page.getByRole("button", { name: "本地文件", exact: true }).click();
   const panel = page.getByRole("region", { name: "本地文件树" });
   await panel.getByRole("button", { name: "选择本地目录", exact: true }).click();

@@ -163,7 +163,11 @@ test("源码状态栏配置缩进、转换并撤销，重开保留配置，只�
   await expect(size).toContainText("Tab 8");
   await expect(style).toContainText("Spaces");
   await page.getByRole("button", { name: "设置只读", exact: true }).click();
-  await expect(size).toBeDisabled();
+  const readonlySource = (await sourceInfo(area)).value;
+  await expect(size).toBeEnabled();
+  await choose(size, "Tab 2");
+  await expect(size).toContainText("Tab 2");
+  expect((await sourceInfo(area)).value).toBe(readonlySource);
   await expect(style).toBeDisabled();
 });
 

@@ -119,7 +119,7 @@ test("源码常用格式操作单步撤销，只读隐藏写入而保留折叠",
   const names = await toolbar.getByRole("button").evaluateAll(buttons => buttons.map(button => button.getAttribute("aria-label")));
   const micro = names.indexOf("源码微渲染");
   expect(names.slice(micro + 1, micro + 5)).toEqual(["折叠全部", "选择折叠标题级别", "展开全部", "选择展开标题级别"]);
-  await toolbar.getByRole("button", { name: "查找替换", exact: true }).click();
+  await toolbar.getByRole("button", { name: "查找", exact: true }).click();
   await expect(page.getByRole("search", { name: "源码查找与替换" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "替换为", exact: true })).toBeHidden();
 });

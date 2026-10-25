@@ -304,7 +304,7 @@ test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page 
   await expect(page.locator(".markdown-cm-host .cm-editor")).toHaveClass(/cm-focused/);
   await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("display", "none");
   expect(await area.evaluate(el => getComputedStyle(el).caretColor)).toBe("rgba(0, 0, 0, 0)");
-  await page.getByRole("button", { name: "查找替换", exact: true }).click();
+  await page.getByRole("button", { name: "查找", exact: true }).click();
   const search = page.locator(".cm-search");
   await search.locator('input[name="search"]').fill("first body");
   await expect(search.locator(".editor-find-count")).toHaveText("1 处");

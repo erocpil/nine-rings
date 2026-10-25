@@ -184,7 +184,7 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   await expect(panel.locator(".document-outline-count")).toHaveCount(0);
   await expect(
     panel.getByRole("button", {
-      name: "当前按源码出现顺序排序，切换为字母顺序",
+      name: "当前为分类后按源码顺序，切换为分类后按字母排序",
     }),
   ).toBeVisible();
   await expect(
@@ -207,7 +207,7 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   );
   await panel
     .getByRole("button", {
-      name: "当前按源码出现顺序排序，切换为字母顺序",
+      name: "当前为分类后按源码顺序，切换为分类后按字母排序",
     })
     .click();
   const alphabeticalOrder = await panel
@@ -229,7 +229,7 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
       .filter({ hasText: "MOD" }),
   ).not.toHaveAttribute("aria-current", "location");
   const sortButton = panel.getByRole("button", {
-    name: "当前按字母顺序排序，切换为源码出现顺序",
+    name: "当前为分类后按字母排序，切换为分类后按源码顺序",
   });
   await expect(sortButton).toHaveAttribute("aria-pressed", "true");
   const alphabeticalAppearance = await sortButton.evaluate((button) => ({
@@ -239,7 +239,7 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
   await expect(sortButton.locator("svg")).toBeVisible();
   await sortButton.click();
   const sourceOrderButton = panel.getByRole("button", {
-    name: "当前按源码出现顺序排序，切换为字母顺序",
+    name: "当前为分类后按源码顺序，切换为分类后按字母排序",
   });
   await expect(sourceOrderButton).toHaveAttribute("aria-pressed", "false");
   const sourceOrderAppearance = await sourceOrderButton.evaluate((button) => ({

@@ -63,7 +63,7 @@ export function useSidebarHoverPreview({
       if (
         editing ||
         root?.querySelector(".doc-context-menu, [role=menu]") ||
-        document.querySelector("[role=menu][data-sidebar-owned], .document-filter-options[data-sidebar-owned]") ||
+        document.querySelector(".doc-context-menu[data-sidebar-owned], [role=menu][data-sidebar-owned], .document-filter-options[data-sidebar-owned]") ||
         document.querySelector("[role=dialog][aria-modal=true]")
       ) {
         timer.current = setTimeout(check, 180);

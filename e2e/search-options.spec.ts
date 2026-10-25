@@ -135,7 +135,7 @@ test("源码查找采用同一 Perl 引擎，全词、替换和一次撤销可�
   await page.getByRole("button", { name: "渲染", exact: true }).click();
   await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await page.getByRole("button", { name: "源码", exact: true }).click();
-  await page.getByRole("button", { name: "查找替换", exact: true }).click();
+  await page.getByRole("button", { name: "查找", exact: true }).click();
   await expect(panel.locator('input[name="replace"]')).toBeHidden();
   await expect(panel.locator('button[name="replaceAll"]')).toBeHidden();
 });

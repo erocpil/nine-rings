@@ -100,7 +100,7 @@ test("源码专用文档重开恢复位置，只读后保留浏览能力并禁�
   // CM may adjust virtual spacer pixels after mounting read-only content;
   // the actual first visible source character is the reading-position contract.
   await expect.poll(async () => (await sourceInfo(area)).offset).toBe(locked.offset);
-  await expect(page.locator(".editor-status-bar").getByRole("button", { name: "文件格式", exact: true })).toBeDisabled();
+  await expect(page.locator(".editor-status-bar").getByRole("button", { name: "文件格式", exact: true })).toBeEnabled();
 });
 
 test("Markdown 源码粘贴 C 文本并切换 C/C++ 保留原文和等宽字体", async ({ page }) => {
