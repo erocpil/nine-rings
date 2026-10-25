@@ -46,6 +46,7 @@ for (const readonly of [false, true]) for (const relative of [false, true]) test
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
   menu = await openLine(page, area, 7);
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await area.locator("..").locator(".cm-foldGutter .cm-gutterElement:visible").filter({ has: page.locator("span") }).first().click();
   await expect(menu).toHaveCount(0);
   await expect(area.locator(".cm-foldPlaceholder")).toHaveCount(1);

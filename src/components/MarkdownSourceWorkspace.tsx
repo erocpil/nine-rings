@@ -536,29 +536,11 @@ export function MarkdownSourceWorkspace({
       style={desktopPanelStyle(controller)}
       aria-label="Markdown 源码编辑区"
       onPointerDownCapture={event => {
-        if (event.button === 0 && event.target instanceof Element) {
-          const lineNumber = event.target.closest(".cm-lineNumbers .cm-gutterElement");
-          if (lineNumber?.textContent?.trim()) {
-            // The line-number click opens its own menu. Prevent the browser
-            // from treating the gutter label as a selection/focus target;
-            // readonly CodeMirror can otherwise map that native selection to
-            // document offset 0 before the menu's click handler runs.
-            event.preventDefault();
-            return;
-          }
-        }
         if (event.button !== 2 || !(event.target instanceof Element) || !event.target.closest(".cm-content")) return;
         event.preventDefault();
         event.stopPropagation();
       }}
       onMouseDownCapture={event => {
-        if (event.button === 0 && event.target instanceof Element) {
-          const lineNumber = event.target.closest(".cm-lineNumbers .cm-gutterElement");
-          if (lineNumber?.textContent?.trim()) {
-            event.preventDefault();
-            return;
-          }
-        }
         if (event.button !== 2 || !(event.target instanceof Element) || !event.target.closest(".cm-content")) return;
         // CodeMirror may move its selection to the right-click position on
         // mousedown. Keep an existing selection stable until the contextmenu

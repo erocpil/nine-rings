@@ -1,6 +1,7 @@
 import { EditorStatusSelect } from "./EditorStatusSelect";
 import { SourceFormattingControls, type SourceMessageAction } from "./SourceFormattingControls";
 import { sourceFoldPreviewPlaceholder } from "../lib/source-fold-preview";
+import { isSourceGutterControl } from "../lib/source-gutter-events";
 import { sourceIndentationChange, type SourceIndentStyle } from "../lib/source-indentation";
 import { sourceAutoIndentChange, type SourceAutoIndentScope } from "../lib/source-auto-indent";
 import { insertSourceNewline } from "../lib/source-newline";
@@ -902,10 +903,18 @@ export function MarkdownSourceEditor({
       data-source-highlighting={preferences.sourceSyntaxHighlighting !== false}
       style={{ fontSize, "--source-font-size": `${fontSize}px` } as CSSProperties}
       onPointerDownCapture={event => {
+        if (event.pointerType !== "touch" && event.button === 0 && isSourceGutterControl(event.target)) {
+          event.preventDefault();
+          return;
+        }
         if (!contextMenuEnabled || event.button !== 2 || !(event.target instanceof Element) || !event.target.closest(".cm-content")) return;
         event.preventDefault(); event.stopPropagation();
       }}
       onMouseDownCapture={event => {
+        if (event.button === 0 && isSourceGutterControl(event.target)) {
+          event.preventDefault();
+          return;
+        }
         if (!contextMenuEnabled || event.button !== 2 || !(event.target instanceof Element) || !event.target.closest(".cm-content")) return;
         event.preventDefault(); event.stopPropagation();
       }}

@@ -151,7 +151,9 @@ export const webkitGates = [
       "readonly-heading-fold",
       "mobile-fold",
       "source-fold-cursor",
+      "source-line-menu",
     ],
+    grep: "源码折叠展开恢复行列|Markdown 标题折叠|行号菜单不移动光标",
   },
   {
     name: "data-safety",

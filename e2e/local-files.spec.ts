@@ -3,6 +3,7 @@ import { createBlankDocument, waitForSavedText } from "./helpers/document";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { closeDocumentSidebar, openDocumentSidebar } from "./helpers/workspace";
+import { selectSource, sourceInfo } from "./helpers/source-editor";
 
 test("只读文件夹入口按需展开、源码查找和符号跳转，不创建文档，停用返回原视图", async ({
   page,
@@ -102,6 +103,36 @@ test("只读文件夹入口按需展开、源码查找和符号跳转，不创�
   const lineNumbers = page.getByRole("menuitemcheckbox", { name: "显示行号", exact: true });
   if (await lineNumbers.getAttribute("aria-checked") !== "true") await lineNumbers.click();
   await page.keyboard.press("Escape");
+  const area = viewer.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  const sourceBeforeGutterActions = (await sourceInfo(area)).value;
+  const cursorOffset = sourceBeforeGutterActions.indexOf("return value") + 5;
+  const functionStart = sourceBeforeGutterActions.indexOf("int local_function");
+  const clickLineNumberAt = async () => {
+    const point = await area.evaluate((element, offset) => {
+      const view = (window as any).sourceCM.EditorView.findFromDOM(element)!;
+      const text = view.coordsAtPos(offset)!;
+      const gutter = view.dom.querySelector(".cm-lineNumbers")!.getBoundingClientRect();
+      return { x: gutter.left + gutter.width / 2, y: (text.top + text.bottom) / 2 };
+    }, functionStart);
+    await page.mouse.click(point.x, point.y);
+  };
+  await selectSource(area, cursorOffset);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await clickLineNumberAt();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(cursorOffset);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const foldPoint = await area.evaluate((element, offset) => {
+    const view = (window as any).sourceCM.EditorView.findFromDOM(element)!;
+    const text = view.coordsAtPos(offset)!;
+    const gutter = view.dom.querySelector(".cm-foldGutter")!.getBoundingClientRect();
+    return { x: gutter.left + gutter.width / 2, y: (text.top + text.bottom) / 2 };
+  }, functionStart);
+  await page.mouse.click(foldPoint.x, foldPoint.y);
+  await expect(area.locator(".cm-foldPlaceholder")).toHaveCount(1);
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(sourceBeforeGutterActions.indexOf("{", functionStart) + 1);
+  await area.locator(".cm-foldPlaceholder").click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(cursorOffset);
+  expect((await sourceInfo(area)).value).toBe(sourceBeforeGutterActions);
   await viewer.getByRole("button", { name: "源码符号", exact: true }).click();
   await viewer
     .getByRole("complementary", { name: "本地源码符号" })
