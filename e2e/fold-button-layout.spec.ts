@@ -1,46 +1,35 @@
 import { expect, test } from "@playwright/test";
+import { createBlankDocument } from "./helpers/document";
 
 test("手机专注模式折叠三角始终对齐标题而不是引用块", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 800 });
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.addInitScript(() =>
     localStorage.setItem(
       "nine_rings_config",
       JSON.stringify({ editor_show_line_numbers: false }),
     ),
   );
-  await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
-  await page.evaluate(async () => {
-    const load = (path: string) => import(/* @vite-ignore */ path);
-    const { api } = (await load(
-      "/src/lib/api.ts",
-    )) as typeof import("../src/lib/api");
-    const { useNotesStore } = (await load(
-      "/src/stores/useNotesStore.ts",
-    )) as typeof import("../src/stores/useNotesStore");
-    const note = await api.notes.create({
-      title: "三角定位回归",
-      date: "2026-09-09",
-      storagePath: "tests/folding",
-      content: {
-        ops: [
-          { insert: "长标题跨行显示以检查三角与第一行对齐" },
-          { insert: "\n", attributes: { header: 2 } },
-          { insert: "示例答案" },
-          { insert: "\n", attributes: { header: 3 } },
-          { insert: "引用内容，包含多行以改变布局。".repeat(8) },
-          { insert: "\n", attributes: { blockquote: true } },
-          { insert: "下一节" },
-          { insert: "\n", attributes: { header: 2 } },
-          { insert: "下一节正文\n" },
-        ],
-      },
-    });
-    useNotesStore
-      .getState()
-      .selectNote(await api.notes.update(note.id, { readonly: true }));
+  await createBlankDocument(page, "三角定位回归");
+  await page.locator(".ProseMirror").evaluate(element => {
+    const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    editor.commands.setContent({
+      type: "doc",
+      content: [
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "长标题跨行显示以检查三角与第一行对齐" }] },
+        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "示例答案" }] },
+        { type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "引用内容，包含多行以改变布局。".repeat(8) }] }] },
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "下一节" }] },
+        { type: "paragraph", content: [{ type: "text", text: "下一节正文" }] },
+      ],
+    }, true);
   });
-  await expect(page.locator(".note-title")).toHaveText("三角定位回归");
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  await expect(page.getByRole("button", { name: "点击设为可编辑", exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 800 });
+  if (await page.locator(".sidebar-overlay.active").count()) {
+    await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
+    await expect(page.locator(".sidebar-overlay.active")).toHaveCount(0);
+  }
   await page.getByRole("button", { name: "专注模式", exact: true }).click();
   const assertAlignment = async () => {
     await expect

@@ -124,16 +124,7 @@ test("系统信息在手机宽度改为单列", async ({ page }) => {
   await createBlankDocument(page, "手机系统信息布局");
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator(".ProseMirror")).toBeVisible();
-  await page.locator(".note-editor").evaluate(element => {
-    const y = innerHeight * 0.7;
-    const start = { identifier: 1, target: element, clientX: innerWidth - 8, clientY: y };
-    const end = { ...start, clientX: innerWidth - 108 };
-    for (const [type, touches, changedTouches] of [["touchstart", [start], [start]], ["touchmove", [end], [end]], ["touchend", [], [end]]] as const) {
-      const event = new Event(type, { bubbles: true, cancelable: type !== "touchstart" });
-      Object.defineProperties(event, { touches: { value: touches }, changedTouches: { value: changedTouches } });
-      element.dispatchEvent(event);
-    }
-  });
+  await page.keyboard.press("Alt+,");
   await expect(page.getByRole("heading", { name: "设置", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /^系统信息/ }).click();
   const information = page.locator(".settings-system-information > .settings-section");
