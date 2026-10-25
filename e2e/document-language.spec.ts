@@ -60,19 +60,31 @@ test("状态栏文件格式与系统菜单共享设置，切换语法保留正�
   await expect(page.locator(".cm-content")).toContainText("def greet(name)");
 });
 
-test("文件格式在只读时显示但不可更改，系统菜单同时禁用", async ({ page }) => {
+test("只读文件格式仅修改本机查看方式，不写入文档", async ({ page }) => {
   await createBlankDocument(page, "只读格式");
+  const persisted = () => page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    return (await api.notes.get(localStorage.getItem("nr:lastNote")!))!.content;
+  });
   await expect(page.locator(".editor-status-bar").getByRole("button", { name: "文件格式", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await expect(page.getByRole("button", { name: "点击设为可编辑", exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(async () => {
     const menu = await import("/src/lib/native-menu-registry.ts");
     return menu.nativeMenuSnapshot().find(item => item.id === "format.language.python")?.enabled;
-  })).toBe(false);
+  })).toBe(true);
   await page.getByRole("button", { name: "源码", exact: true }).click();
   await expect(page.locator(".cm-content")).toBeVisible();
   const format = page.locator(".editor-status-bar").getByRole("button", { name: "文件格式", exact: true });
-  if (await format.count()) await expect(format).toBeDisabled();
+  const before = await persisted();
+  await expect(format).toBeEnabled();
+  await selectDocumentLanguage(page, "python");
+  await expect(format).toContainText("Python");
+  await expect(page.locator(".cm-content")).not.toBeEditable();
+  expect(await persisted()).toEqual(before);
+  await page.reload();
+  await expect(format).toContainText("Python");
+  expect(await persisted()).toEqual(before);
 });
 
 test("标题右侧源码、插件、目录与书签按钮等宽", async ({ page }) => {

@@ -222,7 +222,7 @@ export function ExhibitionWorkspace(props: Props) {
       className="exhibition-select" value={value} options={options} disabled={busy || blocked}
       open={openAppearance === label && !busy && !blocked}
       onOpenChange={open => setOpenAppearance(current => open ? label : current === label ? null : current)}
-      onHover={() => setOpenAppearance(current => current === null ? null : label)}
+      onHover={props.desktop ? () => setOpenAppearance(current => current === null ? null : label) : undefined}
       onChange={value => void run(() => props.onAppearance(patch(value)))} />;
   const appearance = (
     <div className="exhibition-appearance">

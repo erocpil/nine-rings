@@ -35,16 +35,29 @@ function fakeWorker() {
 
 describe("source formatting with real clang-format", () => {
   it("supports two-level parameter continuations using the documented custom configuration", () => {
-    const style = readFileSync(new URL("../../docs/examples/c-tab-continuation.clang-format", import.meta.url), "utf8");
-    const raw = "void split() {\nn = block_init((struct Block *)((uintptr_t)b + BLOCK_SIZE + size),\nb->size - size - BLOCK_SIZE, b, b->next);\nrun();\n}";
+    const style = readFileSync(
+      new URL(
+        "../../docs/examples/c-tab-continuation.clang-format",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const raw =
+      "void split() {\nn = block_init((struct Block *)((uintptr_t)b + BLOCK_SIZE + size),\nb->size - size - BLOCK_SIZE, b, b->next);\nrun();\n}";
     const formatted = format(raw, "main.cpp", style);
     const lines = formatted.split("\n");
-    const index = lines.findIndex(line => line.includes("n = block_init"));
-    expect(lines[index]).toBe("\tn = block_init((struct Block *)((uintptr_t)b + BLOCK_SIZE + size),");
-    expect(lines[index + 1]).toBe("\t\t\tb->size - size - BLOCK_SIZE, b, b->next);");
+    const index = lines.findIndex((line) => line.includes("n = block_init"));
+    expect(lines[index]).toBe(
+      "\tn = block_init((struct Block *)((uintptr_t)b + BLOCK_SIZE + size),",
+    );
+    expect(lines[index + 1]).toBe(
+      "\t\t\tb->size - size - BLOCK_SIZE, b, b->next);",
+    );
     expect(lines[index + 2]).toBe("\trun();");
     expect(format(formatted, "main.cpp", style)).toBe(formatted);
-    expect(sourceFormatStyle({ style: "custom", custom: style }, 2, false)).toBe(style);
+    expect(
+      sourceFormatStyle({ style: "custom", custom: style }, 2, false),
+    ).toBe(style);
   });
 
   it("releases the worker on success, engine error and transport failure", async () => {

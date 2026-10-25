@@ -11,8 +11,12 @@ describe("status bar idle glow preferences", () => {
     });
 
     expect(blockWorkspacePreferences().statusBarIdleGlow).toBeUndefined();
-    expect(blockWorkspacePreferences().statusBarIdleDelaySeconds).toBeUndefined();
-    expect(blockWorkspacePreferences().statusBarIdleGlowIntensity).toBeUndefined();
+    expect(
+      blockWorkspacePreferences().statusBarIdleDelaySeconds,
+    ).toBeUndefined();
+    expect(
+      blockWorkspacePreferences().statusBarIdleGlowIntensity,
+    ).toBeUndefined();
 
     values.set(
       "nr:blockWorkspaceDisplay",
@@ -35,7 +39,11 @@ describe("status bar idle glow preferences", () => {
         statusBarIdleGlowIntensity: "flashy",
       }),
     );
-    expect(blockWorkspacePreferences().statusBarIdleDelaySeconds).toBeUndefined();
-    expect(blockWorkspacePreferences().statusBarIdleGlowIntensity).toBeUndefined();
+    expect(
+      blockWorkspacePreferences().statusBarIdleDelaySeconds,
+    ).toBeUndefined();
+    expect(
+      blockWorkspacePreferences().statusBarIdleGlowIntensity,
+    ).toBeUndefined();
   });
 });

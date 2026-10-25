@@ -62,7 +62,7 @@ describe("macOS 菜单命令", () => {
     expect(hidden).not.toHaveBeenCalled();
     expect(active).toHaveBeenCalledOnce();
   });
-  it("catalog has unique commands and never replaces native quit, close or clipboard responders", () => {
+  it("catalog has unique commands and only overrides close for the active document", () => {
     const ids: string[] = [];
     const visit = (entries: { id?: string; items?: unknown[] }[]) =>
       entries.forEach((entry) => {
@@ -72,7 +72,15 @@ describe("macOS 菜单命令", () => {
     visit(catalog);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids.length).toBeGreaterThan(50);
-    expect(ids.some((id) => /quit|close|copy|paste/.test(id))).toBe(false);
+    expect(ids.filter((id) => /quit|close|copy|paste/.test(id))).toEqual([
+      "document.close",
+    ]);
+    const file = catalog.find((entry) => entry.text === "File")!;
+    expect(
+      file.items?.find((entry) => entry.id === "document.close"),
+    ).toMatchObject({
+      accelerator: "Command+W",
+    });
   });
   it("uses English top-level menu names and groups all three export formats", () => {
     expect(catalog.map((entry) => entry.text)).toEqual([

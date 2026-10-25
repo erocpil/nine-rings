@@ -82,7 +82,9 @@ it("requires separate file permission; selected snapshots paginate without impor
   expect(await localFileService.read(root.id, "src/a0.c")).toBe(
     "int main() {}\n",
   );
-  expect((await localFileService.readSnapshot(root.id, "src/a0.c")).lineEnding).toBe("crlf");
+  expect(
+    (await localFileService.readSnapshot(root.id, "src/a0.c")).lineEnding,
+  ).toBe("crlf");
   await localFileService.remove(root.id);
   await expect(localFileService.read(root.id, "src/a0.c")).rejects.toThrow();
 });
