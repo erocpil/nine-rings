@@ -127,6 +127,14 @@ test("只读文件夹入口按需展开、源码查找和符号跳转，不创�
   await page.keyboard.press("Escape");
   await expect(lineMenu).toHaveCount(0);
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const emptyFoldPoint = await area.evaluate((element, offset) => {
+    const view = (window as any).sourceCM.EditorView.findFromDOM(element)!;
+    const text = view.coordsAtPos(offset)!;
+    const gutter = view.dom.querySelector(".cm-foldGutter")!.getBoundingClientRect();
+    return { x: gutter.left + gutter.width / 2, y: (text.top + text.bottom) / 2 };
+  }, cursorOffset);
+  await page.mouse.click(emptyFoldPoint.x, emptyFoldPoint.y);
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(cursorOffset);
   const foldPoint = await area.evaluate((element, offset) => {
     const view = (window as any).sourceCM.EditorView.findFromDOM(element)!;
     const text = view.coordsAtPos(offset)!;

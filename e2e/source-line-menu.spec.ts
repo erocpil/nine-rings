@@ -17,6 +17,16 @@ async function openLine(page: Page, area: Locator, number: number) {
   return menu;
 }
 
+async function clickFoldColumnAt(page: Page, area: Locator, offset: number) {
+  const point = await area.evaluate((element, position) => {
+    const view = (window as any).sourceCM.EditorView.findFromDOM(element)!;
+    const rect = view.coordsAtPos(position)!;
+    const gutter = view.dom.querySelector(".cm-foldGutter")!.getBoundingClientRect();
+    return { x: gutter.left + gutter.width / 2, y: (rect.top + rect.bottom) / 2 };
+  }, offset);
+  await page.mouse.click(point.x, point.y);
+}
+
 for (const readonly of [false, true]) for (const relative of [false, true]) test(`行号菜单不移动光标，随后折叠仍恢复原行列 readonly=${readonly} relative=${relative}`, async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true })));
   await createBlankDocument(page, "行号光标回归");
@@ -43,6 +53,9 @@ for (const readonly of [false, true]) for (const relative of [false, true]) test
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await clickFoldColumnAt(page, area, text.indexOf("first"));
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
   menu = await openLine(page, area, 7);
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
