@@ -17,6 +17,44 @@ async function openLine(page: Page, area: Locator, number: number) {
   return menu;
 }
 
+for (const readonly of [false, true]) for (const relative of [false, true]) test(`行号菜单不移动光标，随后折叠仍恢复原行列 readonly=${readonly} relative=${relative}`, async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true })));
+  await createBlankDocument(page, "行号光标回归");
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  const text = "// preface\n".repeat(4) + "void work() {\n  first();\n  second();\n}\n// tail\n";
+  await replaceSource(area, text);
+  await page.evaluate(async relative => {
+    const { saveBlockWorkspacePreferences } = await import("/src/lib/block-display-settings.ts");
+    saveBlockWorkspacePreferences({ relativeSourceLineNumbers: relative });
+  }, relative);
+  if (readonly) { await page.getByRole("button", { name: "设置只读", exact: true }).click(); await expect(area).not.toBeEditable(); }
+  const offset = text.indexOf("second") + 2;
+  await selectSource(area, offset);
+  const point = await area.evaluate((element, offset) => {
+    const view = (window as any).sourceCM.EditorView.findFromDOM(element)!;
+    const rect = view.coordsAtPos(offset)!;
+    return { x: rect.left + 1, y: (rect.top + rect.bottom) / 2 };
+  }, offset);
+  await page.mouse.click(point.x, point.y);
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  let menu = await openLine(page, area, 6);
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
+  menu = await openLine(page, area, 7);
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
+  await area.locator("..").locator(".cm-foldGutter .cm-gutterElement:visible").filter({ has: page.locator("span") }).first().click();
+  await expect(menu).toHaveCount(0);
+  await expect(area.locator(".cm-foldPlaceholder")).toHaveCount(1);
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(text.indexOf("{") + 1);
+  await area.locator(".cm-foldPlaceholder").click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
+  expect((await sourceInfo(area)).value).toBe(text);
+});
+
 test("源码行号菜单操作实际行并保留换行、撤销与只读边界", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true }));
