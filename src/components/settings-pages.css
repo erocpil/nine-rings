@@ -576,6 +576,7 @@
   color: var(--text);
 }
 .settings-feedback-slot .settings-toast { gap: 4px; width: auto; max-width: 160px; padding: 0 4px; }
+.settings-feedback-slot .settings-toast.error { color: var(--danger, #b42318); background: color-mix(in srgb, var(--danger, #b42318) 10%, var(--surface)); }
 .settings-feedback-text {
   flex: 0 1 auto;
   min-width: 0;

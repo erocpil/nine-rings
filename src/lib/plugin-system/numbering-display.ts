@@ -62,6 +62,7 @@ export function validateNumberingDisplay(input: unknown): NumberingDisplay {
     "foldCollapsed",
   ];
   const optionalKeys = ["sourceDividerWidth", "sourceDividerLeftSpace", "sourceDividerRightSpace"];
+  const result = { ...value };
   if (
     keys.some(key => !(key in value)) ||
     Object.keys(value).some((key) => !keys.includes(key) && !optionalKeys.includes(key)) ||
@@ -82,7 +83,7 @@ export function validateNumberingDisplay(input: unknown): NumberingDisplay {
     const number = value[key] ?? fallback;
     if (typeof number !== "number" || !Number.isInteger(number) || number < 0 || number > maximum)
       return invalid();
-    value[key] = number;
+    result[key] = number;
   }
   for (const key of [
     "visible",
@@ -105,7 +106,6 @@ export function validateNumberingDisplay(input: unknown): NumberingDisplay {
     )
       return invalid();
   }
-  const result = { ...value };
   for (const key of [
     "color",
     "background",

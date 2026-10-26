@@ -102,6 +102,7 @@ export function LocalFilesPanel({ active, onBack }: {
   const mounted = useRef(true);
   const revision = useRef({ value: 0 });
   const startupRestored = useRef(false);
+  const restoredTreeActivation = useRef(false);
   const tree = useRef<HTMLDivElement>(null);
   const treeScrollVersion = useRef(0);
   const treeAnchor = useRef<{ rows: Array<{ id: string; offset: number }>; scrollTop: number; version: number } | null>(null);
@@ -295,6 +296,23 @@ export function LocalFilesPanel({ active, onBack }: {
       setError(String(reason));
     }
   }, [restored.open, roots, rootsReady, selectedFile]);
+  useEffect(() => {
+    if (!active) {
+      restoredTreeActivation.current = false;
+      return;
+    }
+    if (!rootsReady || restoredTreeActivation.current) return;
+    restoredTreeActivation.current = true;
+    if (!selectedFile || !roots.some(root => root.id === selectedFile.rootId)) return;
+    // Resolve the persisted file through the same path/pagination flow as
+    // “show in tree”; this also reveals files beyond the first directory page.
+    setRevealRequest({
+      rootId: selectedFile.rootId,
+      nodeId: selectedFile.nodeId,
+      name: selectedFile.name,
+      sequence: Date.now(),
+    });
+  }, [active, roots, rootsReady, selectedFile]);
   const run = async (key: string, action: () => Promise<void>) => {
     const version = revision.current.value;
     setError("");

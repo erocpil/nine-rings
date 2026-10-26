@@ -726,7 +726,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             <h2 id="settings-dialog-title" tabIndex={-1}>{SETTINGS_PAGE_TITLES[settingsPage]}</h2>
           </div>
           <div className="settings-feedback-slot" role="status" aria-live="polite">
-            {message && <div className="settings-toast"><span className="settings-feedback-text">{message}</span>
+            {message && <div className={`settings-toast${/失败|错误|无法|error/i.test(message) ? " error" : ""}`}><span className="settings-feedback-text">{message}</span>
               <button type="button" className="settings-feedback-close" aria-label="关闭提示" onClick={clearMessage}><ToolbarIcon name="close" /></button>
             </div>}
           </div>
@@ -1448,7 +1448,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
 
             </div>
-            {settingsPage === "advanced" && pluginsEnabled && <SettingsPluginCatalog />}
+            {settingsPage === "advanced" && pluginsEnabled && <SettingsPluginCatalog onFailure={text => showMessage(text, { severity: "error" })} />}
 
             {settingsPage === "changelog" && <SettingsChangelog />}
 

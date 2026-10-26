@@ -251,7 +251,7 @@ function PluginConfigurationDialog({
   );
 }
 
-export function SettingsPluginCatalog() {
+export function SettingsPluginCatalog({ onFailure }: { onFailure: (message: string) => void }) {
   const catalog = useRef<HTMLElement>(null);
   const [catalogExpanded, setCatalogExpanded] = useState(true);
   useEffect(() => {
@@ -264,7 +264,6 @@ export function SettingsPluginCatalog() {
     document.addEventListener("keydown", resumeKeyboardFocus, true);
     return () => document.removeEventListener("keydown", resumeKeyboardFocus, true);
   }, []);
-  const { message, showMessage } = useTransientMessage();
   const [selected, setSelected] = useState<BuiltinPluginDescription | null>(
     null,
   );
@@ -304,7 +303,6 @@ export function SettingsPluginCatalog() {
       <p className="settings-desc">
         {BUILTIN_PLUGIN_CATALOG.length} 个内置插件 · 点击名称查看配置
       </p>
-      {message && <p role="status">{message}</p>}
       {catalogExpanded && <ul>
         {BUILTIN_PLUGIN_CATALOG.map((plugin) => {
           const active = status.activations.some(
@@ -384,7 +382,7 @@ export function SettingsPluginCatalog() {
                             .deactivate(plugin.id)
                             .catch(() => {});
                       } catch {
-                        showMessage("无法保存插件开关，请检查本地存储后重试");
+                        onFailure("无法保存插件开关，请检查本地存储后重试");
                       }
                     }}
                   />
