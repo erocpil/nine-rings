@@ -13,7 +13,7 @@ import { usePluginMainView } from "./hooks/usePluginMainView";
 import { IMAGE_INSERT_EVENT } from "./lib/image-library/viewer-request";
 import { documentToolEnabled } from "./lib/plugin-system/builtin-tool-preferences";
 import { workspacePanels } from "./lib/plugin-system/panel-registry";
-import { pluginRuntime } from "./lib/plugin-system/runtime";
+import { PLUGINS_ENABLED_KEY } from "./lib/plugin-system/runtime";
 import { imageViewerEnabled } from "./lib/plugin-system/builtin-image-viewer";
 import { LOCAL_FILE_VIEW_ID, localFilesEnabled } from "./lib/plugin-system/builtin-local-files";
 import { announceLocalFileOpened, LOCAL_FILE_REVEAL_EVENT, localFileIdentity, readRecentLocalFiles, rememberRecentLocalFile, type RecentLocalFile } from "./lib/local-files/recent";
@@ -474,7 +474,16 @@ function App() {
   const contributedPanels = useSyncExternalStore(workspacePanels.subscribe, workspacePanels.getSnapshot);
   const [desktopPanel, setDesktopPanel] = useState(() => readDesktopSidebarState().panel);
   useEffect(() => {
-    if (((desktopPanel === "images" && (!pluginRuntime.isEnabled() || !imageViewerEnabled())) || desktopPanel === "vocabulary" || (desktopPanel === "files" && (!pluginRuntime.isEnabled() || !localFilesEnabled()))) && !contributedPanels.some(panel => panel.id === desktopPanel)) {
+    // The saved panel is read during render, but startPluginRuntime runs in a
+    // later effect. Consult persisted intent here; runtime activation can lag
+    // this effect on a cold start and must not erase a valid files-panel choice.
+    let pluginPreferenceEnabled = false;
+    try {
+      pluginPreferenceEnabled = localStorage.getItem(PLUGINS_ENABLED_KEY) === "true";
+    } catch {
+      /* A missing preference means the optional plugin panel is unavailable. */
+    }
+    if (((desktopPanel === "images" && (!pluginPreferenceEnabled || !imageViewerEnabled())) || desktopPanel === "vocabulary" || (desktopPanel === "files" && (!pluginPreferenceEnabled || !localFilesEnabled()))) && !contributedPanels.some(panel => panel.id === desktopPanel)) {
       setDesktopPanel("tree");
       setSidebarHidden(true);
     }

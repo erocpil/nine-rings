@@ -51,7 +51,9 @@ export function sourceFoldPreviewPlaceholder(
     bubble.setAttribute("popover", "manual");
     bubble.setAttribute("role", "region");
     bubble.setAttribute("aria-label", "折叠代码预览");
-    const maxWidth = Math.min(window.innerWidth - 16, viewport.width * 0.75);
+    // Prefer staying inside the editor pane, but let wide source lines use the
+    // whole screen and float above sidebars when the pane itself is too narrow.
+    const maxWidth = Math.max(1, window.innerWidth - 16);
     const maxHeight = Math.min(window.innerHeight - 16, viewport.height * 0.5);
     bubble.style.width = `${maxWidth}px`;
     bubble.style.height = `${maxHeight}px`;
@@ -98,18 +100,42 @@ export function sourceFoldPreviewPlaceholder(
       const canvas = document.createElement("canvas");
       const context = canvas.getContext("2d");
       if (context) context.font = style.font || `${fontSize}px monospace`;
-      const contentWidth = lines.reduce((width, line) => Math.max(width,
+      const renderedLines = [...preview.contentDOM.querySelectorAll<HTMLElement>(".cm-line")];
+      const renderedWidth = renderedLines.reduce((width, line) => {
+        const range = document.createRange();
+        range.selectNodeContents(line);
+        return Math.max(width, range.getBoundingClientRect().width);
+      }, 0);
+      const estimatedWidth = lines.reduce((width, line) => Math.max(width,
         context?.measureText(line.replace(/\t/g, " ".repeat(view.state.tabSize))).width ?? 0), 0);
-      // Include the content insets and the bubble's 1px border on both sides.
-      const horizontalPadding = 22;
+      const lineStyle = renderedLines[0] ? getComputedStyle(renderedLines[0]) : null;
+      const bubbleStyle = getComputedStyle(bubble);
+      const px = (value: string | null | undefined) => Number.parseFloat(value ?? "") || 0;
+      // Use rendered text geometry (which includes syntax spans and tab stops)
+      // and add the actual CodeMirror/content/border insets around that text.
+      const horizontalPadding =
+        px(style.paddingLeft) + px(style.paddingRight) +
+        px(lineStyle?.paddingLeft) + px(lineStyle?.paddingRight) +
+        px(bubbleStyle.borderLeftWidth) + px(bubbleStyle.borderRightWidth) + 2;
       const verticalPadding = 18;
+      // CodeMirror only lays out the visible portion of long folded regions;
+      // keep the all-source estimate so offscreen long lines still size the bubble.
+      const contentWidth = Math.max(renderedWidth, estimatedWidth);
       bubble.style.width = `${Math.min(maxWidth, Math.max(Math.min(maxWidth, 260), contentWidth + horizontalPadding))}px`;
       bubble.style.height = `${Math.min(maxHeight, Math.max(Math.min(maxHeight, lineHeight + verticalPadding), lines.length * lineHeight + verticalPadding))}px`;
       const anchor = placeholder.getBoundingClientRect();
       const bounds = bubble.getBoundingClientRect();
       const below = window.innerHeight - anchor.bottom - 8;
       const above = anchor.top - 8;
-      bubble.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - bounds.width - 8))}px`;
+      const screenLeft = 8;
+      const screenRight = Math.max(screenLeft, window.innerWidth - bounds.width - 8);
+      const editorLeft = Math.max(screenLeft, viewport.left + 8);
+      const editorRight = Math.min(window.innerWidth - 8, viewport.right - 8);
+      const fitsEditor = bounds.width <= editorRight - editorLeft;
+      const preferredLeft = fitsEditor
+        ? Math.max(editorLeft, Math.min(anchor.left, editorRight - bounds.width))
+        : anchor.left + anchor.width / 2 - bounds.width / 2;
+      bubble.style.left = `${Math.max(screenLeft, Math.min(preferredLeft, screenRight))}px`;
       bubble.style.top = `${Math.max(8, below >= bounds.height || below >= above ? Math.min(window.innerHeight - bounds.height - 8, anchor.bottom + 6) : anchor.top - bounds.height - 6)}px`;
     };
     fit();
