@@ -1448,7 +1448,12 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
 
             </div>
-            {settingsPage === "advanced" && pluginsEnabled && <SettingsPluginCatalog onFailure={text => showMessage(text, { severity: "error" })} />}
+            {settingsPage === "advanced" && pluginsEnabled && <SettingsPluginCatalog
+              onFailure={text => showMessage(text, { severity: "error" })}
+              previewing={peeking}
+              mobile={mobileSettingsViewport}
+              onPreviewChange={setPeeking}
+            />}
 
             {settingsPage === "changelog" && <SettingsChangelog />}
 

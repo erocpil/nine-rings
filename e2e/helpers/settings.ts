@@ -4,6 +4,7 @@ import type { Locator } from "@playwright/test";
 export function settingsBackdropFilter(overlay: Locator) {
   return overlay.evaluate(element => {
     const style = getComputedStyle(element);
-    return style.getPropertyValue("backdrop-filter") || style.getPropertyValue("-webkit-backdrop-filter");
+    const filter = style.getPropertyValue("backdrop-filter") || style.getPropertyValue("-webkit-backdrop-filter");
+    return /blur\([^)]*\)/.exec(filter)?.[0] ?? filter;
   });
 }

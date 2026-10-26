@@ -46,7 +46,10 @@
   }
 }
 .settings-panel.plugin-config-dialog { position: fixed; inset: 0; margin: auto; width: min(720px, calc(100vw - 32px)); height: auto; max-height: calc(100dvh - 40px); max-width: none; padding: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 16px 64px color-mix(in srgb, var(--text) 18%, transparent); overflow: hidden; }
-.plugin-config-dialog::backdrop { background: color-mix(in srgb, #18201e 24%, transparent); backdrop-filter: blur(2px) brightness(.95); }
+.plugin-config-dialog { transition: opacity 180ms ease; }
+.plugin-config-dialog::backdrop { background: color-mix(in srgb, #18201e 24%, transparent); backdrop-filter: blur(2px) brightness(.95); -webkit-backdrop-filter: blur(2px) brightness(.95); transition: background-color 180ms ease, backdrop-filter 180ms ease, -webkit-backdrop-filter 180ms ease; }
+.plugin-config-dialog.settings-peeking { opacity: 0; }
+.plugin-config-dialog.settings-peeking::backdrop { background: transparent; backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0); }
 .plugin-config-heading { display: flex; align-items: center; gap: 12px; flex: none; padding: 16px 20px 12px; }
 .plugin-config-heading h2 { margin: 0; font-size: 18px; flex: none; }
 .plugin-config-heading > button { margin-left: auto; flex: none; }
@@ -65,6 +68,9 @@
 @media (prefers-reduced-motion: no-preference) {
   .plugin-config-dialog[open] { animation: plugin-config-appear .14s ease-out; }
   @keyframes plugin-config-appear { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+}
+@media (prefers-reduced-motion: reduce) {
+  .plugin-config-dialog, .plugin-config-dialog::backdrop { transition: none; }
 }
 .settings-plugin-metadata { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .settings-plugin-metadata .settings-toggle { flex: none; margin: 0; }

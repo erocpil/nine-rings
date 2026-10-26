@@ -94,6 +94,45 @@ test("排版设置按住外部预览，释放恢复且保留草稿", async ({ pa
   await expect(size).toHaveValue("40");
 });
 
+test("插件配置按住外部预览完整工作区，释放和失焦恢复配置", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await createBlankDocument(page, "插件配置临时预览");
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^高级/ }).click();
+  await page.getByRole("checkbox", { name: "启用插件功能", exact: true }).check();
+  await page.getByRole("button", { name: "编号展示", exact: true }).click();
+  const overlay = page.locator(".settings-overlay");
+  const dialog = page.getByRole("dialog", { name: "编号展示配置", exact: true });
+  const bold = dialog.getByRole("checkbox", { name: "编号粗体", exact: true });
+  if (!await bold.isChecked()) await bold.check();
+  await page.mouse.click(8, 500);
+  await expect(dialog).toBeVisible();
+  await expect(bold).toBeChecked();
+
+  await page.mouse.move(8, 500);
+  await page.mouse.down();
+  await expect(dialog).toHaveCSS("opacity", "0");
+  await expect(overlay).toHaveCSS("opacity", "0");
+  await expect.poll(() => dialog.evaluate(element => {
+    const style = getComputedStyle(element, "::backdrop");
+    return style.getPropertyValue("backdrop-filter") || style.getPropertyValue("-webkit-backdrop-filter");
+  })).toMatch(/blur\((?:0|0px)\)/);
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await page.mouse.up();
+  await expect(dialog).toHaveCSS("opacity", "1");
+  await expect(overlay).toHaveCSS("opacity", "1");
+  await expect(bold).toBeChecked();
+
+  await page.mouse.move(8, 500);
+  await page.mouse.down();
+  await expect(dialog).toHaveCSS("opacity", "0");
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  await expect(dialog).toHaveCSS("opacity", "1");
+  await expect(overlay).toHaveCSS("opacity", "1");
+  await page.mouse.up();
+  await expect(bold).toBeChecked();
+});
+
 test("设置子页面按住外围可预览完整工作区，松开后保持子页", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
   await createBlankDocument(page, "子设置页预览");

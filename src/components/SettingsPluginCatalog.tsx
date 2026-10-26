@@ -61,10 +61,16 @@ function PluginConfigurationDialog({
   plugin,
   onClose,
   trigger,
+  previewing,
+  mobile,
+  onPreviewChange,
 }: {
   plugin: BuiltinPluginDescription;
   onClose: () => void;
   trigger: RefObject<HTMLElement | null>;
+  previewing: boolean;
+  mobile: boolean;
+  onPreviewChange: (previewing: boolean) => void;
 }) {
   useSyncExternalStore(subscribeVocabulary, vocabularySnapshot);
   useSyncExternalStore(subscribeResultPresentation, resultPresentationSnapshot);
@@ -93,7 +99,7 @@ function PluginConfigurationDialog({
     <dialog
       ref={dialog}
       tabIndex={-1}
-      className="settings-panel plugin-config-dialog"
+      className={`settings-panel plugin-config-dialog${previewing ? " settings-peeking" : ""}`}
       aria-label={`${plugin.name}配置`}
       aria-modal="true"
       onCancel={(event) => {
@@ -101,6 +107,20 @@ function PluginConfigurationDialog({
         onClose();
       }}
       onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => {
+        if (mobile || event.pointerType !== "mouse" || event.button !== 0) return;
+        const bounds = event.currentTarget.getBoundingClientRect();
+        const outside = event.clientX < bounds.left || event.clientX > bounds.right
+          || event.clientY < bounds.top || event.clientY > bounds.bottom;
+        if (!outside) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        onPreviewChange(true);
+      }}
+      onPointerUp={() => onPreviewChange(false)}
+      onPointerCancel={() => onPreviewChange(false)}
+      onLostPointerCapture={() => onPreviewChange(false)}
       onKeyDown={(event) => {
         event.stopPropagation();
         if (event.key === "Escape") {
@@ -251,7 +271,12 @@ function PluginConfigurationDialog({
   );
 }
 
-export function SettingsPluginCatalog({ onFailure }: { onFailure: (message: string) => void }) {
+export function SettingsPluginCatalog({ onFailure, previewing, mobile, onPreviewChange }: {
+  onFailure: (message: string) => void;
+  previewing: boolean;
+  mobile: boolean;
+  onPreviewChange: (previewing: boolean) => void;
+}) {
   const catalog = useRef<HTMLElement>(null);
   const [catalogExpanded, setCatalogExpanded] = useState(true);
   useEffect(() => {
@@ -404,6 +429,9 @@ export function SettingsPluginCatalog({ onFailure }: { onFailure: (message: stri
         <PluginConfigurationDialog
           plugin={selected}
           trigger={trigger}
+          previewing={previewing}
+          mobile={mobile}
+          onPreviewChange={onPreviewChange}
           onClose={() => setSelected(null)}
         />
       )}
