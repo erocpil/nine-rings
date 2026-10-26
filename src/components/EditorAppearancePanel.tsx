@@ -338,6 +338,10 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
               <small>{displayConfig.note_font_size}px · {displayConfig.editor_line_height.toFixed(1)} 行距</small>
             </div>
             <article className={`editor-appearance-preview editor-appearance-document ${displayConfig.editor_cjk_spacing ? "editor-auto-cjk-spacing" : ""}`} style={{ ...variables, "--list-followup-indent-enabled": blockDisplay.listFollowupIndent === false ? "0" : "1" } as React.CSSProperties} aria-label="编辑器排版预览">
+              <section className="editor-appearance-source-preview" aria-label="源码行号竖线与留白预览">
+                <span className="editor-appearance-source-gutter" aria-hidden="true"><span>1</span><span>2</span><span>3</span></span>
+                <code><span>function arrangeIdeas() {'{'}</span><span>  return "readable";</span><span>{'}'}</span></code>
+              </section>
               <h1>把想法整理成可读的结构</h1>
               <p>{cjkSpacedText("Nine Rings支持Markdown编辑，排版不改变内容本身，却会直接影响阅读节奏。")}</p>
               <h2>清晰的层级</h2>
@@ -353,8 +357,8 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                 </li>
                 <li>调整时两种列表同步变化</li>
               </ol>
-              <blockquote className="list-followup-preview">列表的补充说明可以使用适度缩进，保留独立的引用块。</blockquote>
-              <pre className="list-followup-preview"><code>const keep = "Readable layout";</code></pre>
+              <blockquote className="list-followup-preview" aria-label="引用块排版预览">列表的补充说明可以使用适度缩进，保留独立的引用块。</blockquote>
+              <pre className="list-followup-preview" aria-label="代码块排版预览"><code>const keep = "Readable layout";</code></pre>
               <h3>紧凑的小节</h3>
               <p>标题上下间距会在这里实时呈现。</p>
               <p>相邻正文段落之间使用独立的正文块间距。</p>

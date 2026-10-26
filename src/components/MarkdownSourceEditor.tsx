@@ -352,6 +352,10 @@ export function MarkdownSourceEditor({
         svg.style.transform = expanded ? "rotate(90deg)" : "none";
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         path.setAttribute("d", "m9 5 7 7-7 7"); path.setAttribute("fill", "none"); path.setAttribute("stroke", "currentColor"); path.setAttribute("stroke-width", "1.7"); svg.appendChild(path); span.appendChild(svg); return span;
+      }, {
+        style: prefs.sourceFoldConnectorStyle ?? "solid",
+        width: prefs.sourceFoldConnectorWidth ?? 2,
+        opacity: prefs.sourceFoldConnectorOpacity ?? 100,
       }) : [],
       visible ? (relative ? relativeLineNumbers(plugin?.currentAlignment ?? prefs.relativeSourceLineNumberAlignment) : lineNumbers()) : [],
       prefs.wrap !== false ? EditorView.lineWrapping : [],
@@ -747,6 +751,11 @@ export function MarkdownSourceEditor({
       { label: "当前行号对齐", disabled: Boolean(numbering) || !sourceNumbersVisible || !sourceNumbersRelative, run: () => {}, children: (["left", "right"] as const).map(alignment => ({ label: alignment === "left" ? "左对齐" : "右对齐", checked: (numbering?.currentAlignment ?? preferences.relativeSourceLineNumberAlignment ?? "left") === alignment, keepOpen: true, run: () => saveBlockWorkspacePreferences({ relativeSourceLineNumberAlignment: alignment }) })) },
       { label: "显示折叠图标", group: "折叠图标", checked: preferences.sourceFoldGutter !== false, keepOpen: true, run: () => saveBlockWorkspacePreferences({ sourceFoldGutter: preferences.sourceFoldGutter === false }) },
       { label: "折叠图标样式", disabled: sharedNumberingOwned || preferences.sourceFoldGutter === false || configSaving || !onEditorConfigChange, run: () => {}, children: EDITOR_FOLD_PRESETS.map(preset => ({ label: preset.label, checked: editorFoldPreset(foldConfig) === preset.id, disabled: configSaving, keepOpen: true, run: () => { void saveEditorSetting(editorFoldPresetPatch(preset.id)); } })) },
+      { label: "连接线样式", disabled: preferences.sourceFoldGutter === false, run: () => {}, children: ([
+        ["solid", "实线"], ["dashed", "虚线"], ["dotted", "点线"], ["none", "不显示"],
+      ] as const).map(([value, label]) => ({ label, checked: (preferences.sourceFoldConnectorStyle ?? "solid") === value, keepOpen: true, run: () => saveBlockWorkspacePreferences({ sourceFoldConnectorStyle: value }) })) },
+      { label: "连接线宽度", disabled: preferences.sourceFoldGutter === false || preferences.sourceFoldConnectorStyle === "none", run: () => {}, children: ([1, 2, 3, 4] as const).map(value => ({ label: `${value}px`, checked: (preferences.sourceFoldConnectorWidth ?? 2) === value, keepOpen: true, run: () => saveBlockWorkspacePreferences({ sourceFoldConnectorWidth: value }) })) },
+      { label: "连接线透明度", disabled: preferences.sourceFoldGutter === false || preferences.sourceFoldConnectorStyle === "none", run: () => {}, children: ([25, 50, 75, 100] as const).map(value => ({ label: `${value}%`, checked: (preferences.sourceFoldConnectorOpacity ?? 100) === value, keepOpen: true, run: () => saveBlockWorkspacePreferences({ sourceFoldConnectorOpacity: value }) })) },
     ]} />}
   </>;
   const indentationControls = !markupMode && <span className="source-indentation-controls">

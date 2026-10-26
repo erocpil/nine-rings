@@ -251,6 +251,36 @@
   color: inherit;
 }
 
+.editor-appearance-source-preview {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  margin: 0 0 var(--editor-block-spacing);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  font: min(.85em, 16px)/1.55 var(--font-mono);
+}
+
+.editor-appearance-source-gutter {
+  display: grid;
+  padding-left: 2px;
+  padding-right: var(--editor-source-gutter-divider-left-space, 5px);
+  border-right: var(--editor-source-gutter-divider-width, 1px) solid var(--border);
+  color: var(--text-secondary);
+  text-align: right;
+  user-select: none;
+}
+
+.editor-appearance-source-preview > code {
+  display: grid;
+  min-width: 0;
+  padding-left: var(--editor-source-gutter-divider-right-space, 6px);
+  color: var(--text);
+  font: inherit;
+  white-space: pre;
+}
+
 .editor-appearance-reset {
   width: 100%;
 }

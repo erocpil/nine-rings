@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { Schema } from "@tiptap/pm/model";
 import { editorAppearanceVariables } from "../src/lib/editor-appearance";
+import { resolveInterfaceConfig } from "../src/lib/interface-style";
 import { getConfig } from "../src/lib/storage/db-config";
 import { editorGutterWidth } from "../src/lib/editor-gutter";
 import {
@@ -25,6 +26,16 @@ assert.equal(defaults["--editor-list-margin-top"], "0.25em");
 assert.equal(defaults["--editor-list-margin-bottom"], "0.25em");
 assert.equal(defaults["--hierarchy-path-custom-1"], "#247F7B");
 assert.equal(defaults["--hierarchy-outline-custom-6"], "#B0473C");
+
+const managedGutter = resolveInterfaceConfig({
+  interface_style: "paper" as const,
+  editor_source_gutter_divider_width: 3,
+  editor_source_gutter_divider_left_space: 11,
+  editor_source_gutter_divider_right_space: 13,
+});
+assert.equal(managedGutter.editor_source_gutter_divider_width, 3);
+assert.equal(managedGutter.editor_source_gutter_divider_left_space, 11);
+assert.equal(managedGutter.editor_source_gutter_divider_right_space, 13);
 
 const custom = editorAppearanceVariables({
   note_font_size: 20,

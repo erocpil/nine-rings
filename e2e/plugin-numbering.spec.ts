@@ -112,6 +112,10 @@ for (const virtual of [false, true])
     await config
       .getByRole("combobox", { name: "编号字体", exact: true })
       .focus();
+    await config.getByRole("combobox", { name: "编号配置目标", exact: true }).selectOption("source");
+    await config.getByRole("combobox", { name: "编号展示折叠连接线样式", exact: true }).selectOption("dotted");
+    await config.getByRole("combobox", { name: "编号展示折叠连接线宽度", exact: true }).selectOption("4");
+    await config.getByRole("combobox", { name: "编号展示折叠连接线透明度", exact: true }).selectOption("75");
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "关闭设置", exact: true }).click();
     const number = page.locator(".editor-block-number").first();
@@ -156,6 +160,12 @@ for (const virtual of [false, true])
     await expect(
       page.locator(".plugin-source-fold-symbol:visible").first(),
     ).toHaveText("▾");
+    await page.locator('.cm-foldGutter [data-fold-kind="expanded"]').first().hover();
+    await page.locator('.cm-foldGutter [data-fold-kind="expanded"]').first().dispatchEvent("mouseover");
+    const connector = page.locator(".source-fold-connector");
+    await expect(connector).toHaveAttribute("data-connector-style", "dotted");
+    await expect(connector).toHaveCSS("width", "4px");
+    await expect(connector).toHaveCSS("opacity", "0.75");
     await page
       .locator(".cm-foldGutter .cm-gutterElement")
       .filter({ hasText: "▾" })

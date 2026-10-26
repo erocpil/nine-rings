@@ -1067,7 +1067,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
             <Field label="相对块号" desc="当前块显示绝对块号，其余显示可见块距离；需开启显示块编号，折叠隐藏的块不计数" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
-                <input type="checkbox" aria-label="相对块号" disabled={Boolean(numberingPlugins.blocks)} checked={relativeNumbering.relativeBlockNumbers} onChange={event => saveBlockWorkspacePreferences({ relativeBlockNumbers: event.target.checked })} />
+                <input type="checkbox" aria-label="相对块号" disabled={Boolean(numberingPlugins.blocks) || !config.editor_show_line_numbers} checked={relativeNumbering.relativeBlockNumbers} onChange={event => saveBlockWorkspacePreferences({ relativeBlockNumbers: event.target.checked })} />
                 <span className="toggle-track" /><span className="toggle-label">{relativeNumbering.relativeBlockNumbers ? "开" : "关"}</span>
               </label>
             </Field>
@@ -1079,7 +1079,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             </Field>
 
             <Field label="相对块号当前项对齐" desc="仅在相对块号开启时生效，默认右对齐；其它编号仍右对齐" visible={settingsPage === "editor"}>
-              <select aria-label="相对块号当前项对齐" disabled={Boolean(numberingPlugins.blocks)} value={relativeNumbering.relativeBlockNumberAlignment} onChange={event => saveBlockWorkspacePreferences({ relativeBlockNumberAlignment: event.target.value as "left" | "right" })}>
+              <select aria-label="相对块号当前项对齐" disabled={Boolean(numberingPlugins.blocks) || !config.editor_show_line_numbers || !relativeNumbering.relativeBlockNumbers} value={relativeNumbering.relativeBlockNumberAlignment} onChange={event => saveBlockWorkspacePreferences({ relativeBlockNumberAlignment: event.target.value as "left" | "right" })}>
                 <option value="left">左对齐</option><option value="right">右对齐</option>
               </select>
             </Field>
@@ -1093,6 +1093,21 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 <input type="checkbox" aria-label="显示源码折叠图标" checked={relativeNumbering.sourceFoldGutter} onChange={event => saveBlockWorkspacePreferences({ sourceFoldGutter: event.target.checked })} />
                 <span className="toggle-track" /><span className="toggle-label">{relativeNumbering.sourceFoldGutter ? "开" : "关"}</span>
               </label>
+            </Field>
+            <Field label="源码折叠连接线样式" desc="悬停成对折叠图标时显示实线、虚线或点线；不显示仍保留层级颜色和折叠操作" visible={settingsPage === "editor"}>
+              <select aria-label="源码折叠连接线样式" disabled={!relativeNumbering.sourceFoldGutter} value={relativeNumbering.sourceFoldConnectorStyle} onChange={event => saveBlockWorkspacePreferences({ sourceFoldConnectorStyle: event.target.value as "solid" | "dashed" | "dotted" | "none" })}>
+                <option value="solid">实线</option><option value="dashed">虚线</option><option value="dotted">点线</option><option value="none">不显示</option>
+              </select>
+            </Field>
+            <Field label="源码折叠连接线宽度" desc="设置连接线宽度；仅影响悬停提示，不改变 gutter 或正文布局" visible={settingsPage === "editor"}>
+              <select aria-label="源码折叠连接线宽度" disabled={!relativeNumbering.sourceFoldGutter || relativeNumbering.sourceFoldConnectorStyle === "none"} value={relativeNumbering.sourceFoldConnectorWidth} onChange={event => saveBlockWorkspacePreferences({ sourceFoldConnectorWidth: Number(event.target.value) as 1 | 2 | 3 | 4 })}>
+                <option value="1">1px</option><option value="2">2px</option><option value="3">3px</option><option value="4">4px</option>
+              </select>
+            </Field>
+            <Field label="源码折叠连接线透明度" desc="调整连接线相对层级色的透明程度" visible={settingsPage === "editor"}>
+              <select aria-label="源码折叠连接线透明度" disabled={!relativeNumbering.sourceFoldGutter || relativeNumbering.sourceFoldConnectorStyle === "none"} value={relativeNumbering.sourceFoldConnectorOpacity} onChange={event => saveBlockWorkspacePreferences({ sourceFoldConnectorOpacity: Number(event.target.value) as 25 | 50 | 75 | 100 })}>
+                <option value="25">25%</option><option value="50">50%</option><option value="75">75%</option><option value="100">100%</option>
+              </select>
             </Field>
             <Field label="状态栏块号" desc={config.editor_show_status_bar ? "显示光标所在的绝对块编号；相对编号不改变跳转或操作目标" : "请先开启状态栏；此选项的当前设置会保留"} visible={settingsPage === "editor"}>
               <label className="settings-toggle">

@@ -108,7 +108,7 @@ describe("workspace summary", () => {
         "2026-10-10",
         visits,
         8,
-      ).map(note => note.id),
+      ).map((note) => note.id),
     ).toEqual(Array.from({ length: 8 }, (_, i) => String(19 - i)));
     expect(
       workspaceSummaryPreviewDocuments(

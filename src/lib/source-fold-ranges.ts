@@ -9,6 +9,7 @@ import {
   syntaxTree,
   unfoldEffect,
 } from "@codemirror/language";
+import type { SourceFoldConnectorOpacity, SourceFoldConnectorStyle, SourceFoldConnectorWidth } from "./block-display-settings";
 
 export interface SourceFoldRange { from: number; to: number }
 
@@ -82,13 +83,20 @@ function clearFoldConnector(view: EditorView): void {
     marker.classList.remove("is-fold-pair-hovered");
 }
 
-function showFoldConnector(view: EditorView, marker: HTMLElement): void {
+interface SourceFoldConnectorConfig {
+  style: SourceFoldConnectorStyle;
+  width: SourceFoldConnectorWidth;
+  opacity: SourceFoldConnectorOpacity;
+}
+
+function showFoldConnector(view: EditorView, marker: HTMLElement, config: SourceFoldConnectorConfig): void {
   clearFoldConnector(view);
   const key = marker.dataset.foldRange;
   if (!key) return;
   const pair = [...view.dom.querySelectorAll<HTMLElement>("[data-fold-range]")]
     .filter(candidate => candidate.dataset.foldRange === key);
   for (const candidate of pair) candidate.classList.add("is-fold-pair-hovered");
+  if (config.style === "none") return;
   const gutter = marker.closest<HTMLElement>(".cm-foldGutter");
   if (!gutter) return;
   const [fromText, toText] = key.split(":");
@@ -111,7 +119,10 @@ function showFoldConnector(view: EditorView, marker: HTMLElement): void {
   if (Math.abs(lastCenter - firstCenter) < 1) return;
   const connector = document.createElement("div");
   connector.className = "source-fold-connector";
+  connector.dataset.connectorStyle = config.style;
   connector.dataset.foldDepth = marker.dataset.foldDepth ?? "0";
+  connector.style.setProperty("--source-fold-connector-width", `${config.width}px`);
+  connector.style.setProperty("--source-fold-connector-opacity", String(config.opacity / 100));
   const markerRect = marker.getBoundingClientRect();
   connector.style.left = `${markerRect.left + markerRect.width / 2 - gutterRect.left}px`;
   connector.style.top = `${Math.min(firstCenter, lastCenter) - gutterRect.top}px`;
@@ -120,7 +131,10 @@ function showFoldConnector(view: EditorView, marker: HTMLElement): void {
 }
 
 /** A fold gutter that also marks the closing line of every expanded region. */
-export function sourceFoldGutter(markerDOM: (kind: MarkerKind) => HTMLElement) {
+export function sourceFoldGutter(
+  markerDOM: (kind: MarkerKind) => HTMLElement,
+  connectorConfig: SourceFoldConnectorConfig,
+) {
   const markers = ViewPlugin.fromClass(class {
     markers: RangeSet<GutterMarker> = RangeSet.empty;
     readonly clearOnScroll: () => void;
@@ -196,7 +210,7 @@ export function sourceFoldGutter(markerDOM: (kind: MarkerKind) => HTMLElement) {
           if (!marker) return false;
           const previous = event instanceof MouseEvent && event.relatedTarget instanceof Element
             ? event.relatedTarget.closest<HTMLElement>("[data-fold-range]") : null;
-          if (previous?.dataset.foldRange !== marker.dataset.foldRange) showFoldConnector(view, marker);
+          if (previous?.dataset.foldRange !== marker.dataset.foldRange) showFoldConnector(view, marker, connectorConfig);
           return false;
         },
         mouseout(view, _line, event) {

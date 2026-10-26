@@ -24,12 +24,18 @@ describe("status bar idle glow preferences", () => {
         statusBarIdleGlow: true,
         statusBarIdleDelaySeconds: 30,
         statusBarIdleGlowIntensity: "prominent",
+        sourceFoldConnectorStyle: "dashed",
+        sourceFoldConnectorWidth: 3,
+        sourceFoldConnectorOpacity: 50,
       }),
     );
     expect(blockWorkspacePreferences()).toMatchObject({
       statusBarIdleGlow: true,
       statusBarIdleDelaySeconds: 30,
       statusBarIdleGlowIntensity: "prominent",
+      sourceFoldConnectorStyle: "dashed",
+      sourceFoldConnectorWidth: 3,
+      sourceFoldConnectorOpacity: 50,
     });
 
     values.set(
@@ -37,6 +43,9 @@ describe("status bar idle glow preferences", () => {
       JSON.stringify({
         statusBarIdleDelaySeconds: 45,
         statusBarIdleGlowIntensity: "flashy",
+        sourceFoldConnectorStyle: "double",
+        sourceFoldConnectorWidth: 8,
+        sourceFoldConnectorOpacity: 60,
       }),
     );
     expect(
@@ -44,6 +53,15 @@ describe("status bar idle glow preferences", () => {
     ).toBeUndefined();
     expect(
       blockWorkspacePreferences().statusBarIdleGlowIntensity,
+    ).toBeUndefined();
+    expect(
+      blockWorkspacePreferences().sourceFoldConnectorStyle,
+    ).toBeUndefined();
+    expect(
+      blockWorkspacePreferences().sourceFoldConnectorWidth,
+    ).toBeUndefined();
+    expect(
+      blockWorkspacePreferences().sourceFoldConnectorOpacity,
     ).toBeUndefined();
   });
 });

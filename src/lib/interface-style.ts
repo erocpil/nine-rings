@@ -136,6 +136,12 @@ export function resolveInterfaceConfig<T extends Partial<AppConfig>>(
     ...config,
     ...DEFAULT_EDITOR_APPEARANCE,
     ...navigation,
+    // These controls are shared by every interface style.  The managed style
+    // projection replaces classic typography defaults, but must not erase the
+    // user's source-gutter geometry while doing so.
+    editor_source_gutter_divider_width: config.editor_source_gutter_divider_width ?? DEFAULT_EDITOR_APPEARANCE.editor_source_gutter_divider_width,
+    editor_source_gutter_divider_left_space: config.editor_source_gutter_divider_left_space ?? DEFAULT_EDITOR_APPEARANCE.editor_source_gutter_divider_left_space,
+    editor_source_gutter_divider_right_space: config.editor_source_gutter_divider_right_space ?? DEFAULT_EDITOR_APPEARANCE.editor_source_gutter_divider_right_space,
     editor_cjk_spacing: config.editor_cjk_spacing ?? DEFAULT_EDITOR_APPEARANCE.editor_cjk_spacing,
     editor_font_family: config.interface_font_family ?? "system",
     note_font_size: size,

@@ -44,6 +44,40 @@ test("物哀风格排版可调整、重载并恢复预设，经典排版保持�
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config")!).editor_font_family)).toBe("system");
 });
 
+test("非经典风格保留源码行号竖线与留白，并在排版预览中即时呈现", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({
+    ...JSON.parse(localStorage.getItem("nine_rings_config") || "{}"),
+    editor_show_line_numbers: true,
+  })));
+  await createBlankDocument(page, "源码行号排版");
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  await page.getByRole("group", { name: "界面风格", exact: true })
+    .getByRole("button", { name: /^纸页/ }).click();
+  await page.getByRole("button", { name: /打开排版设置/ }).click();
+  const preview = page.getByRole("region", { name: "源码行号竖线与留白预览" });
+  const gutter = preview.locator(".editor-appearance-source-gutter");
+  const code = preview.locator("code");
+  await expect(page.getByLabel("代码块排版预览")).toBeVisible();
+  await expect(page.getByLabel("引用块排版预览")).toBeVisible();
+  await page.getByRole("button", { name: "增大源码行号竖线宽度" }).click();
+  await page.getByRole("button", { name: "增大源码行号竖线左侧留白" }).click();
+  await page.getByRole("button", { name: "增大源码行号竖线右侧留白" }).click();
+  await expect(gutter).toHaveCSS("border-right-width", "2px");
+  await expect(gutter).toHaveCSS("padding-right", "6px");
+  await expect(code).toHaveCSS("padding-left", "7px");
+  await page.getByRole("button", { name: "应用到编辑器" }).click();
+  await expect(page.locator(".app")).toHaveCSS("--editor-source-gutter-divider-width", "2px");
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config")!).editor_source_gutter_divider_width)).toBe(2);
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  await expect(page.locator(".markdown-cm-host .cm-gutters")).toHaveCSS("border-right-width", "2px");
+  await expect(page.locator(".markdown-cm-host .cm-lineNumbers .cm-gutterElement").first()).toHaveCSS("padding-right", "6px");
+  await expect(page.locator(".markdown-cm-host .cm-line").first()).toHaveCSS("padding-left", "7px");
+  await page.reload();
+  await expect(page.locator(".markdown-cm-host .cm-gutters")).toHaveCSS("border-right-width", "2px");
+});
+
 test("清雅采用完整预设，跟随系统；经典配置在切回后恢复", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await createBlankDocument(page);

@@ -71,7 +71,10 @@ describe("C/C++ adjacent branch folding", () => {
       "  return NULL;",
       "}",
     ].join("\n");
-    const state = EditorState.create({ doc, extensions: [cSourceSupport(cpp())] });
+    const state = EditorState.create({
+      doc,
+      extensions: [cSourceSupport(cpp())],
+    });
     const functionBrace = state.doc.line(6);
     const bodyRange = foldable(state, functionBrace.from, functionBrace.to)!;
     expect(bodyRange).toBeTruthy();
@@ -81,15 +84,26 @@ describe("C/C++ adjacent branch folding", () => {
     const ifRange = foldable(state, firstIf.from, firstIf.to)!;
     expect(state.doc.lineAt(ifRange.to).number).toBe(9);
 
-    for (const [lineNumber, char] of [[6, "{"], [11, "("], [1, "["]] as const) {
+    for (const [lineNumber, char] of [
+      [6, "{"],
+      [11, "("],
+      [1, "["],
+    ] as const) {
       const line = state.doc.line(lineNumber);
       const position = line.from + line.text.indexOf(char);
       const match = matchBrackets(state, position, 1);
       expect(match?.matched).toBe(true);
       expect(match?.end).toBeTruthy();
-      if (lineNumber === 6) expect(state.doc.lineAt(match!.end!.from).number).toBe(20);
-      if (lineNumber === 11) expect(state.doc.sliceString(match!.end!.from, match!.end!.to)).toBe(")");
-      if (lineNumber === 1) expect(state.doc.sliceString(match!.end!.from, match!.end!.to)).toBe("]");
+      if (lineNumber === 6)
+        expect(state.doc.lineAt(match!.end!.from).number).toBe(20);
+      if (lineNumber === 11)
+        expect(state.doc.sliceString(match!.end!.from, match!.end!.to)).toBe(
+          ")",
+        );
+      if (lineNumber === 1)
+        expect(state.doc.sliceString(match!.end!.from, match!.end!.to)).toBe(
+          "]",
+        );
     }
   });
 
@@ -144,7 +158,10 @@ describe("C/C++ adjacent branch folding", () => {
       "  }",
       "}",
     ].join("\n");
-    const state = EditorState.create({ doc, extensions: [cSourceSupport(cpp())] });
+    const state = EditorState.create({
+      doc,
+      extensions: [cSourceSupport(cpp())],
+    });
     const functionLine = state.doc.line(1);
     const functionRange = foldable(state, functionLine.from, functionLine.to)!;
     expect(state.doc.lineAt(functionRange.to).number).toBe(11);

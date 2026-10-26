@@ -82,13 +82,13 @@
   --source-gutter-divider-left-space: var(--editor-source-gutter-divider-left-space, 5px);
   --source-text-inset: var(--editor-source-gutter-divider-right-space, 6px);
 }
-.markdown-cm-host .cm-line { padding: 0 var(--source-text-inset); }
+.markdown-cm-host .cm-editor .cm-line { padding: 0 var(--source-text-inset); }
 /* Keep the text inset opaque when content scrolls underneath the sticky gutter. */
-.markdown-cm-source .cm-gutters-before::after {
+.markdown-cm-source .cm-editor .cm-gutters-before::after {
   content: "";
   position: absolute;
   inset-block: 0;
-  left: calc(100% + 1px);
+  left: 100%;
   width: var(--source-text-inset);
   background: var(--bg);
   pointer-events: none;
@@ -106,7 +106,7 @@
   color: color-mix(in srgb, var(--text-secondary) 72%, transparent);
 }
 .markdown-cm-host .cm-source-whitespace-eol { margin-left: 3px; color: var(--text-secondary); opacity: .58; font-size: .72em; user-select: none; }
-.markdown-cm-host .cm-gutters { background: var(--bg); color: var(--text-secondary); border-color: var(--border); border-right-style: solid; border-right-width: var(--source-gutter-divider-width); font-size: min(.85em, 16px); line-height: calc(var(--source-font-size, 16px) * var(--editor-line-height, 1.7)); }
+.markdown-cm-host .cm-editor .cm-gutters { background: var(--bg); color: var(--text-secondary); border-color: var(--border); border-right-style: solid; border-right-width: var(--source-gutter-divider-width); font-size: min(.85em, 16px); line-height: calc(var(--source-font-size, 16px) * var(--editor-line-height, 1.7)); }
 .markdown-cm-host .cm-activeLine, .markdown-cm-host .cm-activeLineGutter { background: color-mix(in srgb, var(--activeline-bg) 55%, transparent); }
 .note-editor.no-active-line .markdown-cm-host .cm-activeLine,
 .note-editor.no-active-line .markdown-cm-host .cm-activeLineGutter { background: transparent; }
@@ -162,14 +162,21 @@
 .markdown-cm-host .source-fold-connector {
   position: absolute;
   z-index: 4;
-  width: 2px;
-  margin-left: -1px;
+  width: var(--source-fold-connector-width, 2px);
+  margin-left: calc(var(--source-fold-connector-width, 2px) / -2);
   border-radius: 2px;
   background: var(--source-fold-level-color);
+  opacity: var(--source-fold-connector-opacity, 1);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--surface) 42%, transparent);
   pointer-events: none;
 }
-.markdown-cm-host .cm-lineNumbers .cm-gutterElement { padding-left: 2px; padding-right: var(--source-gutter-divider-left-space); }
+.markdown-cm-host .source-fold-connector[data-connector-style="dashed"] {
+  background: repeating-linear-gradient(to bottom, var(--source-fold-level-color) 0 7px, transparent 7px 11px);
+}
+.markdown-cm-host .source-fold-connector[data-connector-style="dotted"] {
+  background: repeating-linear-gradient(to bottom, var(--source-fold-level-color) 0 2px, transparent 2px 6px);
+}
+.markdown-cm-host .cm-editor .cm-lineNumbers .cm-gutterElement { padding-left: 2px; padding-right: var(--source-gutter-divider-left-space); }
 
 .markdown-cm-host .cm-content[aria-readonly="true"],
 .markdown-cm-host .cm-content[aria-readonly="true"] * {

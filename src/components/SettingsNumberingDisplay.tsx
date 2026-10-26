@@ -12,6 +12,24 @@ import type {
   NumberingDisplay,
   NumberingTarget,
 } from "../lib/plugin-system/numbering-display";
+import {
+  BLOCK_WORKSPACE_DISPLAY_EVENT,
+  blockWorkspacePreferences,
+  saveBlockWorkspacePreferences,
+} from "../lib/block-display-settings";
+
+const subscribeFoldConnector = (listener: () => void) => {
+  window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, listener);
+  window.addEventListener("storage", listener);
+  return () => {
+    window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, listener);
+    window.removeEventListener("storage", listener);
+  };
+};
+const foldConnectorSnapshot = () => {
+  const preferences = blockWorkspacePreferences();
+  return `${preferences.sourceFoldConnectorStyle ?? "solid"}:${preferences.sourceFoldConnectorWidth ?? 2}:${preferences.sourceFoldConnectorOpacity ?? 100}`;
+};
 
 export function SettingsNumberingDisplay({
   onMessage,
@@ -22,9 +40,11 @@ export function SettingsNumberingDisplay({
     subscribeNumberingPreference,
     numberingPreferenceSnapshot,
   );
+  useSyncExternalStore(subscribeFoldConnector, foldConnectorSnapshot);
   const [target, setTarget] = useState<NumberingTarget>("blocks");
   const preference = readNumberingPreference();
   const display = preference.displays.find((item) => item.target === target)!;
+  const foldConnector = blockWorkspacePreferences();
   const update = (patch: Partial<NumberingDisplay>) => {
     try {
       saveNumberingPreference({
@@ -194,6 +214,7 @@ export function SettingsNumberingDisplay({
           <Field desc="" label="相对编号当前项对齐">
             <select
               aria-label="相对编号当前项对齐"
+              disabled={!display.relative}
               value={display.currentAlignment}
               onChange={(event) =>
                 update({
@@ -227,6 +248,25 @@ export function SettingsNumberingDisplay({
               />
             </Field>
           ))}
+          {target === "source" && <>
+            <h3>折叠连接线</h3>
+            <p className="settings-desc">宿主统一管理连接线；编号插件接管折叠符号时同样生效，并与源码状态栏、编辑器设置同步。</p>
+            <Field desc="" label="连接线样式">
+              <select aria-label="编号展示折叠连接线样式" value={foldConnector.sourceFoldConnectorStyle ?? "solid"} onChange={event => saveBlockWorkspacePreferences({ sourceFoldConnectorStyle: event.target.value as "solid" | "dashed" | "dotted" | "none" })}>
+                <option value="solid">实线</option><option value="dashed">虚线</option><option value="dotted">点线</option><option value="none">不显示</option>
+              </select>
+            </Field>
+            <Field desc="" label="连接线宽度">
+              <select aria-label="编号展示折叠连接线宽度" disabled={foldConnector.sourceFoldConnectorStyle === "none"} value={foldConnector.sourceFoldConnectorWidth ?? 2} onChange={event => saveBlockWorkspacePreferences({ sourceFoldConnectorWidth: Number(event.target.value) as 1 | 2 | 3 | 4 })}>
+                <option value="1">1px</option><option value="2">2px</option><option value="3">3px</option><option value="4">4px</option>
+              </select>
+            </Field>
+            <Field desc="" label="连接线透明度">
+              <select aria-label="编号展示折叠连接线透明度" disabled={foldConnector.sourceFoldConnectorStyle === "none"} value={foldConnector.sourceFoldConnectorOpacity ?? 100} onChange={event => saveBlockWorkspacePreferences({ sourceFoldConnectorOpacity: Number(event.target.value) as 25 | 50 | 75 | 100 })}>
+                <option value="25">25%</option><option value="50">50%</option><option value="75">75%</option><option value="100">100%</option>
+              </select>
+            </Field>
+          </>}
         </section>
       </div>
       <button
