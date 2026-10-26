@@ -117,6 +117,16 @@
   color: var(--text-secondary);
 }
 
+/* Share the block's measured bounds without enlarging its number/fold targets. */
+.editor-block-current-band {
+  display: none;
+  position: absolute;
+  left: 0;
+  width: var(--editor-gutter-width);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
 .editor-block-number {
   border: 0;
   background: none;

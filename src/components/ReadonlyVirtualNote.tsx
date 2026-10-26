@@ -1734,6 +1734,8 @@ export function ReadonlyVirtualNote(
                 data-position={block.pos}
                 data-block-number={block.number}
               >
+                {props.showLineNumbers && block.number === currentNumber && <div className="editor-block-current-band" aria-hidden="true"
+                  data-block-index={block.number} style={{ top: 0, bottom: 0 }} />}
                 {!props.showLineNumbers && <button type="button" className="editor-block-menu-target"
                   aria-label={`第 ${block.number} 块操作`} aria-haspopup="menu"
                   onMouseDown={event => event.preventDefault()}

@@ -1239,8 +1239,13 @@ html[data-numbering-blocks] .editor-block-number {
   color: var(--numbering-blocks-color, var(--text-secondary)); background: var(--numbering-blocks-background, transparent); opacity: 1;
 }
 html[data-numbering-blocks] .editor-block-number.active {
-  color: var(--numbering-blocks-currentColor, var(--accent)); background: var(--numbering-blocks-currentBackground, var(--active-bg)); font-weight: var(--numbering-blocks-currentWeight, 700);
+  color: var(--numbering-blocks-currentColor, var(--accent)); background: transparent; font-weight: var(--numbering-blocks-currentWeight, 700);
 }
+html[data-numbering-blocks] .editor-block-current-band {
+  display: block;
+  background: var(--numbering-blocks-currentBackground, var(--active-bg));
+}
+html[data-numbering-blocks] .vr-gutter:has(> .editor-block-number.active) { background: transparent; }
 @media (hover: hover) { html[data-numbering-blocks] .editor-block-number:hover { color: transparent; } }
 html[data-numbering-source] .markdown-cm-host {
   --source-gutter-divider-width: var(--numbering-source-dividerWidth, var(--editor-source-gutter-divider-width, 1px));
@@ -1254,6 +1259,9 @@ html[data-numbering-source] .markdown-cm-host .cm-lineNumbers .cm-gutterElement 
 }
 html[data-numbering-source] .markdown-cm-host .cm-lineNumbers :is(.cm-activeLineGutter, .cm-relative-current) {
   color: var(--numbering-source-currentColor, var(--accent)); background: var(--numbering-source-currentBackground, var(--active-bg)); font-weight: var(--numbering-source-currentWeight, 700);
+}
+html[data-numbering-source] .markdown-cm-host .cm-foldGutter .cm-activeLineGutter {
+  background: var(--numbering-source-currentBackground, var(--active-bg));
 }
 .plugin-source-fold-symbol { font-size: 12px; display: inline-block; min-width: 12px; text-align: center; }
 .numbering-color-pair { display: flex; gap: 12px; }

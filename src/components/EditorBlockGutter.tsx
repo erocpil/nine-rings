@@ -817,6 +817,11 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       onPointerLeave={() => setHoveredBlockIndex(null)}
       aria-hidden={readonly && !showNumbers && !onHeadingFoldToggle && !onBlockMenu && selectedBlockIndexes.length === 0}
     >
+      {!selectingBlocks && showNumbers && blocks.filter(block => relativeBlockNumbers ? block.index === currentNumber : block.active).map(block => (
+        <div key={`current-${block.id}`} className="editor-block-current-band" aria-hidden="true"
+          data-block-index={block.index}
+          style={{ top: block.top, height: Math.max(0, block.bottom - block.top) }} />
+      ))}
       {selectedBlockIndexes.length > 0 && onBlockSelect && blocks.map((block) => (
         <button
           key={`select-${block.id}`}

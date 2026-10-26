@@ -23,6 +23,71 @@ async function enable(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "编号展示", exact: true }).click();
   return page.getByRole("dialog", { name: "编号展示配置", exact: true });
 }
+
+for (const virtual of [false, true])
+  test(`当前块底色覆盖完整块高及折叠栏，随布局和折叠更新，局部只读=${virtual}`, async ({ page }) => {
+    await createBlankDocument(page);
+    await closeDocumentSidebar(page);
+    await page.getByRole("button", { name: "源码", exact: true }).click();
+    await page.locator(".cm-content").fill([
+      `# ${"高标题需要完整覆盖编号与折叠区域 ".repeat(6)}`,
+      "多行正文也需要完整覆盖。".repeat(12),
+      "```c\nint main(void) {\n    int count = 1;\n    return count;\n}\n```",
+    ].join("\n\n"));
+    await page.getByRole("button", { name: "渲染", exact: true }).click();
+    await enable(page);
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+
+    const checkBand = async (index: number) => {
+      const band = page.locator(`.editor-block-current-band[data-block-index="${index}"]`);
+      await expect(band).toBeVisible();
+      await expect(band).toHaveCSS("pointer-events", "none");
+      await expect(band).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+      await expect.poll(() => band.evaluate((element, blockIndex) => {
+        const body = element.closest(".vr-row")?.querySelector(".vr-block")
+          ?? element.closest(".editor-content-shell")?.querySelector(`.ProseMirror > :nth-child(${blockIndex})`);
+        if (!body) return Infinity;
+        const block = body.getBoundingClientRect(), stripe = element.getBoundingClientRect();
+        return Math.max(Math.abs(block.top - stripe.top), Math.abs(block.bottom - stripe.bottom));
+      }, index)).toBeLessThan(1);
+      const number = page.locator(`.editor-block-number[data-block-index="${index}"]`);
+      const stripeBox = (await band.boundingBox())!, numberBox = (await number.boundingBox())!;
+      expect(stripeBox.x).toBeLessThan(numberBox.x);
+      expect(stripeBox.height).toBeGreaterThan(numberBox.height);
+    };
+    const heading = page.locator(".ProseMirror h1");
+    await heading.click();
+    await checkBand(1);
+    const initialHeight = (await heading.boundingBox())!.height;
+    await page.setViewportSize({ width: 900, height: 800 });
+    await expect.poll(async () => (await heading.boundingBox())!.height).toBeGreaterThan(initialHeight);
+    await checkBand(1);
+
+    await page.evaluate(async enabled => {
+      const { setReadonlyRenderingEnabled } = await import("/src/lib/readonly-rendering.ts");
+      setReadonlyRenderingEnabled(enabled);
+    }, virtual);
+    await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+    await expect(page.locator(virtual ? ".vr-note" : ".editor-content-shell")).toBeVisible();
+    await heading.click();
+    await checkBand(1);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await checkBand(1);
+    await page.setViewportSize({ width: 900, height: 800 });
+    await checkBand(1);
+    const fold = page.getByRole("button", { name: virtual ? /^折叠切换 高标题/ : /^(折叠|展开)第 1 块章节$/ }).first();
+    await fold.click();
+    await checkBand(1);
+    await fold.click();
+    const paragraph = page.locator(virtual ? '.vr-row[data-block-number="2"] .vr-block > p' : ".ProseMirror > p");
+    await paragraph.click();
+    await checkBand(2);
+    await expect(page.locator('.editor-block-current-band[data-block-index="1"]')).toHaveCount(0);
+    await page.locator(virtual ? '.vr-row[data-block-number="3"] pre' : ".ProseMirror pre").click();
+    await checkBand(3);
+  });
+
 for (const virtual of [false, true])
   test(`编号插件接管块号与行号，保留菜单折叠及停用恢复，局部只读=${virtual}`, async ({
     page,
