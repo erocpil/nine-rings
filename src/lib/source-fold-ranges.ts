@@ -51,14 +51,57 @@ type MarkerKind = "expanded" | "collapsed" | "end";
 class SourceFoldMarker extends GutterMarker {
   constructor(
     readonly kind: MarkerKind,
+    readonly key: string,
+    readonly depth: number,
     readonly markerDOM: (kind: MarkerKind) => HTMLElement,
   ) { super(); }
 
   eq(other: SourceFoldMarker): boolean {
-    return other.kind === this.kind && other.markerDOM === this.markerDOM;
+    return other.kind === this.kind && other.key === this.key
+      && other.depth === this.depth && other.markerDOM === this.markerDOM;
   }
 
-  toDOM(): HTMLElement { return this.markerDOM(this.kind); }
+  toDOM(): HTMLElement {
+    const dom = this.markerDOM(this.kind);
+    if (this.key) dom.dataset.foldRange = this.key;
+    dom.dataset.foldDepth = String(this.depth % 5);
+    dom.dataset.foldKind = this.kind;
+    return dom;
+  }
+}
+
+function foldMarkerFromEvent(event: Event): HTMLElement | null {
+  return event.target instanceof Element
+    ? event.target.closest<HTMLElement>("[data-fold-range]")
+    : null;
+}
+
+function clearFoldConnector(view: EditorView): void {
+  view.dom.querySelector(".source-fold-connector")?.remove();
+  for (const marker of view.dom.querySelectorAll<HTMLElement>("[data-fold-range].is-fold-pair-hovered"))
+    marker.classList.remove("is-fold-pair-hovered");
+}
+
+function showFoldConnector(view: EditorView, marker: HTMLElement): void {
+  clearFoldConnector(view);
+  const key = marker.dataset.foldRange;
+  if (!key) return;
+  const pair = [...view.dom.querySelectorAll<HTMLElement>("[data-fold-range]")]
+    .filter(candidate => candidate.dataset.foldRange === key);
+  for (const candidate of pair) candidate.classList.add("is-fold-pair-hovered");
+  if (pair.length < 2) return;
+  const first = pair[0]!.getBoundingClientRect();
+  const last = pair[pair.length - 1]!.getBoundingClientRect();
+  const editor = view.dom.getBoundingClientRect();
+  const firstCenter = first.top + first.height / 2;
+  const lastCenter = last.top + last.height / 2;
+  const connector = document.createElement("div");
+  connector.className = "source-fold-connector";
+  connector.dataset.foldDepth = marker.dataset.foldDepth ?? "0";
+  connector.style.left = `${first.left + first.width / 2 - editor.left}px`;
+  connector.style.top = `${Math.min(firstCenter, lastCenter) - editor.top}px`;
+  connector.style.height = `${Math.abs(lastCenter - firstCenter)}px`;
+  view.dom.appendChild(connector);
 }
 
 /** A fold gutter that also marks the closing line of every expanded region. */
@@ -69,6 +112,8 @@ export function sourceFoldGutter(markerDOM: (kind: MarkerKind) => HTMLElement) {
     constructor(view: EditorView) { this.markers = this.build(view); }
 
     update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged)
+        clearFoldConnector(update.view);
       if (update.docChanged
         || update.startState.facet(language) !== update.state.facet(language)
         || syntaxTree(update.startState) !== syntaxTree(update.state)
@@ -78,6 +123,7 @@ export function sourceFoldGutter(markerDOM: (kind: MarkerKind) => HTMLElement) {
     build(view: EditorView): RangeSet<GutterMarker> {
       const builder = new RangeSetBuilder<GutterMarker>();
       const entries: Array<{ position: number; marker: GutterMarker }> = [];
+      const ranges: Array<SourceFoldRange & { lineFrom: number; collapsed: boolean; depth: number }> = [];
       const folded = foldedRanges(view.state);
       for (let number = 1; number <= view.state.doc.lines; number += 1) {
         const line = view.state.doc.line(number);
@@ -87,10 +133,19 @@ export function sourceFoldGutter(markerDOM: (kind: MarkerKind) => HTMLElement) {
         folded.between(range.from, range.from, (from, to) => {
           if (from === range.from && to === range.to) collapsed = true;
         });
-        entries.push({ position: line.from, marker: new SourceFoldMarker(collapsed ? "collapsed" : "expanded", markerDOM) });
-        if (!collapsed) {
+        ranges.push({ ...range, lineFrom: line.from, collapsed, depth: 0 });
+      }
+      ranges.sort((a, b) => a.from - b.from || b.to - a.to);
+      const stack: typeof ranges = [];
+      for (const range of ranges) {
+        while (stack.length && range.from >= stack[stack.length - 1]!.to) stack.pop();
+        range.depth = stack.length;
+        stack.push(range);
+        const key = `${range.from}:${range.to}`;
+        entries.push({ position: range.lineFrom, marker: new SourceFoldMarker(range.collapsed ? "collapsed" : "expanded", key, range.depth, markerDOM) });
+        if (!range.collapsed) {
           const end = view.state.doc.lineAt(range.to).from;
-          if (end !== line.from) entries.push({ position: end, marker: new SourceFoldMarker("end", markerDOM) });
+          if (end !== range.lineFrom) entries.push({ position: end, marker: new SourceFoldMarker("end", key, range.depth, markerDOM) });
         }
       }
       entries.sort((a, b) => a.position - b.position || (a.marker as SourceFoldMarker).kind.localeCompare((b.marker as SourceFoldMarker).kind));
@@ -111,8 +166,24 @@ export function sourceFoldGutter(markerDOM: (kind: MarkerKind) => HTMLElement) {
     gutter({
       class: "cm-foldGutter",
       markers: view => view.plugin(markers)?.markers ?? RangeSet.empty,
-      initialSpacer: () => new SourceFoldMarker("collapsed", markerDOM),
+      initialSpacer: () => new SourceFoldMarker("collapsed", "", 0, markerDOM),
       domEventHandlers: {
+        mouseover(view, _line, event) {
+          const marker = foldMarkerFromEvent(event);
+          if (!marker) return false;
+          const previous = event instanceof MouseEvent && event.relatedTarget instanceof Element
+            ? event.relatedTarget.closest<HTMLElement>("[data-fold-range]") : null;
+          if (previous?.dataset.foldRange !== marker.dataset.foldRange) showFoldConnector(view, marker);
+          return false;
+        },
+        mouseout(view, _line, event) {
+          const marker = foldMarkerFromEvent(event);
+          if (!marker) return false;
+          const next = event instanceof MouseEvent && event.relatedTarget instanceof Element
+            ? event.relatedTarget.closest<HTMLElement>("[data-fold-range]") : null;
+          if (next?.dataset.foldRange !== marker.dataset.foldRange) clearFoldConnector(view);
+          return false;
+        },
         click(view, line) {
           let existing: SourceFoldRange | null = null;
           foldedRanges(view.state).between(line.from, line.to, (from, to) => {

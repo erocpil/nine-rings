@@ -141,8 +141,26 @@
   width: 16px;
   padding: 0;
   line-height: inherit;
+  color: var(--source-fold-level-color);
 }
+.markdown-cm-host [data-fold-depth="0"] { --source-fold-level-color: var(--source-fold-level-1, var(--accent)); }
+.markdown-cm-host [data-fold-depth="1"] { --source-fold-level-color: var(--source-fold-level-2, var(--syntax-string-color)); }
+.markdown-cm-host [data-fold-depth="2"] { --source-fold-level-color: var(--source-fold-level-3, var(--syntax-keyword-color)); }
+.markdown-cm-host [data-fold-depth="3"] { --source-fold-level-color: var(--source-fold-level-4, var(--syntax-type-color)); }
+.markdown-cm-host [data-fold-depth="4"] { --source-fold-level-color: var(--source-fold-level-5, var(--syntax-value-color)); }
 .markdown-cm-host .cm-foldGutter [data-fold-end="true"] { transform: rotate(180deg); }
+.markdown-cm-host .cm-foldGutter [data-fold-range] { transition: color 120ms ease, filter 120ms ease; }
+.markdown-cm-host .cm-foldGutter [data-fold-range].is-fold-pair-hovered { filter: brightness(1.16) saturate(1.2); }
+.markdown-cm-host .source-fold-connector {
+  position: absolute;
+  z-index: 4;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: var(--source-fold-level-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--surface) 55%, transparent);
+  pointer-events: none;
+}
 .markdown-cm-host .cm-lineNumbers .cm-gutterElement { padding-left: 2px; padding-right: var(--source-gutter-divider-left-space); }
 
 .markdown-cm-host .cm-content[aria-readonly="true"],

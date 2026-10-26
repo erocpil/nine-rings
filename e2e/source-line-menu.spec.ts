@@ -158,10 +158,33 @@ test("折叠末端使用反向标记并可折叠，行号菜单可操作最近�
   ].join("\n");
   await replaceSource(area, text);
 
-  const endMarkers = area.locator("..").locator('.cm-foldGutter [data-fold-end="true"]');
+  const gutter = area.locator("..").locator(".cm-foldGutter");
+  const endMarkers = gutter.locator('[data-fold-end="true"]');
   await expect(endMarkers).toHaveCount(2);
+  const foldMarkers = gutter.locator('[data-fold-range]');
+  const foldLevels = await foldMarkers.evaluateAll(elements => elements.map(element => ({
+    depth: (element as HTMLElement).dataset.foldDepth,
+    color: getComputedStyle(element).color,
+  })));
+  expect(new Set(foldLevels.map(level => level.depth))).toEqual(new Set(["0", "1"]));
+  expect(new Set(foldLevels.map(level => level.color)).size).toBe(2);
   const transforms = await endMarkers.evaluateAll(elements => elements.map(element => getComputedStyle(element).transform));
   expect(transforms.every(transform => transform !== "none")).toBe(true);
+
+  const hovered = gutter.locator('[data-fold-kind="expanded"][data-fold-depth="1"]');
+  await hovered.hover();
+  const connector = page.locator(".source-fold-connector");
+  await expect(connector).toBeVisible();
+  const hoveredRange = await hovered.getAttribute("data-fold-range");
+  const paired = area.locator("..").locator(`[data-fold-range="${hoveredRange}"]`);
+  await expect(paired).toHaveCount(2);
+  await expect(paired.first()).toHaveClass(/is-fold-pair-hovered/);
+  await expect(paired.last()).toHaveClass(/is-fold-pair-hovered/);
+  const connection = await Promise.all([paired.first().boundingBox(), paired.last().boundingBox(), connector.boundingBox()]);
+  expect(connection.every(Boolean)).toBe(true);
+  expect(connection[2]!.height).toBeGreaterThan(connection[0]!.height);
+  await area.hover({ position: { x: 80, y: 8 } });
+  await expect(connector).toHaveCount(0);
 
   let menu = await openLine(page, area, 3);
   await menu.getByRole("menuitem", { name: "跳到最近一层开始", exact: true }).click();
