@@ -955,7 +955,7 @@
   box-sizing: border-box;
   width: min(560px, calc(100vw - 16px));
   overflow: hidden;
-  padding: 4px 6px;
+  padding: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-raised, var(--surface));
@@ -968,6 +968,7 @@
 }
 
 .cm-fold-preview-bubble .markdown-cm-host .cm-editor { background: transparent; }
+.cm-fold-preview-bubble .markdown-cm-host .cm-content { padding: 8px 10px; }
 .cm-fold-preview-bubble .markdown-cm-host .cm-scroller {
   font-family: var(--editor-code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
   line-height: 1.5;

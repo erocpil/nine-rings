@@ -77,7 +77,7 @@ export function sourceFoldPreviewPlaceholder(
           EditorView.theme({
             "&": { height: "100%" },
             ".cm-scroller": { overflow: "auto" },
-            ".cm-content": { padding: "4px 6px" },
+            ".cm-content": { padding: "8px 10px" },
           }),
         ],
       }),
@@ -100,8 +100,11 @@ export function sourceFoldPreviewPlaceholder(
       if (context) context.font = style.font || `${fontSize}px monospace`;
       const contentWidth = lines.reduce((width, line) => Math.max(width,
         context?.measureText(line.replace(/\t/g, " ".repeat(view.state.tabSize))).width ?? 0), 0);
-      bubble.style.width = `${Math.min(maxWidth, Math.max(Math.min(maxWidth, 260), contentWidth + 42))}px`;
-      bubble.style.height = `${Math.min(maxHeight, Math.max(Math.min(maxHeight, 120), lines.length * lineHeight + 24))}px`;
+      // Include the content insets and the bubble's 1px border on both sides.
+      const horizontalPadding = 22;
+      const verticalPadding = 18;
+      bubble.style.width = `${Math.min(maxWidth, Math.max(Math.min(maxWidth, 260), contentWidth + horizontalPadding))}px`;
+      bubble.style.height = `${Math.min(maxHeight, Math.max(Math.min(maxHeight, lineHeight + verticalPadding), lines.length * lineHeight + verticalPadding))}px`;
       const anchor = placeholder.getBoundingClientRect();
       const bounds = bubble.getBoundingClientRect();
       const below = window.innerHeight - anchor.bottom - 8;
