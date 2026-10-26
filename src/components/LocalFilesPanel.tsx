@@ -19,6 +19,7 @@ import { LocalFileDrafts } from "./LocalFileDrafts";
 import { LocalFileSearch } from "./LocalFileSearch";
 import type { LocalFileSearchHit } from "../lib/local-files/search";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { copyToClipboard } from "../lib/clipboard";
 import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
 import { BlockActionMenu } from "./BlockActionMenu";
 import { useLocalFileTree } from "../hooks/useLocalFileTree";
@@ -95,7 +96,7 @@ export function LocalFilesPanel({ active, onBack }: {
   );
   const [rootsReady, setRootsReady] = useState(false);
   const mainViewState = useSyncExternalStore(mainViews.subscribe, mainViews.getSnapshot, mainViews.getSnapshot);
-  const [contextMenu, setContextMenu] = useState<(NotesMenuTarget & { rootId: string; nodeId: string; directory: boolean; name: string }) | null>(null);
+  const [contextMenu, setContextMenu] = useState<(NotesMenuTarget & { rootId: string; nodeId: string; directory: boolean; name: string; fullPath: string | null; pathLoading: boolean }) | null>(null);
   const display = usePanelDisplay("local-files");
   const input = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
@@ -367,9 +368,21 @@ export function LocalFilesPanel({ active, onBack }: {
     setSelectedFile({ rootId, rootName, nodeId, name });
     setSelected(`${rootId}:${nodeId}`);
   };
-  const copyLocalPath = async (rootId: string, nodeId: string) => {
-    const path = await localFileService.displayPath(rootId, nodeId);
-    await navigator.clipboard.writeText(path);
+  const showLocalContextMenu = (event: React.MouseEvent<HTMLElement>, target: { id: string; title: string; rootId: string; nodeId: string; directory: boolean; name: string }) => {
+    event.preventDefault(); event.stopPropagation();
+    const menu = { ...target, x: event.clientX, y: event.clientY, trigger: event.currentTarget, fullPath: null, pathLoading: true };
+    setContextMenu(menu);
+    // Resolve the native path while the menu is being opened. The later menu
+    // click can then start the clipboard write directly inside its own gesture,
+    // instead of losing WebKit's transient activation across an async invoke.
+    void localFileService.displayPath(target.rootId, target.nodeId).then(fullPath => {
+      setContextMenu(current => current?.id === target.id ? { ...current, fullPath, pathLoading: false } : current);
+    }).catch(() => {
+      setContextMenu(current => current?.id === target.id ? { ...current, pathLoading: false } : current);
+    });
+  };
+  const copyLocalPath = async (path: string) => {
+    await copyToClipboard(path, { reportFailure: true });
     setError(`已复制路径：${path}`);
   };
   const renameLocalPath = async (rootId: string, nodeId: string, oldName: string, directory: boolean, destination?: { parent: string; name: string }) => {
@@ -446,7 +459,7 @@ export function LocalFilesPanel({ active, onBack }: {
     setRevealRequest({ rootId, nodeId: created, name, sequence: Date.now() });
   };
   const menuActions = contextMenu ? [
-    { label: "复制路径", run: () => void copyLocalPath(contextMenu.rootId, contextMenu.nodeId).catch(reason => setError(String(reason))) },
+    { label: "复制路径", disabled: contextMenu.pathLoading || !contextMenu.fullPath, run: () => contextMenu.fullPath && void copyLocalPath(contextMenu.fullPath).catch(reason => setError(String(reason))) },
     ...(contextMenu.directory ? [{ label: "在此目录搜索正文…", run: () => { setSearchScope({ rootId: contextMenu.rootId, node: contextMenu.nodeId }); setTask("search"); } }] : []),
     { label: "重命名", disabled: !localFileService.canRename(contextMenu.rootId) || isLocalFileReadOnly(contextMenu.rootId, contextMenu.nodeId), run: () => void run(`rename:${contextMenu.rootId}:${contextMenu.nodeId}`, () => renameLocalPath(contextMenu.rootId, contextMenu.nodeId, contextMenu.name, contextMenu.directory)) },
     ...(["file", "directory"] as const).map(kind => ({ label: kind === "file" ? "新建文件…" : "新建文件夹…", disabled: !localFileService.canSaveOriginal(contextMenu.rootId), run: () => setOperation({ ...contextMenu, kind }) })),
@@ -483,8 +496,7 @@ export function LocalFilesPanel({ active, onBack }: {
                 }
                 title={display?.tooltip === "name" ? child.name : child.id}
                 onContextMenu={event => {
-                  event.preventDefault(); event.stopPropagation();
-                  setContextMenu({ id: childKey, title: child.name, x: event.clientX, y: event.clientY, trigger: event.currentTarget, rootId, nodeId: child.id, directory: child.directory, name: child.name });
+                  showLocalContextMenu(event, { id: childKey, title: child.name, rootId, nodeId: child.id, directory: child.directory, name: child.name });
                 }}
                 onClick={() => {
                   if (child.directory) toggle(rootId, child.id);
@@ -662,8 +674,7 @@ export function LocalFilesPanel({ active, onBack }: {
                 data-local-file-id={`${root.id}:`}
                 title={root.name}
                 onContextMenu={event => {
-                  event.preventDefault(); event.stopPropagation();
-                  setContextMenu({ id: root.id, title: root.name, x: event.clientX, y: event.clientY, trigger: event.currentTarget, rootId: root.id, nodeId: "", directory: true, name: root.name });
+                  showLocalContextMenu(event, { id: root.id, title: root.name, rootId: root.id, nodeId: "", directory: true, name: root.name });
                 }}
                 aria-expanded={expanded.has(root.id + ":")}
                 onClick={() => toggle(root.id, "")}

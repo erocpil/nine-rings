@@ -1,6 +1,13 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-26",
+    title: "本地文件路径复制与源码折叠",
+    changes: [
+      "本地文件树复制路径复用跨浏览器剪贴板回退，权限 API 拒绝时仍尝试兼容复制。",
+    ],
+  },
+  {
     date: "2026-10-25",
     title: "磁盘文件位置恢复与标签切换",
     changes: [

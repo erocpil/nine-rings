@@ -1,58 +1,11 @@
 import { isolateHistory } from "@codemirror/commands";
 import { ensureSyntaxTree, getIndentUnit, indentRange, indentString, language } from "@codemirror/language";
 import type { EditorState, TransactionSpec } from "@codemirror/state";
+import { cppDelimiterTokens, type CppLexState } from "./source-cpp-delimiters";
 
 export type SourceAutoIndentScope = "selection" | "document";
 
 type CppScope = { kind: "class" | "block" | "continuation"; delimiter: string; openingIndent: number };
-type CppLexState = { blockComment: boolean; rawStringEnd: string | null };
-type CppDelimiter = { position: number; kind: "open" | "close"; delimiter: string };
-
-function cppDelimiterTokens(text: string, state: CppLexState): CppDelimiter[] {
-  const tokens: CppDelimiter[] = [];
-  if (!state.blockComment && !state.rawStringEnd && /^\s*#/.test(text)) return tokens;
-  for (let index = 0; index < text.length;) {
-    if (state.blockComment) {
-      const end = text.indexOf("*/", index);
-      if (end < 0) break;
-      state.blockComment = false;
-      index = end + 2;
-      continue;
-    }
-    if (state.rawStringEnd) {
-      const end = text.indexOf(state.rawStringEnd, index);
-      if (end < 0) break;
-      index = end + state.rawStringEnd.length;
-      state.rawStringEnd = null;
-      continue;
-    }
-    if (text.startsWith("//", index)) break;
-    if (text.startsWith("/*", index)) {
-      state.blockComment = true;
-      index += 2;
-      continue;
-    }
-    const rawStart = /^R"([^ ()\\]{0,16})\(/.exec(text.slice(index));
-    if (rawStart) {
-      state.rawStringEnd = `)${rawStart[1]}"`;
-      index += rawStart[0].length;
-      continue;
-    }
-    const char = text[index];
-    if (char === "\"" || char === "'") {
-      index++;
-      while (index < text.length) {
-        if (text[index] === "\\") index += 2;
-        else if (text[index++] === char) break;
-      }
-      continue;
-    }
-    if ("{([".includes(char)) tokens.push({ position: index, kind: "open", delimiter: char });
-    else if ("})]".includes(char)) tokens.push({ position: index, kind: "close", delimiter: "{(["["})]".indexOf(char)] });
-    index++;
-  }
-  return tokens;
-}
 
 /** C++'s grammar recovery can lose the class scope after an otherwise harmless
  * parse error (for example, a temporary `};` after a member definition). Use
@@ -64,7 +17,13 @@ function cppIndentChanges(
   selectedLines: Set<number>,
 ): { from: number; to: number; insert: string }[] {
   const scopes: CppScope[] = [];
-  const lex: CppLexState = { blockComment: false, rawStringEnd: null };
+  const lex: CppLexState = {
+    blockComment: false,
+    rawStringEnd: null,
+    quotedString: null,
+    continuedLineComment: false,
+    continuedDirective: false,
+  };
   const unitColumns = Math.max(1, getIndentUnit(state));
   const innerIndent = (scope: CppScope) => scope.openingIndent + unitColumns * (scope.delimiter === "(" ? 2 : 1);
   const changes: { from: number; to: number; insert: string }[] = [];

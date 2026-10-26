@@ -601,7 +601,7 @@ export function MarkdownSourceEditor({
       editor.dispatch({ effects: syntax.current.reconfigure([]) });
       const language = languages.find(item => item.alias.includes(documentLanguage));
       if (documentLanguage && language) void language.load().then(support => {
-        if (!cancelled && view.current === editor) editor.dispatch({ effects: syntax.current.reconfigure(sourceCodeSupport(support, documentLanguage === "c")) });
+        if (!cancelled && view.current === editor) editor.dispatch({ effects: syntax.current.reconfigure(sourceCodeSupport(support, documentLanguage === "c" || documentLanguage === "cpp")) });
       }).catch(() => { if (!cancelled) setSourceMessage("语法高亮加载失败，请重新选择文件格式"); });
     }
     return () => { cancelled = true; };

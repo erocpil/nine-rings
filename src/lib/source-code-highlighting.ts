@@ -1,6 +1,26 @@
-import { HighlightStyle, syntaxHighlighting, LanguageSupport, LRLanguage, foldInside, foldNodeProp } from "@codemirror/language";
+import { HighlightStyle, syntaxHighlighting, LanguageSupport, LRLanguage, foldInside, foldNodeProp, foldService, syntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { styleTags, tags } from "@lezer/highlight";
+import { NodeProp } from "@lezer/common";
+import { cppDelimiterPairAt } from "./source-cpp-delimiters";
+
+function cBraceFoldRange(state: EditorState, lineStart: number) {
+  const line = state.doc.lineAt(lineStart);
+  const opening = /\{\s*(?:\/\/.*)?$/.exec(line.text);
+  if (!opening) return null;
+  const from = line.from + opening.index;
+  if (syntaxTree(state).resolveInner(from, 1).name !== "{") return null;
+  const close = cppDelimiterPairAt(state.doc.sliceString(from), 0, "{");
+  if (close === null) return null;
+  let to = from + close;
+  const closingLine = state.doc.lineAt(to);
+  if (/^}\s*(?:else|catch)\b/.test(state.doc.sliceString(to, closingLine.to))
+    && /^\s*$/.test(state.doc.sliceString(closingLine.from, to))
+    && closingLine.from > line.from) {
+    to = closingLine.from - 1;
+  }
+  return to > from + 1 ? { from: from + 1, to } : null;
+}
 
 /** Parser-derived categories only: no regex guesses about symbol identity. */
 export const sourceCodeStyle = HighlightStyle.define([
@@ -39,6 +59,12 @@ export function sourceCodeSupport(
   const language = cFamily && support.language instanceof LRLanguage
     ? support.language.configure({ props: [
       styleTags({ "PreprocDirective/Identifier": tags.special(tags.name) }),
+      // The C++ grammar can recover from C designated initializers by
+      // attaching a later function body to the wrong compound node. Disable
+      // its structural brace pairing so CodeMirror's nested text scan finds
+      // the true matching delimiter instead.
+      NodeProp.closedBy.add({ "(": null as unknown as readonly string[], "[": null as unknown as readonly string[], "{": null as unknown as readonly string[] }),
+      NodeProp.openedBy.add({ ")": null as unknown as readonly string[], "]": null as unknown as readonly string[], "}": null as unknown as readonly string[] }),
       foldNodeProp.add({ CompoundStatement: (node, state) => {
         const range = foldInside(node);
         if (!range) return null;
@@ -57,6 +83,7 @@ export function sourceCodeSupport(
   return new LanguageSupport(language, [
     support.support,
     sourceCodeHighlighting,
+    ...(cFamily ? [foldService.of((state, lineStart) => cBraceFoldRange(state, lineStart))] : []),
     // Bundled parsers vary in which closing delimiters trigger reindentation.
     // Use the active language's indentation service for all three closers.
     EditorState.languageData.of(() => [{ indentOnInput: /^\s*(?:\)|\])$/ }]),
