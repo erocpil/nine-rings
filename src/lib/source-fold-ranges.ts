@@ -134,12 +134,13 @@ export function sourceFoldGutter(markerDOM: (kind: MarkerKind) => HTMLElement) {
     destroy() { this.view.scrollDOM.removeEventListener("scroll", this.clearOnScroll); }
 
     update(update: ViewUpdate) {
-      if (update.docChanged || update.viewportChanged)
+      const foldsChanged = foldedRanges(update.startState) !== foldedRanges(update.state);
+      if (update.docChanged || update.viewportChanged || foldsChanged)
         clearFoldConnector(update.view);
       if (update.docChanged
         || update.startState.facet(language) !== update.state.facet(language)
         || syntaxTree(update.startState) !== syntaxTree(update.state)
-        || foldedRanges(update.startState) !== foldedRanges(update.state)) this.markers = this.build(update.view);
+        || foldsChanged) this.markers = this.build(update.view);
     }
 
     build(view: EditorView): RangeSet<GutterMarker> {
@@ -207,6 +208,7 @@ export function sourceFoldGutter(markerDOM: (kind: MarkerKind) => HTMLElement) {
           return false;
         },
         click(view, line) {
+          clearFoldConnector(view);
           let existing: SourceFoldRange | null = null;
           foldedRanges(view.state).between(line.from, line.to, (from, to) => {
             if (!existing && view.state.doc.lineAt(from).from === line.from) existing = { from, to };

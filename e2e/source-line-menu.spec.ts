@@ -232,7 +232,10 @@ test("折叠末端使用反向标记并可折叠，行号菜单可操作最近�
   await area.locator(".cm-foldPlaceholder").click();
 
   const innerEnd = area.locator("..").locator('.cm-foldGutter [data-fold-end="true"]').first();
+  await innerEnd.hover();
+  await expect(connector).toBeVisible();
   await innerEnd.click();
+  await expect(connector).toHaveCount(0);
   await expect(area.locator(".cm-foldPlaceholder")).toHaveCount(1);
   expect((await sourceInfo(area)).value).toBe(text);
 });
