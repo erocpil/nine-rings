@@ -97,10 +97,11 @@ export function ExhibitionWorkspace(props: Props) {
     }
     return () => clearTimeout(summaryCloseTimer.current);
   }, [previewEnabled, summaryLayout.summaryInteraction]);
+  const recentPreviewLimit = props.localFilesAvailable ? 8 : 16;
   const previewDocuments = useMemo(() => summaryPreview
-    ? workspaceSummaryPreviewDocuments(documents, summaryPreview.kind, favorites, day, recent)
-    : [], [documents, summaryPreview, favorites, day, recent]);
-  const previewLocalFiles = summaryPreview?.kind === "recent" && props.localFilesAvailable ? recentLocalFiles.slice(0, 16) : [];
+    ? workspaceSummaryPreviewDocuments(documents, summaryPreview.kind, favorites, day, recent, recentPreviewLimit)
+    : [], [documents, summaryPreview, favorites, day, recent, recentPreviewLimit]);
+  const previewLocalFiles = summaryPreview?.kind === "recent" && props.localFilesAvailable ? recentLocalFiles.slice(0, 8) : [];
   const previewTitle = summaryPreview ? { all: "全部文档", notes: "随记", today: "今日修改", favorites: "收藏", recent: "最近打开" }[summaryPreview.kind] : "";
   useEffect(() => {
     const refresh = () => { setFavorites(readDocumentFavorites()); setRecent(readRecentNoteIds()); setRecentEdited(readRecentEditedNoteIds()); setRecentLocalFiles(readRecentLocalFiles()); };
@@ -305,7 +306,7 @@ export function ExhibitionWorkspace(props: Props) {
                   if (summaryLayout.summaryInteraction === "click" && summaryPreview?.kind === kind) { closeSummary(); return; }
                   keepSummary(); setSummaryPreview({ kind, trigger: event.currentTarget, keyboard: false });
                 }}>
-                <strong>{loading || error ? "…" : kind === "recent" ? workspaceSummaryPreviewDocuments(documents, "recent", favorites, day, recent).length + (props.localFilesAvailable ? Math.min(16, recentLocalFiles.length) : 0) : counts[kind]}</strong><span>{label}</span>
+                <strong>{loading || error ? "…" : kind === "recent" ? workspaceSummaryPreviewDocuments(documents, "recent", favorites, day, recent, recentPreviewLimit).length + (props.localFilesAvailable ? Math.min(8, recentLocalFiles.length) : 0) : counts[kind]}</strong><span>{label}</span>
               </button>)}
             </nav>
           </div>
@@ -413,7 +414,7 @@ export function ExhibitionWorkspace(props: Props) {
         </section>
       )}
       {previewEnabled && summaryPreview && <WorkspaceSummaryPreview key={summaryPreview.kind} title={previewTitle} documents={previewDocuments} localFiles={previewLocalFiles} showLocalFilesSection={summaryPreview.kind === "recent" && props.localFilesAvailable} onOpenLocal={file => { closeSummary(); props.onOpenLocalFile(file); }}
-        numbered={summaryPreview.kind !== "all"} editedIds={summaryPreview.kind === "recent" ? recentEdited : undefined} trigger={summaryPreview.trigger} keyboard={summaryPreview.keyboard} visibleRows={summaryLayout.summaryVisibleRows} compact={!props.desktop} onEnter={keepSummary} onLeave={leaveSummary} onClose={closeSummary}
+        numbered={summaryPreview.kind !== "all"} reverseNumbering={summaryPreview.kind === "recent"} editedIds={summaryPreview.kind === "recent" ? recentEdited : undefined} trigger={summaryPreview.trigger} keyboard={summaryPreview.keyboard} visibleRows={summaryLayout.summaryVisibleRows} compact={!props.desktop} onEnter={keepSummary} onLeave={leaveSummary} onClose={closeSummary}
         onOpen={(id, options) => { closeSummary(); open(id, options); }} />}
     </div>
   );

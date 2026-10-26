@@ -22,6 +22,7 @@ export function useDocumentPanelPosition({
   layoutKey,
   width = 420,
   heightLimit = 440,
+  viewportHeightRatio = 0.58,
 }: {
   open: boolean;
   triggerRef: RefObject<HTMLElement>;
@@ -30,6 +31,7 @@ export function useDocumentPanelPosition({
   layoutKey?: boolean | string;
   width?: number;
   heightLimit?: number;
+  viewportHeightRatio?: number;
 }): CSSProperties | undefined {
   const [position, setPosition] = useState<Position | null>(null);
   useLayoutEffect(() => {
@@ -76,7 +78,7 @@ export function useDocumentPanelPosition({
         below < Math.min(160, panel.scrollHeight) && above > below;
       const maxHeight = Math.min(
         heightLimit,
-        viewportHeight * 0.58,
+        viewportHeight * viewportHeightRatio,
         placeAbove ? above : below,
       );
       const next: Position = {
@@ -128,7 +130,7 @@ export function useDocumentPanelPosition({
       viewport?.removeEventListener("resize", schedule);
       viewport?.removeEventListener("scroll", schedule);
     };
-  }, [open, triggerRef, panelRef, compact, layoutKey, width, heightLimit]);
+  }, [open, triggerRef, panelRef, compact, layoutKey, width, heightLimit, viewportHeightRatio]);
 
   if (!open) return undefined;
   return {

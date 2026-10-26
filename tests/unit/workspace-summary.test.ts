@@ -78,7 +78,7 @@ describe("workspace summary", () => {
     expect(documents[0].id).toBe("0");
   });
 
-  it("recent popover includes unedited visits, skips deleted/duplicate IDs and places newest visits last", () => {
+  it("recent popover includes unedited visits, skips deleted/duplicate IDs and places newest visits first", () => {
     const documents = Array.from({ length: 20 }, (_, i) => ({
       id: String(i),
       title: String(i),
@@ -99,7 +99,17 @@ describe("workspace summary", () => {
         "2026-10-10",
         visits,
       ).map((note) => note.id),
-    ).toEqual(Array.from({ length: 16 }, (_, i) => String(i + 4)));
+    ).toEqual(Array.from({ length: 16 }, (_, i) => String(19 - i)));
+    expect(
+      workspaceSummaryPreviewDocuments(
+        documents,
+        "recent",
+        [],
+        "2026-10-10",
+        visits,
+        8,
+      ).map(note => note.id),
+    ).toEqual(Array.from({ length: 8 }, (_, i) => String(19 - i)));
     expect(
       workspaceSummaryPreviewDocuments(
         documents,
