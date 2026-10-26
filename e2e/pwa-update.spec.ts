@@ -166,7 +166,11 @@ test("新版下载失败保留旧版，设置可手动检查并重试升级", as
   failDownload = true;
   await page.keyboard.press("Alt+,");
   await page.getByRole("button", { name: "检查更新", exact: true }).click();
-  await expect(page.locator(".settings-web-update [role=status]")).toContainText(/失败|未完成/);
+  // The production service worker precaches hundreds of real assets before it
+  // can report the injected marker failure. Give slower CI runners time to
+  // finish that install attempt instead of treating visible download progress
+  // as a failed update.
+  await expect(page.locator(".settings-web-update [role=status]")).toContainText(/失败|未完成/, { timeout: 30_000 });
   await page.getByRole("button", { name: "查看详情", exact: true }).click();
   await expect(page.locator(".settings-web-update")).toContainText("resource=/__pwa-test-2.js");
   await expect(page.locator(".settings-web-update")).toContainText("status=503");
