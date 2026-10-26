@@ -5,6 +5,59 @@ import { join } from "node:path";
 import { closeDocumentSidebar, openDocumentSidebar } from "./helpers/workspace";
 import { selectSource, sourceInfo } from "./helpers/source-editor";
 
+test("本地文件树长名称和深层路径可横向滚动，宽窄布局均不撑大分栏", async ({ page }, testInfo) => {
+  await createBlankDocument(page);
+  await closeDocumentSidebar(page);
+  await page.evaluate(async () => {
+    const { setPluginsEnabled } = await import("/src/lib/plugin-system/runtime.ts");
+    const { saveLocalFilesEnabled } = await import("/src/lib/plugin-system/builtin-local-files.ts");
+    setPluginsEnabled(true);
+    saveLocalFilesEnabled(true);
+    Object.defineProperty(window, "showDirectoryPicker", { value: undefined, configurable: true });
+  });
+  await page.getByRole("button", { name: "本地文件", exact: true }).click();
+  const panel = page.getByRole("region", { name: "本地文件树" });
+  const tree = panel.getByRole("tree");
+  const folderName = "a-long-directory-".repeat(5);
+  const fileName = "a-long-source-file-name-".repeat(5) + "end.c";
+  const root = testInfo.outputPath("horizontal-tree");
+  await mkdir(join(root, folderName), { recursive: true });
+  await writeFile(join(root, folderName, fileName), "int main(void) { return 0; }\n");
+  const panelWidth = (await panel.boundingBox())!.width;
+  await panel.locator("input[type=file]").setInputFiles(root);
+  const folder = panel.getByRole("button", { name: folderName, exact: true });
+  await folder.click();
+  const file = panel.getByRole("button", { name: fileName, exact: true });
+  await expect(file).toBeVisible();
+  await expect.poll(async () => (await panel.boundingBox())!.width).toBeLessThanOrEqual(panelWidth + 1);
+
+  const pan = async () => {
+    await expect.poll(() => tree.evaluate(element => element.scrollWidth - element.clientWidth)).toBeGreaterThan(100);
+    await tree.evaluate(element => { element.scrollLeft = 0; });
+    const bounds = (await tree.boundingBox())!;
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 30);
+    await page.mouse.wheel(10000, 0);
+    await expect.poll(() => tree.evaluate(element => element.scrollLeft)).toBeGreaterThan(100);
+    // The name's actual text tail, rather than an ellipsis, reaches the viewport.
+    await expect.poll(() => file.locator(".local-file-name").evaluate(element => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const edge = range.getBoundingClientRect().right;
+      const viewport = element.closest(".local-files-tree")!.getBoundingClientRect();
+      return edge >= viewport.left && edge <= viewport.right;
+    })).toBe(true);
+    await page.mouse.wheel(-10000, 0);
+    await expect.poll(() => tree.evaluate(element => element.scrollLeft)).toBe(0);
+  };
+  await pan();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openDocumentSidebar(page);
+  await pan();
+  await file.click();
+  await expect(page.getByRole("region", { name: "本地文件工作区" }).locator(".local-file-titlebar strong")).toHaveText(fileName);
+  await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
+});
+
 test("只读文件夹入口按需展开、源码查找和符号跳转，不创建文档，停用返回原视图", async ({
   page,
 }) => {

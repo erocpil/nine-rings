@@ -78,7 +78,11 @@
   flex: 1;
   overflow: auto;
   min-height: 0;
+  min-width: 0;
+  scrollbar-width: thin;
 }
+.local-files-tree::-webkit-scrollbar { width: 6px; height: 6px; }
+.local-files-tree-content { width: max-content; min-width: 100%; }
 .local-files-filter { display: flex; align-items: center; gap: 5px; padding: 5px 8px; color: var(--text-secondary); }
 .local-files-filter > .toolbar-icon { flex: 0 0 14px; width: 14px; height: 14px; }
 .local-files-filter input { flex: 1; min-width: 0; padding: 5px 7px; border: 1px solid var(--border); border-radius: 5px; color: var(--text); background: var(--bg); font: inherit; font-size: 12px; }
@@ -97,6 +101,7 @@
   gap: 6px;
   align-items: center;
   width: 100%;
+  box-sizing: border-box;
   text-align: start;
   padding: 5px 10px;
   background: transparent;
@@ -108,10 +113,7 @@
   touch-action: manipulation;
 }
 .local-file-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 1 0 auto;
   white-space: nowrap;
 }
 .local-file-disclosure {

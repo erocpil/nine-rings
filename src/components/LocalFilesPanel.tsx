@@ -683,6 +683,7 @@ export function LocalFilesPanel({ active, onBack }: {
           "--panel-display-document-color": display.labelColor === "accent" ? "var(--accent)" : display.labelColor === "secondary" ? "var(--text-secondary)" : "var(--text)",
         } as CSSProperties : undefined}
       >
+        <div className="local-files-tree-content">
         {roots.map((root) => (
           <div key={root.id}>
             <div className="local-file-root">
@@ -761,6 +762,7 @@ export function LocalFilesPanel({ active, onBack }: {
             {children(root.id, "", 1)}
           </div>
         ))}
+        </div>
       </div>
       {contextMenu && <NotesContextMenu target={contextMenu} close={() => setContextMenu(null)} actions={menuActions} />}
       {operation && <LocalFileOperationDialog operation={operation} directories={["", ...Object.keys(pages).filter(key => key.startsWith(`${operation.rootId}:`)).map(key => key.slice(operation.rootId.length + 1))]} onApply={async (parent, name) => {
