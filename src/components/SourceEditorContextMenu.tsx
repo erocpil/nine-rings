@@ -5,6 +5,7 @@ import type { EditorView } from "@codemirror/view";
 import { copyToClipboard } from "../lib/clipboard";
 import { readClipboardContent } from "../lib/clipboard-content";
 import { sourceLineChange, sourceLineRange, type SourceLineAction } from "../lib/source-line-actions";
+import { foldSourceRange, jumpToSourceFoldBoundary, sourceFoldRangesAtLine } from "../lib/source-fold-ranges";
 
 export interface SourceContextTarget {
   x: number;
@@ -30,6 +31,9 @@ export function SourceEditorContextMenu({ target, close }: {
   const canEdit = !target.readonly && !target.view.state.readOnly && !target.view.composing;
   const canComment = line && target.view.state.languageDataAt<{ line?: string; block?: unknown }>("commentTokens", line.from).some(tokens => tokens.line || tokens.block);
   const canPaste = Boolean(navigator.clipboard?.readText || navigator.clipboard?.read);
+  const foldLayers = lineNumber === undefined ? [] : sourceFoldRangesAtLine(target.view.state, lineNumber);
+  const nearestFold = foldLayers[foldLayers.length - 1];
+  const outermostFold = foldLayers[0];
   useLayoutEffect(() => {
     setBusy(false); setMessage("");
     const element = ref.current;
@@ -108,7 +112,12 @@ export function SourceEditorContextMenu({ target, close }: {
     command(target.view);
   };
   const actions: Action[] = line ? [
-    { label: "选择本行", run: () => run(() => { const range = sourceLineRange(target.view.state, lineNumber!); target.view.dispatch({ selection: { anchor: range.from, head: range.to } }); }) },
+    { label: "折叠最新一层", disabled: !nearestFold, run: () => run(() => foldSourceRange(target.view, nearestFold!)) },
+    { label: "跳到最近一层开始", disabled: !nearestFold, run: () => run(() => jumpToSourceFoldBoundary(target.view, nearestFold!, "start")) },
+    { label: "跳到最新一层末尾", disabled: !nearestFold, run: () => run(() => jumpToSourceFoldBoundary(target.view, nearestFold!, "end")) },
+    { label: "跳到最外层开始", disabled: !outermostFold, run: () => run(() => jumpToSourceFoldBoundary(target.view, outermostFold!, "start")) },
+    { label: "跳到最外层末尾", disabled: !outermostFold, run: () => run(() => jumpToSourceFoldBoundary(target.view, outermostFold!, "end")) },
+    { label: "选择本行", group: true, run: () => run(() => { const range = sourceLineRange(target.view.state, lineNumber!); target.view.dispatch({ selection: { anchor: range.from, head: range.to } }); }) },
     { label: "复制行", run: () => { void clipboard("copy"); } },
     { label: "剪切行", disabled: !canEdit, run: () => { void clipboard("cut"); } },
     { label: "删除行", disabled: !canEdit, run: () => run(() => changeLine("delete")) },

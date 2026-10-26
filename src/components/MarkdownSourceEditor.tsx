@@ -32,6 +32,7 @@ import { ToolbarIcon } from "./ToolbarIcon";
 import { SourceWhitespaceToggle } from "./SourceWhitespaceToggle";
 import { SourceEditorContextMenu, type SourceContextTarget } from "./SourceEditorContextMenu";
 import { readonlySourceSelection } from "../lib/readonly-source-selection";
+import { sourceFoldGutter } from "../lib/source-fold-ranges";
 import { setSourceWordEnabled, sourceWordOccurrences } from "../lib/source-word-occurrences";
 import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import {
@@ -83,7 +84,6 @@ import { languages } from "@codemirror/language-data";
 import {
   syntaxTree,
   codeFolding,
-  foldGutter,
   foldKeymap,
   foldAll,
   foldedRanges,
@@ -340,17 +340,19 @@ export function MarkdownSourceEditor({
         ...(previewFoldedCode ? { preparePlaceholder: (state: EditorState, range: { from: number; to: number }) => ({ text: state.doc.sliceString(range.from, range.to) }) } : {}),
         placeholderDOM: sourceFoldPreviewPlaceholder,
       }),
-      prefs.sourceFoldGutter !== false ? foldGutter({ markerDOM: expanded => {
+      prefs.sourceFoldGutter !== false ? sourceFoldGutter(kind => {
+        const expanded = kind !== "collapsed";
         const symbol = plugin ? expanded ? plugin.foldExpanded : plugin.foldCollapsed : editorFoldSymbol(foldConfig, expanded);
         const span = document.createElement("span"); span.className = "plugin-source-fold-symbol"; span.setAttribute("aria-hidden", "true");
         span.dataset.foldExpanded = String(expanded);
+        if (kind === "end") span.dataset.foldEnd = "true";
         if (symbol !== null) { span.textContent = symbol; return span; }
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         svg.setAttribute("viewBox", "0 0 24 24"); svg.setAttribute("width", "12"); svg.setAttribute("height", "12");
         svg.style.transform = expanded ? "rotate(90deg)" : "none";
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         path.setAttribute("d", "m9 5 7 7-7 7"); path.setAttribute("fill", "none"); path.setAttribute("stroke", "currentColor"); path.setAttribute("stroke-width", "1.7"); svg.appendChild(path); span.appendChild(svg); return span;
-      } }) : [],
+      }) : [],
       visible ? (relative ? relativeLineNumbers(plugin?.currentAlignment ?? prefs.relativeSourceLineNumberAlignment) : lineNumbers()) : [],
       prefs.wrap !== false ? EditorView.lineWrapping : [],
       prefs.sourceWhitespace === true ? sourceWhitespaceMarkers : [],

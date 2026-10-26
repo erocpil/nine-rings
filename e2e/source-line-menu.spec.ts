@@ -142,6 +142,54 @@ test("源码行号菜单操作实际行并保留换行、撤销与只读边界",
   await expect(menu.getByRole("menuitem", { name: "复制行", exact: true })).toBeEnabled();
 });
 
+test("折叠末端使用反向标记并可折叠，行号菜单可操作最近与最外层", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true })));
+  await createBlankDocument(page, "源码折叠层级菜单");
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  const text = [
+    "void outer() {",
+    "  if (ready) {",
+    "    work();",
+    "  }",
+    "  finish();",
+    "}",
+    "",
+  ].join("\n");
+  await replaceSource(area, text);
+
+  const endMarkers = area.locator("..").locator('.cm-foldGutter [data-fold-end="true"]');
+  await expect(endMarkers).toHaveCount(2);
+  const transforms = await endMarkers.evaluateAll(elements => elements.map(element => getComputedStyle(element).transform));
+  expect(transforms.every(transform => transform !== "none")).toBe(true);
+
+  let menu = await openLine(page, area, 3);
+  await menu.getByRole("menuitem", { name: "跳到最近一层开始", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(text.indexOf("  if"));
+
+  menu = await openLine(page, area, 3);
+  await menu.getByRole("menuitem", { name: "跳到最新一层末尾", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(text.indexOf("  }"));
+
+  menu = await openLine(page, area, 3);
+  await menu.getByRole("menuitem", { name: "跳到最外层开始", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(0);
+
+  menu = await openLine(page, area, 3);
+  await menu.getByRole("menuitem", { name: "跳到最外层末尾", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(text.lastIndexOf("}"));
+
+  menu = await openLine(page, area, 3);
+  await menu.getByRole("menuitem", { name: "折叠最新一层", exact: true }).click();
+  await expect(area.locator(".cm-foldPlaceholder")).toHaveCount(1);
+  await area.locator(".cm-foldPlaceholder").click();
+
+  const innerEnd = area.locator("..").locator('.cm-foldGutter [data-fold-end="true"]').first();
+  await innerEnd.click();
+  await expect(area.locator(".cm-foldPlaceholder")).toHaveCount(1);
+  expect((await sourceInfo(area)).value).toBe(text);
+});
+
 test("只读源码的文字选区在右键菜单打开期间保持高亮", async ({ page }) => {
   await createBlankDocument(page, "只读源码选区右键");
   await page.getByRole("button", { name: "源码", exact: true }).click();

@@ -142,6 +142,7 @@
   padding: 0;
   line-height: inherit;
 }
+.markdown-cm-host .cm-foldGutter [data-fold-end="true"] { transform: rotate(180deg); }
 .markdown-cm-host .cm-lineNumbers .cm-gutterElement { padding-left: 2px; padding-right: var(--source-gutter-divider-left-space); }
 
 .markdown-cm-host .cm-content[aria-readonly="true"],
