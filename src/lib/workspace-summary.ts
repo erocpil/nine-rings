@@ -3,6 +3,7 @@ import { localDateKey } from "./local-date";
 import { QUICK_NOTES_PATH } from "./quick-notes";
 
 export type WorkspaceSummaryKind = "all" | "notes" | "today" | "favorites" | "recent";
+export const WORKSPACE_RECENT_CATEGORY_LIMIT = 16;
 export type WorkspaceDocumentSummary = Pick<Note, "id" | "title" | "storagePath" | "updated_at">;
 
 export function workspaceDocuments(tree: PathNode[]): WorkspaceDocumentSummary[] {

@@ -9,7 +9,7 @@ import { api } from "../lib/api";
 import { INTERFACE_STYLES } from "../lib/interface-style";
 import type { AppConfig } from "../lib/storage/types";
 import { DOCUMENT_FAVORITES_CHANGED_EVENT, readDocumentFavorites } from "../lib/document-favorites";
-import { workspaceDocuments, workspaceCounts, workspaceSummaryPreviewDocuments, type WorkspaceDocumentSummary, type WorkspaceSummaryKind } from "../lib/workspace-summary";
+import { WORKSPACE_RECENT_CATEGORY_LIMIT, workspaceDocuments, workspaceCounts, workspaceSummaryPreviewDocuments, type WorkspaceDocumentSummary, type WorkspaceSummaryKind } from "../lib/workspace-summary";
 import { WorkspaceSummaryPreview } from "./WorkspaceSummaryPreview";
 import { useLocalDay } from "../hooks/useLocalDay";
 import { readRecentNoteIds, readRecentEditedNoteIds, RECENT_NOTES_CHANGED_EVENT } from "../lib/quick-switcher";
@@ -97,11 +97,13 @@ export function ExhibitionWorkspace(props: Props) {
     }
     return () => clearTimeout(summaryCloseTimer.current);
   }, [previewEnabled, summaryLayout.summaryInteraction]);
-  const recentPreviewLimit = props.localFilesAvailable ? 8 : 16;
+  const recentPreviewLimit = WORKSPACE_RECENT_CATEGORY_LIMIT;
   const previewDocuments = useMemo(() => summaryPreview
     ? workspaceSummaryPreviewDocuments(documents, summaryPreview.kind, favorites, day, recent, recentPreviewLimit)
     : [], [documents, summaryPreview, favorites, day, recent, recentPreviewLimit]);
-  const previewLocalFiles = summaryPreview?.kind === "recent" && props.localFilesAvailable ? recentLocalFiles.slice(0, 8) : [];
+  const previewLocalFiles = summaryPreview?.kind === "recent" && props.localFilesAvailable
+    ? recentLocalFiles.slice(0, WORKSPACE_RECENT_CATEGORY_LIMIT)
+    : [];
   const previewTitle = summaryPreview ? { all: "全部文档", notes: "随记", today: "今日修改", favorites: "收藏", recent: "最近打开" }[summaryPreview.kind] : "";
   useEffect(() => {
     const refresh = () => { setFavorites(readDocumentFavorites()); setRecent(readRecentNoteIds()); setRecentEdited(readRecentEditedNoteIds()); setRecentLocalFiles(readRecentLocalFiles()); };
@@ -306,7 +308,7 @@ export function ExhibitionWorkspace(props: Props) {
                   if (summaryLayout.summaryInteraction === "click" && summaryPreview?.kind === kind) { closeSummary(); return; }
                   keepSummary(); setSummaryPreview({ kind, trigger: event.currentTarget, keyboard: false });
                 }}>
-                <strong>{loading || error ? "…" : kind === "recent" ? workspaceSummaryPreviewDocuments(documents, "recent", favorites, day, recent, recentPreviewLimit).length + (props.localFilesAvailable ? Math.min(8, recentLocalFiles.length) : 0) : counts[kind]}</strong><span>{label}</span>
+                <strong>{loading || error ? "…" : kind === "recent" ? workspaceSummaryPreviewDocuments(documents, "recent", favorites, day, recent, recentPreviewLimit).length + (props.localFilesAvailable ? Math.min(WORKSPACE_RECENT_CATEGORY_LIMIT, recentLocalFiles.length) : 0) : counts[kind]}</strong><span>{label}</span>
               </button>)}
             </nav>
           </div>

@@ -309,7 +309,7 @@ test("最近打开弹层取访问记录，分栏仍展示最近编辑十五份",
   await expect(list.getByRole("button", { name: "最近编辑 · 15 份", exact: true })).toBeVisible();
 });
 
-test("最近打开弹层的两类文档各显示八项，最新置顶且编号递减", async ({ page }) => {
+test("最近打开弹层的两类文件各保留十六项，最新置顶且独立滚动", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
   await seed(page);
   await page.evaluate(async () => {
@@ -321,8 +321,8 @@ test("最近打开弹层的两类文档各显示八项，最新置顶且编号�
     const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts");
     setPluginsEnabled(true);
     saveLocalFilesEnabled(true);
-    saveWorkspaceLayout({ summaryInteraction: "click", summaryVisibleRows: 16 });
-    for (let i = 0; i < 10; i++) {
+    saveWorkspaceLayout({ summaryInteraction: "click", summaryVisibleRows: 8 });
+    for (let i = 0; i < 18; i++) {
       const note = await api.notes.create({ title: `概览文档 ${i}`, date: "2026-10-10", storagePath: "ideas/recent", content: { ops: [] } });
       rememberRecentNote(note.id);
       rememberRecentLocalFile({ rootId: "root", rootName: "本地项目", nodeId: `src/file-${i}.c`, name: `file-${i}.c` });
@@ -331,22 +331,22 @@ test("最近打开弹层的两类文档各显示八项，最新置顶且编号�
   await page.reload();
   const summary = page.getByRole("navigation", { name: "工作区统计", exact: true });
   await expect(summary).toHaveAttribute("aria-busy", "false");
-  await expect(summary.getByRole("button", { name: "查看最近打开文档", exact: true })).toContainText("16");
+  await expect(summary.getByRole("button", { name: "查看最近打开文档", exact: true })).toContainText("32");
   await summary.getByRole("button", { name: "查看最近打开文档", exact: true }).click();
   const popup = page.getByRole("dialog", { name: "最近打开预览", exact: true });
   await expect(popup.getByRole("heading", { name: "Nine Rings 文档" })).toBeVisible();
   const groups = popup.locator("ul");
-  await expect(groups.nth(0).locator("li")).toHaveCount(8);
-  await expect(groups.nth(1).locator("li")).toHaveCount(8);
+  await expect(groups.nth(0).locator("li")).toHaveCount(16);
+  await expect(groups.nth(1).locator("li")).toHaveCount(16);
   for (const group of [groups.nth(0), groups.nth(1)]) {
     await expect.poll(() => group.evaluate(element => element.clientHeight)).toBeGreaterThanOrEqual(8 * 28);
-    await expect.poll(() => group.evaluate(element => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
+    await expect.poll(() => group.evaluate(element => element.scrollHeight - element.clientHeight)).toBeGreaterThan(8 * 28 - 2);
   }
   await expect(groups.nth(0).locator("li button").first()).toContainText("摘要当前文档");
-  await expect(groups.nth(0).locator("li button").nth(1)).toContainText("概览文档 9");
+  await expect(groups.nth(0).locator("li button").nth(1)).toContainText("概览文档 17");
   await expect(groups.nth(0).locator("li button").last()).toContainText("概览文档 3");
-  await expect(popup.locator(".workspace-summary-shortcut")).toHaveText([...( "76543210" )]);
-  await expect(groups.nth(1).locator("li button").first()).toContainText("file-9.c");
+  await expect(popup.locator(".workspace-summary-shortcut")).toHaveText([...( "fedcba9876543210" )]);
+  await expect(groups.nth(1).locator("li button").first()).toContainText("file-17.c");
   await expect(groups.nth(1).locator("li button").last()).toContainText("file-2.c");
 });
 
@@ -380,7 +380,7 @@ test("布局设置选择点击弹层和六行上限，离开保持、再次点�
   await mode.getByRole("button", { name: "点击显示弹层", exact: true }).click();
   await expect(mode.getByRole("button", { name: "点击显示弹层", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("spinbutton", { name: "弹层最多显示的文档数", exact: true })).toHaveValue("16");
-  await expect(page.getByText("默认 16 个，可设为 1～50 个；超出后滚动查看，窗口较小时自动减少可见行数。", { exact: true })).toBeVisible();
+  await expect(page.getByText("默认每组可见 16 个，可设为 1～50 个；“最近打开”分别保留最新 16 份 Nine Rings 文档和本地文件，超出可见行数后在组内滚动查看。", { exact: true })).toBeVisible();
   await page.getByRole("spinbutton", { name: "弹层最多显示的文档数", exact: true }).fill("6");
   await page.reload();
   const button = page.getByRole("button", { name: "查看全部文档", exact: true });

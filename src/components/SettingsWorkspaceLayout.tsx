@@ -43,7 +43,7 @@ export function SettingsWorkspaceLayout({
           <input className="settings-input" style={{ width: 80, marginLeft: 12 }} type="number" min={1} max={50} step={1} aria-label="弹层最多显示的文档数" value={layout.summaryVisibleRows}
             onChange={event => { if (Number.isFinite(event.currentTarget.valueAsNumber)) save({ summaryVisibleRows: event.currentTarget.valueAsNumber }); }} />
         </label>
-        <p className="sidebar-presentation-description">默认 {DEFAULT_WORKSPACE_LAYOUT.summaryVisibleRows} 个，可设为 1～50 个；超出后滚动查看，窗口较小时自动减少可见行数。</p>
+        <p className="sidebar-presentation-description">默认每组可见 {DEFAULT_WORKSPACE_LAYOUT.summaryVisibleRows} 个，可设为 1～50 个；“最近打开”分别保留最新 16 份 Nine Rings 文档和本地文件，超出可见行数后在组内滚动查看。</p>
       </div>
       {(
         [

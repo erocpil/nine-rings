@@ -3,7 +3,7 @@ import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-o
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDocumentPanelPosition } from "../hooks/useDocumentPanelPosition";
-import { workspaceSummaryShortcutIndex, type WorkspaceDocumentSummary } from "../lib/workspace-summary";
+import { WORKSPACE_RECENT_CATEGORY_LIMIT, workspaceSummaryShortcutIndex, type WorkspaceDocumentSummary } from "../lib/workspace-summary";
 import type { RecentLocalFile } from "../lib/local-files/recent";
 import { ToolbarIcon } from "./ToolbarIcon";
 import "./WorkspaceSummaryPreview.css";
@@ -43,7 +43,7 @@ export function WorkspaceSummaryPreview({ title, documents, localFiles = [], sho
     if (keyboard && !previousKeyboard.current) setFocusIndex(numbered && !reverseNumbering ? documents.length - 1 : 0);
     previousKeyboard.current = keyboard;
   }, [keyboard, numbered, reverseNumbering, documents.length]);
-  const rowsPerGroup = showLocalFilesSection ? Math.min(8, visibleRows) : visibleRows;
+  const rowsPerGroup = showLocalFilesSection ? Math.min(WORKSPACE_RECENT_CATEGORY_LIMIT, visibleRows) : visibleRows;
   const previewHeight = ROW_HEIGHT * rowsPerGroup * (showLocalFilesSection ? 2 : 1) + (showLocalFilesSection ? 96 : 46);
   const style = useDocumentPanelPosition({ open: true, triggerRef, panelRef, compact, layoutKey: `${visibleRows}:${showLocalFilesSection}`, heightLimit: previewHeight, viewportHeightRatio: showLocalFilesSection ? 0.72 : 0.58 });
   const virtual = documents.length > 60;
@@ -130,7 +130,7 @@ export function WorkspaceSummaryPreview({ title, documents, localFiles = [], sho
     {showLocalFilesSection && <h4 className="workspace-summary-preview-section-title">本地文件</h4>}
     {localFiles.length > 0 && <>
       <ul className="workspace-summary-preview-local-list" style={{ maxHeight: ROW_HEIGHT * Math.min(rowsPerGroup, localFiles.length) + 8 }}>
-        {localFiles.slice(0, rowsPerGroup).map(file => <li key={`${file.rootId}:${file.nodeId}`}>
+        {localFiles.slice(0, WORKSPACE_RECENT_CATEGORY_LIMIT).map(file => <li key={`${file.rootId}:${file.nodeId}`}>
           <button type="button" className="workspace-summary-preview-local-file" title={`${file.rootName}/${file.nodeId}`} onClick={() => onOpenLocal?.(file)}>
             <ToolbarIcon name="disk" /><span>{file.name}</span><small>{file.rootName}</small>
           </button>
