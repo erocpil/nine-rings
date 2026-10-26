@@ -168,6 +168,19 @@ test("折叠末端使用反向标记并可折叠，行号菜单可操作最近�
   })));
   expect(new Set(foldLevels.map(level => level.depth))).toEqual(new Set(["0", "1"]));
   expect(new Set(foldLevels.map(level => level.color)).size).toBe(2);
+  const pathLevelColors = await page.locator(".app").evaluate(element => {
+    const custom = element.getAttribute("data-hierarchy-path-mode") === "custom";
+    return [1, 2].map(level => {
+      const probe = document.createElement("span");
+      probe.style.color = `var(--hierarchy-${custom ? "path-custom" : "default"}-${level})`;
+      element.appendChild(probe);
+      const color = getComputedStyle(probe).color;
+      probe.remove();
+      return color;
+    });
+  });
+  expect(foldLevels.find(level => level.depth === "0")?.color).toBe(pathLevelColors[0]);
+  expect(foldLevels.find(level => level.depth === "1")?.color).toBe(pathLevelColors[1]);
   const transforms = await endMarkers.evaluateAll(elements => elements.map(element => getComputedStyle(element).transform));
   expect(transforms.every(transform => transform !== "none")).toBe(true);
 
@@ -183,8 +196,19 @@ test("折叠末端使用反向标记并可折叠，行号菜单可操作最近�
   const connection = await Promise.all([paired.first().boundingBox(), paired.last().boundingBox(), connector.boundingBox()]);
   expect(connection.every(Boolean)).toBe(true);
   expect(connection[2]!.height).toBeGreaterThan(connection[0]!.height);
+  const innerConnectionHeight = connection[2]!.height;
   await area.hover({ position: { x: 80, y: 8 } });
   await expect(connector).toHaveCount(0);
+
+  const outer = gutter.locator('[data-fold-kind="expanded"][data-fold-depth="0"]');
+  await outer.hover();
+  await expect(connector).toBeVisible();
+  expect(await connector.evaluate(element => element.parentElement?.classList.contains("cm-foldGutter"))).toBe(true);
+  const outerConnection = await connector.boundingBox();
+  expect(outerConnection!.height).toBeGreaterThan(innerConnectionHeight);
+  await area.evaluate(element => element.closest(".cm-scroller")!.dispatchEvent(new Event("scroll")));
+  await expect(connector).toHaveCount(0);
+  await expect(outer).not.toHaveClass(/is-fold-pair-hovered/);
 
   let menu = await openLine(page, area, 3);
   await menu.getByRole("menuitem", { name: "跳到最近一层开始", exact: true }).click();

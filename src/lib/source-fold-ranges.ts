@@ -64,7 +64,7 @@ class SourceFoldMarker extends GutterMarker {
   toDOM(): HTMLElement {
     const dom = this.markerDOM(this.kind);
     if (this.key) dom.dataset.foldRange = this.key;
-    dom.dataset.foldDepth = String(this.depth % 5);
+    dom.dataset.foldDepth = String(this.depth % 6);
     dom.dataset.foldKind = this.kind;
     return dom;
   }
@@ -89,27 +89,49 @@ function showFoldConnector(view: EditorView, marker: HTMLElement): void {
   const pair = [...view.dom.querySelectorAll<HTMLElement>("[data-fold-range]")]
     .filter(candidate => candidate.dataset.foldRange === key);
   for (const candidate of pair) candidate.classList.add("is-fold-pair-hovered");
-  if (pair.length < 2) return;
-  const first = pair[0]!.getBoundingClientRect();
-  const last = pair[pair.length - 1]!.getBoundingClientRect();
-  const editor = view.dom.getBoundingClientRect();
-  const firstCenter = first.top + first.height / 2;
-  const lastCenter = last.top + last.height / 2;
+  const gutter = marker.closest<HTMLElement>(".cm-foldGutter");
+  if (!gutter) return;
+  const [fromText, toText] = key.split(":");
+  const from = Number(fromText), to = Number(toText);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return;
+  const gutterRect = gutter.getBoundingClientRect();
+  const visibleTop = Math.max(gutterRect.top, view.scrollDOM.getBoundingClientRect().top);
+  const visibleBottom = Math.min(gutterRect.bottom, view.scrollDOM.getBoundingClientRect().bottom);
+  const centerAt = (position: number, kind: MarkerKind) => {
+    const mounted = pair.find(candidate => candidate.dataset.foldKind === kind);
+    if (mounted) {
+      const rect = mounted.getBoundingClientRect();
+      return rect.top + rect.height / 2;
+    }
+    const line = view.state.doc.lineAt(position);
+    return view.documentTop + view.lineBlockAt(line.from).top + view.defaultLineHeight / 2;
+  };
+  const firstCenter = Math.max(visibleTop, Math.min(centerAt(from, "expanded"), visibleBottom));
+  const lastCenter = Math.max(visibleTop, Math.min(centerAt(to, "end"), visibleBottom));
+  if (Math.abs(lastCenter - firstCenter) < 1) return;
   const connector = document.createElement("div");
   connector.className = "source-fold-connector";
   connector.dataset.foldDepth = marker.dataset.foldDepth ?? "0";
-  connector.style.left = `${first.left + first.width / 2 - editor.left}px`;
-  connector.style.top = `${Math.min(firstCenter, lastCenter) - editor.top}px`;
+  const markerRect = marker.getBoundingClientRect();
+  connector.style.left = `${markerRect.left + markerRect.width / 2 - gutterRect.left}px`;
+  connector.style.top = `${Math.min(firstCenter, lastCenter) - gutterRect.top}px`;
   connector.style.height = `${Math.abs(lastCenter - firstCenter)}px`;
-  view.dom.appendChild(connector);
+  gutter.appendChild(connector);
 }
 
 /** A fold gutter that also marks the closing line of every expanded region. */
 export function sourceFoldGutter(markerDOM: (kind: MarkerKind) => HTMLElement) {
   const markers = ViewPlugin.fromClass(class {
     markers: RangeSet<GutterMarker> = RangeSet.empty;
+    readonly clearOnScroll: () => void;
 
-    constructor(view: EditorView) { this.markers = this.build(view); }
+    constructor(readonly view: EditorView) {
+      this.clearOnScroll = () => clearFoldConnector(view);
+      view.scrollDOM.addEventListener("scroll", this.clearOnScroll, { passive: true });
+      this.markers = this.build(view);
+    }
+
+    destroy() { this.view.scrollDOM.removeEventListener("scroll", this.clearOnScroll); }
 
     update(update: ViewUpdate) {
       if (update.docChanged || update.viewportChanged)
