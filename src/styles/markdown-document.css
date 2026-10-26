@@ -77,7 +77,11 @@
 .markdown-cm-host .cm-editor.cm-focused { outline: none; }
 .markdown-cm-host .cm-scroller { overflow: auto; font-family: var(--editor-font-family, monospace); line-height: var(--editor-line-height, 1.7); }
 .markdown-cm-host .cm-content { padding: var(--editor-content-top-gap, 6px) 0 16px; caret-color: var(--editor-caret-color); }
-.markdown-cm-host { --source-text-inset: 12px; }
+.markdown-cm-host {
+  --source-gutter-divider-width: var(--editor-source-gutter-divider-width, 1px);
+  --source-gutter-divider-left-space: var(--editor-source-gutter-divider-left-space, 5px);
+  --source-text-inset: var(--editor-source-gutter-divider-right-space, 6px);
+}
 .markdown-cm-host .cm-line { padding: 0 var(--source-text-inset); }
 /* Keep the text inset opaque when content scrolls underneath the sticky gutter. */
 .markdown-cm-source .cm-gutters-before::after {
@@ -102,7 +106,7 @@
   color: color-mix(in srgb, var(--text-secondary) 72%, transparent);
 }
 .markdown-cm-host .cm-source-whitespace-eol { margin-left: 3px; color: var(--text-secondary); opacity: .58; font-size: .72em; user-select: none; }
-.markdown-cm-host .cm-gutters { background: var(--bg); color: var(--text-secondary); border-color: var(--border); font-size: min(.85em, 16px); line-height: calc(var(--source-font-size, 16px) * var(--editor-line-height, 1.7)); }
+.markdown-cm-host .cm-gutters { background: var(--bg); color: var(--text-secondary); border-color: var(--border); border-right-style: solid; border-right-width: var(--source-gutter-divider-width); font-size: min(.85em, 16px); line-height: calc(var(--source-font-size, 16px) * var(--editor-line-height, 1.7)); }
 .markdown-cm-host .cm-activeLine, .markdown-cm-host .cm-activeLineGutter { background: color-mix(in srgb, var(--activeline-bg) 55%, transparent); }
 .note-editor.no-active-line .markdown-cm-host .cm-activeLine,
 .note-editor.no-active-line .markdown-cm-host .cm-activeLineGutter { background: transparent; }
@@ -138,7 +142,7 @@
   padding: 0;
   line-height: inherit;
 }
-.markdown-cm-host .cm-lineNumbers .cm-gutterElement { padding-left: 2px; }
+.markdown-cm-host .cm-lineNumbers .cm-gutterElement { padding-left: 2px; padding-right: var(--source-gutter-divider-left-space); }
 
 .markdown-cm-host .cm-content[aria-readonly="true"],
 .markdown-cm-host .cm-content[aria-readonly="true"] * {

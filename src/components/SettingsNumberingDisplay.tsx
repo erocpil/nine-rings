@@ -156,6 +156,20 @@ export function SettingsNumberingDisplay({
           </Field>
           {color("color", "编号颜色")}
           {color("background", "编号区域背景")}
+          {target === "source" && <>
+            <h3>行号分隔线</h3>
+            <p className="settings-desc">设置源码行号右侧的竖线和两侧留白；线宽设为 0px 时不显示竖线。</p>
+            {([
+              ["sourceDividerWidth", "竖线宽度", 4],
+              ["sourceDividerLeftSpace", "竖线左侧留白", 24],
+              ["sourceDividerRightSpace", "竖线右侧留白", 24],
+            ] as const).map(([key, label, maximum]) => <Field key={key} desc="" label={label}>
+              <input type="number" aria-label={label} min={0} max={maximum} step={1} defaultValue={display[key]} key={`${target}:${key}:${display[key]}`} onBlur={event => {
+                const value = Number(event.currentTarget.value);
+                update({ [key]: Number.isFinite(value) ? Math.min(maximum, Math.max(0, Math.round(value))) : display[key] });
+              }} />
+            </Field>)}
+          </>}
         </section>
         <section
           className="plugin-settings-group numbering-settings-group"

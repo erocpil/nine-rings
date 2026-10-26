@@ -51,6 +51,12 @@ pub struct AppConfig {
     pub editor_block_spacing: f64,
     #[serde(default = "default_editor_block_number_gap")]
     pub editor_block_number_gap: i32,
+    #[serde(default = "default_editor_source_gutter_divider_width")]
+    pub editor_source_gutter_divider_width: i32,
+    #[serde(default = "default_editor_source_gutter_divider_left_space")]
+    pub editor_source_gutter_divider_left_space: i32,
+    #[serde(default = "default_editor_source_gutter_divider_right_space")]
+    pub editor_source_gutter_divider_right_space: i32,
     #[serde(default)]
     pub editor_h1_font_size: i32,
     #[serde(default)]
@@ -231,6 +237,18 @@ fn default_editor_block_number_gap() -> i32 {
     8
 }
 
+fn default_editor_source_gutter_divider_width() -> i32 {
+    1
+}
+
+fn default_editor_source_gutter_divider_left_space() -> i32 {
+    5
+}
+
+fn default_editor_source_gutter_divider_right_space() -> i32 {
+    6
+}
+
 fn default_editor_heading_margin_top() -> f64 {
     0.7
 }
@@ -336,6 +354,9 @@ impl Default for AppConfig {
             editor_line_height: default_editor_line_height(),
             editor_block_spacing: default_editor_block_spacing(),
             editor_block_number_gap: default_editor_block_number_gap(),
+            editor_source_gutter_divider_width: default_editor_source_gutter_divider_width(),
+            editor_source_gutter_divider_left_space: default_editor_source_gutter_divider_left_space(),
+            editor_source_gutter_divider_right_space: default_editor_source_gutter_divider_right_space(),
             editor_h1_font_size: 0,
             editor_h2_font_size: 0,
             editor_h3_font_size: 0,
@@ -668,6 +689,9 @@ mod tests {
             interface_heading_margin_bottom_px: 8,
             interface_content_width: 900,
             editor_block_number_gap: 18,
+            editor_source_gutter_divider_width: 0,
+            editor_source_gutter_divider_left_space: 8,
+            editor_source_gutter_divider_right_space: 9,
             editor_h1_font_size: 35,
             editor_h6_font_size: 18,
             editor_code_font_family: "monospace".into(),
@@ -688,6 +712,9 @@ mod tests {
         assert_eq!(restored.interface_heading_margin_bottom_px, 8);
         assert_eq!(restored.interface_content_width, 900);
         assert_eq!(restored.editor_block_number_gap, 18);
+        assert_eq!(restored.editor_source_gutter_divider_width, 0);
+        assert_eq!(restored.editor_source_gutter_divider_left_space, 8);
+        assert_eq!(restored.editor_source_gutter_divider_right_space, 9);
         assert_eq!(restored.editor_h1_font_size, 35);
         assert_eq!(restored.editor_h6_font_size, 18);
         assert_eq!(restored.editor_code_font_family, "monospace");
@@ -762,6 +789,9 @@ mod tests {
         assert_eq!(config.interface_line_height, 1.8);
         assert_eq!(config.interface_content_width, 0);
         assert_eq!(config.editor_block_number_gap, 8);
+        assert_eq!(config.editor_source_gutter_divider_width, 1);
+        assert_eq!(config.editor_source_gutter_divider_left_space, 5);
+        assert_eq!(config.editor_source_gutter_divider_right_space, 6);
         assert_eq!(config.note_font_size, 19);
         assert_eq!(config.editor_font_family, "system");
         assert_eq!(config.editor_line_height, 1.7);

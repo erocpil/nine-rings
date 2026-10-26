@@ -238,6 +238,9 @@ export interface AppConfig {
   editor_line_height: number;
   editor_block_spacing: number;
   editor_block_number_gap: number;
+  editor_source_gutter_divider_width: number;
+  editor_source_gutter_divider_left_space: number;
+  editor_source_gutter_divider_right_space: number;
   editor_h1_font_size: number;
   editor_h2_font_size: number;
   editor_h3_font_size: number;

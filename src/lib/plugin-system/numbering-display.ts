@@ -29,6 +29,9 @@ export interface NumberingDisplay {
   readonly currentBackground: NumberingColor;
   readonly foldExpanded: string;
   readonly foldCollapsed: string;
+  readonly sourceDividerWidth: number;
+  readonly sourceDividerLeftSpace: number;
+  readonly sourceDividerRightSpace: number;
 }
 const invalid = (): never => {
   throw new PluginHostError(
@@ -58,9 +61,10 @@ export function validateNumberingDisplay(input: unknown): NumberingDisplay {
     "foldExpanded",
     "foldCollapsed",
   ];
+  const optionalKeys = ["sourceDividerWidth", "sourceDividerLeftSpace", "sourceDividerRightSpace"];
   if (
-    Object.keys(value).length !== keys.length ||
-    Object.keys(value).some((key) => !keys.includes(key)) ||
+    keys.some(key => !(key in value)) ||
+    Object.keys(value).some((key) => !keys.includes(key) && !optionalKeys.includes(key)) ||
     !["blocks", "source"].includes(String(value.target)) ||
     !["left", "right"].includes(String(value.currentAlignment)) ||
     !["inherit", "mono", "sans", "serif"].includes(String(value.font)) ||
@@ -70,6 +74,16 @@ export function validateNumberingDisplay(input: unknown): NumberingDisplay {
     value.fontSize > 24
   )
     return invalid();
+  for (const [key, fallback, maximum] of [
+    ["sourceDividerWidth", 1, 4],
+    ["sourceDividerLeftSpace", 5, 24],
+    ["sourceDividerRightSpace", 6, 24],
+  ] as const) {
+    const number = value[key] ?? fallback;
+    if (typeof number !== "number" || !Number.isInteger(number) || number < 0 || number > maximum)
+      return invalid();
+    value[key] = number;
+  }
   for (const key of [
     "visible",
     "relative",
@@ -170,6 +184,9 @@ export function numberingVariables(
         value.highlightCurrent ? value.currentBackground : value.background,
         dark,
       ),
+      dividerWidth: `${value.sourceDividerWidth}px`,
+      dividerLeftSpace: `${value.sourceDividerLeftSpace}px`,
+      dividerRightSpace: `${value.sourceDividerRightSpace}px`,
     }).map(([key, item]) => [prefix + key, item]),
   );
 }

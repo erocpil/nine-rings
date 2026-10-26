@@ -1242,6 +1242,11 @@ html[data-numbering-blocks] .editor-block-number.active {
   color: var(--numbering-blocks-currentColor, var(--accent)); background: var(--numbering-blocks-currentBackground, var(--active-bg)); font-weight: var(--numbering-blocks-currentWeight, 700);
 }
 @media (hover: hover) { html[data-numbering-blocks] .editor-block-number:hover { color: transparent; } }
+html[data-numbering-source] .markdown-cm-host {
+  --source-gutter-divider-width: var(--numbering-source-dividerWidth, var(--editor-source-gutter-divider-width, 1px));
+  --source-gutter-divider-left-space: var(--numbering-source-dividerLeftSpace, var(--editor-source-gutter-divider-left-space, 5px));
+  --source-text-inset: var(--numbering-source-dividerRightSpace, var(--editor-source-gutter-divider-right-space, 6px));
+}
 html[data-numbering-source] .markdown-cm-host .cm-gutters { background: var(--numbering-source-background, transparent); }
 html[data-numbering-source] .markdown-cm-host .cm-lineNumbers .cm-gutterElement {
   font-family: var(--numbering-source-font, var(--font-mono)); font-size: var(--numbering-source-size, 12px); font-weight: var(--numbering-source-weight, 400); font-style: var(--numbering-source-style, normal);

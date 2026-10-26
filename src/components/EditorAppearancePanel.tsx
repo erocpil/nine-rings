@@ -249,6 +249,21 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
             <AppearanceField label="桌面块号与正文间距" desc="显示块编号时生效；手机视图保持原有间距">
               <AppearanceStepper label="桌面块号与正文间距" value={config.editor_block_number_gap} minimum={4} maximum={32} step={2} unit="px" onChange={value => onUpdate({ editor_block_number_gap: value })} />
             </AppearanceField>
+            <section aria-label="源码行号竖线与留白">
+              <h3>源码行号竖线与留白</h3>
+              <p>源码模式行号栏右侧的竖线；线宽设为 0px 时隐藏，手机和桌面共用。</p>
+              <div className="editor-appearance-control-grid">
+                <AppearanceField label="竖线宽度" desc="默认 1px；0px 表示不显示竖线">
+                  <AppearanceStepper label="源码行号竖线宽度" value={config.editor_source_gutter_divider_width} minimum={0} maximum={4} step={1} unit="px" onChange={value => onUpdate({ editor_source_gutter_divider_width: value })} />
+                </AppearanceField>
+                <AppearanceField label="竖线左侧留白" desc="行号与竖线之间，默认 5px">
+                  <AppearanceStepper label="源码行号竖线左侧留白" value={config.editor_source_gutter_divider_left_space} minimum={0} maximum={24} step={1} unit="px" onChange={value => onUpdate({ editor_source_gutter_divider_left_space: value })} />
+                </AppearanceField>
+                <AppearanceField label="竖线右侧留白" desc="竖线与正文之间，默认 6px">
+                  <AppearanceStepper label="源码行号竖线右侧留白" value={config.editor_source_gutter_divider_right_space} minimum={0} maximum={24} step={1} unit="px" onChange={value => onUpdate({ editor_source_gutter_divider_right_space: value })} />
+                </AppearanceField>
+              </div>
+            </section>
             <section aria-label="块显示设置">
               <h3>代码／引用块显示</h3>
               <p>保存在当前设备；空白字符仅在弹层阅读模式显示，不修改正文。</p>
@@ -299,6 +314,9 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                 interface_heading_margin_bottom_px: DEFAULT_CONFIG.interface_heading_margin_bottom_px,
                 interface_content_width: DEFAULT_CONFIG.interface_content_width,
                 editor_block_number_gap: DEFAULT_CONFIG.editor_block_number_gap,
+                editor_source_gutter_divider_width: DEFAULT_CONFIG.editor_source_gutter_divider_width,
+                editor_source_gutter_divider_left_space: DEFAULT_CONFIG.editor_source_gutter_divider_left_space,
+                editor_source_gutter_divider_right_space: DEFAULT_CONFIG.editor_source_gutter_divider_right_space,
               } : { ...DEFAULT_EDITOR_APPEARANCE, editor_block_number_gap: DEFAULT_CONFIG.editor_block_number_gap }) }); setBlockDisplay({ mermaidDisplay: "fit", fontSize: undefined, whitespace: "off", tabSize: 4, lineNumbers: false, wrap: true }); setCodeHeight(60); setBlockDirty(true); }}
             >恢复默认排版</button>
             <div className="editor-appearance-actions">

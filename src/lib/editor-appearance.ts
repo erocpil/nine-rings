@@ -5,6 +5,9 @@ export const DEFAULT_EDITOR_APPEARANCE = {
   editor_font_family: "system",
   editor_line_height: 1.7,
   editor_block_spacing: 1,
+  editor_source_gutter_divider_width: 1,
+  editor_source_gutter_divider_left_space: 5,
+  editor_source_gutter_divider_right_space: 6,
   editor_paragraph_indent: 0,
   editor_heading_margin_top: 0.7,
   editor_heading_margin_bottom: 0.35,
@@ -108,6 +111,9 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
   return {
     "--editor-cjk-autospace": config?.editor_cjk_spacing === false ? "no-autospace" : "normal",
     "--editor-cjk-fallback-gap": config?.editor_cjk_spacing === false ? "0px" : "0.125em",
+    "--editor-source-gutter-divider-width": `${clamp(config?.editor_source_gutter_divider_width, 0, 4, 1)}px`,
+    "--editor-source-gutter-divider-left-space": `${clamp(config?.editor_source_gutter_divider_left_space, 0, 24, 5)}px`,
+    "--editor-source-gutter-divider-right-space": `${clamp(config?.editor_source_gutter_divider_right_space, 0, 24, 6)}px`,
     ...Object.fromEntries(Array.from({ length: 6 }, (_, index) => {
       const size = customFontSize(config?.[`editor_h${index + 1}_font_size` as keyof AppConfig]);
       return size ? [[`--editor-h${index + 1}-size`, `${size}px`]] : [];

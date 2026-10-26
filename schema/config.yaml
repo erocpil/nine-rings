@@ -142,6 +142,27 @@ AppConfig:
       max: 32
       description: 桌面渲染视图块号与正文间距（px）
 
+    editor_source_gutter_divider_width:
+      type: integer
+      default: 1
+      min: 0
+      max: 4
+      description: 源码行号栏右侧竖线宽度（px）；0 表示不显示
+
+    editor_source_gutter_divider_left_space:
+      type: integer
+      default: 5
+      min: 0
+      max: 24
+      description: 源码行号与行号栏右侧竖线之间的留白（px）
+
+    editor_source_gutter_divider_right_space:
+      type: integer
+      default: 6
+      min: 0
+      max: 24
+      description: 源码行号栏右侧竖线与正文之间的留白（px）
+
     editor_paragraph_indent:
       type: number
       default: 0

@@ -28,6 +28,9 @@ export interface AppConfig {
   editor_line_height: number;
   editor_block_spacing: number;
   editor_block_number_gap: number;
+  editor_source_gutter_divider_width: number;
+  editor_source_gutter_divider_left_space: number;
+  editor_source_gutter_divider_right_space: number;
   editor_h1_font_size: number;
   editor_h2_font_size: number;
   editor_h3_font_size: number;
@@ -116,6 +119,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   editor_line_height: 1.7,
   editor_block_spacing: 1,
   editor_block_number_gap: 8,
+  editor_source_gutter_divider_width: 1,
+  editor_source_gutter_divider_left_space: 5,
+  editor_source_gutter_divider_right_space: 6,
   editor_h1_font_size: 0,
   editor_h2_font_size: 0,
   editor_h3_font_size: 0,

@@ -86,6 +86,7 @@ const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
   "editor_line_height",
   "editor_block_spacing",
   "editor_block_number_gap",
+  "editor_source_gutter_divider_width", "editor_source_gutter_divider_left_space", "editor_source_gutter_divider_right_space",
   "editor_paragraph_indent",
   "editor_heading_margin_top",
   "editor_heading_margin_bottom",

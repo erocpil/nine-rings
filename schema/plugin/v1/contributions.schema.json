@@ -1164,6 +1164,21 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 8
+        },
+        "sourceDividerWidth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "sourceDividerLeftSpace": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 24
+        },
+        "sourceDividerRightSpace": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 24
         }
       },
       "required": [

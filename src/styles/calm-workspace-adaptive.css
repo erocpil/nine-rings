@@ -163,12 +163,6 @@
       padding-inline: 6px;
       gap: 2px;
     }
-    html:is(
-        [data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]
-      )
-      .markdown-cm-host {
-      --source-text-inset: 8px;
-    }
   }
 }
 

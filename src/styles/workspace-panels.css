@@ -319,7 +319,9 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(0, 0, 0, 0.58);
+  background: color-mix(in srgb, #18201e 24%, transparent);
+  backdrop-filter: blur(2px) brightness(.95);
+  -webkit-backdrop-filter: blur(2px) brightness(.95);
   animation: fadeIn 0.15s ease;
 }
 
