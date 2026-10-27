@@ -105,6 +105,9 @@ describe("raw document authority", () => {
       ["sample.flow", "flow"],
       ["sample.txt", ""],
       ["sample.tsx", "typescript"],
+      ["Makefile", "makefile"],
+      ["GNUmakefile", "makefile"],
+      ["sample.mk", "makefile"],
     ]) {
       expect(documentLanguageFromFilename(fileName)).toBe(language);
       const content = buildTextImportInput(

@@ -11,22 +11,74 @@ assert.equal(normalizeCodeLanguage("html"), "xml");
 assert.equal(normalizeCodeLanguage("plaintext"), null);
 assert.equal(normalizeCodeLanguage("MERMAID"), "mermaid");
 assert.equal(normalizeCodeLanguage("FLOW"), "flow");
+assert.equal(normalizeCodeLanguage("GNUmake"), "makefile");
 assert.deepEqual(highlightCode("## 阶段", "flow"), []);
 assert.equal(normalizeCodeLanguage("unsupported-language"), null);
-assert(CODE_LANGUAGE_OPTIONS.length <= 19, "only the curated common language set is exposed");
+assert(
+  CODE_LANGUAGE_OPTIONS.length <= 20,
+  "only the curated common language set is exposed",
+);
 assert.deepEqual(
   CODE_LANGUAGE_OPTIONS.map((option) => option.label),
-  ["C", "C#", "C++", "CSS", "Flow / 流程", "Go", "HTML / XML", "Java", "JavaScript", "JSON", "Markdown", "Mermaid", "Python", "Rust", "Shell / Bash", "SQL", "Text", "TypeScript", "YAML"],
+  [
+    "C",
+    "C#",
+    "C++",
+    "CSS",
+    "Flow / 流程",
+    "Go",
+    "HTML / XML",
+    "Java",
+    "JavaScript",
+    "JSON",
+    "Makefile",
+    "Markdown",
+    "Mermaid",
+    "Python",
+    "Rust",
+    "Shell / Bash",
+    "SQL",
+    "Text",
+    "TypeScript",
+    "YAML",
+  ],
   "code languages stay alphabetically ordered",
 );
 
-const tokens = highlightCode('const answer: number = 42; // result', "typescript");
-assert(tokens.some((token) => token.classes.includes("hljs-keyword")), "TypeScript keyword highlighted");
-assert(tokens.some((token) => token.classes.includes("hljs-number")), "number highlighted");
-assert(tokens.some((token) => token.classes.includes("hljs-comment")), "comment highlighted");
+const tokens = highlightCode(
+  "const answer: number = 42; // result",
+  "typescript",
+);
+assert(
+  tokens.some((token) => token.classes.includes("hljs-keyword")),
+  "TypeScript keyword highlighted",
+);
+assert(
+  tokens.some((token) => token.classes.includes("hljs-number")),
+  "number highlighted",
+);
+assert(
+  tokens.some((token) => token.classes.includes("hljs-comment")),
+  "comment highlighted",
+);
+const makefileTokens = highlightCode(
+  "CC := clang\napp: main.o\n\t$(CC) -o $@ $^ # link",
+  "makefile",
+);
+assert(
+  makefileTokens.some((token) => token.classes.includes("hljs-variable")),
+  "Makefile variables highlighted",
+);
+assert(
+  makefileTokens.some((token) => token.classes.includes("hljs-section")),
+  "Makefile targets highlighted",
+);
 assert.deepEqual(highlightCode("const answer = 42", "plaintext"), []);
 assert.deepEqual(highlightCode("flowchart LR; A-->B", "mermaid"), []);
-assert.deepEqual(highlightCode("x".repeat(MAX_HIGHLIGHT_CODE_LENGTH + 1), "javascript"), [],
-  "oversized code blocks fall back to plain text");
+assert.deepEqual(
+  highlightCode("x".repeat(MAX_HIGHLIGHT_CODE_LENGTH + 1), "javascript"),
+  [],
+  "oversized code blocks fall back to plain text",
+);
 
 console.log("Code syntax highlighting passed");

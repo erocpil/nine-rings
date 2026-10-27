@@ -277,6 +277,11 @@
             "checkable": true
           },
           {
+            "id": "format.language.makefile",
+            "text": "Makefile",
+            "checkable": true
+          },
+          {
             "id": "format.language.markdown",
             "text": "Markdown",
             "checkable": true

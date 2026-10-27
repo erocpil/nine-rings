@@ -1,6 +1,13 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-27",
+    title: "Makefile 源码与代码块",
+    changes: [
+      "源码模式和代码块新增 Makefile 语言；自动识别 Makefile、GNUmakefile、BSDmakefile、Makefile.am、Makefile.in、.mk 与 .mak，并高亮变量、目标、指令、注释和 recipe。",
+    ],
+  },
+  {
     date: "2026-10-26",
     title: "本地文件路径复制与源码折叠",
     changes: [

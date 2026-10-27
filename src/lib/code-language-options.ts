@@ -14,6 +14,7 @@ export const CODE_LANGUAGE_OPTIONS: readonly CodeLanguageOption[] = [
   { value: "java", label: "Java" },
   { value: "javascript", label: "JavaScript" },
   { value: "json", label: "JSON" },
+  { value: "makefile", label: "Makefile" },
   { value: "markdown", label: "Markdown" },
   { value: "mermaid", label: "Mermaid" },
   { value: "python", label: "Python" },
@@ -24,4 +25,3 @@ export const CODE_LANGUAGE_OPTIONS: readonly CodeLanguageOption[] = [
   { value: "typescript", label: "TypeScript" },
   { value: "yaml", label: "YAML" },
 ] as const;
-

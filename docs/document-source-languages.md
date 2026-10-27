@@ -9,7 +9,7 @@
 | Markdown | 普通文档渲染 | Markdown 编辑与微渲染 | 支持 |
 | Flow | 整份源码的流程展示 | Markdown 形式的 Flow 源码 | 支持 |
 | Mermaid | 整份源码的图表 | Mermaid 源码与基础高亮 | 支持 |
-| Text、C、Python、JSON 等 | 不提供 | 纯文本或对应语言高亮 | 不提供 |
+| Text、C、Python、JSON、Makefile 等 | 不提供 | 纯文本或对应语言高亮 | 不提供 |
 
 独立 Flow、Mermaid 文档无需外层代码围栏；嵌入 Markdown 时继续使用原有 Flow、Mermaid 代码块。预览是只读投影，修改正文需要回到源码；文档本身仍可设置只读，禁止源码编辑和持久化格式更改。只读状态允许设置设备本地的查看格式覆盖，不修改正文或文档元数据。
 
@@ -43,7 +43,7 @@ Markdown 保持现有 Delta 与渲染编辑器的权威边界，`markdownSource`
 
 这一规则由 `source-fold-cursor.ts` 的文档级 CodeMirror 状态统一处理，适用于源码三角、折叠占位符、快捷键及工具栏（包括 Markdown 标题级别）。可编辑与只读共用逻辑；只读模式额外同步被折叠 DOM 的原生选区，不抢焦点且继续隐藏编辑光标。共享源码编辑器在行号和折叠图标的鼠标按下阶段阻止浏览器先选中文字或移动焦点，再分别打开行菜单或执行折叠，数据库文档和磁盘文件一致。点击占位符只展开，不先移动光标而取消记忆。折叠及光标记录不修改正文、不触发文档保存；有正文编辑时清除旧偏移，不对变化后的源码猜测原列位置。
 
-CodeMirror 使用 Compartment 切换语法，按需加载 `@codemirror/language-data`；Text 不安装解析器，Flow 复用 Markdown，Mermaid 使用轻量词法高亮，真正的图表校验仍由 Mermaid 渲染器负责。异步语言请求具有失效检查，旧请求不能覆盖新选择。
+CodeMirror 使用 Compartment 切换语法，通常按需加载 `@codemirror/language-data`；Text 不安装解析器，Flow 复用 Markdown，Mermaid 使用轻量词法高亮，Makefile 使用专用流式解析器识别目标、依赖、变量、指令、注释与以 Tab 开头的 recipe。真正的图表校验仍由 Mermaid 渲染器负责。异步语言请求具有失效检查，旧请求不能覆盖新选择。
 
 独立预览复用 `FlowBlockContent` 和 `MermaidDiagram`。并排预览复用同一代码块渲染器，保证语法和主题一致。Mermaid 错误不会改写或删除原文；源码入口始终保留，用户可返回修正。编辑类插件在只读预览表面禁用，切回源码后恢复相应能力。
 
@@ -51,7 +51,7 @@ CodeMirror 使用 Compartment 切换语法，按需加载 `@codemirror/language-
 
 ## 导入、导出与增量备份
 
-文本导入白名单扩展到支持的代码及图表扩展名；仍先解码文本、拒绝二进制控制字符。单文档导出使用对应扩展名，原始源码不添加 Markdown 标题、不裁剪尾部空白。
+文本导入白名单扩展到支持的代码及图表扩展名；仍先解码文本、拒绝二进制控制字符。Makefile 自动识别 `Makefile`、`GNUmakefile`、`BSDmakefile`、`Makefile.am`、`Makefile.in`、`.mk` 与 `.mak`。单文档导出使用对应扩展名（新建 Makefile 默认 `.mk`），原始源码不添加 Markdown 标题、不裁剪尾部空白。
 
 增量元数据认证允许 `sourceText`，并核对其纯文本投影与正文一致。Flow、Mermaid 派生资源复用现有可移植资源检查；源码中包含不能备份的本机图片引用时不能绕过认证。源码字符串作为文字保存，不被当成 HTML 插入页面。
 
