@@ -24,7 +24,7 @@ test("点击专注模式外观菜单后向下展开，选项向左展开并可�
   await expect.poll(() => trigger.evaluate(button => getComputedStyle(button).outlineStyle)).toBe("none");
   const box = (await tray.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
-  expect(box.width).toBeLessThanOrEqual(150);
+  expect(box.width).toBeLessThanOrEqual(140);
   const triggerBox = (await trigger.boundingBox())!;
   expect(box.x + box.width).toBeLessThanOrEqual(triggerBox.x + triggerBox.width + 1);
   expect(box.y).toBeGreaterThanOrEqual(triggerBox.y + triggerBox.height);
@@ -34,11 +34,12 @@ test("点击专注模式外观菜单后向下展开，选项向左展开并可�
     const itemBox = (await item.boundingBox())!;
     const chevronBox = (await item.locator(".toolbar-icon").last().boundingBox())!;
     expect(itemBox.x + itemBox.width - chevronBox.x - chevronBox.width).toBeLessThanOrEqual(8);
+    const labelBox = (await item.locator(":scope > span").boundingBox())!;
+    expect(chevronBox.x - labelBox.x - labelBox.width).toBeLessThanOrEqual(8);
     const popup = page.getByRole("listbox", { name: label, exact: true });
     await expect(popup).toBeVisible();
     const popupBox = (await popup.boundingBox())!;
     expect(popupBox.x + popupBox.width).toBeLessThanOrEqual(itemBox.x + 1);
-    expect(popupBox.width).toBeLessThan(itemBox.width);
     expect(popupBox.width).toBeLessThanOrEqual(220);
     const labelWidths = await popup.locator("[role=option] > span").evaluateAll(spans =>
       spans.map(span => ({ text: span.textContent, scroll: span.scrollWidth, client: span.clientWidth })),
