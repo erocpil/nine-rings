@@ -12,10 +12,15 @@ test("专注模式外观向左展开四组选项，悬停切换并保存，菜�
   await page.getByRole("button", { name: "专注模式", exact: true }).click();
   const trigger = page.getByRole("button", { name: "专注模式外观", exact: true });
   const exit = page.getByRole("button", { name: "退出专注模式", exact: true });
+  const tabs = page.locator(".focus-document-tabs");
+  await expect(tabs).toBeVisible();
+  const retainedTabs = await tabs.elementHandle();
   expect((await trigger.boundingBox())!.x).toBeLessThan((await exit.boundingBox())!.x);
   await trigger.hover();
   const tray = page.getByRole("group", { name: "专注模式外观选项", exact: true });
   await expect(tray).toBeVisible();
+  await expect(tabs).toBeHidden();
+  expect(await retainedTabs!.evaluate(element => element.isConnected)).toBe(true);
   const box = (await tray.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual((await trigger.boundingBox())!.x + 1);
@@ -29,6 +34,7 @@ test("专注模式外观向左展开四组选项，悬停切换并保存，菜�
   await colors.getByRole("option", { name: "深色", exact: true }).hover();
   await page.waitForTimeout(250); // Exceed the pointer-leave delay while inside the portal.
   await expect(tray).toBeVisible();
+  await expect(tabs).toBeHidden();
   await colors.getByRole("option", { name: "深色", exact: true }).click();
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config")!).interface_color_mode)).toBe("dark");
   await expect(exit).toBeVisible();
@@ -50,6 +56,8 @@ test("专注模式外观向左展开四组选项，悬停切换并保存，菜�
   await tray.getByRole("button", { name: "工作区风格", exact: true }).hover();
   await page.keyboard.press("Escape");
   await expect(tray).toHaveCount(0);
+  await expect(tabs).toBeVisible();
+  expect(await retainedTabs!.evaluate(element => element === document.querySelector(".focus-document-tabs"))).toBe(true);
   await expect(trigger).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(tray).toBeVisible();
@@ -58,6 +66,17 @@ test("专注模式外观向左展开四组选项，悬停切换并保存，菜�
   await trigger.hover();
   await page.locator(".ProseMirror").hover();
   await expect(tray).toHaveCount(0);
+  await expect(tabs).toBeVisible();
+  await page.evaluate(async () => {
+    const { saveFocusTabs } = await import("/src/lib/focus-tabs.ts");
+    saveFocusTabs({ visible: false });
+  });
+  await expect(tabs).toHaveCount(0);
+  await trigger.hover();
+  await expect(tray).toBeVisible();
+  await page.locator(".ProseMirror").hover();
+  await expect(tray).toHaveCount(0);
+  await expect(tabs).toHaveCount(0);
   await exit.click();
   await expect(trigger).toHaveCount(0);
   await expect(page.getByRole("button", { name: "工作区风格", exact: true })).toBeVisible();

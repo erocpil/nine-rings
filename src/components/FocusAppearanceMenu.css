@@ -1,4 +1,10 @@
 .focus-appearance { position: relative; flex: 0 0 auto; height: 100%; -webkit-app-region: no-drag; }
+/* Keep retained tabs and their scroll position mounted without shifting the
+   titlebar controls when the appearance tray temporarily uses this space. */
+.titlebar:has(.focus-appearance > button[aria-expanded="true"]) .focus-document-tabs {
+  visibility: hidden;
+  pointer-events: none;
+}
 .focus-appearance-tray {
   position: absolute;
   z-index: 250;
