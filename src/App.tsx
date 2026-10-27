@@ -7,6 +7,7 @@ import { documentAfterDelete } from "./lib/document-after-delete";
 import { readRecentNoteIds } from "./lib/quick-switcher";
 import { workspaceDocuments } from "./lib/workspace-summary";
 import { FocusDocumentTabs } from "./components/FocusDocumentTabs";
+import { FocusAppearanceMenu } from "./components/FocusAppearanceMenu";
 import { SelectionHoverToolbar } from "./components/SelectionHoverToolbar";
 import { mainViews } from "./lib/plugin-system/main-view-registry";
 import { usePluginMainView } from "./hooks/usePluginMainView";
@@ -1749,7 +1750,7 @@ function App() {
       {/* 展陈桌面窗口操作位于外围；专注模式恢复紧凑标题栏。 */}
       {((isTauriRuntime() || desktopWorkspace) && !(exhibitionEnabled && desktopWorkspace && !effectiveFocusMode)) && (
         <Suspense fallback={null}>
-          <TitleBar focus={focusMode} onFocusChange={desktopWorkspace ? next => preserveReadingPositions(() => setFocusMode(next)) : undefined} wordmark={desktopWorkspace && effectiveFocusMode} focusTabs={desktopWorkspace && effectiveFocusMode ? <FocusDocumentTabs
+          <TitleBar focus={focusMode} focusAppearance={desktopWorkspace && effectiveFocusMode ? <FocusAppearanceMenu config={config} disabled={protectionBusy || applyingWebUpdate || externalReloading} onChange={async patch => handleConfigChange(await api.config.set(patch))} /> : undefined} onFocusChange={desktopWorkspace ? next => preserveReadingPositions(() => setFocusMode(next)) : undefined} wordmark={desktopWorkspace && effectiveFocusMode} focusTabs={desktopWorkspace && effectiveFocusMode ? <FocusDocumentTabs
             noteId={workspaceHome || pluginMainActive ? undefined : selectedNote?.id} noteTitle={workspaceHome || pluginMainActive ? undefined : selectedNote?.title ?? undefined} refreshKey={docTreeKey}
             localFilesAvailable={contributedPanels.some(panel => panel.id === "files")}
             activeLocalIdentity={!workspaceHome && pluginMainActive && pluginMainView?.renderer === "local-file" ? localFileIdentity(pluginMainView.data) : undefined}

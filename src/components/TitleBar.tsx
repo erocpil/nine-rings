@@ -28,6 +28,7 @@ export default function TitleBar({
   workspace,
   children,
   focusTabs,
+  focusAppearance,
   focus = false,
   onFocusChange,
 }: {
@@ -36,6 +37,7 @@ export default function TitleBar({
   workspace?: ReactNode;
   children?: ReactNode;
   focusTabs?: ReactNode;
+  focusAppearance?: ReactNode;
   focus?: boolean;
   onFocusChange?: (focus: boolean) => void;
 }) {
@@ -275,6 +277,7 @@ export default function TitleBar({
         <div className="titlebar-controls titlebar-appearance">{children}</div>
       )}
       <div className="titlebar-controls">
+        {focus && focusAppearance}
         {onFocusChange && <button type="button" className="titlebar-btn titlebar-btn-focus" aria-label={focus ? "退出专注模式" : "专注模式"} title={focus ? "退出专注模式" : "专注模式"} aria-pressed={focus} onClick={() => onFocusChange(!focus)}><ToolbarIcon name="focus" /></button>}
         {(native || document.fullscreenEnabled) && (
           <button

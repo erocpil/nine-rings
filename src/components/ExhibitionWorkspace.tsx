@@ -3,7 +3,7 @@ import { useWindowFullscreen } from "../hooks/useWindowFullscreen";
 import { documentOpenOptions, type DocumentOpenOptions } from "../lib/document-open";
 import { useWorkspaceLayout } from "../hooks/useWorkspaceLayout";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense, type ReactNode } from "react";
-import { DocumentFilterSelect } from "./DocumentFilterSelect";
+import { WorkspaceAppearanceControls } from "./WorkspaceAppearanceControls";
 import "./DocumentBrowser.css";
 import { api } from "../lib/api";
 import { INTERFACE_STYLES } from "../lib/interface-style";
@@ -219,31 +219,8 @@ export function ExhibitionWorkspace(props: Props) {
   useEffect(() => {
     if (busy || blocked || !active) setOpenAppearance(null);
   }, [busy, blocked, active]);
-  const choose = (label: string, value: string, options: { value: string; label: string }[], patch: (value: string) => Partial<AppConfig>) =>
-    <DocumentFilterSelect key={label} label={label}
-      text={options.find(option => option.value === value)?.label ?? value}
-      className="exhibition-select" value={value} options={options} disabled={busy || blocked}
-      open={openAppearance === label && !busy && !blocked}
-      onOpenChange={open => setOpenAppearance(current => open ? label : current === label ? null : current)}
-      onHover={props.desktop ? () => setOpenAppearance(current => current === null ? null : label) : undefined}
-      onChange={value => void run(() => props.onAppearance(patch(value)))} />;
-  const appearance = (
-    <div className="exhibition-appearance">
-      {choose("工作区风格", config?.interface_style === "calm-compact" ? "calm" : config?.interface_style ?? "calm",
-        INTERFACE_STYLES.filter(style => style.value !== "classic"), value => ({ interface_style: value as AppConfig["interface_style"] }))}
-      {choose("工作区配色", config?.interface_color_mode ?? "system",
-        [{ value: "light", label: "浅色" }, { value: "dark", label: "深色" }, { value: "system", label: "跟随系统" }],
-        value => ({ interface_color_mode: value as AppConfig["interface_color_mode"] }))}
-      {props.desktop && <>
-      {choose("文本宽度", config?.exhibition_text_width ?? "wide",
-          [{ value: "narrow", label: "窄幅" }, { value: "standard", label: "标准" }, { value: "wide", label: "宽幅" }],
-          value => ({ exhibition_text_width: value as AppConfig["exhibition_text_width"] }))}
-        {choose("紧凑程度", density,
-          [{ value: "comfortable", label: "舒适" }, { value: "compact", label: "紧凑" }],
-          value => ({ exhibition_density: value as AppConfig["exhibition_density"] }))}
-      </>}
-    </div>
-  );
+  const appearance = <WorkspaceAppearanceControls config={config} desktop={props.desktop} disabled={busy || blocked}
+    open={openAppearance} onOpenChange={setOpenAppearance} onChange={patch => void run(() => props.onAppearance(patch))} />;
   return (
     <div
       className={`exhibition-shell${active ? " is-exhibition" : ""}`}

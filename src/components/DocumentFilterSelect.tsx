@@ -14,10 +14,12 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   onChange: (value: string) => void;
   onHover?: () => void;
+  onPopupEnter?: () => void;
+  onPopupLeave?: () => void;
 }
 
 /** One controlled popup per DocumentBrowser, without native select click capture. */
-export function DocumentFilterSelect({ label, text, icon, disabled = false, className = "", value, options, open, onOpenChange, onChange, onHover }: Props) {
+export function DocumentFilterSelect({ label, text, icon, disabled = false, className = "", value, options, open, onOpenChange, onChange, onHover, onPopupEnter, onPopupLeave }: Props) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -135,6 +137,7 @@ export function DocumentFilterSelect({ label, text, icon, disabled = false, clas
       {icon && <ToolbarIcon name={icon} />}<span>{text}</span><ToolbarIcon name="chevronRight" />
     </button>
     {open && createPortal(<div id={id} ref={menu} role="listbox" aria-label={label} data-sidebar-owned
+      onPointerEnter={onPopupEnter} onPointerLeave={onPopupLeave}
       className="document-filter-options" onClick={event => event.stopPropagation()}
       onKeyDown={event => {
         event.stopPropagation();

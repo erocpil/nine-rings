@@ -1,0 +1,17 @@
+.focus-appearance { position: relative; flex: 0 0 auto; height: 100%; -webkit-app-region: no-drag; }
+.focus-appearance-tray {
+  position: absolute;
+  z-index: 250;
+  right: 100%;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  background: var(--bg);
+  border-inline-start: 1px solid var(--border);
+  box-shadow: -8px 0 18px color-mix(in srgb, var(--text) 8%, transparent);
+}
+.focus-appearance-tray .exhibition-appearance { display: flex; flex-wrap: nowrap; gap: 6px; }
+.focus-appearance-tray .exhibition-select { width: auto; min-height: 28px; white-space: nowrap; gap: 6px; }
+.focus-appearance-error { position: absolute; top: 100%; right: 0; z-index: 250; width: max-content; max-width: min(340px, 80vw); padding: 8px 12px; color: var(--danger); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); }
