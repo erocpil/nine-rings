@@ -1,6 +1,13 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-28",
+    title: "本地 Markdown 块号与折叠",
+    changes: [
+      "本地 Markdown 渲染接入与数据库只读文档共享的块号和章节折叠控件；支持相对块号、编号展示插件、块菜单与专注模式双击折叠，折叠后保留原始编号，目录跳转自动展开目标章节。",
+    ],
+  },
+  {
     date: "2026-10-27",
     title: "Makefile 源码与代码块",
     changes: [

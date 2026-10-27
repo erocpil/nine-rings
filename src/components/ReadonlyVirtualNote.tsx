@@ -1,5 +1,4 @@
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
-import { fencedBlockLabel } from "../lib/block-format-label";
 import { EditorStatusBar } from "./EditorStatusBar";
 import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import { editorForegroundStyle } from "../lib/editor-color";
@@ -9,7 +8,7 @@ import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
 import { panelDisplayStyle, bookmarkTooltip, sortedPanelItems } from "../lib/panel-display-view";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import { panelDisplays } from "../lib/plugin-system/panel-display";
-import { BlockNumber } from "./BlockNumber";
+import { ReadingBlockGutter } from "./ReadingBlockGutter";
 import { useRelativeNumbering } from "../hooks/useRelativeNumbering";
 import { relativeNumber } from "../lib/relative-numbering";
 import { BlockActionMenu, type BlockMenuAction } from "./BlockActionMenu";
@@ -1734,26 +1733,11 @@ export function ReadonlyVirtualNote(
                 data-position={block.pos}
                 data-block-number={block.number}
               >
-                {props.showLineNumbers && block.number === currentNumber && <div className="editor-block-current-band" aria-hidden="true"
-                  data-block-index={block.number} style={{ top: 0, bottom: 0 }} />}
-                {!props.showLineNumbers && <button type="button" className="editor-block-menu-target"
-                  aria-label={`第 ${block.number} 块操作`} aria-haspopup="menu"
-                  onMouseDown={event => event.preventDefault()}
-                  onClick={event => { event.stopPropagation(); const trigger = event.currentTarget; setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc }); }}
-                />}
-                <div className="vr-gutter" contentEditable={false}>
-                  {section && section.end > section.headingEnd && (
-                    <button
-                      type="button"
-                      aria-label={`折叠切换 ${outlineLabel(section.text)}`}
-                      aria-expanded={!folds.has(section.key)}
-                      onClick={() => toggleHeading(block.pos)}
-                    >
-                      <EditorFoldIcon outline expanded={!folds.has(section.key)} />
-                    </button>
-                  )}
-                  {props.showLineNumbers && <BlockNumber number={block.number} displayNumber={relativeBlockNumbers ? relativeNumber(block.number, currentNumber, visibleNumbers) : block.number} className={`${block.number === currentNumber ? "active" : ""} ${relativeBlockNumbers && block.number === currentNumber ? `relative-current${relativeBlockNumberAlignment === "right" ? " relative-current-right" : ""}` : ""}`} format={block.node.type.name === "codeBlock" ? fencedBlockLabel(block.node.attrs.language) : block.node.type.name === "heading" ? `H${block.node.attrs.level}` : block.node.type.name} onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />}
-                </div>
+                <ReadingBlockGutter node={block.node} number={block.number}
+                  displayNumber={relativeBlockNumbers ? relativeNumber(block.number, currentNumber, visibleNumbers) : block.number}
+                  active={block.number === currentNumber} showNumbers={props.showLineNumbers} relative={relativeBlockNumbers} alignment={relativeBlockNumberAlignment}
+                  section={section} folded={!!section && folds.has(section.key)} onToggleFold={() => toggleHeading(block.pos)}
+                  onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />
                 <div className={`ProseMirror vr-block${block.number === currentNumber ? " ProseMirror-activeline" : ""}`} contentEditable={false}>
                   {decorateFlowBlock(renderReadonlyBlock(
                     block.node,

@@ -83,6 +83,8 @@
 }
 .local-file-preview { flex: 1; min-height: 0; overflow: auto; padding: 10px 18px 36px; }
 .local-file-preview > .ProseMirror { max-width: 100%; }
+.markdown-reading-view > .vr-body { padding-bottom: max(100px, calc(var(--reading-viewport-height, 80vh) - 32px)); }
+.markdown-reading-view .vr-row > .vr-gutter { top: var(--reading-gutter-center, 15px); transform: translateY(-50%); }
 .local-file-conflict { position: absolute; inset: 48px 12px 12px; z-index: 12; display: flex; flex-direction: column; gap: 8px; padding: 12px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); box-shadow: 0 12px 40px #0003; }
 .local-file-conflict > p { margin: 0; color: var(--text-secondary); font-size: 12px; }
 .local-file-conflict > .document-diff-columns { min-height: 220px; flex: 1; }

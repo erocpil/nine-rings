@@ -1,3 +1,4 @@
+import { sessionHeadingFoldStore } from "../lib/heading-fold";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
@@ -21,7 +22,7 @@ import { ToolbarIcon } from "./ToolbarIcon";
 import { TextDiffView } from "./TextDiffView";
 import { parseFlowDocument } from "./FlowBlockContent";
 import { SourceDocumentPreview } from "./SourceDocumentPreview";
-import { MarkdownReadingView, type MarkdownReadingSession } from "./MarkdownReadingView";
+import { MARKDOWN_READING_NAVIGATE_EVENT, MarkdownReadingView, type MarkdownReadingSession } from "./MarkdownReadingView";
 import { LOCAL_FILE_VIEW_ID } from "../lib/plugin-system/builtin-local-files";
 import { mainViews } from "../lib/plugin-system/main-view-registry";
 import { workspacePanels } from "../lib/plugin-system/panel-registry";
@@ -92,7 +93,7 @@ function markdownHeadingSourceOffsets(source: string): number[] {
 }
 
 
-export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange, active, focusMode }: {
+export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange, active, focusMode, readonlyHeadingFoldInFocusMode = true }: {
   data: Readonly<LocalFileViewData>;
   onClose: () => void;
   fontSize: number;
@@ -102,6 +103,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   onEditorConfigChange?: (patch: Partial<AppConfig>) => Promise<void>;
   active: boolean;
   focusMode: boolean;
+  readonlyHeadingFoldInFocusMode?: boolean;
 }) {
   const moreToolsPreference = useFocusEditorTools(state => state.expanded);
   const setMoreTools = useFocusEditorTools(state => state.setExpanded);
@@ -130,7 +132,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const [readOnly, setReadOnly] = useState(() => isLocalFileReadOnly(data.rootId, data.nodeId));
   const editing = !readOnly;
   const [preview, setPreview] = useState(false);
-  const readingSession = useMemo<MarkdownReadingSession>(() => ({ identity, source, scrollTop: 0, states: new Map() }), [identity, source]);
+  const readingSession = useMemo<MarkdownReadingSession>(() => ({ identity, source, scrollTop: 0, states: new Map(), foldedHeadings: new Set(sessionHeadingFoldStore.load(`local-file:${identity}`)?.collapsedKeys ?? []) }), [identity, source]);
   const [saveState, setSaveState] = useState<"clean" | "dirty" | "saving" | "saved" | "error">("clean");
   const [recoveryNotice, setRecoveryNotice] = useState("");
   const [previewSource, setPreviewSource] = useState("");
@@ -532,8 +534,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     setActiveOffset(sourceHeadingOffsets[index] ?? 0);
     if (preview) {
       const host = localViewRef.current?.querySelector<HTMLElement>(".local-file-preview");
-      const heading = host?.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6")[index];
-      if (host && heading) host.scrollTop += heading.getBoundingClientRect().top - host.getBoundingClientRect().top;
+      host?.dispatchEvent(new CustomEvent(MARKDOWN_READING_NAVIGATE_EVENT, { detail: { position: item.pos } }));
     } else {
       sourceHandle.current?.scrollToOffset(sourceHeadingOffsets[index] ?? item.pos, true);
     }
@@ -672,7 +673,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       <div><button type="button" onClick={() => { setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
     </section>}
     {!loading && !error && <div className={`local-file-workspace${activePanel ? " has-local-file-dock" : ""}`} style={{ "--local-file-panel-width": `${panelWidth}px` } as CSSProperties}>
-      <div className="local-file-editor-shell">{preview ? isMarkdown && markdownDoc ? <MarkdownReadingView doc={markdownDoc} source={source} session={readingSession} fontSize={fontSize} highlightActiveLine={highlightActiveLine} className="local-file-preview" onActivePosition={position => setActiveOffset(renderedNavigation.offsetAt(position + 1))} onClick={openRelative} /> : isMermaid || isFlow ? <SourceDocumentPreview language={language} source={source} fontSize={fontSize} className="local-file-preview" /> : <div className="editor-content local-file-preview"><p role="alert">{previewError || "暂时无法渲染，源码已保留，可切回源码模式。"}</p><pre>{source}</pre></div> : <MarkdownSourceEditor value={source} readonly={!editing} contextMenuEnabled onToggleLineBookmark={toggleBookmark} areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={next => { sourceRef.current = next; setSource(next); }} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus={saveState} documentLanguage={language} documentLanguageValue={languageOverride ?? AUTO_DOCUMENT_LANGUAGE} documentLanguageOptions={documentLanguageViewOptions(detectedLanguage)} onDocumentLanguageChange={next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); }} onEditorConfigChange={onEditorConfigChange} />}</div>{panel}
+      <div className="local-file-editor-shell">{preview ? isMarkdown && markdownDoc ? <MarkdownReadingView doc={markdownDoc} source={source} session={readingSession} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} doubleClickFold={focusMode && readOnly && readonlyHeadingFoldInFocusMode} className="local-file-preview" onActivePosition={position => setActiveOffset(renderedNavigation.offsetAt(position + 1))} onClick={openRelative} /> : isMermaid || isFlow ? <SourceDocumentPreview language={language} source={source} fontSize={fontSize} className="local-file-preview" /> : <div className="editor-content local-file-preview"><p role="alert">{previewError || "暂时无法渲染，源码已保留，可切回源码模式。"}</p><pre>{source}</pre></div> : <MarkdownSourceEditor value={source} readonly={!editing} contextMenuEnabled onToggleLineBookmark={toggleBookmark} areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={next => { sourceRef.current = next; setSource(next); }} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus={saveState} documentLanguage={language} documentLanguageValue={languageOverride ?? AUTO_DOCUMENT_LANGUAGE} documentLanguageOptions={documentLanguageViewOptions(detectedLanguage)} onDocumentLanguageChange={next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); }} onEditorConfigChange={onEditorConfigChange} />}</div>{panel}
       {activePanel === "outline" && <nav className="local-file-dock local-file-outline document-panel-dock dock-right" aria-label="本地文件目录">
       <div className="document-dock-width-handle" role="separator" aria-orientation="vertical" aria-label="调整本地文件目录宽度" onPointerDown={beginPanelResize} />
       <div className="document-outline-header">
