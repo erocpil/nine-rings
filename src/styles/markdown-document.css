@@ -92,6 +92,23 @@
   width: var(--source-text-inset);
   background: var(--bg);
   pointer-events: none;
+  z-index: 1;
+}
+/* Continue the active-line band through the opaque inset. The number gutter
+   remains sticky and masks horizontally scrolling source text; its active
+   cell paints the same row tint over that small mask. */
+.markdown-cm-source .cm-lineNumbers .cm-gutterElement.cm-activeLineGutter {
+  position: relative;
+  z-index: 2;
+}
+.markdown-cm-source .cm-lineNumbers .cm-gutterElement.cm-activeLineGutter::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 100%;
+  width: var(--source-text-inset);
+  background: var(--numbering-source-currentBackground, color-mix(in srgb, var(--activeline-bg) 55%, transparent));
+  pointer-events: none;
 }
 .markdown-cm-host .cm-source-whitespace-space {
   background-image: radial-gradient(circle, color-mix(in srgb, var(--text-secondary) 72%, transparent) 0.75px, transparent 0.9px);

@@ -69,6 +69,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
   const [blockDisplay, setBlockDisplay] = useState(blockWorkspacePreferences);
   const [codeHeight, setCodeHeight] = useState(codeBlockHeightPercent);
   const [blockDirty, setBlockDirty] = useState(false);
+  const [previewMode, setPreviewMode] = useState<"rendered" | "source">("rendered");
   const updateBlock = (patch: typeof blockDisplay) => { setBlockDisplay(value => ({ ...value, ...patch })); setBlockDirty(true); };
 
   useEffect(() => {
@@ -334,53 +335,86 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
 
           <div className="editor-appearance-preview-pane">
             <div className="editor-appearance-preview-label">
-              <span>实时预览</span>
-              <small>{displayConfig.note_font_size}px · {displayConfig.editor_line_height.toFixed(1)} 行距</small>
+              <div className="editor-appearance-preview-heading">
+                <span>实时预览</span>
+                <small>{displayConfig.note_font_size}px · {displayConfig.editor_line_height.toFixed(1)} 行距</small>
+              </div>
+              <div className="editor-appearance-preview-modes" role="group" aria-label="预览模式">
+                <button type="button" aria-pressed={previewMode === "rendered"} onClick={() => setPreviewMode("rendered")}>渲染</button>
+                <button type="button" aria-pressed={previewMode === "source"} onClick={() => setPreviewMode("source")}>源码</button>
+              </div>
             </div>
-            <article className={`editor-appearance-preview editor-appearance-document ${displayConfig.editor_cjk_spacing ? "editor-auto-cjk-spacing" : ""}`} style={{ ...variables, "--list-followup-indent-enabled": blockDisplay.listFollowupIndent === false ? "0" : "1" } as React.CSSProperties} aria-label="编辑器排版预览">
-              <section className="editor-appearance-source-preview" aria-label="源码行号竖线与留白预览">
-                <span className="editor-appearance-source-gutter" aria-hidden="true"><span>1</span><span>2</span><span>3</span></span>
-                <code><span>function arrangeIdeas() {'{'}</span><span>  return "readable";</span><span>{'}'}</span></code>
-              </section>
-              <h1>把想法整理成可读的结构</h1>
-              <p>{cjkSpacedText("Nine Rings支持Markdown编辑，排版不改变内容本身，却会直接影响阅读节奏。")}</p>
-              <h2>清晰的层级</h2>
-              <ul>
-                <li>一级列表用于表达主要观点
-                  <ul><li>二级列表展示缩进与圆点间距</li></ul>
-                </li>
-                <li>让相邻信息保持稳定的视觉关系</li>
-              </ul>
-              <ol>
-                <li>有序列表使用相同的层级缩进
-                  <ol><li>二级编号与无序列表保持一致</li></ol>
-                </li>
-                <li>调整时两种列表同步变化</li>
-              </ol>
-              <blockquote className="list-followup-preview" aria-label="引用块排版预览">列表的补充说明可以使用适度缩进，保留独立的引用块。</blockquote>
-              <pre className="list-followup-preview" aria-label="代码块排版预览"><code>const keep = "Readable layout";</code></pre>
-              <h3>紧凑的小节</h3>
-              <p>标题上下间距会在这里实时呈现。</p>
-              <p>相邻正文段落之间使用独立的正文块间距。</p>
-              <p className="standalone-strong-label"><strong>概念标签</strong></p>
-              <p>纯粗体标签后的正文沿用紧凑的标题下间距。</p>
-              <blockquote>引用块缩进帮助补充说明与正文形成清楚的层次。</blockquote>
-              <DeferredMermaidDiagram source={'flowchart LR\nA[开始] --> B[完成]'} />
-              <DeferredFlowBlock source={'## 开始\n\n记录想法。\n\n## 完成\n\n整理行动。'} />
-              <hr />
-              <p>代码块和引用块样式也会随着预览中的字号/行距同步变化。</p>
-              <p>使用 <mark>Alt+F 搜索关键字</mark> 时，匹配内容会采用所选的高亮颜色。</p>
-              <table>
-                <thead><tr><th>项目</th><th>效果</th></tr></thead>
-                <tbody><tr><td>字体与字号</td><td>决定页面的基本气质</td></tr><tr><td>行距与缩进</td><td>控制信息密度和阅读节奏</td></tr></tbody>
-              </table>
-              <h4>四级标题</h4><h5>五级标题</h5><h6>六级标题</h6>
-            </article>
+            {previewMode === "rendered" ? <article className={`editor-appearance-preview editor-appearance-document ${displayConfig.editor_cjk_spacing ? "editor-auto-cjk-spacing" : ""}`} style={{ ...variables, "--list-followup-indent-enabled": blockDisplay.listFollowupIndent === false ? "0" : "1", "--editor-block-number-gap": `${Number(config.editor_block_number_gap) || 8}px` } as React.CSSProperties} aria-label="编辑器渲染排版预览">
+                <h1>把想法整理成可读的结构</h1>
+                <p>{cjkSpacedText("Nine Rings支持Markdown编辑，排版不改变内容本身，却会直接影响阅读节奏。标题、段落、列表和代码块共同构成一篇可连续阅读的文档。")}</p>
+                <h2>清晰的层级</h2>
+                <p>先用标题标记主题，再用正文解释上下文。适当的标题间距帮助读者分辨章节，同时保持内容连贯。</p>
+                <ul>
+                  <li>一级列表用于表达主要观点
+                    <ul><li>二级列表展示缩进与标记间距</li></ul>
+                  </li>
+                  <li>让相邻信息保持稳定的视觉关系</li>
+                </ul>
+                <p>下面的代码块是正文中的一个示例，用来观察等宽字体、字号、块间距与右侧块号。</p>
+                <pre aria-label="代码块排版预览"><code>{'function arrangeIdeas() {\n  return "readable";\n}'}</code></pre>
+                <blockquote aria-label="引用块排版预览">列表或代码之后的补充说明仍保持在正文流中，引用块的字体、字号和缩进可以单独调整。</blockquote>
+                <h3>图形与流程</h3>
+                <p>图形块和流程块同样参与文档排版，变化不会影响源码内容。</p>
+                <DeferredMermaidDiagram source={'flowchart LR\nA[开始] --> B[完成]'} />
+                <DeferredFlowBlock source={'## 开始\n\n记录想法。\n\n## 完成\n\n整理行动。'} />
+                <h2>继续阅读</h2>
+                <p>搜索匹配采用当前选择的高亮颜色，例如 <mark>Alt+F 搜索关键字</mark>。</p>
+                <table>
+                  <thead><tr><th>项目</th><th>效果</th></tr></thead>
+                  <tbody><tr><td>字体与字号</td><td>决定页面的基本气质</td></tr><tr><td>行距与间距</td><td>控制信息密度和阅读节奏</td></tr></tbody>
+                </table>
+                <h3>较小层级</h3><h4>四级标题</h4><h5>五级标题</h5><h6>六级标题</h6>
+              </article> : <SourceTypographyPreview config={displayConfig} variables={variables} />}
           </div>
         </div>
       </div>
     </div></ReadingTypographyProvider>
   );
+}
+
+function SourceTypographyPreview({ config, variables }: { config: AppConfig; variables: React.CSSProperties }) {
+  const lines = [
+    "# 把想法整理成可读的结构",
+    "",
+    "Nine Rings 支持 Markdown 编辑，排版不改变内容本身。",
+    "",
+    "## 清晰的层级",
+    "",
+    "标题、段落和列表共同构成一篇可连续阅读的文档。",
+    "",
+    "- 一级列表表达主要观点",
+    "  - 二级列表展示缩进",
+    "",
+    "下面的代码块位于正文中：",
+    "",
+    "```js",
+    "function arrangeIdeas() {",
+    '  return "readable";',
+    "}",
+    "```",
+    "",
+    "> 代码块之后的引用仍属于正文流。",
+    "",
+    "### 图形与流程",
+    "",
+    "排版设置会同步反映在渲染模式中。",
+  ];
+  const activeLine = 16;
+  return <div className="editor-appearance-preview editor-appearance-source-document" style={{ ...variables, "--editor-block-number-gap": `${Number(config.editor_block_number_gap) || 8}px` } as React.CSSProperties} aria-label="源码模式排版预览">
+    <div className="editor-appearance-source-lines" role="presentation">
+      <div className="editor-appearance-source-gutter" aria-hidden="true">
+        {lines.map((_, index) => <span className={index + 1 === activeLine ? "is-active" : ""} key={index}>{index + 1}</span>)}
+      </div>
+      <code className="editor-appearance-source-text">
+        {lines.map((line, index) => <span className={index + 1 === activeLine ? "is-active" : ""} key={index}>{line || " "}</span>)}
+      </code>
+    </div>
+  </div>;
 }
 
 function AppearanceField({ label, desc, children }: { label: string; desc: string; children: React.ReactNode }) {
