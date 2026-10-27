@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 
-test("专注模式外观向左展开四组选项，悬停切换并保存，菜单跨越不提前关闭", async ({ page }) => {
+test("专注模式外观向下展开，选项向左展开并保存，tab保持原状", async ({ page }) => {
   await page.addInitScript(() => {
     if (!localStorage.getItem("nine_rings_config")) localStorage.setItem("nine_rings_config", JSON.stringify({
       interface_style: "calm", workspace_layout: "exhibition", interface_color_mode: "light",
@@ -14,19 +14,24 @@ test("专注模式外观向左展开四组选项，悬停切换并保存，菜�
   const exit = page.getByRole("button", { name: "退出专注模式", exact: true });
   const tabs = page.locator(".focus-document-tabs");
   await expect(tabs).toBeVisible();
-  const retainedTabs = await tabs.elementHandle();
   expect((await trigger.boundingBox())!.x).toBeLessThan((await exit.boundingBox())!.x);
   await trigger.hover();
   const tray = page.getByRole("group", { name: "专注模式外观选项", exact: true });
   await expect(tray).toBeVisible();
-  await expect(tabs).toBeHidden();
-  expect(await retainedTabs!.evaluate(element => element.isConnected)).toBe(true);
+  await expect(tabs).toBeVisible();
   const box = (await tray.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
-  expect(box.x + box.width).toBeLessThanOrEqual((await trigger.boundingBox())!.x + 1);
+  const triggerBox = (await trigger.boundingBox())!;
+  expect(box.x + box.width).toBeLessThanOrEqual(triggerBox.x + triggerBox.width + 1);
+  expect(box.y).toBeGreaterThanOrEqual(triggerBox.y + triggerBox.height);
   for (const label of ["工作区风格", "工作区配色", "文本宽度", "紧凑程度"]) {
-    await tray.getByRole("button", { name: label, exact: true }).hover();
-    await expect(page.getByRole("listbox", { name: label, exact: true })).toBeVisible();
+    const item = tray.getByRole("button", { name: label, exact: true });
+    await item.hover();
+    const popup = page.getByRole("listbox", { name: label, exact: true });
+    await expect(popup).toBeVisible();
+    const itemBox = (await item.boundingBox())!;
+    const popupBox = (await popup.boundingBox())!;
+    expect(popupBox.x + popupBox.width).toBeLessThanOrEqual(itemBox.x + 1);
     await expect(page.getByRole("listbox")).toHaveCount(1);
   }
   await tray.getByRole("button", { name: "工作区配色", exact: true }).hover();
@@ -34,7 +39,7 @@ test("专注模式外观向左展开四组选项，悬停切换并保存，菜�
   await colors.getByRole("option", { name: "深色", exact: true }).hover();
   await page.waitForTimeout(250); // Exceed the pointer-leave delay while inside the portal.
   await expect(tray).toBeVisible();
-  await expect(tabs).toBeHidden();
+  await expect(tabs).toBeVisible();
   await colors.getByRole("option", { name: "深色", exact: true }).click();
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config")!).interface_color_mode)).toBe("dark");
   await expect(exit).toBeVisible();
@@ -57,7 +62,6 @@ test("专注模式外观向左展开四组选项，悬停切换并保存，菜�
   await page.keyboard.press("Escape");
   await expect(tray).toHaveCount(0);
   await expect(tabs).toBeVisible();
-  expect(await retainedTabs!.evaluate(element => element === document.querySelector(".focus-document-tabs"))).toBe(true);
   await expect(trigger).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(tray).toBeVisible();
@@ -74,6 +78,7 @@ test("专注模式外观向左展开四组选项，悬停切换并保存，菜�
   await expect(tabs).toHaveCount(0);
   await trigger.hover();
   await expect(tray).toBeVisible();
+  await expect(tabs).toHaveCount(0);
   await page.locator(".ProseMirror").hover();
   await expect(tray).toHaveCount(0);
   await expect(tabs).toHaveCount(0);

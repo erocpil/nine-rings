@@ -16,10 +16,11 @@ interface Props {
   onHover?: () => void;
   onPopupEnter?: () => void;
   onPopupLeave?: () => void;
+  popupPlacement?: "below" | "left";
 }
 
 /** One controlled popup per DocumentBrowser, without native select click capture. */
-export function DocumentFilterSelect({ label, text, icon, disabled = false, className = "", value, options, open, onOpenChange, onChange, onHover, onPopupEnter, onPopupLeave }: Props) {
+export function DocumentFilterSelect({ label, text, icon, disabled = false, className = "", value, options, open, onOpenChange, onChange, onHover, onPopupEnter, onPopupLeave, popupPlacement = "below" }: Props) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -63,16 +64,17 @@ export function DocumentFilterSelect({ label, text, icon, disabled = false, clas
     popup.style.minWidth = `${Math.min(rect.width, maxWidth)}px`;
     const below = Math.max(0, bottom - rect.bottom - 4);
     const above = Math.max(0, rect.top - top - 4);
-    const placeAbove = below < Math.min(240, popup.scrollHeight) && above > below;
-    popup.style.maxHeight = `${Math.min(320, placeAbove ? above : below)}px`;
+    const placeLeft = popupPlacement === "left";
+    const placeAbove = popupPlacement === "below" && below < Math.min(240, popup.scrollHeight) && above > below;
+    popup.style.maxHeight = `${Math.min(320, placeLeft ? bottom - top - 16 : placeAbove ? above : below)}px`;
     const box = popup.getBoundingClientRect();
-    popup.style.left = `${Math.max(left, Math.min(rect.left, right - box.width))}px`;
-    popup.style.top = `${Math.max(top, placeAbove ? rect.top - box.height - 4 : rect.bottom + 4)}px`;
+    popup.style.left = `${Math.max(left, Math.min(placeLeft ? rect.left - box.width - 4 : rect.left, right - box.width))}px`;
+    popup.style.top = `${Math.max(top, Math.min(placeLeft ? rect.top : placeAbove ? rect.top - box.height - 4 : rect.bottom + 4, bottom - box.height))}px`;
     const selected = popup.querySelector<HTMLButtonElement>('[aria-selected="true"]') ?? popup.querySelector<HTMLButtonElement>("button");
     selected?.focus({ preventScroll: true });
     // Scroll only the popup, never the document/sidebar containing the trigger.
     if (selected) popup.scrollTop = selected.offsetTop - popup.clientHeight / 2;
-  }, [open]);
+  }, [open, popupPlacement]);
 
   useEffect(() => {
     if (!open) return;

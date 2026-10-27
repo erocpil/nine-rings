@@ -21,7 +21,7 @@ export function WorkspaceAppearanceControls({ config, desktop, disabled, open, o
       open={open === label && !disabled}
       onOpenChange={next => onOpenChange(current => next ? label : current === label ? null : current)}
       onHover={desktop ? () => onOpenChange(current => hoverOpens || current !== null ? label : current) : undefined}
-      onPopupEnter={onPopupEnter} onPopupLeave={onPopupLeave}
+      onPopupEnter={onPopupEnter} onPopupLeave={onPopupLeave} popupPlacement={hoverOpens ? "left" : undefined}
       onChange={value => onChange(patch(value))} />;
   return <div className="exhibition-appearance">
     {choose("工作区风格", config?.interface_style === "calm-compact" ? "calm" : config?.interface_style ?? "calm",
