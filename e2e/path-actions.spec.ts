@@ -31,11 +31,11 @@ test("桌面右键复制目录和文档所在路径，复制失败不假报成�
   const before = await folder(page).boundingBox();
   await folder(page).click({ button: "right" });
   await page.locator(".doc-context-item").getByText("复制路径", { exact: true }).click();
-  await expect(page.locator("body")).toHaveAttribute("data-copied-path", "references/操作目录");
+  await expect(page.locator("body")).toHaveAttribute("data-copied-path", "references");
   await expect(page.locator(".doc-tree-path-toast")).toBeVisible();
   expect((await folder(page).boundingBox())!.y).toBe(before!.y);
   await page.locator(".app-sidebar .doc-tree-doc").filter({ hasText: "路径操作正文" }).click({ button: "right" });
-  await page.locator(".doc-context-item").getByText("复制所在路径", { exact: true }).click();
+  await page.locator(".doc-context-item").getByText("复制路径", { exact: true }).click();
   await expect(page.locator("body")).toHaveAttribute("data-copied-path", "references/操作目录");
   await page.evaluate(() => {
     navigator.clipboard.writeText = async () => { throw new Error("denied"); };

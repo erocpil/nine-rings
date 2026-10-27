@@ -21,6 +21,7 @@ import { LocalFileSearch } from "./LocalFileSearch";
 import type { LocalFileSearchHit } from "../lib/local-files/search";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { copyToClipboard } from "../lib/clipboard";
+import { pathDirName } from "../lib/path-utils";
 import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
 import { BlockActionMenu } from "./BlockActionMenu";
 import { createPortal } from "react-dom";
@@ -469,11 +470,11 @@ export function LocalFilesPanel({ active, onBack }: {
       setContextMenu(current => current?.id === target.id ? { ...current, pathLoading: false } : current);
     });
   };
-  const copyLocalPath = async (path: string) => {
+  const copyLocalValue = async (value: string, kind: "名称" | "路径" | "完整路径") => {
     clearPathNotice();
     setError("");
-    await copyToClipboard(path, { reportFailure: true });
-    showPathNotice(`已复制路径：${path}`);
+    await copyToClipboard(value, { reportFailure: true });
+    showPathNotice(`已复制${kind}：${value}`);
   };
   const renameLocalPath = async (rootId: string, nodeId: string, oldName: string, directory: boolean, destination?: { parent: string; name: string }) => {
     if (!localFileService.canRename(rootId)) throw new Error("目录快照无法重命名，请重新授权原目录");
@@ -549,7 +550,9 @@ export function LocalFilesPanel({ active, onBack }: {
     setRevealRequest({ rootId, nodeId: created, name, sequence: Date.now() });
   };
   const menuActions = contextMenu ? [
-    { label: "复制路径", disabled: contextMenu.pathLoading || !contextMenu.fullPath, run: () => contextMenu.fullPath && void copyLocalPath(contextMenu.fullPath).catch(reason => setError(String(reason))) },
+    { label: "复制名称", run: () => void copyLocalValue(contextMenu.name, "名称").catch(reason => setError(String(reason))) },
+    { label: "复制路径", disabled: contextMenu.pathLoading || !contextMenu.fullPath, run: () => contextMenu.fullPath && void copyLocalValue(pathDirName(contextMenu.fullPath), "路径").catch(reason => setError(String(reason))) },
+    { label: "复制完整路径", disabled: contextMenu.pathLoading || !contextMenu.fullPath, run: () => contextMenu.fullPath && void copyLocalValue(contextMenu.fullPath, "完整路径").catch(reason => setError(String(reason))) },
     ...(contextMenu.directory ? [{ label: "在此目录搜索正文…", run: () => { setSearchScope({ rootId: contextMenu.rootId, node: contextMenu.nodeId }); setTask("search"); } }] : []),
     { label: "重命名", disabled: !localFileService.canRename(contextMenu.rootId) || isLocalFileReadOnly(contextMenu.rootId, contextMenu.nodeId), run: () => void run(`rename:${contextMenu.rootId}:${contextMenu.nodeId}`, () => renameLocalPath(contextMenu.rootId, contextMenu.nodeId, contextMenu.name, contextMenu.directory)) },
     ...(["file", "directory"] as const).map(kind => ({ label: kind === "file" ? "新建文件…" : "新建文件夹…", disabled: !localFileService.canSaveOriginal(contextMenu.rootId), run: () => setOperation({ ...contextMenu, kind }) })),

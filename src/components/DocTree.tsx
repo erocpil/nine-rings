@@ -16,6 +16,7 @@ import { useTransientMessage } from "../hooks/useTransientMessage";
 import { DocumentInfoCard } from "./DocumentInfoCard";
 import { readRecentNoteAccessedAt } from "../lib/quick-switcher";
 import { formatDocumentInfoText } from "../lib/document-info";
+import { joinDisplayPath, pathBaseName, pathDirName } from "../lib/path-utils";
 const DocumentCompareDialog = lazy(() => import("./DocumentCompareDialog"));
 import {
   getDocumentFolderPath,
@@ -463,15 +464,18 @@ function DocTree({
     });
   };
 
-  const handleCopyPath = async (path: string) => {
+  const handleCopyPath = async (
+    path: string,
+    kind: "路径" | "完整路径" = "路径",
+  ) => {
     setContextMenu(null);
     clearPathNotice();
     setSelectionError(null);
     try {
       await copyToClipboard(path, { reportFailure: true });
-      showPathNotice(`已复制路径：${path}`);
+      showPathNotice(`已复制${kind}：${path}`);
     } catch {
-      setSelectionError("复制路径失败，请检查剪贴板权限后重试");
+      setSelectionError(`复制${kind}失败，请检查剪贴板权限后重试`);
     }
   };
 
@@ -1145,7 +1149,9 @@ function DocTree({
         >
           {contextMenu.type === 'folder' ? (
             <>
-              <button className="doc-context-item" onClick={() => void handleCopyPath(contextMenu.path)}>复制路径</button>
+              <button className="doc-context-item" onClick={() => void handleCopyName(pathBaseName(contextMenu.path))}>复制名称</button>
+              <button className="doc-context-item" onClick={() => void handleCopyPath(pathDirName(contextMenu.path))}>复制路径</button>
+              <button className="doc-context-item" onClick={() => void handleCopyPath(contextMenu.path, "完整路径")}>复制完整路径</button>
               <button className="doc-context-item" disabled={disabled || !!exportProgress} onClick={() => void handleExportPath(contextMenu.path)}>导出路径下的文档（Markdown ZIP）</button>
               {onPathSecurity && <>
                 <button className="doc-context-item" onClick={() => { const path = contextMenu.path; setContextMenu(null); void onPathSecurity(path, "set"); }}>
@@ -1173,7 +1179,8 @@ function DocTree({
             <>
               <button className="doc-context-item" onClick={() => void handleCopyName(contextMenu.title)}>复制名称</button>
               <button className="doc-context-item" onClick={() => void handleCopyDocumentInfo(contextMenu.noteId!)}>复制文档信息卡</button>
-              <button className="doc-context-item" onClick={() => void handleCopyPath(getDocumentFolderPath(contextMenu.path, contextMenu.noteId!))}>复制所在路径</button>
+              <button className="doc-context-item" onClick={() => void handleCopyPath(getDocumentFolderPath(contextMenu.path, contextMenu.noteId!))}>复制路径</button>
+              <button className="doc-context-item" onClick={() => void handleCopyPath(joinDisplayPath(getDocumentFolderPath(contextMenu.path, contextMenu.noteId!), contextMenu.title), "完整路径")}>复制完整路径</button>
               <button className="doc-context-item" disabled={disabled} onClick={() => { setCompareSelection([contextMenu.noteId!]); setCompareIds(null); setContextMenu(null); }}>与另一文档比较…</button>
                               <button className="doc-context-item" onClick={() => handleMoveDocument(contextMenu.noteId!, contextMenu.title, contextMenu.path)}>
                   移动到…
