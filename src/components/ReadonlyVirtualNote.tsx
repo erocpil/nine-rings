@@ -259,7 +259,7 @@ export function renderReadonlyBlock(
     case "htmlDetails":
       { const collapsed = state.collapsed ?? node.attrs.open !== true; return <details {...attrs} className="nr-details" open={!collapsed}>
         <summary className="nr-details-summary" onClick={event => { if (event.target instanceof Element && event.target.closest("button")) return; event.preventDefault(); update(pos, { ...state, collapsed: !collapsed }); }}>
-          <span className="nr-details-fold-icon"><EditorFoldIcon expanded={!collapsed} /></span>
+          <span className="nr-details-fold-icon"><EditorFoldIcon scope="block" expanded={!collapsed} /></span>
           <span className="nr-details-title">{String(node.attrs.summary ?? "点击展开")}</span>
           <span className="nr-details-actions">
             <button type="button" title="复制折叠区块" aria-label="复制折叠区块" onClick={event => { event.preventDefault(); event.stopPropagation(); void copyToClipboard(`${String(node.attrs.summary ?? "点击展开")}\n\n${node.textBetween(0, node.content.size, "\n")}`); }}><ToolbarIcon name="copy" /></button>
@@ -359,7 +359,7 @@ export function renderReadonlyBlock(
               aria-expanded={!collapsed}
               onClick={() => update(pos, { collapsed: !collapsed })}
             >
-              <EditorFoldIcon expanded={!collapsed} />
+              <EditorFoldIcon scope="block" expanded={!collapsed} />
             </button>
           </div>
           {isFlow && <DeferredFlowBlock source={node.textContent} visible={showFlow && !collapsed} />}
@@ -1348,7 +1348,7 @@ export function ReadonlyVirtualNote(
                       aria-expanded={!folds.has(section.key)}
                       onClick={() => toggleHeading(section.pos)}
                     >
-                      <EditorFoldIcon expanded={!folds.has(section.key)} />
+                      <EditorFoldIcon outline expanded={!folds.has(section.key)} />
                     </button> : <span className="vr-outline-fold-placeholder" aria-hidden="true" />}
                     <button
                       type="button"
@@ -1749,7 +1749,7 @@ export function ReadonlyVirtualNote(
                       aria-expanded={!folds.has(section.key)}
                       onClick={() => toggleHeading(block.pos)}
                     >
-                      <EditorFoldIcon expanded={!folds.has(section.key)} />
+                      <EditorFoldIcon outline expanded={!folds.has(section.key)} />
                     </button>
                   )}
                   {props.showLineNumbers && <BlockNumber number={block.number} displayNumber={relativeBlockNumbers ? relativeNumber(block.number, currentNumber, visibleNumbers) : block.number} className={`${block.number === currentNumber ? "active" : ""} ${relativeBlockNumbers && block.number === currentNumber ? `relative-current${relativeBlockNumberAlignment === "right" ? " relative-current-right" : ""}` : ""}`} format={block.node.type.name === "codeBlock" ? fencedBlockLabel(block.node.attrs.language) : block.node.type.name === "heading" ? `H${block.node.attrs.level}` : block.node.type.name} onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />}

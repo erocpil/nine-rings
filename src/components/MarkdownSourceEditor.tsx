@@ -37,6 +37,7 @@ import {
   editorFoldPreset,
   editorFoldPresetPatch,
   editorFoldSymbol,
+  scopedFoldSymbolConfig,
 } from "../lib/editor-fold-icons";
 import type { AppConfig } from "../types/models";
 import { numberingDisplays } from "../lib/plugin-system/numbering-display";
@@ -468,7 +469,7 @@ export function MarkdownSourceEditor({
                 ? expanded
                   ? plugin.foldExpanded
                   : plugin.foldCollapsed
-                : editorFoldSymbol(foldConfig, expanded);
+                : editorFoldSymbol(scopedFoldSymbolConfig(foldConfig, "block"), expanded);
               const span = document.createElement("span");
               span.className = "plugin-source-fold-symbol";
               span.setAttribute("aria-hidden", "true");
@@ -890,6 +891,7 @@ export function MarkdownSourceEditor({
     foldConfig?.editor_fold_icon_style,
     foldConfig?.editor_fold_icon_collapsed,
     foldConfig?.editor_fold_icon_expanded,
+    foldConfig?.editor_fold_icon_overrides,
   ]);
   useEffect(() => {
     if (lastValue.current === value) return;

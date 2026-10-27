@@ -1260,7 +1260,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="折叠标识" desc="用于文本区标题、代码／引用块和文档目录；即时生效，不修改正文" visible={settingsPage === "editor"}>
+            <Field label="折叠标识" desc="设置通用标识，也可展开分位置设置文本区标题、代码／引用块和文档目录；即时生效，不修改正文" visible={settingsPage === "editor"}>
               <SettingsFoldIcons config={config} onChange={update} />
             </Field>
 

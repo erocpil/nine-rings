@@ -1,6 +1,6 @@
 import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
 import { useContext } from "react";
-import { editorFoldSymbol, outlineFoldSymbol } from "../lib/editor-fold-icons";
+import { editorFoldSymbol, outlineFoldSymbol, scopedFoldSymbolConfig, type EditorFoldIconScope } from "../lib/editor-fold-icons";
 import { DisclosureIcon } from "./DisclosureIcon";
 
 import { EditorFoldIconContext } from "./EditorFoldIconContext";
@@ -10,9 +10,11 @@ export { EditorFoldIconContext } from "./EditorFoldIconContext";
 export function EditorFoldIcon({
   expanded,
   outline = false,
+  scope = "block",
 }: {
   expanded: boolean;
   outline?: boolean;
+  scope?: Exclude<EditorFoldIconScope, "outline">;
 }) {
   const config = useContext(EditorFoldIconContext);
   const plugin = useNumberingDisplay().blocks;
@@ -23,7 +25,7 @@ export function EditorFoldIcon({
         : plugin.foldCollapsed
       : outline
         ? outlineFoldSymbol(config, expanded)
-        : editorFoldSymbol(config, expanded);
+        : editorFoldSymbol(scopedFoldSymbolConfig(config, scope), expanded);
   return symbol === null ? (
     <DisclosureIcon expanded={expanded} />
   ) : (

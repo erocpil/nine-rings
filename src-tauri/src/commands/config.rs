@@ -149,6 +149,8 @@ pub struct AppConfig {
     pub editor_fold_icon_expanded: String,
     #[serde(default)]
     pub editor_outline_fold_icon_style: Option<String>,
+    #[serde(default = "default_editor_fold_icon_overrides")]
+    pub editor_fold_icon_overrides: serde_json::Value,
     #[serde(default = "default_true")]
     pub editor_show_status_block_number: bool,
     #[serde(default = "default_true")]
@@ -298,6 +300,9 @@ fn default_editor_fold_icon_collapsed() -> String {
 fn default_editor_fold_icon_expanded() -> String {
     "▼".into()
 }
+fn default_editor_fold_icon_overrides() -> serde_json::Value {
+    serde_json::json!({})
+}
 
 fn default_exhibition_text_width() -> String {
     "wide".into()
@@ -404,6 +409,7 @@ impl Default for AppConfig {
             editor_fold_icon_collapsed: default_editor_fold_icon_collapsed(),
             editor_fold_icon_expanded: default_editor_fold_icon_expanded(),
             editor_outline_fold_icon_style: None,
+            editor_fold_icon_overrides: default_editor_fold_icon_overrides(),
             editor_show_status_block_number: true,
             editor_show_status_bar: true,
             editor_readonly_heading_fold: true,
@@ -810,6 +816,7 @@ mod tests {
         assert_eq!(config.editor_fold_icon_collapsed, "▶");
         assert_eq!(config.editor_fold_icon_expanded, "▼");
         assert_eq!(config.editor_outline_fold_icon_style, None);
+        assert_eq!(config.editor_fold_icon_overrides, serde_json::json!({}));
         assert!(config.editor_code_wrap_default);
         assert_eq!(config.user_default_language, "zh-CN");
         assert!(config.user_name.is_empty());

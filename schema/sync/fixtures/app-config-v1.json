@@ -85,6 +85,8 @@
   "editor_fold_icon_collapsed": "▶",
   "editor_fold_icon_expanded": "▼",
   "editor_outline_fold_icon_style": null,
+  "editor_fold_icon_overrides": {},
+  "editor_fold_icon_overrides": {},
   "editor_show_status_block_number": true,
   "editor_show_status_bar": true,
   "editor_readonly_heading_fold": true,

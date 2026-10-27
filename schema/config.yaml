@@ -254,6 +254,11 @@ AppConfig:
       default: "▼"
       description: 自定义展开状态的符号（点击可收起）
 
+    editor_fold_icon_overrides:
+      type: object
+      default: {}
+      description: 正文标题、代码引用块和文档目录的折叠标识覆盖设置
+
     editor_show_status_block_number:
       type: boolean
       default: true

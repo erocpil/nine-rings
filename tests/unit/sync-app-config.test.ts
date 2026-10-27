@@ -1,5 +1,5 @@
 import sharedConfig from "../../schema/sync/fixtures/app-config-v1.json";
-import { CERTIFIED_WEB_CONFIG_KEYS } from "../../src/lib/sync/app-config-policy";
+import { CERTIFIED_WEB_CONFIG_KEYS, isCertifiedWebAppConfig } from "../../src/lib/sync/app-config-policy";
 import "fake-indexeddb/auto";
 import { afterEach, expect, it, vi } from "vitest";
 import { DEFAULT_CONFIG } from "../../src/lib/storage/types";
@@ -53,7 +53,7 @@ it("requires all known fields, rejects unknown fields, malformed values and loss
   for (const key of Object.keys(DEFAULT_CONFIG)) {
     const incomplete = config() as unknown as Record<string, unknown>;
     delete incomplete[key];
-    expect(review(incomplete).eligible, key).toBe(false);
+    expect(review(incomplete).eligible, key).toBe(key === "editor_fold_icon_overrides");
   }
   const invalid = [
     { unknown: true },
@@ -62,6 +62,8 @@ it("requires all known fields, rejects unknown fields, malformed values and loss
     { editor_code_font_family: "arbitrary" },
     { interface_color_mode: "auto" },
     { editor_outline_fold_icon_style: "unknown" },
+    { editor_fold_icon_overrides: { heading: { style: "custom", collapsed: "123456789" } } },
+    { editor_fold_icon_overrides: { unexpected: { style: "triangle" } } },
     { highlight_active_line: "true" },
     { interface_font_size: "16" },
     { navigation_tree_text_color: "url(secret)" },
@@ -81,6 +83,13 @@ it("requires all known fields, rejects unknown fields, malformed values and loss
   ];
   for (const partial of invalid)
     expect(review({ ...config(), ...partial }).eligible).toBe(false);
+});
+
+it("accepts a complete app-config-v1 backup from before per-location fold markers", () => {
+  const legacy = config() as unknown as Record<string, unknown>;
+  delete legacy.editor_fold_icon_overrides;
+  expect(review(legacy)).toMatchObject({ eligible: true });
+  expect(isCertifiedWebAppConfig(legacy)).toBe(true);
 });
 
 it("round-trips a complete customized config through actual import, storage, read, edit and export", async () => {

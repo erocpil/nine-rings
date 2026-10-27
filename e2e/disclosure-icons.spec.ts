@@ -78,10 +78,12 @@ test("章节目录默认小三角，正文默认箭头，可独立设置并持�
   await page.getByTitle("文档目录", { exact: true }).click();
   await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
-  const style = page.getByRole("combobox", { name: "章节目录折叠标识", exact: true });
+  await page.getByRole("button", { name: "分别设置各处折叠标识" }).click();
+  const style = page.getByRole("combobox", { name: "文档目录折叠标识", exact: true });
   await expect(style).toHaveValue("triangle");
   await style.selectOption("chevron");
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config") || "{}").editor_outline_fold_icon_style)).toBe("chevron");
+  await expect(style).toHaveValue("chevron");
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config") || "{}").editor_fold_icon_overrides?.outline?.style ?? null)).toBe("chevron");
   await page.getByLabel("关闭设置").click();
   await page.getByTitle("文档目录", { exact: true }).click();
   await expect(page.getByRole("button", { name: "折叠章节 标题", exact: true }).locator(".editor-fold-symbol, .disclosure-icon")).toBeVisible();
@@ -172,10 +174,15 @@ test("编辑器折叠标识支持预设、自定义、立即应用及重启保�
   await page.getByRole("textbox", { name: "展开状态符号" }).fill("−");
   await expect(page.getByLabel("折叠标识预览").locator(".editor-fold-symbol")).toHaveText(["+", "−"]);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config") || "{}").editor_fold_icon_expanded)).toBe("−");
+  await page.getByRole("button", { name: /分别设置各处折叠标识|收起分位置设置/ }).click();
+  await page.getByRole("combobox", { name: "文本区标题折叠标识" }).selectOption("right-down-arrows");
+  await page.getByRole("combobox", { name: "代码／引用块折叠标识" }).selectOption("angle-down");
+  await page.getByRole("combobox", { name: "文档目录折叠标识" }).selectOption("plus-minus");
+  await expect(page.getByLabel("折叠标识预览").locator(".editor-fold-symbol")).toHaveText(["→", "↓", "›", "+"]);
   await page.locator(".settings-close").click();
-  for (const name of ["折叠第 1 块章节", "折叠引用块", "折叠代码块"]) {
-    await expect(page.getByRole("button", { name, exact: true })).toHaveText("−");
-  }
+  await expect(page.getByRole("button", { name: "折叠第 1 块章节", exact: true })).toHaveText("↓");
+  await expect(page.getByRole("button", { name: "折叠引用块", exact: true })).toHaveText("⌄");
+  await expect(page.getByRole("button", { name: "折叠代码块", exact: true })).toHaveText("⌄");
   await expect(page.locator(".doc-tree-folder-chevron").first().locator("svg")).toBeVisible();
   await page.getByTitle("文档目录", { exact: true }).click();
   await expect(page.getByRole("button", { name: "折叠章节 标题", exact: true })).toHaveText("−");
@@ -183,11 +190,14 @@ test("编辑器折叠标识支持预设、自定义、立即应用及重启保�
   await expect(page.getByRole("button", { name: "展开章节 标题", exact: true })).toHaveText("+");
   await page.getByRole("button", { name: "展开章节 标题", exact: true }).click();
   await page.reload();
-  await expect(page.getByRole("button", { name: "折叠第 1 块章节", exact: true })).toHaveText("−");
+  await expect(page.getByRole("button", { name: "折叠第 1 块章节", exact: true })).toHaveText("↓");
   await openSettings();
   await expect(style).toHaveValue("plus-minus");
   await expect(page.getByRole("textbox", { name: "收起状态符号" })).toHaveValue("+");
   await style.selectOption("chevron");
+  const detailToggle = page.getByRole("button", { name: /分别设置各处折叠标识|收起分位置设置/ });
+  if (await detailToggle.getAttribute("aria-expanded") !== "true") await detailToggle.click();
+  await page.getByRole("combobox", { name: "文本区标题折叠标识" }).selectOption("inherit");
   await page.locator(".settings-close").click();
   await expect(page.getByRole("button", { name: "折叠第 1 块章节", exact: true }).locator(".disclosure-icon.expanded")).toBeVisible();
 });

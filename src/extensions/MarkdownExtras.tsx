@@ -78,7 +78,7 @@ function DetailsView({ node, editor, getPos }: NodeViewProps) {
   };
   return <NodeViewWrapper as="details" className="nr-details" open={open || workspace}>
     <summary className="nr-details-summary" contentEditable={false} onClick={event => { event.preventDefault(); toggle(); }}>
-      <span className="nr-details-fold-icon"><EditorFoldIcon expanded={open} /></span>
+      <span className="nr-details-fold-icon"><EditorFoldIcon scope="block" expanded={open} /></span>
       <span className="nr-details-title">{String(node.attrs.summary ?? "点击展开")}</span>
       <span className="nr-details-actions">
         <button type="button" title={copied ? "已复制" : "复制折叠区块"} aria-label="复制折叠区块"

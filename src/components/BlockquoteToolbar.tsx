@@ -77,7 +77,7 @@ export function BlockquoteToolbar({ text, collapsed, toggle, onOpen, position, a
           aria-label={collapsed ? "展开引用块" : "折叠引用块"}
           aria-expanded={!collapsed}
           title={collapsed ? "展开引用块" : "折叠引用块"}
-        ><span className="blockquote-fold-icon" aria-hidden="true"><EditorFoldIcon expanded={!collapsed} /></span></button>
+        ><span className="blockquote-fold-icon" aria-hidden="true"><EditorFoldIcon scope="block" expanded={!collapsed} /></span></button>
       </div>
   );
 }

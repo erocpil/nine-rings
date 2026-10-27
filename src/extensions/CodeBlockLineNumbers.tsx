@@ -452,7 +452,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: No
               aria-label={collapsed ? `展开${isFlow ? "流程" : "代码"}块` : `折叠${isFlow ? "流程" : "代码"}块`}
               aria-expanded={!collapsed}
               title={collapsed ? `展开${isFlow ? "流程" : "代码"}块` : `折叠${isFlow ? "流程" : "代码"}块`}
-            ><EditorFoldIcon expanded={!collapsed} /></button>
+            ><EditorFoldIcon scope="block" expanded={!collapsed} /></button>
           </div>
         </div>
         {isFlow && <DeferredFlowBlock source={code} visible={showDiagram && !collapsed} />}

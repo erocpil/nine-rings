@@ -1222,7 +1222,7 @@ export function EpubReader({ documentId, fullscreen: controlledFullscreen, onClo
               const next = new Set(current);
               if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId);
               return next;
-            })}><EditorFoldIcon expanded={!collapsed} /></button>
+            })}><EditorFoldIcon outline expanded={!collapsed} /></button>
             : <span className="epub-toc-disclosure-placeholder" />}
           <button type="button" className={`epub-toc-link${itemChapter === chapter ? " active" : ""}`} onClick={() => { navigateTo(item.path, item.fragment); if (embedded) setTocOpen(false); }}>{item.label}</button>
         </div>

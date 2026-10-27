@@ -7,6 +7,9 @@ import {
   editorFoldPresetPatch,
   outlineFoldStyle,
   outlineFoldSymbol,
+  scopedFoldOverridePatch,
+  scopedFoldPreset,
+  scopedFoldSymbolConfig,
 } from "../../src/lib/editor-fold-icons";
 
 describe("editor fold icons", () => {
@@ -106,5 +109,36 @@ describe("editor fold icons", () => {
     expect(
       editorFoldSymbol({ ...config, editor_fold_icon_expanded: "<b>" }, true),
     ).toBe("<b>");
+  });
+
+  it("allows heading, block, and outline symbols to override the shared preset independently", () => {
+    const config = {
+      ...DEFAULT_EDITOR_FOLD_ICONS,
+      editor_fold_icon_style: "custom" as const,
+      editor_fold_icon_collapsed: "+",
+      editor_fold_icon_expanded: "−",
+      editor_fold_icon_overrides: {
+        heading: { style: "custom" as const, collapsed: "→", expanded: "↓" },
+        block: { style: "custom" as const, collapsed: "›", expanded: "⌄" },
+        outline: { style: "custom" as const, collapsed: "<", expanded: ">" },
+      },
+    };
+    expect(editorFoldSymbol(scopedFoldSymbolConfig(config, "heading"), false)).toBe("→");
+    expect(editorFoldSymbol(scopedFoldSymbolConfig(config, "heading"), true)).toBe("↓");
+    expect(editorFoldSymbol(scopedFoldSymbolConfig(config, "block"), false)).toBe("›");
+    expect(editorFoldSymbol(scopedFoldSymbolConfig(config, "block"), true)).toBe("⌄");
+    expect(outlineFoldSymbol(config, false)).toBe("<");
+    expect(outlineFoldSymbol(config, true)).toBe(">");
+    expect(scopedFoldPreset(config, "heading")).toBe("right-down-arrows");
+    expect(scopedFoldPreset(config, "block")).toBe("angle-down");
+    expect(scopedFoldPreset(config, "outline")).toBe("custom");
+
+    const following = {
+      ...config,
+      editor_fold_icon_overrides: scopedFoldOverridePatch(config, "heading", "inherit"),
+    };
+    expect(editorFoldSymbol(scopedFoldSymbolConfig(following, "heading"), false)).toBe("+");
+    expect(editorFoldSymbol(scopedFoldSymbolConfig(following, "heading"), true)).toBe("−");
+    expect(editorFoldSymbol(scopedFoldSymbolConfig(config, "block"), false)).toBe("›");
   });
 });

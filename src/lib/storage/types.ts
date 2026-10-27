@@ -77,7 +77,8 @@ export interface AppConfig {
   editor_fold_icon_style: "chevron" | "triangle" | "custom";
   editor_fold_icon_collapsed: string;
   editor_fold_icon_expanded: string;
-  editor_outline_fold_icon_style: "triangle" | "chevron" | "inherit" | null;
+  editor_outline_fold_icon_style: "triangle" | "chevron" | "inherit" | "custom" | null;
+  editor_fold_icon_overrides: Record<string, { style: "inherit" | "chevron" | "triangle" | "custom"; collapsed?: string; expanded?: string }>;
   editor_show_status_block_number: boolean;
   editor_show_status_bar: boolean;
   editor_readonly_heading_fold: boolean;
@@ -169,6 +170,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   editor_fold_icon_collapsed: "▶",
   editor_fold_icon_expanded: "▼",
   editor_outline_fold_icon_style: null,
+  editor_fold_icon_overrides: {},
   editor_show_status_block_number: true,
   editor_show_status_bar: true,
   editor_readonly_heading_fold: true,

@@ -113,7 +113,7 @@ export const TableOfContentsBlock = memo(function TableOfContentsBlock({
             onMouseDown={(event) => event.preventDefault()}
             onClick={toggle}
           >
-            <EditorFoldIcon expanded={!collapsed} />
+            <EditorFoldIcon outline expanded={!collapsed} />
           </button>
         )}
       </header>

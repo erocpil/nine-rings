@@ -76,6 +76,7 @@ export const CERTIFIED_WEB_CONFIG_KEYS = [
   "editor_fold_icon_collapsed",
   "editor_fold_icon_expanded",
   "editor_outline_fold_icon_style",
+  "editor_fold_icon_overrides",
   "editor_show_status_block_number",
   "editor_show_status_bar",
   "editor_readonly_heading_fold",
@@ -124,7 +125,7 @@ const enums: Partial<Record<keyof AppConfig, readonly (string | null)[]>> = {
     "dracula",
   ],
   editor_fold_icon_style: ["chevron", "triangle", "custom"],
-  editor_outline_fold_icon_style: [null, "triangle", "chevron", "inherit"],
+  editor_outline_fold_icon_style: [null, "triangle", "chevron", "inherit", "custom"],
 };
 const fonts = ["system", "sans", "serif", "monospace"];
 const sensitive =
@@ -135,15 +136,29 @@ const record = (value: unknown): value is Record<string, unknown> =>
 export function isCertifiedWebAppConfig(input: unknown): input is AppConfig {
   if (!record(input)) return false;
   const keys = CERTIFIED_WEB_CONFIG_KEYS;
-  if (
-    Object.keys(input).length !== keys.length ||
-    keys.some((key) => !Object.prototype.hasOwnProperty.call(input, key))
-  )
-    return false;
+  // This additive preference was introduced after app-config-v1. Older
+  // complete configs remain readable and inherit the empty override map.
+  const legacyWithoutFoldOverrides =
+    !Object.prototype.hasOwnProperty.call(input, "editor_fold_icon_overrides") &&
+    Object.keys(input).length === keys.length - 1 &&
+    keys.filter((key) => key !== "editor_fold_icon_overrides").every((key) =>
+      Object.prototype.hasOwnProperty.call(input, key),
+    );
+  const hasInvalidKeySet =
+    Object.keys(input).length !== keys.length - Number(legacyWithoutFoldOverrides) ||
+    keys.some((key) =>
+      !Object.prototype.hasOwnProperty.call(input, key) &&
+      !(legacyWithoutFoldOverrides && key === "editor_fold_icon_overrides"),
+    );
+  if (hasInvalidKeySet) return false;
   for (const key of keys) {
-    const value = input[key];
+    const value = key === "editor_fold_icon_overrides" && legacyWithoutFoldOverrides
+      ? {}
+      : input[key];
     const options = enums[key];
-    if (options) {
+    if (key === "editor_fold_icon_overrides") {
+      if (!isValidFoldIconOverrides(value)) return false;
+    } else if (options) {
       if (!options.includes(value as string | null)) return false;
     } else if (key.endsWith("_font_family")) {
       const choices =
@@ -178,10 +193,22 @@ export function isCertifiedWebAppConfig(input: unknown): input is AppConfig {
       return false;
   }
   // Legacy palette/style migrations must not silently change a candidate's hash.
-  return (
-    canonicalJson(normalizePersistedConfig(input as unknown as AppConfig)) ===
-    canonicalJson(input)
-  );
+  const completeInput = { ...DEFAULT_CONFIG, ...input } as AppConfig;
+  return canonicalJson(normalizePersistedConfig(completeInput)) === canonicalJson(completeInput);
+}
+
+function isValidFoldIconOverrides(value: unknown): boolean {
+  if (!record(value)) return false;
+  for (const [scope, raw] of Object.entries(value)) {
+    if (scope !== "heading" && scope !== "block" && scope !== "outline") return false;
+    if (!record(raw) || Object.keys(raw).some(key => !["style", "collapsed", "expanded"].includes(key))) return false;
+    if (!["inherit", "chevron", "triangle", "custom"].includes(String(raw.style))) return false;
+    for (const key of ["collapsed", "expanded"] as const) {
+      const symbol = raw[key];
+      if (symbol !== undefined && (typeof symbol !== "string" || Array.from(symbol).length > 8)) return false;
+    }
+  }
+  return true;
 }
 
 const nativeFractionalFields = new Set([
