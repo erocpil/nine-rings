@@ -97,7 +97,7 @@ test("本地文件树可关闭单个打开文件和目录下的全部打开文�
   await expect(viewer).toBeHidden();
 });
 
-test("本地 Markdown 文件在工具栏下显示目录，且目录双击滚动正文", async ({ page }, testInfo) => {
+test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击滚动正文", async ({ page }, testInfo) => {
   await createBlankDocument(page, "本地 Markdown 目录");
   await closeDocumentSidebar(page);
   await page.evaluate(async () => {
@@ -121,6 +121,17 @@ test("本地 Markdown 文件在工具栏下显示目录，且目录双击滚动�
   const outline = viewer.getByRole("navigation", { name: "本地文件目录" });
   await expect(outline).toBeVisible();
   await expect(outline.locator(".document-outline-item")).toHaveCount(24);
+  const editorBounds = (await viewer.locator(".local-file-editor-shell").boundingBox())!;
+  const outlineBounds = (await outline.boundingBox())!;
+  expect(outlineBounds.x).toBeGreaterThanOrEqual(editorBounds.x + editorBounds.width - 1);
+  expect(Math.abs(outlineBounds.y - editorBounds.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(outlineBounds.height - editorBounds.height)).toBeLessThanOrEqual(1);
+  const resize = await outline.getByRole("separator").boundingBox();
+  await page.mouse.move(resize!.x + resize!.width / 2, resize!.y + 50);
+  await page.mouse.down();
+  await page.mouse.move(resize!.x - 60, resize!.y + 50);
+  await page.mouse.up();
+  await expect.poll(async () => (await outline.boundingBox())!.width).toBeGreaterThan(outlineBounds.width + 40);
   await outline.getByRole("button", { name: "滚动至底部", exact: true }).dblclick();
   await expect.poll(() => viewer.locator(".cm-scroller").evaluate(element => element.scrollTop)).toBeGreaterThan(0);
   await viewer.getByRole("button", { name: "预览", exact: true }).click();

@@ -684,7 +684,17 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       <button type="button" className="btn-icon" title="重新读取原文件" aria-label="重新读取原文件" disabled={loading} onClick={() => { editorSession.current = null; setReload(value => value + 1); }}><ToolbarIcon name="refresh" /></button>
       <button type="button" className="btn-icon" title="返回原视图" aria-label="返回原视图" onClick={onClose}><ToolbarIcon name="chevronLeft" /></button>
     </header>
-    {activePanel === "outline" && <nav className="local-file-inline-outline" aria-label="本地文件目录">
+    {recoveryNotice && <p role="status" className="local-files-message">{recoveryNotice}<button type="button" onClick={() => setRecoveryNotice("")} aria-label="关闭提示">×</button></p>}
+    {loading && <p role="status" className="local-files-message">正在读取文件…</p>}
+    {error && <p role="alert" className="local-files-message">{error}</p>}
+    {externalSnapshot && <section className="local-file-conflict" aria-label="文件冲突处理"><strong>磁盘文件已发生变化</strong><p>当前编辑和磁盘版本均已保留。比较后选择重载，或明确覆盖磁盘版本。</p>
+      <TextDiffView left={externalSnapshot.source} right={source} leftLabel="磁盘版本" rightLabel="本机编辑" />
+      <div><button type="button" onClick={() => { setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
+    </section>}
+    {!loading && !error && <div className={`local-file-workspace${activePanel ? " has-local-file-dock" : ""}`} style={{ "--local-file-panel-width": `${panelWidth}px` } as CSSProperties}>
+      <div className="local-file-editor-shell">{preview ? isMarkdown && markdownDoc ? <LocalMarkdownPreview doc={markdownDoc} source={source} onClick={openRelative} /> : <div className="editor-content local-file-preview">{previewError && <p role="status" className="local-files-message">{previewError}</p>}{isMermaid ? <DeferredMermaidDiagram source={source} /> : isFlow ? <FlowBlockContent source={source} /> : <pre>{source}</pre>}</div> : <MarkdownSourceEditor value={source} readonly={!editing} contextMenuEnabled onToggleLineBookmark={toggleBookmark} areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={next => { sourceRef.current = next; setSource(next); }} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus={saveState} documentLanguage={language} documentLanguageValue={languageOverride ?? AUTO_DOCUMENT_LANGUAGE} documentLanguageOptions={documentLanguageViewOptions(detectedLanguage)} onDocumentLanguageChange={next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); }} onEditorConfigChange={onEditorConfigChange} />}</div>{panel}
+      {activePanel === "outline" && <nav className="local-file-dock local-file-outline document-panel-dock dock-right" aria-label="本地文件目录">
+      <div className="document-dock-width-handle" role="separator" aria-orientation="vertical" aria-label="调整本地文件目录宽度" onPointerDown={beginPanelResize} />
       <div className="document-outline-header">
         <div className="document-outline-header-primary"><strong>目录</strong><span className="document-outline-count">{markdownOutline.length} 项</span></div>
         <div className="document-outline-header-actions">
@@ -698,15 +708,6 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       </div>
       {outlineEntries.length ? <DocumentOutlineList entries={outlineEntries} activeOutlineIndex={activeOutlineIndex} followActive outlineBaseLevel={markdownOutline.reduce((level, item) => Math.min(level, item.level), 6)} listRef={outlineListRef} onToggleFold={position => setFoldedHeadings(current => { const next = new Set(current); if (next.has(position)) next.delete(position); else next.add(position); return next; })} onJump={jumpToOutline} /> : <div className="local-file-panel-list"><p>当前文档没有标题</p></div>}
     </nav>}
-    {recoveryNotice && <p role="status" className="local-files-message">{recoveryNotice}<button type="button" onClick={() => setRecoveryNotice("")} aria-label="关闭提示">×</button></p>}
-    {loading && <p role="status" className="local-files-message">正在读取文件…</p>}
-    {error && <p role="alert" className="local-files-message">{error}</p>}
-    {externalSnapshot && <section className="local-file-conflict" aria-label="文件冲突处理"><strong>磁盘文件已发生变化</strong><p>当前编辑和磁盘版本均已保留。比较后选择重载，或明确覆盖磁盘版本。</p>
-      <TextDiffView left={externalSnapshot.source} right={source} leftLabel="磁盘版本" rightLabel="本机编辑" />
-      <div><button type="button" onClick={() => { setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
-    </section>}
-    {!loading && !error && <div className={`local-file-workspace${activePanel && activePanel !== "outline" ? " has-local-file-dock" : ""}`} style={{ "--local-file-panel-width": `${panelWidth}px` } as CSSProperties}>
-      <div className="local-file-editor-shell">{preview ? isMarkdown && markdownDoc ? <LocalMarkdownPreview doc={markdownDoc} source={source} onClick={openRelative} /> : <div className="editor-content local-file-preview">{previewError && <p role="status" className="local-files-message">{previewError}</p>}{isMermaid ? <DeferredMermaidDiagram source={source} /> : isFlow ? <FlowBlockContent source={source} /> : <pre>{source}</pre>}</div> : <MarkdownSourceEditor value={source} readonly={!editing} contextMenuEnabled onToggleLineBookmark={toggleBookmark} areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={next => { sourceRef.current = next; setSource(next); }} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus={saveState} documentLanguage={language} documentLanguageValue={languageOverride ?? AUTO_DOCUMENT_LANGUAGE} documentLanguageOptions={documentLanguageViewOptions(detectedLanguage)} onDocumentLanguageChange={next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); }} onEditorConfigChange={onEditorConfigChange} />}</div>{panel}
     </div>}
   </section>;
 }

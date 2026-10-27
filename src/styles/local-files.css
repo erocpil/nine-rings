@@ -219,18 +219,9 @@
   background: var(--bg);
 }
 .local-file-view[data-tools-hidden] .markdown-source-tools { display: none !important; }
-.local-file-inline-outline {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  max-height: min(34vh, 320px);
-  min-height: 0;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
-}
-.local-file-inline-outline > .document-outline-header { flex: 0 0 36px; min-height: 36px; box-sizing: border-box; }
-.local-file-inline-outline > .document-outline-list { flex: 1; min-height: 0; overflow: auto; }
-.local-file-inline-outline > .local-file-panel-list { flex: 1; min-height: 0; overflow: auto; }
+.local-file-outline > .document-outline-header { flex: 0 0 auto; min-height: 36px; box-sizing: border-box; background: var(--bg); }
+.local-file-outline > .document-outline-list,
+.local-file-outline > .local-file-panel-list { flex: 1; min-height: 0; overflow: auto; }
 .local-file-workspace {
   flex: 1;
   min-height: 0;
