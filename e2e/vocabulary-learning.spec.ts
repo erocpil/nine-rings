@@ -457,9 +457,11 @@ test("词汇列表外观实时配置保留当前视图，定位清除筛选并�
   await page.getByRole("complementary", { name: "插件列表" }).getByRole("button", { name: "词汇学习", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "词汇学习配置" });
   await dialog.getByRole("combobox", { name: "列表字体", exact: true }).selectOption("mono");
-  for (const [label, value] of [["列表字号", "20"], ["列表行高", "1.8"], ["条目最小高度", "52"]]) {
-    await dialog.getByRole("spinbutton", { name: label, exact: true }).fill(value);
-    await dialog.getByRole("spinbutton", { name: label, exact: true }).press("Enter");
+  for (const [label, value, property, expected] of [["列表字号", "20", "font-size", "20px"], ["列表行高", "1.8", "line-height", "36px"], ["条目最小高度", "52", "min-height", "52px"]]) {
+    const input = dialog.getByRole("spinbutton", { name: label, exact: true });
+    await input.fill(value);
+    await expect(input).toBeFocused();
+    await expect(word).toHaveCSS(property, expected);
   }
   await expect(word).toHaveCSS("font-size", "20px");
   await expect(word).toHaveCSS("line-height", "36px");

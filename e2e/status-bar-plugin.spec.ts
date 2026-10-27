@@ -51,6 +51,14 @@ test('状态栏展示插件配置、接管内置设置及停用恢复',async({pa
  await page.getByRole('button',{name:'状态栏展示',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:'状态栏展示配置',exact:true});
  await dialog.getByRole('spinbutton',{name:'状态栏字号',exact:true}).fill('14');
+ await expect(dialog.getByRole('spinbutton',{name:'状态栏字号',exact:true})).toBeFocused();
+ await expect(page.getByRole('group',{name:'文档状态栏',exact:true})).toHaveCSS('font-size','14px');
+ for(const [label,value,property] of [['上下留白','6','--statusbar-padding'],['信息项间距','12','--statusbar-gap']]) {
+  const input=dialog.getByRole('spinbutton',{name:label,exact:true});
+  await input.fill(value);
+  await expect(input).toBeFocused();
+  await expect(page.getByRole('group',{name:'文档状态栏',exact:true})).toHaveCSS(property,`${value}px`);
+ }
  await dialog.getByRole('checkbox',{name:'状态栏粗体',exact:true}).check();
  await dialog.getByRole('checkbox',{name:'显示字符数',exact:true}).uncheck();
  await dialog.getByRole('button',{name:'阅读或光标位置前移',exact:true}).click();

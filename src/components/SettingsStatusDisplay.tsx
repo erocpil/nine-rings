@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { Field } from "./SettingsFields";
+import { SettingsNumberInput } from "./SettingsNumberInput";
 import {
   readStatusPreference,
   saveStatusPreference,
@@ -94,17 +95,12 @@ export function SettingsStatusDisplay({
             ] as const
           ).map(([key, label, min, max]) => (
             <Field key={key} label={`${label}（px）`} desc="">
-              <input
-                type="number"
-                aria-label={label}
+              <SettingsNumberInput
+                label={label}
                 min={min}
                 max={max}
-                key={`${key}:${display[key]}`}
-                defaultValue={display[key]}
-                onBlur={(e) => update({ [key]: Number(e.target.value) })}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") e.currentTarget.blur();
-                }}
+                value={display[key]}
+                onChange={value => update({ [key]: value })}
               />
             </Field>
           ))}

@@ -7,6 +7,7 @@ import {
   type VocabularyListAppearance,
 } from "../lib/plugin-system/builtin-vocabulary";
 import { Field } from "./SettingsFields";
+import { SettingsNumberInput } from "./SettingsNumberInput";
 
 export function SettingsVocabularyAppearance({
   onMessage,
@@ -50,26 +51,14 @@ export function SettingsVocabularyAppearance({
         ] as const
       ).map(([key, label, unit, min, max, step]) => (
         <Field key={key} label={label} desc={`${min}–${max} ${unit}`}>
-          <input
+          <SettingsNumberInput
             className="settings-input"
-            type="number"
-            aria-label={label}
-            key={preference[key]}
-            defaultValue={preference[key]}
+            label={label}
+            value={preference[key]}
             min={min}
             max={max}
             step={step}
-            onBlur={(event) => {
-              if (!event.target.value || !event.target.validity.valid) {
-                event.target.value = String(readVocabularyPreference()[key]);
-                onMessage(`请输入 ${min}–${max} 范围内的数值`);
-                return;
-              }
-              save({ [key]: Number(event.target.value) });
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") event.currentTarget.blur();
-            }}
+            onChange={value => save({ [key]: value })}
           />
         </Field>
       ))}

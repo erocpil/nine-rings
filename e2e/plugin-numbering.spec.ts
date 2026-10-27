@@ -24,6 +24,40 @@ async function enable(page: import("@playwright/test").Page) {
   return page.getByRole("dialog", { name: "编号展示配置", exact: true });
 }
 
+test("编号展示参数在输入框保持焦点时即时生效，无需关闭配置或停用插件", async ({ page }) => {
+  await createBlankDocument(page);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  await page.locator(".cm-content").fill("# Heading\n\nBody");
+  const config = await enable(page);
+  await config.getByLabel("编号配置目标", { exact: true }).selectOption("source");
+  const gutter = page.locator(".markdown-cm-host .cm-gutters");
+  for (const [label, value, selector, property] of [
+    ["竖线宽度", "3", ".cm-gutters", "border-right-width"],
+    ["竖线左侧留白", "10", ".cm-lineNumbers .cm-gutterElement", "padding-right"],
+    ["竖线右侧留白", "12", ".cm-line", "padding-left"],
+    ["编号字号", "17", ".cm-lineNumbers .cm-gutterElement", "font-size"],
+  ]) {
+    const input = config.getByRole("spinbutton", { name: label, exact: true });
+    await input.fill(value);
+    await expect(input).toBeFocused();
+    await expect(page.locator(`.markdown-cm-host ${selector}`).first()).toHaveCSS(property, `${value}px`);
+    await expect(page.locator("html")).toHaveAttribute("data-numbering-source", "");
+  }
+  const width = config.getByRole("spinbutton", { name: "竖线宽度", exact: true });
+  await width.fill("");
+  await expect(gutter).toHaveCSS("border-right-width", "3px");
+  await width.fill("0");
+  await expect(gutter).toHaveCSS("border-right-width", "0px");
+  await width.fill("1");
+  await expect(gutter).toHaveCSS("border-right-width", "1px");
+  const symbol = config.getByRole("textbox", { name: "展开状态符号", exact: true });
+  await symbol.fill("−");
+  await expect(symbol).toBeFocused();
+  await expect(page.locator('.plugin-source-fold-symbol:visible').first()).toHaveText("−");
+  await config.getByRole("checkbox", { name: "编号斜体", exact: true }).check();
+  await expect(page.locator(".cm-lineNumbers .cm-gutterElement").first()).toHaveCSS("font-style", "italic");
+});
+
 for (const virtual of [false, true])
   test(`当前块底色覆盖完整块高及折叠栏，随布局和折叠更新，局部只读=${virtual}`, async ({ page }) => {
     await createBlankDocument(page);

@@ -1,4 +1,5 @@
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { SettingsNumberInput } from "./SettingsNumberInput";
 import { Field } from "./SettingsFields";
 import {
   DEFAULT_NUMBERING_DISPLAYS,
@@ -162,16 +163,13 @@ export function SettingsNumberingDisplay({
             </select>
           </Field>
           <Field desc="" label="编号字号">
-            <input
-              type="number"
-              aria-label="编号字号"
+            <SettingsNumberInput
+              label="编号字号"
               min={9}
               max={24}
-              defaultValue={display.fontSize}
-              key={`${target}:${display.fontSize}`}
-              onBlur={(event) =>
-                update({ fontSize: Number(event.target.value) })
-              }
+              value={display.fontSize}
+              key={target}
+              onChange={value => update({ fontSize: value })}
             />
           </Field>
           {color("color", "编号颜色")}
@@ -184,10 +182,7 @@ export function SettingsNumberingDisplay({
               ["sourceDividerLeftSpace", "竖线左侧留白", 24],
               ["sourceDividerRightSpace", "竖线右侧留白", 24],
             ] as const).map(([key, label, maximum]) => <Field key={key} desc="" label={label}>
-              <input type="number" aria-label={label} min={0} max={maximum} step={1} defaultValue={display[key]} key={`${target}:${key}:${display[key]}`} onBlur={event => {
-                const value = Number(event.currentTarget.value);
-                update({ [key]: Number.isFinite(value) ? Math.min(maximum, Math.max(0, Math.round(value))) : display[key] });
-              }} />
+              <SettingsNumberInput label={label} min={0} max={maximum} value={display[key]} key={`${target}:${key}`} onChange={value => update({ [key]: value })} />
             </Field>)}
           </>}
         </section>
@@ -235,17 +230,7 @@ export function SettingsNumberingDisplay({
             ] as const
           ).map(([key, label]) => (
             <Field desc="" key={`${target}:${key}`} label={label}>
-              <input
-                type="text"
-                aria-label={label}
-                maxLength={8}
-                defaultValue={display[key]}
-                onBlur={(event) => update({ [key]: event.target.value })}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.nativeEvent.isComposing)
-                    event.currentTarget.blur();
-                }}
-              />
+              <NumberingSymbolInput label={label} value={display[key]} onChange={value => update({ [key]: value })} />
             </Field>
           ))}
           {target === "source" && <>
@@ -282,4 +267,16 @@ export function SettingsNumberingDisplay({
       </button>
     </>
   );
+}
+
+function NumberingSymbolInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return <input type="text" aria-label={label} maxLength={8} value={draft} onChange={event => {
+    const text = event.currentTarget.value;
+    setDraft(text);
+    if (text.trim() && Array.from(text).length <= 4 && Array.from(text).every(char => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127) && text !== value) onChange(text);
+  }} onBlur={() => setDraft(value)} onKeyDown={event => {
+    if (event.key === "Enter" && !event.nativeEvent.isComposing) event.currentTarget.blur();
+  }} />;
 }
