@@ -54,7 +54,16 @@ test("本地文件树长名称和深层路径可横向滚动，宽窄布局均�
   await openDocumentSidebar(page);
   await pan();
   await file.click();
-  await expect(page.getByRole("region", { name: "本地文件工作区" }).locator(".local-file-titlebar strong")).toHaveText(fileName);
+  const viewer = page.getByRole("region", { name: "本地文件工作区" });
+  await expect(viewer.locator(".local-file-titlebar strong")).toHaveText(fileName);
+  const sourceTools = viewer.locator(".markdown-source-tools");
+  const moreTools = viewer.getByRole("button", { name: "更多工具", exact: true });
+  await expect(sourceTools).toBeVisible();
+  await expect(moreTools).toHaveAttribute("aria-expanded", "true");
+  await moreTools.click();
+  await expect(sourceTools).toBeHidden();
+  await moreTools.click();
+  await expect(sourceTools).toBeVisible();
   await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
 });
 

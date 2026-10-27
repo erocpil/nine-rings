@@ -171,6 +171,7 @@
   color: var(--text);
   background: var(--bg);
 }
+.local-file-view[data-tools-hidden] .markdown-source-tools { display: none !important; }
 .local-file-workspace {
   flex: 1;
   min-height: 0;

@@ -29,6 +29,9 @@ import { mainViews } from "../lib/plugin-system/main-view-registry";
 import { workspacePanels } from "../lib/plugin-system/panel-registry";
 import { copyToClipboard } from "../lib/clipboard";
 import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
+import { useFocusEditorTools } from "../stores/useFocusEditorTools";
+import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
+import { shortcutTitle } from "../lib/editor-shortcuts";
 import "../styles/local-files.css";
 
 type LocalPanel = "symbols" | "bookmarks" | "matches";
@@ -92,7 +95,7 @@ function LocalMarkdownPreview({ doc, source, onClick }: { doc: ProseMirrorNode; 
   </div>;
 }
 
-export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange }: {
+export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange, active, focusMode }: {
   data: Readonly<LocalFileViewData>;
   onClose: () => void;
   fontSize: number;
@@ -100,7 +103,15 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   showLineNumbers: boolean;
   showStatusBar: boolean;
   onEditorConfigChange?: (patch: Partial<AppConfig>) => Promise<void>;
+  active: boolean;
+  focusMode: boolean;
 }) {
+  const moreToolsPreference = useFocusEditorTools(state => state.expanded);
+  const setMoreTools = useFocusEditorTools(state => state.setExpanded);
+  const moreTools = moreToolsPreference ?? !focusMode;
+  useNativeMenuActions({
+    "view.tools": { run: () => setMoreTools(!moreTools), checked: moreTools },
+  }, active);
   const identity = `${data.rootId}:${data.nodeId}`;
   const editorSession = useRef<EditorState | null>(null);
   const sourceHandle = useRef<SourceEditorHandle | null>(null);
@@ -590,12 +601,13 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     </div>}
   </aside>;
 
-  return <section className="local-file-view" aria-label="本地文件工作区">
+  return <section className="local-file-view" aria-label="本地文件工作区" data-tools-hidden={!moreTools || undefined}>
     <header className="local-files-toolbar local-file-titlebar"><strong title={data.nodeId}>{data.name}</strong><span>{saveState === "saving" ? "正在保存…" : saveState === "dirty" ? "未保存" : saveState === "saved" ? "已保存" : "本地文件 · 不参与备份"}</span>
       <button type="button" className="btn-icon" title={editing ? "设为只读" : "允许编辑"} aria-label={editing ? "设为只读" : "允许编辑"} aria-pressed={readOnly} onClick={() => setLocalFileReadOnly(data.rootId, data.nodeId, !readOnly)}><ToolbarIcon name={editing ? "edit" : "lock"} /></button>
       {editing && <button type="button" className="btn-icon" title={localFileService.canSaveOriginal(data.rootId) ? "保存到原文件（⌘S / Ctrl+S）" : "目录快照不能覆盖原文件，请另存为"} aria-label="保存文件" disabled={!baseSnapshot || !localFileService.canSaveOriginal(data.rootId) || saveState === "saving" || source === baseSnapshot.source} onClick={() => void save()}><ToolbarIcon name="save" /></button>}
       <button type="button" className="btn-icon" title="另存为副本" aria-label="另存为副本" onClick={saveCopy}><ToolbarIcon name="download" /></button>
       {(isMarkdown || isMermaid || isFlow) && <button type="button" className="btn-icon" title={preview ? "显示源码" : "预览"} aria-label={preview ? "显示源码" : "预览"} aria-pressed={preview} onClick={() => setPreview(value => !value)}><ToolbarIcon name={preview ? "code" : "eye"} /></button>}
+      {!preview && <button type="button" className="btn-icon" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(!moreTools)}><ToolbarIcon name="annotate" /></button>}
       {(["symbols", "bookmarks", "matches"] as const).map(kind => <button type="button" key={kind} className="btn-icon" title={kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-label={kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-pressed={activePanel === kind} disabled={loading || !!error || (kind === "symbols" && !symbols.length && !symbolsBusy)} onClick={() => setActivePanel(current => current === kind ? null : kind)}><ToolbarIcon name={kind === "symbols" ? "bullet" : kind === "bookmarks" ? "bookmark" : "search"} /></button>)}
       <button type="button" className="btn-icon" title="重新读取原文件" aria-label="重新读取原文件" disabled={loading} onClick={() => { editorSession.current = null; setReload(value => value + 1); }}><ToolbarIcon name="refresh" /></button>
       <button type="button" className="btn-icon" title="返回原视图" aria-label="返回原视图" onClick={onClose}><ToolbarIcon name="chevronLeft" /></button>
