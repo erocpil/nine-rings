@@ -64,7 +64,7 @@ test("长文档在编辑、源码和局部只读中随实际分栏宽度调整",
     );
   await expect(page.locator(".markdown-cm-host .cm-line").first()).toHaveCSS(
     "padding-left",
-    "8px",
+    "6px",
   );
   await page.getByRole("button", { name: "渲染", exact: true }).click();
   expect(

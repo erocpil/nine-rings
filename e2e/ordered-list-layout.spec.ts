@@ -120,7 +120,7 @@ for (const mobile of [false, true]) {
       else await page.getByTitle("设置").click();
       await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
       await page.getByRole("button", { name: /打开排版设置/ }).click();
-      const preview = page.getByLabel("编辑器排版预览").locator(":scope > ol");
+      const preview = page.getByLabel("编辑器渲染排版预览").locator(":scope > ol");
       const decrease = page.getByRole("button", { name: "减小标记文字间距" });
       for (let step = 0; step < 5; step++) await decrease.click();
       await expect(decrease).toBeDisabled();

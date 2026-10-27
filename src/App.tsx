@@ -1109,7 +1109,7 @@ function App() {
           mainViews.bind(workspacePanels.assert("files")).open(LOCAL_FILE_VIEW_ID, { rootId: neighbor.rootId, nodeId: neighbor.nodeId, name: neighbor.name });
           announceLocalFileOpened(neighbor);
           rememberRecentLocalFile(neighbor);
-        } else { handleSelectNote(null); setSelectedFolderPath(null); setSelectedConcept(null); }
+        } else { mainViews.close(local.id); handleSelectNote(null); setSelectedFolderPath(null); setSelectedConcept(null); }
         const current = readLocalFocusTabs();
         saveLocalFocusTabs({ closed: [...new Set([...current.closed, identity])], order: current.order.filter(id => id !== identity) });
       } else if (note) {
@@ -1133,6 +1133,24 @@ function App() {
         saveFocusTabs({ closed: [...new Set([...current.closed, note.id])], order: current.order.filter(id => id !== note.id) });
       }
     } finally { closingFile.current = false; }
+  };
+  const closeLocalFiles = async (identities: string[]) => {
+    const closing = new Set(identities);
+    if (!closing.size) return;
+    const state = readLocalFocusTabs();
+    saveLocalFocusTabs({
+      closed: [...new Set([...state.closed, ...closing])],
+      order: state.order.filter(id => !closing.has(id)),
+    });
+    const view = mainViews.getSnapshot();
+    const activeLocal = view.current?.renderer === "local-file" ? view.current : null;
+    if (activeLocal && closing.has(localFileIdentity(activeLocal.data))) {
+      await closeCurrentFile();
+    }
+    const pendingLocal = view.pending?.renderer === "local-file" ? view.pending : null;
+    if (pendingLocal && closing.has(localFileIdentity(pendingLocal.data))) {
+      mainViews.reject(pendingLocal.id);
+    }
   };
   useNativeMenuHost(searchExpanded || errorDetailsOpen || settingsOpen || quickSwitcherOpen || docCreateOpen || versionOpen || protectionBusy || syncBusy || applyingWebUpdate || recycleOpen, error => useNotesStore.setState({ error }));
   useNativeMenuActions({
@@ -1905,7 +1923,7 @@ function App() {
             />
           )}
           </div>
-          {contributedPanels.some(panel => panel.renderer === "local-files") && <div style={{ height: "100%", minHeight: 0 }} hidden={desktopPanel !== "files"} {...(desktopPanel !== "files" ? { inert: "", "aria-hidden": true } : {})}><Suspense fallback={<p>正在加载文件分栏…</p>}><LocalFilesPanel active={desktopPanel === "files" && !sidebarHidden} onBack={mobileDrawerViewport ? () => setDesktopPanel("tree") : undefined} /></Suspense></div>}
+          {contributedPanels.some(panel => panel.renderer === "local-files") && <div style={{ height: "100%", minHeight: 0 }} hidden={desktopPanel !== "files"} {...(desktopPanel !== "files" ? { inert: "", "aria-hidden": true } : {})}><Suspense fallback={<p>正在加载文件分栏…</p>}><LocalFilesPanel active={desktopPanel === "files" && !sidebarHidden} onBack={mobileDrawerViewport ? () => setDesktopPanel("tree") : undefined} onCloseFiles={closeLocalFiles} /></Suspense></div>}
           {contributedPanels.some(panel => panel.renderer === "image-library") && <div className="image-library-retained" hidden={desktopPanel !== "images"} {...(desktopPanel !== "images" ? { inert: "", "aria-hidden": true } : {})}><Suspense fallback={desktopPanel === "images" ? <p>正在加载图片分栏…</p> : null}><ImageLibraryPanel active={desktopPanel === "images" && !sidebarHidden} onClose={() => setSidebarHidden(true)} onBack={mobileDrawerViewport ? () => setDesktopPanel("tree") : undefined} /></Suspense></div>}
           {contributedPanels.some(panel => panel.renderer === "vocabulary-library") && <div className="vocabulary-panel-retained" style={{ height: "100%", minHeight: 0 }} hidden={desktopPanel !== "vocabulary"} {...(desktopPanel !== "vocabulary" ? { inert: "", "aria-hidden": true } : {})}><Suspense fallback={<p>正在加载词汇分栏…</p>}><VocabularyPanel selectedDocumentId={selectedNote?.id} active={desktopPanel === "vocabulary" && !sidebarHidden} refreshKey={docTreeKey} onBack={mobileDrawerViewport ? () => setDesktopPanel("tree") : undefined} onOpen={async id => {
             await flushAutoSave();

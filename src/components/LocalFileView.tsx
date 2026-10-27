@@ -10,13 +10,13 @@ import type { LocalFileViewData } from "../lib/plugin-system/main-view-registry"
 import { AUTO_DOCUMENT_LANGUAGE, documentLanguageFromFilename, documentLanguageViewOptions, saveSourceViewLanguageOverride, sourceViewLanguageOverride } from "../lib/document-language";
 import { extractSourceSymbols } from "../lib/source-symbol-provider";
 import type { SourceSymbol } from "../lib/source-symbols";
-import type { DocumentOutlineItem } from "../lib/document-outline";
+import { extractDocumentOutline, type DocumentOutlineItem } from "../lib/document-outline";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import { focusSourceWordMatch, groupSourceWordMatchesByLine, sourceWordState } from "../lib/source-word-occurrences";
 import { filterSymbolTree, sortSourceSymbolTree, sourceSymbolSortName } from "../lib/source-symbol-sort";
 import type { AppConfig } from "../types/models";
 import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
-import { DocumentOutlineList, OutlineDisplayTools } from "./DocumentOutlineList";
+import { DocumentOutlineList, OutlineDisplayTools, OUTLINE_SCROLL_EVENT, type VisibleOutlineEntry } from "./DocumentOutlineList";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { TextDiffView } from "./TextDiffView";
 import { FlowBlockContent, parseFlowDocument } from "./FlowBlockContent";
@@ -34,7 +34,7 @@ import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import "../styles/local-files.css";
 
-type LocalPanel = "symbols" | "bookmarks" | "matches";
+type LocalPanel = "symbols" | "bookmarks" | "matches" | "outline";
 type LocalBookmark = { offset: number; line: number; label: string };
 const PANEL_WIDTH_KEY = "nr:local-file-panel-width";
 const ACTIVE_PANEL_KEY = "nr:local-file-active-panel";
@@ -49,7 +49,7 @@ function storedPanelWidth() {
 }
 function storedActivePanel(): LocalPanel | null {
   const value = localStorage.getItem(ACTIVE_PANEL_KEY);
-  return value === "symbols" || value === "bookmarks" || value === "matches"
+  return value === "symbols" || value === "bookmarks" || value === "matches" || value === "outline"
     ? value
     : null;
 }
@@ -71,6 +71,27 @@ function loadSymbolFolds(identity: string) {
     const value = JSON.parse(localStorage.getItem(symbolFoldsStorageKey(identity)) ?? "[]");
     return new Set<string>(Array.isArray(value) ? value.filter(item => typeof item === "string") : []);
   } catch { return new Set<string>(); }
+}
+
+function markdownHeadingSourceOffsets(source: string): number[] {
+  const offsets: number[] = [];
+  const lines = source.split("\n");
+  let offset = 0;
+  let fence: string | null = null;
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index]!;
+    const fenceMarker = line.match(/^\s{0,3}(`{3,}|~{3,})/);
+    if (fenceMarker) {
+      const marker = fenceMarker[1]![0]!;
+      if (fence === null) fence = marker;
+      else if (fence === marker) fence = null;
+    } else if (fence === null) {
+      if (/^ {0,3}#{1,6}(?:\s+|$)/.test(line)) offsets.push(offset);
+      else if (index > 0 && /^ {0,3}(?:=+|-+)\s*$/.test(line) && lines[index - 1]!.trim()) offsets.push(offset - lines[index - 1]!.length - 1);
+    }
+    offset += line.length + 1;
+  }
+  return offsets;
 }
 
 function LocalMarkdownPreview({ doc, source, onClick }: { doc: ProseMirrorNode; source: string; onClick: (event: MouseEvent<HTMLDivElement>) => void }) {
@@ -115,6 +136,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const identity = `${data.rootId}:${data.nodeId}`;
   const editorSession = useRef<EditorState | null>(null);
   const sourceHandle = useRef<SourceEditorHandle | null>(null);
+  const localViewRef = useRef<HTMLElement>(null);
   const sourceRef = useRef("");
   const sessionEpochRef = useRef(localFileSessionEpoch);
   const [editorHandle, setEditorHandle] = useState<SourceEditorHandle | null>(null);
@@ -147,6 +169,8 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const [foldedSymbols, setFoldedSymbols] = useState<Set<string>>(() => loadSymbolFolds(identity));
   const symbolListRef = useRef<HTMLDivElement>(null);
   const [activePanel, setActivePanel] = useState<LocalPanel | null>(storedActivePanel);
+  const [foldedHeadings, setFoldedHeadings] = useState<Set<number>>(() => new Set());
+  const outlineListRef = useRef<HTMLDivElement>(null);
   const [activeOffset, setActiveOffset] = useState(0);
   const [, refreshMatches] = useState(0);
   const [bookmarks, setBookmarks] = useState<LocalBookmark[]>(() => loadBookmarks(identity));
@@ -496,6 +520,54 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     if (!preview || !isMarkdown) return null;
     try { return parseFlowDocument(previewSource); } catch { return null; }
   }, [isMarkdown, preview, previewSource]);
+  const outlineDoc = useMemo(() => {
+    if (!isMarkdown || activePanel !== "outline") return null;
+    try { return parseFlowDocument(source); } catch { return null; }
+  }, [activePanel, isMarkdown, source]);
+  const markdownOutline = useMemo(() => outlineDoc ? extractDocumentOutline(outlineDoc) : [], [outlineDoc]);
+  const sourceHeadingOffsets = useMemo(() => markdownHeadingSourceOffsets(source), [source]);
+  const outlineEntries = useMemo<VisibleOutlineEntry[]>(() => {
+    const result: VisibleOutlineEntry[] = [];
+    let foldedLevel = 7;
+    for (let index = 0; index < markdownOutline.length; index++) {
+      const item = markdownOutline[index]!;
+      if (item.level > foldedLevel) continue;
+      foldedLevel = 7;
+      const foldable = (markdownOutline[index + 1]?.level ?? 0) > item.level;
+      result.push({ item, index, folded: foldedHeadings.has(item.pos), foldable });
+      if (foldable && foldedHeadings.has(item.pos)) foldedLevel = item.level;
+    }
+    return result;
+  }, [foldedHeadings, markdownOutline]);
+  const activeOutlineIndex = useMemo(() => {
+    const offset = activeOffset;
+    let active = 0;
+    for (let index = 0; index < sourceHeadingOffsets.length; index++) {
+      if (sourceHeadingOffsets[index]! > offset) break;
+      active = index;
+    }
+    return markdownOutline.length ? Math.min(active, markdownOutline.length - 1) : -1;
+  }, [markdownOutline.length, sourceHeadingOffsets, activeOffset]);
+  const jumpToOutline = (item: DocumentOutlineItem) => {
+    const index = markdownOutline.findIndex(candidate => candidate.pos === item.pos);
+    if (preview) {
+      const host = localViewRef.current?.querySelector<HTMLElement>(".local-file-preview");
+      const heading = host?.querySelectorAll<HTMLElement>("h1,h2,h3,h4,h5,h6")[index];
+      if (host && heading) host.scrollTop += heading.getBoundingClientRect().top - host.getBoundingClientRect().top;
+    } else {
+      sourceHandle.current?.scrollToOffset(sourceHeadingOffsets[index] ?? item.pos, true);
+    }
+  };
+  const scrollLocalDocumentTo = (target: "top" | "middle" | "bottom") => {
+    const scroller = preview ? localViewRef.current?.querySelector<HTMLElement>(".local-file-preview") : sourceHandle.current?.view.scrollDOM;
+    if (!scroller) return;
+    const maximum = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    scroller.scrollTo({ top: target === "top" ? 0 : target === "middle" ? maximum / 2 : maximum, behavior: "auto" });
+  };
+  useEffect(() => {
+    if (isMarkdown && activePanel === "symbols") setActivePanel("outline");
+    else if (!isMarkdown && activePanel === "outline") setActivePanel(null);
+  }, [activePanel, isMarkdown]);
   const openRelative = (event: React.MouseEvent<HTMLDivElement>) => {
     const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]");
     if (!anchor || !event.currentTarget.contains(anchor)) return;
@@ -561,7 +633,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     window.addEventListener("pointermove", move); window.addEventListener("pointerup", finish, { once: true });
   };
 
-  const panel = activePanel && <aside className="local-file-dock document-panel-dock dock-right" style={{ "--local-file-panel-width": `${panelWidth}px` } as CSSProperties} aria-label={activePanel === "symbols" ? "本地源码符号" : activePanel === "bookmarks" ? "本地文件书签" : "本地文件同词匹配"}>
+  const panel = activePanel && activePanel !== "outline" && <aside className="local-file-dock document-panel-dock dock-right" style={{ "--local-file-panel-width": `${panelWidth}px` } as CSSProperties} aria-label={activePanel === "symbols" ? "本地源码符号" : activePanel === "bookmarks" ? "本地文件书签" : "本地文件同词匹配"}>
     <div className="document-dock-width-handle" role="separator" aria-orientation="vertical" aria-label="调整本地文件工具栏宽度" onPointerDown={beginPanelResize} />
     <div className="document-outline-header local-file-panel-header">
       <div className="document-outline-header-primary">{activePanel === "matches"
@@ -601,17 +673,31 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     </div>}
   </aside>;
 
-  return <section className="local-file-view" aria-label="本地文件工作区" data-tools-hidden={!moreTools || undefined}>
+  return <section ref={localViewRef} className="local-file-view" aria-label="本地文件工作区" data-tools-hidden={!moreTools || undefined}>
     <header className="local-files-toolbar local-file-titlebar"><strong title={data.nodeId}>{data.name}</strong><span>{saveState === "saving" ? "正在保存…" : saveState === "dirty" ? "未保存" : saveState === "saved" ? "已保存" : "本地文件 · 不参与备份"}</span>
       <button type="button" className="btn-icon" title={editing ? "设为只读" : "允许编辑"} aria-label={editing ? "设为只读" : "允许编辑"} aria-pressed={readOnly} onClick={() => setLocalFileReadOnly(data.rootId, data.nodeId, !readOnly)}><ToolbarIcon name={editing ? "edit" : "lock"} /></button>
       {editing && <button type="button" className="btn-icon" title={localFileService.canSaveOriginal(data.rootId) ? "保存到原文件（⌘S / Ctrl+S）" : "目录快照不能覆盖原文件，请另存为"} aria-label="保存文件" disabled={!baseSnapshot || !localFileService.canSaveOriginal(data.rootId) || saveState === "saving" || source === baseSnapshot.source} onClick={() => void save()}><ToolbarIcon name="save" /></button>}
       <button type="button" className="btn-icon" title="另存为副本" aria-label="另存为副本" onClick={saveCopy}><ToolbarIcon name="download" /></button>
       {(isMarkdown || isMermaid || isFlow) && <button type="button" className="btn-icon" title={preview ? "显示源码" : "预览"} aria-label={preview ? "显示源码" : "预览"} aria-pressed={preview} onClick={() => setPreview(value => !value)}><ToolbarIcon name={preview ? "code" : "eye"} /></button>}
       {!preview && <button type="button" className="btn-icon" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(!moreTools)}><ToolbarIcon name="annotate" /></button>}
-      {(["symbols", "bookmarks", "matches"] as const).map(kind => <button type="button" key={kind} className="btn-icon" title={kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-label={kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-pressed={activePanel === kind} disabled={loading || !!error || (kind === "symbols" && !symbols.length && !symbolsBusy)} onClick={() => setActivePanel(current => current === kind ? null : kind)}><ToolbarIcon name={kind === "symbols" ? "bullet" : kind === "bookmarks" ? "bookmark" : "search"} /></button>)}
+      {(isMarkdown ? ["outline", "bookmarks", "matches"] as const : ["symbols", "bookmarks", "matches"] as const).map(kind => <button type="button" key={kind} className="btn-icon" title={kind === "outline" ? "目录" : kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-label={kind === "outline" ? "目录" : kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-pressed={activePanel === kind} disabled={loading || !!error || (kind === "symbols" && !symbols.length && !symbolsBusy)} onClick={() => setActivePanel(current => current === kind ? null : kind)}><ToolbarIcon name={kind === "outline" ? "listChars" : kind === "symbols" ? "bullet" : kind === "bookmarks" ? "bookmark" : "search"} /></button>)}
       <button type="button" className="btn-icon" title="重新读取原文件" aria-label="重新读取原文件" disabled={loading} onClick={() => { editorSession.current = null; setReload(value => value + 1); }}><ToolbarIcon name="refresh" /></button>
       <button type="button" className="btn-icon" title="返回原视图" aria-label="返回原视图" onClick={onClose}><ToolbarIcon name="chevronLeft" /></button>
     </header>
+    {activePanel === "outline" && <nav className="local-file-inline-outline" aria-label="本地文件目录">
+      <div className="document-outline-header">
+        <div className="document-outline-header-primary"><strong>目录</strong><span className="document-outline-count">{markdownOutline.length} 项</span></div>
+        <div className="document-outline-header-actions">
+          <button type="button" aria-label="全部折叠目录" title="全部折叠目录" onClick={() => setFoldedHeadings(new Set(markdownOutline.filter((item, index) => (markdownOutline[index + 1]?.level ?? 0) > item.level).map(item => item.pos)))}>−</button>
+          <button type="button" aria-label="全部展开目录" title="全部展开目录" onClick={() => setFoldedHeadings(new Set())}>+</button>
+          <div className="document-outline-jumps" aria-label="目录快速滚动">
+            {(["top", "middle", "bottom"] as const).map((target, index) => <button type="button" key={target} title={["单击定位目录顶部；双击滚动正文顶部", "单击定位目录中部；双击滚动正文中部", "单击定位目录底部；双击滚动正文底部"][index]} aria-label={["滚动至顶部", "滚动至中部", "滚动至底部"][index]} onClick={() => outlineListRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: target }))} onDoubleClick={() => scrollLocalDocumentTo(target)}><ToolbarIcon name={(["pageTop", "pageMiddle", "pageBottom"] as const)[index]} /></button>)}
+          </div>
+          <button type="button" className="btn-icon" aria-label="收起目录" title="收起目录" onClick={() => setActivePanel(null)}><ToolbarIcon name="close" /></button>
+        </div>
+      </div>
+      {outlineEntries.length ? <DocumentOutlineList entries={outlineEntries} activeOutlineIndex={activeOutlineIndex} followActive outlineBaseLevel={markdownOutline.reduce((level, item) => Math.min(level, item.level), 6)} listRef={outlineListRef} onToggleFold={position => setFoldedHeadings(current => { const next = new Set(current); if (next.has(position)) next.delete(position); else next.add(position); return next; })} onJump={jumpToOutline} /> : <div className="local-file-panel-list"><p>当前文档没有标题</p></div>}
+    </nav>}
     {recoveryNotice && <p role="status" className="local-files-message">{recoveryNotice}<button type="button" onClick={() => setRecoveryNotice("")} aria-label="关闭提示">×</button></p>}
     {loading && <p role="status" className="local-files-message">正在读取文件…</p>}
     {error && <p role="alert" className="local-files-message">{error}</p>}
@@ -619,7 +705,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       <TextDiffView left={externalSnapshot.source} right={source} leftLabel="磁盘版本" rightLabel="本机编辑" />
       <div><button type="button" onClick={() => { setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
     </section>}
-    {!loading && !error && <div className={`local-file-workspace${activePanel ? " has-local-file-dock" : ""}`} style={{ "--local-file-panel-width": `${panelWidth}px` } as CSSProperties}>
+    {!loading && !error && <div className={`local-file-workspace${activePanel && activePanel !== "outline" ? " has-local-file-dock" : ""}`} style={{ "--local-file-panel-width": `${panelWidth}px` } as CSSProperties}>
       <div className="local-file-editor-shell">{preview ? isMarkdown && markdownDoc ? <LocalMarkdownPreview doc={markdownDoc} source={source} onClick={openRelative} /> : <div className="editor-content local-file-preview">{previewError && <p role="status" className="local-files-message">{previewError}</p>}{isMermaid ? <DeferredMermaidDiagram source={source} /> : isFlow ? <FlowBlockContent source={source} /> : <pre>{source}</pre>}</div> : <MarkdownSourceEditor value={source} readonly={!editing} contextMenuEnabled onToggleLineBookmark={toggleBookmark} areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={next => { sourceRef.current = next; setSource(next); }} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus={saveState} documentLanguage={language} documentLanguageValue={languageOverride ?? AUTO_DOCUMENT_LANGUAGE} documentLanguageOptions={documentLanguageViewOptions(detectedLanguage)} onDocumentLanguageChange={next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); }} onEditorConfigChange={onEditorConfigChange} />}</div>{panel}
     </div>}
   </section>;

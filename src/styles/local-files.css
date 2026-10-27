@@ -107,10 +107,42 @@
   display: flex;
   align-items: center;
 }
-.local-file-root > .local-file-row {
-  flex: 1;
+.local-file-root-main {
+  position: relative;
+  flex: 1 1 0;
   min-width: 0;
 }
+.local-file-root-main > .local-file-row { width: 100%; }
+.local-file-tree-node { min-width: 0; }
+.local-file-row-wrap { position: relative; }
+.local-file-row-wrap:has(> .local-file-close-open) > .local-file-row,
+.local-file-root-main:has(> .local-file-close-open) > .local-file-row { padding-right: 38px; }
+.local-file-close-open {
+  display: inline-flex;
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+.local-file-close-open:hover,
+.local-file-close-open:focus-visible {
+  color: var(--text);
+  background: var(--hover-bg, color-mix(in srgb, currentColor 10%, transparent));
+}
+.local-file-close-open .toolbar-icon { width: 14px; height: 14px; }
 .local-file-row {
   display: flex;
   gap: 6px;
@@ -187,6 +219,18 @@
   background: var(--bg);
 }
 .local-file-view[data-tools-hidden] .markdown-source-tools { display: none !important; }
+.local-file-inline-outline {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  max-height: min(34vh, 320px);
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.local-file-inline-outline > .document-outline-header { flex: 0 0 36px; min-height: 36px; box-sizing: border-box; }
+.local-file-inline-outline > .document-outline-list { flex: 1; min-height: 0; overflow: auto; }
+.local-file-inline-outline > .local-file-panel-list { flex: 1; min-height: 0; overflow: auto; }
 .local-file-workspace {
   flex: 1;
   min-height: 0;

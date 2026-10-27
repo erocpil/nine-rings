@@ -273,13 +273,12 @@ test("设置可分别启用相对块号和行号并在刷新后保留", async ({
   });
   await expect(blockAlignment).toHaveValue("right");
   await expect(lineAlignment).toHaveValue("left");
+  await expect(blockAlignment).toBeDisabled();
   await expect(lineAlignment).toBeDisabled();
-  await blockAlignment.selectOption("left");
-  await expect(blocks).not.toBeChecked();
-  await expect(lines).not.toBeChecked();
-  await blocks.check();
-  await expect(lines).not.toBeChecked();
   await page.getByRole("checkbox", { name: "显示块编号", exact: true }).check();
+  await blocks.check();
+  await blockAlignment.selectOption("left");
+  await expect(lines).not.toBeChecked();
   await lines.check();
   await lineAlignment.selectOption("right");
   await page.reload();

@@ -9,12 +9,12 @@ import { mainViews } from "../lib/plugin-system/main-view-registry";
 import { panelDisplays } from "../lib/plugin-system/panel-display";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import { useTransientMessage } from "../hooks/useTransientMessage";
-import { LOCAL_FILE_OPENED_EVENT, LOCAL_FILE_REVEAL_EVENT, rememberRecentLocalFile, renameRecentLocalPath, removeRecentLocalPath } from "../lib/local-files/recent";
+import { LOCAL_FILE_OPENED_EVENT, LOCAL_FILE_REVEAL_EVENT, LOCAL_FILE_RECENT_CHANGED_EVENT, localFileIdentity, readRecentLocalFiles, rememberRecentLocalFile, renameRecentLocalPath, removeRecentLocalPath } from "../lib/local-files/recent";
 import { isLocalFileReadOnly, setLocalFileReadOnly } from "../lib/local-files/access";
 import { localFileSessions, invalidateLocalFileSessionMounts } from "../lib/local-files/session";
 import { assertLocalPathClean, localPathContains, migrateLocalFileSessions } from "../lib/local-files/operations";
 import { migrateLocalFilePathState } from "../lib/local-files/path-state";
-import { renameLocalFocusTabPaths, removeLocalFocusTabPaths } from "../lib/focus-tabs";
+import { FOCUS_TABS_CHANGED_EVENT, localFocusTabIds, readFocusTabs, readLocalFocusTabs, saveLocalFocusTabs, renameLocalFocusTabPaths, removeLocalFocusTabPaths } from "../lib/focus-tabs";
 import { LocalFileOperationDialog, type LocalFileOperation } from "./LocalFileOperationDialog";
 import { LocalFileDrafts } from "./LocalFileDrafts";
 import { LocalFileSearch } from "./LocalFileSearch";
@@ -78,9 +78,10 @@ interface LocalPathTooltip {
   top: number;
 }
 
-export function LocalFilesPanel({ active, onBack }: {
+export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
   active: boolean;
   onBack?: () => void;
+  onCloseFiles?: (identities: string[]) => void | Promise<void>;
 }) {
   const [restored] = useState(readNavigation);
   const [roots, setRoots] = useState<FileRoot[]>([]);
@@ -105,7 +106,28 @@ export function LocalFilesPanel({ active, onBack }: {
     restored.file ? `${restored.file.rootId}:${restored.file.nodeId}` : "",
   );
   const [rootsReady, setRootsReady] = useState(false);
+  const [openLocalFiles, setOpenLocalFiles] = useState<string[]>(() => localFocusTabIds(readRecentLocalFiles().map(localFileIdentity), readLocalFocusTabs(), readFocusTabs().limit));
   const mainViewState = useSyncExternalStore(mainViews.subscribe, mainViews.getSnapshot, mainViews.getSnapshot);
+  useEffect(() => {
+    const refresh = () => setOpenLocalFiles(localFocusTabIds(readRecentLocalFiles().map(localFileIdentity), readLocalFocusTabs(), readFocusTabs().limit));
+    window.addEventListener(LOCAL_FILE_RECENT_CHANGED_EVENT, refresh);
+    window.addEventListener(FOCUS_TABS_CHANGED_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(LOCAL_FILE_RECENT_CHANGED_EVENT, refresh);
+      window.removeEventListener(FOCUS_TABS_CHANGED_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+  const closeOpenedFiles = (identities: string[]) => {
+    if (!identities.length) return;
+    void Promise.resolve(onCloseFiles?.(identities)).catch(reason => setError(`关闭本地文件失败：${String(reason)}`));
+  };
+  const openedFilesUnder = (rootId: string, nodeId: string) => {
+    const prefix = `${rootId}:${nodeId ? `${nodeId}/` : ""}`;
+    const exact = `${rootId}:${nodeId}`;
+    return openLocalFiles.filter(identity => identity === exact || identity.startsWith(prefix));
+  };
   const [contextMenu, setContextMenu] = useState<(NotesMenuTarget & { rootId: string; nodeId: string; directory: boolean; name: string; fullPath: string | null; pathLoading: boolean }) | null>(null);
   const { message: pathNotice, showMessage: showPathNotice, clearMessage: clearPathNotice } = useTransientMessage();
   const [pathTooltip, setPathTooltip] = useState<LocalPathTooltip | null>(null);
@@ -452,6 +474,9 @@ export function LocalFilesPanel({ active, onBack }: {
   };
   const openFile = (rootId: string, nodeId: string, name: string, hit?: LocalFileSearchHit) => {
     const rootName = roots.find(root => root.id === rootId)?.name ?? "本地文件";
+    const identity = `${rootId}:${nodeId}`;
+    const tabs = readLocalFocusTabs();
+    if (tabs.closed.includes(identity)) saveLocalFocusTabs({ closed: tabs.closed.filter(id => id !== identity), order: [identity, ...tabs.order.filter(id => id !== identity)] });
     mainViews.bind(workspacePanels.assert("files")).open(LOCAL_FILE_VIEW_ID, { rootId, nodeId, name, ...(hit ? { location: { from: hit.from, to: hit.to, revision: hit.revision } } : {}) });
     rememberRecentLocalFile({ rootId, rootName, nodeId, name });
     setSelectedFile({ rootId, rootName, nodeId, name });
@@ -575,7 +600,8 @@ export function LocalFilesPanel({ active, onBack }: {
         {visibleNodes.map((child) => {
           const childKey = rootId + ":" + child.id;
           return (
-            <div key={child.id}>
+            <div key={child.id} className="local-file-tree-node">
+              <div className="local-file-row-wrap">
               <button
                 type="button"
                 className="local-file-row"
@@ -618,6 +644,12 @@ export function LocalFilesPanel({ active, onBack }: {
                 )}
                 {isLocalFileReadOnly(rootId, child.id) && <span className="local-file-row-meta local-file-readonly-indicator" aria-label="只读"><ToolbarIcon name="lock" /></span>}
               </button>
+              {(() => {
+                const opened = openedFilesUnder(rootId, child.id);
+                if (!opened.length) return null;
+                return <button type="button" className="local-file-close-open" aria-label={child.directory ? `关闭目录 ${child.name} 中已打开的文件` : `关闭文件 ${child.name}`} title={child.directory ? `关闭此目录下 ${opened.length} 个已打开文件` : "关闭文件"} onClick={event => { event.preventDefault(); event.stopPropagation(); closeOpenedFiles(opened); }}><ToolbarIcon name="close" /></button>;
+              })()}
+              </div>
               {child.directory && children(rootId, child.id, depth + 1)}
             </div>
           );
@@ -777,6 +809,7 @@ export function LocalFilesPanel({ active, onBack }: {
         {roots.map((root) => (
           <div key={root.id}>
             <div className="local-file-root">
+              <div className="local-file-root-main">
               <button
                 type="button"
                 className="local-file-row"
@@ -802,6 +835,12 @@ export function LocalFilesPanel({ active, onBack }: {
                 )}
                 {isLocalFileReadOnly(root.id, "") && <span className="local-file-row-meta local-file-readonly-indicator" aria-label="只读"><ToolbarIcon name="lock" /></span>}
               </button>
+              {(() => {
+                const opened = openedFilesUnder(root.id, "");
+                if (!opened.length) return null;
+                return <button type="button" className="local-file-close-open" aria-label={`关闭目录 ${root.name} 中已打开的文件`} title={`关闭此目录下 ${opened.length} 个已打开文件`} onClick={event => { event.preventDefault(); event.stopPropagation(); closeOpenedFiles(opened); }}><ToolbarIcon name="close" /></button>;
+              })()}
+              </div>
               <button
                 type="button"
                 className="btn-icon"

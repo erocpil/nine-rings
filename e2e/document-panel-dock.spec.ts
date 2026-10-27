@@ -62,7 +62,7 @@ test(`长目录滚动按钮在悬浮和固定面板中对齐且持续可见：${
   await checkHeader(pinned);
   const headerTop = (await pinned.locator(".document-outline-header").boundingBox())!.y;
   await pinned.locator(".document-outline-list").evaluate(element => { element.scrollTop = element.scrollHeight; });
-  await expect(pinned.getByTitle("滚动至顶部")).toBeInViewport();
+  await expect(pinned.getByRole("button", { name: "滚动至顶部" })).toBeInViewport();
   expect(Math.abs((await pinned.locator(".document-outline-header").boundingBox())!.y - headerTop)).toBeLessThanOrEqual(1);
 
   await page.evaluate(async ({ short }) => {

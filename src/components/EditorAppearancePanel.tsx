@@ -355,11 +355,18 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                   </li>
                   <li>让相邻信息保持稳定的视觉关系</li>
                 </ul>
+                <ol>
+                  <li>先确认主要步骤
+                    <ol><li>再补充具体操作</li></ol>
+                  </li>
+                </ol>
+                <div className="list-followup-preview">列表后的独立说明块，展示是否自动缩进。</div>
                 <p>下面的代码块是正文中的一个示例，用来观察等宽字体、字号、块间距与右侧块号。</p>
                 <pre aria-label="代码块排版预览"><code>{'function arrangeIdeas() {\n  return "readable";\n}'}</code></pre>
                 <blockquote aria-label="引用块排版预览">列表或代码之后的补充说明仍保持在正文流中，引用块的字体、字号和缩进可以单独调整。</blockquote>
                 <h3>图形与流程</h3>
                 <p>图形块和流程块同样参与文档排版，变化不会影响源码内容。</p>
+                <p>连续段落之间的间距应保持稳定，避免标题或块样式改变后产生突兀断层。</p>
                 <DeferredMermaidDiagram source={'flowchart LR\nA[开始] --> B[完成]'} />
                 <DeferredFlowBlock source={'## 开始\n\n记录想法。\n\n## 完成\n\n整理行动。'} />
                 <h2>继续阅读</h2>

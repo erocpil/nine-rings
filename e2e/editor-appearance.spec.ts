@@ -36,7 +36,7 @@ test("排版设置中的调整即时生效并在重载后保持", async ({ page 
   await expect(page.getByText("编辑器排版", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /打开排版设置/ }).click();
   await expect(page.getByRole("dialog", { name: "排版设置" })).toBeVisible();
-  await expect(page.getByLabel("编辑器排版预览")).toBeVisible();
+  await expect(page.getByLabel("编辑器渲染排版预览")).toBeVisible();
 
   await page.getByLabel("正文字体").selectOption("serif");
   await page.getByRole("button", { name: "增大正文与标题字号" }).click();
@@ -77,7 +77,7 @@ test("排版设置中的调整即时生效并在重载后保持", async ({ page 
 
   await page.getByRole("button", { name: /打开排版设置/ }).click();
 
-  const previewSpacing = await page.getByLabel("编辑器排版预览").evaluate((element) => {
+  const previewSpacing = await page.getByLabel("编辑器渲染排版预览").evaluate((element) => {
     const fontSize = Number.parseFloat(getComputedStyle(element).fontSize);
     const topLevelList = element.querySelector(":scope > ul");
     const nestedList = element.querySelector(":scope > ul ul");

@@ -203,6 +203,12 @@ export function MarkdownSourceWorkspace({
     };
   }, [sourceHandle, mobile]);
   const sourceWordEnabled = !["", "markdown", "flow", "mermaid"].includes(snapshotLanguage);
+  const scrollSourceTo = useCallback((target: "top" | "middle" | "bottom") => {
+    const scroller = sourceHandle?.view.scrollDOM;
+    if (!scroller) return;
+    const maximum = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    scroller.scrollTo({ top: target === "top" ? 0 : target === "middle" ? maximum / 2 : maximum, behavior: "auto" });
+  }, [sourceHandle]);
   useEffect(() => {
     if (matchesOpen || !documentActive || mobile || !sourceWordEnabled) {
       clearTimeout(matchesTimer.current);
@@ -439,7 +445,7 @@ export function MarkdownSourceWorkspace({
               <PanelDisplayTools target="bookmarks" disabled={!nearestBookmark} handlers={{ "bookmarks.reveal-current": () => revealPanelItem(bookmarkDisplayListRef.current, nearestBookmark?.id) }} />
               {!currentBookmark && <button className="document-bookmark-add" type="button" onClick={() => onToggleBookmark(offset)} aria-label="添加当前位置书签">添加</button>}
             </>}
-          {isOutline && !symbolOutline && <div className="document-outline-jumps" aria-label="目录快速滚动">{(["top", "middle", "bottom"] as const).map((target, i) => <button type="button" key={target} title={["滚动至顶部", "滚动至中部", "滚动至底部"][i]} aria-label={["滚动至顶部", "滚动至中部", "滚动至底部"][i]} onClick={() => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: target }))}>{<ToolbarIcon name={(["pageTop", "pageMiddle", "pageBottom"] as const)[i]} />}</button>)}</div>}
+          {isOutline && !symbolOutline && <div className="document-outline-jumps" aria-label="目录快速滚动">{(["top", "middle", "bottom"] as const).map((target, i) => <button type="button" key={target} title={["单击定位目录顶部；双击滚动正文顶部", "单击定位目录中部；双击滚动正文中部", "单击定位目录底部；双击滚动正文底部"][i]} aria-label={["滚动至顶部", "滚动至中部", "滚动至底部"][i]} onClick={() => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: target }))} onDoubleClick={() => scrollSourceTo(target)}>{<ToolbarIcon name={(["pageTop", "pageMiddle", "pageBottom"] as const)[i]} />}</button>)}</div>}
           {(isOutline ? (symbolOutline ? sourceSymbolDisplayConfig?.showCounts === true : outlineDisplayConfig?.showCounts !== false) : bookmarkDisplayConfig?.showCounts !== false) && <span className={isOutline ? "document-outline-count" : "document-bookmark-count"}>
             {isOutline ? outline.length : bookmarks.length} 项
           </span>}

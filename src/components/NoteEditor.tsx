@@ -1581,6 +1581,13 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     list.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: target }));
   }, []);
 
+  const scrollDocumentTo = useCallback((target: "top" | "middle" | "bottom") => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    const maximum = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    scroller.scrollTo({ top: target === "top" ? 0 : target === "middle" ? maximum / 2 : maximum, behavior: "auto" });
+  }, []);
+
   const currentBookmark = useMemo(() => {
     if (!editor) return undefined;
     return bookmarks.find((bookmark) => bookmark.position === bookmarkCursorPosition);
@@ -4087,9 +4094,9 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
                 aria-label="目录快速滚动"
                 aria-hidden={!outlineOverflow && visibleOutlineEntries.length <= 16}
               >
-                <button type="button" onClick={() => scrollOutlineTo("top")} title="滚动至顶部" aria-label="滚动至顶部"><ToolbarIcon name="pageTop" /></button>
-                <button type="button" onClick={() => scrollOutlineTo("middle")} title="滚动至中部" aria-label="滚动至中部"><ToolbarIcon name="pageMiddle" /></button>
-                <button type="button" onClick={() => scrollOutlineTo("bottom")} title="滚动至底部" aria-label="滚动至底部"><ToolbarIcon name="pageBottom" /></button>
+                <button type="button" onClick={() => scrollOutlineTo("top")} onDoubleClick={() => scrollDocumentTo("top")} title="单击定位目录顶部；双击滚动正文顶部" aria-label="滚动至顶部"><ToolbarIcon name="pageTop" /></button>
+                <button type="button" onClick={() => scrollOutlineTo("middle")} onDoubleClick={() => scrollDocumentTo("middle")} title="单击定位目录中部；双击滚动正文中部" aria-label="滚动至中部"><ToolbarIcon name="pageMiddle" /></button>
+                <button type="button" onClick={() => scrollOutlineTo("bottom")} onDoubleClick={() => scrollDocumentTo("bottom")} title="单击定位目录底部；双击滚动正文底部" aria-label="滚动至底部"><ToolbarIcon name="pageBottom" /></button>
               </div>
               {outlineDisplayConfig?.showCounts !== false && <span className="document-outline-count">
                 {visibleOutlineEntries.length === documentOutline.length

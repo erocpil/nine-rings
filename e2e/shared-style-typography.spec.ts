@@ -42,7 +42,7 @@ test("切换七种风格保留共享设置，设置预览展示相同排版", as
     await group.getByRole("button", { name: new RegExp(`^${name}`) }).click();
     await expect(page.locator(".note-editor .ProseMirror")).toHaveCSS("font-size", "20px");
     await page.getByRole("button", { name: /打开排版设置/ }).click();
-    const preview = page.getByLabel("编辑器排版预览");
+    const preview = page.getByLabel("编辑器渲染排版预览");
     await expect(preview.locator("h1")).toHaveCSS("font-size", "35px");
     await expect(preview.locator("h1")).toHaveCSS("font-weight", "600");
     await expect(preview.locator("h1")).toHaveCSS("margin-bottom", "14px");

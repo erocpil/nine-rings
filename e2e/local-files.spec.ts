@@ -67,6 +67,68 @@ test("本地文件树长名称和深层路径可横向滚动，宽窄布局均�
   await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
 });
 
+test("本地文件树可关闭单个打开文件和目录下的全部打开文件", async ({ page }, testInfo) => {
+  await createBlankDocument(page, "本地文件关闭入口");
+  await closeDocumentSidebar(page);
+  await page.evaluate(async () => {
+    const { setPluginsEnabled } = await import("/src/lib/plugin-system/runtime.ts");
+    const { saveLocalFilesEnabled } = await import("/src/lib/plugin-system/builtin-local-files.ts");
+    setPluginsEnabled(true);
+    saveLocalFilesEnabled(true);
+    Object.defineProperty(window, "showDirectoryPicker", { value: undefined, configurable: true });
+  });
+  await page.getByRole("button", { name: "本地文件", exact: true }).click();
+  const panel = page.getByRole("region", { name: "本地文件树" });
+  const root = testInfo.outputPath("close-open-files");
+  await mkdir(join(root, "nested"), { recursive: true });
+  await writeFile(join(root, "nested", "one.c"), "int one(void) { return 1; }\n");
+  await writeFile(join(root, "nested", "two.c"), "int two(void) { return 2; }\n");
+  await panel.locator("input[type=file]").setInputFiles(root);
+  await panel.getByRole("button", { name: "nested", exact: true }).click();
+  const file = panel.getByRole("button", { name: "one.c", exact: true });
+  await file.click();
+  const viewer = page.getByRole("region", { name: "本地文件工作区" });
+  await expect(viewer.locator(".local-file-titlebar strong")).toHaveText("one.c");
+  await panel.getByRole("button", { name: "关闭文件 one.c", exact: true }).click();
+  await expect(viewer).toBeHidden();
+  await file.click();
+  await expect(viewer.locator(".local-file-titlebar strong")).toHaveText("one.c");
+  await panel.getByRole("button", { name: "关闭目录 nested 中已打开的文件", exact: true }).click();
+  await expect(viewer).toBeHidden();
+});
+
+test("本地 Markdown 文件在工具栏下显示目录，且目录双击滚动正文", async ({ page }, testInfo) => {
+  await createBlankDocument(page, "本地 Markdown 目录");
+  await closeDocumentSidebar(page);
+  await page.evaluate(async () => {
+    const { setPluginsEnabled } = await import("/src/lib/plugin-system/runtime.ts");
+    const { saveLocalFilesEnabled } = await import("/src/lib/plugin-system/builtin-local-files.ts");
+    setPluginsEnabled(true);
+    saveLocalFilesEnabled(true);
+    Object.defineProperty(window, "showDirectoryPicker", { value: undefined, configurable: true });
+  });
+  await page.getByRole("button", { name: "本地文件", exact: true }).click();
+  const panel = page.getByRole("region", { name: "本地文件树" });
+  const root = testInfo.outputPath("markdown-outline");
+  await mkdir(root, { recursive: true });
+  await writeFile(join(root, "guide.md"), Array.from({ length: 24 }, (_, index) => `# 第 ${index + 1} 节\n\n${"正文内容用于形成可滚动页面。\n\n".repeat(8)}`).join("\n"));
+  await panel.locator("input[type=file]").setInputFiles(root);
+  await panel.getByRole("button", { name: "guide.md", exact: true }).click();
+  const viewer = page.getByRole("region", { name: "本地文件工作区" });
+  await expect(viewer.getByRole("button", { name: "目录", exact: true })).toBeVisible();
+  await expect(viewer.getByRole("button", { name: "源码符号", exact: true })).toHaveCount(0);
+  await viewer.getByRole("button", { name: "目录", exact: true }).click();
+  const outline = viewer.getByRole("navigation", { name: "本地文件目录" });
+  await expect(outline).toBeVisible();
+  await expect(outline.locator(".document-outline-item")).toHaveCount(24);
+  await outline.getByRole("button", { name: "滚动至底部", exact: true }).dblclick();
+  await expect.poll(() => viewer.locator(".cm-scroller").evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  await viewer.getByRole("button", { name: "预览", exact: true }).click();
+  await expect(viewer.locator(".local-file-preview h1")).toHaveCount(24);
+  await outline.getByRole("button", { name: "滚动至顶部", exact: true }).dblclick();
+  await expect.poll(() => viewer.locator(".local-file-preview").evaluate(element => element.scrollTop)).toBeLessThan(2);
+});
+
 test("只读文件夹入口按需展开、源码查找和符号跳转，不创建文档，停用返回原视图", async ({
   page,
 }) => {

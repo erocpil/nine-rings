@@ -50,7 +50,7 @@ for (const style of ["classic", "calm"]) {
       await page.getByLabel(`${name}字体`, { exact: true }).selectOption(family);
       await page.getByLabel(`${name}字号`, { exact: true }).selectOption(size);
     }
-    await expect(page.getByLabel("编辑器排版预览").locator("h1")).toHaveCSS("font-size", "35px");
+    await expect(page.getByLabel("编辑器渲染排版预览").locator("h1")).toHaveCSS("font-size", "35px");
     await page.getByRole("button", { name: "应用到编辑器", exact: true }).click();
     await page.getByRole("button", { name: "关闭设置", exact: true }).click();
     const check = async (root: typeof body) => {
