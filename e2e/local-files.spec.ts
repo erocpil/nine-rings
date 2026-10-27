@@ -134,7 +134,7 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
   await expect.poll(async () => (await outline.boundingBox())!.width).toBeGreaterThan(outlineBounds.width + 40);
   await outline.getByRole("button", { name: "滚动至底部", exact: true }).dblclick();
   await expect.poll(() => viewer.locator(".cm-scroller").evaluate(element => element.scrollTop)).toBeGreaterThan(0);
-  await viewer.getByRole("button", { name: "预览", exact: true }).click();
+  await viewer.getByRole("button", { name: "渲染", exact: true }).click();
   await expect(viewer.locator(".local-file-preview h1")).toHaveCount(24);
   await outline.getByRole("button", { name: "滚动至顶部", exact: true }).dblclick();
   await expect.poll(() => viewer.locator(".local-file-preview").evaluate(element => element.scrollTop)).toBeLessThan(2);
