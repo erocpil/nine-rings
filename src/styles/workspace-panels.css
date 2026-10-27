@@ -534,7 +534,7 @@
 .editor-appearance-document {
   min-height: 100%;
   margin: 0;
-  padding: clamp(24px, 4vw, 46px) calc(clamp(24px, 4vw, 46px) + 2.6em) clamp(24px, 4vw, 46px) clamp(24px, 4vw, 46px);
+  padding: clamp(24px, 4vw, 46px) clamp(24px, 4vw, 46px) clamp(24px, 4vw, 46px) calc(clamp(24px, 4vw, 46px) + 2.6em);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
   counter-reset: typography-preview-block;
 }
@@ -548,7 +548,8 @@
   content: counter(typography-preview-block);
   position: absolute;
   top: 0;
-  right: calc(-1 * var(--editor-block-number-gap, 8px) - 1.8em);
+  left: calc(-1 * var(--editor-block-number-gap, 8px) - 1.8em);
+  right: auto;
   width: 1.5em;
   color: var(--text-secondary);
   font: 11px/var(--editor-line-height, 1.7) var(--font-mono);

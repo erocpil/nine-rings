@@ -105,7 +105,7 @@
   content: "";
   position: absolute;
   inset-block: 0;
-  left: 100%;
+  left: calc(100% + var(--source-gutter-divider-width));
   width: var(--source-text-inset);
   background: var(--numbering-source-currentBackground, color-mix(in srgb, var(--activeline-bg) 55%, transparent));
   pointer-events: none;
