@@ -15,6 +15,8 @@ export const EDITOR_FOLD_PRESETS = [
   { id: "chevron", label: "线条箭头", style: "chevron" },
   { id: "triangle", label: "实心三角 ▶ / ▼", style: "triangle" },
   { id: "small-triangle", label: "小三角 ▸ / ▾", style: "custom", collapsed: "▸", expanded: "▾" },
+  { id: "right-down-arrows", label: "方向箭头 → / ↓", style: "custom", collapsed: "→", expanded: "↓" },
+  { id: "angle-down", label: "轻量折角 › / ⌄", style: "custom", collapsed: "›", expanded: "⌄" },
   { id: "plus-minus", label: "加减号 + / −", style: "custom", collapsed: "+", expanded: "−" },
   { id: "boxed-plus-minus", label: "方框加减 ⊞ / ⊟", style: "custom", collapsed: "⊞", expanded: "⊟" },
 ] as const;

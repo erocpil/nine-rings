@@ -159,6 +159,11 @@ test("编辑器折叠标识支持预设、自定义、立即应用及重启保�
   await expect(style).toHaveValue("chevron");
   await style.selectOption("triangle");
   await expect(page.getByLabel("折叠标识预览").locator(".editor-fold-symbol")).toHaveText(["▶", "▼"]);
+  await style.selectOption("right-down-arrows");
+  await expect(page.getByLabel("折叠标识预览").locator(".editor-fold-symbol")).toHaveText(["→", "↓"]);
+  await style.selectOption("angle-down");
+  await expect(page.getByLabel("折叠标识预览").locator(".editor-fold-symbol")).toHaveText(["›", "⌄"]);
+  await style.selectOption("triangle");
   await page.locator(".settings-close").click();
   await expect(page.getByRole("button", { name: "折叠第 1 块章节", exact: true })).toHaveText("▼");
   await openSettings();
