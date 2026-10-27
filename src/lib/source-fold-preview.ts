@@ -111,13 +111,20 @@ export function sourceFoldPreviewPlaceholder(
       const lineStyle = renderedLines[0] ? getComputedStyle(renderedLines[0]) : null;
       const bubbleStyle = getComputedStyle(bubble);
       const px = (value: string | null | undefined) => Number.parseFloat(value ?? "") || 0;
+      const verticalPadding = 18;
+      const needsVerticalScrollbar = lines.length * lineHeight + verticalPadding > maxHeight;
+      const verticalScrollbarWidth = needsVerticalScrollbar
+        ? Math.max(0, preview.scrollDOM.offsetWidth - preview.scrollDOM.clientWidth)
+        : 0;
       // Use rendered text geometry (which includes syntax spans and tab stops)
       // and add the actual CodeMirror/content/border insets around that text.
+      // The final 8px absorbs subpixel font rounding, which otherwise leaves a
+      // narrow false horizontal scrollbar on short-to-medium source lines.
       const horizontalPadding =
         px(style.paddingLeft) + px(style.paddingRight) +
         px(lineStyle?.paddingLeft) + px(lineStyle?.paddingRight) +
-        px(bubbleStyle.borderLeftWidth) + px(bubbleStyle.borderRightWidth) + 2;
-      const verticalPadding = 18;
+        px(bubbleStyle.borderLeftWidth) + px(bubbleStyle.borderRightWidth) +
+        verticalScrollbarWidth + 8;
       // CodeMirror only lays out the visible portion of long folded regions;
       // keep the all-source estimate so offscreen long lines still size the bubble.
       const contentWidth = Math.max(renderedWidth, estimatedWidth);

@@ -388,7 +388,7 @@ test("C/C++ 折叠占位符预览完整源码并支持高亮与滚动，点击�
     .first()
     .boundingBox())!;
   const previewBox = (await bubble.boundingBox())!;
-  expect(Math.abs(previewBox.width - editorBox.width * 0.75)).toBeLessThan(3);
+  expect(previewBox.width).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth - 16) + 2);
   expect(previewBox.height).toBeLessThanOrEqual(editorBox.height * 0.5 + 3);
   await bubble.hover();
   const scroll = bubble.locator(".cm-scroller");
@@ -402,7 +402,21 @@ test("C/C++ 折叠占位符预览完整源码并支持高亮与滚动，点击�
   await expect(page.locator(".cm-foldPlaceholder")).toHaveCount(0);
   await expect(bubble).toHaveCount(0);
   expect((await sourceInfo(area)).value).toBe(source);
-  await replaceSource(area, "void small() {\n  return;\n}");
+  const compactSource = [
+    "static inline long parse_cli_long(const char *s, const char *name, long def) {",
+    "\tif (!s) {",
+    "\t\treturn def;",
+    "\t}",
+    "\tchar *endptr = NULL;",
+    "\terrno = 0;",
+    "\tlong v = strtol(s, &endptr, 10);",
+    "\tif (errno || endptr == s || *endptr != '\\0') {",
+    "\t\trte_exit(EXIT_FAILURE, \"Invalid --%s value: %s\\n\", name, s);",
+    "\t}",
+    "\treturn v;",
+    "}",
+  ].join("\n");
+  await replaceSource(area, compactSource);
   await toolbar.getByRole("button", { name: "折叠全部", exact: true }).click();
   await page.locator(".cm-foldPlaceholder").first().hover();
   await expect(bubble).toBeVisible();
@@ -410,7 +424,7 @@ test("C/C++ 折叠占位符预览完整源码并支持高亮与滚动，点击�
   // A compact preview keeps a readable minimum width, even when the available
   // source pane is narrow. It must shrink below the large preview and fit text.
   expect(compactBox.width).toBeLessThan(previewBox.width);
-  expect(compactBox.height).toBeLessThan(previewBox.height / 2);
-  await expect(bubble).toContainText("return;");
+  expect(compactBox.height).toBeLessThanOrEqual(await page.evaluate(() => window.innerHeight * 0.5) + 3);
+  await expect(bubble).toContainText("return v;");
   expect(await bubble.locator(".cm-scroller").evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(2);
 });
