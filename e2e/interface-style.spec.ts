@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
+import { replaceSource } from "./helpers/source-editor";
 
 test("物哀风格排版可调整、重载并恢复预设，经典排版保持独立", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 850 });
@@ -55,11 +56,12 @@ test("非经典风格保留源码行号竖线与留白，并在排版预览中�
   await page.getByRole("group", { name: "界面风格", exact: true })
     .getByRole("button", { name: /^纸页/ }).click();
   await page.getByRole("button", { name: /打开排版设置/ }).click();
-  const preview = page.getByRole("region", { name: "源码行号竖线与留白预览" });
+  const preview = page.getByLabel("源码模式排版预览", { exact: true });
   const gutter = preview.locator(".editor-appearance-source-gutter");
   const code = preview.locator("code");
   await expect(page.getByLabel("代码块排版预览")).toBeVisible();
   await expect(page.getByLabel("引用块排版预览")).toBeVisible();
+  await page.getByRole("group", { name: "预览模式" }).getByRole("button", { name: "源码", exact: true }).click();
   await page.getByRole("button", { name: "增大源码行号竖线宽度" }).click();
   await page.getByRole("button", { name: "增大源码行号竖线左侧留白" }).click();
   await page.getByRole("button", { name: "增大源码行号竖线右侧留白" }).click();
@@ -74,8 +76,45 @@ test("非经典风格保留源码行号竖线与留白，并在排版预览中�
   await expect(page.locator(".markdown-cm-host .cm-gutters")).toHaveCSS("border-right-width", "2px");
   await expect(page.locator(".markdown-cm-host .cm-lineNumbers .cm-gutterElement").first()).toHaveCSS("padding-right", "6px");
   await expect(page.locator(".markdown-cm-host .cm-line").first()).toHaveCSS("padding-left", "7px");
+  const expectUncoveredDivider = async () => {
+    const geometry = await page.locator(".markdown-cm-host .cm-gutters-before").evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      const mask = getComputedStyle(element, "::after");
+      return {
+        dividerRight: rect.right,
+        maskLeft: rect.left + element.clientLeft + Number.parseFloat(mask.left),
+      };
+    });
+    // A correct border width alone does not prove visibility: the opaque text
+    // inset must start beyond the border, including after horizontal scrolling.
+    expect(geometry.maskLeft).toBeGreaterThanOrEqual(geometry.dividerRight - 0.1);
+  };
+  await expectUncoveredDivider();
   await page.reload();
   await expect(page.locator(".markdown-cm-host .cm-gutters")).toHaveCSS("border-right-width", "2px");
+  await expectUncoveredDivider();
+  let width = 2;
+  for (const target of [0, 1, 4]) {
+    await page.getByTitle("设置", { exact: true }).click();
+    await page.getByRole("button", { name: /^外观与布局/ }).click();
+    await page.getByRole("button", { name: /打开排版设置/ }).click();
+    const direction = target > width ? "增大" : "减小";
+    for (let step = 0; step < Math.abs(target - width); step++) {
+      await page.getByRole("button", { name: `${direction}源码行号竖线宽度` }).click();
+    }
+    await page.getByRole("button", { name: "应用到编辑器" }).click();
+    await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+    await expect(page.locator(".markdown-cm-host .cm-gutters")).toHaveCSS("border-right-width", `${target}px`);
+    await expectUncoveredDivider();
+    width = target;
+  }
+  await replaceSource(page.locator(".cm-content"), "long_source_name_".repeat(30) + "\nsecond line");
+  const wrap = page.getByRole("button", { name: "软换行", exact: true });
+  if (await wrap.getAttribute("aria-pressed") === "true") await wrap.click();
+  const scroller = page.locator(".markdown-cm-host .cm-scroller");
+  await scroller.evaluate(element => { element.scrollLeft = 120; });
+  await expect.poll(() => scroller.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+  await expectUncoveredDivider();
 });
 
 test("清雅采用完整预设，跟随系统；经典配置在切回后恢复", async ({ page }) => {

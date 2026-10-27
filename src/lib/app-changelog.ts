@@ -4,6 +4,7 @@ export const APP_CHANGELOG = [
     date: "2026-10-27",
     title: "Makefile 源码与代码块",
     changes: [
+      "修复源码行号分隔线被不透明留白遮罩覆盖的问题；调整线宽后立即显示，横向滚动仍保留文字遮挡与当前行高亮。",
       "源码模式和代码块新增 Makefile 语言；自动识别 Makefile、GNUmakefile、BSDmakefile、Makefile.am、Makefile.in、.mk 与 .mak，并高亮变量、目标、指令、注释和 recipe。",
     ],
   },

@@ -83,12 +83,13 @@
   --source-text-inset: var(--editor-source-gutter-divider-right-space, 6px);
 }
 .markdown-cm-host .cm-editor .cm-line { padding: 0 var(--source-text-inset); }
-/* Keep the text inset opaque when content scrolls underneath the sticky gutter. */
+/* Absolute percentages use the gutter's padding box, excluding its border.
+   Start after that border so the opaque inset cannot cover the divider. */
 .markdown-cm-source .cm-editor .cm-gutters-before::after {
   content: "";
   position: absolute;
   inset-block: 0;
-  left: 100%;
+  left: calc(100% + var(--source-gutter-divider-width));
   width: var(--source-text-inset);
   background: var(--bg);
   pointer-events: none;
