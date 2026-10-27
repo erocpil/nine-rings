@@ -205,7 +205,7 @@ test("四项摘要悬停预览，最多十五行，长标题省略且滚动后�
     return [...element.querySelectorAll("li button")].filter(button => { const row = button.getBoundingClientRect(); return row.top >= box.top && row.bottom <= box.bottom; }).length;
   })).toBeLessThanOrEqual(15);
   expect(await list.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
-  expect(await popup.locator("li button").count()).toBeLessThan(30);
+  expect(await popup.locator("[data-summary-index]").count()).toBeLessThan(30);
   expect(await page.locator(".app-main-split").boundingBox()).toEqual(before);
   await popup.screenshot({ path: test.info().outputPath("summary-hover.png") });
   await list.evaluate(element => { element.scrollTop = element.scrollHeight; });
@@ -234,9 +234,9 @@ test("摘要预览支持键盘到末项和 Escape，不影响统计点击及手�
   await all.focus();
   await page.keyboard.press("ArrowDown");
   const popup = page.getByRole("dialog", { name: "全部文档预览", exact: true });
-  await expect(popup.locator("li button").first()).toBeFocused();
+  await expect(popup.locator("[data-summary-index]").first()).toBeFocused();
   await page.keyboard.press("End");
-  await expect(popup.locator("li button").last()).toBeFocused();
+  await expect(popup.locator("[data-summary-index]").last()).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(popup).toHaveCount(0);
   await expect(all).toBeFocused();
@@ -244,7 +244,7 @@ test("摘要预览支持键盘到末项和 Escape，不影响统计点击及手�
   await expect(popup).toBeVisible();
   await all.focus();
   await page.keyboard.press("ArrowDown");
-  await expect(popup.locator("li button").first()).toBeFocused();
+  await expect(popup.locator("[data-summary-index]").first()).toBeFocused();
   await page.keyboard.press("Escape");
   await page.evaluate(async () => { const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts"); saveWorkspaceLayout({ summaryInteraction: "sidebar" }); });
   await all.click();
@@ -301,7 +301,7 @@ test("最近打开弹层取访问记录，分栏仍展示最近编辑十五份",
   const button = page.getByRole("button", { name: "查看最近打开文档", exact: true });
   await expect(button).toContainText("16");
   await button.hover();
-  await expect(page.locator(".workspace-summary-preview li button")).toHaveCount(16);
+  await expect(page.locator(".workspace-summary-preview [data-summary-index]")).toHaveCount(16);
   await page.evaluate(async () => { const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts"); saveWorkspaceLayout({ summaryInteraction: "sidebar" }); });
   await button.click();
   const list = page.getByRole("region", { name: "文档列表", exact: true });
@@ -342,12 +342,63 @@ test("最近打开弹层的两类文件各保留十六项，最新置顶且独�
     await expect.poll(() => group.evaluate(element => element.clientHeight)).toBeGreaterThanOrEqual(8 * 28);
     await expect.poll(() => group.evaluate(element => element.scrollHeight - element.clientHeight)).toBeGreaterThan(8 * 28 - 2);
   }
-  await expect(groups.nth(0).locator("li button").first()).toContainText("摘要当前文档");
-  await expect(groups.nth(0).locator("li button").nth(1)).toContainText("概览文档 17");
-  await expect(groups.nth(0).locator("li button").last()).toContainText("概览文档 3");
+  await expect(groups.nth(0).locator("[data-summary-index]").first()).toContainText("摘要当前文档");
+  await expect(groups.nth(0).locator("[data-summary-index]").nth(1)).toContainText("概览文档 17");
+  await expect(groups.nth(0).locator("[data-summary-index]").last()).toContainText("概览文档 3");
   await expect(popup.locator(".workspace-summary-shortcut")).toHaveText([...( "fedcba9876543210" )]);
-  await expect(groups.nth(1).locator("li button").first()).toContainText("file-17.c");
-  await expect(groups.nth(1).locator("li button").last()).toContainText("file-2.c");
+  await expect(groups.nth(1).locator(".workspace-summary-preview-local-file").first()).toContainText("file-17.c");
+  await expect(groups.nth(1).locator(".workspace-summary-preview-local-file").last()).toContainText("file-2.c");
+});
+
+test("最近打开可单独移除条目并按 Nine Rings 文档或本地文件批量清空", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await seed(page);
+  await page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    const { rememberRecentNote } = await import("/src/lib/quick-switcher.ts");
+    const { rememberRecentLocalFile } = await import("/src/lib/local-files/recent.ts");
+    const { setPluginsEnabled } = await import("/src/lib/plugin-system/runtime.ts");
+    const { saveLocalFilesEnabled } = await import("/src/lib/plugin-system/builtin-local-files.ts");
+    const { saveWorkspaceLayout } = await import("/src/lib/workspace-layout.ts");
+    setPluginsEnabled(true);
+    saveLocalFilesEnabled(true);
+    saveWorkspaceLayout({ summaryInteraction: "click" });
+    localStorage.setItem("nr:recentNotes", "[]");
+    localStorage.setItem("nr:recentNoteEdits", "[]");
+    localStorage.setItem("nr:local-file-recent", "[]");
+    for (const title of ["Recent Alpha", "Recent Beta"]) {
+      const note = await api.notes.create({ title, date: "2026-10-10", storagePath: "ideas/recent", content: { ops: [] } });
+      rememberRecentNote(note.id);
+    }
+    rememberRecentLocalFile({ rootId: "root", rootName: "本地项目", nodeId: "src/alpha.c", name: "alpha.c" });
+    rememberRecentLocalFile({ rootId: "root", rootName: "本地项目", nodeId: "src/beta.c", name: "beta.c" });
+  });
+  await page.reload();
+  const summary = page.getByRole("navigation", { name: "工作区统计", exact: true });
+  await expect(summary).toHaveAttribute("aria-busy", "false");
+  await summary.getByRole("button", { name: "查看最近打开文档", exact: true }).click();
+  const popup = page.getByRole("dialog", { name: "最近打开预览", exact: true });
+  const documentRows = popup.locator("[data-summary-index]");
+  const localRows = popup.locator(".workspace-summary-preview-local-file");
+  await expect(documentRows).toHaveCount(3);
+  await expect(localRows).toHaveCount(2);
+  await expect(popup.getByRole("button", { name: "关闭Recent Alpha", exact: true })).toBeVisible();
+  await expect(popup.getByRole("button", { name: "关闭alpha.c", exact: true })).toBeVisible();
+  await expect(popup.getByRole("button", { name: "关闭全部 Nine Rings 文档", exact: true })).toBeEnabled();
+  await expect(popup.getByRole("button", { name: "关闭全部本地文件", exact: true })).toBeEnabled();
+  await popup.getByRole("button", { name: "关闭Recent Alpha", exact: true }).click();
+  await expect(documentRows).toHaveCount(2);
+  await expect(popup.getByRole("button", { name: "Recent Alpha", exact: true })).toHaveCount(0);
+  await expect(popup.getByRole("button", { name: "Recent Beta", exact: true })).toBeVisible();
+  await popup.getByRole("button", { name: "关闭alpha.c", exact: true }).click();
+  await expect(localRows).toHaveCount(1);
+  await expect(localRows.first()).toContainText("beta.c");
+  await popup.getByRole("button", { name: "关闭全部 Nine Rings 文档", exact: true }).click();
+  await expect(documentRows).toHaveCount(0);
+  await expect(popup.getByText("暂无最近打开的 Nine Rings 文档", { exact: true })).toBeVisible();
+  await popup.getByRole("button", { name: "关闭全部本地文件", exact: true }).click();
+  await expect(localRows).toHaveCount(0);
+  await expect(popup.getByText("暂无本地文件记录", { exact: true })).toBeVisible();
 });
 
 test("恢复原文档列表的视图和筛选，不沿用临时统计条件", async ({ page }) => {
@@ -485,9 +536,9 @@ test("最近打开最新在上方且编号逆序，其它弹层最新在下方",
     await page.getByRole("button", { name: buttonName, exact: true }).click();
     const popup = page.getByRole("dialog", { name: `${title}预览`, exact: true });
     const recent = title === "最近打开";
-    await expect(popup.locator("li button")).toHaveCount(recent ? 16 : 15);
-    await expect(popup.locator("li button").first()).toContainText(recent ? "编号文档 19" : "编号文档 5");
-    await expect(popup.locator("li button").last()).toContainText(recent ? "编号文档 4" : "编号文档 19");
+    await expect(popup.locator("[data-summary-index]")).toHaveCount(recent ? 16 : 15);
+    await expect(popup.locator("[data-summary-index]").first()).toContainText(recent ? "编号文档 19" : "编号文档 5");
+    await expect(popup.locator("[data-summary-index]").last()).toContainText(recent ? "编号文档 4" : "编号文档 19");
     await expect(popup.locator(".workspace-summary-shortcut")).toHaveText([...(recent ? "fedcba9876543210" : "0123456789abcde")]);
     if (!recent) { await page.keyboard.press("f"); await expect(popup).toBeVisible(); }
     await page.keyboard.press("a");
@@ -504,7 +555,7 @@ test("最近打开最新在上方且编号逆序，其它弹层最新在下方",
   await expect(page.locator(".note-title:visible")).toHaveValue("编号文档 0");
   await page.getByRole("button", { name: "查看最近打开文档", exact: true }).click();
   const popup = page.getByRole("dialog", { name: "最近打开预览", exact: true });
-  await expect(popup.locator("li button").first()).toContainText("编号文档 0");
+  await expect(popup.locator("[data-summary-index]").first()).toContainText("编号文档 0");
   await page.keyboard.press("F");
   await expect(popup).toHaveCount(0);
   await expect(page.locator(".note-title:visible")).toHaveValue("编号文档 0");

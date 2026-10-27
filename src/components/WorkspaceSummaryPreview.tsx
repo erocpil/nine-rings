@@ -5,17 +5,20 @@ import { createPortal } from "react-dom";
 import { useDocumentPanelPosition } from "../hooks/useDocumentPanelPosition";
 import { WORKSPACE_RECENT_CATEGORY_LIMIT, workspaceSummaryShortcutIndex, type WorkspaceDocumentSummary } from "../lib/workspace-summary";
 import type { RecentLocalFile } from "../lib/local-files/recent";
+import { clearRecentLocalFiles, forgetRecentLocalFile } from "../lib/local-files/recent";
+import { clearRecentNotes, forgetRecentNote } from "../lib/quick-switcher";
 import { ToolbarIcon } from "./ToolbarIcon";
 import "./WorkspaceSummaryPreview.css";
 
 const ROW_HEIGHT = 28;
 
 /** A metadata-only preview, independent of sidebar widths and editor layout. */
-export function WorkspaceSummaryPreview({ title, documents, localFiles = [], showLocalFilesSection = false, trigger, keyboard, numbered = false, reverseNumbering = false, editedIds, visibleRows = DEFAULT_WORKSPACE_LAYOUT.summaryVisibleRows, compact = false, onOpen, onOpenLocal, onClose, onEnter, onLeave }: {
+export function WorkspaceSummaryPreview({ title, documents, localFiles = [], showLocalFilesSection = false, recentFiles = false, trigger, keyboard, numbered = false, reverseNumbering = false, editedIds, visibleRows = DEFAULT_WORKSPACE_LAYOUT.summaryVisibleRows, compact = false, onOpen, onOpenLocal, onClose, onEnter, onLeave }: {
   title: string;
   documents: WorkspaceDocumentSummary[];
   localFiles?: RecentLocalFile[];
   showLocalFilesSection?: boolean;
+  recentFiles?: boolean;
   trigger: HTMLButtonElement;
   keyboard: boolean;
   numbered?: boolean;
@@ -44,7 +47,7 @@ export function WorkspaceSummaryPreview({ title, documents, localFiles = [], sho
     previousKeyboard.current = keyboard;
   }, [keyboard, numbered, reverseNumbering, documents.length]);
   const rowsPerGroup = showLocalFilesSection ? Math.min(WORKSPACE_RECENT_CATEGORY_LIMIT, visibleRows) : visibleRows;
-  const previewHeight = ROW_HEIGHT * rowsPerGroup * (showLocalFilesSection ? 2 : 1) + (showLocalFilesSection ? 96 : 46);
+  const previewHeight = ROW_HEIGHT * rowsPerGroup * (showLocalFilesSection ? 2 : 1) + (showLocalFilesSection ? 112 : 46);
   const style = useDocumentPanelPosition({ open: true, triggerRef, panelRef, compact, layoutKey: `${visibleRows}:${showLocalFilesSection}`, heightLimit: previewHeight, viewportHeightRatio: showLocalFilesSection ? 0.72 : 0.58 });
   const virtual = documents.length > 60;
   const start = virtual ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 4) : 0;
@@ -103,7 +106,10 @@ export function WorkspaceSummaryPreview({ title, documents, localFiles = [], sho
       {numbered && <kbd className="workspace-summary-shortcut-hint" title="输入行首十六进制编号直接打开文档">{documents.length ? `0–${Math.min(15, documents.length - 1).toString(16)}` : "0–f"}</kbd>}
       <button type="button" aria-label="关闭文档预览" onClick={() => onClose(true)}><ToolbarIcon name="close" /></button>
     </div>
-    {(showLocalFilesSection || localFiles.length > 0) && <h4 className="workspace-summary-preview-section-title">Nine Rings 文档</h4>}
+    {(recentFiles || showLocalFilesSection || localFiles.length > 0) && <div className="workspace-summary-preview-section-heading">
+      <h4 className="workspace-summary-preview-section-title">Nine Rings 文档</h4>
+      {recentFiles && <button type="button" className="workspace-summary-preview-clear" aria-label="关闭全部 Nine Rings 文档" title="关闭全部 Nine Rings 文档" disabled={!documents.length} onClick={() => clearRecentNotes()}><ToolbarIcon name="close" /></button>}
+    </div>}
     {documents.length > 0 && <>
     <ul ref={listRef} style={{ maxHeight: ROW_HEIGHT * rowsPerGroup + 8 }} onScroll={event => setScrollTop(event.currentTarget.scrollTop)}
       onKeyDown={event => {
@@ -121,19 +127,24 @@ export function WorkspaceSummaryPreview({ title, documents, localFiles = [], sho
         setFocusIndex(index);
       }}>
       {start > 0 && <li aria-hidden="true" style={{ height: start * ROW_HEIGHT }} />}
-      {documents.slice(start, end).map((note, offset) => <li key={note.id}>
+      {documents.slice(start, end).map((note, offset) => <li key={note.id} className="workspace-summary-preview-row">
         <button type="button" data-summary-index={start + offset} aria-label={note.title || "未命名文档"} data-edit-status={editedIds ? editedIds.includes(note.id) ? "edited" : "viewed" : undefined} aria-description={editedIds ? editedIds.includes(note.id) ? "已记录编辑" : "仅浏览，尚未记录编辑" : undefined} title={`${note.title || "未命名文档"}${editedIds ? editedIds.includes(note.id) ? " — 已记录编辑" : " — 仅浏览，尚未记录编辑" : ""}`} onClick={event => onOpen(note.id, documentOpenOptions(event))}>{numbered && <span aria-hidden="true" className="workspace-summary-shortcut">{(reverseNumbering ? documents.length - 1 - (start + offset) : start + offset).toString(16)}</span>}{note.title || "未命名文档"}</button>
+        {recentFiles && <button type="button" className="workspace-summary-preview-dismiss" aria-label={`关闭${note.title || "未命名文档"}`} title="从最近打开中移除" onClick={() => forgetRecentNote(note.id)}><ToolbarIcon name="close" /></button>}
       </li>)}
       {end < documents.length && <li aria-hidden="true" style={{ height: (documents.length - end) * ROW_HEIGHT }} />}
     </ul></>}
     {showLocalFilesSection && documents.length === 0 && <p className="workspace-summary-preview-local-empty">暂无最近打开的 Nine Rings 文档</p>}
-    {showLocalFilesSection && <h4 className="workspace-summary-preview-section-title">本地文件</h4>}
+    {showLocalFilesSection && <div className="workspace-summary-preview-section-heading">
+      <h4 className="workspace-summary-preview-section-title">本地文件</h4>
+      <button type="button" className="workspace-summary-preview-clear" aria-label="关闭全部本地文件" title="关闭全部本地文件" disabled={!localFiles.length} onClick={() => clearRecentLocalFiles()}><ToolbarIcon name="close" /></button>
+    </div>}
     {localFiles.length > 0 && <>
       <ul className="workspace-summary-preview-local-list" style={{ maxHeight: ROW_HEIGHT * Math.min(rowsPerGroup, localFiles.length) + 8 }}>
-        {localFiles.slice(0, WORKSPACE_RECENT_CATEGORY_LIMIT).map(file => <li key={`${file.rootId}:${file.nodeId}`}>
+        {localFiles.slice(0, WORKSPACE_RECENT_CATEGORY_LIMIT).map(file => <li key={`${file.rootId}:${file.nodeId}`} className="workspace-summary-preview-row">
           <button type="button" className="workspace-summary-preview-local-file" title={`${file.rootName}/${file.nodeId}`} onClick={() => onOpenLocal?.(file)}>
             <ToolbarIcon name="disk" /><span>{file.name}</span><small>{file.rootName}</small>
           </button>
+          <button type="button" className="workspace-summary-preview-dismiss" aria-label={`关闭${file.name}`} title="从最近打开中移除" onClick={() => forgetRecentLocalFile(file)}><ToolbarIcon name="close" /></button>
         </li>)}
       </ul>
     </>}

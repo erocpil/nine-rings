@@ -2,6 +2,9 @@ import {
   filterQuickSwitcherNotes,
   rankQuickSwitcherNotes,
   readRecentNoteIds,
+  readRecentEditedNoteIds,
+  clearRecentNotes,
+  forgetRecentNote,
   readRecentNoteAccessedAt,
   rememberRecentNote,
   markRecentNoteAccessed,
@@ -58,6 +61,12 @@ assert(toggleDocumentFavorite("a", storage).join() === "a", "文档收藏保存 
 assert(toggleDocumentFavorite("b", storage).join() === "a,b", "可收藏多个文档");
 assert(toggleDocumentFavorite("a", storage).join() === "b", "取消收藏不影响其他文档");
 assert(readRecentNoteIds(storage).join() === "a,b", "收藏不改变最近访问顺序");
+memory.set("nr:recentNoteEdits", '["a","b"]');
+forgetRecentNote("a", storage);
+assert(readRecentNoteIds(storage).join() === "b", "移除单份文档后保留其余最近记录");
+assert(readRecentEditedNoteIds(storage).join() === "b", "移除文档时同步清理最近编辑标记");
+clearRecentNotes(storage);
+assert(readRecentNoteIds(storage).length === 0 && readRecentEditedNoteIds(storage).length === 0, "关闭全部文档记录同时清空最近访问和编辑记录");
 storage.setItem(DOCUMENT_FAVORITES_KEY, '["b","b",null,{},"bad/id"]');
 assert(readDocumentFavorites(storage).join() === "b", "收藏读取过滤无效 ID 和重复项");
 storage.setItem(DOCUMENT_FAVORITES_KEY, "invalid json");

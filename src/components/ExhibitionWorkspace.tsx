@@ -415,7 +415,7 @@ export function ExhibitionWorkspace(props: Props) {
           )}
         </section>
       )}
-      {previewEnabled && summaryPreview && <WorkspaceSummaryPreview key={summaryPreview.kind} title={previewTitle} documents={previewDocuments} localFiles={previewLocalFiles} showLocalFilesSection={summaryPreview.kind === "recent" && props.localFilesAvailable} onOpenLocal={file => { closeSummary(); props.onOpenLocalFile(file); }}
+      {previewEnabled && summaryPreview && <WorkspaceSummaryPreview key={summaryPreview.kind} title={previewTitle} documents={previewDocuments} localFiles={previewLocalFiles} recentFiles={summaryPreview.kind === "recent"} showLocalFilesSection={summaryPreview.kind === "recent" && props.localFilesAvailable} onOpenLocal={file => { closeSummary(); props.onOpenLocalFile(file); }}
         numbered={summaryPreview.kind !== "all"} reverseNumbering={summaryPreview.kind === "recent"} editedIds={summaryPreview.kind === "recent" ? recentEdited : undefined} trigger={summaryPreview.trigger} keyboard={summaryPreview.keyboard} visibleRows={summaryLayout.summaryVisibleRows} compact={!props.desktop} onEnter={keepSummary} onLeave={leaveSummary} onClose={closeSummary}
         onOpen={(id, options) => { closeSummary(); open(id, options); }} />}
     </div>

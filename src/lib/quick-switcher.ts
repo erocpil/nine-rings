@@ -33,6 +33,25 @@ export function rememberRecentNote(id: string, storage: RecentStorage = localSto
   if (typeof window !== "undefined") window.dispatchEvent(new Event(RECENT_NOTES_CHANGED_EVENT));
 }
 
+export function forgetRecentNote(id: string, storage: RecentStorage = localStorage): void {
+  if (!id) return;
+  const recent = readRecentNoteIds(storage).filter((candidate) => candidate !== id);
+  const edited = readRecentEditedNoteIds(storage).filter((candidate) => candidate !== id);
+  storage.setItem(RECENT_NOTES_KEY, JSON.stringify(recent));
+  storage.setItem(RECENT_NOTE_EDITS_KEY, JSON.stringify(edited));
+  try {
+    if (typeof window !== "undefined") window.dispatchEvent(new Event(RECENT_NOTES_CHANGED_EVENT));
+  } catch { /* Recent-list dismissal is local presentation state. */ }
+}
+
+export function clearRecentNotes(storage: RecentStorage = localStorage): void {
+  storage.setItem(RECENT_NOTES_KEY, "[]");
+  storage.setItem(RECENT_NOTE_EDITS_KEY, "[]");
+  try {
+    if (typeof window !== "undefined") window.dispatchEvent(new Event(RECENT_NOTES_CHANGED_EVENT));
+  } catch { /* Recent-list dismissal is local presentation state. */ }
+}
+
 type RecentAccessStorage = Pick<RecentStorage, "getItem" | "setItem">;
 
 function readNoteAccessTimes(storage: RecentAccessStorage): Record<string, string> {
