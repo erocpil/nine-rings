@@ -6,7 +6,8 @@
   top: calc(100% + 2px);
   display: flex;
   align-items: stretch;
-  min-width: 156px;
+  box-sizing: border-box;
+  width: 176px;
   padding: 5px;
   background: var(--surface, var(--bg));
   border: 1px solid var(--border);
@@ -16,4 +17,5 @@
 .focus-appearance-tray .exhibition-appearance { display: flex; flex-direction: column; gap: 2px; width: 100%; }
 .focus-appearance-tray .exhibition-select { width: 100%; min-height: 32px; white-space: nowrap; gap: 6px; }
 .focus-appearance-tray .exhibition-select > span { flex: 1; text-align: left; }
+.focus-appearance > .titlebar-btn:focus { outline: none; box-shadow: none; }
 .focus-appearance-error { position: absolute; top: 100%; right: 0; z-index: 250; width: max-content; max-width: min(340px, 80vw); padding: 8px 12px; color: var(--danger); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); }

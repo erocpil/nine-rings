@@ -17,10 +17,11 @@ interface Props {
   onPopupEnter?: () => void;
   onPopupLeave?: () => void;
   popupPlacement?: "below" | "left";
+  popupSizeToContent?: boolean;
 }
 
 /** One controlled popup per DocumentBrowser, without native select click capture. */
-export function DocumentFilterSelect({ label, text, icon, disabled = false, className = "", value, options, open, onOpenChange, onChange, onHover, onPopupEnter, onPopupLeave, popupPlacement = "below" }: Props) {
+export function DocumentFilterSelect({ label, text, icon, disabled = false, className = "", value, options, open, onOpenChange, onChange, onHover, onPopupEnter, onPopupLeave, popupPlacement = "below", popupSizeToContent = false }: Props) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -53,15 +54,17 @@ export function DocumentFilterSelect({ label, text, icon, disabled = false, clas
       // still contain var(--font) in some WebKit versions, which silently
       // leaves the canvas at its tiny default and clips the option text.
       context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-      return Math.max(context.measureText(label.textContent ?? "").width, label.scrollWidth);
+      return context.measureText(label.textContent ?? "").width;
     }));
     // Width: 2 × horizontal button padding, icon gap/reservation and popup
     // chrome. Measuring labels avoids the 100%-wide flex child expanding the
     // intrinsic width to the available screen width.
-    const contentWidth = Math.ceil(labelWidth + 20 + 12 + 16 + 10);
-    popup.style.width = `${Math.min(maxWidth, Math.max(rect.width, contentWidth))}px`;
+    // Keep a small allowance for font fallback/letter-spacing differences
+    // between canvas measurement and the rendered option text.
+    const contentWidth = Math.ceil(labelWidth + 20 + 12 + 16 + 18);
+    popup.style.width = `${Math.min(maxWidth, popupSizeToContent ? contentWidth : Math.max(rect.width, contentWidth))}px`;
     popup.style.maxWidth = `${maxWidth}px`;
-    popup.style.minWidth = `${Math.min(rect.width, maxWidth)}px`;
+    popup.style.minWidth = popupSizeToContent ? "0" : `${Math.min(rect.width, maxWidth)}px`;
     const below = Math.max(0, bottom - rect.bottom - 4);
     const above = Math.max(0, rect.top - top - 4);
     const placeLeft = popupPlacement === "left";
@@ -74,7 +77,7 @@ export function DocumentFilterSelect({ label, text, icon, disabled = false, clas
     selected?.focus({ preventScroll: true });
     // Scroll only the popup, never the document/sidebar containing the trigger.
     if (selected) popup.scrollTop = selected.offsetTop - popup.clientHeight / 2;
-  }, [open, popupPlacement]);
+  }, [open, popupPlacement, popupSizeToContent]);
 
   useEffect(() => {
     if (!open) return;
