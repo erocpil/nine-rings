@@ -24,15 +24,18 @@ test("点击专注模式外观菜单后向下展开，选项向左展开并可�
   await expect.poll(() => trigger.evaluate(button => getComputedStyle(button).outlineStyle)).toBe("none");
   const box = (await tray.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.width).toBeLessThanOrEqual(150);
   const triggerBox = (await trigger.boundingBox())!;
   expect(box.x + box.width).toBeLessThanOrEqual(triggerBox.x + triggerBox.width + 1);
   expect(box.y).toBeGreaterThanOrEqual(triggerBox.y + triggerBox.height);
   for (const label of ["工作区风格", "工作区配色", "文本宽度", "紧凑程度"]) {
     const item = tray.getByRole("button", { name: label, exact: true });
     await item.hover();
+    const itemBox = (await item.boundingBox())!;
+    const chevronBox = (await item.locator(".toolbar-icon").last().boundingBox())!;
+    expect(itemBox.x + itemBox.width - chevronBox.x - chevronBox.width).toBeLessThanOrEqual(8);
     const popup = page.getByRole("listbox", { name: label, exact: true });
     await expect(popup).toBeVisible();
-    const itemBox = (await item.boundingBox())!;
     const popupBox = (await popup.boundingBox())!;
     expect(popupBox.x + popupBox.width).toBeLessThanOrEqual(itemBox.x + 1);
     expect(popupBox.width).toBeLessThan(itemBox.width);
