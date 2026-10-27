@@ -8,6 +8,7 @@ import { workspacePanels } from "../lib/plugin-system/panel-registry";
 import { mainViews } from "../lib/plugin-system/main-view-registry";
 import { panelDisplays } from "../lib/plugin-system/panel-display";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
+import { useTransientMessage } from "../hooks/useTransientMessage";
 import { LOCAL_FILE_OPENED_EVENT, LOCAL_FILE_REVEAL_EVENT, rememberRecentLocalFile, renameRecentLocalPath, removeRecentLocalPath } from "../lib/local-files/recent";
 import { isLocalFileReadOnly, setLocalFileReadOnly } from "../lib/local-files/access";
 import { localFileSessions, invalidateLocalFileSessionMounts } from "../lib/local-files/session";
@@ -22,6 +23,7 @@ import { ToolbarIcon } from "./ToolbarIcon";
 import { copyToClipboard } from "../lib/clipboard";
 import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
 import { BlockActionMenu } from "./BlockActionMenu";
+import { createPortal } from "react-dom";
 import { useLocalFileTree } from "../hooks/useLocalFileTree";
 import { appendLocalFileNodes, localFileListKey, localFileTreeNodes, readLocalFileTreePreferences, saveLocalFileTreePreferences, type ListedFilePage } from "../lib/local-files/tree";
 import "../styles/local-files.css";
@@ -68,6 +70,13 @@ function fileSize(size: number) {
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
+interface LocalPathTooltip {
+  target: string;
+  path: string;
+  left: number;
+  top: number;
+}
+
 export function LocalFilesPanel({ active, onBack }: {
   active: boolean;
   onBack?: () => void;
@@ -97,6 +106,11 @@ export function LocalFilesPanel({ active, onBack }: {
   const [rootsReady, setRootsReady] = useState(false);
   const mainViewState = useSyncExternalStore(mainViews.subscribe, mainViews.getSnapshot, mainViews.getSnapshot);
   const [contextMenu, setContextMenu] = useState<(NotesMenuTarget & { rootId: string; nodeId: string; directory: boolean; name: string; fullPath: string | null; pathLoading: boolean }) | null>(null);
+  const { message: pathNotice, showMessage: showPathNotice, clearMessage: clearPathNotice } = useTransientMessage();
+  const [pathTooltip, setPathTooltip] = useState<LocalPathTooltip | null>(null);
+  const pathHoverTargetRef = useRef<string | null>(null);
+  const pathTooltipTimerRef = useRef<number | null>(null);
+  const pathTooltipCloseTimerRef = useRef<number | null>(null);
   const display = usePanelDisplay("local-files");
   const input = useRef<HTMLInputElement>(null);
   const mounted = useRef(true);
@@ -106,6 +120,51 @@ export function LocalFilesPanel({ active, onBack }: {
   const tree = useRef<HTMLDivElement>(null);
   const treeScrollVersion = useRef(0);
   const treeAnchor = useRef<{ rows: Array<{ id: string; offset: number }>; scrollTop: number; version: number } | null>(null);
+  const clearPathTooltipTimer = () => {
+    if (pathTooltipTimerRef.current !== null) window.clearTimeout(pathTooltipTimerRef.current);
+    pathTooltipTimerRef.current = null;
+  };
+  const cancelPathTooltipClose = () => {
+    if (pathTooltipCloseTimerRef.current !== null) window.clearTimeout(pathTooltipCloseTimerRef.current);
+    pathTooltipCloseTimerRef.current = null;
+  };
+  const showLocalPathTooltip = (rootId: string, nodeId: string, row: HTMLElement, pointerType: string) => {
+    if (pointerType === "touch") return;
+    const target = `${rootId}:${nodeId}`;
+    clearPathTooltipTimer();
+    cancelPathTooltipClose();
+    pathHoverTargetRef.current = target;
+    setPathTooltip(null);
+    pathTooltipTimerRef.current = window.setTimeout(() => {
+      void localFileService.displayPath(rootId, nodeId).then(path => {
+        if (pathHoverTargetRef.current !== target || !row.isConnected) return;
+        const rect = row.getBoundingClientRect();
+        const width = Math.min(560, Math.max(220, window.innerWidth - 16));
+        const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+        const estimatedHeight = 72;
+        const top = rect.bottom + estimatedHeight + 8 < window.innerHeight
+          ? rect.bottom + 8
+          : Math.max(8, rect.top - estimatedHeight - 8);
+        setPathTooltip({ target, path, left, top });
+        pathTooltipTimerRef.current = null;
+      }).catch(() => {
+        if (pathHoverTargetRef.current === target) pathTooltipTimerRef.current = null;
+      });
+    }, 300);
+  };
+  const schedulePathTooltipClose = () => {
+    clearPathTooltipTimer();
+    cancelPathTooltipClose();
+    pathTooltipCloseTimerRef.current = window.setTimeout(() => {
+      pathHoverTargetRef.current = null;
+      setPathTooltip(null);
+      pathTooltipCloseTimerRef.current = null;
+    }, 120);
+  };
+  useEffect(() => () => {
+    clearPathTooltipTimer();
+    cancelPathTooltipClose();
+  }, []);
   const setPages = useCallback((next: SetStateAction<Record<string, ListedFilePage>>) => {
     const host = tree.current;
     if (host && host.clientHeight > 0) {
@@ -140,7 +199,18 @@ export function LocalFilesPanel({ active, onBack }: {
   useEffect(() => { saveLocalFileTreePreferences(preferences); }, [preferences]);
   useEffect(() => { const timer = window.setTimeout(() => setAppliedQuery(query), 180); return () => window.clearTimeout(timer); }, [query]);
   useEffect(() => { if (searchOpen) filterInput.current?.focus(); }, [searchOpen]);
-  useEffect(() => { if (!active) { setViewMenu(null); setContextMenu(null); } }, [active]);
+  useEffect(() => {
+    if (!active) {
+      setViewMenu(null);
+      setContextMenu(null);
+      pathHoverTargetRef.current = null;
+      setPathTooltip(null);
+      if (pathTooltipTimerRef.current !== null) window.clearTimeout(pathTooltipTimerRef.current);
+      if (pathTooltipCloseTimerRef.current !== null) window.clearTimeout(pathTooltipCloseTimerRef.current);
+      pathTooltipTimerRef.current = null;
+      pathTooltipCloseTimerRef.current = null;
+    }
+  }, [active]);
   useEffect(() => {
     const opened = (event: Event) => {
       const file = (event as CustomEvent<{ rootId?: unknown; rootName?: unknown; nodeId?: unknown; name?: unknown }>).detail;
@@ -400,8 +470,10 @@ export function LocalFilesPanel({ active, onBack }: {
     });
   };
   const copyLocalPath = async (path: string) => {
+    clearPathNotice();
+    setError("");
     await copyToClipboard(path, { reportFailure: true });
-    setError(`已复制路径：${path}`);
+    showPathNotice(`已复制路径：${path}`);
   };
   const renameLocalPath = async (rootId: string, nodeId: string, oldName: string, directory: boolean, destination?: { parent: string; name: string }) => {
     if (!localFileService.canRename(rootId)) throw new Error("目录快照无法重命名，请重新授权原目录");
@@ -506,13 +578,14 @@ export function LocalFilesPanel({ active, onBack }: {
                 className="local-file-row"
                 data-local-file-id={childKey}
                 style={{ paddingInlineStart: 12 + depth * 14 }}
+                onPointerEnter={event => showLocalPathTooltip(rootId, child.id, event.currentTarget, event.pointerType)}
+                onPointerLeave={schedulePathTooltipClose}
                 aria-expanded={
                   child.directory ? expanded.has(childKey) : undefined
                 }
                 aria-pressed={
                   !child.directory ? selected === childKey : undefined
                 }
-                title={display?.tooltip === "name" ? child.name : child.id}
                 onContextMenu={event => {
                   showLocalContextMenu(event, { id: childKey, title: child.name, rootId, nodeId: child.id, directory: child.directory, name: child.name });
                 }}
@@ -670,6 +743,20 @@ export function LocalFilesPanel({ active, onBack }: {
           {error}
         </p>
       )}
+      {pathNotice && createPortal(
+        <div role="status" className="doc-tree-path-toast">{pathNotice}</div>,
+        document.body,
+      )}
+      {pathTooltip && createPortal(
+        <div
+          role="tooltip"
+          className="local-file-path-tooltip"
+          style={{ left: pathTooltip.left, top: pathTooltip.top }}
+        >
+          {pathTooltip.path}
+        </div>,
+        document.body,
+      )}
       <div
         ref={tree}
         className="local-files-tree"
@@ -691,7 +778,8 @@ export function LocalFilesPanel({ active, onBack }: {
                 type="button"
                 className="local-file-row"
                 data-local-file-id={`${root.id}:`}
-                title={root.name}
+                onPointerEnter={event => showLocalPathTooltip(root.id, "", event.currentTarget, event.pointerType)}
+                onPointerLeave={schedulePathTooltipClose}
                 onContextMenu={event => {
                   showLocalContextMenu(event, { id: root.id, title: root.name, rootId: root.id, nodeId: "", directory: true, name: root.name });
                 }}
