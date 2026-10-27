@@ -178,23 +178,38 @@
   position: relative;
   display: inline-block;
 }
-.document-image-view-button {
+:is(.document-image-view-host, .resizable-image-wrapper) > .document-image-view-button {
   position: absolute;
   right: 4px;
   top: 4px;
   z-index: 2;
   opacity: 0;
-  background: var(--bg);
-  border-radius: 6px;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 3px;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
 }
+:is(.document-image-view-host, .resizable-image-wrapper)[data-image-compact] { padding-inline-end: 28px; }
+:is(.document-image-view-host, .resizable-image-wrapper)[data-image-compact] > .document-image-view-button { right: 0; top: 50%; transform: translateY(-50%); }
+.resizable-image-wrapper[data-image-compact] > .resize-handle { right: 28px; }
 .document-image-view-host:hover > .document-image-view-button,
 .resizable-image-wrapper:hover > .document-image-view-button,
-.document-image-view-button:focus-visible {
+.document-image-view-button:focus-visible,
+:is(.document-image-view-host, .resizable-image-wrapper):focus-within > .document-image-view-button {
   opacity: 1;
+  pointer-events: auto;
 }
 @media (hover: none) {
-  .document-image-view-button {
+  :is(.document-image-view-host, .resizable-image-wrapper) > .document-image-view-button {
     opacity: 1;
+    pointer-events: auto;
   }
 }
 

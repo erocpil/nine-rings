@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { getImageUrl } from "../lib/storage/db-images";
 import { useNearViewport } from "../hooks/useNearViewport";
 import { readonlyImageSource } from "../lib/readonly-image-source";
+import { useCompactImage } from "../hooks/useCompactImage";
 
 export function ReadonlyImage({
   src,
@@ -21,6 +22,8 @@ export function ReadonlyImage({
   const host = useRef<HTMLSpanElement>(null);
   const near = useNearViewport(host);
   const [resolved, setResolved] = useState("");
+  const imageRef = useRef<HTMLImageElement>(null);
+  const compact = useCompactImage(imageRef, resolved, imagePanels.length > 0);
   useEffect(() => {
     if (!near) return;
     if (!src.startsWith("nr-image://")) {
@@ -47,9 +50,10 @@ export function ReadonlyImage({
     };
   }, [src, near]);
   return (
-    <span ref={host} className="document-image-view-host">
+    <span ref={host} className="document-image-view-host" data-image-compact={compact || undefined}>
       {resolved ? (
         <img
+          ref={imageRef}
           src={resolved}
           alt={alt ?? ""}
           title={title}

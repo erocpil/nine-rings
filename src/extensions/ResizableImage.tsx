@@ -12,6 +12,7 @@ import { Node } from "@tiptap/core";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { getImageUrl } from "../lib/storage/db-images";
+import { useCompactImage } from "../hooks/useCompactImage";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -65,6 +66,7 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: NodeVi
   }, [rawSrc]);
 
   const displaySrc = resolvedSrc ?? rawSrc;
+  const compact = useCompactImage(imgRef, displaySrc, imagePanels.length > 0);
 
   const currentWidth = dragWidth ?? (node.attrs.width ? parseInt(node.attrs.width as string, 10) : null);
 
@@ -150,7 +152,7 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: NodeVi
   }, [editor, updateAttributes]);
 
   return (
-    <NodeViewWrapper as={node.isInline ? "span" : "div"} className={`resizable-image-wrapper${node.isInline ? " markdown-inline-image" : ""}`} data-selected={selected ? "true" : undefined}>
+    <NodeViewWrapper as={node.isInline ? "span" : "div"} className={`resizable-image-wrapper${node.isInline ? " markdown-inline-image" : ""}`} data-selected={selected ? "true" : undefined} data-image-compact={compact || undefined}>
       <img
         ref={imgRef}
         src={displaySrc ?? ""}

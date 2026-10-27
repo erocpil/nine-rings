@@ -65,6 +65,7 @@ export function useDocumentHoverPreview(getDocument: () => PMNode | null, root: 
     };
   }, [bubble]);
   const show = (target: EventTarget | null, root: HTMLElement) => {
+    if (target instanceof Element && target.closest(".document-image-view-button")) { clear(); return; }
     if (window.innerWidth < 768 || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
     const reference = target instanceof Element ? target.closest<HTMLElement>(".nr-footnote-reference") : null;
     const link = target instanceof Element ? target.closest<HTMLAnchorElement>("a[href]") : null;
