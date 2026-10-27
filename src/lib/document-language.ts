@@ -73,6 +73,7 @@ const EXTENSIONS: Record<string, string> = {
   cpp: "cpp",
   css: "css",
   flow: "flow",
+  gas: "S",
   go: "go",
   xml: "xml",
   java: "java",
@@ -81,6 +82,7 @@ const EXTENSIONS: Record<string, string> = {
   markdown: "md",
   makefile: "mk",
   mermaid: "mmd",
+  nasm: "asm",
   python: "py",
   rust: "rs",
   bash: "sh",
@@ -92,12 +94,35 @@ const EXTENSIONS: Record<string, string> = {
 export function documentLanguageExtension(language: string): string {
   return EXTENSIONS[language] ?? "txt";
 }
-export function documentLanguageFromFilename(filename: string): string {
+export function documentLanguageFromFilename(
+  filename: string,
+  source = "",
+): string {
   const basename = filename.split(/[\\/]/).pop() ?? filename;
   if (
     /^(?:GNUmakefile|BSDmakefile|[Mm]akefile)(?:\.(?:am|in))?$/.test(basename)
   )
     return "makefile";
+  // `.S` conventionally asks GNU as to preprocess the source. Lower-case `.s`
+  // is ambiguous in real projects, so inspect its directives before falling
+  // back to the traditional GAS default.
+  if (/\.S$/.test(basename)) return "gas";
+  if (/\.s$/i.test(basename)) {
+    const assemblySample = source.slice(0, 8_000);
+    if (
+      /^\s*\[(?:bits|default|section|segment)\b|^\s*%(?:include|define|macro|if|rep)\b|^\s*(?:global|extern|section|bits|res[bdwq]|d[bdwq])\s/im.test(
+        assemblySample,
+      )
+    )
+      return "nasm";
+    if (
+      /^\s*(?:\.section|\.global|\.globl|\.type|\.size|\.text|\.data|\.macro|#\s*include)\b/im.test(
+        assemblySample,
+      )
+    )
+      return "gas";
+    return "gas";
+  }
   const extension = filename.split(".").pop()?.toLowerCase() ?? "";
   const aliases: Record<string, string> = {
     markdown: "markdown",
@@ -112,6 +137,7 @@ export function documentLanguageFromFilename(filename: string): string {
     mermaid: "mermaid",
     bash: "bash",
     mak: "makefile",
+    asm: "nasm",
   };
   return (
     aliases[extension] ??

@@ -4,6 +4,8 @@ export interface CodeLanguageOption {
 }
 
 export const CODE_LANGUAGE_OPTIONS: readonly CodeLanguageOption[] = [
+  { value: "gas", label: "Assembly · GAS" },
+  { value: "nasm", label: "Assembly · NASM" },
   { value: "c", label: "C" },
   { value: "csharp", label: "C#" },
   { value: "cpp", label: "C++" },

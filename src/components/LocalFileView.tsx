@@ -152,7 +152,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const [bookmarks, setBookmarks] = useState<LocalBookmark[]>(() => loadBookmarks(identity));
   const [panelWidth, setPanelWidth] = useState(storedPanelWidth);
   const [reload, setReload] = useState(0);
-  const detectedLanguage = documentLanguageFromFilename(data.name);
+  const detectedLanguage = documentLanguageFromFilename(data.name, source);
   const languageOverrideIdentity = `local-file:${identity}`;
   const [languageOverride, setLanguageOverride] = useState<string | null>(() => sourceViewLanguageOverride(languageOverrideIdentity));
   const language = languageOverride ?? detectedLanguage;

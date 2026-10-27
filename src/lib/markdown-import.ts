@@ -47,6 +47,8 @@ export const TEXT_IMPORT_EXTENSIONS = [
   "rs",
   "sh",
   "bash",
+  "s",
+  "asm",
   "sql",
   "ts",
   "tsx",
@@ -141,7 +143,7 @@ export function buildTextImportInput(
     metadata: {
       sourceFormat: "text",
       sourceText: source,
-      sourceLanguage: documentLanguageFromFilename(file.fileName),
+      sourceLanguage: documentLanguageFromFilename(file.fileName, source),
       originalFileName: file.fileName,
     },
   };

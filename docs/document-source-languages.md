@@ -9,7 +9,7 @@
 | Markdown | 普通文档渲染 | Markdown 编辑与微渲染 | 支持 |
 | Flow | 整份源码的流程展示 | Markdown 形式的 Flow 源码 | 支持 |
 | Mermaid | 整份源码的图表 | Mermaid 源码与基础高亮 | 支持 |
-| Text、C、Python、JSON、Makefile 等 | 不提供 | 纯文本或对应语言高亮 | 不提供 |
+| Text、C/C++、Python、JSON、Makefile、GAS、NASM 等 | 不提供 | 纯文本或对应语言高亮 | 不提供 |
 
 独立 Flow、Mermaid 文档无需外层代码围栏；嵌入 Markdown 时继续使用原有 Flow、Mermaid 代码块。预览是只读投影，修改正文需要回到源码；文档本身仍可设置只读，禁止源码编辑和持久化格式更改。只读状态允许设置设备本地的查看格式覆盖，不修改正文或文档元数据。
 
@@ -51,7 +51,7 @@ CodeMirror 使用 Compartment 切换语法，通常按需加载 `@codemirror/lan
 
 ## 导入、导出与增量备份
 
-文本导入白名单扩展到支持的代码及图表扩展名；仍先解码文本、拒绝二进制控制字符。Makefile 自动识别 `Makefile`、`GNUmakefile`、`BSDmakefile`、`Makefile.am`、`Makefile.in`、`.mk` 与 `.mak`。单文档导出使用对应扩展名（新建 Makefile 默认 `.mk`），原始源码不添加 Markdown 标题、不裁剪尾部空白。
+文本导入白名单扩展到支持的代码及图表扩展名；仍先解码文本、拒绝二进制控制字符。Makefile 自动识别 `Makefile`、`GNUmakefile`、`BSDmakefile`、`Makefile.am`、`Makefile.in`、`.mk` 与 `.mak`。汇编显式分为 GNU assembler（GAS）和 NASM：`.S` 识别为 GAS，`.asm` 识别为 NASM；小写 `.s` 先检查源码特征（如 `.section` / `.global` 对应 GAS，`[bits]`、`%include`、`global`、`section` 对应 NASM），无法判定时默认 GAS。单文档导出使用对应扩展名（新建 Makefile 默认 `.mk`、GAS 默认 `.S`、NASM 默认 `.asm`），原始源码不添加 Markdown 标题、不裁剪尾部空白。
 
 增量元数据认证允许 `sourceText`，并核对其纯文本投影与正文一致。Flow、Mermaid 派生资源复用现有可移植资源检查；源码中包含不能备份的本机图片引用时不能绕过认证。源码字符串作为文字保存，不被当成 HTML 插入页面。
 

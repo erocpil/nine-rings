@@ -3,6 +3,7 @@ export {
   type CodeLanguageOption,
 } from "./code-language-options";
 import bash from "highlight.js/lib/languages/bash";
+import x86asm from "highlight.js/lib/languages/x86asm";
 import c from "highlight.js/lib/languages/c";
 import cpp from "highlight.js/lib/languages/cpp";
 import csharp from "highlight.js/lib/languages/csharp";
@@ -20,6 +21,7 @@ import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
 import { createLowlight } from "lowlight";
+import { gasHighlight } from "./code-gas-highlight";
 
 export interface SyntaxToken {
   from: number;
@@ -38,6 +40,7 @@ const lowlight = createLowlight({
   csharp,
   css,
   go,
+  gas: gasHighlight,
   java,
   javascript,
   json,
@@ -49,6 +52,7 @@ const lowlight = createLowlight({
   typescript,
   xml,
   yaml,
+  x86asm,
 });
 
 lowlight.registerAlias({
@@ -64,6 +68,8 @@ lowlight.registerAlias({
   yaml: ["yml"],
   markdown: ["md", "mdown"],
   makefile: ["make", "mk", "gnumake"],
+  gas: ["gnu-as"],
+  x86asm: ["nasm", "asm"],
 });
 
 const PLAIN_TEXT_ALIASES = new Set([
@@ -99,6 +105,9 @@ const LANGUAGE_ALIASES: Readonly<Record<string, string>> = {
   make: "makefile",
   mk: "makefile",
   gnumake: "makefile",
+  "gnu-as": "gas",
+  nasm: "x86asm",
+  asm: "x86asm",
 };
 
 export function normalizeCodeLanguage(language: unknown): string | null {

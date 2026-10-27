@@ -15,12 +15,14 @@ assert.equal(normalizeCodeLanguage("GNUmake"), "makefile");
 assert.deepEqual(highlightCode("## 阶段", "flow"), []);
 assert.equal(normalizeCodeLanguage("unsupported-language"), null);
 assert(
-  CODE_LANGUAGE_OPTIONS.length <= 20,
+  CODE_LANGUAGE_OPTIONS.length <= 22,
   "only the curated common language set is exposed",
 );
 assert.deepEqual(
   CODE_LANGUAGE_OPTIONS.map((option) => option.label),
   [
+    "Assembly · GAS",
+    "Assembly · NASM",
     "C",
     "C#",
     "C++",
