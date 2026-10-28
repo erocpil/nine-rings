@@ -1,3 +1,4 @@
+import { DocumentToolbar } from "./DocumentChrome";
 import { EditorStatusSelect } from "./EditorStatusSelect";
 import {
   SourceFormattingControls,
@@ -1221,7 +1222,7 @@ export function MarkdownSourceEditor({
   );
   const findLabel = editingReadonly ? "查找" : "查找替换";
   const toolbar = (
-    <div
+    <DocumentToolbar kind="source"
       className="markdown-source-tools"
       role="toolbar"
       aria-label="源码编辑工具"
@@ -1591,7 +1592,7 @@ export function MarkdownSourceEditor({
           Ln {cursor.line}, Col {cursor.column}
         </span>
       )}
-    </div>
+    </DocumentToolbar>
   );
   useNativeMenuActions(
     {

@@ -1,3 +1,5 @@
+import { TextSelection } from "@tiptap/pm/state";
+import { DocumentReadingToolbar } from "./DocumentReadingToolbar";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { Extension } from "@tiptap/core";
 import { useEditor } from "@tiptap/react";
@@ -35,9 +37,8 @@ import { BlockWorkspaceHost } from "./BlockWorkspace";
 import { BlockActionMenu, type BlockMenuAction } from "./BlockActionMenu";
 import { blockReadingActions, blockSpecificMenu } from "./block-specific-actions";
 import { openBlockWorkspace } from "../lib/block-workspace";
-import { ToolbarIcon } from "./ToolbarIcon";
 import { EditorStatusBar } from "./EditorStatusBar";
-import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
+import { EditorContextMenu } from "./EditorContextMenu";
 import { CopyBlockNotice } from "./CopyBlockNotice";
 
 export const DOCUMENT_READING_NAVIGATE_EVENT = "nine-rings:document-reading-navigate";
@@ -71,18 +72,24 @@ export interface DocumentReadingViewProps {
   saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
   bookmarks?: readonly number[];
   onToggleBookmark?: (position: number) => void;
+  onOpenBookmarks?: () => void;
 }
 
 /** Read-only capability on the ordinary document renderer. No storage API,
  * database ID, file service or canonical-content callback is available here. */
-export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原始文本", navigation = null, session, fontSize, highlightActiveLine, showLineNumbers, doubleClickFold = false, className = "", label = "文档渲染", onClick, onActivePosition, onStateChange, defaultCodeBlockWrap = true, cjkLatinSpacing = true, active = true, toolsVisible = true, showStatusBar = true, focusMode = false, saveStatus, bookmarks = [], onToggleBookmark }: DocumentReadingViewProps) {
+export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原始文本", navigation = null, session, fontSize, highlightActiveLine, showLineNumbers, doubleClickFold = false, className = "", label = "文档渲染", onClick, onActivePosition, onStateChange, defaultCodeBlockWrap = true, cjkLatinSpacing = true, active = true, toolsVisible = true, showStatusBar = true, focusMode = false, saveStatus, bookmarks = [], onToggleBookmark, onOpenBookmarks }: DocumentReadingViewProps) {
   const content = useRef<HTMLDivElement>(null);
   const foldHosts = useRef(new Map<number, HTMLElement>());
   const callbacks = useRef({ onStateChange, onActivePosition });
   callbacks.current = { onStateChange, onActivePosition };
   const [revision, redraw] = useState(0);
   const [blockMenu, setBlockMenu] = useState<{ pos: number; number: number; trigger: HTMLButtonElement } | null>(null);
-  const [menu, setMenu] = useState<(NotesMenuTarget & { selectedText: string }) | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [contextSubmenu, setContextSubmenu] = useState<string | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const menuSelection = useRef("");
+  const [nativeSelectionAvailable, setNativeSelectionAvailable] = useState(false);
   const [notice, setNotice] = useState("");
   const [toolPanel, setToolPanel] = useState<"find" | "jump" | null>(null);
   const [query, setQuery] = useState("");
@@ -90,7 +97,6 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
   const [matchIndex, setMatchIndex] = useState(0);
   const [jumpValue, setJumpValue] = useState("");
   const [jumpError, setJumpError] = useState("");
-  const [foldMenu, setFoldMenu] = useState<HTMLButtonElement | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const pendingAnchor = useRef<{ pos: number; top: number } | null>(null);
   const lastFold = useRef(0);
@@ -111,6 +117,23 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
   const editor = useEditor({ extensions, content: initialDocument, editable: false, shouldRerenderOnTransaction: false,
     editorProps: { handlePaste: () => true, handleDrop: () => true,
       clipboardTextSerializer: (slice, view) => clipboardSliceToPlainText(slice, view.state.doc) } });
+  useEffect(() => {
+    if (!editor || !active) return;
+    const update = () => {
+      const selection = document.getSelection();
+      const inside = selection?.anchorNode && selection.focusNode && editor.view.dom.contains(selection.anchorNode) && editor.view.dom.contains(selection.focusNode);
+      setNativeSelectionAvailable(Boolean(inside && selection && !selection.isCollapsed));
+    };
+    update();
+    document.addEventListener("selectionchange", update);
+    return () => document.removeEventListener("selectionchange", update);
+  }, [editor, active]);
+  const copySelection = async () => {
+    const selection = document.getSelection();
+    const inside = selection?.anchorNode && selection.focusNode && editor?.view.dom.contains(selection.anchorNode) && editor.view.dom.contains(selection.focusNode);
+    try { await copyToClipboard(menu ? menuSelection.current : inside ? selection!.toString() : "", { reportFailure: true }); setNotice("已复制选中文本"); }
+    catch { setNotice("复制失败，请重试"); }
+  };
   const numbering = useNumberingDisplay();
   const showNumbers = numbering.blocks?.visible ?? showLineNumbers;
   const compact = useMobileViewport();
@@ -232,12 +255,12 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
     return () => root.removeEventListener(DOCUMENT_READING_NAVIGATE_EVENT, jump);
   });
   const showTool = useCallback((panel: "find" | "jump") => {
-    setFoldMenu(null); setToolPanel(previous => previous === panel ? null : panel);
+     setToolPanel(previous => previous === panel ? null : panel);
     if (panel === "jump") { setJumpValue(String(current)); setJumpError(""); }
   }, [current]);
   useNativeMenuActions({ "document.find": { run: () => showTool("find") }, "document.jump": { run: () => showTool("jump") } }, active);
   useEffect(() => {
-    if (!active) { setToolPanel(null); setBlockMenu(null); setMenu(null); setFoldMenu(null); setQuery(""); return; }
+    if (!active) { setToolPanel(null); setBlockMenu(null); setMenu(null);  setQuery(""); return; }
     const key = (event: KeyboardEvent) => {
       if (document.querySelector('dialog[open], [aria-modal="true"], [role="menu"]')) return;
       if (isDocumentFindKeyEvent(event) || isEditorLineJumpKeyEvent(event)) {
@@ -282,13 +305,11 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
     event.preventDefault(); lastFold.current = Date.now(); document.getSelection()?.removeAllRanges(); toggleHeading(hit.pos);
   };
   return <DocumentOutlineContext.Provider value={{ items, navigate: item => navigate(item.pos) }}><div className="document-reading-surface">
-    {toolsVisible && <div className="editor-menu document-reading-tools" role="toolbar" aria-label="文档阅读工具">
-      <button type="button" className="menu-btn" aria-label="文档查找" title="文档查找（⌘F / Ctrl+F）" aria-pressed={toolPanel === "find"} onClick={() => showTool("find")}><ToolbarIcon name="search" /></button>
-      <button type="button" className="menu-btn" aria-label="跳转块" title="跳转块（⌘G / Ctrl+G）" aria-pressed={toolPanel === "jump"} onClick={() => showTool("jump")}><ToolbarIcon name="jumpLine" /></button>
-      <button type="button" className="menu-btn" aria-label="折叠全部标题" title="折叠全部标题" disabled={!sections.length} aria-pressed={session.foldedHeadings.size > 0} onClick={() => foldAll(collapsedHeadingKeysForAll(sections))}><ToolbarIcon name="minus" /></button>
-      <button type="button" className="menu-btn" aria-label="展开全部标题" title="展开全部标题" disabled={!sections.length} aria-pressed={session.foldedHeadings.size === 0} onClick={() => foldAll([])}><ToolbarIcon name="plus" /></button>
-      {new Set(sections.map(section => section.level)).size > 1 && <button type="button" className="menu-btn toolbar-split-caret" aria-label="选择标题折叠级别" title="选择标题折叠级别" onClick={event => setFoldMenu(previous => previous ? null : event.currentTarget)}>▾</button>}
-    </div>}
+    {toolsVisible && <DocumentReadingToolbar active={active} toolbarRef={toolbarRef} headingLevels={sections.map(section => section.level)} folded={session.foldedHeadings.size > 0}
+      findOpen={toolPanel === "find"} jumpOpen={toolPanel === "jump"} onFind={() => showTool("find")} onJump={() => showTool("jump")}
+      onCollapse={() => foldAll(collapsedHeadingKeysForAll(sections))} onExpand={() => foldAll([])}
+      onFoldLevel={level => setFolds(sections.filter(section => section.level >= level && section.end > section.headingEnd).map(section => section.key))}
+      onCopy={() => { void copySelection(); }} canCopy={nativeSelectionAvailable} />}
     {toolPanel === "find" && <div className="editor-find-bar" role="search" aria-label="文档查找">
       <div className="editor-find-header"><span>文档查找</span><button type="button" aria-label="关闭查找" className="editor-find-close" onClick={() => { setToolPanel(null); setQuery(""); }}>×</button></div>
       <div className="editor-find-row"><input ref={input} value={query} aria-label="在当前文档中查找" placeholder="在当前文档中查找" onChange={event => { setQuery(event.target.value); setMatchIndex(0); }} onKeyDown={event => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); setMatchIndex(index => index + (event.shiftKey ? -1 : 1) + searches.matches.length); } }} />
@@ -332,8 +353,22 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
       }}
       onContextMenu={event => {
         event.preventDefault(); const selection = document.getSelection();
-        const selectedText = selection && !selection.isCollapsed && selection.anchorNode && event.currentTarget.contains(selection.anchorNode) ? selection.toString() : "";
-        setMenu({ id: "document-reading", title: "文档渲染", x: event.clientX, y: event.clientY, trigger: event.currentTarget, selectedText });
+        const selectedText = selection && !selection.isCollapsed && selection.anchorNode && selection.focusNode && event.currentTarget.contains(selection.anchorNode) && event.currentTarget.contains(selection.focusNode) ? selection.toString() : "";
+        menuSelection.current = selectedText;
+        if (editor && selection?.anchorNode && selection.focusNode && selectedText && editor.view.dom.contains(selection.anchorNode) && editor.view.dom.contains(selection.focusNode)) {
+          try {
+            const anchor = editor.view.posAtDOM(selection.anchorNode, selection.anchorOffset);
+            const head = editor.view.posAtDOM(selection.focusNode, selection.focusOffset);
+            editor.view.dispatch(editor.state.tr.setSelection(TextSelection.between(editor.state.doc.resolve(anchor), editor.state.doc.resolve(head))));
+          } catch {
+            // Atomic NodeViews may expose DOM text without a text position;
+            // the captured native range remains authoritative for copying.
+          }
+        } else if (editor) {
+          const hit = editor.view.posAtCoords({ left: event.clientX, top: event.clientY });
+          if (hit) activate(hit.pos);
+        }
+        setMenu({ x: event.clientX, y: event.clientY });
       }}>
       {editor && <DocumentRenderBody editor={editor} style={{ "--editor-gutter-width": `${editorGutterWidth(doc.childCount, showNumbers, compact)}px` } as CSSProperties}
         gutter={<EditorBlockGutter editor={editor} foldHosts={foldHosts.current} compact={compact} showNumbers={showNumbers} readonly showInsertButtons={false} bookmarkPositions={bookmarks}
@@ -345,10 +380,12 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
     <EditorStatusBar enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus} blockPosition={{ current, total: doc.childCount }} characters={doc.textContent.length} navigation={navigation} />
     {editor && active && <BlockWorkspaceHost source={editor} readonly highlightActiveLine={highlightActiveLine} />}
     {blockMenu && <BlockActionMenu title={`第 ${blockMenu.number} 块`} blockNumber={blockMenu.number} blockType={doc.nodeAt(blockMenu.pos)?.type.name} trigger={blockMenu.trigger} actions={blockMenuActions()} onClose={() => setBlockMenu(null)} />}
-    {foldMenu && <BlockActionMenu title="标题折叠级别" trigger={foldMenu} actions={[...new Set(sections.map(section => section.level))].sort().map(level => ({ label: `显示至 H${level}`, run: () => setFolds(sections.filter(section => section.level >= level && section.end > section.headingEnd).map(section => section.key)) }))} onClose={() => setFoldMenu(null)} />}
-    {menu && <NotesContextMenu target={menu} close={() => setMenu(null)} actions={menu.selectedText ? [{ label: "复制选中文本", run: () => { void copyToClipboard(menu.selectedText, { reportFailure: true }); } }] : [
-      { label: sourceCopyLabel, run: () => { void copyToClipboard(source, { reportFailure: true }); } },
-      { label: "选择全部文本", run: () => { if (editor) { const range = document.createRange(); range.selectNodeContents(editor.view.dom); const selection = document.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); } } },
-    ]} />}
+    {editor && <EditorContextMenu editor={editor} readonly active={active} toolbarRef={toolbarRef} contextMenu={menu} contextMenuRef={contextMenuRef} setContextMenu={setMenu} contextSubmenu={contextSubmenu} setContextSubmenu={setContextSubmenu}
+      hasCurrentBookmark={bookmarks.includes(session.activePos ?? 0)} bookmarkCount={onOpenBookmarks ? bookmarks.length : 0} bookmarksAvailable={!!onToggleBookmark}
+      sourceCopy={{ label: sourceCopyLabel, run: () => { void copyToClipboard(source, { reportFailure: true }).then(() => setNotice("已复制原文"), () => setNotice("复制失败，请重试")); } }}
+      actions={{ hasSelection: () => (menu ? !!menuSelection.current : nativeSelectionAvailable), handleCopy: copySelection,
+        handleCopyBlock: async () => { try { await copyDocumentBlock(editor.state.doc, blockAt(session.activePos ?? editor.state.selection.from), "formatted"); setNotice("已复制此块"); } catch { setNotice("复制块失败，请重试"); } },
+        toggleCurrentBookmark: () => onToggleBookmark?.(blockAt(session.activePos ?? editor.state.selection.from)), openDocumentBookmarks: () => onOpenBookmarks?.() }} />}
+
   </div></DocumentOutlineContext.Provider>;
 }

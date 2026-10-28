@@ -24,6 +24,7 @@ export function clearCommandAnchors(toolbar: HTMLElement) {
   toolbar.querySelectorAll<HTMLElement>(".menu-dropdown").forEach(owner => anchors.delete(owner));
 }
 function group(label: string): EditorCommandGroup {
+  if (/跳转|折叠|展开/.test(label)) return "文档";
   if (/表格|单元格|当前行|当前列/.test(label)) return "表格";
   if (/复制|剪切|粘贴|撤销|重做|全选|查找/.test(label)) return "编辑";
   if (/字号|颜色|背景色|加粗|斜体|删除线|行内代码|清除格式|清除文本/.test(label)) return "文字格式";

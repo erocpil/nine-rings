@@ -1,3 +1,5 @@
+import { DocumentReadingToolbar } from "./DocumentReadingToolbar";
+import { DocumentTitleBar, DocumentToolbar, DocumentAccessToggle } from "./DocumentChrome";
 import { OutlineJumpControls } from "./DocumentNavigationTools";
 import { documentRenderingExtensions, readonlyDocumentGuard } from "../extensions/document-rendering";
 import { shortcutTitle } from "../lib/editor-shortcuts";
@@ -141,6 +143,7 @@ import {
 } from "../lib/document-outline";
 import {
   HeadingFold,
+  headingFoldPluginKey,
   expandHeadingFoldsAt,
   getCollapsedHeadingKeys,
   setAllHeadingFolds,
@@ -830,42 +833,6 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
   }, [backgroundOpen, sizeOpen, colorOpen, headingOpen, blockOpen, orderedOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen, outlineOpen, bookmarkOpen, closeToolbarDropdowns, setOutlineOpen, setBookmarkOpen]);
-
-  // 关闭编辑器右键菜单（点击外部 / Escape / 滚动 / 失焦）
-  useEffect(() => {
-    if (!contextMenu) return;
-    const close = () => {
-      setContextMenu(null);
-      setContextSubmenu(null);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("blur", close);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("blur", close);
-    };
-  }, [contextMenu]);
-
-  // 菜单渲染后测量真实尺寸，clamp 到视口内（useLayoutEffect 在绘制前执行，无闪烁）
-  useLayoutEffect(() => {
-    if (!contextMenu) return;
-    const el = contextMenuRef.current;
-    if (!el) return;
-    const margin = 8;
-    const rect = el.getBoundingClientRect();
-    const maxX = Math.max(margin, window.innerWidth - rect.width - margin);
-    const maxY = Math.max(margin, window.innerHeight - rect.height - margin);
-    const clampedX = Math.max(margin, Math.min(contextMenu.x, maxX));
-    const clampedY = Math.max(margin, Math.min(contextMenu.y, maxY));
-    if (clampedX !== contextMenu.x || clampedY !== contextMenu.y) {
-      setContextMenu({ x: clampedX, y: clampedY });
-    }
-  }, [contextMenu, contextSubmenu]);
 
   // 观察标题是否可见，用于 sticky title（仅在专注模式）
   useEffect(() => {
@@ -4372,7 +4339,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
             aria-label="文档书签"
           ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
           {!showLineNumbers && selectedBlockIndexes.size === 0 && <button type="button" title="块级操作" aria-label="块级操作" data-title-block-menu="true" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>}
-          {!readonly && (
+          {(
             <button
               type="button"
               className={focusToolbarExpanded ? "active" : undefined}
@@ -4501,7 +4468,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
       <div className="note-editor-scroll" ref={scrollRef}>
         <div className="note-editor-sticky">
           {/* ── 标题 ── */}
-        <div className="note-title-row" ref={titleRef}
+        <DocumentTitleBar ref={titleRef}
           onKeyDown={event => {
             if (event.key === "Escape" && documentInfoOpen) {
               event.stopPropagation();
@@ -4511,9 +4478,9 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
           }}>
           {titleSecurityAction}
           {onReadonlyChange ? (
-            <button
+            <DocumentAccessToggle readonly={Boolean(readonly)}
               type="button"
-              className={`note-readonly-badge note-readonly-action${readonlyChangeNotice ? " readonly-change-confirmed" : ""}`}
+              className={readonlyChangeNotice ? "readonly-change-confirmed" : undefined}
               data-document-readonly={readonly}
               aria-pressed={readonly}
               disabled={readonlyChangeBusy}
@@ -4530,9 +4497,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
               }}
               title={readonly ? "点击设为可编辑" : "点击设为只读"}
               aria-label={readonly ? "点击设为可编辑" : "点击设为只读"}
-            >
-              <ToolbarIcon name={readonly ? "lock" : "unlock"} />
-            </button>
+             />
           ) : readonly ? (
             <span className="note-readonly-badge" data-document-readonly="true" title="只读"><ToolbarIcon name="lock" /></span>
           ) : null}
@@ -4630,7 +4595,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
             aria-expanded={bookmarkOpen}
             type="button"
           ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
-          {!readonly && <button type="button" className="focus-btn" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={focusToolbarExpanded} onClick={() => setToolbarExpandedPreference(!focusToolbarExpanded)}><ToolbarIcon name="annotate" /></button>}
+          {<button type="button" className="focus-btn" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={focusToolbarExpanded} onClick={() => setToolbarExpandedPreference(!focusToolbarExpanded)}><ToolbarIcon name="annotate" /></button>}
           {!statusBar.navigationInStatus && <NavigationButtons />}
           {isMobileToolbarViewport && <button
             className={`focus-btn document-focus-toggle ${focusMode ? "active" : ""}`}
@@ -4640,7 +4605,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
           >
             <ToolbarIcon name={focusMode ? "compress" : "expand"} />
           </button>}
-        </div>
+        </DocumentTitleBar>
         {/* ── 标签区 ── */}
         {tags.length > 0 && <div className="tag-bar">
           {tags.map((t) => (
@@ -4664,9 +4629,20 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
           />}
         </div>}
         {/* ── 工具栏 ── */}
-        {!readonly && (<div
+        {readonly && focusToolbarExpanded && <DocumentReadingToolbar active={documentActive} toolbarRef={toolbarRef} headingLevels={headingSections.map(section => section.level)} folded={getCollapsedHeadingKeys(editor).size > 0}
+          findOpen={editorFindOpen} jumpOpen={lineJumpOpen} onFind={() => editorFindOpen ? closeEditorFind() : openEditorFind()} onJump={openLineJump}
+          onCollapse={() => setAllHeadingFoldsKeepingViewport(true)} onExpand={() => setAllHeadingFoldsKeepingViewport(false)}
+          onFoldLevel={level => {
+            cancelReadonlyHeadingAnchor(); allHeadingFoldRoundTripRef.current = null;
+            const sections = extractHeadingSections(editor.state.doc), root = scrollRef.current;
+            const anchor = root ? captureEditorViewportAnchor(editor, root) : null;
+            editor.view.dispatch(editor.state.tr.setMeta(headingFoldPluginKey, { type: "set", keys: sections.filter(section => section.level >= level && section.end > section.headingEnd).map(section => section.key) }));
+            if (root && anchor) restoreEditorViewportAnchor(editor, root, anchor, sections, getCollapsedHeadingKeys(editor));
+          }} onCopy={() => { void handleCopy(); }} canCopy={hasSelection()} />}
+
+        {!readonly && (<DocumentToolbar
           ref={attachToolbar}
-          className="editor-menu toolbar-full toolbar-scrollable"
+          className="document-editing-tools"
           onPointerDownCapture={(event) => {
             // Portaled sheets own native touch/scroll handling. React still
             // propagates their events through this toolbar's component tree.
@@ -4778,7 +4754,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
             selectedTableCellCount={selectedTableCellCount}
             hasCurrentBookmark={Boolean(currentBookmark)} bookmarkCount={bookmarks.length}
           />
-        </div>
+        </DocumentToolbar>
         )}
         </div>
 
@@ -4982,7 +4958,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
 
       <BlockWorkspaceHost highlightActiveLine={highlightActiveLine} vimModeEnabled={vimModeEnabled} key={noteId} noteId={noteId} source={editor} readonly={readonly} sensitive={sensitive} saveStatus={saveStatus} onFlush={onFlush} />
       <EditorContextMenu
-        editor={editor} readonly={readonly} toolbarRef={toolbarRef}
+        editor={editor} readonly={readonly} active={documentActive} toolbarRef={toolbarRef}
         contextMenu={contextMenu} contextMenuRef={contextMenuRef}
         contextSubmenu={contextSubmenu} setContextSubmenu={setContextSubmenu}
         setContextMenu={setContextMenu}

@@ -667,7 +667,7 @@
     padding-top: 0;
   }
 
-  .focus-mode.focus-toolbar-expanded .editor-menu {
+  .focus-mode.focus-toolbar-expanded .document-editing-tools {
     position: fixed;
     top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 32px);
     right: 8px;
@@ -696,7 +696,7 @@
     padding-top: calc(28px + var(--safe-top));
   }
 
-  .web-keyboard-open .focus-mode.focus-toolbar-expanded .editor-menu {
+  .web-keyboard-open .focus-mode.focus-toolbar-expanded .document-editing-tools {
     top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 30px);
   }
 
@@ -786,7 +786,7 @@
   .app .focus-mode > .document-bookmark-panel {
     top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 50px);
   }
-  .app .focus-mode.focus-toolbar-expanded .editor-menu {
+  .app .focus-mode.focus-toolbar-expanded .document-editing-tools {
     top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 50px);
     left: max(8px, var(--safe-left));
     right: max(8px, var(--safe-right));

@@ -861,7 +861,7 @@
 }
 .app.app-mobile-workspace .focus-mode .note-editor-scroll { padding-top: 0; }
 .app.app-mobile-workspace .focus-mode .editor-content-shell { margin-top: 12px; }
-.app.app-mobile-workspace .focus-mode.focus-toolbar-expanded .editor-menu {
+.app.app-mobile-workspace .focus-mode.focus-toolbar-expanded .document-editing-tools {
   position: relative;
   inset: auto;
   width: 100%;

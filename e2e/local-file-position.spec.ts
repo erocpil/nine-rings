@@ -33,7 +33,7 @@ for (const readonly of [false, true]) test(`本地文件切换保留最新纵横
   const open = async (name: string) => {
     if (useTabs) await page.getByRole("tablist", { name: "最近文档", exact: true }).getByRole("tab", { name, exact: true }).click();
     else await file(name).click();
-    await expect(viewer.locator(".local-file-titlebar strong")).toHaveText(name);
+    await expect(viewer.locator(".local-file-titlebar .note-title")).toHaveText(name);
     await expect(scroller).toBeVisible();
     await scroller.evaluate(async element => {
       await document.fonts.ready;
@@ -73,7 +73,8 @@ for (const readonly of [false, true]) test(`本地文件切换保留最新纵横
   await expect.poll(() => scroller.evaluate(element => Math.round(element.scrollLeft))).toBe(200);
   const tabs = page.getByRole("tablist", { name: "最近文档", exact: true });
   await tabs.getByRole("tab", { name: "本地阅读位置回归", exact: true }).click();
-  await expect(page.locator(".note-title:visible")).toHaveValue("本地阅读位置回归");
+  await expect(viewer).toBeHidden();
+  await expect(page.locator("input.note-title:visible")).toHaveValue("本地阅读位置回归");
   await expect(tabs.getByRole("tab", { name: "a.c", exact: true })).toHaveAttribute("aria-selected", "false");
   await open("a.c");
   await expect(viewer).toBeVisible();

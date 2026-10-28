@@ -1,3 +1,4 @@
+import { DocumentTitleBar, DocumentAccessToggle } from "./DocumentChrome";
 import { readDocumentSource, writeDocumentSource } from "../lib/document-source";
 import { mapSourceReferences } from "../lib/markdown-source-navigation";
 import { EditorStatusBar } from "./EditorStatusBar";
@@ -474,12 +475,12 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   return <div className="markdown-document-view" data-tools-hidden={!moreTools || undefined} ref={viewPosition.host}>
     {error && <div role="alert" className="markdown-source-hint">{error}</div>}
     {source === null && documentLanguage !== "markdown" ? <>
-      <div className="note-title-row markdown-source-title-row">
+      <DocumentTitleBar className="markdown-source-title-row">
         {props.titleSecurityAction}
-        {props.onReadonlyChange && <button type="button" className="note-readonly-badge note-readonly-action" data-document-readonly={props.readonly === true} disabled={busy} aria-label={props.readonly ? "切换为可编辑" : "设置只读"} title={props.readonly ? "切换为可编辑" : "设置只读"} onClick={() => props.onReadonlyChange?.(!props.readonly)}><ToolbarIcon name={props.readonly ? "lock" : "unlock"} /></button>}
+        {props.onReadonlyChange && <DocumentAccessToggle readonly={Boolean(props.readonly)} type="button" data-document-readonly={props.readonly === true} disabled={busy} aria-label={props.readonly ? "切换为可编辑" : "设置只读"} title={props.readonly ? "切换为可编辑" : "设置只读"} onClick={() => props.onReadonlyChange?.(!props.readonly)} />}
         {sourceTitle}
         {toggle}
-      </div>
+      </DocumentTitleBar>
       <Suspense fallback={<div role="status">正在加载预览…</div>}>
         <SourceDocumentPreview language={documentLanguage} source={sourceSession.current?.current.source ?? readDocumentSource(props.content)} fontSize={props.editorFontSize} />
       </Suspense>
@@ -515,11 +516,11 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       onToggleBookmark={offset => mutateSourceBookmark(session => { session.toggleBookmarkAt(offset); })}
       onRemoveBookmark={id => mutateSourceBookmark(session => { session.removeBookmark(id); })}
       onRenameBookmark={(id, label) => mutateSourceBookmark(session => { session.renameBookmark(id, label); })}>{controls => <>
-      <div className="note-title-row markdown-source-title-row">
+      <DocumentTitleBar className="markdown-source-title-row">
         {props.titleSecurityAction}
-        {props.onReadonlyChange && <button type="button" className="note-readonly-badge note-readonly-action" data-document-readonly={props.readonly === true} aria-pressed={props.readonly === true} disabled={busy}
+        {props.onReadonlyChange && <DocumentAccessToggle readonly={Boolean(props.readonly)} type="button" data-document-readonly={props.readonly === true} aria-pressed={props.readonly === true} disabled={busy}
           aria-label={props.readonly ? "切换为可编辑" : "设置只读"} title={props.readonly ? "切换为可编辑" : "设置只读"}
-          onClick={() => props.onReadonlyChange?.(!props.readonly)}><ToolbarIcon name={props.readonly ? "lock" : "unlock"} /></button>}
+          onClick={() => props.onReadonlyChange?.(!props.readonly)} />}
         {sourceTitle}
         {toggle}
         {(!props.readonly || source !== null) && <button type="button" className="markdown-view-toggle" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(!moreTools)}><ToolbarIcon name="annotate" /></button>}
@@ -529,7 +530,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         {!(statusBar.navigationInStatus) && <NavigationButtons />}
         {mobile && props.onFocusModeChange && <button type="button" className="focus-btn document-focus-toggle" aria-label={props.focusMode ? "退出专注模式" : "专注模式"}
           onClick={() => props.onFocusModeChange?.(!props.focusMode)}><ToolbarIcon name={props.focusMode ? "compress" : "expand"} /></button>}
-      </div>
+      </DocumentTitleBar>
       <div className="markdown-source-toolbar-host" data-workspace-panel-start ref={setSourceToolbarTarget} />
       <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={hasPreview && preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>

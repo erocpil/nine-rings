@@ -84,7 +84,7 @@ export function DocumentNavigationWorkspace({
   onToggleBookmark: (offset: number) => void;
   onRemoveBookmark: (id: string) => void;
   onRenameBookmark: (id: string, label: string) => void;
-  children: (controls: ReactNode) => ReactNode;
+  children: (controls: ReactNode, navigation: { openBookmarks: () => void }) => ReactNode;
 }) {
   const retainedActive = useDocumentActive();
   const documentActive = retainedActive && hostActive;
@@ -232,8 +232,11 @@ export function DocumentNavigationWorkspace({
   );
   const bookmarks = useMemo(() => (mobile ? [] : bookmarkItems ?? revision.bookmarks), [revision, mobile, bookmarkItems]);
   const nearestBookmark = bookmarks.reduce<(typeof bookmarks)[number] | undefined>((current, item) => !current || Math.abs(item.offset - offset) < Math.abs(current.offset - offset) ? item : current, undefined);
-  const currentSourceBlock = revision.blockAt(offset);
-  const currentBookmark = local ? bookmarks.find(bookmark => revision.source.slice(0, bookmark.offset).split("\n").length === revision.source.slice(0, offset).split("\n").length) : bookmarks.find(bookmark => bookmark.position === (currentSourceBlock?.position ?? -2) + 1);
+  // A disk source file needs a line anchor, not a second ProseMirror model.
+  // Keep plain source parsing lazy and avoid scanning its prefix per bookmark.
+  const currentSourceBlock = local ? undefined : revision.blockAt(offset);
+  const currentLineStart = offset > 0 ? revision.source.lastIndexOf("\n", offset - 1) + 1 : 0;
+  const currentBookmark = local ? bookmarks.find(bookmark => bookmark.offset === currentLineStart) : bookmarks.find(bookmark => bookmark.position === (currentSourceBlock?.position ?? -2) + 1);
   const controller = useDesktopDocumentPanels(!mobile, outline, bookmarks, [], symbolOutline ? 35 : undefined, origin, local && narrow);
   const dismissPanelPreview = controller.dismiss;
   useEffect(() => {
@@ -462,7 +465,7 @@ export function DocumentNavigationWorkspace({
       style={desktopPanelStyle(controller)}
       aria-label={local ? "本地文档编辑区" : "Markdown 源码编辑区"}
     >
-      <div className="markdown-source-content">{children(controls)}</div>
+      <div className="markdown-source-content">{children(controls, { openBookmarks: () => { if (controller.mode === "compact") setMatchesOpen(false); if (!controller.pinned("bookmark")) controller.toggle("bookmark"); } })}</div>
       {!mobile && matchesPreview && !matchesOpen && matchesList}
       {!mobile && (
         <DesktopDocumentPanels

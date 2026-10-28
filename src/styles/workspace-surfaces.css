@@ -2089,8 +2089,8 @@
 /* Keep the command host mounted and measurable without occupying document
    space. display:none also suppresses its top-layer menus, which are invoked
    from the selection toolbar and context menu in focus mode. */
-.focus-mode:not(.focus-toolbar-expanded) .editor-menu,
-.note-editor:not(.focus-mode):not(.focus-toolbar-expanded) .editor-menu {
+.focus-mode:not(.focus-toolbar-expanded) .document-editing-tools,
+.note-editor:not(.focus-mode):not(.focus-toolbar-expanded) .document-editing-tools {
   display: flex !important;
   position: absolute;
   visibility: hidden;
@@ -2102,8 +2102,8 @@
   overflow: visible;
   pointer-events: none;
 }
-.focus-mode:not(.focus-toolbar-expanded) .editor-menu .menu-dropdown-list,
-.note-editor:not(.focus-mode):not(.focus-toolbar-expanded) .editor-menu .menu-dropdown-list {
+.focus-mode:not(.focus-toolbar-expanded) .document-editing-tools .menu-dropdown-list,
+.note-editor:not(.focus-mode):not(.focus-toolbar-expanded) .document-editing-tools .menu-dropdown-list {
   visibility: visible;
   pointer-events: auto;
 }
@@ -2127,7 +2127,7 @@
 .desktop-focus-toolbar + .header-spacer + .header-right { gap: 4px; }
 .app-focus-mode:has(.desktop-focus-toolbar) .header-right .btn-icon { width: 28px; height: 28px; margin: 0; }
 .app-focus-mode:has(.desktop-focus-toolbar) .header-btn-gap { display: none; }
-.focus-mode.focus-toolbar-expanded .editor-menu { display: flex !important; }
+.focus-mode.focus-toolbar-expanded .document-editing-tools { display: flex !important; }
 
 .focus-mode .editor-stats {
   display: none !important;

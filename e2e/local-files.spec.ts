@@ -55,7 +55,7 @@ test("本地文件树长名称和深层路径可横向滚动，宽窄布局均�
   await pan();
   await file.click();
   const viewer = page.getByRole("region", { name: "本地文件工作区" });
-  await expect(viewer.locator(".local-file-titlebar strong")).toHaveText(fileName);
+  await expect(viewer.locator(".local-file-titlebar .note-title")).toHaveText(fileName);
   const sourceTools = viewer.locator(".markdown-source-tools");
   const moreTools = viewer.getByRole("button", { name: "更多工具", exact: true });
   await expect(sourceTools).toBeVisible();
@@ -88,11 +88,11 @@ test("本地文件树可关闭单个打开文件和目录下的全部打开文�
   const file = panel.getByRole("button", { name: "one.c", exact: true });
   await file.click();
   const viewer = page.getByRole("region", { name: "本地文件工作区" });
-  await expect(viewer.locator(".local-file-titlebar strong")).toHaveText("one.c");
+  await expect(viewer.locator(".local-file-titlebar .note-title")).toHaveText("one.c");
   await panel.getByRole("button", { name: "关闭文件 one.c", exact: true }).click();
   await expect(viewer).toBeHidden();
   await file.click();
-  await expect(viewer.locator(".local-file-titlebar strong")).toHaveText("one.c");
+  await expect(viewer.locator(".local-file-titlebar .note-title")).toHaveText("one.c");
   await panel.getByRole("button", { name: "关闭目录 nested 中已打开的文件", exact: true }).click();
   await expect(viewer).toBeHidden();
 });
@@ -232,7 +232,7 @@ test("只读文件夹入口按需展开、源码查找和符号跳转，不创�
   await expect(viewer).toBeVisible();
   await expect(viewer.getByRole("button", { name: "专注模式", exact: true })).toHaveCount(0);
   await expect(viewer.locator(".local-file-path")).toHaveCount(0);
-  await expect(viewer.locator(".local-file-titlebar strong")).toHaveText("sample.c");
+  await expect(viewer.locator(".local-file-titlebar .note-title")).toHaveText("sample.c");
   await expect(viewer.locator(".cm-content")).toHaveCSS("caret-color", "rgba(0, 0, 0, 0)");
   await expect(viewer.locator(".cm-activeLine")).toHaveCount(1);
   await expect(viewer.locator(".cm-content")).toHaveAttribute(
