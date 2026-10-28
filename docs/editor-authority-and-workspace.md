@@ -112,3 +112,7 @@ H1～H6 独立字号及代码/引用/Mermaid/flow 块字体、字号通过 AppCo
 文档类型与三种视图的边界见 [文档类型、源码权威与预览](document-source-languages.md)。非 Markdown 文档以 `metadata.sourceText` 为权威，Delta ops 仅是可搜索纯文本投影；导航及保存不得调用 Markdown 解析或重序列化。Markdown 保持原来的编辑器权威链路。格式转换通过完整的保存边界执行，保留完整源码并映射引用和书签。
 
 只有 Markdown、Flow 和 Mermaid 提供渲染及并排预览。独立 Flow/Mermaid 直接消费整份源码，无需围栏；渲染器只能派生结果，不能写回正文。普通代码/Text 的 Markdown 工具、快捷键和预览入口均关闭。
+
+## 共享渲染边界（2026-10-28）
+
+数据库与本地文件的普通正文使用共同 schema、NodeView、`DocumentRenderBody` 与块 gutter。`DocumentReadingView` 提供来源无关的只读能力，本地适配器只负责模型投影与设备阅读状态；原始源码仍由本地源码会话持有。局部渲染与源码并排预览使用共同 schema 和独立静态策略，不反向依赖数据库外壳。模块责任、状态边界和回归合同见[共享文档渲染](document-rendering.md)。

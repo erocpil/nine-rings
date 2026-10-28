@@ -123,10 +123,18 @@ describe("editor fold icons", () => {
         outline: { style: "custom" as const, collapsed: "<", expanded: ">" },
       },
     };
-    expect(editorFoldSymbol(scopedFoldSymbolConfig(config, "heading"), false)).toBe("→");
-    expect(editorFoldSymbol(scopedFoldSymbolConfig(config, "heading"), true)).toBe("↓");
-    expect(editorFoldSymbol(scopedFoldSymbolConfig(config, "block"), false)).toBe("›");
-    expect(editorFoldSymbol(scopedFoldSymbolConfig(config, "block"), true)).toBe("⌄");
+    expect(
+      editorFoldSymbol(scopedFoldSymbolConfig(config, "heading"), false),
+    ).toBe("→");
+    expect(
+      editorFoldSymbol(scopedFoldSymbolConfig(config, "heading"), true),
+    ).toBe("↓");
+    expect(
+      editorFoldSymbol(scopedFoldSymbolConfig(config, "block"), false),
+    ).toBe("›");
+    expect(
+      editorFoldSymbol(scopedFoldSymbolConfig(config, "block"), true),
+    ).toBe("⌄");
     expect(outlineFoldSymbol(config, false)).toBe("<");
     expect(outlineFoldSymbol(config, true)).toBe(">");
     expect(scopedFoldPreset(config, "heading")).toBe("right-down-arrows");
@@ -135,10 +143,20 @@ describe("editor fold icons", () => {
 
     const following = {
       ...config,
-      editor_fold_icon_overrides: scopedFoldOverridePatch(config, "heading", "inherit"),
+      editor_fold_icon_overrides: scopedFoldOverridePatch(
+        config,
+        "heading",
+        "inherit",
+      ),
     };
-    expect(editorFoldSymbol(scopedFoldSymbolConfig(following, "heading"), false)).toBe("+");
-    expect(editorFoldSymbol(scopedFoldSymbolConfig(following, "heading"), true)).toBe("−");
-    expect(editorFoldSymbol(scopedFoldSymbolConfig(config, "block"), false)).toBe("›");
+    expect(
+      editorFoldSymbol(scopedFoldSymbolConfig(following, "heading"), false),
+    ).toBe("+");
+    expect(
+      editorFoldSymbol(scopedFoldSymbolConfig(following, "heading"), true),
+    ).toBe("−");
+    expect(
+      editorFoldSymbol(scopedFoldSymbolConfig(config, "block"), false),
+    ).toBe("›");
   });
 });

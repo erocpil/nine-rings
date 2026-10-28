@@ -1,3 +1,4 @@
+import { documentRenderingExtensions, readonlyDocumentGuard } from "../extensions/document-rendering";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import { vimModePluginKey } from "../extensions/VimMode";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
@@ -5,11 +6,9 @@ import { useFocusEditorTools } from "../stores/useFocusEditorTools";
 import { EditorStatusBar } from "./EditorStatusBar";
 import { useStatusBarDisplay } from "../hooks/useStatusBarDisplay";
 import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
-import { FontSize } from "../extensions/FontSize";
 import { PanelDisplayTools, revealPanelItem } from "./PanelDisplayTools";
 import { panelDisplayStyle, sortedPanelItems } from "../lib/panel-display-view";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
-import { FootnoteNumbering } from "../extensions/FootnoteNumbering";
 import type { DocumentOpenOptions } from "../lib/document-open";
 import { markdownContentFingerprint } from "../lib/external-markdown-source";
 import { FlowPresentation, flowPresentationKey } from "../extensions/FlowPresentation";
@@ -39,28 +38,16 @@ import { useEditorToolbarMenus } from "../hooks/useEditorToolbarMenus";
 import { useBlockSelectionGestures } from "../hooks/useBlockSelectionGestures";
 import { MOBILE_VIEWPORT_QUERY } from "../hooks/useEdgeDrawer";
 import { useEditor } from "@tiptap/react";
-import { DocumentStarterKit } from "../extensions/DocumentStarterKit";
-import { AutomaticTOC } from "../extensions/AutomaticTOC";
 import { DocumentOutlineContext } from "./TableOfContentsBlock";
 import { headingLinkTarget } from "../lib/heading-links";
 import { ReferenceAnchors, createReferenceAnchor, referenceAnchorPluginKey } from "../extensions/ReferenceAnchors";
 import { deltaToMarkdown } from "../lib/markdown-serializer";
 import { exportDocumentPlainText } from "../lib/markdown-export";
-import { OrderedListLayout } from "../extensions/OrderedListLayout";
-import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
-import { MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes, HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline } from "../extensions/MarkdownExtras";
 import { useDocumentHoverPreview } from "./FootnoteHoverPreview";
 import { footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
 import { createToolbarSelectionCommands } from "../lib/editor-toolbar-commands";
 import { isPointerOverTitleText } from "../lib/document-title-hit-test";
 import Placeholder from "@tiptap/extension-placeholder";
-import Heading from "@tiptap/extension-heading";
-import TextStyle from "@tiptap/extension-text-style";
-import { ThemeAwareColor as Color } from "../extensions/ThemeAwareColor";
-import { ResizableImage, MarkdownImage } from "../extensions/ResizableImage";
-import { DocumentLink as LinkExt } from "../extensions/DocumentLink";
-import { ContentSizedTable as Table, AlignedTableCell, AlignedTableHeader } from "../extensions/ContentSizedTable";
-import TableRow from "@tiptap/extension-table-row";
 import { MarkdownLinkInput } from "../extensions/MarkdownLinkInput";
 import {
   normalizePastedHTML,
@@ -82,19 +69,18 @@ import {
 import { Extension, getSchema, type Editor } from "@tiptap/core";
 import { Fragment, Slice, type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { readClipboardContent, shouldParseClipboardMarkdown } from "../lib/clipboard-content";
-import { Plugin, TextSelection, Selection, type Transaction } from "@tiptap/pm/state";
+import { TextSelection, Selection, type Transaction } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { closeHistory } from "@tiptap/pm/history";
 import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
 import { addLog } from "../lib/debugLog";
 import { copyToClipboard } from "../lib/clipboard";
 import {
-  CodeBlockLineNumbers,
   setCodeBlockDefaultWrap,
-  setCodeBlockLineNumbersEnabled,
+  setCodeBlockLineNumbersEnabled
 } from "../extensions/CodeBlockLineNumbers";
 import { EditorBlockGutter } from "./EditorBlockGutter";
-import { DocumentEditorContent } from "./DocumentEditorContent";
+import { DocumentRenderBody } from "./DocumentRenderBody";
 import { EDITOR_NAVIGATION_EVENT, useEditorScrollPersistence } from "../hooks/useEditorScrollPersistence";
 import { headingFoldAnchors } from "../lib/heading-fold-anchors";
 import { ReadingBlockSession } from "../extensions/ReadingBlockSession";
@@ -167,13 +153,10 @@ import {
   visibleHeadingSections,
   type HeadingSection,
 } from "../lib/heading-fold";
-import { BlockIndent } from "../extensions/BlockIndent";
 import { CodeBlockIndent } from "../extensions/CodeBlockIndent";
 import {
-  blockquoteFoldTransactionMeta,
-  CollapsibleBlockquote,
+  blockquoteFoldTransactionMeta
 } from "../extensions/CollapsibleBlockquote";
-import { StandaloneStrongLabel } from "../extensions/StandaloneStrongLabel";
 import { cacheEditorDocument, getCachedEditorDocument } from "../lib/editor-session-cache";
 import { ReadonlyVirtualNote } from "./ReadonlyVirtualNote";
 import { DocumentTitlePreview } from "./DocumentTitlePreview";
@@ -227,27 +210,6 @@ function insertCodeBlockPlainText(editor: Editor, text: string): void {
       .scrollIntoView(),
   );
   editor.commands.focus();
-}
-
-/**
- * `contenteditable=false` is the first readonly boundary, but some WebView2
- * paste paths still reach ProseMirror commands or dispatch transactions.
- * Reject every document mutation while readonly, except the persisted visual
- * state of a collapsible quote which remains an allowed reading operation.
- */
-function createReadonlyDocumentGuard(isReadonly: () => boolean) {
-  return Extension.create({
-    name: "readonlyDocumentGuard",
-    addProseMirrorPlugins() {
-      return [new Plugin({
-        filterTransaction(transaction) {
-          return !isReadonly()
-            || !transaction.docChanged
-            || transaction.getMeta(blockquoteFoldTransactionMeta) === true;
-        },
-      })];
-    },
-  });
 }
 
 // ══════════════════════════════════════
@@ -462,11 +424,7 @@ function DocumentEditor(input: NoteEditorProps) {
   const readingSource = experimental && props.readonly && !props.pdfExcerptSource && !props.epubExcerptSource ? bodySource : null;
   const readingDocument = useMemo(() => {
     if (!readingSource) return null;
-    readonlySchema ??= getSchema([
-      DocumentStarterKit.configure({ codeBlock: false, blockquote: false }), TextStyle, Color, FontSize,
-      LinkExt, CodeBlockLineNumbers, CollapsibleBlockquote, BlockIndent, MarkdownTaskState, FootnoteNumbering, AutomaticTOC, MarkdownImage, Table, TableRow, AlignedTableCell, AlignedTableHeader,
-      MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes, HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline,
-    ]);
+    readonlySchema ??= getSchema(documentRenderingExtensions());
     const doc = buildReadonlyDocument(JSON.parse(readingSource), readonlySchema);
     return doc ? { doc, key: ++readonlyDocumentSequence } : null;
   }, [readingSource]);
@@ -948,54 +906,21 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
   // document callbacks read refs so autosave never captures an old handler.
   const [sessionExtensions] = useState(() => [
       Extension.create({ name: "headingFoldHosts", addProseMirrorPlugins: () => [headingFoldAnchors(foldHostsRef.current)] }),
-      DocumentStarterKit.configure({
-        // `# ` is handled after IME text commits by the deferred heading hook.
-        heading: false,
-        codeBlock: false,
-        blockquote: false,
-      }),
-      Heading.configure({ levels: [1, 2, 3, 4, 5, 6] }).extend({ addInputRules: () => [] }),
-      OrderedListLayout,
-      MarkdownTaskState, FootnoteNumbering, AutomaticTOC,
-      MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes, HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline,
-      // 仅使用扩展的 is-editor-empty class 识别空段落；不在 gutter
-      // 内显示文字，避免与行号和行间插入按钮争用伪元素。
+      ...documentRenderingExtensions({ lineNumbers: showCodeLineNumbers, defaultWrap: defaultCodeBlockWrap }),
       Placeholder.configure({ placeholder: "" }),
-      TextStyle,
-      Color.configure({ types: ["textStyle"] }),
-      FontSize,
-      MarkdownImage, ResizableImage.configure({ inline: false, allowBase64: true }),
-      LinkExt.configure({ openOnClick: true, protocols: ["nr-note"] }),
-      Table.configure({
-        resizable: true,
-        handleWidth: 8,
-        cellMinWidth: 48,
-        lastColumnResizable: true,
-        allowTableNodeSelection: true,
-      }),
-      TableRow,
-      AlignedTableHeader,
-      AlignedTableCell,
       // 仅用于统计，不限制文档长度。长 Markdown 粘贴（例如技术手册）
       // 可能超过 50,000 字符；设置 limit 会让 ProseMirror 拒绝整笔事务。
       CharacterCount.configure(),
       ActiveLinePlugin,
       ToolbarSelection,
       SearchHighlights,
-      CodeBlockLineNumbers.configure({
-        lineNumbersEnabled: showCodeLineNumbers,
-        defaultWrap: defaultCodeBlockWrap,
-      }),
-      CollapsibleBlockquote,
       ReadingBlockSession.configure({ noteId, version: readingBlockVersion, sensitive }),
-      createReadonlyDocumentGuard(() => readonlyRef.current),
+      readonlyDocumentGuard(() => readonlyRef.current),
       StructuredBlockExit,
       CodeBlockIndent,
       BlockSelectAll,
       MarkdownLinkInput,
       CjkLatinSpacing,
-      BlockIndent,
-      StandaloneStrongLabel,
       FlowPresentation.configure({ level: flowHeadingLevel(content.metadata) }),
       HeadingFold.configure({
         initialCollapsedKeys: sensitive ? [] : sessionHeadingFoldStore.load(noteId)?.collapsedKeys ?? [],
@@ -4944,11 +4869,10 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
             <button type="button" onClick={() => { editor.chain().focus().undo().run(); setMarkdownSelectionNotice(false); }}>撤销</button>
           </div>
         )}
-        <div
-          className={`editor-content-shell${selectedBlockIndexes.size > 0 ? " block-selection-active" : ""}`}
+        <DocumentRenderBody
+          className={selectedBlockIndexes.size > 0 ? "block-selection-active" : ""}
           style={{ "--editor-gutter-width": `${editorGutterWidth(gutterBlockCount, showLineNumbers || selectedBlockIndexes.size > 0, isMobileToolbarViewport)}px` } as React.CSSProperties}
-        >
-          <EditorBlockGutter
+          gutter={<EditorBlockGutter
             foldHosts={foldHostsRef.current}
             editor={editor}
             compact={isMobileToolbarViewport}
@@ -4978,10 +4902,8 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
               setContextSubmenu(null);
               setContextMenu({ x, y });
             } : undefined}
-          />
-          <DocumentEditorContent
+          />}
             editor={editor}
-            className="editor-content"
             onPointerOverCapture={handleReadingAnnotationPointerOver}
             onPointerOutCapture={handleReadingAnnotationPointerOut}
             onPointerOver={documentHover.onPointerOver}
@@ -5017,9 +4939,9 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
             onPointerMove={handleReadonlyHeadingPointerMove}
             onPointerCancel={handleReadonlyHeadingPointerCancel}
             onPointerUp={handleReadonlyHeadingPointerUp}
-          />
+        >
           {documentHover.preview}
-        </div>
+        </DocumentRenderBody>
         {readonly && annotationPopover && (() => {
           const annotation = annotations.find(item => item.id === annotationPopover.id);
           if (!annotation) return null;

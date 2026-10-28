@@ -811,6 +811,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           type="button"
           className={`editor-heading-fold ${block.folded ? "folded" : ""}`}
           aria-label={`${block.folded ? "展开" : "折叠"}第 ${block.index} 块章节`}
+          aria-expanded={!block.folded}
           title={block.folded ? "展开本节" : "折叠本节"}
           onMouseDown={(event) => event.preventDefault()}
           onTouchStart={startGutterTouch}

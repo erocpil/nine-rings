@@ -6,6 +6,7 @@ import { EditorFoldIcon } from "../components/EditorFoldIcon";
 import { ToolbarIcon } from "../components/ToolbarIcon";
 import { openBlockWorkspace } from "../lib/block-workspace";
 import { copyToClipboard } from "../lib/clipboard";
+import { editorReadingBlocks } from "./ReadingBlockSession";
 
 export function KaTeXFormula({ source, displayMode = false }: { source: string; displayMode?: boolean }) {
   const [html, setHtml] = useState("");
@@ -65,11 +66,19 @@ export const FootnoteReference = Mark.create({
 
 function DetailsView({ node, editor, getPos }: NodeViewProps) {
   const [copied, setCopied] = useState(false);
-  const [readingOpen, setReadingOpen] = useState<boolean | null>(null);
+  const [readingOpen, setReadingOpen] = useState<boolean | null>(() => {
+    const pos = getPos();
+    const collapsed = typeof pos === "number" ? editorReadingBlocks(editor)?.get(pos)?.collapsed : undefined;
+    return collapsed === undefined ? null : !collapsed;
+  });
   const open = editor.isEditable ? node.attrs.open === true : readingOpen ?? node.attrs.open === true;
   const workspace = editor.view.dom.getAttribute("aria-label") === "块内容";
   const toggle = () => {
-    if (!editor.isEditable) { setReadingOpen(!open); return; }
+    if (!editor.isEditable) {
+      const position = getPos(), blocks = editorReadingBlocks(editor);
+      if (typeof position === "number") blocks?.set(position, { ...blocks.get(position), collapsed: open });
+      setReadingOpen(!open); return;
+    }
     const position = getPos();
     if (typeof position !== "number") return;
     const current = editor.state.doc.nodeAt(position);

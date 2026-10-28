@@ -83,8 +83,6 @@
 }
 .local-file-preview { flex: 1; min-height: 0; overflow: auto; padding: 10px 18px 36px; }
 .local-file-preview > .ProseMirror { max-width: 100%; }
-.markdown-reading-view > .vr-body { padding-bottom: max(100px, calc(var(--reading-viewport-height, 80vh) - 32px)); }
-.markdown-reading-view .vr-row > .vr-gutter { top: var(--reading-gutter-center, 15px); transform: translateY(-50%); }
 .local-file-conflict { position: absolute; inset: 48px 12px 12px; z-index: 12; display: flex; flex-direction: column; gap: 8px; padding: 12px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); box-shadow: 0 12px 40px #0003; }
 .local-file-conflict > p { margin: 0; color: var(--text-secondary); font-size: 12px; }
 .local-file-conflict > .document-diff-columns { min-height: 220px; flex: 1; }
@@ -221,11 +219,6 @@
   background: var(--bg);
 }
 .local-file-view[data-tools-hidden] .markdown-source-tools { display: none !important; }
-.markdown-reading-surface { display: flex; flex-direction: column; position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
-.markdown-reading-tools { flex: 0 0 auto; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
-.markdown-reading-tools::-webkit-scrollbar { display: none; }
-.markdown-reading-surface > :is(.editor-find-bar, .editor-line-jump) { position: absolute; z-index: 30; top: 38px; left: 8px; right: 8px; width: auto; max-width: calc(100% - 16px); background: var(--surface); }
-.markdown-reading-surface > .editor-status-bar { flex-shrink: 0; }
 .local-file-outline > .document-outline-header { flex: 0 0 auto; min-height: 36px; box-sizing: border-box; background: var(--bg); }
 .local-file-outline > .document-outline-list,
 .local-file-outline > .local-file-panel-list { flex: 1; min-height: 0; overflow: auto; }
@@ -315,3 +308,7 @@
     padding-block: 5px;
   }
 }
+
+/* The local adapter contributes only scroll-host sizing; block rhythm belongs
+   to DocumentRenderBody and the shared editor typography. */
+.document-reading-view.local-file-preview { padding: 0; }

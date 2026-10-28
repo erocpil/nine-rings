@@ -42,7 +42,10 @@ test("view, source and rendered positions merge without overwriting folds", () =
 test("diagram presentation survives a persisted reading session", () => {
   const blocks = {
     revision: "source-fingerprint",
-    entries: [[12, { diagram: false, collapsed: true }]] as [number, { diagram: boolean; collapsed: boolean }][],
+    entries: [[12, { diagram: false, collapsed: true }]] as [
+      number,
+      { diagram: boolean; collapsed: boolean },
+    ][],
   };
   patchReadingState("local-file:a", { blocks });
   expect(readReadingState("local-file:a").blocks).toEqual(blocks);

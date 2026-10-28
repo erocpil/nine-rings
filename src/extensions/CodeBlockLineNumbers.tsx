@@ -244,7 +244,10 @@ function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: No
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
   const [editable, setEditable] = useState(editor.isEditable);
-  const [readonlyWrapOverride, setReadonlyWrapOverride] = useState<boolean | null>(null);
+  const [readonlyWrapOverride, setReadonlyWrapOverride] = useState<boolean | null>(() => {
+    const pos = getPos();
+    return typeof pos === "number" ? editorReadingBlocks(editor)?.get(pos)?.wrap ?? null : null;
+  });
   const [readonlyCollapsedOverride, setReadonlyCollapsedOverride] = useState<boolean | null>(() => {
     const pos = getPos();
     return typeof pos === "number" ? editorReadingBlocks(editor)?.get(pos)?.collapsed ?? null : null;
@@ -256,7 +259,10 @@ function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: No
   const isFlow = display.isFlow;
   const isRendered = isMermaid || isFlow;
   const inWorkspace = extension.options.renderAsSource === true || Boolean(editor.view?.dom.closest(".block-workspace"));
-  const [showDiagram, setShowDiagram] = useState(!inWorkspace);
+  const [showDiagram, setShowDiagram] = useState(() => {
+    const pos = getPos();
+    return !inWorkspace && (typeof pos === "number" ? editorReadingBlocks(editor)?.get(pos)?.diagram ?? true : true);
+  });
   const codeTitle = display.title;
   const storedWrapEnabled = display.wrap;
   const storedCollapsed = display.collapsed;
@@ -398,7 +404,11 @@ function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: No
               aria-label={showDiagram ? `显示 ${isFlow ? "Flow" : "Mermaid"} 源码` : `显示 ${isFlow ? "Flow" : "Mermaid"} ${isFlow ? "流程" : "图形"}`}
               aria-pressed={showDiagram}
               onMouseDown={event => event.preventDefault()}
-              onClick={() => setShowDiagram(value => !value)}
+              onClick={() => {
+                const pos = getPos(), blocks = editorReadingBlocks(editor);
+                if (typeof pos === "number") blocks?.set(pos, { ...blocks.get(pos), diagram: !showDiagram });
+                setShowDiagram(!showDiagram);
+              }}
             >{showDiagram ? "源码" : isFlow ? "流程" : "图形"}</button>}
             <button
               type="button"
@@ -424,7 +434,11 @@ function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: No
               onClick={() => {
                 if (inWorkspace) saveBlockWorkspacePreferences({ wrap: !wrapEnabled });
                 if (editable) { setReadonlyWrapOverride(null); updateAttributes({ wrap: !wrapEnabled }); }
-                else setReadonlyWrapOverride(!wrapEnabled);
+                else {
+                  const pos = getPos(), blocks = editorReadingBlocks(editor);
+                  if (typeof pos === "number") blocks?.set(pos, { ...blocks.get(pos), wrap: !wrapEnabled });
+                  setReadonlyWrapOverride(!wrapEnabled);
+                }
               }}
               type="button"
               aria-label={wrapEnabled ? "关闭代码软换行" : "开启代码软换行"}

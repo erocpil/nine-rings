@@ -1,11 +1,12 @@
 import type { Editor } from "@tiptap/core";
-import { captureRenderedReadingAnchor, restoreRenderedReadingAnchor } from "../lib/editor-reading-position";
+import { captureRenderedReadingAnchor } from "../lib/editor-reading-position";
 import { useDocumentActive } from "../components/RetainedDocument";
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { addLog } from "../lib/debugLog";
 import type { ReadingAnchor } from "../lib/readonly-rendering";
 import { READING_POSITION_FLUSH_EVENT, patchReadingState, readReadingState, readRenderedScrollTop } from "../lib/reading-state";
-export const EDITOR_NAVIGATION_EVENT = "nr:editor-navigation";
+import { restoreDocumentViewport, EDITOR_NAVIGATION_EVENT } from "../lib/document-reading-restoration";
+export { EDITOR_NAVIGATION_EVENT };
 
 interface Options {
   editor: Editor | null;
@@ -48,91 +49,10 @@ export function useEditorScrollPersistence({
     }
     state.pending = true;
     const savedAnchor = sensitive ? undefined : readReadingState(noteId).rendered?.anchor;
-    const scrollTop = Math.max(0, Number(saved) || 0);
-    const startedAt = performance.now();
-    const deadline = performance.now() + 10000;
-    let frame = 0;
-    let settledFrames = 0;
-    let stopped = false;
-    let observer: ResizeObserver | null = null;
-    let mutationObserver: MutationObserver | null = null;
-    // Restoring is best-effort: stale positions and slow NodeViews must never
-    // fight wheel/touch/scrollbar input while the document is opening.
-    const stop = () => {
-      stopped = true;
-      cancelAnimationFrame(frame);
-      observer?.disconnect();
-      mutationObserver?.disconnect();
-      el.removeEventListener("wheel", finish);
-      el.removeEventListener("touchstart", finish);
-      el.removeEventListener("pointerdown", finish);
-      el.removeEventListener("keydown", onKeyDown);
-      el.removeEventListener(EDITOR_NAVIGATION_EVENT, finish);
-    };
-    const finish = () => {
-      stop();
+    return restoreDocumentViewport({ root: el, editor, scrollTop: Math.max(0, Number(saved) || 0), anchor: savedAnchor, onFinish: () => {
       state.pending = false;
-      // Publish the final position even when the last frame did not scroll.
       el.dispatchEvent(new Event("scroll"));
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (
-        [
-          "ArrowUp",
-          "ArrowDown",
-          "PageUp",
-          "PageDown",
-          "Home",
-          "End",
-          " ",
-        ].includes(event.key)
-      )
-        finish();
-    };
-    el.addEventListener("wheel", finish, { passive: true });
-    el.addEventListener("touchstart", finish, { passive: true });
-    el.addEventListener("pointerdown", finish, { passive: true });
-    el.addEventListener("keydown", onKeyDown);
-    el.addEventListener(EDITOR_NAVIGATION_EVENT, finish);
-    const restore = () => {
-      if (stopped || !el.isConnected) return;
-      const maximum = Math.max(0, el.scrollHeight - el.clientHeight);
-      el.scrollTop = Math.min(scrollTop, maximum);
-      const anchored = !!editor && !!savedAnchor && restoreRenderedReadingAnchor(editor, el, savedAnchor);
-      const targetIsReachable = anchored || maximum >= scrollTop;
-      const targetIsApplied = anchored || Math.abs(el.scrollTop - scrollTop) <= 1;
-      settledFrames =
-        targetIsReachable && targetIsApplied ? settledFrames + 1 : 0;
-      const minimumRestoreWindowElapsed = performance.now() - startedAt >= 600;
-      if (
-        (settledFrames >= 4 && minimumRestoreWindowElapsed) ||
-        performance.now() >= deadline
-      ) {
-        finish();
-        return;
-      }
-      frame = requestAnimationFrame(restore);
-    };
-    observer =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(() => {
-            if (stopped || !el.isConnected) return;
-            cancelAnimationFrame(frame);
-            frame = requestAnimationFrame(restore);
-          })
-        : null;
-    observer?.observe(el);
-    mutationObserver =
-      typeof MutationObserver !== "undefined"
-        ? new MutationObserver(() => {
-            if (stopped || !el.isConnected) return;
-            cancelAnimationFrame(frame);
-            frame = requestAnimationFrame(restore);
-          })
-        : null;
-    mutationObserver?.observe(el, { childList: true, subtree: true });
-    frame = requestAnimationFrame(restore);
-    return stop;
+    } });
   }, [editor, noteId, sensitive, rendererHandoffRef, scrollRef, active]);
 
   // 滚动时保存位置 & 更新位置显示

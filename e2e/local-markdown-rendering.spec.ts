@@ -45,15 +45,27 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
   await viewer.getByRole("button", { name: "渲染", exact: true }).click();
   const rendered = viewer.getByLabel("Markdown 渲染", { exact: true });
   await expect(rendered.locator("h1")).toHaveText("磁盘 Markdown");
-  const rowCount = await rendered.locator(".vr-row").count();
-  await expect(rendered.locator(".editor-block-number")).toHaveCount(rowCount);
+  // The reusable reader accepts reading transactions, never canonical text edits.
+  const body = rendered.locator(".ProseMirror");
+  await expect(body).toHaveAttribute("contenteditable", "false");
+  expect(await body.evaluate(element => {
+    const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    const before = JSON.stringify(editor.state.doc.toJSON());
+    editor.commands.insertContent("不应写入的正文");
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "# 不应粘贴的标题");
+    const prevented = !element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    return prevented && before === JSON.stringify(editor.state.doc.toJSON());
+  })).toBe(true);
+  const rowCount = await rendered.locator(".ProseMirror > *:visible").count();
+  await expect(rendered.locator(".editor-block-number").first()).toBeVisible();
   await expect(rendered.locator(".editor-block-number").first()).toHaveText("1");
-  const chapterFold = rendered.getByRole("button", { name: "折叠切换 磁盘 Markdown", exact: true });
+  const chapterFold = rendered.locator("h1 .editor-heading-fold");
   await chapterFold.click();
-  await expect(rendered.locator(".vr-row")).toHaveCount(1);
+  await expect(rendered.locator(".ProseMirror > *:visible")).toHaveCount(1);
   await expect(chapterFold).toHaveAttribute("aria-expanded", "false");
   await chapterFold.click();
-  await expect(rendered.locator(".vr-row")).toHaveCount(rowCount);
+  await expect(rendered.locator(".ProseMirror > *:visible")).toHaveCount(rowCount);
   await rendered.getByRole("button", { name: "第 3 块操作", exact: true }).click();
   const blockMenu = page.getByRole("menu", { name: "第 3 块", exact: true });
   await expect(blockMenu.getByRole("menuitem", { name: "复制 Markdown", exact: true })).toBeVisible();
@@ -71,13 +83,13 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
   await rendered.locator(".nr-details-summary").click();
   await expect(rendered.locator("details")).toHaveAttribute("open", "");
   const code = rendered.locator(".code-block-wrap").filter({ hasText: "int main" });
-  const numbers = code.locator(".vr-code-line-number");
+  const numbers = code.locator(".code-block-gutter > span");
   const initiallyNumbered = await numbers.count() > 0;
   await code.getByRole("button", { name: initiallyNumbered ? "隐藏代码行号" : "显示代码行号", exact: true }).click();
   if (initiallyNumbered) await expect(numbers).toHaveCount(0);
   else await expect(numbers).toHaveCount(3);
   await code.getByRole("button", { name: initiallyNumbered ? "显示代码行号" : "隐藏代码行号", exact: true }).click();
-  await code.locator("[data-workspace-position]").click();
+  await code.getByRole("button", { name: "放大阅读代码块", exact: true }).click();
   const workspace = page.getByRole("dialog", { name: "代码块工作区", exact: true });
   await expect(workspace).toBeVisible();
   await expect(workspace).toContainText("int main");
@@ -85,7 +97,7 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
   await page.keyboard.press("Escape");
   await expect(workspace).toHaveCount(0);
   await page.keyboard.press(process.platform === "darwin" ? "Meta+f" : "Control+f");
-  const find = viewer.getByRole("search", { name: "本地 Markdown 查找", exact: true });
+  const find = viewer.getByRole("search", { name: "文档查找", exact: true });
   await find.getByRole("textbox", { name: "在当前文档中查找", exact: true }).fill("引用内容");
   await expect(find.getByRole("status")).toHaveText("1/1");
   await expect(rendered.locator(".search-match-active")).toHaveCount(1);
@@ -96,7 +108,7 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
   await jump.getByRole("textbox", { name: "跳转到块号", exact: true }).fill("3");
   await jump.getByRole("button", { name: "跳转", exact: true }).click();
   await expect(jump).toHaveCount(0);
-  await expect(rendered.locator('[data-block-number="3"] .vr-block')).toHaveClass(/ProseMirror-activeline/);
+  await expect(rendered.locator(".ProseMirror > :nth-child(3)")).toHaveClass(/ProseMirror-activeline/);
   await rendered.getByRole("button", { name: "第 3 块操作", exact: true }).click();
   await page.getByRole("menuitem", { name: "添加块书签", exact: true }).click();
   await viewer.getByRole("button", { name: "书签", exact: true }).click();
@@ -104,10 +116,10 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
   await expect(bookmarks).toContainText("粗体");
   await rendered.evaluate(element => { element.scrollTop = element.scrollHeight; });
   await bookmarks.getByRole("button").filter({ hasText: "粗体" }).click();
-  await expect(rendered.locator('[data-block-number="3"]')).toBeInViewport();
+  await expect(rendered.locator(".ProseMirror > :nth-child(3)")).toBeInViewport();
   await viewer.getByRole("button", { name: "书签", exact: true }).click();
   await rendered.getByRole("button", { name: "折叠代码块", exact: true }).click();
-  await expect(rendered.locator(".code-block-wrap")).toHaveClass(/collapsed/);
+  await expect(code).toHaveClass(/collapsed/);
   await rendered.evaluate(element => { element.scrollTop = 0; });
   await rendered.locator(".nr-footnote-reference a").click();
   await expect(rendered.locator(".nr-footnotes")).toBeInViewport();
@@ -117,7 +129,7 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
   await viewer.getByRole("button", { name: "渲染", exact: true }).click();
   await expect.poll(() => rendered.evaluate(element => element.scrollTop)).toBe(readingTop);
   await expect(rendered.locator("details")).toHaveAttribute("open", "");
-  await expect(rendered.locator(".code-block-wrap")).toHaveClass(/collapsed/);
+  await expect(code).toHaveClass(/collapsed/);
   await viewer.getByRole("button", { name: "显示源码", exact: true }).click();
   // An editable source keeps its existing undo history across the derived rendering.
   if (await area.getAttribute("contenteditable") === "true") {
@@ -138,27 +150,27 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
       ? { ...display, fontSize: 17, relative: true, currentAlignment: "left", foldExpanded: "−", foldCollapsed: "+" }
       : display) });
   });
-  await rendered.locator('[data-block-number="3"] p').click();
-  await expect(rendered.locator('[data-block-number="3"] .editor-block-number')).toHaveClass(/relative-current/);
-  await expect(rendered.locator('[data-block-number="3"] .editor-block-number')).toHaveText("3");
+  await rendered.locator(".ProseMirror > :nth-child(3)").click();
+  await expect(rendered.locator('.editor-block-number[data-block-index="3"]')).toHaveClass(/relative-current/);
+  await expect(rendered.locator('.editor-block-number[data-block-index="3"]')).toHaveText("3");
   await expect(rendered.locator('.editor-block-number').first()).toHaveText("2");
   await expect(rendered.locator('.editor-block-number').first()).toHaveCSS("font-size", "17px");
   await expect(chapterFold).toHaveText("−");
   await chapterFold.click();
-  await expect(rendered.locator(".vr-row")).toHaveCount(1);
+  await expect(rendered.locator(".ProseMirror > *:visible")).toHaveCount(1);
   await expect(chapterFold).toHaveText("+");
   const band = rendered.locator(".editor-block-current-band");
   await expect(band).toBeVisible();
-  const bandBounds = (await band.boundingBox())!, rowBounds = (await rendered.locator(".vr-row").boundingBox())!;
+  const bandBounds = (await band.boundingBox())!, rowBounds = (await rendered.locator(".ProseMirror > *:visible").boundingBox())!;
   expect(Math.abs(bandBounds.height - rowBounds.height)).toBeLessThanOrEqual(1);
   await viewer.getByRole("button", { name: "显示源码", exact: true }).click();
   await expect.poll(async () => (await sourceInfo(area)).value).toBe(markdown);
   await viewer.getByRole("button", { name: "渲染", exact: true }).click();
-  await expect(rendered.locator(".vr-row")).toHaveCount(1);
+  await expect(rendered.locator(".ProseMirror > *:visible")).toHaveCount(1);
   await viewer.getByRole("button", { name: "目录", exact: true }).click();
   const outline = viewer.getByRole("navigation", { name: "本地文件目录", exact: true });
   await outline.getByRole("button", { name: "H2 第二节", exact: true }).click();
-  await expect(rendered.locator(".vr-row")).toHaveCount(rowCount);
+  await expect(rendered.locator(".ProseMirror > *:visible")).toHaveCount(rowCount);
   await viewer.getByRole("button", { name: "目录", exact: true }).click();
   await page.evaluate(async () => {
     const { saveNumberingPreference, readNumberingPreference } = await import("/src/lib/plugin-system/builtin-numbering-display.ts");
@@ -183,9 +195,9 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
       }
     });
   }
-  await expect(rendered.locator(".vr-row")).toHaveCount(1);
+  await expect(rendered.locator(".ProseMirror > *:visible")).toHaveCount(1);
   await chapterFold.click();
-  await expect(rendered.locator(".vr-row")).toHaveCount(rowCount);
+  await expect(rendered.locator(".ProseMirror > *:visible")).toHaveCount(rowCount);
 });
 
 test("本地 Mermaid 与 Flow 文件复用独立文档渲染，源码保持原样", async ({ page }, testInfo) => {

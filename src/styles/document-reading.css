@@ -1,0 +1,7 @@
+/* Source-independent read-only shell; document block typography remains shared. */
+.document-reading-surface { display: flex; flex-direction: column; position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+.document-reading-tools { flex: 0 0 auto; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.document-reading-tools::-webkit-scrollbar { display: none; }
+.document-reading-surface > :is(.editor-find-bar, .editor-line-jump) { position: absolute; z-index: 30; top: 38px; left: 8px; right: 8px; width: auto; max-width: calc(100% - 16px); background: var(--surface); }
+.document-reading-surface > .editor-status-bar { flex-shrink: 0; }
+.document-reading-view { flex: 1; min-height: 0; overflow: auto; }

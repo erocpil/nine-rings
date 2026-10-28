@@ -237,6 +237,16 @@
         "text": "文件格式",
         "items": [
           {
+            "id": "format.language.gas",
+            "text": "Assembly · GAS",
+            "checkable": true
+          },
+          {
+            "id": "format.language.nasm",
+            "text": "Assembly · NASM",
+            "checkable": true
+          },
+          {
             "id": "format.language.c",
             "text": "C/C++",
             "checkable": true

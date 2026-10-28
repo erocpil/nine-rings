@@ -88,3 +88,7 @@
 5. App 工作区导航、SettingsPanel 分页与全局 CSS 按独立任务继续拆分。
 
 每批只移动一个职责，不混入行为修复；独立回归、独立提交。第二批后主体仍有 3,969 行，不能把菜单拆分标记为整个编辑器拆分完成。本轮阅读器界面分组作为独立提交，详见[设计与验证边界](reader-toolbar-design.md)。
+
+## 普通正文渲染与来源适配（2026-10-28）
+
+普通数据库正文与本地 Markdown 共同使用 `documentRenderingExtensions`、`DocumentRenderBody` 及现有块 NodeView/gutter。只读能力由 `DocumentReadingView` 组合，本地 `MarkdownReadingView` 缩为身份和阅读状态适配器。局部阅读、Flow 及源码并排预览的静态块函数移到 `DocumentBlockContent`，不再反向导入数据库视图；滚动恢复也抽成无存储依赖的共用过程。详细职责与验收见[共享文档渲染](document-rendering.md)。

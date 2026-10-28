@@ -1,13 +1,10 @@
-import { FootnoteNumbering } from "../extensions/FootnoteNumbering";
+import { documentRenderingExtensions } from "../extensions/document-rendering";
 import { mapScrollPosition, type ScrollAnchor } from "../lib/scroll-position-map";
 import { DocumentOutlineContext } from "./TableOfContentsBlock";
 import { useBlockDisplayPreferences } from "../hooks/useBlockDisplayPreferences";
 import { extractDocumentOutline } from "../lib/document-outline";
 import { headingLinkTarget } from "../lib/heading-links";
 import { flowBlockAttributes } from "../lib/flow-presentation";
-import { BlockIndent } from "../extensions/BlockIndent";
-import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
-import { MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes, HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline } from "../extensions/MarkdownExtras";
 import {
   useEffect,
   useMemo,
@@ -18,18 +15,7 @@ import {
 } from "react";
 import { getSchema } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
-import { DocumentStarterKit } from "../extensions/DocumentStarterKit";
-import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
-import { CollapsibleBlockquote } from "../extensions/CollapsibleBlockquote";
-import { ResizableImage, MarkdownImage } from "../extensions/ResizableImage";
-import {
-  ContentSizedTable,
-  AlignedTableCell,
-  AlignedTableHeader,
-} from "../extensions/ContentSizedTable";
-import TableRow from "@tiptap/extension-table-row";
-import { DocumentLink as Link } from "../extensions/DocumentLink";
-import { renderReadonlyBlock, decorateFlowBlock } from "./ReadonlyVirtualNote";
+import { renderReadonlyBlock, decorateFlowBlock } from "./DocumentBlockContent";
 import type { SourceNavigationDocument } from "../lib/markdown-source-navigation";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import type { ReadingBlockState } from "../lib/reading-block-session";
@@ -38,20 +24,7 @@ import { useDocumentHoverPreview } from "./FootnoteHoverPreview";
 
 let schema: ReturnType<typeof getSchema> | undefined;
 function previewDocument(revision: SourceNavigationDocument) {
-  schema ??= getSchema([
-    DocumentStarterKit.configure({ codeBlock: false, blockquote: false }),
-    CodeBlockLineNumbers,
-    CollapsibleBlockquote,
-    ResizableImage, MarkdownImage,
-    ContentSizedTable,
-    TableRow,
-    AlignedTableCell,
-    AlignedTableHeader,
-    Link,
-    BlockIndent,
-    MarkdownTaskState, FootnoteNumbering,
-    MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes, HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline,
-  ]);
+  schema ??= getSchema(documentRenderingExtensions());
   const doc = schema.nodeFromJSON(revision.previewDocument);
   doc.check();
   return { doc, revision };

@@ -10,14 +10,15 @@ export const ReadingBlockSession = Extension.create<{
   noteId: string;
   version: string;
   sensitive: boolean;
+  states?: Map<number, ReadingBlockState>;
 }>({
   name: "readingBlockSession",
   addOptions: () => ({ noteId: "", version: "", sensitive: false }),
   onBeforeCreate() {
-    const { noteId, version, sensitive } = this.options;
-    const blocks = sensitive
+    const { noteId, version, sensitive, states } = this.options;
+    const blocks = states ?? (sensitive
       ? new Map<number, ReadingBlockState>()
-      : readingBlockSession(noteId, version);
+      : readingBlockSession(noteId, version));
     editorSessions.set(this.editor, blocks);
   },
 });

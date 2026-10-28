@@ -1,4 +1,4 @@
-import { FootnoteNumbering } from "../extensions/FootnoteNumbering";
+import { documentRenderingExtensions } from "../extensions/document-rendering";
 import { useBlockDisplayPreferences } from "../hooks/useBlockDisplayPreferences";
 import {
   cloneElement,
@@ -11,34 +11,11 @@ import {
   useRef,
 } from "react";
 import { getSchema } from "@tiptap/core";
-import { DocumentStarterKit } from "../extensions/DocumentStarterKit";
-import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
-import { CollapsibleBlockquote } from "../extensions/CollapsibleBlockquote";
-import { ResizableImage, MarkdownImage } from "../extensions/ResizableImage";
-import {
-  ContentSizedTable,
-  AlignedTableCell,
-  AlignedTableHeader,
-} from "../extensions/ContentSizedTable";
-import TableRow from "@tiptap/extension-table-row";
-import { DocumentLink as Link } from "../extensions/DocumentLink";
-import { BlockIndent } from "../extensions/BlockIndent";
-import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
-import {
-  MathInline,
-  MathBlock,
-  InlineHighlight,
-  FootnoteReference,
-  HTMLDetails,
-  FootnoteDefinition,
-  Footnotes,
-  HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline,
-} from "../extensions/MarkdownExtras";
 import { mdToDelta } from "../lib/md-parser";
 import { deltaToProseMirror } from "../lib/delta-converter";
 import { flowParts } from "../lib/flow-block";
 import { FLOW_BLOCK_FOCUS_EVENT } from "../lib/flow-block-focus";
-import { renderReadonlyBlock } from "./ReadonlyVirtualNote";
+import { renderReadonlyBlock } from "./DocumentBlockContent";
 import type { ReadingBlockState } from "../lib/reading-block-session";
 import {
   DOMParser,
@@ -53,31 +30,8 @@ import {
 
 const nesting = createContext(0);
 let schema: ReturnType<typeof getSchema> | undefined;
-export function markdownReadingExtensions() {
-  return [
-    DocumentStarterKit.configure({ codeBlock: false, blockquote: false }),
-    CodeBlockLineNumbers,
-    CollapsibleBlockquote,
-    ResizableImage, MarkdownImage,
-    ContentSizedTable,
-    TableRow,
-    AlignedTableCell,
-    AlignedTableHeader,
-    Link,
-    BlockIndent,
-    MarkdownTaskState, FootnoteNumbering,
-    MathInline,
-    MathBlock,
-    InlineHighlight,
-    FootnoteReference,
-    HTMLDetails,
-    FootnoteDefinition,
-    Footnotes,
-    HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline,
-  ];
-}
 export function parseFlowDocument(source: string) {
-  schema ??= getSchema(markdownReadingExtensions());
+  schema ??= getSchema(documentRenderingExtensions());
   const doc = schema.nodeFromJSON(deltaToProseMirror(mdToDelta(source)));
   doc.check();
   return doc;
