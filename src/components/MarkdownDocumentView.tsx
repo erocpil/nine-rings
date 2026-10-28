@@ -18,6 +18,7 @@ import { runtimeKind } from "../lib/runtime";
 import { flowHeadingLevel } from "../lib/flow-presentation";
 import { useDocumentActive } from "./RetainedDocument";
 import { MarkdownSplitPreview } from "./MarkdownSplitPreview";
+import { DocumentSourceSurface } from "./DocumentSourceSurface";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { NavigationButtons } from "./NavigationButtons";
 import { useNavigationStore } from "../stores/useNavigationStore";
@@ -43,7 +44,6 @@ import { useDocumentOpenStore } from "../stores/useDocumentOpenStore";
 import { useDocumentTitleDraft } from "../hooks/useDocumentTitleDraft";
 
 const SourceDocumentPreview = lazy(() => import("./SourceDocumentPreview").then(module => ({ default: module.SourceDocumentPreview })));
-const MarkdownSourceEditor = lazy(() => import("./MarkdownSourceEditor").then(module => ({ default: module.MarkdownSourceEditor })));
 
 /** One visible editing surface, one canonical autosave stream for both views. */
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
@@ -69,8 +69,6 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const navigationTarget = useNavigationStore(state => state.target?.noteId === props.noteId ? state.target : null);
   const mobile = useMobileViewport();
   const [preview, setPreview] = useState(() => localStorage.getItem("nr:markdownSplitPreview") === "true");
-  const [sourceStatusTarget, setSourceStatusTarget] = useState<HTMLDivElement | null>(null);
-  const [sourceToolbarTarget, setSourceToolbarTarget] = useState<HTMLDivElement | null>(null);
   const [previewSync, setPreviewSync] = useState(() => localStorage.getItem("nr:markdownPreviewSync") !== "false");
   const hostOwner = useRef({});
   const renderedHost = useRef<Parameters<NonNullable<NoteEditorProps["onHostEditorReady"]>>[0]>(null);
@@ -531,17 +529,18 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         {mobile && props.onFocusModeChange && <button type="button" className="focus-btn document-focus-toggle" aria-label={props.focusMode ? "退出专注模式" : "专注模式"}
           onClick={() => props.onFocusModeChange?.(!props.focusMode)}><ToolbarIcon name={props.focusMode ? "compress" : "expand"} /></button>}
       </DocumentTitleBar>
-      <div className="markdown-source-toolbar-host" data-workspace-panel-start ref={setSourceToolbarTarget} />
-      <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={hasPreview && preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
-      <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
-      <MarkdownSourceEditor contextMenuEnabled onToggleLineBookmark={offset => mutateSourceBookmark(session => { session.toggleBookmarkAt(offset); })} documentLanguage={documentLanguage} documentLanguageValue={languageSelectionValue} documentLanguageOptions={languageOptions} onDocumentLanguageChange={languageProps.onDocumentLanguageChange} onCreateDocument={props.onCreateDocument} statusTarget={sourceStatusTarget} focusMode={props.focusMode} showStatusBar={props.showStatusBar} saveStatus={props.saveStatus} toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly)} editingDisabled={busy}
-        areaRef={viewPosition.area} onReady={hostSourceReady} onSelectionChange={hostSelection} session={sourceEditorState} onChange={editSource}
-        onEditorConfigChange={props.onEditorConfigChange}
-        showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine}
-        escapeRepair={documentLanguage === "markdown" ? <MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={applyEscapeRepair} /> : undefined} />
-      </Suspense>
-      </MarkdownSplitPreview>
-      <div className="markdown-source-status-host" ref={setSourceStatusTarget} />
+      <DocumentSourceSurface editor={{
+        contextMenuEnabled: true,
+        onToggleLineBookmark: offset => mutateSourceBookmark(session => { session.toggleBookmarkAt(offset); }),
+        documentLanguage, documentLanguageValue: languageSelectionValue, documentLanguageOptions: languageOptions,
+        onDocumentLanguageChange: languageProps.onDocumentLanguageChange, onCreateDocument: props.onCreateDocument,
+        focusMode: props.focusMode, showStatusBar: props.showStatusBar, saveStatus: props.saveStatus,
+        value: source, readonly: Boolean(props.readonly), editingDisabled: busy,
+        areaRef: viewPosition.area, onReady: hostSourceReady, onSelectionChange: hostSelection,
+        session: sourceEditorState, onChange: editSource, onEditorConfigChange: props.onEditorConfigChange,
+        showLineNumbers: props.showLineNumbers, fontSize: props.editorFontSize, highlightActiveLine: props.highlightActiveLine,
+        escapeRepair: documentLanguage === "markdown" ? <MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={applyEscapeRepair} /> : undefined,
+      }} renderContent={editor => <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={hasPreview && preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>{editor}</MarkdownSplitPreview>} />
     </>}</DocumentNavigationWorkspace>}
   </div>;
 }

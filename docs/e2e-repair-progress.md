@@ -1,5 +1,17 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-10-28：数据库基线源码界面与共享查找／跳转
+
+从数据库源码入口提取 `DocumentSourceSurface`，数据库和磁盘同用编辑器懒加载、工具栏与状态栏宿主。磁盘原始文本、CodeMirror 会话、恢复中的位置保护、保存和草稿仍由原适配器提供；没有将磁盘文件包装成数据库 ID。比较结果和尚未收敛的渲染控制器见[统一文档工作区](unified-document-workspace.md)。
+
+渲染查找／跳转改用同一受控弹层、互斥状态、匹配逻辑和块号校验。输入查询先显示全部匹配，Enter／导航按钮再定位；非法 Perl 表达式清除匹配并提示。块号输入使用自定义校验，不让浏览器 pattern 校验截断错误反馈。本地关闭查找或切到跳转后不遗留搜索装饰。新增 13 项纯逻辑单元测试与跨来源面板对照。
+
+最终针对性 Chromium **26 项通过**。WebKit 核心组 **21 项通过**、导航／布局／文件操作组 **5 项通过**，合计相同的 **26 项通过**。覆盖原始源码往返、只读和可编辑文件的位置恢复、布局切换不重建编辑器、文件保存和移动、源码工具栏、渲染替换与撤销、选择复制、查找／跳转互斥、非法输入和 Esc。
+
+调试记录：新增对照测试最初使用了不完整的 checkbox accessible name，两项超时，修正定位器。随后将跳转与复制强行串联，遇到数据库既有平滑滚动关闭正文菜单；分开验证两类操作。数据库查找浮层遮住跳转按钮时通过真实快捷键切换，不使用 force 点击绕开浮层。中间组曾为 20 通过／1 失败（被遮挡的按钮点击），最终上述 Chromium 整组重跑通过；没有新增 retry 或 skip。
+
+Vitest **217 文件、2451 项通过**；项目契约测试、类型、lint、格式、生产构建及 diff 空白检查通过。未运行完整默认 E2E、原生 Tauri 构建或远端 CI。日志：`/tmp/nine-rings-canonical-surface-chromium-final.log`、`/tmp/nine-rings-canonical-surface-webkit.log`、`/tmp/nine-rings-canonical-surface-webkit-navigation.log`、`/tmp/nine-rings-canonical-surface-unit.log`、`/tmp/nine-rings-canonical-surface-contracts.log`、`/tmp/nine-rings-canonical-surface-build-final.log`。
+
 ## 2026-10-28：共享标题栏、阅读工具与正文菜单
 
 源码／渲染和两类来源接入 `DocumentChrome` 的标题栏、只读锁及工具栏基础组件；普通只读渲染共用 `DocumentReadingToolbar`，本地阅读改用相同的 `EditorContextMenu`。菜单能力决定引用与原文复制入口，生命周期和窗口边界测量移到菜单组件中。编辑工具栏的收起／专注定位样式不再误作用于源码和阅读工具。相关架构及仍待收敛的控制器见[统一文档工作区](unified-document-workspace.md)。

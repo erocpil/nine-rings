@@ -1,3 +1,6 @@
+import { DocumentFindPanel, DocumentBlockJumpPanel } from "./DocumentToolPanels";
+import { useDocumentFindControls, useDocumentToolPanel } from "../hooks/useDocumentTools";
+import { documentBlockOrdinal, resolveDocumentBlockJump, evaluateDocumentFind } from "../lib/document-tools";
 import { DocumentReadingToolbar } from "./DocumentReadingToolbar";
 import { DocumentTitleBar, DocumentToolbar, DocumentAccessToggle } from "./DocumentChrome";
 import { OutlineJumpControls } from "./DocumentNavigationTools";
@@ -478,7 +481,8 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
   const referenceAnchorsRef = useRef(content.metadata?.referenceAnchors ?? []);
   const bookmarkJumpPulseTimerRef = useRef<number | null>(null);
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
-  const [activeSearchMatch, setActiveSearchMatch] = useState(0);
+  const findControls = useDocumentFindControls();
+  const { matchIndex: activeSearchMatch, setMatchIndex: setActiveSearchMatch } = findControls;
   const [documentInfoOpen, setDocumentInfoOpen] = useState(false);
   const documentInfoCloseTimerRef = useRef<number | null>(null);
   const clearDocumentInfoCloseTimer = () => {
@@ -504,14 +508,14 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     if (documentInfoCloseTimerRef.current !== null)
       window.clearTimeout(documentInfoCloseTimerRef.current);
   }, []);
-  const [editorFindOpen, setEditorFindOpen] = useState(false);
-  const [editorFindQuery, setEditorFindQuery] = useState("");
+  const { findOpen: editorFindOpen, setFindOpen: setEditorFindOpen, jumpOpen: lineJumpOpen, setJumpOpen: setLineJumpOpen } = useDocumentToolPanel(documentActive);
+  const { query: editorFindQuery, setQuery: setEditorFindQuery, setCaseSensitive: setEditorFindCaseSensitive, setWholeWord: setEditorFindWholeWord, setRegex: setEditorFindRegex } = findControls;
   const [editorReplaceOpen, setEditorReplaceOpen] = useState(false);
   const [editorReplaceValue, setEditorReplaceValue] = useState("");
   const [editorReplaceMessage, setEditorReplaceMessage] = useState("");
-  const [editorFindCaseSensitive, setEditorFindCaseSensitive] = useState(false);
-  const [editorFindWholeWord, setEditorFindWholeWord] = useState(false);
-  const [editorFindRegex, setEditorFindRegex] = useState(false);
+  const editorFindCaseSensitive = findControls.options.caseSensitive === true;
+  const editorFindWholeWord = findControls.options.wholeWord === true;
+  const editorFindRegex = findControls.options.regex === true;
   const [editorFindMatchError, setEditorFindMatchError] = useState("");
   const regexEngine = useSearchRegex(editorFindRegex || searchTarget?.options?.regex === true);
   const editorFindOptions = { wholeWord: editorFindWholeWord, regex: editorFindRegex };
@@ -526,8 +530,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     setEditorFindWholeWord(false);
     setEditorFindRegex(false);
     setEditorFindMatchError("");
-  }, [noteId]);
-  const [lineJumpOpen, setLineJumpOpen] = useState(false);
+  }, [noteId, setEditorFindCaseSensitive, setEditorFindOpen, setEditorFindQuery, setEditorFindRegex, setEditorFindWholeWord]);
   const [lineJumpValue, setLineJumpValue] = useState("");
   const [lineJumpError, setLineJumpError] = useState<string | null>(null);
   const [mobileOutlineOpen, setMobileOutlineOpen] = useState(false);
@@ -1652,7 +1655,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
       const coords = editor.view.coordsAtPos(match.from);
       centerSearchMatch(root, coords, stickyBottom);
     });
-  }, [editor]);
+  }, [editor, setActiveSearchMatch]);
 
   const closeEditorFind = useCallback(() => {
     setEditorFindOpen(false);
@@ -1662,7 +1665,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     setSearchMatches([]);
     setActiveSearchMatch(0);
     if (editor && !editor.isDestroyed) setSearchHighlights(editor, [], 0);
-  }, [editor]);
+  }, [editor, setActiveSearchMatch, setEditorFindOpen]);
 
   // Search navigation belongs to the active visit, not the retained editor.
   // Clearing decorations must never change document marks or undo history.
@@ -1690,15 +1693,12 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
   const closeLineJump = useCallback(() => {
     setLineJumpOpen(false);
     setLineJumpError(null);
-  }, []);
+  }, [setLineJumpOpen]);
 
   const openLineJump = useCallback(() => {
     if (!editor || editor.isDestroyed) return;
-    let currentLine = 1;
-    const selectionPos = editor.state.selection.from;
-    editor.state.doc.forEach((node, pos, index) => {
-      if (selectionPos >= pos && selectionPos < pos + node.nodeSize) currentLine = index + 1;
-    });
+    const position = readonly ? activeLinePluginKey.getState(editor.state)?.readingBlockPosition ?? editor.state.selection.from : editor.state.selection.from;
+    const currentLine = documentBlockOrdinal(editor.state.doc, position);
     closeEditorFind();
     setOutlineOpen(false);
     setLineJumpValue(String(currentLine));
@@ -1708,26 +1708,13 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
       lineJumpInputRef.current?.focus({ preventScroll: true });
       lineJumpInputRef.current?.select();
     });
-  }, [closeEditorFind, editor, setOutlineOpen]);
+  }, [closeEditorFind, editor, setOutlineOpen, readonly, setLineJumpOpen]);
 
   const submitLineJump = useCallback(() => {
     if (!editor || editor.isDestroyed) return;
-    const blockCount = editor.state.doc.childCount;
-    if (!/^\d+$/.test(lineJumpValue.trim())) {
-      setLineJumpError(`请输入 1–${blockCount}`);
-      return;
-    }
-    const requestedLine = Number.parseInt(lineJumpValue, 10);
-    if (requestedLine < 1 || requestedLine > blockCount) {
-      setLineJumpError(`请输入 1–${blockCount}`);
-      lineJumpInputRef.current?.select();
-      return;
-    }
-
-    let blockPos = 0;
-    editor.state.doc.forEach((_node, pos, index) => {
-      if (index === requestedLine - 1) blockPos = pos;
-    });
+    const target = resolveDocumentBlockJump(editor.state.doc, lineJumpValue);
+    if (target.position === undefined) { setLineJumpError(target.error); lineJumpInputRef.current?.select(); return; }
+    const blockPos = target.position;
     const resolved = editor.state.doc.resolve(
       Math.min(blockPos + 1, editor.state.doc.content.size),
     );
@@ -1767,7 +1754,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     });
     editorFindInputRef.current?.focus({ preventScroll: true });
     editorFindInputRef.current?.select();
-  }, [closeLineJump, editor]);
+  }, [closeLineJump, editor, setEditorFindOpen, setEditorFindQuery]);
 
   const openEditorReplace = useCallback(() => {
     if (readonly || !editor?.isEditable) return;
@@ -1912,11 +1899,9 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
   useEffect(() => {
     if (!editor || !editorFindOpen) return;
     const refresh = () => {
-      let matches: SearchMatch[] = [];
-      try {
-        matches = findSearchMatches(editor.state.doc, editorFindQuery, editorReplaceOpen, editorFindCaseSensitive, { wholeWord: editorFindWholeWord, regex: editorFindRegex });
-        setEditorFindMatchError("");
-      } catch { setEditorFindMatchError("正则匹配超出执行限制，请简化表达式。"); }
+      const result = evaluateDocumentFind(editor.state.doc, editorFindQuery, { wholeWord: editorFindWholeWord, regex: editorFindRegex, caseSensitive: editorFindCaseSensitive }, { ready: regexEngine.ready, error: regexEngine.error }, editorReplaceOpen);
+      const matches = result.matches;
+      setEditorFindMatchError(result.error);
       editorFindOriginRef.current = editor.state.selection.from;
       searchMatchesRef.current = matches;
       setSearchMatches(matches);
@@ -1927,7 +1912,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     refresh();
     editor.on("update", refresh);
     return () => { editor.off("update", refresh); };
-  }, [editor, editorFindOpen, editorFindQuery, editorReplaceOpen, editorFindCaseSensitive, editorFindWholeWord, editorFindRegex, regexEngine.ready]);
+  }, [editor, editorFindOpen, editorFindQuery, editorReplaceOpen, editorFindCaseSensitive, editorFindWholeWord, editorFindRegex, regexEngine.ready, regexEngine.error, setActiveSearchMatch]);
 
   // 接收搜索列表传来的一次性定位请求。优先匹配完整短语；FTS 的
   // 多词 AND 查询若没有连续短语，则回退到各个词的命中位置。
@@ -1998,7 +1983,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
       }
     }
     onSearchTargetConsumed?.(searchTarget.requestId);
-  }, [editor, jumpToBookmark, noteId, onSearchTargetConsumed, revealSearchMatch, searchTarget, title, regexEngine.ready]);
+  }, [editor, jumpToBookmark, noteId, onSearchTargetConsumed, revealSearchMatch, searchTarget, title, regexEngine.ready, setActiveSearchMatch]);
 
   // 宽度变化会让软换行重排。编辑且光标可见时锚定光标；布局按钮暂时
   // 获得焦点时延续该锚点。只读或光标移出视口后改用顶部第一个可见块。
@@ -4366,91 +4351,15 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
           ><FocusModeIcon name="exit" /></button>
         </FocusModeBar>
       )}
-      {editorFindOpen && (
-        <div className={`editor-find-bar${editorReplaceOpen && !readonly ? " editor-find-bar-replace" : ""}`} role="search" onClick={(event) => event.stopPropagation()}>
-          <div className="editor-find-header">
-            <span>查找与替换</span>
-            <button type="button" className="editor-find-close" onClick={() => { closeEditorFind(); editor.commands.focus(); }} title="关闭查找" aria-label="关闭查找">×</button>
-          </div>
-          <div className="editor-find-row">
-          <input
-            ref={editorFindInputRef}
-            value={editorFindQuery}
-            onChange={(event) => setEditorFindQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.nativeEvent.isComposing || event.keyCode === 229) return;
-              if (event.key === "Enter") {
-                event.preventDefault();
-                navigateEditorFind(event.shiftKey ? -1 : 1);
-              } else if (event.key === "Escape") {
-                event.preventDefault();
-                closeEditorFind();
-                editor.commands.focus();
-              }
-            }}
-            placeholder="在当前文档中查找"
-            aria-label="在当前文档中查找"
-          />
-          <span className="editor-find-count" aria-live="polite">
-            {editorFindQuery ? (searchMatches.length > 0 ? `${activeSearchMatch + 1}/${searchMatches.length}` : "0/0") : ""}
-          </span>
-          <button type="button" onClick={() => navigateEditorFind(-1)} disabled={searchMatches.length === 0} title="上一处匹配" aria-label="上一处匹配">↑</button>
-          <button type="button" onClick={() => navigateEditorFind(1)} disabled={searchMatches.length === 0} title="下一处匹配" aria-label="下一处匹配">↓</button>
-          {!readonly && <button type="button" className="editor-find-replace-toggle" onClick={() => setEditorReplaceOpen(open => !open)} aria-expanded={editorReplaceOpen} aria-label="显示替换">替换</button>}
-          </div>
-          <div className="editor-find-options"><span className="search-scope-label">当前文档</span>
-            <label><input type="checkbox" checked={editorFindCaseSensitive} onChange={event => setEditorFindCaseSensitive(event.target.checked)} />区分大小写</label>
-            <label title="匹配完整单词，不匹配单词中的一部分"><input type="checkbox" checked={editorFindWholeWord} onChange={event => setEditorFindWholeWord(event.target.checked)} />全词匹配</label>
-            <label><input type="checkbox" checked={editorFindRegex} onChange={event => setEditorFindRegex(event.target.checked)} />正则表达式（Perl）</label>
-          </div>
-          {editorFindError && <p className="search-pattern-error" role="alert">{editorFindError}</p>}
-          {editorFindRegex && <small className="search-pattern-help">^word 行首 · word$ 行尾 · foo|bar 任一 · 替换支持 $1、$&#123;name&#125;、$&amp;</small>}
-          {editorReplaceOpen && !readonly && <>
-            <div className="editor-find-row">
-              <input ref={editorReplaceInputRef} aria-label="替换为" placeholder="替换为（留空则删除）" value={editorReplaceValue} onChange={event => { setEditorReplaceValue(event.target.value); setEditorReplaceMessage(""); }}
-                onKeyDown={event => { if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); replaceEditorText(false); } }} />
-              <button type="button" className="editor-replace-action" disabled={!searchMatches.length} onClick={() => replaceEditorText(false)}>替换当前</button>
-              <button type="button" className="editor-replace-action" disabled={!searchMatches.length} onClick={() => replaceEditorText(true)}>全部替换</button>
-            </div>
-            <div className="editor-replace-status" role="status"><span>{editorReplaceMessage || (editorFindRegex ? "Perl 正则匹配；仅替换当前正文" : "普通文本匹配；仅替换当前正文")}</span>
-              {editorReplaceMessage.startsWith("已替换") && <button type="button" className="editor-replace-action" onClick={() => editor.commands.undo()}>撤销替换</button>}
-            </div>
-          </>}
-        </div>
-      )}
-      {lineJumpOpen && (
-        <div className="editor-line-jump" role="dialog" aria-label="跳转块" onClick={(event) => event.stopPropagation()}>
-          <label htmlFor={`line-jump-${noteId}`}>块号</label>
-          <input
-            ref={lineJumpInputRef}
-            id={`line-jump-${noteId}`}
-            value={lineJumpValue}
-            inputMode="numeric"
-            pattern="[0-9]*"
-            aria-label="跳转到块号"
-            aria-invalid={lineJumpError ? "true" : "false"}
-            onChange={(event) => {
-              setLineJumpValue(event.target.value);
-              setLineJumpError(null);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                submitLineJump();
-              } else if (event.key === "Escape") {
-                event.preventDefault();
-                closeLineJump();
-                editor.commands.focus();
-              }
-            }}
-          />
-          <span className={lineJumpError ? "editor-line-jump-error" : "editor-line-jump-range"} role="status">
-            {lineJumpError ?? `/ ${Math.max(gutterBlockCount, editor.state.doc.childCount)}`}
-          </span>
-          <button type="button" onClick={submitLineJump} title="跳转" aria-label="跳转">↵</button>
-          <button type="button" onClick={() => { closeLineJump(); editor.commands.focus(); }} title="关闭跳转" aria-label="关闭跳转">×</button>
-        </div>
-      )}
+      {editorFindOpen && <DocumentFindPanel inputRef={editorFindInputRef} query={editorFindQuery} onQueryChange={setEditorFindQuery}
+        options={findControls.options} onOptionsChange={findControls.setOptions} count={searchMatches.length} activeIndex={activeSearchMatch} error={editorFindError}
+        onNavigate={navigateEditorFind} onClose={() => { closeEditorFind(); editor.commands.focus(); }}
+        replace={readonly ? undefined : { open: editorReplaceOpen, onToggle: () => setEditorReplaceOpen(open => !open), value: editorReplaceValue,
+          onChange: value => { setEditorReplaceValue(value); setEditorReplaceMessage(""); }, inputRef: editorReplaceInputRef,
+          onReplace: replaceEditorText, onUndo: () => { editor.commands.undo(); }, message: editorReplaceMessage }} />}
+      {lineJumpOpen && <DocumentBlockJumpPanel inputRef={lineJumpInputRef} value={lineJumpValue} count={Math.max(gutterBlockCount, editor.state.doc.childCount)} error={lineJumpError}
+        onChange={value => { setLineJumpValue(value); setLineJumpError(null); }} onSubmit={submitLineJump}
+        onClose={() => { closeLineJump(); editor.commands.focus(); }} />}
       <DocumentPanelDrawer
         enabled={isMobileToolbarViewport}
         presentation={panelPresentation}

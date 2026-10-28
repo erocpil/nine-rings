@@ -1,3 +1,6 @@
+import { DocumentFindPanel, DocumentBlockJumpPanel } from "./DocumentToolPanels";
+import { useDocumentFindControls, useDocumentToolPanel } from "../hooks/useDocumentTools";
+import { resolveDocumentBlockJump, evaluateDocumentFind } from "../lib/document-tools";
 import { TextSelection } from "@tiptap/pm/state";
 import { DocumentReadingToolbar } from "./DocumentReadingToolbar";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
@@ -8,7 +11,7 @@ import { documentRenderingExtensions, readonlyDocumentGuard } from "../extension
 import { ActiveLinePlugin, activeLinePluginKey } from "../extensions/EditorHighlights";
 import { HeadingFold, headingFoldPluginKey, expandHeadingFoldsAt } from "../extensions/HeadingFold";
 import { ReadingBlockSession } from "../extensions/ReadingBlockSession";
-import { SearchHighlights, findSearchMatches, setSearchHighlights } from "../extensions/SearchHighlights";
+import { SearchHighlights, searchMatchIndexFromPosition, setSearchHighlights } from "../extensions/SearchHighlights";
 import { CjkLatinSpacing, setCjkLatinSpacing, supportsNativeCjkLatinSpacing } from "../extensions/CjkLatinSpacing";
 import { setCodeBlockDefaultWrap } from "../extensions/CodeBlockLineNumbers";
 import { headingFoldAnchors } from "../lib/heading-fold-anchors";
@@ -20,7 +23,6 @@ import { headingLinkTarget } from "../lib/heading-links";
 import { footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
 import { centerSearchMatch } from "../lib/search-scroll";
 import { restoreDocumentViewport, EDITOR_NAVIGATION_EVENT } from "../lib/document-reading-restoration";
-import { type SearchOptions, searchPatternError } from "../lib/search-matching";
 import { isDocumentFindKeyEvent, isEditorLineJumpKeyEvent } from "../lib/shortcuts";
 import { copyToClipboard } from "../lib/clipboard";
 import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
@@ -91,10 +93,9 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
   const menuSelection = useRef("");
   const [nativeSelectionAvailable, setNativeSelectionAvailable] = useState(false);
   const [notice, setNotice] = useState("");
-  const [toolPanel, setToolPanel] = useState<"find" | "jump" | null>(null);
-  const [query, setQuery] = useState("");
-  const [options, setOptions] = useState<SearchOptions>({});
-  const [matchIndex, setMatchIndex] = useState(0);
+  const { panel: toolPanel, setPanel: setToolPanel } = useDocumentToolPanel(active);
+  const { query, setQuery, options, setOptions, matchIndex, setMatchIndex } = useDocumentFindControls();
+  const searchOrigin = useRef(0);
   const [jumpValue, setJumpValue] = useState("");
   const [jumpError, setJumpError] = useState("");
   const input = useRef<HTMLInputElement>(null);
@@ -143,13 +144,14 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
   const hover = useDocumentHoverPreview(() => editor?.state.doc ?? doc, editor && !editor.isDestroyed ? editor.view.dom : null);
   const restoring = useRef(false);
   const regex = useSearchRegex(options.regex === true);
-  const searches = useMemo(() => {
-    const error = options.regex ? regex.error || (!regex.ready ? "正在加载 Perl 正则引擎…" : searchPatternError(query, options)) : "";
-    if (error) return { matches: [], error };
-    try { return { matches: findSearchMatches(doc, query, false, options.caseSensitive === true, options), error: "" }; }
-    catch (cause) { return { matches: [], error: String(cause) }; }
-  }, [doc, query, options, regex.ready, regex.error]);
-  const activeMatch = searches.matches[matchIndex % (searches.matches.length || 1)];
+  const searches = useMemo(() => toolPanel === "find" ? evaluateDocumentFind(doc, query, options, { ready: regex.ready, error: regex.error }) : { matches: [], error: "" }, [doc, query, options, regex.ready, regex.error, toolPanel]);
+  useEffect(() => { searchOrigin.current = session.activePos ?? editor?.state.selection.from ?? 0; setMatchIndex(-1); }, [searches, editor, session, setMatchIndex]);
+  const activeMatch = matchIndex < 0 ? undefined : searches.matches[matchIndex % (searches.matches.length || 1)];
+  const navigateFind = (direction: number) => {
+    const count = searches.matches.length;
+    if (!count) return;
+    setMatchIndex(index => index < 0 ? searchMatchIndexFromPosition(searches.matches, searchOrigin.current, direction) : (index + direction + count) % count);
+  };
   const blockAt = useCallback((pos: number) => {
     let result = 0;
     doc.forEach((_node, at) => { if (at <= pos) result = at; });
@@ -257,7 +259,7 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
   const showTool = useCallback((panel: "find" | "jump") => {
      setToolPanel(previous => previous === panel ? null : panel);
     if (panel === "jump") { setJumpValue(String(current)); setJumpError(""); }
-  }, [current]);
+  }, [current, setToolPanel]);
   useNativeMenuActions({ "document.find": { run: () => showTool("find") }, "document.jump": { run: () => showTool("jump") } }, active);
   useEffect(() => {
     if (!active) { setToolPanel(null); setBlockMenu(null); setMenu(null);  setQuery(""); return; }
@@ -271,7 +273,7 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
     };
     document.addEventListener("keydown", key, true);
     return () => document.removeEventListener("keydown", key, true);
-  }, [active, toolPanel, showTool]);
+  }, [active, toolPanel, showTool, setToolPanel, setQuery]);
   useLayoutEffect(() => { input.current?.focus({ preventScroll: true }); }, [toolPanel]);
   useEffect(() => {
     if (!notice || notice.includes("失败")) return;
@@ -279,11 +281,9 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
     return () => clearTimeout(timer);
   }, [notice]);
   const submitJump = () => {
-    const number = Number(jumpValue);
-    if (!Number.isInteger(number) || number < 1 || number > doc.childCount) { setJumpError(`请输入 1–${doc.childCount} 的块号`); return; }
-    let position = 0;
-    for (let index = 0; index < number - 1; index++) position += doc.child(index).nodeSize;
-    navigate(position); setToolPanel(null);
+    const target = resolveDocumentBlockJump(doc, jumpValue);
+    if (target.position === undefined) { setJumpError(target.error); input.current?.select(); return; }
+    navigate(target.position); setToolPanel(null);
   };
   const blockMenuActions = (): BlockMenuAction[] => {
     if (!blockMenu || !editor) return [];
@@ -310,18 +310,11 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
       onCollapse={() => foldAll(collapsedHeadingKeysForAll(sections))} onExpand={() => foldAll([])}
       onFoldLevel={level => setFolds(sections.filter(section => section.level >= level && section.end > section.headingEnd).map(section => section.key))}
       onCopy={() => { void copySelection(); }} canCopy={nativeSelectionAvailable} />}
-    {toolPanel === "find" && <div className="editor-find-bar" role="search" aria-label="文档查找">
-      <div className="editor-find-header"><span>文档查找</span><button type="button" aria-label="关闭查找" className="editor-find-close" onClick={() => { setToolPanel(null); setQuery(""); }}>×</button></div>
-      <div className="editor-find-row"><input ref={input} value={query} aria-label="在当前文档中查找" placeholder="在当前文档中查找" onChange={event => { setQuery(event.target.value); setMatchIndex(0); }} onKeyDown={event => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); setMatchIndex(index => index + (event.shiftKey ? -1 : 1) + searches.matches.length); } }} />
-        <span className="editor-find-count" role="status">{searches.matches.length ? `${matchIndex % searches.matches.length + 1}/${searches.matches.length}` : "0/0"}</span>
-        <button type="button" disabled={!searches.matches.length} aria-label="上一处匹配" onClick={() => setMatchIndex(index => index - 1 + searches.matches.length)}>↑</button><button type="button" disabled={!searches.matches.length} aria-label="下一处匹配" onClick={() => setMatchIndex(index => index + 1)}>↓</button>
-      </div><div className="editor-find-options">{(["caseSensitive", "wholeWord", "regex"] as const).map((key, index) => <label key={key}><input type="checkbox" checked={options[key] === true} onChange={event => { setOptions(previous => ({ ...previous, [key]: event.target.checked })); setMatchIndex(0); }} />{["区分大小写", "全词匹配", "正则表达式（Perl）"][index]}</label>)}</div>
-      {searches.error && <p role="alert" className="search-pattern-error">{searches.error}</p>}
-    </div>}
-    {toolPanel === "jump" && <form className="editor-line-jump" role="dialog" aria-label="跳转块" onSubmit={event => { event.preventDefault(); submitJump(); }}>
-      <label>块号<input ref={input} aria-label="跳转到块号" inputMode="numeric" value={jumpValue} onChange={event => { setJumpValue(event.target.value); setJumpError(""); }} /></label>
-      <span role="status" className={jumpError ? "editor-line-jump-error" : "editor-line-jump-range"}>{jumpError || `/ ${doc.childCount}`}</span><button type="submit">跳转</button><button type="button" className="btn-icon" aria-label="关闭跳转块" onClick={() => setToolPanel(null)}>×</button>
-    </form>}
+    {toolPanel === "find" && <DocumentFindPanel inputRef={input} query={query} onQueryChange={setQuery} options={options} onOptionsChange={setOptions}
+      count={searches.matches.length} activeIndex={matchIndex} error={searches.error} onNavigate={navigateFind}
+      onClose={() => { setToolPanel(null); setQuery(""); content.current?.focus({ preventScroll: true }); }} />}
+    {toolPanel === "jump" && <DocumentBlockJumpPanel inputRef={input} value={jumpValue} count={doc.childCount} error={jumpError}
+      onChange={value => { setJumpValue(value); setJumpError(""); }} onSubmit={submitJump} onClose={() => { setToolPanel(null); content.current?.focus({ preventScroll: true }); }} />}
     <div ref={content} className={`note-editor-scroll document-reading-view ${className}${showNumbers ? " show-line-numbers" : ""}${highlightActiveLine ? "" : " no-active-line"}${cjkLatinSpacing ? " editor-auto-cjk-spacing" : ""}`} aria-label={label} tabIndex={0} style={{ "--editor-font-size": `${fontSize}px` } as CSSProperties}
       onScroll={event => { if (active && !restoring.current) session.scrollTop = event.currentTarget.scrollTop; }}
       onClick={event => {

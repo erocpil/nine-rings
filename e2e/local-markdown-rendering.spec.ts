@@ -99,6 +99,8 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
   await page.keyboard.press(process.platform === "darwin" ? "Meta+f" : "Control+f");
   const find = viewer.getByRole("search", { name: "文档查找", exact: true });
   await find.getByRole("textbox", { name: "在当前文档中查找", exact: true }).fill("引用内容");
+  await expect(find.getByRole("status")).toHaveText("0/1");
+  await page.keyboard.press("Enter");
   await expect(find.getByRole("status")).toHaveText("1/1");
   await expect(rendered.locator(".search-match-active")).toHaveCount(1);
   await page.keyboard.press("Escape");

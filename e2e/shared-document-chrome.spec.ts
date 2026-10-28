@@ -1,10 +1,10 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page, type TestInfo } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createBlankDocument } from "./helpers/document";
 import { closeDocumentSidebar } from "./helpers/workspace";
 
-for (const origin of ["database", "local"] as const) test(`只读渲染共享工具栏、右键与选区复制：${origin}`, async ({ page }, testInfo) => {
+async function openReadonlyFixture(page: Page, testInfo: TestInfo, origin: "database" | "local") {
   await createBlankDocument(page, "共享界面");
   let root = page.locator(".note-editor:visible").last();
   if (origin === "database") {
@@ -31,6 +31,11 @@ for (const origin of ["database", "local"] as const) test(`只读渲染共享工
     root = page.getByRole("region", { name: "本地文件工作区" });
     await root.getByRole("button", { name: "渲染", exact: true }).click();
   }
+  return root;
+}
+
+for (const origin of ["database", "local"] as const) test(`只读渲染共享工具栏、右键与选区复制：${origin}`, async ({ page }, testInfo) => {
+  const root = await openReadonlyFixture(page, testInfo, origin);
   const more = root.getByRole("button", { name: "更多工具", exact: true });
   if (await more.getAttribute("aria-expanded") === "false") await more.click();
   const tools = root.getByRole("toolbar", { name: "文档阅读工具", exact: true });
@@ -86,4 +91,35 @@ for (const origin of ["database", "local"] as const) test(`只读渲染共享工
   await expect(tools).toHaveCount(0);
   await focusMore.click();
   await expect(tools).toBeVisible();
+});
+
+for (const origin of ["database", "local"] as const) test(`共享查找与块号跳转、非法输入校验：${origin}`, async ({ page }, testInfo) => {
+  const root = await openReadonlyFixture(page, testInfo, origin);
+  const tools = root.getByRole("toolbar", { name: "文档阅读工具", exact: true });
+  // The same controlled find/jump surface is hosted by both source adapters.
+  await tools.getByRole("button", { name: "文档查找", exact: true }).click();
+  const find = root.getByRole("search", { name: "文档查找", exact: true });
+  const query = find.getByRole("textbox", { name: "在当前文档中查找", exact: true });
+  await query.fill("共同正文");
+  await expect(find.getByRole("status")).toHaveText("0/1");
+  await query.press("Enter");
+  await expect(find.getByRole("status")).toHaveText("1/1");
+  await find.getByRole("checkbox", { name: "正则表达式（Perl）", exact: true }).check();
+  await query.fill("(");
+  await expect(find.getByRole("alert")).toBeVisible();
+  await expect(root.locator(".search-match-active")).toHaveCount(0);
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+g" : "Control+g");
+  await expect(find).toHaveCount(0);
+  const jump = root.getByRole("dialog", { name: "跳转块", exact: true });
+  await jump.getByRole("textbox", { name: "跳转到块号", exact: true }).fill("1.5");
+  await jump.getByRole("button", { name: "跳转", exact: true }).click();
+  await expect(jump.getByRole("status")).toHaveText("请输入 1–2 的块号");
+  await jump.getByRole("textbox", { name: "跳转到块号", exact: true }).fill("2");
+  await jump.getByRole("button", { name: "跳转", exact: true }).click();
+  await expect(jump).toHaveCount(0);
+  await tools.getByRole("button", { name: "文档查找", exact: true }).click();
+  await find.locator(".editor-find-header").click({ position: { x: 8, y: 8 } });
+  await page.keyboard.press("Escape");
+  await expect(find).toHaveCount(0);
+  if (origin === "local") await expect(page.getByRole("region", { name: "本地文件树" })).toBeVisible();
 });
