@@ -4,14 +4,21 @@ import { join } from "node:path";
 import { createBlankDocument } from "./helpers/document";
 import { closeDocumentSidebar } from "./helpers/workspace";
 
-async function openReadonlyFixture(page: Page, testInfo: TestInfo, origin: "database" | "local") {
+async function openReadonlyFixture(page: Page, testInfo: TestInfo, origin: "database" | "local", longChapter = false) {
   await createBlankDocument(page, "共享界面");
   let root = page.locator(".note-editor:visible").last();
   if (origin === "database") {
-    await page.locator(".ProseMirror:visible").evaluate(element => (element as any).editor.commands.setContent({ type: "doc", content: [
-      { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "共同标题" }] },
-      { type: "paragraph", content: [{ type: "text", text: "共同正文，可选择并复制。" }] },
-    ] }, true));
+    await page.locator(".ProseMirror:visible").evaluate((element, long) => {
+      const p = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
+      (element as any).editor.commands.setContent({ type: "doc", content: [
+        ...(long ? Array.from({ length: 30 }, (_, i) => p(`前置正文 ${i}`)) : []),
+        { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "共同标题" }] },
+        p("共同正文，可选择并复制。"),
+        ...(long ? [...Array.from({ length: 80 }, (_, i) => p(`章节正文 ${i}`)),
+          { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "后续章节" }] },
+          ...Array.from({ length: 30 }, (_, i) => p(`后续正文 ${i}`))] : []),
+      ] }, true);
+    }, longChapter);
     await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   } else {
     await closeDocumentSidebar(page);
@@ -24,7 +31,9 @@ async function openReadonlyFixture(page: Page, testInfo: TestInfo, origin: "data
     await page.getByRole("button", { name: "本地文件", exact: true }).click();
     const directory = testInfo.outputPath("shared-chrome");
     await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, "shared.md"), "# 共同标题\n\n共同正文，可选择并复制。\n");
+    const prefix = longChapter ? Array.from({ length: 30 }, (_, i) => `前置正文 ${i}\n\n`).join("") : "";
+    const suffix = longChapter ? Array.from({ length: 80 }, (_, i) => `章节正文 ${i}\n\n`).join("") + "# 后续章节\n\n" + Array.from({ length: 30 }, (_, i) => `后续正文 ${i}\n\n`).join("") : "";
+    await writeFile(join(directory, "shared.md"), prefix + "# 共同标题\n\n共同正文，可选择并复制。\n\n" + suffix);
     const tree = page.getByRole("region", { name: "本地文件树" });
     await tree.locator("input[type=file]").setInputFiles(directory);
     await tree.getByRole("button", { name: "shared.md", exact: true }).click();
@@ -122,4 +131,23 @@ for (const origin of ["database", "local"] as const) test(`共享查找与块号
   await page.keyboard.press("Escape");
   await expect(find).toHaveCount(0);
   if (origin === "local") await expect(page.getByRole("region", { name: "本地文件树" })).toBeVisible();
+});
+
+for (const origin of ["database", "local"] as const) test(`只读长章节从正文折叠使用相同视口锚点：${origin}`, async ({ page }, testInfo) => {
+  const root = await openReadonlyFixture(page, testInfo, origin, true);
+  if (origin === "local") await root.getByRole("button", { name: "设为只读", exact: true }).click();
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  const paragraph = root.locator(".ProseMirror p").filter({ hasText: /^章节正文 30$/ });
+  await paragraph.scrollIntoViewIfNeeded();
+  await root.locator(".ProseMirror").evaluate(element => {
+    element.addEventListener("pointerup", event => { (element as HTMLElement).dataset.foldY = String((event as PointerEvent).clientY); }, { capture: true });
+  });
+  await paragraph.dblclick();
+  const pointerY = Number(await root.locator(".ProseMirror").getAttribute("data-fold-y"));
+  await expect(paragraph).toBeHidden();
+  const heading = root.locator(".ProseMirror h1").filter({ hasText: "共同标题" });
+  await expect.poll(async () => { const r = await heading.boundingBox(); return Math.abs(r!.y + r!.height / 2 - pointerY); }).toBeLessThan(24);
+  await expect.poll(() => page.evaluate(() => document.getSelection()?.toString() ?? "")).toBe("");
+  await heading.dblclick();
+  await expect(paragraph).toBeVisible();
 });

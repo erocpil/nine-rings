@@ -1,3 +1,4 @@
+import { readingHeadingAtPoint, toggleReadingHeading } from "../lib/reading-heading-navigation";
 import { DocumentFindPanel, DocumentBlockJumpPanel } from "./DocumentToolPanels";
 import { useDocumentFindControls, useDocumentToolPanel } from "../hooks/useDocumentTools";
 import { documentBlockOrdinal, resolveDocumentBlockJump, evaluateDocumentFind } from "../lib/document-tools";
@@ -155,7 +156,6 @@ import {
 import {
   collapsedHeadingKeysForAll,
   extractHeadingSections,
-  headingSectionAtPosition,
   sessionHeadingFoldStore,
   visibleHeadingSections,
   type HeadingSection,
@@ -3681,97 +3681,13 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     }
   };
 
-  const readonlyHeadingSectionAtPoint = (
-    target: EventTarget | null,
-    clientX: number,
-    clientY: number,
-  ): HeadingSection | null => {
-    if (!readonly || editor.isDestroyed) return null;
-    if (!(target instanceof Node) || !editor.view.dom.contains(target)) return null;
-    // Read the current document here instead of relying on the render-time snapshot. In
-    // WebView2 a readonly view can finish updating before React has rendered again.
-    const currentSections = extractHeadingSections(editor.state.doc);
-    const targetElement = target instanceof Element ? target : target.parentElement;
-    const headingElement = targetElement?.closest("h1, h2, h3, h4, h5, h6");
-
-    // WebView2 occasionally returns no result from posAtCoords after a Tauri window has
-    // been backgrounded. A DOM position is more reliable when the gesture starts on a title.
-    if (headingElement && editor.view.dom.contains(headingElement)) {
-      try {
-        const domPosition = editor.view.posAtDOM(headingElement, 0, -1);
-        const section = headingSectionAtPosition(currentSections, domPosition);
-        if (section) return section;
-      } catch {
-        // Detached DOM nodes are possible during a ProseMirror decoration refresh.
-      }
-    }
-
-    const coordinatePosition = editor.view.posAtCoords({ left: clientX, top: clientY })?.pos;
-    if (coordinatePosition !== undefined) {
-      const section = headingSectionAtPosition(currentSections, coordinatePosition);
-      if (section) return section;
-    }
-
-    if (targetElement && editor.view.dom.contains(targetElement)) {
-      try {
-        return headingSectionAtPosition(
-          currentSections,
-          editor.view.posAtDOM(targetElement, 0, -1),
-        );
-      } catch {
-        // Ignore a stale event target and leave the document unchanged.
-      }
-    }
-    return null;
-  };
+  const readonlyHeadingSectionAtPoint = (target: EventTarget | null, clientX: number, clientY: number) =>
+    readonly ? readingHeadingAtPoint(editor, target, clientX, clientY) : null;
 
   const toggleReadonlyHeadingSection = (section: HeadingSection, clientY: number): boolean => {
     cancelReadonlyHeadingAnchor();
     allHeadingFoldRoundTripRef.current = null;
-    const heading = editor.view.nodeDOM(section.pos);
-    const scrollRoot = scrollRef.current;
-    // A heading fold is explicit navigation. Cancel any still-running initial
-    // scroll restoration before applying the clicked-position anchor.
-    scrollRoot?.dispatchEvent(new Event(EDITOR_NAVIGATION_EVENT));
-    const willCollapse = !getCollapsedHeadingKeys(editor).has(section.key);
-    let desiredHeadingTop: number | null = null;
-    if (willCollapse && heading instanceof HTMLElement && scrollRoot) {
-      const headingRect = heading.getBoundingClientRect();
-      const rootRect = scrollRoot.getBoundingClientRect();
-      // 双击标题自身时保持原位；从章节正文触发时，把所属标题带到双击点附近。
-      const requestedTop = clientY >= headingRect.top && clientY <= headingRect.bottom
-        ? headingRect.top
-        : clientY - headingRect.height / 2;
-      desiredHeadingTop = Math.min(
-        rootRect.bottom - headingRect.height - 8,
-        Math.max(rootRect.top + 8, requestedTop),
-      );
-    }
-
-    // 双击路径自行保持标题的视口位置，不让 ProseMirror 再围绕旧选区
-    // scrollIntoView；后者在折叠长章节时会造成一次多余的同步滚动与布局。
-    window.getSelection()?.removeAllRanges();
-    if (!toggleHeadingSectionFold(editor, section, false)) return false;
-    editor.view.dispatch(editor.state.tr.setMeta(activeLinePluginKey, {
-      readingBlockPosition: section.pos,
-    } satisfies ActiveLinePluginMeta));
-    if (desiredHeadingTop !== null && scrollRoot) {
-      const restoreHeading = () => {
-        if (editor.isDestroyed || !scrollRoot.isConnected || !blockEditContextRef.current.active) return;
-        const foldedHeading = editor.view.nodeDOM(section.pos);
-        if (foldedHeading instanceof HTMLElement) {
-          scrollRoot.scrollTop += foldedHeading.getBoundingClientRect().top - desiredHeadingTop!;
-        }
-      };
-      if (headingFoldViewportFrameRef.current !== null) {
-        window.cancelAnimationFrame(headingFoldViewportFrameRef.current);
-      }
-      // ProseMirror applies fold decorations synchronously. Measure the folded
-      // layout and anchor it in the same event, before the browser paints.
-      // A later timer would expose the intermediate clamped scroll position.
-      restoreHeading();
-    }
-    return true;
+    return toggleReadingHeading(editor, section, scrollRef.current, clientY);
   };
 
   const toggleReadonlyHeadingAtPoint = (

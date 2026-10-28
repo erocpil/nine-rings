@@ -1,3 +1,4 @@
+import { readingHeadingAtPoint, toggleReadingHeading } from "../lib/reading-heading-navigation";
 import { DocumentFindPanel, DocumentBlockJumpPanel } from "./DocumentToolPanels";
 import { useDocumentFindControls, useDocumentToolPanel } from "../hooks/useDocumentTools";
 import { resolveDocumentBlockJump, evaluateDocumentFind } from "../lib/document-tools";
@@ -101,6 +102,7 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
   const input = useRef<HTMLInputElement>(null);
   const pendingAnchor = useRef<{ pos: number; top: number } | null>(null);
   const lastFold = useRef(0);
+  const suppressNativeDoubleClickUntil = useRef(0);
   const lastTap = useRef<{ pos: number; time: number; x: number; y: number } | null>(null);
   const touch = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
   const [extensions] = useState(() => [
@@ -297,12 +299,20 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
     actions.push(...blockSpecificMenu(blockReadingActions(nodeDOM(blockMenu.pos), node.type.name)));
     return actions;
   };
+  const foldAtPoint = (target: EventTarget | null, x: number, y: number) => {
+    if (!editor) return false;
+    const section = readingHeadingAtPoint(editor, target, x, y);
+    return section ? toggleReadingHeading(editor, section, content.current, y, position => {
+      session.activePos = position;
+      callbacks.current.onActivePosition?.(position);
+      redraw(value => value + 1);
+    }) : false;
+  };
   const handleFold = (event: MouseEvent<HTMLDivElement>) => {
     if (!doubleClickFold || !(event.target instanceof Element) || event.target.closest("button,a,input,select,textarea")) return;
-    if (Date.now() - lastFold.current < 350) return;
-    const hit = editor?.view.posAtCoords({ left: event.clientX, top: event.clientY });
-    if (!hit) return;
-    event.preventDefault(); lastFold.current = Date.now(); document.getSelection()?.removeAllRanges(); toggleHeading(hit.pos);
+    if (Date.now() < suppressNativeDoubleClickUntil.current) { event.preventDefault(); document.getSelection()?.removeAllRanges(); return; }
+    if (!foldAtPoint(event.target, event.clientX, event.clientY)) return;
+    event.preventDefault(); lastFold.current = Date.now();
   };
   return <DocumentOutlineContext.Provider value={{ items, navigate: item => navigate(item.pos) }}><div className="document-reading-surface">
     {toolsVisible && <DocumentReadingToolbar active={active} toolbarRef={toolbarRef} headingLevels={sections.map(section => section.level)} folded={session.foldedHeadings.size > 0}
@@ -336,12 +346,11 @@ export function DocumentReadingView({ doc, source, sourceCopyLabel = "复制原�
       onPointerUp={event => {
         const gesture = touch.current; touch.current = null;
         if (!doubleClickFold || event.pointerType !== "touch" || !gesture || gesture.id !== event.pointerId || gesture.moved || !(event.target instanceof Element) || event.target.closest("button,a,input,select,textarea")) return;
-        const hit = editor?.view.posAtCoords({ left: event.clientX, top: event.clientY });
-        const section = hit && headingSectionAtPosition(sections, hit.pos);
+        const section = editor && readingHeadingAtPoint(editor, event.target, event.clientX, event.clientY);
         if (!section) return;
         const previous = lastTap.current, now = Date.now();
         if (previous && previous.pos === section.pos && now - previous.time < 350 && Math.hypot(previous.x - event.clientX, previous.y - event.clientY) < 24) {
-          event.preventDefault(); lastTap.current = null; lastFold.current = now; document.getSelection()?.removeAllRanges(); toggleHeading(section.pos);
+          if (foldAtPoint(event.target, event.clientX, event.clientY)) { event.preventDefault(); lastTap.current = null; lastFold.current = now; suppressNativeDoubleClickUntil.current = now + 650; }
         } else lastTap.current = { pos: section.pos, time: now, x: event.clientX, y: event.clientY };
       }}
       onContextMenu={event => {
