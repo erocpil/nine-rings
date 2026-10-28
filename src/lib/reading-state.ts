@@ -10,7 +10,7 @@ export interface ReadingState {
     revision: string;
     entries: [
       number,
-      { collapsed?: boolean; wrap?: boolean; lineNumbers?: boolean },
+      { collapsed?: boolean; wrap?: boolean; lineNumbers?: boolean; diagram?: boolean },
     ][];
   };
   rendered?: { scrollTop: number; anchor?: RenderedReadingAnchor };
@@ -49,7 +49,7 @@ export function readReadingState(noteId: string): ReadingState {
           return false;
         return Object.entries(entry[1]).every(
           ([key, value]) =>
-            ["collapsed", "wrap", "lineNumbers"].includes(key) &&
+            ["collapsed", "wrap", "lineNumbers", "diagram"].includes(key) &&
             typeof value === "boolean",
         );
       })

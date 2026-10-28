@@ -142,7 +142,7 @@ export function useSidebarHoverPreview({
       if (event.key !== "Escape" || event.defaultPrevented) return;
       if (
         document.querySelector(
-          ".doc-context-menu, .document-filter-options[data-sidebar-owned], [role=menu], [role=dialog], .editor-find-bar, .cm-panels",
+          ".doc-context-menu, .document-filter-options[data-sidebar-owned], [role=menu], [role=dialog], dialog[open], [aria-modal=true], .editor-find-bar, .cm-panels",
         )
       )
         return;

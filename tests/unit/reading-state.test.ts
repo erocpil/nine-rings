@@ -39,6 +39,15 @@ test("view, source and rendered positions merge without overwriting folds", () =
   expect(readReadingState("b")).toEqual({ version: 1 });
 });
 
+test("diagram presentation survives a persisted reading session", () => {
+  const blocks = {
+    revision: "source-fingerprint",
+    entries: [[12, { diagram: false, collapsed: true }]] as [number, { diagram: boolean; collapsed: boolean }][],
+  };
+  patchReadingState("local-file:a", { blocks });
+  expect(readReadingState("local-file:a").blocks).toEqual(blocks);
+});
+
 test("malformed records and invalid fields fail safely", () => {
   for (const text of ["{", "null", '{"version":2,"headings":["stale"]}']) {
     values.set("nr:readingState:a", text);

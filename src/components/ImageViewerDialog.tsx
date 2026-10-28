@@ -499,9 +499,19 @@ export function ImageViewer({
       }}
       className={`${presentation === "modal" ? "image-viewer-dialog" : "image-viewer-main"}${focused ? " image-viewer-focus" : ""}`}
       tabIndex={-1}
+      role={presentation === "modal" ? "dialog" : undefined}
+      aria-modal={presentation === "modal" ? true : undefined}
       aria-label="图片查看器"
+      onKeyDownCapture={event => {
+        if (presentation === "modal" && event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          dismiss();
+        }
+      }}
       onCancel={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         dismiss();
       }}
       onKeyDown={(event) => {

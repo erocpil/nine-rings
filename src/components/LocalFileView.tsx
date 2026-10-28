@@ -93,7 +93,7 @@ function markdownHeadingSourceOffsets(source: string): number[] {
 }
 
 
-export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange, active, focusMode, readonlyHeadingFoldInFocusMode = true }: {
+export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange, active, focusMode, readonlyHeadingFoldInFocusMode = true, defaultCodeBlockWrap = true, cjkLatinSpacing = true }: {
   data: Readonly<LocalFileViewData>;
   onClose: () => void;
   fontSize: number;
@@ -104,6 +104,8 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   active: boolean;
   focusMode: boolean;
   readonlyHeadingFoldInFocusMode?: boolean;
+  defaultCodeBlockWrap?: boolean;
+  cjkLatinSpacing?: boolean;
 }) {
   const moreToolsPreference = useFocusEditorTools(state => state.expanded);
   const setMoreTools = useFocusEditorTools(state => state.setExpanded);
@@ -400,6 +402,11 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
 
   const jump = (offset: number) => {
     const handle = sourceHandle.current;
+    if (preview) {
+      const position = renderedNavigation.blockAt(offset)?.position ?? 0;
+      localViewRef.current?.querySelector(".markdown-reading-view")?.dispatchEvent(new CustomEvent(MARKDOWN_READING_NAVIGATE_EVENT, { detail: { position } }));
+      return;
+    }
     if (!handle) return;
     const at = Math.max(0, Math.min(handle.value.length, offset));
     handle.setSelectionRange(at, at); handle.scrollToOffset(at, true); setActiveOffset(at); handle.focus();
@@ -597,13 +604,15 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const wordState = editorHandle ? sourceWordState(editorHandle.view) : null;
   const matches = groupSourceWordMatchesByLine(wordState?.matches ?? []);
   const toggleBookmark = (offset?: number) => {
-    const handle = sourceHandle.current;
-    if (!handle) return;
-    const line = handle.view.state.doc.lineAt(offset ?? handle.selectionStart);
+    const at = Math.max(0, Math.min(source.length, offset ?? sourceHandle.current?.selectionStart ?? activeOffset));
+    const from = at > 0 ? source.lastIndexOf("\n", at - 1) + 1 : 0;
+    const number = source.slice(0, from).split("\n").length;
+    const end = source.indexOf("\n", from);
+    const text = source.slice(from, end === -1 ? source.length : end);
     setBookmarks(current => {
-      const existing = current.find(item => item.line === line.number);
+      const existing = current.find(item => item.line === number);
       if (existing) return current.filter(item => item !== existing);
-      return [...current, { offset: line.from, line: line.number, label: line.text.trim() || `第 ${line.number} 行` }].sort((left, right) => left.offset - right.offset);
+      return [...current, { offset: from, line: number, label: text.trim() || `第 ${number} 行` }].sort((left, right) => left.offset - right.offset);
     });
   };
   const beginPanelResize = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -660,7 +669,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       {editing && <button type="button" className="btn-icon" title={localFileService.canSaveOriginal(data.rootId) ? "保存到原文件（⌘S / Ctrl+S）" : "目录快照不能覆盖原文件，请另存为"} aria-label="保存文件" disabled={!baseSnapshot || !localFileService.canSaveOriginal(data.rootId) || saveState === "saving" || source === baseSnapshot.source} onClick={() => void save()}><ToolbarIcon name="save" /></button>}
       <button type="button" className="btn-icon" title="另存为副本" aria-label="另存为副本" onClick={saveCopy}><ToolbarIcon name="download" /></button>
       {(isMarkdown || isMermaid || isFlow) && <button type="button" className="btn-icon" title={preview ? "切换到源码模式" : "切换到渲染模式（编辑请使用源码）"} aria-label={preview ? "显示源码" : "渲染"} aria-pressed={preview} onClick={() => setPreview(value => !value)}><ToolbarIcon name={preview ? "code" : "eye"} /></button>}
-      {!preview && <button type="button" className="btn-icon" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(!moreTools)}><ToolbarIcon name="annotate" /></button>}
+      {(!preview || isMarkdown) && <button type="button" className="btn-icon" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(!moreTools)}><ToolbarIcon name="annotate" /></button>}
       {(isMarkdown ? ["outline", "bookmarks", "matches"] as const : ["symbols", "bookmarks", "matches"] as const).map(kind => <button type="button" key={kind} className="btn-icon" title={kind === "outline" ? "目录" : kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-label={kind === "outline" ? "目录" : kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-pressed={activePanel === kind} disabled={loading || !!error || (kind === "symbols" && !symbols.length && !symbolsBusy)} onClick={() => setActivePanel(current => current === kind ? null : kind)}><ToolbarIcon name={kind === "outline" ? "listChars" : kind === "symbols" ? "bullet" : kind === "bookmarks" ? "bookmark" : "search"} /></button>)}
       <button type="button" className="btn-icon" title="重新读取原文件" aria-label="重新读取原文件" disabled={loading} onClick={() => { editorSession.current = null; setReload(value => value + 1); }}><ToolbarIcon name="refresh" /></button>
       <button type="button" className="btn-icon" title="返回原视图" aria-label="返回原视图" onClick={onClose}><ToolbarIcon name="chevronLeft" /></button>
@@ -673,7 +682,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       <div><button type="button" onClick={() => { setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
     </section>}
     {!loading && !error && <div className={`local-file-workspace${activePanel ? " has-local-file-dock" : ""}`} style={{ "--local-file-panel-width": `${panelWidth}px` } as CSSProperties}>
-      <div className="local-file-editor-shell">{preview ? isMarkdown && markdownDoc ? <MarkdownReadingView doc={markdownDoc} source={source} session={readingSession} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} doubleClickFold={focusMode && readOnly && readonlyHeadingFoldInFocusMode} className="local-file-preview" onActivePosition={position => setActiveOffset(renderedNavigation.offsetAt(position + 1))} onClick={openRelative} /> : isMermaid || isFlow ? <SourceDocumentPreview language={language} source={source} fontSize={fontSize} className="local-file-preview" /> : <div className="editor-content local-file-preview"><p role="alert">{previewError || "暂时无法渲染，源码已保留，可切回源码模式。"}</p><pre>{source}</pre></div> : <MarkdownSourceEditor value={source} readonly={!editing} contextMenuEnabled onToggleLineBookmark={toggleBookmark} areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={next => { sourceRef.current = next; setSource(next); }} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus={saveState} documentLanguage={language} documentLanguageValue={languageOverride ?? AUTO_DOCUMENT_LANGUAGE} documentLanguageOptions={documentLanguageViewOptions(detectedLanguage)} onDocumentLanguageChange={next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); }} onEditorConfigChange={onEditorConfigChange} />}</div>{panel}
+      <div className="local-file-editor-shell">{preview ? isMarkdown && markdownDoc ? <MarkdownReadingView doc={markdownDoc} source={source} session={readingSession} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} active={active} toolsVisible={moreTools} showStatusBar={showStatusBar} focusMode={focusMode} saveStatus={saveState} defaultCodeBlockWrap={defaultCodeBlockWrap} cjkLatinSpacing={cjkLatinSpacing} bookmarks={bookmarks.map(bookmark => renderedNavigation.blockAt(bookmark.offset)?.position ?? 0)} onToggleBookmark={position => toggleBookmark(renderedNavigation.offsetAt(position + 1))} doubleClickFold={focusMode && readOnly && readonlyHeadingFoldInFocusMode} className="local-file-preview" onActivePosition={position => setActiveOffset(renderedNavigation.offsetAt(position + 1))} onClick={openRelative} /> : isMermaid || isFlow ? <SourceDocumentPreview language={language} source={source} fontSize={fontSize} className="local-file-preview" /> : <div className="editor-content local-file-preview"><p role="alert">{previewError || "暂时无法渲染，源码已保留，可切回源码模式。"}</p><pre>{source}</pre></div> : <MarkdownSourceEditor value={source} readonly={!editing} contextMenuEnabled onToggleLineBookmark={toggleBookmark} areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={next => { sourceRef.current = next; setSource(next); }} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus={saveState} documentLanguage={language} documentLanguageValue={languageOverride ?? AUTO_DOCUMENT_LANGUAGE} documentLanguageOptions={documentLanguageViewOptions(detectedLanguage)} onDocumentLanguageChange={next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); }} onEditorConfigChange={onEditorConfigChange} />}</div>{panel}
       {activePanel === "outline" && <nav className="local-file-dock local-file-outline document-panel-dock dock-right" aria-label="本地文件目录">
       <div className="document-dock-width-handle" role="separator" aria-orientation="vertical" aria-label="调整本地文件目录宽度" onPointerDown={beginPanelResize} />
       <div className="document-outline-header">

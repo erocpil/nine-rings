@@ -1,4 +1,5 @@
 import { FootnoteNumbering } from "../extensions/FootnoteNumbering";
+import { useBlockDisplayPreferences } from "../hooks/useBlockDisplayPreferences";
 import {
   cloneElement,
   isValidElement,
@@ -52,8 +53,8 @@ import {
 
 const nesting = createContext(0);
 let schema: ReturnType<typeof getSchema> | undefined;
-export function parseFlowDocument(source: string) {
-  schema ??= getSchema([
+export function markdownReadingExtensions() {
+  return [
     DocumentStarterKit.configure({ codeBlock: false, blockquote: false }),
     CodeBlockLineNumbers,
     CollapsibleBlockquote,
@@ -73,7 +74,10 @@ export function parseFlowDocument(source: string) {
     FootnoteDefinition,
     Footnotes,
     HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline,
-  ]);
+  ];
+}
+export function parseFlowDocument(source: string) {
+  schema ??= getSchema(markdownReadingExtensions());
   const doc = schema.nodeFromJSON(deltaToProseMirror(mdToDelta(source)));
   doc.check();
   return doc;
@@ -81,6 +85,7 @@ export function parseFlowDocument(source: string) {
 
 /** A single read-only projection used by the document, source preview and block workspace. */
 export function FlowBlockContent({ source }: { source: string }) {
+  useBlockDisplayPreferences();
   const host = useRef<HTMLDivElement>(null);
   const activeBlock = useRef<HTMLElement | null>(null);
   const depth = useContext(nesting);

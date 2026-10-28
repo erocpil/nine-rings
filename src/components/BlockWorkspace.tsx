@@ -78,7 +78,7 @@ export function BlockWorkspaceHost(props: Props) {
 
 /** A scoped view of the original block. Edits are mapped into the source
  * transaction stream; only the source owns undo history and persistence. */
-function BlockWorkspace({ source, vimModeEnabled = false, highlightActiveLine = true, readonly, sensitive, saveStatus, onFlush, request, onClose, onNavigate }: Props & { request: Request; onClose: () => void; onNavigate: Navigate }) {
+export function BlockWorkspace({ source, vimModeEnabled = false, highlightActiveLine = true, readonly, sensitive, saveStatus, onFlush, request, onClose, onNavigate }: Props & { request: Request; onClose: () => void; onNavigate: Navigate }) {
   const initial = useMemo(() => source.state.doc.nodeAt(request.position)!, [source, request]);
   const position = useRef(request.position);
   // Track document positions through every edit, including this workspace's

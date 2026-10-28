@@ -39,6 +39,7 @@ export function EditorStatusBar({
   documentLanguageOptions,
   onDocumentLanguageChange,
   onCreateDocument,
+  navigation = <NavigationButtons />,
 }: {
   enabled: boolean;
   focusMode?: boolean;
@@ -61,6 +62,7 @@ export function EditorStatusBar({
   documentLanguageOptions?: ReadonlyArray<{ value: string; label: string }>;
   onDocumentLanguageChange?: (language: string) => void;
   onCreateDocument?: () => void;
+  navigation?: ReactNode;
 }) {
   const state = useStatusBarDisplay(enabled, focusMode);
   const idleGlow = useStatusBarIdleGlow(state.visible);
@@ -161,7 +163,7 @@ export function EditorStatusBar({
           ? "保存失败"
           : "已保存到本机；GitHub 备份需要单独 Push";
   const content: Record<StatusItem, ReactNode> = {
-    navigation: <NavigationButtons />,
+    navigation,
     save:
       saveStatus !== undefined ? (
         <span

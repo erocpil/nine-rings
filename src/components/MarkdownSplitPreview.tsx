@@ -1,6 +1,7 @@
 import { FootnoteNumbering } from "../extensions/FootnoteNumbering";
 import { mapScrollPosition, type ScrollAnchor } from "../lib/scroll-position-map";
 import { DocumentOutlineContext } from "./TableOfContentsBlock";
+import { useBlockDisplayPreferences } from "../hooks/useBlockDisplayPreferences";
 import { extractDocumentOutline } from "../lib/document-outline";
 import { headingLinkTarget } from "../lib/heading-links";
 import { flowBlockAttributes } from "../lib/flow-presentation";
@@ -76,6 +77,7 @@ export function MarkdownSplitPreview({
   flowLevel?: number;
   highlightActiveLine?: boolean;
 }) {
+  useBlockDisplayPreferences();
   const [snapshot, setSnapshot] = useState<ReturnType<
     typeof previewDocument
   > | null>(null);

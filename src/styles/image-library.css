@@ -90,6 +90,9 @@
   color: var(--text-secondary);
 }
 .image-viewer-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
   width: min(1100px, 94vw);
   height: min(820px, 90dvh);
   max-width: 94vw;

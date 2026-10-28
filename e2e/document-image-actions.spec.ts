@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createBlankDocument, waitForSavedText } from "./helpers/document";
-import { closeDocumentSidebar } from "./helpers/workspace";
+import { closeDocumentSidebar, openDocumentSidebar } from "./helpers/workspace";
 
 const badge = "https://assets.nine-rings.test/badge.svg";
 const destination = "https://github.com/example/private/actions/workflows/build.yml";
@@ -38,6 +38,7 @@ for (const mode of ["edit", "readonly", "virtual", "local"] as const) test(`小�
     await waitForSavedText(page, "正文");
     if (mode !== "edit") await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   }
+  const sidebar = await openDocumentSidebar(page);
   const body = page.locator(mode === "local" ? ".markdown-reading-view" : mode === "virtual" ? ".vr-body" : ".note-editor .editor-content");
   const image = body.locator('img[alt="build"]');
   await expect(image).toBeVisible();
@@ -56,10 +57,16 @@ for (const mode of ["edit", "readonly", "virtual", "local"] as const) test(`小�
   await view.click();
   const viewer = page.getByRole("dialog", { name: "图片查看器" });
   await expect(viewer).toBeVisible();
+  const bounds = (await viewer.boundingBox())!;
+  const viewport = page.viewportSize()!;
+  expect(Math.abs(bounds.x + bounds.width / 2 - viewport.width / 2)).toBeLessThanOrEqual(1);
+  expect(Math.abs(bounds.y + bounds.height / 2 - viewport.height / 2)).toBeLessThanOrEqual(1);
   await expect(viewer.getByRole("heading")).toHaveText("build");
   await expect(viewer.locator(".image-viewer-viewport img")).toHaveAttribute("src", badge);
   await page.keyboard.press("Escape");
   await expect(viewer).toHaveCount(0);
+  await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+
   const large = body.locator('img[alt="大图"]');
   await large.scrollIntoViewIfNeeded();
   await expect.poll(() => large.evaluate(image => image.naturalWidth)).toBe(192);
