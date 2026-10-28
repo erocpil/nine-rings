@@ -169,7 +169,8 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const languageOverrideIdentity = `local-file:${identity}`;
   const [languageOverride, setLanguageOverride] = useState<string | null>(() => sourceViewLanguageOverride(languageOverrideIdentity));
   const language = languageOverride ?? detectedLanguage;
-  const { state: wordState, groups: matches } = useSourceWordMatches(editorHandle, active && !preview,
+  const sourceWordEnabled = !["", "markdown", "mermaid", "flow"].includes(language);
+  const { state: wordState, groups: matches } = useSourceWordMatches(editorHandle, active && !preview && sourceWordEnabled,
     from => { setActiveOffset(from); setActivePanel("matches"); });
   latestDraft.current = { source, base: baseSnapshot };
   const saveBusy = useRef(false);
@@ -548,9 +549,10 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     scroller.scrollTo({ top: target === "top" ? 0 : target === "middle" ? maximum / 2 : maximum, behavior: "auto" });
   };
   useEffect(() => {
-    if (isMarkdown && activePanel === "symbols") setActivePanel("outline");
+    if (!sourceWordEnabled && activePanel === "matches") setActivePanel(null);
+    else if (isMarkdown && activePanel === "symbols") setActivePanel("outline");
     else if (!isMarkdown && activePanel === "outline") setActivePanel(null);
-  }, [activePanel, isMarkdown]);
+  }, [activePanel, isMarkdown, sourceWordEnabled]);
   const openRelative = (event: React.MouseEvent<HTMLDivElement>) => {
     const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]");
     if (!anchor || !event.currentTarget.contains(anchor)) return;
@@ -638,7 +640,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       <button type="button" className="btn-icon" title="另存为副本" aria-label="另存为副本" onClick={saveCopy}><ToolbarIcon name="download" /></button>
       {(isMarkdown || isMermaid || isFlow) && <button type="button" className="btn-icon" title={preview ? "切换到源码模式" : "切换到渲染模式（编辑请使用源码）"} aria-label={preview ? "显示源码" : "渲染"} aria-pressed={preview} onClick={() => setPreview(value => !value)}><ToolbarIcon name={preview ? "code" : "eye"} /></button>}
       {(!preview || isMarkdown) && <button type="button" className="btn-icon" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(!moreTools)}><ToolbarIcon name="annotate" /></button>}
-      {(isMarkdown ? ["outline", "bookmarks", "matches"] as const : ["symbols", "bookmarks", "matches"] as const).map(kind => <button type="button" key={kind} className="btn-icon" title={kind === "outline" ? "目录" : kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-label={kind === "outline" ? "目录" : kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-pressed={activePanel === kind} disabled={loading || !!error || (kind === "symbols" && !symbols.length && !symbolsBusy)} onClick={() => setActivePanel(current => current === kind ? null : kind)}><ToolbarIcon name={kind === "outline" ? "listChars" : kind === "symbols" ? "bullet" : kind === "bookmarks" ? "bookmark" : "search"} /></button>)}
+      {(isMarkdown ? ["outline", "bookmarks"] as const : ["symbols", "bookmarks", "matches"] as const).filter(kind => kind !== "matches" || sourceWordEnabled).map(kind => <button type="button" key={kind} className="btn-icon" title={kind === "outline" ? "目录" : kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-label={kind === "outline" ? "目录" : kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-pressed={activePanel === kind} disabled={loading || !!error || (kind === "symbols" && !symbols.length && !symbolsBusy)} onClick={() => setActivePanel(current => current === kind ? null : kind)}><ToolbarIcon name={kind === "outline" ? "listChars" : kind === "symbols" ? "bullet" : kind === "bookmarks" ? "bookmark" : "search"} /></button>)}
       <button type="button" className="btn-icon" title="重新读取原文件" aria-label="重新读取原文件" disabled={loading} onClick={() => { editorSession.current = null; setReload(value => value + 1); }}><ToolbarIcon name="refresh" /></button>
       <button type="button" className="btn-icon" title="返回原视图" aria-label="返回原视图" onClick={onClose}><ToolbarIcon name="chevronLeft" /></button>
     </header>
@@ -654,12 +656,12 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       {activePanel === "outline" && <nav className="local-file-dock local-file-outline document-panel-dock dock-right" aria-label="本地文件目录">
       <div className="document-dock-width-handle" role="separator" aria-orientation="vertical" aria-label="调整本地文件目录宽度" onPointerDown={beginPanelResize} />
       <div className="document-outline-header">
-        <div className="document-outline-header-primary"><strong>目录</strong><span className="document-outline-count">{markdownOutline.length} 项</span></div>
+        <div className="document-outline-header-primary"><button type="button" className="local-file-panel-title" title="点击收起目录" aria-label="收起目录" aria-expanded onClick={() => setActivePanel(null)}><strong>目录</strong></button><span className="document-outline-count">{markdownOutline.length} 项</span></div>
         <div className="document-outline-header-actions">
           <button type="button" aria-label="全部折叠目录" title="全部折叠目录" onClick={() => setFoldedHeadings(new Set(markdownOutline.filter((item, index) => (markdownOutline[index + 1]?.level ?? 0) > item.level).map(item => item.pos)))}>−</button>
           <button type="button" aria-label="全部展开目录" title="全部展开目录" onClick={() => setFoldedHeadings(new Set())}>+</button>
           <OutlineJumpControls listRef={outlineListRef} onDocumentScroll={scrollLocalDocumentTo} />
-          <button type="button" className="btn-icon" aria-label="收起目录" title="收起目录" onClick={() => setActivePanel(null)}><ToolbarIcon name="close" /></button>
+          <button type="button" className="btn-icon" aria-label="收起侧栏" title="收起目录" onClick={() => setActivePanel(null)}><ToolbarIcon name="close" /></button>
         </div>
       </div>
       {outlineEntries.length ? <DocumentOutlineList entries={outlineEntries} activeOutlineIndex={activeOutlineIndex} followActive outlineBaseLevel={markdownOutline.reduce((level, item) => Math.min(level, item.level), 6)} listRef={outlineListRef} onToggleFold={position => setFoldedHeadings(current => { const next = new Set(current); if (next.has(position)) next.delete(position); else next.add(position); return next; })} onJump={jumpToOutline} /> : <div className="local-file-panel-list"><p>当前文档没有标题</p></div>}

@@ -117,8 +117,13 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
   const viewer = page.getByRole("region", { name: "本地文件工作区" });
   await expect(viewer.getByRole("button", { name: "目录", exact: true })).toBeVisible();
   await expect(viewer.getByRole("button", { name: "源码符号", exact: true })).toHaveCount(0);
+  await expect(viewer.getByRole("button", { name: "同词匹配", exact: true })).toHaveCount(0);
   await viewer.getByRole("button", { name: "目录", exact: true }).click();
   const outline = viewer.getByRole("navigation", { name: "本地文件目录" });
+  await expect(outline).toBeVisible();
+  await outline.locator(".document-outline-header-primary").getByRole("button", { name: "收起目录", exact: true }).click();
+  await expect(outline).toHaveCount(0);
+  await viewer.getByRole("button", { name: "目录", exact: true }).click();
   await expect(outline).toBeVisible();
   await expect(outline.locator(".document-outline-item")).toHaveCount(24);
   const editorBounds = (await viewer.locator(".local-file-editor-shell").boundingBox())!;
@@ -136,8 +141,11 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
   await expect.poll(() => viewer.locator(".cm-scroller").evaluate(element => element.scrollTop)).toBeGreaterThan(0);
   await viewer.getByRole("button", { name: "渲染", exact: true }).click();
   await expect(viewer.locator(".local-file-preview h1")).toHaveCount(24);
+  await expect(viewer.getByRole("button", { name: "同词匹配", exact: true })).toHaveCount(0);
   await outline.getByRole("button", { name: "滚动至顶部", exact: true }).dblclick();
   await expect.poll(() => viewer.locator(".local-file-preview").evaluate(element => element.scrollTop)).toBeLessThan(2);
+  await outline.locator(".document-outline-header-primary").getByRole("button", { name: "收起目录", exact: true }).click();
+  await expect(outline).toHaveCount(0);
 });
 
 test("只读文件夹入口按需展开、源码查找和符号跳转，不创建文档，停用返回原视图", async ({
