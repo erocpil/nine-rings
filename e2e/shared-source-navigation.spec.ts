@@ -1,0 +1,73 @@
+import { test, expect } from "@playwright/test";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { createBlankDocument } from "./helpers/document";
+import { closeDocumentSidebar } from "./helpers/workspace";
+import { sourceInfo } from "./helpers/source-editor";
+
+test("本地导航复用书签与同词控件，保留工具栏下方的右侧布局", async ({ page }, testInfo) => {
+  await createBlankDocument(page);
+  await closeDocumentSidebar(page);
+  await page.evaluate(async () => {
+    const { setPluginsEnabled } = await import("/src/lib/plugin-system/runtime.ts");
+    const { saveLocalFilesEnabled } = await import("/src/lib/plugin-system/builtin-local-files.ts");
+    setPluginsEnabled(true);
+    saveLocalFilesEnabled(true);
+    const { bookmarkDisplay } = await import("/src/lib/plugin-system/builtin-bookmark-display.ts");
+    const { sourceMatchDisplay } = await import("/src/lib/plugin-system/builtin-source-match-display.ts");
+    for (const presenter of [bookmarkDisplay, sourceMatchDisplay]) {
+      presenter.save({ enabled: true, display: { ...presenter.read().display, font: "sans", fontSize: 18, rowHeight: 38 } });
+    }
+    Object.defineProperty(window, "showDirectoryPicker", { value: undefined, configurable: true });
+  });
+  await page.getByRole("button", { name: "本地文件", exact: true }).click();
+  const root = testInfo.outputPath("shared-navigation");
+  await mkdir(root, { recursive: true });
+  const source = "int count;\nint use(void) { return count + count; }\n";
+  await writeFile(join(root, "navigation.c"), source);
+  const tree = page.getByRole("region", { name: "本地文件树" });
+  await tree.locator("input[type=file]").setInputFiles(root);
+  await tree.getByRole("button", { name: "navigation.c", exact: true }).click();
+  const viewer = page.getByRole("region", { name: "本地文件工作区" });
+  const area = viewer.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  await expect(area).toBeVisible();
+  await viewer.getByRole("button", { name: "书签", exact: true }).click();
+  const bookmarks = viewer.getByRole("complementary", { name: "本地文件书签" });
+  await bookmarks.getByRole("button", { name: "添加或移除当前行书签" }).click();
+  const row = bookmarks.locator(".document-bookmark-item");
+  await expect(row).toHaveCount(1);
+  await expect(row.locator(".document-bookmark-jump")).toHaveCSS("font-size", "18px");
+  await row.getByRole("button", { name: /重命名书签/ }).click();
+  const rename = page.getByRole("dialog", { name: "重命名书签" });
+  await rename.getByRole("textbox", { name: "书签名称" }).fill("共享书签");
+  await rename.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(row.locator(".document-bookmark-jump")).toContainText("共享书签");
+  await viewer.getByRole("button", { name: "源码符号", exact: true }).click();
+  const symbols = viewer.getByRole("complementary", { name: "本地源码符号" });
+  await symbols.getByRole("button", { name: "查找符号", exact: true }).click();
+  await symbols.getByRole("textbox", { name: "查找符号" }).fill("use");
+  await symbols.locator(".document-outline-item").filter({ hasText: "use" }).click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("use(void)"));
+  await symbols.getByRole("textbox", { name: "查找符号" }).press("Escape");
+  await expect(symbols).toBeVisible();
+  await expect(symbols.getByRole("textbox", { name: "查找符号" })).toHaveCount(0);
+  const point = await area.evaluate((element, offset) => {
+    const view = (window as any).sourceCM.EditorView.findFromDOM(element)!;
+    const coords = view.coordsAtPos(offset)!;
+    return { x: coords.left + 2, y: (coords.top + coords.bottom) / 2 };
+  }, source.indexOf("count") + 2);
+  await page.keyboard.down("ControlOrMeta");
+  await page.mouse.click(point.x, point.y);
+  await page.keyboard.up("ControlOrMeta");
+  const matches = viewer.getByRole("complementary", { name: "本地文件同词匹配" });
+  await expect(matches.locator(".document-source-match-row")).toHaveCount(2);
+  await expect(matches.locator(".is-repeated strong")).toHaveText("2");
+  await expect(matches.locator(".document-source-match-row code").first()).toHaveCSS("font-size", "18px");
+  const editorBounds = (await viewer.locator(".local-file-editor-shell").boundingBox())!;
+  const panelBounds = (await matches.boundingBox())!;
+  expect(panelBounds.x).toBeGreaterThanOrEqual(editorBounds.x + editorBounds.width - 1);
+  expect(Math.abs(panelBounds.y - editorBounds.y)).toBeLessThanOrEqual(1);
+  await matches.locator(".document-source-match-row").last().click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("count", source.indexOf("return")));
+  expect((await sourceInfo(area)).value).toBe(source);
+});

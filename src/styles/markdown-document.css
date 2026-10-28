@@ -133,7 +133,7 @@
    paints its light default over every host dark style. */
 .markdown-cm-host .cm-selectionBackground,
 .markdown-cm-host .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground { background: var(--source-selection-bg); }
-.markdown-source-editor.has-source-context-menu .cm-selectionLayer { visibility: visible !important; }
+:is(.markdown-source-editor, .markdown-cm-source).has-source-context-menu .cm-selectionLayer { visibility: visible !important; }
 :root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) .markdown-cm-host { --source-selection-bg: color-mix(in srgb, var(--accent) 16%, transparent); }
 .markdown-cm-host .cm-panels { background: var(--bg-secondary); color: var(--text); }
 .markdown-cm-host .cm-textfield, .markdown-cm-host .cm-button { color: var(--text); background: var(--bg); border-color: var(--border); }

@@ -1,3 +1,4 @@
+import { OutlineJumpControls } from "./DocumentNavigationTools";
 import { documentRenderingExtensions, readonlyDocumentGuard } from "../extensions/document-rendering";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import { vimModePluginKey } from "../extensions/VimMode";
@@ -1497,14 +1498,6 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     mutations.observe(list, { childList: true, subtree: true, characterData: true });
     return () => { if (frame) cancelAnimationFrame(frame); observer.disconnect(); mutations.disconnect(); };
   }, [documentOutline.length, headingFoldRevision, outlineCollapsedHeadingKeys, outlineOpen, panelPresentation]);
-
-  const scrollOutlineTo = useCallback((target: "top" | "middle" | "bottom") => {
-    const list = outlineListRef.current;
-    if (!list) return;
-    // The list owns its measured height. Keep the destination attached to that
-    // height while newly mounted rows settle; user input cancels it immediately.
-    list.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: target }));
-  }, []);
 
   const scrollDocumentTo = useCallback((target: "top" | "middle" | "bottom") => {
     const scroller = scrollRef.current;
@@ -4014,15 +4007,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
               >+</button>
             </div>
             <div className="document-outline-header-actions">
-              <div
-                className={`document-outline-jumps ${outlineOverflow || visibleOutlineEntries.length > 16 ? "" : "is-placeholder"}`}
-                aria-label="目录快速滚动"
-                aria-hidden={!outlineOverflow && visibleOutlineEntries.length <= 16}
-              >
-                <button type="button" onClick={() => scrollOutlineTo("top")} onDoubleClick={() => scrollDocumentTo("top")} title="单击定位目录顶部；双击滚动正文顶部" aria-label="滚动至顶部"><ToolbarIcon name="pageTop" /></button>
-                <button type="button" onClick={() => scrollOutlineTo("middle")} onDoubleClick={() => scrollDocumentTo("middle")} title="单击定位目录中部；双击滚动正文中部" aria-label="滚动至中部"><ToolbarIcon name="pageMiddle" /></button>
-                <button type="button" onClick={() => scrollOutlineTo("bottom")} onDoubleClick={() => scrollDocumentTo("bottom")} title="单击定位目录底部；双击滚动正文底部" aria-label="滚动至底部"><ToolbarIcon name="pageBottom" /></button>
-              </div>
+              <OutlineJumpControls listRef={outlineListRef} onDocumentScroll={scrollDocumentTo} visible={outlineOverflow || visibleOutlineEntries.length > 16} />
               {outlineDisplayConfig?.showCounts !== false && <span className="document-outline-count">
                 {visibleOutlineEntries.length === documentOutline.length
                   ? `${documentOutline.length} 项`

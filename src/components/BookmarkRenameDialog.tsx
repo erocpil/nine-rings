@@ -4,7 +4,7 @@ import { useDialogFocus } from "../hooks/useDialogFocus";
 import type { DocumentBookmark } from "../types/models";
 
 export function BookmarkRenameDialog({ bookmark, onSave, onClose }: {
-  bookmark: DocumentBookmark;
+  bookmark: Pick<DocumentBookmark, "label" | "preview">;
   onSave: (label: string) => void;
   onClose: () => void;
 }) {

@@ -15,13 +15,8 @@ import {
 } from "react";
 import type { DocumentOutlineItem } from "../lib/document-outline";
 
-export interface VisibleOutlineEntry {
-  item: DocumentOutlineItem;
-  /** 在完整目录中的索引，用于当前章节定位。 */
-  index: number;
-  folded: boolean;
-  foldable: boolean;
-}
+import type { VisibleOutlineEntry } from "../lib/source-navigation-view";
+export type { VisibleOutlineEntry } from "../lib/source-navigation-view";
 
 interface DocumentOutlineListProps {
   entries: VisibleOutlineEntry[];

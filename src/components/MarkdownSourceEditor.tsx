@@ -395,7 +395,7 @@ export function MarkdownSourceEditor({
     useState<SourceContextTarget | null>(null);
   useEffect(() => {
     setSourceContextMenu(null);
-  }, [contextMenuEnabled, editingReadonly]);
+  }, [contextMenuEnabled, editingReadonly, documentActive]);
   useEffect(() => {
     if (!documentActive || !statusBar.visible) setGutterMenu(null);
   }, [documentActive, statusBar.visible]);
@@ -1723,7 +1723,7 @@ export function MarkdownSourceEditor({
   );
   return (
     <div
-      className="markdown-source-input markdown-cm-source"
+      className={`markdown-source-input markdown-cm-source${sourceContextMenu ? " has-source-context-menu" : ""}`}
       data-document-language={documentLanguage || "text"}
       data-source-readonly={editingReadonly}
       data-micro-rendering={

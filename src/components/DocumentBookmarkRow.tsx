@@ -9,9 +9,10 @@ const ACTIONS_WIDTH = 68;
 const SWIPE_DECISION_DISTANCE = 10;
 
 interface Props {
-  bookmark: DocumentBookmark;
+  bookmark: Pick<DocumentBookmark, "id" | "position" | "label" | "preview">;
   display?: PanelDisplayContribution | null;
   blockNumber: number;
+  indexKind?: "line" | "block";
   current: boolean;
   mobile: boolean;
   open: boolean;
@@ -34,6 +35,7 @@ export function DocumentBookmarkRow({
   bookmark,
   display = null,
   blockNumber,
+  indexKind = "block",
   current,
   mobile,
   open,
@@ -124,7 +126,7 @@ export function DocumentBookmarkRow({
         }}
         title={bookmarkTooltip(bookmark, display)}
       >
-        {display?.showMetadata !== false && <span className="document-bookmark-index" title={`第 ${blockNumber} 块${current ? "（当前书签）" : ""}`}>
+        {display?.showMetadata !== false && <span className="document-bookmark-index" title={`第 ${blockNumber} ${indexKind === "line" ? "行" : "块"}${current ? "（当前书签）" : ""}`}>
           {blockNumber}
         </span>}
         <span>{label}</span>

@@ -1,3 +1,7 @@
+import { OutlineJumpControls, SourceSymbolSearch, SourceSymbolTools } from "./DocumentNavigationTools";
+import { SourceWordMatchList } from "./SourceWordMatchList";
+import { useSourceWordMatches } from "../hooks/useSourceWordMatches";
+import { sourceOutlineItems, outlineVisibleEntries, type SourceOutlineItem } from "../lib/source-navigation-view";
 import { useDocumentActive } from "./RetainedDocument";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -13,13 +17,11 @@ import {
   useRef,
   useState,
   type ReactNode,
-  type RefObject,
 } from "react";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
 import { useDocumentPanelPosition } from "../hooks/useDocumentPanelPosition";
-import { EditorView } from "@codemirror/view";
 import {
   SourceNavigationDocument,
   sourceEditMapping,
@@ -29,40 +31,23 @@ import {
   desktopPanelClass,
   desktopPanelStyle,
 } from "./DesktopDocumentPanels";
-import { DocumentOutlineList, OutlineDisplayTools, OUTLINE_SCROLL_EVENT } from "./DocumentOutlineList";
+import { DocumentOutlineList, OutlineDisplayTools } from "./DocumentOutlineList";
 import { FocusModeIcon } from "./FocusModeBar";
 import { DocumentBookmarkRow } from "./DocumentBookmarkRow";
-import { SourceEditorContextMenu, type SourceContextTarget } from "./SourceEditorContextMenu";
 import { BookmarkRenameDialog } from "./BookmarkRenameDialog";
 import {
   extractSourceSymbols,
   hasSourceSymbolProvider,
 } from "../lib/source-symbol-provider";
-import { focusSourceWordMatch, groupSourceWordMatchesByLine, selectSourceWordAt, sourceWordState } from "../lib/source-word-occurrences";
-import type { DocumentOutlineItem } from "../lib/document-outline";
+import { focusSourceWordMatch } from "../lib/source-word-occurrences";
 import type { DocumentBookmark } from "../types/models";
 import {
   filterSymbolTree,
-  sourceSymbolSortName,
   sortSourceSymbolTree,
 } from "../lib/source-symbol-sort";
 
-type SourceOutlineItem = DocumentOutlineItem & { offset: number; sortName?: string };
-
-const SOURCE_KIND_MARKERS: Record<string, string> = {
-  "命名空间": "◇",
-  "类型": "{}",
-  "别名": "T",
-  "函数": "ƒ",
-  "变量": "v",
-  "成员": "·",
-  "枚举值": "e",
-  "宏": "#",
-};
-
 export function MarkdownSourceWorkspace({
   revision,
-  areaRef,
   sourceHandle,
   onJump,
   onToggleBookmark,
@@ -71,7 +56,6 @@ export function MarkdownSourceWorkspace({
   children,
 }: {
   revision: SourceNavigationDocument;
-  areaRef: RefObject<SourceEditorHandle>;
   sourceHandle: SourceEditorHandle | null;
   onJump: (offset: number) => void;
   onToggleBookmark: (offset: number) => void;
@@ -123,10 +107,6 @@ export function MarkdownSourceWorkspace({
     return () => { document.removeEventListener("click", dismiss); window.removeEventListener("keydown", dismiss); };
   }, [matchesPreview]);
   const matchesStyle = useDocumentPanelPosition({ open: matchesPreview && !matchesOpen, compact: false, triggerRef: matchesTrigger, panelRef: matchesPanel });
-  const [sourceContextMenu, setSourceContextMenu] = useState<SourceContextTarget | null>(null);
-  const closeSourceContextMenu = useCallback(() => setSourceContextMenu(null), []);
-  useEffect(closeSourceContextMenu, [closeSourceContextMenu, documentActive, sourceHandle]);
-  const [, refreshMatches] = useState(0);
   useEffect(() => {
     // Coalesce typing and reuse the same lazy parse as autosave; no hidden rich editor.
     if (mobile) return;
@@ -166,13 +146,7 @@ export function MarkdownSourceWorkspace({
       void extractSourceSymbols(snapshotLanguage, snapshotSource, controller.signal)
         .then((symbols) => {
           if (!controller.signal.aborted && symbols) {
-            setSourceSymbols(symbols.map((symbol) => ({
-              ...symbol,
-              kindSymbol: SOURCE_KIND_MARKERS[symbol.kind],
-              displayText: symbol.displayText ?? symbol.text,
-              sortName: sourceSymbolSortName(symbol.identity, symbol.kind, symbol.text),
-              offset: symbol.pos,
-            })));
+            setSourceSymbols(sourceOutlineItems(symbols));
             setSourceSymbolsSource(snapshotSource);
           }
         })
@@ -234,53 +208,9 @@ export function MarkdownSourceWorkspace({
   const currentBookmark = bookmarks.find(bookmark => bookmark.position === (currentSourceBlock?.position ?? -2) + 1);
   const controller = useDesktopDocumentPanels(!mobile, outline, bookmarks, [], symbolOutline ? 35 : undefined);
   const dismissPanelPreview = controller.dismiss;
-  useEffect(() => {
-    const view = sourceHandle?.view;
-    if (!view || mobile || !sourceWordEnabled) return;
-    const update = () => refreshMatches(value => value + 1);
-    view.dom.addEventListener("nr:source-word-update", update);
-    return () => view.dom.removeEventListener("nr:source-word-update", update);
-  }, [sourceHandle, mobile, sourceWordEnabled]);
-  useEffect(() => {
-    if (mobile || !sourceWordEnabled) {
-      setMatchesOpen(false);
-      return;
-    }
-    const openMatches = (event: Event) => {
-      const detail = (event as CustomEvent<{ from: number }>).detail;
-      if (!detail) return;
-      setOffset(detail.from);
-      setMatchesOpen(true);
-      dismissPanelPreview();
-    };
-    window.addEventListener("nr:source-word-open", openMatches);
-    return () => {
-      window.removeEventListener("nr:source-word-open", openMatches);
-    };
-  }, [mobile, sourceWordEnabled, dismissPanelPreview]);
-  useEffect(() => {
-    if (mobile || !sourceWordEnabled) return;
-    const modifierClick = (event: globalThis.MouseEvent) => {
-      if (event.button !== 0 || !(event.ctrlKey || event.metaKey)) return;
-      const target = event.target;
-      if (!(target instanceof Element) || !target.closest(".cm-content")) return;
-      const editorRoot = target.closest<HTMLElement>(".cm-editor");
-      const view = sourceHandle?.view ?? areaRef.current?.view ?? (editorRoot ? EditorView.findFromDOM(editorRoot) : null);
-      if (!view) return;
-      const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
-      if (position === null) return;
-      const range = selectSourceWordAt(view, position);
-      if (!range) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      window.dispatchEvent(new CustomEvent("nr:source-word-open", { detail: { from: range.from } }));
-    };
-    document.addEventListener("mousedown", modifierClick, true);
-    return () => document.removeEventListener("mousedown", modifierClick, true);
-  }, [areaRef, sourceHandle, mobile, sourceWordEnabled]);
-  const wordState = sourceWordEnabled && sourceHandle ? sourceWordState(sourceHandle.view) : null;
-  const groupedWordMatches = useMemo(() => groupSourceWordMatchesByLine(wordState?.matches ?? []), [wordState?.matches]);
+  const { state: wordState, groups: groupedWordMatches } = useSourceWordMatches(sourceHandle, documentActive && !mobile && sourceWordEnabled, from => {
+    setOffset(from); setMatchesOpen(true); dismissPanelPreview();
+  });
   const outlineTrigger = useRef<HTMLButtonElement>(null),
     bookmarkTrigger = useRef<HTMLButtonElement>(null);
   const outlinePanel = useRef<HTMLElement>(null),
@@ -307,15 +237,7 @@ export function MarkdownSourceWorkspace({
       (index, item, i) => (item.offset <= offset ? i : index),
       -1,
     );
-  const entries = useMemo(() => {
-    let hiddenBelow = 7;
-    return outline.flatMap((item, index) => {
-      if (item.level > hiddenBelow) return [];
-      const folded = !symbolQuery.trim() && folds.has(item.pos);
-      hiddenBelow = folded ? item.level : 7;
-      return [{ item, index, folded, foldable: outline[index + 1]?.level > item.level }];
-    });
-  }, [outline, folds, symbolQuery]);
+  const entries = useMemo(() => outlineVisibleEntries(outline, item => !symbolQuery.trim() && folds.has(item.pos)), [outline, folds, symbolQuery]);
   const jump = (target: number) => {
     const next = sourceEditMapping(snapshot.source, revision.source)(target);
     onJump(next);
@@ -424,28 +346,15 @@ export function MarkdownSourceWorkspace({
             </>}
           </div>
           <div className={`document-outline-header-actions${isOutline && symbolOutline ? " is-source-symbol-actions" : ""}`}>
-            {isOutline && symbolOutline && <>
-              <OutlineDisplayTools listRef={listRef} target="source-symbols" targetLabel="定位当前符号" />
-              <button type="button" className="btn-icon" aria-label="查找符号" title="查找符号" aria-pressed={symbolSearchOpen} onClick={() => { setSymbolSearchOpen(value => !value); if (symbolSearchOpen) setSymbolQuery(""); }}><ToolbarIcon name="search" /></button>
-              <button
-                type="button"
-                className="btn-icon source-symbol-sort-button"
-                data-sort-mode={symbolsAlphabetical ? "alphabetical" : "source"}
-                aria-label={symbolsAlphabetical ? "当前为分类后按字母排序，切换为分类后按源码顺序" : "当前为分类后按源码顺序，切换为分类后按字母排序"}
-                title={symbolsAlphabetical ? "当前：分类固定，类别内按字母排序；点击切换为源码顺序" : "当前：分类固定，类别内按源码出现顺序；点击切换为字母顺序"}
-                aria-pressed={symbolsAlphabetical}
-                onClick={() => setSymbolsAlphabetical(value => !value)}
-              >
-                <ToolbarIcon name={symbolsAlphabetical ? "sortAlpha" : "sortSource"} />
-              </button>
-              <button type="button" aria-label="全部折叠" title="折叠目录" onClick={() => setFolds(new Set(outline.filter((item, i) => outline[i + 1]?.level > item.level).map(item => item.pos)))}>−</button>
-              <button type="button" aria-label="全部展开" title="展开目录" onClick={() => setFolds(new Set())}>+</button>
-            </>}
+            {isOutline && symbolOutline && <SourceSymbolTools listRef={listRef} searchOpen={symbolSearchOpen}
+              onSearchToggle={() => { setSymbolSearchOpen(value => !value); if (symbolSearchOpen) setSymbolQuery(""); }}
+              alphabetical={symbolsAlphabetical} onSortToggle={() => setSymbolsAlphabetical(value => !value)}
+              onCollapse={() => setFolds(new Set(outline.filter((item, i) => outline[i + 1]?.level > item.level).map(item => item.pos)))} onExpand={() => setFolds(new Set())} />}
             {!isOutline && <>
               <PanelDisplayTools target="bookmarks" disabled={!nearestBookmark} handlers={{ "bookmarks.reveal-current": () => revealPanelItem(bookmarkDisplayListRef.current, nearestBookmark?.id) }} />
               {!currentBookmark && <button className="document-bookmark-add" type="button" onClick={() => onToggleBookmark(offset)} aria-label="添加当前位置书签">添加</button>}
             </>}
-          {isOutline && !symbolOutline && <div className="document-outline-jumps" aria-label="目录快速滚动">{(["top", "middle", "bottom"] as const).map((target, i) => <button type="button" key={target} title={["单击定位目录顶部；双击滚动正文顶部", "单击定位目录中部；双击滚动正文中部", "单击定位目录底部；双击滚动正文底部"][i]} aria-label={["滚动至顶部", "滚动至中部", "滚动至底部"][i]} onClick={() => listRef.current?.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: target }))} onDoubleClick={() => scrollSourceTo(target)}>{<ToolbarIcon name={(["pageTop", "pageMiddle", "pageBottom"] as const)[i]} />}</button>)}</div>}
+          {isOutline && !symbolOutline && <OutlineJumpControls listRef={listRef} onDocumentScroll={scrollSourceTo} />}
           {(isOutline ? (symbolOutline ? sourceSymbolDisplayConfig?.showCounts === true : outlineDisplayConfig?.showCounts !== false) : bookmarkDisplayConfig?.showCounts !== false) && <span className={isOutline ? "document-outline-count" : "document-bookmark-count"}>
             {isOutline ? outline.length : bookmarks.length} 项
           </span>}
@@ -454,11 +363,7 @@ export function MarkdownSourceWorkspace({
           </button>}
           </div>
         </div>
-        {isOutline && symbolOutline && symbolSearchOpen && <div className="source-symbol-search" role="search">
-          <ToolbarIcon name="search" />
-          <input autoFocus value={symbolQuery} onChange={event => setSymbolQuery(event.target.value)} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); setSymbolQuery(""); setSymbolSearchOpen(false); } }} placeholder="查找符号" aria-label="查找符号" />
-          <button type="button" className="btn-icon" aria-label="关闭符号查找" title="关闭" onClick={() => { setSymbolQuery(""); setSymbolSearchOpen(false); }}><ToolbarIcon name="close" /></button>
-        </div>}
+        {isOutline && symbolOutline && symbolSearchOpen && <SourceSymbolSearch value={symbolQuery} onChange={setSymbolQuery} onClose={() => { setSymbolQuery(""); setSymbolSearchOpen(false); }} />}
         {isOutline ? (
           outline.length ? (
             <DocumentOutlineList
@@ -514,82 +419,16 @@ export function MarkdownSourceWorkspace({
               <div className="document-outline-header-primary"><span>{wordState?.word ? `“${wordState.word}”${sourceMatchDisplayConfig?.showCounts === false ? "" : ` · ${wordState.matches.length} 处`}` : "同词匹配"}</span></div>
               <div className="document-outline-header-actions"><button type="button" aria-label="隐藏匹配列表" title="隐藏匹配列表" onClick={() => { setMatchesOpen(false); setMatchesPreview(false); }}><ToolbarIcon name="close" /></button></div>
             </div>
-            <div className="document-source-matches-list">
-              {groupedWordMatches.length ? groupedWordMatches.map(group => {
-                const active = group.matches.find(match => match.from === wordState?.activeFrom);
-                const target = active ?? group.matches[0]!;
-                return <button
-                key={group.line}
-                type="button"
-                className="document-source-match-row"
-                style={sourceMatchDisplayConfig ? { minHeight: `${sourceMatchDisplayConfig.rowHeight}px`, fontFamily: sourceMatchDisplayConfig.font === "mono" ? "var(--font-mono)" : sourceMatchDisplayConfig.font === "sans" ? "var(--font)" : undefined, fontSize: `${sourceMatchDisplayConfig.fontSize}px`, color: sourceMatchDisplayConfig.labelColor === "secondary" ? "var(--text-secondary)" : sourceMatchDisplayConfig.labelColor === "accent" ? "var(--accent)" : undefined } : undefined}
-                aria-current={active ? "location" : undefined}
-                aria-label={`第 ${group.line} 行${group.matches.length > 1 ? `，${group.matches.length} 处匹配` : ""}`}
-                onClick={() => {
-                  if (!sourceHandle) return;
-                  focusSourceWordMatch(sourceHandle.view, target);
-                  sourceHandle.scrollToOffset(target.from, true);
-                  setOffset(target.from);
-                }}
-                title={`${group.line}: ${group.text}${group.matches.length > 1 ? ` · ${group.matches.length} 处匹配` : ""}`}
-              ><span className={`document-source-match-line${group.matches.length > 1 ? " is-repeated" : ""}`}>{group.matches.length > 1 ? <strong>{group.line}</strong> : group.line}</span><code>{group.text || wordState?.word}</code></button>;
-              }) : <div className="document-bookmark-empty">{wordState?.word ? "当前文档没有其它全词匹配" : "单击源码中的单词以查找相同词"}</div>}
-            </div>
+            <SourceWordMatchList groups={groupedWordMatches} word={wordState?.word} activeFrom={wordState?.activeFrom} display={sourceMatchDisplayConfig} onJump={target => {
+              if (!sourceHandle) return;
+              focusSourceWordMatch(sourceHandle.view, target); sourceHandle.scrollToOffset(target.from, true); setOffset(target.from);
+            }} />
           </nav>;
   return (
     <section
-      className={`note-editor markdown-source-editor ${sourceContextMenu ? "has-source-context-menu" : ""} ${desktopPanelClass(controller, true, matchesOpen && sourceWordEnabled)}`}
+      className={`note-editor markdown-source-editor ${desktopPanelClass(controller, true, matchesOpen && sourceWordEnabled)}`}
       style={desktopPanelStyle(controller)}
       aria-label="Markdown 源码编辑区"
-      onPointerDownCapture={event => {
-        if (event.button !== 2 || !(event.target instanceof Element) || !event.target.closest(".cm-content")) return;
-        event.preventDefault();
-        event.stopPropagation();
-      }}
-      onMouseDownCapture={event => {
-        if (event.button !== 2 || !(event.target instanceof Element) || !event.target.closest(".cm-content")) return;
-        // CodeMirror may move its selection to the right-click position on
-        // mousedown. Keep an existing selection stable until the contextmenu
-        // handler decides whether the pointer is inside that selection.
-        event.preventDefault();
-        event.stopPropagation();
-      }}
-      onClickCapture={event => {
-        if (!sourceHandle || !(event.target instanceof Element)) return;
-        const number = event.target.closest(".cm-lineNumbers .cm-gutterElement");
-        if (!number || !number.textContent?.trim()) return;
-        event.preventDefault(); event.stopPropagation();
-        const view = sourceHandle.view;
-        const block = view.lineBlockAtHeight(event.clientY - view.documentTop);
-        const line = view.state.doc.lineAt(block.from);
-        setSourceContextMenu(previous => previous?.lineNumber === line.number ? null : {
-          x: event.clientX, y: event.clientY, view, readonly: view.state.readOnly,
-          trigger: view.contentDOM, lineNumber: line.number,
-          onToggleBookmark: () => onToggleBookmark(line.from),
-        });
-      }}
-      onContextMenuCapture={event => {
-        if (!sourceHandle) return;
-        if (!(event.target instanceof Element) || !event.target.closest(".cm-editor")) return;
-        event.preventDefault();
-        event.stopPropagation();
-        const view = sourceHandle.view;
-        const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
-        const current = view.state.selection.main;
-        const nativeSelection = view.state.readOnly ? document.getSelection() : null;
-        const hasNativeRange = Boolean(nativeSelection && !nativeSelection.isCollapsed
-          && nativeSelection.anchorNode && nativeSelection.focusNode
-          && view.contentDOM.contains(nativeSelection.anchorNode)
-          && view.contentDOM.contains(nativeSelection.focusNode));
-        if (hasNativeRange && nativeSelection?.anchorNode && nativeSelection.focusNode) {
-          const anchor = view.posAtDOM(nativeSelection.anchorNode, nativeSelection.anchorOffset);
-          const head = view.posAtDOM(nativeSelection.focusNode, nativeSelection.focusOffset);
-          if (anchor !== current.anchor || head !== current.head) view.dispatch({ selection: { anchor, head } });
-        } else if (position !== null && (current.empty || position < current.from || position > current.to)) {
-          view.dispatch({ selection: { anchor: position } });
-        }
-        setSourceContextMenu({ x: event.clientX, y: event.clientY, view, readonly: view.state.readOnly, trigger: view.contentDOM });
-      }}
     >
       <div className="markdown-source-content">{children(controls)}</div>
       {!mobile && matchesPreview && !matchesOpen && matchesList}
@@ -609,7 +448,6 @@ export function MarkdownSourceWorkspace({
         onSave={label => { onRenameBookmark(renamingBookmark.id, label); setRenamingBookmark(null); }}
         onClose={() => setRenamingBookmark(null)}
       />}
-      {sourceContextMenu && <SourceEditorContextMenu target={sourceContextMenu} close={closeSourceContextMenu} />}
     </section>
   );
 }

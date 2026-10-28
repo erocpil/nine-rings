@@ -329,9 +329,7 @@ test("源码选区右键菜单保持选区可见，关闭后也保留选区", as
   const menu = page.getByRole("menu", { name: "源码编辑菜单" });
   await area.click({ button: "right", position: { x: 40, y: 10 } });
   await expect(menu).toBeVisible();
-  await expect(page.locator(".markdown-source-editor")).toHaveClass(
-    /has-source-context-menu/,
-  );
+  await expect(page.locator(".markdown-cm-source .cm-selectionLayer")).toHaveCSS("visibility", "visible");
   await expect
     .poll(
       async () =>

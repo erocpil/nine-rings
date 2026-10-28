@@ -22,7 +22,7 @@ export function panelDisplayStyle(display: PanelDisplayContribution | null) {
     : undefined;
 }
 export function bookmarkTooltip(
-  bookmark: DocumentBookmark,
+  bookmark: Pick<DocumentBookmark, "label" | "preview">,
   display: PanelDisplayContribution | null,
 ) {
   return display?.tooltip === "name"
