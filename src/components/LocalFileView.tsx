@@ -1,13 +1,6 @@
-import { OutlineJumpControls, SourceSymbolSearch, SourceSymbolTools } from "./DocumentNavigationTools";
-import { SourceWordMatchList } from "./SourceWordMatchList";
-import { useSourceWordMatches } from "../hooks/useSourceWordMatches";
-import { sourceOutlineItems, outlineVisibleEntries } from "../lib/source-navigation-view";
-import { usePanelDisplay } from "../hooks/usePanelDisplay";
-import { DocumentBookmarkRow } from "./DocumentBookmarkRow";
-import { BookmarkRenameDialog } from "./BookmarkRenameDialog";
-import { panelDisplayStyle, sortedPanelItems } from "../lib/panel-display-view";
+import { DocumentNavigationWorkspace } from "./DocumentNavigationWorkspace";
 import { sessionHeadingFoldStore } from "../lib/heading-fold";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { localFileService, resolveRelativeNode, type LocalFileSnapshot } from "../lib/local-files/service";
@@ -17,15 +10,9 @@ import { readLocalFilePosition, saveLocalFilePosition } from "../lib/local-files
 import { isLocalFileReadOnly, LOCAL_FILE_ACCESS_CHANGED_EVENT, setLocalFileReadOnly } from "../lib/local-files/access";
 import type { LocalFileViewData } from "../lib/plugin-system/main-view-registry";
 import { AUTO_DOCUMENT_LANGUAGE, documentLanguageFromFilename, documentLanguageViewOptions, saveSourceViewLanguageOverride, sourceViewLanguageOverride } from "../lib/document-language";
-import { extractSourceSymbols } from "../lib/source-symbol-provider";
-import type { SourceSymbol } from "../lib/source-symbols";
-import { extractDocumentOutline, type DocumentOutlineItem } from "../lib/document-outline";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
-import { focusSourceWordMatch } from "../lib/source-word-occurrences";
-import { filterSymbolTree, sortSourceSymbolTree } from "../lib/source-symbol-sort";
 import type { AppConfig } from "../types/models";
 import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
-import { DocumentOutlineList } from "./DocumentOutlineList";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { TextDiffView } from "./TextDiffView";
 import { parseFlowDocument } from "./FlowBlockContent";
@@ -40,22 +27,7 @@ import { SourceNavigationDocument } from "../lib/markdown-source-navigation";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import "../styles/local-files.css";
 
-type LocalPanel = "symbols" | "bookmarks" | "matches" | "outline";
 type LocalBookmark = { offset: number; line: number; label: string };
-const PANEL_WIDTH_KEY = "nr:local-file-panel-width";
-const ACTIVE_PANEL_KEY = "nr:local-file-active-panel";
-const MIN_PANEL_WIDTH = 220;
-
-function storedPanelWidth() {
-  const value = Number(localStorage.getItem(PANEL_WIDTH_KEY));
-  return Number.isFinite(value) && value >= MIN_PANEL_WIDTH ? value : 300;
-}
-function storedActivePanel(): LocalPanel | null {
-  const value = localStorage.getItem(ACTIVE_PANEL_KEY);
-  return value === "symbols" || value === "bookmarks" || value === "matches" || value === "outline"
-    ? value
-    : null;
-}
 function bookmarkStorageKey(identity: string) { return `nr:local-file-bookmarks:${identity}`; }
 function symbolFoldsStorageKey(identity: string) { return `nr:local-file-symbol-folds:${identity}`; }
 function localFilePosition(handle: SourceEditorHandle) {
@@ -75,28 +47,6 @@ function loadSymbolFolds(identity: string) {
     return new Set<string>(Array.isArray(value) ? value.filter(item => typeof item === "string") : []);
   } catch { return new Set<string>(); }
 }
-
-function markdownHeadingSourceOffsets(source: string): number[] {
-  const offsets: number[] = [];
-  const lines = source.split("\n");
-  let offset = 0;
-  let fence: string | null = null;
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index]!;
-    const fenceMarker = line.match(/^\s{0,3}(`{3,}|~{3,})/);
-    if (fenceMarker) {
-      const marker = fenceMarker[1]![0]!;
-      if (fence === null) fence = marker;
-      else if (fence === marker) fence = null;
-    } else if (fence === null) {
-      if (/^ {0,3}#{1,6}(?:\s+|$)/.test(line)) offsets.push(offset);
-      else if (index > 0 && /^ {0,3}(?:=+|-+)\s*$/.test(line) && lines[index - 1]!.trim()) offsets.push(offset - lines[index - 1]!.length - 1);
-    }
-    offset += line.length + 1;
-  }
-  return offsets;
-}
-
 
 export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange, active, focusMode, readonlyHeadingFoldInFocusMode = true, defaultCodeBlockWrap = true, cjkLatinSpacing = true }: {
   data: Readonly<LocalFileViewData>;
@@ -147,31 +97,14 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const latestDraft = useRef<{ source: string; base: LocalFileSnapshot | null }>({ source: "", base: null });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [symbols, setSymbols] = useState<SourceSymbol[]>([]);
-  const [symbolsAlphabetical, setSymbolsAlphabetical] = useState(false);
-  const [symbolSearchOpen, setSymbolSearchOpen] = useState(false);
-  const [symbolQuery, setSymbolQuery] = useState("");
-  const [symbolsBusy, setSymbolsBusy] = useState(false);
   const [foldedSymbols, setFoldedSymbols] = useState<Set<string>>(() => loadSymbolFolds(identity));
-  const symbolListRef = useRef<HTMLDivElement>(null);
-  const [activePanel, setActivePanel] = useState<LocalPanel | null>(storedActivePanel);
-  const [foldedHeadings, setFoldedHeadings] = useState<Set<number>>(() => new Set());
-  const outlineListRef = useRef<HTMLDivElement>(null);
   const [activeOffset, setActiveOffset] = useState(0);
-  const bookmarkDisplay = usePanelDisplay("bookmarks");
-  const matchesDisplay = usePanelDisplay("source-matches");
-  const [renamingBookmark, setRenamingBookmark] = useState<LocalBookmark | null>(null);
-  const [openBookmarkId, setOpenBookmarkId] = useState<string | null>(null);
   const [bookmarks, setBookmarks] = useState<LocalBookmark[]>(() => loadBookmarks(identity));
-  const [panelWidth, setPanelWidth] = useState(storedPanelWidth);
   const [reload, setReload] = useState(0);
   const detectedLanguage = documentLanguageFromFilename(data.name, source);
   const languageOverrideIdentity = `local-file:${identity}`;
   const [languageOverride, setLanguageOverride] = useState<string | null>(() => sourceViewLanguageOverride(languageOverrideIdentity));
   const language = languageOverride ?? detectedLanguage;
-  const sourceWordEnabled = !["", "markdown", "mermaid", "flow"].includes(language);
-  const { state: wordState, groups: matches } = useSourceWordMatches(editorHandle, active && !preview && sourceWordEnabled,
-    from => { setActiveOffset(from); setActivePanel("matches"); });
   latestDraft.current = { source, base: baseSnapshot };
   const saveBusy = useRef(false);
   const savingOperation = useRef(false);
@@ -217,9 +150,6 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
 
   useEffect(() => {
     setBookmarks(loadBookmarks(identity));
-    setRenamingBookmark(null);
-    setOpenBookmarkId(null);
-    setActivePanel(storedActivePanel());
     setActiveOffset(0);
     setFoldedSymbols(loadSymbolFolds(identity));
     setLanguageOverride(sourceViewLanguageOverride(languageOverrideIdentity));
@@ -227,14 +157,10 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   useEffect(() => { localStorage.setItem(bookmarkStorageKey(identity), JSON.stringify(bookmarks)); }, [bookmarks, identity]);
   useEffect(() => { localStorage.setItem(symbolFoldsStorageKey(identity), JSON.stringify([...foldedSymbols])); }, [foldedSymbols, identity]);
   useEffect(() => {
-    if (activePanel) localStorage.setItem(ACTIVE_PANEL_KEY, activePanel);
-    else localStorage.removeItem(ACTIVE_PANEL_KEY);
-  }, [activePanel]);
-  useEffect(() => {
     let disposed = false;
     const controller = new AbortController();
     const cached = localFileSessions.get(identity);
-    setLoading(true); setError(""); setBaseSnapshot(null); setExternalSnapshot(null); setSymbols([]); setSymbolsBusy(false); restoredScroll.current = false; deepFileCheckAt.current = 0;
+    setLoading(true); setError(""); setBaseSnapshot(null); setExternalSnapshot(null); restoredScroll.current = false; deepFileCheckAt.current = 0;
     void localFileService.readSnapshot(data.rootId, data.nodeId).then(async snapshot => {
       if (disposed) return;
       const draft = await readLocalDraft(identity).catch(() => null);
@@ -257,10 +183,8 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
           if (draft.baseRevision !== snapshot.revision) setExternalSnapshot(snapshot);
         }
       }
-      setLoading(false); setSymbolsBusy(true);
-      const result = await extractSourceSymbols(language, shown, controller.signal);
-      if (!disposed) { setSymbols(result ?? []); setSymbolsBusy(false); }
-    }).catch(reason => { if (!disposed) { setError(String(reason)); setLoading(false); setSymbolsBusy(false); } });
+      setLoading(false);
+    }).catch(reason => { if (!disposed) { setError(String(reason)); setLoading(false); } });
     return () => { disposed = true; controller.abort(); };
   }, [data.rootId, data.nodeId, identity, language, reload]);
   useEffect(() => {
@@ -516,43 +440,14 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     try { return parseFlowDocument(previewSource); } catch { return null; }
   }, [isMarkdown, preview, previewSource]);
   const renderedNavigation = useMemo(() => new SourceNavigationDocument(source, [], undefined), [source]);
-  const outlineDoc = useMemo(() => {
-    if (!isMarkdown || activePanel !== "outline") return null;
-    try { return parseFlowDocument(source); } catch { return null; }
-  }, [activePanel, isMarkdown, source]);
-  const markdownOutline = useMemo(() => outlineDoc ? extractDocumentOutline(outlineDoc) : [], [outlineDoc]);
-  const sourceHeadingOffsets = useMemo(() => markdownHeadingSourceOffsets(source), [source]);
-  const outlineEntries = useMemo(() => outlineVisibleEntries(markdownOutline, item => foldedHeadings.has(item.pos)), [foldedHeadings, markdownOutline]);
-  const activeOutlineIndex = useMemo(() => {
-    const offset = activeOffset;
-    let active = 0;
-    for (let index = 0; index < sourceHeadingOffsets.length; index++) {
-      if (sourceHeadingOffsets[index]! > offset) break;
-      active = index;
-    }
-    return markdownOutline.length ? Math.min(active, markdownOutline.length - 1) : -1;
-  }, [markdownOutline.length, sourceHeadingOffsets, activeOffset]);
-  const jumpToOutline = (item: DocumentOutlineItem) => {
-    const index = markdownOutline.findIndex(candidate => candidate.pos === item.pos);
-    setActiveOffset(sourceHeadingOffsets[index] ?? 0);
-    if (preview) {
-      const host = localViewRef.current?.querySelector<HTMLElement>(".local-file-preview");
-      host?.dispatchEvent(new CustomEvent(MARKDOWN_READING_NAVIGATE_EVENT, { detail: { position: item.pos } }));
-    } else {
-      sourceHandle.current?.scrollToOffset(sourceHeadingOffsets[index] ?? item.pos, true);
-    }
-  };
+  const navigationRevision = useMemo(() => new SourceNavigationDocument(source, [], { sourceLanguage: language }), [source, language]);
+  const navigationBookmarks = useMemo(() => bookmarks.map(bookmark => ({ id: String(bookmark.offset), position: bookmark.offset, offset: bookmark.offset, blockNumber: bookmark.line, label: bookmark.label, preview: bookmark.label })), [bookmarks]);
   const scrollLocalDocumentTo = (target: "top" | "middle" | "bottom") => {
     const scroller = preview ? localViewRef.current?.querySelector<HTMLElement>(".local-file-preview") : sourceHandle.current?.view.scrollDOM;
     if (!scroller) return;
     const maximum = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
     scroller.scrollTo({ top: target === "top" ? 0 : target === "middle" ? maximum / 2 : maximum, behavior: "auto" });
   };
-  useEffect(() => {
-    if (!sourceWordEnabled && activePanel === "matches") setActivePanel(null);
-    else if (isMarkdown && activePanel === "symbols") setActivePanel("outline");
-    else if (!isMarkdown && activePanel === "outline") setActivePanel(null);
-  }, [activePanel, isMarkdown, sourceWordEnabled]);
   const openRelative = (event: React.MouseEvent<HTMLDivElement>) => {
     const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]");
     if (!anchor || !event.currentTarget.contains(anchor)) return;
@@ -565,23 +460,6 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       mainViews.bind(workspacePanels.assert("files")).open(LOCAL_FILE_VIEW_ID, { rootId: data.rootId, nodeId, name });
     } catch (reason) { setPreviewError(String(reason)); }
   };
-  const activeSymbol = useMemo(() => symbols.reduce<SourceSymbol | null>((current, item) => item.pos <= activeOffset && (!current || item.pos > current.pos) ? item : current, null), [symbols, activeOffset]);
-  const orderedSymbols = useMemo(
-    () => sortSourceSymbolTree(sourceOutlineItems(symbols), symbolsAlphabetical),
-    [symbols, symbolsAlphabetical],
-  );
-  const visibleSymbols = useMemo(
-    () => filterSymbolTree(orderedSymbols, symbolQuery),
-    [orderedSymbols, symbolQuery],
-  );
-  const symbolOutline = visibleSymbols;
-  const symbolEntries = useMemo(() => outlineVisibleEntries(symbolOutline, item => !symbolQuery.trim() && foldedSymbols.has(item.identity ?? "")), [foldedSymbols, symbolOutline, symbolQuery]);
-  const activeSymbolIndex = activeSymbol ? visibleSymbols.findIndex(symbol => symbol.identity === activeSymbol.identity) : -1;
-  const symbolBaseLevel = symbolOutline.reduce((level, item) => Math.min(level, item.level), 6);
-  const activeBookmarkLine = useMemo(() => {
-    if (editorHandle) return editorHandle.view.state.doc.lineAt(Math.max(0, Math.min(activeOffset, editorHandle.view.state.doc.length))).number;
-    return source.slice(0, activeOffset).split("\n").length;
-  }, [activeOffset, editorHandle, source]);
   const toggleBookmark = (offset?: number) => {
     const at = Math.max(0, Math.min(source.length, offset ?? sourceHandle.current?.selectionStart ?? activeOffset));
     const from = at > 0 ? source.lastIndexOf("\n", at - 1) + 1 : 0;
@@ -594,53 +472,21 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       return [...current, { offset: from, line: number, label: text.trim() || `第 ${number} 行` }].sort((left, right) => left.offset - right.offset);
     });
   };
-  const beginPanelResize = (event: React.PointerEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const startX = event.clientX, startWidth = panelWidth;
-    const move = (next: PointerEvent) => setPanelWidth(Math.max(MIN_PANEL_WIDTH, Math.min(Math.max(MIN_PANEL_WIDTH, window.innerWidth * .5), startWidth + startX - next.clientX)));
-    const finish = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", finish); setPanelWidth(value => { localStorage.setItem(PANEL_WIDTH_KEY, String(Math.round(value))); return value; }); };
-    window.addEventListener("pointermove", move); window.addEventListener("pointerup", finish, { once: true });
-  };
-
-  const panel = activePanel && activePanel !== "outline" && <aside className="local-file-dock document-panel-dock dock-right" style={{ "--local-file-panel-width": `${panelWidth}px` } as CSSProperties} aria-label={activePanel === "symbols" ? "本地源码符号" : activePanel === "bookmarks" ? "本地文件书签" : "本地文件同词匹配"}>
-    <div className="document-dock-width-handle" role="separator" aria-orientation="vertical" aria-label="调整本地文件工具栏宽度" onPointerDown={beginPanelResize} />
-    <div className="document-outline-header local-file-panel-header">
-      <div className="document-outline-header-primary">{activePanel === "matches"
-        ? <strong>{wordState?.word ? `“${wordState.word}” · ${wordState.matches.length} 处` : "同词匹配"}</strong>
-        : <button type="button" className="local-file-panel-title" title={activePanel === "symbols" ? "点击收起源码符号" : "点击收起书签"} aria-label={activePanel === "symbols" ? "收起源码符号" : "收起书签"} aria-expanded onClick={() => setActivePanel(null)}><strong>{activePanel === "symbols" ? "源码符号" : "书签"}</strong></button>}</div>
-      <div className={`document-outline-header-actions${activePanel === "symbols" ? " is-source-symbol-actions" : ""}`}>
-        {activePanel === "symbols" && <SourceSymbolTools listRef={symbolListRef} searchOpen={symbolSearchOpen}
-          onSearchToggle={() => { setSymbolSearchOpen(value => !value); if (symbolSearchOpen) setSymbolQuery(""); }}
-          alphabetical={symbolsAlphabetical} onSortToggle={() => setSymbolsAlphabetical(value => !value)}
-          onCollapse={() => setFoldedSymbols(new Set(symbolOutline.filter((item, index) => (symbolOutline[index + 1]?.level ?? 0) > item.level).map(item => item.identity ?? "")))} onExpand={() => setFoldedSymbols(new Set())} />}
-        {activePanel === "bookmarks" && <button type="button" onClick={() => toggleBookmark()} title="添加或移除当前行书签"><ToolbarIcon name="plus" /></button>}
-        <button type="button" onClick={() => setActivePanel(null)} title="收起侧栏" aria-label="收起侧栏"><ToolbarIcon name="close" /></button>
-      </div>
-    </div>
-    {activePanel === "symbols" && symbolSearchOpen && <SourceSymbolSearch value={symbolQuery} onChange={setSymbolQuery} onClose={() => { setSymbolQuery(""); setSymbolSearchOpen(false); }} />}
-    {activePanel === "symbols" ? symbols.length ? <DocumentOutlineList entries={symbolEntries} followActive activeOutlineIndex={activeSymbolIndex} compactSymbols displayTarget="source-symbols" outlineBaseLevel={symbolBaseLevel} listRef={symbolListRef} onToggleFold={position => { const identity = symbolOutline.find(item => item.pos === position)?.identity; if (!identity) return; setFoldedSymbols(current => { const next = new Set(current); if (next.has(identity)) next.delete(identity); else next.add(identity); return next; }); }} onJump={item => jump(item.pos)} /> : <div className="local-file-panel-list"><p>{symbolsBusy ? "正在分析源码符号…" : "当前文件没有可显示的符号"}</p></div> : activePanel === "bookmarks" ? <div className="document-bookmark-list local-file-bookmark-list" data-panel-display={bookmarkDisplay ? "plugin" : undefined} style={panelDisplayStyle(bookmarkDisplay) as CSSProperties}>
-      {sortedPanelItems(bookmarks, bookmarkDisplay, item => item.label, () => "", item => String(item.offset).padStart(12, "0")).map(bookmark => <DocumentBookmarkRow key={bookmark.offset}
-        bookmark={{ id: String(bookmark.offset), position: bookmark.offset, label: bookmark.label, preview: bookmark.label }}
-        display={bookmarkDisplay} blockNumber={bookmark.line} indexKind="line" current={activeBookmarkLine === bookmark.line}
-        mobile={false} open={openBookmarkId === String(bookmark.offset)} onOpenChange={setOpenBookmarkId}
-        onJump={() => jump(bookmark.offset)} onEdit={() => setRenamingBookmark(bookmark)}
-        onDelete={() => setBookmarks(current => current.filter(item => item !== bookmark))} />)}
-    </div> : <SourceWordMatchList groups={matches} word={wordState?.word} activeFrom={wordState?.activeFrom} display={matchesDisplay}
-      emptyLabel={wordState?.word ? "当前文件没有其它全词匹配" : "单击源码中的单词以查找相同词"}
-      onJump={target => { const handle = sourceHandle.current; if (!handle) return; focusSourceWordMatch(handle.view, target); handle.scrollToOffset(target.from, true); setActiveOffset(target.from); }} />}
-
-  </aside>;
-
   return <section ref={localViewRef} className="local-file-view" aria-label="本地文件工作区" data-tools-hidden={!moreTools || undefined}>
-    {renamingBookmark && <BookmarkRenameDialog bookmark={{ label: renamingBookmark.label, preview: renamingBookmark.label }}
-      onClose={() => setRenamingBookmark(null)} onSave={label => { setBookmarks(current => current.map(item => item.offset === renamingBookmark.offset ? { ...item, label: label.trim() || item.label } : item)); setRenamingBookmark(null); }} />}
+    <DocumentNavigationWorkspace key={identity} origin="local" active={active && !loading && !error} className="local-file-workspace"
+      revision={navigationRevision} sourceHandle={preview ? null : editorHandle} currentOffset={activeOffset} bookmarkItems={navigationBookmarks}
+      symbolFoldIds={foldedSymbols} onSymbolFoldIdsChange={setFoldedSymbols} onScrollDocument={scrollLocalDocumentTo}
+      onJump={jump} onToggleBookmark={toggleBookmark}
+      onRemoveBookmark={id => setBookmarks(current => current.filter(item => String(item.offset) !== id))}
+      onRenameBookmark={(id, label) => setBookmarks(current => current.map(item => String(item.offset) === id ? { ...item, label: label.trim() || source.split("\n")[item.line - 1]?.trim() || `第 ${item.line} 行` } : item))}>
+      {controls => <>
     <header className="local-files-toolbar local-file-titlebar"><strong title={data.nodeId}>{data.name}</strong><span>{saveState === "saving" ? "正在保存…" : saveState === "dirty" ? "未保存" : saveState === "saved" ? "已保存" : "本地文件 · 不参与备份"}</span>
       <button type="button" className="btn-icon" title={editing ? "设为只读" : "允许编辑"} aria-label={editing ? "设为只读" : "允许编辑"} aria-pressed={readOnly} onClick={() => setLocalFileReadOnly(data.rootId, data.nodeId, !readOnly)}><ToolbarIcon name={editing ? "edit" : "lock"} /></button>
       {editing && <button type="button" className="btn-icon" title={localFileService.canSaveOriginal(data.rootId) ? "保存到原文件（⌘S / Ctrl+S）" : "目录快照不能覆盖原文件，请另存为"} aria-label="保存文件" disabled={!baseSnapshot || !localFileService.canSaveOriginal(data.rootId) || saveState === "saving" || source === baseSnapshot.source} onClick={() => void save()}><ToolbarIcon name="save" /></button>}
       <button type="button" className="btn-icon" title="另存为副本" aria-label="另存为副本" onClick={saveCopy}><ToolbarIcon name="download" /></button>
       {(isMarkdown || isMermaid || isFlow) && <button type="button" className="btn-icon" title={preview ? "切换到源码模式" : "切换到渲染模式（编辑请使用源码）"} aria-label={preview ? "显示源码" : "渲染"} aria-pressed={preview} onClick={() => setPreview(value => !value)}><ToolbarIcon name={preview ? "code" : "eye"} /></button>}
       {(!preview || isMarkdown) && <button type="button" className="btn-icon" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(!moreTools)}><ToolbarIcon name="annotate" /></button>}
-      {(isMarkdown ? ["outline", "bookmarks"] as const : ["symbols", "bookmarks", "matches"] as const).filter(kind => kind !== "matches" || sourceWordEnabled).map(kind => <button type="button" key={kind} className="btn-icon" title={kind === "outline" ? "目录" : kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-label={kind === "outline" ? "目录" : kind === "symbols" ? "源码符号" : kind === "bookmarks" ? "书签" : "同词匹配"} aria-pressed={activePanel === kind} disabled={loading || !!error || (kind === "symbols" && !symbols.length && !symbolsBusy)} onClick={() => setActivePanel(current => current === kind ? null : kind)}><ToolbarIcon name={kind === "outline" ? "listChars" : kind === "symbols" ? "bullet" : kind === "bookmarks" ? "bookmark" : "search"} /></button>)}
+      {controls}
       <button type="button" className="btn-icon" title="重新读取原文件" aria-label="重新读取原文件" disabled={loading} onClick={() => { editorSession.current = null; setReload(value => value + 1); }}><ToolbarIcon name="refresh" /></button>
       <button type="button" className="btn-icon" title="返回原视图" aria-label="返回原视图" onClick={onClose}><ToolbarIcon name="chevronLeft" /></button>
     </header>
@@ -651,21 +497,10 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       <TextDiffView left={externalSnapshot.source} right={source} leftLabel="磁盘版本" rightLabel="本机编辑" />
       <div><button type="button" onClick={() => { setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
     </section>}
-    {!loading && !error && <div className={`local-file-workspace${activePanel ? " has-local-file-dock" : ""}`} style={{ "--local-file-panel-width": `${panelWidth}px` } as CSSProperties}>
-      <div className="local-file-editor-shell">{preview ? isMarkdown && markdownDoc ? <MarkdownReadingView doc={markdownDoc} source={source} session={readingSession} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} active={active} toolsVisible={moreTools} showStatusBar={showStatusBar} focusMode={focusMode} saveStatus={saveState} defaultCodeBlockWrap={defaultCodeBlockWrap} cjkLatinSpacing={cjkLatinSpacing} bookmarks={bookmarks.map(bookmark => renderedNavigation.blockAt(bookmark.offset)?.position ?? 0)} onToggleBookmark={position => toggleBookmark(renderedNavigation.offsetAt(position + 1))} doubleClickFold={focusMode && readOnly && readonlyHeadingFoldInFocusMode} className="local-file-preview" onActivePosition={position => setActiveOffset(renderedNavigation.offsetAt(position + 1))} onClick={openRelative} /> : isMermaid || isFlow ? <SourceDocumentPreview language={language} source={source} fontSize={fontSize} className="local-file-preview" /> : <div className="editor-content local-file-preview"><p role="alert">{previewError || "暂时无法渲染，源码已保留，可切回源码模式。"}</p><pre>{source}</pre></div> : <MarkdownSourceEditor value={source} readonly={!editing} contextMenuEnabled onToggleLineBookmark={toggleBookmark} areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={next => { sourceRef.current = next; setSource(next); }} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus={saveState} documentLanguage={language} documentLanguageValue={languageOverride ?? AUTO_DOCUMENT_LANGUAGE} documentLanguageOptions={documentLanguageViewOptions(detectedLanguage)} onDocumentLanguageChange={next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); }} onEditorConfigChange={onEditorConfigChange} />}</div>{panel}
-      {activePanel === "outline" && <nav className="local-file-dock local-file-outline document-panel-dock dock-right" aria-label="本地文件目录">
-      <div className="document-dock-width-handle" role="separator" aria-orientation="vertical" aria-label="调整本地文件目录宽度" onPointerDown={beginPanelResize} />
-      <div className="document-outline-header">
-        <div className="document-outline-header-primary"><button type="button" className="local-file-panel-title" title="点击收起目录" aria-label="收起目录" aria-expanded onClick={() => setActivePanel(null)}><strong>目录</strong></button><span className="document-outline-count">{markdownOutline.length} 项</span></div>
-        <div className="document-outline-header-actions">
-          <button type="button" aria-label="全部折叠目录" title="全部折叠目录" onClick={() => setFoldedHeadings(new Set(markdownOutline.filter((item, index) => (markdownOutline[index + 1]?.level ?? 0) > item.level).map(item => item.pos)))}>−</button>
-          <button type="button" aria-label="全部展开目录" title="全部展开目录" onClick={() => setFoldedHeadings(new Set())}>+</button>
-          <OutlineJumpControls listRef={outlineListRef} onDocumentScroll={scrollLocalDocumentTo} />
-          <button type="button" className="btn-icon" aria-label="收起侧栏" title="收起目录" onClick={() => setActivePanel(null)}><ToolbarIcon name="close" /></button>
-        </div>
-      </div>
-      {outlineEntries.length ? <DocumentOutlineList entries={outlineEntries} activeOutlineIndex={activeOutlineIndex} followActive outlineBaseLevel={markdownOutline.reduce((level, item) => Math.min(level, item.level), 6)} listRef={outlineListRef} onToggleFold={position => setFoldedHeadings(current => { const next = new Set(current); if (next.has(position)) next.delete(position); else next.add(position); return next; })} onJump={jumpToOutline} /> : <div className="local-file-panel-list"><p>当前文档没有标题</p></div>}
-    </nav>}
-    </div>}
+    {!loading && !error && <>
+      <div className="local-file-editor-shell" data-workspace-panel-start>{preview ? isMarkdown && markdownDoc ? <MarkdownReadingView doc={markdownDoc} source={source} session={readingSession} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} active={active} toolsVisible={moreTools} showStatusBar={showStatusBar} focusMode={focusMode} saveStatus={saveState} defaultCodeBlockWrap={defaultCodeBlockWrap} cjkLatinSpacing={cjkLatinSpacing} bookmarks={bookmarks.map(bookmark => renderedNavigation.blockAt(bookmark.offset)?.position ?? 0)} onToggleBookmark={position => toggleBookmark(renderedNavigation.offsetAt(position + 1))} doubleClickFold={focusMode && readOnly && readonlyHeadingFoldInFocusMode} className="local-file-preview" onActivePosition={position => setActiveOffset(renderedNavigation.offsetAt(position + 1))} onClick={openRelative} /> : isMermaid || isFlow ? <SourceDocumentPreview language={language} source={source} fontSize={fontSize} className="local-file-preview" /> : <div className="editor-content local-file-preview"><p role="alert">{previewError || "暂时无法渲染，源码已保留，可切回源码模式。"}</p><pre>{source}</pre></div> : <MarkdownSourceEditor value={source} readonly={!editing} contextMenuEnabled onToggleLineBookmark={toggleBookmark} areaRef={sourceHandle} onReady={bindHandle} session={editorSession} onChange={next => { sourceRef.current = next; setSource(next); }} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} saveStatus={saveState} documentLanguage={language} documentLanguageValue={languageOverride ?? AUTO_DOCUMENT_LANGUAGE} documentLanguageOptions={documentLanguageViewOptions(detectedLanguage)} onDocumentLanguageChange={next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); }} onEditorConfigChange={onEditorConfigChange} />}</div>
+    </>}
+    </>}
+    </DocumentNavigationWorkspace>
   </section>;
 }

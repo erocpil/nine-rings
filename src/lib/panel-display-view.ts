@@ -47,7 +47,7 @@ export function sortedPanelItems<T>(
         : date(b).localeCompare(date(a))) || id(a).localeCompare(id(b)),
   );
 }
-export function sortedBookmarks<T extends DocumentBookmark>(
+export function sortedBookmarks<T extends Pick<DocumentBookmark, "id" | "label" | "preview"> & { createdAt?: string }>(
   items: readonly T[],
   display: PanelDisplayContribution | null,
 ): readonly T[] {
@@ -55,7 +55,7 @@ export function sortedBookmarks<T extends DocumentBookmark>(
     items,
     display,
     (item) => item.label || item.preview,
-    (item) => item.createdAt,
+    (item) => item.createdAt ?? "",
     (item) => item.id,
   );
 }

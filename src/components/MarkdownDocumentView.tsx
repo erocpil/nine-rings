@@ -26,7 +26,7 @@ import type { DeltaOps } from "../types/models";
 import { deltaToMarkdownAsync } from "../lib/data-transform-client";
 import { SourceNavigationSession, type SourceEditRange } from "../lib/markdown-source-navigation";
 import type { EditorState } from "@codemirror/state";
-import { MarkdownSourceWorkspace } from "./MarkdownSourceWorkspace";
+import { DocumentNavigationWorkspace } from "./DocumentNavigationWorkspace";
 import { invalidateEditorDocument } from "../lib/editor-session-cache";
 import { deltaToProseMirror, isProseMirror, proseMirrorToDelta } from "../lib/delta-converter";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -510,7 +510,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         latestReader.current = read;
         props.onContentChange(read, options);
       },
-    }) : <MarkdownSourceWorkspace revision={sourceSession.current!.current} sourceHandle={viewPosition.sourceHandle}
+    }) : <DocumentNavigationWorkspace revision={sourceSession.current!.current} sourceHandle={viewPosition.sourceHandle}
       onJump={offset => jumpSourceRef.current(offset)}
       onToggleBookmark={offset => mutateSourceBookmark(session => { session.toggleBookmarkAt(offset); })}
       onRemoveBookmark={id => mutateSourceBookmark(session => { session.removeBookmark(id); })}
@@ -530,7 +530,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         {mobile && props.onFocusModeChange && <button type="button" className="focus-btn document-focus-toggle" aria-label={props.focusMode ? "退出专注模式" : "专注模式"}
           onClick={() => props.onFocusModeChange?.(!props.focusMode)}><ToolbarIcon name={props.focusMode ? "compress" : "expand"} /></button>}
       </div>
-      <div className="markdown-source-toolbar-host" ref={setSourceToolbarTarget} />
+      <div className="markdown-source-toolbar-host" data-workspace-panel-start ref={setSourceToolbarTarget} />
       <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={hasPreview && preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
       <MarkdownSourceEditor contextMenuEnabled onToggleLineBookmark={offset => mutateSourceBookmark(session => { session.toggleBookmarkAt(offset); })} documentLanguage={documentLanguage} documentLanguageValue={languageSelectionValue} documentLanguageOptions={languageOptions} onDocumentLanguageChange={languageProps.onDocumentLanguageChange} onCreateDocument={props.onCreateDocument} statusTarget={sourceStatusTarget} focusMode={props.focusMode} showStatusBar={props.showStatusBar} saveStatus={props.saveStatus} toolbarTarget={sourceToolbarTarget} value={source} readonly={Boolean(props.readonly)} editingDisabled={busy}
@@ -541,6 +541,6 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       </Suspense>
       </MarkdownSplitPreview>
       <div className="markdown-source-status-host" ref={setSourceStatusTarget} />
-    </>}</MarkdownSourceWorkspace>}
+    </>}</DocumentNavigationWorkspace>}
   </div>;
 }

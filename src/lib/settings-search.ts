@@ -47,7 +47,7 @@ const entries: SettingsSearchEntry[] = [
     target: ".sidebar-settings-page",
     description: "外观与布局 › 布局设置 · 左右分栏、目录与书签排列、浮层或并排模式",
     keywords:
-      "分栏 侧栏 弹出 覆盖 浮层 挤压 并排 文档树 文档列表 阅读 顺序 宽度 左右 上下 目录 书签 固定 比例 pin",
+      "工作区 文档布局 紧凑布局 本地文件 分栏 侧栏 弹出 覆盖 浮层 挤压 并排 文档树 文档列表 阅读 顺序 宽度 左右 上下 目录 书签 固定 比例 pin",
     page: "sidebar",
   },
   {

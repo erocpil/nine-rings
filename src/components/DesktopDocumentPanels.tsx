@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -22,7 +23,7 @@ export function desktopPanelClass(
 ): string {
   if (!controller.enabled) return "";
   return (
-    "desktop-document-panels " +
+    `desktop-document-panels document-workspace-${controller.mode} ` +
     ((hasOutline && controller.pinned("outline")) ||
     controller.pinned("bookmark")
       || (hasTransientPanel && controller.enabled)
@@ -57,6 +58,23 @@ export function DesktopDocumentPanels({
   );
   useEffect(() => setMatchesRatio(controller.layout.matchesRatio), [controller.layout.matchesRatio]);
   useEffect(() => () => cleanup.current?.(), []);
+  useEffect(() => { cleanup.current?.(); setWidth(null); }, [controller.mode]);
+  useLayoutEffect(() => {
+    const dock = root.current, owner = dock?.closest<HTMLElement>(".note-editor");
+    if (!dock || !owner || controller.mode !== "compact") return;
+    const anchor = owner.querySelector<HTMLElement>("[data-workspace-panel-start]") ?? owner.querySelector<HTMLElement>(".editor-menu");
+    const title = owner.querySelector<HTMLElement>(".note-title-row");
+    const measure = () => {
+      const rect = anchor?.getBoundingClientRect();
+      const top = rect && rect.width > 0 ? rect.top : title?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top;
+      dock.style.top = `${Math.max(0, top - owner.getBoundingClientRect().top)}px`;
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(owner);
+    for (const child of owner.querySelectorAll<HTMLElement>(".note-title-row, .note-tags, [data-workspace-panel-start], .editor-menu")) observer.observe(child);
+    return () => { observer.disconnect(); dock.style.top = ""; };
+  }, [controller.enabled, controller.mode, controller.layout.outlinePinned, controller.layout.bookmarkPinned, matchesOpen]);
   const horizontal = controller.layout.panelsArrangement === "horizontal";
   const first = controller.pinned("outline") && outline;
   const second = controller.pinned("bookmark") && bookmark;
@@ -146,11 +164,7 @@ export function DesktopDocumentPanels({
       cleanup.current = undefined;
       if (mode === "width") {
         if (
-          !saveWorkspaceLayout(
-            horizontal
-              ? { horizontalPanelWidth: nextWidth }
-              : { panelWidth: nextWidth },
-          )
+          !controller.saveWidth(nextWidth)
         ) {
           owner?.style.setProperty(
             "--document-dock-width",

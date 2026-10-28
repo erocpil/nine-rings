@@ -1,3 +1,4 @@
+import { saveCompactPanel, type DocumentWorkspaceOrigin } from "../lib/document-workspace-layout";
 import { OutlineJumpControls, SourceSymbolSearch, SourceSymbolTools } from "./DocumentNavigationTools";
 import { SourceWordMatchList } from "./SourceWordMatchList";
 import { useSourceWordMatches } from "../hooks/useSourceWordMatches";
@@ -46,8 +47,22 @@ import {
   sortSourceSymbolTree,
 } from "../lib/source-symbol-sort";
 
-export function MarkdownSourceWorkspace({
+export interface NavigationBookmark extends Pick<DocumentBookmark, "id" | "position" | "label" | "preview"> {
+  offset: number;
+  blockNumber: number;
+  createdAt?: string;
+}
+
+export function DocumentNavigationWorkspace({
   revision,
+  className = "",
+  origin = "database",
+  active: hostActive = true,
+  currentOffset,
+  bookmarkItems,
+  symbolFoldIds,
+  onSymbolFoldIdsChange,
+  onScrollDocument,
   sourceHandle,
   onJump,
   onToggleBookmark,
@@ -56,6 +71,14 @@ export function MarkdownSourceWorkspace({
   children,
 }: {
   revision: SourceNavigationDocument;
+  className?: string;
+  origin?: DocumentWorkspaceOrigin;
+  active?: boolean;
+  currentOffset?: number;
+  bookmarkItems?: NavigationBookmark[];
+  symbolFoldIds?: ReadonlySet<string>;
+  onSymbolFoldIdsChange?: (ids: Set<string>) => void;
+  onScrollDocument?: (target: "top" | "middle" | "bottom") => void;
   sourceHandle: SourceEditorHandle | null;
   onJump: (offset: number) => void;
   onToggleBookmark: (offset: number) => void;
@@ -63,8 +86,12 @@ export function MarkdownSourceWorkspace({
   onRenameBookmark: (id: string, label: string) => void;
   children: (controls: ReactNode) => ReactNode;
 }) {
-  const documentActive = useDocumentActive();
-  const mobile = useMobileViewport();
+  const retainedActive = useDocumentActive();
+  const documentActive = retainedActive && hostActive;
+  const narrow = useMobileViewport();
+  const mobile = narrow && origin === "database";
+  const local = origin === "local";
+  useEffect(() => { if (currentOffset !== undefined) setOffset(currentOffset); }, [currentOffset]);
   const outlineDisplayConfig = usePanelDisplay("document-outline");
   const sourceSymbolDisplayConfig = usePanelDisplay("source-symbols");
   const sourceMatchDisplayConfig = usePanelDisplay("source-matches");
@@ -81,7 +108,7 @@ export function MarkdownSourceWorkspace({
   const [symbolQuery, setSymbolQuery] = useState("");
   const [offset, setOffset] = useState(0);
   const [folds, setFolds] = useState<Set<number>>(() => new Set());
-  const [renamingBookmark, setRenamingBookmark] = useState<DocumentBookmark | null>(null);
+  const [renamingBookmark, setRenamingBookmark] = useState<NavigationBookmark | null>(null);
   const [openBookmarkActionsId, setOpenBookmarkActionsId] = useState<string | null>(null);
   const [matchesOpen, setMatchesOpen] = useState(false);
   const [matchesPreview, setMatchesPreview] = useState(false);
@@ -118,10 +145,10 @@ export function MarkdownSourceWorkspace({
     }
     const timer = setTimeout(() => {
       setSnapshot(revision);
-      setFolds(new Set());
+      if (!local) setFolds(new Set());
     }, 160);
     return () => clearTimeout(timer);
-  }, [revision, mobile, snapshot]);
+  }, [revision, mobile, snapshot, local]);
   useEffect(() => {
     if (mobile || !hasSourceSymbolProvider(snapshotLanguage)) {
       setSourceSymbols([]);
@@ -178,11 +205,12 @@ export function MarkdownSourceWorkspace({
   }, [sourceHandle, mobile]);
   const sourceWordEnabled = !["", "markdown", "flow", "mermaid"].includes(snapshotLanguage);
   const scrollSourceTo = useCallback((target: "top" | "middle" | "bottom") => {
+    if (onScrollDocument) { onScrollDocument(target); return; }
     const scroller = sourceHandle?.view.scrollDOM;
     if (!scroller) return;
     const maximum = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
     scroller.scrollTo({ top: target === "top" ? 0 : target === "middle" ? maximum / 2 : maximum, behavior: "auto" });
-  }, [sourceHandle]);
+  }, [sourceHandle, onScrollDocument]);
   useEffect(() => {
     if (matchesOpen || !documentActive || mobile || !sourceWordEnabled) {
       clearTimeout(matchesTimer.current);
@@ -202,12 +230,15 @@ export function MarkdownSourceWorkspace({
     () => mobile ? [] : symbolOutline ? visibleSourceSymbols : snapshot.outline.map((item) => ({ ...item, kind: undefined })),
     [snapshot, mobile, visibleSourceSymbols, symbolOutline],
   );
-  const bookmarks = useMemo(() => (mobile ? [] : revision.bookmarks), [revision, mobile]);
+  const bookmarks = useMemo(() => (mobile ? [] : bookmarkItems ?? revision.bookmarks), [revision, mobile, bookmarkItems]);
   const nearestBookmark = bookmarks.reduce<(typeof bookmarks)[number] | undefined>((current, item) => !current || Math.abs(item.offset - offset) < Math.abs(current.offset - offset) ? item : current, undefined);
   const currentSourceBlock = revision.blockAt(offset);
-  const currentBookmark = bookmarks.find(bookmark => bookmark.position === (currentSourceBlock?.position ?? -2) + 1);
-  const controller = useDesktopDocumentPanels(!mobile, outline, bookmarks, [], symbolOutline ? 35 : undefined);
+  const currentBookmark = local ? bookmarks.find(bookmark => revision.source.slice(0, bookmark.offset).split("\n").length === revision.source.slice(0, offset).split("\n").length) : bookmarks.find(bookmark => bookmark.position === (currentSourceBlock?.position ?? -2) + 1);
+  const controller = useDesktopDocumentPanels(!mobile, outline, bookmarks, [], symbolOutline ? 35 : undefined, origin, local && narrow);
   const dismissPanelPreview = controller.dismiss;
+  useEffect(() => {
+    if (controller.mode === "compact" && matchesOpen && (controller.layout.outlinePinned || controller.layout.bookmarkPinned)) saveCompactPanel(origin, { active: null });
+  }, [controller.mode, controller.layout.outlinePinned, controller.layout.bookmarkPinned, matchesOpen, origin]);
   const { state: wordState, groups: groupedWordMatches } = useSourceWordMatches(sourceHandle, documentActive && !mobile && sourceWordEnabled, from => {
     setOffset(from); setMatchesOpen(true); dismissPanelPreview();
   });
@@ -237,7 +268,12 @@ export function MarkdownSourceWorkspace({
       (index, item, i) => (item.offset <= offset ? i : index),
       -1,
     );
-  const entries = useMemo(() => outlineVisibleEntries(outline, item => !symbolQuery.trim() && folds.has(item.pos)), [outline, folds, symbolQuery]);
+  const updateFolds = (next: Set<number>) => {
+    setFolds(next);
+    if (symbolOutline && onSymbolFoldIdsChange) onSymbolFoldIdsChange(new Set(sourceSymbols.filter(item => next.has(item.pos)).map(item => item.identity!)));
+  };
+  const effectiveFolds = useMemo(() => symbolOutline && symbolFoldIds ? new Set(sourceSymbols.filter(item => symbolFoldIds.has(item.identity!)).map(item => item.pos)) : folds, [symbolOutline, symbolFoldIds, sourceSymbols, folds]);
+  const entries = useMemo(() => outlineVisibleEntries(outline, item => !symbolQuery.trim() && effectiveFolds.has(item.pos)), [outline, effectiveFolds, symbolQuery]);
   const jump = (target: number) => {
     const next = sourceEditMapping(snapshot.source, revision.source)(target);
     onJump(next);
@@ -291,13 +327,14 @@ export function MarkdownSourceWorkspace({
           type="button"
           className="btn-icon"
           title={kind === "outline" ? (symbolOutline ? "源码符号" : "文档目录") : "文档书签"}
-          aria-label={kind === "outline" ? (symbolOutline ? "源码符号" : "文档目录") : "文档书签"}
+          aria-label={kind === "outline" ? (symbolOutline ? "源码符号" : local ? "目录" : "文档目录") : local ? "书签" : "文档书签"}
           aria-expanded={controller.pinned(kind) || controller.preview === kind}
+          aria-pressed={controller.pinned(kind)}
           data-document-panel-trigger={kind}
           data-pinned={controller.pinned(kind)}
           onPointerEnter={(event) => { cancelMatchesPreview(); setMatchesPreview(false); controller.enter(kind, event.pointerType); }}
           onPointerLeave={controller.leave}
-          onClick={() => { setOffset(sourceHandle?.selectionStart ?? offset); controller.toggle(kind); }}
+          onClick={() => { if (controller.mode === "compact") setMatchesOpen(false); setOffset(sourceHandle?.selectionStart ?? offset); controller.toggle(kind); }}
         >
           <FocusModeIcon name={kind} />
         </button>
@@ -311,7 +348,7 @@ export function MarkdownSourceWorkspace({
         aria-expanded={matchesOpen || matchesPreview}
         aria-pressed={matchesOpen}
         data-document-panel-trigger="matches"
-        onPointerEnter={event => { if (event.pointerType !== "mouse" || matchesOpen) return; cancelMatchesPreview(); matchesTimer.current = setTimeout(() => { dismissPanelPreview(); setMatchesPreview(true); }, 140); }}
+        onPointerEnter={event => { if (controller.mode === "compact" || event.pointerType !== "mouse" || matchesOpen) return; cancelMatchesPreview(); matchesTimer.current = setTimeout(() => { dismissPanelPreview(); setMatchesPreview(true); }, 140); }}
         onPointerLeave={leaveMatchesPreview}
         onClick={() => { cancelMatchesPreview(); setMatchesPreview(false); dismissPanelPreview(); setMatchesOpen(open => !open); }}
       ><ToolbarIcon name="search" /></button>}
@@ -322,11 +359,12 @@ export function MarkdownSourceWorkspace({
     const isOutline = kind === "outline";
     return (
       <nav
+        role={local && symbolOutline || local && !isOutline ? "complementary" : undefined}
         ref={isOutline ? outlinePanel : bookmarkPanel}
         className={
           isOutline ? "document-outline-panel" : `document-bookmark-panel${bookmarks.length ? "" : " is-empty"}`
         }
-        aria-label={isOutline ? (symbolOutline ? "源码符号" : "文档目录") : "文档书签"}
+        aria-label={local ? (isOutline ? symbolOutline ? "本地源码符号" : "本地文件目录" : "本地文件书签") : isOutline ? (symbolOutline ? "源码符号" : "文档目录") : "文档书签"}
         aria-busy={snapshot !== revision || (symbolOutline && symbolsBusy)}
         style={controller.pinned(kind) ? undefined : style}
         data-document-preview={!controller.pinned(kind) || undefined}
@@ -338,21 +376,21 @@ export function MarkdownSourceWorkspace({
             isOutline ? "document-outline-header" : "document-bookmark-header"
           }
         >
-          <div className="document-outline-header-primary">{isOutline ? (symbolOutline ? <DocumentPanelTitle label="源码符号" pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} /> : <OutlinePanelTitle pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} />) : <DocumentPanelTitle label="书签" pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} />}
+          <div className="document-outline-header-primary">{isOutline ? (symbolOutline ? <DocumentPanelTitle label="源码符号" collapseLabel={local ? "收起源码符号" : undefined} pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} /> : <OutlinePanelTitle collapseLabel={local ? "收起目录" : undefined} pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} />) : <DocumentPanelTitle label="书签" collapseLabel={local ? "收起书签" : undefined} pinned={controller.pinned(kind)} onCollapse={() => controller.toggle(kind)} />}
             {isOutline && !symbolOutline && <>
               <OutlineDisplayTools listRef={listRef} target="document-outline" targetLabel="定位当前标题" />
-              <button type="button" aria-label="全部折叠" title="折叠目录" onClick={() => setFolds(new Set(outline.filter((item, i) => outline[i + 1]?.level > item.level).map(item => item.pos)))}>−</button>
-              <button type="button" aria-label="全部展开" title="展开目录" onClick={() => setFolds(new Set())}>+</button>
+              <button type="button" aria-label="全部折叠" title="折叠目录" onClick={() => updateFolds(new Set(outline.filter((item, i) => outline[i + 1]?.level > item.level).map(item => item.pos)))}>−</button>
+              <button type="button" aria-label="全部展开" title="展开目录" onClick={() => updateFolds(new Set())}>+</button>
             </>}
           </div>
           <div className={`document-outline-header-actions${isOutline && symbolOutline ? " is-source-symbol-actions" : ""}`}>
             {isOutline && symbolOutline && <SourceSymbolTools listRef={listRef} searchOpen={symbolSearchOpen}
               onSearchToggle={() => { setSymbolSearchOpen(value => !value); if (symbolSearchOpen) setSymbolQuery(""); }}
               alphabetical={symbolsAlphabetical} onSortToggle={() => setSymbolsAlphabetical(value => !value)}
-              onCollapse={() => setFolds(new Set(outline.filter((item, i) => outline[i + 1]?.level > item.level).map(item => item.pos)))} onExpand={() => setFolds(new Set())} />}
+              onCollapse={() => updateFolds(new Set(outline.filter((item, i) => outline[i + 1]?.level > item.level).map(item => item.pos)))} onExpand={() => updateFolds(new Set())} />}
             {!isOutline && <>
               <PanelDisplayTools target="bookmarks" disabled={!nearestBookmark} handlers={{ "bookmarks.reveal-current": () => revealPanelItem(bookmarkDisplayListRef.current, nearestBookmark?.id) }} />
-              {!currentBookmark && <button className="document-bookmark-add" type="button" onClick={() => onToggleBookmark(offset)} aria-label="添加当前位置书签">添加</button>}
+              {(!currentBookmark || local) && <button className="document-bookmark-add" type="button" onClick={() => onToggleBookmark(offset)} aria-label={local ? "添加或移除当前行书签" : "添加当前位置书签"}>添加</button>}
             </>}
           {isOutline && !symbolOutline && <OutlineJumpControls listRef={listRef} onDocumentScroll={scrollSourceTo} />}
           {(isOutline ? (symbolOutline ? sourceSymbolDisplayConfig?.showCounts === true : outlineDisplayConfig?.showCounts !== false) : bookmarkDisplayConfig?.showCounts !== false) && <span className={isOutline ? "document-outline-count" : "document-bookmark-count"}>
@@ -377,14 +415,7 @@ export function MarkdownSourceWorkspace({
                 6,
               )}
               listRef={listRef}
-              onToggleFold={(pos) =>
-                setFolds((previous) => {
-                  const next = new Set(previous);
-                  if (next.has(pos)) next.delete(pos);
-                  else next.add(pos);
-                  return next;
-                })
-              }
+              onToggleFold={pos => { const next = new Set(effectiveFolds); if (next.has(pos)) next.delete(pos); else next.add(pos); updateFolds(next); }}
               onJump={(item) => symbolOutline
                 ? void jumpSourceSymbol(item as SourceOutlineItem)
                 : jump(outline.find((heading) => heading.pos === item.pos)?.offset ?? item.pos)}
@@ -400,6 +431,7 @@ export function MarkdownSourceWorkspace({
                   bookmark={bookmark}
                   display={bookmarkDisplayConfig}
                   blockNumber={bookmark.blockNumber}
+                  indexKind={local ? "line" : "block"}
                   current={currentBookmark?.id === bookmark.id}
                   mobile={false}
                   open={openBookmarkActionsId === bookmark.id}
@@ -414,7 +446,7 @@ export function MarkdownSourceWorkspace({
       </nav>
     );
   };
-  const matchesList = sourceWordEnabled && <nav ref={matchesPanel} data-document-preview={!matchesOpen || undefined} onPointerEnter={cancelMatchesPreview} onPointerLeave={leaveMatchesPreview} className={`document-source-matches-panel${matchesOpen ? "" : " document-source-matches-preview"}`} aria-label="同词匹配列表" data-panel-display={sourceMatchDisplayConfig ? "plugin" : undefined} style={{ ...panelDisplayStyle(sourceMatchDisplayConfig), ...(!matchesOpen ? matchesStyle : undefined) } as CSSProperties}>
+  const matchesList = sourceWordEnabled && <nav ref={matchesPanel} data-document-preview={!matchesOpen || undefined} onPointerEnter={cancelMatchesPreview} onPointerLeave={leaveMatchesPreview} className={`document-source-matches-panel${matchesOpen ? "" : " document-source-matches-preview"}`} role={local ? "complementary" : undefined} aria-label={local ? "本地文件同词匹配" : "同词匹配列表"} data-panel-display={sourceMatchDisplayConfig ? "plugin" : undefined} style={{ ...panelDisplayStyle(sourceMatchDisplayConfig), ...(!matchesOpen ? matchesStyle : undefined) } as CSSProperties}>
             <div className="document-outline-header document-source-matches-header">
               <div className="document-outline-header-primary"><span>{wordState?.word ? `“${wordState.word}”${sourceMatchDisplayConfig?.showCounts === false ? "" : ` · ${wordState.matches.length} 处`}` : "同词匹配"}</span></div>
               <div className="document-outline-header-actions"><button type="button" aria-label="隐藏匹配列表" title="隐藏匹配列表" onClick={() => { setMatchesOpen(false); setMatchesPreview(false); }}><ToolbarIcon name="close" /></button></div>
@@ -426,9 +458,9 @@ export function MarkdownSourceWorkspace({
           </nav>;
   return (
     <section
-      className={`note-editor markdown-source-editor ${desktopPanelClass(controller, true, matchesOpen && sourceWordEnabled)}`}
+      className={`note-editor markdown-source-editor ${className} ${desktopPanelClass(controller, true, matchesOpen && sourceWordEnabled)}`}
       style={desktopPanelStyle(controller)}
-      aria-label="Markdown 源码编辑区"
+      aria-label={local ? "本地文档编辑区" : "Markdown 源码编辑区"}
     >
       <div className="markdown-source-content">{children(controls)}</div>
       {!mobile && matchesPreview && !matchesOpen && matchesList}

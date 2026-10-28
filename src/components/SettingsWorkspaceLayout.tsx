@@ -1,3 +1,5 @@
+import { useDocumentWorkspace } from "../hooks/useDocumentWorkspace";
+import { saveDocumentWorkspaceMode } from "../lib/document-workspace-layout";
 import { useWorkspaceLayout } from "../hooks/useWorkspaceLayout";
 import {
   saveWorkspaceLayout,
@@ -11,12 +13,24 @@ export function SettingsWorkspaceLayout({
   onError: (message: string) => void;
 }) {
   const layout = useWorkspaceLayout();
+  const documentWorkspace = useDocumentWorkspace();
   const save = (patch: Partial<WorkspaceLayout>) => {
     if (!saveWorkspaceLayout(patch))
       onError("布局设置保存失败，请检查本机存储权限。");
   };
   return (
     <>
+      <div className="sidebar-settings-card">
+        <div className="sidebar-settings-card-heading"><strong>文档工作区布局</strong></div>
+        {([["database", "Nine Rings 文档布局"], ["local", "本地文件布局"]] as const).map(([origin, label]) => <div key={origin}>
+          <p className="sidebar-presentation-description">{label}</p>
+          <div className="settings-radio-group" role="group" aria-label={label}>
+            {([["document", "文档布局"], ["compact", "紧凑布局"]] as const).map(([mode, name]) => <button key={mode} type="button" className={`settings-radio ${documentWorkspace[origin] === mode ? "active" : ""}`} aria-pressed={documentWorkspace[origin] === mode}
+              onClick={() => { if (!saveDocumentWorkspaceMode(origin, mode)) onError("工作区布局保存失败，请重试。"); }}>{name}</button>)}
+          </div>
+        </div>)}
+        <p className="sidebar-presentation-description">文档布局支持悬停预览和多个固定面板；紧凑布局在标题栏下方右侧展示单个导航面板。两类文件均可选择，切换布局保留各自的宽度与展开状态，不改变文件内容及编辑权限。手机保留原有导航方式。</p>
+      </div>
       <div className="sidebar-settings-card">
         <div className="sidebar-settings-card-heading"><strong>外围信息显示</strong></div>
         <label className="settings-checkbox-label">

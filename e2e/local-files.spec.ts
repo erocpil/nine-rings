@@ -131,7 +131,7 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
   expect(outlineBounds.x).toBeGreaterThanOrEqual(editorBounds.x + editorBounds.width - 1);
   expect(Math.abs(outlineBounds.y - editorBounds.y)).toBeLessThanOrEqual(1);
   expect(Math.abs(outlineBounds.height - editorBounds.height)).toBeLessThanOrEqual(1);
-  const resize = await outline.getByRole("separator").boundingBox();
+  const resize = await viewer.getByRole("separator", { name: "调整阅读面板宽度", exact: true }).boundingBox();
   await page.mouse.move(resize!.x + resize!.width / 2, resize!.y + 50);
   await page.mouse.down();
   await page.mouse.move(resize!.x - 60, resize!.y + 50);

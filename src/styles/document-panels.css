@@ -662,3 +662,11 @@
   border-radius: 8px;
   box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
 }
+
+/* Placement policy is independent of the source adapter. Compact chrome spans
+   the title row, while only the editing/reading track reserves the dock width. */
+.document-workspace-compact.document-panels-right > .markdown-source-content { margin-right: 0; }
+.document-workspace-compact.document-panels-right > .markdown-source-content > :is(.markdown-source-toolbar-host, .markdown-split-preview, .markdown-source-status-host, .local-file-editor-shell) { margin-right: min(var(--document-dock-width, 300px), 50%); }
+.local-file-view .document-workspace-compact .document-panel-dock { z-index: 5; }
+.local-file-view .document-panel-slot > :is(.document-outline-panel, .document-bookmark-panel) { border-radius: 0; }
+.local-file-workspace > .markdown-source-content { min-width: 0; overflow: hidden; }

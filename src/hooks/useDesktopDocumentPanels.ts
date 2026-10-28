@@ -1,3 +1,5 @@
+import { useDocumentWorkspace } from "./useDocumentWorkspace";
+import { saveCompactPanel, type DocumentWorkspaceOrigin } from "../lib/document-workspace-layout";
 import { useDocumentActive } from "../components/RetainedDocument";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspaceLayout } from "./useWorkspaceLayout";
@@ -13,10 +15,16 @@ export function useDesktopDocumentPanels(
   bookmarks: readonly { label?: string; preview?: string }[] = EMPTY_ITEMS,
   annotations: readonly { exact?: string; note?: string }[] = EMPTY_ITEMS,
   outlineSingleLineLimit?: number,
+  origin: DocumentWorkspaceOrigin = "database",
+  compactOnly = false,
 ) {
   const active = useDocumentActive();
   enabled = enabled && active;
-  const layout = useWorkspaceLayout();
+  const baseLayout = useWorkspaceLayout();
+  const preferences = useDocumentWorkspace();
+  const mode = compactOnly ? "compact" : preferences[origin];
+  const compact = preferences.compact[origin];
+  const layout = useMemo(() => mode === "compact" ? { ...baseLayout, panelsSide: "right" as const, panelsArrangement: "vertical" as const, outlinePinned: compact.active === "outline", bookmarkPinned: compact.active === "bookmark", panelWidth: compact.width } : baseLayout, [baseLayout, compact.active, compact.width, mode]);
   const [preview, setPreview] = useState<DocumentPanelKind | null>(null);
   const [error, setError] = useState("");
   const visible =
@@ -78,7 +86,7 @@ export function useDesktopDocumentPanels(
       : DEFAULT_WORKSPACE_LAYOUT.panelWidth;
   // Default sizing follows content; preserve a width explicitly adjusted by dragging.
   const dockWidth =
-    savedWidth === defaultWidth ? Math.max(savedWidth, autoWidth) : savedWidth;
+    mode === "compact" ? compact.width : savedWidth === defaultWidth ? Math.max(savedWidth, autoWidth) : savedWidth;
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const pinned = useCallback(
     (kind: DocumentPanelKind) =>
@@ -101,7 +109,7 @@ export function useDesktopDocumentPanels(
     [cancel, enabled, pinned],
   );
   const enter = (kind: DocumentPanelKind, pointerType: string) => {
-    if (pointerType !== "mouse" || !enabled || pinned(kind)) return;
+    if (mode === "compact" || pointerType !== "mouse" || !enabled || pinned(kind)) return;
     cancel();
     timer.current = setTimeout(() => openPreview(kind), 140);
   };
@@ -122,21 +130,21 @@ export function useDesktopDocumentPanels(
     (kind: DocumentPanelKind) => {
       dismiss();
       if (
-        !saveWorkspaceLayout(
+        !(mode === "compact" ? saveCompactPanel(origin, { active: compact.active === kind ? null : kind }) : saveWorkspaceLayout(
           kind === "outline"
             ? { outlinePinned: !layout.outlinePinned }
             : { bookmarkPinned: !layout.bookmarkPinned },
-        )
+        ))
       )
         setError("面板设置保存失败，请检查本机存储权限。");
       else setError("");
     },
-    [dismiss, layout],
+    [dismiss, layout, mode, origin, compact.active],
   );
   useEffect(() => {
-    if (!enabled) dismiss();
+    dismiss();
     return cancel;
-  }, [enabled, dismiss, cancel]);
+  }, [enabled, mode, dismiss, cancel]);
   useEffect(() => {
     if (!preview) return;
     const outside = (event: MouseEvent) => {
@@ -160,6 +168,9 @@ export function useDesktopDocumentPanels(
   }, [preview, dismiss]);
   return {
     enabled,
+    mode,
+    origin,
+    saveWidth: (width: number) => mode === "compact" ? saveCompactPanel(origin, { width }) : saveWorkspaceLayout(layout.panelsArrangement === "horizontal" ? { horizontalPanelWidth: width } : { panelWidth: width }),
     layout,
     widths,
     dockWidth,
