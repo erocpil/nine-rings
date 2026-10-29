@@ -254,8 +254,14 @@ test("只读源码的文字选区在右键菜单打开期间保持高亮", async
   await line.click({ button: "right", position: { x: 24, y: 8 } });
   const menu = page.getByRole("menu", { name: "源码编辑菜单", exact: true });
   await expect(menu).toBeVisible();
-  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe(text);
-  const selectionLayer = page.locator(".markdown-source-editor.has-source-context-menu .cm-selectionLayer");
+  // Menu focus may collapse WebKit's native range. The logical selection and
+  // its visible CodeMirror paint must remain available to copy and restore.
+  const selectedText = async () => {
+    const info = await sourceInfo(area);
+    return info.value.slice(info.selectionStart, info.selectionEnd);
+  };
+  await expect.poll(selectedText).toBe(text);
+  const selectionLayer = page.locator(".markdown-cm-source.has-source-context-menu .cm-selectionLayer");
   await expect(selectionLayer).toHaveCSS("visibility", "visible");
   const paintedSelection = await selectionLayer.locator(".cm-selectionBackground").evaluate(element => {
     const rect = element.getBoundingClientRect();
@@ -264,5 +270,6 @@ test("只读源码的文字选区在右键菜单打开期间保持高亮", async
   expect(paintedSelection).toBe(true);
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe(text);
+  await expect.poll(selectedText).toBe(text);
+  await expect(area).toBeFocused();
 });

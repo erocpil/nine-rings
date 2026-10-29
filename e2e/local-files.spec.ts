@@ -140,12 +140,13 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
   await outline.getByRole("button", { name: "滚动至底部", exact: true }).dblclick();
   await expect.poll(() => viewer.locator(".cm-scroller").evaluate(element => element.scrollTop)).toBeGreaterThan(0);
   await viewer.getByRole("button", { name: "渲染", exact: true }).click();
-  await expect(viewer.locator(".local-file-preview h1")).toHaveCount(24);
+  await expect(viewer.locator(".markdown-reading-view h1")).toHaveCount(24);
   await expect(viewer.getByRole("button", { name: "同词匹配", exact: true })).toHaveCount(0);
-  await outline.getByRole("button", { name: "滚动至顶部", exact: true }).dblclick();
-  await expect.poll(() => viewer.locator(".local-file-preview").evaluate(element => element.scrollTop)).toBeLessThan(2);
-  await outline.locator(".document-outline-header-primary").getByRole("button", { name: "收起目录", exact: true }).click();
-  await expect(outline).toHaveCount(0);
+  const readingOutline = viewer.getByRole("navigation", {name:"文档目录",exact:true});
+  await readingOutline.getByRole("button", { name: "滚动至顶部", exact: true }).dblclick();
+  await expect.poll(() => viewer.locator(".markdown-reading-view").evaluate(element => element.scrollTop)).toBeLessThan(2);
+  await readingOutline.getByRole("button", { name: "收起固定目录", exact: true }).click();
+  await expect(readingOutline).toHaveCount(0);
 });
 
 test("只读文件夹入口按需展开、源码查找和符号跳转，不创建文档，停用返回原视图", async ({

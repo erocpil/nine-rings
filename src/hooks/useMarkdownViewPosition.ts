@@ -119,7 +119,7 @@ export function useMarkdownViewPosition<T extends HTMLElement = HTMLDivElement>(
     const container = host.current;
     const root = container?.querySelector<HTMLElement>(".note-editor-scroll");
     let weight = 0;
-    renderedRoundTrip.current = root ? { source, top: root.scrollTop, width: root.clientWidth, height: root.clientHeight, font: renderedFont(root), touched: false, nested: [] } : null;
+    renderedRoundTrip.current = root && sourceTop === undefined ? { source, top: root.scrollTop, width: root.clientWidth, height: root.clientHeight, font: renderedFont(root), touched: false, nested: [] } : null;
     if (container && root) {
       const top = viewportTop(root);
       const entries = renderedTextblockMap(doc);

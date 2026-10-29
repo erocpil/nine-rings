@@ -81,10 +81,11 @@ test("文档图片可查看，按真实文档切换图片，关闭恢复焦点",
       ],
     }),
   );
+  await page.locator(".resizable-image-wrapper img").first().hover();
   await page
     .getByRole("button", { name: "查看图片", exact: true })
     .first()
-    .click({ force: true });
+    .click();
   const viewer = page.getByRole("dialog", { name: "图片查看器" });
   await expect(viewer).toBeVisible();
   await expect(viewer.getByRole("heading")).toHaveText("第一张");
@@ -187,6 +188,7 @@ test("正文图片弹层可转到主区域，停用恢复原文档", async ({ pa
       ],
     }),
   );
+  await page.locator(".resizable-image-wrapper img").hover();
   await page
     .getByRole("button", { name: "查看图片", exact: true })
     .click();
@@ -998,6 +1000,7 @@ test("正文图片弹层支持专注与属性，Esc 依次关闭属性、退出�
       ],
     }),
   );
+  await page.locator(".resizable-image-wrapper img").hover();
   await page
     .getByRole("button", { name: "查看图片", exact: true })
     .click();

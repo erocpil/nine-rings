@@ -1722,7 +1722,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
 
   const submitLineJump = useCallback(() => {
     if (!editor || editor.isDestroyed) return;
-    const target = resolveDocumentBlockJump(editor.state.doc, lineJumpValue);
+    const target = resolveDocumentBlockJump(editor.state.doc, lineJumpInputRef.current?.value ?? lineJumpValue);
     if (target.position === undefined) { setLineJumpError(target.error); lineJumpInputRef.current?.select(); return; }
     const blockPos = target.position;
     const resolved = editor.state.doc.resolve(
@@ -1811,7 +1811,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
     allHeadingFoldRoundTripRef.current = null;
     const position = Math.min(item.pos + 1, editor.state.doc.content.size);
     scrollRef.current?.dispatchEvent(new Event(EDITOR_NAVIGATION_EVENT));
-    expandHeadingFoldsAt(editor, position);
+    expandHeadingFoldsAt(editor, item.pos);
     setNavigationSelection(editor, position);
     editor.view.focus();
     setOutlineOpen(false);

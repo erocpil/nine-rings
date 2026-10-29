@@ -42,8 +42,14 @@ for (const [width, height] of [[390, 800], [844, 390], [1280, 800]]) {
       await blockMenu.getByRole("menuitem", { name: "复制内容", exact: true }).click();
       await expect(page.getByText("已复制此块", { exact: true })).toBeVisible({ timeout: 5000 });
       await bar.getByRole("button", { name: "点击设为只读" }).click();
-      await expect(tools).toHaveCount(0);
+      await expect(tools).toBeVisible();
       await expect(copy).toBeVisible();
+      await tools.click();
+      await expect(tools).toHaveAttribute("aria-expanded", "true");
+      await expect(page.getByRole("toolbar", {name:"文档阅读工具",exact:true})).toBeVisible();
+      await expect(page.locator(".ProseMirror")).toHaveAttribute("contenteditable", "false");
+      await tools.click();
+      await expect(tools).toHaveAttribute("aria-expanded", "false");
       await page.getByTitle("退出专注模式", { exact: true }).click();
       await expect(page.locator(".app")).not.toHaveClass(/app-focus-mode/);
       await expect(page.getByTitle("专注模式", { exact: true })).toBeVisible();

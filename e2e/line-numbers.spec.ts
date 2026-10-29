@@ -86,7 +86,7 @@ test.describe("编辑器块级 gutter", () => {
     await editor.press("Alt+g");
     await jumpInput.fill("99");
     await jumpInput.press("Enter");
-    await expect(page.getByRole("dialog", { name: "跳转块" }).getByRole("status")).toHaveText("请输入 1–36");
+    await expect(page.getByRole("dialog", { name: "跳转块" }).getByRole("status")).toHaveText("请输入 1–36 的块号");
     await jumpInput.press("Escape");
     await expect(jumpInput).toHaveCount(0);
   });

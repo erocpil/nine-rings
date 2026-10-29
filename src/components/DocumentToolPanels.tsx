@@ -267,6 +267,12 @@ export function DocumentBlockJumpPanel({
         pattern="[0-9]*"
         aria-label="跳转到块号"
         aria-invalid={!!error}
+        onKeyDown={event => {
+          if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+            event.preventDefault();
+            onSubmit();
+          }
+        }}
         onChange={(event) => onChange(event.target.value)}
       />
       <span
