@@ -337,4 +337,36 @@ for (const dialect of ["gas", "nasm"] as const) {
   assert.equal(entries[0].pos, collisionSource.indexOf("macro", 2));
   assert.equal(entries[1].pos, collisionSource.indexOf("equ equ"));
 }
+
+
+const attributedSource = `// Kernel stack precedes the entry point.
+static uint8_t kernel_stack[16384] __attribute__((aligned(16)));
+
+void kmain(void)
+{
+  int local = 0;
+}
+`;
+const attributed = (await extractCSourceSymbols(attributedSource))!;
+assert.deepEqual(attributed.map(s => [s.kind, s.text]), [["变量", "kernel_stack"], ["函数", "kmain(void)"]]);
+assert.equal(attributed[1].displayText, "void kmain(void)");
+assert.equal(attributed[1].pos, attributedSource.indexOf("kmain(void)"));
+assert.equal(attributed[0].pos, attributedSource.indexOf("kernel_stack"));
+for (const eol of ["\n", "\r\n"]) {
+  const input = `struct __attribute__((packed)) Packet { int member; };
+__attribute__((noinline)) void first(void) {}
+static int table[4] __attribute__((aligned(16), used));
+static __attribute__((noinline)) int second(int value __attribute__((unused))) { return value; }
+const char *example = "__attribute__((aligned(16)))";
+// __attribute__((fake))
+void third(void) {}
+`.replaceAll("\n", eol);
+  const entries = (await extractCSourceSymbols(input))!;
+  for (const name of ["struct Packet", "member", "first(void)", "table", "second(int value )", "example", "third(void)"]) {
+    assert.ok(entries.some(s => s.text === name), `Missing ${name}`);
+  }
+  assert.ok(entries.every(s => !s.displayText?.includes("__attribute__")));
+  assert.equal(entries.find(s => s.text === "third(void)")!.pos, input.indexOf("third(void)"));
+  assert.equal(entries.find(s => s.text === "table")!.pos, input.indexOf("table"));
+}
 console.log("source-symbols tests passed");

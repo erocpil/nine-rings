@@ -228,10 +228,12 @@ export interface RenderedWorkspaceHost {
   annotations?: boolean;
   virtualReading?: boolean;
   navigation?: boolean;
+  navigationControls?: React.ReactNode;
   titleEditable?: boolean;
   embedImages?: boolean;
   savedLabel?: string;
   onRename?: (title: string) => Promise<void>;
+  onOpenProperties?: () => void;
   info?: import("./DocumentInfoCard").DocumentInfoCardProps;
   sourceCopy?: { label: string; read: () => string };
   onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
@@ -4194,7 +4196,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
       }}
     >
       {focusMode && !unifiedTitleBar && (
-        <FocusModeBar key={noteId} target={focusToolbarTarget} onOpenProperties={readonly || focusToolbarTarget ? onOpenProperties : undefined} title={localTitle || "无标题"} leading={onReadonlyChange && (
+        <FocusModeBar key={noteId} target={focusToolbarTarget} onOpenProperties={readonly || focusToolbarTarget ? (workspaceHost?.onOpenProperties ?? onOpenProperties) : undefined} title={localTitle || "无标题"} leading={onReadonlyChange && (
           <button type="button" className={`focus-readonly-toggle${readonlyChangeNotice ? " readonly-change-confirmed" : ""}`} data-document-readonly={readonly} aria-pressed={readonly}
             title={readonly ? "点击设为可编辑" : "点击设为只读"}
             aria-label={readonly ? "点击设为可编辑" : "点击设为只读"}
@@ -4267,7 +4269,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
               aria-label="更多工具"
             ><FocusModeIcon name="tools" /></button>
           )}
-          {workspaceHost?.navigation !== false && !statusBar.navigationInStatus && <NavigationButtons />}
+          {!statusBar.navigationInStatus && (workspaceHost?.navigationControls ?? (workspaceHost?.navigation !== false ? <NavigationButtons /> : null))}
           <button
             type="button"
             onClick={() => {
@@ -4336,7 +4338,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
             preview={workspaceHost?.titleEditable === false || mobileTitleBar && (focusMode || Boolean(readonly))}
             readonly={Boolean(readonly) || unifiedTitleBar && focusMode}
             className={saveIssue ? `note-title-save-${saveIssue}` : ""}
-            onOpenProperties={mobileTitleBar && !readonly ? undefined : onOpenProperties} onFinish={finishTitleDraft}
+            onOpenProperties={mobileTitleBar && !readonly ? undefined : (workspaceHost?.onOpenProperties ?? onOpenProperties)} onFinish={finishTitleDraft}
             onValueChange={value => { setLocalTitle(value); if (!workspaceHost?.onRename) onTitleChange(value); }}
             onCommit={workspaceHost?.onRename} onEnter={() => editor.view.focus()}
             info={workspaceHost?.info ?? (documentCreatedAt && documentUpdatedAt ? { title: localTitle || "无标题", content, createdAt: documentCreatedAt, updatedAt: documentUpdatedAt, lastAccessedAt: documentLastAccessedAt, readonly, docType: documentType, tags, path: documentPath } : undefined)} />
@@ -4390,7 +4392,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
             type="button"
           ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
           {<button type="button" className="focus-btn" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={focusToolbarExpanded} onClick={() => setToolbarExpandedPreference(!focusToolbarExpanded)}><ToolbarIcon name="annotate" /></button>}
-          {workspaceHost?.navigation !== false && !statusBar.navigationInStatus && <NavigationButtons />}
+          {!statusBar.navigationInStatus && (workspaceHost?.navigationControls ?? (workspaceHost?.navigation !== false ? <NavigationButtons /> : null))}
           {isMobileToolbarViewport && <button
             className={`focus-btn document-focus-toggle ${focusMode ? "active" : ""}`}
             onClick={() => { onFocusModeChange?.(!focusMode); }}
@@ -4736,7 +4738,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
       </div>
 
       {/* ── 文档状态栏：本机保存状态、位置统计与诊断/历史入口 ── */}
-      <EditorStatusBar savedLabel={workspaceHost?.savedLabel} navigation={workspaceHost?.navigation === false ? null : undefined} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} blockPosition={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? { current: currentStatusBlock, total: totalBlocks } : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
+      <EditorStatusBar savedLabel={workspaceHost?.savedLabel} navigation={workspaceHost?.navigationControls ?? (workspaceHost?.navigation === false ? null : undefined)} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} blockPosition={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? { current: currentStatusBlock, total: totalBlocks } : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
         {saveIssue && <button type="button" className="workspace-error-indicator" onClick={onOpenSaveIssue}>保存异常 · 查看详情</button>}
         {searchMatches.length > 0 && !editorFindOpen && (
           <span className="editor-search-navigation" role="status" aria-live="polite">

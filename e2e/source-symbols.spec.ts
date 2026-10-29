@@ -380,3 +380,33 @@ test("嵌套结构体实例显示紧凑类型，匿名实例成员归属与跳�
   await owner.locator(".document-outline-fold").click();
   await expect(member).toBeVisible();
 });
+
+for (const local of [false, true]) test(`GNU 数组属性不吞并后一函数，符号与原文跳转准确 local=${local}`, async ({ page }) => {
+  await createBlankDocument(page, "属性符号回归");
+  const source = "static uint8_t kernel_stack[16384] __attribute__((aligned(16)));\n\nvoid kmain(void)\n{\n int local = 0;\n}\n";
+  let host = page.locator(".markdown-document-view");
+  if (local) {
+    const { openWritableLocalDirectory } = await import("./helpers/local-files");
+    host = (await openWritableLocalDirectory(page, { "attribute.c": source }, "attribute.c")).workspace;
+  } else {
+    await selectDocumentLanguage(page, "c");
+    await replaceSource(host.locator(".cm-content"), source);
+  }
+  await host.getByRole("button", { name: "源码符号", exact: true }).click();
+  const panel = host.locator(".document-outline-panel");
+  await expect(panel.locator('[data-symbol-kind="变量"]')).toHaveCount(1);
+  await expect(panel.locator('[data-symbol-kind="函数"]')).toHaveCount(1);
+  const entry = panel.getByText("void kmain(void)", { exact: true });
+  await expect(entry).toBeVisible();
+  await expect(panel).toContainText("kernel_stack");
+  await expect(panel).not.toContainText("__attribute__");
+  await entry.click();
+  const area = host.locator(".cm-content");
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("kmain(void)"));
+  expect((await sourceInfo(area)).value).toBe(source);
+  const changed = "// inserted before declarations\n" + source;
+  await replaceSource(area, changed);
+  await entry.click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(changed.indexOf("kmain(void)"));
+  expect((await sourceInfo(area)).value).toBe(changed);
+});

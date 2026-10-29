@@ -782,6 +782,30 @@ function collectTree(source: string, tree: Tree): SourceSymbol[] {
   });
 }
 
+/** Hide recognized compiler attributes only in the parser input. Lezer can
+ * recover a trailing GNU array attribute as the next function's prefix and
+ * lose the variable declaration entirely. Tree ranges avoid touching attribute
+ * spellings in comments, string literals or ordinary identifiers. */
+function withoutCompilerAttributes(source: string, tree: Tree): string {
+  const ranges: Array<{ from: number; to: number }> = [];
+  tree.iterate({ enter(node) {
+    if (node.name !== "AttributeSpecifier") return;
+    ranges.push({ from: node.from, to: node.to });
+    return false;
+  } });
+  if (!ranges.length) return source;
+  const chunks: string[] = [];
+  let offset = 0;
+  for (const range of ranges) {
+    chunks.push(source.slice(offset, range.from));
+    // Keep UTF-16 offsets and physical line breaks identical for navigation.
+    chunks.push(source.slice(range.from, range.to).replace(/[^\r\n]/g, " "));
+    offset = range.to;
+  }
+  chunks.push(source.slice(offset));
+  return chunks.join("");
+}
+
 /** Parse cooperatively so building a symbol outline does not monopolize the editor thread. */
 export async function extractCSourceSymbols(
   source: string,
@@ -789,16 +813,22 @@ export async function extractCSourceSymbols(
 ): Promise<SourceSymbol[] | null> {
   if (signal?.aborted) return null;
   const parser = await loadCParser();
-  if (signal?.aborted) return null;
-  const parse = parser.startParse(source);
-  while (!signal?.aborted) {
-    const sliceEnd = Date.now() + 5;
-    let tree: Tree | null = null;
-    do {
-      tree = parse.advance();
-      if (tree) return collectTree(source, tree);
-    } while (!tree && Date.now() < sliceEnd);
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-  }
-  return null;
+  const parseTree = async (input: string): Promise<Tree | null> => {
+    const parse = parser.startParse(input);
+    while (!signal?.aborted) {
+      const sliceEnd = Date.now() + 5;
+      do {
+        const tree = parse.advance();
+        if (tree) return tree;
+      } while (Date.now() < sliceEnd);
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+    return null;
+  };
+  let tree = await parseTree(source);
+  if (!tree || signal?.aborted) return null;
+  const input = withoutCompilerAttributes(source, tree);
+  if (input !== source) tree = await parseTree(input);
+  if (!tree || signal?.aborted) return null;
+  return collectTree(input, tree);
 }

@@ -59,13 +59,16 @@ export function LocalMarkdownWorkspace({
   onPending,
   onRegisterFlush,
   onEditorReady,
+  onSelectionChange,
   onClick,
   onReadonlyChange,
   titleActions,
   viewToggle,
+  navigationControls,
   resolveResource,
   saveStatus,
   onRename,
+  onOpenProperties,
   info,
 }: {
   identity: string;
@@ -91,13 +94,16 @@ export function LocalMarkdownWorkspace({
   onPending: () => void;
   onRegisterFlush: (flush: LocalRenderedFlush | null) => void;
   onEditorReady?: (editor: Editor | null) => void;
+  onSelectionChange?: (selection: { from: number; to: number }) => void;
   onClick: (event: React.MouseEvent<HTMLDivElement>) => void;
   onReadonlyChange: (readonly: boolean) => void;
   titleActions: ReactNode;
   viewToggle: ReactNode;
+  navigationControls?: ReactNode;
   resolveResource: (source: string) => Promise<string | null>;
   saveStatus: "clean" | "dirty" | "saving" | "saved" | "error";
   onRename?: (title: string) => Promise<void>;
+  onOpenProperties?: () => void;
   info?: DocumentInfoCardProps;
 }) {
   const [initial] = useState(() => ({
@@ -230,8 +236,10 @@ export function LocalMarkdownWorkspace({
               annotations: false,
               virtualReading: false,
               navigation: false,
+              navigationControls,
               titleEditable: Boolean(onRename),
               onRename,
+              onOpenProperties,
               info,
               embedImages: true,
               savedLabel: "已保存到磁盘；不参与数据库备份",
@@ -275,6 +283,7 @@ export function LocalMarkdownWorkspace({
                 initialDoc.current = editor.state.doc;
               callbacks.current.onEditorReady?.(editor);
             }}
+            onHostSelection={onSelectionChange}
             onFlush={async () => {
               flush();
             }}

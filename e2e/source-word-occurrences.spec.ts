@@ -164,3 +164,36 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
   await page.getByRole("button", { name: "隐藏匹配列表", exact: true }).click();
   await expect(panel).toHaveCount(0);
 });
+
+for (const local of [false, true]) for (const readonly of [false, true]) test(`点击括号后再点参数及时更新同词高亮 local=${local} readonly=${readonly}`, async ({ page }) => {
+  await createBlankDocument(page, "括号与同词");
+  const source = "void boot(void) {\n lapic_map(kernel_pml4);\n (void)kernel_pml4;\n}\n";
+  let host = page.locator(".markdown-document-view");
+  if (local) {
+    const { openWritableLocalDirectory } = await import("./helpers/local-files");
+    host = (await openWritableLocalDirectory(page, { "brackets.c": source }, "brackets.c")).workspace;
+  } else {
+    await selectDocumentLanguage(page, "c");
+    await replaceSource(host.locator(".cm-content"), source);
+  }
+  if (readonly) await host.getByRole("button", { name: local ? "设为只读" : "设置只读", exact: true }).click();
+  const area = host.locator(".cm-content");
+  await sourceInfo(area);
+  const clickAt = async (offset: number) => {
+    const point = await area.evaluate((el, offset) => {
+      const view = (window as any).sourceCM.EditorView.findFromDOM(el)!;
+      const start = view.coordsAtPos(offset)!;
+      const end = view.coordsAtPos(offset + 1)!;
+      return { x: (start.left + end.left) / 2, y: (start.top + start.bottom) / 2 };
+    }, offset);
+    await page.mouse.click(point.x, point.y);
+  };
+  await clickAt(source.indexOf("lapic_map") + 2);
+  await expect(area.locator(".cm-source-word-match")).toHaveText(["lapic_map"]);
+  await clickAt(source.indexOf("lapic_map(") + "lapic_map".length);
+  await expect(area.locator(".cm-matchingBracket")).toHaveCount(2);
+  await clickAt(source.indexOf("kernel_pml4") + 2);
+  await expect(area.locator(".cm-source-word-match")).toHaveText(["kernel_pml4", "kernel_pml4"]);
+  await expect(area.locator(".cm-source-word-match-active")).toHaveCount(1);
+  expect((await sourceInfo(area)).value).toBe(source);
+});

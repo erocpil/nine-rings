@@ -218,6 +218,21 @@
   color: var(--text);
   background: var(--bg);
 }
+.local-file-view[data-properties-open] {
+  padding-right: min(300px, 38%);
+  box-sizing: border-box;
+}
+.local-file-properties-panel {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: min(300px, 38%);
+  z-index: 8;
+  background: var(--surface);
+}
+.local-file-property-value {
+  overflow-wrap: anywhere;
+  user-select: text;
+}
 .local-file-view[data-tools-hidden] .markdown-source-tools { display: none !important; }
 .local-file-outline > .document-outline-header { flex: 0 0 auto; min-height: 36px; box-sizing: border-box; background: var(--bg); }
 .local-file-outline > .document-outline-list,
@@ -300,6 +315,8 @@
   .local-file-workspace.has-local-file-dock .local-file-editor-shell { margin-right: min(var(--local-file-panel-width, 300px), 72%); }
 }
 @media (max-width: 768px) {
+  .local-file-view[data-properties-open] { padding-right: min(320px, 78%); }
+  .local-file-properties-panel { width: min(320px, 78%); }
   .local-files-filter input { font-size: 16px; }
   .local-file-view .local-file-dock.document-panel-dock > .local-file-panel-header {
     flex-basis: 40px;

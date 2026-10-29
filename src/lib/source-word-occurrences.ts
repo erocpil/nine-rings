@@ -26,6 +26,7 @@ export interface SourceWordOccurrences {
 }
 
 const wordCharacter = /[\p{L}\p{N}_]/u;
+const pendingPointerSelection = new WeakMap<EditorView, symbol>();
 
 export function sourceWordAt(source: string, position: number): SourceWordRange | null {
   const point = Math.max(0, Math.min(source.length, position));
@@ -37,6 +38,26 @@ export function sourceWordAt(source: string, position: number): SourceWordRange 
   end = start;
   while (end < source.length && wordCharacter.test(source[end] ?? "")) end += 1;
   return { from: start, to: end };
+}
+
+function sourceWordAtPointer(view: EditorView, x: number, y: number): SourceWordRange | null {
+  const position = view.posAtCoords({ x, y });
+  if (position === null) return null;
+  const source = view.state.doc.toString();
+  const candidates = [position, position - 1];
+  for (const offset of candidates) {
+    if (offset < 0 || offset >= source.length || !wordCharacter.test(source[offset] ?? "")) continue;
+    const start = view.coordsAtPos(offset);
+    const end = view.coordsAtPos(offset + 1);
+    if (!start || !end) continue;
+    const left = Math.min(start.left, end.left);
+    const right = Math.max(start.left, end.left);
+    const top = Math.min(start.top, end.top);
+    const bottom = Math.max(start.bottom, end.bottom);
+    if (x < left || x > right || y < top || y > bottom) continue;
+    return sourceWordAt(source, offset);
+  }
+  return null;
 }
 
 export function findSourceWordMatches(source: string, word: string): SourceWordMatch[] {
@@ -139,9 +160,35 @@ const occurrenceField = StateField.define<SourceWordOccurrences>({
 export const sourceWordOccurrences = [
   occurrenceField,
   EditorView.domEventHandlers({
+    mousedown(event, view) {
+      if (event.button !== 0 || event.ctrlKey || event.metaKey) return false;
+      const state = view.state.field(occurrenceField);
+      if (!state.enabled) return false;
+      const range = sourceWordAtPointer(view, event.clientX, event.clientY);
+      const document = view.state.doc;
+      const pointerSelection = Symbol();
+      pendingPointerSelection.set(view, pointerSelection);
+      window.setTimeout(() => {
+        if (pendingPointerSelection.get(view) !== pointerSelection
+          || !view.dom.isConnected
+          || view.state.doc !== document) return;
+        const current = view.state.field(occurrenceField);
+        if (!current.enabled) return;
+        if (!range) {
+          if (current.highlighted) view.dispatch({ effects: setHighlighted.of(false) });
+          return;
+        }
+        view.dispatch({ effects: setWord.of({
+          word: view.state.sliceDoc(range.from, range.to),
+          activeFrom: range.from,
+        }) });
+      }, 0);
+      return false;
+    },
     click(event, view) {
       const state = view.state.field(occurrenceField);
       if (!state.enabled) return false;
+      if (!event.ctrlKey && !event.metaKey) return false;
       const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
       if (position === null) return false;
       const range = sourceWordAt(view.state.doc.toString(), position);
