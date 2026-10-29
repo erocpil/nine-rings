@@ -85,7 +85,7 @@ export function QuickTooltips() {
       )
         return;
       clear();
-      if (!element || !element.title.trim()) return;
+      if (!element || !element.title.trim() || element.getAttribute("aria-expanded") === "true") return;
       const suppressDocumentPanelHint =
         // Hover previews provide their own context; click-only panels need a hint.
         ["outline", "bookmark"].includes(element.dataset.documentPanelTrigger ?? "") &&
@@ -104,7 +104,7 @@ export function QuickTooltips() {
       element.removeAttribute("title");
       if (suppressDocumentPanelHint) return;
       const show = () => {
-        if (!element.isConnected) {
+        if (!element.isConnected || element.getAttribute("aria-expanded") === "true") {
           clear();
           return;
         }

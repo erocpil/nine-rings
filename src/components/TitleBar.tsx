@@ -12,6 +12,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauriRuntime } from "../lib/runtime";
 import {
+  hideTauriWindowToTray,
   toggleTauriFullscreen,
   FULLSCREEN_WILL_CHANGE_EVENT,
 } from "../lib/fullscreen";
@@ -211,10 +212,9 @@ export default function TitleBar({
 
   const handleClose = async () => {
     try {
-      window.dispatchEvent(new Event("nine-rings:main-window-hide"));
-      await getCurrentWindow().hide();
+      await hideTauriWindowToTray();
     } catch (error) {
-      // WebView2 恢复/切换桌面后偶发 hide IPC 失败，避免未处理 rejection 让按钮看起来失效。
+      // Keep IPC/transition failures observable without an unhandled rejection.
       console.error("[TitleBar] 关闭窗口失败:", error);
     }
   };

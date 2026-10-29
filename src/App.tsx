@@ -76,6 +76,7 @@ import { untitledDocumentName } from "./lib/untitled-document";
 import { pushSnapshotBusy, useGitHubPushJob } from "./lib/sync/push-job";
 import { ExhibitionWorkspace, ExhibitionWelcome } from "./components/ExhibitionWorkspace";
 import { isTauriRuntime } from "./lib/runtime";
+import { hideTauriWindowToTray } from "./lib/fullscreen";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { editorAppearanceVariables } from "./lib/editor-appearance";
 import { isPathUnder } from "./lib/storage/core";
@@ -1161,7 +1162,7 @@ function App() {
     "workspace.recycle": { run: () => setRecycleOpen(true) },
     "document.save": { run: flushAutoSave, enabled: Boolean(selectedNote) },
     "document.close": { run: closeCurrentFile, enabled: !pluginViewState.pending && (pluginMainActive ? pluginMainView?.renderer === "local-file" : !workspaceHomeRequested && !selectedFolderPath && !selectedConcept && !readingLibraryOpen && Boolean(selectedNote)) },
-    "window.hide": { run: async () => { if (isTauriRuntime()) { const { getCurrentWindow } = await import("@tauri-apps/api/window"); await getCurrentWindow().hide(); } }, enabled: isTauriRuntime() },
+    "window.hide": { run: hideTauriWindowToTray, enabled: isTauriRuntime() },
     "document.properties": { run: () => setPropertiesOpen(value => !value), checked: propertiesOpen, enabled: !workspaceHomeRequested && !pluginMainActive && Boolean(selectedNote || selectedFolderPath) },
     "document.history": { run: () => setVersionOpen(true), enabled: Boolean(selectedNote) && !workspaceHomeRequested && !pluginMainActive },
     "view.focus": { run: () => preserveReadingPositions(() => setFocusMode(value => !value)), checked: focusMode },

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { DEFAULT_HOTKEYS } from "../types/models";
 import { isTauriRuntime } from "../lib/runtime";
-import { guardFullscreenEscape, toggleTauriFullscreen } from "../lib/fullscreen";
+import { guardFullscreenEscape, hideTauriWindowToTray, toggleTauriFullscreen } from "../lib/fullscreen";
 import { registerShortcuts } from "../lib/global-shortcuts";
 import {
   isCloseToTrayShortcut,
@@ -49,8 +49,7 @@ export function useAppKeyboardShortcuts(actions: AppShortcutActions): void {
       ) {
         e.preventDefault();
         e.stopPropagation();
-        void import("@tauri-apps/api/window")
-          .then(({ getCurrentWindow }) => getCurrentWindow().hide())
+        void hideTauriWindowToTray()
           .catch((error) => console.warn("[Window] 隐藏到托盘失败:", error));
         return;
       }

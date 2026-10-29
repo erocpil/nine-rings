@@ -20,6 +20,9 @@ test("点击专注模式外观菜单后向下展开，选项向左展开并可�
   await expect(tray).toHaveCount(0);
   await trigger.click();
   await expect(tray).toBeVisible();
+  await trigger.hover();
+  await page.waitForTimeout(180);
+  await expect(page.locator(".quick-tooltip")).toHaveCount(0);
   await expect(tabs).toBeVisible();
   await expect.poll(() => trigger.evaluate(button => getComputedStyle(button).outlineStyle)).toBe("none");
   const box = (await tray.boundingBox())!;
@@ -31,6 +34,7 @@ test("点击专注模式外观菜单后向下展开，选项向左展开并可�
   for (const label of ["工作区风格", "工作区配色", "文本宽度", "紧凑程度"]) {
     const item = tray.getByRole("button", { name: label, exact: true });
     await item.hover();
+    await expect.poll(() => item.evaluate(element => getComputedStyle(element).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
     const itemBox = (await item.boundingBox())!;
     const chevronBox = (await item.locator(".toolbar-icon").last().boundingBox())!;
     expect(itemBox.x + itemBox.width - chevronBox.x - chevronBox.width).toBeLessThanOrEqual(8);

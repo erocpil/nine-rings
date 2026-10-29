@@ -51,6 +51,9 @@ async function mountTitlebar(
             commands.push(command.split("|")[1]);
             document.body.dataset.windowCommands = JSON.stringify(commands);
           }
+          if (command === "plugin:window|hide") {
+            document.body.dataset.hiddenWhileFullscreen = String(fullscreen);
+          }
           if (command === "plugin:window|is_fullscreen") return fullscreen;
           if (
             command === "toggle_window_maximize" ||
@@ -258,6 +261,19 @@ test("关闭到托盘提示紧贴关闭按钮", async ({ page }) => {
       Math.abs(buttonBounds.y - (tooltipBounds.y + tooltipBounds.height)),
     ),
   ).toBeLessThanOrEqual(8);
+});
+
+test("原生全屏从右上角关闭时先退出全屏再隐藏到托盘", async ({ page }) => {
+  await mountTitlebar(page);
+  const bar = page.locator("#titlebar-test-host");
+  await bar.getByRole("button", { name: "进入全屏", exact: true }).click();
+  await bar.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(page.locator("body")).toHaveAttribute("data-hidden-while-fullscreen", "false");
+  const log = await commands(page);
+  const exit = log.lastIndexOf("set_window_fullscreen");
+  const hide = log.lastIndexOf("hide");
+  expect(exit).toBeGreaterThanOrEqual(0);
+  expect(hide).toBeGreaterThan(exit);
 });
 
 test("Windows 双击最大化后的全屏按钮通过原生统一入口进入和退出", async ({

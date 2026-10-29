@@ -59,3 +59,39 @@ export async function toggleTauriFullscreen(): Promise<boolean | null> {
   window.dispatchEvent(new Event(FULLSCREEN_CHANGED_EVENT));
   return !fullscreen;
 }
+
+/**
+ * Hiding a native macOS fullscreen window immediately leaves its Space alive
+ * with no visible content. Finish the native fullscreen transition first, then
+ * hide the ordinary window. Windows and Linux use the same ordering so the
+ * titlebar action has one deterministic contract on every desktop platform.
+ */
+export async function hideTauriWindowToTray(): Promise<void> {
+  if (!isTauriRuntime()) return;
+
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  const { invoke } = await import("@tauri-apps/api/core");
+  const appWindow = getCurrentWindow();
+  if (await appWindow.isFullscreen()) {
+    window.dispatchEvent(
+      new CustomEvent(FULLSCREEN_WILL_CHANGE_EVENT, {
+        detail: { fullscreen: false },
+      }),
+    );
+    await invoke("set_window_fullscreen", { fullscreen: false });
+
+    // setFullscreen returns when Cocoa accepted the request, before the Space
+    // animation necessarily completed. Do not hide until the native state is
+    // observable as windowed, otherwise macOS can leave a black fullscreen Space.
+    const deadline = performance.now() + 5000;
+    while (await appWindow.isFullscreen()) {
+      if (performance.now() >= deadline)
+        throw new Error("退出全屏超时，已取消隐藏窗口以避免留下黑屏");
+      await new Promise(resolve => window.setTimeout(resolve, 50));
+    }
+    window.dispatchEvent(new Event(FULLSCREEN_CHANGED_EVENT));
+  }
+
+  window.dispatchEvent(new Event("nine-rings:main-window-hide"));
+  await appWindow.hide();
+}

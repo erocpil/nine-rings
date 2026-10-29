@@ -52,7 +52,7 @@ export function FocusAppearanceMenu({ config, disabled, onChange }: {
   };
   return <div ref={root} className="focus-appearance" data-tauri-drag-region="false">
     <button ref={trigger} type="button" className="titlebar-btn" aria-label="专注模式外观" aria-expanded={expanded}
-      disabled={disabled || busy} title="风格、配色、文本宽度与紧凑程度"
+      disabled={disabled || busy} title={expanded ? undefined : "风格、配色、文本宽度与紧凑程度"}
       onClick={() => { setOpen(null); setExpanded(value => !value); }}>
       <ToolbarIcon name="sliders" />
     </button>

@@ -108,7 +108,28 @@ test("源码常用格式操作单步撤销，只读隐藏写入而保留折叠",
   await toolbar.getByRole("button", { name: "代码块", exact: true }).click();
   await expect.poll(async () => (await sourceInfo(area)).value).toBe("```\nhello\n```\n");
   await toolbar.getByRole("button", { name: "折叠全部", exact: true }).click();
-  await expect(page.locator(".cm-foldPlaceholder")).toBeVisible();
+  const foldPlaceholder = page.locator(".cm-foldPlaceholder");
+  await expect(foldPlaceholder).toBeVisible();
+  const foldPalette = await foldPlaceholder.evaluate(element => {
+    const root = document.documentElement;
+    const originalClassName = root.className;
+    const styleFor = (theme: "theme-light" | "theme-dark") => {
+      root.classList.remove("theme-light", "theme-dark", "theme-azure-dark", "theme-nord", "theme-dracula");
+      root.classList.add(theme);
+      const style = getComputedStyle(element);
+      return { background: style.backgroundColor, border: style.borderColor, color: style.color };
+    };
+    try {
+      return { light: styleFor("theme-light"), dark: styleFor("theme-dark") };
+    } finally {
+      root.className = originalClassName;
+    }
+  });
+  expect(foldPalette.light.background).not.toBe("rgb(255, 255, 255)");
+  expect(foldPalette.dark.background).not.toBe("rgb(255, 255, 255)");
+  expect(foldPalette.dark.background).not.toBe(foldPalette.light.background);
+  expect(foldPalette.light.border).not.toBe(foldPalette.light.background);
+  expect(foldPalette.dark.color).not.toBe(foldPalette.dark.background);
   await toolbar.getByRole("button", { name: "展开全部", exact: true }).click();
   await expect(page.locator(".cm-foldPlaceholder")).toHaveCount(0);
   await page.getByRole("button", { name: "设置只读", exact: true }).click();
