@@ -188,27 +188,28 @@ fn restore_after_fullscreen(window: &tauri::WebviewWindow) -> tauri::Result<()> 
     if window.is_fullscreen()? || native.styleMask().contains(NSWindowStyleMask::FullScreen) {
         return Ok(());
     }
-    let (restore, hide) = STATES.with(|states| {
+    let pending = STATES.with(|states| {
         let mut states = states.borrow_mut();
         let state = states.get_mut(window.label())?;
         let hide = std::mem::take(&mut state.hide_after_fullscreen);
-        Some((Some((state.placement.finish_fullscreen()?, state.style.take()?)), hide))
+        let restore = state.placement.finish_fullscreen().zip(state.style.take());
+        Some((restore, hide))
     });
-    if let Some((restore, hide)) = restore {
-      if let Some((frame, style)) = restore {
-        native.setStyleMask(style);
-        native.setFrame_display(frame, true);
-        // Changing style rebuilds the titlebar/content hierarchy. Restore the
-        // content size too, so the temporary native titlebar cannot leave an
-        // inset above the webview. Keep keyboard input directed at that view.
-        if let Some(view) = native.contentView() {
-            view.setFrameSize(native.contentRectForFrameRect(frame).size);
-            native.makeFirstResponder(Some(&view));
+    if let Some((restore, hide)) = pending {
+        if let Some((frame, style)) = restore {
+            native.setStyleMask(style);
+            native.setFrame_display(frame, true);
+            // Changing style rebuilds the titlebar/content hierarchy. Restore the
+            // content size too, so the temporary native titlebar cannot leave an
+            // inset above the webview. Keep keyboard input directed at that view.
+            if let Some(view) = native.contentView() {
+                view.setFrameSize(native.contentRectForFrameRect(frame).size);
+                native.makeFirstResponder(Some(&view));
+            }
         }
-      }
-      if hide {
-          window.hide()?;
-      }
+        if hide {
+            window.hide()?;
+        }
     }
     Ok(())
 }
