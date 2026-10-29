@@ -69,34 +69,7 @@ export async function toggleTauriFullscreen(): Promise<boolean | null> {
 export async function hideTauriWindowToTray(): Promise<void> {
   if (!isTauriRuntime()) return;
 
-  const { getCurrentWindow } = await import("@tauri-apps/api/window");
   const { invoke } = await import("@tauri-apps/api/core");
-  const appWindow = getCurrentWindow();
-  if (await appWindow.isFullscreen()) {
-    window.dispatchEvent(
-      new CustomEvent(FULLSCREEN_WILL_CHANGE_EVENT, {
-        detail: { fullscreen: false },
-      }),
-    );
-    await invoke("set_window_fullscreen", { fullscreen: false });
-
-    // setFullscreen returns when Cocoa accepted the request, before the Space
-    // animation necessarily completed. Wait for the native state to settle so
-    // macOS can tear down the fullscreen Space before the window is hidden.
-    const deadline = performance.now() + 5000;
-    let settled = false;
-    while (performance.now() < deadline) {
-      if (!(await appWindow.isFullscreen())) {
-        settled = true;
-        break;
-      }
-      await new Promise(resolve => window.setTimeout(resolve, 50));
-    }
-    if (!settled)
-      console.warn("[Window] 全屏状态查询超时；仍继续隐藏窗口，避免关闭按钮只退出全屏");
-    window.dispatchEvent(new Event(FULLSCREEN_CHANGED_EVENT));
-  }
-
   window.dispatchEvent(new Event("nine-rings:main-window-hide"));
-  await appWindow.hide();
+  await invoke("hide_window_to_tray");
 }

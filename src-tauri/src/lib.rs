@@ -391,7 +391,7 @@ fn toggle_main_window(app: &tauri::AppHandle) {
     }
 }
 
-fn hide_main_window_to_tray(window: &tauri::WebviewWindow) {
+pub(crate) fn hide_main_window_to_tray(window: &tauri::WebviewWindow) {
     #[cfg(target_os = "macos")]
     let result = macos_window::hide_to_tray(window);
     #[cfg(not(target_os = "macos"))]
@@ -825,6 +825,7 @@ pub fn run() {
             commands::window::get_desktop_recovery_status,
             commands::system_info::get_system_info,
             commands::window::set_window_fullscreen,
+            commands::window::hide_window_to_tray,
             commands::window::toggle_window_maximize,
             commands::window::toggle_window_vertical_extent,
             commands::external_link::open_external_link,

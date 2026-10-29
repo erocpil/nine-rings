@@ -30,6 +30,28 @@ pub async fn set_window_fullscreen(
         .ok_or("fullscreen transition cancelled")?
 }
 
+/// Use the same native fullscreen-to-tray transition as Option+Y and tray clicks.
+#[tauri::command]
+pub async fn hide_window_to_tray(window: tauri::WebviewWindow) -> Result<(), String> {
+    let (sender, mut receiver) = tauri::async_runtime::channel(1);
+    let target = window.clone();
+    window
+        .run_on_main_thread(move || {
+            let result = if target.label() == "main" {
+                crate::hide_main_window_to_tray(&target);
+                Ok(())
+            } else {
+                Err("只能隐藏主窗口到托盘".to_owned())
+            };
+            let _ = sender.try_send(result);
+        })
+        .map_err(|error| error.to_string())?;
+    receiver
+        .recv()
+        .await
+        .ok_or("hide to tray transition cancelled")?
+}
+
 #[tauri::command]
 pub async fn toggle_window_maximize(window: tauri::WebviewWindow) -> Result<(), String> {
     let (sender, mut receiver) = tauri::async_runtime::channel(1);
