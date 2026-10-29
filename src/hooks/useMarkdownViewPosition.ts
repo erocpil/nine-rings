@@ -17,6 +17,13 @@ import {
   weightToSourceOffset,
 } from "../lib/markdown-view-position";
 
+function renderedFont(root: HTMLElement) {
+  const style = getComputedStyle(root.querySelector(".ProseMirror") ?? root);
+  // WebKit can return an empty `font` shorthand for computed variable styles.
+  return [style.fontFamily, style.fontSize, style.fontWeight, style.fontStyle,
+    style.lineHeight, style.letterSpacing].join("|");
+}
+
 function viewportTop(root: HTMLElement) {
   const top = root.getBoundingClientRect().top;
   const sticky = root.querySelector<HTMLElement>(
@@ -112,7 +119,7 @@ export function useMarkdownViewPosition<T extends HTMLElement = HTMLDivElement>(
     const container = host.current;
     const root = container?.querySelector<HTMLElement>(".note-editor-scroll");
     let weight = 0;
-    renderedRoundTrip.current = root ? { source, top: root.scrollTop, width: root.clientWidth, height: root.clientHeight, font: getComputedStyle(root.querySelector(".ProseMirror") ?? root).font, touched: false, nested: [] } : null;
+    renderedRoundTrip.current = root ? { source, top: root.scrollTop, width: root.clientWidth, height: root.clientHeight, font: renderedFont(root), touched: false, nested: [] } : null;
     if (container && root) {
       const top = viewportTop(root);
       const entries = renderedTextblockMap(doc);
@@ -286,7 +293,7 @@ export function useMarkdownViewPosition<T extends HTMLElement = HTMLDivElement>(
         );
         const element =
           target && blockElement(container, target.index, target.textblock);
-        if (root && anchor.renderedTop !== undefined && root.clientWidth === anchor.renderedWidth && root.clientHeight === anchor.renderedHeight && getComputedStyle(root.querySelector(".ProseMirror") ?? root).font === anchor.renderedFont) {
+        if (root && anchor.renderedTop !== undefined && root.clientWidth === anchor.renderedWidth && root.clientHeight === anchor.renderedHeight && renderedFont(root) === anchor.renderedFont) {
           let ready = true;
           for (const entry of anchor.nested ?? []) {
             const block = blockElement(container, entry.block, null);

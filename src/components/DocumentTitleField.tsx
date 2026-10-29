@@ -1,3 +1,4 @@
+import { MOBILE_VIEWPORT_QUERY } from "../hooks/useEdgeDrawer";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { DocumentTitlePreview } from "./DocumentTitlePreview";
 import {
@@ -79,7 +80,7 @@ export function DocumentTitleField({
       <div
         className="note-title-field"
         onPointerMove={(event) => {
-          if (event.pointerType === "touch" || preview && !onOpenProperties) return;
+          if (event.pointerType === "touch" || preview && window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return;
           cancelClose();
           if (isPointerOverTitleText(event.currentTarget, event.clientX))
             setOpen(true);
@@ -87,7 +88,7 @@ export function DocumentTitleField({
         }}
         onPointerEnter={(event) => {
           if (
-            event.pointerType !== "touch" && !(preview && !onOpenProperties) &&
+            event.pointerType !== "touch" && !(preview && window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) &&
             isPointerOverTitleText(event.currentTarget, event.clientX)
           ) {
             cancelClose();
@@ -120,7 +121,7 @@ export function DocumentTitleField({
             className={`note-title ${className}`}
             value={value}
             readOnly={readonly}
-            aria-label="文档标题"
+            aria-label={readonly && onOpenProperties ? "文档属性" : "文档标题"}
             placeholder="输入文档标题"
             role={readonly && onOpenProperties ? "button" : undefined}
             onClick={readonly ? onOpenProperties : undefined}

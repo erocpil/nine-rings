@@ -1,3 +1,4 @@
+import { activeLinePluginKey } from "../extensions/EditorHighlights";
 import { DocumentResourceContext } from "./DocumentResourceContext";
 import { DocumentTitleField } from "./DocumentTitleField";
 import { useDocumentTitleDraft } from "../hooks/useDocumentTitleDraft";
@@ -419,12 +420,13 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
   }), [identity, save]);
   const saveCopy = async () => {
     renderedFlush.current?.flush();
+    const copySource = sourceRef.current;
     try {
-      const result = await localFileService.saveAs(data.name, sourceRef.current, baseSnapshot);
+      const result = await localFileService.saveAs(data.name, copySource, baseSnapshot);
       if (result === "saved") { setRecoveryNotice("已另存为副本；原文件未改变。"); return; }
       if (result === "cancelled") return;
     } catch (reason) { setError(`另存为失败：${String(reason)}`); return; }
-    const normalized = source.replace(/\r\n?/g, "\n");
+    const normalized = copySource.replace(/\r\n?/g, "\n");
     const eol = baseSnapshot?.lineEnding === "crlf" ? normalized.replace(/\n/g, "\r\n") : baseSnapshot?.lineEnding === "cr" ? normalized.replace(/\n/g, "\r") : normalized;
     const copy = (baseSnapshot?.bom ? "\ufeff" : "") + eol;
     if (new TextEncoder().encode(copy).length > 4 * 1024 * 1024) { setError("另存后文件超过 4 MiB"); return; }
@@ -477,7 +479,9 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     const doc = deltaToProseMirror(writeDocumentSource(text, "markdown"));
     if (preview) {
       sourceHandoff.current = true;
-      viewPosition.toSource(text, doc, undefined, renderedEditor.current?.state.selection.from);
+      const editor = renderedEditor.current;
+      const selection = editor ? activeLinePluginKey.getState(editor.state)?.readingBlockPosition ?? editor.state.selection.from : undefined;
+      viewPosition.toSource(text, doc, undefined, selection);
     } else viewPosition.toRendered(text, doc);
     patchReadingState(`local-file:${identity}`, { view: preview ? "source" : "rendered" });
     setPreview(value => !value);
@@ -505,7 +509,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     {error && <p role="alert" className="local-files-message">{error}</p>}
     {externalSnapshot && <section className="local-file-conflict" aria-label="文件冲突处理"><strong>磁盘文件已发生变化</strong><p>当前编辑和磁盘版本均已保留。比较后选择重载，或明确覆盖磁盘版本。</p>
       <TextDiffView left={externalSnapshot.source} right={source} leftLabel="磁盘版本" rightLabel="本机编辑" />
-      <div><button type="button" onClick={() => { setRenderEpoch(value => value + 1); editorSession.current = null; setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
+      <div><button type="button" onClick={() => { renderedFlush.current?.flush(); setRenderEpoch(value => value + 1); editorSession.current = null; setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
     </section>}
   </>;
   if (preview && isMarkdown && baseSnapshot && !loading) return <section ref={localViewRef} className="local-file-view" aria-label="本地文件工作区">

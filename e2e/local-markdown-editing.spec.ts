@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { test, expect } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 import { openWritableLocalDirectory } from "./helpers/local-files";
@@ -99,7 +100,37 @@ test("渲染编辑在写入期间继续输入和外部冲突时不丢失，重�
   await expect(workspace.getByRole("button", { name: "重载磁盘版本", exact: true })).toBeVisible();
   await expect(editor).toContainText("未保存");
   expect(await disk()).toContain("外部正文");
-  await workspace.getByRole("button", { name: "重载磁盘版本", exact: true }).click();
+  await editor.evaluate(element => {
+    (element as any).editor.commands.insertContent("重载前的待转换编辑");
+    element.closest(".local-file-view")!.querySelector<HTMLButtonElement>(".local-file-conflict button")!.click();
+  });
   await expect(editor).toContainText("外部正文");
   await expect(editor).not.toContainText("未保存");
+});
+
+
+test("渲染后立即下载副本包含待转换正文，只读标题仍有信息卡并交接当前块", async ({ page }) => {
+  await createBlankDocument(page);
+  const { workspace } = await openWritableLocalDirectory(page, { "note.md": "# 标题\n\n第一段\n\n第二段\n" }, "note.md");
+  await page.evaluate(() => Object.defineProperty(window, "showSaveFilePicker", {value: undefined, configurable: true}));
+  await workspace.getByRole("button", { name: "渲染", exact: true }).click();
+  const editor = workspace.locator(".ProseMirror:visible");
+  const download = page.waitForEvent("download");
+  await editor.evaluate(element => {
+    (element as any).editor.commands.insertContent("立即复制");
+    element.closest(".local-file-view")!.querySelector<HTMLButtonElement>('button[aria-label="另存为副本"]')!.click();
+  });
+  const file = await download;
+  expect(await readFile((await file.path())!, "utf8")).toContain("立即复制");
+  await workspace.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  await workspace.locator(".note-title").hover({position: {x: 12, y: 12}});
+  await expect(workspace.getByRole("tooltip", {name: "note.md 的文档信息", exact:true})).toBeVisible();
+  await page.mouse.move(1200, 700);
+  await expect(workspace.getByRole("tooltip", {name: "note.md 的文档信息", exact:true})).toHaveCount(0);
+  await editor.locator("p").filter({hasText: "第二段"}).click({position:{x:10,y:10}});
+  await workspace.getByRole("button", {name: "显示源码",exact:true}).click();
+  await expect.poll(async () => {
+    const info = await sourceInfo(workspace.locator(".cm-content"));
+    return info.value.slice(0, info.selectionStart).split("\n").length;
+  }).toBe(5);
 });
