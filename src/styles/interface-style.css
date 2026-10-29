@@ -686,7 +686,10 @@ html[data-interface-style="classic"] .app-desktop-workspace .app-main {
   padding: 14px 18px;
 }
 html[data-interface-style="classic"] .app-desktop-workspace .note-title-row {
-  padding-block: 6px;
+  box-sizing: border-box;
+  height: var(--desktop-header-height);
+  min-height: var(--desktop-header-height);
+  padding-block: 2px;
 }
 html[data-interface-style="classic"] .app-desktop-workspace .editor-menu {
   padding-block: 5px;
