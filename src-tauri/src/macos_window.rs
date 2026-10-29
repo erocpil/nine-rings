@@ -12,6 +12,7 @@ struct WindowState {
     placement: WindowPlacement<NSRect>,
     style: Option<NSWindowStyleMask>,
     vertical_restore: Option<NSRect>,
+    hide_after_fullscreen: bool,
     // The main window hides to the tray and lives until process exit, as does
     // its observer. Retain exactly one token per window, not per transition.
     observer: Option<Retained<ProtocolObject<dyn NSObjectProtocol>>>,
@@ -156,18 +157,45 @@ pub fn set_fullscreen(window: &tauri::WebviewWindow, fullscreen: bool) -> tauri:
     result
 }
 
+/// Hide from an OS-level shortcut or tray action only after macOS has removed
+/// the fullscreen Space. `set_fullscreen(false)` is asynchronous on Cocoa.
+pub fn hide_to_tray(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+    let native = unsafe { &*window.ns_window()?.cast::<NSWindow>() };
+    if !window.is_fullscreen()? && !native.styleMask().contains(NSWindowStyleMask::FullScreen) {
+        return window.hide();
+    }
+    STATES.with(|states| {
+        states
+            .borrow_mut()
+            .entry(window.label().to_owned())
+            .or_default()
+            .hide_after_fullscreen = true;
+    });
+    if let Err(error) = set_fullscreen(window, false) {
+        STATES.with(|states| {
+            if let Some(state) = states.borrow_mut().get_mut(window.label()) {
+                state.hide_after_fullscreen = false;
+            }
+        });
+        return Err(error);
+    }
+    Ok(())
+}
+
 fn restore_after_fullscreen(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     let native = unsafe { &*window.ns_window()?.cast::<NSWindow>() };
     // A rapid opposite request may already have begun another Space transition.
     if window.is_fullscreen()? || native.styleMask().contains(NSWindowStyleMask::FullScreen) {
         return Ok(());
     }
-    let restore = STATES.with(|states| {
+    let (restore, hide) = STATES.with(|states| {
         let mut states = states.borrow_mut();
         let state = states.get_mut(window.label())?;
-        Some((state.placement.finish_fullscreen()?, state.style.take()?))
+        let hide = std::mem::take(&mut state.hide_after_fullscreen);
+        Some((Some((state.placement.finish_fullscreen()?, state.style.take()?)), hide))
     });
-    if let Some((frame, style)) = restore {
+    if let Some((restore, hide)) = restore {
+      if let Some((frame, style)) = restore {
         native.setStyleMask(style);
         native.setFrame_display(frame, true);
         // Changing style rebuilds the titlebar/content hierarchy. Restore the
@@ -177,6 +205,10 @@ fn restore_after_fullscreen(window: &tauri::WebviewWindow) -> tauri::Result<()> 
             view.setFrameSize(native.contentRectForFrameRect(frame).size);
             native.makeFirstResponder(Some(&view));
         }
+      }
+      if hide {
+          window.hide()?;
+      }
     }
     Ok(())
 }

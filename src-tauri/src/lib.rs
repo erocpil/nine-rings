@@ -384,10 +384,20 @@ fn toggle_main_window(app: &tauri::AppHandle) {
         );
         if hide {
             startup_log!("toggle_main_window: hiding");
-            let _ = window.hide();
+            hide_main_window_to_tray(&window);
         } else {
             show_main_window(app);
         }
+    }
+}
+
+fn hide_main_window_to_tray(window: &tauri::WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    let result = macos_window::hide_to_tray(window);
+    #[cfg(not(target_os = "macos"))]
+    let result = window.hide();
+    if let Err(error) = result {
+        startup_log!("hide to tray failed: {}", error);
     }
 }
 
@@ -660,7 +670,7 @@ pub fn run() {
                                     if hide { "hide" } else { "recall" }
                                 );
                                 if hide {
-                                    let _ = window.hide();
+                                    hide_main_window_to_tray(&window);
                                 } else {
                                     show_main_window(app);
                                 }
