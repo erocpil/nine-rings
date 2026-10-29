@@ -43,6 +43,7 @@ export function DocumentTitleField({
   const [open, setOpen] = useState(false),
     [error, setError] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout>>();
+  const skipBlurCommit = useRef(false);
   const committing = useRef(false),
     committed = useRef(title);
   useEffect(() => {
@@ -80,7 +81,11 @@ export function DocumentTitleField({
       <div
         className="note-title-field"
         onPointerMove={(event) => {
-          if (event.pointerType === "touch" || preview && window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return;
+          if (
+            event.pointerType === "touch" ||
+            (preview && window.matchMedia(MOBILE_VIEWPORT_QUERY).matches)
+          )
+            return;
           cancelClose();
           if (isPointerOverTitleText(event.currentTarget, event.clientX))
             setOpen(true);
@@ -88,7 +93,8 @@ export function DocumentTitleField({
         }}
         onPointerEnter={(event) => {
           if (
-            event.pointerType !== "touch" && !(preview && window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) &&
+            event.pointerType !== "touch" &&
+            !(preview && window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) &&
             isPointerOverTitleText(event.currentTarget, event.clientX)
           ) {
             cancelClose();
@@ -126,16 +132,21 @@ export function DocumentTitleField({
             role={readonly && onOpenProperties ? "button" : undefined}
             onClick={readonly ? onOpenProperties : undefined}
             onChange={(event) => {
+              skipBlurCommit.current = false;
               setError("");
               onValueChange?.(event.target.value);
             }}
             onBlur={() => {
+              if (skipBlurCommit.current) {
+                skipBlurCommit.current = false;
+                return;
+              }
               void commit();
             }}
             onKeyDown={(event) => {
               if (event.nativeEvent.isComposing || event.keyCode === 229)
                 return;
-              if (event.key === "Enter" || readonly && event.key === " ") {
+              if (event.key === "Enter" || (readonly && event.key === " ")) {
                 event.preventDefault();
                 event.stopPropagation();
                 if (readonly) onOpenProperties?.();
@@ -147,6 +158,9 @@ export function DocumentTitleField({
               if (event.key === "Escape" && onCommit) {
                 event.preventDefault();
                 event.stopPropagation();
+                // Focusing the editor synchronously emits blur before React
+                // commits the cancelled draft. Never rename that old value.
+                skipBlurCommit.current = true;
                 onValueChange?.(title);
                 setError("");
                 onFinish?.();

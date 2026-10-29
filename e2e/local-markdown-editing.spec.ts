@@ -46,6 +46,16 @@ test("源码与渲染共用标题重命名、信息卡和未保存保护", async
   await createBlankDocument(page);
   const { tree, workspace } = await openWritableLocalDirectory(page, { "start.md": "# 标题\n\n正文\n" }, "start.md");
   const title = workspace.getByRole("textbox", { name: "文档标题", exact: true });
+  await title.fill("cancel-source.md");
+  await title.press("Escape");
+  await page.waitForTimeout(250); // Observe an unintended asynchronous blur rename.
+  await expect(title).toHaveValue("start.md");
+  await expect(
+    tree.getByRole("button", { name: "start.md", exact: true }),
+  ).toBeVisible();
+  await expect(
+    tree.getByRole("button", { name: "cancel-source.md", exact: true }),
+  ).toHaveCount(0);
   await title.fill("source.md"); await title.press("Enter");
   await expect(title).toHaveValue("source.md");
   await expect(tree.getByRole("button", { name: "source.md", exact: true })).toBeVisible();
@@ -53,6 +63,16 @@ test("源码与渲染共用标题重命名、信息卡和未保存保护", async
   const info = workspace.getByRole("tooltip", { name: "source.md 的文档信息", exact: true });
   await expect(info).toContainText("Markdown"); await expect(info).toContainText("source.md");
   await workspace.getByRole("button", { name: "渲染", exact: true }).click();
+  await title.fill("cancel-rendered.md");
+  await title.press("Escape");
+  await page.waitForTimeout(250);
+  await expect(title).toHaveValue("source.md");
+  await expect(
+    tree.getByRole("button", { name: "source.md", exact: true }),
+  ).toBeVisible();
+  await expect(
+    tree.getByRole("button", { name: "cancel-rendered.md", exact: true }),
+  ).toHaveCount(0);
   await title.fill("rendered.md"); await title.press("Enter");
   await expect(title).toHaveValue("rendered.md");
   await expect(workspace.locator(".ProseMirror:visible")).toContainText("正文");

@@ -27,6 +27,12 @@ export function SelectionHoverToolbar() {
       window.clearTimeout(hideTimer);
       hideTimer = 0;
     };
+    const withinHoverSurface = (target: EventTarget | null) =>
+      target instanceof Element &&
+      Boolean(
+        host.current?.contains(target) ||
+        target.closest(".menu-dropdown-list:popover-open, .block-action-menu"),
+      );
     const hide = () => {
       clear();
       // Closing this transient surface dismisses its submenus, not independent
@@ -59,10 +65,7 @@ export function SelectionHoverToolbar() {
         return;
       }
       const target = document.elementFromPoint(x, y);
-      if (
-        host.current?.contains(target) ||
-        target?.closest(".menu-dropdown-list:popover-open, .block-action-menu")
-      ) {
+      if (withinHoverSurface(target)) {
         clear();
         return;
       }
@@ -109,7 +112,13 @@ export function SelectionHoverToolbar() {
         }
       }
       if (!inside || !range || !toolbar || toolbar.closest("[inert]")) {
-        if (!hideTimer) hideTimer = window.setTimeout(hide, 160);
+        if (!hideTimer)
+          hideTimer = window.setTimeout(() => {
+            // A leave deadline can beat the next animation frame under load.
+            // Recheck the latest pointer before dismissing a surface it entered.
+            if (withinHoverSurface(document.elementFromPoint(x, y))) clear();
+            else hide();
+          }, 160);
         return;
       }
       clear();
@@ -132,6 +141,9 @@ export function SelectionHoverToolbar() {
       x = event.clientX;
       y = event.clientY;
       buttons = event.buttons;
+      // Retain the toolbar synchronously; deferred hit testing must not let a
+      // previously queued leave timer detach a button just before its click.
+      if (withinHoverSurface(event.target)) clear();
       if (!frame) frame = requestAnimationFrame(update);
     };
     const focus = (event: FocusEvent) => {

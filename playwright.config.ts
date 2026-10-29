@@ -15,6 +15,8 @@ export default defineConfig({
   webServer: {
     command: 'npx vite --host 0.0.0.0 --port 8000',
     port: 8000,
+    // Preserve Vite reload/dependency diagnostics when a page context disappears.
+    stdout: 'pipe',
     reuseExistingServer: true,
     timeout: 30000,
   },

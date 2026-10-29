@@ -1,6 +1,17 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 import { selectSource, replaceSource, sourceInfo } from "./helpers/source-editor";
+
+async function hoverNativeSelection(page: Page, expected: string) {
+  await expect
+    .poll(() => page.evaluate(() => document.getSelection()?.toString() ?? ""))
+    .toBe(expected);
+  const point = await page.evaluate(() => {
+    const rect = document.getSelection()!.getRangeAt(0).getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  });
+  await page.mouse.move(point.x, point.y);
+}
 
 test("表格行列选择、合并拆分与背景色保存重载及源码往返", async ({ page }) => {
   await createBlankDocument(page);
@@ -103,9 +114,7 @@ test(`源码选区折叠菜单锚定实际按钮并保持可操作 readonly=${re
   await replaceSource(source, text);
   if (readonly) await page.getByRole("button", { name: "设置只读", exact: true }).click();
   await selectSource(source, text.indexOf("target"), text.indexOf("target") + 6);
-  const line = source.locator(".cm-line").filter({ hasText: "## target" });
-  const box = (await line.boundingBox())!;
-  await page.mouse.move(box.x + 60, box.y + box.height / 2);
+  await hoverNativeSelection(page, "target");
   const hover = page.getByRole("toolbar", { name: "选区编辑工具", exact: true });
   const trigger = hover.getByRole("button", { name: "选择折叠标题级别", exact: true });
   await expect(trigger).toBeVisible();
@@ -168,4 +177,73 @@ test("合并表格及引用锚点自动保存后通过认证并拒绝未知元�
   })).toEqual(savedAnchors);
   await expect(editor.locator("th p")).toHaveCount(2);
   await expect(editor.locator("th")).toContainText("edited");
+});
+
+test("选区工具栏移入时即取消收回，帧处理延迟也不丢失按钮", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await createBlankDocument(page);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const source = page.getByRole("textbox", {
+    name: "Markdown 源码",
+    exact: true,
+  });
+  const text =
+    "# Chapter\n" +
+    Array.from({ length: 12 }, (_, i) => `正文 ${i}`).join("\n") +
+    "\n## target\ncontent";
+  await replaceSource(source, text);
+  await selectSource(
+    source,
+    text.indexOf("target"),
+    text.indexOf("target") + 6,
+  );
+  await hoverNativeSelection(page, "target");
+  const hover = page.getByRole("toolbar", {
+    name: "选区编辑工具",
+    exact: true,
+  });
+  const trigger = hover.getByRole("button", {
+    name: "选择折叠标题级别",
+    exact: true,
+  });
+  await expect(trigger).toBeVisible();
+  await trigger.scrollIntoViewIfNeeded();
+  const button = (await trigger.boundingBox())!;
+  await page.mouse.move(1300, 900);
+  await page.evaluate(async () => {
+    await new Promise(requestAnimationFrame);
+    await new Promise(requestAnimationFrame);
+    const raf = window.requestAnimationFrame,
+      cancel = window.cancelAnimationFrame;
+    const pending = new Map<number, FrameRequestCallback>();
+    let next = 1000000;
+    window.requestAnimationFrame = (callback) => {
+      const id = ++next;
+      pending.set(id, callback);
+      return id;
+    };
+    window.cancelAnimationFrame = (id) => {
+      pending.delete(id);
+    };
+    (window as any).__resumeSelectionFrames = () => {
+      window.requestAnimationFrame = raf;
+      window.cancelAnimationFrame = cancel;
+      for (const callback of pending.values()) raf(callback);
+    };
+  });
+  try {
+    await page.mouse.move(
+      button.x + button.width / 2,
+      button.y + button.height / 2,
+    );
+    await page.waitForTimeout(200); // Exceed the leave deadline while rAF is stalled.
+    await expect(hover).toBeVisible();
+    await expect(trigger).toBeVisible();
+  } finally {
+    await page.evaluate(() => (window as any).__resumeSelectionFrames());
+  }
+  await trigger.click();
+  await expect(
+    page.getByRole("menu", { name: "折叠标题级别", exact: true }),
+  ).toBeVisible();
 });
