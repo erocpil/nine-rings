@@ -115,7 +115,9 @@ export function useDesktopDocumentPanels(
   );
   const enter = (kind: DocumentPanelKind, pointerType: string) => {
     if (kind === "outline" && !outlineEnabled) return;
-    if (mode === "compact" || pointerType !== "mouse" || !enabled || pinned(kind)) return;
+    // Placement controls docking, not access to a transient desktop preview.
+    if (pointerType !== "mouse" || !enabled || pinned(kind) ||
+      !window.matchMedia("(min-width: 769px) and (pointer: fine)").matches) return;
     cancel();
     timer.current = setTimeout(() => openPreview(kind), 140);
   };
