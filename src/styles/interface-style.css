@@ -683,7 +683,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
 /* Classic keeps user typography; relax the surrounding desktop chrome instead
    of changing stored font sizes or adding gaps inside lists and tables. */
 html[data-interface-style="classic"] .app-desktop-workspace .app-main {
-  padding: 14px 18px;
+  padding: 0 18px;
 }
 html[data-interface-style="classic"] .app-desktop-workspace .note-title-row {
   box-sizing: border-box;
