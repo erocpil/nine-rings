@@ -1,6 +1,30 @@
 import { expect, test } from "@playwright/test";
 import { sourceInfo } from "./helpers/source-editor";
 import type { Page } from "@playwright/test";
+// Keep navigation evidence for intermittent browser-context failures, without retrying mutations.
+const navigationEvents = new WeakMap<Page, unknown[]>();
+test.beforeEach(async ({ page, browserName }) => {
+  const events: unknown[] = [];
+  navigationEvents.set(page, events);
+  const record = (kind: string, data: unknown) => events.push({ kind, data, at: Date.now() });
+  page.on("framenavigated", frame => { if (frame === page.mainFrame()) record("navigated", frame.url()); });
+  page.on("console", message => { if (/vite|reload/i.test(message.text())) record("console", message.text()); });
+  page.on("websocket", socket => socket.on("framereceived", event => {
+    const payload = String(event.payload);
+    if (/reload|update|error/.test(payload)) record("websocket", payload);
+  }));
+  if (browserName === "chromium") {
+    const session = await page.context().newCDPSession(page);
+    await session.send("Page.enable");
+    session.on("Page.frameRequestedNavigation", event => record("requested", event));
+    session.on("Page.frameScheduledNavigation", event => record("scheduled", event));
+  }
+});
+test.afterEach(async ({ page }, info) => {
+  if (info.status !== info.expectedStatus) await info.attach("navigation-events", {
+    body: JSON.stringify(navigationEvents.get(page), null, 2), contentType: "application/json",
+  });
+});
 async function seed(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem("nr:pluginsEnabled", "true");

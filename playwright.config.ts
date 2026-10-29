@@ -10,6 +10,8 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:8000',
     headless: true,
+    // Keep navigation, network and DOM evidence for intermittent context loss.
+    trace: 'retain-on-failure',
     viewport: { width: 1280, height: 800 },
   },
   webServer: {
