@@ -311,4 +311,3 @@
 
 /* The local adapter contributes only scroll-host sizing; block rhythm belongs
    to DocumentRenderBody and the shared editor typography. */
-.document-reading-view.local-file-preview { padding: 0; }

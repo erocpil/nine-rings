@@ -304,6 +304,8 @@ export function MarkdownSourceEditor({
   showStatusBar = true,
   focusMode = false,
   saveStatus,
+  savedLabel,
+  navigation,
   onCreateDocument,
   documentLanguage = "markdown",
   documentLanguageValue,
@@ -330,6 +332,8 @@ export function MarkdownSourceEditor({
   showStatusBar?: boolean;
   focusMode?: boolean;
   saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
+  savedLabel?: string;
+  navigation?: ReactNode;
   onCreateDocument?: () => void;
   documentLanguage?: string;
   documentLanguageValue?: string;
@@ -1902,6 +1906,7 @@ export function MarkdownSourceEditor({
       {statusTarget ? (
         createPortal(
           <EditorStatusBar
+        savedLabel={savedLabel} navigation={navigation}
             sourceViewControls={gutterControls}
             sourceIndentControls={indentationControls}
             documentLanguage={documentLanguage}
@@ -1921,6 +1926,7 @@ export function MarkdownSourceEditor({
         )
       ) : statusTarget === undefined ? (
         <EditorStatusBar
+        savedLabel={savedLabel} navigation={navigation}
           sourceViewControls={gutterControls}
           sourceIndentControls={indentationControls}
           documentLanguage={documentLanguage}

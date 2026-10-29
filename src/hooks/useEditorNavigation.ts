@@ -15,11 +15,11 @@ export function setNavigationSelection(editor: Editor, range: number | { from: n
 }
 
 /** Observe selection transactions, not keystrokes or document contents. */
-export function useEditorNavigation(editor: Editor | null, noteId: string, scrollRef: RefObject<HTMLElement>) {
+export function useEditorNavigation(editor: Editor | null, noteId: string, scrollRef: RefObject<HTMLElement>, enabled = true) {
   const active = useDocumentActive();
   const target = useNavigationStore(state => state.target?.noteId === noteId ? state.target : null);
   useEffect(() => {
-    if (!editor || !active) return;
+    if (!editor || !active || !enabled) return;
     const history = useNavigationStore.getState();
     history.activate(noteId);
     const location = () => ({ noteId, from: editor.state.selection.from, to: editor.state.selection.to });
@@ -67,10 +67,10 @@ export function useEditorNavigation(editor: Editor | null, noteId: string, scrol
       window.removeEventListener("pointercancel", up, true);
       window.removeEventListener("keyup", keyup, true);
     };
-  }, [editor, noteId, active]);
+  }, [editor, noteId, active, enabled]);
 
   useEffect(() => {
-    if (!editor || !target || !active) return;
+    if (!editor || !target || !active || !enabled) return;
     const root = scrollRef.current;
     root?.dispatchEvent(new Event(EDITOR_NAVIGATION_EVENT));
     const maximum = editor.state.doc.content.size;
@@ -102,5 +102,5 @@ export function useEditorNavigation(editor: Editor | null, noteId: string, scrol
       useNavigationStore.getState().record({ noteId, from: editor.state.selection.from, to: editor.state.selection.to });
     });
     return () => cancelAnimationFrame(frame);
-  }, [editor, noteId, target, scrollRef, active]);
+  }, [editor, noteId, target, scrollRef, active, enabled]);
 }

@@ -1,7 +1,8 @@
+import { DocumentResourceContext } from "./DocumentResourceContext";
 import { requestImageView } from "../lib/image-library/viewer-request";
 import { workspacePanels } from "../lib/plugin-system/panel-registry";
 import { ToolbarIcon } from "./ToolbarIcon";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { getImageUrl } from "../lib/storage/db-images";
 import { useNearViewport } from "../hooks/useNearViewport";
 import { readonlyImageSource } from "../lib/readonly-image-source";
@@ -18,6 +19,7 @@ export function ReadonlyImage({
   title?: string;
   width?: string | null;
 }) {
+  const resolveResource = useContext(DocumentResourceContext);
   const imagePanels = useSyncExternalStore(workspacePanels.subscribe, workspacePanels.getSnapshot);
   const host = useRef<HTMLSpanElement>(null);
   const near = useNearViewport(host);
@@ -27,8 +29,10 @@ export function ReadonlyImage({
   useEffect(() => {
     if (!near) return;
     if (!src.startsWith("nr-image://")) {
-      setResolved(readonlyImageSource(src, document.baseURI));
-      return;
+      if (!resolveResource) { setResolved(readonlyImageSource(src, document.baseURI)); return; }
+      let cancelled = false;
+      void resolveResource(src).then(uri => { if (!cancelled) setResolved(uri ?? readonlyImageSource(src, document.baseURI)); }, () => { if (!cancelled) setResolved(readonlyImageSource(src, document.baseURI)); });
+      return () => { cancelled = true; };
     }
     let cancelled = false,
       url: string | null = null;
@@ -48,7 +52,7 @@ export function ReadonlyImage({
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [src, near]);
+  }, [src, near, resolveResource]);
   return (
     <span ref={host} className="document-image-view-host" data-image-compact={compact || undefined}>
       {resolved ? (
@@ -64,7 +68,7 @@ export function ReadonlyImage({
       ) : (
         <span>{alt || "图片"}</span>
       )}
-      {resolved && imagePanels.length > 0 && <button type="button" className="btn-icon document-image-view-button" aria-label="查看图片" title="查看图片" onClick={event => {event.preventDefault();event.stopPropagation();requestImageView({src,name:alt||title||"文档图片"});}}><ToolbarIcon name="image" /></button>}
+      {resolved && imagePanels.length > 0 && <button type="button" className="btn-icon document-image-view-button" aria-label="查看图片" title="查看图片" onClick={event => {event.preventDefault();event.stopPropagation();requestImageView({src:resolveResource ? resolved : src,name:alt||title||"文档图片"});}}><ToolbarIcon name="image" /></button>}
     </span>
   );
 }

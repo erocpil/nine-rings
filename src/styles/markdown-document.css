@@ -375,3 +375,5 @@ blockquote[data-alert] { border-left-color: var(--accent); }
 .source-status-whitespace { display: inline-flex; flex: 0 0 26px; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 3px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text-secondary); cursor: pointer; }
 .source-status-whitespace:hover, .source-status-whitespace[aria-pressed="true"] { border-color: var(--border); background: var(--bg-active, var(--bg-secondary)); color: var(--text); }
 .source-status-whitespace .toolbar-icon { width: 16px; height: 16px; }
+
+.document-title-error { position: absolute; z-index: 130; top: 100%; inset-inline-end: 0; max-width: min(480px, 100%); padding: 6px 10px; color: var(--warning, #bd792e); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }

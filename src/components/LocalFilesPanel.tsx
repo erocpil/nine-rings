@@ -1,3 +1,4 @@
+import { LOCAL_FILE_RENAMED_EVENT, type LocalFileRename } from "../lib/local-files/rename";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type SetStateAction } from "react";
 import {
   localFileService,
@@ -501,6 +502,22 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
     await copyToClipboard(value, { reportFailure: true });
     showPathNotice(`已复制${kind}：${value}`);
   };
+  const reloadRenamedTree = useRef(load);
+  reloadRenamedTree.current = load;
+  useEffect(() => {
+    const renamed = (event: Event) => {
+      const { rootId, oldNode, nodeId, name } = (event as CustomEvent<LocalFileRename>).detail;
+      const before = `${rootId}:${oldNode}`, after = `${rootId}:${nodeId}`;
+      setExpanded(current => new Set([...current].map(key => key === before || key.startsWith(`${before}/`) ? after + key.slice(before.length) : key)));
+      setSelected(current => current === before ? after : current);
+      setSelectedFile(current => current?.rootId === rootId && current.nodeId === oldNode ? { ...current, nodeId, name } : current);
+      setPages(current => Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${rootId}:`))));
+      void reloadRenamedTree.current(rootId, "");
+      for (const key of expanded) if (key.startsWith(`${rootId}:`)) void reloadRenamedTree.current(rootId, key.slice(rootId.length + 1));
+    };
+    window.addEventListener(LOCAL_FILE_RENAMED_EVENT, renamed);
+    return () => window.removeEventListener(LOCAL_FILE_RENAMED_EVENT, renamed);
+  }, [expanded, setPages]);
   const renameLocalPath = async (rootId: string, nodeId: string, oldName: string, directory: boolean, destination?: { parent: string; name: string }) => {
     if (!localFileService.canRename(rootId)) throw new Error("目录快照无法重命名，请重新授权原目录");
     const view = mainViews.getSnapshot();

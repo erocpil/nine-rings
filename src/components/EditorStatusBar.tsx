@@ -23,6 +23,7 @@ export function EditorStatusBar({
   label = "文档状态栏",
   className = "",
   saveStatus,
+  savedLabel,
   block,
   blockPosition,
   sourcePosition,
@@ -46,6 +47,7 @@ export function EditorStatusBar({
   label?: string;
   className?: string;
   saveStatus?: SaveStatus;
+  savedLabel?: string;
   block?: ReactNode;
   blockPosition?: { current: number; total: number };
   sourcePosition?: { line: number; column: number; total: number };
@@ -161,7 +163,7 @@ export function EditorStatusBar({
         ? "保存中"
         : saveStatus === "error"
           ? "保存失败"
-          : "已保存到本机；GitHub 备份需要单独 Push";
+          : savedLabel ?? "已保存到本机；GitHub 备份需要单独 Push";
   const content: Record<StatusItem, ReactNode> = {
     navigation,
     save:

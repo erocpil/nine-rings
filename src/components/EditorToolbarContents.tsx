@@ -69,7 +69,7 @@ export interface EditorToolbarProps {
     setTableCellAlignment: (align: "left" | "center" | "right") => void;
     handleCopy: () => Promise<void>;
     handleCopyBlock: () => Promise<void>;
-    copyReference: (kind: "block" | "position") => Promise<void>;
+    copyReference?: (kind: "block" | "position") => Promise<void>;
     handleCut: () => Promise<void>;
     handleClipboardPaste: () => Promise<void>;
     handleExportMarkdown: () => Promise<void>;
@@ -429,8 +429,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {(editor.isActive("codeBlock") || editor.isActive("blockquote")) && btn(<ToolbarIcon name="lineBreak" />, () => { exitCurrentStructuredBlock(editor); }, false, "退出当前块（Ctrl+Enter）", readonly)}
     {layout.isMobileToolbarViewport && btn(<ToolbarIcon name="plus" />, actions.insertBlankBlockAfterCurrent, false, "在当前块后插入空白块", readonly)}
     {btn(<ToolbarIcon name="code" />, insertFlow, false, "插入流程块", readonly)}
-    {btn(<ToolbarIcon name="link" />, () => { void actions.copyReference("block"); }, false, "复制块引用")}
-    {btn(<ToolbarIcon name="link" />, () => { void actions.copyReference("position"); }, false, hasSelection() ? "复制选中文字引用" : "复制此处引用")}
+    {actions.copyReference && btn(<ToolbarIcon name="link" />, () => { void actions.copyReference!("block"); }, false, "复制块引用")}
+    {actions.copyReference && btn(<ToolbarIcon name="link" />, () => { void actions.copyReference!("position"); }, false, hasSelection() ? "复制选中文字引用" : "复制此处引用")}
     {btn("—", () => editor.chain().focus().setHorizontalRule().run(), false, "水平分隔线", readonly)}
     {btn(<ToolbarIcon name="copy" />, () => selectWholeDocument(editor), false, "全选", false, "edit.all")}
     {btn(<ToolbarIcon name="document" />, handleExportPdf, false, "导出 PDF", false, "document.export-pdf")}

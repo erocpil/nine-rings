@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 
 const ActiveDocument = createContext(true);
 export const useDocumentActive = () => useContext(ActiveDocument);
+export function DocumentActiveBoundary({ active, children }: { active: boolean; children: ReactNode }) { return <ActiveDocument.Provider value={active}>{children}</ActiveDocument.Provider>; }
 
 type Session = { key: string; node: ReactNode; sensitive: boolean; revision: string; generation: number };
 

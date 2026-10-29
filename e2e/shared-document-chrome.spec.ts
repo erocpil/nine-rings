@@ -38,6 +38,7 @@ async function openReadonlyFixture(page: Page, testInfo: TestInfo, origin: "data
     await tree.locator("input[type=file]").setInputFiles(directory);
     await tree.getByRole("button", { name: "shared.md", exact: true }).click();
     root = page.getByRole("region", { name: "本地文件工作区" });
+    await root.getByRole("button", { name: "设为只读", exact: true }).click();
     await root.getByRole("button", { name: "渲染", exact: true }).click();
   }
   return root;
@@ -135,7 +136,6 @@ for (const origin of ["database", "local"] as const) test(`共享查找与块号
 
 for (const origin of ["database", "local"] as const) test(`只读长章节从正文折叠使用相同视口锚点：${origin}`, async ({ page }, testInfo) => {
   const root = await openReadonlyFixture(page, testInfo, origin, true);
-  if (origin === "local") await root.getByRole("button", { name: "设为只读", exact: true }).click();
   await page.getByRole("button", { name: "专注模式", exact: true }).click();
   const paragraph = root.locator(".ProseMirror p").filter({ hasText: /^章节正文 30$/ });
   await paragraph.scrollIntoViewIfNeeded();

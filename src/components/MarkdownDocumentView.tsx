@@ -1,3 +1,6 @@
+import { DocumentTitleField } from "./DocumentTitleField";
+import { DocumentPreviewControls } from "./DocumentPreviewControls";
+import { useDocumentPreview } from "../hooks/useDocumentPreview";
 import { DocumentTitleBar, DocumentAccessToggle } from "./DocumentChrome";
 import { readDocumentSource, writeDocumentSource } from "../lib/document-source";
 import { mapSourceReferences } from "../lib/markdown-source-navigation";
@@ -22,7 +25,7 @@ import { DocumentSourceSurface } from "./DocumentSourceSurface";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { NavigationButtons } from "./NavigationButtons";
 import { useNavigationStore } from "../stores/useNavigationStore";
-import { Suspense, lazy, useEffect, useLayoutEffect, useCallback, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useCallback, useRef, useState, type ReactNode } from "react";
 import type { NoteEditorProps } from "./NoteEditor";
 import type { DeltaOps } from "../types/models";
 import { deltaToMarkdownAsync } from "../lib/data-transform-client";
@@ -32,9 +35,6 @@ import { DocumentNavigationWorkspace } from "./DocumentNavigationWorkspace";
 import { invalidateEditorDocument } from "../lib/editor-session-cache";
 import { deltaToProseMirror, isProseMirror, proseMirrorToDelta } from "../lib/delta-converter";
 import { ToolbarIcon } from "./ToolbarIcon";
-import { DocumentTitlePreview } from "./DocumentTitlePreview";
-import { DocumentInfoCard } from "./DocumentInfoCard";
-import { isPointerOverTitleText } from "../lib/document-title-hit-test";
 import { MarkdownEscapeRepair } from "./MarkdownEscapeRepair";
 import { api } from "../lib/api";
 import { findTextMatches, initializeSearchRegex } from "../lib/search-matching";
@@ -68,8 +68,8 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const sourceOpenTarget = useDocumentOpenStore(state => state.target?.noteId === props.noteId ? state.target : null);
   const navigationTarget = useNavigationStore(state => state.target?.noteId === props.noteId ? state.target : null);
   const mobile = useMobileViewport();
-  const [preview, setPreview] = useState(() => localStorage.getItem("nr:markdownSplitPreview") === "true");
-  const [previewSync, setPreviewSync] = useState(() => localStorage.getItem("nr:markdownPreviewSync") !== "false");
+  const previewState = useDocumentPreview();
+  const { preview, sync: previewSync } = previewState;
   const hostOwner = useRef({});
   const renderedHost = useRef<Parameters<NonNullable<NoteEditorProps["onHostEditorReady"]>>[0]>(null);
   const [initialReading] = useState(() => props.sensitive ? null : readReadingState(props.noteId));
@@ -82,55 +82,15 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const [error, setError] = useState("");
-  const [sourceInfoOpen, setSourceInfoOpen] = useState(false);
   const sourceTitleInput = useRef<HTMLInputElement>(null);
   const sourceTitleDraft = useDocumentTitleDraft(props.title, sourceTitleInput);
-  const sourceInfoTimer = useRef<number | null>(null);
-  const clearSourceInfoTimer = () => {
-    if (sourceInfoTimer.current !== null) window.clearTimeout(sourceInfoTimer.current);
-    sourceInfoTimer.current = null;
-  };
-  const closeSourceInfoLater = () => {
-    clearSourceInfoTimer();
-    sourceInfoTimer.current = window.setTimeout(() => setSourceInfoOpen(false), 180);
-  };
-  const handleSourceTitlePointer = (event: PointerEvent<HTMLDivElement>) => {
-    clearSourceInfoTimer();
-    if (event.pointerType === "touch") return;
-    if (isPointerOverTitleText(event.currentTarget, event.clientX)) setSourceInfoOpen(true);
-    else if (sourceInfoOpen) closeSourceInfoLater();
-  };
-  useEffect(() => () => clearSourceInfoTimer(), []);
-  const sourceTitle = <>
-    <div className="note-title-field"
-      onPointerEnter={handleSourceTitlePointer}
-      onPointerMove={handleSourceTitlePointer}
-      onPointerLeave={closeSourceInfoLater}
-      onFocusCapture={() => { clearSourceInfoTimer(); setSourceInfoOpen(false); }}>
-      {props.readonly
-        ? <DocumentTitlePreview title={props.title || "无标题"} onOpenProperties={props.onOpenProperties} />
-        : <input ref={sourceTitleInput} type="text" className="note-title" aria-label="文档标题" placeholder="输入文档标题" value={sourceTitleDraft.draft} onBlur={sourceTitleDraft.finish} onChange={event => { sourceTitleDraft.setDraft(event.target.value); props.onTitleChange(event.target.value); }} onKeyDown={event => {
-          if (event.key !== "Enter") return;
-          event.preventDefault();
-          event.stopPropagation();
-          viewPosition.sourceHandle?.focus();
-        }} />}
-    </div>
-    {sourceInfoOpen && props.documentCreatedAt && props.documentUpdatedAt && <DocumentInfoCard
-      className="document-info-card-title-hover"
-      title={props.title || "无标题"}
-      content={props.content}
-      createdAt={props.documentCreatedAt}
-      updatedAt={props.documentUpdatedAt}
-      lastAccessedAt={props.documentLastAccessedAt}
-      readonly={props.readonly}
-      docType={props.documentType}
-      tags={props.tags}
-      path={props.documentPath}
-      onPointerEnter={clearSourceInfoTimer}
-      onPointerLeave={closeSourceInfoLater}
-    />}
-  </>;
+  const sourceTitle = <DocumentTitleField title={props.title || "无标题"} value={sourceTitleDraft.draft}
+    inputRef={sourceTitleInput} preview={Boolean(props.readonly)} readonly={Boolean(props.readonly)}
+    onOpenProperties={props.onOpenProperties} onFinish={sourceTitleDraft.finish}
+    onValueChange={value => { sourceTitleDraft.setDraft(value); props.onTitleChange(value); }}
+    onEnter={() => viewPosition.sourceHandle?.focus()}
+    info={props.documentCreatedAt && props.documentUpdatedAt ? { content: props.content, createdAt: props.documentCreatedAt, updatedAt: props.documentUpdatedAt,
+      lastAccessedAt: props.documentLastAccessedAt, readonly: props.readonly, docType: props.documentType, tags: props.tags, path: props.documentPath } : undefined} />;
   const [snapshot, setSnapshot] = useState<{ base: DeltaOps; content: DeltaOps } | null>(null);
   const [, forceSourceMetadataUpdate] = useState(0);
   const latestProps = useRef(props);
@@ -468,7 +428,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const toggle = <>{hasPreview && <button type="button" className="markdown-view-toggle" disabled={busy}
     title={shortcutTitle("document.source", source === null ? "切换到源码" : "切换到渲染视图")}
     aria-label={source === null ? "源码" : "渲染"}
-    aria-busy={busy} onClick={() => void changeView()}><ToolbarIcon name={source === null ? "code" : "document"} /></button>}
+    aria-busy={busy} onPointerDown={event => event.preventDefault()} onMouseDown={event => event.preventDefault()} onClick={() => void changeView()}><ToolbarIcon name={source === null ? "code" : "document"} /></button>}
     {props.documentSessions && <BuiltinPluginTools onOpenNote={props.onOpenLinkedNote} sessions={props.documentSessions} active={active} disabled={busy} readonly={Boolean(props.readonly) || source === null && documentLanguage !== "markdown"} onFocusEditor={() => { if (source !== null) viewPosition.sourceHandle?.focus(); else renderedHost.current?.view.focus(); }} context={{ platform: runtimeKind(), view: props.readonly || source === null && documentLanguage !== "markdown" ? "readonly" : source === null ? "render" : "source", documentId: props.noteId }} />}</>;
   return <div className="markdown-document-view" data-tools-hidden={!moreTools || undefined} ref={viewPosition.host}>
     {error && <div role="alert" className="markdown-source-hint">{error}</div>}
@@ -522,8 +482,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         {sourceTitle}
         {toggle}
         {(!props.readonly || source !== null) && <button type="button" className="markdown-view-toggle" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(!moreTools)}><ToolbarIcon name="annotate" /></button>}
-        {!mobile && hasPreview && <button type="button" className="markdown-view-toggle" title="并排预览" aria-label="并排预览" aria-pressed={preview} onClick={() => { setPreview(!preview); localStorage.setItem("nr:markdownSplitPreview", String(!preview)); }}><ToolbarIcon name="panel" /></button>}
-        {!mobile && hasPreview && preview && <label className="markdown-preview-sync"><input type="checkbox" checked={previewSync} onChange={event => { setPreviewSync(event.target.checked); localStorage.setItem("nr:markdownPreviewSync", String(event.target.checked)); }} />同步滚动</label>}
+        {!mobile && hasPreview && <DocumentPreviewControls state={previewState} />}
         {controls}
         {!(statusBar.navigationInStatus) && <NavigationButtons />}
         {mobile && props.onFocusModeChange && <button type="button" className="focus-btn document-focus-toggle" aria-label={props.focusMode ? "退出专注模式" : "专注模式"}

@@ -6,7 +6,7 @@
 
 源码交互与导航条目复用[共享源码与导航组件](source-navigation-components.md)；本地文件保留标题栏下方、编辑区右侧的独立布局与设备本地状态。
 
-本地 Markdown 在标题工具栏通过“渲染／显示源码”切换。渲染由 `MarkdownReadingView` 适配到来源无关的 `DocumentReadingView`；普通正文与数据库文档共同使用 `documentRenderingExtensions`、`DocumentRenderBody`、`DocumentEditorContent` 和 `EditorBlockGutter`，不再维护静态块包装布局。详见[共享文档渲染](document-rendering.md)。原始文件文本始终由源码会话持有，渲染不写回 Markdown。源码撤销历史在模式往返后保留；同一文件原文未变时，渲染滚动位置、代码／引用／HTML 折叠状态保留。目录位于文本区右侧，宽度可拖动调整，渲染与源码共用同一个目录。Mermaid 和 Flow 文件复用 `SourceDocumentPreview`，是否支持渲染按当前有效文件格式判断（包括本机格式覆盖），而非只按文件扩展名判断。当前渲染为阅读投影；编辑和保存原文件通过源码模式完成。
+本地 Markdown 在标题工具栏通过“渲染／显示源码”切换，直接接入数据库基线的 `RenderedDocumentWorkspace`。共同工作区提供普通正文、编号、折叠、目录／书签、工具栏、块菜单与选区菜单，`LocalMarkdownWorkspace` 仅负责原文、权限、资源和文件保存适配。详见[统一文档工作区](unified-document-workspace.md)及[共享文档渲染](document-rendering.md)。仅查看、切换模式、阅读折叠和修改设备书签不改原文；实际渲染编辑延迟生成 Markdown，保存前同步冲刷，完整撤销恢复初始原文。源码与渲染仍各自维护撤销历史，实际渲染编辑可能规范化 Markdown 写法。并排预览复用数据库的同步预览组件。目录位置由文档／紧凑布局策略决定。Mermaid 和 Flow 文件继续复用 `SourceDocumentPreview`，预览能力按当前有效格式判断，包括本机格式覆盖。
 
 本地渲染与数据库普通正文共用 `EditorBlockGutter`、`BlockNumber`、`HeadingFold` 和标题章节索引，正文编号按原始顶层块确定，折叠只隐藏内容，不重新编号。块号可打开阅读操作菜单；隐藏块号后仍可在左侧控制区打开菜单。相对块号、对齐、字体、字号、颜色与当前块完整底色由现有设置或编号展示插件决定，标题／代码／引用折叠符号使用已有分域设置。标题折叠键以 `local-file:` 前缀隔离并保存在设备本地；切换视图保留折叠，目录与正文内目录跳转会先展开目标的祖先章节。只读文件专注模式的双击／双触折叠遵循全局设置，单击拖选仍保留。普通编辑器和本地阅读器共用首行几何计算；本地阅读器只测量可视区附近的 gutter，避免大文档每次滚动全表测量。
 

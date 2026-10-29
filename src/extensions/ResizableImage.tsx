@@ -1,3 +1,4 @@
+import { DocumentResourceContext } from "../components/DocumentResourceContext";
 import { documentImages } from "../lib/image-library/document-images";
 import { requestImageView } from "../lib/image-library/viewer-request";
 import { workspacePanels } from "../lib/plugin-system/panel-registry";
@@ -7,7 +8,7 @@ import { ToolbarIcon } from "../components/ToolbarIcon";
  * 双击恢复原始尺寸
  */
 
-import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Node } from "@tiptap/core";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
@@ -40,12 +41,16 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: NodeVi
   const objectUrlRef = useRef<string | null>(null);
 
   const rawSrc = node.attrs.src as string;
+  const resolveResource = useContext(DocumentResourceContext);
 
   // 解析 nr-image:// 引用为 Object URL
   useEffect(() => {
     if (!rawSrc || !rawSrc.startsWith("nr-image://")) {
-      setResolvedSrc(rawSrc);
-      return;
+      if (!rawSrc || !resolveResource) { setResolvedSrc(rawSrc); return; }
+      let cancelled = false;
+      setResolvedSrc(null);
+      void resolveResource(rawSrc).then(src => { if (!cancelled) setResolvedSrc(src ?? rawSrc); }, () => { if (!cancelled) setResolvedSrc(rawSrc); });
+      return () => { cancelled = true; };
     }
     let cancelled = false;
     getImageUrl(rawSrc).then((url) => {
@@ -63,8 +68,14 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: NodeVi
         objectUrlRef.current = null;
       }
     };
-  }, [rawSrc]);
+  }, [rawSrc, resolveResource]);
 
+  const openImage = async () => {
+    const images = documentImages(editor.getJSON());
+    const index = images.findIndex(image => image.src === rawSrc);
+    const resolved = resolveResource ? await Promise.all(images.map(async image => ({ ...image, src: await resolveResource(image.src).catch(() => null) ?? image.src }))) : images;
+    requestImageView(resolved[index] ?? { src: rawSrc, name: String(node.attrs.alt || node.attrs.title || "文档图片") }, resolved);
+  };
   const displaySrc = resolvedSrc ?? rawSrc;
   const compact = useCompactImage(imgRef, displaySrc, imagePanels.length > 0);
 
@@ -163,7 +174,7 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: NodeVi
         onPointerUp={onImagePointerUp}
         draggable={false}
       />
-      {imagePanels.length > 0 && <button type="button" contentEditable={false} className="btn-icon document-image-view-button" aria-label="查看图片" title="查看图片" onClick={event => {event.preventDefault();event.stopPropagation();requestImageView({src:String(node.attrs.src||""),name:String(node.attrs.alt||node.attrs.title||"文档图片")}, documentImages(editor.getJSON()));}}><ToolbarIcon name="image" /></button>}
+      {imagePanels.length > 0 && <button type="button" contentEditable={false} className="btn-icon document-image-view-button" aria-label="查看图片" title="查看图片" onClick={event => {event.preventDefault();event.stopPropagation();void openImage();}}><ToolbarIcon name="image" /></button>}
       <span
         className="resize-handle"
         onPointerDown={onResizePointerDown}

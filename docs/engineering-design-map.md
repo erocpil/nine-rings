@@ -7,6 +7,7 @@
 | 模块 | 关键实现 | 决策及约束 | 专题 |
 | --- | --- | --- | --- |
 | 工作区及会话 | `App.tsx`、`useNoteSessionBoundary`、编辑会话缓存 | 首页是展示状态；普通文档最多三份完整会话，保护文档另行释放 | [布局](workspace-layout.md)、[首页](web-workspace-chrome.md) |
+| 公共文档工作区 | `RenderedDocumentWorkspace`、`DocumentSourceSurface`、`LocalMarkdownWorkspace` | 渲染会话、菜单和排版只实现一次；来源适配保留原文、授权、写入与资源边界 | [统一工作区](unified-document-workspace.md) |
 | 编辑权威 | `NoteEditor`、`MarkdownSourceEditor`、Delta/Markdown 转换器 | 活动模型与持久投影分开；保存回执不替换活动模型；两套撤销历史独立 | [权威协议](editor-authority-and-workspace.md)、[Markdown](markdown-compatibility.md) |
 | 保存与修订 | `auto-save-queue.ts`、`document-save-revisions.ts` | 接受修订与持久确认分开；延迟正文读取器在 flush 时冻结；失败仅重排未被更新覆盖的字段 | [前置审计](plugin-readiness-audit.md) |
 | 存储 | `api.ts`、`storage/`、Rust commands/service/db | UI 经过统一门面和保护层；Schema 是跨端字段来源，不以平台实现自行定义 | [文档系统](document-system-design.md) |
@@ -17,7 +18,7 @@
 | 声明式包 | `package-validation.ts`、`package-store.ts`、`installed-packages.ts` | ZIP/Schema/语义预算与指纹审查；更新重新确认；仅宿主执行固定动作，不加载包内代码 | [安装](plugin-package-installation.md) |
 | 分栏/主区域 | `panel-registry.ts`、`main-view-registry.ts` | 分栏与中央视图是不同贡献；pending 通过宿主保存边界后才能成为 current | [主区域](plugin-main-area-views.md) |
 | 图片 | `image-library/`、`ImageViewerDialog`、Rust image_library | 授权目录只读且设备本地；适窗与原始像素倍率分开；预览变换不改文件 | [图片插件](plugin-local-image-panel.md) |
-| 本地文件夹工作区（只读首期） | `local-files/`、`LocalFilesPanel`、`LocalFileView`、Rust `local_files` | 独立目录授权与只读中央视图；写入仍属后续规划，不自动导入或同步磁盘文件 | [方案](local-folder-workspace.md) |
+| 本地文件夹工作区 | `local-files/`、`LocalFilesPanel`、`LocalFileView`、Rust `local_files` | 独立授权、修订核验写入与恢复草稿；公共编辑／渲染工作区按能力接入，不自动导入或同步磁盘文件 | [方案](local-folder-workspace.md) |
 | 词汇 | `vocabulary/`、`builtin-vocabulary.ts` | 普通 Markdown 和独立词库共享资源身份接口；不强迫每词一篇文档 | [词库](vocabulary-corpus-design.md) |
 | 同步 | `sync/entity-review.ts`、`reviewed-publication.ts`、`pull-application.ts` | 固定远端修订、冻结本机候选、显式逐实体选择；发布与接受基线分开 | [手动同步](incremental-sync.md) |
 | 恢复 | `backup-restore-coordination.ts`、`publication-recovery.ts`、桌面 lifecycle | 不确定写入先只读核验；中断留证据而不盲目重放；数据库恢复不是跨存储原子事务 | [恢复协调](backup-restore-coordination.md) |

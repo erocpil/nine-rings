@@ -1,3 +1,4 @@
+import { DocumentTitleField } from "./DocumentTitleField";
 import { readingHeadingAtPoint, toggleReadingHeading } from "../lib/reading-heading-navigation";
 import { DocumentFindPanel, DocumentBlockJumpPanel } from "./DocumentToolPanels";
 import { useDocumentFindControls, useDocumentToolPanel } from "../hooks/useDocumentTools";
@@ -53,7 +54,6 @@ import { exportDocumentPlainText } from "../lib/markdown-export";
 import { useDocumentHoverPreview } from "./FootnoteHoverPreview";
 import { footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
 import { createToolbarSelectionCommands } from "../lib/editor-toolbar-commands";
-import { isPointerOverTitleText } from "../lib/document-title-hit-test";
 import Placeholder from "@tiptap/extension-placeholder";
 import { MarkdownLinkInput } from "../extensions/MarkdownLinkInput";
 import {
@@ -104,7 +104,6 @@ import { openBlockWorkspace } from "../lib/block-workspace";
 import { BLOCK_WORKSPACE_DISPLAY_EVENT, codeLineNumbersEnabled, saveBlockWorkspacePreferences, watchBlockDisplaySettings } from "../lib/block-display-settings";
 import { DocumentPanelDrawer, type DocumentPanelPresentation } from "./DocumentPanelDrawer";
 import { useDocumentPanelPosition } from "../hooks/useDocumentPanelPosition";
-import { DocumentInfoCard } from "./DocumentInfoCard";
 import { storeImage } from "../lib/storage/db-images";
 import { blobToBase64 } from "../lib/storage/core";
 import { ProtectedNoteEditor } from "./ProtectedNoteEditor";
@@ -166,7 +165,6 @@ import {
 } from "../extensions/CollapsibleBlockquote";
 import { cacheEditorDocument, getCachedEditorDocument } from "../lib/editor-session-cache";
 import { ReadonlyVirtualNote } from "./ReadonlyVirtualNote";
-import { DocumentTitlePreview } from "./DocumentTitlePreview";
 import { buildReadonlyDocument, handoffReadingAnchor, takeReadingAnchor, readonlyRenderingEnabled, READONLY_RENDERING_EVENT, READONLY_RENDERING_KEY } from "../lib/readonly-rendering";
 import {
   DocumentBookmarks,
@@ -221,7 +219,26 @@ function insertCodeBlockPlainText(editor: Editor, text: string): void {
 
 // ══════════════════════════════════════
 
+export interface RenderedWorkspaceHost {
+  origin: "database" | "local";
+  titleActions?: React.ReactNode;
+  bodyClassName?: string;
+  bodyLabel?: string;
+  references?: boolean;
+  annotations?: boolean;
+  virtualReading?: boolean;
+  navigation?: boolean;
+  titleEditable?: boolean;
+  embedImages?: boolean;
+  savedLabel?: string;
+  onRename?: (title: string) => Promise<void>;
+  info?: import("./DocumentInfoCard").DocumentInfoCardProps;
+  sourceCopy?: { label: string; read: () => string };
+  onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
+}
+
 export interface NoteEditorProps {
+  workspaceHost?: RenderedWorkspaceHost;
   documentViewToggle?: React.ReactNode;
   unifiedTitleBar?: boolean;
   mobileTitleBar?: boolean;
@@ -397,10 +414,10 @@ let readonlySchema: ReturnType<typeof getSchema> | undefined;
 let readonlyDocumentSequence = 0;
 
 export function NoteEditor(props: NoteEditorProps) {
-  return <ProtectedNoteEditor props={props} render={next => <RenderedLinkMenu key={next.noteId} noteId={next.noteId} onOpenLinkedNote={next.onOpenLinkedNote}><MarkdownDocumentView props={next} render={current => <DocumentEditor {...current} />} /></RenderedLinkMenu>} />;
+  return <ProtectedNoteEditor props={props} render={next => <RenderedLinkMenu key={next.noteId} noteId={next.noteId} onOpenLinkedNote={next.onOpenLinkedNote}><MarkdownDocumentView props={next} render={current => <RenderedDocumentWorkspace {...current} />} /></RenderedLinkMenu>} />;
 }
 
-function DocumentEditor(input: NoteEditorProps) {
+export function RenderedDocumentWorkspace(input: NoteEditorProps) {
   const numbering = useNumberingDisplay();
   const props = numbering.blocks ? { ...input, showLineNumbers: numbering.blocks.visible } : input;
   useEffect(watchBlockDisplaySettings, []);
@@ -427,8 +444,9 @@ function DocumentEditor(input: NoteEditorProps) {
     // reader with identical text and discard an open panel or native selection.
     return JSON.stringify(isDelta(props.content) ? { ops: props.content.ops, metadata: { sourceFormat: props.content.metadata?.sourceFormat } } : props.content);
   }, [props.content]);
-  const readingBlockVersion = useMemo(() => markdownContentFingerprint(bodySource), [bodySource]);
-  const readingSource = experimental && props.readonly && !props.pdfExcerptSource && !props.epubExcerptSource ? bodySource : null;
+  const computedReadingVersion = useMemo(() => markdownContentFingerprint(bodySource), [bodySource]);
+  const readingBlockVersion = props.readingBlockVersion ?? computedReadingVersion;
+  const readingSource = experimental && props.workspaceHost?.virtualReading !== false && props.readonly && !props.pdfExcerptSource && !props.epubExcerptSource ? bodySource : null;
   const readingDocument = useMemo(() => {
     if (!readingSource) return null;
     readonlySchema ??= getSchema(documentRenderingExtensions());
@@ -436,10 +454,10 @@ function DocumentEditor(input: NoteEditorProps) {
     return doc ? { doc, key: ++readonlyDocumentSequence } : null;
   }, [readingSource]);
   if (readingDocument && !full && !exportRequested) return <ReadonlyVirtualNote {...props} readingBlockVersion={readingBlockVersion} key={`${props.noteId}:${readingDocument.key}`} doc={readingDocument.doc} onFallback={(selectAll = false) => { setSelectAllOnOpen(selectAll); setFull(true); }} />;
-  return <FullNoteEditor {...props} readingBlockVersion={readingBlockVersion} initialPdfExportRequest={exportRequested} selectAllOnOpen={selectAllOnOpen} />;
+  return <FullDocumentWorkspace {...props} readingBlockVersion={readingBlockVersion} initialPdfExportRequest={exportRequested} selectAllOnOpen={selectAllOnOpen} />;
 }
 
-function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, documentCreatedAt, documentUpdatedAt, documentLastAccessedAt, documentType, documentPath, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
+function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, documentCreatedAt, documentUpdatedAt, documentLastAccessedAt, documentType, documentPath, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
   const statusBar = useStatusBarDisplay(showStatusBar, focusMode);
   const [documentSerializer] = useState(() => new IncrementalDocumentSerializer());
   const noteEditorRef = useRef<HTMLDivElement>(null);
@@ -455,6 +473,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
   const toolbarInteractingRef = useRef(false);
   const documentMetadataRef = useRef(content.metadata);
   documentMetadataRef.current = content.metadata;
+  const annotationsEnabled = READING_ANNOTATIONS_ENABLED && workspaceHost?.annotations !== false;
   const readonlyRef = useRef(Boolean(readonly));
   readonlyRef.current = Boolean(readonly);
   const documentActive = useDocumentActive();
@@ -483,31 +502,6 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
   const findControls = useDocumentFindControls();
   const { matchIndex: activeSearchMatch, setMatchIndex: setActiveSearchMatch } = findControls;
-  const [documentInfoOpen, setDocumentInfoOpen] = useState(false);
-  const documentInfoCloseTimerRef = useRef<number | null>(null);
-  const clearDocumentInfoCloseTimer = () => {
-    if (documentInfoCloseTimerRef.current !== null) {
-      window.clearTimeout(documentInfoCloseTimerRef.current);
-      documentInfoCloseTimerRef.current = null;
-    }
-  };
-  const scheduleDocumentInfoClose = () => {
-    clearDocumentInfoCloseTimer();
-    documentInfoCloseTimerRef.current = window.setTimeout(() => {
-      setDocumentInfoOpen(false);
-      documentInfoCloseTimerRef.current = null;
-    }, 180);
-  };
-  const handleDocumentTitlePointer = (event: React.PointerEvent<HTMLDivElement>) => {
-    clearDocumentInfoCloseTimer();
-    if (event.pointerType === "touch") return;
-    if (isPointerOverTitleText(event.currentTarget, event.clientX)) setDocumentInfoOpen(true);
-    else if (documentInfoOpen) scheduleDocumentInfoClose();
-  };
-  useEffect(() => () => {
-    if (documentInfoCloseTimerRef.current !== null)
-      window.clearTimeout(documentInfoCloseTimerRef.current);
-  }, []);
   const { findOpen: editorFindOpen, setFindOpen: setEditorFindOpen, jumpOpen: lineJumpOpen, setJumpOpen: setLineJumpOpen } = useDocumentToolPanel(documentActive);
   const { query: editorFindQuery, setQuery: setEditorFindQuery, setCaseSensitive: setEditorFindCaseSensitive, setWholeWord: setEditorFindWholeWord, setRegex: setEditorFindRegex } = findControls;
   const [editorReplaceOpen, setEditorReplaceOpen] = useState(false);
@@ -544,7 +538,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
   const bookmarkPanelRef = useRef<HTMLElement>(null);
   const [bookmarks, setBookmarks] = useState<DocumentBookmark[]>(bookmarksRef.current);
   const [annotations, setAnnotations] = useState<ReadingAnnotation[]>([]);
-  const bookmarkPanelLabel = READING_ANNOTATIONS_ENABLED ? "书签与标注" : "书签";
+  const bookmarkPanelLabel = annotationsEnabled ? "书签与标注" : "书签";
   const [annotationContextRange, setAnnotationContextRange] = useState<{ from: number; to: number } | null>(null);
   const [annotationPopover, setAnnotationPopover] = useState<{ id: string; left: number; top: number } | null>(null);
   const annotationLeaveTimerRef = useRef<number | null>(null);
@@ -653,7 +647,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     if (typeof window === "undefined") return false;
     return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
   });
-  const desktopPanels = useDesktopDocumentPanels(!isMobileToolbarViewport, documentOutline, bookmarks, annotations);
+  const desktopPanels = useDesktopDocumentPanels(!isMobileToolbarViewport, documentOutline, bookmarks, annotations, undefined, workspaceHost?.origin);
   const { openPreview, dismiss: dismissPreview, toggle: togglePinnedPanel } = desktopPanels;
   const outlineOpen = documentActive && (isMobileToolbarViewport ? mobileOutlineOpen : desktopPanels.pinned("outline") || desktopPanels.preview === "outline");
   outlineOpenRef.current = outlineOpen;
@@ -931,9 +925,9 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
       ReadingAnnotations.configure({
         noteId,
         initial: [],
-        enabled: READING_ANNOTATIONS_ENABLED && Boolean(readonly),
+        enabled: annotationsEnabled && Boolean(readonly),
         onMapped: (items) => {
-          if (!READING_ANNOTATIONS_ENABLED) return;
+          if (!annotationsEnabled) return;
           setAnnotations(items);
           void Promise.all(items.map(item => putReadingAnnotation(item))).catch(error => {
             addLog(`阅读标注位置保存失败: ${String(error)}`);
@@ -1030,7 +1024,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
       const trigger = textBefore.lastIndexOf("[[");
       const query = trigger < 0 ? null : textBefore.slice(trigger + 2);
       const hasQuery = query !== null && !/[\]\n]/.test(query);
-      if (hasQuery && !readonly && wikiDismissedStartRef.current !== from - query.length - 2) {
+      if (hasQuery && !readonly && workspaceHost?.references !== false && wikiDismissedStartRef.current !== from - query.length - 2) {
         const start = from - query.length - 2;
         if (wikiStartRef.current !== start) {
           wikiDocumentsRef.current = api.docs.search({}).then(notes => rankQuickSwitcherNotes(notes, readRecentNoteIds()));
@@ -1078,8 +1072,8 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     if (!editor) return;
     let cancelled = false;
     setAnnotations([]);
-    setReadingAnnotations(editor, [], READING_ANNOTATIONS_ENABLED && readonly);
-    if (!READING_ANNOTATIONS_ENABLED) return () => { cancelled = true; };
+    setReadingAnnotations(editor, [], annotationsEnabled && readonly);
+    if (!annotationsEnabled) return () => { cancelled = true; };
     if (content.encrypted) return;
     void listReadingAnnotations(noteId).then(async stored => {
       if (cancelled || editor.isDestroyed) return;
@@ -1093,12 +1087,12 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
       setReadingAnnotations(editor, result.updates, readonly);
     }).catch(error => addLog(`阅读标注加载失败: ${String(error)}`));
     return () => { cancelled = true; };
-  }, [editor, noteId, content.encrypted, readonly]);
+  }, [editor, noteId, content.encrypted, readonly, annotationsEnabled]);
   useEffect(() => {
-    if (editor) setReadingAnnotations(editor, READING_ANNOTATIONS_ENABLED ? annotations : [], READING_ANNOTATIONS_ENABLED && readonly);
-  }, [editor, annotations, readonly]);
+    if (editor) setReadingAnnotations(editor, annotationsEnabled ? annotations : [], annotationsEnabled && readonly);
+  }, [editor, annotations, readonly, annotationsEnabled]);
   useEffect(() => {
-    if (!READING_ANNOTATIONS_ENABLED || !editor || !readonly) return;
+    if (!annotationsEnabled || !editor || !readonly) return;
     const captureSelection = () => {
       const native = window.getSelection();
       if (!native || native.isCollapsed || !native.anchorNode || !native.focusNode
@@ -1111,7 +1105,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     };
     document.addEventListener("selectionchange", captureSelection);
     return () => document.removeEventListener("selectionchange", captureSelection);
-  }, [editor, readonly]);
+  }, [annotationsEnabled, editor, readonly]);
 
   // Keep the composing paragraph intact until the IME has committed its text.
   // WebKit may write composition updates without ProseMirror's text-input
@@ -1492,10 +1486,26 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     return editor.state.doc.resolve(position).index(0) + 1;
   }, [editor]);
 
+  const bookmarkNavigationEpoch = useRef(0);
+  useEffect(() => {
+    const root = scrollRef.current;
+    const cancel = () => { bookmarkNavigationEpoch.current++; };
+    root?.addEventListener(EDITOR_NAVIGATION_EVENT, cancel);
+    root?.addEventListener("pointerdown", cancel, { passive: true });
+    root?.addEventListener("wheel", cancel, { passive: true });
+    return () => {
+      root?.removeEventListener(EDITOR_NAVIGATION_EVENT, cancel);
+      root?.removeEventListener("pointerdown", cancel);
+      root?.removeEventListener("wheel", cancel);
+      cancel();
+    };
+  }, [editor]);
+
   const jumpToBookmark = useCallback((bookmark: DocumentBookmark) => {
     if (!editor || editor.isDestroyed) return;
     // An explicit destination wins over the opening session's old scroll offset.
     scrollRef.current?.dispatchEvent(new Event(EDITOR_NAVIGATION_EVENT));
+    const epoch = bookmarkNavigationEpoch.current;
     allHeadingFoldRoundTripRef.current = null;
     const position = Math.max(0, Math.min(editor.state.doc.content.size, bookmark.position));
     expandHeadingFoldsAt(editor, position);
@@ -1507,7 +1517,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
 
     const pulseBookmarkTarget = () => {
       const root = noteEditorRef.current;
-      if (!root || editor.isDestroyed || !root.isConnected) return;
+      if (!root || editor.isDestroyed || !root.isConnected || epoch !== bookmarkNavigationEpoch.current) return;
       if (bookmarkJumpPulseTimerRef.current !== null) {
         window.clearTimeout(bookmarkJumpPulseTimerRef.current);
       }
@@ -1547,7 +1557,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
 
     const scrollBookmarkIntoView = () => {
       const root = scrollRef.current;
-      if (!root || editor.isDestroyed || !root.isConnected) return;
+      if (!root || editor.isDestroyed || !root.isConnected || epoch !== bookmarkNavigationEpoch.current) return;
       const rootRect = root.getBoundingClientRect();
       const stickyBottom = root.querySelector<HTMLElement>(".note-editor-sticky")
         ?.getBoundingClientRect().bottom ?? rootRect.top;
@@ -1800,6 +1810,8 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     if (!editor || editor.isDestroyed) return;
     allHeadingFoldRoundTripRef.current = null;
     const position = Math.min(item.pos + 1, editor.state.doc.content.size);
+    scrollRef.current?.dispatchEvent(new Event(EDITOR_NAVIGATION_EVENT));
+    expandHeadingFoldsAt(editor, position);
     setNavigationSelection(editor, position);
     editor.view.focus();
     setOutlineOpen(false);
@@ -2499,7 +2511,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
 
   useEditorScrollPersistence({ editor, noteId, sensitive, scrollRef, scrollPositionRef, rendererHandoffRef, showStatusBar: statusBar.visible, isMobileToolbarViewport });
 
-  useEditorNavigation(editor, noteId, scrollRef);
+  useEditorNavigation(editor, noteId, scrollRef, workspaceHost?.navigation !== false);
 
   const { chars, words } = documentStats;
 
@@ -2672,7 +2684,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
           e.preventDefault();
           const file = item.getAsFile();
           if (!file) continue;
-          (sensitive ? blobToBase64(file) : storeImage(file)).then((ref) => {
+          (sensitive || workspaceHost?.embedImages ? blobToBase64(file) : storeImage(file)).then((ref) => {
             if (readonlyRef.current || editor.isDestroyed || !editor.isEditable) return;
             const { $from } = editor.state.selection;
             // ResizableImage 是 block node，不能在段落中间插入。
@@ -2686,7 +2698,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
         }
       }
     },
-    [editor, sensitive, pasteMarkdown],
+    [editor, sensitive, pasteMarkdown, workspaceHost?.embedImages],
   );
 
   const handleDrop = useCallback(
@@ -2701,14 +2713,14 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
       for (const file of Array.from(files)) {
         if (file.type.startsWith("image/")) {
           e.preventDefault();
-          (sensitive ? blobToBase64(file) : storeImage(file)).then((ref) => {
+          (sensitive || workspaceHost?.embedImages ? blobToBase64(file) : storeImage(file)).then((ref) => {
             if (readonlyRef.current || editor.isDestroyed || !editor.isEditable) return;
             editor.chain().focus().setResizableImage({ src: ref }).run();
           });
         }
       }
     },
-    [editor, sensitive],
+    [editor, sensitive, workspaceHost?.embedImages],
   );
 
   const insertImageUrl = () => {
@@ -3307,8 +3319,8 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
     } catch { return null; }
   };
   const handleEditorContextMenu = (e: React.MouseEvent) => {
-    let selectedRange = READING_ANNOTATIONS_ENABLED ? readNativeAnnotationSelection() ?? lastReadonlySelectionRef.current : null;
-    if (READING_ANNOTATIONS_ENABLED && !selectedRange && readonly && !editor.state.selection.empty) {
+    let selectedRange = annotationsEnabled ? readNativeAnnotationSelection() ?? lastReadonlySelectionRef.current : null;
+    if (annotationsEnabled && !selectedRange && readonly && !editor.state.selection.empty) {
       selectedRange = { from: editor.state.selection.from, to: editor.state.selection.to };
     }
     annotationContextRangeRef.current = selectedRange;
@@ -3410,6 +3422,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
   };
 
   const copyReference = async (kind: "block" | "position", position?: number) => {
+    if (workspaceHost?.references === false) return;
     const native = document.getSelection();
     if (kind === "position" && native?.anchorNode && native.focusNode && editor.view.dom.contains(native.anchorNode) && editor.view.dom.contains(native.focusNode)) {
       try {
@@ -3907,7 +3920,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
       ...(["formatted", "markdown", "text"] as const).map((mode, index) => ({ label: ["复制内容", "复制 Markdown", "复制纯文本"][index], run: () => {
         void copyDocumentBlock(editor.state.doc, position, mode).then(() => setCopyBlockNotice("已复制此块"), () => setCopyBlockNotice("复制块失败，请重试"));
       } })),
-      { label: "复制块引用", run: () => { void copyReference("block", position); } },
+      ...(workspaceHost?.references === false ? [] : [{ label: "复制块引用", run: () => { void copyReference("block", position); } }]),
       { label: bookmark ? "取消块书签" : "添加块书签", disabled: !bookmark && node.isLeaf, run: () => { if (bookmark) removeBookmark(editor, bookmark.id); else { target(); toggleBookmark(editor); } } },
       { label: "打开块模式", run: () => openBlockWorkspace(editor, position, trigger) },
       { label: "选择多个块", run: () => setSelectedBlockIndexes(new Set([editor.state.doc.resolve(position).index(0)])) },
@@ -4072,7 +4085,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
           style={desktopPanels.pinned("bookmark") ? undefined : documentPanelStyle}
           data-document-preview={!isMobileToolbarViewport && !desktopPanels.pinned("bookmark") || undefined}
           onPointerEnter={desktopPanels.cancel} onPointerLeave={desktopPanels.leave}
-          aria-label={READING_ANNOTATIONS_ENABLED ? "文档书签与高亮标注" : "文档书签"}
+          aria-label={annotationsEnabled ? "文档书签与高亮标注" : "文档书签"}
           onClick={(event) => event.stopPropagation()}
         >
           <div className="document-bookmark-header">
@@ -4208,7 +4221,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
           {epubExcerptSource && onOpenEpubExcerpt && (
             <button type="button" onClick={() => onOpenEpubExcerpt(epubExcerptSource)} title={`返回 ${epubExcerptSource.epubName} · ${epubExcerptSource.chapterTitle}`} aria-label={`返回 EPUB 第 ${epubExcerptSource.chapter} 章`}><FocusModeIcon name="epub" /><span className="focus-source-position" aria-hidden="true">{epubExcerptSource.chapter}</span></button>
           )}
-          {documentViewToggle}
+          {documentViewToggle}{workspaceHost?.titleActions}
           {documentOutline.length > 0 && (
             <button
               ref={focusOutlineTriggerRef}
@@ -4254,7 +4267,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
               aria-label="更多工具"
             ><FocusModeIcon name="tools" /></button>
           )}
-          {!statusBar.navigationInStatus && <NavigationButtons />}
+          {workspaceHost?.navigation !== false && !statusBar.navigationInStatus && <NavigationButtons />}
           <button
             type="button"
             onClick={() => {
@@ -4290,17 +4303,10 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
       {isMobileToolbarViewport ? <>{outlinePanel}{bookmarkPanel}</> : <DesktopDocumentPanels controller={desktopPanels} bookmarkEmpty={bookmarkPanelTotal === 0} outline={outlinePanel} bookmark={bookmarkPanel} />}
       </DocumentPanelDrawer>
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
-      <div className="note-editor-scroll" ref={scrollRef}>
+      <div aria-label={workspaceHost?.bodyLabel} className={`note-editor-scroll ${workspaceHost?.bodyClassName ?? ""}`} ref={scrollRef}>
         <div className="note-editor-sticky">
           {/* ── 标题 ── */}
-        <DocumentTitleBar ref={titleRef}
-          onKeyDown={event => {
-            if (event.key === "Escape" && documentInfoOpen) {
-              event.stopPropagation();
-              clearDocumentInfoCloseTimer();
-              setDocumentInfoOpen(false);
-            }
-          }}>
+        <DocumentTitleBar ref={titleRef}>
           {titleSecurityAction}
           {onReadonlyChange ? (
             <DocumentAccessToggle readonly={Boolean(readonly)}
@@ -4326,52 +4332,15 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
           ) : readonly ? (
             <span className="note-readonly-badge" data-document-readonly="true" title="只读"><ToolbarIcon name="lock" /></span>
           ) : null}
-          {documentInfoOpen && documentCreatedAt && documentUpdatedAt && <DocumentInfoCard
-            className="document-info-card-title-hover"
-            title={localTitle || "无标题"}
-            content={content}
-            createdAt={documentCreatedAt}
-            updatedAt={documentUpdatedAt}
-            lastAccessedAt={documentLastAccessedAt}
-            readonly={readonly}
-            docType={documentType}
-            tags={tags}
-            path={documentPath}
-            onPointerEnter={clearDocumentInfoCloseTimer}
-            onPointerLeave={scheduleDocumentInfoClose}
-          />}
-          <div className="note-title-field"
-            onPointerEnter={handleDocumentTitlePointer}
-            onPointerMove={handleDocumentTitlePointer}
-            onPointerLeave={scheduleDocumentInfoClose}
-            onFocusCapture={() => {
-              clearDocumentInfoCloseTimer();
-              setDocumentInfoOpen(false);
-            }}>
-            {mobileTitleBar && (focusMode || readonly) ? <DocumentTitlePreview key={noteId} title={localTitle || "无标题"}
-              className={saveIssue ? `note-title-save-${saveIssue}` : ""} onOpenProperties={readonly ? onOpenProperties : undefined} /> : <input
-              ref={titleInputRef}
-              type="text"
-              className={`note-title${saveIssue ? ` note-title-save-${saveIssue}` : ""}`}
-              aria-label={(readonly || (unifiedTitleBar && focusMode)) ? "文档属性" : "文档标题"}
-              title={saveIssue ? "修改尚未保存，点击旁边的警告图标查看详情" : undefined}
-              onClick={readonly || (unifiedTitleBar && focusMode) ? onOpenProperties : undefined}
-              aria-haspopup={readonly || (unifiedTitleBar && focusMode) ? "dialog" : undefined}
-              onKeyDown={readonly || (unifiedTitleBar && focusMode) ? event => {
-                if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpenProperties?.(); }
-              } : undefined}
-              placeholder="输入文档标题"
-              value={localTitle}
-              onBlur={finishTitleDraft}
-              onChange={(e) => { setLocalTitle(e.target.value); onTitleChange(e.target.value); }}
-              readOnly={readonly || (unifiedTitleBar && focusMode)}
-            />}
-            {readonlyChangeNotice && (
-              <div className="readonly-change-notice" role="status" aria-live="polite">
-                <span>{readonly ? "已设置为只读" : "已设置为可编辑"}</span>
-              </div>
-            )}
-          </div>
+          <DocumentTitleField title={title || "无标题"} value={localTitle} inputRef={titleInputRef}
+            preview={workspaceHost?.titleEditable === false || mobileTitleBar && (focusMode || Boolean(readonly))}
+            readonly={Boolean(readonly) || unifiedTitleBar && focusMode}
+            className={saveIssue ? `note-title-save-${saveIssue}` : ""}
+            onOpenProperties={mobileTitleBar && !readonly ? undefined : onOpenProperties} onFinish={finishTitleDraft}
+            onValueChange={value => { setLocalTitle(value); if (!workspaceHost?.onRename) onTitleChange(value); }}
+            onCommit={workspaceHost?.onRename} onEnter={() => editor.view.focus()}
+            info={workspaceHost?.info ?? (documentCreatedAt && documentUpdatedAt ? { title: localTitle || "无标题", content, createdAt: documentCreatedAt, updatedAt: documentUpdatedAt, lastAccessedAt: documentLastAccessedAt, readonly, docType: documentType, tags, path: documentPath } : undefined)} />
+          {readonlyChangeNotice && <div className="readonly-change-notice" role="status" aria-live="polite"><span>{readonly ? "已设置为只读" : "已设置为可编辑"}</span></div>}
           {saveIssue && <button type="button" className="focus-btn workspace-error-indicator" aria-label="查看保存错误详情" title="查看保存错误详情" onClick={onOpenSaveIssue}><ToolbarIcon name="warning" /></button>}
           {!showLineNumbers && selectedBlockIndexes.size === 0 && (
             <button type="button" className="focus-btn readonly-copy-block" title="块级操作" aria-label="块级操作" data-title-block-menu="true" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>
@@ -4387,7 +4356,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
           {epubExcerptSource && onOpenEpubExcerpt && (
             <button type="button" className="focus-btn pdf-excerpt-source-button" onClick={() => onOpenEpubExcerpt(epubExcerptSource)} title={`返回 ${epubExcerptSource.epubName} · ${epubExcerptSource.chapterTitle}`}>EPUB · {epubExcerptSource.chapter}</button>
           )}
-          {documentViewToggle}
+          {documentViewToggle}{workspaceHost?.titleActions}
           {documentOutline.length > 0 && (
             <div className="document-outline-control">
               <button
@@ -4421,7 +4390,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
             type="button"
           ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
           {<button type="button" className="focus-btn" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={focusToolbarExpanded} onClick={() => setToolbarExpandedPreference(!focusToolbarExpanded)}><ToolbarIcon name="annotate" /></button>}
-          {!statusBar.navigationInStatus && <NavigationButtons />}
+          {workspaceHost?.navigation !== false && !statusBar.navigationInStatus && <NavigationButtons />}
           {isMobileToolbarViewport && <button
             className={`focus-btn document-focus-toggle ${focusMode ? "active" : ""}`}
             onClick={() => { onFocusModeChange?.(!focusMode); }}
@@ -4565,7 +4534,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
               runToolbarFormat, changeSelectedBlockIndent, handleToggleCodeBlock,
               insertBlankBlockAfterCurrent, hasSelection, convertSelectionFromMarkdown,
               setTableSelection, copySelectedTableCells, clearSelectedTableCells, setTableCellAlignment,
-              handleCopy, handleCopyBlock, copyReference, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf, openEditorReplace,
+              handleCopy, handleCopyBlock, copyReference: workspaceHost?.references === false ? undefined : copyReference, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf, openEditorReplace,
               toggleCurrentBookmark, openDocumentBookmarks, setLinkDialogUrl, setLinkDialog, setImageDialog,
             }}
             editorFontSize={editorFontSize} onEditorFontSizeChange={onEditorFontSizeChange}
@@ -4591,7 +4560,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
           return count > 0 ? <><div className="block-selection-toolbar" role="toolbar" aria-label="块级操作">
             <strong>{count} 块</strong>
             <div className="block-selection-actions"><button type="button" title="复制" aria-label="复制" onClick={() => void copySelectedBlocks()}><ToolbarIcon name="copy" /></button>
-            {count === 1 && <button type="button" title="复制块引用" aria-label="复制块引用" onClick={() => void copyReference("block", blockRangeAtIndex(selectedIndexes()[0]).from)}><ToolbarIcon name="link" /></button>}
+            {count === 1 && workspaceHost?.references !== false && <button type="button" title="复制块引用" aria-label="复制块引用" onClick={() => void copyReference("block", blockRangeAtIndex(selectedIndexes()[0]).from)}><ToolbarIcon name="link" /></button>}
             {!readonly && <>
               <button ref={blockEditButtonRef} type="button" title="编辑" aria-label="编辑" onClick={() => editSelectedBlock(blockEditButtonRef.current)}><ToolbarIcon name="rename" /></button>
               <button type="button" title="剪切" aria-label="剪切" onClick={() => void removeSelectedBlocks(true)}><ToolbarIcon name="cut" /></button>
@@ -4698,6 +4667,8 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
             onBlurCapture={documentHover.onBlurCapture}
             onScrollCapture={documentHover.onScrollCapture}
             onClickCapture={(event) => {
+              if (!(event.target instanceof Element && event.target.closest("button,input,textarea,select"))) workspaceHost?.onClick?.(event);
+              if (event.defaultPrevented) return;
               const marker = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-reading-annotation]") : null;
               const annotation = annotations.find(item => item.id === marker?.dataset.readingAnnotation);
               if (annotation && readonly) {
@@ -4717,6 +4688,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
               if (!id) return;
               event.preventDefault();
               event.stopPropagation();
+              scrollRef.current?.dispatchEvent(new Event(EDITOR_NAVIGATION_EVENT));
               scrollToFootnote(event.currentTarget, id);
             }}
             onPointerDownCapture={closeToolbarDropdowns}
@@ -4764,7 +4736,7 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
       </div>
 
       {/* ── 文档状态栏：本机保存状态、位置统计与诊断/历史入口 ── */}
-      <EditorStatusBar onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} blockPosition={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? { current: currentStatusBlock, total: totalBlocks } : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
+      <EditorStatusBar savedLabel={workspaceHost?.savedLabel} navigation={workspaceHost?.navigation === false ? null : undefined} onCreateDocument={onCreateDocument} enabled={showStatusBar} focusMode={focusMode} saveStatus={saveStatus ?? "clean"} blockPosition={(statusBar.display ? statusBar.items.includes("block") : showStatusBlockNumber) ? { current: currentStatusBlock, total: totalBlocks } : undefined} position="位置 0%" positionRef={scrollPositionRef} characters={chars} words={words} fallbackVisible={searchMatches.length > 0} className={`${showStatusBar ? "" : "editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
         {saveIssue && <button type="button" className="workspace-error-indicator" onClick={onOpenSaveIssue}>保存异常 · 查看详情</button>}
         {searchMatches.length > 0 && !editorFindOpen && (
           <span className="editor-search-navigation" role="status" aria-live="polite">
@@ -4788,9 +4760,10 @@ function FullNoteEditor({ onCreateDocument, onHostEditorReady, onHostSelection, 
         contextSubmenu={contextSubmenu} setContextSubmenu={setContextSubmenu}
         setContextMenu={setContextMenu}
         hasCurrentBookmark={Boolean(currentBookmark)} bookmarkCount={bookmarks.length}
-        annotationSelectionAvailable={READING_ANNOTATIONS_ENABLED && readonly && Boolean(annotationContextRange)}
+        annotationSelectionAvailable={annotationsEnabled && readonly && Boolean(annotationContextRange)}
         onAnnotateSelection={() => { void createSelectedReadingAnnotation(); setAnnotationContextRange(null); }}
-        onCopyReference={copyReference}
+        onCopyReference={workspaceHost?.references === false ? undefined : copyReference}
+        sourceCopy={workspaceHost?.sourceCopy ? { label: workspaceHost.sourceCopy.label, run: async () => { try { await copyToClipboard(workspaceHost.sourceCopy!.read(), { reportFailure: true }); setCopyBlockNotice("已复制原始文本"); } catch { setCopyBlockNotice("复制失败，请重试"); } } } : undefined}
         actions={{ hasSelection, handleCut, handleClipboardPaste, handleCopy, handleCopyBlock, openDocumentBookmarks,
           toggleCurrentBookmark, convertSelectionFromMarkdown, changeSelectedBlockIndent,
           setLinkDialogUrl, setLinkDialog, setImageDialog }}

@@ -42,6 +42,7 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
   const viewer = page.getByRole("region", { name: "本地文件工作区" });
   const area = viewer.locator(".cm-content");
   await expect.poll(async () => (await sourceInfo(area)).value).toBe(markdown);
+  await viewer.getByRole("button", { name: "设为只读", exact: true }).click();
   await viewer.getByRole("button", { name: "渲染", exact: true }).click();
   const rendered = viewer.getByLabel("Markdown 渲染", { exact: true });
   await expect(rendered.locator("h1")).toHaveText("磁盘 Markdown");
@@ -111,21 +112,30 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
   await jump.getByRole("button", { name: "跳转", exact: true }).click();
   await expect(jump).toHaveCount(0);
   await expect(rendered.locator(".ProseMirror > :nth-child(3)")).toHaveClass(/ProseMirror-activeline/);
+  await rendered.evaluate(async element => {
+    let previous = element.scrollTop, stable = 0;
+    for (let frame = 0; frame < 120 && stable < 4; frame++) {
+      await new Promise(requestAnimationFrame);
+      stable = Math.abs(previous - element.scrollTop) < 1 ? stable + 1 : 0;
+      previous = element.scrollTop;
+    }
+  });
   await rendered.getByRole("button", { name: "第 3 块操作", exact: true }).click();
   await page.getByRole("menuitem", { name: "添加块书签", exact: true }).click();
-  await viewer.getByRole("button", { name: "书签", exact: true }).click();
-  const bookmarks = viewer.getByLabel("本地文件书签", { exact: true });
+  await viewer.getByRole("button", { name: "文档书签", exact: true }).click();
+  const bookmarks = viewer.getByRole("navigation", { name: "文档书签", exact: true });
   await expect(bookmarks).toContainText("粗体");
   await rendered.evaluate(element => { element.scrollTop = element.scrollHeight; });
   await bookmarks.getByRole("button").filter({ hasText: "粗体" }).click();
   await expect(rendered.locator(".ProseMirror > :nth-child(3)")).toBeInViewport();
-  await viewer.getByRole("button", { name: "书签", exact: true }).click();
+  await viewer.getByRole("button", { name: "文档书签", exact: true }).click();
   await rendered.getByRole("button", { name: "折叠代码块", exact: true }).click();
   await expect(code).toHaveClass(/collapsed/);
   await rendered.evaluate(element => { element.scrollTop = 0; });
   await rendered.locator(".nr-footnote-reference a").click();
   await expect(rendered.locator(".nr-footnotes")).toBeInViewport();
   const readingTop = await rendered.evaluate(element => element.scrollTop);
+
   await viewer.getByRole("button", { name: "显示源码", exact: true }).click();
   await expect.poll(async () => (await sourceInfo(area)).value).toBe(markdown);
   await viewer.getByRole("button", { name: "渲染", exact: true }).click();
@@ -169,11 +179,13 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
   await expect.poll(async () => (await sourceInfo(area)).value).toBe(markdown);
   await viewer.getByRole("button", { name: "渲染", exact: true }).click();
   await expect(rendered.locator(".ProseMirror > *:visible")).toHaveCount(1);
-  await viewer.getByRole("button", { name: "目录", exact: true }).click();
-  const outline = viewer.getByRole("navigation", { name: "本地文件目录", exact: true });
+  await viewer.getByRole("button", { name: "文档目录", exact: true }).click();
+  const outline = viewer.getByRole("navigation", { name: "文档目录", exact: true });
+  await outline.getByRole("button", { name: "全部展开", exact: true }).click();
   await outline.getByRole("button", { name: "H2 第二节", exact: true }).click();
   await expect(rendered.locator(".ProseMirror > *:visible")).toHaveCount(rowCount);
-  await viewer.getByRole("button", { name: "目录", exact: true }).click();
+  const outlineTrigger = viewer.getByRole("button", { name: "文档目录", exact: true });
+  if (await outlineTrigger.getAttribute("aria-expanded") === "true") await outlineTrigger.click();
   await page.evaluate(async () => {
     const { saveNumberingPreference, readNumberingPreference } = await import("/src/lib/plugin-system/builtin-numbering-display.ts");
     const preference = readNumberingPreference();
@@ -182,7 +194,6 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
   await expect(rendered.locator(".editor-block-number")).toHaveCount(0);
   await expect(chapterFold).toBeVisible();
   await rendered.evaluate(element => { element.scrollTop = 0; });
-  await viewer.getByRole("button", { name: "设为只读", exact: true }).click();
   if (width === 1280) await page.getByRole("button", { name: "专注模式", exact: true }).click();
   else await page.evaluate(async () => (await import("/src/lib/native-menu-registry.ts")).runNativeMenuAction("view.focus"));
   await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
@@ -192,8 +203,8 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
     await rendered.locator("h1").evaluate(element => {
       const rect = element.getBoundingClientRect(), x = rect.left + 30, y = rect.top + 10;
       for (let tap = 0; tap < 2; tap++) {
-        element.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 1, pointerType: "touch", clientX: x, clientY: y, bubbles: true }));
-        element.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1, pointerType: "touch", clientX: x, clientY: y, bubbles: true, cancelable: true }));
+        element.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 1, pointerType: "touch", isPrimary: true, clientX: x, clientY: y, bubbles: true }));
+        element.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1, pointerType: "touch", isPrimary: true, clientX: x, clientY: y, bubbles: true, cancelable: true }));
       }
     });
   }

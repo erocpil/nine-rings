@@ -33,7 +33,9 @@ for (const style of ["classic", "calm", "paper", "minimal", "nine-rings", "mono-
   await tree.locator("input[type=file]").setInputFiles(root);
   await tree.getByRole("button", { name: "spacing.md", exact: true }).click();
   await page.setViewportSize({ width, height: 900 });
-  await page.getByRole("region", { name: "本地文件工作区" }).getByRole("button", { name: "渲染", exact: true }).click();
+  const workspace = page.getByRole("region", { name: "本地文件工作区" });
+  await workspace.getByRole("button", { name: "设为只读", exact: true }).click();
+  await workspace.getByRole("button", { name: "渲染", exact: true }).click();
   const local = page.locator(".markdown-reading-view");
   await expect(local.locator("h1")).toHaveText("标题");
   const metrics = await local.locator(".ProseMirror > *").evaluateAll(rows => rows.map(row => {

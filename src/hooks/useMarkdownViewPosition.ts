@@ -1,7 +1,7 @@
 import { renderedTextGeometry } from "../lib/rendered-text-geometry";
 import { textWeight } from "../lib/delta-content-weight";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { TextSelection, NodeSelection } from "@tiptap/pm/state";
 import type { Editor } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/core";
@@ -46,12 +46,14 @@ function blockElement(
 }
 
 /** A per-document transient handoff, separate from persistent last-open scroll state. */
-export function useMarkdownViewPosition(
+export function useMarkdownViewPosition<T extends HTMLElement = HTMLDivElement>(
   noteId: string,
   showingSource: boolean,
   sensitive = false,
+  externalHost?: RefObject<T>,
 ) {
-  const host = useRef<HTMLDivElement>(null);
+  const ownHost = useRef<T>(null);
+  const host = externalHost ?? ownHost;
   const area = useRef<SourceEditorHandle | null>(null);
   const [sourceHandle, onSourceReady] = useState<SourceEditorHandle | null>(
     null,
@@ -75,6 +77,11 @@ export function useMarkdownViewPosition(
     sourceTop?: number;
     selection?: number;
     selectionApplied?: boolean;
+    renderedTop?: number;
+    renderedWidth?: number;
+    renderedHeight?: number;
+    renderedFont?: string;
+    nested?: { block: number; index: number; top: number; left: number }[];
   } | null>(null);
   const lastSource = useRef<{
     source: string;
@@ -82,6 +89,20 @@ export function useMarkdownViewPosition(
     weight: number;
   } | null>(null);
 
+  const nestedSelector = ".blockquote-content, pre, .tableWrapper, .flow-block-content";
+  const renderedRoundTrip = useRef<{ source: string; top: number; width: number; height: number; font: string; touched: boolean; nested: { block: number; index: number; top: number; left: number }[] } | null>(null);
+  const applyingSourceHandoff = useRef(false);
+  useLayoutEffect(() => {
+    if (!showingSource || !sourceHandle) return;
+    const touched = () => { if (renderedRoundTrip.current && !applyingSourceHandoff.current) renderedRoundTrip.current.touched = true; };
+    const view = sourceHandle.view;
+    for (const event of ["pointerdown", "keydown", "nr:editor-navigation"]) view.contentDOM.addEventListener(event, touched);
+    for (const event of ["wheel", "touchstart", "pointerdown"]) view.scrollDOM.addEventListener(event, touched, { passive: true });
+    return () => {
+      for (const event of ["pointerdown", "keydown", "nr:editor-navigation"]) view.contentDOM.removeEventListener(event, touched);
+      for (const event of ["wheel", "touchstart", "pointerdown"]) view.scrollDOM.removeEventListener(event, touched);
+    };
+  }, [showingSource, sourceHandle]);
   const toSource = (
     source: string,
     doc: JSONContent,
@@ -91,6 +112,7 @@ export function useMarkdownViewPosition(
     const container = host.current;
     const root = container?.querySelector<HTMLElement>(".note-editor-scroll");
     let weight = 0;
+    renderedRoundTrip.current = root ? { source, top: root.scrollTop, width: root.clientWidth, height: root.clientHeight, font: getComputedStyle(root.querySelector(".ProseMirror") ?? root).font, touched: false, nested: [] } : null;
     if (container && root) {
       const top = viewportTop(root);
       const entries = renderedTextblockMap(doc);
@@ -101,6 +123,12 @@ export function useMarkdownViewPosition(
             ...(container.querySelector(".editor-content .ProseMirror")
               ?.children ?? []),
           ];
+      for (const [index, block] of elements.entries()) {
+        const number = virtual ? Number(block.getAttribute("data-block-number")) - 1 : index;
+        block.querySelectorAll<HTMLElement>(nestedSelector).forEach((element, index) => {
+          if (element.scrollTop || element.scrollLeft) renderedRoundTrip.current?.nested.push({ block: number, index, top: element.scrollTop, left: element.scrollLeft });
+        });
+      }
       const groups = new Map<number, typeof entries>();
       for (const entry of entries) {
         const group = groups.get(entry.index) ?? [];
@@ -147,7 +175,9 @@ export function useMarkdownViewPosition(
   const toRendered = (source: string, doc: JSONContent) => {
     const input = area.current;
     const previous = lastSource.current;
-    const weight = input
+    const roundTrip = renderedRoundTrip.current;
+    const unchanged = roundTrip && !roundTrip.touched && roundTrip.source === source;
+    const weight = unchanged && pending.current?.source === source ? pending.current.weight : input
       ? previous?.source === source &&
         Math.abs(previous.scrollTop - input.scrollTop) < 1
         ? previous.weight
@@ -176,6 +206,11 @@ export function useMarkdownViewPosition(
       weight,
       doc,
       selection,
+      renderedTop: unchanged ? roundTrip.top : undefined,
+      renderedWidth: unchanged ? roundTrip.width : undefined,
+      renderedHeight: unchanged ? roundTrip.height : undefined,
+      renderedFont: unchanged ? roundTrip.font : undefined,
+      nested: unchanged ? roundTrip.nested : undefined,
     };
   };
 
@@ -235,7 +270,7 @@ export function useMarkdownViewPosition(
           anchor.selectionApplied = true;
         }
         if (anchor.sourceTop !== undefined) input.scrollTop = anchor.sourceTop;
-        else input.scrollToOffset(sourceOffset);
+        else { applyingSourceHandoff.current = true; try { input.scrollToOffset(sourceOffset); } finally { applyingSourceHandoff.current = false; } }
         top = input.scrollTop;
         lastSource.current =
           anchor.sourceTop !== undefined
@@ -251,7 +286,16 @@ export function useMarkdownViewPosition(
         );
         const element =
           target && blockElement(container, target.index, target.textblock);
-        if (root && element && target) {
+        if (root && anchor.renderedTop !== undefined && root.clientWidth === anchor.renderedWidth && root.clientHeight === anchor.renderedHeight && getComputedStyle(root.querySelector(".ProseMirror") ?? root).font === anchor.renderedFont) {
+          let ready = true;
+          for (const entry of anchor.nested ?? []) {
+            const block = blockElement(container, entry.block, null);
+            const element = block?.querySelectorAll<HTMLElement>(nestedSelector)[entry.index];
+            if (!element) { ready = false; continue; }
+            element.scrollTop = entry.top; element.scrollLeft = entry.left;
+          }
+          if (ready) { root.scrollTop = anchor.renderedTop; top = root.scrollTop; }
+        } else if (root && element && target) {
           const rect = element.getBoundingClientRect();
           if (rect.height > 0) {
             const fraction = Math.max(
@@ -307,7 +351,10 @@ export function useMarkdownViewPosition(
       for (const event of ["wheel", "touchstart", "pointerdown", "keydown"])
         container.removeEventListener(event, stop);
     };
-  }, [showingSource, noteId]);
+  }, [showingSource, noteId, host]);
+  useLayoutEffect(() => {
+    if (!sensitive) patchReadingState(noteId, { view: showingSource ? "source" : "rendered" });
+  }, [noteId, showingSource, sensitive]);
   useLayoutEffect(() => {
     if (sensitive) return;
     if (!showingSource) return;
@@ -320,7 +367,7 @@ export function useMarkdownViewPosition(
     const flush = () => {
       window.clearTimeout(timer);
       timer = 0;
-      patchReadingState(noteId, { view: "source", source: { scrollTop: top } });
+      patchReadingState(noteId, { source: { scrollTop: top } });
     };
     const captureAndFlush = () => {
       if (host.current?.isConnected && !host.current.closest("[inert]") && host.current.clientHeight > 0)
@@ -352,7 +399,7 @@ export function useMarkdownViewPosition(
       document.removeEventListener("visibilitychange", hidden);
       flush();
     };
-  }, [noteId, showingSource, sensitive, sourceHandle]);
+  }, [noteId, showingSource, sensitive, sourceHandle, host]);
   const onRenderedReady = (editor: Editor | null) => {
     const anchor = pending.current;
     if (

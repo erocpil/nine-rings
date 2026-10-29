@@ -84,6 +84,6 @@ test("本地 Markdown 可切换两种布局，并保留源码实例、书签和�
   expect(await area.evaluate(element => element === (window as any).workspaceEditorElement)).toBe(true);
   expect((await sourceInfo(area)).value).toBe("# 本地章节\n\n保留本地原文\n");
   await viewer.getByRole("button", { name: "渲染", exact: true }).click();
-  await expect(viewer.locator(".local-file-preview h1")).toHaveText("本地章节");
-  await expect(outline).toBeVisible();
+  await expect(viewer.locator(".markdown-reading-view h1")).toHaveText("本地章节");
+  await expect(viewer.getByRole("navigation", { name: "文档目录", exact: true })).toBeVisible();
 });

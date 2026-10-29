@@ -1,7 +1,19 @@
-import { DocumentTitlePreview } from "./DocumentTitlePreview";
+import { DocumentResourceContext } from "./DocumentResourceContext";
+import { DocumentTitleField } from "./DocumentTitleField";
+import { useDocumentTitleDraft } from "../hooks/useDocumentTitleDraft";
+import { consumeRenamedFileFocus, renameLocalDocument } from "../lib/local-files/rename";
+import { DocumentPreviewControls } from "./DocumentPreviewControls";
+import { MarkdownSplitPreview } from "./MarkdownSplitPreview";
+import { useDocumentPreview } from "../hooks/useDocumentPreview";
+import { useMarkdownViewPosition } from "../hooks/useMarkdownViewPosition";
+import { useMobileViewport } from "../hooks/useEdgeDrawer";
+import { writeDocumentSource } from "../lib/document-source";
+import { deltaToProseMirror } from "../lib/delta-converter";
+import type { Editor } from "@tiptap/core";
+import { patchReadingState, readReadingState } from "../lib/reading-state";
+import { LocalMarkdownWorkspace, type LocalRenderedFlush } from "./LocalMarkdownWorkspace";
 import { DocumentTitleBar, DocumentAccessToggle } from "./DocumentChrome";
 import { DocumentNavigationWorkspace } from "./DocumentNavigationWorkspace";
-import { sessionHeadingFoldStore } from "../lib/heading-fold";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
@@ -11,15 +23,13 @@ import { localFileSessions, localFileSessionEpoch, registerLocalFileCheckpoint, 
 import { readLocalFilePosition, saveLocalFilePosition } from "../lib/local-files/position";
 import { isLocalFileReadOnly, LOCAL_FILE_ACCESS_CHANGED_EVENT, setLocalFileReadOnly } from "../lib/local-files/access";
 import type { LocalFileViewData } from "../lib/plugin-system/main-view-registry";
-import { AUTO_DOCUMENT_LANGUAGE, documentLanguageFromFilename, documentLanguageViewOptions, saveSourceViewLanguageOverride, sourceViewLanguageOverride } from "../lib/document-language";
+import { AUTO_DOCUMENT_LANGUAGE, DOCUMENT_LANGUAGE_OPTIONS, documentLanguageFromFilename, documentLanguageViewOptions, saveSourceViewLanguageOverride, sourceViewLanguageOverride } from "../lib/document-language";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import type { AppConfig } from "../types/models";
 import { DocumentSourceSurface } from "./DocumentSourceSurface";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { TextDiffView } from "./TextDiffView";
-import { parseFlowDocument } from "./FlowBlockContent";
 import { SourceDocumentPreview } from "./SourceDocumentPreview";
-import { MARKDOWN_READING_NAVIGATE_EVENT, MarkdownReadingView, type MarkdownReadingSession } from "./MarkdownReadingView";
 import { LOCAL_FILE_VIEW_ID } from "../lib/plugin-system/builtin-local-files";
 import { mainViews } from "../lib/plugin-system/main-view-registry";
 import { workspacePanels } from "../lib/plugin-system/panel-registry";
@@ -50,10 +60,13 @@ function loadSymbolFolds(identity: string) {
   } catch { return new Set<string>(); }
 }
 
-export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange, active, focusMode, readonlyHeadingFoldInFocusMode = true, defaultCodeBlockWrap = true, cjkLatinSpacing = true }: {
+export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false, useCustomContextMenu = true, showStatusBlockNumber = true, highlightActiveLine, showLineNumbers, showStatusBar, onEditorConfigChange, active, focusMode, readonlyHeadingFoldInFocusMode = true, defaultCodeBlockWrap = true, cjkLatinSpacing = true }: {
   data: Readonly<LocalFileViewData>;
   onClose: () => void;
   fontSize: number;
+  vimModeEnabled?: boolean;
+  useCustomContextMenu?: boolean;
+  showStatusBlockNumber?: boolean;
   highlightActiveLine: boolean;
   showLineNumbers: boolean;
   showStatusBar: boolean;
@@ -67,14 +80,15 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const moreToolsPreference = useFocusEditorTools(state => state.expanded);
   const setMoreTools = useFocusEditorTools(state => state.setExpanded);
   const moreTools = moreToolsPreference ?? !focusMode;
-  useNativeMenuActions({
-    "view.tools": { run: () => setMoreTools(!moreTools), checked: moreTools },
-  }, active);
   const identity = `${data.rootId}:${data.nodeId}`;
+  const renameFocus = useRef(consumeRenamedFileFocus(identity));
   const editorSession = useRef<EditorState | null>(null);
   const sourceHandle = useRef<SourceEditorHandle | null>(null);
   const localViewRef = useRef<HTMLElement>(null);
   const sourceRef = useRef("");
+  const renderedFlush = useRef<LocalRenderedFlush | null>(null);
+  const registerRenderedFlush = useCallback((value: LocalRenderedFlush | null) => { renderedFlush.current = value; }, []);
+  const [renderEpoch, setRenderEpoch] = useState(0);
   const sessionEpochRef = useRef(localFileSessionEpoch);
   const [editorHandle, setEditorHandle] = useState<SourceEditorHandle | null>(null);
   const restoredScroll = useRef(false);
@@ -90,11 +104,15 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const [externalSnapshot, setExternalSnapshot] = useState<LocalFileSnapshot | null>(null);
   const [readOnly, setReadOnly] = useState(() => isLocalFileReadOnly(data.rootId, data.nodeId));
   const editing = !readOnly;
-  const [preview, setPreview] = useState(false);
-  const readingSession = useMemo<MarkdownReadingSession>(() => ({ identity, source, scrollTop: 0, states: new Map(), foldedHeadings: new Set(sessionHeadingFoldStore.load(`local-file:${identity}`)?.collapsedKeys ?? []) }), [identity, source]);
+  const [preview, setPreview] = useState(() => readReadingState(`local-file:${identity}`).view === "rendered");
+  const previewState = useDocumentPreview();
+  const mobile = useMobileViewport();
+  const viewPosition = useMarkdownViewPosition<HTMLElement>(`local-file:${identity}`, !preview, false, localViewRef);
+  const renderedEditor = useRef<Editor | null>(null);
+  const sourceHandoff = useRef(false);
+  const { onSourceReady, area: handoffArea } = viewPosition;
   const [saveState, setSaveState] = useState<"clean" | "dirty" | "saving" | "saved" | "error">("clean");
   const [recoveryNotice, setRecoveryNotice] = useState("");
-  const [previewSource, setPreviewSource] = useState("");
   const [previewError, setPreviewError] = useState("");
   const latestDraft = useRef<{ source: string; base: LocalFileSnapshot | null }>({ source: "", base: null });
   const [error, setError] = useState("");
@@ -107,11 +125,19 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const languageOverrideIdentity = `local-file:${identity}`;
   const [languageOverride, setLanguageOverride] = useState<string | null>(() => sourceViewLanguageOverride(languageOverrideIdentity));
   const language = languageOverride ?? detectedLanguage;
+  const titleInput = useRef<HTMLInputElement>(null);
+  const titleDraft = useDocumentTitleDraft(data.name, titleInput);
+  const canRename = localFileService.canRename(data.rootId);
+  const rename = async (name: string) => { renderedFlush.current?.flush(); await renameLocalDocument(data.rootId, data.nodeId, name); };
+  const fileInfo = { title: data.name, contentBytes: baseSnapshot?.size ?? 0, updatedAt: baseSnapshot?.modifiedMs ? new Date(baseSnapshot.modifiedMs).toISOString() : undefined,
+    readonly: readOnly, tags: [], path: data.nodeId, format: DOCUMENT_LANGUAGE_OPTIONS.find(item => item.value === language)?.label ?? language };
+
   latestDraft.current = { source, base: baseSnapshot };
   const saveBusy = useRef(false);
   const savingOperation = useRef(false);
   saveBusy.current = saveState === "saving";
   useEffect(() => registerLocalFileCheckpoint(identity, async () => {
+    renderedFlush.current?.flush();
     const handle = sourceHandle.current;
     if (handle && !restoringPosition.current && handle.view.scrollDOM.clientHeight > 0) {
       saveLocalFilePosition(identity, localFilePosition(handle));
@@ -129,7 +155,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     throw new Error("文件在关闭准备期间持续变化，请停止输入后重试。");
   }), [identity]);
   useEffect(() => {
-    setLocalFileDirty(identity, Boolean(baseSnapshot && source !== baseSnapshot.source) || saveState === "saving");
+    setLocalFileDirty(identity, Boolean(baseSnapshot && source !== baseSnapshot.source) || saveState === "saving" || Boolean(renderedFlush.current?.pending()));
     return () => setLocalFileDirty(identity, false);
   }, [identity, saveState, baseSnapshot, source]);
 
@@ -174,6 +200,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       setBaseSnapshot(draft && draft.source !== snapshot.source && draft.baseRevision !== snapshot.revision
         ? { ...snapshot, source: draft.baseSource, revision: draft.baseRevision, bom: draft.bom, lineEnding: draft.lineEnding }
         : snapshot);
+      setRenderEpoch(value => value + 1);
       setSource(shown);
       setSaveState(shown === snapshot.source ? "clean" : "dirty");
       if (recovered) {
@@ -222,6 +249,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   useEffect(() => { if (data.location) setPreview(false); }, [data.location]);
   useEffect(() => {
     if (!baseSnapshot) return;
+    let cancelled = false;
     const timer = window.setInterval(() => {
       if (document.visibilityState === "hidden") return;
       void localFileService.stat(data.rootId, data.nodeId).then(fingerprint => {
@@ -231,14 +259,16 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
         deepFileCheckAt.current = now;
         return localFileService.readSnapshot(data.rootId, data.nodeId);
       }).then(next => {
-        if (!next || next.revision === baseSnapshot.revision) return;
+        if (cancelled || latestDraft.current.base !== baseSnapshot || !next || next.revision === baseSnapshot.revision) return;
+        renderedFlush.current?.flush();
         if (sourceRef.current === baseSnapshot.source) {
+          setRenderEpoch(value => value + 1);
           setBaseSnapshot(next); setSource(next.source); sourceRef.current = next.source; editorSession.current = null; setExternalSnapshot(null); setSaveState("clean");
           setRecoveryNotice("检测到磁盘文件变化，已重新载入并保留阅读位置。");
         } else setExternalSnapshot(next);
-      }).catch(reason => setRecoveryNotice(`本地文件不可访问：${String(reason)}`));
+      }).catch(reason => { if (!cancelled) setRecoveryNotice(`本地文件不可访问：${String(reason)}`); });
     }, 3000);
-    return () => window.clearInterval(timer);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [baseSnapshot, data.rootId, data.nodeId]);
   const bindHandle = useCallback((handle: SourceEditorHandle | null) => {
     const previous = sourceHandle.current;
@@ -252,11 +282,15 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       while (localFileSessions.size > 3) localFileSessions.delete(localFileSessions.keys().next().value!);
     }
     sourceHandle.current = handle;
+    handoffArea.current = handle;
+    onSourceReady(handle);
     setEditorHandle(handle);
+    if (handle && renameFocus.current) { renameFocus.current = false; requestAnimationFrame(() => { if (sourceHandle.current === handle) handle.focus(); }); }
     if (!handle) {
       restorePositionCleanup.current?.(); restorePositionCleanup.current = null;
       restoredScroll.current = false; restoringPosition.current = false; return;
     }
+    if (sourceHandoff.current) { sourceHandoff.current = false; restoredScroll.current = true; return; }
     const requested = searchLocation.current, base = latestDraft.current.base;
     if (requested && requested !== appliedSearchLocation.current && requested.revision === base?.revision && sourceRef.current === base.source) return;
     const cached = localFileSessions.get(identity);
@@ -304,7 +338,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
         },
       });
     }) });
-  }, [identity]);
+  }, [identity, handoffArea, onSourceReady]);
   useEffect(() => {
     if (!editorHandle) return;
     const persistPosition = () => {
@@ -336,16 +370,12 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
 
   const jump = (offset: number) => {
     const handle = sourceHandle.current;
-    if (preview) {
-      const position = renderedNavigation.blockAt(offset)?.position ?? 0;
-      localViewRef.current?.querySelector(".markdown-reading-view")?.dispatchEvent(new CustomEvent(MARKDOWN_READING_NAVIGATE_EVENT, { detail: { position } }));
-      return;
-    }
     if (!handle) return;
     const at = Math.max(0, Math.min(handle.value.length, offset));
     handle.setSelectionRange(at, at); handle.scrollToOffset(at, true); setActiveOffset(at); handle.focus();
   };
   const save = useCallback(async (overwriteExternal = false) => {
+    renderedFlush.current?.flush();
     if (savingOperation.current) return false;
     if (isLocalFileReadOnly(data.rootId, data.nodeId)) {
       setError("此本地文件当前为只读。请先在文件树右键菜单中切换为可编辑。");
@@ -360,6 +390,7 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       const savingSource = sourceHandle.current?.value ?? sourceRef.current;
       const saved = await localFileService.write(data.rootId, data.nodeId, savingSource, base);
       setBaseSnapshot(saved); setExternalSnapshot(null);
+      renderedFlush.current?.flush();
       const currentSource = sourceRef.current;
       if (currentSource === savingSource) {
         setSaveState("saved"); setRecoveryNotice("文件已保存到磁盘。");
@@ -387,8 +418,9 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
     return (await save()) === true;
   }), [identity, save]);
   const saveCopy = async () => {
+    renderedFlush.current?.flush();
     try {
-      const result = await localFileService.saveAs(data.name, source, baseSnapshot);
+      const result = await localFileService.saveAs(data.name, sourceRef.current, baseSnapshot);
       if (result === "saved") { setRecoveryNotice("已另存为副本；原文件未改变。"); return; }
       if (result === "cancelled") return;
     } catch (reason) { setError(`另存为失败：${String(reason)}`); return; }
@@ -415,33 +447,6 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
   const isMermaid = language === "mermaid";
   const isFlow = language === "flow";
   useEffect(() => { if (!isMarkdown && !isMermaid && !isFlow) setPreview(false); }, [isMarkdown, isMermaid, isFlow]);
-  useEffect(() => {
-    if (!preview || !isMarkdown) { setPreviewSource(source); setPreviewError(""); return; }
-    let cancelled = false;
-    const imagePattern = /!\[([^\]]*)\]\((?:<([^>]+)>|([^\s)]+))(?:\s+[^)]*)?\)/g;
-    const replacements: Array<{ before: string; after: string }> = [];
-    void (async () => {
-      for (const match of source.matchAll(imagePattern)) {
-        const href = match[2] ?? match[3] ?? "";
-        if (!href || /^(?:[a-z][a-z0-9+.-]*:|\/\/|\/|#)/i.test(href)) continue;
-        try {
-          const node = resolveRelativeNode(data.nodeId, href);
-          const uri = await localFileService.readImageAsset(data.rootId, node);
-          replacements.push({ before: match[0], after: match[0].replace(href, uri) });
-        } catch { /* leave unavailable or out-of-root images as normal broken references */ }
-      }
-      if (cancelled) return;
-      let result = source;
-      for (const replacement of replacements) result = result.replace(replacement.before, replacement.after);
-      setPreviewSource(result); setPreviewError("");
-    })().catch(error => { if (!cancelled) { setPreviewSource(source); setPreviewError(String(error)); } });
-    return () => { cancelled = true; };
-  }, [data.nodeId, data.rootId, isMarkdown, preview, source]);
-  const markdownDoc = useMemo(() => {
-    if (!preview || !isMarkdown) return null;
-    try { return parseFlowDocument(previewSource); } catch { return null; }
-  }, [isMarkdown, preview, previewSource]);
-  const renderedNavigation = useMemo(() => new SourceNavigationDocument(source, [], undefined), [source]);
   const navigationRevision = useMemo(() => new SourceNavigationDocument(source, [], { sourceLanguage: language }), [source, language]);
   const navigationBookmarks = useMemo(() => bookmarks.map(bookmark => ({ id: String(bookmark.offset), position: bookmark.offset, offset: bookmark.offset, blockNumber: bookmark.line, label: bookmark.label, preview: bookmark.label })), [bookmarks]);
   const scrollLocalDocumentTo = (target: "top" | "middle" | "bottom") => {
@@ -462,6 +467,26 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       mainViews.bind(workspacePanels.assert("files")).open(LOCAL_FILE_VIEW_ID, { rootId: data.rootId, nodeId, name });
     } catch (reason) { setPreviewError(String(reason)); }
   };
+  const resolveResource = useCallback(async (href: string) => {
+    if (!href || /^(?:[a-z][a-z0-9+.-]*:|\/\/|\/|#)/i.test(href)) return null;
+    return localFileService.readImageAsset(data.rootId, resolveRelativeNode(data.nodeId, href));
+  }, [data.rootId, data.nodeId]);
+  const changeView = () => {
+    renderedFlush.current?.flush();
+    const text = sourceRef.current;
+    const doc = deltaToProseMirror(writeDocumentSource(text, "markdown"));
+    if (preview) {
+      sourceHandoff.current = true;
+      viewPosition.toSource(text, doc, undefined, renderedEditor.current?.state.selection.from);
+    } else viewPosition.toRendered(text, doc);
+    patchReadingState(`local-file:${identity}`, { view: preview ? "source" : "rendered" });
+    setPreview(value => !value);
+  };
+  useNativeMenuActions({
+    "view.tools": { run: () => setMoreTools(!moreTools), checked: moreTools },
+    "document.source": { run: isMarkdown ? changeView : () => setPreview(value => !value), checked: !preview, enabled: !loading && (isMarkdown || isMermaid || isFlow) },
+    "document.readonly": { run: () => setLocalFileReadOnly(data.rootId, data.nodeId, !readOnly), checked: readOnly, enabled: !loading },
+  }, active);
   const toggleBookmark = (offset?: number) => {
     const at = Math.max(0, Math.min(source.length, offset ?? sourceHandle.current?.selectionStart ?? activeOffset));
     const from = at > 0 ? source.lastIndexOf("\n", at - 1) + 1 : 0;
@@ -474,41 +499,66 @@ export function LocalFileView({ data, onClose, fontSize, highlightActiveLine, sh
       return [...current, { offset: from, line: number, label: text.trim() || `第 ${number} 行` }].sort((left, right) => left.offset - right.offset);
     });
   };
-  return <section ref={localViewRef} className="local-file-view" aria-label="本地文件工作区" data-tools-hidden={!moreTools || undefined}>
-    <DocumentNavigationWorkspace key={identity} origin="local" active={active && !loading && !error} className="local-file-workspace"
-      revision={navigationRevision} sourceHandle={preview ? null : editorHandle} currentOffset={activeOffset} bookmarkItems={navigationBookmarks}
-      symbolFoldIds={foldedSymbols} onSymbolFoldIdsChange={setFoldedSymbols} onScrollDocument={scrollLocalDocumentTo}
-      onJump={jump} onToggleBookmark={toggleBookmark}
-      onRemoveBookmark={id => setBookmarks(current => current.filter(item => String(item.offset) !== id))}
-      onRenameBookmark={(id, label) => setBookmarks(current => current.map(item => String(item.offset) === id ? { ...item, label: label.trim() || source.split("\n")[item.line - 1]?.trim() || `第 ${item.line} 行` } : item))}>
-      {(controls, navigation) => <>
-    <DocumentTitleBar className="local-files-toolbar local-file-titlebar"><DocumentAccessToggle readonly={readOnly} title={editing ? "设为只读" : "允许编辑"} aria-label={editing ? "设为只读" : "允许编辑"} onClick={() => setLocalFileReadOnly(data.rootId, data.nodeId, !readOnly)} /><div className="note-title-field" title={data.nodeId}><DocumentTitlePreview title={data.name} /></div><span>{saveState === "saving" ? "正在保存…" : saveState === "dirty" ? "未保存" : saveState === "saved" ? "已保存" : "本地文件 · 不参与备份"}</span>
-      {editing && <button type="button" className="btn-icon" title={localFileService.canSaveOriginal(data.rootId) ? "保存到原文件（⌘S / Ctrl+S）" : "目录快照不能覆盖原文件，请另存为"} aria-label="保存文件" disabled={!baseSnapshot || !localFileService.canSaveOriginal(data.rootId) || saveState === "saving" || source === baseSnapshot.source} onClick={() => void save()}><ToolbarIcon name="save" /></button>}
-      <button type="button" className="btn-icon" title="另存为副本" aria-label="另存为副本" onClick={saveCopy}><ToolbarIcon name="download" /></button>
-      {(isMarkdown || isMermaid || isFlow) && <button type="button" className="btn-icon" title={preview ? "切换到源码模式" : "切换到渲染模式（编辑请使用源码）"} aria-label={preview ? "显示源码" : "渲染"} aria-pressed={preview} onClick={() => setPreview(value => !value)}><ToolbarIcon name={preview ? "code" : "eye"} /></button>}
-      {(!preview || isMarkdown) && <button type="button" className="btn-icon" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(!moreTools)}><ToolbarIcon name="annotate" /></button>}
-      {controls}
-      <button type="button" className="btn-icon" title="重新读取原文件" aria-label="重新读取原文件" disabled={loading} onClick={() => { editorSession.current = null; setReload(value => value + 1); }}><ToolbarIcon name="refresh" /></button>
-      <button type="button" className="btn-icon" title="返回原视图" aria-label="返回原视图" onClick={onClose}><ToolbarIcon name="chevronLeft" /></button>
-    </DocumentTitleBar>
+  const fileNotices = <>
     {recoveryNotice && <p role="status" className="local-files-message">{recoveryNotice}<button type="button" onClick={() => setRecoveryNotice("")} aria-label="关闭提示">×</button></p>}
     {loading && <p role="status" className="local-files-message">正在读取文件…</p>}
     {error && <p role="alert" className="local-files-message">{error}</p>}
     {externalSnapshot && <section className="local-file-conflict" aria-label="文件冲突处理"><strong>磁盘文件已发生变化</strong><p>当前编辑和磁盘版本均已保留。比较后选择重载，或明确覆盖磁盘版本。</p>
       <TextDiffView left={externalSnapshot.source} right={source} leftLabel="磁盘版本" rightLabel="本机编辑" />
-      <div><button type="button" onClick={() => { setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
+      <div><button type="button" onClick={() => { setRenderEpoch(value => value + 1); editorSession.current = null; setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
     </section>}
+  </>;
+  if (preview && isMarkdown && baseSnapshot && !loading) return <section ref={localViewRef} className="local-file-view" aria-label="本地文件工作区">
+    {fileNotices}
+    <LocalMarkdownWorkspace key={`${identity}:${renderEpoch}`} identity={identity} source={source} title={data.name} active={active}
+      readonly={readOnly} focusMode={focusMode} fontSize={fontSize} vimModeEnabled={vimModeEnabled} useCustomContextMenu={useCustomContextMenu} showStatusBlockNumber={showStatusBlockNumber} highlightActiveLine={highlightActiveLine}
+      showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} defaultCodeBlockWrap={defaultCodeBlockWrap}
+      cjkLatinSpacing={cjkLatinSpacing} readonlyHeadingFoldInFocusMode={readonlyHeadingFoldInFocusMode}
+      onEditorConfigChange={onEditorConfigChange} onRename={canRename && !readOnly ? rename : undefined} info={fileInfo} bookmarks={bookmarks} onBookmarksChange={setBookmarks}
+      onSourceChange={value => { sourceRef.current = value; latestDraft.current.source = value; setSource(value); }}
+      onPending={() => { setSaveState(current => current === "saving" ? "saving" : "dirty"); setLocalFileDirty(identity, true); }}
+      onRegisterFlush={registerRenderedFlush} onEditorReady={editor => { renderedEditor.current = editor; viewPosition.onRenderedReady(editor); if (editor && renameFocus.current) { renameFocus.current = false; editor.view.focus(); } }} onClick={openRelative} resolveResource={resolveResource}
+      onReadonlyChange={value => setLocalFileReadOnly(data.rootId, data.nodeId, value)} saveStatus={saveState}
+      viewToggle={<button type="button" className="focus-btn" aria-label="显示源码" title="切换到源码模式" onPointerDown={event => event.preventDefault()} onMouseDown={event => event.preventDefault()} onClick={changeView}><ToolbarIcon name="code" /></button>}
+      titleActions={<>
+        {editing && <button type="button" className="focus-btn" aria-label="保存文件" title="保存到原文件" disabled={!localFileService.canSaveOriginal(data.rootId) || saveState === "saving" || (source === baseSnapshot.source && !renderedFlush.current?.pending())} onClick={() => void save()}><ToolbarIcon name="save" /></button>}
+        <button type="button" className="focus-btn" aria-label="另存为副本" title="另存为副本" onClick={saveCopy}><ToolbarIcon name="download" /></button>
+        <button type="button" className="focus-btn" aria-label="重新读取原文件" title="重新读取原文件" onClick={() => { renderedFlush.current?.flush(); editorSession.current = null; setReload(value => value + 1); }}><ToolbarIcon name="refresh" /></button>
+        <button type="button" className="focus-btn" aria-label="返回原视图" title="返回原视图" onClick={onClose}><ToolbarIcon name="chevronLeft" /></button>
+      </>}
+    />
+  </section>;
+  return <section ref={localViewRef} className="local-file-view" aria-label="本地文件工作区" data-tools-hidden={!moreTools || undefined}>
+    <DocumentNavigationWorkspace key={identity} origin="local" active={active && !preview && !loading && !error} className="local-file-workspace"
+      revision={navigationRevision} sourceHandle={preview ? null : editorHandle} currentOffset={activeOffset} bookmarkItems={navigationBookmarks}
+      symbolFoldIds={foldedSymbols} onSymbolFoldIdsChange={setFoldedSymbols} onScrollDocument={scrollLocalDocumentTo}
+      onJump={jump} onToggleBookmark={toggleBookmark}
+      onRemoveBookmark={id => setBookmarks(current => current.filter(item => String(item.offset) !== id))}
+      onRenameBookmark={(id, label) => setBookmarks(current => current.map(item => String(item.offset) === id ? { ...item, label: label.trim() || source.split("\n")[item.line - 1]?.trim() || `第 ${item.line} 行` } : item))}>
+      {controls => <>
+    <DocumentTitleBar className="local-files-toolbar local-file-titlebar"><DocumentAccessToggle readonly={readOnly} title={editing ? "设为只读" : "允许编辑"} aria-label={editing ? "设为只读" : "允许编辑"} onClick={() => setLocalFileReadOnly(data.rootId, data.nodeId, !readOnly)} /><DocumentTitleField title={data.name} value={titleDraft.draft} inputRef={titleInput} preview={readOnly || !canRename} readonly={readOnly}
+      onValueChange={titleDraft.setDraft} onFinish={titleDraft.finish} onCommit={rename} onEnter={() => sourceHandle.current?.focus()} info={fileInfo} /><span>{saveState === "saving" ? "正在保存…" : saveState === "dirty" ? "未保存" : saveState === "saved" ? "已保存" : "本地文件 · 不参与备份"}</span>
+      {editing && <button type="button" className="btn-icon" title={localFileService.canSaveOriginal(data.rootId) ? "保存到原文件（⌘S / Ctrl+S）" : "目录快照不能覆盖原文件，请另存为"} aria-label="保存文件" disabled={!baseSnapshot || !localFileService.canSaveOriginal(data.rootId) || saveState === "saving" || source === baseSnapshot.source} onClick={() => void save()}><ToolbarIcon name="save" /></button>}
+      <button type="button" className="btn-icon" title="另存为副本" aria-label="另存为副本" onClick={saveCopy}><ToolbarIcon name="download" /></button>
+      {(isMarkdown || isMermaid || isFlow) && <button type="button" className="btn-icon" title={preview ? "切换到源码模式" : "切换到渲染模式（编辑请使用源码）"} aria-label={preview ? "显示源码" : "渲染"} aria-pressed={preview} onClick={isMarkdown ? changeView : () => setPreview(value => !value)}><ToolbarIcon name={preview ? "code" : "eye"} /></button>}
+      {(!preview || isMarkdown) && <button type="button" className="btn-icon" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(!moreTools)}><ToolbarIcon name="annotate" /></button>}
+      {!preview && !mobile && (isMarkdown || isMermaid || isFlow) && <DocumentPreviewControls state={previewState} />}
+      {!preview && controls}
+      <button type="button" className="btn-icon" title="重新读取原文件" aria-label="重新读取原文件" disabled={loading} onClick={() => { editorSession.current = null; setReload(value => value + 1); }}><ToolbarIcon name="refresh" /></button>
+      <button type="button" className="btn-icon" title="返回原视图" aria-label="返回原视图" onClick={onClose}><ToolbarIcon name="chevronLeft" /></button>
+    </DocumentTitleBar>
+    {fileNotices}
     {!loading && !error && <>
-      <div className="local-file-editor-shell" data-workspace-panel-start>{preview ? isMarkdown && markdownDoc ? <MarkdownReadingView doc={markdownDoc} source={source} session={readingSession} fontSize={fontSize} highlightActiveLine={highlightActiveLine} showLineNumbers={showLineNumbers} active={active} toolsVisible={moreTools} showStatusBar={showStatusBar} focusMode={focusMode} saveStatus={saveState} defaultCodeBlockWrap={defaultCodeBlockWrap} cjkLatinSpacing={cjkLatinSpacing} onOpenBookmarks={navigation.openBookmarks} bookmarks={bookmarks.map(bookmark => renderedNavigation.blockAt(bookmark.offset)?.position ?? 0)} onToggleBookmark={position => toggleBookmark(renderedNavigation.offsetAt(position + 1))} doubleClickFold={focusMode && readOnly && readonlyHeadingFoldInFocusMode} className="local-file-preview" onActivePosition={position => setActiveOffset(renderedNavigation.offsetAt(position + 1))} onClick={openRelative} /> : isMermaid || isFlow ? <SourceDocumentPreview language={language} source={source} fontSize={fontSize} className="local-file-preview" /> : <div className="editor-content local-file-preview"><p role="alert">{previewError || "暂时无法渲染，源码已保留，可切回源码模式。"}</p><pre>{source}</pre></div> : <DocumentSourceSurface editor={{
+      <div className="local-file-editor-shell" data-workspace-panel-start>{preview ? isMermaid || isFlow ? <SourceDocumentPreview language={language} source={source} fontSize={fontSize} className="local-file-preview" /> : <div className="editor-content local-file-preview"><p role="alert">{previewError || "暂时无法渲染，源码已保留，可切回源码模式。"}</p><pre>{source}</pre></div> : <DocumentSourceSurface editor={{
         value: source, readonly: !editing, contextMenuEnabled: true, onToggleLineBookmark: toggleBookmark,
         areaRef: sourceHandle, onReady: bindHandle, session: editorSession,
         onChange: next => { sourceRef.current = next; setSource(next); },
-        fontSize, highlightActiveLine, showLineNumbers, showStatusBar, focusMode, saveStatus: saveState,
+        fontSize, highlightActiveLine, showLineNumbers, showStatusBar, focusMode, saveStatus: saveState, savedLabel: "已保存到磁盘；不参与数据库备份", navigation: null,
         documentLanguage: language, documentLanguageValue: languageOverride ?? AUTO_DOCUMENT_LANGUAGE,
         documentLanguageOptions: documentLanguageViewOptions(detectedLanguage),
         onDocumentLanguageChange: next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); },
         onEditorConfigChange,
-      }} />}</div>
+      }} renderContent={editor => <DocumentResourceContext.Provider value={resolveResource}><MarkdownSplitPreview enabled={!mobile && previewState.preview && (isMarkdown || isMermaid || isFlow)} sync={previewState.sync} revision={navigationRevision} areaRef={sourceHandle} fontSize={fontSize} highlightActiveLine={highlightActiveLine}>{editor}</MarkdownSplitPreview></DocumentResourceContext.Provider>} />}</div>
     </>}
     </>}
     </DocumentNavigationWorkspace>

@@ -7,11 +7,12 @@ export interface DocumentInfoCardProps {
   title: string;
   content?: DeltaOps;
   contentBytes?: number;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
   lastAccessedAt?: string | null;
   readonly?: boolean;
   docType?: DocType;
+  format?: string;
   tags: string[];
   path?: string;
   className?: string;
@@ -20,7 +21,7 @@ export interface DocumentInfoCardProps {
   onPointerLeave?: PointerEventHandler<HTMLDivElement>;
 }
 
-export function DocumentInfoCard({ title, content, contentBytes, createdAt, updatedAt, lastAccessedAt, readonly, docType, tags, path, className, style, onPointerEnter, onPointerLeave }: DocumentInfoCardProps) {
+export function DocumentInfoCard({ title, content, contentBytes, createdAt, updatedAt, lastAccessedAt, readonly, docType, format, tags, path, className, style, onPointerEnter, onPointerLeave }: DocumentInfoCardProps) {
   const rows = documentInfoRows({
     title,
     contentBytes: contentBytes ?? documentSizeBytes(content ?? { ops: [] }),
@@ -29,6 +30,7 @@ export function DocumentInfoCard({ title, content, contentBytes, createdAt, upda
     lastAccessedAt,
     readonly,
     docType,
+    format,
     tags,
     path,
   });

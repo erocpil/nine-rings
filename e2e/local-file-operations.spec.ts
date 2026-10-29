@@ -64,7 +64,7 @@ test("本地目录创建、保存汇总、移动和 Worker 全文搜索跳转", 
   await create.getByRole("button", { name: "确认", exact: true }).click();
   await expect(create).toBeHidden();
   const viewer = page.getByRole("region", { name: "本地文件工作区" });
-  await expect(viewer.locator(".local-file-titlebar .note-title")).toHaveText("draft.c");
+  await expect(viewer.locator(".local-file-titlebar .note-title")).toHaveValue("draft.c");
   await viewer.locator(".cm-content").fill("int created = 7;\n");
   await panel.getByRole("button", { name: "未保存文件与恢复草稿", exact: true }).click();
   const drafts = panel.getByRole("region", { name: "未保存文件", exact: true });
@@ -88,7 +88,7 @@ test("本地目录创建、保存汇总、移动和 Worker 全文搜索跳转", 
   await expect(search.getByRole("status").filter({ hasText: "搜索完成" })).toBeVisible();
   await expect(search.locator(".local-file-search-hit")).toHaveCount(1);
   await search.locator(".local-file-search-hit").click();
-  await expect(viewer.locator(".local-file-titlebar .note-title")).toHaveText("sample.c");
+  await expect(viewer.locator(".local-file-titlebar .note-title")).toHaveValue("sample.c");
   await expect(viewer.locator(".markdown-source-status")).toContainText("71");
   await expect.poll(() => viewer.locator(".cm-scroller").evaluate(element => element.scrollTop)).toBeGreaterThan(300);
   await viewer.locator(".cm-content").fill("my unsaved source");

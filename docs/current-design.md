@@ -10,7 +10,7 @@ Nine Rings 是本地优先的文档工作区：用路径组织文档，用类型
 | --- | --- | --- |
 | 内容完整性 | 保存、导出、导航有明确边界 | 保存回显、缓存和临时 DOM 不能覆盖未保存编辑 |
 | 编辑连续性 | 最近三份普通文档保留实例 | 首页往返保留会话，敏感文档离开即锁定 |
-| 本地文件只读入口 | 可选插件浏览授权目录并在中央区查看源码 | 与数据库文档身份分离，不导入或参与同步；磁盘写入尚未实现，见[方案](local-folder-workspace.md) |
+| 本地文件工作区 | 可选插件浏览授权目录，源码编辑和 Markdown 渲染复用公共工作区 | 身份、权限、磁盘修订、草稿与写入独立；不导入或参与数据库同步，见[方案](local-folder-workspace.md) |
 | 本地优先 | Web 使用 IndexedDB，Tauri 使用 SQLite | GitHub 是可选备份服务，离线编辑不依赖它 |
 | 共享行为 | Web 与 Tauri 共用 React 编辑和展示层 | 平台能力由适配器接入，模拟不替代原生验收 |
 | 渐进优化 | 缓存派生模型，限制控件及测量工作量 | 不破坏原生选区、输入法、复制和撤销 |
@@ -62,6 +62,8 @@ TipTap 原生文档是 ProseMirror 模型，不能称为“TipTap 原生 Delta�
 书签用于个人阅读导航；引用锚点用于可复制的位置链接，采用 `nr-note://文档UUID#nr-ref-锚点UUID`。元数据存于 `content.metadata.referenceAnchors`，随事务映射；失效时提示，不猜测相似位置。JSON 备份保留 UUID 和锚点，单份 Markdown 不包含目标文档锚点数据。详见[引用锚点](document-reference-anchors.md)。
 
 ## 4. 编辑、源码与块操作
+
+数据库与磁盘 Markdown 共用 `RenderedDocumentWorkspace`，两类源码共用 `DocumentSourceSurface` 和 `MarkdownSourceEditor`；来源适配器负责持久化、权限、资源与位置投影，布局策略负责面板位置。实际渲染编辑才生成新的 Markdown，单纯查看及视图往返保留磁盘原文。详见[统一文档工作区](unified-document-workspace.md)。
 
 CommonMark/GFM 是基础语法目标。脚注、公式、Mermaid、GitHub 提示引用及受限 HTML 单独声明兼容范围；`flow`、`toc`、内部引用和手动块缩进是项目扩展。导入、粘贴、源码预览和导出复用核心解析/序列化，避免重复语法判断。
 

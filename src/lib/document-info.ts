@@ -16,6 +16,7 @@ export interface DocumentInfoRecord {
   lastAccessedAt?: string | null;
   readonly?: boolean;
   docType?: DocType;
+  format?: string;
   tags?: readonly string[];
   path?: string | null;
 }
@@ -37,7 +38,7 @@ export function documentInfoRows(info: DocumentInfoRecord): [string, string][] {
     ["修改", formatDocumentTimestamp(info.updatedAt)],
     ["访问", formatDocumentTimestamp(info.lastAccessedAt)],
     ["权限", info.readonly ? "只读" : "可编辑"],
-    ["类型", info.docType ? DOC_TYPE_LABELS[info.docType] : "未分类"],
+    ["类型", info.docType ? DOC_TYPE_LABELS[info.docType] : info.format || "未分类"],
     ["标签", info.tags?.length ? info.tags.join(" · ") : "无"],
     ["路径", info.path || "未归档"],
   ];

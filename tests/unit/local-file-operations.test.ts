@@ -114,6 +114,16 @@ it("migrates readonly rules, reading anchors and bookmarks without touching sibl
       JSON.stringify({ "root:src/a.c": { offset: 32 } }),
     ],
     ["nr:local-file-bookmarks:root:src/a.c", "[32]"],
+    [
+      "nr:readingState:local-file:root:src/a.c",
+      '{"version":1,"view":"rendered","rendered":{"scrollTop":320}}',
+    ],
+    ["selectionPos:local-file:root:src/a.c", '{"from":5,"to":8}'],
+    ["scrollPos:local-file:root:src/a.c", "320"],
+    [
+      "nr:readingState:local-file:root:src2/b.c",
+      '{"version":1,"view":"source"}',
+    ],
   ]);
   vi.stubGlobal("localStorage", {
     getItem: (key: string) => data.get(key) ?? null,
@@ -134,6 +144,17 @@ it("migrates readonly rules, reading anchors and bookmarks without touching sibl
     JSON.parse(data.get("nr:local-file-positions")!)["root:lib/src/a.c"],
   ).toEqual({ offset: 32 });
   expect(data.get("nr:local-file-bookmarks:root:lib/src/a.c")).toBe("[32]");
+  expect(
+    JSON.parse(data.get("nr:readingState:local-file:root:lib/src/a.c")!),
+  ).toEqual({ version: 1, view: "rendered", rendered: { scrollTop: 320 } });
+  expect(data.get("selectionPos:local-file:root:lib/src/a.c")).toBe(
+    '{"from":5,"to":8}',
+  );
+  expect(data.get("scrollPos:local-file:root:lib/src/a.c")).toBe("320");
+  expect(data.has("nr:readingState:local-file:root:src/a.c")).toBe(false);
+  expect(data.get("nr:readingState:local-file:root:src2/b.c")).toBe(
+    '{"version":1,"view":"source"}',
+  );
 });
 it("groups search results by actual source line, preserves offsets and applies word/case rules", async () => {
   const source = "block blocky block\nBlock\n// block";

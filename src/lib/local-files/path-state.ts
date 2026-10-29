@@ -23,7 +23,7 @@ export function migrateLocalFilePathState(rootId: string, oldNode: string, newNo
     localStorage.setItem(ruleKey, JSON.stringify(rules));
     const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter((key): key is string => !!key);
     for (const key of keys) {
-      const prefix = key.startsWith("nr:local-file-bookmarks:") ? "nr:local-file-bookmarks:" : key.startsWith("nr:local-file-symbol-folds:") ? "nr:local-file-symbol-folds:" : key.startsWith("nr:source-view-language:local-file:") ? "nr:source-view-language:local-file:" : null;
+      const prefix = ["nr:local-file-bookmarks:", "nr:local-file-symbol-folds:", "nr:source-view-language:local-file:", "nr:readingState:local-file:", "selectionPos:local-file:", "scrollPos:local-file:"].find(prefix => key.startsWith(prefix));
       if (!prefix) continue;
       const identity = key.slice(prefix.length);
       const target = rewrite(identity);
