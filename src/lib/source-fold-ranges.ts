@@ -223,17 +223,30 @@ export function sourceFoldGutter(
         },
         click(view, line) {
           clearFoldConnector(view);
+          // Folding a region above the viewport shortens the document while
+          // leaving scrollTop unchanged. Keep the first visible source line at
+          // the same screen coordinate so later functions do not jump away.
+          const scrollTop = view.scrollDOM.scrollTop;
+          const visible = view.lineBlockAtHeight(scrollTop);
+          const anchor = view.state.doc.lineAt(Math.min(visible.from, view.state.doc.length)).from;
+          const topOffset = visible.top - scrollTop;
+          const preserveViewport = () => requestAnimationFrame(() => {
+            const block = view.lineBlockAt(anchor);
+            view.scrollDOM.scrollTop = Math.max(0, block.top - topOffset);
+          });
           let existing: SourceFoldRange | null = null;
           foldedRanges(view.state).between(line.from, line.to, (from, to) => {
             if (!existing && view.state.doc.lineAt(from).from === line.from) existing = { from, to };
           });
           if (existing) {
             view.dispatch({ effects: unfoldEffect.of(existing) });
+            preserveViewport();
             return true;
           }
           const opening = foldable(view.state, line.from, line.to);
           if (opening) {
             view.dispatch({ effects: foldEffect.of(opening) });
+            preserveViewport();
             return true;
           }
           const containing = sourceFoldRangesAtLine(view.state, view.state.doc.lineAt(line.from).number);
@@ -241,6 +254,7 @@ export function sourceFoldGutter(
           const ending = endings[endings.length - 1];
           if (!ending) return false;
           view.dispatch({ effects: foldEffect.of(ending) });
+          preserveViewport();
           return true;
         },
       },

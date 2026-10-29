@@ -65,3 +65,41 @@ test("Markdown 标题折叠使用相同的光标恢复规则", async ({ page }) 
   await toolbar.getByRole("button", { name: "展开全部", exact: true }).click();
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(offset);
 });
+
+test("折叠可视区上方的函数时保持下方 main 函数在视口中的位置", async ({ page }) => {
+  await createBlankDocument(page, "上方函数折叠保持视口");
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  const text = [
+    "static void rearrange(void) {",
+    ...Array.from({ length: 62 }, (_, index) => `  work_${index}();`),
+    "}",
+    "",
+    "int main(void) {",
+    "  return 0;",
+    "}",
+  ].join("\n");
+  await replaceSource(area, text);
+  const mainLine = text.split("\n").findIndex(line => line.startsWith("int main")) + 1;
+  const main = area.locator(".cm-content");
+  const scroller = area.locator("..");
+  const mainTopBefore = await main.evaluate((content, line) => {
+    const view = (window as any).sourceCM.EditorView.findFromDOM(content as HTMLElement)!;
+    const position = view.state.doc.line(line as number).from;
+    return view.coordsAtPos(position)!.top;
+  }, mainLine);
+  expect(mainTopBefore).toBeGreaterThan(0);
+  expect(mainTopBefore).toBeLessThan(700);
+  const fold = area.locator("..")
+    .locator(".cm-foldGutter .cm-gutterElement:visible")
+    .filter({ has: page.locator("span") })
+    .first();
+  await fold.click();
+  const mainTopAfter = await main.evaluate((content, line) => {
+    const view = (window as any).sourceCM.EditorView.findFromDOM(content as HTMLElement)!;
+    const position = view.state.doc.line(line as number).from;
+    return view.coordsAtPos(position)!.top;
+  }, mainLine - 63);
+  expect(Math.abs(mainTopAfter - mainTopBefore)).toBeLessThan(3);
+  await expect(scroller.locator(".cm-foldPlaceholder")).toBeVisible();
+});
