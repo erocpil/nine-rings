@@ -17,6 +17,7 @@ export function useDesktopDocumentPanels(
   outlineSingleLineLimit?: number,
   origin: DocumentWorkspaceOrigin = "database",
   compactOnly = false,
+  outlineEnabled = true,
 ) {
   const active = useDocumentActive();
   enabled = enabled && active;
@@ -24,7 +25,11 @@ export function useDesktopDocumentPanels(
   const preferences = useDocumentWorkspace();
   const mode = compactOnly ? "compact" : preferences[origin];
   const compact = preferences.compact[origin];
-  const layout = useMemo(() => mode === "compact" ? { ...baseLayout, panelsSide: "right" as const, panelsArrangement: "vertical" as const, outlinePinned: compact.active === "outline", bookmarkPinned: compact.active === "bookmark", panelWidth: compact.width } : baseLayout, [baseLayout, compact.active, compact.width, mode]);
+  const layout = useMemo(() => {
+    const next = mode === "compact" ? { ...baseLayout, panelsSide: "right" as const, panelsArrangement: "vertical" as const, outlinePinned: compact.active === "outline", bookmarkPinned: compact.active === "bookmark", panelWidth: compact.width } : baseLayout;
+    // Mask unavailable navigation without destroying the user's pinned preference.
+    return outlineEnabled ? next : { ...next, outlinePinned: false };
+  }, [baseLayout, compact.active, compact.width, mode, outlineEnabled]);
   const [preview, setPreview] = useState<DocumentPanelKind | null>(null);
   const [error, setError] = useState("");
   const visible =
@@ -104,11 +109,12 @@ export function useDesktopDocumentPanels(
   const openPreview = useCallback(
     (kind: DocumentPanelKind) => {
       cancel();
-      if (enabled && !pinned(kind)) setPreview(kind);
+      if (enabled && (kind !== "outline" || outlineEnabled) && !pinned(kind)) setPreview(kind);
     },
-    [cancel, enabled, pinned],
+    [cancel, enabled, pinned, outlineEnabled],
   );
   const enter = (kind: DocumentPanelKind, pointerType: string) => {
+    if (kind === "outline" && !outlineEnabled) return;
     if (mode === "compact" || pointerType !== "mouse" || !enabled || pinned(kind)) return;
     cancel();
     timer.current = setTimeout(() => openPreview(kind), 140);
@@ -128,6 +134,7 @@ export function useDesktopDocumentPanels(
   }, [cancel]);
   const toggle = useCallback(
     (kind: DocumentPanelKind) => {
+      if (kind === "outline" && !outlineEnabled) return;
       dismiss();
       if (
         !(mode === "compact" ? saveCompactPanel(origin, { active: compact.active === kind ? null : kind }) : saveWorkspaceLayout(
@@ -139,12 +146,12 @@ export function useDesktopDocumentPanels(
         setError("面板设置保存失败，请检查本机存储权限。");
       else setError("");
     },
-    [dismiss, layout, mode, origin, compact.active],
+    [dismiss, layout, mode, origin, compact.active, outlineEnabled],
   );
   useEffect(() => {
     dismiss();
     return cancel;
-  }, [enabled, mode, dismiss, cancel]);
+  }, [enabled, mode, outlineEnabled, dismiss, cancel]);
   useEffect(() => {
     if (!preview) return;
     const outside = (event: MouseEvent) => {
@@ -174,7 +181,7 @@ export function useDesktopDocumentPanels(
     layout,
     widths,
     dockWidth,
-    preview: enabled && preview && !pinned(preview) ? preview : null,
+    preview: enabled && preview && (preview !== "outline" || outlineEnabled) && !pinned(preview) ? preview : null,
     pinned,
     toggle,
     enter,

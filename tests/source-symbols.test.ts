@@ -313,4 +313,28 @@ const controller = new AbortController();
 controller.abort();
 assert.equal(await extractCSourceSymbols(source, controller.signal), null);
 
+
+
+// Assembly providers share symbol identity/jump offsets with the C outline.
+const { extractSourceSymbols, hasSourceSymbolProvider } = await import("../src/lib/source-symbol-provider");
+assert.equal(hasSourceSymbolProvider("gas"), true);
+assert.equal(hasSourceSymbolProvider("nasm"), true);
+assert.equal(hasSourceSymbolProvider("python"), false);
+const gasSource = '/* fake:\n bogus: */\n#define LIMIT 4\n.global entry\nentry:\n mov $1, %rax # false:\n.Ldone:\n ret\n.section .data\nvalue:\n .asciz "not_a_label:\\n"\n';
+const gasSymbols = (await extractSourceSymbols("gas", gasSource))!;
+assert.deepEqual(gasSymbols.map(s => [s.text, s.kind, s.level]), [["LIMIT", "宏", 1], ["entry", "函数", 1], [".Ldone", "成员", 2], ["value", "变量", 1]]);
+for (const symbol of gasSymbols) assert.equal(gasSource.slice(symbol.pos).startsWith(symbol.text), true);
+const nasmSource = '%macro save 0\n.loop:\n%endmacro\nsection .text\nstart:\n.loop:\n ; ignored:\nret\n';
+const nasmSymbols = (await extractSourceSymbols("nasm", nasmSource))!;
+assert.deepEqual(nasmSymbols.map(s => [s.text, s.kind, s.level]), [["save", "宏", 1], [".loop", "成员", 2], ["start", "函数", 1], [".loop", "成员", 2]]);
+assert.notEqual(nasmSymbols[1].identity, nasmSymbols[3].identity);
+const cancelled = new AbortController(); cancelled.abort();
+assert.equal(await extractSourceSymbols("gas", gasSource, cancelled.signal), null);
+
+const collisionSource = ".macro macro\n.endm\nequ equ 4\n";
+for (const dialect of ["gas", "nasm"] as const) {
+  const entries = (await extractSourceSymbols(dialect, collisionSource))!;
+  assert.equal(entries[0].pos, collisionSource.indexOf("macro", 2));
+  assert.equal(entries[1].pos, collisionSource.indexOf("equ equ"));
+}
 console.log("source-symbols tests passed");

@@ -1,6 +1,15 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-29",
+    title: "文件格式与源码导航",
+    changes: [
+      "切换文件格式时同步切换标题目录与源码符号，保留面板固定状态和宽度；Text 及暂无符号解析的格式隐藏大纲入口，Markdown、Mermaid 和 Flow 恢复渲染／源码与并排预览入口。",
+      "只读查看格式同步用于目录、预览和渲染；添加书签时仍保留存储中的原始源码与格式。",
+      "GAS（.S/.s）和 NASM 汇编接入源码符号，支持标签、局部标签、宏及常量跳转；修复磁盘文件状态栏工具在展示插件下挤到左侧的问题。",
+    ],
+  },
+  {
     date: "2026-10-28",
     title: "统一文档工作区",
     changes: [

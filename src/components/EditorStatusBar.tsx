@@ -131,7 +131,10 @@ export function EditorStatusBar({
   useEffect(() => {
     const wheel = (event: WheelEvent) => {
       const target = event.target instanceof Element ? event.target : null;
-      const underPointer = document.elementFromPoint(event.clientX, event.clientY);
+      const underPointer = document.elementFromPoint(
+        event.clientX,
+        event.clientY,
+      );
       const bar =
         target?.closest<HTMLElement>(".editor-status-bar") ??
         underPointer?.closest<HTMLElement>(".editor-status-bar");
@@ -163,7 +166,7 @@ export function EditorStatusBar({
         ? "保存中"
         : saveStatus === "error"
           ? "保存失败"
-          : savedLabel ?? "已保存到本机；GitHub 备份需要单独 Push";
+          : (savedLabel ?? "已保存到本机；GitHub 备份需要单独 Push");
   const content: Record<StatusItem, ReactNode> = {
     navigation,
     save:
@@ -192,12 +195,18 @@ export function EditorStatusBar({
       ) : null,
     block:
       blockPosition || block !== undefined ? (
-        <span className="editor-status-block">{blockPosition ? `Block ${blockPosition.current}${state.showTotals ? `/${blockPosition.total}` : ""}` : block}</span>
+        <span className="editor-status-block">
+          {blockPosition
+            ? `Block ${blockPosition.current}${state.showTotals ? `/${blockPosition.total}` : ""}`
+            : block}
+        </span>
       ) : null,
     position:
       sourcePosition || position !== undefined ? (
         <span ref={positionRef} className="editor-status-position">
-          {sourcePosition ? `Ln ${sourcePosition.line}${state.showTotals ? `/${sourcePosition.total}` : ""}, Col ${sourcePosition.column}` : position}
+          {sourcePosition
+            ? `Ln ${sourcePosition.line}${state.showTotals ? `/${sourcePosition.total}` : ""}, Col ${sourcePosition.column}`
+            : position}
         </span>
       ) : null,
     characters: characters !== undefined ? `${characters} chars` : null,
@@ -272,29 +281,39 @@ export function EditorStatusBar({
           </span>
         );
       })}
-      {state.visible && sourceViewControls}
-      {state.visible && sourceIndentControls}
-      {state.visible && documentLanguage !== undefined && (
-        <EditorStatusSelect
-          label="文件格式"
-          title="文件格式；保留原始源码，控制可用视图与语法高亮"
-          value={documentLanguageValue ?? documentLanguage}
-          disabled={!onDocumentLanguageChange}
-          options={documentLanguageOptions ?? DOCUMENT_LANGUAGE_OPTIONS}
-          onChange={(language) => onDocumentLanguageChange?.(language)}
-        />
-      )}
-      {state.visible && onCreateDocument && (
-        <button
-          type="button"
-          className="editor-status-create"
-          aria-label="在当前路径新建文档"
-          title="在当前路径新建同格式文档"
-          onClick={onCreateDocument}
-        >
-          <ToolbarIcon name="plus" />
-        </button>
-      )}
+      {state.visible &&
+        (sourceViewControls ||
+          sourceIndentControls ||
+          documentLanguage !== undefined ||
+          onCreateDocument) && (
+          <span
+            className={`editor-status-item editor-status-source-controls${firstAction ? "" : " editor-status-actions-start"}`}
+          >
+            {sourceViewControls}
+            {sourceIndentControls}
+            {documentLanguage !== undefined && (
+              <EditorStatusSelect
+                label="文件格式"
+                title="文件格式；保留原始源码，控制可用视图与语法高亮"
+                value={documentLanguageValue ?? documentLanguage}
+                disabled={!onDocumentLanguageChange}
+                options={documentLanguageOptions ?? DOCUMENT_LANGUAGE_OPTIONS}
+                onChange={(language) => onDocumentLanguageChange?.(language)}
+              />
+            )}
+            {onCreateDocument && (
+              <button
+                type="button"
+                className="editor-status-create"
+                aria-label="在当前路径新建文档"
+                title="在当前路径新建同格式文档"
+                onClick={onCreateDocument}
+              >
+                <ToolbarIcon name="plus" />
+              </button>
+            )}
+          </span>
+        )}
     </div>
   );
 }

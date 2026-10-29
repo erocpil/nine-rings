@@ -25,11 +25,11 @@ import { DocumentSourceSurface } from "./DocumentSourceSurface";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { NavigationButtons } from "./NavigationButtons";
 import { useNavigationStore } from "../stores/useNavigationStore";
-import { Suspense, lazy, useEffect, useLayoutEffect, useCallback, useRef, useState, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import type { NoteEditorProps } from "./NoteEditor";
 import type { DeltaOps } from "../types/models";
 import { deltaToMarkdownAsync } from "../lib/data-transform-client";
-import { SourceNavigationSession, type SourceEditRange } from "../lib/markdown-source-navigation";
+import { SourceNavigationDocument, SourceNavigationSession, type SourceEditRange } from "../lib/markdown-source-navigation";
 import type { EditorState } from "@codemirror/state";
 import { DocumentNavigationWorkspace } from "./DocumentNavigationWorkspace";
 import { invalidateEditorDocument } from "../lib/editor-session-cache";
@@ -44,6 +44,18 @@ import { useDocumentOpenStore } from "../stores/useDocumentOpenStore";
 import { useDocumentTitleDraft } from "../hooks/useDocumentTitleDraft";
 
 const SourceDocumentPreview = lazy(() => import("./SourceDocumentPreview").then(module => ({ default: module.SourceDocumentPreview })));
+
+/** View-only language changes remap positional metadata without rewriting the source. */
+function mapViewAnchors(from: DeltaOps, to: DeltaOps): DeltaOps {
+  const before = deltaToProseMirror(from), after = deltaToProseMirror(to);
+  const metadata = { ...to.metadata };
+  if (from.metadata?.referenceAnchors) metadata.referenceAnchors = mapSourceReferences(before, after, from.metadata.referenceAnchors);
+  if (from.metadata?.bookmarks) metadata.bookmarks = from.metadata.bookmarks.map(bookmark => {
+    const [mapped] = mapSourceReferences(before, after, [{ id: bookmark.id, kind: "position", from: bookmark.position, to: bookmark.position, preview: bookmark.preview }]);
+    return { ...bookmark, position: mapped.from };
+  });
+  return { ...to, metadata };
+}
 
 /** One visible editing surface, one canonical autosave stream for both views. */
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
@@ -210,12 +222,12 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         if ((latestReader.current?.() ?? latestProps.current.content) !== raw) throw new Error("转换期间正文已变化，请再次切换");
         initial.current = { text, content };
         sourceSession.current = new SourceNavigationSession(text, content);
-        if (documentLanguage === "markdown") viewPosition.toSource(text, deltaToProseMirror(content), restoreSourceTop, (renderedHost.current ? activeLinePluginKey.getState(renderedHost.current.state)?.readingBlockPosition ?? renderedHost.current.state.selection.from : renderedSelection.current));
+        if (documentLanguage === "markdown") viewPosition.toSource(text, deltaToProseMirror(props.readonly && storedDocumentLanguage !== "markdown" ? writeDocumentSource(text, "markdown", content.metadata) : content), restoreSourceTop, (renderedHost.current ? activeLinePluginKey.getState(renderedHost.current.state)?.readingBlockPosition ?? renderedHost.current.state.selection.from : renderedSelection.current));
         setSource(text);
       } else {
         // A bookmark destination takes priority over the source viewport.
         if (latestProps.current.searchTarget?.bookmarkId || latestProps.current.searchTarget?.referenceId) viewPosition.cancelHandoff();
-        else if (documentLanguage === "markdown") viewPosition.toRendered(source, deltaToProseMirror(content));
+        else if (documentLanguage === "markdown") viewPosition.toRendered(source, deltaToProseMirror(props.readonly && storedDocumentLanguage !== "markdown" ? writeDocumentSource(source, "markdown", content.metadata) : content));
         invalidateEditorDocument(props.noteId);
         setSnapshot({ base: latestProps.current.content, content });
         if (documentLanguage !== "markdown" && !props.sensitive) patchReadingState(props.noteId, { view: "rendered" });
@@ -415,6 +427,16 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       if (alive.current) setBusy(false);
     }
   };
+  const viewOnlyMarkdown = props.readonly && documentLanguage === "markdown" && storedDocumentLanguage !== "markdown";
+  const renderedContent = useMemo(() => {
+    const content = snapshot?.base === props.content ? snapshot.content : props.content;
+    return viewOnlyMarkdown ? mapViewAnchors(content, writeDocumentSource(readDocumentSource(content), "markdown", content.metadata)) : content;
+  }, [snapshot, props.content, viewOnlyMarkdown]);
+  const currentRevision = sourceSession.current?.current;
+  const previewRevision = useMemo(() => {
+    const revision = currentRevision;
+    return revision && revision.language !== documentLanguage ? new SourceNavigationDocument(revision.source, [], { sourceLanguage: documentLanguage }) : revision;
+  }, [currentRevision, documentLanguage]);
   const languageProps = { documentLanguage, onDocumentLanguageChange: busy ? undefined : props.readonly ? (language: string) => { void changeReadonlyViewLanguage(language); } : (language: string) => { void changeDocumentLanguage(language); } };
   const languageSelectionValue = props.readonly ? readonlyLanguageOverride ?? AUTO_DOCUMENT_LANGUAGE : documentLanguage;
   const languageOptions = props.readonly ? documentLanguageViewOptions(storedDocumentLanguage) : DOCUMENT_LANGUAGE_OPTIONS;
@@ -449,8 +471,22 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       documentViewToggle: toggle,
       onHostSelection: hostSelection,
       onHostEditorReady: hostRenderedReady,
-      content: snapshot?.base === props.content ? snapshot.content : props.content,
+      content: renderedContent,
       onContentChange: (reader, options) => {
+        if (viewOnlyMarkdown) {
+          if (!options?.metadataOnly) return;
+          const current = latestReader.current?.() ?? latestProps.current.content;
+          const updated = reader();
+          const metadata = { ...updated.metadata };
+          for (const key of ["sourceText", "markdownSource", "sourceFormat", "sourceLanguage"] as const) {
+            delete metadata[key];
+          }
+          const next = mapViewAnchors(updated, { ...current, metadata: { ...metadata,
+            ...Object.fromEntries(Object.entries(current.metadata ?? {}).filter(([key]) => ["sourceText", "markdownSource", "sourceFormat", "sourceLanguage"].includes(key))) } });
+          latestReader.current = () => next;
+          props.onContentChange(() => next, options);
+          return;
+        }
         const originalSource = options?.metadataOnly
           ? (latestReader.current?.() ?? latestProps.current.content).metadata?.markdownSource
           : undefined;
@@ -469,7 +505,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         latestReader.current = read;
         props.onContentChange(read, options);
       },
-    }) : <DocumentNavigationWorkspace revision={sourceSession.current!.current} sourceHandle={viewPosition.sourceHandle}
+    }) : <DocumentNavigationWorkspace language={documentLanguage} revision={sourceSession.current!.current} sourceHandle={viewPosition.sourceHandle}
       onJump={offset => jumpSourceRef.current(offset)}
       onToggleBookmark={offset => mutateSourceBookmark(session => { session.toggleBookmarkAt(offset); })}
       onRemoveBookmark={id => mutateSourceBookmark(session => { session.removeBookmark(id); })}
@@ -499,7 +535,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         session: sourceEditorState, onChange: editSource, onEditorConfigChange: props.onEditorConfigChange,
         showLineNumbers: props.showLineNumbers, fontSize: props.editorFontSize, highlightActiveLine: props.highlightActiveLine,
         escapeRepair: documentLanguage === "markdown" ? <MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={applyEscapeRepair} /> : undefined,
-      }} renderContent={editor => <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={hasPreview && preview && !mobile} sync={previewSync} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>{editor}</MarkdownSplitPreview>} />
+      }} renderContent={editor => <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={hasPreview && preview && !mobile} sync={previewSync} revision={previewRevision!} areaRef={viewPosition.area} fontSize={props.editorFontSize}>{editor}</MarkdownSplitPreview>} />
     </>}</DocumentNavigationWorkspace>}
   </div>;
 }

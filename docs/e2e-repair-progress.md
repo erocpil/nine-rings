@@ -1,5 +1,15 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-10-29：文件格式能力与磁盘状态栏
+
+修复导航以旧保存格式而非本机查看格式决定目录的问题；格式变化即时切换能力，符号缓存加入语言校验。不支持大纲时临时屏蔽面板及其占宽，保留固定、展开和宽度偏好，切回恢复。只读代码使用 Markdown 查看时，目录、渲染和并排预览采用查看投影；主动添加书签映射回原始模型，原始 ops、源码和存储格式不变。GAS／NASM 接入词法级单文件符号提供器。状态栏右侧工具形成共同动作组，即使磁盘宿主不提供数据库导航按钮或展示插件改变信息项，也保持右对齐。
+
+Chromium 扩大组 **24 项通过**；WebKit 相同 **24 项通过**，覆盖新增四项、格式切换、源码符号、状态栏插件及磁盘 Markdown 编辑。补充只读查看后添加书签的源码保护断言后，新四项在两端各再次通过。完整前端检查通过（217 文件／2451 Vitest 项、类型、lint、格式、项目契约、覆盖率及 IPC 检查）；汇编提供器新增断言随 `tests/source-symbols.test.ts` 执行。之后补充的关键字重名跳转单测及最终 lint、生产构建通过，无 chunk 警告。
+
+实际只读加载 LaOS 的 `gdt_flush.S`、`process.S`、`syscall_entry.asm`，确认非空符号及每项原始偏移，未写入这些文件。汇编符号不提供 include、宏展开或条件编译语义保证。早期新增几何断言误将“右对齐”等同于起点必须超过中线，改为直接检查工具组右边界；只读保护夹具先等格式转换真正保存，再采集基线，避免把仍待保存的 Markdown 与已转换的 C 内容比较。没有增加 retry、skip 或强制点击。
+
+日志：`/tmp/nine-rings-format-capabilities-check.log`、`/tmp/nine-rings-format-capabilities-chromium-final.log`、`/tmp/nine-rings-format-capabilities-webkit.log`、`/tmp/nine-rings-format-capabilities-build.log`。完整检查首次因沙箱禁止 tsx IPC listen 而中止，在授权环境重跑通过。本批未重新执行完整默认 E2E、原生构建或远端 CI；下节完整运行是前序提交的结果，不能算作本批结果。
+
 ## 2026-10-29：统一工作区最终验证
 
 生产代码提交：`2be2ce82`。最终完整默认 Chromium **1546 通过、0 失败、13 跳过，15.1 分钟**，1559 项全部结束，未增加 retry 或 skip。既有 13 项为显式性能诊断，不计作运行通过。执行时启用 Vite HMR／webserver 日志及失败 trace，运行期间没有构建或源码修改，未捕获重载消息。

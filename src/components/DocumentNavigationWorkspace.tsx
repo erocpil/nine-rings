@@ -55,6 +55,7 @@ export interface NavigationBookmark extends Pick<DocumentBookmark, "id" | "posit
 
 export function DocumentNavigationWorkspace({
   revision,
+  language,
   className = "",
   origin = "database",
   active: hostActive = true,
@@ -71,6 +72,7 @@ export function DocumentNavigationWorkspace({
   children,
 }: {
   revision: SourceNavigationDocument;
+  language?: string;
   className?: string;
   origin?: DocumentWorkspaceOrigin;
   active?: boolean;
@@ -97,10 +99,14 @@ export function DocumentNavigationWorkspace({
   const sourceMatchDisplayConfig = usePanelDisplay("source-matches");
   const bookmarkDisplayConfig = usePanelDisplay("bookmarks");
   const bookmarkDisplayListRef = useRef<HTMLDivElement>(null);
-  const [snapshot, setSnapshot] = useState(revision);
+  const [debouncedSnapshot, setSnapshot] = useState(revision);
+  // Language changes are capabilities, not typing: never debounce the old mode.
+  const snapshot = debouncedSnapshot.language === revision.language ? debouncedSnapshot : revision;
   const snapshotSource = snapshot.source;
-  const snapshotLanguage = snapshot.language;
+  const snapshotLanguage = language ?? snapshot.language;
+  const headingRevision = useMemo(() => snapshotLanguage === snapshot.language ? snapshot : new SourceNavigationDocument(snapshot.source, [], { sourceLanguage: snapshotLanguage }), [snapshot, snapshotLanguage]);
   const [sourceSymbols, setSourceSymbols] = useState<SourceOutlineItem[]>([]);
+  const [sourceSymbolsLanguage, setSourceSymbolsLanguage] = useState<string | null>(null);
   const [sourceSymbolsSource, setSourceSymbolsSource] = useState<string | null>(null);
   const [symbolsBusy, setSymbolsBusy] = useState(false);
   const [symbolsAlphabetical, setSymbolsAlphabetical] = useState(false);
@@ -163,7 +169,7 @@ export function DocumentNavigationWorkspace({
       setSymbolsBusy(false);
       return;
     }
-    if (sourceSymbolsSource === snapshotSource) {
+    if (sourceSymbolsSource === snapshotSource && sourceSymbolsLanguage === snapshotLanguage) {
       setSymbolsBusy(false);
       return;
     }
@@ -175,6 +181,7 @@ export function DocumentNavigationWorkspace({
           if (!controller.signal.aborted && symbols) {
             setSourceSymbols(sourceOutlineItems(symbols));
             setSourceSymbolsSource(snapshotSource);
+            setSourceSymbolsLanguage(snapshotLanguage);
           }
         })
         .catch(() => {
@@ -188,7 +195,7 @@ export function DocumentNavigationWorkspace({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [snapshotSource, snapshotLanguage, sourceSymbolsSource, mobile, documentActive]);
+  }, [snapshotSource, snapshotLanguage, sourceSymbolsSource, sourceSymbolsLanguage, mobile, documentActive]);
   useEffect(() => {
     const area = sourceHandle;
     if (!area || mobile) return;
@@ -218,17 +225,18 @@ export function DocumentNavigationWorkspace({
     }
   }, [matchesOpen, documentActive, mobile, sourceWordEnabled]);
   const symbolOutline = hasSourceSymbolProvider(snapshotLanguage);
+  const outlineEnabled = symbolOutline || snapshotLanguage === "markdown";
   const sortedSourceSymbols = useMemo(
-    () => sortSourceSymbolTree(sourceSymbols, symbolsAlphabetical),
-    [sourceSymbols, symbolsAlphabetical],
+    () => sortSourceSymbolTree(sourceSymbolsLanguage === snapshotLanguage ? sourceSymbols : [], symbolsAlphabetical),
+    [sourceSymbols, symbolsAlphabetical, sourceSymbolsLanguage, snapshotLanguage],
   );
   const visibleSourceSymbols = useMemo(
     () => filterSymbolTree(sortedSourceSymbols, symbolQuery),
     [sortedSourceSymbols, symbolQuery],
   );
   const outline = useMemo<SourceOutlineItem[]>(
-    () => mobile ? [] : symbolOutline ? visibleSourceSymbols : snapshot.outline.map((item) => ({ ...item, kind: undefined })),
-    [snapshot, mobile, visibleSourceSymbols, symbolOutline],
+    () => mobile ? [] : symbolOutline ? visibleSourceSymbols : headingRevision.outline.map((item) => ({ ...item, kind: undefined })),
+    [headingRevision, mobile, visibleSourceSymbols, symbolOutline],
   );
   const bookmarks = useMemo(() => (mobile ? [] : bookmarkItems ?? revision.bookmarks), [revision, mobile, bookmarkItems]);
   const nearestBookmark = bookmarks.reduce<(typeof bookmarks)[number] | undefined>((current, item) => !current || Math.abs(item.offset - offset) < Math.abs(current.offset - offset) ? item : current, undefined);
@@ -237,7 +245,7 @@ export function DocumentNavigationWorkspace({
   const currentSourceBlock = local ? undefined : revision.blockAt(offset);
   const currentLineStart = offset > 0 ? revision.source.lastIndexOf("\n", offset - 1) + 1 : 0;
   const currentBookmark = local ? bookmarks.find(bookmark => bookmark.offset === currentLineStart) : bookmarks.find(bookmark => bookmark.position === (currentSourceBlock?.position ?? -2) + 1);
-  const controller = useDesktopDocumentPanels(!mobile, outline, bookmarks, [], symbolOutline ? 35 : undefined, origin, local && narrow);
+  const controller = useDesktopDocumentPanels(!mobile, outline, bookmarks, [], symbolOutline ? 35 : undefined, origin, local && narrow, outlineEnabled);
   const dismissPanelPreview = controller.dismiss;
   useEffect(() => {
     if (controller.mode === "compact" && matchesOpen && (controller.layout.outlinePinned || controller.layout.bookmarkPinned)) saveCompactPanel(origin, { active: null });
@@ -318,12 +326,12 @@ export function DocumentNavigationWorkspace({
     controller.dismiss();
   };
   useNativeMenuActions({
-    "document.outline": { run: () => controller.toggle("outline"), checked: controller.pinned("outline") || controller.preview === "outline", enabled: outline.length > 0 },
+    "document.outline": { run: () => controller.toggle("outline"), checked: controller.pinned("outline") || controller.preview === "outline", enabled: outlineEnabled },
     "document.bookmarks": { run: () => controller.toggle("bookmark"), checked: controller.pinned("bookmark") || controller.preview === "bookmark" },
   }, documentActive);
   const controls = mobile ? null : (
     <>
-      {(["outline", "bookmark"] as const).map((kind) => (
+      {(["outline", "bookmark"] as const).filter(kind => kind !== "outline" || outlineEnabled).map((kind) => (
         <button
           key={kind}
           ref={kind === "outline" ? outlineTrigger : bookmarkTrigger}

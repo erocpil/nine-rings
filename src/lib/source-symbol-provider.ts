@@ -8,6 +8,16 @@ export type SourceSymbolProvider = (
 
 const providers: ReadonlyMap<string, SourceSymbolProvider> = new Map([
   ["c", extractCSourceSymbols],
+  ...(["gas", "nasm"] as const).map(
+    (language) =>
+      [
+        language,
+        (source: string, signal?: AbortSignal) =>
+          import("./source-assembly-symbols").then((module) =>
+            module.extractAssemblySymbols(source, language, signal),
+          ),
+      ] as const,
+  ),
 ]);
 
 export function hasSourceSymbolProvider(language: string): boolean {
