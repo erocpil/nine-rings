@@ -360,8 +360,10 @@ impl Default for AppConfig {
             editor_block_spacing: default_editor_block_spacing(),
             editor_block_number_gap: default_editor_block_number_gap(),
             editor_source_gutter_divider_width: default_editor_source_gutter_divider_width(),
-            editor_source_gutter_divider_left_space: default_editor_source_gutter_divider_left_space(),
-            editor_source_gutter_divider_right_space: default_editor_source_gutter_divider_right_space(),
+            editor_source_gutter_divider_left_space:
+                default_editor_source_gutter_divider_left_space(),
+            editor_source_gutter_divider_right_space:
+                default_editor_source_gutter_divider_right_space(),
             editor_h1_font_size: 0,
             editor_h2_font_size: 0,
             editor_h3_font_size: 0,
