@@ -42,6 +42,7 @@ export function useDocumentPanelPosition({
     const editor = panel.closest(".note-editor");
     const viewport = window.visualViewport;
     let frame = 0;
+    const context = document.createElement("canvas").getContext("2d");
     const update = () => {
       frame = 0;
       const rect = trigger.getBoundingClientRect();
@@ -51,10 +52,23 @@ export function useDocumentPanelPosition({
       const viewportHeight = viewport?.height ?? window.innerHeight;
       const gap = 6,
         margin = 8;
+      let contentWidth = width;
+      if (!compact && context) {
+        // Account for the actual theme/plugin font, including monospace symbols.
+        for (const label of panel.querySelectorAll<HTMLElement>(".document-outline-text, .document-bookmark-jump > span:last-child")) {
+          const font = getComputedStyle(label);
+          context.font = `${font.fontStyle} ${font.fontWeight} ${font.fontSize} ${font.fontFamily}`;
+          const spacing = parseFloat(font.letterSpacing) || 0;
+          const text = label.textContent ?? "";
+          const row = label.closest<HTMLElement>(".document-outline-item, .document-bookmark-item");
+          const indent = row ? Math.max(0, label.getBoundingClientRect().left - row.getBoundingClientRect().left) : 0;
+          contentWidth = Math.max(contentWidth, Math.ceil(context.measureText(text).width + spacing * Math.max(0, text.length - 1) + indent + (label.closest(".document-bookmark-jump") ? 110 : 48)));
+        }
+      }
       const panelWidth = Math.max(
         0,
         Math.min(
-          width,
+          contentWidth,
           // Floating previews can extend beyond a narrow editor. The dock has
           // its own 50% cap; keep previews readable without escaping the viewport.
           compact
@@ -62,10 +76,7 @@ export function useDocumentPanelPosition({
             // reading surface. Landscape leaves room beside the panel so it
             // does not cover every line of the document.
             ? viewportHeight >= viewportWidth ? viewportWidth : viewportWidth * 0.78
-            : Math.max(
-                420,
-                (editor?.getBoundingClientRect().width ?? viewportWidth) / 2,
-              ),
+            : Math.min(760, viewportWidth * 0.8),
           viewportWidth - margin * 2,
         ),
       );

@@ -1,3 +1,4 @@
+import { outlineLabel } from "../lib/heading-links";
 import { useDocumentWorkspace } from "./useDocumentWorkspace";
 import { saveCompactPanel, type DocumentWorkspaceOrigin } from "../lib/document-workspace-layout";
 import { useDocumentActive } from "../components/RetainedDocument";
@@ -35,25 +36,28 @@ export function useDesktopDocumentPanels(
   const visible =
     enabled &&
     Boolean(preview || layout.outlinePinned || layout.bookmarkPinned);
-  const widths = useMemo(() => {
+  const [widths, previewWidths] = useMemo(() => {
     const sizes = { outline: 280, bookmark: 280 };
-    if (!visible) return sizes;
+    const previews = { ...sizes };
+    if (!visible) return [sizes, previews];
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
-    if (!context) return sizes;
+    if (!context) return [sizes, previews];
     context.font = `400 13px ${getComputedStyle(document.documentElement).getPropertyValue("--font")}`;
     // Measure the full data, including headings outside the virtual list window.
     const base = outline.reduce(
       (level, item) => Math.min(level, item.level),
       6,
     );
-    for (const item of outline)
+    for (const item of outline) {
+      previews.outline = Math.max(previews.outline, Math.ceil(context.measureText(outlineLabel(item.displayText ?? item.text)).width) + 76 + (item.level - base) * 14);
       sizes.outline = Math.max(
         sizes.outline,
         Math.ceil(context.measureText(Array.from(item.displayText ?? item.text).slice(0, outlineSingleLineLimit).join("")).width) +
           76 +
           (item.level - base) * 14,
       );
+    }
     for (const item of bookmarks)
       sizes.bookmark = Math.max(
         sizes.bookmark,
@@ -66,7 +70,8 @@ export function useDesktopDocumentPanels(
         sizes.bookmark,
         Math.ceil(context.measureText(item.note || item.exact || "高亮").width) + 136,
       );
-    return sizes;
+    previews.bookmark = sizes.bookmark;
+    return [sizes, previews];
   }, [visible, outline, bookmarks, annotations, outlineSingleLineLimit]);
   const autoWidth =
     layout.panelsArrangement === "horizontal" &&
@@ -182,6 +187,7 @@ export function useDesktopDocumentPanels(
     saveWidth: (width: number) => mode === "compact" ? saveCompactPanel(origin, { width }) : saveWorkspaceLayout(layout.panelsArrangement === "horizontal" ? { horizontalPanelWidth: width } : { panelWidth: width }),
     layout,
     widths,
+    previewWidths,
     dockWidth,
     preview: enabled && preview && (preview !== "outline" || outlineEnabled) && !pinned(preview) ? preview : null,
     pinned,

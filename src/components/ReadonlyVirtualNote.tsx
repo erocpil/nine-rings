@@ -796,7 +796,7 @@ export function ReadonlyVirtualNote(
     open: (preview === "outline" || preview === "bookmarks") && (!mobileDrawerViewport || presentation === "popover"),
     triggerRef: preview === "bookmarks" ? bookmarkTriggerRef : outlineTriggerRef,
     panelRef, compact: mobileDrawerViewport, layoutKey: `${props.focusMode}:${preview}`,
-    width: mobileDrawerViewport ? 380 : desktopPanels.widths[preview === "bookmarks" ? "bookmark" : "outline"],
+    width: mobileDrawerViewport ? 380 : desktopPanels.previewWidths[preview === "bookmarks" ? "bookmark" : "outline"],
   });
   const onOpenSettings = props.onOpenSettings;
   useEffect(

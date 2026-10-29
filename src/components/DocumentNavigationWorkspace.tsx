@@ -264,7 +264,7 @@ export function DocumentNavigationWorkspace({
     compact: false,
     triggerRef: kind === "bookmark" ? bookmarkTrigger : outlineTrigger,
     panelRef: kind === "bookmark" ? bookmarkPanel : outlinePanel,
-    width: controller.widths[kind ?? "outline"],
+    width: controller.previewWidths[kind ?? "outline"],
     layoutKey: kind ?? "",
   });
   const activeSymbol = symbolOutline && sourceSymbolsSource === snapshotSource

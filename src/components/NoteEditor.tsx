@@ -668,7 +668,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
       : previewKind === "bookmark" ? bookmarkTriggerRef : outlineTriggerRef,
     panelRef: previewKind === "bookmark" ? bookmarkPanelRef : outlinePanelRef,
     compact: isMobileToolbarViewport, layoutKey: focusMode,
-    width: isMobileToolbarViewport ? undefined : desktopPanels.widths[previewKind === "bookmark" ? "bookmark" : "outline"],
+    width: isMobileToolbarViewport ? undefined : desktopPanels.previewWidths[previewKind === "bookmark" ? "bookmark" : "outline"],
   });
   // Optional controls have their own measured overflow. Switch the fixed
   // groups only when their actual full-mode width no longer fits.
