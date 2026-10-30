@@ -146,7 +146,7 @@ export function useSidebarHoverPreview({
         )
       )
         return;
-      if (event.target instanceof Element && event.target.closest(".vim-mode-enabled")) return;
+      if (event.target instanceof Element && event.target.closest(".vim-mode-enabled, .cm-vimMode")) return;
       event.preventDefault();
       dismiss();
     };

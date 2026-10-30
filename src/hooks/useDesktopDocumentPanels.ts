@@ -171,7 +171,8 @@ export function useDesktopDocumentPanels(
         dismiss();
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") dismiss();
+      if (event.key === "Escape" && !event.defaultPrevented
+        && !(event.target instanceof Element && event.target.closest(".cm-vimMode, .vim-mode-enabled"))) dismiss();
     };
     document.addEventListener("click", outside);
     window.addEventListener("keydown", escape);

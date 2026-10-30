@@ -265,6 +265,12 @@
   background: transparent;
   outline-color: var(--accent);
 }
+.markdown-cm-source .cm-editor .cm-vim-panel input {
+  /* Native input defaults otherwise differ from the adjacent ':'/'/' text. */
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
 .editor-stats .source-vim-toggle,
 .markdown-source-tools .source-vim-toggle { color: var(--text-secondary); background: transparent; }
 .editor-stats .source-vim-toggle.active,
