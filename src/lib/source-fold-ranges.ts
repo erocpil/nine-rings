@@ -223,38 +223,53 @@ export function sourceFoldGutter(
         },
         click(view, line) {
           clearFoldConnector(view);
-          // Folding a region above the viewport shortens the document while
-          // leaving scrollTop unchanged. Keep the first visible source line at
-          // the same screen coordinate so later functions do not jump away.
-          const scrollTop = view.scrollDOM.scrollTop;
-          const visible = view.lineBlockAtHeight(scrollTop);
-          const anchor = view.state.doc.lineAt(Math.min(visible.from, view.state.doc.length)).from;
-          const topOffset = visible.top - scrollTop;
-          const preserveViewport = () => requestAnimationFrame(() => {
-            const block = view.lineBlockAt(anchor);
-            view.scrollDOM.scrollTop = Math.max(0, block.top - topOffset);
-          });
+          // Keep an unaffected line at the same screen coordinate. If the
+          // viewport starts inside the region being collapsed, its first
+          // visible line becomes the placeholder and would pull the viewport
+          // to the fold opener. Anchor instead to the first whole line after
+          // the folded range (or to the visible line before it).
+          const preserveViewport = (collapsing?: SourceFoldRange) => {
+            const scrollTop = view.scrollDOM.scrollTop;
+            const visible = view.lineBlockAtHeight(scrollTop);
+            let anchor = view.state.doc.lineAt(Math.min(visible.from, view.state.doc.length)).from;
+            let topOffset = visible.top - scrollTop;
+            if (collapsing && anchor >= collapsing.from && anchor < collapsing.to) {
+              const endLine = view.state.doc.lineAt(collapsing.to);
+              const afterRange = collapsing.to > endLine.from && endLine.number < view.state.doc.lines
+                ? view.state.doc.line(endLine.number + 1)
+                : endLine;
+              anchor = afterRange.from;
+              topOffset = view.lineBlockAt(anchor).top - scrollTop;
+            }
+            return () => requestAnimationFrame(() => {
+              const block = view.lineBlockAt(anchor);
+              view.scrollDOM.scrollTop = Math.max(0, block.top - topOffset);
+            });
+          };
           let existing: SourceFoldRange | null = null;
           foldedRanges(view.state).between(line.from, line.to, (from, to) => {
             if (!existing && view.state.doc.lineAt(from).from === line.from) existing = { from, to };
           });
           if (existing) {
+            const restoreViewport = preserveViewport();
             view.dispatch({ effects: unfoldEffect.of(existing) });
-            preserveViewport();
+            restoreViewport();
             return true;
           }
           const opening = foldable(view.state, line.from, line.to);
           if (opening) {
+            const restoreViewport = preserveViewport(opening);
             view.dispatch({ effects: foldEffect.of(opening) });
-            preserveViewport();
+            restoreViewport();
             return true;
           }
           const containing = sourceFoldRangesAtLine(view.state, view.state.doc.lineAt(line.from).number);
           const endings = containing.filter(range => view.state.doc.lineAt(range.to).from === line.from);
           const ending = endings[endings.length - 1];
           if (!ending) return false;
+          const restoreViewport = preserveViewport(ending);
           view.dispatch({ effects: foldEffect.of(ending) });
-          preserveViewport();
+          restoreViewport();
           return true;
         },
       },
