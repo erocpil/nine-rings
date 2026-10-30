@@ -49,13 +49,17 @@ mod tests {
     fn zoom_fullscreen_exit_unzoom_preserves_the_original_frame() {
         let mut frames = WindowPlacement::default();
         for _ in 0..3 {
+            assert!(!frames.has_zoom_restore_frame());
             assert_eq!(frames.toggle_zoom(100, 500, false), 500);
+            assert!(frames.has_zoom_restore_frame());
             frames.begin_fullscreen(500);
             frames.begin_fullscreen(900);
             assert!(frames.transitioning());
             assert_eq!(frames.finish_fullscreen(), Some(500));
             assert!(!frames.transitioning());
+            assert!(frames.has_zoom_restore_frame());
             assert_eq!(frames.toggle_zoom(500, 500, true), 100);
+            assert!(!frames.has_zoom_restore_frame());
         }
     }
 

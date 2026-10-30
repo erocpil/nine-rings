@@ -2083,3 +2083,7 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 - 配置错误与加载/超时错误分开传输。当前编辑状态未变化时重新打开配置页持续展示错误；执行期间已继续编辑则只提供“查看错误”入口。修正配置后清除旧提示，错误不修改正文或替换格式化快照。YAML # 整行/行尾注释由真实格式化器解析，配置文本不自行删除注释。
 - 新增 7 项诊断单元测试，覆盖未知键、数字/枚举值、YAML 语法、重复行不猜位置、无诊断回退和输出上限。完整 npm run check 通过：208 文件 / 2388 项以及既有独立脚本、类型、lint、格式、Schema、IPC；生产构建通过，仍有原有 NoteEditor chunk 警告。
 - source-formatting Chromium/WebKit 各 4 项通过，含错误后的修正、# 注释及配置高度。最终生产 Chromium 1 项通过，离线重启后可格式化、查看差异，并显示真实 IndentWidth 非法值与第 3 行诊断。未执行本批全产品 E2E 或 Tauri GUI。日志：/tmp/nr-format-diagnostics-check.log、/tmp/nr-format-diagnostics-webkit.log、/tmp/nr-format-diagnostics-build.log、/tmp/nr-format-diff-production.log。
+
+### 本次推送后的 Rust 门禁修复
+
+`c4d7089f` 的远端前端、IPC 与通用 CI 通过；Rust Tests 的 Linux 编译因 `WindowPlacement::has_zoom_restore_frame` 未在测试路径使用而触发 `-D warnings`。补充现有最大化／全屏往返测试的恢复帧状态断言，覆盖进入最大化、全屏往返及恢复普通窗口后的状态，不放宽警告策略。独立 `rustc --test -D warnings` 两项通过，cargo fmt 检查通过；修复推送后按新的 SHA 重新核对 Rust 门禁。
