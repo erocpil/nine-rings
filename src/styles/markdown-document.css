@@ -71,7 +71,7 @@
 .source-format-config > :not(textarea) { flex-shrink: 0; }
 .source-format-error { margin: 0; padding: 8px 10px; max-height: min(200px, 25dvh); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font: 13px/1.5 ui-monospace, monospace; }
 .source-format-config p { margin: 0; color: var(--text-secondary); font-size: 13px; }
-.source-format-config label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.source-format-config label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; }
 .source-format-config input[type="file"] { min-width: 0; max-width: 100%; color: var(--text-secondary); font: inherit; }
 .source-format-config input[type="file"]::file-selector-button {
   margin-right: 10px;
