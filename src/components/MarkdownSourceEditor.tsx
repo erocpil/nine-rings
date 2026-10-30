@@ -1,3 +1,5 @@
+import { SourceNavigationControls } from "./SourceNavigationControls";
+import { sourceNavigationExtension } from "../lib/source-navigation-actions";
 import { expandSourceSelection, shrinkSourceSelection, jumpSourceBracket, jumpSourceWord } from "../lib/source-structural-navigation";
 import { DocumentToolbar } from "./DocumentChrome";
 import { EditorStatusSelect } from "./EditorStatusSelect";
@@ -565,6 +567,7 @@ export function MarkdownSourceEditor({
       history(),
       vimCompartment.current.of([]),
       sourceFoldCursor,
+      sourceNavigationExtension,
       EditorView.scrollMargins.of((view) => {
         const gutter =
           view.scrollDOM.querySelector<HTMLElement>(".cm-gutters-before");
@@ -1608,6 +1611,7 @@ export function MarkdownSourceEditor({
               ))}
             </>
           )}
+          <SourceNavigationControls editorRef={view} onMessage={setSourceMessage} />
           {([
             ["扩大结构选区 · Alt+F1", "expand", expandSourceSelection],
             ["缩小结构选区 · Alt+Shift+F1", "minus", shrinkSourceSelection],

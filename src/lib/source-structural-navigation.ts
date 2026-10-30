@@ -46,3 +46,23 @@ export function jumpSourceWord(view: EditorView, direction: -1 | 1): boolean {
   view.dispatch({ selection: { anchor: target.from }, scrollIntoView: true, userEvent: "select.jump" });
   return true;
 }
+
+/** Navigate across nonblank lines at the same or shallower indentation. */
+export function jumpSourceStructure(view: EditorView, direction: -1 | 1, outer = false): boolean {
+  if (view.composing) return false;
+  const state = view.state, line = state.doc.lineAt(state.selection.main.head);
+  const columns = (text: string) => {
+    let width = 0;
+    for (const c of /^[\t ]*/.exec(text)![0]) width += c === "\t" ? state.tabSize - width % state.tabSize : 1;
+    return width;
+  };
+  const current = columns(line.text);
+  for (let n = line.number + direction; n >= 1 && n <= state.doc.lines; n += direction) {
+    const next = state.doc.line(n);
+    if (!next.text.trim() || (outer ? columns(next.text) >= current : columns(next.text) > current)) continue;
+    view.contentDOM?.dispatchEvent(new Event("nr:editor-navigation"));
+    view.dispatch({ selection: { anchor: next.from + /^[\t ]*/.exec(next.text)![0].length }, scrollIntoView: true, userEvent: "select.jump" });
+    return true;
+  }
+  return false;
+}

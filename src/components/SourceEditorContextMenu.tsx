@@ -1,4 +1,5 @@
-import { expandSourceSelection, shrinkSourceSelection, jumpSourceBracket, jumpSourceWord } from "../lib/source-structural-navigation";
+import { selectSourceObject, repeatSourceEdit } from "../lib/source-navigation-actions";
+import { expandSourceSelection, shrinkSourceSelection, jumpSourceBracket, jumpSourceWord, jumpSourceStructure } from "../lib/source-structural-navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { selectAll, redo, undo, undoDepth, redoDepth, indentMore, indentLess, toggleComment } from "@codemirror/commands";
@@ -144,6 +145,13 @@ export function SourceEditorContextMenu({ target, close }: {
     { label: "跳转配对括号", run: () => run(() => { jumpSourceBracket(target.view); }) },
     { label: "上一处同词", run: () => run(() => { jumpSourceWord(target.view, -1); }) },
     { label: "下一处同词", run: () => run(() => { jumpSourceWord(target.view, 1); }) },
+    { label: "上一同级或外层行", run: () => run(() => { jumpSourceStructure(target.view, -1); }) },
+    { label: "下一同级或外层行", run: () => run(() => { jumpSourceStructure(target.view, 1); }) },
+    { label: "跳到外层缩进", run: () => run(() => { jumpSourceStructure(target.view, -1, true); }) },
+    { label: "选择括号内文本", run: () => run(() => { selectSourceObject(target.view, "brackets"); }) },
+    { label: "选择引号内文本", run: () => run(() => { selectSourceObject(target.view, "quote"); }) },
+    { label: "选择整个函数", run: () => run(() => { selectSourceObject(target.view, "function"); }) },
+    { label: "重复上次简单编辑", disabled: !canEdit, run: () => run(() => { if (!repeatSourceEdit(target.view)) throw Error("没有可安全重复的简单编辑。"); }) },
     { label: "全选", run: () => run(() => { selectAll(target.view); }) },
   ];
   return createPortal(<div ref={ref} className="doc-context-menu source-context-menu" role="menu" aria-label={line ? "源码行菜单" : "源码编辑菜单"} data-sidebar-owned

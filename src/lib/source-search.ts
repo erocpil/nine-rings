@@ -241,16 +241,24 @@ function createGotoPanel(view: EditorView): Panel {
   return { dom, top: true };
 }
 function navigate(view: EditorView, direction: number) {
-  const state = view.state.field(searchState);
+  let state = view.state.field(searchState);
+  if (!state.open && state.query) {
+    try {
+      const matches = findTextMatches(view.state.doc.toString(), state.query, state.options);
+      state = { ...state, matches, active: -1 };
+    } catch { return; }
+  }
   if (!state.matches.length) return;
-  const caret = view.state.selection.main.from;
+  view.contentDOM.dispatchEvent(new Event("nr:editor-navigation"));
+  const selection = view.state.selection.main;
+  const caret = direction > 0 ? selection.to : selection.from;
   const next =
     state.active < 0
       ? direction > 0
-        ? state.matches.findIndex((match) => match.to > caret)
+        ? state.matches.findIndex((match) => match.from >= caret)
         : state.matches.filter((match) => match.from < caret).length - 1
       : state.active + direction;
-  const active = (next + state.matches.length) % state.matches.length;
+  const active = direction > 0 && state.active < 0 && next < 0 ? 0 : (next + state.matches.length) % state.matches.length;
   const match = state.matches[active];
   view.dispatch({
     selection: EditorSelection.range(match.from, match.to),

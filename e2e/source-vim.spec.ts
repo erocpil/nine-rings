@@ -61,3 +61,22 @@ test("Vim 开启时 Esc 不关闭浮层分栏，包括焦点留在分栏按钮�
   await page.keyboard.press("Escape");
   await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
 });
+
+test("Vim 全文替换可撤销，搜索可用 Esc 清除高亮", async ({ page }) => {
+  await createBlankDocument(page, "Vim 搜索替换");
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  await replaceSource(area, "int stk;\nint stk2 = stk;");
+  await page.getByRole("button", { name: "源码 Vim 模式", exact: true }).click();
+  await area.click();
+  await page.keyboard.type(":%s/stk/ss/g");
+  await page.keyboard.press("Enter");
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe("int ss;\nint ss2 = ss;");
+  await page.keyboard.press("u");
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe("int stk;\nint stk2 = stk;");
+  await page.keyboard.type("/stk");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".cm-searchMatch").first()).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".cm-searchMatch")).toHaveCount(0);
+});
