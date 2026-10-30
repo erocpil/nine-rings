@@ -4,6 +4,8 @@ mod desktop_lifecycle;
 pub mod export;
 mod fullscreen;
 mod tray_window;
+// Only restore auxiliary windows that were visible when the app was hidden.
+static HIDDEN_AUXILIARY_WINDOWS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static JOB_OBJECT_ENABLED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 #[cfg(target_os = "macos")]
@@ -392,6 +394,20 @@ fn toggle_main_window(app: &tauri::AppHandle) {
 }
 
 pub(crate) fn hide_main_window_to_tray(window: &tauri::WebviewWindow) {
+    if let Ok(mut hidden) = HIDDEN_AUXILIARY_WINDOWS.lock() {
+        for (label, auxiliary) in window.app_handle().webview_windows() {
+            if label != "main" && auxiliary.is_visible().unwrap_or(false) {
+                match auxiliary.hide() {
+                    Ok(()) => {
+                        if !hidden.contains(&label) {
+                            hidden.push(label);
+                        }
+                    }
+                    Err(error) => startup_log!("hide auxiliary window failed: {}: {}", label, error),
+                }
+            }
+        }
+    }
     #[cfg(target_os = "macos")]
     let result = macos_window::hide_to_tray(window);
     #[cfg(not(target_os = "macos"))]
@@ -411,6 +427,15 @@ fn show_main_window(app: &tauri::AppHandle) {
         );
         let _ = window.show();
         let _ = window.unminimize();
+        if let Ok(mut hidden) = HIDDEN_AUXILIARY_WINDOWS.lock() {
+            for label in hidden.drain(..) {
+                if let Some(auxiliary) = app.get_webview_window(&label) {
+                    if let Err(error) = auxiliary.show() {
+                        startup_log!("restore auxiliary window failed: {}: {}", label, error);
+                    }
+                }
+            }
+        }
         let _ = window.set_focus();
         #[cfg(target_os = "windows")]
         bump_webview2(&window);
@@ -793,8 +818,10 @@ pub fn run() {
                     return;
                 }
                 startup_log!("window_event CloseRequested label={}", window.label());
-                let _ = window.hide();
                 api.prevent_close();
+                if let Some(main) = window.app_handle().get_webview_window("main") {
+                    hide_main_window_to_tray(&main);
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
