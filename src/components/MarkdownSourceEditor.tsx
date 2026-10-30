@@ -1810,6 +1810,7 @@ export function MarkdownSourceEditor({
       className={`markdown-source-input markdown-cm-source${sourceContextMenu ? " has-source-context-menu" : ""}`}
       data-document-language={documentLanguage || "text"}
       data-source-readonly={editingReadonly}
+      data-source-vim={sourceVim}
       data-micro-rendering={
         markupMode && preferences.sourceMicroRendering === true
       }

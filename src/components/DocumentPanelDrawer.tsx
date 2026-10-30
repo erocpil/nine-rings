@@ -1,3 +1,4 @@
+import { sourceVimOwnsEscape } from "../lib/vim-escape";
 import { useDocumentActive } from "./RetainedDocument";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -27,7 +28,7 @@ export function DocumentPanelDrawer({ enabled, presentation, panel, hasOutline, 
   useEffect(() => {
     if (!enabled || presentation !== "popover" || !panel) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.isComposing) return;
+      if (event.key !== "Escape" || event.isComposing || event.defaultPrevented || sourceVimOwnsEscape(event)) return;
       event.preventDefault();
       onClose();
     };

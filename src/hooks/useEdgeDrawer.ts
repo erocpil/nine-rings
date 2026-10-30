@@ -1,3 +1,4 @@
+import { sourceVimOwnsEscape } from "../lib/vim-escape";
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { bindEdgeSwipe } from "../lib/edge-swipe";
 
@@ -37,6 +38,7 @@ export function useEdgeDrawer(open: boolean, side: "left" | "right", panelRef: R
       swipeButtonSelector: "[data-drawer-swipe-item], .document-outline-link, .document-bookmark-item:not(.swipe-open) .document-bookmark-jump",
     });
     const keydown = (event: KeyboardEvent) => {
+      if (sourceVimOwnsEscape(event)) return;
       if (event.key === "Escape" && event.target instanceof Element
           && event.target.closest(".cm-vimMode, .vim-mode-enabled")) return;
       // Reader-owned panels must consume Escape before the surrounding drawer.

@@ -40,3 +40,24 @@ test("只读源码 Vim 显示定位光标并保持只读", async ({ page }) => {
   await page.keyboard.press("x");
   await expect.poll(async () => (await sourceInfo(area)).value).toBe("int value;");
 });
+
+test("Vim 开启时 Esc 不关闭浮层分栏，包括焦点留在分栏按钮时", async ({ page }) => {
+  await createBlankDocument(page, "Vim 分栏 Esc");
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  await replaceSource(area, "int value;");
+  const toggle = page.getByRole("button", { name: "源码 Vim 模式", exact: true });
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("title", "Vim NORMAL；点击关闭");
+  await page.evaluate(() => localStorage.setItem("nr:sidebarPresentation", "overlay"));
+  await page.reload();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  const tree = page.locator('[data-sidebar-panel="tree"]');
+  const sidebar = page.locator(".app-sidebar");
+  if (await sidebar.evaluate(element => element.classList.contains("sidebar-hidden"))) await tree.click();
+  await tree.focus();
+  await page.keyboard.press("Escape");
+  await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+  await page.keyboard.press("Escape");
+  await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+});

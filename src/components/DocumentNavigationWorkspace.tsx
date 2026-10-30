@@ -1,3 +1,4 @@
+import { sourceVimOwnsEscape } from "../lib/vim-escape";
 import { saveCompactPanel, type DocumentWorkspaceOrigin } from "../lib/document-workspace-layout";
 import { OutlineJumpControls, SourceSymbolSearch, SourceSymbolTools } from "./DocumentNavigationTools";
 import { SourceWordMatchList } from "./SourceWordMatchList";
@@ -131,7 +132,7 @@ export function DocumentNavigationWorkspace({
   useEffect(() => {
     if (!matchesPreview) return;
     const dismiss = (event: Event) => {
-      if (event instanceof KeyboardEvent && event.key !== "Escape") return;
+      if (event instanceof KeyboardEvent && (event.key !== "Escape" || event.defaultPrevented || sourceVimOwnsEscape(event))) return;
       if (event instanceof MouseEvent && event.target instanceof Node && (matchesPanel.current?.contains(event.target) || matchesTrigger.current?.contains(event.target))) return;
       setMatchesPreview(false);
     };

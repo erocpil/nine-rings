@@ -1,3 +1,4 @@
+import { sourceVimOwnsEscape } from "../lib/vim-escape";
 import {
   useCallback,
   useEffect,
@@ -139,7 +140,7 @@ export function useSidebarHoverPreview({
   useEffect(() => {
     if (!enabled || hidden) return;
     const escape = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.key !== "Escape" || event.defaultPrevented || sourceVimOwnsEscape(event)) return;
       if (
         document.querySelector(
           ".doc-context-menu, .document-filter-options[data-sidebar-owned], [role=menu], [role=dialog], dialog[open], [aria-modal=true], .editor-find-bar, .cm-panels",

@@ -1,3 +1,4 @@
+import { sourceVimOwnsEscape } from "../lib/vim-escape";
 import { outlineLabel } from "../lib/heading-links";
 import { useDocumentWorkspace } from "./useDocumentWorkspace";
 import { saveCompactPanel, type DocumentWorkspaceOrigin } from "../lib/document-workspace-layout";
@@ -171,7 +172,7 @@ export function useDesktopDocumentPanels(
         dismiss();
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented
+      if (event.key === "Escape" && !sourceVimOwnsEscape(event) && !event.defaultPrevented
         && !(event.target instanceof Element && event.target.closest(".cm-vimMode, .vim-mode-enabled"))) dismiss();
     };
     document.addEventListener("click", outside);
