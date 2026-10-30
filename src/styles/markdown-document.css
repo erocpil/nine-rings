@@ -72,6 +72,19 @@
 .source-format-error { margin: 0; padding: 8px 10px; max-height: min(200px, 25dvh); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font: 13px/1.5 ui-monospace, monospace; }
 .source-format-config p { margin: 0; color: var(--text-secondary); font-size: 13px; }
 .source-format-config label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.source-format-config input[type="file"] { min-width: 0; max-width: 100%; color: var(--text-secondary); font: inherit; }
+.source-format-config input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.source-format-config input[type="file"]::file-selector-button:hover { background: var(--active-bg); border-color: var(--accent); }
+.source-format-config input[type="file"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
 .source-format-config textarea { flex: 1; box-sizing: border-box; width: 100%; min-height: 120px; resize: none; padding: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font: 14px/1.5 ui-monospace, monospace; }
 .markdown-cm-host .cm-editor { height: 100%; color: var(--text); background: var(--bg); font-size: inherit; }
 .markdown-cm-host .cm-editor.cm-focused { outline: none; }
