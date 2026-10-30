@@ -272,9 +272,21 @@
   color: inherit;
 }
 .editor-stats .source-vim-toggle,
-.markdown-source-tools .source-vim-toggle { color: var(--text-secondary); background: transparent; }
+.markdown-source-tools .source-vim-toggle {
+  color: var(--text-secondary);
+  background: transparent;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  flex-basis: 22px;
+  margin-inline: 0;
+}
 .editor-stats .source-vim-toggle.active,
-.markdown-source-tools .source-vim-toggle.active { color: var(--accent); background: transparent; font-weight: 700; }
+.markdown-source-tools .source-vim-toggle.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--text) 10%, var(--bg));
+  font-weight: 700;
+}
 
 .markdown-cm-source[data-source-readonly="true"] .cm-content { caret-color: transparent !important; cursor: text; }
 

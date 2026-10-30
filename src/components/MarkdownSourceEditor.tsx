@@ -1112,7 +1112,6 @@ export function MarkdownSourceEditor({
     numbering?.relative ?? preferences.relativeSourceLineNumbers === true;
   const gutterControls = (
     <>
-      <SourceWhitespaceToggle className="source-status-whitespace" />
       <button
         type="button"
         className="editor-status-select source-gutter-settings"
@@ -1997,7 +1996,7 @@ export function MarkdownSourceEditor({
             documentLanguageOptions={documentLanguageOptions}
             onDocumentLanguageChange={onDocumentLanguageChange}
             onCreateDocument={onCreateDocument}
-            sourceModeControl={vimControl}
+            sourceModeControl={<><SourceWhitespaceToggle className="source-status-whitespace" />{vimControl}</>}
             enabled={showStatusBar}
             focusMode={focusMode}
             className="markdown-source-status"
@@ -2018,7 +2017,7 @@ export function MarkdownSourceEditor({
           documentLanguageOptions={documentLanguageOptions}
           onDocumentLanguageChange={onDocumentLanguageChange}
           onCreateDocument={onCreateDocument}
-            sourceModeControl={vimControl}
+            sourceModeControl={<><SourceWhitespaceToggle className="source-status-whitespace" />{vimControl}</>}
           enabled={showStatusBar}
           focusMode={focusMode}
           className="markdown-source-status"
