@@ -3,7 +3,7 @@ import { cpp } from "@codemirror/lang-cpp";
 import { history, undo } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { EditorSelection, EditorState } from "@codemirror/state";
-import { sourceAutoIndentChange } from "../../src/lib/source-auto-indent";
+import { sourceAutoIndentChange, sourceIndentationFromFormatted } from "../../src/lib/source-auto-indent";
 
 const unindented = "int main() {\nint value = 1;\nif (value) {\nvalue++;\n}\n}";
 
@@ -367,5 +367,21 @@ describe("source automatic indentation", () => {
         "}",
       ].join("\n"),
     );
+  });
+});
+
+
+describe("formatter-derived indentation", () => {
+  it("preserves continuation tabs when ColumnLimit 100 joins the signature", async () => {
+    const { format } = await import("@wasm-fmt/clang-format/node");
+    const source = "static struct thread *task_create_thread(const struct task *task,\n\t\tconst struct boot_module *module);";
+    const formatted = format(source, "main.cpp", JSON.stringify({ BasedOnStyle: "LLVM", ColumnLimit: 100 }));
+    expect(formatted.trim().split("\n")).toHaveLength(1);
+    const state = EditorState.create({ doc: source, extensions: [cpp()] });
+    const result = await sourceIndentationFromFormatted(state, "document", formatted);
+    expect(result.change).toBeNull();
+    expect(result.skipped).toBe(1);
+    const compliant = EditorState.create({ doc: formatted, extensions: [cpp()] });
+    expect((await sourceIndentationFromFormatted(compliant, "document", formatted)).change).toBeNull();
   });
 });

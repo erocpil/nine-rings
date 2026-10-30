@@ -161,7 +161,12 @@ export async function sourceFormattedIndentChange(state: EditorState, scope: Sou
   const prefs = blockWorkspacePreferences();
   const source = state.doc.toString();
   const formatted = await formatSource({ source, language: "cpp", style: sourceFormatStyle(sourceFormatSettings(), prefs.tabSize ?? 4, prefs.sourceIndentStyle !== "spaces") });
-  if (source === formatted) return empty;
+  return sourceIndentationFromFormatted(state, scope, formatted);
+}
+
+export async function sourceIndentationFromFormatted(state: EditorState, scope: SourceAutoIndentScope, formatted: string): Promise<{ change: TransactionSpec | null; skipped: number }> {
+  const source = state.doc.toString();
+  if (source === formatted) return { change: null, skipped: 0 };
   const compact = (text: string) => {
     const positions: number[] = [];
     let tokens = "";
@@ -197,6 +202,9 @@ export async function sourceFormattedIndentChange(state: EditorState, scope: Sou
     const position = after.positions[match.target + first - match.from];
     const start = formatted.lastIndexOf("\n", position - 1) + 1;
     const indent = /^[\t ]*/.exec(formatted.slice(start))![0];
+    // A joined continuation has no line-leading indentation in the reference
+    // layout. Its containing line's prefix is not a valid indentation target.
+    if (position !== start + indent.length) { skipped++; continue; }
     if (prefix !== indent) changes.push({ from: line.from, to: line.from + prefix.length, insert: indent });
   }
   return { change: changes.length ? { changes, userEvent: "input.indent", annotations: isolateHistory.of("full") } : null, skipped };
