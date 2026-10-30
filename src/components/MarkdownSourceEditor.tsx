@@ -1,3 +1,4 @@
+import { expandSourceSelection, shrinkSourceSelection, jumpSourceBracket, jumpSourceWord } from "../lib/source-structural-navigation";
 import { DocumentToolbar } from "./DocumentChrome";
 import { EditorStatusSelect } from "./EditorStatusSelect";
 import {
@@ -616,6 +617,11 @@ export function MarkdownSourceEditor({
         go: "跳转",
       }),
       keymap.of([
+        { key: "Alt-F1", run: expandSourceSelection },
+        { key: "Alt-Shift-F1", run: shrinkSourceSelection },
+        { key: "Mod-Shift-\\", run: jumpSourceBracket },
+        { key: "Alt-F3", run: v => jumpSourceWord(v, 1) },
+        { key: "Alt-Shift-F3", run: v => jumpSourceWord(v, -1) },
         {
           key: "Enter",
           run: (editor) => {
@@ -1551,6 +1557,13 @@ export function MarkdownSourceEditor({
               ))}
             </>
           )}
+          {([
+            ["扩大结构选区 · Alt+F1", "expand", expandSourceSelection],
+            ["缩小结构选区 · Alt+Shift+F1", "minus", shrinkSourceSelection],
+            ["跳转配对括号 · Cmd/Ctrl+Shift+\\", "code", jumpSourceBracket],
+            ["上一处同词 · Alt+Shift+F3", "chevronLeft", (v: EditorView) => jumpSourceWord(v, -1)],
+            ["下一处同词 · Alt+F3", "chevronRight", (v: EditorView) => jumpSourceWord(v, 1)],
+          ] as const).map(([title, icon, command]) => <button key={title} type="button" title={title} aria-label={title.split(" · ")[0]} onMouseDown={event => event.preventDefault()} onClick={() => run(command)}><ToolbarIcon name={icon} /></button>)}
           <button
             type="button"
             title="增加缩进"

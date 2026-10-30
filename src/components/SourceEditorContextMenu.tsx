@@ -1,3 +1,4 @@
+import { expandSourceSelection, shrinkSourceSelection, jumpSourceBracket, jumpSourceWord } from "../lib/source-structural-navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { selectAll, redo, undo, undoDepth, redoDepth, indentMore, indentLess, toggleComment } from "@codemirror/commands";
@@ -138,6 +139,11 @@ export function SourceEditorContextMenu({ target, close }: {
     { label: "剪切", disabled: !canEdit || selection.empty, run: () => { void clipboard("cut"); } },
     { label: "复制", disabled: selection.empty, run: () => { void clipboard("copy"); } },
     { label: "粘贴", disabled: !canEdit || !canPaste, run: () => { void clipboard("paste"); } },
+    { label: "扩大结构选区", run: () => run(() => { expandSourceSelection(target.view); }) },
+    { label: "缩小结构选区", run: () => run(() => { shrinkSourceSelection(target.view); }) },
+    { label: "跳转配对括号", run: () => run(() => { jumpSourceBracket(target.view); }) },
+    { label: "上一处同词", run: () => run(() => { jumpSourceWord(target.view, -1); }) },
+    { label: "下一处同词", run: () => run(() => { jumpSourceWord(target.view, 1); }) },
     { label: "全选", run: () => run(() => { selectAll(target.view); }) },
   ];
   return createPortal(<div ref={ref} className="doc-context-menu source-context-menu" role="menu" aria-label={line ? "源码行菜单" : "源码编辑菜单"} data-sidebar-owned
