@@ -2087,3 +2087,7 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 ### 本次推送后的 Rust 门禁修复
 
 `c4d7089f` 的远端前端、IPC 与通用 CI 通过；Rust Tests 的 Linux 编译因 `WindowPlacement::has_zoom_restore_frame` 未在测试路径使用而触发 `-D warnings`。补充现有最大化／全屏往返测试的恢复帧状态断言，覆盖进入最大化、全屏往返及恢复普通窗口后的状态，不放宽警告策略。独立 `rustc --test -D warnings` 两项通过，cargo fmt 检查通过；修复推送后按新的 SHA 重新核对 Rust 门禁。
+
+### Linux AppImage 二次打包权限
+
+`c4d7089f` 的 Windows 构建通过，Linux 编译和初始打包完成后，注入 EGL 的二次 AppImage 打包被 appimagetool 的权限检查拒绝：解包目录／AppRun 保留了 0700 等仅构建者可访问的模式。二次打包前用 `chmod -R a+rX squashfs-root` 规范化便携载荷的读取及目录遍历／原可执行文件权限，不添加写权限，不跳过工具检查。临时夹具验证目录及原可执行文件为 0755、普通数据为 0644；实际 Linux 打包结果以修复提交的远端构建为准。

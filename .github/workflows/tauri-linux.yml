@@ -92,6 +92,10 @@ jobs:
             cp -v /usr/lib/x86_64-linux-gnu/libGL.so.1 squashfs-root/usr/lib/
             cp -v /usr/lib/x86_64-linux-gnu/libGLX.so.0 squashfs-root/usr/lib/ 2>/dev/null || true
             cp -v /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0 squashfs-root/usr/lib/ 2>/dev/null || true
+            # Extraction may retain owner-only modes. The portable payload
+            # must be readable/traversable by users other than the builder;
+            # preserve which regular files are executable without adding write access.
+            chmod -R a+rX squashfs-root
             # Download appimagetool (not in apt)
             wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
             chmod +x appimagetool-x86_64.AppImage
