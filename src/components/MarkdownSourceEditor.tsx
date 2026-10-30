@@ -12,6 +12,7 @@ import {
 } from "../lib/source-indentation";
 import {
   sourceAutoIndentChange,
+  sourceFormattedIndentChange,
   type SourceAutoIndentScope,
 } from "../lib/source-auto-indent";
 import { insertSourceNewline } from "../lib/source-newline";
@@ -962,6 +963,20 @@ export function MarkdownSourceEditor({
   const autoIndent = (scope: SourceAutoIndentScope) =>
     run((editor) => {
       if (editor.composing || editor.state.readOnly) return false;
+      if (documentLanguage === "c" || documentLanguage === "cpp") {
+        const state = editor.state;
+        setSourceMessage("正在计算代码缩进…");
+        void sourceFormattedIndentChange(state, scope).then(change => {
+          if (view.current !== editor || editor.state !== state) { setSourceMessage("编辑状态已变化，请重新执行自动缩进。"); return; }
+          if (change) {
+            const snapshot = editor.scrollSnapshot().map(state.changes(change.changes));
+            editor.dispatch({ ...change, effects: snapshot });
+          }
+          setSourceMessage(change ? (scope === "document" ? "已缩进全文" : "已缩进选区") : "当前范围无需调整。");
+          editor.focus();
+        }).catch(error => setSourceMessage(error instanceof Error ? error.message : String(error)));
+        return true;
+      }
       try {
         const change = sourceAutoIndentChange(editor.state, scope);
         if (!change) {

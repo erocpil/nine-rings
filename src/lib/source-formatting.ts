@@ -27,9 +27,16 @@ export function sourceFormatStyle(settings: SourceFormatSettings, tabSize: numbe
   if (settings.style === "custom") {
     if (!settings.custom.trim()) throw new SourceFormatConfigurationError("请先导入或填写 .clang-format 配置。");
     if (settings.custom.length > 65536) throw new SourceFormatConfigurationError("格式配置不能超过 64 KiB。");
-    return settings.custom;
+    try {
+      const parsed = JSON.parse(settings.custom);
+      return JSON.stringify({ ...parsed, AlignEscapedNewlines: "DontAlign" });
+    } catch {
+      return /^AlignEscapedNewlines\s*:/m.test(settings.custom)
+        ? settings.custom.replace(/^AlignEscapedNewlines\s*:.*$/m, "AlignEscapedNewlines: DontAlign")
+        : `${settings.custom}\nAlignEscapedNewlines: DontAlign\n`;
+    }
   }
-  return JSON.stringify({ BasedOnStyle: settings.style, IndentWidth: tabSize, TabWidth: tabSize, UseTab: tabs ? "ForIndentation" : "Never" });
+  return JSON.stringify({ BasedOnStyle: settings.style, IndentWidth: tabSize, TabWidth: tabSize, UseTab: tabs ? "ForIndentation" : "Never", AlignEscapedNewlines: "DontAlign" });
 }
 
 /** Provider boundary: no editor or platform state is sent to the formatter. */

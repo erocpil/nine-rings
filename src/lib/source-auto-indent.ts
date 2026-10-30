@@ -149,3 +149,32 @@ export function sourceAutoIndentChange(
       }
     : null;
 }
+
+/** Derive only line-leading whitespace from the same formatter/style as Format.
+ * Token offsets allow clang-format to wrap/join lines without rewriting source.
+ */
+export async function sourceFormattedIndentChange(state: EditorState, scope: SourceAutoIndentScope): Promise<TransactionSpec | null> {
+  if (state.readOnly || !state.doc.length || (scope === "selection" && state.selection.main.empty)) return null;
+  const { formatSource, sourceFormatSettings, sourceFormatStyle } = await import("./source-formatting");
+  const { blockWorkspacePreferences } = await import("./block-display-settings");
+  const prefs = blockWorkspacePreferences();
+  const source = state.doc.toString();
+  const formatted = await formatSource({ source, language: "cpp", style: sourceFormatStyle(sourceFormatSettings(), prefs.tabSize ?? 4, prefs.sourceIndentStyle !== "spaces") });
+  const changes: { from: number; to: number; insert: string }[] = [];
+  let a = 0, b = 0;
+  while (a < source.length || b < formatted.length) {
+    while (a < source.length && /\s/.test(source[a])) a++;
+    while (b < formatted.length && /\s/.test(formatted[b])) b++;
+    if (source[a] !== formatted[b]) throw Error("格式化改变了代码顺序，无法安全提取缩进；请使用格式化全文。");
+    if (a >= source.length) break;
+    const line = state.doc.lineAt(a);
+    const prefix = /^[\t ]*/.exec(line.text)![0];
+    if (a === line.from + prefix.length && (scope === "document" || state.selection.ranges.some(range => !range.empty && line.to >= range.from && line.from <= range.to))) {
+      const start = formatted.lastIndexOf("\n", b - 1) + 1;
+      const indent = /^[\t ]*/.exec(formatted.slice(start))![0];
+      if (prefix !== indent) changes.push({ from: line.from, to: line.from + prefix.length, insert: indent });
+    }
+    a++; b++;
+  }
+  return changes.length ? { changes, userEvent: "input.indent", annotations: isolateHistory.of("full") } : null;
+}
