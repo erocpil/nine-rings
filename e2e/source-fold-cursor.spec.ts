@@ -81,7 +81,19 @@ test("折叠可视区上方的函数时保持下方 main 函数在视口中的�
   ].join("\n");
   await replaceSource(area, text);
   const mainLine = text.split("\n").findIndex(line => line.startsWith("int main")) + 1;
-  const main = area.locator(".cm-content");
+  await selectSource(area, text.indexOf("int main"));
+  await area.evaluate((content, line) => {
+    const { EditorView } = (window as any).sourceCM;
+    const view = EditorView.findFromDOM(content as HTMLElement)!;
+    view.scrollDOM.scrollTop = Math.max(0, view.lineBlockAt(view.state.doc.line(line).from).top - view.defaultLineHeight * 2);
+  }, mainLine);
+  await expect.poll(() => area.evaluate((content, line) => {
+    const view = (window as any).sourceCM.EditorView.findFromDOM(content as HTMLElement)!;
+    const bounds = view.scrollDOM.getBoundingClientRect();
+    const top = view.coordsAtPos(view.state.doc.line(line).from)!.top;
+    return top > bounds.top && top < bounds.bottom;
+  }, mainLine)).toBe(true);
+  const main = area;
   const scroller = area.locator("..");
   const mainTopBefore = await main.evaluate((content, line) => {
     const view = (window as any).sourceCM.EditorView.findFromDOM(content as HTMLElement)!;
@@ -89,17 +101,21 @@ test("折叠可视区上方的函数时保持下方 main 函数在视口中的�
     return view.coordsAtPos(position)!.top;
   }, mainLine);
   expect(mainTopBefore).toBeGreaterThan(0);
-  expect(mainTopBefore).toBeLessThan(700);
+  expect(mainTopBefore).toBeLessThan(page.viewportSize()!.height);
   const fold = area.locator("..")
     .locator(".cm-foldGutter .cm-gutterElement:visible")
-    .filter({ has: page.locator("span") })
+    .filter({ has: page.locator("span[data-fold-end=true]") })
     .first();
   await fold.click();
+  await expect.poll(() => main.evaluate((content, line) => {
+    const view = (window as any).sourceCM.EditorView.findFromDOM(content as HTMLElement)!;
+    return Math.abs(view.coordsAtPos(view.state.doc.line(line.number).from)!.top - line.top);
+  }, { number: mainLine, top: mainTopBefore })).toBeLessThan(3);
   const mainTopAfter = await main.evaluate((content, line) => {
     const view = (window as any).sourceCM.EditorView.findFromDOM(content as HTMLElement)!;
     const position = view.state.doc.line(line as number).from;
     return view.coordsAtPos(position)!.top;
-  }, mainLine - 63);
+  }, mainLine);
   expect(Math.abs(mainTopAfter - mainTopBefore)).toBeLessThan(3);
   await expect(scroller.locator(".cm-foldPlaceholder")).toBeVisible();
 });

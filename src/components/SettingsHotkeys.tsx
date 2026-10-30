@@ -1,3 +1,4 @@
+import { SettingsSourceShortcuts } from "./SettingsSourceShortcuts";
 import { isDocumentNavigationShortcut } from "../lib/document-navigation";
 import React, { useState } from "react";
 import type { AppConfig } from "../types/models";
@@ -255,6 +256,7 @@ export function HotkeyConfig({
           </section>
         ))}
       </div>
+      <SettingsSourceShortcuts />
     </div>
   );
 }

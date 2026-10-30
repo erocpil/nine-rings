@@ -23,7 +23,7 @@ export function SourceNavigationControls({ editorRef, onMessage }: { editorRef: 
     ["选择整个函数", "formatSelection", (v: EditorView) => selectSourceObject(v, "function")],
     ["重复上次简单编辑", "redo", repeatSourceEdit],
   ] as const;
-  return <>
+  return <span className="source-navigation-controls" role="group" aria-label="结构导航与文本对象">
     {buttons.map(([label, icon, command]) => <button type="button" key={label} title={label} aria-label={label} onMouseDown={event => event.preventDefault()} onClick={() => act(command)}><ToolbarIcon name={icon} /></button>)}
     <button type="button" title="临时位置标记（仅当前文档会话）" aria-label="临时位置标记" onMouseDown={event => event.preventDefault()} onClick={() => setOpen(true)}><ToolbarIcon name="bookmark" /></button>
     {open && <WorkspaceDialog title="临时位置标记" onClose={() => setOpen(false)}>
@@ -34,5 +34,5 @@ export function SourceNavigationControls({ editorRef, onMessage }: { editorRef: 
         {editorRef.current && sourceMarks(editorRef.current).map(([label, position]) => <button className="menu-btn" type="button" key={label} onClick={() => { act(view => jumpSourceMark(view, label)); setOpen(false); }}>{label} · Ln {editorRef.current!.state.doc.lineAt(position).number}</button>)}
       </form>
     </WorkspaceDialog>}
-  </>;
+  </span>;
 }

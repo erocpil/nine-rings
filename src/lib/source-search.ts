@@ -1,3 +1,4 @@
+import { revealSourceTarget } from "./source-navigation-target";
 import { EditorSelection, StateEffect, StateField } from "@codemirror/state";
 import {
   Decoration,
@@ -222,6 +223,7 @@ function createGotoPanel(view: EditorView): Panel {
     view.dispatch({
       selection: EditorSelection.cursor(line.from + offset),
       effects: [
+        ...revealSourceTarget(view.state, line.from + offset),
         changeSearch.of({ gotoOpen: false }),
         EditorView.scrollIntoView(line.from + offset, { y: "center" }),
       ],
@@ -263,6 +265,7 @@ function navigate(view: EditorView, direction: number) {
   view.dispatch({
     selection: EditorSelection.range(match.from, match.to),
     effects: [
+      ...revealSourceTarget(view.state, match.from),
       changeSearch.of({ active }),
       EditorView.scrollIntoView(match.from, { y: "center" }),
     ],

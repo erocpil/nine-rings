@@ -160,11 +160,26 @@ export async function sourceFormattedIndentChange(state: EditorState, scope: Sou
   const { blockWorkspacePreferences } = await import("./block-display-settings");
   const prefs = blockWorkspacePreferences();
   const source = state.doc.toString();
-  const formatted = await formatSource({ source, language: "cpp", style: sourceFormatStyle(sourceFormatSettings(), prefs.tabSize ?? 4, prefs.sourceIndentStyle !== "spaces") });
-  return sourceIndentationFromFormatted(state, scope, formatted);
+  const style = sourceFormatStyle(sourceFormatSettings(), prefs.tabSize ?? 4, prefs.sourceIndentStyle !== "spaces");
+  const formatted = await formatSource({ source, language: "cpp", style });
+  const joined: number[] = [];
+  const result = await sourceIndentationFromFormatted(state, scope, formatted, joined);
+  const tree = ensureSyntaxTree(state, state.doc.length, 1000);
+  const keepBreaks = new Set(joined.filter(number => {
+    if (number <= 1) return false;
+    const previous = state.doc.line(number - 1);
+    return /[,([]\s*$/.test(previous.text) && !/^\s*#/.test(previous.text)
+      && [",", "(", "["].includes(tree?.resolveInner(previous.from + previous.text.trimEnd().length - 1, 1).name ?? "");
+  }).map(number => number - 1));
+  if (!keepBreaks.size || source.includes("__nr_indent_break_")) return result;
+  // Temporary line comments constrain only the reference formatter's layout.
+  // They never enter the document, its history or its saved source.
+  const probe = source.split("\n").map((line, index) => keepBreaks.has(index + 1) ? `${line} // __nr_indent_break_${index}__` : line).join("\n");
+  const reference = await formatSource({ source: probe, language: "cpp", style });
+  return sourceIndentationFromFormatted(state, scope, reference.replace(/[ \t]*\/\/ __nr_indent_break_\d+__/g, ""));
 }
 
-export async function sourceIndentationFromFormatted(state: EditorState, scope: SourceAutoIndentScope, formatted: string): Promise<{ change: TransactionSpec | null; skipped: number }> {
+export async function sourceIndentationFromFormatted(state: EditorState, scope: SourceAutoIndentScope, formatted: string, joined?: number[]): Promise<{ change: TransactionSpec | null; skipped: number }> {
   const source = state.doc.toString();
   if (source === formatted) return { change: null, skipped: 0 };
   const compact = (text: string) => {
@@ -204,7 +219,7 @@ export async function sourceIndentationFromFormatted(state: EditorState, scope: 
     const indent = /^[\t ]*/.exec(formatted.slice(start))![0];
     // A joined continuation has no line-leading indentation in the reference
     // layout. Its containing line's prefix is not a valid indentation target.
-    if (position !== start + indent.length) { skipped++; continue; }
+    if (position !== start + indent.length) { joined?.push(number); skipped++; continue; }
     if (prefix !== indent) changes.push({ from: line.from, to: line.from + prefix.length, insert: indent });
   }
   return { change: changes.length ? { changes, userEvent: "input.indent", annotations: isolateHistory.of("full") } : null, skipped };

@@ -436,3 +436,10 @@ blockquote[data-alert] { border-left-color: var(--accent); }
 .source-status-whitespace .toolbar-icon { width: 16px; height: 16px; }
 
 .document-title-error { position: absolute; z-index: 130; top: 100%; inset-inline-end: 0; max-width: min(480px, 100%); padding: 6px 10px; color: var(--warning, #bd792e); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+
+.settings-source-shortcut-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; }
+.settings-source-shortcut-grid label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+.settings-source-shortcut-grid select { min-width: 0; max-width: 55%; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 4px; font: inherit; }
+@media (max-width: 768px) { .settings-source-shortcut-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.source-navigation-controls { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 2px; padding-inline: 4px; border-inline: 1px solid var(--border); }

@@ -1,3 +1,4 @@
+import { revealSourceTarget } from "./source-navigation-target";
 import { selectParentSyntax, cursorMatchingBracket } from "@codemirror/commands";
 import { EditorSelection, type EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
@@ -30,7 +31,14 @@ export function shrinkSourceSelection(view: EditorView): boolean {
   return true;
 }
 
-export const jumpSourceBracket = (view: EditorView): boolean => !view.composing && cursorMatchingBracket(view);
+export function jumpSourceBracket(view: EditorView): boolean {
+  if (view.composing) return false;
+  view.contentDOM?.dispatchEvent(new Event("nr:editor-navigation"));
+  if (!cursorMatchingBracket(view)) return false;
+  const effects = revealSourceTarget(view.state, view.state.selection.main.head);
+  if (effects.length) view.dispatch({ effects, scrollIntoView: true });
+  return true;
+}
 
 export function jumpSourceWord(view: EditorView, direction: -1 | 1): boolean {
   if (view.composing) return false;
@@ -43,7 +51,8 @@ export function jumpSourceWord(view: EditorView, direction: -1 | 1): boolean {
   const target = direction > 0
     ? matches.find(match => match.from > word.from) ?? matches[0]
     : [...matches].reverse().find(match => match.from < word.from) ?? matches[matches.length - 1];
-  view.dispatch({ selection: { anchor: target.from }, scrollIntoView: true, userEvent: "select.jump" });
+  view.contentDOM?.dispatchEvent(new Event("nr:editor-navigation"));
+  view.dispatch({ selection: { anchor: target.from }, effects: revealSourceTarget(view.state, target.from), scrollIntoView: true, userEvent: "select.jump" });
   return true;
 }
 
@@ -61,7 +70,7 @@ export function jumpSourceStructure(view: EditorView, direction: -1 | 1, outer =
     const next = state.doc.line(n);
     if (!next.text.trim() || (outer ? columns(next.text) >= current : columns(next.text) > current)) continue;
     view.contentDOM?.dispatchEvent(new Event("nr:editor-navigation"));
-    view.dispatch({ selection: { anchor: next.from + /^[\t ]*/.exec(next.text)![0].length }, scrollIntoView: true, userEvent: "select.jump" });
+    view.dispatch({ selection: { anchor: next.from + /^[\t ]*/.exec(next.text)![0].length }, effects: revealSourceTarget(state, next.from), scrollIntoView: true, userEvent: "select.jump" });
     return true;
   }
   return false;

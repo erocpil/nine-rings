@@ -30,3 +30,23 @@ test("源码相对行跳转及关闭查找后的 F3 连续跳转", async ({ page
   await area.press("Shift+F3");
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("item"));
 });
+
+test("源码文本对象与临时标记可通过界面使用", async ({ page }) => {
+  await createBlankDocument(page, "源码对象与标记");
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  const source = 'int f() { call("abc"); }';
+  await replaceSource(area, source);
+  await selectSource(area, source.indexOf("abc") + 1);
+  await page.getByRole("button", { name: "选择引号内文本", exact: true }).click();
+  await expect.poll(async () => { const state = await sourceInfo(area); return state.value.slice(state.selectionStart, state.selectionEnd); }).toBe("abc");
+  await page.getByRole("button", { name: "临时位置标记", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "临时位置标记", exact: true });
+  await dialog.getByRole("textbox", { name: "临时标记名称" }).fill("target");
+  await dialog.getByRole("button", { name: "保存当前位置" }).click();
+  await dialog.getByRole("button", { name: "关闭临时位置标记", exact: true }).click();
+  await selectSource(area, 0);
+  await page.getByRole("button", { name: "临时位置标记", exact: true }).click();
+  await dialog.getByRole("button", { name: /target · Ln/ }).click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("abc") + 3);
+});

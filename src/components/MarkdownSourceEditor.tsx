@@ -1,3 +1,4 @@
+import { SOURCE_SHORTCUT_EVENT, sourceNavigationKeybindings } from "../lib/source-navigation-shortcuts";
 import { SourceNavigationControls } from "./SourceNavigationControls";
 import { sourceNavigationExtension } from "../lib/source-navigation-actions";
 import { expandSourceSelection, shrinkSourceSelection, jumpSourceBracket, jumpSourceWord } from "../lib/source-structural-navigation";
@@ -476,6 +477,7 @@ export function MarkdownSourceEditor({
     const previewFoldedCode =
       documentLanguage === "c" || documentLanguage === "cpp";
     return [
+      keymap.of(sourceNavigationKeybindings()),
       codeFolding({
         ...(previewFoldedCode
           ? {
@@ -638,11 +640,6 @@ export function MarkdownSourceEditor({
         go: "跳转",
       }),
       keymap.of([
-        { key: "Alt-F1", run: expandSourceSelection },
-        { key: "Alt-Shift-F1", run: shrinkSourceSelection },
-        { key: "Mod-Shift-\\", run: jumpSourceBracket },
-        { key: "Alt-F3", run: v => jumpSourceWord(v, 1) },
-        { key: "Alt-Shift-F3", run: v => jumpSourceWord(v, -1) },
         {
           key: "Enter",
           run: (editor) => {
@@ -910,9 +907,11 @@ export function MarkdownSourceEditor({
       });
     };
     sync();
+    window.addEventListener(SOURCE_SHORTCUT_EVENT, sync);
     window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
     window.addEventListener("storage", sync);
     return () => {
+      window.removeEventListener(SOURCE_SHORTCUT_EVENT, sync);
       window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
       window.removeEventListener("storage", sync);
     };
@@ -1613,11 +1612,11 @@ export function MarkdownSourceEditor({
           )}
           <SourceNavigationControls editorRef={view} onMessage={setSourceMessage} />
           {([
-            ["扩大结构选区 · Alt+F1", "expand", expandSourceSelection],
-            ["缩小结构选区 · Alt+Shift+F1", "minus", shrinkSourceSelection],
-            ["跳转配对括号 · Cmd/Ctrl+Shift+\\", "code", jumpSourceBracket],
-            ["上一处同词 · Alt+Shift+F3", "chevronLeft", (v: EditorView) => jumpSourceWord(v, -1)],
-            ["下一处同词 · Alt+F3", "chevronRight", (v: EditorView) => jumpSourceWord(v, 1)],
+            ["扩大结构选区", "expand", expandSourceSelection],
+            ["缩小结构选区", "minus", shrinkSourceSelection],
+            ["跳转配对括号", "code", jumpSourceBracket],
+            ["上一处同词", "chevronLeft", (v: EditorView) => jumpSourceWord(v, -1)],
+            ["下一处同词", "chevronRight", (v: EditorView) => jumpSourceWord(v, 1)],
           ] as const).map(([title, icon, command]) => <button key={title} type="button" title={title} aria-label={title.split(" · ")[0]} onMouseDown={event => event.preventDefault()} onClick={() => run(command)}><ToolbarIcon name={icon} /></button>)}
           <button
             type="button"
