@@ -2091,3 +2091,7 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 ### Linux AppImage 二次打包权限
 
 `c4d7089f` 的 Windows 构建通过，Linux 编译和初始打包完成后，注入 EGL 的二次 AppImage 打包被 appimagetool 的权限检查拒绝：解包目录／AppRun 保留了 0700 等仅构建者可访问的模式。二次打包前用 `chmod -R a+rX squashfs-root` 规范化便携载荷的读取及目录遍历／原可执行文件权限，不添加写权限，不跳过工具检查。临时夹具验证目录及原可执行文件为 0755、普通数据为 0644；实际 Linux 打包结果以修复提交的远端构建为准。
+
+Rust 后续 Clippy 阶段另发现本地写入入口参数数量超限：内部实现将授权表及 root ID 合并为一个授权参数，导出命令保持既有平铺 IPC 契约并作局部 lint 说明；不放宽全局警告。完整 `cargo clippy --locked --all-targets --all-features -- -D warnings`、fmt、IPC 检查在本机通过。Rust 全部 lib 测试在沙箱外为 **75 通过、1 忽略**；沙箱内原生目录监听未收到通知的失败通过同一用例在沙箱外执行排除了代码问题。
+
+`c4d7089f` 的原生平台 E2E 六组（macOS 14／Windows 2022／Ubuntu 22.04 × Chromium／WebKit）均已通过；其后提交仅继续修复 Rust 门禁和 Linux 打包，前端代码保持该验证基线。

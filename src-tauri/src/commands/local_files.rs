@@ -719,9 +719,9 @@ fn write(
     expected_revision: &str,
     bom: bool,
     line_ending: &str,
-    roots: Arc<Mutex<HashMap<String, PathBuf>>>,
-    root_id: String,
+    authorization: (Arc<Mutex<HashMap<String, PathBuf>>>, String),
 ) -> Result<Snapshot, String> {
+    let (roots, root_id) = authorization;
     if source.len() as u64 > MAX_BYTES {
         return Err("文件超过 4 MiB".into());
     }
@@ -818,6 +818,8 @@ fn write(
     read(root, node)
 }
 
+// Keep the established IPC fields flat; two arguments are injected Tauri context.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn local_files_write(
     window: tauri::WebviewWindow,
@@ -841,8 +843,7 @@ pub async fn local_files_write(
             &expected_revision,
             bom,
             &line_ending,
-            roots,
-            write_root_id,
+            (roots, write_root_id),
         )
     })
     .await
