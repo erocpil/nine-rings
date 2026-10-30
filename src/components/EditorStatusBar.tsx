@@ -40,6 +40,7 @@ export function EditorStatusBar({
   documentLanguageOptions,
   onDocumentLanguageChange,
   onCreateDocument,
+  sourceModeControl,
   navigation = <NavigationButtons />,
 }: {
   enabled: boolean;
@@ -64,6 +65,7 @@ export function EditorStatusBar({
   documentLanguageOptions?: ReadonlyArray<{ value: string; label: string }>;
   onDocumentLanguageChange?: (language: string) => void;
   onCreateDocument?: () => void;
+  sourceModeControl?: ReactNode;
   navigation?: ReactNode;
 }) {
   const state = useStatusBarDisplay(enabled, focusMode);
@@ -301,6 +303,7 @@ export function EditorStatusBar({
                 onChange={(language) => onDocumentLanguageChange?.(language)}
               />
             )}
+            {sourceModeControl}
             {onCreateDocument && (
               <button
                 type="button"

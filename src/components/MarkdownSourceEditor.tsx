@@ -356,6 +356,23 @@ export function MarkdownSourceEditor({
   const documentActive = useDocumentActive();
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
+  const vimCompartment = useRef(new Compartment());
+  const [sourceVim, setSourceVim] = useState(() => {
+    try { return localStorage.getItem("nr:source-vim") === "true"; } catch { return false; }
+  });
+  const [sourceVimMode, setSourceVimMode] = useState("NORMAL");
+  useEffect(() => {
+    const sync = () => {
+      try { setSourceVim(localStorage.getItem("nr:source-vim") === "true"); } catch { /* Keep session preference. */ }
+    };
+    window.addEventListener("nine-rings:source-vim", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener("nine-rings:source-vim", sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
   const foldViewportRestore = useRef<{
     snapshot: SourceFoldViewportSnapshot;
     baseline: number | null;
@@ -546,6 +563,7 @@ export function MarkdownSourceEditor({
     if (!editorHost) return;
     const extensions = [
       history(),
+      vimCompartment.current.of([]),
       sourceFoldCursor,
       EditorView.scrollMargins.of((view) => {
         const gutter =
@@ -966,6 +984,39 @@ export function MarkdownSourceEditor({
     );
     return true;
   };
+  useEffect(() => {
+    const editor = view.current;
+    if (!editor) return;
+    let disposed = false;
+    let cleanup = () => {};
+    if (!sourceVim) {
+      editor.dispatch({ effects: vimCompartment.current.reconfigure([]) });
+      return;
+    }
+    void import("@replit/codemirror-vim").then(({ vim, getCM }) => {
+      if (disposed || view.current !== editor) return;
+      editor.dispatch({ effects: vimCompartment.current.reconfigure(vim()) });
+      const cm = getCM(editor);
+      const report = () => {
+        const mode = cm?.state.vim;
+        setSourceVimMode(mode?.insertMode ? "INSERT" : mode?.visualMode ? "VISUAL" : "NORMAL");
+      };
+      cm?.on("vim-mode-change", report);
+      report();
+      cleanup = () => { cm?.off("vim-mode-change", report); };
+    }).catch(() => { setSourceVim(false); setSourceMessage("Vim 模式加载失败，请重试。"); });
+    return () => { disposed = true; cleanup(); };
+  }, [sourceVim]);
+  const vimControl = <button type="button" className={sourceVim ? "active" : undefined}
+    aria-label="源码 Vim 模式" aria-pressed={sourceVim}
+    title={sourceVim ? `Vim ${sourceVimMode}；点击关闭` : "开启源码 Vim 模式"}
+    onMouseDown={event => event.preventDefault()} onClick={() => {
+      const next = !sourceVim;
+      setSourceVim(next);
+      try { localStorage.setItem("nr:source-vim", String(next)); } catch { /* Session toggle remains usable. */ }
+      window.dispatchEvent(new Event("nine-rings:source-vim"));
+      view.current?.focus();
+    }}>{sourceVim ? `VIM ${sourceVimMode}` : "VIM"}</button>;
   const autoIndent = (scope: SourceAutoIndentScope) =>
     run((editor) => {
       if (editor.composing || editor.state.readOnly) return false;
@@ -1283,7 +1334,7 @@ export function MarkdownSourceEditor({
       >
         <ToolbarIcon name="wrap" />
       </button>
-      {!statusBar.visible && <SourceWhitespaceToggle />}
+      {!statusBar.visible && <><SourceWhitespaceToggle />{vimControl}</>}
       <button
         type="button"
         title="语法高亮"
@@ -1942,6 +1993,7 @@ export function MarkdownSourceEditor({
             documentLanguageOptions={documentLanguageOptions}
             onDocumentLanguageChange={onDocumentLanguageChange}
             onCreateDocument={onCreateDocument}
+            sourceModeControl={vimControl}
             enabled={showStatusBar}
             focusMode={focusMode}
             className="markdown-source-status"
@@ -1962,6 +2014,7 @@ export function MarkdownSourceEditor({
           documentLanguageOptions={documentLanguageOptions}
           onDocumentLanguageChange={onDocumentLanguageChange}
           onCreateDocument={onCreateDocument}
+            sourceModeControl={vimControl}
           enabled={showStatusBar}
           focusMode={focusMode}
           className="markdown-source-status"
