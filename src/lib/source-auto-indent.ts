@@ -150,31 +150,54 @@ export function sourceAutoIndentChange(
     : null;
 }
 
-/** Derive only line-leading whitespace from the same formatter/style as Format.
- * Token offsets allow clang-format to wrap/join lines without rewriting source.
+/** Use unchanged token spans to derive indentation without applying formatting edits.
+ * Unmatched lines and multiline literals retain their original whitespace.
  */
-export async function sourceFormattedIndentChange(state: EditorState, scope: SourceAutoIndentScope): Promise<TransactionSpec | null> {
-  if (state.readOnly || !state.doc.length || (scope === "selection" && state.selection.main.empty)) return null;
+export async function sourceFormattedIndentChange(state: EditorState, scope: SourceAutoIndentScope): Promise<{ change: TransactionSpec | null; skipped: number }> {
+  const empty = { change: null, skipped: 0 };
+  if (state.readOnly || !state.doc.length || (scope === "selection" && state.selection.main.empty)) return empty;
   const { formatSource, sourceFormatSettings, sourceFormatStyle } = await import("./source-formatting");
   const { blockWorkspacePreferences } = await import("./block-display-settings");
   const prefs = blockWorkspacePreferences();
   const source = state.doc.toString();
   const formatted = await formatSource({ source, language: "cpp", style: sourceFormatStyle(sourceFormatSettings(), prefs.tabSize ?? 4, prefs.sourceIndentStyle !== "spaces") });
-  const changes: { from: number; to: number; insert: string }[] = [];
+  if (source === formatted) return empty;
+  const compact = (text: string) => {
+    const positions: number[] = [];
+    let tokens = "";
+    for (let i = 0; i < text.length; i++) if (!/\s/.test(text[i])) { positions.push(i); tokens += text[i]; }
+    return { tokens, positions };
+  };
+  const before = compact(source), after = compact(formatted);
+  const { diff } = await import("@codemirror/merge");
+  const edits = before.tokens === after.tokens ? [] : diff(before.tokens, after.tokens, { scanLimit: 1000, timeout: 100 });
+  const spans: { from: number; to: number; target: number }[] = [];
   let a = 0, b = 0;
-  while (a < source.length || b < formatted.length) {
-    while (a < source.length && /\s/.test(source[a])) a++;
-    while (b < formatted.length && /\s/.test(formatted[b])) b++;
-    if (source[a] !== formatted[b]) throw Error("格式化改变了代码顺序，无法安全提取缩进；请使用格式化全文。");
-    if (a >= source.length) break;
-    const line = state.doc.lineAt(a);
+  for (const edit of edits) { spans.push({ from: a, to: edit.fromA, target: b }); a = edit.toA; b = edit.toB; }
+  spans.push({ from: a, to: before.tokens.length, target: b });
+  const tree = ensureSyntaxTree(state, state.doc.length, 1000);
+  if (!tree) throw Error("源码仍在解析，请稍后重试自动缩进。");
+  const changes: { from: number; to: number; insert: string }[] = [];
+  let token = 0, span = 0, skipped = 0;
+  for (let number = 1; number <= state.doc.lines; number++) {
+    const line = state.doc.line(number);
     const prefix = /^[\t ]*/.exec(line.text)![0];
-    if (a === line.from + prefix.length && (scope === "document" || state.selection.ranges.some(range => !range.empty && line.to >= range.from && line.from <= range.to))) {
-      const start = formatted.lastIndexOf("\n", b - 1) + 1;
-      const indent = /^[\t ]*/.exec(formatted.slice(start))![0];
-      if (prefix !== indent) changes.push({ from: line.from, to: line.from + prefix.length, insert: indent });
+    while (token < before.positions.length && before.positions[token] < line.from + prefix.length) token++;
+    const first = token;
+    while (token < before.positions.length && before.positions[token] < line.to) token++;
+    if (first === token || (scope !== "document" && !state.selection.ranges.some(range => !range.empty && line.to >= range.from && line.from < range.to))) continue;
+    let literal = false;
+    for (let node = tree.resolveInner(line.from + prefix.length, 1); node; node = node.parent!) {
+      if (node.from < line.from && /string|comment|heredoc/i.test(node.name)) literal = true;
     }
-    a++; b++;
+    if (literal) continue;
+    while (span < spans.length - 1 && spans[span].to <= first) span++;
+    const match = spans[span];
+    if (first < match.from || token > match.to) { skipped++; continue; }
+    const position = after.positions[match.target + first - match.from];
+    const start = formatted.lastIndexOf("\n", position - 1) + 1;
+    const indent = /^[\t ]*/.exec(formatted.slice(start))![0];
+    if (prefix !== indent) changes.push({ from: line.from, to: line.from + prefix.length, insert: indent });
   }
-  return changes.length ? { changes, userEvent: "input.indent", annotations: isolateHistory.of("full") } : null;
+  return { change: changes.length ? { changes, userEvent: "input.indent", annotations: isolateHistory.of("full") } : null, skipped };
 }
