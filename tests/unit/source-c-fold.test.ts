@@ -3,6 +3,7 @@ import { EditorState } from "@codemirror/state";
 import { cpp } from "@codemirror/lang-cpp";
 import {
   codeFolding,
+  ensureSyntaxTree,
   foldable,
   foldEffect,
   foldedRanges,
@@ -75,6 +76,7 @@ describe("C/C++ adjacent branch folding", () => {
       doc,
       extensions: [cSourceSupport(cpp())],
     });
+    expect(ensureSyntaxTree(state, state.doc.length, 1000)).not.toBeNull();
     const functionBrace = state.doc.line(6);
     const bodyRange = foldable(state, functionBrace.from, functionBrace.to)!;
     expect(bodyRange).toBeTruthy();

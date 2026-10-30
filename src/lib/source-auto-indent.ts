@@ -160,8 +160,10 @@ export async function sourceFormattedIndentChange(state: EditorState, scope: Sou
   const { blockWorkspacePreferences } = await import("./block-display-settings");
   const prefs = blockWorkspacePreferences();
   const source = state.doc.toString();
-  const style = sourceFormatStyle(sourceFormatSettings(), prefs.tabSize ?? 4, prefs.sourceIndentStyle !== "spaces");
-  const formatted = await formatSource({ source, language: "cpp", style });
+  const settings = sourceFormatSettings();
+  const validation = settings.style === "custom" ? { validationStyle: settings.custom } : {};
+  const style = sourceFormatStyle(settings, prefs.tabSize ?? 4, prefs.sourceIndentStyle !== "spaces");
+  const formatted = await formatSource({ source, language: "cpp", style, ...validation });
   const joined: number[] = [];
   const result = await sourceIndentationFromFormatted(state, scope, formatted, joined);
   const tree = ensureSyntaxTree(state, state.doc.length, 1000);
@@ -175,7 +177,7 @@ export async function sourceFormattedIndentChange(state: EditorState, scope: Sou
   // Temporary line comments constrain only the reference formatter's layout.
   // They never enter the document, its history or its saved source.
   const probe = source.split("\n").map((line, index) => keepBreaks.has(index + 1) ? `${line} // __nr_indent_break_${index}__` : line).join("\n");
-  const reference = await formatSource({ source: probe, language: "cpp", style });
+  const reference = await formatSource({ source: probe, language: "cpp", style, ...validation });
   return sourceIndentationFromFormatted(state, scope, reference.replace(/[ \t]*\/\/ __nr_indent_break_\d+__/g, ""));
 }
 

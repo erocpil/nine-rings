@@ -38,6 +38,10 @@ async function mountTitlebar(
       mockWindows("main");
       mockIPC(
         (command, args) => {
+          if (command === "hide_window_to_tray") {
+            commands.push(command);
+            document.body.dataset.windowCommands = JSON.stringify(commands);
+          }
           if (command === "set_window_fullscreen") {
             commands.push(command);
             document.body.dataset.windowCommands = JSON.stringify(commands);
@@ -263,17 +267,13 @@ test("关闭到托盘提示紧贴关闭按钮", async ({ page }) => {
   ).toBeLessThanOrEqual(8);
 });
 
-test("原生全屏从右上角关闭时先退出全屏再隐藏到托盘", async ({ page }) => {
+test("原生全屏关闭委托统一托盘命令而不直接隐藏窗口", async ({ page }) => {
   await mountTitlebar(page);
   const bar = page.locator("#titlebar-test-host");
   await bar.getByRole("button", { name: "进入全屏", exact: true }).click();
   await bar.getByRole("button", { name: "关闭", exact: true }).click();
-  await expect(page.locator("body")).toHaveAttribute("data-hidden-while-fullscreen", "false");
-  const log = await commands(page);
-  const exit = log.lastIndexOf("set_window_fullscreen");
-  const hide = log.lastIndexOf("hide");
-  expect(exit).toBeGreaterThanOrEqual(0);
-  expect(hide).toBeGreaterThan(exit);
+  await expect.poll(() => commands(page)).toContain("hide_window_to_tray");
+  expect(await commands(page)).not.toContain("hide");
 });
 
 test("Windows 双击最大化后的全屏按钮通过原生统一入口进入和退出", async ({
@@ -344,7 +344,7 @@ test("展陈标题栏保留窗口操作，工作区和配色控件不触发最�
     page.locator("#titlebar-test-host").getByRole("button", { name: "退出全屏", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "关闭", exact: true }).click();
-  expect(await commands(page)).toContain("hide");
+  await expect.poll(() => commands(page)).toContain("hide_window_to_tray");
 });
 
 for (const platform of ["MacIntel", "Win32", "Linux x86_64"]) {

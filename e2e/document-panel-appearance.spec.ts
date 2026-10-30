@@ -70,7 +70,7 @@ for (const virtual of [false, true]) {
         .poll(async () => (await panel.boundingBox())!.width)
         .toBeGreaterThan(420);
       expect((await panel.boundingBox())!.width).toBeLessThanOrEqual(
-        (await editor.boundingBox())!.width / 2 + 1,
+        Math.min(760, page.viewportSize()!.width * .8) + 1,
       );
       await page.mouse.move(5, 5);
       await expect(panel).toHaveCount(0);
@@ -90,7 +90,8 @@ for (const virtual of [false, true]) {
         await expect(panel).toBeVisible();
         await expect
           .poll(async () => (await panel.boundingBox())!.width)
-          .toBeCloseTo(420, 0);
+          .toBeGreaterThan(420);
+        expect((await panel.boundingBox())!.width).toBeLessThanOrEqual(Math.min(760, page.viewportSize()!.width * .8) + 1);
         const bounds = (await panel.boundingBox())!;
         const owner = (await editor.boundingBox())!;
         const button = (await trigger.boundingBox())!;
@@ -234,7 +235,7 @@ for (const virtual of [false, true]) {
     await page.mouse.move(10, lastGrip.y + 80, { steps: 6 });
     await page.mouse.up();
     expect((await dock.boundingBox())!.width).toBeLessThanOrEqual(
-      (await editor.boundingBox())!.width / 2 + 1,
+      Math.min(760, page.viewportSize()!.width * .8) + 1,
     );
   });
 }

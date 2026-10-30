@@ -51,6 +51,7 @@ export function SourceFormattingControls({ editorRef, sessionKey, language, read
       const prefs = blockWorkspacePreferences();
       const result = await formatSource({ source: state.doc.toString(), language,
         style: sourceFormatStyle(settings, prefs.tabSize ?? 4, prefs.sourceIndentStyle !== "spaces"),
+        ...(settings.style === "custom" ? { validationStyle: settings.custom } : {}),
         ...(scope === "selection" ? { range: { from: selection.from, to: selection.to } } : {}),
       });
       const change = await sourceFormatChange(state, result);

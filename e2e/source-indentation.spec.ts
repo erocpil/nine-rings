@@ -208,7 +208,7 @@ test("源码自动缩进支持选区和全文，并可作为单次撤销", async
   await page.getByRole("button", { name: "自动缩进全文", exact: true }).click();
   const noChange = page
     .getByRole("status")
-    .filter({ hasText: "当前范围无需调整" });
+    .filter({ hasText: "可安全处理的行无需调整" });
   await expect(noChange).toBeVisible();
   await noChange.getByRole("button", { name: "关闭提示" }).click();
   await page.keyboard.press("ControlOrMeta+z");
@@ -225,6 +225,7 @@ test("源码自动缩进支持选区和全文，并可作为单次撤销", async
 });
 
 test("C 自动缩进保留函数参数续行并恢复后续语句缩进", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nr:source-formatting", JSON.stringify({ style: "custom", custom: "BasedOnStyle: LLVM\nIndentWidth: 4\nTabWidth: 4\nUseTab: Always\nContinuationIndentWidth: 8\nAlignAfterOpenBracket: false\nAccessModifierOffset: -4\nAllowShortFunctionsOnASingleLine: None" })));
   await createBlankDocument(page, "函数参数续行");
   await selectDocumentLanguage(page, "c");
   const area = page.locator(".cm-content");
@@ -246,6 +247,7 @@ test("C 自动缩进保留函数参数续行并恢复后续语句缩进", async 
 });
 
 test("C++ 自动缩进在成员定义后保留类作用域", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nr:source-formatting", JSON.stringify({ style: "custom", custom: "BasedOnStyle: LLVM\nIndentWidth: 4\nTabWidth: 4\nUseTab: Always\nContinuationIndentWidth: 8\nAlignAfterOpenBracket: false\nAccessModifierOffset: -4\nAllowShortFunctionsOnASingleLine: None" })));
   await createBlankDocument(page, "C++ 类缩进");
   await selectDocumentLanguage(page, "c");
   const area = page.locator(".cm-content");

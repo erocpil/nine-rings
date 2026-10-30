@@ -69,13 +69,13 @@ test("章节目录默认小三角，正文默认箭头，可独立设置并持�
   });
   const body = page.getByRole("button", { name: "折叠第 1 块章节", exact: true });
   await expect(body.locator(".disclosure-icon")).toBeVisible();
-  await page.getByTitle("文档目录", { exact: true }).click();
+  await page.getByRole("button", { name: "文档目录", exact: true }).click();
   await expect(page.getByRole("button", { name: "折叠章节 标题", exact: true })).toHaveText("▼");
   await page.getByRole("button", { name: "折叠章节 标题", exact: true }).click();
   await expect(page.getByRole("button", { name: "展开章节 标题", exact: true })).toHaveText("▶");
   await page.getByRole("button", { name: "展开章节 标题", exact: true }).click();
   await waitForSavedText(page, "代码");
-  await page.getByTitle("文档目录", { exact: true }).click();
+  await page.getByRole("button", { name: "文档目录", exact: true }).click();
   await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await page.getByRole("button", { name: "分别设置各处折叠标识" }).click();
@@ -85,13 +85,13 @@ test("章节目录默认小三角，正文默认箭头，可独立设置并持�
   await expect(style).toHaveValue("chevron");
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config") || "{}").editor_fold_icon_overrides?.outline?.style ?? null)).toBe("chevron");
   await page.getByLabel("关闭设置").click();
-  await page.getByTitle("文档目录", { exact: true }).click();
+  await page.getByRole("button", { name: "文档目录", exact: true }).click();
   await expect(page.getByRole("button", { name: "折叠章节 标题", exact: true }).locator(".editor-fold-symbol, .disclosure-icon")).toBeVisible();
   await page.reload();
   await expect(page.locator(".note-title")).toHaveValue("折叠回归");
   await expect(page.locator(".ProseMirror h1")).toHaveText("标题");
   await expect(body.locator(".disclosure-icon")).toBeVisible();
-  await expect(page.getByTitle("文档目录", { exact: true })).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("button", { name: "文档目录", exact: true })).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByRole("button", { name: /^(折叠|展开)章节 标题$/ }).locator(".editor-fold-symbol, .disclosure-icon")).toBeVisible();
 });
 
@@ -184,7 +184,7 @@ test("编辑器折叠标识支持预设、自定义、立即应用及重启保�
   await expect(page.getByRole("button", { name: "折叠引用块", exact: true })).toHaveText("⌄");
   await expect(page.getByRole("button", { name: "折叠代码块", exact: true })).toHaveText("⌄");
   await expect(page.locator(".doc-tree-folder-chevron").first().locator("svg")).toBeVisible();
-  await page.getByTitle("文档目录", { exact: true }).click();
+  await page.getByRole("button", { name: "文档目录", exact: true }).click();
   await expect(page.getByRole("button", { name: "折叠章节 标题", exact: true })).toHaveText("−");
   await page.getByRole("button", { name: "折叠章节 标题", exact: true }).click();
   await expect(page.getByRole("button", { name: "展开章节 标题", exact: true })).toHaveText("+");
@@ -223,10 +223,10 @@ test("手机自定义折叠符号在只读正文和目录中生效", async ({ pa
   await expect(fold).toHaveText("−");
   await fold.click();
   await expect(page.getByRole("button", { name: "展开第 1 块章节", exact: true })).toHaveText("+");
-  await page.getByTitle("文档目录", { exact: true }).click();
+  await page.getByRole("button", { name: "文档目录", exact: true }).click();
   await expect(page.getByRole("button", { name: "展开章节 标题", exact: true })).toHaveText("+");
   await page.getByRole("button", { name: "展开章节 标题", exact: true }).click();
-  await page.getByTitle("文档目录", { exact: true }).click();
+  await page.getByRole("button", { name: "文档目录", exact: true }).click();
   await openMobileSettings(page);
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await expect(page.getByRole("combobox", { name: "折叠标识样式" })).toHaveValue("plus-minus");

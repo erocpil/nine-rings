@@ -403,7 +403,9 @@ pub(crate) fn hide_main_window_to_tray(window: &tauri::WebviewWindow) {
                             hidden.push(label);
                         }
                     }
-                    Err(error) => startup_log!("hide auxiliary window failed: {}: {}", label, error),
+                    Err(error) => {
+                        startup_log!("hide auxiliary window failed: {}: {}", label, error)
+                    }
                 }
             }
         }

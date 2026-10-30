@@ -9,6 +9,8 @@ export interface SourceFormatRequest {
   source: string;
   language: string;
   style: string;
+  /** Validate the user configuration before applying host display safeguards. */
+  validationStyle?: string;
   /** UTF-16 editor offsets; the provider converts them to its own range units. */
   range?: { from: number; to: number };
 }

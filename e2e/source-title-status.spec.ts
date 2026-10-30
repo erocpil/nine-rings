@@ -58,7 +58,11 @@ test("源码标题回车恢复源码光标，状态栏加号紧邻格式选择�
   const createBox = await create.boundingBox();
   expect(formatBox).not.toBeNull();
   expect(createBox).not.toBeNull();
-  const gap = createBox!.x - (formatBox!.x + formatBox!.width);
+  const vimBox = await page.getByRole("button", { name: "源码 Vim 模式", exact: true }).boundingBox();
+  const whitespaceBox = await page.getByRole("button", { name: "显示不可见字符", exact: true }).boundingBox();
+  expect(whitespaceBox!.x).toBeGreaterThan(formatBox!.x + formatBox!.width);
+  expect(vimBox!.x).toBeGreaterThan(whitespaceBox!.x + whitespaceBox!.width);
+  const gap = createBox!.x - (vimBox!.x + vimBox!.width);
   expect(gap).toBeLessThanOrEqual(10);
 
   expect(

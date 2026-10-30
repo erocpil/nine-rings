@@ -1,0 +1,36 @@
+import { test, expect } from "@playwright/test";
+import { createBlankDocument } from "./helpers/document";
+import { openWritableLocalDirectory } from "./helpers/local-files";
+import { selectSource, sourceInfo } from "./helpers/source-editor";
+
+test("磁盘源码切换保持 Vim 偏好，临时标记不跨文件且只读禁止修改", async ({ page }) => {
+  await createBlankDocument(page, "磁盘 Vim 回归");
+  const source = 'int first() { return 1; }\nint second() { return first(); }';
+  const { tree, workspace } = await openWritableLocalDirectory(page, { "a.c": source, "b.c": "int other;" }, "a.c");
+  const area = workspace.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  const toggle = workspace.getByRole("button", { name: "源码 Vim 模式", exact: true });
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await selectSource(area, source.indexOf("second"));
+  await workspace.getByRole("button", { name: "临时位置标记", exact: true }).click();
+  let dialog = page.getByRole("dialog", { name: "临时位置标记", exact: true });
+  await dialog.getByRole("textbox", { name: "临时标记名称" }).fill("second");
+  await dialog.getByRole("button", { name: "保存当前位置", exact: true }).click();
+  await dialog.getByRole("button", { name: "关闭临时位置标记", exact: true }).click();
+  await tree.getByRole("button", { name: "b.c", exact: true }).click();
+  await expect(workspace.locator(".local-file-titlebar .note-title")).toHaveValue("b.c");
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await workspace.getByRole("button", { name: "临时位置标记", exact: true }).click();
+  dialog = page.getByRole("dialog", { name: "临时位置标记", exact: true });
+  await expect(dialog.getByRole("button", { name: /second · Ln/ })).toHaveCount(0);
+  await dialog.getByRole("button", { name: "关闭临时位置标记", exact: true }).click();
+  await tree.getByRole("button", { name: "a.c", exact: true }).click();
+  await expect(workspace.locator(".local-file-titlebar .note-title")).toHaveValue("a.c");
+  const file = tree.getByRole("button", { name: "a.c", exact: true });
+  await file.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "设为只读", exact: true }).click();
+  await expect(area).not.toBeEditable();
+  await area.click();
+  await page.keyboard.press("x");
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(source);
+});

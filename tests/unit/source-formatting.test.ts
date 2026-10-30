@@ -57,7 +57,7 @@ describe("source formatting with real clang-format", () => {
     expect(format(formatted, "main.cpp", style)).toBe(formatted);
     expect(
       sourceFormatStyle({ style: "custom", custom: style }, 2, false),
-    ).toBe(style);
+    ).toBe(`${style}\nAlignEscapedNewlines: DontAlign\n`);
   });
 
   it("releases the worker on success, engine error and transport failure", async () => {
@@ -138,7 +138,7 @@ describe("source formatting with real clang-format", () => {
     const config = "BasedOnStyle: Microsoft\nIndentWidth: 2\n";
     expect(
       sourceFormatStyle({ style: "custom", custom: config }, 8, true),
-    ).toBe(config);
+    ).toBe(`${config}\nAlignEscapedNewlines: DontAlign\n`);
     expect(format(raw, "main.cpp", config)).toContain("main()\n{");
     expect(() =>
       format(raw, "main.cpp", "UnknownNineRingsOption: true"),

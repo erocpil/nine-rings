@@ -99,7 +99,7 @@ test("源码不可见字符切换显示空格、Tab 与行尾标记但不修改�
   const before = await sourceInfo(area);
   const status = page.getByRole("group", { name: "源码状态栏", exact: true });
   const toggle = status.getByRole("button", { name: "显示不可见字符", exact: true });
-  expect(await toggle.evaluate(button => button.nextElementSibling?.getAttribute("aria-label"))).toBe("行号与折叠设置");
+  expect(await toggle.evaluate(button => button.nextElementSibling?.getAttribute("aria-label"))).toBe("源码 Vim 模式");
   await expect(toggle).toHaveAttribute("title", "显示不可见字符");
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
   await toggle.click();
@@ -239,8 +239,8 @@ test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page 
     await area.locator(".cm-line").filter({ hasText: text }).click();
     await expect(area.locator(".cm-activeLine")).toHaveText(text);
     await expect(page.locator(".markdown-cm-host .cm-editor")).toHaveClass(/cm-focused/);
-    await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("display", "none");
-    await expect(page.locator(".markdown-cm-source .cm-cursor")).toHaveCSS("display", "none");
+    await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("animation-name", "none");
+    await expect(page.locator(".markdown-cm-source .cm-cursor")).toHaveCSS("animation-name", "none");
     expect(await area.evaluate((el) => getComputedStyle(el).caretColor)).toBe(
       "rgba(0, 0, 0, 0)",
     );
@@ -302,7 +302,7 @@ test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page 
   await page.keyboard.press("ArrowRight");
   expect((await sourceInfo(area)).value).toBe(value);
   await expect(page.locator(".markdown-cm-host .cm-editor")).toHaveClass(/cm-focused/);
-  await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("display", "none");
+  await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("animation-name", "none");
   expect(await area.evaluate(el => getComputedStyle(el).caretColor)).toBe("rgba(0, 0, 0, 0)");
   await page.getByRole("button", { name: "查找", exact: true }).click();
   const search = page.locator(".cm-search");
@@ -313,12 +313,12 @@ test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page 
     const info = await sourceInfo(area);
     return info.value.slice(info.selectionStart, info.selectionEnd);
   }).toBe("first body");
-  await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("display", "none");
+  await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("animation-name", "none");
   expect((await sourceInfo(area)).value).toBe(value);
   await page.keyboard.press("Escape");
   await expect(search).toHaveCount(0);
   await expect(page.locator(".markdown-cm-host .cm-editor")).toHaveClass(/cm-focused/);
-  await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("display", "none");
+  await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("animation-name", "none");
   const marker = page
     .locator(".cm-foldGutter .cm-gutterElement")
     .filter({ has: page.locator('[data-fold-expanded="true"]') })

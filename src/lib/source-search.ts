@@ -165,6 +165,7 @@ export function toggleSourcePanel(
 function createGotoPanel(view: EditorView): Panel {
   const dom = document.createElement("form");
   dom.className = "cm-goto-line source-tool-panel";
+  retainPanelKeyboardFocus(dom, view);
   dom.setAttribute("aria-label", "源码跳转行");
   const title = document.createElement("div");
   title.className = "source-tool-panel-title";
@@ -290,9 +291,16 @@ function replace(view: EditorView, all: boolean) {
     annotations: isolateHistory.of("full"),
   });
 }
+function retainPanelKeyboardFocus(dom: HTMLElement, view: EditorView) {
+  dom.tabIndex = -1;
+  dom.addEventListener("click", () => {
+    if (dom.isConnected && !view.dom.contains(document.activeElement)) dom.focus({ preventScroll: true });
+  });
+}
 function createSearchPanel(view: EditorView): Panel {
   const dom = document.createElement("div");
   dom.className = "cm-search source-tool-panel";
+  retainPanelKeyboardFocus(dom, view);
   dom.setAttribute("role", "search");
   dom.setAttribute("aria-label", "源码查找与替换");
   const row = document.createElement("div");

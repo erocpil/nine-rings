@@ -13,6 +13,7 @@ self.onmessage = async (event: MessageEvent<SourceFormatRequest>) => {
     await init();
     // The editor's combined C/C++ type must accept C++ constructs as well as C.
     const filename = language === "c" || language === "cpp" ? "main.cpp" : "main.txt";
+    if (event.data.validationStyle !== undefined) format("int nr_validation;", filename, event.data.validationStyle);
     const encoder = new TextEncoder();
     const result = range
       ? format_byte_range(source, encoder.encode(source.slice(0, range.from)).length,
@@ -21,6 +22,6 @@ self.onmessage = async (event: MessageEvent<SourceFormatRequest>) => {
     self.postMessage({ result });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    self.postMessage({ error: diagnostics.describe(message, event.data.style), configurationError: /Error reading \.clang-format/i.test(message) });
+    self.postMessage({ error: diagnostics.describe(message, event.data.validationStyle ?? event.data.style), configurationError: /Error reading \.clang-format/i.test(message) });
   } finally { console.error = previousError; }
 };

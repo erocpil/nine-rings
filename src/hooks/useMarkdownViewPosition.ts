@@ -18,10 +18,14 @@ import {
 } from "../lib/markdown-view-position";
 
 function renderedFont(root: HTMLElement) {
-  const style = getComputedStyle(root.querySelector(".ProseMirror") ?? root);
+  const style = getComputedStyle(root.querySelector(".ProseMirror, .vr-body") ?? root);
   // WebKit can return an empty `font` shorthand for computed variable styles.
   return [style.fontFamily, style.fontSize, style.fontWeight, style.fontStyle,
-    style.lineHeight, style.letterSpacing].join("|");
+    style.lineHeight, style.letterSpacing,
+    ...["code", "quote", "flow"].flatMap(kind => ["font-family", "font-size", "line-height"].map(property => style.getPropertyValue(`--editor-${kind}-${property}`))),
+    ...[1, 2, 3, 4, 5, 6].map(level => style.getPropertyValue(`--editor-h${level}-scale`)),
+    ...["--style-block-gap", "--style-heading-gap", "--style-heading-bottom"].map(property => style.getPropertyValue(property)),
+  ].join("|");
 }
 
 function viewportTop(root: HTMLElement) {
