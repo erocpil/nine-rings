@@ -98,6 +98,11 @@
 /* Continue the active-line band through the opaque inset. The number gutter
    remains sticky and masks horizontally scrolling source text; its active
    cell paints the same row tint over that small mask. */
+.markdown-cm-source .cm-editor .cm-gutters-before > .cm-gutter:last-child {
+  /* CodeMirror clips gutter children by default, including the active row's
+     extension beyond the divider into the opaque text inset. */
+  overflow: visible;
+}
 .markdown-cm-source .cm-gutter:last-child .cm-gutterElement.cm-activeLineGutter {
   position: relative;
   z-index: 2;
