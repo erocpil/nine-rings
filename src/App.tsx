@@ -360,6 +360,7 @@ function App() {
   }, [flushAutoSave]);
 
   const [workspaceHomeRequested, setWorkspaceHomeRequested] = useState(false);
+  const [homeOverviewCollapseRequest, setHomeOverviewCollapseRequest] = useState(0);
   const [docTreeReveal, setDocTreeReveal] = useState<{ id: string; sequence: number } | null>(null);
   const [exhibitionReaderActive, setExhibitionReaderActive] = useState(false);
 
@@ -1110,7 +1111,13 @@ function App() {
           mainViews.bind(workspacePanels.assert("files")).open(LOCAL_FILE_VIEW_ID, { rootId: neighbor.rootId, nodeId: neighbor.nodeId, name: neighbor.name });
           announceLocalFileOpened(neighbor);
           rememberRecentLocalFile(neighbor);
-        } else { mainViews.close(local.id); handleSelectNote(null); setSelectedFolderPath(null); setSelectedConcept(null); }
+        } else {
+          mainViews.close(local.id);
+          handleSelectNote(null);
+          setSelectedFolderPath(null);
+          setSelectedConcept(null);
+          setHomeOverviewCollapseRequest(request => request + 1);
+        }
         const current = readLocalFocusTabs();
         saveLocalFocusTabs({ closed: [...new Set([...current.closed, identity])], order: current.order.filter(id => id !== identity) });
       } else if (note) {
@@ -1130,6 +1137,7 @@ function App() {
         setQuery(""); setDocResults(null);
         handleSelectNote(next);
         setSelectedFolderPath(null); setSelectedConcept(null);
+        if (!next) setHomeOverviewCollapseRequest(request => request + 1);
         const current = readFocusTabs();
         saveFocusTabs({ closed: [...new Set([...current.closed, note.id])], order: current.order.filter(id => id !== note.id) });
       }
@@ -1640,7 +1648,7 @@ function App() {
   const hideEditorSplit = pluginMainActive || homeReaderOpen || readerPrimaryView || (exhibitionEnabled && workspaceHome) || (!selectedNote && Boolean(selectedConcept || selectedFolderPath));
   return (
     <ReadingTypographyProvider config={config}><EditorFoldIconContext.Provider value={config}>
-    <ExhibitionWorkspace home={workspaceHome} desktop={desktopWorkspace} enabled={exhibitionEnabled && !mobileReaderOpen} focus={effectiveFocusMode} onFocusChange={next => preserveReadingPositions(() => setFocusMode(next))} config={config}
+    <ExhibitionWorkspace home={workspaceHome} desktop={desktopWorkspace} enabled={exhibitionEnabled && !mobileReaderOpen} focus={effectiveFocusMode} onFocusChange={next => preserveReadingPositions(() => setFocusMode(next))} config={config} homeOverviewCollapseRequest={homeOverviewCollapseRequest}
       latestNote={selectedNote} activeSummary={activeWorkspaceSummary}
       localFilesAvailable={contributedPanels.some(panel => panel.id === "files")}
       onOpenLocalFile={file => { void openRecentLocalFile(file).catch(() => {}); }}

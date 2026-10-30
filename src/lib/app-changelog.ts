@@ -1,6 +1,13 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-31",
+    title: "工作区首页状态",
+    changes: [
+      "使用 Command+W 关闭最后一份 Nine Rings 文档或本地文件返回 WORKSPACE NOTES 时，WORKSPACE OVERVIEW 保持收起。",
+    ],
+  },
+  {
     date: "2026-10-29",
     title: "文件格式与源码导航",
     changes: [

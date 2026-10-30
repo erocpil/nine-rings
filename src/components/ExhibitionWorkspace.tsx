@@ -30,6 +30,7 @@ interface Props {
   onFocusChange: (focus: boolean) => void;
   blocked: boolean;
   config: AppConfig | null;
+  homeOverviewCollapseRequest?: number;
   path: string;
   noteId?: string;
   refreshKey: number;
@@ -56,6 +57,9 @@ export function ExhibitionWorkspace(props: Props) {
   const [openAppearance, setOpenAppearance] = useState<string | null>(null);
   const showOverview = active && (props.home ? homeExpanded : expanded);
   useLayoutEffect(() => { if (!props.home) setExpanded(false); }, [props.home, path, noteId]);
+  useLayoutEffect(() => {
+    if (props.homeOverviewCollapseRequest) setHomeExpanded(false);
+  }, [props.homeOverviewCollapseRequest]);
   const [documents, setDocuments] = useState<Summary[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
