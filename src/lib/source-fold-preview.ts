@@ -1,6 +1,6 @@
 import { EditorState } from "@codemirror/state";
 import { EditorView, drawSelection } from "@codemirror/view";
-import { language } from "@codemirror/language";
+import { foldedRanges, language } from "@codemirror/language";
 import { sourceCodeHighlighting } from "./source-code-highlighting";
 
 /** A separate readonly view virtualizes large folded regions without truncation. */
@@ -16,7 +16,25 @@ export function sourceFoldPreviewPlaceholder(
   // Clicking the placeholder unfolds it; it must not first move the cursor and
   // invalidate the position remembered before folding.
   placeholder.addEventListener("mousedown", event => event.preventDefault());
-  placeholder.addEventListener("click", onclick);
+  const expandUpward = (event: Event) => {
+    const block = view.lineBlockAt(view.posAtDOM(placeholder));
+    let end: number | undefined;
+    foldedRanges(view.state).between(block.from, block.to, (_from, to) => {
+      if (end === undefined) end = to;
+    });
+    if (end === undefined) { onclick(event); return; }
+    const closing = view.state.doc.lineAt(end);
+    const anchor = closing.number < view.state.doc.lines
+      ? view.state.doc.line(closing.number + 1).from : end;
+    const offset = view.lineBlockAt(anchor).top - view.scrollDOM.scrollTop;
+    onclick(event);
+    // Preserve the following line, so revealed code grows above it. Gutter
+    // expansion keeps its own top anchor and continues growing downwards.
+    requestAnimationFrame(() => {
+      view.scrollDOM.scrollTop = Math.max(0, view.lineBlockAt(anchor).top - offset);
+    });
+  };
+  placeholder.addEventListener("click", expandUpward);
   if (!prepared) return placeholder;
   let bubble: HTMLDivElement | null = null;
   let preview: EditorView | null = null;
@@ -172,7 +190,7 @@ export function sourceFoldPreviewPlaceholder(
   placeholder.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") {
       hide();
-      onclick(event);
+      expandUpward(event);
     }
   });
   return placeholder;
