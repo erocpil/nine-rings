@@ -1007,7 +1007,7 @@ export function MarkdownSourceEditor({
     }).catch(() => { setSourceVim(false); setSourceMessage("Vim 模式加载失败，请重试。"); });
     return () => { disposed = true; cleanup(); };
   }, [sourceVim]);
-  const vimControl = <button type="button" className={sourceVim ? "active" : undefined}
+  const vimControl = <button type="button" className={`source-vim-toggle${sourceVim ? " active" : ""}`}
     aria-label="源码 Vim 模式" aria-pressed={sourceVim}
     title={sourceVim ? `Vim ${sourceVimMode}；点击关闭` : "开启源码 Vim 模式"}
     onMouseDown={event => event.preventDefault()} onClick={() => {
@@ -1016,7 +1016,7 @@ export function MarkdownSourceEditor({
       try { localStorage.setItem("nr:source-vim", String(next)); } catch { /* Session toggle remains usable. */ }
       window.dispatchEvent(new Event("nine-rings:source-vim"));
       view.current?.focus();
-    }}>{sourceVim ? `VIM ${sourceVimMode}` : "VIM"}</button>;
+    }}>V</button>;
   const autoIndent = (scope: SourceAutoIndentScope) =>
     run((editor) => {
       if (editor.composing || editor.state.readOnly) return false;

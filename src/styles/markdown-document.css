@@ -250,11 +250,26 @@
 }
 
 .markdown-cm-host .cm-content[aria-readonly="true"] { caret-color: transparent; }
-.markdown-cm-source[data-source-readonly="true"] .cm-cursorLayer,
-.markdown-cm-source[data-source-readonly="true"] .cm-cursor {
-  display: none !important;
+.markdown-cm-source[data-source-readonly="true"] .cm-cursorLayer {
   animation: none !important;
 }
+.markdown-cm-source[data-source-readonly="true"] .cm-cursor {
+  border-left-color: var(--accent);
+  animation: none !important;
+}
+.markdown-cm-source .cm-vimCursorLayer .cm-fat-cursor {
+  background: color-mix(in srgb, var(--accent) 45%, var(--bg));
+  color: var(--text);
+}
+.markdown-cm-source .cm-editor:not(.cm-focused) .cm-vimCursorLayer .cm-fat-cursor {
+  background: transparent;
+  outline-color: var(--accent);
+}
+.editor-stats .source-vim-toggle,
+.markdown-source-tools .source-vim-toggle { color: var(--text-secondary); background: transparent; }
+.editor-stats .source-vim-toggle.active,
+.markdown-source-tools .source-vim-toggle.active { color: var(--accent); background: transparent; font-weight: 700; }
+
 .markdown-cm-source[data-source-readonly="true"] .cm-content { caret-color: transparent !important; cursor: text; }
 
 .markdown-split-preview { display: flex; flex: 1; min-width: 0; min-height: 0; }
