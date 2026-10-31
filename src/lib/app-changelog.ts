@@ -4,7 +4,7 @@ export const APP_CHANGELOG = [
     date: "2026-10-31",
     title: "工作区首页状态",
     changes: [
-      "使用 Command+W 关闭最后一份 Nine Rings 文档或本地文件返回 WORKSPACE NOTES 时，WORKSPACE OVERVIEW 保持收起。",
+      "展陈模式使用 Command+W 关闭数据库文档时，逐份切换到其它已打开文档；关闭最后一份回到 WORKSPACE NOTES 时，WORKSPACE OVERVIEW 保持收起。",
     ],
   },
   {

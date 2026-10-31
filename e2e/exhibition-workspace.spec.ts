@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createEpubFixture, createPdfFixture } from "./helpers/reader-fixtures";
+import { createBlankDocument, createDocumentInWorkspace } from "./helpers/document";
 
 async function selectAppearance(page: Page, label: string, value: string) {
   const trigger = page.getByRole("button", { name: label, exact: true });
@@ -27,6 +28,60 @@ test("正文恢复滚动不会关闭顶部外观菜单，按钮祖先滚动仍�
   await expect(popup).toBeVisible();
   await trigger.evaluate(element => element.parentElement!.dispatchEvent(new Event("scroll")));
   await expect(popup).toHaveCount(0);
+});
+
+test("Command+W 关闭最后一份文档后工作区概览保持收起", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({
+    interface_style: "calm", workspace_layout: "exhibition",
+  })));
+  await createBlankDocument(page, "关闭后概览收起");
+  const documentId = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+  expect(documentId).toBeTruthy();
+
+  const overview = page.locator(".exhibition-overview-toggle");
+  await page.getByRole("button", { name: "展开概览", exact: true }).click();
+  await expect(overview).toHaveAttribute("aria-expanded", "true");
+  // Isolate the final open document so the close command returns to the home view.
+  await page.evaluate(id => {
+    localStorage.setItem("nr:recentNotes", JSON.stringify([id]));
+    localStorage.setItem("nr:focusTabs", JSON.stringify({ visible: true, limit: 32, order: [], closed: [], version: 2 }));
+  }, documentId);
+
+  await page.locator(".note-editor .ProseMirror").focus();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+w" : "Control+w");
+  await expect(page.locator(".exhibition-welcome")).toBeVisible();
+  await expect(overview).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator(".exhibition-columns")).toHaveCount(0);
+});
+
+test("展陈模式 Command+W 关闭当前数据库文档后切换到另一份已打开文档", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({
+    interface_style: "calm", workspace_layout: "exhibition",
+  })));
+  await createBlankDocument(page, "展陈关闭文档 A");
+  const firstId = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+  await createDocumentInWorkspace(page, "展陈关闭文档 B");
+  const secondId = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+  expect(firstId).toBeTruthy();
+  expect(secondId).toBeTruthy();
+
+  // Simulate stale closed-tab markers left by an earlier focus-mode session.
+  await page.evaluate(({ first, second }) => {
+    localStorage.setItem("nr:recentNotes", JSON.stringify([second, first]));
+    localStorage.setItem("nr:focusTabs", JSON.stringify({
+      visible: true, limit: 32, order: [second, first], closed: [second, first], version: 2,
+    }));
+  }, { first: firstId, second: secondId });
+  await page.locator(".doc-tree-doc").filter({ hasText: "展陈关闭文档 A" }).click();
+  await page.locator(".doc-tree-doc").filter({ hasText: "展陈关闭文档 B" }).click();
+  await page.locator(".doc-tree-doc").filter({ hasText: "展陈关闭文档 A" }).click();
+  await expect(page.locator(".note-title")).toHaveValue("展陈关闭文档 A");
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nr:focusTabs") ?? "{}").closed)).toEqual([]);
+
+  await page.locator(".note-editor .ProseMirror").focus();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+w" : "Control+w");
+  await expect(page.locator(".note-title")).toHaveValue("展陈关闭文档 B");
+  await expect(page.locator(".exhibition-welcome")).toHaveCount(0);
 });
 
 

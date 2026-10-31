@@ -367,6 +367,12 @@ function App() {
   const handleSelectNote = useCallback((note: Note | null, options?: DocumentOpenOptions, preserveMainView = false) => {
     setDocTreeReveal(null);
     if (!preserveMainView) mainViews.close();
+    if (note) {
+      const focusTabs = readFocusTabs();
+      if (focusTabs.closed.includes(note.id)) {
+        saveFocusTabs({ closed: focusTabs.closed.filter(id => id !== note.id) });
+      }
+    }
     useDocumentOpenStore.getState().open(note?.id ?? null, options);
     setWorkspaceHomeRequested(false);
     setExhibitionReaderActive(false);

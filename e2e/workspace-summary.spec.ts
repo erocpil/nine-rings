@@ -520,10 +520,14 @@ test("最近打开最新在上方且编号逆序，其它弹层最新在下方",
     // Edit dates differ from visits: an old, unedited note can be the newest visit.
     await withDB(db => new Promise<void>((resolve, reject) => {
       const tx = db.transaction("notes", "readwrite");
+      const todayNoon = new Date();
+      todayNoon.setHours(12, 0, 0, 0);
       ids.forEach((id, i) => {
         const request = tx.objectStore("notes").get(id);
         request.onsuccess = () => {
-          const timestamp = new Date(); timestamp.setTime(Date.now() + i * 60000);
+          // Keep the ordered fixture on the same local day even when CI runs
+          // near midnight; otherwise later rows silently move into tomorrow.
+          const timestamp = new Date(todayNoon); timestamp.setMinutes(timestamp.getMinutes() + i);
           tx.objectStore("notes").put({ ...request.result, updated_at: timestamp.toISOString() });
         };
       });

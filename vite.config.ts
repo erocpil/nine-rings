@@ -42,6 +42,10 @@ export default defineConfig(async () => {
 
   return ({
   plugins: [react(), importPlugin(), pdfjsCMapAssets(), pcre2Assets(), pwaPlugin(version)],
+  // The clang-format WASM package is reached through a lazy module Worker,
+  // which Vite's dependency scan cannot see before the first format action.
+  // Prebundle it at server startup so it cannot trigger a mid-suite HMR reload.
+  optimizeDeps: { include: ["@wasm-fmt/clang-format/vite"] },
   // The dependency's browser export uses document.createElement and crashes module Workers.
   resolve: { alias: { "decode-named-character-reference": fileURLToPath(new URL("./node_modules/decode-named-character-reference/index.js", import.meta.url)) } },
   worker: { format: "es", plugins: () => [pcre2Assets()] },
