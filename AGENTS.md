@@ -276,7 +276,7 @@ export function coordinateDocumentUpdate(
 
 ## 📚 相关文档
 
-- [架构分析报告](./docs/deep-architecture-analysis.md) - 详细的架构问题分析
+- [架构审查候选项](./docs/architecture-analysis.md) - 待验证的审查建议与评估要求
 - [现有设计文档](./docs/) - 项目现有设计和技术文档
 - [API 文档](./src/lib/api.ts) - 统一数据访问层
 - [组件文档](./src/components/) - React 组件实现

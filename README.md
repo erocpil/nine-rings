@@ -157,7 +157,7 @@ npm run test
 ### 文档参考
 
 - [AGENTS.md](AGENTS.md) - 完整的开发代理行为准则
-- [docs/deep-architecture-analysis.md](docs/deep-architecture-analysis.md) - 架构问题分析报告
+- [架构审查候选项](docs/architecture-analysis.md) - 待验证的审查建议与评估要求
 
 ---
 
