@@ -291,7 +291,7 @@ test("C/C++ 源码符号自动定位、支持排序并按源码偏移跳转", as
     .toBe(source.indexOf("open_packet"));
 });
 
-test("源码编辑区右键使用应用内菜单", async ({ page }) => {
+test("源码右键菜单：无选区全选、选区高亮与 Escape 恢复", async ({ page }) => {
   await createBlankDocument(page, "源码右键菜单");
   await selectDocumentLanguage(page, "c");
   const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
@@ -309,13 +309,8 @@ test("源码编辑区右键使用应用内菜单", async ({ page }) => {
   await expect(page.getByRole("menu", { name: "源码编辑菜单" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("menu", { name: "源码编辑菜单" })).toHaveCount(0);
-});
-
-test("源码选区右键菜单保持选区可见，关闭后也保留选区", async ({ page }) => {
-  await createBlankDocument(page, "源码选区右键菜单");
-  await selectDocumentLanguage(page, "c");
-  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
-  await expect(area).toBeVisible({ timeout: 20000 });
+  // Continue in the same source session: the selected branch additionally
+  // verifies the painted selection while the context menu owns focus.
   const text = "int preserve_selection = 42;\n";
   await replaceSource(area, text);
   await selectSource(area, 0, text.trimEnd().length);
@@ -326,7 +321,6 @@ test("源码选区右键菜单保持选区可见，关闭后也保留选区", as
         (await sourceInfo(area)).selectionStart,
     )
     .toBeGreaterThan(0);
-  const menu = page.getByRole("menu", { name: "源码编辑菜单" });
   await area.click({ button: "right", position: { x: 40, y: 10 } });
   await expect(menu).toBeVisible();
   await expect(page.locator(".markdown-cm-source .cm-selectionLayer")).toHaveCSS("visibility", "visible");
