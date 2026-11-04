@@ -522,6 +522,16 @@ test("最近打开最新在上方且编号逆序，其它弹层最新在下方",
       const tx = db.transaction("notes", "readwrite");
       const todayNoon = new Date();
       todayNoon.setHours(12, 0, 0, 0);
+      // Other notes from seed() must sort before this numbered fixture even
+      // when the test runs after noon. Keep them on today for the today filter.
+      const older = new Date(todayNoon); older.setHours(0, 0, 0, 0);
+      const cursor = tx.objectStore("notes").openCursor();
+      cursor.onsuccess = () => {
+        const row = cursor.result;
+        if (!row) return;
+        if (!ids.includes(String(row.key))) row.update({ ...row.value, updated_at: older.toISOString() });
+        row.continue();
+      };
       ids.forEach((id, i) => {
         const request = tx.objectStore("notes").get(id);
         request.onsuccess = () => {
@@ -536,6 +546,11 @@ test("最近打开最新在上方且编号逆序，其它弹层最新在下方",
     useNotesStore.getState().selectNote((await api.notes.get(ids[19]))!);
   });
   await expect(page.locator(".note-title:visible")).toHaveValue("编号文档 19");
+  // Raw IDB timestamp writes bypass the adapter's invalidation events. Reload
+  // after fixture setup so cached tree summaries read the committed timestamps.
+  await page.reload();
+  await expect(page.locator(".note-title:visible")).toHaveValue("编号文档 19");
+  await expect(page.getByRole("navigation", { name: "工作区统计" })).toHaveAttribute("aria-busy", "false");
   for (const [buttonName, title] of [["查看最近打开文档", "最近打开"], ["查看随记", "随记"], ["查看今日修改文档", "今日修改"], ["查看收藏文档", "收藏"]]) {
     await page.getByRole("button", { name: buttonName, exact: true }).click();
     const popup = page.getByRole("dialog", { name: `${title}预览`, exact: true });

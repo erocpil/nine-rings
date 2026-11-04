@@ -1,6 +1,14 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-11-05",
+    title: "菜单与创建文档稳定性",
+    changes: [
+      "正文恢复位置或滚动时，触发按钮位置不变的插件菜单保持打开；参数子菜单滚动不会误关闭菜单。",
+      "文档链接候选按可视区定位，底部空间不足时向上展开；新建文档时，迟到的建议路径不再覆盖手动输入。",
+    ],
+  },
+  {
     date: "2026-10-31",
     title: "工作区首页状态",
     changes: [

@@ -183,6 +183,29 @@ test("统计持续显示，Esc 关闭后释放订阅", async ({ page }) => {
     .toBe(0);
 });
 
+test("插件菜单忽略不移动触发按钮的正文滚动", async ({ page }) => {
+  await createBlankDocument(page);
+  await page.evaluate(async () => {
+    const { setPluginsEnabled } = await import("/src/lib/plugin-system/runtime.ts");
+    setPluginsEnabled(true);
+  });
+  await page.getByRole("button", { name: "内置插件", exact: true }).click();
+  const command = page.getByRole("menuitem", { name: "插入日期与时间", exact: true });
+  await expect(command).toBeVisible();
+  await page.locator(".note-editor-scroll").evaluate(element => element.dispatchEvent(new Event("scroll")));
+  await expect(command).toBeVisible();
+  await page.getByRole("button", { name: "内置插件", exact: true }).evaluate(element => {
+    element.style.transform = "translateY(16px)";
+  });
+  await page.locator(".note-editor-scroll").evaluate(element => element.dispatchEvent(new Event("scroll")));
+  await expect(command).toHaveCount(0);
+  await page.getByRole("button", { name: "内置插件", exact: true }).evaluate(element => element.style.removeProperty("transform"));
+  await page.getByRole("button", { name: "内置插件", exact: true }).click();
+  await expect(command).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(command).toHaveCount(0);
+});
+
 test("Esc 优先关闭插件结果，第二次才收起固定分栏", async ({ page }) => {
   await createBlankDocument(page);
   await page.evaluate(async () => {

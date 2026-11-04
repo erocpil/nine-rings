@@ -1,4 +1,5 @@
 import { DocumentTitleField } from "./DocumentTitleField";
+import { createPortal } from "react-dom";
 import { readingHeadingAtPoint, toggleReadingHeading } from "../lib/reading-heading-navigation";
 import { DocumentFindPanel, DocumentBlockJumpPanel } from "./DocumentToolPanels";
 import { useDocumentFindControls, useDocumentToolPanel } from "../hooks/useDocumentTools";
@@ -763,6 +764,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
   const [wikiOpen, setWikiOpen] = useState(false);
   const [wikiSuggestions, setWikiSuggestions] = useState<{ title: string; id: string; path: string }[]>([]);
   const [wikiPos, setWikiPos] = useState({ top: 0, left: 0 });
+  const wikiMenuRef = useRef<HTMLDivElement>(null);
   const wikiStartRef = useRef<number | null>(null); // [[ 在文档中的起始位置
   const wikiRequestRef = useRef(0);
   const wikiDismissedStartRef = useRef<number | null>(null);
@@ -1035,11 +1037,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
         // 获取光标位置用于定位下拉
         const view = ed.view;
         const coords = view.coordsAtPos(from);
-        const editorEl = view.dom.closest(".note-editor-scroll") as HTMLElement;
-        if (editorEl) {
-          const er = editorEl.getBoundingClientRect();
-          setWikiPos({ top: coords.bottom - er.top + 4, left: coords.left - er.left });
-        }
+        setWikiPos({ top: coords.bottom + 4, left: coords.left });
         setWikiOpen(true);
         // Reuse the document list's title/path/tag filtering and recent order.
         const request = ++wikiRequestRef.current;
@@ -1057,6 +1055,43 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
       }
     },
   }, [noteId]);
+  useLayoutEffect(() => {
+    const menu = wikiMenuRef.current;
+    if (!wikiOpen || !editor || !menu) return;
+    const viewport = window.visualViewport;
+    const update = () => {
+      if (editor.isDestroyed || !menu.isConnected) return;
+      const left = (viewport?.offsetLeft ?? 0) + 8;
+      const top = (viewport?.offsetTop ?? 0) + 8;
+      const width = Math.max(0, (viewport?.width ?? innerWidth) - 16);
+      const height = Math.max(0, (viewport?.height ?? innerHeight) - 16);
+      menu.style.boxSizing = "border-box";
+      menu.style.maxHeight = `${Math.min(200, height)}px`;
+      menu.style.minWidth = `${Math.min(200, width)}px`;
+      menu.style.maxWidth = `${Math.min(320, width)}px`;
+      const bounds = menu.getBoundingClientRect();
+      const caret = editor.view.coordsAtPos(editor.state.selection.from);
+      const below = caret.bottom + 4;
+      const y = below + bounds.height <= top + height ? below : caret.top - bounds.height - 4;
+      menu.style.top = `${Math.max(top, Math.min(y, top + height - bounds.height))}px`;
+      menu.style.left = `${Math.max(left, Math.min(caret.left, left + width - bounds.width))}px`;
+    };
+    const scroll = (event: Event) => { if (!menu.contains(event.target as Node)) update(); };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(menu);
+    window.addEventListener("scroll", scroll, true);
+    window.addEventListener("resize", update);
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", scroll, true);
+      window.removeEventListener("resize", update);
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
+    };
+  }, [editor, wikiOpen, wikiPos, wikiSuggestions]);
   useEffect(() => {
     if (!editor) return;
     const root = editor.view.dom;
@@ -4714,10 +4749,11 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
         })()}
 
         {/* ── [[ 双向链接下拉 ── */}
-        {wikiOpen && (
+        {wikiOpen && createPortal(
           <div
+            ref={wikiMenuRef}
             className="wiki-dropdown"
-            style={{ top: wikiPos.top, left: wikiPos.left }}
+            style={{ position: "fixed" }}
           >
             {wikiSuggestions.length === 0 ? (
               <div className="wiki-empty">无匹配文档</div>
@@ -4733,7 +4769,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
                 </div>
               ))
             )}
-          </div>
+          </div>, document.body
         )}
       </div>
 

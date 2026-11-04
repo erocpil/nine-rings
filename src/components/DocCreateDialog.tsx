@@ -181,11 +181,11 @@ function DocCreateDialog({
   }, []);
 
   useEffect(() => {
+    if (pathTouched) return;
     setRootPath(suggestion.rootPath);
     setSubPath(suggestion.subPath);
     setCustomRootPath("");
-    setPathTouched(false);
-  }, [suggestion]);
+  }, [suggestion, pathTouched]);
 
   useEffect(() => {
     const revealActiveControl = () => revealFocusedControl();

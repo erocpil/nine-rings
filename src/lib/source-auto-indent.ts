@@ -2,6 +2,7 @@ import { isolateHistory } from "@codemirror/commands";
 import { ensureSyntaxTree, getIndentUnit, indentRange, indentString, language } from "@codemirror/language";
 import type { EditorState, TransactionSpec } from "@codemirror/state";
 import { cppDelimiterTokens, type CppLexState } from "./source-cpp-delimiters";
+import { formatSource, sourceFormatSettings, sourceFormatStyle } from "./source-formatting";
 
 export type SourceAutoIndentScope = "selection" | "document";
 
@@ -156,7 +157,6 @@ export function sourceAutoIndentChange(
 export async function sourceFormattedIndentChange(state: EditorState, scope: SourceAutoIndentScope): Promise<{ change: TransactionSpec | null; skipped: number }> {
   const empty = { change: null, skipped: 0 };
   if (state.readOnly || !state.doc.length || (scope === "selection" && state.selection.main.empty)) return empty;
-  const { formatSource, sourceFormatSettings, sourceFormatStyle } = await import("./source-formatting");
   const { blockWorkspacePreferences } = await import("./block-display-settings");
   const prefs = blockWorkspacePreferences();
   const source = state.doc.toString();

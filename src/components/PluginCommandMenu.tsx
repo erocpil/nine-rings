@@ -83,6 +83,7 @@ export function PluginCommandMenu({
   }, [selected, position]);
   useEffect(() => {
     if (form) return;
+    const anchor = trigger.getBoundingClientRect();
     const outside = (event: Event) => {
       if (
         !root.current?.contains(event.target as Node) &&
@@ -91,7 +92,11 @@ export function PluginCommandMenu({
         onClose();
     };
     const scroll = (event: Event) => {
-      if (!root.current?.contains(event.target as Node)) onClose();
+      if (root.current?.contains(event.target as Node) || child.current?.contains(event.target as Node)) return;
+      // Sticky toolbars retain their anchor while the body restores/scrolls.
+      // Dismiss only when scrolling actually moves the trigger out of place.
+      const next = trigger.getBoundingClientRect();
+      if (Math.abs(next.left - anchor.left) > 1 || Math.abs(next.bottom - anchor.bottom) > 1) onClose();
     };
     document.addEventListener("pointerdown", outside, true);
     window.addEventListener("resize", onClose);

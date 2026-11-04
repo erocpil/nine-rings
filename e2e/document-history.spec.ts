@@ -223,8 +223,21 @@ for (const virtual of [false, true]) {
 }
 
 test("源码视图后退保持源码并恢复位置，手机标题栏按钮可见", async ({ page }) => {
-  await fixture(page);
-  await editor(page).locator("p").nth(20).click();
+  const noteId = await fixture(page);
+  const paragraph = editor(page).locator("p").nth(20);
+  await paragraph.click();
+  // Native click completion can precede ProseMirror's selectionchange. Ensure
+  // this document's jump is recorded before replacing the rendered editor.
+  await expect.poll(() => paragraph.evaluate(element => {
+    const instance = (element.closest(".ProseMirror") as HTMLElement & { editor: Editor }).editor;
+    const start = instance.view.posAtDOM(element, 0);
+    const end = instance.view.posAtDOM(element, element.childNodes.length);
+    return instance.state.selection.from >= start && instance.state.selection.to <= end;
+  })).toBe(true);
+  await expect.poll(async () => {
+    const state = await history(page);
+    return state.entries[state.index - 1];
+  }).toEqual({ noteId, from: 1, to: 1 });
   await page.getByRole("button", { name: "源码", exact: true }).click();
   const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
   await expect(source).toBeVisible();

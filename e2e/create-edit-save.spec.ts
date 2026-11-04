@@ -1,6 +1,27 @@
 import { test, expect } from '@playwright/test';
 import { createBlankDocument } from './helpers/document';
 
+test('填写新建路径后迟到的建议不覆盖用户输入', async ({ page }) => {
+  await createBlankDocument(page);
+  await page.getByRole('button', { name: '新建文档', exact: true }).click();
+  await page.getByPlaceholder('文档标题...').fill('保留手动路径');
+  await page.getByRole('combobox', { name: '顶级目录', exact: true }).selectOption('references');
+  await page.getByPlaceholder('子路径 (如 nine-rings)').fill('manual/deep');
+  await page.evaluate(async () => {
+    const { useNotesStore } = await import('/src/stores/useNotesStore.ts');
+    const note = useNotesStore.getState().selectedNote!;
+    useNotesStore.getState().selectNote({ ...note, storagePath: 'areas/late-suggestion' });
+  });
+  await expect(page.getByRole('combobox', { name: '顶级目录', exact: true })).toHaveValue('references');
+  await expect(page.getByPlaceholder('子路径 (如 nine-rings)')).toHaveValue('manual/deep');
+  await page.getByRole('button', { name: '创建', exact: true }).click();
+  await expect(page.locator('.note-title')).toHaveValue('保留手动路径');
+  await expect.poll(() => page.evaluate(async () => {
+    const { api } = await import('/src/lib/api.ts');
+    return (await api.notes.get(localStorage.getItem('nr:lastNote')!))?.storagePath;
+  })).toBe('references/manual/deep');
+});
+
 /**
  * E2E 路径 1: 创建笔记 → 编辑 → 自动保存 → 刷新 → 验证内容
  *
