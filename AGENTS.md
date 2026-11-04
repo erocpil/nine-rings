@@ -349,6 +349,101 @@ export function coordinateDocumentUpdate(
 
 ---
 
+## Code Change Impact Analysis
+
+Code changes must be evaluated beyond their local implementation. A change that is syntactically correct may still introduce bugs elsewhere in the application.
+
+### 1. When Impact Analysis Is Required
+
+Perform impact analysis when changes involve:
+
+- Variable initialization, reset, cleanup, or deletion.
+- Shared state and state transitions.
+- Function interfaces, data structures, or API contracts.
+- Resource ownership and lifecycle management.
+- Error handling and exception paths.
+- Concurrency, synchronization, or asynchronous operations.
+- Changes that may affect other modules or components.
+
+For trivial documentation, formatting, and isolated changes, a lightweight local check is sufficient.
+
+### 2. Impact Analysis Workflow
+
+Follow these steps when impact analysis is required:
+
+**Step 1: Locate the Symbol**
+
+- Identify the variable, function, or data structure being changed.
+- Locate its definition, initialization, scope, and ownership.
+- Understand its role in the surrounding implementation.
+
+**Step 2: Find All Relevant References**
+
+- Use LSP References when available.
+- Supplement LSP results with repository-wide search.
+- Identify relevant read and write operations.
+- Check callers, consumers, and dependent components.
+- Do not assume that all references are limited to the current file.
+
+**Step 3: Analyze Data Flow and Lifecycle**
+
+- Trace how the value is created, modified, consumed, and destroyed.
+- Identify relevant execution paths and state transitions.
+- Check whether the change affects downstream operations.
+- Consider initialization order, cleanup order, and object lifetime.
+
+**Step 4: Check Existing Invariants**
+
+Determine whether other code depends on assumptions such as:
+
+- A variable being non-empty, non-zero, or valid.
+- A resource remaining initialized or available.
+- A state transition occurring in a specific order.
+- A function being called only under certain preconditions.
+- A value remaining consistent across components.
+
+Do not assume that a locally valid operation is globally safe.
+
+**Step 5: Validate the Impact**
+
+- Inspect relevant call paths and dependent implementations.
+- Review existing tests and error-handling paths.
+- Run appropriate tests, builds, or static analysis when practical.
+- Check for regressions introduced by the change.
+
+**Step 6: Report the Conclusion**
+
+Classify the result as:
+
+- SAFE: No relevant regression identified, with supporting evidence.
+- UNSAFE: A concrete correctness issue or violated invariant was identified.
+- UNCERTAIN: Available evidence is insufficient to establish correctness.
+
+Provide relevant file paths, symbols, and line numbers.
+
+Never claim a change is safe solely because the modified code compiles or passes a local check.
+
+### 3. Analysis Guidelines
+
+- Prefer targeted investigation over unnecessary repository-wide scanning.
+- Use LSP for symbol navigation, but do not treat LSP results as exhaustive.
+- Use text search when references may be hidden by dynamic dispatch, macros, generated code, reflection, serialization, or cross-language interfaces.
+- Distinguish verified facts from assumptions.
+- Do not approve changes merely because they match the user's suggested implementation.
+- If important dependencies cannot be established, explicitly report the limitation rather than assuming correctness.
+
+### 4. Cross-Language Impact Analysis
+
+For changes involving Rust and TypeScript boundaries:
+
+- Check both frontend and backend references.
+- Verify Tauri commands, events, and IPC contracts.
+- Check serialization and deserialization behavior.
+- Verify shared data structures and field names.
+- Consider compatibility with existing persisted data.
+
+---
+
 **最后更新：** 2026-11-04
 **文档版本：** 1.0.0
 **适用范围：** 九环项目所有开发人员和代理
