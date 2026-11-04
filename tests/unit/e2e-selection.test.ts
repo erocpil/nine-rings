@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 import { readdirSync } from "node:fs";
 import {
   coreFiles,
+  diagnosticFiles,
+  productionOnlyFiles,
   readingFiles,
   selectE2E,
   webkitGates,
@@ -9,6 +11,17 @@ import {
 const files = readdirSync("e2e").filter((file) => file.endsWith(".spec.ts"));
 
 describe("conservative affected E2E selection", () => {
+  test("diagnostics have separate ownership from functional and production gates", () => {
+    expect(new Set(diagnosticFiles).size).toBe(diagnosticFiles.length);
+    for (const file of diagnosticFiles) {
+      expect(files).toContain(file);
+      expect([
+        ...coreFiles,
+        ...readingFiles,
+        ...productionOnlyFiles,
+      ]).not.toContain(file);
+    }
+  });
   test("unfamiliar/shared paths and missing history select everything", () => {
     for (const paths of [
       undefined,

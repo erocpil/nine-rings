@@ -20,8 +20,8 @@
 ## 可重复基线
 
 ```sh
-NR_EDITOR_BENCHMARK=1 npx playwright test e2e/editor-rendering-benchmark.spec.ts --workers=1
-NR_EDITOR_BENCHMARK=1 npx playwright test e2e/editor-rendering-benchmark.spec.ts --workers=1 --browser=webkit
+NR_EDITOR_BENCHMARK=1 npx playwright test --config=playwright.benchmark.config.ts e2e/editor-rendering-benchmark.spec.ts --workers=1
+NR_EDITOR_BENCHMARK=1 npx playwright test --config=playwright.benchmark.config.ts e2e/editor-rendering-benchmark.spec.ts --workers=1 --browser=webkit
 ```
 
 默认 E2E 跳过该诊断用例，不将机器相关的耗时设为 CI 成败阈值。两个浏览器顺序运行，避免共享测试服务器退出及并行负载干扰。

@@ -52,7 +52,7 @@
 复现命令：
 
 ```sh
-NR_EDITOR_BENCHMARK=1 NR_EDITOR_MOBILE=1 NR_EDITOR_PROFILE=1 npx playwright test e2e/editor-opening-benchmark.spec.ts --workers=1
+NR_EDITOR_BENCHMARK=1 NR_EDITOR_MOBILE=1 NR_EDITOR_PROFILE=1 npx playwright test --config=playwright.benchmark.config.ts e2e/editor-opening-benchmark.spec.ts --workers=1
 ```
 
 环境：Linux Chromium、390px 手机宽度、Vite 开发模式，独立运行，每种规模三轮。不是手机真机数据，也不是生产包耗时。

@@ -1,9 +1,9 @@
 import { defineConfig } from '@playwright/test';
-import { productionOnlyFiles } from './scripts/e2e-suites.mjs';
+import { diagnosticFiles, productionOnlyFiles } from './scripts/e2e-suites.mjs';
 
 export default defineConfig({
   testDir: './e2e',
-  testIgnore: productionOnlyFiles.map(file => `**/${file}`),
+  testIgnore: [...productionOnlyFiles, ...diagnosticFiles].map(file => `**/${file}`),
   timeout: 30000,
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : 4,

@@ -7,6 +7,14 @@ export const productionOnlyFiles = [
   "source-formatting-production",
 ].map((name) => `${name}.spec.ts`);
 
+// Opt-in measurements have independent configurations; functional CI must not
+// discover production probes against Vite's development server.
+export const diagnosticFiles = [
+  "editor-opening-benchmark", "editor-rendering-benchmark", "search-performance",
+  "editor-opening-production", "readonly-rendering-benchmark",
+  "document-metadata-benchmark", "readonly-mixed-benchmark",
+].map((name) => `${name}.spec.ts`);
+
 /** Conservative CI ownership: unfamiliar/shared changes always select the full suite. */
 export const readingFiles = [
   "document-fold-session",

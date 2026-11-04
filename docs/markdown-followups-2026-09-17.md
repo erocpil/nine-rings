@@ -23,7 +23,7 @@
 | 300 | 668 / 944 / 1106 | 176 / 86 / 103 | 723 / 1097 / 1088 |
 | 1500 | 5914 / 4332 / 4540 | 272 / 242 / 241 | 4786 / 4530 / 4628 |
 
-复现：`NR_EDITOR_BENCHMARK=1 NR_EDITOR_MOBILE=1 npx playwright test e2e/editor-opening-benchmark.spec.ts --workers=1`。
+复现：`NR_EDITOR_BENCHMARK=1 NR_EDITOR_MOBILE=1 npx playwright test --config=playwright.benchmark.config.ts e2e/editor-opening-benchmark.spec.ts --workers=1`。
 
 没有同环境修改前对照，不能据此声明总体加速。长文档挂载与排版仍有秒级长任务；本轮是移出一项主线程计算并建立切换基线，不代表大文档问题已经全部解决。字号阅读位置及块编辑另用功能回归验证，未给出真机性能数字。
 

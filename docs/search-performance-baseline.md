@@ -72,11 +72,11 @@ Chromium 同环境、无其它测试并行，每个规模各一次的新测量�
 ## 复现命令
 
 ```sh
-NR_SEARCH_BENCHMARK=1 npx playwright test e2e/search-performance.spec.ts --workers=1
-NR_EDITOR_BENCHMARK=1 npx playwright test e2e/editor-rendering-benchmark.spec.ts --grep '300 块|1500 块' --workers=1
-NR_EDITOR_BENCHMARK=1 NR_EDITOR_PROFILE=1 npx playwright test e2e/editor-rendering-benchmark.spec.ts --grep '1500 块' --workers=1
-NR_EDITOR_BENCHMARK=1 npx playwright test e2e/editor-opening-benchmark.spec.ts --workers=1
-NR_EDITOR_BENCHMARK=1 NR_EDITOR_PROFILE=1 npx playwright test e2e/editor-opening-benchmark.spec.ts --grep '1500 块' --workers=1
+NR_SEARCH_BENCHMARK=1 npx playwright test --config=playwright.benchmark.config.ts e2e/search-performance.spec.ts --workers=1
+NR_EDITOR_BENCHMARK=1 npx playwright test --config=playwright.benchmark.config.ts e2e/editor-rendering-benchmark.spec.ts --grep '300 块|1500 块' --workers=1
+NR_EDITOR_BENCHMARK=1 NR_EDITOR_PROFILE=1 npx playwright test --config=playwright.benchmark.config.ts e2e/editor-rendering-benchmark.spec.ts --grep '1500 块' --workers=1
+NR_EDITOR_BENCHMARK=1 npx playwright test --config=playwright.benchmark.config.ts e2e/editor-opening-benchmark.spec.ts --workers=1
+NR_EDITOR_BENCHMARK=1 NR_EDITOR_PROFILE=1 npx playwright test --config=playwright.benchmark.config.ts e2e/editor-opening-benchmark.spec.ts --grep '1500 块' --workers=1
 ```
 
 这些基准均显式启用，使用隔离浏览器中的合成数据，不读取用户资料库。长文档基准已改用文档 API 创建测试内容，不再依赖隐藏的随笔入口。

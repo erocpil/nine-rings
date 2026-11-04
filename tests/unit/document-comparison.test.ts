@@ -106,6 +106,23 @@ describe("conflict choices", () => {
 });
 
 describe("line diff", () => {
+  it("aligns 800 unchanged lines around one inserted blank without coarse fallback", () => {
+    const lines = Array.from({ length: 800 }, (_, index) => `line-${index}`);
+    const diff = diffDocumentLines(
+      lines.join("\n"),
+      [...lines.slice(0, 400), "", ...lines.slice(400)].join("\n"),
+    );
+    expect(diff.coarse).toBe(false);
+    expect(diff.lines.filter((line) => line.kind === "same")).toHaveLength(800);
+    expect(diff.lines.filter((line) => line.kind === "removed")).toHaveLength(
+      0,
+    );
+    expect(
+      diff.lines
+        .filter((line) => line.kind === "added")
+        .map((line) => line.text),
+    ).toEqual([""]);
+  });
   for (const [left, right] of [
     ["", ""],
     ["", "a\n"],
