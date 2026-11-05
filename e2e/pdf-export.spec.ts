@@ -7,18 +7,24 @@ test("桌面 PDF 导出把准备好的独立文档交给原生窗口并报告创
   const result = await page.evaluate(async () => {
     const calls: Array<{ command: string; args: Record<string, unknown> }> = [];
     const host = window as typeof window & { __TAURI_INTERNALS__?: unknown };
-    host.__TAURI_INTERNALS__ = { invoke: async (command: string, args: Record<string, unknown>) => { calls.push({ command, args }); } };
+    const invoke = async (command: string, args: Record<string, unknown>) => { calls.push({ command, args }); return []; };
+    host.__TAURI_INTERNALS__ = { invoke };
+    // Deterministically model the unrelated startup query seen under full load.
+    await invoke("protected_paths_list", {});
     const { exportDocumentAsPdf } = await import("/src/lib/pdf-export.ts");
     const opened = exportDocumentAsPdf({ title: "原生导出", contentHtml: '<h2>标题</h2><p>中文正文</p><script>throw new Error("must not run")</script>' });
-    for (let attempt = 0; attempt < 100 && !calls.length; attempt++) await new Promise(resolve => setTimeout(resolve, 20));
+    // Application startup may issue unrelated IPC while the PDF module loads.
+    // Wait for this operation's command before switching to the failure mock.
+    for (let attempt = 0; attempt < 100 && !calls.some(call => call.command === "open_pdf_print_preview"); attempt++) await new Promise(resolve => setTimeout(resolve, 20));
     let error = "";
-    host.__TAURI_INTERNALS__ = { invoke: async () => { throw new Error("cannot create window"); } };
+    host.__TAURI_INTERNALS__ = { invoke: async (command: string) => { if (command === "open_pdf_print_preview") throw new Error("cannot create window"); return []; } };
     exportDocumentAsPdf({ title: "失败测试", contentHtml: "<p>body</p>", onError: reason => { error = reason.message; } });
     for (let attempt = 0; attempt < 100 && !error; attempt++) await new Promise(resolve => setTimeout(resolve, 20));
     delete host.__TAURI_INTERNALS__;
-    return { opened, calls, error, frames: document.querySelectorAll('iframe[title="PDF 打印文档"]').length };
+    return { opened, calls: calls.filter(call => call.command === "open_pdf_print_preview"), error, frames: document.querySelectorAll('iframe[title="PDF 打印文档"]').length };
   });
   expect(result.opened).toBe(true);
+  expect(result.calls).toHaveLength(1);
   expect(result.calls[0].command).toBe("open_pdf_print_preview");
   expect(result.calls[0].args.html).toContain("中文正文");
   expect(result.calls[0].args.html).not.toContain("must not run");

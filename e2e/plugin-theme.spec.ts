@@ -161,14 +161,22 @@ test("主题排版建议重测局部只读长文档，保留视口与原文", as
   await reader.evaluate(element => element.setAttribute("data-theme-session-test", "retained"));
   const root = reader.locator(".note-editor-scroll");
   await root.evaluate(element => { element.scrollTop = 2000; });
-  await expect.poll(() => reader.locator('[data-reading-row][data-block-type="paragraph"]').evaluateAll(elements => elements.filter(element => {
-    const bounds = element.getBoundingClientRect(), viewport = element.closest(".note-editor-scroll")!.getBoundingClientRect();
-    return bounds.top >= viewport.top && bounds.bottom <= viewport.bottom;
-  }).length)).toBeGreaterThan(0);
-  const number = await reader.locator('[data-reading-row][data-block-type="paragraph"]').evaluateAll(elements => {
-    const target = elements.find(element => { const bounds = element.getBoundingClientRect(), viewport = element.closest(".note-editor-scroll")!.getBoundingClientRect(); return bounds.top >= viewport.top && bounds.bottom <= viewport.bottom; });
-    return target!.getAttribute("data-block-number")!;
-  });
+  let number = "";
+  // The reader also owns measurement rows outside its scrolling viewport.
+  // Capture a visible row atomically, rather than querying again after a frame
+  // in which virtualization may have replaced the previously inspected nodes.
+  await expect.poll(async () => {
+    number = await root.locator('[data-reading-row][data-block-type="paragraph"]').evaluateAll(elements => {
+      const target = elements.find(element => {
+        const container = element.closest(".note-editor-scroll");
+        if (!container) return false;
+        const bounds = element.getBoundingClientRect(), viewport = container.getBoundingClientRect();
+        return bounds.top >= viewport.top && bounds.bottom <= viewport.bottom;
+      });
+      return target?.getAttribute("data-block-number") ?? "";
+    });
+    return number;
+  }).not.toBe("");
   await advanced(page);
   await page.getByRole("checkbox", { name: "启用插件功能", exact: true }).check();
   await page.getByRole("checkbox", { name: "启用主题配色", exact: true }).check();

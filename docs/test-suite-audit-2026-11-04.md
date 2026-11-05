@@ -58,3 +58,11 @@
 本批没有修改产品代码、单元测试或 CI 选择器，仅将同一文件内两个菜单用例合并，源码符号文件从 7 项变为 6 项。检索脚本、工作流和文档未发现依赖原两个完整用例名称的 grep 入口。独立语义仍保留，代价是无选区阶段失败时同一场景的后续选区阶段不会继续执行；失败报告保留具体断言位置。
 
 Chromium 源码符号文件 6/6 通过（15.9 秒），WebKit 6/6 通过（18.1 秒）；`git diff --check` 通过。此项减少的是重复环境初始化，不宣称删除了独立功能覆盖或显著降低全套耗时。本批未重跑完整单元测试或全量 E2E。
+
+## 2026-11-05：完整 E2E 收尾
+
+推送基线 `965ae24f` 的远端检查全部成功：Test `41871564464`、Native Platforms `41871564311`、CI `41871564471`、Linux Tauri `41871564307`、Windows Tauri `41871564436`、macOS ARM64 Tauri `41871564360`。Native Platforms 的 macOS 14 Chromium/WebKit、Windows 2022 Chromium/WebKit、Ubuntu 22.04 Chromium/WebKit 六组均通过；此前的 macOS Chromium 失败未复现。Test 工作流中未被路径选择的 Rust、Flutter、IPC、Schema 项保持跳过，不能将它们计为此次成功执行。
+
+最终 E2E 全量复核第一轮为 **1581 通过、2 失败、0 跳过**（20.8 分钟）。两项均是测试夹具竞态而非产品失败：PDF 导出测试把应用启动期间先发生的 `protected_paths_list` IPC 当成导出完成；长文主题测试把虚拟阅读器的测量行当作可见行，并对已卸载节点解引用滚动容器。修复分别限定 PDF 等待/失败模拟到 `open_pdf_print_preview` 命令，以及在真实滚动容器内原子选取仍在视口中的行号；保留 HTML、安全过滤、错误回调、阅读器状态、可见锚点、行数界限和原文不变断言。产品源码未改。
+
+修复后聚焦验证：Chromium **10/10**；WebKit **9 通过、1 项跳过**（浏览器不支持的原生 PDF 输出能力）。最终完整 Chromium E2E **1583/1583 通过**，15.7 分钟。全量日志与 JSON 分别位于 `/tmp/nine-rings-final-verified.log`、`/tmp/nine-rings-final-verified.json`；失败轮原始记录位于 `/tmp/nine-rings-final-baseline.log`、`/tmp/nine-rings-final-baseline.json`。`git diff --check` 通过。修复提交对应的远端 CI 尚待本次推送后核验；本地浏览器结果不替代 Tauri GUI 真机验证。
