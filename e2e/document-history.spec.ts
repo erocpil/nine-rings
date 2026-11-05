@@ -10,6 +10,7 @@ const activeSession = (page: Page) => page.locator(".retained-document-session:n
 const editor = (page: Page) => activeSession(page).locator(".note-editor .ProseMirror");
 async function fixture(page: Page) {
   await createBlankDocument(page);
+  const noteId = (await page.evaluate(() => localStorage.getItem("nr:lastNote")))!;
   await editor(page).evaluate(element => {
     const instance = (element as HTMLElement & { editor: Editor }).editor;
     instance.commands.setContent({ type: "doc", content: Array.from({ length: 45 }, (_, index) => ({
@@ -20,8 +21,10 @@ async function fixture(page: Page) {
     instance.commands.focus(1);
   });
   await expect.poll(() => location(page)).toEqual({ from: 1, to: 1 });
-  await expect.poll(async () => { const state = await history(page); return state.entries[state.index]?.from; }).toBe(1);
-  return (await page.evaluate(() => localStorage.getItem("nr:lastNote")))!;
+  // Wait until the new document has actually replaced the previous document's
+  // history entry before a later click records a same-document jump.
+  await expect.poll(async () => { const state = await history(page); return state.entries[state.index]; }).toEqual({ noteId, from: 1, to: 1 });
+  return noteId;
 }
 async function location(page: Page) {
   return editor(page).evaluate(element => {
@@ -203,15 +206,23 @@ test("导航前保存失败时保留文档、光标和历史", async ({ page }) 
 for (const virtual of [false, true]) {
   test(`只读目录跳转可后退前进，局部渲染=${virtual}`, async ({ page }) => {
     if (virtual) await page.addInitScript(() => localStorage.setItem("nr:experimentalReadonlyRendering", "true"));
-    await fixture(page);
+    const noteId = await fixture(page);
     await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
     if (virtual) await expect(page.getByRole("document", { name: "只读正文", exact: true }).locator("h2").first()).toContainText("位置 0：");
     await page.getByRole("button", { name: "文档目录", exact: true }).click();
+    const beforeJump = (await history(page)).index;
     await page.locator(virtual ? ".vr-outline-row > button:last-child" : ".document-outline-link").filter({ hasText: "位置 30：" }).click();
-    const destination = (await history(page)).entries[(await history(page)).index];
+    await expect.poll(async () => (await history(page)).index).toBeGreaterThan(beforeJump);
+    const destinationState = await history(page);
+    const destination = destinationState.entries[destinationState.index];
     await page.getByRole("button", { name: "后退", exact: true }).click();
+    await expect.poll(async () => (await history(page)).index).toBe(destinationState.index - 1);
     await expect.poll(async () => (await history(page)).target).toBeNull();
     const root = activeSession(page).locator(".note-editor-scroll");
+    await expect.poll(async () => {
+      const state = await history(page);
+      return state.entries[state.index]?.noteId;
+    }).toBe(noteId);
     await expect.poll(() => root.evaluate(element => element.scrollTop)).toBeLessThan(120);
     await page.getByRole("button", { name: "前进", exact: true }).click();
     await expect.poll(async () => {

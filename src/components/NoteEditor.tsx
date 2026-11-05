@@ -1843,6 +1843,24 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
     editorFindInputRef.current?.focus({ preventScroll: true });
   }, [activeSearchMatch, revealSearchMatch]);
 
+  const outlineNavigationFrame = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const cancelOutlineScroll = () => {
+      if (outlineNavigationFrame.current !== undefined) cancelAnimationFrame(outlineNavigationFrame.current);
+      outlineNavigationFrame.current = undefined;
+      // A later history/anchor jump must cancel a queued outline position.
+      root.scrollTo({ top: root.scrollTop, left: root.scrollLeft, behavior: "auto" });
+    };
+    root.addEventListener(EDITOR_NAVIGATION_EVENT, cancelOutlineScroll);
+    return () => {
+      root.removeEventListener(EDITOR_NAVIGATION_EVENT, cancelOutlineScroll);
+      if (outlineNavigationFrame.current !== undefined) cancelAnimationFrame(outlineNavigationFrame.current);
+      outlineNavigationFrame.current = undefined;
+    };
+  }, [editor, scrollRef]);
+
   const jumpToOutlineHeading = useCallback((item: DocumentOutlineItem) => {
     if (!editor || editor.isDestroyed) return;
     allHeadingFoldRoundTripRef.current = null;
@@ -1852,7 +1870,8 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
     setNavigationSelection(editor, position);
     editor.view.focus();
     setOutlineOpen(false);
-    requestAnimationFrame(() => {
+    outlineNavigationFrame.current = requestAnimationFrame(() => {
+      outlineNavigationFrame.current = undefined;
       const root = scrollRef.current;
       if (!root || editor.isDestroyed) return;
       const rootRect = root.getBoundingClientRect();
@@ -1860,7 +1879,9 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
         ?.getBoundingClientRect().bottom ?? rootRect.top;
       const coords = editor.view.coordsAtPos(position);
       const nextTop = root.scrollTop + coords.top - Math.max(rootRect.top, stickyBottom) - 12;
-      root.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
+      // Immediate outline positioning avoids a prior WebKit smooth-scroll
+      // animation overriding a subsequent history restore.
+      root.scrollTo({ top: Math.max(0, nextTop), behavior: "instant" });
     });
   }, [editor, scrollRef, setOutlineOpen]);
   const tocContext = useMemo(() => ({ items: documentOutline, navigate: jumpToOutlineHeading }), [documentOutline, jumpToOutlineHeading]);

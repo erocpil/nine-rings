@@ -61,8 +61,12 @@ Chromium 源码符号文件 6/6 通过（15.9 秒），WebKit 6/6 通过（18.1 
 
 ## 2026-11-05：完整 E2E 收尾
 
-推送基线 `965ae24f` 的远端检查全部成功：Test `41871564464`、Native Platforms `41871564311`、CI `41871564471`、Linux Tauri `41871564307`、Windows Tauri `41871564436`、macOS ARM64 Tauri `41871564360`。Native Platforms 的 macOS 14 Chromium/WebKit、Windows 2022 Chromium/WebKit、Ubuntu 22.04 Chromium/WebKit 六组均通过；此前的 macOS Chromium 失败未复现。Test 工作流中未被路径选择的 Rust、Flutter、IPC、Schema 项保持跳过，不能将它们计为此次成功执行。
+推送基线 `965ae24f` 的初始远端检查成功：Test `41871564464`、Native Platforms `41871564311`、CI `41871564471`、Linux Tauri `41871564307`、Windows Tauri `41871564436`、macOS ARM64 Tauri `41871564360`。但 `965ae24f` 上后续定时 Test `41936458507` 失败，且其 Native Platforms 结果不能作为之后提交的证明。`2d420bda` 的 Test `41962525962`、CI `41962525816`、Linux Tauri `41962525736`、Windows Tauri `41962525777`、macOS ARM64 Tauri `41962526005` 均成功；Native Platforms `41962525751` 为五组通过、macOS 14 Chromium 失败。Test 工作流中未被路径选择的 Rust、Flutter、IPC、Schema 项保持跳过，不能将它们计为此次成功执行。
 
 最终 E2E 全量复核第一轮为 **1581 通过、2 失败、0 跳过**（20.8 分钟）。两项均是测试夹具竞态而非产品失败：PDF 导出测试把应用启动期间先发生的 `protected_paths_list` IPC 当成导出完成；长文主题测试把虚拟阅读器的测量行当作可见行，并对已卸载节点解引用滚动容器。修复分别限定 PDF 等待/失败模拟到 `open_pdf_print_preview` 命令，以及在真实滚动容器内原子选取仍在视口中的行号；保留 HTML、安全过滤、错误回调、阅读器状态、可见锚点、行数界限和原文不变断言。产品源码未改。
 
-修复后聚焦验证：Chromium **10/10**；WebKit **9 通过、1 项跳过**（浏览器不支持的原生 PDF 输出能力）。最终完整 Chromium E2E **1583/1583 通过**，15.7 分钟。全量日志与 JSON 分别位于 `/tmp/nine-rings-final-verified.log`、`/tmp/nine-rings-final-verified.json`；失败轮原始记录位于 `/tmp/nine-rings-final-baseline.log`、`/tmp/nine-rings-final-baseline.json`。`git diff --check` 通过。修复提交对应的远端 CI 尚待本次推送后核验；本地浏览器结果不替代 Tauri GUI 真机验证。
+修复后聚焦验证：Chromium **10/10**；WebKit **9 通过、1 项跳过**（浏览器不支持的原生 PDF 输出能力）。最终完整 Chromium E2E **1583/1583 通过**，15.7 分钟。全量日志与 JSON 分别位于 `/tmp/nine-rings-final-verified.log`、`/tmp/nine-rings-final-verified.json`；失败轮原始记录位于 `/tmp/nine-rings-final-baseline.log`、`/tmp/nine-rings-final-baseline.json`。
+
+在 `2d420bda` 的 Native macOS Chromium 失败中，源码历史测试的夹具只等到了任意文档的首位置历史项，未确认新文档已成为当前历史项；因此偶尔拿旧文档的 `from:561` 与新文档的 `from:1` 比较。夹具现在先保存创建文档的 ID，并等待当前历史项同时匹配该 ID 和首位置。相同测试重复 5 次通过。
+
+完整 `document-history.spec.ts` 在 Chromium **15/15**、WebKit **14 通过、1 项跳过**。额外修复了 WebKit 只读目录跳转后立即后退时的滚动竞态：目录平滑滚动动画会在历史恢复之后继续写入 `scrollTop`。目录定位现使用即时滚动；新的历史导航事件会取消尚未执行的目录定位帧并停止剩余滚动动画。原先只读目录测试也改为等待历史索引实际移动，避免在异步导航完成前读到旧状态。`npm run check` 全部通过（类型检查、lint、格式、2463 个 Vitest、覆盖率门槛和 IPC 契约）；`git diff --check` 通过。上述修复提交后的远端 CI 仍需检查；本地浏览器结果不替代 Tauri GUI 真机验证。
