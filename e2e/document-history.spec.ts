@@ -245,6 +245,12 @@ test("源码视图后退保持源码并恢复位置，手机标题栏按钮可�
     const end = instance.view.posAtDOM(element, element.childNodes.length);
     return instance.state.selection.from >= start && instance.state.selection.to <= end;
   })).toBe(true);
+  const clickedPosition = await location(page);
+  await expect.poll(async () => {
+    const state = await history(page);
+    return state.entries[state.index];
+  }, { message: "the source-mode switch must wait for the clicked position to enter navigation history" })
+    .toEqual({ noteId, ...clickedPosition });
   await expect.poll(async () => {
     const state = await history(page);
     return state.entries[state.index - 1];

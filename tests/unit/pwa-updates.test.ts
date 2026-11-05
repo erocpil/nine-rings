@@ -127,20 +127,24 @@ describe("PWA update lifecycle", () => {
   });
 
   it("uses settings-only update labels for idle and current deployments", () => {
-    expect(pwaUpdateStatusText({
-      checking: false,
-      available: false,
-      checked: false,
-      error: null,
-      errorDetails: null,
-    })).toBe("点击更新以获取最新版本");
-    expect(pwaUpdateStatusText({
-      checking: false,
-      available: false,
-      checked: true,
-      error: null,
-      errorDetails: null,
-    })).toBe("当前已是最新版本");
+    expect(
+      pwaUpdateStatusText({
+        checking: false,
+        available: false,
+        checked: false,
+        error: null,
+        errorDetails: null,
+      }),
+    ).toBe("点击更新以获取最新版本");
+    expect(
+      pwaUpdateStatusText({
+        checking: false,
+        available: false,
+        checked: true,
+        error: null,
+        errorDetails: null,
+      }),
+    ).toBe("当前已是最新版本");
   });
 
   it("waits for download and activation before an explicit reload", async () => {
