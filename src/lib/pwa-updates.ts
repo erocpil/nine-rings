@@ -23,8 +23,8 @@ export function pwaUpdateStatusText(status: PwaUpdateStatus): string {
   }
   if (status.checking) return status.available ? "正在检查后续新版，已下载版本仍保留" : "正在检查新版，请保持联网";
   if (status.available) return "新版本已就绪，保存本机改动后即可刷新";
-  if (status.checked) return "未发现待安装的新版本";
-  return "检查已部署的应用版本";
+  if (status.checked) return "当前已是最新版本";
+  return "点击更新以获取最新版本";
 }
 
 const UPDATE_TIMEOUT = 60_000;

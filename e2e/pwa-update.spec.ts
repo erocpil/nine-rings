@@ -117,13 +117,15 @@ test("手机 PWA 重启时接管已开始的新版下载，保存后升级且服
   await expect(page.locator(".settings-web-update [role=status]")).toHaveText(/正在(?:检查新版，请保持联网|下载并安装新版，请保持联网。下载进度：.*)/);
   await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   releaseDownloads();
-  await expect(page.locator(".web-status-banner.update")).toBeVisible();
+  await expect(page.locator(".web-status-banner.update")).toHaveCount(0);
   await expect.poll(() => activeVersion(page)).toBe(1);
   await page.locator(".note-title").fill("升级前最后一次修改");
   await page.locator(".ProseMirror").fill("更新必须保存这段尚未防抖提交的正文");
+  await page.keyboard.press("Alt+,");
+  await expect(page.locator(".settings-web-update [role=status]")).toContainText("新版本已就绪");
   await Promise.all([
     page.waitForEvent("load"),
-    page.locator(".web-status-banner").getByRole("button", { name: "保存并刷新" }).click(),
+    page.locator(".settings-web-update").getByRole("button", { name: "保存并刷新" }).click(),
   ]);
   await expect(page.locator(".note-title")).toHaveValue("升级前最后一次修改");
   await expect(page.locator(".ProseMirror")).toContainText("尚未防抖提交的正文");
@@ -146,7 +148,7 @@ test("桌面普通网页从设置保存刷新，仅当前标签重载且保留�
   await page.evaluate(() => sessionStorage.setItem("pwa-update-tab-proof", "original"));
   revision = 2;
   await page.keyboard.press("Alt+,");
-  await page.getByRole("button", { name: "检查更新", exact: true }).click();
+  await page.getByRole("button", { name: "点击更新", exact: true }).click();
   await expect(page.locator(".settings-web-update [role=status]")).toContainText("新版本已就绪");
   await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await page.locator(".ProseMirror").fill("桌面设置更新保留的最后编辑");
@@ -165,7 +167,7 @@ test("新版下载失败保留旧版，设置可手动检查并重试升级", as
   revision = 2;
   failDownload = true;
   await page.keyboard.press("Alt+,");
-  await page.getByRole("button", { name: "检查更新", exact: true }).click();
+  await page.getByRole("button", { name: "点击更新", exact: true }).click();
   // The production service worker precaches hundreds of real assets before it
   // can report the injected marker failure. Give slower CI runners time to
   // finish that install attempt instead of treating visible download progress
@@ -176,7 +178,7 @@ test("新版下载失败保留旧版，设置可手动检查并重试升级", as
   await expect(page.locator(".settings-web-update")).toContainText("status=503");
   await expect.poll(() => activeVersion(page)).toBe(1);
   failDownload = false;
-  await page.getByRole("button", { name: "检查更新", exact: true }).click();
+  await page.getByRole("button", { name: "点击更新", exact: true }).click();
   await expect(page.locator(".settings-web-update [role=status]")).toContainText("新版本已就绪");
   await Promise.all([
     page.waitForEvent("load"),
@@ -190,7 +192,7 @@ test("新版资源短暂失败时自动重试，不需要再次点击检查", as
   revision = 2;
   transientFailures = 1;
   await page.keyboard.press("Alt+,");
-  await page.getByRole("button", { name: "检查更新", exact: true }).click();
+  await page.getByRole("button", { name: "点击更新", exact: true }).click();
   await expect(page.locator(".settings-web-update [role=status]")).toContainText("新版本已就绪");
   expect(transientFailures).toBe(0);
   await expect.poll(() => activeVersion(page)).toBe(1);
@@ -200,7 +202,7 @@ test("图标返回200后正文中断会重试，完整缓存后才能升级", as
   revision = 2;
   transientBodyFailures = 1;
   await page.keyboard.press("Alt+,");
-  await page.getByRole("button", { name: "检查更新", exact: true }).click();
+  await page.getByRole("button", { name: "点击更新", exact: true }).click();
   await expect(page.locator(".settings-web-update [role=status]")).toContainText("新版本已就绪");
   expect(transientBodyFailures).toBe(0);
   await expect.poll(() => activeVersion(page)).toBe(1);
@@ -232,7 +234,7 @@ async function waitingVersion(page: Page) {
 
 test("已下载但未刷新时继续检查后续部署，最终保存并启用最新版本", async ({ page }) => {
   await page.keyboard.press("Alt+,");
-  const check = page.getByRole("button", { name: "检查更新", exact: true });
+  const check = page.getByRole("button", { name: "点击更新", exact: true });
   revision = 2;
   await check.click();
   await expect.poll(() => waitingVersion(page)).toBe(2);
@@ -254,9 +256,10 @@ test("已下载但未刷新时继续检查后续部署，最终保存并启用�
   await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await page.locator(".note-title").fill("连续部署前的最后修改");
   await page.locator(".ProseMirror").fill("等待更新不应丢失当前编辑");
+  await page.keyboard.press("Alt+,");
   await Promise.all([
     page.waitForEvent("load"),
-    page.locator(".web-status-banner").getByRole("button", { name: "保存并刷新" }).click(),
+    page.locator(".settings-web-update").getByRole("button", { name: "保存并刷新" }).click(),
   ]);
   await expect.poll(() => activeVersion(page)).toBe(3);
   await expect(page.locator(".note-title")).toHaveValue("连续部署前的最后修改");
@@ -271,7 +274,7 @@ for (const width of [390, 1280]) {
     await expect(settings).toBeVisible();
     const check = settings.locator(".settings-update-check");
     await check.click();
-    await expect(settings.locator(".settings-web-update [role=status]")).toContainText("未发现待安装的新版本");
+    await expect(settings.locator(".settings-web-update [role=status]")).toContainText("当前已是最新版本");
     await expect(check).toBeEnabled();
     await expect(check).toBeFocused();
     await page.keyboard.press("Escape");
@@ -286,7 +289,7 @@ test("下载超过页面等待期限后完成会清除超时，并在原标签�
   revision = 2;
   blockDownload = true;
   await page.keyboard.press("Alt+,");
-  await page.getByRole("button", { name: "检查更新", exact: true }).click();
+  await page.getByRole("button", { name: "点击更新", exact: true }).click();
   const status = page.locator(".settings-web-update [role=status]");
   await expect(status).toContainText("正在下载并安装新版");
   await page.clock.fastForward(60_001);

@@ -211,7 +211,7 @@ const entries: SettingsSearchEntry[] = [
     keywords: "浏览器 诊断 报告 排查", page: "advanced", webOnly: true,
   },
   {
-    title: "检查更新",
+    title: "点击更新",
     description: "设置首页 · 查看真实更新状态",
     keywords: "更新 版本 安装 失败 详情 update pwa",
     page: "root",

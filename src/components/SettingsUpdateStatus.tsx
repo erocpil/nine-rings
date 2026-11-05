@@ -88,7 +88,7 @@ export function SettingsUpdateStatus({ webUpdate, showMessage }: Props) {
                 ↻
               </span>
             )}
-            {webUpdate.checking ? "检查中…" : "检查更新"}
+            {webUpdate.checking ? "检查中…" : "点击更新"}
           </button>
           {webUpdate.available && (
             <button

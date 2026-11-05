@@ -1807,10 +1807,7 @@ function App() {
       {!isTauriRuntime() && (
         <WebStatusBanner
           online={webPlatform.online}
-          updateAvailable={webPlatform.updateAvailable}
-          applyingUpdate={applyingWebUpdate}
           storagePressure={webPlatform.storagePressure}
-          onApplyUpdate={applyWebUpdate}
           onExportBackup={() => void exportEmergencyBackup()}
         />
       )}

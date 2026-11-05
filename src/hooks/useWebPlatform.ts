@@ -198,5 +198,5 @@ export function useWebPlatform() {
     await updaterRef.current.check();
   }, []);
 
-  return { online, updateAvailable: updateStatus.available, updateStatus, checkUpdate, storage, storagePressure: storagePressure(storage), applyUpdate };
+  return { online, updateStatus, checkUpdate, storage, storagePressure: storagePressure(storage), applyUpdate };
 }

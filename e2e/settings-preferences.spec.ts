@@ -32,7 +32,7 @@ for (const width of [390, 1280]) {
     );
     await input.fill("更新");
     // Release notes are available even without the production PWA updater.
-    await expect(page.getByRole("button", { name: /^检查更新/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^点击更新/ })).toHaveCount(0);
     await page.getByRole("button", { name: /^更新记录/ }).click();
     await expect(page.locator("#settings-dialog-title")).toHaveText("更新记录");
     await expect(page.locator(".settings-changelog")).toContainText("当前版本");
