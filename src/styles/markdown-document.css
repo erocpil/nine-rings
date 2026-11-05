@@ -258,8 +258,10 @@
   animation: none !important;
 }
 .markdown-cm-source .cm-vimCursorLayer .cm-fat-cursor {
-  background: color-mix(in srgb, var(--accent) 45%, var(--bg));
-  color: var(--text);
+  /* Vim redraws the character without all syntax/inline styles (notably
+     italic). Tint the original glyph instead of covering it with that copy. */
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: transparent !important;
 }
 .markdown-cm-source .cm-editor:not(.cm-focused) .cm-vimCursorLayer .cm-fat-cursor {
   background: transparent;

@@ -73,7 +73,10 @@
 .codemirror-block-editor .cm-gutters { color: var(--text-secondary); background: var(--code-bg); border-color: var(--border); }
 .codemirror-block-editor .cm-lineNumbers .cm-gutterElement { min-width: 3ch; padding: 0 6px 0 4px; text-align: right; }
 .codemirror-block-editor .cm-cursor { border-left-color: var(--text); }
-.codemirror-block-editor .cm-fat-cursor { background: var(--text); color: var(--bg); }
+.codemirror-block-editor .cm-fat-cursor {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: transparent !important;
+}
 .block-workspace-body .block-workspace-open { display: none; }
 .block-workspace-details-field { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 10px; padding: 10px 16px 0; font-size: 12px; color: var(--text-secondary); }
 .block-workspace-details-field input { min-width: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font: 14px var(--font); }

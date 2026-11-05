@@ -1,6 +1,13 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-11-06",
+    title: "Vim 光标显示",
+    changes: [
+      "Vim 方块光标保留所在字符的斜体、粗体及文字颜色，源码与代码块编辑器的只读和编辑状态使用一致的显示方式。",
+    ],
+  },
+  {
     date: "2026-11-05",
     title: "菜单与创建文档稳定性",
     changes: [
