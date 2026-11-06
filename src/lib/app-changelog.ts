@@ -1,6 +1,15 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-11-07",
+    title: "双栏浏览交互与布局",
+    changes: [
+      "双栏操作按文件与浏览工具分组，使用紧凑图标和快捷键提示；增加交换两栏、两栏同路径和来源/目标标识。",
+      "文件列表支持连续输入定位、Home/End/PageUp/PageDown、范围选择、空格/F3 预览及 F2/F5–F8 操作；仅列表焦点内处理，写入仍需确认。目录标签支持方向键切换。",
+      "当前项与多选项分别显示，预览跟随当前项；改变过滤范围清除选择，横向滚动时列标题同步对齐。",
+    ],
+  },
+  {
     date: "2026-11-06",
     title: "Vim 光标显示",
     changes: [

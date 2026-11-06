@@ -30,6 +30,7 @@ test("每栏目录标签独立保留历史并在重新进入时恢复", async ({
   await left.getByRole("button", { name: "新建目录标签", exact: true }).click();
   await left.getByRole("textbox", { name: "根内相对路径" }).fill("docs");
   await left.getByRole("textbox", { name: "根内相对路径" }).press("Enter");
+  await expect(left.getByRole("option", { name: /readme.md/ })).toBeVisible();
   await left.getByRole("tab", { name: "src", exact: true }).click();
   await expect(left.getByRole("option", { name: /deep.c/ })).toBeVisible();
   await left.getByRole("tab", { name: "docs", exact: true }).click();
@@ -109,4 +110,106 @@ test("批量重命名先预览，再按选中顺序执行且保留扩展名", as
   await dialog.getByRole("button", { name: "关闭", exact: true }).click();
   await expect(left.getByRole("option", { name: /^1-a.c/ })).toBeVisible();
   await expect(left.getByRole("option", { name: /^2-b.c/ })).toBeVisible();
+});
+
+test("列表增量定位、范围选择和预览快捷键保留当前项与多选反馈", async ({ page }) => {
+  const { browser, left, right } = await fixture(page);
+  const list = left.getByRole("listbox", { name: "文件列表" });
+  await list.focus();
+  const count = await list.getByRole("option").count();
+  await list.press("Home");
+  const initial = await list.evaluate(element => element.scrollTop);
+  await list.press("ArrowDown");
+  expect(await list.evaluate(element => element.scrollTop)).toBe(initial);
+  await list.press("Home");
+  await list.press("Shift+End");
+  await expect(list.getByRole("option", { selected: true })).toHaveCount(count);
+  await expect(left.locator('[data-node-id="image.svg"]')).toHaveAttribute("data-current", "true");
+  await list.press("Insert");
+  await expect(left.locator('[data-node-id="image.svg"]')).toHaveAttribute("aria-selected", "false");
+  await list.press("Space");
+  const preview = browser.getByRole("region", { name: "快速预览", exact: true });
+  await expect(preview.getByRole("img", { name: "image.svg" })).toBeVisible();
+  await list.press("Escape");
+  await expect(preview).toHaveCount(0);
+  await expect(right).toBeVisible();
+  await list.press("c"); await list.press("o"); await list.press("m");
+  await expect(left.locator('[data-node-id="common.c"]')).toHaveAttribute("data-current", "true");
+  await expect(list.getByRole("option")).toHaveCount(count);
+  await expect(left.getByRole("status")).toContainText("定位：com");
+  await list.press("Escape");
+  await expect(left.getByRole("status")).toHaveCount(0);
+  await expect(browser).toBeVisible();
+  await left.getByRole("searchbox", { name: "过滤文件名称" }).fill("common");
+  await expect(list.getByRole("option", { selected: true })).toHaveCount(0);
+  await left.getByRole("searchbox", { name: "过滤文件名称" }).press("Escape");
+  await expect(left.getByRole("searchbox", { name: "过滤文件名称" })).toHaveValue("");
+});
+
+test("操作功能键只在列表生效，禁用的复制不会刷新网页", async ({ page }) => {
+  const { browser, left } = await fixture(page);
+  await page.evaluate(async () => { const { localFileService } = await import("/src/lib/local-files/service.ts"); localFileService.supportsDirectoryChanges = () => true; });
+  await left.getByRole("option", { name: /^a.c/ }).click();
+  const list = left.getByRole("listbox", { name: "文件列表" });
+  await page.evaluate(() => { (window as any).__browserReloadProbe = "kept"; });
+  await list.press("F5");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(await page.evaluate(() => (window as any).__browserReloadProbe)).toBe("kept");
+  await list.press("F2");
+  let dialog = page.getByRole("dialog", { name: "重命名", exact: true });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("textbox", { name: "名称", exact: true }).fill("with space.c");
+  await expect(browser.getByRole("region", { name: "快速预览", exact: true })).toHaveCount(0);
+  await dialog.getByRole("textbox", { name: "名称", exact: true }).press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await list.focus(); await list.press("F7");
+  dialog = page.getByRole("dialog", { name: "新建文件夹", exact: true });
+  await expect(dialog).toBeVisible();
+  await dialog.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(browser).toBeVisible();
+});
+
+test("交换保留整组目录标签，同路径只改变另一栏且目录标签支持方向键", async ({ page }) => {
+  const { browser, left, right } = await fixture(page);
+  await left.getByRole("option", { name: /^src/ }).dblclick();
+  await left.getByRole("button", { name: "新建目录标签", exact: true }).click();
+  await left.getByRole("textbox", { name: "根内相对路径" }).fill("docs");
+  await left.getByRole("textbox", { name: "根内相对路径" }).press("Enter");
+  await expect(left.getByRole("option", { name: /readme.md/ })).toBeVisible();
+  await browser.getByRole("button", { name: "交换两栏", exact: true }).click();
+  await expect(right.getByRole("tab")).toHaveCount(2);
+  await expect(right.getByRole("option", { name: /readme.md/ })).toBeVisible();
+  await expect(left.getByRole("option", { name: /only.c/ })).toBeVisible();
+  await expect(browser).toHaveAttribute("data-active-pane", "1");
+  await browser.getByRole("button", { name: "两栏同路径", exact: true }).click();
+  await expect(left.getByRole("option", { name: /readme.md/ })).toBeVisible();
+  await left.getByRole("button", { name: "后退目录", exact: true }).click();
+  await expect(left.getByRole("option", { name: /only.c/ })).toBeVisible();
+  await right.getByRole("tab", { name: "docs", exact: true }).focus();
+  await right.getByRole("tab", { name: "docs", exact: true }).press("ArrowLeft");
+  await expect(right.getByRole("tab", { name: "src", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(right.getByRole("tab", { name: "src", exact: true })).toBeFocused();
+  await expect(right.getByRole("option", { name: /deep.c/ })).toBeVisible();
+});
+
+for (const mode of ["light", "dark"] as const) test(`双栏紧凑工具栏与窄列对齐，纸页 ${mode}`, async ({ page }, testInfo) => {
+  await page.addInitScript(value => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "paper", interface_color_mode: value, workspace_layout: "exhibition" })), mode);
+  const { browser, left } = await fixture(page);
+  await expect(browser.getByRole("group", { name: "文件操作", exact: true })).toBeVisible();
+  await expect(browser.getByRole("group", { name: "浏览工具", exact: true })).toBeVisible();
+  await left.getByRole("option", { name: /^a.c/ }).click();
+  await page.screenshot({ path: testInfo.outputPath(`dual-pane-${mode}.png`) });
+  await page.setViewportSize({ width: 900, height: 800 });
+  const list = left.getByRole("listbox", { name: "文件列表" });
+  await list.evaluate(element => { element.scrollLeft = element.scrollWidth; });
+  await expect.poll(async () => {
+    const heading = await left.locator(".file-browser-columns > span").first().boundingBox();
+    const cell = await list.locator(".file-browser-row > span").first().boundingBox();
+    return heading && cell ? Math.abs(heading.x - cell.x) : Infinity;
+  }).toBeLessThan(1);
+  expect(await browser.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(left).toBeVisible();
+  expect(await browser.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
 });

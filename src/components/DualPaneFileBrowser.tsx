@@ -3,7 +3,7 @@ import type { MainViewRequest } from "../lib/plugin-system/main-view-registry";
 import { pluginRuntime } from "../lib/plugin-system/runtime";
 import { localFileService, type FileNode, type FileRoot } from "../lib/local-files/service";
 import { FILE_BROWSER_STATE_KEY, browserLocation, navigateBrowserPane, type BrowserPaneState } from "../lib/local-files/browser-state";
-import { activeBrowserPanes, addBrowserTab, MAX_BROWSER_TABS, parseBrowserWorkspace, reconcileBrowserTabs, selectBrowserTab, updateBrowserTab } from "../lib/local-files/browser-tabs";
+import { activeBrowserPanes, addBrowserTab, exchangeBrowserPanes, mirrorBrowserPath, MAX_BROWSER_TABS, parseBrowserWorkspace, reconcileBrowserTabs, selectBrowserTab, updateBrowserTab } from "../lib/local-files/browser-tabs";
 import { FILE_BROWSER_MUTATION_EVENT, type BrowserMutation, type BrowserOperation } from "../lib/local-files/browser-operations";
 import { FileBrowserOperationDialog } from "./FileBrowserOperationDialog";
 import { localDirectoryProvider } from "../lib/local-files/browser-provider";
@@ -34,6 +34,12 @@ export function DualPaneFileBrowser({ request, active, onClose }: {
   const [operation, setOperation] = useState<BrowserOperation | null>(null);
   const [listingRevision, setListingRevision] = useState(0);
   const [quickPreview, setQuickPreview] = useState(false);
+  const [currentRows, setCurrentRows] = useState<[ { tabId: string; rootId: string; node: string | null } | null, { tabId: string; rootId: string; node: string | null } | null ]>([null, null]);
+  const onCurrentChange = useCallback((side: 0 | 1, tabId: string, rootId: string, node: string | null) => setCurrentRows(current => {
+    const previous = current[side];
+    if (previous?.tabId === tabId && previous.rootId === rootId && previous.node === node) return current;
+    const next = [...current] as typeof current; next[side] = { tabId, rootId, node }; return next;
+  }), []);
   const [tool, setTool] = useState<{ kind: "search"; scope: BrowserDirectory } | { kind: "compare"; directories: [BrowserDirectory, BrowserDirectory]; names: [string, string] } | null>(null);
   const host = useRef<HTMLElement>(null);
   const input = useRef<HTMLInputElement | null>(null);
@@ -51,6 +57,7 @@ export function DualPaneFileBrowser({ request, active, onClose }: {
     return () => window.removeEventListener(FILE_BROWSER_MUTATION_EVENT, changed);
   }, []);
   const startOperation = (kind: BrowserOperation["kind"]) => {
+    if (operationDisabled(kind)) return;
     const source = browserLocation(panes[state.active]);
     const target = browserLocation(panes[state.active === 0 ? 1 : 0]);
     if (!source || !target) return;
@@ -59,9 +66,21 @@ export function DualPaneFileBrowser({ request, active, onClose }: {
       targetRootId: target.rootId, targetRootName: roots.find(root => root.id === target.rootId)?.name ?? target.rootId, targetParent: target.node });
   };
   const currentLocation = browserLocation(panes[state.active]);
-  const previewNode = currentLocation?.selected[currentLocation.selected.length - 1];
+  const currentRow = currentRows[state.active];
+  const previewNode = currentRow?.tabId === state.groups[state.active].tabs[state.groups[state.active].active].tabId && currentRow.rootId === currentLocation?.rootId && currentRow.node !== null ? currentRow.node : currentLocation?.selected[currentLocation.selected.length - 1];
   const selectionCount = currentLocation?.selected.length ?? 0;
   const writable = Boolean(currentLocation && localFileService.supportsDirectoryChanges(currentLocation.rootId));
+  const operationDisabled = (kind: BrowserOperation["kind"]) => opening || !writable || ((kind === "copy" || kind === "move") && !localFileService.canTransfer()) || (kind === "trash" && !localFileService.canTrash()) || (["copy", "move", "trash", "batch-rename"].includes(kind) && !selectionCount) || (kind === "rename" && selectionCount !== 1);
+  const restoreBrowserFocus = (selector: string) => {
+    const previous = document.activeElement;
+    requestAnimationFrame(() => {
+      if (!active || (document.activeElement !== previous && document.activeElement !== document.body)) return;
+      host.current?.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true });
+    });
+  };
+  const focusList = (side: 0 | 1) => restoreBrowserFocus(`[data-browser-side="${side}"] .file-browser-list`);
+  const focusTab = (side: 0 | 1) => restoreBrowserFocus(`[data-browser-side="${side}"] [role="tab"][aria-selected="true"]`);
+  const closePreview = () => { setQuickPreview(false); focusList(state.active); };
   const openComparison = () => {
     const locations = panes.map(browserLocation);
     if (!locations[0] || !locations[1]) return;
@@ -126,32 +145,54 @@ export function DualPaneFileBrowser({ request, active, onClose }: {
     catch (reason) { if (!controller.signal.aborted) setError(String(reason)); }
     finally { if (!controller.signal.aborted) setOpening(false); }
   };
-  return <section ref={host} className="dual-file-browser" aria-label="双栏文件浏览" data-active-pane={state.active} hidden={!active} {...(!active ? { inert: "", "aria-hidden": true } : {})} onKeyDown={event => {
+  return <section ref={host} className="dual-file-browser" aria-label="双栏文件浏览" data-active-pane={state.active} hidden={!active} {...(!active ? { inert: "", "aria-hidden": true } : {})} onKeyDownCapture={event => {
+    if (!active || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey || !(event.target instanceof HTMLElement)) return;
+    if (quickPreview && event.key === "Escape" && event.target.closest(".file-browser-list, .file-browser-quick-preview")) {
+      event.preventDefault(); event.stopPropagation(); closePreview(); return;
+    }
+    if (!event.target.matches(".file-browser-list")) return;
+    const operations: Partial<Record<string, BrowserOperation["kind"]>> = { F2: "rename", F5: "copy", F6: "move", F7: "directory", F8: "trash" };
+    if (event.shiftKey) return;
+    if (event.key === " " || event.key === "F3") { event.preventDefault(); event.stopPropagation(); setQuickPreview(value => !value); }
+    else if (operations[event.key]) { event.preventDefault(); event.stopPropagation(); startOperation(operations[event.key]!); }
+  }} onKeyDown={event => {
     if (quickPreview || event.defaultPrevented || event.key !== "Tab" || !(event.target instanceof HTMLElement) || !event.target.matches(".file-browser-list")) return;
-    event.preventDefault(); const side = state.active === 0 ? 1 : 0;
+    event.preventDefault(); event.stopPropagation(); const side = state.active === 0 ? 1 : 0;
     setState(current => ({ ...current, active: side }));
     requestAnimationFrame(() => host.current?.querySelector<HTMLElement>(`[data-browser-side="${side}"] .file-browser-list`)?.focus({ preventScroll: true }));
   }}>
     <header className="file-browser-heading"><ToolbarIcon name="compare" /><strong>文件浏览</strong><span>活动栏为来源 · 另一栏为目标</span><button type="button" className="btn-icon" title="返回原视图" aria-label="返回原视图" onClick={onClose}><ToolbarIcon name="chevronLeft" /></button></header>
     <div className="file-browser-mobile-tabs" role="group" aria-label="切换目录栏">{([0, 1] as const).map(side => <button key={side} type="button" aria-pressed={state.active === side} onClick={() => { setQuickPreview(false); setState(current => ({ ...current, active: side })); }}>{side === 0 ? "左栏" : "右栏"}</button>)}</div>
     <div className="file-browser-actions" role="group" aria-label="双栏文件操作">
-      <span>{state.active === 0 ? "左栏" : "右栏"} → {state.active === 0 ? "右栏" : "左栏"}</span>
+      <span className="file-browser-direction" aria-label="操作方向">{state.active === 0 ? "左" : "右"} → {state.active === 0 ? "右" : "左"}</span>
+      <div className="file-browser-action-group" role="group" aria-label="文件操作">
       {(["copy", "move", "rename", "batch-rename", "file", "directory", "trash"] as const).map(kind => {
         const label = { copy: "复制到另一栏", move: "移动到另一栏", rename: "重命名", "batch-rename": "批量重命名", file: "新建文件", directory: "新建文件夹", trash: "移入系统回收站" }[kind];
-        const disabled = opening || !writable || ((kind === "copy" || kind === "move") && !localFileService.canTransfer()) || (kind === "trash" && !localFileService.canTrash()) || (["copy", "move", "trash", "batch-rename"].includes(kind) && !selectionCount) || (kind === "rename" && selectionCount !== 1);
-        return <button key={kind} type="button" disabled={disabled} title={(kind === "copy" || kind === "move") && !localFileService.canTransfer() ? "双栏传输需要桌面版" : label} onClick={() => startOperation(kind)}>{label}</button>;
+        const icons = { copy: "copy", move: "move", rename: "rename", "batch-rename": "ordered", file: "document", directory: "folder", trash: "trash" } as const;
+        const shortcut = { copy: "F5", move: "F6", rename: "F2", "batch-rename": "", file: "", directory: "F7", trash: "F8" }[kind];
+        const short = { copy: "复制", move: "移动", rename: "改名", "batch-rename": "批量", file: "新建", directory: "目录", trash: "回收站" }[kind];
+        return <button key={kind} type="button" aria-label={label} disabled={operationDisabled(kind)} title={(kind === "copy" || kind === "move") && !localFileService.canTransfer() ? "双栏传输需要桌面版" : `${label}${shortcut ? `（${shortcut}，列表焦点内）` : ""}`} onClick={() => startOperation(kind)}><ToolbarIcon name={icons[kind]} /><span>{short}</span>{shortcut && <kbd>{shortcut}</kbd>}</button>;
       })}
-      <button type="button" aria-pressed={quickPreview} onClick={() => setQuickPreview(value => !value)}>快速预览</button>
-      <button type="button" disabled={!currentLocation} onClick={openComparison}>比较目录</button>
-      <button type="button" disabled={!currentLocation} onClick={() => currentLocation && setTool({ kind: "search", scope: { rootId: currentLocation.rootId, node: currentLocation.node } })}>搜索正文</button>
+      </div><div className="file-browser-action-group" role="group" aria-label="浏览工具">
+      <button type="button" aria-label="快速预览" title="快速预览（空格 / F3，列表焦点内）" aria-pressed={quickPreview} onClick={() => setQuickPreview(value => !value)}><ToolbarIcon name="eye" /><span>预览</span></button>
+      <button type="button" aria-label="比较目录" title="比较两栏当前目录" disabled={!currentLocation} onClick={openComparison}><ToolbarIcon name="compare" /><span>比较</span></button>
+      <button type="button" aria-label="搜索正文" title="搜索活动目录的正文" disabled={!currentLocation} onClick={() => currentLocation && setTool({ kind: "search", scope: { rootId: currentLocation.rootId, node: currentLocation.node } })}><ToolbarIcon name="search" /><span>搜索</span></button>
+      <button type="button" aria-label="交换两栏" title="交换两栏及其目录标签" onClick={() => { setQuickPreview(false); setState(exchangeBrowserPanes); focusList(state.active === 0 ? 1 : 0); }}><ToolbarIcon name="switchViews" /></button>
+      <button type="button" aria-label="两栏同路径" title="将另一栏切换到活动栏的目录" disabled={!currentLocation} onClick={() => { setQuickPreview(false); setState(mirrorBrowserPath); focusList(state.active); }}><ToolbarIcon name="link" /></button>
+      </div>
     </div>
     {error && <div className="file-browser-error" role="alert">{error}<button type="button" aria-label="关闭浏览错误" onClick={() => setError("")}>×</button></div>}
     {opening && <p role="status" className="file-browser-opening">正在打开文件…</p>}
     <div className="file-browser-panes" style={{ gridTemplateColumns: `minmax(0, ${state.ratio}fr) 5px minmax(0, ${1 - state.ratio}fr)` }}>
-      {([0, 1] as const).map(side => <div key={side} className="file-browser-pane-slot" data-mobile-active={quickPreview ? state.active !== side : state.active === side} style={{ gridColumn: side === 0 ? 1 : 3 }}><div className="file-browser-directory-host" hidden={quickPreview && state.active !== side}><FileBrowserPane key={state.groups[side].tabs[state.groups[side].active].tabId} side={side} active={state.active === side} visible={active && (!quickPreview || state.active === side)} revision={listingRevision} pane={panes[side]} roots={roots} provider={provider} onChange={next => changePane(side, next)} onActivate={() => setState(current => current.active === side ? current : { ...current, active: side })} onChoose={() => void choose(side)} onRefreshRoots={() => setRootsRevision(value => value + 1)} onOpen={(rootId, rootName, node) => void open(rootId, rootName, node)} tabBar={<div className="file-browser-tabs" role="tablist" aria-label={side === 0 ? "左栏目录标签" : "右栏目录标签"}>{state.groups[side].tabs.map((tab, index) => {
+      {([0, 1] as const).map(side => <div key={side} className="file-browser-pane-slot" data-mobile-active={quickPreview ? state.active !== side : state.active === side} style={{ gridColumn: side === 0 ? 1 : 3 }}><div className="file-browser-directory-host" hidden={quickPreview && state.active !== side}><FileBrowserPane key={state.groups[side].tabs[state.groups[side].active].tabId} tabId={state.groups[side].tabs[state.groups[side].active].tabId} onCurrentChange={onCurrentChange} side={side} active={state.active === side} visible={active && (!quickPreview || state.active === side)} revision={listingRevision} pane={panes[side]} roots={roots} provider={provider} onChange={next => changePane(side, next)} onActivate={() => setState(current => current.active === side ? current : { ...current, active: side })} onChoose={() => void choose(side)} onRefreshRoots={() => setRootsRevision(value => value + 1)} onOpen={(rootId, rootName, node) => void open(rootId, rootName, node)} tabBar={<div className="file-browser-tabs" role="tablist" aria-label={side === 0 ? "左栏目录标签" : "右栏目录标签"}>{state.groups[side].tabs.map((tab, index) => {
         const location = browserLocation(tab), label = location?.node.split("/").pop() || roots.find(root => root.id === location?.rootId)?.name || "目录";
-        return <div key={tab.tabId} className="file-browser-tab"><button role="tab" type="button" aria-selected={index === state.groups[side].active} title={location ? `${roots.find(root => root.id === location.rootId)?.name ?? location.rootId}/${location.node}` : label} onClick={() => setState(current => selectBrowserTab(current, side, index))}>{label}</button><button type="button" aria-label={`关闭目录标签 ${index + 1}`} disabled={state.groups[side].tabs.length === 1} onClick={() => setState(current => selectBrowserTab(current, side, index, true))}>×</button></div>;
-      })}<button type="button" aria-label="新建目录标签" title="新建目录标签" disabled={state.groups[side].tabs.length >= MAX_BROWSER_TABS} onClick={() => setState(current => addBrowserTab(current, side))}>＋</button></div>} /></div>{quickPreview && state.active !== side && <FileBrowserQuickPreview rootId={currentLocation?.rootId ?? ""} node={previewNode} provider={provider} active={active} revision={listingRevision} onClose={() => setQuickPreview(false)} />}</div>)}
+        return <div key={tab.tabId} className="file-browser-tab"><button role="tab" type="button" tabIndex={index === state.groups[side].active ? 0 : -1} aria-selected={index === state.groups[side].active} title={location ? `${roots.find(root => root.id === location.rootId)?.name ?? location.rootId}/${location.node}` : label} onKeyDown={event => {
+          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
+          event.preventDefault(); event.stopPropagation(); const count = state.groups[side].tabs.length;
+          const next = event.key === "Home" ? 0 : event.key === "End" ? count - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + count) % count;
+          setState(current => selectBrowserTab(current, side, next)); focusTab(side);
+        }} onClick={() => { setState(current => selectBrowserTab(current, side, index)); focusTab(side); }}>{label}</button><button type="button" aria-label={`关闭目录标签 ${index + 1}`} disabled={state.groups[side].tabs.length === 1} onClick={() => { setState(current => selectBrowserTab(current, side, index, true)); focusTab(side); }}>×</button></div>;
+      })}<button type="button" aria-label="新建目录标签" title="新建目录标签" disabled={state.groups[side].tabs.length >= MAX_BROWSER_TABS} onClick={() => { setState(current => addBrowserTab(current, side)); focusTab(side); }}>＋</button></div>} /></div>{quickPreview && state.active !== side && <FileBrowserQuickPreview rootId={currentLocation?.rootId ?? ""} node={previewNode} provider={provider} active={active} revision={listingRevision} onClose={closePreview} />}</div>)}
       <div className="file-browser-splitter" role="separator" aria-label="双栏宽度" aria-orientation="vertical" tabIndex={0} aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(state.ratio * 100)} onKeyDown={event => {
         if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); const delta = event.key === "ArrowRight" ? .05 : -.05; setState(current => ({ ...current, ratio: Math.max(.25, Math.min(.75, current.ratio + delta)) })); }
       }} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={event => {

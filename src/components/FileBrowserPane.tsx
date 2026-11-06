@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useId, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
 import { browserLocation, moveBrowserHistory, navigateBrowserPane, selectBrowserItems, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
 import { fileSegments, type FileNode, type FileRoot, type LocalFileFingerprint } from "../lib/local-files/service";
 import type { localDirectoryProvider } from "../lib/local-files/browser-provider";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { browserNavigationIndex, browserRowScroll, browserTypeahead, type BrowserTypeahead } from "../lib/local-files/browser-keyboard";
 
 const ROW = 32;
 const sizeText = (size: number) => size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
@@ -10,6 +11,8 @@ type Provider = ReturnType<typeof localDirectoryProvider>;
 interface Props {
   tabBar?: ReactNode;
   side: 0 | 1;
+  tabId: string;
+  onCurrentChange: (side: 0 | 1, tabId: string, rootId: string, node: string | null) => void;
   active: boolean;
   visible: boolean;
   revision: number;
@@ -22,7 +25,7 @@ interface Props {
   onRefreshRoots: () => void;
   onOpen: (rootId: string, rootName: string, node: FileNode) => void;
 }
-export function FileBrowserPane({ side, active, visible, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, tabBar }: Props) {
+export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, tabBar }: Props) {
   const location = browserLocation(pane);
   const rootId = location?.rootId ?? "", node = location?.node ?? "";
   const root = roots.find(item => item.id === rootId);
@@ -35,7 +38,12 @@ export function FileBrowserPane({ side, active, visible, revision, pane, roots, 
   const [refresh, setRefresh] = useState(0);
   const [scroll, setScroll] = useState(location?.scrollTop ?? 0);
   const [height, setHeight] = useState(400);
+  const [width, setWidth] = useState(363), [scrollLeft, setScrollLeft] = useState(0);
   const [metadata, setMetadata] = useState<Record<string, LocalFileFingerprint>>({});
+  const [focused, setFocused] = useState<string | null>(null);
+  const [typeahead, setTypeahead] = useState<BrowserTypeahead>({ query: "", at: 0 });
+  const listId = useId();
+  const rowId = (id: string) => `${listId}-${encodeURIComponent(id)}`;
   const scrollRef = useRef<HTMLDivElement>(null);
   const request = useRef<AbortController | null>(null);
   const metadataCache = useRef(new Map<string, LocalFileFingerprint>());
@@ -49,15 +57,25 @@ export function FileBrowserPane({ side, active, visible, revision, pane, roots, 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const start = Math.max(0, Math.min(Math.max(0, nodes.length - 1), Math.floor(scroll / ROW) - 4));
   const end = Math.min(nodes.length, start + Math.ceil(height / ROW) + 10);
+  useEffect(() => {
+    if (!typeahead.query) return;
+    const timer = window.setTimeout(() => setTypeahead({ query: "", at: 0 }), 950);
+    return () => clearTimeout(timer);
+  }, [typeahead]);
   const navigate = (path: string) => {
     try { fileSegments(path); onChange(current => navigateBrowserPane(current, rootId, path)); setQuery(""); }
     catch (reason) { setError(String(reason)); }
   };
-  useEffect(() => { setPathInput(node); anchor.current = null; cursor.current = null; }, [rootId, node]);
+  useLayoutEffect(() => { setPathInput(node); }, [rootId, node]);
+  useEffect(() => { anchor.current = null; cursor.current = null; setFocused(null); setTypeahead({ query: "", at: 0 }); onCurrentChange(side, tabId, rootId, null); }, [rootId, node, side, tabId, onCurrentChange]);
+  useEffect(() => { setTypeahead({ query: "", at: 0 }); }, [query, pane.sort, pane.showHidden]);
+  useEffect(() => {
+    if (!loading && loadedKey.current === key && focused && !nodes.some(item => item.id === focused)) { cursor.current = null; setFocused(null); onCurrentChange(side, tabId, rootId, null); }
+  }, [loading, key, focused, nodes, onCurrentChange, side, tabId, rootId]);
   useEffect(() => {
     const element = scrollRef.current;
     if (!element) return;
-    const observer = new ResizeObserver(() => setHeight(element.clientHeight || 400));
+    const observer = new ResizeObserver(() => { setHeight(element.clientHeight || 400); if (element.clientWidth) setWidth(element.clientWidth); });
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
@@ -118,15 +136,22 @@ export function FileBrowserPane({ side, active, visible, revision, pane, roots, 
     finally { pageBusy.current = false; }
   };
   const chooseItem = (item: FileNode, toggle = false, range = false) => {
-    onChange(current => updateBrowserLocation(current, { selected: selectBrowserItems(browserLocation(current)?.selected ?? [], nodes.map(value => value.id), item.id, anchor.current, toggle, range).slice(0, 2000) }));
-    if (!range || !anchor.current) anchor.current = item.id;
-    cursor.current = item.id;
+    const rangeAnchor = anchor.current ?? cursor.current ?? selected[selected.length - 1] ?? item.id;
+    onChange(current => updateBrowserLocation(current, { selected: selectBrowserItems(browserLocation(current)?.selected ?? [], nodes.map(value => value.id), item.id, rangeAnchor, toggle, range).slice(0, 2000) }));
+    if (!range) anchor.current = item.id;
+    else if (!anchor.current) anchor.current = rangeAnchor;
+    cursor.current = item.id; setFocused(item.id); onCurrentChange(side, tabId, rootId, item.id);
+  };
+  const revealIndex = (index: number) => {
+    const list = scrollRef.current;
+    if (list) list.scrollTop = browserRowScroll(list.scrollTop, list.clientHeight, index, ROW);
   };
   const openItem = (item: FileNode) => item.directory ? navigate(item.id) : onOpen(rootId, root?.name ?? rootId, item);
   const pieces = node ? node.split("/") : [];
   return <section className={`file-browser-pane${active ? " is-active" : ""}`} aria-label={side === 0 ? "左侧目录" : "右侧目录"} data-browser-side={side} onPointerDown={onActivate} onFocusCapture={onActivate}>
     {tabBar}
     <header className="file-browser-pane-tools">
+      <span className="file-browser-pane-badge">{side === 0 ? "左栏" : "右栏"} · {active ? "来源" : "目标"}</span>
       <button type="button" className="btn-icon" aria-label="后退目录" disabled={pane.index <= 0} onClick={() => { setQuery(""); onChange(current => moveBrowserHistory(current, -1)); }}><ToolbarIcon name="chevronLeft" /></button>
       <button type="button" className="btn-icon" aria-label="前进目录" disabled={pane.index >= pane.history.length - 1} onClick={() => { setQuery(""); onChange(current => moveBrowserHistory(current, 1)); }}><ToolbarIcon name="chevronRight" /></button>
       <button type="button" className="btn-icon" aria-label="上级目录" disabled={!node} onClick={() => navigate(pieces.slice(0, -1).join("/"))}><span aria-hidden="true">↑</span></button>
@@ -146,33 +171,46 @@ export function FileBrowserPane({ side, active, visible, revision, pane, roots, 
       <input aria-label="根内相对路径" value={pathInput} disabled={!rootId} onChange={event => setPathInput(event.target.value)} placeholder="输入授权根内相对目录，Enter 前往" />
     </form>
     <div className="file-browser-options">
-      <input type="search" aria-label="过滤文件名称" placeholder="过滤名称" value={query} onChange={event => { setQuery(event.target.value); setScroll(0); onChange(current => updateBrowserLocation(current, { scrollTop: 0 })); }} />
+      <input type="search" aria-label="过滤文件名称" placeholder="过滤名称" value={query} onKeyDown={event => { if (event.key === "Escape" && query) { event.preventDefault(); event.stopPropagation(); setQuery(""); } }} onChange={event => { setQuery(event.target.value); setScroll(0); onChange(current => updateBrowserLocation(current, { scrollTop: 0, selected: [] })); }} />
       <select aria-label="文件排序" value={pane.sort} onChange={event => { const sort = event.target.value as BrowserPaneState["sort"]; onChange(current => ({ ...current, sort })); }}><option value="name">名称 ↑</option><option value="name-desc">名称 ↓</option><option value="type">类型</option></select>
-      <label><input type="checkbox" checked={pane.showHidden} onChange={event => { const showHidden = event.target.checked; onChange(current => ({ ...current, showHidden })); }} />隐藏项</label>
+      <label><input type="checkbox" checked={pane.showHidden} onChange={event => { const showHidden = event.target.checked; onChange(current => ({ ...updateBrowserLocation(current, { selected: [], scrollTop: 0 }), showHidden })); }} />隐藏项</label>
     </div>
-    <div className="file-browser-columns" aria-hidden="true"><span>名称</span><span>大小</span><span>修改时间</span></div>
-    <div ref={scrollRef} className="file-browser-list" role="listbox" aria-label="文件列表" aria-multiselectable="true" tabIndex={0} onPointerDown={() => { restoring.current = false; }} onWheel={() => { restoring.current = false; }} onScroll={event => {
-      const top = event.currentTarget.scrollTop; setScroll(top);
+    <div className="file-browser-column-viewport" aria-hidden="true"><div className="file-browser-columns" style={{ width: Math.max(363, width), transform: `translateX(${-scrollLeft}px)` }}><span>名称</span><span>大小</span><span>修改时间</span></div></div>
+    <div ref={scrollRef} className="file-browser-list" role="listbox" aria-label="文件列表" aria-busy={loading} aria-multiselectable="true" aria-activedescendant={focused && nodes.slice(start, end).some(item => item.id === focused) ? rowId(focused) : undefined} tabIndex={0} onFocus={() => {
+      if (loading || loadedKey.current !== key) return;
+      const item = nodes.find(item => item.id === cursor.current) ?? nodes.find(item => item.id === selected[selected.length - 1]) ?? nodes[0];
+      if (item) { cursor.current = item.id; setFocused(item.id); onCurrentChange(side, tabId, rootId, item.id); if (!selected.length) chooseItem(item); }
+    }} onPointerDown={() => { restoring.current = false; }} onWheel={() => { restoring.current = false; }} onScroll={event => {
+      const top = event.currentTarget.scrollTop; setScroll(top); setScrollLeft(event.currentTarget.scrollLeft);
       // Do not persist the browser's temporary clamp while a previous position
       // is being restored against a newly fetched/virtualized list.
       if (!restoring.current && !loading && loadedKey.current === key) onChange(current => updateBrowserLocation(current, { scrollTop: top }));
     }} onKeyDown={event => {
       if (event.target !== event.currentTarget) return;
+      if (loading || loadedKey.current !== key) return;
+      if (event.nativeEvent.isComposing || event.altKey) return;
       if (event.key === "Enter") { const item = nodes.find(value => value.id === (cursor.current ?? selected[selected.length - 1])); if (item) { event.preventDefault(); openItem(item); } }
       else if (event.key === "Backspace" && node) { event.preventDefault(); navigate(pieces.slice(0, -1).join("/")); }
       else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") { event.preventDefault(); onChange(current => updateBrowserLocation(current, { selected: nodes.slice(0, 2000).map(item => item.id) })); }
-      else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault(); const current = nodes.findIndex(item => item.id === (cursor.current ?? selected[selected.length - 1]));
-        const index = Math.max(0, Math.min(nodes.length - 1, current + (event.key === "ArrowDown" ? 1 : -1)));
-        if (nodes[index]) { chooseItem(nodes[index], false, event.shiftKey); scrollRef.current?.scrollTo({ top: Math.max(0, index * ROW - height / 2) }); }
-      } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && event.key !== " ") {
-        const index = nodes.findIndex(item => item.name.toLocaleLowerCase().startsWith(event.key.toLocaleLowerCase()));
-        if (index >= 0) { event.preventDefault(); chooseItem(nodes[index]); scrollRef.current?.scrollTo({ top: index * ROW }); }
+      else if (["ArrowDown", "ArrowUp", "Home", "End", "PageDown", "PageUp"].includes(event.key)) {
+        event.preventDefault(); event.stopPropagation();
+        const current = nodes.findIndex(item => item.id === (cursor.current ?? selected[selected.length - 1]));
+        const index = browserNavigationIndex(event.key, current, nodes.length, height / ROW);
+        if (index !== null) { chooseItem(nodes[index], false, event.shiftKey); revealIndex(index); }
+      } else if (event.key === "Insert" || (event.key === " " && (event.ctrlKey || event.metaKey))) {
+        event.preventDefault(); event.stopPropagation(); const item = nodes.find(item => item.id === cursor.current); if (item) chooseItem(item, true);
+      } else if (event.key === "Escape" && typeahead.query) {
+        event.preventDefault(); event.stopPropagation(); setTypeahead({ query: "", at: 0 });
+      } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && event.key !== " ") {
+        event.preventDefault(); event.stopPropagation();
+        const result = browserTypeahead(nodes.map(item => item.name), nodes.findIndex(item => item.id === cursor.current), typeahead, event.key, performance.now());
+        setTypeahead({ query: result.query, at: result.at });
+        if (result.index >= 0) { chooseItem(nodes[result.index]); revealIndex(result.index); }
       }
     }}>
       <div style={{ height: start * ROW }} aria-hidden="true" />
-      {nodes.slice(start, end).map(item => <div key={item.id} className="file-browser-row" role="option" aria-selected={selectedSet.has(item.id)} data-node-id={item.id} title={[root?.name, item.id].filter(Boolean).join("/")} onClick={event => { chooseItem(item, event.ctrlKey || event.metaKey, event.shiftKey); scrollRef.current?.focus({ preventScroll: true }); }} onDoubleClick={() => openItem(item)}>
-        <span className="file-browser-name"><ToolbarIcon name={item.directory ? "folder" : "formatDocument"} /><span>{item.name}</span></span>
+      {nodes.slice(start, end).map(item => <div key={item.id} id={rowId(item.id)} className="file-browser-row" role="option" aria-selected={selectedSet.has(item.id)} data-current={focused === item.id} data-node-id={item.id} title={[root?.name, item.id].filter(Boolean).join("/")} onClick={event => { if (loading || loadedKey.current !== key) return; chooseItem(item, event.ctrlKey || event.metaKey, event.shiftKey); scrollRef.current?.focus({ preventScroll: true }); }} onDoubleClick={() => { if (!loading && loadedKey.current === key) openItem(item); }}>
+        <span className={`file-browser-name${item.directory ? " is-directory" : ""}`}><ToolbarIcon name={item.directory ? "folder" : "document"} /><span>{item.name}</span></span>
         <span>{item.directory ? "—" : metadata[item.id] ? sizeText(metadata[item.id].size) : item.size ? sizeText(item.size) : "…"}</span>
         <span>{metadata[item.id]?.modifiedMs ? new Date(metadata[item.id].modifiedMs).toLocaleString() : "—"}</span>
       </div>)}
@@ -180,6 +218,6 @@ export function FileBrowserPane({ side, active, visible, revision, pane, roots, 
       {!nodes.length && <p className="file-browser-empty">{loading ? "正在读取目录…" : rootId ? error ? "目录暂不可用，可返回上级或重新授权" : "空目录" : "选择或添加一个本地目录"}</p>}
     </div>
     {error && <div className="file-browser-error" role="alert">{error}<button type="button" aria-label="关闭目录错误" onClick={() => setError("")}>×</button></div>}
-    <footer className="file-browser-pane-status"><span>{selected.length ? `选中 ${selected.length} 项 · ` : ""}{nodes.length} 项{next !== null ? "（已加载）" : ""}</span>{next !== null && <button type="button" onClick={() => void more()}>加载更多</button>}</footer>
+    <footer className="file-browser-pane-status"><span title="选择操作最多 2000 项；目录数量不包含其内部文件">{selected.length ? `选中 ${selected.length} 项 · ` : ""}{nodes.length} 项{next !== null ? "（已加载）" : ""} · {nodes.filter(item => item.directory).length} 目录 / {nodes.filter(item => !item.directory).length} 文件</span>{typeahead.query && <span className="file-browser-typeahead" role="status">定位：{typeahead.query}（已加载）</span>}{next !== null && <button type="button" onClick={() => void more()}>加载更多</button>}</footer>
   </section>;
 }

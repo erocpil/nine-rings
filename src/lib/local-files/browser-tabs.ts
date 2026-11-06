@@ -57,3 +57,13 @@ export function reconcileBrowserTabs(state: BrowserWorkspaceState, change: Brows
   if (change.kind === "refresh") return state;
   return { ...state, groups: state.groups.map(group => ({ ...group, tabs: group.tabs.map(tab => ({ ...reconcileBrowserPaneMutation(tab, change), tabId: tab.tabId })) })) as BrowserWorkspaceState["groups"] };
 }
+/** Move entire groups, retaining every tab's identity and state. */
+export function exchangeBrowserPanes(state: BrowserWorkspaceState): BrowserWorkspaceState {
+  return { ...state, groups: [state.groups[1], state.groups[0]], active: state.active === 0 ? 1 : 0 };
+}
+/** Only navigate the opposite active tab; its other tabs remain untouched. */
+export function mirrorBrowserPath(state: BrowserWorkspaceState): BrowserWorkspaceState {
+  const source = browserLocation(activeBrowserPanes(state)[state.active]);
+  if (!source) return state;
+  return updateBrowserTab(state, state.active === 0 ? 1 : 0, pane => navigateBrowserPane(pane, source.rootId, source.node));
+}
