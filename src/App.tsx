@@ -110,6 +110,7 @@ const PDF_DOC_TYPE_LABELS: Record<DocType, string> = {
 
 const LocalFilesPanel = lazy(() => import("./components/LocalFilesPanel").then(module => ({ default: module.LocalFilesPanel })));
 const LocalFileView = lazy(() => import("./components/LocalFileView").then(module => ({ default: module.LocalFileView })));
+const DualPaneFileBrowser = lazy(() => import("./components/DualPaneFileBrowser").then(module => ({ default: module.DualPaneFileBrowser })));
 const ImageLibraryPanel = lazy(() => import("./components/ImageLibraryPanel").then(module => ({ default: module.ImageLibraryPanel })));
 const ImageViewer = lazy(() => import("./components/ImageViewerDialog").then(module => ({ default: module.ImageViewer })));
 const ImageViewerHost = lazy(() => import("./components/ImageViewerDialog").then(module => ({ default: module.ImageViewerHost })));
@@ -231,7 +232,11 @@ function App() {
     },
   });
   const flushAutoSave = autoSave.flush;
-  const pluginViewState = usePluginMainView(flushAutoSave, saveError => {
+  const pluginViewState = usePluginMainView(async () => {
+    const current = mainViews.getSnapshot().current;
+    if (current?.renderer === "local-file") await checkpointLocalFile(localFileIdentity(current.data));
+    await flushAutoSave();
+  }, saveError => {
     useNotesStore.setState({ error: `无法切换视图，当前内容已保留：${saveError instanceof Error ? saveError.message : String(saveError)}` });
   });
   const pluginMainView = pluginViewState.current;
@@ -1054,7 +1059,8 @@ function App() {
   });
 
   const activateSidebarPanel = async (panel: typeof desktopPanel) => {
-    if (!workspaceHome && (panel === "images" || panel === "vocabulary" || panel === "files") && pluginViewState.suspended && ((panel === "images" && pluginMainView?.renderer === "image") || (panel === "vocabulary" && pluginMainView?.renderer === "vocabulary") || (panel === "files" && pluginMainView?.renderer === "local-file"))) {
+    const resumesLocalView = panel === "files" && (pluginMainView?.renderer === "local-file" || Boolean(pluginViewState.browser));
+    if (!workspaceHome && (panel === "images" || panel === "vocabulary" || panel === "files") && pluginViewState.suspended && ((panel === "images" && pluginMainView?.renderer === "image") || (panel === "vocabulary" && pluginMainView?.renderer === "vocabulary") || resumesLocalView)) {
       try { await flushAutoSave(); }
       catch (saveError) { useNotesStore.setState({ error: `保存失败，未切换主区域视图：${String(saveError)}` }); return; }
     }
@@ -1068,7 +1074,7 @@ function App() {
     // it, so its panel button can restore the current position.
     if (!workspaceHome) {
       if (panel === "tree") mainViews.suspend();
-      else if ((panel === "images" && pluginMainView?.renderer === "image") || (panel === "vocabulary" && pluginMainView?.renderer === "vocabulary") || (panel === "files" && pluginMainView?.renderer === "local-file")) mainViews.resume();
+      else if ((panel === "images" && pluginMainView?.renderer === "image") || (panel === "vocabulary" && pluginMainView?.renderer === "vocabulary") || resumesLocalView) mainViews.resume();
     }
     sidebarHover.click(panel);
   };
@@ -2046,8 +2052,9 @@ function App() {
           </div>
           {pluginMainView && <div className="plugin-main-view-host" hidden={!pluginMainActive} {...(!pluginMainActive ? { inert: "", "aria-hidden": true } : {})}>
             <Suspense fallback={<div className="empty-state">正在打开视图…</div>}>
-              {pluginMainView.renderer === "local-file" ? <LocalFileView key={`${pluginMainView.owner.generation}:${pluginMainView.data.rootId}:${pluginMainView.data.nodeId}`} data={pluginMainView.data} active={pluginMainActive} focusMode={focusMode} vimModeEnabled={config?.editor_vim_mode ?? false} useCustomContextMenu={config?.use_custom_context_menu ?? true} showStatusBlockNumber={config?.editor_show_status_block_number ?? true} readonlyHeadingFoldInFocusMode={config?.editor_readonly_heading_fold ?? true} defaultCodeBlockWrap={config?.editor_code_wrap_default ?? true} cjkLatinSpacing={config?.editor_cjk_spacing ?? true} fontSize={config?.note_font_size ?? 16} highlightActiveLine={config?.highlight_active_line ?? true} showLineNumbers={config?.editor_show_line_numbers ?? false} showStatusBar={config?.editor_show_status_bar ?? true} onEditorConfigChange={async patch => handleConfigChange(await api.config.set(patch))} onClose={() => mainViews.close(pluginMainView.id)} /> : pluginMainView.renderer === "vocabulary" ? <VocabularyLearningView key={`${pluginMainView.owner.generation}:${pluginMainView.view.id}:${pluginMainView.data.documentId}`} data={pluginMainView.data} active={pluginMainActive} focus={focusMode} onFocus={next => preserveReadingPositions(() => setFocusMode(next))} onClose={() => mainViews.close(pluginMainView.id)} onDocument={async id => { await flushAutoSave(); const note = await api.notes.get(id); if (!note) throw new Error("词汇文档已不存在"); handleSelectNote(note); }} /> : <ImageViewer key={`${pluginMainView.owner.generation}:${pluginMainView.view.id}`} presentation="main" focusMode={focusMode} onFocusChange={next => preserveReadingPositions(() => setFocusMode(next))} active={pluginMainActive} initial={pluginMainView.data.image} images={pluginMainView.data.images}
-                canInsert={Boolean(selectedNote && !selectedNote.readonly && !syncBusy && documentToolEnabled("image"))}
+              {pluginViewState.browser && <DualPaneFileBrowser key={`${pluginViewState.browser.owner.generation}:${pluginViewState.browser.view.id}`} request={pluginViewState.browser} active={pluginMainActive && pluginMainView.renderer === "file-browser"} onClose={() => mainViews.close(pluginViewState.browser!.id)} />}
+              {pluginMainView.renderer === "file-browser" ? null : pluginMainView.renderer === "local-file" ? <LocalFileView key={`${pluginMainView.owner.generation}:${pluginMainView.data.rootId}:${pluginMainView.data.nodeId}`} data={pluginMainView.data} active={pluginMainActive} focusMode={focusMode} vimModeEnabled={config?.editor_vim_mode ?? false} useCustomContextMenu={config?.use_custom_context_menu ?? true} showStatusBlockNumber={config?.editor_show_status_block_number ?? true} readonlyHeadingFoldInFocusMode={config?.editor_readonly_heading_fold ?? true} defaultCodeBlockWrap={config?.editor_code_wrap_default ?? true} cjkLatinSpacing={config?.editor_cjk_spacing ?? true} fontSize={config?.note_font_size ?? 16} highlightActiveLine={config?.highlight_active_line ?? true} showLineNumbers={config?.editor_show_line_numbers ?? false} showStatusBar={config?.editor_show_status_bar ?? true} onEditorConfigChange={async patch => handleConfigChange(await api.config.set(patch))} onClose={() => mainViews.close(pluginMainView.id)} /> : pluginMainView.renderer === "vocabulary" ? <VocabularyLearningView key={`${pluginMainView.owner.generation}:${pluginMainView.view.id}:${pluginMainView.data.documentId}`} data={pluginMainView.data} active={pluginMainActive} focus={focusMode} onFocus={next => preserveReadingPositions(() => setFocusMode(next))} onClose={() => mainViews.close(pluginMainView.id)} onDocument={async id => { await flushAutoSave(); const note = await api.notes.get(id); if (!note) throw new Error("词汇文档已不存在"); handleSelectNote(note); }} /> : <ImageViewer key={`${pluginMainView.owner.generation}:${pluginMainView.view.id}`} presentation="main" focusMode={focusMode} onFocusChange={next => preserveReadingPositions(() => setFocusMode(next))} active={pluginMainActive} initial={pluginMainView.data.image} images={pluginMainView.data.images}
+                canInsert={Boolean(!pluginViewState.browser && selectedNote && !selectedNote.readonly && !syncBusy && documentToolEnabled("image"))}
                 onClose={() => mainViews.close(pluginMainView.id)}
                 onInsert={image => {
                   mainViews.close(pluginMainView.id);

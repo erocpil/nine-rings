@@ -5,6 +5,8 @@ import { workspacePanels } from "./panel-registry";
 import { localFileService } from "../local-files/service";
 import { mainViews } from "./main-view-registry";
 export const LOCAL_FILE_VIEW_ID = "builtin.local-files";
+export const FILE_BROWSER_VIEW_ID = "builtin.file-browser";
+export const FILE_BROWSER_IMAGE_VIEW_ID = "builtin.file-browser-image";
 export const LOCAL_FILES_ID = "nine-rings.builtin-local-files";
 const KEY = "nr:pluginLocalFiles";
 const CHANGE = "nr:plugin-local-files-change";
@@ -54,6 +56,9 @@ export function startBuiltinLocalFiles() {
           ["panels.present", "filesystem.files.read", "filesystem.files.write", "views.present"],
           {
             activate(owner) {
+              const views = mainViews.bind(owner.activation);
+              views.register({ id: FILE_BROWSER_VIEW_ID, label: "双栏文件浏览", renderer: "file-browser" });
+              views.register({ id: FILE_BROWSER_IMAGE_VIEW_ID, label: "本地图片", renderer: "image" });
               mainViews.bind(owner.activation).register({
                 id: LOCAL_FILE_VIEW_ID,
                 label: "本地文件",

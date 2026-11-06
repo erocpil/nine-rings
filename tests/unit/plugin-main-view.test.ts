@@ -6,6 +6,80 @@ const data = {
   image: { src: "/picture.png", name: "图片" },
   images: [{ src: "/picture.png", name: "图片" }],
 };
+it("retains a scoped browser behind its viewers, gates return through pending, and clears on navigation/revocation", () => {
+  const runtime = new PluginRuntime();
+  runtime.setEnabled(true);
+  const views = new MainViewRegistry(runtime);
+  const owner = runtime.activate("test.browser", [
+    "views.present",
+    "filesystem.files.read",
+  ]);
+  views.register(owner, {
+    id: "test.browser",
+    label: "文件浏览",
+    renderer: "file-browser",
+  });
+  views.register(owner, {
+    id: "test.file",
+    label: "文件",
+    renderer: "local-file",
+  });
+  const browser = views.open(owner, "test.browser", { rootId: "r" });
+  expect(views.getSnapshot().browser).toBeNull();
+  views.accept(browser);
+  const retained = views.getSnapshot().browser;
+  const file = views.open(owner, "test.file", {
+    rootId: "r",
+    nodeId: "a.c",
+    name: "a.c",
+  });
+  views.accept(file);
+  expect(views.getSnapshot().browser).toBe(retained);
+  views.close(file);
+  expect(views.getSnapshot().current?.id).toBe(file);
+  expect(views.getSnapshot().pending?.id).toBe(browser);
+  views.reject(browser); // A failed save/checkpoint keeps the viewer and return target.
+  expect(views.getSnapshot().current?.id).toBe(file);
+  views.close(file);
+  views.accept(browser);
+  expect(views.getSnapshot().current).toBe(retained);
+  views.close();
+  expect(views.getSnapshot().browser).toBeNull();
+  views.accept(views.open(owner, "test.browser", {}));
+  runtime.deactivate(owner.pluginId);
+  expect(views.getSnapshot().browser).toBeNull();
+  expect(views.getSnapshot().current).toBeNull();
+});
+it("rejects browser requests without read authority, arbitrary UI and invalid data", () => {
+  const runtime = new PluginRuntime();
+  runtime.setEnabled(true);
+  const views = new MainViewRegistry(runtime);
+  const owner = runtime.activate("test.browser", ["views.present"]);
+  views.register(owner, {
+    id: "test.browser",
+    label: "浏览",
+    renderer: "file-browser",
+  });
+  expect(() => views.open(owner, "test.browser", {})).toThrow();
+  const reader = runtime.activate("test.reader", [
+    "views.present",
+    "filesystem.files.read",
+  ]);
+  views.register(reader, {
+    id: "test.reader",
+    label: "浏览",
+    renderer: "file-browser",
+  });
+  for (const value of [
+    null,
+    [],
+    { rootId: "" },
+    { rootId: 1 },
+    { rootId: "r", html: "<div>" },
+  ])
+    expect(() => views.open(reader, "test.reader", value as never)).toThrow();
+  expect(() => views.open(reader, "test.reader", {})).not.toThrow();
+});
 it("requires host-issued authority and declares only supported renderers", () => {
   const runtime = new PluginRuntime();
   runtime.setEnabled(true);

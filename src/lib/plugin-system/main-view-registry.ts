@@ -11,8 +11,9 @@ import type { ViewedImage } from "../image-library/viewer-request";
 export interface MainViewContribution {
   id: string;
   label: string;
-  renderer: "image" | "vocabulary" | "local-file";
+  renderer: "image" | "vocabulary" | "local-file" | "file-browser";
 }
+export interface FileBrowserViewData { rootId?: string }
 export interface ImageViewData {
   image: ViewedImage;
   images: readonly ViewedImage[];
@@ -36,6 +37,7 @@ interface RequestBase {
 }
 export type MainViewRequest = RequestBase &
   (
+    | { readonly renderer: "file-browser"; readonly data: Readonly<FileBrowserViewData> }
     | { readonly renderer: "local-file"; readonly data: Readonly<LocalFileViewData> }
     | { readonly renderer: "image"; readonly data: Readonly<ImageViewData> }
     | {
@@ -44,6 +46,7 @@ export type MainViewRequest = RequestBase &
       }
   );
 interface Snapshot {
+  readonly browser: Extract<MainViewRequest, { renderer: "file-browser" }> | null;
   readonly current: MainViewRequest | null;
   readonly pending: MainViewRequest | null;
   readonly suspended: boolean;
@@ -76,6 +79,7 @@ export class MainViewRegistry {
   private listeners = new Set<() => void>();
   private sequence = 0;
   private snapshot: Snapshot = Object.freeze({
+    browser: null,
     current: null,
     pending: null,
     suspended: false,
@@ -113,7 +117,7 @@ export class MainViewRegistry {
       !/^[a-z][a-z0-9.-]{0,95}$/.test(declaration.id) ||
       !declaration.label?.trim() ||
       declaration.label.length > 32 ||
-      !(["image", "vocabulary", "local-file"] as string[]).includes(declaration.renderer) ||
+      !(["image", "vocabulary", "local-file", "file-browser"] as string[]).includes(declaration.renderer) ||
       Object.keys(declaration).some(
         (key) => !["id", "label", "renderer"].includes(key),
       ) ||
@@ -127,6 +131,7 @@ export class MainViewRegistry {
       this.contributions.delete(declaration.id);
       const { current, pending } = this.snapshot;
       this.publish({
+        browser: this.snapshot.browser?.owner === owner ? null : this.snapshot.browser,
         current: current?.owner === owner ? null : current,
         pending: pending?.owner === owner ? null : pending,
       });
@@ -135,7 +140,7 @@ export class MainViewRegistry {
   open(
     owner: PluginActivation,
     id: string,
-    data: ImageViewData | VocabularyViewData | LocalFileViewData,
+    data: ImageViewData | VocabularyViewData | LocalFileViewData | FileBrowserViewData,
   ): number {
     this.runtime.assert(owner, "views.present");
     const contribution = this.contributions.get(id);
@@ -145,7 +150,15 @@ export class MainViewRegistry {
         "视图未注册或不属于当前插件",
       );
     let request: MainViewRequest;
-    if (contribution.view.renderer === "local-file") {
+    if (contribution.view.renderer === "file-browser") {
+      this.runtime.assert(owner, "filesystem.files.read");
+      const value = data as FileBrowserViewData;
+      if (!value || typeof value !== "object" || Array.isArray(value) ||
+        Object.keys(value).some(key => key !== "rootId") ||
+        (value.rootId !== undefined && (typeof value.rootId !== "string" || !value.rootId || value.rootId.length > 4096)))
+        throw new PluginHostError("INVALID_ARGUMENT", "目录浏览身份无效");
+      request = Object.freeze({ id: ++this.sequence, owner, view: contribution.view, renderer: "file-browser", data: Object.freeze({ ...value }) });
+    } else if (contribution.view.renderer === "local-file") {
       this.runtime.assert(owner, "filesystem.files.read");
       const value = data as LocalFileViewData;
       if (!value || Object.keys(value).some(key => !["rootId", "nodeId", "name", "location"].includes(key)) ||
@@ -210,7 +223,7 @@ export class MainViewRegistry {
     this.runtime.assert(owner, "views.present");
     return Object.freeze({
       register: (view: MainViewContribution) => this.register(owner, view),
-      open: (id: string, data: ImageViewData | VocabularyViewData | LocalFileViewData) =>
+      open: (id: string, data: ImageViewData | VocabularyViewData | LocalFileViewData | FileBrowserViewData) =>
         this.open(owner, id, data),
       close: (id: number) => {
         this.runtime.assert(owner, "views.present");
@@ -224,7 +237,7 @@ export class MainViewRegistry {
             "不能关闭其它插件的视图",
           );
         if (this.snapshot.current?.id === id)
-          this.publish({ current: null, suspended: false });
+          this.close(id);
         if (this.snapshot.pending?.id === id) this.reject(id);
       },
     });
@@ -234,10 +247,12 @@ export class MainViewRegistry {
     const pending = this.snapshot.pending;
     if (!pending || pending.id !== id) return false;
     this.runtime.assert(pending.owner, "views.present");
-    if (pending.renderer === "local-file") this.runtime.assert(pending.owner, "filesystem.files.read");
+    if (pending.renderer === "local-file" || pending.renderer === "file-browser") this.runtime.assert(pending.owner, "filesystem.files.read");
     if (pending.renderer === "vocabulary")
       this.runtime.assert(pending.owner, "documents.vocabulary.read");
-    this.publish({ current: pending, pending: null, suspended: false });
+    const browser = pending.renderer === "file-browser" ? pending
+      : (pending.renderer === "local-file" || pending.renderer === "image") && this.snapshot.browser?.owner === pending.owner ? this.snapshot.browser : null;
+    this.publish({ current: pending, browser, pending: null, suspended: false });
     return true;
   }
   reject(id: number) {
@@ -250,7 +265,13 @@ export class MainViewRegistry {
       this.snapshot.pending?.id !== id
     )
       return;
-    this.publish({ current: null, pending: null, suspended: false });
+    const browser = this.snapshot.browser;
+    // Explicit viewer return re-enters the normal host save gate. Unscoped
+    // workspace navigation closes the entire browser session instead.
+    if (id !== undefined && this.snapshot.current?.id === id && browser && browser.id !== id) {
+      this.runtime.assert(browser.owner, "views.present");
+      this.publish({ pending: browser });
+    } else this.publish({ current: null, browser: null, pending: null, suspended: false });
   }
   suspend() {
     if (this.snapshot.current) this.publish({ suspended: true });
