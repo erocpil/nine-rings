@@ -874,7 +874,7 @@ test("原生 WebKit 捏合累计缩放，缩放锚定且不触发页面缩放", 
     .locator(".image-viewer-viewport")
     .evaluate((element) => {
       const bounds = element.getBoundingClientRect();
-      return [
+      const prevented = [
         ["gesturestart", 1],
         ["gesturechange", 1.2],
         ["gesturechange", 1.5],
@@ -892,6 +892,12 @@ test("原生 WebKit 捏合累计缩放，缩放锚定且不触发页面缩放", 
         element.dispatchEvent(event);
         return event.defaultPrevented;
       });
+      // The duplicate wheel stream belongs to this gesture's 120ms window.
+      // Dispatch in the same browser task; CI round trips may exceed it.
+      element.dispatchEvent(new WheelEvent("wheel", {
+        ctrlKey: true, deltaY: -100, bubbles: true, cancelable: true,
+      }));
+      return prevented;
     });
   expect(result).toEqual([true, true, true, true]);
   await expect(viewer.getByRole("toolbar")).toContainText("150%");
@@ -900,17 +906,6 @@ test("原生 WebKit 捏合累计缩放，缩放锚定且不触发页面缩放", 
     "style",
     /translate\(-10px,\s*-10px\).*scale\(1.5\)/,
   );
-  await viewer.locator(".image-viewer-viewport").evaluate((element) =>
-    element.dispatchEvent(
-      new WheelEvent("wheel", {
-        ctrlKey: true,
-        deltaY: -100,
-        bubbles: true,
-        cancelable: true,
-      }),
-    ),
-  );
-  await expect(viewer.getByRole("toolbar")).toContainText("150%"); // Do not apply a duplicate wheel stream.
 });
 
 test("图片专注模式保持查看器和分栏状态，属性可浮动和固定且切图后更新", async ({

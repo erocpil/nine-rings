@@ -2,21 +2,6 @@ import { openReadingLibrary } from "./helpers/workspace";
 import { expect, test } from "@playwright/test";
 import { createEpubFixture, createPdfFixture } from "./helpers/reader-fixtures";
 
-test("资料库搜索快捷键和退出保持笔记工作区", async ({ page }) => {
-  await page.goto("/");
-  const title = page.locator(".note-title");
-  await expect(title).toBeVisible();
-  const before = await title.inputValue();
-  await openReadingLibrary(page);
-  const library = page.getByRole("region", { name: "阅读资料库", exact: true });
-  await expect(library).toBeVisible();
-  await page.keyboard.press("ControlOrMeta+f");
-  await expect(library.getByRole("searchbox", { name: "查找书籍" })).toBeFocused();
-  await page.keyboard.press("Escape");
-  await expect(library).toBeHidden();
-  await expect(title).toHaveValue(before);
-});
-
 for (const width of [390, 1280]) {
   test(`阅读资料库筛选和文档切换保持工作区 ${width}`, async ({
     page,
@@ -25,6 +10,8 @@ for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 800 });
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
+    const title = page.locator(".note-title");
+    const before = await title.inputValue();
     const showSidebar = page.getByRole("button", {
       name: "显示侧栏",
       exact: true,
@@ -32,10 +19,15 @@ for (const width of [390, 1280]) {
     if (await showSidebar.isVisible()) await showSidebar.click();
     const library = await openReadingLibrary(page);
     const librarySearch = library.getByRole("searchbox", { name: "查找书籍" });
-    await librarySearch.fill("保留阅读筛选");
-    await librarySearch.fill("");
+    await expect(library.locator(".reading-library-loading")).toHaveCount(0);
     await page.keyboard.press("ControlOrMeta+f");
     await expect(library.getByRole("searchbox", { name: "查找书籍" })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(library).toBeHidden();
+    await expect(title).toHaveValue(before);
+    await openReadingLibrary(page);
+    await librarySearch.fill("保留阅读筛选");
+    await librarySearch.fill("");
     await expect(library).toContainText("尚未导入 PDF 或 EPUB");
     await library
       .locator('input[accept="application/pdf,.pdf"]')

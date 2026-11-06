@@ -12,17 +12,25 @@ test("文档树选中前后字重及文字尺寸不变，保留选中背景", as
   await page.reload();
   const name = page.locator(".app-sidebar .doc-tree-name").getByText(title, { exact: true });
   await expect(name).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
   const geometry = () => name.evaluate(element => {
+    if (!element.isConnected) return null;
     const range = document.createRange();
     range.selectNodeContents(element);
     const row = element.closest(".doc-tree-doc")!;
     return { weight: getComputedStyle(element).fontWeight, textWidth: range.getBoundingClientRect().width, rowHeight: row.getBoundingClientRect().height };
   });
-  const before = await geometry();
+  const snapshot: { before?: NonNullable<Awaited<ReturnType<typeof geometry>>> } = {};
+  await expect(async () => {
+    const measured = await geometry();
+    expect(measured?.rowHeight ?? 0).toBeGreaterThan(0);
+    snapshot.before = measured!;
+  }).toPass();
+  const before = snapshot.before!;
   await name.click();
   await expect(page.locator(".note-title")).toHaveValue(title);
   await expect(name.locator("..")).toHaveClass(/doc-tree-selected/);
-  expect(await geometry()).toEqual(before);
+  await expect.poll(geometry).toEqual(before);
   expect(before.weight).toBe("400");
   expect(await name.locator("..").evaluate(row => getComputedStyle(row).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
 });

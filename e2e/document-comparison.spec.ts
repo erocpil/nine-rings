@@ -33,8 +33,11 @@ async function seed(page: Page) {
 test("右键菜单跨越分栏边界仍可点击，并能独立比较两篇文档", async ({ page }) => {
   await seed(page);
   const target = page.locator(".doc-tree-doc").filter({ hasText: "对比甲" });
-  const box = (await target.boundingBox())!;
-  await target.click({ button: "right", position: { x: box.width - 10, y: box.height / 2 } });
+  await expect(async () => {
+    const box = await target.boundingBox();
+    expect(box).not.toBeNull();
+    await target.click({ button: "right", position: { x: box!.width - 10, y: box!.height / 2 } });
+  }).toPass();
   const menu = page.locator(".doc-context-menu");
   await expect(menu).toBeVisible();
   expect(await menu.evaluate(el => el.parentElement === document.body)).toBe(true);
