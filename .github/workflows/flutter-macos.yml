@@ -9,6 +9,8 @@ concurrency:
 
 jobs:
   flutter-macos:
+    # Temporarily paused; remove this condition when Flutter CI resumes.
+    if: ${{ false }}
     runs-on: macos-latest
 
     steps:

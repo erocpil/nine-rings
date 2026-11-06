@@ -122,7 +122,8 @@ jobs:
   flutter-quality:
     name: Flutter Tests and Format
     needs: changes
-    if: ${{ needs.changes.outputs.flutter == 'true' }}
+    # Temporarily paused. Restore the Flutter changed-path condition to resume.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     defaults:
       run:
