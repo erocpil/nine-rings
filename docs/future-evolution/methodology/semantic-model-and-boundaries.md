@@ -1,7 +1,7 @@
 # 语义模型与适用边界
 
 > 所属：[认知与行动方法论](../cognitive-action-methodology.md)
-> 相邻：[最小可验证方法论](minimum-viable-method.md) · [理论证据与案例](evidence-and-cases.md)
+> 相邻：[最小可验证方法论](./minimum-viable-method.md) · [理论证据与案例](./evidence-and-cases.md)
 
 本文定义 Source、Claim、Decision、Feedback、Review、Revision 与 World Model 等概念的边界，并说明不同事项模式需要的记录强度。
 

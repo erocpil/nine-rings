@@ -1,0 +1,347 @@
+import { test, expect } from "@playwright/test";
+import { createBlankDocument } from "../helpers/document";
+import {
+  sourceInfo,
+  selectSource,
+  replaceSource,
+  scrollSourceTo,
+} from "../helpers/source-editor";
+
+test("源码编辑高亮、列表续写、Tab、搜索替换和视图切换撤销", async ({
+  page,
+}) => {
+  await createBlankDocument(page);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const toolbar = page.getByRole("toolbar", {
+    name: "源码编辑工具",
+    exact: true,
+  });
+  await page.mouse.move(600, 600);
+  for (const name of [
+    "查找替换",
+    "跳转行",
+    "软换行",
+    "撤销",
+    "重做",
+    "加粗",
+    "行内代码",
+    "链接",
+  ]) {
+    const button = toolbar.getByRole("button", { name, exact: true });
+    await expect(button).toHaveText("");
+    await expect(button.locator("svg")).toBeVisible();
+    await expect(button).toHaveAttribute(
+      "title",
+      new RegExp(`^${name}(?: [(]|$)`),
+    );
+  }
+  await toolbar.getByRole("button", { name: "查找替换", exact: true }).hover();
+  await expect(page.getByRole("tooltip")).toHaveText(/^查找替换/);
+  await page.mouse.move(600, 600);
+  const area = page.getByRole("textbox", {
+    name: "Markdown 源码",
+    exact: true,
+  });
+  await replaceSource(area, "# Heading\n\n15. item");
+  await expect
+    .poll(async () => (await sourceInfo(area)).value)
+    .toBe("# Heading\n\n15. item");
+  await selectSource(area, (await sourceInfo(area)).value.length);
+  await page.keyboard.press("Enter");
+  await expect
+    .poll(async () => (await sourceInfo(area)).value)
+    .toContain("16. ");
+  await page.keyboard.press("Enter");
+  await page.keyboard.insertText("body");
+  await expect
+    .poll(async () => (await sourceInfo(area)).value)
+    .toContain("\n\nbody");
+  await page.keyboard.press("Tab");
+  await expect
+    .poll(async () => (await sourceInfo(area)).value)
+    .toContain("    ");
+  await page.keyboard.press("Shift+Tab");
+  await expect(area.locator("span").first()).toBeVisible();
+  const before = (await sourceInfo(area)).value;
+  await selectSource(area, before.indexOf("body"), before.indexOf("body") + 4);
+  await page.getByRole("button", { name: "加粗", exact: true }).click();
+  await expect
+    .poll(async () => (await sourceInfo(area)).value)
+    .toContain("**body**");
+  const changed = (await sourceInfo(area)).value;
+  await page.getByRole("button", { name: "渲染", exact: true }).click();
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  expect((await sourceInfo(area)).value).toBe(changed);
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(before);
+  await page.getByRole("button", { name: "重做", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(changed);
+  await page.getByRole("button", { name: "查找替换", exact: true }).click();
+  await page.locator('.cm-search input[name="search"]').fill("body");
+  await page.locator('.cm-search input[name="replace"]').fill("updated");
+  await page.locator('.cm-search button[name="replaceAll"]').click();
+  await expect
+    .poll(async () => (await sourceInfo(area)).value)
+    .toContain("**updated**");
+  await page.getByRole("button", { name: "渲染", exact: true }).click();
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  await expect
+    .poll(async () => (await sourceInfo(area)).value)
+    .toContain("**updated**");
+});
+
+test("源码不可见字符切换显示空格、Tab 与行尾标记但不修改源码", async ({ page }) => {
+  await createBlankDocument(page);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  const source = "alpha \t\nbeta  ";
+  await replaceSource(area, source);
+  const before = await sourceInfo(area);
+  const status = page.getByRole("group", { name: "源码状态栏", exact: true });
+  const toggle = status.getByRole("button", { name: "显示不可见字符", exact: true });
+  expect(await toggle.evaluate(button => button.nextElementSibling?.getAttribute("aria-label"))).toBe("源码 Vim 模式");
+  await expect(toggle).toHaveAttribute("title", "显示不可见字符");
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
+  await expect(page.getByRole("button", { name: "隐藏不可见字符", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(area.locator(".cm-source-whitespace-space").first()).toBeVisible();
+  await expect(area.locator(".cm-source-whitespace-tab")).toHaveCount(1);
+  await expect(area.locator(".cm-source-whitespace-eol")).toHaveCount(2);
+  expect((await sourceInfo(area)).value).toBe(before.value);
+  await page.getByRole("button", { name: "隐藏不可见字符", exact: true }).click();
+  await expect(area.locator(".cm-source-whitespace-space")).toHaveCount(0);
+  await expect(area.locator(".cm-source-whitespace-tab")).toHaveCount(0);
+});
+
+test("状态栏隐藏时源码不可见字符按钮留在源码工具栏", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_status_bar: false }));
+  });
+  await createBlankDocument(page);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  await expect(page.getByRole("group", { name: "源码状态栏", exact: true })).toHaveCount(0);
+  const toolbar = page.getByRole("toolbar", { name: "源码编辑工具", exact: true });
+  const toggle = toolbar.getByRole("button", { name: "显示不可见字符", exact: true });
+  await expect(toggle).toBeVisible();
+  await toggle.click();
+  await expect(toolbar.getByRole("button", { name: "隐藏不可见字符", exact: true })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("5000 行源码按视口挂载，末行滚到顶部并保留保存的原文", async ({
+  page,
+}) => {
+  await createBlankDocument(page);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const area = page.getByRole("textbox", {
+    name: "Markdown 源码",
+    exact: true,
+  });
+  test.setTimeout(90000);
+  const value = Array.from({ length: 5000 }, (_, i) => `line ${i}`).join("\n");
+  await replaceSource(area, value);
+  await page.getByRole("button", { name: "源码微渲染", exact: true }).click();
+  await area.focus();
+  await expect
+    .poll(() => page.locator(".markdown-cm-host .cm-line").count())
+    .toBeLessThan(200);
+  await scrollSourceTo(area, "line 4999");
+  await expect
+    .poll(() =>
+      area
+        .locator(".cm-line")
+        .filter({ hasText: /^line 4999$/ })
+        .evaluate((el) =>
+          Math.abs(
+            el.getBoundingClientRect().top -
+              el.closest(".cm-scroller")!.getBoundingClientRect().top,
+          ),
+        ),
+    )
+    .toBeLessThan(20);
+  await expect(page.locator(".cm-editor.cm-focused")).toHaveCSS(
+    "outline-style",
+    "none",
+  );
+  await page.getByRole("button", { name: "渲染", exact: true }).click();
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  expect((await sourceInfo(area)).value).toBe(value);
+});
+
+test("手机源码引用续写、围栏高亮、折叠、跳转与只读保护", async ({ page }) => {
+  await createBlankDocument(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const area = page.getByRole("textbox", {
+    name: "Markdown 源码",
+    exact: true,
+  });
+  await replaceSource(area, "> 引用");
+  await selectSource(area, 4);
+  await page.keyboard.press("Enter");
+  await expect
+    .poll(async () => (await sourceInfo(area)).value)
+    .toBe("> 引用\n> ");
+  await page.keyboard.press("Enter");
+  await page.keyboard.insertText("中文标题");
+  await expect
+    .poll(async () => (await sourceInfo(area)).value)
+    .toContain("\n中文标题");
+  const value = "# 中文标题\n\n```javascript\nconst answer = 42;\n```\n\n正文";
+  await replaceSource(area, value);
+  await expect(
+    area.locator("span").filter({ hasText: /^const$/ }),
+  ).toBeVisible();
+  await page
+    .locator(".cm-foldGutter .cm-gutterElement")
+    .filter({ has: page.locator('[data-fold-expanded="true"]') })
+    .first()
+    .click();
+  await expect(page.locator(".cm-foldPlaceholder")).toBeVisible();
+  await page.locator(".cm-foldPlaceholder").click();
+  await page.getByRole("button", { name: "跳转行", exact: true }).click();
+  await page.locator(".cm-goto-line input").fill("4");
+  await page.locator(".cm-goto-line input").press("Enter");
+  expect((await sourceInfo(area)).selectionStart).toBe(value.indexOf("const"));
+  await page.getByRole("button", { name: "设置只读", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(area)).readonly).toBe(true);
+  await area.focus();
+  await page.keyboard.insertText("不应写入");
+  expect((await sourceInfo(area)).value).toBe(value);
+  await expect(
+    page.getByRole("button", { name: "加粗", exact: true }),
+  ).toHaveCount(0);
+});
+
+test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nine_rings_config",
+      JSON.stringify({
+        editor_show_line_numbers: true,
+        highlight_active_line: true,
+      }),
+    ),
+  );
+  await createBlankDocument(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const area = page.getByRole("textbox", {
+    name: "Markdown 源码",
+    exact: true,
+  });
+  const value = "# Heading\n\nfirst body\n\n## Child\n\nsecond body";
+  await replaceSource(area, value);
+  await page.getByRole("button", { name: "设置只读", exact: true }).click();
+  await expect(page.locator(".markdown-cm-source")).toHaveAttribute("data-source-readonly", "true");
+  for (const text of ["first body", "second body"]) {
+    await area.locator(".cm-line").filter({ hasText: text }).click();
+    await expect(area.locator(".cm-activeLine")).toHaveText(text);
+    await expect(page.locator(".markdown-cm-host .cm-editor")).toHaveClass(/cm-focused/);
+    await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("animation-name", "none");
+    await expect(page.locator(".markdown-cm-source .cm-cursor")).toHaveCSS("animation-name", "none");
+    expect(await area.evaluate((el) => getComputedStyle(el).caretColor)).toBe(
+      "rgba(0, 0, 0, 0)",
+    );
+  }
+  await expect(area).toHaveAttribute("contenteditable", "false");
+  await expect(
+    page.locator(
+      ".markdown-cm-host .cm-selectionLayer .cm-selectionBackground",
+    ),
+  ).toHaveCount(0);
+  const copied = await area.evaluate((el) => {
+    const lines = [...el.querySelectorAll(".cm-line")];
+    const first = lines.find((line) => line.textContent === "first body")!;
+    const last = lines.find((line) => line.textContent === "second body")!;
+    const start = document
+      .createTreeWalker(first, NodeFilter.SHOW_TEXT)
+      .nextNode()!;
+    const end = document
+      .createTreeWalker(last, NodeFilter.SHOW_TEXT)
+      .nextNode()!;
+    // Native mobile handles can extend a selection in either direction.
+    const selection = window.getSelection()!;
+    selection.setBaseAndExtent(end, 6, start, 2);
+    const clipboardData = new DataTransfer();
+    el.dispatchEvent(
+      new ClipboardEvent("copy", {
+        clipboardData,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    return {
+      text: clipboardData.getData("text/plain"),
+      selected: selection.toString(),
+      color: getComputedStyle(first, "::selection").backgroundColor,
+      selectable:
+        getComputedStyle(first).getPropertyValue("user-select") ||
+        getComputedStyle(first).getPropertyValue("-webkit-user-select"),
+    };
+  });
+  expect(copied.text).toBe("rst body\n\n## Child\n\nsecond");
+  expect(copied.selected).toContain("rst body");
+  expect(copied.selectable).toBe("text");
+  await expect(
+    page.locator(".markdown-cm-host .cm-selectionBackground").first(),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .locator(".markdown-cm-host .cm-selectionBackground")
+        .first()
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+    )
+    .not.toBe("rgba(0, 0, 0, 0)");
+  await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toBeHidden();
+  expect((await sourceInfo(area)).value).toBe(value);
+  await area.evaluate(() => window.getSelection()?.removeAllRanges());
+  await area.locator(".cm-line").filter({ hasText: "second body" }).click();
+  await page.keyboard.press("ArrowRight");
+  expect((await sourceInfo(area)).value).toBe(value);
+  await expect(page.locator(".markdown-cm-host .cm-editor")).toHaveClass(/cm-focused/);
+  await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("animation-name", "none");
+  expect(await area.evaluate(el => getComputedStyle(el).caretColor)).toBe("rgba(0, 0, 0, 0)");
+  await page.getByRole("button", { name: "查找", exact: true }).click();
+  const search = page.locator(".cm-search");
+  await search.locator('input[name="search"]').fill("first body");
+  await expect(search.locator(".editor-find-count")).toHaveText("1 处");
+  await search.getByRole("button", { name: "下一处", exact: true }).click();
+  await expect.poll(async () => {
+    const info = await sourceInfo(area);
+    return info.value.slice(info.selectionStart, info.selectionEnd);
+  }).toBe("first body");
+  await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("animation-name", "none");
+  expect((await sourceInfo(area)).value).toBe(value);
+  await page.keyboard.press("Escape");
+  await expect(search).toHaveCount(0);
+  await expect(page.locator(".markdown-cm-host .cm-editor")).toHaveClass(/cm-focused/);
+  await expect(page.locator(".markdown-cm-source .cm-cursorLayer")).toHaveCSS("animation-name", "none");
+  const marker = page
+    .locator(".cm-foldGutter .cm-gutterElement")
+    .filter({ has: page.locator('[data-fold-expanded="true"]') })
+    .first();
+  const number = page
+    .locator(".cm-lineNumbers .cm-gutterElement")
+    .filter({ hasText: /^1$/ });
+  const m = (await marker.boundingBox())!,
+    n = (await number.boundingBox())!;
+  expect(Math.abs(m.y - n.y)).toBeLessThan(1);
+  expect(m.width).toBeGreaterThanOrEqual(28);
+  const arrow = (await marker.locator("span").boundingBox())!;
+  expect(Math.abs(arrow.height - n.height)).toBeLessThan(1);
+  expect(n.x - m.x - m.width).toBeLessThan(3);
+  await marker.click({ position: { x: 3, y: 10 } });
+  await expect(page.locator(".cm-foldPlaceholder")).toBeVisible();
+  await page.getByRole("button", { name: "切换为可编辑", exact: true }).click();
+  await expect(area).toHaveAttribute("contenteditable", "true");
+  await expect(
+    page.locator(".markdown-cm-host .cm-selectionLayer"),
+  ).toHaveCount(1);
+  await expect(area).toHaveAttribute("aria-readonly", "false");
+  await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toHaveCount(
+    1,
+  );
+});

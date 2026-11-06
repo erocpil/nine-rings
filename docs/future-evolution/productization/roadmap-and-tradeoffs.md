@@ -1,7 +1,7 @@
 # 产品路线与取舍
 
 > 所属：[Nine Rings 产品化与未来演进](../nine-rings-productization.md)
-> 相邻：[产品基础与验证门槛](foundations-and-validation.md) · [能力方向](capability-directions.md)
+> 相邻：[产品基础与验证门槛](./foundations-and-validation.md) · [能力方向](./capability-directions.md)
 
 本文定义三阶段路线、资源分配、方向选择原则和当前最推荐的取舍。
 

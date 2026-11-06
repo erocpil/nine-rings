@@ -2,7 +2,7 @@
 
 > 状态：v0.3；概念体系与操作协议已定义，行为效果与长期结果仍待验证
 > 性质：独立方法论；不依赖任何产品、特定人群、工具或商业目标
-> 相关文档：[方法论导航](../cognitive-action-methodology.md) · [最小可验证方法](minimum-viable-method.md) · [语义模型与适用边界](semantic-model-and-boundaries.md) · [理论证据与案例](evidence-and-cases.md)
+> 相关文档：[方法论导航](../cognitive-action-methodology.md) · [最小可验证方法](./minimum-viable-method.md) · [语义模型与适用边界](./semantic-model-and-boundaries.md) · [理论证据与案例](./evidence-and-cases.md)
 
 ## 结论先行
 
@@ -170,7 +170,7 @@ Prediction / Success Criteria ───────────→ Reality
 
 **极速基线模板**：`当前先按……判断 / 先检查……；如果出现……，则停止、撤退、切换或升级。` 若连这一句都会妨碍行动，则不记录，待局面稳定后只保留可获得的原始事件痕迹。
 
-多主体、高压互动可使用[多主体互动的极速假设协议](multi-party-fast-hypothesis-protocol.md)。该子协议只增加角色、公开约束和可逆探针的表达，不允许将对方的不可见动机当作事实或因果结论。
+多主体、高压互动可使用[多主体互动的极速假设协议](./multi-party-fast-hypothesis-protocol.md)。该子协议只增加角色、公开约束和可逆探针的表达，不允许将对方的不可见动机当作事实或因果结论。
 
 ### 3.3 决策与行动：把承诺和执行分开
 

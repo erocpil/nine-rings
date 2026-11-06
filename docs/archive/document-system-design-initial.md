@@ -1,24 +1,24 @@
 # 文档系统初期设计（历史快照）
 
-> 2026-10-10 归档。以下包含已被取代的方案和不再成立的技术判断，不作为实现或待办依据。当前契约见[文档系统设计](../document-system-design.md)，移除旧模型的原因见[决策记录](../decisions/001-unified-document-notes.md)。
+> 2026-10-10 归档。以下包含已被取代的方案和不再成立的技术判断，不作为实现或待办依据。当前契约见[文档系统设计](../architecture/document-system-design.md)，移除旧模型的原因见[决策记录](../decisions/001-unified-document-notes.md)。
 
 # Nine Rings 文档管理系统设计文档
 
-> 本文保留初期设计与实施历史，下方阶段表不是当前待办清单。当前架构以[关键设计总览](../current-design.md)、[功能规格](../features.md)及对应专题为准。
+> 本文保留初期设计与实施历史，下方阶段表不是当前待办清单。当前架构以[关键设计总览](../architecture/current-design.md)、[功能规格](../features/features.md)及对应专题为准。
 
 ## 当前契约（2026-10-10）
 
 - `Note` 是文档的共同模型；UUID 标识身份，`storagePath` 是逻辑路径，不是磁盘文件路径。类型、概念、标签和文档引用提供多维检索。
 - `projects`、`areas`、`references`、`ideas`、`archives` 始终存在；一般空子路径仍从文档推导，受保护空路径独立持久化。
-- 文档/路径移动及改名已实现，须遵循路径规范化、存储事务与保护边界，详见[移动设计](../document-tree-move-design.md)。
-- `[[` 文档补全、内部引用锚点和原文件名辅助定位已实现；不是仅凭标题建立稳定关联，详见[引用锚点](../document-reference-anchors.md)。
-- 旧的独立随笔和待办已移除；新的“随记”是 `ideas/notes` 下的普通文档，分组是子路径，待办是正文任务列表。详见[随记与布局](../workspace-layout.md#随记notes)。下文虚拟 `daily`、随笔晋升、空路径区分文档/随笔及其待做项属于历史方案。
-- 数据库与备份使用扩展 Delta，活动富文本使用 ProseMirror、源码使用 CodeMirror；转换边界及历史限制见[编辑权威协议](../editor-authority-and-workspace.md)。
+- 文档/路径移动及改名已实现，须遵循路径规范化、存储事务与保护边界，详见[移动设计](../features/document-tree-move-design.md)。
+- `[[` 文档补全、内部引用锚点和原文件名辅助定位已实现；不是仅凭标题建立稳定关联，详见[引用锚点](../features/document-reference-anchors.md)。
+- 旧的独立随笔和待办已移除；新的“随记”是 `ideas/notes` 下的普通文档，分组是子路径，待办是正文任务列表。详见[随记与布局](../features/workspace-layout.md#随记notes)。下文虚拟 `daily`、随笔晋升、空路径区分文档/随笔及其待做项属于历史方案。
+- 数据库与备份使用扩展 Delta，活动富文本使用 ProseMirror、源码使用 CodeMirror；转换边界及历史限制见[编辑权威协议](../architecture/editor-authority-and-workspace.md)。
 
 ## 历史设计正文
 
 > 文档树中移动单篇文档和整个目录的事务、交互与跨端实现，详见
-> [《文档树移动功能详细设计》](../document-tree-move-design.md)。
+> [《文档树移动功能详细设计》](../features/document-tree-move-design.md)。
 
 文档树目录路径与文档目录标题的六层循环配色，可在“外观与布局 → 层次展示”独立开关和自定义；末端文档名称维持原样。
 

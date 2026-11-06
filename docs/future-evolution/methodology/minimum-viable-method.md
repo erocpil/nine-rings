@@ -1,7 +1,7 @@
 # 最小可验证方法论
 
 > 所属：[认知与行动方法论](../cognitive-action-methodology.md)
-> 相邻：[语义模型与适用边界](semantic-model-and-boundaries.md) · [理论证据与案例](evidence-and-cases.md)
+> 相邻：[语义模型与适用边界](./semantic-model-and-boundaries.md) · [理论证据与案例](./evidence-and-cases.md)
 > 状态：v0.1，尚未完成行为与结果验证
 
 本文定义独立于 Nine Rings 的最短认知与行动闭环、验证单位、低成本实验、否定条件和示例。产品实现不属于本文范围。

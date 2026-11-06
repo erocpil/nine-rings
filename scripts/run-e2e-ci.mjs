@@ -1,8 +1,8 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
-import { diagnosticFiles, productionOnlyFiles, selectE2E } from "./e2e-suites.mjs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { diagnosticFiles, discoverE2EFiles, productionOnlyFiles, selectE2E } from "./e2e-suites.mjs";
 
-const files = readdirSync("e2e").filter((file) => file.endsWith(".spec.ts"));
+const files = discoverE2EFiles();
 // Match the default config's production-only exclusions when planning.
 const productionOnly = new Set([...productionOnlyFiles, ...diagnosticFiles]);
 let changed;

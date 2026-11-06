@@ -1,16 +1,36 @@
 import { describe, expect, test } from "vitest";
-import { readdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   coreFiles,
   diagnosticFiles,
+  discoverE2EFiles,
   productionOnlyFiles,
   readingFiles,
   selectE2E,
   webkitGates,
 } from "../../scripts/e2e-suites.mjs";
-const files = readdirSync("e2e").filter((file) => file.endsWith(".spec.ts"));
+const files = discoverE2EFiles();
 
 describe("conservative affected E2E selection", () => {
+  test("recursive discovery preserves IDs and rejects ambiguous duplicate basenames", () => {
+    const root = mkdtempSync(join(tmpdir(), "nr-e2e-discovery-"));
+    try {
+      mkdirSync(join(root, "editor"));
+      mkdirSync(join(root, "workspace"));
+      writeFileSync(join(root, "editor", "source.spec.ts"), "");
+      writeFileSync(join(root, "workspace", "home.spec.ts"), "");
+      expect(discoverE2EFiles(root)).toEqual([
+        "home.spec.ts",
+        "source.spec.ts",
+      ]);
+      writeFileSync(join(root, "workspace", "source.spec.ts"), "");
+      expect(() => discoverE2EFiles(root)).toThrow("must be unique");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
   test("diagnostics have separate ownership from functional and production gates", () => {
     expect(new Set(diagnosticFiles).size).toBe(diagnosticFiles.length);
     for (const file of diagnosticFiles) {
@@ -30,6 +50,7 @@ describe("conservative affected E2E selection", () => {
       ["src/components/NoteEditor.tsx"],
       ["e2e/helpers/document.ts"],
       ["package-lock.json"],
+      ["build-plugins/vite-pwa-plugin.ts"],
       ["src/lib/new-feature.ts"],
       ["src/lib/plugin-system/runtime.ts"],
       ["src/lib/plugin-system/sdk-host.ts"],
@@ -53,9 +74,12 @@ describe("conservative affected E2E selection", () => {
     ).toBe("full");
   });
   test("direct specs are selected, deleted specs ignored, shared helpers trigger full", () => {
-    expect(selectE2E(files, ["e2e/mermaid-tauri-csp.spec.ts"]).files).toContain(
-      "mermaid-tauri-csp.spec.ts",
-    );
+    expect(
+      selectE2E(files, ["e2e/editor/mermaid-tauri-csp.spec.ts"]).files,
+    ).toContain("mermaid-tauri-csp.spec.ts");
+    expect(
+      selectE2E(files, ["e2e/editor/mermaid-tauri-csp.spec.ts"]).files,
+    ).toContain("mermaid-tauri-csp.spec.ts");
     expect(selectE2E(files, ["e2e/removed.spec.ts"]).files).not.toContain(
       "removed.spec.ts",
     );

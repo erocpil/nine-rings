@@ -19,4 +19,4 @@
 
 ## 验证依据
 
-现有 IDB 升级移除 daily_pages；随记交互见[工作区布局](../workspace-layout.md#随记notes)，共享数据字段见 schema/note.yaml。任何后续共享格式扩展必须验证未知数据保留和不支持客户端的写入边界。
+现有 IDB 升级移除 daily_pages；随记交互见[工作区布局](../features/workspace-layout.md#随记notes)，共享数据字段见 schema/note.yaml。任何后续共享格式扩展必须验证未知数据保留和不支持客户端的写入边界。

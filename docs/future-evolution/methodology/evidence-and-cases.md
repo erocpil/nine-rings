@@ -1,7 +1,7 @@
 # 理论证据与案例
 
 > 所属：[认知与行动方法论](../cognitive-action-methodology.md)
-> 相邻：[最小可验证方法论](minimum-viable-method.md) · [语义模型与适用边界](semantic-model-and-boundaries.md)
+> 相邻：[最小可验证方法论](./minimum-viable-method.md) · [语义模型与适用边界](./semantic-model-and-boundaries.md)
 
 本文汇总方法各组件的理论依据、实证支持、成功实践、失败反例和证据边界。相邻领域的成功只能支持低成本验证，不能代替 Nine Rings 方法本身的对照实验。
 

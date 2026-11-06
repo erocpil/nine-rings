@@ -1,0 +1,179 @@
+import { pressLineBoundary } from "../helpers/keyboard";
+import { createBlankDocument } from "../helpers/document";
+import { expect, test } from "@playwright/test";
+
+test("包含段落和代码块的松散有序列表保持连续编号", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "新建文档", exact: true }).click();
+  await page.getByPlaceholder("文档标题...").fill("有序列表编号测试");
+  await page.getByRole("button", { name: "创建", exact: true }).click();
+
+  const markdown = [
+    "1. **PCI枚举并为设备资源编址**",
+    "",
+    "   第一项的说明文字。",
+    "",
+    "   ```text",
+    "   BAR0 memory resource",
+    "   ```",
+    "",
+    "2. **把PCI function绑定给VFIO**",
+    "",
+    "   第二项的说明文字。",
+    "",
+    "3. **查询VFIO region并映射BAR资源**",
+  ].join("\n");
+  const editor = page.locator(".ProseMirror");
+  await expect(page.locator(".note-title")).toHaveValue("有序列表编号测试");
+  await expect(editor).toBeEditable();
+  await editor.click();
+  await editor.evaluate((element, text) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", text);
+    element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    }));
+  }, markdown);
+
+  const assertList = async () => {
+    // GFM keeps loose-list paragraphs and code inside their owning item.
+    await expect(editor.locator(":scope > ol")).toHaveCount(1);
+    expect(await editor.locator(":scope > ol").evaluate(element => (element as HTMLOListElement).start)).toBe(1);
+    await expect(editor.locator(":scope > ol > li")).toHaveCount(3);
+    await expect(editor.locator(":scope > ol > li").first().locator(".code-block-wrap")).toContainText("BAR0 memory resource");
+  };
+  await assertList();
+  await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
+
+  await page.reload();
+  await expect(page.locator(".note-title")).toHaveValue("有序列表编号测试");
+  await assertList();
+});
+
+test("有序列表的续行和后续列表项保持同一正文缩进", async ({ page }) => {
+  await createBlankDocument(page);
+
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("aaa");
+  await editor.press("ControlOrMeta+Shift+7");
+  await pressLineBoundary(editor, "end");
+  await editor.press("Shift+Enter");
+  await editor.type("bbb");
+  await pressLineBoundary(editor, "end");
+  await editor.press("Enter");
+  await editor.type("ccc");
+  await editor.press("Shift+Enter");
+  await editor.type("ddd");
+
+  const listItems = editor.locator("ol > li");
+  await expect(listItems).toHaveCount(2);
+  await expect(listItems.nth(0)).toHaveText("aaabbb");
+  await expect(listItems.nth(1)).toHaveText("cccddd");
+
+  const textLefts = await listItems.evaluateAll((items) => items.flatMap((item) => {
+    const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+    const lefts: number[] = [];
+    let node = walker.nextNode();
+    while (node) {
+      if ((node.textContent ?? "").trim()) {
+        const range = document.createRange();
+        range.setStart(node, 0);
+        range.setEnd(node, 1);
+        lefts.push(range.getBoundingClientRect().left);
+      }
+      node = walker.nextNode();
+    }
+    return lefts;
+  }));
+  expect(textLefts).toHaveLength(4);
+  textLefts.forEach((left) => expect(Math.abs(left - textLefts[0])).toBeLessThan(1));
+});
+
+test("多位数编号仍左对齐，正文紧跟各自编号且不侵入 gutter", async ({ page }) => {
+  await createBlankDocument(page);
+  const editor = page.locator(".ProseMirror");
+  await expect(editor).toBeEditable();
+  await editor.click();
+  const markdown = Array.from({ length: 12 }, (_, index) => `${index + 1}. 项目 ${index + 1}`).join("\n");
+  await editor.evaluate((element, text) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", text);
+    element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    }));
+  }, markdown);
+
+  const listItems = editor.locator(":scope > ol > li");
+  await expect(listItems).toHaveCount(12);
+  const itemStyles = await listItems.evaluateAll((items) => items.map((item) => {
+    const box = item.getBoundingClientRect();
+    const style = getComputedStyle(item, "::before");
+    const grid = getComputedStyle(item);
+    const markerWidth = Number.parseFloat(grid.gridTemplateColumns.split(" ")[0]);
+    return {
+      markerLeft: box.left,
+      markerWidth,
+      gap: Number.parseFloat(grid.columnGap),
+      textLeft: item.querySelector("p")!.getBoundingClientRect().left,
+      editorLeft: item.closest(".ProseMirror")!.getBoundingClientRect().left,
+      textAlign: style.textAlign,
+      transform: style.transform,
+      position: style.position,
+    };
+  }));
+  itemStyles.forEach((style, index) => {
+    expect(Math.abs(style.markerLeft - itemStyles[0].markerLeft)).toBeLessThan(1);
+    expect(style.textLeft - style.markerLeft - style.markerWidth).toBeCloseTo(style.gap, 1);
+    expect(style.markerLeft).toBeGreaterThanOrEqual(style.editorLeft);
+    expect(style.textAlign).toBe("left");
+    expect(style.transform).toBe("none");
+    expect(style.position).toBe("static");
+    if (index === 9) expect(style.textLeft).toBeGreaterThan(itemStyles[0].textLeft + 1);
+  });
+});
+
+test("粘贴 Markdown 时列表 lazy continuation 保留为对齐的续行", async ({ page }) => {
+  await createBlankDocument(page);
+
+  const editor = page.locator(".ProseMirror");
+  await expect(editor).toBeEditable();
+  await editor.click();
+  await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "1. aaa\nbbb\n2. ccc\n   ddd");
+    element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    }));
+  });
+
+  const listItems = editor.locator("ol > li");
+  await expect(listItems).toHaveCount(2);
+  // A single source newline is a CommonMark soft break, not a forced <br>.
+  await expect(listItems.nth(0)).toContainText("aaa bbb");
+  await expect(listItems.nth(1)).toContainText("ccc ddd");
+  await expect(listItems.locator("br")).toHaveCount(0);
+
+  const lefts = await listItems.evaluateAll((items) => items.flatMap((item) => {
+    const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+    const values: number[] = [];
+    let node = walker.nextNode();
+    while (node) {
+      if ((node.textContent ?? "").trim()) {
+        const range = document.createRange();
+        range.setStart(node, 0);
+        range.setEnd(node, 1);
+        values.push(range.getBoundingClientRect().left);
+      }
+      node = walker.nextNode();
+    }
+    return values;
+  }));
+  expect(lefts).toHaveLength(2);
+  lefts.forEach((left) => expect(Math.abs(left - lefts[0])).toBeLessThan(1));
+});

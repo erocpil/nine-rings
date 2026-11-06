@@ -1,10 +1,10 @@
 # 产品基础与验证门槛
 
-> 基线说明（2026-10-12）：本文包含历史能力与长期方案；早期 DailyPage、每日随笔及独立待办已退役，当前随记采用普通文档，正文待办使用任务列表。当前实现以[关键设计](../../current-design.md)为准。
+> 基线说明（2026-10-12）：本文包含历史能力与长期方案；早期 DailyPage、每日随笔及独立待办已退役，当前随记采用普通文档，正文待办使用任务列表。当前实现以[关键设计](../../architecture/current-design.md)为准。
 
 > 所属：[Nine Rings 产品化与未来演进](../nine-rings-productization.md)
 > 上位方法：[认知与行动方法论](../cognitive-action-methodology.md)
-> 相邻：[能力方向](capability-directions.md) · [路线与取舍](roadmap-and-tradeoffs.md)
+> 相邻：[能力方向](./capability-directions.md) · [路线与取舍](./roadmap-and-tradeoffs.md)
 
 本文保存当前实现基线、长期产品判断、AI / Agent 职责、产品 Non-goals，以及方法论进入产品化后的三个验证门槛。
 

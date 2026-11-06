@@ -1,9 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import importPlugin from "./plugins/vite-import-plugin";
-import pwaPlugin from "./plugins/vite-pwa-plugin";
-import pdfjsCMapAssets from "./plugins/vite-pdfjs-cmaps-plugin";
-import pcre2Assets from "./plugins/vite-pcre2-assets";
+import importPlugin from "./build-plugins/vite-import-plugin";
+import pwaPlugin from "./build-plugins/vite-pwa-plugin";
+import pdfjsCMapAssets from "./build-plugins/vite-pdfjs-cmaps-plugin";
+import pcre2Assets from "./build-plugins/vite-pcre2-assets";
 import { execSync } from "child_process";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "node:url";

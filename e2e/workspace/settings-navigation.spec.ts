@@ -1,0 +1,645 @@
+import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { createBlankDocument } from "../helpers/document";
+
+async function openMobileSettings(page: import("@playwright/test").Page) {
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await page.locator(".note-editor").evaluate(element => {
+    const x = innerWidth - 8, y = innerHeight * 0.7;
+    const touch = (clientX: number) => ({ identifier: 1, target: element, clientX, clientY: y });
+    const start = touch(x), end = touch(x - 100);
+    for (const [type, touches, changedTouches] of [["touchstart", [start], [start]], ["touchmove", [end], [end]], ["touchend", [], [end]]] as const) {
+      const event = new Event(type, { bubbles: true, cancelable: type !== "touchstart" });
+      Object.defineProperties(event, { touches: { value: touches }, changedTouches: { value: changedTouches } });
+      element.dispatchEvent(event);
+    }
+  });
+  await expect(page.getByRole("heading", { name: "设置", exact: true })).toBeVisible();
+  await expect(page.getByLabel("关闭设置")).not.toBeFocused();
+  await expect(page.getByRole("dialog", { name: "设置", exact: true })).toBeFocused();
+  await expect(page.getByLabel("关闭设置")).toHaveCSS("outline-style", "none");
+}
+
+test("设置使用分类首页和二级页面精简内容", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+  await page.getByTitle("设置").click();
+  await expect(page.getByRole("button", { name: "打开设置查找" })).toBeVisible();
+  expect(await page.getByRole("button", { name: "打开设置查找" }).evaluate(button => {
+    const close = button.closest(".settings-header")!.querySelector(".settings-close")!;
+    return close.getBoundingClientRect().left - button.getBoundingClientRect().right;
+  })).toBeLessThanOrEqual(16);
+  await expect(page.getByRole("textbox", { name: "查找设置" })).toBeHidden();
+  await page.getByRole("button", { name: "打开设置查找" }).click();
+  await expect(page.getByRole("textbox", { name: "查找设置" })).toBeVisible();
+  expect(await page.locator(".settings-header-search").evaluate(element => {
+    const exit = element.parentElement!.querySelector(".settings-close")!;
+    return element.getBoundingClientRect().right <= exit.getBoundingClientRect().left;
+  })).toBe(true);
+
+  const categories = page.getByLabel("设置分类").getByRole("button");
+  await expect(categories).toHaveCount(8);
+  await expect(categories.locator("strong")).toHaveText([
+    "外观与布局",
+    "编辑器",
+    "文档管理",
+    "快捷键",
+    "云端同步",
+    "备份与导入",
+    "高级",
+    "系统信息",
+  ]);
+  await expect(page.getByRole("heading", { name: "设置", exact: true })).toBeVisible();
+  await expect(page.locator(".settings-field")).toHaveCount(0);
+  await expect(page.locator(".settings-section")).toHaveCount(0);
+  await expect(page.locator(".settings-version")).toHaveText(/^v\w+\./);
+
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  await expect(page.getByRole("heading", { name: "外观与布局", exact: true })).toBeVisible();
+  await page.getByLabel("返回设置分类").click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
+  await expect(page.getByRole("heading", { name: "编辑器", exact: true })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "相对块号", exact: true })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "相对行号", exact: true })).toBeVisible();
+  await expect(page.getByText("状态栏块号", { exact: true })).toBeVisible();
+  await expect(page.getByText("只读文档双击标题折叠", { exact: true })).toBeVisible();
+  await expect(page.getByText("代码块 Vim 模式（实验性）", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("主题", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".settings-version")).toHaveCount(0);
+
+  await page.getByLabel("返回设置分类").click();
+  await expect(categories).toHaveCount(8);
+  await expect(page.locator(".settings-version")).toBeVisible();
+  await page.getByRole("button", { name: /^备份与导入/ }).click();
+  await expect(page.getByRole("heading", { name: "备份与导入", exact: true })).toBeVisible();
+  await expect(page.getByText("JSON 备份与恢复", { exact: true })).toBeVisible();
+  await expect(page.getByText("Markdown / 纯文本导入", { exact: true })).toBeVisible();
+  await expect(page.getByText("快捷键", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "打开设置查找" }).click();
+  await expect(page.getByRole("heading", { name: "设置", exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "查找设置" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("textbox", { name: "查找设置" })).toBeHidden();
+  await expect(page.locator(".settings-panel")).toBeVisible();
+  await expect(page.locator(".settings-body")).toHaveAttribute("data-settings-page", "data");
+});
+
+test("从子设置页查找后保留原页面作为返回位置", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  const body = page.locator(".settings-body");
+  await page.getByRole("button", { name: "打开设置查找" }).click();
+  await expect(body).toHaveAttribute("data-settings-page", "root");
+  await page.keyboard.press("Escape");
+  await expect(body).toHaveAttribute("data-settings-page", "appearance");
+
+  await page.getByRole("button", { name: "打开设置查找" }).click();
+  await page.getByRole("textbox", { name: "查找设置" }).fill("层次展示");
+  await page.getByRole("button", { name: /层次展示/ }).click();
+  await expect(body).toHaveAttribute("data-settings-page", "hierarchy");
+  await page.keyboard.press("Escape");
+  await expect(body).toHaveAttribute("data-settings-page", "appearance");
+});
+
+test("设置子页首个分组没有多余顶部留白和分割线", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await page.getByTitle("设置").click();
+
+  for (const pageName of ["作者与文档默认值", "备份与导入", "云端同步"]) {
+    if (pageName === "作者与文档默认值") await page.getByRole("button", { name: /^文档管理/ }).click();
+    await page.getByRole("button", { name: new RegExp(`^${pageName}`) }).click();
+
+    const firstSection = page.locator(pageName === "备份与导入" ? ".settings-body > .settings-data-page" : ".settings-body > .settings-section").first();
+    await expect(firstSection).toBeVisible();
+    await expect.poll(() => firstSection.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        marginTop: style.marginTop,
+        paddingTop: style.paddingTop,
+        borderTopWidth: style.borderTopWidth,
+      };
+    })).toEqual(pageName === "作者与文档默认值"
+      ? { marginTop: "0px", paddingTop: "20px", borderTopWidth: "1px" }
+      : { marginTop: "0px", paddingTop: "0px", borderTopWidth: "0px" });
+
+    if (pageName === "作者与文档默认值") await page.getByLabel("返回文档管理").click();
+    await page.getByLabel("返回设置分类").click();
+  }
+
+  await page.getByRole("button", { name: /^文档管理/ }).click();
+  await expect(page.getByLabel("文档管理分类").getByRole("button")).toHaveCount(3);
+  await page.getByRole("button", { name: /^标签管理/ }).click();
+  const firstTagSection = page.locator(".settings-body > .settings-section").first();
+  await expect(firstTagSection).toBeVisible();
+  await expect.poll(() => firstTagSection.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      marginTop: style.marginTop,
+      paddingTop: style.paddingTop,
+      borderTopWidth: style.borderTopWidth,
+    };
+  })).toEqual({ marginTop: "0px", paddingTop: "20px", borderTopWidth: "1px" });
+  await page.getByLabel("返回文档管理").click();
+  await expect(page.getByRole("heading", { name: "文档管理", exact: true })).toBeVisible();
+});
+
+test("层次展示可分别设置路径与目录标题颜色", async ({ page }) => {
+  await page.addInitScript(() => {
+    const oldDefault = ["#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1"];
+    localStorage.setItem("nine_rings_config", JSON.stringify({
+      hierarchy_path_custom_colors: oldDefault,
+      hierarchy_outline_custom_colors: oldDefault,
+    }));
+  });
+  await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  await page.getByRole("button", { name: /^层次展示/ }).click();
+  await expect(page.getByRole("heading", { name: "层次展示", exact: true })).toBeVisible();
+
+  const pathSettings = page.getByRole("group", { name: "文档树路径配色模式" });
+  const outlineSettings = page.getByRole("group", { name: "文档目录标题配色模式" });
+  const pathCard = page.locator(".hierarchy-style-card").first();
+  const section = page.locator(".hierarchy-settings-section");
+  expect(await section.evaluate(element => element.getBoundingClientRect().width / element.parentElement!.getBoundingClientRect().width)).toBeGreaterThan(0.9);
+  await expect(pathSettings.getByRole("button", { name: "默认配色" })).toHaveAttribute("aria-pressed", "true");
+  await pathSettings.getByRole("button", { name: "自定义" }).click();
+  const firstColor = page.getByLabel("文档树路径第 1 层颜色");
+  await expect(firstColor).toBeVisible();
+  await expect(firstColor).toHaveValue("#247f7b");
+  await expect(pathCard.locator(".hierarchy-color-grid label").first()).toContainText("第 1 层");
+  await expect(pathCard.getByText("青蓝", { exact: true })).toHaveCount(0);
+  await firstColor.evaluate(element => {
+    const input = element as HTMLInputElement;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "#123456");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect.poll(() => page.locator(".app").evaluate(element => getComputedStyle(element).getPropertyValue("--hierarchy-path-custom-1").trim())).toBe("#123456");
+  await pathCard.getByRole("button", { name: "恢复默认配色" }).click();
+  await expect(firstColor).toHaveValue("#247f7b");
+  await expect.poll(() => page.locator(".app").evaluate(element => getComputedStyle(element).getPropertyValue("--hierarchy-path-custom-1").trim())).toBe("#247F7B");
+  await pathSettings.getByRole("button", { name: "关闭" }).click();
+  await expect(page.locator(".app")).toHaveAttribute("data-hierarchy-path-mode", "off");
+  await outlineSettings.getByRole("button", { name: "自定义" }).click();
+  await expect(page.getByLabel("文档目录标题第 6 层颜色")).toBeVisible();
+  await expect(page.locator(".app")).toHaveAttribute("data-hierarchy-outline-mode", "custom");
+});
+
+test.describe("触屏设置导航", () => {
+  test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
+
+  test("进入子页后不会把上一页的触摸高亮转移到同位置选项", async ({ page }) => {
+    await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+    await openMobileSettings(page);
+
+    await page.getByRole("button", { name: /^文档管理/ }).tap();
+    const tagManagement = page.getByRole("button", { name: /^标签管理/ });
+    await expect(tagManagement).toBeVisible();
+    await expect(tagManagement).not.toBeFocused();
+    await expect.poll(() => tagManagement.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        borderColor: style.borderColor,
+        transform: style.transform,
+      };
+    })).toEqual(expect.objectContaining({ transform: "none" }));
+    const tagColors = await tagManagement.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const probe = document.createElement("span");
+      probe.style.color = "var(--border)";
+      document.body.appendChild(probe);
+      const expectedBorderColor = getComputedStyle(probe).color;
+      probe.remove();
+      return {
+        borderColor: style.borderColor,
+        expectedBorderColor,
+      };
+    });
+    expect(tagColors.borderColor).toBe(tagColors.expectedBorderColor);
+
+    await page.getByLabel("返回设置分类").tap();
+    await page.getByRole("button", { name: /^外观与布局/ }).tap();
+    const editorEntry = page.getByRole("button", { name: /^布局设置/ });
+    await expect(editorEntry).toBeVisible();
+    await expect(editorEntry).not.toBeFocused();
+    await expect(editorEntry).toHaveCSS("border-color", tagColors.expectedBorderColor);
+  });
+});
+
+test("设置弹窗具有语义并在键盘关闭后恢复焦点", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+  const trigger = page.getByRole("button", { name: "设置", exact: true });
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+
+  const dialog = page.getByRole("dialog", { name: "设置" });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByLabel("关闭设置")).toBeFocused();
+  await expect.poll(() => page.locator(".settings-overlay").evaluate(
+    (element) => Number.parseFloat(getComputedStyle(element).animationDuration),
+  )).toBeLessThanOrEqual(0.00001);
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test("编辑器状态栏紧凑且可以关闭并持久化", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+  const statusBar = page.locator(".editor-stats");
+  await expect(statusBar).toBeVisible();
+  await expect.poll(() => statusBar.evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(36);
+
+  const editor = page.locator(".ProseMirror");
+  await expect.poll(() => editor.evaluate((element) => {
+    const viewportHeight = element.ownerDocument.defaultView?.innerHeight ?? 0;
+    return Number.parseFloat(getComputedStyle(element).paddingBottom) / viewportHeight;
+  })).toBeGreaterThan(0.5);
+
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
+  const statusSetting = page.locator(".settings-field").filter({ hasText: "编辑器状态栏" });
+  const toggle = statusSetting.locator('input[type="checkbox"]');
+  await expect(toggle).toBeChecked();
+  await statusSetting.locator(".settings-toggle").click();
+  await expect(toggle).not.toBeChecked();
+  await page.getByLabel("关闭设置").click();
+  await expect(statusBar).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.locator(".editor-stats")).toHaveCount(0);
+});
+
+test("PWA 可关闭只读专注模式双击折叠并持久化", async ({ page }) => {
+  const openSetting = async () => {
+    await page.getByTitle("设置").click();
+    await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
+    return page.locator(".settings-field").filter({ hasText: "只读文档双击标题折叠" });
+  };
+
+  await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+  const field = await openSetting();
+  await expect(field).toContainText("手机安装版");
+  const toggle = field.locator('input[type="checkbox"]');
+  await expect(toggle).toBeChecked();
+  await field.locator(".settings-toggle").click();
+  await expect(toggle).not.toBeChecked();
+  await expect(page.getByRole("status").filter({ hasText: "已更新" })).toBeVisible();
+  await page.getByLabel("关闭设置").click();
+
+  await page.reload();
+  const restoredField = await openSetting();
+  await expect(restoredField.locator('input[type="checkbox"]')).not.toBeChecked();
+});
+
+test("新代码块遵循已保存的默认软换行配置且说明不修改内容", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  // The old global switch is no longer exposed in editor settings. Preserve
+  // coverage of saved configuration separately from block-workspace display preferences.
+  await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts");
+    await api.config.set({ editor_code_wrap_default: false });
+  });
+  await createBlankDocument(page);
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("new-code");
+  await editor.press("ControlOrMeta+Alt+c");
+  const codeBlock = editor.locator(".code-block-wrap");
+  await expect(codeBlock).toHaveAttribute("data-code-wrap", "false");
+  const wrapButton = codeBlock.getByRole("button", { name: "开启代码软换行" });
+  await expect(wrapButton.locator("svg")).toBeVisible();
+  await expect(wrapButton).not.toContainText("软换行");
+  await expect(wrapButton).toHaveAttribute("title", /仅改变显示，不修改代码/);
+});
+
+test("诊断报告只导出脱敏运行信息", async ({ page }) => {
+  const secretToken = "ghp_must_not_leak";
+  await page.addInitScript((token) => localStorage.setItem("nr:github-sync-token", token), secretToken);
+  await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeEditable({ timeout: 10000 });
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^高级/ }).click();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "导出诊断报告" }).click();
+  const download = await downloadPromise;
+  const exportNotice = page.getByRole("status").filter({ hasText: "诊断报告已导出" });
+  await expect(exportNotice).toBeVisible();
+  const path = await download.path();
+  if (!path) throw new Error("诊断报告没有下载路径");
+  const reportText = await readFile(path, "utf8");
+  const report = JSON.parse(reportText);
+
+  expect(report.data.notes).toBeGreaterThan(0);
+  expect(report.storage.localStorageEntryCount).toBeGreaterThan(0);
+  expect(reportText).not.toContain(secretToken);
+  expect(reportText).not.toContain("欢迎使用 Nine Rings");
+  expect(reportText).not.toContain("storagePath");
+  await expect(exportNotice).toHaveCount(0, { timeout: 5000 });
+});
+
+test.describe("移动端设置", () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test("Owner / Repo 字段始终可编辑", async ({ page }) => {
+    await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+    await openMobileSettings(page);
+    await page.getByRole("button", { name: /^云端同步/ }).click();
+
+    const ownerRepoInput = page.getByRole("textbox", { name: "Owner / Repo" });
+    // Locator tap waits for the settings transition and scrolling to settle.
+    await ownerRepoInput.tap();
+
+    await expect(ownerRepoInput).toBeVisible();
+    await expect(ownerRepoInput).toBeFocused();
+    await ownerRepoInput.fill("erocpil/nine-rings-backup");
+    await page.keyboard.press("Enter");
+    await expect(ownerRepoInput).toHaveValue("erocpil/nine-rings-backup");
+  });
+});
+
+test("Owner / Repo 与 Token 一样直接显示输入框", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^云端同步/ }).click();
+
+  await expect(page.getByRole("textbox", { name: "Owner / Repo" })).toBeVisible();
+  await expect(page.locator('input[type="password"]')).toBeVisible();
+});
+
+test("Web/PWA 从 GitHub Pull 后自动应用设置并恢复最后文档位置", async ({ page }) => {
+  const version = "20260822T020304";
+  const restoredNoteId = "github-restored-document";
+  const restoredBody = Array.from(
+    { length: 80 },
+    (_, index) => `恢复后的第 ${index + 1} 段：${"用于验证文档位置。".repeat(8)}`,
+  ).join("\n");
+  const remoteSnapshot = JSON.stringify({
+    version: 1,
+    exported_at: "2026-08-22T02:03:04.000Z",
+    notes: [{
+      id: restoredNoteId,
+      date: "2026-08-18",
+      title: "GitHub 恢复的最后文档",
+      content: { ops: [{ insert: `${restoredBody}\n` }] },
+      tags: [],
+      pinned: false,
+      readonly: false,
+      sort_order: 0,
+      created_at: "2026-08-18T01:00:00.000Z",
+      updated_at: "2026-08-18T02:00:00.000Z",
+      storagePath: "projects/restored",
+      docType: "reference",
+      concepts: [],
+      linkedDocIds: [],
+    }],
+    config: { theme: "dark", note_font_size: 21 },
+    user_settings: {
+      version: 1,
+      values: {
+        "nr:currentDate": "2026-08-18",
+        "nr:lastNote": restoredNoteId,
+        "nr:workspaceTarget": { kind: "note", noteId: restoredNoteId },
+        [`selectionPos:${restoredNoteId}`]: { from: 20, to: 20 },
+        [`scrollPos:${restoredNoteId}`]: 480,
+      },
+    },
+  });
+  const syncConfig = {
+    token: "",
+    owner: "pwa-owner",
+    repo: "pwa-repo",
+    path: "pwa-backup.json",
+    lastSyncAt: null,
+    remoteSha: null,
+    lastPushVersion: null,
+    lastPullVersion: null,
+    rememberToken: false,
+  };
+  await page.addInitScript(({ config }) => {
+    localStorage.setItem("nr:github-sync", JSON.stringify(config));
+    localStorage.setItem("nr:github-sync-token-mode", "0");
+    sessionStorage.setItem("nr:github-sync-token", "test-token");
+  }, { config: syncConfig });
+
+  const githubFile = (content: string, sha: string) => ({
+    content: Buffer.from(content, "utf8").toString("base64"),
+    encoding: "base64",
+    sha,
+    size: Buffer.byteLength(content),
+  });
+  await page.route("https://api.github.com/**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === "/repos/pwa-owner/pwa-repo") {
+      await route.fulfill({ json: { permissions: { pull: true, push: true } } });
+      return;
+    }
+    if (pathname.endsWith("/contents/pwa-backup-latest")) {
+      await route.fulfill({ json: githubFile(version, "ptr-sha") });
+      return;
+    }
+    if (pathname.endsWith(`/contents/pwa-backup-${version}.json`)) {
+      await route.fulfill({ json: githubFile(remoteSnapshot, "data-sha") });
+      return;
+    }
+    await route.fulfill({ status: 404, body: "not found" });
+  });
+
+  let downloadCount = 0;
+  page.on("download", () => { downloadCount += 1; });
+  await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeEditable({ timeout: 10000 });
+  const localOnlyNote = await page.evaluate(() => new Promise<{ id: string; title: string }>((resolve, reject) => {
+    const request = indexedDB.open("nine_rings");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const getAll = db.transaction("notes", "readonly").objectStore("notes").getAll();
+      getAll.onerror = () => reject(getAll.error);
+      getAll.onsuccess = () => {
+        const note = getAll.result.find((item) => !item.deleted_at);
+        db.close();
+        if (!note) reject(new Error("缺少用于验证安全合并的本地文档"));
+        else resolve({ id: note.id, title: note.title ?? "无标题" });
+      };
+    };
+  }));
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^云端同步/ }).click();
+  await expect(page.getByText(/Pull 会先按文档 UUID 比较本地、远端和上次同步基线/)).toBeVisible();
+  await page.getByRole("button", { name: "Pull ↓" }).click();
+  await expect(page.getByText("Pull 文档级预检")).toBeVisible();
+  await expect(page.getByLabel("Pull 文档差异摘要")).toContainText("远端独有");
+  const replaceButton = page.getByRole("button", { name: "全量覆盖本地", exact: true });
+  await expect(replaceButton).toBeVisible();
+  await expect(replaceButton).toHaveAccessibleDescription(/将删除本地独有的 \d+ 篇文档，并清空版本历史/);
+  const originalViewport = page.viewportSize();
+  for (const width of [320, 390, 820]) {
+    await page.setViewportSize({ width, height: 900 });
+    const actions = page.locator(".sync-preview-actions");
+    await actions.scrollIntoViewIfNeeded();
+    const bounds = await actions.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      const buttons = [...element.querySelectorAll("button")].map(button => {
+        const r = button.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+      });
+      return { left: rect.left, right: rect.right, buttons };
+    });
+    const [merge, cancel, backup, replace] = bounds.buttons;
+    expect(Math.abs(merge.top - cancel.top)).toBeLessThan(1);
+    expect(backup.top).toBeGreaterThanOrEqual(merge.bottom);
+    expect(replace.top).toBeGreaterThan(backup.bottom);
+    for (const button of bounds.buttons) {
+      expect(button.left).toBeGreaterThanOrEqual(bounds.left - 1);
+      expect(button.right).toBeLessThanOrEqual(bounds.right + 1);
+    }
+    expect(Math.abs(merge.left - backup.left)).toBeLessThan(1);
+    expect(Math.abs(merge.left - replace.left)).toBeLessThan(1);
+    await actions.screenshot({ path: test.info().outputPath(`sync-merge-actions-${width}.png`) });
+  }
+  if (originalViewport) await page.setViewportSize(originalViewport);
+  await expect(page.getByRole("button", { name: "先导出本地 JSON" })).toBeVisible();
+  await replaceButton.click();
+  const replaceWarning = page.getByRole("dialog", { name: "覆盖本地数据库", exact: true });
+  await expect(replaceWarning).toContainText("本地独有");
+  await expect(replaceWarning).toContainText("将被删除");
+  await expect(replaceWarning).toContainText("不会按标题合并");
+  await replaceWarning.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(replaceWarning).toBeHidden();
+
+  const reloadPromise = page.waitForEvent("load");
+  await page.getByRole("button", { name: "安全合并（推荐）" }).click();
+  await reloadPromise;
+  await expect(page.locator("html")).toHaveClass(/theme-dark/);
+  await expect(page.locator(".note-title")).toHaveValue("GitHub 恢复的最后文档");
+  await expect(page.locator(".ProseMirror")).toHaveCSS("font-size", "21px");
+  await expect.poll(() => page.locator(".note-editor-scroll").evaluate(
+    (element) => (element as HTMLElement).scrollTop,
+  )).toBeGreaterThan(100);
+  await expect.poll(() => page.evaluate(
+    (id) => JSON.parse(localStorage.getItem(`selectionPos:${id}`) ?? "null"),
+    restoredNoteId,
+  )).toEqual({ from: 20, to: 20 });
+  await expect.poll(() => page.evaluate((id) => new Promise<boolean>((resolve, reject) => {
+    const request = indexedDB.open("nine_rings");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const get = db.transaction("notes", "readonly").objectStore("notes").get(id);
+      get.onerror = () => reject(get.error);
+      get.onsuccess = () => {
+        const exists = Boolean(get.result && !get.result.deleted_at);
+        db.close();
+        resolve(exists);
+      };
+    };
+  }), localOnlyNote.id)).toBe(true);
+  expect(downloadCount).toBe(0);
+});
+
+test("内置快捷键按用途分组并在宽屏并列展示", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^快捷键/ }).click();
+  const groups = page.locator(".hotkey-group");
+  await expect(groups).toHaveCount(2);
+  await expect(groups.nth(0).locator(".hotkey-group-title")).toHaveText("搜索与设置");
+  await expect(groups.nth(0).getByText("聚焦搜索", { exact: true })).toBeVisible();
+  await expect(groups.nth(0).getByText("打开设置", { exact: true })).toBeVisible();
+  await expect(groups.nth(1).locator(".hotkey-group-title")).toHaveText("窗口控制");
+  const notes = page.locator(".hotkey-note-card");
+  const noteTitles = await notes.locator("h4").allTextContents();
+  expect(noteTitles).toEqual(expect.arrayContaining(["文档查找与跳转", "Vim 模式"]));
+  await expect(notes.first().locator("h4")).toHaveCSS("font-size", "11px");
+  await expect(notes.first().locator("p")).toHaveCSS("font-size", "11px");
+  expect(await page.locator(".hotkey-note-grid").evaluate(element => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(2);
+  const columns = await page.locator(".hotkey-groups").evaluate(element => getComputedStyle(element).gridTemplateColumns.split(" ").length);
+  expect(columns).toBe(2);
+  await expect(groups.nth(0).locator(".hotkey-label").first()).toHaveCSS("font-size", "13px");
+  await expect(groups.nth(0).locator(".hotkey-btn kbd").first()).toHaveCSS("font-size", "14px");
+});
+
+for (const width of [390, 1280]) {
+  test(`设置所有分类和子页 Esc 逐层返回，宽度 ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+    if (width < 768) await openMobileSettings(page);
+    else await page.getByTitle("设置", { exact: true }).click();
+    const body = page.locator(".settings-body");
+    const categories = ["外观与布局", "编辑器", "文档管理", "快捷键", "云端同步", "备份与导入", "高级", "系统信息"];
+    for (const title of categories) {
+      await page.getByLabel("设置分类", { exact: true }).getByRole("button", { name: new RegExp(`^${title}`) }).click();
+      await page.keyboard.press("Escape");
+      await expect(body).toHaveAttribute("data-settings-page", "root");
+    }
+    for (const [category, parent, children] of [
+      ["外观与布局", "appearance", ["层次展示", "布局设置", "导航区样式"]],
+      ["编辑器", "editor", ["Vim 设置"]],
+      ["文档管理", "documents", ["书签", "标签管理", "作者与文档默认值"]],
+    ] as const) {
+      await page.getByLabel("设置分类", { exact: true }).getByRole("button", { name: new RegExp(`^${category}`) }).click();
+      for (const child of children) {
+        await body.getByRole("button", { name: new RegExp(`^${child}`) }).click();
+        await page.keyboard.press("Escape");
+        await expect(body).toHaveAttribute("data-settings-page", parent);
+      }
+      await page.keyboard.press("Escape");
+      await expect(body).toHaveAttribute("data-settings-page", "root");
+    }
+    await page.getByLabel("设置分类", { exact: true }).getByRole("button", { name: /^高级/ }).click();
+    await body.getByRole("button", { name: "查看更新记录", exact: true }).click();
+    await expect(body).toHaveAttribute("data-settings-page", "changelog");
+    await page.keyboard.press("Escape");
+    await expect(body).toHaveAttribute("data-settings-page", "advanced");
+    await page.keyboard.press("Escape");
+    await expect(body).toHaveAttribute("data-settings-page", "root");
+    await page.getByLabel("设置分类", { exact: true }).getByRole("button", { name: /^编辑器/ }).click();
+    await page.getByRole("button", { name: /打开排版设置/ }).click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "排版设置" })).toHaveCount(0);
+    await expect(body).toHaveAttribute("data-settings-page", "editor");
+    await page.keyboard.press("Escape");
+    await expect(body).toHaveAttribute("data-settings-page", "root");
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".settings-panel")).toHaveCount(0);
+  });
+}
+
+
+test("三击版本号仅选中版本文字，不扩大到设置页空白", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".note-editor")).toBeVisible();
+  await page.getByTitle("设置", { exact: true }).click();
+  const version = page.locator(".settings-version");
+  await version.click({ clickCount: 3 });
+  const text = await version.innerText();
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(text);
+  expect(await version.evaluate(element => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount) return false;
+    const range = selection.getRangeAt(0);
+    return element.contains(range.startContainer) && element.contains(range.endContainer);
+  })).toBe(true);
+});

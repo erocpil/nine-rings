@@ -1,6 +1,6 @@
 # 同步协议契约与候选向量
 
-> 发布状态（2026-10-17）：Web/Tauri 0.3.0 的格式/编码为 `[1]`，read/write 为 `1`，仅开放列明且已认证的特性。正式操作、备份与设备确认、恢复边界见[同步指南](../../docs/incremental-sync.md)。Flutter 仍为 0；下文历史阶段的“能力 0”不代表当前 Web/Tauri。普通备份导入仍拒绝协议封装，必须通过同步入口核验。
+> 发布状态（2026-10-17）：Web/Tauri 0.3.0 的格式/编码为 `[1]`，read/write 为 `1`，仅开放列明且已认证的特性。正式操作、备份与设备确认、恢复边界见[同步指南](../../docs/sync/incremental-sync.md)。Flutter 仍为 0；下文历史阶段的“能力 0”不代表当前 Web/Tauri。普通备份导入仍拒绝协议封装，必须通过同步入口核验。
 
 更新于 2026-10-15，涵盖 I1a～I1d 编码、往返、固定修订预检与发布恢复基础。这些是未来同步封装的实现基础，**不是已经开启的新备份格式**。顶层备份 version 1/2、应用版本、数据库版本、未来 header.format 和 header.codec 互相独立。
 
@@ -93,7 +93,7 @@ I1c 纯接口之后，I1d 已补真实固定提交下载/历史核验、按域�
 
 ## I1d：真实预检与实体往返（2026-10-15）
 
-「协议预检」已接入设置和真实认证 HTTP，固定 Git 提交并验证树、Blob 及快照父链，详见[固定提交预检](../../docs/sync-fixed-revision-preflight.md)。看到控制信息即记录保守拒写标记，完整开启事实另行核实；旧格式入口不能绕过已观察标记。该过程不改变文档、发布指针或同步基线。
+「协议预检」已接入设置和真实认证 HTTP，固定 Git 提交并验证树、Blob 及快照父链，详见[固定提交预检](../../docs/sync/sync-fixed-revision-preflight.md)。看到控制信息即记录保守拒写标记，完整开启事实另行核实；旧格式入口不能绕过已观察标记。该过程不改变文档、发布指针或同步基线。
 
 `entity-projection.ts` 只接受已通过候选审查的输入。语义投影明确统一 snake/camel、JSON 字符串数组、空概念/关联及可选路径 null/缺省，合并具有相同属性的相邻字符串操作；仅排除派生 search_text、空 tombstone、导出时间/来源元信息。密文不解密、不合并或重加密。数组顺序、正文 Unicode、有效格式、标题、时间与保护关系仍参与实体摘要；缺席实体不表示授权删除。
 
@@ -103,11 +103,11 @@ I1c 纯接口之后，I1d 已补真实固定提交下载/历史核验、按域�
 
 Dart 的共享编码、严格输入和 Note SQLite 模型测试已在远端 9aade54 运行通过；本机升级后的 Flutter 3.47.7 / Dart 3.13.5 已运行完整 51 项测试。修复旧测试初始化/列表写 SQL、退役随笔断言，以及实际 NoteVersion 的 sort_order 和标签 JSON 映射。版本 2、加密、模板与设置的新协议 Flutter 写入仍未认证，不因编码通过而开放。
 
-候选[发布恢复基础](../../docs/sync-publication-recovery.md)已加入独立本机记录库、冻结计划、发布前持久化及 GET-only 恢复。只覆盖能力认证后的空命名空间候选；生产能力保持 0，不替换现有 Push 协议。非空远端接受计划、完整 AppConfig/正文覆盖、备份/升级确认 UI 和正式对象准备流程仍为开启前门禁。
+候选[发布恢复基础](../../docs/sync/sync-publication-recovery.md)已加入独立本机记录库、冻结计划、发布前持久化及 GET-only 恢复。只覆盖能力认证后的空命名空间候选；生产能力保持 0，不替换现有 Push 协议。非空远端接受计划、完整 AppConfig/正文覆盖、备份/升级确认 UI 和正式对象准备流程仍为开启前门禁。
 
 ## Web AppConfig 候选特性（2026-10-15）
 
-最新范围新增 `web-app-config-v1`，仅允许完整且通过实际 Web 读写规范化的 AppConfig，以 `settings/app-config` 单独投影及组装；不静默填充缺省配置或丢弃未知字段。字段变更必须显式审查。Tauri/Flutter 继续拒绝，原生字段缺失及 null 合并问题仍待修复。实际存储、恢复和候选冲突回归见 [实体计划](../../docs/sync-entity-plan.md#web-appconfig-认证2026-10-15)。此段更新前述历史批次的 AppConfig 未认证范围，不改变生产协议能力或旧备份入口。
+最新范围新增 `web-app-config-v1`，仅允许完整且通过实际 Web 读写规范化的 AppConfig，以 `settings/app-config` 单独投影及组装；不静默填充缺省配置或丢弃未知字段。字段变更必须显式审查。Tauri/Flutter 继续拒绝，原生字段缺失及 null 合并问题仍待修复。实际存储、恢复和候选冲突回归见 [实体计划](../../docs/sync/sync-entity-plan.md#web-appconfig-认证2026-10-15)。此段更新前述历史批次的 AppConfig 未认证范围，不改变生产协议能力或旧备份入口。
 
 ### Tauri 配置认证补充
 
@@ -117,24 +117,24 @@ Dart 的共享编码、严格输入和 Note SQLite 模型测试已在远端 9aad
 
 候选 `block-image-v1` 在 Web/Tauri 扩展独立图片及列表/引用中的图片；共享 `fixtures/candidate-image-v1.json` 验证真实 schema 编辑/撤销、IDB/SQLite 往返及实体摘要/组装。HTTP(S) 与规范 Base64 PNG/JPEG/GIF/WebP data URI 可认证；原始本机引用需先由资源导出器解析，缺失资源失败。地址可移植不保证外部站点可访问或图片可解码；图片字节原样保留，不执行网络探测。
 
-字段/嵌入对象严格白名单，描述、尺寸和缩进参与摘要；未知字段、非规范宽度、未解析引用和未认证的 inlineImage 继续拒绝。独立图片认证不等于行内/表格图片或附件协议认证。Flutter 与生产读写能力不变，后续范围见[实体认证计划](../../docs/sync-entity-plan.md#独立图片块正文认证2026-10-16)。
+字段/嵌入对象严格白名单，描述、尺寸和缩进参与摘要；未知字段、非规范宽度、未解析引用和未认证的 inlineImage 继续拒绝。独立图片认证不等于行内/表格图片或附件协议认证。Flutter 与生产读写能力不变，后续范围见[实体认证计划](../../docs/sync/sync-entity-plan.md#独立图片块正文认证2026-10-16)。
 
 ### 行内／表格图片候选特性
 
-`inline-image-v1` 在 Web/Tauri 候选范围扩展 `inlineImage` 原子、外观标记和 HTTP(S) 图片链接。表格可包含已认证行内图片，并保留合并、多段及双重正文表达；不将一般文本链接或未知 mark 一并开放。`fixtures/candidate-inline-image-v1.json` 由真实编辑器及 IDB/SQLite 往返验收，引用锚点模型大小包含 markdownImage。字段、位置、marks 均进入实体摘要，本机图片需先解析；生产和 Flutter 能力保持不变，详见[认证计划](../../docs/sync-entity-plan.md#行内图片及表格图片认证2026-10-16)。
+`inline-image-v1` 在 Web/Tauri 候选范围扩展 `inlineImage` 原子、外观标记和 HTTP(S) 图片链接。表格可包含已认证行内图片，并保留合并、多段及双重正文表达；不将一般文本链接或未知 mark 一并开放。`fixtures/candidate-inline-image-v1.json` 由真实编辑器及 IDB/SQLite 往返验收，引用锚点模型大小包含 markdownImage。字段、位置、marks 均进入实体摘要，本机图片需先解析；生产和 Flutter 能力保持不变，详见[认证计划](../../docs/sync/sync-entity-plan.md#行内图片及表格图片认证2026-10-16)。
 
 ### 脚注与分隔线候选特性
 
-`footnotes-v1` 覆盖带 ID/编号/引用序号的文字 mark 和唯一的文末定义区；`horizontal-rule-v1` 覆盖其显式分隔线及普通 hr 对象。字段、引用/定义计数和 ID 严格校验，编号/重复返回次数通过整份文档的语义往返核对，不能用局部重编号或删除字段使样本合格。原始 Markdown 中尚未补齐分隔线/计数的表示继续拒绝，实际编辑器保存后的共享 `fixtures/candidate-footnotes-v1.json` 通过 schema/编辑历史及 IDB/SQLite 往返；这不改变旧格式导入。未引用定义与暂缺定义引用保留，完整锚点大小覆盖脚注容器。生产与 Flutter 能力不变，见[脚注认证计划](../../docs/sync-entity-plan.md#脚注正文认证2026-10-16)。
+`footnotes-v1` 覆盖带 ID/编号/引用序号的文字 mark 和唯一的文末定义区；`horizontal-rule-v1` 覆盖其显式分隔线及普通 hr 对象。字段、引用/定义计数和 ID 严格校验，编号/重复返回次数通过整份文档的语义往返核对，不能用局部重编号或删除字段使样本合格。原始 Markdown 中尚未补齐分隔线/计数的表示继续拒绝，实际编辑器保存后的共享 `fixtures/candidate-footnotes-v1.json` 通过 schema/编辑历史及 IDB/SQLite 往返；这不改变旧格式导入。未引用定义与暂缺定义引用保留，完整锚点大小覆盖脚注容器。生产与 Flutter 能力不变，见[脚注认证计划](../../docs/sync/sync-entity-plan.md#脚注正文认证2026-10-16)。
 
-受限 HTML 候选认证：`restricted-html-v1`（details、上下标、插入标记、命名锚点）、`hard-break-v1` 和 `inert-html-v1`（仅惰性原文）。共享 `fixtures/candidate-html-v1.json` 验证嵌套正文及存储恢复，严格拒绝未知结构字段与语义往返丢失；HTML 源码导出不构成外部渲染安全承诺。生产/Flutter 能力不变，见[认证范围](../../docs/sync-entity-plan.md#受限-html-正文认证2026-10-16)。
+受限 HTML 候选认证：`restricted-html-v1`（details、上下标、插入标记、命名锚点）、`hard-break-v1` 和 `inert-html-v1`（仅惰性原文）。共享 `fixtures/candidate-html-v1.json` 验证嵌套正文及存储恢复，严格拒绝未知结构字段与语义往返丢失；HTML 源码导出不构成外部渲染安全承诺。生产/Flutter 能力不变，见[认证范围](../../docs/sync/sync-entity-plan.md#受限-html-正文认证2026-10-16)。
 
 ### 特殊渲染块候选特性
 
-`mermaid-block-v1`、`flow-block-v1`、`automatic-toc-v1` 保留原 codeBlock 源码与全部已认证块属性；`math-v1` 保留行内/块级公式原子与 marks。`fixtures/candidate-special-blocks-v1.json` 覆盖有效内容、嵌套与编辑中无效草稿，不以渲染成功替代存储往返。flow 的派生图片必须可移植，Mermaid 图片资源指令暂不认证；metadata、Flutter 和生产能力的边界不变。见[认证范围](../../docs/sync-entity-plan.md#特殊渲染块正文认证2026-10-16)。
+`mermaid-block-v1`、`flow-block-v1`、`automatic-toc-v1` 保留原 codeBlock 源码与全部已认证块属性；`math-v1` 保留行内/块级公式原子与 marks。`fixtures/candidate-special-blocks-v1.json` 覆盖有效内容、嵌套与编辑中无效草稿，不以渲染成功替代存储往返。flow 的派生图片必须可移植，Mermaid 图片资源指令暂不认证；metadata、Flutter 和生产能力的边界不变。见[认证范围](../../docs/sync/sync-entity-plan.md#特殊渲染块正文认证2026-10-16)。
 
 ### 链接、Alert 与已知文档元数据
 
 `document-links-v1` 保存普通/相对/片段/nr-note 链接及 title/显式标记；`composed-inline-v1` 保存 schema 支持的代码组合 marks；`github-alert-v1` 保存五类提示引用。`document-metadata-v1` 与 `document-bookmarks-v1` 认证全部当前已知文档元数据及书签，严格拒绝未知字段和会被静默规范化的位置/身份；原始 Markdown 不被重排。`fixtures/candidate-links-metadata-v1.json` 进入 IDB/SQLite 共享恢复测试，所有字段参与实体摘要和来源选择。
 
-Mermaid 现在可认证引号 img 属性中的可移植图片；本机/相对/不明确图片源、HTML img 和未认证附件仍拒绝。来源信息不等于本机 PDF/EPUB 资源随备份保存。生产协议与 Flutter 能力仍未开放，见[完整边界](../../docs/sync-entity-plan.md#链接alert-与已知文档元数据认证2026-10-16)。
+Mermaid 现在可认证引号 img 属性中的可移植图片；本机/相对/不明确图片源、HTML img 和未认证附件仍拒绝。来源信息不等于本机 PDF/EPUB 资源随备份保存。生产协议与 Flutter 能力仍未开放，见[完整边界](../../docs/sync/sync-entity-plan.md#链接alert-与已知文档元数据认证2026-10-16)。

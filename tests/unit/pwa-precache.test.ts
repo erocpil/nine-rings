@@ -1,6 +1,6 @@
 import { runInNewContext } from "node:vm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createServiceWorkerSource } from "../../plugins/vite-pwa-plugin";
+import { createServiceWorkerSource } from "../../build-plugins/vite-pwa-plugin";
 
 type CacheWriter = {
   put: (request: Request, response: Response) => Promise<void>;

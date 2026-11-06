@@ -276,7 +276,9 @@ export function coordinateDocumentUpdate(
 
 ## 📚 相关文档
 
-- [架构审查候选项](./docs/architecture-analysis.md) - 待验证的审查建议与评估要求
+文档按职责分类，入口见 [文档导航](./docs/README.md) 和 [仓库目录约定](./docs/development/repository-layout.md)。旧记录或本机技能仅给出文档文件名时，先用 `rg --files docs` 定位，避免假定文件仍位于 docs 根目录。
+
+- [架构审查候选项](./docs/planning/architecture-analysis.md) - 待验证的审查建议与评估要求
 - [现有设计文档](./docs/) - 项目现有设计和技术文档
 - [API 文档](./src/lib/api.ts) - 统一数据访问层
 - [组件文档](./src/components/) - React 组件实现

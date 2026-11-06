@@ -1,0 +1,135 @@
+import { closeDocumentSidebar } from "../helpers/workspace";
+import { pressLineBoundary } from "../helpers/keyboard";
+import { expect, test, type Page } from "@playwright/test";
+
+async function seedNotes(page: Page) {
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  const ids = await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api }: typeof import("../../src/lib/api") = await load("/src/lib/api.ts");
+    const { localDateKey } = await load("/src/lib/local-date.ts");
+    const notes = [];
+    for (const title of ["拆分验证甲", "拆分验证乙"]) {
+      notes.push(await api.notes.create({ title, date: localDateKey(), storagePath: "references", content: { ops: [{ insert: `${title}正文` }, { insert: "\n" }] } }));
+    }
+    localStorage.setItem("nr:sidebarTab", "tree");
+    localStorage.setItem("nr:sidebarHidden", "false");
+    localStorage.setItem("nr:lastNote", notes[0].id);
+    localStorage.setItem("nr:workspaceTarget", JSON.stringify({ kind: "note", noteId: notes[0].id }));
+    return notes.map((note: { id: string }) => note.id);
+  });
+  await page.reload();
+  // Exercise actual navigation; startup restoration is covered separately.
+  await page.locator(".doc-tree-doc").filter({ hasText: "拆分验证甲" }).click();
+  await expect(page.locator(".ProseMirror")).toHaveText("拆分验证甲正文");
+  return ids;
+}
+
+async function selectLine(page: Page, text: string) {
+  const editor = page.locator(".ProseMirror");
+  await editor.locator("p").first().click();
+  await pressLineBoundary(editor, "end");
+  await pressLineBoundary(editor, "start", true);
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(text);
+  // Native selectionchange is asynchronous; context-menu commands consume
+  // ProseMirror's selection, not only the browser's temporary DOM range.
+  await expect.poll(() => editor.evaluate(element => {
+    const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    const { from, to } = instance.state.selection;
+    return instance.state.doc.textBetween(from, to);
+  })).toBe(text);
+}
+
+test("手机工具栏菜单互斥、重复点击与外部关闭，标题分页保留", async ({ page }) => {
+  await seedNotes(page);
+  await closeDocumentSidebar(page);
+  await page.setViewportSize({ width: 390, height: 850 });
+  await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
+  const dropdowns = page.locator(".editor-menu .menu-dropdown-list");
+  for (const title of ["字号", "选择文字颜色", "选择背景色", "字号", "选择背景色", "选择文字颜色"]) {
+    await page.getByRole("button", { name: title, exact: true }).click();
+    await expect(dropdowns).toHaveCount(1);
+  }
+  await page.getByTitle("选择文字颜色", { exact: true }).click();
+  await expect(dropdowns).toHaveCount(0);
+  await page.getByTitle("H1–2 H6", { exact: true }).click();
+  await expect(page.getByRole("button", { name: "标题 1", exact: true })).toBeVisible();
+  await page.locator(".ProseMirror").click();
+  await expect(page.getByRole("button", { name: "标题 1", exact: true })).toBeVisible();
+  await page.getByTitle("字号", { exact: true }).click();
+  await page.locator(".ProseMirror").click();
+  await expect(dropdowns).toHaveCount(0);
+});
+
+test("切换工具栏布局和插入弹层不重建正文，选区格式与撤销历史保留", async ({ page }) => {
+  await seedNotes(page);
+  const editor = page.locator(".ProseMirror");
+  const original = await editor.elementHandle();
+  if (!original) throw new Error("editor not mounted");
+  await closeDocumentSidebar(page);
+  await page.setViewportSize({ width: 390, height: 850 });
+  await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
+  await selectLine(page, "拆分验证甲正文");
+  await page.getByRole("button", { name: "加粗 (Ctrl+B)", exact: true }).click();
+  await expect(editor.locator("strong")).toHaveText("拆分验证甲正文");
+
+  await page.getByRole("button", { name: "添加或编辑链接", exact: true }).click();
+  const dialog = page.locator(".image-dialog");
+  await expect(dialog.locator("input")).toBeFocused();
+  await dialog.locator("input").fill("https://example.com/cancelled");
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(editor.locator("a")).toHaveCount(0);
+
+  await page.setViewportSize({ width: 1600, height: 850 });
+  await expect(page.locator(".editor-menu")).toHaveClass(/toolbar-full/);
+  await page.getByTitle("插入图片", { exact: true }).click();
+  await expect(dialog.locator("input")).toBeFocused();
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+  await page.getByRole("button", { name: "撤销 (Ctrl+Z)", exact: true }).click();
+  await expect(editor.locator("strong")).toHaveCount(0);
+  await expect(editor).toHaveText("拆分验证甲正文");
+  await page.getByRole("button", { name: "重做 (Ctrl+Y)", exact: true }).click();
+  await expect(editor.locator("strong")).toHaveText("拆分验证甲正文");
+  expect(await original.evaluate((element) => element === document.querySelector(".ProseMirror"))).toBe(true);
+  await expect(editor).toHaveCount(1);
+  await original.dispose();
+});
+
+test("切换文档后右键菜单和链接对话框只更新当前文档", async ({ page }) => {
+  const ids = await seedNotes(page);
+  const editor = page.locator(".ProseMirror");
+  for (const title of ["拆分验证甲", "拆分验证乙"]) {
+    await page.locator(".doc-tree-doc").filter({ hasText: title }).click();
+    await expect(editor).toHaveText(`${title}正文`);
+    await selectLine(page, `${title}正文`);
+    await editor.evaluate((element) => {
+      const range = window.getSelection()!.getRangeAt(0);
+      const rect = range.getClientRects()[0];
+      element.dispatchEvent(new MouseEvent("contextmenu", {
+        clientX: rect.left + 2, clientY: rect.top + rect.height / 2,
+        bubbles: true, cancelable: true, view: window,
+      }));
+    });
+    const menu = page.locator(".editor-context-menu");
+    await menu.getByRole("button", { name: "插入", exact: true }).click();
+    await menu.getByRole("button", { name: "添加或编辑链接", exact: true }).click();
+    const dialog = page.locator(".image-dialog");
+    const href = title.endsWith("甲") ? "https://example.com/first" : "https://example.com/second";
+    await dialog.locator("input").fill(href);
+    await dialog.getByRole("button", { name: "插入", exact: true }).click();
+    await expect(editor.locator("a")).toHaveAttribute("href", href);
+    await expect(editor.locator("a")).toHaveText(`${title}正文`);
+    await expect(page.locator(".save-status-saved")).toBeVisible();
+  }
+  const saved = await page.evaluate(async (noteIds) => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts");
+    return Promise.all(noteIds.map((id) => api.notes.get(id)));
+  }, ids);
+  expect(JSON.stringify(saved[0].content)).toContain("https://example.com/first");
+  expect(JSON.stringify(saved[0].content)).not.toContain("https://example.com/second");
+  expect(JSON.stringify(saved[1].content)).toContain("https://example.com/second");
+  expect(JSON.stringify(saved[1].content)).not.toContain("https://example.com/first");
+});

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createServiceWorkerSource } from "../plugins/vite-pwa-plugin";
+import { createServiceWorkerSource } from "../build-plugins/vite-pwa-plugin";
 import { isModuleLoadError } from "../src/lib/module-load-recovery";
 
 const first = createServiceWorkerSource([

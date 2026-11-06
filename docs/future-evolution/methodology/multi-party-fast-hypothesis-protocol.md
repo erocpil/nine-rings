@@ -1,7 +1,7 @@
 # 多主体互动的极速假设协议
 
 > 状态：v0.3 子协议；尚未完成行为与结果验证
-> 所属：[认知与行动方法论](../cognitive-action-methodology.md) · [主闭环](cognitive-action-learning-system.md)
+> 所属：[认知与行动方法论](../cognitive-action-methodology.md) · [主闭环](./cognitive-action-learning-system.md)
 > 用途：高压或快速的多主体互动中，以影响范围、承诺强度和修复成本可接受的动作获得可追溯 Feedback；不替代主闭环、专业审查、组织治理或应急预案
 
 ## 结论先行

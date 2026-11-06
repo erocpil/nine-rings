@@ -4,7 +4,7 @@ const DATABASE = "nine_rings_reading_annotations";
 const VERSION = 1;
 const STORE = "annotations";
 
-/** Temporarily paused pending completion of docs/reading-annotations-design.md review. */
+/** Temporarily paused pending completion of docs/features/reading-annotations-design.md review. */
 export const READING_ANNOTATIONS_ENABLED = false;
 const NOTE_INDEX = "noteId";
 

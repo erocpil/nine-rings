@@ -2,7 +2,7 @@
 
 > 最近拆分：2026-07-30
 > 文档职责：产品化导航与当前路线结论
-> 上位方法：[认知与行动方法论](cognitive-action-methodology.md) · [总入口](../future-evolution.md)
+> 上位方法：[认知与行动方法论](./cognitive-action-methodology.md) · [总入口](../features/future-evolution.md)
 
 本文只讨论 Nine Rings 如何帮助用户实践认知与行动方法，以及当前 PKM、跨端、本地数据、AI 和产品路线应如何演进。方法定义与有效性证据以上位方法论文档为准。
 
@@ -10,9 +10,9 @@
 
 | 文档 | 职责 |
 |---|---|
-| [产品基础与验证门槛](productization/foundations-and-validation.md) | 实现基线、产品判断、AI / Agent 分工、Non-goals 和三个产品验证门槛 |
-| [产品能力方向](productization/capability-directions.md) | 知识工作流、同步、隐私、AI、任务、平台、插件、发布和商业化 |
-| [产品路线与取舍](productization/roadmap-and-tradeoffs.md) | 三阶段路线、资源分配、方向选择原则与最终取舍 |
+| [产品基础与验证门槛](./productization/foundations-and-validation.md) | 实现基线、产品判断、AI / Agent 分工、Non-goals 和三个产品验证门槛 |
+| [产品能力方向](./productization/capability-directions.md) | 知识工作流、同步、隐私、AI、任务、平台、插件、发布和商业化 |
+| [产品路线与取舍](./productization/roadmap-and-tradeoffs.md) | 三阶段路线、资源分配、方向选择原则与最终取舍 |
 
 ## 当前结论
 

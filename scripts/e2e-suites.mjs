@@ -1,3 +1,6 @@
+import { readdirSync } from "node:fs";
+import { basename } from "node:path";
+
 export const productionOnlyFiles = [
   "pwa-offline",
   "pwa-update",
@@ -69,7 +72,7 @@ const rules = [
   {
     name: "plugins",
     source:
-      /^(src\/lib\/plugin-system\/(date-formats|command-arguments|command-parameters|result-presentation|builtin-tool-preferences|builtin-plugin-catalog|builtin-image-viewer|image-command|local-image|panel-display|builtin-tree-display)\.ts$|plugins\/|src\/components\/Plugin)/,
+      /^(src\/lib\/plugin-system\/(date-formats|command-arguments|command-parameters|result-presentation|builtin-tool-preferences|builtin-plugin-catalog|builtin-image-viewer|image-command|local-image|panel-display|builtin-tree-display)\.ts$|src\/components\/Plugin)/,
     tests: /plugin|image|panel-display|notes-panel|reference-copy/,
   },
   {
@@ -113,7 +116,7 @@ export function selectE2E(
   for (const original of changedPaths ?? []) {
     const path = original.replaceAll("\\", "/");
     if (path.startsWith("e2e/") && path.endsWith(".spec.ts")) {
-      const file = path.slice("e2e/".length);
+      const file = path.split("/").at(-1);
       // Production specs have an independent workflow gate; deleted specs
       // do not produce nonexistent default-suite targets.
       if (productionOnlyFiles.includes(file))
@@ -199,3 +202,13 @@ export const webkitGates = [
     grep: "宽屏触控|长按文档|触控图片|显式状态类|虚拟键盘|边缘|侧栏.*同宽|点击目录书签|非专注模式书签与目录弹层|目录快速滚动按钮显隐|手机目录长标题|同一可视视口|更多菜单|更多弹层|再次点按更多|手机端可从更多|选择文字后工具栏|待办输入框与|手机向上拖动 splitter|专注模式.*待办|响应式编辑器工具栏",
   },
 ];
+/** Basenames remain stable suite IDs across feature-directory moves. */
+export function discoverE2EFiles(root = "e2e") {
+  const files = readdirSync(root, { recursive: true })
+    .filter(file => file.endsWith(".spec.ts"))
+    .map(file => basename(file))
+    .sort();
+  if (new Set(files).size !== files.length)
+    throw new Error("E2E spec basenames must be unique across directories");
+  return files;
+}

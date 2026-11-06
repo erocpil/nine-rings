@@ -1,0 +1,255 @@
+import { openVersionHistory } from "../helpers/version-history";
+import { expect, test, type Page } from "@playwright/test";
+
+async function mountDialog(page: Page, kind: "recycle" | "versions") {
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  return page.evaluate(async (kind) => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const React = (await load("/node_modules/.vite/deps/react.js")).default;
+    const { createRoot } = (await load("/node_modules/.vite/deps/react-dom_client.js")).default;
+    const { api } = await load("/src/lib/api.ts");
+    const note = await api.notes.create({ date: "2026-09-06", title: "可靠性验证", content: { ops: [{ insert: "旧正文" }, { insert: "\n" }] } });
+    const host = document.createElement("div");
+    host.dataset.testid = "action-harness";
+    Object.assign(host.style, { position: "fixed", inset: "0", zIndex: "99999" });
+    document.body.append(host);
+    const root = createRoot(host);
+    const state = { calls: 0, fail: true, loaded: false, release: () => {}, restored: "" };
+    (window as any).actionTest = state;
+    if (kind === "recycle") {
+      await api.notes.delete(note.id);
+      const remove = api.recycle.permanentlyDelete;
+      api.recycle.permanentlyDelete = async (id: string) => {
+        state.calls++;
+        if (state.fail) throw new Error("模拟删除失败");
+        await new Promise<void>((resolve) => { state.release = resolve; });
+        return remove(id);
+      };
+      const { RecycleBin } = await load("/src/components/RecycleBin.tsx");
+      root.render(React.createElement(RecycleBin, { open: true, onClose: () => root.unmount() }));
+    } else {
+      await api.versions.checkpoint(note.id);
+      await api.notes.update(note.id, { content: { ops: [{ insert: "另一历史正文" }, { insert: "\n" }] } });
+      await api.versions.checkpoint(note.id);
+      const restore = api.versions.restore;
+      api.versions.restore = async (id: string) => {
+        state.calls++;
+        await new Promise<void>((resolve) => { state.release = resolve; });
+        return restore(id);
+      };
+      const { VersionHistory } = await load("/src/components/VersionHistory.tsx");
+      root.render(React.createElement(VersionHistory, {
+        open: true, noteId: note.id, onClose: () => root.unmount(),
+        onBeforeRestore: async () => {
+          if (!state.loaded) { state.loaded = true; return; }
+          if (state.fail) throw new Error("模拟保存失败");
+          await api.notes.update(note.id, { content: { ops: [{ insert: "恢复前最新编辑" }, { insert: "\n" }] } });
+        },
+        onRestore: (restored: { id: string }) => { state.restored = restored.id; },
+      }));
+    }
+    return note.id;
+  }, kind);
+}
+
+test("永久删除需确认，失败可重试，处理中禁止其它操作", async ({ page }) => {
+  await mountDialog(page, "recycle");
+  const panel = page.getByRole("dialog", { name: "回收站", exact: true });
+  const remove = panel.getByRole("button", { name: "永久删除", exact: true });
+  await remove.click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: "取消", exact: true }).click();
+  expect(await page.evaluate(() => (window as any).actionTest.calls)).toBe(0);
+  await panel.getByRole("button", { name: "清理 30 天前的记录", exact: true }).click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: "取消", exact: true }).click();
+  await expect(panel.locator(".recycle-item")).toHaveCount(1);
+  await remove.click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: /永久删除|永久清理|恢复此版本/, exact: true }).click();
+  await expect(panel.getByRole("alert")).toContainText("模拟删除失败");
+  await expect(remove).toBeEnabled();
+  await page.evaluate(() => { (window as any).actionTest.fail = false; });
+  await remove.click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: /永久删除|永久清理|恢复此版本/, exact: true }).click();
+  await expect(remove).toBeDisabled();
+  await expect(panel.getByRole("button", { name: "恢复", exact: true })).toBeDisabled();
+  await expect(panel.getByLabel("关闭回收站")).toBeDisabled();
+  await page.evaluate(() => (window as any).actionTest.release());
+  await expect(panel.locator(".recycle-item")).toHaveCount(0);
+  await expect(panel.getByRole("status")).toContainText("已永久删除");
+});
+
+for (const width of [1280, 390]) {
+  test(`统一确认框支持键盘取消并隔离背景（${width}px）`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 760 });
+    await mountDialog(page, "recycle");
+    const panel = page.getByRole("dialog", { name: "回收站", exact: true });
+    const remove = panel.getByRole("button", { name: "永久删除", exact: true });
+    // WebKit pointer clicks do not focus buttons; enter through the keyboard.
+    await remove.focus();
+    await remove.press("Enter");
+    const confirm = page.getByRole("dialog", { name: "永久删除文档", exact: true });
+    const cancel = confirm.getByRole("button", { name: "取消", exact: true });
+    const accept = confirm.getByRole("button", { name: "永久删除", exact: true });
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(accept).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(accept).toBeFocused();
+    await expect(confirm).toContainText("无法从回收站恢复");
+    const box = await confirm.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: test.info().outputPath(`nine-rings-confirm-${width}.png`) });
+    const lightSurface = await confirm.evaluate((element) => getComputedStyle(element).backgroundColor);
+    await page.evaluate(async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { applyTheme } = await load("/src/lib/theme.ts");
+      applyTheme("dark");
+    });
+    await expect.poll(() => confirm.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(lightSurface);
+    await page.screenshot({ path: test.info().outputPath(`nine-rings-confirm-${width}-dark.png`) });
+    await page.keyboard.press("Escape");
+    await expect(confirm).toHaveCount(0);
+    await expect(panel).toBeVisible();
+    await expect(remove).toBeFocused();
+    await expect(panel.locator(".recycle-item")).toHaveCount(1);
+  });
+}
+
+test("错误详情可完整复制，剪贴板失败不误报成功", async ({ page }) => {
+  await mountDialog(page, "recycle");
+  const panel = page.getByRole("dialog", { name: "回收站", exact: true });
+  await panel.getByRole("button", { name: "永久删除", exact: true }).click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: "永久删除", exact: true }).click();
+  const message = panel.getByRole("alert");
+  await expect(message).toContainText("模拟删除失败");
+  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: async (text: string) => { document.body.dataset.copiedError = text; } },
+  }));
+  await panel.getByRole("button", { name: "复制详情" }).click();
+  await expect(panel.getByText("已复制详情", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.body.dataset.copiedError)).toBe(await message.textContent());
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } });
+    document.execCommand = () => false;
+  });
+  await panel.getByRole("button", { name: "复制详情" }).click();
+  await expect(panel.getByText("复制失败，请手动选择并复制上方详情")).toBeVisible();
+});
+
+test("版本恢复先保存，失败不恢复，并发恢复受阻且保留最新编辑快照", async ({ page }) => {
+  const id = await mountDialog(page, "versions");
+  const panel = page.getByRole("dialog", { name: "版本历史", exact: true });
+  const restores = panel.locator(".version-btn-restore");
+  await expect(restores).toHaveCount(2);
+  await restores.last().click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: "取消", exact: true }).click();
+  expect(await page.evaluate(() => (window as any).actionTest.calls)).toBe(0);
+  await restores.last().click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: /永久删除|永久清理|恢复此版本/, exact: true }).click();
+  await expect(panel.getByRole("alert")).toContainText("模拟保存失败");
+  expect(await page.evaluate(() => (window as any).actionTest.calls)).toBe(0);
+  await page.evaluate(() => { (window as any).actionTest.fail = false; });
+  await restores.last().click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: /永久删除|永久清理|恢复此版本/, exact: true }).click();
+  await expect(restores.first()).toBeDisabled();
+  await expect(restores.last()).toBeDisabled();
+  await expect(panel.getByLabel("关闭版本历史")).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => (window as any).actionTest.calls)).toBe(1);
+  await page.evaluate(() => (window as any).actionTest.release());
+  await expect(panel).toHaveCount(0);
+  const versions = await page.evaluate(async (id) => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts");
+    return JSON.stringify(await api.versions.list(id));
+  }, id);
+  expect(versions).toContain("恢复前最新编辑");
+});
+
+async function seedNavigation(page: Page) {
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  const ids = await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts");
+    const { localDateKey } = await load("/src/lib/local-date.ts");
+    const notes = [];
+    for (const title of ["可靠甲", "可靠乙"]) notes.push(await api.notes.create({ date: localDateKey(), title, storagePath: "projects/reliability", content: { ops: [{ insert: title }, { insert: "\n" }] } }));
+    localStorage.setItem("nr:sidebarHidden", "false");
+    localStorage.setItem("nr:docTreeCollapsed", "[]");
+    localStorage.setItem("nr:lastNote", notes[1].id);
+    localStorage.setItem("nr:workspaceTarget", JSON.stringify({ kind: "note", noteId: notes[1].id }));
+    return notes.map((note: { id: string }) => note.id);
+  });
+  await page.reload();
+  // Establish the selection through the UI; startup restoration is tested separately.
+  await page.locator(".doc-tree-name").getByText("可靠乙", { exact: true }).click();
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("可靠乙");
+  return ids;
+}
+
+test("文档树只接受最后选择，迟到响应及失败不会串页", async ({ page }) => {
+  const [first, second] = await seedNavigation(page);
+  await page.evaluate(async (first) => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts");
+    const get = api.notes.get;
+    (window as any).selectionTest = { fail: false, finished: false, release: () => {} };
+    api.notes.get = async (id: string) => {
+      if (id === first) {
+        if ((window as any).selectionTest.fail) throw new Error("模拟读取失败");
+        await new Promise<void>((resolve) => { (window as any).selectionTest.release = resolve; });
+      }
+      const result = await get(id);
+      if (id === first) (window as any).selectionTest.finished = true;
+      return result;
+    };
+  }, first);
+  const a = page.locator(".doc-tree-name").getByText("可靠甲", { exact: true });
+  const b = page.locator(".doc-tree-name").getByText("可靠乙", { exact: true });
+  await a.click();
+  await b.click();
+  await page.evaluate(() => (window as any).selectionTest.release());
+  await expect.poll(() => page.evaluate(() => (window as any).selectionTest.finished)).toBe(true);
+  // Drain the asynchronous IDB read and React commit before checking the selection.
+  await expect.poll(() => page.evaluate(async (id) => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts");
+    await api.notes.get(id);
+    return document.querySelector<HTMLInputElement>('input[placeholder="输入文档标题"]')?.value;
+  }, second)).toBe("可靠乙");
+  await page.evaluate(() => { (window as any).selectionTest.fail = true; });
+  await a.click();
+  await expect(page.getByRole("alert")).toContainText("模拟读取失败");
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("可靠乙");
+});
+
+test("工作区恢复历史版本直接刷新当前文档且重载后仍保留", async ({ page }) => {
+  const [, id] = await seedNavigation(page);
+  await page.evaluate(async (id) => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts");
+    await api.versions.checkpoint(id);
+  }, id);
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("恢复前的未保存正文");
+  await openVersionHistory(page);
+  const panel = page.getByRole("dialog", { name: "版本历史", exact: true });
+  await panel.getByRole("button", { name: "恢复", exact: true }).first().click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: /永久删除|永久清理|恢复此版本/, exact: true }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("可靠乙");
+  await expect(editor).toHaveText("可靠乙");
+  const versions = await page.evaluate(async (id) => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts");
+    return JSON.stringify(await api.versions.list(id));
+  }, id);
+  expect(versions).toContain("恢复前的未保存正文");
+  await page.reload();
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("可靠乙");
+  await expect(editor).toHaveText("可靠乙");
+});

@@ -1,0 +1,329 @@
+# GitHub 备份
+
+九环通过 GitHub 仓库实现数据版本化备份。采用**全量 JSON 快照**方案，支持 Push（上传）/ Pull（下载）。
+
+Web/PWA 与 Tauri 0.3.0 已提供逐实体选择合并、接受基线和可恢复的手动同步，使用方法见[正式同步指南](./incremental-sync.md)。远端载荷仍是完整 JSON 快照；按文档拆分传输、删除传播与自动同步尚未实现。旧格式备份继续可用，首次切换必须导出并核验本地备份、确认参与设备升级；Flutter 暂不参与新协议。历史方案见[增量评估](./incremental-backup-assessment.md)和[补强设计](./sync-snapshot-hardening-design.md)。
+
+导出构成及上传耗时可在「备份测量」查看；另提供只读仓库元数据工具，使用方法和统计边界见[备份测量](./backup-measurement.md)。
+
+---
+
+## 快速开始（3 步）
+
+```
+1. 生成 Token  →  GitHub Settings → Developer settings → Fine-grained tokens
+                 仅选择备份仓库，授予 Contents: Read and write，并设置有效期
+
+2. 创建仓库    →  New repository，设为 Private，不勾选 README
+
+3. 配置九环    →  ⚙ 设置 → GitHub 备份 → 填入 Token / Owner / Repo → 测试连接
+```
+
+---
+
+## 一、生成 GitHub Token
+
+1. 登录 [GitHub](https://github.com)，点击右上角头像 → **Settings**
+2. 左侧菜单 → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**
+3. 点击 **Generate new token**，选择备份仓库所属用户或组织
+4. 设置名称和有限有效期（例如 30 天）；**Repository access** 仅选择用于备份的仓库
+5. **Repository permissions → Contents** 选择 **Read and write**；不需要账号级或所有仓库权限
+6. 生成后立即复制并妥善保管令牌；组织仓库可能需要管理员审批
+
+优先使用最小仓库范围、有限有效期的令牌，参见 [GitHub 官方令牌指南](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)。仅当 fine-grained 不支持使用场景时考虑 classic，注意其 repo 权限覆盖范围更大。
+
+Web/PWA/Tauri 默认只在当前会话保留 Token。主动勾选“记住 Token”会写入本地存储，并非加密保险箱；不要在共享设备使用。Flutter 当前仅保留进程会话，重启后需重新输入。导出的备份不包含认证令牌。
+
+Web/PWA/Tauri 备份中的 GitHub 连接偏好仅包含 owner/repo/path，不携带已接受的同步版本、远端 SHA、最后同步时间、凭据记忆模式或未来协议状态/待完成操作。恢复旧备份时同样忽略这些额外字段；恢复连接偏好会清空该配置中的旧基线，远端已有备份时需先安全 Pull，再 Push。本机独立保存的凭据及协议事实不由备份替换；若文档恢复失败，连接偏好与原本机基线一起精确回滚。
+
+---
+
+## 二、配置字段
+
+| 字段 | 说明 | 示例 |
+|------|------|------|
+| **Token** | Personal Access Token | `ghp_xxxxxxxxxxxx` |
+| **Owner** | GitHub 用户名或组织名 | `erocpil` |
+| **Repo** | 仓库名 | `nine-rings-backup` |
+| **备份文件路径** | 仓库中 JSON 文件路径 | `nine-rings-backup.json` |
+
+---
+
+## 三、备份操作
+
+下述安全合并与工作区恢复流程适用于 Web/PWA/Tauri。Flutter 已加入旧版本 Push 保护，但 Pull 仍采用原有恢复流程；操作前单独导出本地备份，不要将其视为 Web 的安全双向合并。
+
+PDF/EPUB 原文件及其独立资料库中的批注、书签和阅读状态不在当前 JSON 快照范围内。
+
+### Push（上传）
+
+点击 **Push ↑** 将本地数据上传到 GitHub。
+
+Web/PWA/Tauri 的上传任务独立于设置页：关闭设置页或切换设置分类不会取消上传。全局任务提示显示准备、检查、上传和发布阶段，以及当前请求大小、超时上限；支持取消，成功或失败提示保留到手动关闭。进度条表示任务仍在进行，不虚构上传百分比。
+
+上传前先保存当前未落盘的编辑；准备快照期间暂停编辑，开始网络上传后可继续编辑，新修改需下次 Push 才会包含。普通连接检查保持 20 秒超时；上传按包含 Base64 的实际请求大小分配 2～10 分钟预算，响应正文读取也受超时保护。数据文件和 latest 指针分别计时，仅两者均确认成功才记录上传成功；不会自动重试写请求。
+
+**大快照上传**：Web/PWA/Tauri 对 UTF-8 大小达到 8 MiB 的快照直接使用 Git 数据接口；这是应用的传输选择阈值，不是 GitHub 公布的 Contents 限制。Blob 使用 UTF-8，避免 Contents 请求中的 Base64 膨胀；远端仍为原有完整 JSON，版本文件名、latest 内容和 Pull 格式均不变，旧客户端仍可读取。相关接口沿用 Contents 写权限，参见 [Git blobs](https://docs.github.com/en/rest/git/blobs#create-a-blob)、[Git trees](https://docs.github.com/en/rest/git/trees#create-a-tree) 和 [更新引用](https://docs.github.com/en/rest/git/refs#update-a-reference)。
+
+上传前取得默认分支的 HEAD 和 tree，以原 tree 为基础只添加本次版本文件；核对服务器返回的 Blob SHA 与本机计算的 Git 对象 SHA 一致后创建提交，再以 `force: false` 更新分支。若分支同时前进、版本路径已存在、哈希不符或任一步失败，停止操作，不自动重试写入，也不发布 latest；未链接的 Git 对象不代表可用的新备份。分支更新确认成功后，latest 仍使用上传前读取的文件 SHA 做条件更新。空仓库先在本次尚未发布的版本路径创建 `{}` 作为初始化提交，随后替换为完整快照；只有完整数据提交确认后才写 latest，初始化失败或中断不会把占位文件发布成最新备份。
+
+该调整更换大 Contents PUT 的上传路径，不代表已解决所有 HTTP 400。2026-10-14 用户在 macOS Tauri `c2f790a` 实机复测，约 36.4 MB 的 Git Blob 请求仍返回相同 400，而此前小 GET 正常；随后用户确认**关闭代理/VPN 后 Push 成功**。这个对照将本次故障范围收敛到代理链路，但未确定具体是代理请求体限制、超时还是协议兼容问题，不能断言是 HTTP/2 缺陷。遇到类似情况，可先断开代理对照，再检查代理对大请求的处理；不需要为本次故障再次更改备份格式或盲重试写入。日志保留具体 Git 接口、请求大小、HTTP 状态与可用的请求 ID。
+
+**查看同步诊断**：设置 → 云端同步 → GitHub 备份 →「同步日志」，上传失败提示也提供「查看同步日志」。入口不依赖正文状态栏、专注模式或是否打开文档；弹层可查看已有记录、实时更新并复制，Esc 仅关闭日志弹层，保留设置页。日志使用聚合摘要显示快照字节数、版本、文档/加密正文/模板/保护路径/保护历史数量及封装头是否存在，不再展开整棵文档树或输出文档标题、概念、来源设备标识；非法 JSON 不输出原文片段。导出与上传响应记录耗时；远端版本未接受时明确提示预检阻止上传。聚合摘要不是完整性或解密验证。日志限当前会话，退出应用后不保留；高级设置中的启动/退出诊断 JSON 是另一类信息，不能代替同步日志。
+
+PUT 诊断记录数据/指针阶段、远端路径、原文 UTF-8 大小、Base64 JSON 请求大小、网络通道、超时及服务器提供的 GitHub 请求 ID，不记录认证头或请求正文。HTTP 400 等明确拒绝会提示未进入发布或发布被拒绝；连接中断、408、超时等仍保留远端结果不确定的说明。仅凭 400 无法判断是请求体、服务端限制还是网络链路问题，不自动重试写入，也不自动发布可能不完整的快照。
+
+“后台上传”仅指应用内关闭设置页。关闭或刷新页面、退出应用、手机系统挂起 PWA 都可能中断任务。取消或超时并不能撤回服务端可能已收到的写入；若发生在发布 latest 阶段，请先检查远端，必要时 Pull 安全合并后再重试。
+
+**流程**：
+1. 导出本地文档（含随记）、模板、标签、应用设置及最后阅读位置为 JSON；Web/Tauri 将正文中的本地图片内嵌到备份，缺失图片会明确报错
+2. 检查远端是否存在本机尚未合并的新版本；存在则停止 Push，要求先安全 Pull；通过检查后上传快照
+3. 更新远端 SHA 用于下次备份
+
+**使用场景**：
+- 完成重要编辑后手动备份
+- 换设备前上传最新数据
+- 每日定时备份（配合定时任务）
+
+### Pull（下载）
+
+点击 **Pull ↓** 从 GitHub 下载数据恢复到本地。
+
+**流程**：
+1. 从 GitHub 拉取最新的版本化备份并展示本地/远端差异预检
+2. 用户选择 **安全合并（推荐）** 或显式全量覆盖；预检完成不会自动导入
+3. 安全合并保留本地独有文档，不传播删除；同一 UUID 冲突默认让原名称采用 GitHub 备份版本，将执行 Pull 的当前设备版本以新 UUID 另存为“本机版本·冲突副本”，同名但 UUID 不同的文档同时保留。全量覆盖会移除远端没有的本地内容，必须明确确认
+4. 自动重新载入应用，恢复最后打开的文档、光标和滚动位置
+
+**使用场景**：
+- 新设备首次使用九环时恢复数据
+- 另一设备备份后恢复到当前设备
+
+### 备份期间界面冻结
+
+Push/Pull 执行期间：
+- 编辑器顶部显示**金色横幅**提醒
+- 所有笔记设为**只读**，禁止编辑
+- 侧栏、文档树、待办、属性面板**禁用**
+- Push/检查完成后横幅自动消失；Pull 导入成功后应用自动重新载入并恢复工作区
+
+**原因**：备份/恢复需要一致的数据快照，期间编辑可能使预检结果失效。界面冻结不代表默认采用覆盖恢复；安全合并和显式覆盖是不同操作。
+
+---
+
+## 四、多设备工作流
+
+```
+设备 A                  GitHub                  设备 B
+───────                ──────                  ───────
+编辑笔记
+  │
+  └── Push ↑ ──────→  nine-rings-backup.json
+                                                │
+                                      Pull ↓ ───┘
+                                                编辑笔记
+                                                  │
+                                      Push ↑ ────┘
+                        nine-rings-backup.json
+  │
+  └── Pull ↓ ───────
+```
+
+**黄金规则**：**先 Pull → 编辑 → 再 Push**
+
+- Push 上传全量快照；发现未合并的远端版本时停止，不直接覆盖 latest 指针
+- 两台设备同时编辑时，先安全 Pull 并处理冲突副本，再 Push；不要为了绕过保护选择全量覆盖
+- 安全流程：每次编辑前先 Pull，编辑完尽快 Push
+
+---
+
+## 五、示例
+
+### 示例 1：首次配置（单设备备份）
+
+```
+目标：在家里的电脑上使用九环，数据备份到 GitHub
+
+步骤：
+  1. 生成限备份仓库的 Token（Contents: Read and write）
+  2. 创建 Private 仓库 nine-rings-backup
+  3. 九环设置 → GitHub 备份 → 填入：
+     Token:  ghp_abc123...
+     Owner:  myname
+     Repo:   nine-rings-backup
+     路径:   nine-rings-backup.json
+  4. 点击 "测试连接" → ✅ 绿色提示
+  5. 每次编辑完成后点击 Push ↑
+
+效果：
+  - 笔记本数据安全存储在 GitHub
+  - 即使电脑重装，数据不丢失
+```
+
+### 示例 2：两台设备切换
+
+```
+目标：公司电脑和家里电脑都用九环，数据保持一致
+
+设备 A（公司电脑）：
+  1. 配置 GitHub 备份（同示例 1）
+  2. 下班前：Push ↑
+
+设备 B（家里电脑）：
+  1. 打开九环 → 设置 → GitHub 备份
+  2. 填入相同的 Token / Owner / Repo
+  3. 测试连接
+  4. Pull ↓（拉取公司电脑的最新数据）
+  5. 开始编辑
+
+第二天回到公司：
+  1. 设备 A：Pull ↓（获取昨晚家里编辑的内容）
+  2. 继续编辑
+```
+
+### 示例 3：.md 文件批量导入 + 备份
+
+```
+目标：将本地 Markdown 文档导入九环，并恢复到另一设备
+
+步骤：
+  1. 在设备 A 上：
+     cd /root/src/nine-rings
+     python3 scripts/md-to-nine-rings.py --serve --path projects/my-docs ./my-markdown/
+
+  2. 浏览器自动接收导入（dev server 模式）
+     或生成 JSON 文件后通过设置页导入
+
+  3. 导入完成后 Push ↑
+
+  4. 在设备 B 上：
+     Pull ↓ → 笔记自动出现
+     再次运行相同导入命令 → 不会重复（upsert 去重）
+```
+
+### 示例 4：定时自动备份
+
+```
+目标：每天凌晨 3 点自动 Push 到 GitHub
+
+方法 A — 九环定时任务（推荐）：
+  九环内置 cronjob 功能，可配置定时 Push
+
+方法 B — 外部脚本 + 浏览器自动化：
+  #!/bin/bash
+  # 依赖：九环已打开并配置好 GitHub 备份
+  # 通过 API 触发 push（如果后续支持）
+  curl -X POST http://localhost:1420/api/sync/push
+```
+
+---
+
+## 六、去重机制
+
+### 导入时去重（importData + upsertNote）
+
+备份 Pull 和 .md 导入共用同一套去重策略：
+
+| 优先级 | 匹配键 | 适用场景 | 命中后操作 |
+|--------|--------|---------|-----------|
+| 1 | `storagePath` | 文档笔记（P.A.R.A. 目录） | 更新内容，保留本地 ID |
+| 2 | `title` + `date` | 日记随笔（非文档笔记） | 更新内容，保留本地 ID |
+| — | 无匹配 | 新笔记 | 创建，新 UUID |
+
+**效果**：
+- 同一篇笔记同步多少次，ID 不变 → 滚动位置不丢
+- 侧栏不出现同名重复条目
+- `linkedDocIds` 等引用不断裂
+
+### 调试：查看同步详情
+
+九环内置调试面板（`[变更]` 日志）：
+
+```
+[Sync] Pull（本地）
+[Sync] ├─ 大小: 2.5 MB  |  版本: 1  |  导出: 2026-07-08T10:44:46
+[Sync] ├─ 笔记: 42 篇
+[Sync] │  ├─ 435e582e  "🎨 功能展示"  2026-07-08
+[Sync] │  ├─ 7ffc80bf  "DPDK 注压测方案"  2026-07-08
+[Sync] │  └─ ...
+[Sync] ├─ 每日页面: 15 页
+[Sync] │  ├─ 2026-07-08  (3 todos)
+[Sync] │  └─ ...
+[importData] 去重合并 3 条，总计 42 notes + 15 pages
+```
+
+Push 和 Pull 结果都会以**树形图** dump 到调试窗口。
+
+---
+
+## 七、技术细节
+
+### 大文件处理
+
+GitHub Contents API 对超过 1MB 的文件不返回 `content` 字段。九环自动切换为 **Git Blobs API**：
+
+- 文件 ≤ 1MB → `GET /repos/:owner/:repo/contents/:path`（含 base64 content）
+- 文件 > 1MB → `GET /repos/:owner/:repo/contents/:path`（取 sha）
+                → `GET /repos/:owner/:repo/git/blobs/:sha`（取内容）
+
+对用户透明，无额外配置。
+
+### 备份配置存储
+
+- Token / Owner / Repo / Path 存储在浏览器 `localStorage`（Web）或 Tauri 本地存储
+- Key：`nr:github-sync`（历史遗留键名，未改变）
+- Token 不会上传到任何第三方服务器
+- 建议使用 Private 仓库保护数据
+
+### 备份流程（完整时序）
+
+```
+用户点击 Push ↑
+  │
+  ├─ 界面冻结（金色横幅 + 全部只读）
+  ├─ exportFullDB() → JSON 字符串
+  ├─ 计算文件大小 → 选择 Contents API 或 Blobs API
+  ├─ PUT /repos/:owner/:repo/contents/:path
+  ├─ 更新 remoteSha
+  ├─ 界面解冻
+  └─ toast: "✅ Push 成功" / "❌ 失败原因"
+
+用户点击 Pull ↓
+  │
+  ├─ 确认提示
+  ├─ 界面冻结
+  ├─ GET repo contents → JSON 字符串
+  ├─ dumpBundle("Pull（远端）") → 调试窗口树形图
+  ├─ importData() → 去重导入
+  │   ├─ 读取现有笔记，构建去重索引
+  │   ├─ 逐条匹配（storagePath > title+date）
+  │   └─ 合并或新增
+  ├─ 界面解冻
+  └─ toast: "✅ Pull 成功" / "❌ 失败原因"
+```
+
+### 版本历史备份范围
+
+GitHub Push 上传当前全量导出快照。普通未加密文档只导出当前内容，不包含本机的历史版本；因此 Push 不会备份普通文档的版本历史。加密文档的历史版本会放入 `protected_versions`，以加密内容随快照上传。编辑器状态栏中的“本机已保存”只表示内容已经写入当前设备；远端备份需要单独执行 Push。
+
+---
+
+## 八、故障排查
+
+macOS/Tauri 旧版出现“预检失败：undefined”时，不能据此判定是网络或备份文件损坏：原生 IPC 可能拒绝为字符串，旧界面读取 `.message` 会丢失详情。修正后的错误边界兼容字符串、Error 与结构化异常，并在预检中标明“本机导出预检快照”“读取远端 latest 指针”“下载远端备份快照”或“快照比较”。请使用错误框的“复制详情”提供原始错误与阶段，不要提供 Token；预检不会写入本地数据。
+
+2026-09-16 回归覆盖原生请求字符串拒绝、响应流读取拒绝、本机导出结构化拒绝以及未知错误回退。浏览器测试检查详情显示/复制和失败后的界面解冻；这些模拟不代表已经确认用户 macOS 设备上的实际传输故障原因。
+
+若详情为 `error decoding response body`，且阶段是“下载远端备份快照”，表示原生 HTTP 响应流未读完，不等于备份 JSON 格式损坏。后续修复在 Tauri 原生请求出现这一特定错误时，仅对 `https://api.github.com` 的 GET 使用 WebView 网络通道重试一次；损坏的部分响应直接丢弃。重试沿用原超时预算和取消信号，不自动重放 Push 写入，不跳过证书校验、不扩大原生 HTTP 权限，也不跟随备用通道的重定向。两条通道都失败时保留各自错误供诊断。
+
+恢复逻辑通过原生 IPC 解码失败注入及 Chromium/WebKit 大响应 SHA-256 完整性验证；仍需 macOS 真机验证当前网络下的实际下载结果。压缩流异常与网络截断都可能导致原生解码错误，现有错误没有携带底层原因，不能只凭该提示认定某一种。
+
+| 现象 | 可能原因 | 解决 |
+|------|---------|------|
+| 测试连接失败 (401) | Token 错误或过期 | 重新生成 Token，确认复制完整 |
+| 测试连接失败 (404) | Owner/Repo 不存在 | 确认仓库已创建，大小写无误 |
+| Push 失败 (409) | 远端 sha 不匹配 | 先 Pull 再 Push |
+| Pull 后数据没变 | 远端文件为空 | GitHub 网页查看仓库中 JSON 内容 |
+| Pull 后出现重复笔记 | 旧版本 sync（已修复） | 升级到最新版，下次 Pull 自动去重 |
+| Push 时大文件失败 | 超过 GitHub API 限制 | 自动切换 Blobs API，无需手动处理 |
+| Token 泄露 | Token 被截图或分享 | GitHub Settings → Tokens → Revoke，重新生成 |

@@ -1,0 +1,590 @@
+import { expect, test } from "@playwright/test";
+import { createBlankDocument } from "../helpers/document";
+
+test("折叠标题间距一致，列表与代码引用图块留白协调", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "wabi-sabi" })));
+  await createBlankDocument(page);
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate(element => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", [
+      "## 段落",
+      "普通正文。",
+      "## 含子标题",
+      "### 子标题",
+      "子标题正文。",
+      "## 列表",
+      "- 第一项",
+      "- 第二项",
+      "## 代码",
+      "```ts",
+      "const value = 1;",
+      "```",
+      "## 结构块",
+      "- 列表项",
+      "```ts",
+      "const block = 1;",
+      "```",
+      "> 引用文本。",
+      "```mermaid",
+      "flowchart TD",
+      "  A --> B",
+      "```",
+      "这些结构块的间距应保持紧凑且一致。",
+      "## 末节",
+      "末尾正文。",
+    ].join("\n\n"));
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+  const headings = editor.locator(":scope > h2");
+  await expect(headings).toHaveCount(6);
+  const expandedSpacing = await editor.evaluate(element => {
+    const children = [...element.children] as HTMLElement[];
+    const structure = children.findIndex(child => child.tagName === "H2" && child.textContent === "结构块");
+    const blocks: HTMLElement[] = [];
+    for (let index = structure + 1; index < children.length && !/^H[1-6]$/.test(children[index].tagName); index += 1) blocks.push(children[index]);
+    return {
+      structuralBlockTopMargins: blocks.filter(block => block.tagName !== "P").map(block => getComputedStyle(block).marginTop),
+      structuralBlockMargins: blocks.filter(block => block.tagName !== "P").map(block => getComputedStyle(block).marginBottom),
+      trailingParagraphMargin: getComputedStyle(blocks.at(-1)!).marginBottom,
+      headingGapMargins: children.filter((child, index) => /^H[1-6]$/.test(children[index + 1]?.tagName ?? "")).map(child => getComputedStyle(child).marginBottom),
+    };
+  });
+  expect(expandedSpacing.structuralBlockTopMargins).toEqual(["0px", "0px", "0px", "0px"]);
+  expect(expandedSpacing.structuralBlockMargins).toEqual(["16px", "16px", "16px", "16px"]);
+  expect(expandedSpacing.trailingParagraphMargin).toBe("28px");
+  expect(expandedSpacing.headingGapMargins.length).toBeGreaterThan(0);
+  expect(expandedSpacing.headingGapMargins).toContain("28px");
+  expect(expandedSpacing.headingGapMargins.some(margin => parseFloat(margin) >= 10 && parseFloat(margin) <= 14)).toBe(true);
+  const expandedMargins = await headings.evaluateAll(elements => elements.map(element => getComputedStyle(element).marginBottom));
+  expect(expandedMargins).toEqual(Array(6).fill("12px"));
+  for (let index = 0; index < 6; index += 1) {
+    await headings.nth(index).locator(".editor-heading-fold").click();
+  }
+  const collapsed = await headings.evaluateAll(elements => elements.map(element => ({ top: element.getBoundingClientRect().top, marginBottom: getComputedStyle(element).marginBottom })));
+  const positions = collapsed.map(item => item.top);
+  const gaps = positions.slice(1).map((position, index) => position - positions[index]);
+  expect(new Set(collapsed.map(item => item.marginBottom)).size).toBe(1);
+  expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThan(2);
+});
+
+test("手机 H1 到 H6 的连续层级紧凑，正文与章节标题仍有分隔", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "wabi-sabi" })));
+  await createBlankDocument(page, "手机标题节奏");
+  await page.setViewportSize({ width: 390, height: 760 });
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate(element => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", [
+      "章节前的正文。",
+      "# 一级标题",
+      "## 二级标题",
+      "### 三级标题",
+      "#### 四级标题",
+      "##### 五级标题",
+      "###### 六级标题",
+      "标题后的正文。",
+    ].join("\n\n"));
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+  const rhythm = await editor.evaluate(element => {
+    const blocks = [...element.children] as HTMLElement[];
+    const heading = (level: number) => blocks.find(block => block.tagName === `H${level}`)!;
+    const gap = (before: HTMLElement, after: HTMLElement) => after.getBoundingClientRect().top - before.getBoundingClientRect().bottom;
+    return {
+      paragraphToH1: gap(blocks.find(block => block.tagName === "P")!, heading(1)),
+      headingGaps: [1, 2, 3, 4, 5].map(level => gap(heading(level), heading(level + 1))),
+      h6ToParagraph: gap(heading(6), blocks.find(block => block.tagName === "P" && block.textContent === "标题后的正文。")!),
+      headingMargins: [1, 2, 3, 4, 5, 6].map(level => ({
+        top: getComputedStyle(heading(level)).marginTop,
+        bottom: getComputedStyle(heading(level)).marginBottom,
+      })),
+    };
+  });
+  expect(rhythm.paragraphToH1).toBeGreaterThanOrEqual(15);
+  expect(rhythm.paragraphToH1).toBeLessThanOrEqual(17);
+  for (const gap of rhythm.headingGaps) {
+    expect(gap).toBeGreaterThanOrEqual(9);
+    expect(gap).toBeLessThanOrEqual(15);
+  }
+  expect(rhythm.h6ToParagraph).toBeGreaterThanOrEqual(7);
+  expect(rhythm.h6ToParagraph).toBeLessThanOrEqual(9);
+  expect(rhythm.headingMargins[0].top).toBe("0px");
+});
+
+test("只有 H1 与普通正文时正文可折叠，目录不显示叶子折叠三角", async ({ page }) => {
+  await createBlankDocument(page);
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate(element => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "# 第一章\n\n普通正文\n\n# 第二章\n\n第二章正文");
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+  await page.getByRole("button", { name: "折叠第 1 块章节", exact: true }).click();
+  await expect(editor.getByText("普通正文", { exact: true })).toBeHidden();
+  await page.getByRole("button", { name: "展开第 1 块章节", exact: true }).click();
+  await page.getByTitle("文档目录").click();
+  const outline = page.getByRole("navigation", { name: "文档目录" });
+  await expect(outline.locator(".document-outline-fold")).toHaveCount(0);
+  await expect(outline.locator(".document-outline-link")).toHaveCount(2);
+  await expect(editor.getByText("普通正文", { exact: true })).toBeVisible();
+});
+
+test("没有下属块的 H1 不显示无法操作的折叠箭头", async ({ page }) => {
+  await createBlankDocument(page);
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate(element => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "# 空章节\n\n# 有内容\n\n普通正文\n\n# 末章");
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+  await expect(editor.locator(":scope > *")).toHaveCount(4);
+  await expect(page.getByRole("button", { name: "折叠第 1 块章节", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "折叠第 4 块章节", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "折叠第 2 块章节", exact: true })).toBeVisible();
+  await page.getByTitle("文档目录").click();
+  const outline = page.getByRole("navigation", { name: "文档目录" });
+  await expect(outline.getByRole("button", { name: "折叠章节 空章节", exact: true })).toHaveCount(0);
+  await expect(outline.getByRole("button", { name: "折叠章节 末章", exact: true })).toHaveCount(0);
+  await expect(outline.getByRole("button", { name: "折叠章节 有内容", exact: true })).toHaveCount(0);
+  await expect(editor.getByText("普通正文", { exact: true })).toBeVisible();
+});
+
+test("标题章节可按层级折叠，并从目录统一展开", async ({ page }) => {
+  await createBlankDocument(page);
+  await expect(page.locator(".ProseMirror")).toHaveText("");
+  const editor = page.locator(".ProseMirror");
+  await editor.click();
+  await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "# 总览\n\n总览正文\n\n## 子节\n\n子节正文\n\n### 细节\n\n细节正文\n\n# 第二部分\n\n末尾正文");
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+  await page.getByRole("button", { name: "折叠第 1 块章节" }).click();
+  await expect(editor.getByText("总览正文", { exact: true })).toBeHidden();
+  await expect(editor.locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /子节$/ })).toBeHidden();
+  await expect(editor.getByText("子节正文", { exact: true })).toBeHidden();
+  await expect(editor.locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /第二部分$/ })).toBeVisible();
+  await page.getByTitle("文档目录").click();
+  const outline = page.getByRole("navigation", { name: "文档目录" });
+  await expect(outline.getByTitle("子节", { exact: true })).toHaveCount(0);
+  await expect(outline.locator(".document-outline-item")).toHaveCount(2);
+  await outline.getByRole("button", { name: "全部展开" }).dblclick();
+  await expect(editor.getByText("总览正文", { exact: true })).toBeVisible();
+  await expect(editor.locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /子节$/ })).toBeVisible();
+  await expect(outline.getByTitle("子节", { exact: true })).toBeVisible();
+  await outline.getByLabel("折叠章节 子节").click();
+  await expect(editor.getByText("子节正文", { exact: true })).toBeHidden();
+  await expect(editor.locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /第二部分$/ })).toBeVisible();
+
+  // 标题文字只负责跳转；折叠状态只能由前方三角切换。
+  await outline.locator('.document-outline-item[title="子节"] .document-outline-link').click();
+  await expect(editor.getByText("子节正文", { exact: true })).toBeHidden();
+  // 固定目录在跳转后保持打开，章节仍由三角控制展开。
+  await expect(outline).toBeVisible();
+  await expect(outline.getByLabel("展开章节 子节")).toBeVisible();
+
+  await outline.getByRole("button", { name: "全部折叠" }).dblclick();
+  await expect(outline.locator(".document-outline-item")).toHaveCount(2);
+  await outline.getByLabel("展开章节 总览").click();
+  await expect(outline.getByLabel("展开章节 子节")).toBeVisible();
+
+  // 同一帧内快速切换只触发一次 React 目录重绘，最终状态仍准确。
+  await outline.evaluate((element) => {
+    const collapse = element.querySelector<HTMLButtonElement>('button[aria-label="全部折叠"]');
+    const expand = element.querySelector<HTMLButtonElement>('button[aria-label="全部展开"]');
+    if (!collapse || !expand) throw new Error("fold controls missing");
+    for (let index = 0; index < 12; index += 1) {
+      collapse.click();
+      expand.click();
+    }
+  });
+  await expect(outline.locator(".document-outline-item")).toHaveCount(4);
+  await expect(editor.getByText("子节正文", { exact: true })).toBeHidden();
+});
+
+test("全部折叠在只有一个 H1 时保留 H2 总览", async ({ page }) => {
+  await createBlankDocument(page);
+  await expect(page.locator(".ProseMirror")).toHaveText("");
+  const editor = page.locator(".ProseMirror");
+  await editor.click();
+  await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "# 唯一根标题\n\n根说明\n\n## 章节一\n\n章节一正文\n\n### 章节一细节\n\n细节正文\n\n## 章节二\n\n章节二正文");
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+
+  await page.getByTitle("文档目录").click();
+  const outline = page.getByRole("navigation", { name: "文档目录" });
+  await outline.getByRole("button", { name: "全部折叠" }).dblclick();
+
+  await expect(outline.locator(".document-outline-item")).toHaveCount(3);
+  await expect(outline.getByTitle("唯一根标题", { exact: true })).toBeVisible();
+  await expect(outline.getByTitle("章节一", { exact: true })).toBeVisible();
+  await expect(outline.getByTitle("章节二", { exact: true })).toBeVisible();
+  await expect(outline.getByTitle("章节一细节", { exact: true })).toHaveCount(0);
+  await expect(editor.getByText("根说明", { exact: true })).toBeVisible();
+  await expect(editor.getByText("章节一正文", { exact: true })).toBeHidden();
+  await expect(editor.getByText("章节二正文", { exact: true })).toBeHidden();
+});
+
+test("目录全部折叠再全部展开后保持正文可视位置", async ({ page }) => {
+  await createBlankDocument(page);
+  await expect(page.locator(".ProseMirror")).toHaveText("");
+
+  const editor = page.locator(".ProseMirror");
+  const markdown = Array.from({ length: 6 }, (_, section) => [
+    `# 长章节 ${section + 1}`,
+    ...Array.from({ length: 30 }, (_, paragraph) => `章节 ${section + 1} 正文 ${paragraph + 1}`),
+  ].join("\n\n")).join("\n\n");
+  await editor.click();
+  await editor.evaluate((element, content) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", content);
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  }, markdown);
+
+  const target = editor.getByText("章节 4 正文 18", { exact: true });
+  await target.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await page.getByTitle("文档目录").click();
+  const outline = page.getByRole("navigation", { name: "文档目录" });
+  const before = await target.boundingBox();
+  expect(before).not.toBeNull();
+
+  await outline.getByRole("button", { name: "全部折叠" }).dblclick();
+  await expect(target).toBeHidden();
+  await outline.getByRole("button", { name: "全部展开" }).dblclick();
+  await expect(target).toBeVisible();
+
+  const after = await target.boundingBox();
+  expect(after).not.toBeNull();
+  expect(Math.abs(after!.y - before!.y)).toBeLessThan(32);
+});
+
+test("全部折叠后文档尾部的标题三角在小幅滚动中保持显示", async ({ page }) => {
+  await createBlankDocument(page);
+  await expect(page.locator(".ProseMirror")).toHaveText("");
+
+  const editor = page.locator(".ProseMirror");
+  const markdown = Array.from({ length: 40 }, (_, index) => (
+    `# 尾部章节 ${index + 1}\n\n章节正文 ${index + 1}`
+  )).join("\n\n");
+  await editor.evaluate((element, content) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", content);
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  }, markdown);
+
+  const lastHeading = editor.locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /尾部章节 40$/ });
+  await lastHeading.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await page.getByTitle("文档目录").click();
+  await page.getByRole("navigation", { name: "文档目录" })
+    .getByRole("button", { name: "全部折叠" }).dblclick();
+
+  const lastFold = page.getByRole("button", { name: "展开第 79 块章节" });
+  const scrollRoot = page.locator(".note-editor-scroll");
+  await expect(lastHeading).toBeVisible();
+  await expect(lastFold).toBeVisible();
+  await scrollRoot.evaluate((element) => {
+    const maximum = element.scrollHeight - element.clientHeight;
+    for (let index = 0; index < 12; index += 1) {
+      element.scrollTop = Math.max(0, maximum - (index % 2 === 0 ? 28 : 0));
+      element.dispatchEvent(new Event("scroll"));
+    }
+  });
+  await expect(lastFold).toBeVisible();
+});
+
+test("手机端尾部逐节折叠不发布观察器中的陈旧块号", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true }));
+
+    // 模拟 iOS WebKit 在文档尾部收缩后，当前一代 IntersectionObserver
+    // 仍延迟送达折叠前矩形。旧观察器代际测试无法覆盖这种情况。
+    const NativeIntersectionObserver = window.IntersectionObserver;
+    const lastVisibleRects = new WeakMap<Element, DOMRectReadOnly>();
+    class StaleRectIntersectionObserver extends NativeIntersectionObserver {
+      private readonly replayCallback: IntersectionObserverCallback;
+
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+        super(callback, options);
+        this.replayCallback = callback;
+      }
+
+      override observe(target: Element) {
+        const currentRect = target.getBoundingClientRect();
+        if (currentRect.height > 0) lastVisibleRects.set(target, currentRect);
+        super.observe(target);
+        const staleRect = lastVisibleRects.get(target);
+        if (!staleRect || target.parentElement?.classList.contains("ProseMirror") !== true) return;
+        for (const delay of [80, 180, 300]) {
+          window.setTimeout(() => {
+            this.replayCallback([{
+              time: performance.now(),
+              target,
+              rootBounds: null,
+              boundingClientRect: staleRect,
+              intersectionRect: staleRect,
+              isIntersecting: true,
+              intersectionRatio: 1,
+            } as IntersectionObserverEntry], this);
+          }, delay);
+        }
+      }
+    }
+    Object.defineProperty(window, "IntersectionObserver", {
+      configurable: true,
+      writable: true,
+      value: StaleRectIntersectionObserver,
+    });
+  });
+  await page.setViewportSize({ width: 390, height: 760 });
+  await page.goto("/");
+
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("");
+  const markdown = Array.from({ length: 25 }, (_, section) => [
+    `# 尾部连续章节 ${section + 1}`,
+    ...Array.from({ length: 7 }, (_, paragraph) => (
+      `尾部正文 ${section + 1}-${paragraph + 1}`
+    )),
+  ].join("\n\n")).join("\n\n");
+  await editor.evaluate((element, content) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", content);
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  }, markdown);
+  await expect.poll(() => editor.locator(":scope > *").count()).toBeGreaterThanOrEqual(200);
+
+  const lastHeading = editor.locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /尾部连续章节 25$/ });
+  await lastHeading.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  const tailBlocks = await editor.evaluate((element) => {
+    const children = Array.from(element.children);
+    return [23, 24, 25].map((section) => {
+      const heading = children.find((child) => child.tagName === "H1" && child.textContent?.endsWith(`尾部连续章节 ${section}`));
+      if (!heading) throw new Error(`tail heading ${section} missing`);
+      const headingIndex = children.indexOf(heading) + 1;
+      const nextHeading = children.findIndex((child, index) => (
+        index >= headingIndex && child.tagName === "H1"
+      ));
+      const bodyEnd = nextHeading < 0 ? children.length : nextHeading;
+      return { headingIndex, firstBodyIndex: headingIndex + 1, lastBodyIndex: bodyEnd };
+    });
+  });
+  for (const { headingIndex } of [...tailBlocks].reverse()) {
+    const blockIndex = headingIndex;
+    // 控件按视口窗口化；先把要点击的章节带入视口，不能要求屏幕外
+    // 且超出预读边界的三角始终挂载。折叠后再断言末尾三节共同可见。
+    await editor.locator(":scope > *").nth(blockIndex - 1)
+      .evaluate((element) => element.scrollIntoView({ block: "center" }));
+    const fold = page.getByRole("button", { name: `折叠第 ${blockIndex} 块章节` });
+    await expect(fold).toBeAttached();
+    await fold.dispatchEvent("click");
+  }
+  await expect(editor.getByText("尾部正文 25-7", { exact: true })).toBeHidden();
+  await page.waitForTimeout(360);
+
+  for (const { headingIndex } of tailBlocks) {
+    await expect(page.getByRole("button", { name: `展开第 ${headingIndex} 块章节` })).toBeVisible();
+    await expect(page.locator(`.editor-block-number[data-block-index="${headingIndex}"]`)).toBeVisible();
+  }
+  for (const { firstBodyIndex, lastBodyIndex } of tailBlocks) {
+    await expect(page.locator(`.editor-block-number[data-block-index="${firstBodyIndex}"]`)).toHaveCount(0);
+    await expect(page.locator(`.editor-block-number[data-block-index="${lastBodyIndex}"]`)).toHaveCount(0);
+  }
+});
+
+test("手机端重新展开后标题三角不采用观察器的陈旧坐标", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true }));
+
+    // 模拟 iOS WebKit 在折叠布局已经恢复后，仍把标题折叠前的旧矩形
+    // 延迟送给新一代观察器。正文矩形可直接复用，标题三角必须以实时
+    // DOM 布局为准，否则它会停在错误块旁边直到用户滚动。
+    const NativeIntersectionObserver = window.IntersectionObserver;
+    class StaleHeadingIntersectionObserver extends NativeIntersectionObserver {
+      private readonly replayCallback: IntersectionObserverCallback;
+
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+        super(callback, options);
+        this.replayCallback = callback;
+      }
+
+      override observe(target: Element) {
+        super.observe(target);
+        if (!/^H[1-6]$/.test(target.tagName)) return;
+        const current = target.getBoundingClientRect();
+        const stale = new DOMRectReadOnly(
+          current.x,
+          current.y + 42,
+          current.width,
+          current.height,
+        );
+        window.setTimeout(() => {
+          this.replayCallback([{
+            time: performance.now(),
+            target,
+            rootBounds: null,
+            boundingClientRect: stale,
+            intersectionRect: stale,
+            isIntersecting: true,
+            intersectionRatio: 1,
+          } as IntersectionObserverEntry], this);
+        }, 180);
+      }
+    }
+    Object.defineProperty(window, "IntersectionObserver", {
+      configurable: true,
+      writable: true,
+      value: StaleHeadingIntersectionObserver,
+    });
+  });
+  await page.setViewportSize({ width: 390, height: 760 });
+  await page.goto("/");
+
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("");
+  await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData(
+      "text/plain",
+      "# 上级章节\n\n上级正文\n\n## 示例答案\n\n> 引用正文\n\n# 下一章节\n\n末尾正文",
+    );
+    element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    }));
+  });
+
+  const parent = editor.getByRole("heading", { name: "上级章节" });
+  const nested = editor.getByRole("heading", { name: "示例答案" });
+  const parentIndex = await parent.evaluate(
+    (element) => Array.from(element.parentElement?.children ?? []).indexOf(element) + 1,
+  );
+  const nestedIndex = await nested.evaluate(
+    (element) => Array.from(element.parentElement?.children ?? []).indexOf(element) + 1,
+  );
+
+  await page.getByRole("button", { name: `折叠第 ${parentIndex} 块章节` }).click();
+  await expect(nested).toBeHidden();
+  await page.getByRole("button", { name: `展开第 ${parentIndex} 块章节` }).click();
+  await expect(nested).toBeVisible();
+  await page.waitForTimeout(260);
+
+  const nestedFold = page.getByRole("button", { name: `折叠第 ${nestedIndex} 块章节` });
+  await expect(nestedFold).toBeVisible();
+  const offset = await nestedFold.evaluate((button, index) => {
+    const heading = document.querySelector<HTMLElement>(`.ProseMirror > :nth-child(${index})`);
+    const editor = document.querySelector<HTMLElement>(".ProseMirror");
+    if (!heading || !editor) throw new Error("heading missing");
+    const buttonRect = button.getBoundingClientRect();
+    const line = heading.querySelector<HTMLElement>(".editor-fold-host")!.getBoundingClientRect();
+    const expectedCenter = line.top + line.height / 2;
+    return Math.abs(buttonRect.top + buttonRect.height / 2 - expectedCenter);
+  }, nestedIndex);
+  expect(offset).toBeLessThan(1);
+});
+
+test("千块文档全部展开后滚动不再逐块同步测量", async ({ page }) => {
+  test.slow();
+  await createBlankDocument(page);
+  await expect(page.locator(".ProseMirror")).toHaveText("");
+
+  const editor = page.locator(".ProseMirror");
+  const markdown = Array.from({ length: 50 }, (_, section) => [
+    `# 性能章节 ${section + 1}`,
+    ...Array.from({ length: 29 }, (_, paragraph) => (
+      `性能正文 ${section + 1}-${paragraph + 1}`
+    )),
+  ].join("\n\n")).join("\n\n");
+  await editor.evaluate((element, content) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", content);
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  }, markdown);
+  await expect(editor.locator(":scope > *")).toHaveCount(1500);
+
+  await page.getByTitle("文档目录").click();
+  const outline = page.getByRole("navigation", { name: "文档目录" });
+  await outline.getByRole("button", { name: "全部折叠" }).dblclick();
+  await expect(editor.getByText("性能正文 25-15", { exact: true })).toBeHidden();
+  await outline.getByRole("button", { name: "全部展开" }).dblclick();
+  await expect(editor.getByText("性能正文 25-15", { exact: true })).toBeVisible();
+
+  const scrollRoot = page.locator(".note-editor-scroll");
+  const geometryReads = await scrollRoot.evaluate(async (element) => {
+    const original = Element.prototype.getBoundingClientRect;
+    let reads = 0;
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      reads += 1;
+      return original.call(this);
+    };
+    try {
+      const maximum = element.scrollHeight - element.clientHeight;
+      for (let frame = 0; frame <= 40; frame += 1) {
+        element.scrollTop = maximum * frame / 40;
+        element.dispatchEvent(new Event("scroll"));
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      return reads;
+    } finally {
+      Element.prototype.getBoundingClientRect = original;
+    }
+  });
+
+  // Both viewport edges now use binary geometry lookup instead of expensive
+  // native hit testing. Bound reads by O(frames * log(blocks)), not a full scan.
+  const boundaryReads = 2 * Math.ceil(Math.log2(1500));
+  expect(geometryReads).toBeLessThan(42 * (boundaryReads + 8));
+});
+
+test.describe("触控目录宽度调整", () => {
+  // 为 50px 拖动留出空间；面板最大宽度是编辑区的一半。
+  test.use({ viewport: { width: 1280, height: 760 }, hasTouch: true });
+
+  test("宽屏触控通过 pointer 拖动固定目录且清理选择状态", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await editor.click();
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "# 触控固定目录\n\n正文");
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    });
+    await page.getByTitle("文档目录").click();
+    const outline = page.getByRole("navigation", { name: "文档目录" });
+    const handle = page.getByRole("separator", { name: "调整阅读面板宽度" });
+    await expect(handle).toBeVisible();
+
+    const before = await outline.evaluate((element) => element.getBoundingClientRect().width);
+    const state = await handle.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const pointer = (type: string, clientX: number) => new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 101,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0,
+        clientX,
+        clientY: rect.top + rect.height / 2,
+      });
+      const startX = rect.left + rect.width / 2;
+      const startAllowed = element.dispatchEvent(pointer("pointerdown", startX));
+      const userSelectDuring = document.body.style.webkitUserSelect;
+      element.dispatchEvent(pointer("pointermove", startX - 50));
+      element.dispatchEvent(pointer("pointerup", startX - 50));
+      return {
+        startAllowed,
+        userSelectDuring,
+        userSelectAfter: document.body.style.webkitUserSelect,
+      };
+    });
+
+    expect(state).toEqual({ startAllowed: false, userSelectDuring: "none", userSelectAfter: "" });
+    await expect.poll(() => outline.evaluate((element) => element.getBoundingClientRect().width))
+      .toBeGreaterThan(before + 40);
+  });
+});

@@ -1,0 +1,419 @@
+import { test, expect, type Page } from "@playwright/test";
+import { createBlankDocument } from "../helpers/document";
+test.use({ actionTimeout: 10000 });
+
+test("空文档不显示开始记录占位提示", async ({ page }) => {
+  await createBlankDocument(page);
+  const editor = page.locator(".ProseMirror");
+  await expect(editor).not.toHaveAttribute("data-placeholder", /开始记录/);
+  await expect(editor).not.toContainText("开始记录");
+});
+
+async function createLongNote(page: Page, count = 1500, codeDescription?: string) {
+  await createBlankDocument(page);
+  const text = Array.from({ length: count }, (_, index) =>
+    index === 1
+      ? "```typescript\nconst first = 1;\nconst second = 2;\n```"
+      : index === 2
+        ? "> 引用第一段\n>\n> 引用第二段"
+        : index % 30 === 0
+          ? `## 章节 ${index / 30 + 1}`
+          : `段落 ${index + 1}：${"用于验证局部阅读、窗口滚动和文字锚点。".repeat(5)}`,
+  ).join("\n\n");
+  await page.locator(".ProseMirror").evaluate((element, content) => {
+    const data = new DataTransfer();
+    data.setData("text/plain", content);
+    element.dispatchEvent(
+      new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: data,
+      }),
+    );
+  }, text);
+  if (codeDescription !== undefined) {
+    await page.getByLabel("代码简介").fill(codeDescription);
+  }
+  await expect(page.locator(".save-status-saved")).toBeVisible({
+    timeout: 15000,
+  });
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  await expect(page.locator(".ProseMirror")).toHaveAttribute(
+    "contenteditable",
+    "false",
+  );
+}
+async function enable(page: Page) {
+  await page.evaluate(() => {
+    localStorage.setItem("nr:experimentalReadonlyRendering", "true");
+    window.dispatchEvent(new Event("nine-rings:readonly-rendering-change"));
+  });
+  await expect(page.locator("[data-virtual-reader]")).toBeVisible();
+}
+
+test("局部阅读切换文档后保留代码和引用折叠及阅读锚点", async ({ page }) => {
+  await createLongNote(page, 90);
+  await enable(page);
+  const root = page.locator("[data-virtual-reader]");
+  await root.getByRole("button", { name: "折叠代码块", exact: true }).click();
+  await root.getByRole("button", { name: "折叠引用块", exact: true }).click();
+  const documents = await page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
+    const id = useNotesStore.getState().selectedNote!.id;
+    const other = await api.notes.create({ title: "局部阅读切换目标", date: "2026-09-17", content: { ops: [{ insert: "另一篇正文\n" }] } });
+    return { id, other: other.id, anchor: localStorage.getItem(`nr:readonlyAnchor:${id}`) };
+  });
+  // Native scrolling cancels deferred fold geometry. Wait until the reader
+  // persists the settled anchor before switching, rather than snapshotting
+  // scrollTop in the same task as an unfinished virtual layout update.
+  await root.locator(".note-editor-scroll").hover();
+  await page.mouse.wheel(0, 400);
+  // WebKit returns from wheel() before its animated scroll has finished.
+  // A fold may also persist an anchor before that scroll reaches its target.
+  await expect.poll(() => root.locator(".note-editor-scroll").evaluate(el => el.scrollTop)).toBeGreaterThan(350);
+  await expect.poll(() => page.evaluate(id => localStorage.getItem(`nr:readonlyAnchor:${id}`), documents.id)).not.toBe(documents.anchor);
+  const saved = await page.evaluate(async documents => {
+    const { api } = await import("/src/lib/api.ts");
+    const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
+    const top = document.querySelector<HTMLElement>("[data-virtual-reader] .note-editor-scroll")!.scrollTop;
+    useNotesStore.getState().selectNote(await api.notes.get(documents.other));
+    return { id: documents.id, top };
+  }, documents);
+  expect(saved.top).toBeGreaterThan(350);
+  await expect(page.locator(".ProseMirror")).toHaveText("另一篇正文");
+  await page.evaluate(async (id) => {
+    const { api } = await import("/src/lib/api.ts");
+    const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
+    useNotesStore.getState().selectNote(await api.notes.get(id));
+  }, saved.id);
+  await expect(root).toBeVisible();
+  await expect.poll(async () => Math.abs(await root.locator(".note-editor-scroll").evaluate(el => el.scrollTop) - saved.top)).toBeLessThanOrEqual(1);
+  await root.locator(".note-editor-scroll").evaluate(el => { el.scrollTop = 0; });
+  await expect(root.getByRole("button", { name: "展开代码块", exact: true })).toBeVisible();
+  await expect(root.getByRole("button", { name: "展开引用块", exact: true })).toBeVisible();
+});
+
+test("代码简介在完整只读与局部阅读渲染之间切换时保留", async ({ page }) => {
+  const description = "初始化和资源释放的示例说明";
+  await createLongNote(page, 90, description);
+  await expect(page.getByLabel("代码简介")).toBeVisible();
+  await expect(page.getByLabel("代码简介")).toHaveValue(description);
+  await enable(page);
+  const codeBlock = page.locator("[data-virtual-reader] .code-block-wrap").first();
+  await expect(codeBlock.locator(".vr-code-toolbar > .structured-block-caption")).toHaveText(description);
+  await codeBlock.getByRole("button", { name: "折叠代码块" }).click();
+  await expect(codeBlock.locator(".vr-code-toolbar > .structured-block-caption")).toBeVisible();
+  await page.evaluate(() => {
+    localStorage.setItem("nr:experimentalReadonlyRendering", "false");
+    window.dispatchEvent(new Event("nine-rings:readonly-rendering-change"));
+  });
+  await expect(page.locator("[data-virtual-reader]")).toHaveCount(0);
+  await expect(page.getByLabel("代码简介")).toBeVisible();
+  await expect(page.getByLabel("代码简介")).toHaveValue(description);
+  await page.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+  await expect(page.getByRole("button", { name: "展开代码块", exact: true })).toBeVisible();
+});
+
+test("编辑模式折叠代码和引用后切换只读仍保持折叠", async ({ page }) => {
+  await createLongNote(page, 90);
+  await page.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+  await expect(page.locator(".ProseMirror")).toHaveAttribute("contenteditable", "true");
+  await page.getByRole("button", { name: "折叠代码块", exact: true }).click();
+  await page.getByRole("button", { name: "折叠引用块", exact: true }).click();
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  await expect(page.locator(".ProseMirror")).toHaveAttribute("contenteditable", "false");
+  await enable(page);
+  const root = page.locator("[data-virtual-reader]");
+  await expect(root.getByRole("button", { name: "展开代码块", exact: true })).toBeVisible();
+  await expect(root.getByRole("button", { name: "展开引用块", exact: true })).toBeVisible();
+});
+
+test("局部阅读沿用可视视口手势，目录和书签文字上右划只关闭侧栏", async ({ page }) => {
+  test.setTimeout(60000);
+  await createLongNote(page, 90);
+  await page.getByRole("button", { name: "文档书签", exact: true }).click();
+  await page.getByRole("button", { name: "添加当前位置书签", exact: true }).click();
+  await enable(page);
+  await page.setViewportSize({ width: 390, height: 760 });
+  await page.locator(".sidebar-tab-hide").click();
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  await page.evaluate(() => {
+    for (const [name, value] of Object.entries({ offsetLeft: 10, offsetTop: 20, width: 350, height: 500 })) {
+      Object.defineProperty(window.visualViewport!, name, { configurable: true, value });
+    }
+  });
+  const swipe = async (locator: import("@playwright/test").Locator, x: number, y: number, dx: number) => locator.evaluate((element, points) => {
+    const dispatch = (type: string, clientX: number) => {
+      const touch = { identifier: 18, target: element, clientX, clientY: points.y };
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, {
+        touches: { value: type === "touchend" ? [] : [touch] },
+        changedTouches: { value: [touch] },
+      });
+      element.dispatchEvent(event);
+    };
+    dispatch("touchstart", points.x);
+    dispatch("touchmove", points.x + points.dx);
+    dispatch("touchend", points.x + points.dx);
+  }, { x, y, dx });
+  // y=300 is below visualViewport.middleY (270), although above innerHeight / 2.
+  // The current gesture contract opens settings in the lower half.
+  await swipe(page.locator(".app-main"), 345, 300, -90);
+  const settings = page.getByRole("dialog", { name: "设置", exact: true });
+  await expect(settings).toBeVisible();
+  await settings.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await expect(settings).not.toBeVisible();
+  const drawer = page.getByRole("dialog", { name: "阅读侧栏" });
+  for (const kind of ["outline", "bookmark"] as const) {
+    await swipe(page.locator(".app-main"), 345, 190, -90);
+    await expect(drawer).toBeVisible();
+    await drawer.getByRole("button", { name: kind === "outline" ? "切换到目录" : "切换到书签", exact: true }).click();
+    const item = drawer.locator(kind === "outline" ? ".vr-outline-row [data-drawer-swipe-item]" : ".vr-bookmark").first();
+    await expect(item).toBeVisible();
+    const position = await page.locator(".vr-scroll").evaluate((element) => element.scrollTop);
+    await swipe(item, 190, 190, 90);
+    await expect(drawer).toHaveCount(0);
+    expect(await page.locator(".vr-scroll").evaluate((element) => element.scrollTop)).toBe(position);
+  }
+});
+
+test("局部阅读默认关闭，1500 块搜索与折叠末章，再回退完整编辑器", async ({
+  page,
+}) => {
+  test.setTimeout(90000);
+  await createLongNote(page);
+  await expect(page.locator("[data-virtual-reader]")).toHaveCount(0);
+  await enable(page);
+  const rows = page.locator("[data-reading-row]");
+  await expect.poll(() => rows.count()).toBeLessThan(80);
+  await page
+    .locator(".vr-actions")
+    .getByRole("button", { name: "搜索", exact: true })
+    .click();
+  await page.getByLabel("搜索正文").fill("段落 1499");
+  await expect(page.locator(".vr-body mark")).toHaveText("段落 1499");
+  await expect(page.locator(".vr-body mark")).toBeInViewport();
+  await page.getByLabel("关闭阅读面板").click();
+  await expect(page.locator(".vr-body mark")).toHaveCount(0);
+  await expect(page.locator('[data-reading-row][data-block-number="1500"]')).toBeInViewport();
+  await page
+    .locator(".vr-title")
+    .getByRole("button", { name: "文档目录", exact: true })
+    .click();
+  await page.getByRole("button", { name: "全部折叠", exact: true }).click();
+  await page.getByRole("button", { name: "收起固定目录", exact: true }).click();
+  await page
+    .locator(".vr-actions")
+    .getByRole("button", { name: "末尾", exact: true })
+    .click();
+  const last = page.locator('[data-reading-row][data-block-number="1471"]');
+  await expect(last.getByRole("heading")).toHaveText("章节 50");
+  await last.getByRole("button", { name: "折叠切换 章节 50" }).click();
+  await expect(last.getByRole("button", { name: /^折叠切换 / })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  await last.getByRole("button", { name: /^折叠切换 / }).click();
+  await expect(last.getByRole("button", { name: /^折叠切换 / })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  await expect.poll(() => rows.count()).toBeLessThan(80);
+  await page
+    .locator(".vr-actions")
+    .getByRole("button", { name: "完整渲染", exact: true })
+    .click();
+  await expect(page.locator("[data-virtual-reader]")).toHaveCount(0);
+  await expect(page.locator(".ProseMirror > *")).toHaveCount(1500);
+  await expect(page.locator(".ProseMirror h2").last()).toBeInViewport();
+});
+
+test("只读局部阅读保留代码与引用状态，并能刷新恢复位置", async ({ page }) => {
+  test.setTimeout(90000);
+  await createLongNote(page, 300);
+  await enable(page);
+  await page
+    .locator(".vr-actions")
+    .getByRole("button", { name: "顶端", exact: true })
+    .click();
+  await page.getByRole("button", { name: "折叠代码块", exact: true }).click();
+  await page.getByRole("button", { name: "折叠引用块", exact: true }).click();
+  await page
+    .locator(".vr-actions")
+    .getByRole("button", { name: "末尾", exact: true })
+    .click();
+  await expect(page.locator('[data-block-number="2"]')).toHaveCount(0);
+  await page
+    .locator(".vr-actions")
+    .getByRole("button", { name: "顶端", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "展开代码块", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "展开引用块", exact: true }),
+  ).toBeVisible();
+  await page
+    .locator(".vr-actions")
+    .getByRole("button", { name: "搜索", exact: true })
+    .click();
+  await page.getByLabel("搜索正文").fill("const second");
+  await expect(page.locator(".vr-body mark")).toHaveText("const second");
+  await expect(page.locator(".vr-body mark")).toBeInViewport();
+  await page.getByLabel("搜索正文").fill("引用第二段");
+  await expect(page.locator(".vr-body mark")).toHaveText("引用第二段");
+  await expect(page.locator(".vr-body mark")).toBeInViewport();
+  await page.getByLabel("搜索正文").fill("段落 269");
+  await expect(page.locator(".vr-body mark")).toHaveText("段落 269");
+  await expect(page.locator(".vr-body mark")).toBeInViewport();
+  await page.getByLabel("关闭阅读面板").click();
+  await expect(page.locator(".vr-body mark")).toHaveCount(0);
+  await expect(page.locator('[data-reading-row][data-block-number="270"]')).toBeInViewport();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const key = Object.keys(localStorage).find((key) =>
+          key.startsWith("nr:readonlyAnchor:"),
+        );
+        return key ? JSON.parse(localStorage.getItem(key)!).position : 0;
+      }),
+    )
+    .toBeGreaterThan(1000);
+  await page.reload();
+  await expect(page.locator("[data-virtual-reader]")).toBeVisible();
+  await expect(page.locator(".vr-block").first()).toHaveCSS(
+    "white-space",
+    "pre-wrap",
+  );
+  await expect(page.locator('[data-block-number="269"]')).toBeInViewport();
+});
+
+test("窗口外书签跳转和跨窗口原生选区不会丢失", async ({ page }) => {
+  test.setTimeout(60000);
+  await createLongNote(page, 300);
+  await page.getByRole("button", { name: "文档书签", exact: true }).click();
+  await page
+    .getByRole("button", { name: "添加当前位置书签", exact: true })
+    .click();
+  await expect(page.locator(".document-bookmark-item")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "取消当前位置书签", exact: true })).toHaveCount(0);
+  await enable(page);
+  // The full editor pinned this panel during setup; the reader preserves that layout.
+  const bookmarkTrigger = page.locator(".vr-title").getByRole("button", { name: "文档书签", exact: true });
+  await expect(bookmarkTrigger).toHaveAttribute("data-pinned", "true");
+  await expect(page.locator(".vr-bookmark")).toHaveCount(1);
+  await bookmarkTrigger.click();
+  await expect(page.locator(".vr-bookmark")).toHaveCount(0);
+  await page
+    .locator(".vr-actions")
+    .getByRole("button", { name: "顶端", exact: true })
+    .click();
+  await page
+    .locator(".vr-title")
+    .getByRole("button", { name: "文档书签", exact: true })
+    .click();
+  await expect(page.locator(".vr-bookmark")).toHaveCount(1);
+  await page.locator(".vr-bookmark").click();
+  await expect(page.locator('[data-block-number="300"]')).toBeInViewport();
+  await page.getByRole("region", { name: "文档书签", exact: true }).getByRole("button", { name: "收起固定书签", exact: true }).click();
+  await page
+    .locator(".vr-actions")
+    .getByRole("button", { name: "顶端", exact: true })
+    .click();
+  const selected = await page
+    .locator('[data-block-number="4"] p')
+    .evaluate(async (element) => {
+      // Wait for the native selection notification and its React commit,
+      // rather than an obsolete status-bar message about retained selection.
+      const changed = new Promise<void>(resolve => document.addEventListener(
+        "selectionchange", () => requestAnimationFrame(() => resolve()), { once: true },
+      ));
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const selection = window.getSelection()!;
+      selection.removeAllRanges();
+      selection.addRange(range);
+      await changed;
+      return selection.toString();
+    });
+  expect(selected).not.toBe("");
+  await page.locator(".vr-scroll").evaluate((element) => {
+    element.scrollTop += 4000;
+  });
+  await expect(page.locator('[data-block-number="4"]')).toHaveCount(1);
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(
+    selected,
+  );
+  await page.evaluate(() => window.getSelection()?.removeAllRanges());
+  await expect
+    .poll(() => page.locator("[data-reading-row]").count())
+    .toBeLessThan(80);
+});
+
+test.describe("触屏局部阅读", () => {
+  test.use({ viewport: { width: 390, height: 852 }, hasTouch: true });
+  test("专注模式双击末章及边缘侧栏保留按钮入口", async ({ page }) => {
+    test.setTimeout(60000);
+    // Create with a wide viewport so the sidebar does not obscure setup controls.
+    await page.setViewportSize({ width: 1280, height: 852 });
+    await createLongNote(page, 300);
+    await enable(page);
+    await page.setViewportSize({ width: 390, height: 852 });
+    await page
+      .locator(".sidebar-overlay.active")
+      .click({ position: { x: 380, y: 100 } });
+    await page
+      .locator(".vr-title")
+      .getByRole("button", { name: "专注模式", exact: true })
+      .click();
+    await page.getByRole("button", { name: "文档目录", exact: true }).click();
+    await page.getByRole("button", { name: "全部折叠", exact: true }).click();
+    await page.getByLabel("关闭阅读面板").click();
+    await page
+      .locator(".vr-actions")
+      .getByRole("button", { name: "末尾", exact: true })
+      .click();
+    const last = page.locator('[data-block-number="271"]');
+    await last.getByRole("heading").tap();
+    await last.getByRole("heading").tap();
+    await expect(last.getByRole("button", { name: /^折叠切换 / })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    await expect(
+      page.getByRole("button", { name: "退出专注模式", exact: true }),
+    ).toBeInViewport();
+    await page.locator(".vr-scroll").evaluate((element) => {
+      // WebKit does not expose a constructible Touch. Replay the shared
+      // recognizer's event contract, while heading tests use real touch taps.
+      for (const [type, x] of [
+        ["touchstart", 388],
+        ["touchmove", 280],
+        ["touchend", 280],
+      ] as const) {
+        const touch = {
+          identifier: 1,
+          target: element,
+          clientX: x,
+          clientY: 200,
+        };
+        const event = new Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperties(event, {
+          touches: { value: type === "touchend" ? [] : [touch] },
+          changedTouches: { value: [touch] },
+        });
+        element.dispatchEvent(event);
+      }
+    });
+    await expect(page.getByRole("dialog", { name: "阅读侧栏" })).toBeVisible();
+    await page.getByRole("button", { name: "关闭阅读面板" }).click();
+    await page.getByRole("button", { name: "文档目录", exact: true }).click();
+    await expect(page.locator(".vr-note > .vr-panel")).toBeVisible();
+    await page.getByLabel("关闭阅读面板").click();
+    await expect(
+      page.locator(".mobile-document-drawer-panel"),
+    ).not.toBeInViewport();
+    await page.screenshot({ path: test.info().outputPath("nr-readonly-prototype.png") });
+  });
+});

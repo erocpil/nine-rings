@@ -1,5 +1,7 @@
 # Nine Rings · 九环
 
+[项目文档导航](./docs/README.md) · [构建指南](./BUILDING.md)
+
 [![CI](https://github.com/erocpil/nine-rings/actions/workflows/ci.yml/badge.svg)](https://github.com/erocpil/nine-rings/actions/workflows/ci.yml)
 [![Tauri v2](https://img.shields.io/badge/Tauri-2.0-ffc131?logo=tauri)](https://tauri.app)
 [![React 18](https://img.shields.io/badge/React-18-61dafb?logo=react)](https://react.dev)
@@ -29,7 +31,7 @@
 | 模块 | 说明 |
 |------|------|
 | **富文本编辑** | TipTap 编辑器，支持标题、列表、引用、代码块（行号与常用语言语法高亮）、图片、链接、可编辑 Markdown 表格 |
-| **流程块** | `flow` 围栏或工具栏插入阶段式说明，连续主线、折叠、复制与块编辑/实时预览；ideas 内置示例（[使用说明](docs/flow-presentation.md)） |
+| **流程块** | `flow` 围栏或工具栏插入阶段式说明，连续主线、折叠、复制与块编辑/实时预览；ideas 内置示例（[使用说明](./docs/features/flow-presentation.md)） |
 | **Markdown 粘贴** | 剪贴板粘贴自动识别 Markdown / HTML 表格并保留结构，长文防重复粘贴 |
 | **标签系统** | 文档标签、概念关联和筛选 |
 | **搜索与跳转** | 全文搜索、命中定位、持久化正文书签；`Ctrl/Cmd+P` 按最近访问快速切换文档 |
@@ -48,7 +50,7 @@
 
 ## 编辑器导航
 
-- macOS Tauri 提供系统菜单中的工作区、File 文档操作、格式与界面操作，跟随活动文档、只读和弹层状态更新；原有界面入口保留。详见[macOS 系统菜单](docs/macos-native-menu.md)。
+- macOS Tauri 提供系统菜单中的工作区、File 文档操作、格式与界面操作，跟随活动文档、只读和弹层状态更新；原有界面入口保留。详见[macOS 系统菜单](./docs/features/macos-native-menu.md)。
 
 - 普通模式可通过标题旁的“书签”、工具栏“更多”或正文右键菜单管理书签；`Ctrl/Cmd+Shift+M` 切换当前位置书签。书签随文档保存，跳转时会自动展开所在的折叠章节。
 - Vim 模式下，`i` 进入 Insert、`Esc` 返回 Normal；`Ctrl+F/B` 整页移动、`Ctrl+D/U` 半页移动、`Ctrl+E/Y` 单行滚动。
@@ -58,7 +60,7 @@
 
 手动 JSON 导出、紧急恢复文件和 GitHub 全量快照共用相同备份格式，包含文档、Markdown 任务列表、正文书签、应用配置、界面相关的非敏感用户设置，以及最后打开的文档与其光标/滚动位置。恢复成功后应用会自动重新载入并立即应用这些设置。本地 PDF、EPUB 原文件及其设备阅读进度、批注和书签不进入备份；由阅读器创建的摘录笔记会正常进入备份。GitHub Token、密码、密钥和授权凭据始终排除，恢复后需要在当前设备重新提供。
 
-普通回收站文档与普通文档版本历史不进入上述备份；加密版本通过 `protected_versions` 单独保留。PDF/EPUB 阅读数据可另行导出单书 `*.reading.json`。提交/推送本项目源码不会备份应用数据库。完整边界见[当前设计总览](docs/current-design.md#11-备份保护与多窗口)。
+普通回收站文档与普通文档版本历史不进入上述备份；加密版本通过 `protected_versions` 单独保留。PDF/EPUB 阅读数据可另行导出单书 `*.reading.json`。提交/推送本项目源码不会备份应用数据库。完整边界见[当前设计总览](./docs/architecture/current-design.md#11-备份保护与多窗口)。
 
 ---
 
@@ -91,15 +93,15 @@ Web、Tauri 与 Flutter 共享 `schema/note.yaml` 和 `schema/config.yaml` 作�
 
 ### 当前关键设计
 
-[当前设计总览](docs/current-design.md)汇总内容权威、保存与恢复、三文档驻留、首页与分栏、Markdown、搜索、大文档性能、阅读资料库和平台边界，并链接各专题。历史设计与未实现计划不作为当前功能承诺。
+[当前设计总览](./docs/architecture/current-design.md)汇总内容权威、保存与恢复、三文档驻留、首页与分栏、Markdown、搜索、大文档性能、阅读资料库和平台边界，并链接各专题。历史设计与未实现计划不作为当前功能承诺。
 
 ### 插件体系规划
 
-首次可信内置插件宿主的前置条件已完成：受限命令、内部 SDK、编辑/保存修订、事件和生命周期已接入并通过[前置审计](docs/plugin-readiness-audit.md)。公开 SDK 和第三方脚本尚未开放；[声明式插件包](docs/plugin-package-installation.md)支持本机核验、确认安装、更新及启停。标准与 SDK 草案见[插件体系设计](docs/plugin-system-design.md)。日期时间、文档统计和多参数图片插入已提供内置入口；新增[词汇学习插件](docs/plugin-vocabulary-learning.md)，展示指定路径下手动生成的词汇 Markdown，分开保留词典释义、搭配及可折叠例句，中央学习视图不改写原文；新增[图片查看分栏](docs/plugin-local-image-panel.md)，支持授权本机目录与文档图片查看、缩放平移、预览旋转和插入文档；图片分栏默认在中央区域打开，正文弹层可转到[主区域视图](docs/plugin-main-area-views.md)，关闭恢复原文档；新增[文档树展示扩展](docs/plugin-panel-presentation.md)，高级设置开启插件功能后，右侧列表展示内置插件的名称、类型、简介和状态，点击名称打开配置弹层；文档树可调整字体、字号、行高、提示、辅助信息及工具栏。目录展示已复用同一展示边界，统一渲染/源码目录排版、章节路径提示和当前标题定位；书签和随记展示也已接入，支持独立排版、提示、辅助信息与展示排序，保留锚点/分组及宿主操作，[风格主题资源](docs/plugin-theme-resources.md)已接入七组浅深配色、可选排版建议和缺失回退，默认关闭、默认跟随内置风格且保留用户排版优先级；本机安装支持成对主题、新建/插入模板、文本片段、受限宏和元数据查询，另有[编号展示扩展](docs/plugin-numbering-display.md)，分别接管块号与源码行号的排版、配色和折叠符号，停用恢复内置设置；另有[状态栏展示插件](docs/plugin-status-bar.md)，统一渲染、源码与局部只读的信息项、顺序及排版；围栏渲染另需 C4 门禁。
+首次可信内置插件宿主的前置条件已完成：受限命令、内部 SDK、编辑/保存修订、事件和生命周期已接入并通过[前置审计](./docs/plugins/plugin-readiness-audit.md)。公开 SDK 和第三方脚本尚未开放；[声明式插件包](./docs/plugins/plugin-package-installation.md)支持本机核验、确认安装、更新及启停。标准与 SDK 草案见[插件体系设计](./docs/plugins/plugin-system-design.md)。日期时间、文档统计和多参数图片插入已提供内置入口；新增[词汇学习插件](./docs/plugins/plugin-vocabulary-learning.md)，展示指定路径下手动生成的词汇 Markdown，分开保留词典释义、搭配及可折叠例句，中央学习视图不改写原文；新增[图片查看分栏](./docs/plugins/plugin-local-image-panel.md)，支持授权本机目录与文档图片查看、缩放平移、预览旋转和插入文档；图片分栏默认在中央区域打开，正文弹层可转到[主区域视图](./docs/plugins/plugin-main-area-views.md)，关闭恢复原文档；新增[文档树展示扩展](./docs/plugins/plugin-panel-presentation.md)，高级设置开启插件功能后，右侧列表展示内置插件的名称、类型、简介和状态，点击名称打开配置弹层；文档树可调整字体、字号、行高、提示、辅助信息及工具栏。目录展示已复用同一展示边界，统一渲染/源码目录排版、章节路径提示和当前标题定位；书签和随记展示也已接入，支持独立排版、提示、辅助信息与展示排序，保留锚点/分组及宿主操作，[风格主题资源](./docs/plugins/plugin-theme-resources.md)已接入七组浅深配色、可选排版建议和缺失回退，默认关闭、默认跟随内置风格且保留用户排版优先级；本机安装支持成对主题、新建/插入模板、文本片段、受限宏和元数据查询，另有[编号展示扩展](./docs/plugins/plugin-numbering-display.md)，分别接管块号与源码行号的排版、配色和折叠符号，停用恢复内置设置；另有[状态栏展示插件](./docs/plugins/plugin-status-bar.md)，统一渲染、源码与局部只读的信息项、顺序及排版；围栏渲染另需 C4 门禁。
 
-[本地文件夹工作区](docs/local-folder-workspace.md)通过默认停用的内置插件提供授权目录浏览、源码编辑与版本核验保存、Markdown/Mermaid/Flow 预览、文件创建和根内移动、桌面系统回收站、未保存草稿汇总及目录全文搜索。源码、目录、书签与同词匹配使用[共享导航组件](docs/source-navigation-components.md)；[统一文档工作区](docs/unified-document-workspace.md)提供两种布局及共享标题、工具栏和菜单，来源适配器负责文件能力；本地文件和恢复草稿不进入数据库文档或 GitHub 备份。Web 按运行时能力提供写入和移动，不支持目录授权时使用可编辑但不能覆盖原文件的目录快照。真实文件系统与权限验收边界见上述文档。
+[本地文件夹工作区](./docs/features/local-folder-workspace.md)通过默认停用的内置插件提供授权目录浏览、源码编辑与版本核验保存、Markdown/Mermaid/Flow 预览、文件创建和根内移动、桌面系统回收站、未保存草稿汇总及目录全文搜索。源码、目录、书签与同词匹配使用[共享导航组件](./docs/features/source-navigation-components.md)；[统一文档工作区](./docs/architecture/unified-document-workspace.md)提供两种布局及共享标题、工具栏和菜单，来源适配器负责文件能力；本地文件和恢复草稿不进入数据库文档或 GitHub 备份。Web 按运行时能力提供写入和移动，不支持目录授权时使用可编辑但不能覆盖原文件的目录快照。真实文件系统与权限验收边界见上述文档。
 
-插件适配前的代码基线为 `v0.1.0`（`05e624a`）。当前 Web/Tauri 产品版本已提升至 `0.3.0`，首次内置宿主的 R1～R6 已完成；主题以外的第三方贡献及公开 SDK 仍有独立门禁。SDK、插件和内容格式的版本独立管理，执行步骤见[插件适配版本与发布计划](docs/plugin-release-plan.md)，当前状态见[产品完善与插件推进待办](docs/plugin-readiness-todo.md)。
+插件适配前的代码基线为 `v0.1.0`（`05e624a`）。当前 Web/Tauri 产品版本已提升至 `0.3.0`，首次内置宿主的 R1～R6 已完成；主题以外的第三方贡献及公开 SDK 仍有独立门禁。SDK、插件和内容格式的版本独立管理，执行步骤见[插件适配版本与发布计划](./docs/plugins/plugin-release-plan.md)，当前状态见[产品完善与插件推进待办](./docs/plugins/plugin-readiness-todo.md)。
 
 ---
 
@@ -109,11 +111,11 @@ Web、Tauri 与 Flutter 共享 `schema/note.yaml` 和 `schema/config.yaml` 作�
 
 ### 开发环境
 
-运行 `npm ci` 安装锁定依赖，再使用 `npm run dev` 启动开发服务器。OpenCode、Codex 等开发代理从仓库根目录读取 [AGENTS.md](AGENTS.md)，并按任务阅读相关设计文档。可选环境配置见 `.env.example`。
+运行 `npm ci` 安装锁定依赖，再使用 `npm run dev` 启动开发服务器。OpenCode、Codex 等开发代理从仓库根目录读取 [AGENTS.md](./AGENTS.md)，并按任务阅读相关设计文档。可选环境配置见 `.env.example`。
 
 ### 核心开发原则
 
-所有开发者必须遵循 [AGENTS.md](AGENTS.md) 中的五大核心原则：
+所有开发者必须遵循 [AGENTS.md](./AGENTS.md) 中的五大核心原则：
 
 1. **增量修改优先** - 通过小的、有意义的改动逐步改进代码库，避免无必要的大规模重构
 2. **公共接口修改检查** - 修改公共 API 前必须搜索所有调用方，确保向后兼容
@@ -156,8 +158,8 @@ npm run test
 
 ### 文档参考
 
-- [AGENTS.md](AGENTS.md) - 完整的开发代理行为准则
-- [架构审查候选项](docs/architecture-analysis.md) - 待验证的审查建议与评估要求
+- [AGENTS.md](./AGENTS.md) - 完整的开发代理行为准则
+- [架构审查候选项](./docs/planning/architecture-analysis.md) - 待验证的审查建议与评估要求
 
 ---
 
@@ -222,7 +224,7 @@ npm run tauri build
 | macOS | `src-tauri/target/release/bundle/dmg/*.dmg` |
 | Windows | `src-tauri/target/release/bundle/msi/*.msi`、`nsis/*.exe` |
 
-详情：[`docs/TAURI_BUILD.md`](./docs/TAURI_BUILD.md)
+详情：[`docs/development/TAURI_BUILD.md`](./docs/development/TAURI_BUILD.md)
 
 ### Markdown 导入
 
@@ -243,7 +245,7 @@ python3 scripts/md-to-nine-rings.py --serve --port 8000 --path areas/nine-rings 
 
 **注意**：`--serve` 依赖 Vite dev server 的 `/__import` 端点，生产构建（`npm run build` + `serve.py`）不支持。不可同时启动两者（端口冲突导致导入失效）。
 
-详情：[`docs/md-import.md`](./docs/md-import.md)
+详情：[`docs/features/md-import.md`](./docs/features/md-import.md)
 
 ### Flutter 移动端
 
@@ -270,7 +272,7 @@ flutter run -d <device_id>
 flutter build apk
 ```
 
-> 完整步骤（从 GitHub clone 到产物运行）见 [`docs/FLUTTER_BUILD.md`](./docs/FLUTTER_BUILD.md)。
+> 完整步骤（从 GitHub clone 到产物运行）见 [`docs/development/FLUTTER_BUILD.md`](./docs/development/FLUTTER_BUILD.md)。
 
 当前 Flutter 版实现的功能：
 
@@ -328,29 +330,29 @@ nine-rings/
 
 | 文档 | 说明 |
 |------|------|
-| [`docs/current-design.md`](./docs/current-design.md) | 当前关键设计与约束的统一入口，区分已实现能力与后续计划 |
-| [`docs/editor-authority-and-workspace.md`](./docs/editor-authority-and-workspace.md) | 内容权威、三文档驻留、块工作区同步与源码边界 |
-| [`docs/plugin-system-design.md`](./docs/plugin-system-design.md) | 插件体系草案、宿主/SDK 契约与分阶段验证 |
-| [`docs/plugin-readiness-audit.md`](./docs/plugin-readiness-audit.md) | 首次可信内置宿主前置门禁、调用边界与验证范围 |
-| [`docs/plugin-panel-presentation.md`](./docs/plugin-panel-presentation.md) | 文档树/目录展示实现与书签、随记及风格的扩展规划 |
-| [`docs/plugin-release-plan.md`](./docs/plugin-release-plan.md) | 插件适配基线与版本提升计划 |
-| [`docs/TAURI_BUILD.md`](./docs/TAURI_BUILD.md) | Tauri 桌面端完整构建指南（macOS / Linux / Windows） |
-| [`docs/FLUTTER_BUILD.md`](./docs/FLUTTER_BUILD.md) | Flutter 移动端 + macOS 桌面构建指南（macOS / iOS） |
-| [`docs/TAURI_DESIGN.md`](./docs/TAURI_DESIGN.md) | Tauri 架构设计文档 |
-| [`docs/document-system-design.md`](./docs/document-system-design.md) | 文档管理系统设计（P.A.R.A. × Zettelkasten × Diátaxis） |
-| [`docs/document-tree-move-design.md`](./docs/document-tree-move-design.md) | 文档树移动设计（路径规则、原子事务、交互、跨端契约与测试） |
-| [`docs/backup-architecture.md`](./docs/backup-architecture.md) | 当前快照备份架构与演进边界 |
-| [`docs/sync-snapshot-hardening-design.md`](./docs/sync-snapshot-hardening-design.md) | 手动同步的兼容、基线、发布恢复、资产与测量设计 |
-| [`docs/github-backup.md`](./docs/github-backup.md) | GitHub 备份使用指南（Token 生成、配置、多设备工作流） |
-| [`docs/future-evolution.md`](./docs/future-evolution.md) | 长期产品与技术演进方向（知识工作流、同步、隐私、AI、平台与商业化） |
-| [`docs/engineering-improvement-plan.md`](./docs/engineering-improvement-plan.md) | 按优先级跟踪的工程整改计划、阶段任务与验收标准 |
-| [`docs/md-import.md`](./docs/md-import.md) | Markdown 导入工具使用指南（`md-to-nine-rings.py`） |
-| [`docs/markdown-import.md`](./docs/markdown-import.md) | Markdown 导入格式说明 |
-| [`docs/document-table-of-contents.md`](./docs/document-table-of-contents.md) | `/toc` 自动目录、标题级别与手写目录跳转 |
-| [`docs/markdown-compatibility.md`](./docs/markdown-compatibility.md) | CommonMark/GFM 兼容范围、平台边界和内容契约 |
-| [`docs/markdown-gfm-audit.md`](./docs/markdown-gfm-audit.md) | GitHub Markdown 兼容性核查、已确认差异与修复优先级 |
-| [`docs/macos-platform-analysis.md`](./docs/macos-platform-analysis.md) | macOS 客户端方案分析（Tauri vs Flutter vs 原生） |
-| [`docs/lessons-learned.md`](./docs/lessons-learned.md) | 开发经验记录（踩坑、模式、判断） |
+| [`docs/architecture/current-design.md`](./docs/architecture/current-design.md) | 当前关键设计与约束的统一入口，区分已实现能力与后续计划 |
+| [`docs/architecture/editor-authority-and-workspace.md`](./docs/architecture/editor-authority-and-workspace.md) | 内容权威、三文档驻留、块工作区同步与源码边界 |
+| [`docs/plugins/plugin-system-design.md`](./docs/plugins/plugin-system-design.md) | 插件体系草案、宿主/SDK 契约与分阶段验证 |
+| [`docs/plugins/plugin-readiness-audit.md`](./docs/plugins/plugin-readiness-audit.md) | 首次可信内置宿主前置门禁、调用边界与验证范围 |
+| [`docs/plugins/plugin-panel-presentation.md`](./docs/plugins/plugin-panel-presentation.md) | 文档树/目录展示实现与书签、随记及风格的扩展规划 |
+| [`docs/plugins/plugin-release-plan.md`](./docs/plugins/plugin-release-plan.md) | 插件适配基线与版本提升计划 |
+| [`docs/development/TAURI_BUILD.md`](./docs/development/TAURI_BUILD.md) | Tauri 桌面端完整构建指南（macOS / Linux / Windows） |
+| [`docs/development/FLUTTER_BUILD.md`](./docs/development/FLUTTER_BUILD.md) | Flutter 移动端 + macOS 桌面构建指南（macOS / iOS） |
+| [`docs/architecture/TAURI_DESIGN.md`](./docs/architecture/TAURI_DESIGN.md) | Tauri 架构设计文档 |
+| [`docs/architecture/document-system-design.md`](./docs/architecture/document-system-design.md) | 文档管理系统设计（P.A.R.A. × Zettelkasten × Diátaxis） |
+| [`docs/features/document-tree-move-design.md`](./docs/features/document-tree-move-design.md) | 文档树移动设计（路径规则、原子事务、交互、跨端契约与测试） |
+| [`docs/architecture/backup-architecture.md`](./docs/architecture/backup-architecture.md) | 当前快照备份架构与演进边界 |
+| [`docs/sync/sync-snapshot-hardening-design.md`](./docs/sync/sync-snapshot-hardening-design.md) | 手动同步的兼容、基线、发布恢复、资产与测量设计 |
+| [`docs/sync/github-backup.md`](./docs/sync/github-backup.md) | GitHub 备份使用指南（Token 生成、配置、多设备工作流） |
+| [`docs/features/future-evolution.md`](./docs/features/future-evolution.md) | 长期产品与技术演进方向（知识工作流、同步、隐私、AI、平台与商业化） |
+| [`docs/planning/engineering-improvement-plan.md`](./docs/planning/engineering-improvement-plan.md) | 按优先级跟踪的工程整改计划、阶段任务与验收标准 |
+| [`docs/features/md-import.md`](./docs/features/md-import.md) | Markdown 导入工具使用指南（`md-to-nine-rings.py`） |
+| [`docs/features/markdown-import.md`](./docs/features/markdown-import.md) | Markdown 导入格式说明 |
+| [`docs/features/document-table-of-contents.md`](./docs/features/document-table-of-contents.md) | `/toc` 自动目录、标题级别与手写目录跳转 |
+| [`docs/features/markdown-compatibility.md`](./docs/features/markdown-compatibility.md) | CommonMark/GFM 兼容范围、平台边界和内容契约 |
+| [`docs/validation/markdown-gfm-audit.md`](./docs/validation/markdown-gfm-audit.md) | GitHub Markdown 兼容性核查、已确认差异与修复优先级 |
+| [`docs/development/macos-platform-analysis.md`](./docs/development/macos-platform-analysis.md) | macOS 客户端方案分析（Tauri vs Flutter vs 原生） |
+| [`docs/development/lessons-learned.md`](./docs/development/lessons-learned.md) | 开发经验记录（踩坑、模式、判断） |
 | [`schema/note.yaml`](./schema/note.yaml) | 数据格式定义（Note / NoteVersion / ProtectedPath / Template） |
 | [`schema/config.yaml`](./schema/config.yaml) | 配置字段定义 |
 
@@ -358,7 +360,7 @@ nine-rings/
 
 ## CI
 
-[`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
 | Job | 说明 | Runner |
 |-----|------|--------|
@@ -386,7 +388,7 @@ nine-rings/
 >
 > ⚠️ **Linux 和 Android 版本仅通过 CI 构建验证，未经实际运行测试。**
 
-> Tauri macOS 由独立 workflow 构建 ARM64 和 Intel 两种 `.dmg`。产物未配置 Apple Developer 签名，首次打开时可能需要在“系统设置 → 隐私与安全性”中手动允许。Flutter macOS/iOS 仍需本地构建。详见 [`docs/FLUTTER_BUILD.md`](./docs/FLUTTER_BUILD.md)。
+> Tauri macOS 由独立 workflow 构建 ARM64 和 Intel 两种 `.dmg`。产物未配置 Apple Developer 签名，首次打开时可能需要在“系统设置 → 隐私与安全性”中手动允许。Flutter macOS/iOS 仍需本地构建。详见 [`docs/development/FLUTTER_BUILD.md`](./docs/development/FLUTTER_BUILD.md)。
 
 ---
 
@@ -394,8 +396,8 @@ nine-rings/
 
 MIT © [erocpil](https://github.com/erocpil)
 
-Nord（北境）与 Dracula Classic（德古拉）配色依照各自的 MIT 许可证使用；原作者版权声明与许可全文见 [主题第三方许可声明](public/third-party-theme-licenses.txt)。该文件会随 Web 和 Tauri 桌面版的前端资源一起打包。
+Nord（北境）与 Dracula Classic（德古拉）配色依照各自的 MIT 许可证使用；原作者版权声明与许可全文见 [主题第三方许可声明](./public/third-party-theme-licenses.txt)。该文件会随 Web 和 Tauri 桌面版的前端资源一起打包。
 
-手动逐实体同步（Web/Tauri 0.3.0）：首次迁移、选择合并与中断恢复见[同步指南](docs/incremental-sync.md)。Flutter 对新协议仍保持关闭；升级不会自动迁移已有备份。
+手动逐实体同步（Web/Tauri 0.3.0）：首次迁移、选择合并与中断恢复见[同步指南](./docs/sync/incremental-sync.md)。Flutter 对新协议仍保持关闭；升级不会自动迁移已有备份。
 
-工程资料：[当前关键设计](docs/current-design.md) · [工程设计地图与复用经验](docs/engineering-design-map.md) · [2026-10-18 代码审查](docs/code-review-2026-10-18.md)。
+工程资料：[当前关键设计](./docs/architecture/current-design.md) · [工程设计地图与复用经验](./docs/architecture/engineering-design-map.md) · [2026-10-18 代码审查](./docs/validation/code-review-2026-10-18.md)。

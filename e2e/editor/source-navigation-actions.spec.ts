@@ -1,0 +1,52 @@
+import { expect, test } from "@playwright/test";
+import { createBlankDocument } from "../helpers/document";
+import { replaceSource, selectDocumentLanguage, selectSource, sourceInfo } from "../helpers/source-editor";
+
+test("源码相对行跳转及关闭查找后的 F3 连续跳转", async ({ page }) => {
+  await createBlankDocument(page, "源码导航");
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  const source = "int item;\nint other;\nint item;\nint final;";
+  await replaceSource(area, source);
+  await selectSource(area, 0);
+  await area.press("ControlOrMeta+g");
+  const line = page.getByRole("textbox", { name: "行号或位置", exact: true });
+  await line.fill("+2");
+  await line.press("Enter");
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("int item;", 1));
+  await area.press("ControlOrMeta+g");
+  await line.fill("-2");
+  await line.press("Enter");
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(0);
+  await area.press("ControlOrMeta+f");
+  const search = page.getByRole("search", { name: "源码查找与替换" });
+  await search.getByRole("textbox", { name: "查找", exact: true }).fill("item");
+  await search.getByRole("textbox", { name: "查找", exact: true }).press("Escape");
+  await expect(search).toHaveCount(0);
+  await area.press("F3");
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("item"));
+  await area.press("F3");
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.lastIndexOf("item"));
+  await area.press("Shift+F3");
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("item"));
+});
+
+test("源码文本对象与临时标记可通过界面使用", async ({ page }) => {
+  await createBlankDocument(page, "源码对象与标记");
+  await selectDocumentLanguage(page, "c");
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
+  const source = 'int f() { call("abc"); }';
+  await replaceSource(area, source);
+  await selectSource(area, source.indexOf("abc") + 1);
+  await page.getByRole("button", { name: "选择引号内文本", exact: true }).click();
+  await expect.poll(async () => { const state = await sourceInfo(area); return state.value.slice(state.selectionStart, state.selectionEnd); }).toBe("abc");
+  await page.getByRole("button", { name: "临时位置标记", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "临时位置标记", exact: true });
+  await dialog.getByRole("textbox", { name: "临时标记名称" }).fill("target");
+  await dialog.getByRole("button", { name: "保存当前位置" }).click();
+  await dialog.getByRole("button", { name: "关闭临时位置标记", exact: true }).click();
+  await selectSource(area, 0);
+  await page.getByRole("button", { name: "临时位置标记", exact: true }).click();
+  await dialog.getByRole("button", { name: /target · Ln/ }).click();
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("abc") + 3);
+});

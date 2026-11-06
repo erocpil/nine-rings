@@ -2,7 +2,7 @@
 
 > 状态：体系版本 v0.3；最小验证协议仍为 v0.1；尚未完成行为与结果验证
 > 文档职责：方法论导航与当前决策结论
-> 产品实现：[Nine Rings 产品化与未来演进](nine-rings-productization.md) · [总入口](../future-evolution.md)
+> 产品实现：[Nine Rings 产品化与未来演进](./nine-rings-productization.md) · [总入口](../features/future-evolution.md)
 
 本文讨论的不是怎样使用某个 PKM，而是一个独立问题：
 
@@ -12,11 +12,11 @@
 
 | 文档 | 职责 |
 |---|---|
-| [认知—行动—学习闭环方法论](methodology/cognitive-action-learning-system.md) | 独立、完整的核心体系：主张、边界、对象模型、操作协议、质量控制与验证框架 |
-| [多主体互动的极速假设协议](methodology/multi-party-fast-hypothesis-protocol.md) | v0.3 子协议：在高压互动中保留事实、执行可逆探针，并将失效互动路由回主闭环 |
-| [最小可验证方法论](methodology/minimum-viable-method.md) | 核心命题、六个最小问题、验证单位、实验方法、否定条件与 Windows 示例 |
-| [语义模型与适用边界](methodology/semantic-model-and-boundaries.md) | 核心对象、Feedback 生命周期、World Model、内容边界和事项模式 |
-| [理论证据与案例](methodology/evidence-and-cases.md) | 理论依据、AAR、Good Judgment、Google SRE、NASA 反例和证据分层 |
+| [认知—行动—学习闭环方法论](./methodology/cognitive-action-learning-system.md) | 独立、完整的核心体系：主张、边界、对象模型、操作协议、质量控制与验证框架 |
+| [多主体互动的极速假设协议](./methodology/multi-party-fast-hypothesis-protocol.md) | v0.3 子协议：在高压互动中保留事实、执行可逆探针，并将失效互动路由回主闭环 |
+| [最小可验证方法论](./methodology/minimum-viable-method.md) | 核心命题、六个最小问题、验证单位、实验方法、否定条件与 Windows 示例 |
+| [语义模型与适用边界](./methodology/semantic-model-and-boundaries.md) | 核心对象、Feedback 生命周期、World Model、内容边界和事项模式 |
+| [理论证据与案例](./methodology/evidence-and-cases.md) | 理论依据、AAR、Good Judgment、Google SRE、NASA 反例和证据分层 |
 
 ## 当前结论
 

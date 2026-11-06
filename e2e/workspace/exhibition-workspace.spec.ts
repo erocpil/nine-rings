@@ -1,0 +1,762 @@
+import { expect, test, type Page } from "@playwright/test";
+import { createEpubFixture, createPdfFixture } from "../helpers/reader-fixtures";
+import { createBlankDocument, createDocumentInWorkspace } from "../helpers/document";
+
+async function selectAppearance(page: Page, label: string, value: string) {
+  const trigger = page.getByRole("button", { name: label, exact: true });
+  await trigger.hover();
+  if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
+  await page.getByRole("listbox", { name: label, exact: true }).locator(`[role="option"][value="${value}"]`).click();
+}
+
+test("正文恢复滚动不会关闭顶部外观菜单，按钮祖先滚动仍会关闭", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({
+    interface_style: "calm", workspace_layout: "exhibition",
+  })));
+  await page.goto("/");
+  await page.getByRole("button", { name: "物哀、幽玄与侘寂：风格设计与验证", exact: true }).click();
+  const trigger = page.getByRole("button", { name: "紧凑程度", exact: true });
+  const popup = page.getByRole("listbox", { name: "紧凑程度", exact: true });
+  await trigger.click();
+  await expect(popup).toBeVisible();
+  // Scroll restoration publishes this event even when the saved offset is zero.
+  await page.locator(".note-editor-scroll").evaluate(element => element.dispatchEvent(new Event("scroll")));
+  await expect(popup).toBeVisible();
+  await popup.getByRole("option", { name: "紧凑", exact: true }).click();
+  await expect(trigger).toHaveAttribute("data-value", "compact");
+  await trigger.click();
+  await expect(popup).toBeVisible();
+  await trigger.evaluate(element => element.parentElement!.dispatchEvent(new Event("scroll")));
+  await expect(popup).toHaveCount(0);
+});
+
+test("Command+W 关闭最后一份文档后工作区概览保持收起", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({
+    interface_style: "calm", workspace_layout: "exhibition",
+  })));
+  await createBlankDocument(page, "关闭后概览收起");
+  const documentId = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+  expect(documentId).toBeTruthy();
+
+  const overview = page.locator(".exhibition-overview-toggle");
+  await page.getByRole("button", { name: "展开概览", exact: true }).click();
+  await expect(overview).toHaveAttribute("aria-expanded", "true");
+  // Isolate the final open document so the close command returns to the home view.
+  await page.evaluate(id => {
+    localStorage.setItem("nr:recentNotes", JSON.stringify([id]));
+    localStorage.setItem("nr:focusTabs", JSON.stringify({ visible: true, limit: 32, order: [], closed: [], version: 2 }));
+  }, documentId);
+
+  await page.locator(".note-editor .ProseMirror").focus();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+w" : "Control+w");
+  await expect(page.locator(".exhibition-welcome")).toBeVisible();
+  await expect(overview).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator(".exhibition-columns")).toHaveCount(0);
+});
+
+test("展陈模式 Command+W 关闭当前数据库文档后切换到另一份已打开文档", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({
+    interface_style: "calm", workspace_layout: "exhibition",
+  })));
+  await createBlankDocument(page, "展陈关闭文档 A");
+  const firstId = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+  await createDocumentInWorkspace(page, "展陈关闭文档 B");
+  const secondId = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+  expect(firstId).toBeTruthy();
+  expect(secondId).toBeTruthy();
+
+  // Simulate stale closed-tab markers left by an earlier focus-mode session.
+  await page.evaluate(({ first, second }) => {
+    localStorage.setItem("nr:recentNotes", JSON.stringify([second, first]));
+    localStorage.setItem("nr:focusTabs", JSON.stringify({
+      visible: true, limit: 32, order: [second, first], closed: [second, first], version: 2,
+    }));
+  }, { first: firstId, second: secondId });
+  await page.locator(".doc-tree-doc").filter({ hasText: "展陈关闭文档 A" }).click();
+  await page.locator(".doc-tree-doc").filter({ hasText: "展陈关闭文档 B" }).click();
+  await page.locator(".doc-tree-doc").filter({ hasText: "展陈关闭文档 A" }).click();
+  await expect(page.locator(".note-title")).toHaveValue("展陈关闭文档 A");
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nr:focusTabs") ?? "{}").closed)).toEqual([]);
+
+  await page.locator(".note-editor .ProseMirror").focus();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+w" : "Control+w");
+  await expect(page.locator(".note-title")).toHaveValue("展陈关闭文档 B");
+  await expect(page.locator(".exhibition-welcome")).toHaveCount(0);
+});
+
+
+for (const style of ["calm", "mono-aware"] as const) {
+  test(`${style} 展陈工作区首页、文档与专注布局`, async ({ page }) => {
+    await page.addInitScript((style) => {
+      const config = JSON.parse(
+        localStorage.getItem("nine_rings_config") || "{}",
+      );
+      if (!config.workspace_layout)
+        localStorage.setItem(
+          "nine_rings_config",
+          JSON.stringify({
+            ...config,
+            interface_style: style,
+            workspace_layout: "exhibition",
+            interface_color_mode: "light",
+          }),
+        );
+    }, style);
+    await page.goto("/");
+    const sample = page.getByRole("button", {
+      name: "物哀、幽玄与侘寂：风格设计与验证",
+      exact: true,
+    });
+    await expect(sample).toBeVisible();
+    await sample.click();
+    await expect(page.locator(".note-title")).toHaveValue("物哀、幽玄与侘寂：风格设计与验证");
+    await expect(page.locator(".exhibition-masthead")).toBeVisible();
+    const outlineTrigger = page.locator('[data-document-panel-trigger="outline"]:visible').first();
+    await outlineTrigger.hover();
+    const outlinePanel = page.getByRole("navigation", { name: "文档目录", exact: true });
+    await expect(outlinePanel).toBeVisible();
+    const outlineList = outlinePanel.locator(".document-outline-list");
+    const exhibitionShell = page.locator(".exhibition-shell");
+    for (const density of ["comfortable", "compact"] as const) {
+      await exhibitionShell.evaluate((element, value) => { element.dataset.density = value; }, density);
+      await expect(exhibitionShell).toHaveCSS("--style-panel-gap", "4px");
+      await expect(outlineList).toHaveCSS("padding-top", "4px");
+    }
+    const framedApp = page.locator(".is-exhibition > .app");
+    await expect(framedApp).toHaveCSS("overflow", "hidden");
+    await expect(framedApp).toHaveCSS("border-top-left-radius", "10px");
+    await expect(framedApp).toHaveCSS("border-bottom-left-radius", "10px");
+    await expect(framedApp).toHaveCSS("border-top-right-radius", "10px");
+    await expect(framedApp).toHaveCSS("border-bottom-right-radius", "10px");
+    await expect(
+      page.locator(".exhibition-masthead .titlebar-title"),
+    ).toHaveCount(0);
+    await expect(page.locator(".exhibition-identity > span")).toHaveText(
+      "NINE RINGS / WORKSPACE",
+    );
+    await expect(page.locator(".app > .titlebar")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "关闭", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "展开概览", exact: true }),
+    ).toBeVisible();
+    // Built-in demos are intentionally readonly. Enter edit mode explicitly
+    // before testing save-on-navigation, rather than relying on startup timing.
+    await page.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+    await expect(page.locator(".note-editor .ProseMirror")).toHaveAttribute("contenteditable", "true");
+    await page
+      .locator(".note-editor .ProseMirror")
+      .fill("展陈布局切换前的编辑应当保存。");
+    await page.getByRole("button", { name: "返回工作区首页" }).click();
+    await expect(page.locator(".exhibition-welcome")).toBeVisible();
+    const overviewToggle = page.locator(".exhibition-overview-toggle");
+    await expect(overviewToggle).toContainText("WORKSPACE OVERVIEW");
+    await expect(overviewToggle).toHaveAttribute("aria-expanded", "true");
+    await overviewToggle.click();
+    await expect(page.locator(".exhibition-columns")).toHaveCount(0);
+    await overviewToggle.press("Enter");
+    await expect(page.locator(".exhibition-columns")).toBeVisible();
+    await overviewToggle.press("Space");
+    await expect(page.locator(".exhibition-columns")).toHaveCount(0);
+    await overviewToggle.click();
+    await expect(page.locator(".exhibition-columns")).toBeVisible();
+    const activityBar = page.locator(".desktop-activity-bar");
+    await expect(activityBar).toHaveCSS("opacity", "0");
+    await activityBar.hover();
+    await expect(activityBar).toHaveCSS("opacity", "1");
+    await page.getByRole("button", { name: "返回上一页面", exact: true }).click();
+    await expect(page.locator(".note-title")).toHaveValue("物哀、幽玄与侘寂：风格设计与验证");
+    await expect(page.locator(".note-editor .ProseMirror")).toContainText("展陈布局切换前的编辑应当保存。");
+    await page.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+    await expect(page.locator(".exhibition-welcome")).toBeVisible();
+    await expect(page.locator(".exhibition-columns > section")).toHaveCount(4);
+    await expect(
+      page
+        .locator(".exhibition-columns")
+        .getByRole("button", {
+          name: "物哀、幽玄与侘寂：风格设计与验证",
+          exact: true,
+        })
+        .first(),
+    ).toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath(`nr-exhibition-${style}-home.png`),
+      animations: "disabled",
+    });
+    await page
+      .locator(".exhibition-columns")
+      .getByRole("button", {
+        name: "物哀、幽玄与侘寂：风格设计与验证",
+        exact: true,
+      })
+      .first()
+      .click();
+    await expect(page.locator(".note-title")).toHaveValue(
+      "物哀、幽玄与侘寂：风格设计与验证",
+    );
+    await expect(page.locator(".exhibition-columns")).toHaveCount(0);
+    await expect(page.locator(".note-editor .ProseMirror")).toContainText(
+      "展陈布局切换前的编辑应当保存。",
+    );
+    await selectAppearance(page, "工作区风格", "yugen");
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-interface-style",
+      "yugen",
+    );
+    await selectAppearance(page, "工作区配色", "dark");
+    await page.reload();
+    await expect(page.locator(".exhibition-masthead")).toBeVisible();
+    await expect(page.locator("html")).toHaveClass(/theme-dark/);
+    await page.getByRole("button", { name: "专注模式", exact: true }).click();
+    await expect(page.locator(".exhibition-masthead")).toHaveCount(0);
+    await page.getByRole("button", { name: /退出专注/ }).click();
+    await expect(page.locator(".exhibition-masthead")).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    const overlay = page.locator(".sidebar-overlay.active");
+    if (await overlay.isVisible())
+      await overlay.click({ position: { x: 380, y: 400 } });
+    await page.getByRole("button", { name: "展开概览", exact: true }).click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      )
+      .toBe(true);
+    await expect(page.locator(".exhibition-columns")).toHaveCSS(
+      "grid-template-columns",
+      /^(\d+(\.\d+)?px)$/,
+    );
+    await page.screenshot({
+      path: test.info().outputPath(`nr-exhibition-${style}-mobile.png`),
+      animations: "disabled",
+    });
+  });
+}
+
+test("手机展陈首页竖屏方形欢迎区、横屏并排且展开概览节省标题空间", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({
+    interface_style: "calm",
+    workspace_layout: "exhibition",
+    interface_color_mode: "light",
+  })));
+  await page.goto("/");
+  // Startup can briefly show the home surface before restoring a seeded note.
+  // Enter home explicitly so geometry is measured in the intended route.
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  const home = page.getByRole("button", { name: "返回工作区首页", exact: true });
+  await expect(home).toBeVisible();
+  await home.click();
+  await expect(page.locator(".exhibition-welcome")).toBeVisible();
+  await expect(page.locator(".exhibition-columns")).toBeVisible();
+
+  const summary = page.getByRole("navigation", { name: "工作区统计" });
+  await expect(summary.getByRole("button")).toHaveCount(1);
+  await expect(summary.getByRole("button", { name: "查看最近打开文档" })).toBeVisible();
+
+  const app = page.locator(".is-exhibition > .app");
+  const overview = page.locator(".exhibition-overview");
+  const portrait = (await app.boundingBox())!;
+  expect(Math.abs(portrait.width - portrait.height)).toBeLessThan(2);
+  const portraitOverview = (await overview.boundingBox())!;
+  expect(portraitOverview.y).toBeGreaterThanOrEqual(portrait.y + portrait.height - 1);
+  expect(portraitOverview.height).toBeGreaterThan(300);
+  const thirdSectionHeading = await overview.locator(".exhibition-columns > section").nth(2).locator("h3").boundingBox();
+  expect(thirdSectionHeading).not.toBeNull();
+  expect(thirdSectionHeading!.y + thirdSectionHeading!.height).toBeLessThanOrEqual(portraitOverview.y + portraitOverview.height + 1);
+
+  await page.setViewportSize({ width: 740, height: 390 });
+  const landscape = (await app.boundingBox())!;
+  const adjacentOverview = (await overview.boundingBox())!;
+  expect(Math.abs(landscape.width - landscape.height)).toBeLessThan(2);
+  expect(adjacentOverview.x).toBeGreaterThanOrEqual(landscape.x + landscape.width - 1);
+
+  await overview.getByRole("button", { name: "新建文档", exact: true }).click();
+  await page.getByPlaceholder("文档标题...").fill("手机横屏空间测试");
+  await page.getByRole("button", { name: "创建", exact: true }).click();
+  await expect(page.locator(".note-editor-scroll")).toBeVisible();
+  const editorHeight = (await page.locator(".note-editor-scroll").boundingBox())!.height;
+  expect(editorHeight).toBeGreaterThan(180);
+  await page.getByRole("button", { name: "展开概览", exact: true }).click();
+  await expect(page.locator(".exhibition-columns")).toBeVisible();
+  await expect(overview.locator(":scope > .exhibition-overview-heading .exhibition-eyebrow")).toBeHidden();
+});
+
+test("经典自动显示标准布局，其他风格恢复之前的布局选择并跨刷新保留", async ({ page }) => {
+  await page.addInitScript(() =>
+    !localStorage.getItem("nine_rings_config") && localStorage.setItem(
+      "nine_rings_config",
+      JSON.stringify({
+        interface_style: "calm",
+        workspace_layout: "exhibition",
+      }),
+    ),
+  );
+  await page.goto("/");
+  await expect(page.locator(".exhibition-masthead")).toBeVisible();
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  const layout = page.getByRole("group", { name: "工作区布局", exact: true });
+  await expect(
+    layout.getByRole("button", { name: "展陈", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  const styles = page.getByRole("group", { name: "界面风格", exact: true });
+  await styles.getByRole("button", { name: /^经典/ }).click();
+  await expect(page.locator(".exhibition-masthead")).toHaveCount(0);
+  await expect(layout.getByRole("button", { name: "标准", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(layout.getByRole("button", { name: "展陈", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    layout.getByRole("button", { name: "展陈", exact: true }),
+  ).toBeDisabled();
+  await expect.poll(() => page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    return (await api.config.get()).interface_style;
+  })).toBe("classic");
+  await page.reload();
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  await expect(layout.getByRole("button", { name: "标准", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await styles.getByRole("button", { name: /^纸页/ }).click();
+  await expect(page.locator(".exhibition-masthead")).toBeVisible();
+  await expect(layout.getByRole("button", { name: "展陈", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await layout.getByRole("button", { name: "标准", exact: true }).click();
+  await expect(page.locator(".exhibition-masthead")).toHaveCount(0);
+  await styles.getByRole("button", { name: /^经典/ }).click();
+  await expect(layout.getByRole("button", { name: "标准", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await styles.getByRole("button", { name: /^清雅/ }).click();
+  await expect(layout.getByRole("button", { name: "标准", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".exhibition-masthead")).toHaveCount(0);
+});
+
+test("Web 展陈全屏按钮同步进入与退出状态", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "nine_rings_config",
+      JSON.stringify({
+        interface_style: "calm",
+        workspace_layout: "exhibition",
+      }),
+    );
+    let fullscreen: Element | null = null;
+    Object.defineProperty(document, "fullscreenEnabled", { get: () => true });
+    Object.defineProperty(document, "fullscreenElement", {
+      get: () => fullscreen,
+    });
+    Element.prototype.requestFullscreen = async () => {
+      fullscreen = document.documentElement;
+      document.dispatchEvent(new Event("fullscreenchange"));
+    };
+    document.exitFullscreen = async () => {
+      fullscreen = null;
+      document.dispatchEvent(new Event("fullscreenchange"));
+    };
+  });
+  await page.goto("/");
+  const header = page.locator(".exhibition-masthead");
+  await header.getByRole("button", { name: "进入全屏", exact: true }).click();
+  await expect(
+    header.getByRole("button", { name: "退出全屏", exact: true }),
+  ).toBeVisible();
+  await header.getByRole("button", { name: "退出全屏", exact: true }).click();
+  await expect(
+    header.getByRole("button", { name: "进入全屏", exact: true }),
+  ).toBeVisible();
+  await expect(
+    header.getByRole("button", { name: "关闭", exact: true }),
+  ).toHaveCount(0);
+});
+
+test("桌面展陈宽度和密度独立持久化，手机保持原布局", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.addInitScript(() => {
+    if (!localStorage.getItem("nine_rings_config"))
+      localStorage.setItem(
+        "nine_rings_config",
+        JSON.stringify({
+          interface_style: "calm",
+          workspace_layout: "exhibition",
+        }),
+      );
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", {
+      name: "物哀、幽玄与侘寂：风格设计与验证",
+      exact: true,
+    })
+    .click();
+  const content = page.locator(".note-editor-scroll > .editor-content-shell");
+  const header = page.locator(".note-title-row");
+  await selectAppearance(page, "文本宽度", "narrow");
+  // Verify the used width rather than the serialization of CSS min().
+  await expect.poll(async () => (await content.boundingBox())!.width).toBeCloseTo(690, 0);
+  const narrow = (await content.boundingBox())!.width;
+  await selectAppearance(page, "文本宽度", "standard");
+  const standard = (await content.boundingBox())!.width;
+  expect(standard).toBeGreaterThan(narrow);
+  await selectAppearance(page, "文本宽度", "wide");
+  await expect.poll(async () => (await content.boundingBox())!.width).toBeGreaterThan(standard);
+  const wide = (await content.boundingBox())!.width;
+  const margins = await content.evaluate(element => {
+    const style = getComputedStyle(element);
+    return { left: parseFloat(style.marginLeft), right: parseFloat(style.marginRight) };
+  });
+  expect(margins.left).toBeGreaterThanOrEqual(4);
+  expect(margins.right).toBeCloseTo(margins.left * 2, 1);
+  expect(Math.abs(standard - (narrow + wide) / 2)).toBeLessThan(1);
+  await page.setViewportSize({ width: 1800, height: 1000 });
+  const resizedWide = (await content.boundingBox())!.width;
+  await selectAppearance(page, "文本宽度", "narrow");
+  const resizedNarrow = (await content.boundingBox())!.width;
+  await selectAppearance(page, "文本宽度", "standard");
+  await expect.poll(async () => Math.abs((await content.boundingBox())!.width - (resizedNarrow + resizedWide) / 2)).toBeLessThan(1);
+  await selectAppearance(page, "文本宽度", "wide");
+  await selectAppearance(page, "紧凑程度", "compact");
+  await expect(header).toHaveCSS("height", "42px");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-interface-style",
+    "calm",
+  );
+  await page.reload();
+  await expect(page.getByLabel("文本宽度", { exact: true })).toHaveAttribute("data-value",
+    "wide",
+  );
+  await expect(page.getByLabel("紧凑程度", { exact: true })).toHaveAttribute("data-value",
+    "compact",
+  );
+  await selectAppearance(page, "紧凑程度", "comfortable");
+  await expect(header).toHaveCSS("height", "48px");
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  await expect(page.locator(".titlebar-wordmark")).toHaveText("NINE RINGS");
+  await expect(page.locator(".titlebar-wordmark")).toHaveCSS("font-size", "10.5px");
+  await expect(page.locator(".titlebar-logo")).toHaveCount(0);
+  await expect(page.locator(".titlebar-wordmark > span").first()).toHaveCSS(
+    "font-size",
+    "14px",
+  );
+  await page.getByRole("button", { name: /退出专注/ }).click();
+  await expect.poll(async () => {
+    const leading = await page.locator(".titlebar-leading").boundingBox();
+    const workspace = await page.locator(".titlebar-workspace").boundingBox();
+    return leading!.width - workspace!.width;
+  }).toBeGreaterThan(100);
+  await page.screenshot({ path: test.info().outputPath("nr-exhibition-controls-desktop.png") });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByLabel("文本宽度", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("紧凑程度", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".exhibition-shell[data-density]")).toHaveCount(0);
+  await expect(page.locator(".exhibition-shell[data-text-width]")).toHaveCount(
+    0,
+  );
+});
+
+test("风格默认浅色宽幅舒适，非经典风格共享侘寂排版", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({
+    interface_style: "calm",
+    workspace_layout: "exhibition",
+  })));
+  await page.goto("/");
+  const shell = page.locator(".exhibition-shell");
+  await expect(shell).toHaveAttribute("data-text-width", "wide");
+  await expect(shell).toHaveAttribute("data-density", "comfortable");
+  await expect(page.locator("html")).toHaveClass(/theme-light/);
+
+  const editor = page.locator(".note-editor .ProseMirror");
+  const typography = async () => editor.evaluate(element => {
+    const style = getComputedStyle(element);
+    return { fontSize: style.fontSize, lineHeight: style.lineHeight, fontFamily: style.fontFamily };
+  });
+  const baseline = await typography();
+  expect(baseline.fontSize).toBe("16px");
+  expect(Number.parseFloat(baseline.lineHeight)).toBeCloseTo(28.8, 1);
+  expect(baseline.fontFamily).toMatch(/serif/i);
+  for (const style of ["paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"]) {
+    await selectAppearance(page, "工作区风格", style);
+    await expect.poll(typography).toEqual(baseline);
+  }
+});
+
+
+test("桌面顶部菜单点击启用悬停切换，关闭后不再悬停打开且清除鼠标焦点框", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "nine-rings", interface_color_mode: "light", workspace_layout: "exhibition" })));
+  await page.goto("/");
+  const before = await page.evaluate(() => localStorage.getItem("nine_rings_config"));
+  const style = page.getByRole("button", { name: "工作区风格", exact: true });
+  await style.hover();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await style.click();
+  await page.getByRole("button", { name: "工作区配色", exact: true }).dispatchEvent("pointerenter", { pointerType: "touch" });
+  await expect(page.getByRole("listbox", { name: "工作区风格", exact: true })).toBeVisible();
+  for (const label of ["工作区风格", "工作区配色", "文本宽度", "紧凑程度", "工作区风格"]) {
+    await page.getByRole("button", { name: label, exact: true }).hover();
+    await expect(page.getByRole("listbox")).toHaveCount(1);
+    await expect(page.getByRole("listbox", { name: label, exact: true })).toBeVisible();
+  }
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "工作区风格", exact: true })).toBeFocused();
+  await expect(style).toHaveCSS("outline-style", "solid");
+  await page.getByRole("button", { name: "工作区配色", exact: true }).hover();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await style.click();
+  await style.click();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(style).toHaveCSS("outline-style", "none");
+  await page.getByRole("button", { name: "文本宽度", exact: true }).hover();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await style.click();
+  await page.locator(".exhibition-overview-toggle").click();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await page.getByRole("button", { name: "紧凑程度", exact: true }).hover();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("nine_rings_config"))).toBe(before);
+  await expect(page.getByRole("button", { name: "文本宽度", exact: true })).toHaveText("宽幅");
+  await selectAppearance(page, "工作区配色", "dark");
+  await expect(page.locator("html")).toHaveClass(/theme-dark/);
+  await page.getByRole("button", { name: "工作区风格", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "工作区风格", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "工作区配色", exact: true })).toBeVisible();
+  await expect(page.locator('select[aria-label="工作区风格"]')).toHaveCount(0);
+});
+
+test("工作区风格和配色选项完整显示，手机按钮留出间距且可直接切换弹层", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "nine-rings", interface_color_mode: "dark", workspace_layout: "exhibition" })));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/");
+  const style = page.getByRole("button", { name: "工作区风格", exact: true });
+  await style.click();
+  let selected = page.getByRole("option", { name: /九环/ });
+  await expect(selected.locator("span")).toHaveCSS("white-space", "nowrap");
+  const initialHeight = await selected.boundingBox();
+  await page.getByRole("option", { name: /物哀/ }).click();
+  await style.click();
+  selected = page.getByRole("option", { name: /物哀/ });
+  const selectedHeight = await selected.boundingBox();
+  expect(selectedHeight!.height).toBeLessThanOrEqual(initialHeight!.height! + 1);
+  for (const option of await page.getByRole("listbox", { name: "工作区风格" }).getByRole("option").all()) {
+    await expect(option.locator("span")).toHaveCSS("white-space", "nowrap");
+  }
+  expect(await page.getByRole("listbox", { name: "工作区风格" }).evaluate(element =>
+    [...element.querySelectorAll<HTMLElement>('[role="option"] > span')].every(span => span.scrollWidth <= span.clientWidth),
+  )).toBe(true);
+  await page.keyboard.press("Escape");
+});
+
+test("手机展陈风格和配色按钮有间距，未选择时可直接切换弹层", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "nine-rings", interface_color_mode: "dark", workspace_layout: "exhibition" }));
+    localStorage.setItem("nr:sidebarHidden", "true");
+  });
+  await page.goto("/");
+  const mobileStyle = page.getByRole("button", { name: "工作区风格", exact: true });
+  const mobilePalette = page.getByRole("button", { name: "工作区配色", exact: true });
+  await expect(mobileStyle).toBeEnabled();
+  const [styleBox, paletteBox] = await Promise.all([mobileStyle.boundingBox(), mobilePalette.boundingBox()]);
+  expect(paletteBox!.x - (styleBox!.x + styleBox!.width)).toBeGreaterThanOrEqual(10);
+  await mobileStyle.click();
+  await expect(page.getByRole("listbox", { name: "工作区风格" })).toBeVisible();
+  await mobilePalette.click();
+  await expect(page.getByRole("listbox", { name: "工作区风格" })).toHaveCount(0);
+  const palette = page.getByRole("listbox", { name: "工作区配色" });
+  await expect(palette).toBeVisible();
+  expect(await palette.evaluate(element =>
+    [...element.querySelectorAll<HTMLElement>('[role="option"] > span')].every(span => span.scrollWidth <= span.clientWidth),
+  )).toBe(true);
+});
+
+
+test("首页快速往返不保存恢复期间的临时滚动位置", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "calm", workspace_layout: "exhibition" })));
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await page.locator(".ProseMirror").evaluate(element => {
+    const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    editor.commands.setContent({ type: "doc", content: Array.from({length: 150}, (_, i) => ({type: "paragraph", content: [{type: "text", text: `第 ${i} 段：快速往返定位测试。`}]})) }, true);
+  });
+  await page.waitForTimeout(700);
+  const target = await page.locator(".note-editor-scroll").evaluate(element => {
+    element.scrollTop = 3000;
+    element.dispatchEvent(new Event("scroll"));
+    return element.scrollTop;
+  });
+  expect(target).toBeGreaterThan(2000);
+  // Include a persisted text anchor, as a slower runner does before clicking home.
+  await page.evaluate(() => window.dispatchEvent(new Event("nine-rings:flush-reading-position")));
+  await page.getByRole("button", {name: "返回工作区首页", exact: true}).click();
+  // Simulate a slow NodeView: the target cannot be reached on initial mount.
+  await page.addStyleTag({content: ".note-editor-scroll > .editor-content-shell { max-height: 150px !important; overflow: hidden !important; }"});
+  await page.getByRole("button", {name: "返回上一页面", exact: true}).click();
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  // Keep the content clamped beyond the normal 600ms restore window.
+  await page.waitForTimeout(900);
+  await page.locator(".note-editor-scroll").evaluate(element => {
+    // A queued native scroll notification may arrive after the height clamp.
+    element.dispatchEvent(new Event("scroll"));
+  });
+  await page.getByRole("button", {name: "返回工作区首页", exact: true}).click();
+  await page.evaluate(() => { for (const style of document.querySelectorAll("style")) if (style.textContent?.includes("max-height: 150px !important")) style.remove(); });
+  await page.getByRole("button", {name: "返回上一页面", exact: true}).click();
+  await expect.poll(() => page.locator(".note-editor-scroll").evaluate(element => element.scrollTop)).toBeCloseTo(target, 0);
+});
+
+test("首页从固定阅读分栏打开 PDF 后收回空栏，返回时保留 PDF 阅读器", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "calm", workspace_layout: "exhibition" }));
+    localStorage.setItem("nr:sidebarPresentation", "split");
+    localStorage.setItem("nr:desktopSidebar", JSON.stringify({ panel: "reader", hidden: false, pinned: true }));
+  });
+  await page.goto("/");
+  const title = page.locator(".note-title");
+  await expect(title).toBeVisible();
+  const originalTitle = await title.inputValue();
+  await page.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+
+  await page.locator(".desktop-activity-bar").hover();
+  await page.getByRole("button", { name: "PDF / EPUB 阅读", exact: true }).click();
+  const library = page.getByRole("region", { name: "阅读资料库", exact: true });
+  await expect(library).toBeVisible();
+  await library.locator('input[accept="application/pdf,.pdf"]').setInputFiles({
+    name: "home-reader.pdf", mimeType: "application/pdf", buffer: createPdfFixture(),
+  });
+
+  const reader = page.getByLabel("PDF 阅读器", { exact: true });
+  const sidebar = page.locator(".app-sidebar");
+  await expect(reader).toBeVisible();
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  await expect(page.locator(".sidebar-divider")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "返回上一页面", exact: true }).click();
+  await expect(title).toHaveValue(originalTitle);
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  await expect(page.locator(".app-main").getByLabel("PDF 阅读器", { exact: true })).toBeVisible();
+});
+
+test("首页悬停阅读分栏打开 EPUB 后取消悬停并收回分栏", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "calm", workspace_layout: "exhibition" }));
+    localStorage.setItem("nr:sidebarPresentation", "overlay");
+    localStorage.setItem("nr:desktopSidebar", JSON.stringify({ panel: "reader", hidden: true, pinned: false }));
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+
+  const activityBar = page.locator(".desktop-activity-bar");
+  await activityBar.hover();
+  await page.getByRole("button", { name: "PDF / EPUB 阅读", exact: true }).hover();
+  const library = page.getByRole("region", { name: "阅读资料库", exact: true });
+  await expect(library).toBeVisible();
+  await library.locator('input[accept="application/epub+zip,.epub"]').setInputFiles({
+    name: "home-reader.epub", mimeType: "application/epub+zip", buffer: createEpubFixture(),
+  });
+
+  const sidebar = page.locator(".app-sidebar");
+  await expect(page.getByLabel("EPUB 阅读器", { exact: true })).toBeVisible();
+  await page.mouse.move(850, 500);
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  await expect(page.locator(".sidebar-divider")).toHaveCount(0);
+});
+
+for (const presentation of ["overlay", "split"] as const) {
+  for (const hidden of [false, true]) {
+    test(`首页未打开文件返回恢复分栏：${presentation} hidden=${hidden}`, async ({ page }) => {
+      await page.addInitScript(({ presentation, hidden }) => {
+        localStorage.setItem("nine_rings_config", JSON.stringify({
+          interface_style: "calm", workspace_layout: "exhibition",
+        }));
+        localStorage.setItem("nr:sidebarPresentation", presentation);
+        localStorage.setItem("nr:desktopSidebar", JSON.stringify({
+          panel: "tree", hidden, pinned: !hidden,
+        }));
+      }, { presentation, hidden });
+      await page.goto("/");
+      await expect(page.locator(".note-title")).toBeVisible();
+      const sidebar = page.locator(".app-sidebar");
+      const tree = page.locator('[data-sidebar-panel="tree"]');
+      const assertRestored = async () => {
+        await expect(tree).toHaveAttribute("aria-expanded", String(!hidden));
+        if (presentation === "overlay" && !hidden)
+          await expect(tree).toHaveAttribute("data-pinned", "true");
+      };
+      await assertRestored();
+      for (const preview of [false, true]) {
+        await page.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+        await expect(page.locator(".exhibition-welcome")).toBeVisible();
+        await expect(sidebar).toHaveClass(/sidebar-hidden/);
+        if (preview) {
+          await page.locator(".desktop-activity-bar").hover();
+          // Changing a panel on home without opening a document must not
+          // replace the snapshot taken before home navigation.
+          await page.locator('[data-sidebar-panel="reader"]').click();
+          await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+        }
+        await page.getByRole("button", { name: "返回上一页面", exact: true }).click();
+        await expect(page.locator(".note-title")).toBeVisible();
+        await assertRestored();
+        await page.mouse.move(1200, 650);
+        // Observe past both the hover dismissal (180ms) and CSS transition.
+        const states = await tree.evaluate(async element => {
+          const values: (string | null)[] = [];
+          const until = performance.now() + 600;
+          while (performance.now() < until) {
+            values.push(element.getAttribute("aria-expanded"));
+            await new Promise(requestAnimationFrame);
+          }
+          return [...new Set(values)];
+        });
+        expect(states).toEqual([String(!hidden)]);
+      }
+    });
+  }
+}
+
+for (const panel of ["tree", "list"] as const) {
+  for (const entry of ["hover", "click"] as const) {
+    test(`首页通过分栏打开文件后保留悬停或固定模式：${panel} ${entry}`, async ({ page }) => {
+      await page.addInitScript(() => {
+        localStorage.setItem("nine_rings_config", JSON.stringify({
+          interface_style: "calm", workspace_layout: "exhibition",
+        }));
+        localStorage.setItem("nr:sidebarPresentation", "overlay");
+      });
+      await page.goto("/");
+      await expect(page.locator(".note-title")).toBeVisible();
+      await page.evaluate(async () => {
+        const load = (path: string) => import(/* @vite-ignore */ path);
+        const { api } = await load("/src/lib/api.ts") as typeof import("../../src/lib/api");
+        await api.notes.create({ title: "首页分栏打开验证", date: "2026-09-28", storagePath: "",
+          content: { ops: [{ insert: "从首页打开文档后保持分栏。\n" }] } });
+      });
+      await page.reload();
+      await expect(page.locator(".note-title")).toBeVisible();
+      await page.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+      await expect(page.locator(".exhibition-welcome")).toBeVisible();
+      await page.locator(".desktop-activity-bar").hover();
+      const button = page.locator(`[data-sidebar-panel="${panel}"]`);
+      if (entry === "hover") await button.hover();
+      else await button.click();
+      const sidebar = page.locator(".app-sidebar");
+      if (panel === "list")
+        await sidebar.getByRole("button", { name: "全部文档", exact: true }).click();
+      await sidebar.getByRole("button", { name: "首页分栏打开验证", exact: true }).click();
+      await expect(page.locator(".note-title")).toHaveValue("首页分栏打开验证");
+      await expect(page.locator(".exhibition-welcome")).toBeHidden();
+      if (entry === "click") await expect(button).toHaveAttribute("data-pinned", "true");
+      else await expect(button).not.toHaveAttribute("data-pinned", "true");
+      await page.mouse.move(1200, 650);
+      // Leave the pane long enough for a hover preview's dismissal to fire.
+      await page.waitForTimeout(600);
+      await expect(button).toHaveAttribute("aria-expanded", String(entry === "click"));
+      await expect(page.locator(".desktop-activity-bar")).toHaveCSS("opacity", "1");
+      // A later home round trip preserves a pin, but never pins a preview.
+      await page.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+      await page.getByRole("button", { name: "返回上一页面", exact: true }).click();
+      if (entry === "click") await expect(button).toHaveAttribute("data-pinned", "true");
+      else await expect(button).not.toHaveAttribute("data-pinned", "true");
+      await expect(button).toHaveAttribute("aria-expanded", String(entry === "click"));
+      await expect(page.locator(".note-title")).toHaveValue("首页分栏打开验证");
+    });
+  }
+}

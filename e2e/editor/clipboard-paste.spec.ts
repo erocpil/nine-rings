@@ -1,0 +1,982 @@
+import { toolbarAction } from "../helpers/editor-toolbar";
+import { requireNativeClipboard } from "../helpers/native-clipboard";
+import { pressLineBoundary } from "../helpers/keyboard";
+import { test, expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { createBlankNote } from "../helpers/editor-fixtures";
+
+const markdownLikeShellSource = [
+  "#!/usr/bin/env bash",
+  "set -Eeuo pipefail",
+  "",
+  "# Single-host, dual-VF RoCEv2 lab for ConnectX SR-IOV.",
+  "# Usage:",
+  "#   sudo ./rdma-vf-lab.sh setup",
+  "vf_attr() {",
+  "    # vf_attr <vf-index> <mac|link-state>",
+  "    printf '%s\\n' \"$1\"",
+  "}",
+  "",
+  "  * setup uses VF0/VF1 of PF_IF.",
+  "  * cleanup preserves an existing VF count.",
+  "",
+].join("\n");
+const wrappedRgCommand = [
+  "rg -n \\",
+  "  'pp_init_ctx|pp_connect_ctx|pp_post_recv|pp_post_send|parse_single_wc|ibv_modify_qp|pingpong_dest|ibv_poll_cq' \\",
+  "  rc_pingpong.c",
+  "",
+].join("\n");
+
+async function clickPaste(page: import("@playwright/test").Page) {
+  await (await toolbarAction(page, "paste")).click();
+}
+
+async function clickCopy(page: import("@playwright/test").Page) {
+  await (await toolbarAction(page, "copy")).click();
+}
+
+async function clickCodeBlock(page: import("@playwright/test").Page) {
+  await (await toolbarAction(page, "code")).click();
+}
+
+/** Native pointer selection also completes ProseMirror's mouseup synchronization. */
+async function dragParagraphText(page: import("@playwright/test").Page, value: string) {
+  const viewport = page.locator(".note-editor-scroll");
+  await viewport.hover();
+  await page.mouse.wheel(0, -1000);
+  await expect.poll(() => viewport.evaluate(element => element.scrollTop)).toBe(0);
+  const points = await page.locator(".ProseMirror").evaluate((element, value) => {
+    const text = element.querySelector("p")?.firstChild;
+    if (!text) throw new Error("paragraph text missing");
+    const start = text.textContent?.indexOf(value) ?? -1;
+    if (start < 0) throw new Error("selection text missing");
+    const range = document.createRange();
+    range.setStart(text, start);
+    range.setEnd(text, start + 1);
+    const first = range.getBoundingClientRect();
+    range.setStart(text, start + value.length - 1);
+    range.setEnd(text, start + value.length);
+    const last = range.getBoundingClientRect();
+    return { x1: first.left + 1, x2: last.right - 1, y1: first.top + first.height / 2, y2: last.top + last.height / 2 };
+  }, value);
+  await page.mouse.move(points.x1, points.y1);
+  await page.mouse.down();
+  await page.mouse.move(points.x2, points.y2, { steps: 12 });
+  await page.mouse.up();
+}
+
+test.describe("编辑器复制粘贴", () => {
+  for (const mode of ["原生", "工具栏"] as const) {
+    test(`${mode}富文本粘贴保留样式、列表、表格和复制切片边界`, async ({ page, context }) => {
+      await requireNativeClipboard(context);
+      const editor = await createBlankNote(page);
+      const content = {
+        text: "# 保留原文 加粗 斜体 链接\n父项\n子项\n名称\n内容",
+        html: '<p># 保留原文 <strong>加粗</strong> <em>斜体</em> <a href="https://example.com/">链接</a> <span style="color: rgb(200, 0, 0)">红色</span></p><ul><li><p>父项</p><ul><li><p>子项</p></li></ul></li></ul><table><tr><th>名称</th></tr><tr><td>内容</td></tr></table>',
+      };
+      if (mode === "原生") {
+        await editor.evaluate((element, { text, html }) => {
+          const clipboardData = new DataTransfer();
+          clipboardData.setData("text/plain", text);
+          clipboardData.setData("text/html", html);
+          element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+        }, content);
+      } else {
+        await page.evaluate(async ({ text, html }) => {
+          await navigator.clipboard.write([new ClipboardItem({
+            "text/plain": new Blob([text], { type: "text/plain" }),
+            "text/html": new Blob([html], { type: "text/html" }),
+          })]);
+        }, content);
+        await clickPaste(page);
+      }
+      await expect(editor.locator("h1")).toHaveCount(0);
+      await expect(editor.locator("strong")).toHaveText("加粗");
+      await expect(editor.locator("em")).toHaveText("斜体");
+      await expect(editor.locator("a")).toHaveAttribute("href", "https://example.com/");
+      await expect(editor.getByText("红色", { exact: true })).toHaveCSS("color", "rgb(200, 0, 0)");
+      await expect(editor.locator("ul ul li")).toHaveText("子项");
+      await expect(editor.locator("table td")).toHaveText("内容");
+
+      // Copy a partial rich paragraph through the app, then paste it in place.
+      // Keeping PM slice metadata prevents either lost marks or extra blocks.
+      await editor.evaluate((element) => {
+        const paragraph = element.querySelector("p")!;
+        const range = document.createRange();
+        range.setStartBefore(paragraph.querySelector("strong")!);
+        range.setEndAfter(paragraph.querySelector("em")!);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+      });
+      if (mode === "原生") {
+        // Copy is asynchronous: the clipboard can still expose a previous
+        // plain-text-only item while the native rich write is in flight.
+        await page.evaluate(async () => {
+          await navigator.clipboard.writeText("复制完成前的旧内容");
+          const write = navigator.clipboard.write.bind(navigator.clipboard);
+          Object.defineProperty(navigator.clipboard, "write", { configurable: true, value: async (items: ClipboardItem[]) => {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            return write(items);
+          } });
+        });
+      }
+      await clickCopy(page);
+      await expect.poll(() => page.evaluate(async () => {
+        const items = await navigator.clipboard.read();
+        const html = items.find((item) => item.types.includes("text/html"));
+        return html ? (await html.getType("text/html")).text() : "";
+      })).toContain("data-pm-slice");
+      await clickPaste(page);
+      await expect(editor.locator(":scope > p")).toHaveCount(1);
+      await expect(editor.locator("strong")).toHaveText("加粗");
+      await expect(editor.locator("em")).toHaveText("斜体");
+      await expect(editor.locator("table td")).toHaveText("内容");
+    });
+  }
+
+  for (const action of ["继续输入", "切换只读", "切换文档"] as const) {
+    test(`异步读取剪贴板期间${action}不会把旧内容粘到新状态`, async ({ page }) => {
+      const editor = await createBlankNote(page);
+      await editor.fill("保留的正文");
+      await page.evaluate(() => {
+        Object.defineProperty(navigator.clipboard, "read", { configurable: true, value: () => {
+          return new Promise<ClipboardItem[]>((resolve) => {
+            Object.assign(window, { finishClipboardRead: () => resolve([new ClipboardItem({
+              "text/plain": new Blob(["过期粘贴内容"], { type: "text/plain" }),
+            })]) });
+          });
+        } });
+      });
+      await clickPaste(page);
+      await expect.poll(() => page.evaluate(() => "finishClipboardRead" in window)).toBe(true);
+      if (action === "继续输入") await editor.fill("更新后的正文");
+      else if (action === "切换只读") {
+        await page.getByTitle("点击设为只读").click();
+        await expect(editor).toHaveAttribute("contenteditable", "false");
+      } else {
+        const previous = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+        await page.getByRole("button", { name: "新建文档", exact: true }).click();
+        await page.getByPlaceholder("文档标题...").fill("异步粘贴的新文档");
+        await page.getByRole("button", { name: "创建", exact: true }).click();
+        await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:lastNote"))).not.toBe(previous);
+        await expect(editor).toHaveText("");
+      }
+      await page.evaluate(async () => {
+        (window as unknown as { finishClipboardRead: () => void }).finishClipboardRead();
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      });
+      await expect(editor).toHaveText(action === "继续输入" ? "更新后的正文" : action === "切换只读" ? "保留的正文" : "");
+    });
+  }
+
+  test("代码块内原生粘贴 shell 源码不会触发 Markdown 转换", async ({ page }) => {
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.click();
+    await clickCodeBlock(page);
+    await expect(editor.locator("pre code")).toHaveCount(1);
+
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, markdownLikeShellSource);
+
+    const code = editor.locator("pre code");
+    await expect(code).toHaveCount(1);
+    await expect.poll(() => code.textContent()).toBe(markdownLikeShellSource);
+    await expect(editor.locator("h1, ul")).toHaveCount(0);
+    await expect(page.getByText("已按 Markdown 格式化", { exact: true })).toHaveCount(0);
+  });
+
+  test("代码块内使用粘贴按钮仍按原始纯文本插入", async ({ page, context }) => {
+    await requireNativeClipboard(context);
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.click();
+    await clickCodeBlock(page);
+    await page.evaluate(async (text) => {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([text], { type: "text/plain" }),
+          "text/html": new Blob(["<h1>不应采用的 HTML</h1>"], { type: "text/html" }),
+        }),
+      ]);
+    }, markdownLikeShellSource);
+
+    await clickPaste(page);
+
+    const code = editor.locator("pre code");
+    await expect(code).toHaveCount(1);
+    await expect.poll(() => code.textContent()).toBe(markdownLikeShellSource);
+    await expect(editor.locator("h1, ul")).toHaveCount(0);
+    await expect(editor).not.toContainText("不应采用的 HTML");
+  });
+
+  test("已有代码块仍保留粘贴文本的末尾换行", async ({ page }) => {
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("已有代码：");
+    await clickCodeBlock(page);
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "rg -n \\\n  'pp_init_ctx|ibv_poll_cq' \\\n");
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    });
+    await editor.pressSequentially("rc_pingpong.c");
+
+    await expect.poll(() => editor.locator("pre code").textContent()).toBe(
+      "已有代码：rg -n \\\n  'pp_init_ctx|ibv_poll_cq' \\\nrc_pingpong.c",
+    );
+  });
+
+  test("长 shell 参数自动换行时不会让前导空格单独占据视觉行", async ({ page }) => {
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.click();
+    await (await toolbarAction(page, "code")).click();
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, wrappedRgCommand);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
+
+    const code = editor.locator("pre code");
+    await expect.poll(() => code.textContent()).toBe(wrappedRgCommand);
+    const geometry = await code.evaluate((element) => {
+      const text = element.textContent ?? "";
+      const secondLineStart = text.indexOf("\n") + 1;
+      const secondLineEnd = text.indexOf("\n", secondLineStart);
+      const spans: Array<{ node: Text; start: number; end: number }> = [];
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      let offset = 0;
+      for (let current = walker.nextNode(); current; current = walker.nextNode()) {
+        if (!(current instanceof Text)) continue;
+        spans.push({ node: current, start: offset, end: offset + current.data.length });
+        offset += current.data.length;
+      }
+      const topAt = (target: number) => {
+        const span = spans.find(({ start, end }) => target >= start && target < end);
+        if (!span) throw new Error(`missing text at offset ${target}`);
+        const range = document.createRange();
+        range.setStart(span.node, target - span.start);
+        range.setEnd(span.node, target - span.start + 1);
+        return range.getBoundingClientRect().top;
+      };
+      const style = getComputedStyle(element);
+      const visualRows = new Map<number, string>();
+      for (let offset = 0; offset < text.length; offset++) {
+        if (text[offset] === "\n") continue;
+        const row = Math.round(topAt(offset));
+        visualRows.set(row, (visualRows.get(row) ?? "") + text[offset]);
+      }
+      return {
+        indentTop: topAt(secondLineStart + 1),
+        openingQuoteTop: topAt(secondLineStart + 2),
+        closingQuoteTop: topAt(secondLineEnd - 3),
+        visualRows: Array.from(visualRows.values()),
+        wordBreak: style.wordBreak,
+        whiteSpace: style.whiteSpace,
+      };
+    });
+
+    expect(geometry.whiteSpace).toBe("pre-wrap");
+    expect(geometry.wordBreak).toBe("break-all");
+    expect(Math.abs(geometry.indentTop - geometry.openingQuoteTop)).toBeLessThan(2);
+    for (const row of geometry.visualRows) expect(row.trim()).not.toBe("");
+    expect(geometry.closingQuoteTop).toBeGreaterThan(geometry.openingQuoteTop + 2);
+
+    const codeBlock = editor.locator(".code-block-wrap");
+    // Narrowing the desktop fixture activates the mobile sidebar overlay;
+    // dispatch directly because this control belongs to the editor underneath.
+    await codeBlock.getByRole("button", { name: "关闭代码软换行" }).dispatchEvent("click");
+    await expect(codeBlock).toHaveAttribute("data-code-wrap", "false");
+    const noWrap = await code.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const pre = element.parentElement;
+      return {
+        wrapAttribute: element.closest(".code-block-wrap")?.getAttribute("data-code-wrap"),
+        minWidth: style.minWidth,
+        wordBreak: style.wordBreak,
+        preOverflowsHorizontally: Boolean(pre && pre.scrollWidth > pre.clientWidth),
+      };
+    });
+    expect(noWrap).toMatchObject({
+      wrapAttribute: "false",
+      minWidth: "max-content",
+      wordBreak: "normal",
+      preOverflowsHorizontally: true,
+    });
+    await expect.poll(() => code.textContent()).toBe(wrappedRgCommand);
+  });
+
+  test("复制行内文本后粘贴不会引入首尾空白", async ({ page, context }) => {
+    await requireNativeClipboard(context);
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("前缀 中间文本 后缀");
+    await editor.focus();
+
+    await dragParagraphText(page, "中间文本");
+    await expect.poll(() => editor.evaluate(element => {
+      const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      const { from, to } = instance.state.selection;
+      return instance.state.doc.textBetween(from, to);
+    })).toBe("中间文本");
+    await page.keyboard.press("ControlOrMeta+C");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe("中间文本");
+
+    await pressLineBoundary(page, "end");
+    await expect.poll(() => editor.evaluate(element => {
+      const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      return instance.state.selection.from === instance.state.doc.content.size - 1 && instance.state.selection.empty;
+    })).toBe(true);
+    await page.keyboard.press("ControlOrMeta+V");
+
+    await expect(editor.locator("p")).toHaveCount(1);
+    await expect(editor.locator("p")).toHaveText("前缀 中间文本 后缀中间文本");
+  });
+
+  test("复制列表项中的局部文本不会附加项目符号", async ({ page, context }) => {
+    await requireNativeClipboard(context);
+    await createBlankNote(page);
+
+    const phrase = "尾延迟和公平性之间要用实";
+    const editor = page.locator(".ProseMirror");
+    await editor.fill(`前缀 ${phrase} 后缀`);
+    await editor.press("ControlOrMeta+Shift+8");
+    await expect(editor.locator("ul > li")).toBeVisible();
+
+    await editor.focus();
+    await dragParagraphText(page, phrase);
+    await expect.poll(() => editor.evaluate(element => {
+      const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      const { from, to } = instance.state.selection;
+      return instance.state.doc.textBetween(from, to);
+    })).toBe(phrase);
+    await page.keyboard.press("ControlOrMeta+C");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(phrase);
+  });
+
+  test("复制整行文本后粘贴只产生预期内容", async ({ page, context }) => {
+    await requireNativeClipboard(context);
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("整行文本");
+    await editor.press("ControlOrMeta+A");
+    await page.keyboard.press("ControlOrMeta+C");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe("整行文本");
+    await editor.evaluate((element) => {
+      const paragraph = element.querySelector("p");
+      const text = paragraph?.firstChild;
+      if (!paragraph || !text) throw new Error("editor text node not found");
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.setStart(text, text.textContent?.length ?? 0);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    });
+    await page.keyboard.press("ControlOrMeta+V");
+
+    await expect(editor).toHaveText("整行文本整行文本");
+    await expect(editor.locator("p")).toHaveCount(1);
+  });
+
+  test("全选复制多个代码块不会包含语言和复制控件文字", async ({ page, context }) => {
+    await requireNativeClipboard(context);
+    await createBlankNote(page);
+
+    const firstCommand = "kubectl patch deployment boson-probe";
+    const secondCommand = "kubectl get deployment.apps/boson-probe";
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element, markdown) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", markdown);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, `\`\`\`\n${firstCommand}\n\`\`\`\n\n\`\`\`\n${secondCommand}\n\`\`\``);
+    await expect(editor.locator("pre code")).toHaveCount(2);
+    const firstCodeBlock = editor.locator(".code-block-wrap").first();
+    await firstCodeBlock.getByLabel("代码简介").fill("更新探针部署");
+    const wrapToggle = firstCodeBlock.getByRole("button", { name: "关闭代码软换行" });
+    await expect(wrapToggle).toHaveAttribute("aria-pressed", "true");
+    await wrapToggle.click();
+    await expect(firstCodeBlock).toHaveAttribute("data-code-wrap", "false");
+    await firstCodeBlock.getByRole("button", { name: "折叠代码块" }).click();
+    await expect(firstCodeBlock).toHaveAttribute("data-collapsed", "true");
+
+    await editor.locator("pre code").last().click();
+    await editor.press("ControlOrMeta+A");
+    await editor.press("ControlOrMeta+C");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(secondCommand);
+    // The first select-all inside a structured block selects that block. A
+    // second select-all expands to the complete document.
+    await editor.press("ControlOrMeta+A");
+    await editor.press("ControlOrMeta+C");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
+      `${firstCommand}\n\n${secondCommand}`,
+    );
+  });
+
+  test("折叠引用块后全选复制仍只包含引用正文", async ({ page, context }) => {
+    await requireNativeClipboard(context);
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("需要保留的引用正文");
+    await editor.press("ControlOrMeta+Shift+b");
+    const quote = editor.locator("blockquote");
+    await expect(quote).toBeVisible();
+    await quote.getByRole("button", { name: "折叠引用块" }).click();
+    await expect(quote).toHaveAttribute("data-collapsed", "true");
+
+    await editor.focus();
+    await editor.press("ControlOrMeta+A");
+    await editor.press("ControlOrMeta+C");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
+      "需要保留的引用正文",
+    );
+
+  });
+
+  test("引用段落之间的空行不会拆成三个引用块", async ({ page }) => {
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "> 第一段\n>\n> 第二段");
+      clipboardData.setData("text/html", "<blockquote><p>第一段</p><p><br></p><p>第二段</p></blockquote>");
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    });
+
+    const quotes = editor.locator(":scope > blockquote");
+    await expect(quotes).toHaveCount(1);
+    await expect(quotes.locator("p")).toHaveText(["第一段", "", "第二段"]);
+  });
+
+  test("复制有序列表到纯文本时列表项之间没有多余空行", async ({ page, context }) => {
+    await requireNativeClipboard(context);
+    await createBlankNote(page);
+
+    const lines = [
+      "办公网可以正常使用codex；",
+      "办公网登录研发主机需要借助跳板机；",
+      "希望能将codex部署到研发网主机的虚拟机，",
+      "通过办公网访问codex服务；有没有好的方法？",
+    ];
+    const editor = page.locator(".ProseMirror");
+    await editor.fill(lines[0]);
+    await editor.press("ControlOrMeta+Shift+7");
+    for (const line of lines.slice(1)) {
+      await pressLineBoundary(editor, "end");
+      await editor.press("Enter");
+      await editor.type(line);
+    }
+    await expect(editor.locator("ol > li")).toHaveCount(4);
+
+    await editor.press("ControlOrMeta+A");
+    await page.keyboard.press("ControlOrMeta+C");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
+      lines.map((line, index) => `${index + 1}. ${line}`).join("\n"),
+    );
+  });
+
+  test("通过编辑器粘贴按钮粘贴单段 HTML 不产生首尾空段落", async ({ page, context }) => {
+    await requireNativeClipboard(context);
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("前缀 后缀");
+    await page.evaluate(async () => {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": new Blob(["<p>中间文本</p>"], { type: "text/html" }),
+          "text/plain": new Blob(["中间文本"], { type: "text/plain" }),
+        }),
+      ]);
+    });
+    await editor.click();
+    await pressLineBoundary(page, "end");
+    await clickPaste(page);
+
+    await expect(editor.locator("p")).toHaveCount(1);
+    await expect(editor.locator("p")).toHaveText("前缀 后缀中间文本");
+  });
+
+  test("粘贴按钮优先将同时携带 HTML 的 Markdown 解析为多级列表", async ({ page, context }) => {
+    await requireNativeClipboard(context);
+    await createBlankNote(page);
+
+    const markdown = [
+      "- **VFIO/UIO接入层**",
+      "  - 提供中断事件通道，用于链路状态和错误处理。",
+      "  - VFIO结合IOMMU时，为设备建立独立DMA域。",
+      "- **PMD/ethdev层**",
+      "  - ethdev提供统一的端口和queue接口。",
+    ].join("\r\n");
+    await page.evaluate(async (text) => {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([text], { type: "text/plain" }),
+          "text/html": new Blob([
+            `<div>${text.replaceAll("\n", "<br>")}</div>`,
+          ], { type: "text/html" }),
+        }),
+      ]);
+    }, markdown);
+
+    await clickPaste(page);
+
+    const editor = page.locator(".ProseMirror");
+    const rootItems = editor.locator(":scope > ul > li");
+    await expect(rootItems).toHaveCount(2);
+    await expect(rootItems.first().locator(":scope > p strong")).toHaveText("VFIO/UIO接入层");
+    await expect(rootItems.first().locator(":scope > ul > li")).toHaveCount(2);
+    await expect(rootItems.nth(1).locator(":scope > ul > li")).toHaveCount(1);
+    await expect(editor).not.toContainText("- **VFIO/UIO接入层**");
+  });
+
+  test("Windows 风格段内边界换行不会变成粘贴前后空行", async ({ page }) => {
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("已有内容");
+    await pressLineBoundary(editor, "end");
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData(
+        "text/html",
+        '<p data-pm-slice="1 1 []"><br><br>粘贴正文<br><br></p>',
+      );
+      clipboardData.setData("text/plain", "\r\n\r\n粘贴正文\r\n\r\n");
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    });
+
+    await expect(editor.locator("p")).toHaveCount(1);
+    await expect(editor.locator("p")).toHaveText("已有内容粘贴正文");
+  });
+
+  test("Windows Office 风格嵌套边界空块不会变成大段空白", async ({ page }) => {
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("已有内容");
+    await pressLineBoundary(editor, "end");
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData(
+        "text/html",
+        '<br><div><p>&nbsp;</p><p><span><o:p>&nbsp;</o:p></span></p><p>粘贴正文</p><p>&nbsp;</p></div><br class="Apple-interchange-newline">',
+      );
+      clipboardData.setData("text/plain", "\r\n\r\n粘贴正文\r\n\r\n");
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    });
+
+    await expect(editor.locator("p")).toHaveCount(1);
+    await expect(editor.locator("p")).toHaveText("已有内容粘贴正文");
+  });
+
+  test("HTML 表格粘贴为可编辑表格节点", async ({ page }) => {
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData(
+        "text/html",
+        "<table><thead><tr><th>能力</th><th>主要证据</th></tr></thead><tbody><tr><td>DPDK</td><td>百度 / Bless / 商汤</td></tr><tr><td>NIC</td><td>CX-5/CX-6 / Bless</td></tr></tbody></table>",
+      );
+      clipboardData.setData(
+        "text/plain",
+        "能力主要证据DPDK百度 / Bless / 商汤NICCX-5/CX-6 / Bless",
+      );
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    });
+
+    const table = editor.locator(":scope > table, :scope > .tableWrapper table");
+    await expect(table).toHaveCount(1);
+    await expect(table.locator("tr")).toHaveCount(3);
+    await expect(table.locator("th")).toHaveText(["能力", "主要证据"]);
+    await expect(table.locator("td")).toHaveText(["DPDK", "百度 / Bless / 商汤", "NIC", "CX-5/CX-6 / Bless"]);
+  });
+
+  test("带段落样式的 Markdown 文本仍按列表语法粘贴", async ({ page }) => {
+    await createBlankNote(page);
+
+    const markdown = [
+      "模块五：实时渲染训练指南 (Runtime Execution Guide)",
+      "1. 摆脱文本（Drop the Text）：复习与准备表达时，严禁背诵完整的段落或长文本。只打开思维模型图表（Mermaid / 决策树）。",
+      "2. 限时解说（Micro-Practice）：随机抽取一张架构图或故障决策树节点，限时 60 秒调取控制流与词块，进行口头复述。",
+      "3. 挂载调优（Hit the Cache）：",
+      "    * 若表达卡顿，说明缺少对应的词块（Data Chunk）或句式管道（Pipeline）。",
+      "    * 查阅词汇库补齐该模块，出声朗读 3 次，形成神经肌肉记忆后重新解说。",
+      "4. 母语反哺（Native Polish）：在中文沟通（如架构评审、技术汇报）前，先在脑海中挂载 1. 痛点/上下文 -> 2. 核心技术动作 -> 3. 结果/量化数据 管道，剔除“然后”、“就是说”等无意义胶水词，实现高质量信息压缩。",
+    ].join("\n");
+    const html = markdown.split("\n").map((line) => `<p><span style="font-family: Arial">${line}</span></p>`).join("");
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element, content) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", content.text);
+      clipboardData.setData("text/html", content.html);
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    }, { text: markdown, html });
+
+    await expect(editor.locator(":scope > ol > li")).toHaveCount(4);
+    await expect(editor.locator(":scope > ol > li").nth(2).locator(":scope > ul > li")).toHaveCount(2);
+    await expect(editor).toContainText("Runtime Execution Guide");
+    await expect(editor.locator(":scope > ol")).not.toContainText("\\.");
+    await expect(editor.locator(":scope > ol")).not.toContainText("\\*");
+  });
+
+  test("单行 Markdown 标题粘贴转换为一级标题", async ({ page }) => {
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "# Resume Claim Defense");
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    });
+
+    await expect(editor.locator("h1")).toHaveText("Resume Claim Defense");
+  });
+
+  test("Markdown 多级混合列表按层级渲染", async ({ page }) => {
+    await createBlankNote(page);
+
+    const markdown = [
+      "- **VFIO/UIO接入层**",
+      "  - 将PCI BAR以MMIO方式暴露给进程",
+      "  1. Child",
+      "     - Grandchild",
+      "- Sibling",
+    ].join("\r\n");
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, markdown);
+
+    const rootList = editor.locator(":scope > ul");
+    const rootItems = rootList.locator(":scope > li");
+    const bulletChildList = rootItems.first().locator(":scope > ul");
+    const childList = rootItems.first().locator(":scope > ol");
+    const grandchildList = childList.locator(":scope > li").first().locator(":scope > ul");
+    await expect(rootItems).toHaveCount(2);
+    await expect(rootItems.first().locator(":scope > p strong")).toHaveText("VFIO/UIO接入层");
+    await expect(bulletChildList).toHaveCount(1);
+    await expect(childList).toHaveCount(1);
+    await expect(grandchildList).toHaveCount(1);
+    await expect(grandchildList).toContainText("Grandchild");
+    // 两种列表 marker 均由 ::before 统一绘制，避免 Safari 同时显示
+    // 原生 marker 和伪元素而形成重复标记。
+    await expect(rootList).toHaveCSS("list-style-type", "none");
+    await expect(bulletChildList).toHaveCSS("list-style-type", "none");
+    await expect(childList).toHaveCSS("list-style-type", "none");
+    await expect(grandchildList).toHaveCSS("list-style-type", "none");
+    await expect.poll(() => rootList.locator(":scope > li").first().evaluate(
+      (element) => getComputedStyle(element, "::before").content,
+    )).toContain("•");
+    await expect.poll(() => grandchildList.locator(":scope > li").first().evaluate(
+      (element) => {
+        const marker = getComputedStyle(element, "::before");
+        return `${marker.content}|${marker.backgroundImage}|${marker.backgroundSize}`;
+      },
+    )).toMatch(/^""\|linear-gradient\(.+\)\|[\d.]+px [\d.]+px$/);
+    await expect.poll(() => childList.locator(":scope > li").first().evaluate(
+      (element) => getComputedStyle(element, "::before").content,
+    )).toContain("counter(editor-list-item, lower-alpha)");
+    await expect.poll(() => childList.locator(":scope > li").first().evaluate(
+      (element) => getComputedStyle(element, "::before").content,
+    )).not.toContain("•");
+  });
+
+  test("同时携带 HTML 的 Markdown 仍完整格式化", async ({ page }) => {
+    await createBlankNote(page);
+
+    const markdown = [
+      "# 面试复习材料:DPDK / 内核网络 / SR-IOV & VIRTIO",
+      "",
+      "> 组织方式:每个知识点按【概念 → 原理 → 使用场景 → 值得关注项】展开。",
+      "",
+      "---",
+      "",
+      "# Part 1. DPDK 相关",
+      "",
+      "## 1.1 DPDK 整体架构 & EAL(环境抽象层)",
+      "",
+      "概念",
+    ].join("\n");
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      clipboardData.setData("text/html", `<div>${text.replaceAll("\n", "<br>")}</div>`);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, markdown);
+
+    await expect(editor.locator("h1")).toHaveCount(2);
+    await expect(editor.locator("h1").first()).toHaveText("面试复习材料:DPDK / 内核网络 / SR-IOV & VIRTIO");
+    await expect(editor.locator("blockquote")).toContainText("组织方式");
+    await expect(editor.locator("h2")).toHaveText("1.1 DPDK 整体架构 & EAL(环境抽象层)");
+    await expect(editor.locator("p").last()).toHaveText("概念");
+    await expect(editor).not.toContainText("# 面试复习材料:DPDK / 内核网络 / SR-IOV & VIRTIO");
+  });
+
+  test("Markdown 表格粘贴后渲染为表格", async ({ page }) => {
+    await createBlankNote(page);
+
+    const markdown = [
+      "# Part 0. 内容索引",
+      "",
+      "| 技术领域 | 对应章节 | 核心内容 |",
+      "|---|---|---|",
+      "| DPDK框架 | 1.1～1.6 | EAL初始化 |",
+      "| Flow Director | 1.7 | queue级资源隔离 |",
+      "",
+      "---",
+    ].join("\n");
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, markdown);
+
+    await expect(editor.locator("h1")).toHaveText("Part 0. 内容索引");
+    const table = editor.locator(":scope > table, :scope > .tableWrapper table");
+    await expect(table).toHaveCount(1);
+    await expect(table.locator("tr")).toHaveCount(3);
+    await expect(table.locator("th")).toHaveText(["技术领域", "对应章节", "核心内容"]);
+    await expect(table.locator("td").last()).toHaveText("queue级资源隔离");
+  });
+
+  test("剪贴板同时提供 Markdown 文本和 HTML 表格时按 Markdown 表格解析", async ({ page }) => {
+    await createBlankNote(page);
+
+    const markdown = [
+      "| 周 | 阶段 | 重点 | 新语块 | 话题（语块主题） |",
+      "| :-- | :-- | :-- | :-- | :-- |",
+      "| 1 | 诊断与搭系统 | 全真诊断、建 Anki、认识题型 | 40 | 通用衔接与观点表达 |",
+      "| 2 | 打基础 | T2 结构、Speaking 管道、听读题型 | 60 | 教育 |",
+      "| 3 | 扩展 | Task 1、Part 3、精读技巧 | 60 | 科技与工作 |",
+      "| 4 | 中期检查 | 全真模拟 1、复盘、调整 | 50 | 环境与交通 |",
+      "| 5 | 强化 | 限时产出为主 | 60 | 健康与社会 |",
+      "| 6 | 高强度输出 | 每周 2 篇作文 + 2 次录音 | 50 | 政府、犯罪、全球化 |",
+      "| 7 | 模拟冲刺 | 全真模拟 ×2、错误日志 | 30 | 只补缺口 |",
+      "| 8 | 收尾减压 | 复习、轻量练习、考试日准备 | 10 | 不再学新块 |",
+    ].join("\n");
+    const htmlRows = markdown.split("\n").filter(line => !line.includes(":--"));
+    const html = `<table>${htmlRows.map((line, index) => {
+      const cells = line.split("|").slice(1, -1).map(cell => cell.trim());
+      const tag = index === 0 ? "th" : "td";
+      return `<tr>${cells.map(cell => `<${tag}>${cell}</${tag}>`).join("")}</tr>`;
+    }).join("")}</table>`;
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element, content) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", content.text);
+      clipboardData.setData("text/html", content.html);
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    }, { text: markdown, html });
+
+    const table = editor.locator(":scope > table, :scope > .tableWrapper table");
+    await expect(table.locator("tr")).toHaveCount(9);
+    await expect(table.locator("th")).toHaveText(["周", "阶段", "重点", "新语块", "话题（语块主题）"]);
+    await expect(table.locator("tr").nth(8).locator("td")).toHaveText([
+      "8", "收尾减压", "复习、轻量练习、考试日准备", "10", "不再学新块",
+    ]);
+  });
+
+  test("编辑后的表格可规范化导出为 Markdown", async ({ page }) => {
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    const markdown = "| 名称 | 数值 |\n| :--- | ---: |\n| `a \\| b` | **42** |";
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    }, markdown);
+    const table = editor.locator("table");
+    await expect(table).toHaveCount(1);
+    await table.locator("td").first().click();
+    await page.getByTitle("表格操作").click();
+    await page.getByRole("button", { name: "当前列居中" }).click();
+    await expect(table.locator("th").first()).toHaveCSS("text-align", "center");
+    await expect(table.locator("td").first()).toHaveCSS("text-align", "center");
+    await page.getByTitle("表格操作").click();
+    await page.getByRole("button", { name: "在下方添加行" }).click();
+    await expect(table.locator("tr")).toHaveCount(3);
+
+    const downloadPromise = page.waitForEvent("download");
+    await (await toolbarAction(page, "exportMarkdown")).click();
+    const download = await downloadPromise;
+    const path = await download.path();
+    expect(path).not.toBeNull();
+    const exported = await readFile(path!, "utf8");
+    expect(exported).toMatch(/\|\s*名称\s*\|\s*数值\s*\|/);
+    expect(exported).toMatch(/\|\s*:-+:\s*\|\s*-+:\s*\|/);
+    expect(exported).toMatch(/\|\s*`a \\\| b`\s*\|\s*\*\*42\*\*\s*\|/);
+  });
+
+  test("超过五万字符的 Markdown 可替换已有内容", async ({ page }) => {
+    await createBlankNote(page);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("旧内容");
+    await editor.click();
+    await page.keyboard.press("ControlOrMeta+A");
+    const markdown = [
+      "# 长文档粘贴",
+      "",
+      ...Array.from({ length: 420 }, (_, index) => [
+        `## 章节 ${index + 1}`,
+        "",
+        "这是用于验证超过五万字符的 Markdown 粘贴不会被拒绝的正文内容。".repeat(5),
+      ].join("\n")),
+    ].join("\n\n");
+    expect(markdown.length).toBeGreaterThan(50_000);
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, markdown);
+
+    await expect(editor.locator("h1").first()).toHaveText("长文档粘贴");
+    await expect(editor.locator("h2").last()).toHaveText("章节 420");
+    await expect(editor).not.toContainText("旧内容");
+  });
+});
+
+test.describe("文档树移动", () => {
+  test("可新建自定义多级目录", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+    await page.getByRole("button", { name: "新建文档", exact: true }).click();
+
+    await page.getByPlaceholder("文档标题...").fill("自定义目录文档");
+    await page.locator("select.dialog-select").selectOption("__custom_root__");
+    await page.getByPlaceholder("目录路径 (如 private/network)").fill("private/network-examples");
+    await expect(page.locator(".dialog-path-preview code")).toHaveText("private/network-examples");
+    await page.getByRole("button", { name: "创建" }).click();
+
+    await expect(page.locator(".doc-tree-folder .doc-tree-name").filter({ hasText: /^network-examples$/ })).toHaveCount(1);
+  });
+
+  test("目录与属性面板共用移动对话框，重载后路径仍正确", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
+    await page.getByRole("button", { name: "新建文档", exact: true }).click();
+
+    await page.getByPlaceholder("文档标题...").fill("移动回归文档");
+    await page.locator("select.dialog-select").selectOption("references");
+    await page.getByPlaceholder("子路径 (如 nine-rings)").fill("move-e2e");
+    await expect(page.locator(".dialog-path-preview code")).toHaveText("references/move-e2e");
+    await page.getByRole("button", { name: "创建" }).click();
+    await expect(page.locator(".properties-panel")).toHaveCount(0);
+    await page.getByRole("button", { name: "显示属性面板", exact: true }).click();
+    await expect(page.locator(".properties-panel")).toBeVisible();
+
+    const sourceFolder = page.locator(".doc-tree-folder").filter({ hasText: "move-e2e" });
+    await expect(sourceFolder).toHaveCount(1);
+    await sourceFolder.click({ button: "right" });
+    await page.getByRole("button", { name: "移动到…" }).click();
+
+    const moveDialog = page.getByRole("dialog", { name: "移动到" });
+    await expect(moveDialog).toBeVisible();
+    await expect(moveDialog.getByText("目标父目录", { exact: false })).toBeVisible();
+    await moveDialog.getByPlaceholder("输入目录名称或路径…").fill("archives");
+    await expect(moveDialog.locator(".move-to-folder-option").filter({ hasText: "projects" })).toHaveCount(0);
+    await expect(moveDialog.locator(".move-to-folder-option")).toHaveCount(1);
+    await moveDialog.locator(".move-to-folder-option").filter({ hasText: "archives" }).click();
+    await expect(moveDialog.locator(".move-to-preview code").last()).toHaveText("archives/move-e2e");
+    await moveDialog.getByRole("button", { name: "移动", exact: true }).click();
+
+    await expect(page.locator(".doc-tree-folder").filter({ hasText: "archives" })).toHaveCount(1);
+    await expect(page.locator(".doc-tree-folder").filter({ hasText: "move-e2e" })).toHaveCount(1);
+    await expect(page.locator(".note-title")).toHaveValue("移动回归文档");
+    await expect(page.locator(".prop-path")).toContainText("move-e2e");
+
+    // 属性面板不再直接改 storagePath，而是复用相同对话框和移动 API。
+    await page.locator(".prop-path").click();
+    await expect(moveDialog).toBeVisible();
+    await expect(moveDialog.getByText("目标目录", { exact: false })).toBeVisible();
+    await moveDialog.locator(".move-to-folder-option").filter({ hasText: "references" }).click();
+    await expect(moveDialog.locator(".move-to-preview code").last()).toHaveText("references");
+    await moveDialog.getByRole("button", { name: "移动", exact: true }).click();
+    await expect(page.locator(".prop-path")).toContainText("References");
+
+    await page.reload();
+    const treePanel = page.locator('.desktop-activity-bar [data-sidebar-panel="tree"]');
+    if (await treePanel.getAttribute("aria-pressed") !== "true") await treePanel.click();
+    await expect(page.locator(".doc-tree-folder").filter({ hasText: "references" })).toHaveCount(1);
+    await expect(page.locator(".doc-tree-doc").filter({ hasText: "移动回归文档" })).toHaveCount(1);
+  });
+});

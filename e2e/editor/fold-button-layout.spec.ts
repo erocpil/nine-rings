@@ -1,0 +1,159 @@
+import { expect, test } from "@playwright/test";
+import { createBlankDocument } from "../helpers/document";
+
+test("手机专注模式折叠三角始终对齐标题而不是引用块", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nine_rings_config",
+      JSON.stringify({ editor_show_line_numbers: false }),
+    ),
+  );
+  await createBlankDocument(page, "三角定位回归");
+  await page.locator(".ProseMirror").evaluate(element => {
+    const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    editor.commands.setContent({
+      type: "doc",
+      content: [
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "长标题跨行显示以检查三角与第一行对齐" }] },
+        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "示例答案" }] },
+        { type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "引用内容，包含多行以改变布局。".repeat(8) }] }] },
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "下一节" }] },
+        { type: "paragraph", content: [{ type: "text", text: "下一节正文" }] },
+      ],
+    }, true);
+  });
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  await expect(page.getByRole("button", { name: "点击设为可编辑", exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 800 });
+  if (await page.locator(".sidebar-overlay.active").count()) {
+    await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
+    await expect(page.locator(".sidebar-overlay.active")).toHaveCount(0);
+  }
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  const assertAlignment = async () => {
+    await expect
+      .poll(async () =>
+        page.locator(".editor-heading-fold").evaluateAll((buttons) =>
+          buttons.every((button) => {
+            const index = Number(
+              button.getAttribute("aria-label")?.match(/第 (\d+) 块/)?.[1],
+            );
+            const heading =
+              document.querySelector(".ProseMirror")?.children[index - 1];
+            if (
+              !(heading instanceof HTMLElement) ||
+              !/^H[1-6]$/.test(heading.tagName)
+            )
+              return false;
+            if (button.closest(".editor-fold-anchor") !== heading) return false;
+            const rect = button.getBoundingClientRect();
+            const headingRect = heading.getBoundingClientRect();
+            const lineHeight = parseFloat(getComputedStyle(heading).lineHeight);
+            return (
+              getComputedStyle(button).transform === "none" &&
+              Math.abs(
+                rect.top + rect.height / 2 - headingRect.top - lineHeight / 2,
+              ) < 2
+            );
+          }),
+        ),
+      )
+      .toBe(true);
+  };
+  for (let round = 0; round < 3; round++) {
+    await assertAlignment();
+    await page
+      .getByRole("button", { name: "折叠第 1 块章节", exact: true })
+      .click();
+    await assertAlignment();
+    await page
+      .getByRole("button", { name: "展开第 1 块章节", exact: true })
+      .click();
+    await assertAlignment();
+  }
+  await page.getByRole("button", { name: "折叠引用块", exact: true }).click();
+  await assertAlignment();
+  await page.getByRole("button", { name: "展开引用块", exact: true }).click();
+  await assertAlignment();
+  // Balanced block resizes do not resize the editor root. Keep headings inside
+  // the viewport so IntersectionObserver cannot be relied on for relocation.
+  await page.setViewportSize({ width: 390, height: 1800 });
+  await page.locator(".ProseMirror").evaluate((root) => {
+    const quote = root.querySelector<HTMLElement>(".blockquote-wrap")!;
+    const tail = root.lastElementChild as HTMLElement;
+    quote.style.paddingBottom = "80px";
+    tail.style.paddingBottom = "80px";
+  });
+  await assertAlignment();
+  await page.waitForTimeout(250);
+  await page.locator(".ProseMirror").evaluate((root) => {
+    const quote = root.querySelector<HTMLElement>(".blockquote-wrap")!;
+    const tail = root.lastElementChild as HTMLElement;
+    quote.style.paddingBottom = "140px";
+    tail.style.paddingBottom = "20px";
+  });
+  await assertAlignment();
+});
+
+test("标题内折叠控件不进入编辑、撤销及剪贴板数据", async ({ page }) => {
+  await page.goto("/");
+  const root = page.locator(".ProseMirror");
+  await expect(root).toBeVisible({ timeout: 25000 });
+  await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = (await load(
+      "/src/lib/api.ts",
+    )) as typeof import("../../src/lib/api");
+    const { useNotesStore } = (await load(
+      "/src/stores/useNotesStore.ts",
+    )) as typeof import("../../src/stores/useNotesStore");
+    const note = await api.notes.create({
+      title: "控件正文隔离",
+      date: "2026-09-09",
+      storagePath: "tests/anchors",
+      content: {
+        ops: [
+          { insert: "Anchor heading" },
+          { insert: "\n", attributes: { header: 2 } },
+          { insert: "Body content\n" },
+        ],
+      },
+    });
+    useNotesStore.getState().selectNote(note);
+  });
+  await expect(page.locator(".note-title")).toHaveValue("控件正文隔离");
+  await expect(
+    page.locator(".editor-fold-anchor .editor-heading-fold"),
+  ).toHaveCount(1);
+  await root.locator("h2").click();
+  await page.keyboard.type("!");
+  await expect(root.locator("h2")).toContainText("!");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(root.locator("h2")).not.toContainText("!");
+  const copied = await root.evaluate((element) => {
+    const editor = (
+      element as HTMLElement & { editor: import("@tiptap/core").Editor }
+    ).editor;
+    editor.commands.selectAll();
+    const copy = editor.view.serializeForClipboard(
+      editor.state.selection.content(),
+    );
+    return {
+      json: editor.getJSON(),
+      html: copy.dom.innerHTML,
+      text: copy.text,
+    };
+  });
+  expect(JSON.stringify(copied)).not.toMatch(/editor-fold|[▼▶]/);
+  expect(copied.text).toContain("Anchor heading");
+  expect(copied.text).toContain("Body content");
+  await root.evaluate((element) => {
+    const editor = (
+      element as HTMLElement & { editor: import("@tiptap/core").Editor }
+    ).editor;
+    editor.commands.setTextSelection(1);
+    editor.commands.setParagraph();
+  });
+  await expect(page.locator(".editor-heading-fold")).toHaveCount(0);
+});

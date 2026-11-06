@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
-import importPlugin from "../../plugins/vite-import-plugin";
+import importPlugin from "../../build-plugins/vite-import-plugin";
 import {
   resolveConfig,
   isFileServingAllowed,
