@@ -12,6 +12,8 @@ import {
   MAX_SOURCE_BYTES,
 } from "../../src/lib/local-files/service";
 import * as environment from "../../src/lib/runtime";
+const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 const panel = {
   id: "files",
   label: "本地文件",
@@ -46,6 +48,67 @@ afterEach(() => {
   pluginRuntime.setEnabled(false);
   localFileService.release();
   vi.restoreAllMocks();
+  vi.clearAllMocks();
+  vi.unstubAllGlobals();
+});
+it("cross-root transfer preserves IPC field names and refuses read-only targets and revocation", async () => {
+  vi.stubGlobal("localStorage", { getItem: () => null });
+  pluginRuntime.setEnabled(true);
+  const owner = pluginRuntime.activate("test.files.write", [
+    "panels.present",
+    "filesystem.files.read",
+    "filesystem.files.write",
+  ]);
+  workspacePanels.register(owner, panel);
+  vi.spyOn(environment, "isTauriRuntime").mockReturnValue(true);
+  invoke.mockResolvedValueOnce("dest/a.c");
+  expect(
+    await localFileService.transfer(
+      "left",
+      "src/a.c",
+      "right",
+      "dest",
+      "a.c",
+      false,
+    ),
+  ).toBe("dest/a.c");
+  expect(invoke).toHaveBeenCalledWith("local_files_transfer", {
+    rootId: "left",
+    node: "src/a.c",
+    targetRootId: "right",
+    parent: "dest",
+    name: "a.c",
+    moving: false,
+  });
+  vi.stubGlobal("localStorage", {
+    getItem: () => JSON.stringify({ "right:dest": true }),
+  });
+  await expect(
+    localFileService.transfer("left", "src/a.c", "right", "dest", "a.c", true),
+  ).rejects.toThrow("只读");
+  expect(invoke).toHaveBeenCalledTimes(1);
+  vi.stubGlobal("localStorage", { getItem: () => null });
+  invoke.mockImplementationOnce(async () => {
+    localFileService.release();
+    return "dest/a.c";
+  });
+  await expect(
+    localFileService.transfer("left", "src/a.c", "right", "dest", "a.c", false),
+  ).rejects.toThrow("授权已变化");
+});
+it("browser transfer fails explicitly rather than falling back to unsafe overwrite", async () => {
+  vi.stubGlobal("localStorage", { getItem: () => null });
+  pluginRuntime.setEnabled(true);
+  const owner = pluginRuntime.activate("test.files.write", [
+    "panels.present",
+    "filesystem.files.read",
+    "filesystem.files.write",
+  ]);
+  workspacePanels.register(owner, panel);
+  await expect(
+    localFileService.transfer("left", "src/a.c", "right", "", "a.c", false),
+  ).rejects.toThrow("桌面版");
+  expect(invoke).not.toHaveBeenCalled();
 });
 it("rejects escapes, binary data, invalid UTF-8 and over-budget files, preserving CRLF and empty text", () => {
   expect(fileSegments("src/a.c")).toEqual(["src", "a.c"]);

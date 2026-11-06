@@ -11,6 +11,7 @@ interface Props {
   side: 0 | 1;
   active: boolean;
   visible: boolean;
+  revision: number;
   pane: BrowserPaneState;
   roots: FileRoot[];
   provider: Provider;
@@ -20,7 +21,7 @@ interface Props {
   onRefreshRoots: () => void;
   onOpen: (rootId: string, rootName: string, node: FileNode) => void;
 }
-export function FileBrowserPane({ side, active, visible, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen }: Props) {
+export function FileBrowserPane({ side, active, visible, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen }: Props) {
   const location = browserLocation(pane);
   const rootId = location?.rootId ?? "", node = location?.node ?? "";
   const root = roots.find(item => item.id === rootId);
@@ -42,7 +43,7 @@ export function FileBrowserPane({ side, active, visible, pane, roots, provider, 
   const anchor = useRef<string | null>(null);
   const cursor = useRef<string | null>(null);
   const restoring = useRef(false);
-  const key = JSON.stringify([rootId, node, pane.sort, pane.showHidden, query, refresh]);
+  const key = JSON.stringify([rootId, node, pane.sort, pane.showHidden, query, refresh, revision]);
   const selected = useMemo(() => location?.selected ?? [], [location?.selected]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const start = Math.max(0, Math.min(Math.max(0, nodes.length - 1), Math.floor(scroll / ROW) - 4));

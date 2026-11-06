@@ -1,4 +1,5 @@
 import { LOCAL_FILE_RENAMED_EVENT, type LocalFileRename } from "../lib/local-files/rename";
+import { FILE_BROWSER_MUTATION_EVENT, type BrowserMutation } from "../lib/local-files/browser-operations";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type SetStateAction } from "react";
 import {
   localFileService,
@@ -220,6 +221,25 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
   const listOptions = useMemo(() => ({ ...preferences, query: appliedQuery }), [preferences, appliedQuery]);
   const listingKey = localFileListKey(listOptions);
   const { readPage, reload: reloadTree } = useLocalFileTree({ active, ready: rootsReady, roots, expanded, pages, options: listOptions, busy: busy.size > 0, setPages, onError: setError });
+  const browserMutationReload = useRef(reloadTree);
+  browserMutationReload.current = reloadTree;
+  useEffect(() => {
+    const changed = (event: Event) => {
+      const change = (event as CustomEvent<BrowserMutation>).detail;
+      if (change.kind !== "refresh") {
+        const prefix = `${change.rootId}:${change.node}`;
+        const affected = (key: string) => key === prefix || key.startsWith(`${prefix}/`);
+        setExpanded(current => new Set([...current].flatMap(key => !affected(key) ? [key] : change.kind === "trash" ? [] : [`${change.targetRootId}:${change.targetNode}${key.slice(prefix.length)}`])));
+        setSelected(current => affected(current) ? "" : current);
+        setSelectedFile(current => current && affected(`${current.rootId}:${current.nodeId}`) ? null : current);
+      }
+      // Directory polling also handles external changes. An explicit operation
+      // refreshes immediately instead of waiting for the next polling interval.
+      void browserMutationReload.current();
+    };
+    window.addEventListener(FILE_BROWSER_MUTATION_EVENT, changed);
+    return () => window.removeEventListener(FILE_BROWSER_MUTATION_EVENT, changed);
+  }, []);
   useEffect(() => { saveLocalFileTreePreferences(preferences); }, [preferences]);
   useEffect(() => { const timer = window.setTimeout(() => setAppliedQuery(query), 180); return () => window.clearTimeout(timer); }, [query]);
   useEffect(() => { if (searchOpen) filterInput.current?.focus(); }, [searchOpen]);

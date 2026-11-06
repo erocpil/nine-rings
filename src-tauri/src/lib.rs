@@ -834,6 +834,7 @@ pub fn run() {
             commands::local_files::local_files_rename,
             commands::local_files::local_files_create,
             commands::local_files::local_files_move,
+            commands::local_files::local_files_transfer,
             commands::local_files::local_files_trash,
             commands::local_files::local_files_list,
             commands::local_files::local_files_read,

@@ -1,5 +1,6 @@
 import { fileSegments } from "./service";
 import type { LocalFileSort } from "./tree";
+import type { BrowserMutation } from "./browser-operations";
 
 export interface BrowserLocation {
   rootId: string;
@@ -22,6 +23,23 @@ export const FILE_BROWSER_STATE_KEY = "nr:local-file-browser";
 const emptyPane = (): BrowserPaneState => ({ history: [], index: -1, sort: "name", showHidden: false });
 export const emptyBrowserState = (): FileBrowserState => ({ panes: [emptyPane(), emptyPane()], active: 0, ratio: .5 });
 export const browserLocation = (pane: BrowserPaneState) => pane.history[pane.index];
+
+export function reconcileBrowserMutation(state: FileBrowserState, change: BrowserMutation): FileBrowserState {
+  if (change.kind === "refresh") return state;
+  const matches = (node: string) => node === change.node || node.startsWith(`${change.node}/`);
+  const rewrite = (node: string) => `${change.targetNode}${node.slice(change.node.length)}`;
+  return { ...state, panes: state.panes.map(pane => {
+    const history = pane.history.flatMap(entry => {
+      if (entry.rootId !== change.rootId) return [entry];
+      if (matches(entry.node)) {
+        if (change.kind === "trash") return [];
+        return [{ ...entry, rootId: change.targetRootId!, node: rewrite(entry.node), selected: entry.selected.map(rewrite) }];
+      }
+      return [{ ...entry, selected: entry.selected.filter(node => !matches(node)) }];
+    });
+    return { ...pane, history, index: Math.min(pane.index, history.length - 1) };
+  }) as FileBrowserState["panes"] };
+}
 
 export function navigateBrowserPane(pane: BrowserPaneState, rootId: string, node: string): BrowserPaneState {
   if (!rootId || rootId.length > 4096) throw new Error("无效的目录身份");

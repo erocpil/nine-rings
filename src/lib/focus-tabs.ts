@@ -68,10 +68,10 @@ export function localFocusTabIds(recent: string[], state: LocalFocusTabState, li
   const candidates = new Set(recent.filter(id => !state.closed.includes(id)));
   return [...state.order.filter(id => candidates.delete(id)), ...candidates].slice(0, limit);
 }
-export function renameLocalFocusTabPaths(rootId: string, oldNode: string, newNode: string) {
+export function renameLocalFocusTabPaths(rootId: string, oldNode: string, newNode: string, targetRootId = rootId) {
   if (!oldNode) return;
   const oldIdentity = `${rootId}:${oldNode}`;
-  const newIdentity = `${rootId}:${newNode}`;
+  const newIdentity = `${targetRootId}:${newNode}`;
   const rewrite = (id: string) => id === oldIdentity || id.startsWith(`${oldIdentity}/`)
     ? `${newIdentity}${id.slice(oldIdentity.length)}`
     : id;

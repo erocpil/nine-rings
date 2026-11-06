@@ -1,5 +1,13 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-06：双栏文件操作第二批
+
+完整 `npm run check` 通过（Vitest **223 文件、2483 项**）；随后补充会话/tab 迁移与后续项失败断言，定向 **15 项通过**。`npm run build`、原生文件服务 **4 项**及 `cargo clippy --locked --all-targets --all-features -- -D warnings` 通过。新 `local_files_transfer` 的前后端参数及命令注册通过 IPC 契约检查。
+
+Chromium/WebKit 各 **7 passed**：复制冲突改名继续、不覆盖旧目标、移动中停止保留已完成项、新建/重命名/回收站确认、首批双栏浏览与现有文件操作。开发 StrictMode 暴露了取消控制器被预演 cleanup 提前中止的问题，已改为每次 effect 建立新控制器并回归通过；未删除断言或放宽行为要求。
+
+浏览器操作测试使用内存文件服务，不冒充系统回收站或原生跨盘 GUI 验证。Rust 测试使用独立临时目录验证复制字节、同名保留、越界/链接/递归拒绝及失败暂存清理；跨盘移动明确不自动复制后删除。没有运行完整默认 E2E、Windows/Linux GUI 或真实用户目录的删除操作。
+
 ## 2026-11-06：双栏文件浏览首批
 
 新增双栏目录浏览，保留文件树授权及主区域保存门禁。`npm run check` 通过，Vitest **222 文件、2473 项**；生产构建通过，无 chunk 大小或循环 chunk 警告。最终定向 Chromium **8 passed**，含双栏三项与既有本地文件五项。WebKit 首轮 **7 passed、1 failed**，失败为既有关闭文件用例在 `browserContext.newPage` 阶段报告浏览器关闭，未进入页面功能步骤；该项单独复跑 **1 passed**。保留首次失败，不称完整 WebKit 全绿。

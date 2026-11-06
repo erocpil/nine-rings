@@ -34,9 +34,9 @@ export async function saveLocalFileEdits(identity: string) {
   await removeLocalDraft(identity);
   setLocalFileDirty(identity, false);
 }
-export function migrateLocalFileSessions(rootId: string, oldNode: string, nextNode: string) {
-  if (!oldNode || oldNode === nextNode) return;
-  const oldPrefix = `${rootId}:${oldNode}`, nextPrefix = `${rootId}:${nextNode}`;
+export function migrateLocalFileSessions(rootId: string, oldNode: string, nextNode: string, targetRootId = rootId) {
+  if (!oldNode || (rootId === targetRootId && oldNode === nextNode)) return;
+  const oldPrefix = `${rootId}:${oldNode}`, nextPrefix = `${targetRootId}:${nextNode}`;
   for (const [id, value] of [...localFileSessions]) {
     if (!localPathContains(rootId, oldNode, id)) continue;
     localFileSessions.delete(id);

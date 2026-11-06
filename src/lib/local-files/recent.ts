@@ -42,7 +42,7 @@ export function rememberRecentLocalFile(file: Omit<RecentLocalFile, "openedAt">)
   }
 }
 
-export function renameRecentLocalPath(rootId: string, oldNode: string, newNode: string, rootName?: string) {
+export function renameRecentLocalPath(rootId: string, oldNode: string, newNode: string, rootName?: string, targetRootId = rootId) {
   const prefix = oldNode ? `${oldNode}/` : "";
   const recent = readRecentLocalFiles().map(item => {
     if (item.rootId !== rootId) return item;
@@ -52,7 +52,7 @@ export function renameRecentLocalPath(rootId: string, oldNode: string, newNode: 
     const nodeId = oldNode ? `${newNode}${suffix}` : suffix.replace(/^\//, "");
     const pathParts = nodeId.split("/");
     const name = pathParts[pathParts.length - 1] || rootName || item.name;
-    return { ...item, nodeId, name, rootName: rootName ?? item.rootName };
+    return { ...item, rootId: targetRootId, nodeId, name, rootName: rootName ?? item.rootName };
   });
   try {
     localStorage.setItem(KEY, JSON.stringify(recent));

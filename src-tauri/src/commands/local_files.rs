@@ -360,6 +360,125 @@ fn move_entry(root: &Path, node: &str, parent: &str, name: &str) -> Result<Strin
         format!("{parent}/{name}")
     })
 }
+// Copy into an operation-owned staging directory. The final exclusive rename
+// never replaces an existing destination, even when another process creates it.
+fn copy_tree(
+    source: &Path,
+    target: &Path,
+    depth: usize,
+    remaining: &mut usize,
+) -> Result<(), String> {
+    if depth > 64 || *remaining == 0 {
+        return Err("复制超过目录深度或 10000 项预算".into());
+    }
+    *remaining -= 1;
+    let meta = fs::symlink_metadata(source).map_err(|e| e.to_string())?;
+    if is_link(&meta) {
+        return Err("不复制符号链接或重解析点".into());
+    }
+    if meta.is_dir() {
+        fs::create_dir(target).map_err(|e| e.to_string())?;
+        for entry in fs::read_dir(source).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            copy_tree(
+                &entry.path(),
+                &target.join(entry.file_name()),
+                depth + 1,
+                remaining,
+            )?;
+        }
+    } else if meta.is_file() {
+        fs::copy(source, target).map_err(|e| e.to_string())?;
+        let after = fs::symlink_metadata(source).map_err(|e| e.to_string())?;
+        if is_link(&after)
+            || meta.len() != after.len()
+            || meta.modified().ok() != after.modified().ok()
+        {
+            return Err("复制期间源文件发生变化，请刷新后重试".into());
+        }
+    } else {
+        return Err("不复制设备、管道或其它特殊文件".into());
+    }
+    Ok(())
+}
+fn transfer_entry(
+    source_root: &Path,
+    node: &str,
+    target_root: &Path,
+    parent: &str,
+    name: &str,
+    moving: bool,
+) -> Result<String, String> {
+    if node.is_empty() {
+        return Err("不能传输授权根目录".into());
+    }
+    valid_name(name)?;
+    let source = checked_path(source_root, node)?;
+    let destination = checked_path(target_root, parent)?;
+    if !destination.is_dir() || destination.starts_with(&source) {
+        return Err("目标不是目录，或位于源目录内".into());
+    }
+    let target = destination.join(name);
+    if fs::symlink_metadata(&target).is_ok() {
+        return Err("TARGET_EXISTS: 目标名称已存在，未覆盖".into());
+    }
+    if moving {
+        move_exclusive(&source, &target)
+            .map_err(|error| format!("移动未完成；源文件保留（跨磁盘移动不支持）：{error}"))?;
+    } else {
+        let staging = destination.join(format!(".nine-rings-copy-{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&staging).map_err(|e| e.to_string())?;
+        let item = staging.join("item");
+        let result = copy_tree(&source, &item, 0, &mut 10000).and_then(|()| {
+            if checked_path(source_root, node)? != source
+                || checked_path(target_root, parent)? != destination
+            {
+                return Err("复制期间授权路径发生变化，未发布目标".into());
+            }
+            if fs::symlink_metadata(&target).is_ok() {
+                return Err("TARGET_EXISTS: 目标名称已存在，未覆盖".into());
+            }
+            move_exclusive(&item, &target)
+        });
+        // Only our newly-created staging directory is ever permanently removed.
+        let cleanup = fs::remove_dir_all(&staging);
+        result?;
+        cleanup.map_err(|e| format!("复制已完成，但临时目录清理失败：{e}"))?;
+    }
+    Ok(if parent.is_empty() {
+        name.into()
+    } else {
+        format!("{parent}/{name}")
+    })
+}
+// Keep the scoped IPC fields flat, matching move/create; two are injected context.
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn local_files_transfer(
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    node: String,
+    target_root_id: String,
+    parent: String,
+    name: String,
+    moving: bool,
+) -> Result<String, String> {
+    caller(&window)?;
+    let root = library.root(&root_id)?;
+    let target_root = library.root(&target_root_id)?;
+    let grants = library.roots.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let grants = grants.lock().map_err(|_| "目录状态不可用")?;
+        if grants.get(&root_id) != Some(&root) || grants.get(&target_root_id) != Some(&target_root)
+        {
+            return Err("目录授权已变化".into());
+        }
+        transfer_entry(&root, &node, &target_root, &parent, &name, moving)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
 #[tauri::command]
 pub async fn local_files_move(
     window: tauri::WebviewWindow,
@@ -1065,6 +1184,55 @@ mod tests {
             std::os::unix::fs::symlink(dir.join("sample.c"), dir.join("link")).unwrap();
             assert!(read(&dir, "link").is_err());
         }
+        fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn transfer_between_grants_is_exclusive_and_preserves_binary_contents() {
+        let dir = std::env::temp_dir().join(format!("nr-transfer-{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&dir).unwrap();
+        let dir = fs::canonicalize(dir).unwrap();
+        let left = dir.join("left");
+        let right = dir.join("right");
+        fs::create_dir(&left).unwrap();
+        fs::create_dir(&right).unwrap();
+        fs::create_dir(left.join("nested")).unwrap();
+        fs::write(left.join("nested/data.bin"), [0, 255, 1, 0]).unwrap();
+        transfer_entry(&left, "nested", &right, "", "copy", false).unwrap();
+        assert_eq!(
+            fs::read(right.join("copy/data.bin")).unwrap(),
+            [0, 255, 1, 0]
+        );
+        assert!(left.join("nested/data.bin").exists());
+        assert!(transfer_entry(&left, "nested", &right, "", "copy", false)
+            .unwrap_err()
+            .contains("TARGET_EXISTS"));
+        assert!(transfer_entry(&left, "nested", &left, "nested", "cycle", false).is_err());
+        assert!(transfer_entry(&left, "nested", &right, "../left", "escape", false).is_err());
+        assert!(transfer_entry(&left, "", &right, "", "root", true).is_err());
+        transfer_entry(&left, "nested", &right, "", "moved", true).unwrap();
+        assert!(!left.join("nested").exists());
+        assert!(right.join("moved/data.bin").exists());
+        assert!(!fs::read_dir(&right).unwrap().any(|entry| entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".nine-rings-copy-")));
+        fs::remove_dir_all(dir).unwrap();
+    }
+    #[cfg(unix)]
+    #[test]
+    fn transfer_rejects_nested_links_and_cleans_only_its_staging_directory() {
+        let dir = std::env::temp_dir().join(format!("nr-transfer-link-{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&dir).unwrap();
+        let dir = fs::canonicalize(dir).unwrap();
+        fs::create_dir(dir.join("src")).unwrap();
+        fs::create_dir(dir.join("dest")).unwrap();
+        fs::write(dir.join("outside"), "keep").unwrap();
+        std::os::unix::fs::symlink(dir.join("outside"), dir.join("src/link")).unwrap();
+        assert!(transfer_entry(&dir, "src", &dir, "dest", "copy", false).is_err());
+        assert!(!dir.join("dest/copy").exists());
+        assert_eq!(fs::read_to_string(dir.join("outside")).unwrap(), "keep");
+        assert_eq!(fs::read_dir(dir.join("dest")).unwrap().count(), 0);
         fs::remove_dir_all(dir).unwrap();
     }
 }

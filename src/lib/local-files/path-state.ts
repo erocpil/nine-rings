@@ -1,8 +1,8 @@
 /** Move device-local preferences when an authorized filesystem path is renamed. */
-export function migrateLocalFilePathState(rootId: string, oldNode: string, newNode: string) {
+export function migrateLocalFilePathState(rootId: string, oldNode: string, newNode: string, targetRootId = rootId) {
   if (!oldNode) return;
   const oldIdentity = `${rootId}:${oldNode}`;
-  const newIdentity = `${rootId}:${newNode}`;
+  const newIdentity = `${targetRootId}:${newNode}`;
   const rewrite = (identity: string) => identity === oldIdentity || identity.startsWith(`${oldIdentity}/`)
     ? `${newIdentity}${identity.slice(oldIdentity.length)}`
     : null;

@@ -37,6 +37,15 @@
 .file-browser-error button { background: transparent; color: inherit; border: 0; cursor: pointer; }
 .file-browser-opening { position: absolute; bottom: 12px; right: 12px; z-index: 2; padding: 5px 10px; border-radius: 6px; background: var(--bg); color: var(--text-secondary); font-size: 12px; }
 .file-browser-mobile-tabs { display: none; }
+.file-browser-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; overflow-x: auto; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.file-browser-actions > span, .file-browser-actions > button { white-space: nowrap; flex-shrink: 0; }
+.file-browser-actions > span { color: var(--text-secondary); }
+.file-browser-actions > button { color: var(--text); background: var(--bg-secondary, var(--bg)); border: 1px solid var(--border); border-radius: 5px; padding: 4px 7px; font: inherit; cursor: pointer; }
+.file-browser-actions > button:disabled { opacity: .45; cursor: default; }
+.file-browser-operation-dialog [role='status'] { overflow-wrap: anywhere; font-size: 13px; }
+.file-browser-operation-dialog progress { width: 100%; accent-color: var(--accent); }
+.file-browser-conflict { border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
+.file-browser-conflict > div { display: flex; gap: 8px; margin-top: 8px; }
 @media (max-width: 768px) {
   .file-browser-heading > span { display: none; }
   .file-browser-panes { display: flex; }

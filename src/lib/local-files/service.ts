@@ -131,6 +131,18 @@ export const localFileService = {
   supportsDirectoryChanges: (rootId: string) => isTauriRuntime() || Boolean(roots.get(rootId)?.handle),
   canRename: (rootId: string) => isTauriRuntime() || Boolean(roots.get(rootId)?.handle),
   canTrash: () => isTauriRuntime(),
+  canTransfer: () => isTauriRuntime(),
+  async transfer(rootId: string, node: string, targetRootId: string, parent: string, requestedName: string, moving: boolean): Promise<string> {
+    const check = guard();
+    pluginRuntime.assert(workspacePanels.assert("files"), "filesystem.files.write");
+    const name = requestedName.trim();
+    if (!fileSegments(node).length || fileSegments(name).length !== 1) throw new Error("无效的源路径或目标名称");
+    fileSegments(parent);
+    if (isLocalFileReadOnly(targetRootId, parent) || isLocalFileReadOnly(targetRootId, [parent, name].filter(Boolean).join("/")) || (moving && isLocalFileReadOnly(rootId, node))) throw new Error("来源或目标被设置为只读");
+    if (!isTauriRuntime()) throw new Error("双栏复制与跨目录移动需要桌面版；浏览器不提供排他创建保证");
+    const result = await native<string>("local_files_transfer", { rootId, node, targetRootId, parent, name, moving });
+    check(); return result;
+  },
   async create(rootId: string, parent: string, requestedName: string, directory: boolean): Promise<string> {
     const check = guard();
     pluginRuntime.assert(workspacePanels.assert("files"), "filesystem.files.write");
