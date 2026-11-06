@@ -271,6 +271,41 @@ it("a later transfer error preserves earlier progress and never retries complete
   expect(transfer).toHaveBeenCalledTimes(2);
   expect(progress.at(-1)?.completed).toBe(1);
 });
+it("batch rename uses the reviewed targets and refuses name swaps before any mutation", async () => {
+  const owner = activate(),
+    move = vi
+      .spyOn(localFileService, "move")
+      .mockImplementation(
+        async (_root, _node, parent, name) => `${parent}/${name}`,
+      );
+  const plan = {
+    ...operation,
+    kind: "batch-rename" as const,
+    names: { "src/a.c": "1-a.c", "src/b.c": "2-b.c" },
+  };
+  const result = await runBrowserOperation(
+    owner,
+    plan,
+    "",
+    new AbortController().signal,
+    () => {},
+    async () => ({ action: "stop" }),
+  );
+  expect(result.completed).toBe(2);
+  expect(move.mock.calls.map((args) => args[3])).toEqual(["1-a.c", "2-b.c"]);
+  move.mockClear();
+  await expect(
+    runBrowserOperation(
+      owner,
+      { ...plan, names: { "src/a.c": "b.c", "src/b.c": "a.c" } },
+      "",
+      new AbortController().signal,
+      () => {},
+      async () => ({ action: "stop" }),
+    ),
+  ).rejects.toThrow("占用");
+  expect(move).not.toHaveBeenCalled();
+});
 it("updates the other pane inside a moved directory and removes deleted history", () => {
   let state = emptyBrowserState();
   state.panes[1] = navigateBrowserPane(state.panes[1], "left", "src/nested");

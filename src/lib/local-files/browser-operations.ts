@@ -9,7 +9,8 @@ import { renameLocalFocusTabPaths, removeLocalFocusTabPaths } from "../focus-tab
 export const FILE_BROWSER_MUTATION_EVENT = "nr:file-browser-mutation";
 export interface BrowserMutation { kind: "refresh" | "move" | "trash"; rootId: string; node: string; targetRootId?: string; targetNode?: string }
 export interface BrowserOperation {
-  kind: "copy" | "move" | "rename" | "file" | "directory" | "trash";
+  kind: "copy" | "move" | "rename" | "batch-rename" | "file" | "directory" | "trash";
+  names?: Readonly<Record<string, string>>;
   rootId: string;
   rootName: string;
   parent: string;
@@ -40,6 +41,11 @@ export async function runBrowserOperation(owner: PluginActivation, operation: Br
   const progress: BrowserProgress = { completed: 0, skipped: 0, total: operation.nodes.length || 1, current: "" };
   const check = () => { signal.throwIfAborted(); pluginRuntime.assert(owner, "filesystem.files.write"); };
   const nodes = operation.nodes.length ? [...operation.nodes] : [""];
+  if (operation.kind === "batch-rename") {
+    const names = nodes.map(node => operation.names?.[node] ?? "");
+    if (names.some(value => fileSegments(value).length !== 1 || value !== value.trim()) || new Set(names.map(value => value.toLowerCase())).size !== names.length) throw new Error("无效或重复的批量重命名目标");
+    for (const [index, value] of names.entries()) if (nodes.some((other, at) => at !== index && other.split("/").pop()!.toLowerCase() === value.toLowerCase())) throw new Error("批量目标仍被选中项占用，未执行");
+  }
   if ((operation.kind === "rename" && operation.nodes.length !== 1) || (!["file", "directory"].includes(operation.kind) && !operation.nodes.length)) throw new Error("请选择要操作的路径");
   // Reject forged/cross-parent selections, roots and duplicate destructive work.
   if (new Set(nodes).size !== nodes.length || nodes.length > 2000) throw new Error("无效的选中路径");
@@ -53,18 +59,19 @@ export async function runBrowserOperation(owner: PluginActivation, operation: Br
   for (const node of nodes) {
     if (signal.aborted) break;
     check();
-    let targetName = operation.kind === "rename" || operation.kind === "file" || operation.kind === "directory" ? name.trim() : node.split("/").pop()!;
+    let targetName = operation.kind === "batch-rename" ? operation.names![node] : operation.kind === "rename" || operation.kind === "file" || operation.kind === "directory" ? name.trim() : node.split("/").pop()!;
     progress.current = node || targetName; onProgress({ ...progress });
     for (;;) {
       if (signal.aborted) break;
       check();
       if (operation.kind !== "trash" && fileSegments(targetName).length !== 1) throw new Error("请输入单个文件或目录名称");
+      if (operation.kind === "batch-rename" && nodes.some(other => other !== node && (operation.names![other].toLowerCase() === targetName.toLowerCase() || other.split("/").pop()!.toLowerCase() === targetName.toLowerCase()))) throw new Error("此名称被批量计划中的其它项目占用，请重新规划");
       try {
         if (operation.kind === "copy" || operation.kind === "move") {
           const next = await localFileService.transfer(operation.rootId, node, operation.targetRootId, operation.targetParent, targetName, operation.kind === "move");
           if (operation.kind === "move") migrate(operation.rootId, node, operation.targetRootId, next, operation.targetRootName);
           notify({ kind: operation.kind === "move" ? "move" : "refresh", rootId: operation.rootId, node, targetRootId: operation.targetRootId, targetNode: next });
-        } else if (operation.kind === "rename") {
+        } else if (operation.kind === "rename" || operation.kind === "batch-rename") {
           const next = await localFileService.move(operation.rootId, node, operation.parent, targetName);
           migrate(operation.rootId, node, operation.rootId, next, operation.rootName);
           notify({ kind: "move", rootId: operation.rootId, node, targetRootId: operation.rootId, targetNode: next });

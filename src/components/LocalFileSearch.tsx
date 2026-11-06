@@ -4,9 +4,10 @@ import type { FileRoot } from "../lib/local-files/service";
 import type { SearchOptions } from "../lib/search-matching";
 import { ToolbarIcon } from "./ToolbarIcon";
 
-export function LocalFileSearch({ roots, showHidden, active, initialScope, onOpen, onClose }: {
+export function LocalFileSearch({ roots, showHidden, active, initialScope, onOpen, onClose, embedded = false }: {
   roots: FileRoot[]; showHidden: boolean; active: boolean;
   initialScope?: { rootId: string; node: string };
+  embedded?: boolean;
   onOpen: (hit: LocalFileSearchHit) => void; onClose: () => void;
 }) {
   const [query, setQuery] = useState(""), [options, setOptions] = useState<SearchOptions>({});
@@ -33,13 +34,13 @@ export function LocalFileSearch({ roots, showHidden, active, initialScope, onOpe
   const scopes = roots.map(root => ({ value: `${root.id}:`, label: root.name }));
   if (initialScope?.node) scopes.push({ value: `${initialScope.rootId}:${initialScope.node}`, label: `${roots.find(root => root.id === initialScope.rootId)?.name ?? ""}/${initialScope.node}` });
   return <section className="local-file-task-panel" aria-label="本地目录全文搜索" onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); if (busy) controller.current?.abort(); else onClose(); } }}>
-    <header><strong>目录全文搜索</strong><button type="button" className="btn-icon" aria-label="关闭目录搜索" onClick={onClose}><ToolbarIcon name="close" /></button></header>
+    {!embedded && <header><strong>目录全文搜索</strong><button type="button" className="btn-icon" aria-label="关闭目录搜索" onClick={onClose}><ToolbarIcon name="close" /></button></header>}
     <form onSubmit={event => { event.preventDefault(); void start(); }}>
       <div className="local-files-filter"><input ref={input} value={query} maxLength={1024} aria-label="搜索本地文件正文" placeholder="搜索磁盘文件正文" disabled={busy} onChange={event => setQuery(event.target.value)} /><button type="submit" className="btn-icon" aria-label="开始全文搜索" disabled={busy || !query.trim() || !roots.length}><ToolbarIcon name="search" /></button>{busy && <button type="button" className="btn-icon" aria-label="取消搜索" onClick={() => controller.current?.abort()}><ToolbarIcon name="close" /></button>}</div>
       <select aria-label="全文搜索范围" disabled={busy} value={scope} onChange={event => setScope(event.target.value)}><option value="">全部授权目录</option>{scopes.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
       <div className="local-file-search-options">{([["caseSensitive", "区分大小写"], ["wholeWord", "全词"], ["regex", "Perl 正则"]] as const).map(([key, label]) => <label key={key}><input type="checkbox" disabled={busy} checked={options[key] === true} onChange={event => setOptions(current => ({ ...current, [key]: event.target.checked }))} />{label}</label>)}</div>
     </form>
-    <p>搜索磁盘已保存正文，跳过二进制及超过 4 MiB 的文件。是否包含隐藏项沿用文件树设置。</p>
+    <p>搜索磁盘已保存正文，跳过二进制及超过 4 MiB 的文件。是否包含隐藏项沿用当前入口的设置。</p>
     {progress && <p role="status">{busy ? "搜索中" : "已扫描"}：{progress.files} 个文件 · {(progress.bytes / 1024 / 1024).toFixed(1)} MiB · {progress.matches} 条结果 · 跳过 {progress.skipped} 项{progress.limited ? "；已达到部分搜索上限，请缩小目录或条件。" : ""}</p>}
     {busy && progress?.current && <p className="local-file-search-current" title={progress.current}>{progress.current}</p>}
     {message && <p role="status">{message}</p>}

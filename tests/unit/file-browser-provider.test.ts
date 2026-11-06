@@ -64,3 +64,52 @@ it("rejects late properties after plugin revocation without reading file bodies"
   await expect(pending).rejects.toThrow();
   expect(read).not.toHaveBeenCalled();
 });
+it("bounds quick preview before reading and truncates text without changing the document", async () => {
+  pluginRuntime.setEnabled(true);
+  const owner = pluginRuntime.activate("test.browser", [
+    "filesystem.files.read",
+  ]);
+  const stat = vi
+    .spyOn(localFileService, "stat")
+    .mockResolvedValue({ size: 2 * 1024 * 1024, modifiedMs: 0 });
+  const read = vi.spyOn(localFileService, "readSnapshot").mockResolvedValue({
+    source: "x".repeat(70000),
+    size: 70000,
+    bom: false,
+    lineEnding: "lf",
+    modifiedMs: 0,
+    revision: "r",
+  });
+  const provider = localDirectoryProvider(owner);
+  await expect(
+    provider.preview("r", "large.txt", new AbortController().signal),
+  ).rejects.toThrow("1 MiB");
+  expect(read).not.toHaveBeenCalled();
+  stat.mockResolvedValue({ size: 70000, modifiedMs: 0 });
+  const preview = await provider.preview(
+    "r",
+    "normal.txt",
+    new AbortController().signal,
+  );
+  expect(preview.kind).toBe("text");
+  expect(preview.value).toHaveLength(65536);
+  expect(preview.truncated).toBe(true);
+});
+it("rejects a stale preview after its file read finishes", async () => {
+  pluginRuntime.setEnabled(true);
+  const owner = pluginRuntime.activate("test.browser", [
+      "filesystem.files.read",
+    ]),
+    controller = new AbortController();
+  vi.spyOn(localFileService, "stat").mockResolvedValue({
+    size: 100,
+    modifiedMs: 0,
+  });
+  vi.spyOn(localFileService, "readImageAsset").mockImplementation(async () => {
+    controller.abort();
+    return "data:image/png;base64,AA==";
+  });
+  await expect(
+    localDirectoryProvider(owner).preview("r", "image.png", controller.signal),
+  ).rejects.toThrow();
+});

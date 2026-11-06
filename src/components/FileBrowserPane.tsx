@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
 import { browserLocation, moveBrowserHistory, navigateBrowserPane, selectBrowserItems, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
 import { fileSegments, type FileNode, type FileRoot, type LocalFileFingerprint } from "../lib/local-files/service";
 import type { localDirectoryProvider } from "../lib/local-files/browser-provider";
@@ -8,6 +8,7 @@ const ROW = 32;
 const sizeText = (size: number) => size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
 type Provider = ReturnType<typeof localDirectoryProvider>;
 interface Props {
+  tabBar?: ReactNode;
   side: 0 | 1;
   active: boolean;
   visible: boolean;
@@ -21,7 +22,7 @@ interface Props {
   onRefreshRoots: () => void;
   onOpen: (rootId: string, rootName: string, node: FileNode) => void;
 }
-export function FileBrowserPane({ side, active, visible, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen }: Props) {
+export function FileBrowserPane({ side, active, visible, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, tabBar }: Props) {
   const location = browserLocation(pane);
   const rootId = location?.rootId ?? "", node = location?.node ?? "";
   const root = roots.find(item => item.id === rootId);
@@ -124,6 +125,7 @@ export function FileBrowserPane({ side, active, visible, revision, pane, roots, 
   const openItem = (item: FileNode) => item.directory ? navigate(item.id) : onOpen(rootId, root?.name ?? rootId, item);
   const pieces = node ? node.split("/") : [];
   return <section className={`file-browser-pane${active ? " is-active" : ""}`} aria-label={side === 0 ? "左侧目录" : "右侧目录"} data-browser-side={side} onPointerDown={onActivate} onFocusCapture={onActivate}>
+    {tabBar}
     <header className="file-browser-pane-tools">
       <button type="button" className="btn-icon" aria-label="后退目录" disabled={pane.index <= 0} onClick={() => { setQuery(""); onChange(current => moveBrowserHistory(current, -1)); }}><ToolbarIcon name="chevronLeft" /></button>
       <button type="button" className="btn-icon" aria-label="前进目录" disabled={pane.index >= pane.history.length - 1} onClick={() => { setQuery(""); onChange(current => moveBrowserHistory(current, 1)); }}><ToolbarIcon name="chevronRight" /></button>

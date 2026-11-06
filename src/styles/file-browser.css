@@ -46,6 +46,31 @@
 .file-browser-operation-dialog progress { width: 100%; accent-color: var(--accent); }
 .file-browser-conflict { border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
 .file-browser-conflict > div { display: flex; gap: 8px; margin-top: 8px; }
+.file-browser-directory-host { height: 100%; min-height: 0; }
+.file-browser-directory-host[hidden] { display: none; }
+.file-browser-tabs { display: flex; gap: 4px; padding: 4px 6px; overflow: auto; flex-shrink: 0; scrollbar-width: thin; }
+.file-browser-tab { display: flex; flex-shrink: 0; max-width: 180px; border: 1px solid var(--border); border-radius: 4px; }
+.file-browser-tabs button { background: transparent; color: var(--text-secondary); border: 0; font: inherit; padding: 4px 6px; font-size: 12px; cursor: pointer; }
+.file-browser-tab [role='tab'] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-browser-tab [role='tab'][aria-selected='true'], .file-browser-actions [aria-pressed='true'] { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.file-browser-tabs button:disabled { opacity: .3; cursor: default; }
+.file-browser-quick-preview { display: flex; flex-direction: column; height: 100%; min-height: 0; padding: 8px; box-sizing: border-box; }
+.file-browser-quick-preview header { display: flex; align-items: center; gap: 8px; }
+.file-browser-quick-preview header strong { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.file-browser-quick-preview p { font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.file-browser-quick-preview pre { flex: 1; overflow: auto; padding: 8px; margin: 0; background: var(--bg-secondary, var(--bg)); color: var(--text); font: 13px/1.6 var(--font-mono, monospace); tab-size: 4; }
+.file-browser-preview-image { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.file-browser-preview-image img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.file-browser-tool-dialog { width: min(850px, 92vw); max-height: 85dvh; padding: 16px; color: var(--text); background: var(--bg); border: 1px solid var(--border); }
+.file-browser-tool-dialog > header { display: flex; align-items: center; justify-content: space-between; }
+.file-browser-tool-body { overflow: auto; max-height: calc(85dvh - 85px); }
+.file-browser-tool-body p { font-size: 13px; overflow-wrap: anywhere; }
+.file-browser-tool-body .local-file-task-panel { border: none; }
+.file-browser-comparison-controls { display: flex; align-items: center; gap: 8px; }
+.file-browser-comparison-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
+.file-browser-comparison-table :is(th, td) { text-align: left; padding: 6px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.file-browser-tool-body footer { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin: 10px 0; }
+.file-browser-rename-preview { max-height: 200px; overflow: auto; font-size: 12px; border: 1px solid var(--border); padding: 6px; }
 @media (max-width: 768px) {
   .file-browser-heading > span { display: none; }
   .file-browser-panes { display: flex; }

@@ -25,10 +25,12 @@ export const emptyBrowserState = (): FileBrowserState => ({ panes: [emptyPane(),
 export const browserLocation = (pane: BrowserPaneState) => pane.history[pane.index];
 
 export function reconcileBrowserMutation(state: FileBrowserState, change: BrowserMutation): FileBrowserState {
-  if (change.kind === "refresh") return state;
+  return { ...state, panes: state.panes.map(pane => reconcileBrowserPaneMutation(pane, change)) as FileBrowserState["panes"] };
+}
+export function reconcileBrowserPaneMutation(pane: BrowserPaneState, change: BrowserMutation): BrowserPaneState {
+  if (change.kind === "refresh") return pane;
   const matches = (node: string) => node === change.node || node.startsWith(`${change.node}/`);
   const rewrite = (node: string) => `${change.targetNode}${node.slice(change.node.length)}`;
-  return { ...state, panes: state.panes.map(pane => {
     const history = pane.history.flatMap(entry => {
       if (entry.rootId !== change.rootId) return [entry];
       if (matches(entry.node)) {
@@ -37,8 +39,8 @@ export function reconcileBrowserMutation(state: FileBrowserState, change: Browse
       }
       return [{ ...entry, selected: entry.selected.filter(node => !matches(node)) }];
     });
-    return { ...pane, history, index: Math.min(pane.index, history.length - 1) };
-  }) as FileBrowserState["panes"] };
+  const removedBefore = change.kind === "trash" ? pane.history.slice(0, pane.index).filter(entry => entry.rootId === change.rootId && matches(entry.node)).length : 0;
+  return { ...pane, history, index: Math.min(pane.index - removedBefore, history.length - 1) };
 }
 
 export function navigateBrowserPane(pane: BrowserPaneState, rootId: string, node: string): BrowserPaneState {
