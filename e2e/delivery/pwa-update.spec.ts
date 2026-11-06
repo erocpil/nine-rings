@@ -164,15 +164,15 @@ test("桌面普通网页从设置保存刷新，仅当前标签重载且保留�
 });
 
 test("新版下载失败保留旧版，设置可手动检查并重试升级", async ({ page }) => {
+  test.setTimeout(90_000);
   revision = 2;
   failDownload = true;
   await page.keyboard.press("Alt+,");
   await page.getByRole("button", { name: "点击更新", exact: true }).click();
-  // The production service worker precaches hundreds of real assets before it
-  // can report the injected marker failure. Give slower CI runners time to
-  // finish that install attempt instead of treating visible download progress
-  // as a failed update.
-  await expect(page.locator(".settings-web-update [role=status]")).toContainText(/失败|未完成/, { timeout: 30_000 });
+  // Failure reporting waits for every concurrent cache writer to settle.
+  // Each may use 3 x 15s download deadlines + 1.5s retry backoff. The 30s
+  // assertion previously expired while those bounded retries were still live.
+  await expect(page.locator(".settings-web-update [role=status]")).toContainText(/失败|未完成/, { timeout: 60_000 });
   await page.getByRole("button", { name: "查看详情", exact: true }).click();
   await expect(page.locator(".settings-web-update")).toContainText("resource=/__pwa-test-2.js");
   await expect(page.locator(".settings-web-update")).toContainText("status=503");

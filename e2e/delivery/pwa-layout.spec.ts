@@ -821,8 +821,10 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(page.locator(".ProseMirror")).toBeVisible();
     const checkToolbar = async (scope: Locator) => {
       const toolbar = scope.locator(".doc-tree-toolbar");
-      const buttons = toolbar.locator("button");
-      await expect(toolbar.locator("button > svg.toolbar-icon")).toHaveCount(await buttons.count());
+      await expect.poll(() => toolbar.evaluate(el => {
+        const buttons = el.querySelectorAll("button").length;
+        return buttons > 0 && el.querySelectorAll("button > svg.toolbar-icon").length === buttons;
+      })).toBe(true);
       const geometry = await toolbar.evaluate((el) => ({
         right: el.getBoundingClientRect().right,
         parentRight: el.parentElement!.getBoundingClientRect().right,
