@@ -8,15 +8,16 @@ test("PDF 快速往返滚动后只提交当前页，离屏画布释放", async (
   browserName,
 }) => {
   test.setTimeout(60000);
-  if (browserName === "chromium") {
-    const session = await page.context().newCDPSession(page);
-    await session.send("Emulation.setCPUThrottlingRate", { rate: 4 });
-  }
   const pdf = await PDFDocument.create();
   for (let i = 1; i <= 60; i++)
     pdf.addPage([600, 800]).drawText(`Unique page ${i}`, { x: 40, y: 720 });
   await page.goto("/");
   await openMobileReadingLibrary(page);
+  // Stress PDF parsing/rendering, not the unrelated lazy editor startup.
+  if (browserName === "chromium") {
+    const session = await page.context().newCDPSession(page);
+    await session.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+  }
   await page.getByRole("region", { name: "阅读资料库", exact: true })
     .locator('input[type="file"][accept="application/pdf,.pdf"]')
     .setInputFiles({

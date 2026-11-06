@@ -252,7 +252,7 @@ test("Windows 保留原来的默认标题栏处理", async ({ page }) => {
 
 test("关闭到托盘提示紧贴关闭按钮", async ({ page }) => {
   await mountTitlebar(page);
-  const close = page.getByRole("button", { name: "关闭", exact: true });
+  const close = page.locator(".titlebar").getByRole("button", { name: "关闭", exact: true });
   await close.hover();
   const tooltip = page.getByRole("tooltip").filter({ hasText: "关闭到托盘" });
   await expect(tooltip).toBeVisible();

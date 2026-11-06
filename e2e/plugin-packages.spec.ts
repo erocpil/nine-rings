@@ -27,7 +27,7 @@ for (const width of [390, 1280]) test(`本机主题包明确确认、启停、�
   await page.setViewportSize({ width, height: 844 });
   await page.goto("/");
   const editor = page.locator(".note-editor .ProseMirror");
-  await expect(editor).toBeVisible();
+  await expect(editor).toBeVisible({ timeout: 20000 });
   await editor.evaluate(element => element.setAttribute("data-package-session", "retained"));
   let section = await plugins(page);
   const choose = section.getByLabel("选择声明式插件包");
@@ -67,7 +67,7 @@ for (const width of [390, 1280]) test(`本机主题包明确确认、启停、�
 });
 test("拒绝脚本包、同版替换；更新重新审查且默认停用", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator(".note-editor")).toBeVisible();
+  await expect(page.locator(".note-editor")).toBeVisible({ timeout: 20000 });
   const section = await plugins(page), choose = section.getByLabel("选择声明式插件包");
   await choose.setInputFiles(archive("1.0.0", { entry: "index.js" }));
   await expect(section.getByRole("status")).toContainText("无效");

@@ -126,6 +126,8 @@ function PropertiesPanel({
   const [readonlyError, setReadonlyError] = useState<string | null>(null);
   const [userConfig, setUserConfig] = useState<AppConfig | null>(null);
   const [metadataDraft, setMetadataDraft] = useState<DocumentMetadata>(() => note.content.metadata ?? {});
+  const metadataDraftOwner = useRef(note.id);
+  const metadataDraftDirty = useRef(false);
   const [metadataSaving, setMetadataSaving] = useState(false);
   const { confirm, confirmationDialog } = useConfirmation(true, note.id);
   const { message: metadataMessage, showMessage: showMetadataMessage, clearMessage: clearMetadataMessage } = useTransientMessage();
@@ -179,6 +181,9 @@ function PropertiesPanel({
   }, [loadBacklinks]);
 
   useEffect(() => {
+    if (metadataDraftOwner.current === note.id && metadataDraftDirty.current) return;
+    metadataDraftOwner.current = note.id;
+    metadataDraftDirty.current = false;
     setMetadataDraft(JSON.parse(metadataSignature) as DocumentMetadata);
     clearMetadataMessage();
   }, [clearMetadataMessage, metadataSignature, note.id]);
@@ -385,12 +390,14 @@ function PropertiesPanel({
   };
 
   const updateMetadataField = <K extends keyof DocumentMetadata,>(key: K, value: DocumentMetadata[K]) => {
+    metadataDraftDirty.current = true;
     setMetadataDraft((current) => ({ ...current, [key]: value }));
     clearMetadataMessage();
   };
 
   const fillUserDefaults = () => {
     if (!userConfig || readonly) return;
+    metadataDraftDirty.current = true;
     setMetadataDraft((current) => ({
       ...current,
       author: current.author || userConfig.user_name,
@@ -413,6 +420,7 @@ function PropertiesPanel({
     )) as DocumentMetadata;
     try {
       await onMetadataUpdate(cleaned);
+      metadataDraftDirty.current = false;
       setMetadataDraft(cleaned);
       showMetadataMessage("元信息已保存");
     } catch (error) {

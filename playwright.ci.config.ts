@@ -8,10 +8,9 @@ if (selected && selected.length === 0)
   throw new Error("E2E selection must not be empty");
 export default defineConfig({
   ...base,
-  // GitHub's hosted Linux runner provides four cores. The complete suite is
-  // dominated by independent 3–10 second browser cases, so use those cores
-  // here without changing local, reading, platform or WebKit gate settings.
-  workers: 4,
+  // Chromium, Vite transforms and CPU-throttled reader tests share the runner.
+  // Four concurrent browsers made cold startup exceed readiness deadlines.
+  workers: 2,
   testMatch: selected?.map((file) => `**/${file}`),
   use: {
     ...base.use,

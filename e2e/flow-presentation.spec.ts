@@ -48,6 +48,21 @@ for (const width of [1280, 390]) {
     });
     await page.getByTitle("显示属性面板", { exact: true }).click();
     await page.getByLabel("文档展示方式").selectOption("ordinary");
+    // A body save can invalidate original Markdown while this draft is open.
+    // Receiving those live metadata changes must not reset the user's choice.
+    await page.evaluate(async id => {
+      const apiPath = "/src/lib/api.ts";
+      const storePath = "/src/stores/useNotesStore.ts";
+      const { api } = await import(/* @vite-ignore */ apiPath);
+      const { useNotesStore } = await import(/* @vite-ignore */ storePath);
+      const current = await api.notes.get(id);
+      const updated = await api.notes.update(id, { content: {
+        ...current.content,
+        metadata: { ...current.content.metadata, version: "background-save" },
+      } });
+      useNotesStore.getState().selectNote(updated);
+    }, seed.id);
+    await expect(page.getByLabel("文档展示方式")).toHaveValue("ordinary");
     await page.getByRole("button", { name: "保存展示方式", exact: true }).click();
     await expect(stages).toHaveCount(0);
     await page.getByLabel("文档展示方式").selectOption("flow");
