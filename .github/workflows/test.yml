@@ -23,7 +23,6 @@ jobs:
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       production: ${{ steps.filter.outputs.production }}
-      flutter: ${{ steps.filter.outputs.flutter }}
       rust: ${{ steps.filter.outputs.rust }}
       schema: ${{ steps.filter.outputs.schema }}
       ipc: ${{ steps.filter.outputs.ipc }}
@@ -75,9 +74,6 @@ jobs:
               - 'playwright.pwa.config.ts'
               - 'scripts/e2e-suites.mjs'
               - '.github/workflows/test.yml'
-            flutter:
-              - 'flutter_app/**'
-              - 'schema/sync/**'
             rust:
               - 'rust-toolchain.toml'
               - 'src-tauri/**'
@@ -118,34 +114,6 @@ jobs:
       - run: npm run test:coverage
       - name: Dependency audit
         run: npm audit --audit-level=high
-
-  flutter-quality:
-    name: Flutter Tests and Format
-    needs: changes
-    # Temporarily paused. Restore the Flutter changed-path condition to resume.
-    if: ${{ false }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: flutter_app
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 2
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      - run: flutter pub get
-      - name: Check formatting of changed Dart files
-        shell: bash
-        run: |
-          mapfile -t files < <(git diff --name-only --diff-filter=ACMR HEAD^ HEAD -- '*.dart' | sed 's#^flutter_app/##')
-          if (( ${#files[@]} )); then
-            dart format --output=none --set-exit-if-changed "${files[@]}"
-          fi
-      - run: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - run: flutter test
 
   ipc-contract:
     name: Tauri IPC Contract Check

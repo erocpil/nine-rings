@@ -6,9 +6,6 @@ on:
       - Tauri Windows Build
       - Tauri macOS ARM64 Build
       - Tauri Linux Build
-      - Flutter Windows Build
-      - Flutter macOS Build
-      - Flutter Linux Build
     types: [completed]
   schedule:
     - cron: '17 */6 * * *'

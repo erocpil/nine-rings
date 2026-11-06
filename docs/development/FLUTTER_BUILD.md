@@ -1,6 +1,6 @@
 # Flutter 版构建指南（macOS / iOS）
 
-> 2026-11-06：GitHub Flutter 三平台构建和 Test 中的 Flutter 检查暂时停用，使用作业级 `if: ${{ false }}` 保留配置。恢复构建时移除此条件；恢复质量检查时改回 `needs.changes.outputs.flutter == 'true'`。本机构建与共享 Schema 校验不受影响。
+> 2026-11-06：已移除 GitHub Flutter 三平台构建工作流及 Test 中的 Flutter 检查作业。本机构建与共享 Schema 校验保留；如需恢复 Flutter CI，可从 Git 历史恢复对应配置。
 
 Nine Rings 的 Flutter 实现覆盖 **macOS 桌面** 和 **iOS 移动端** 两个 Apple 平台。与 Flutter Android 版共享同一份 Dart 代码，通过 `flutter build macos` / `flutter build ios` 分别构建。
 
