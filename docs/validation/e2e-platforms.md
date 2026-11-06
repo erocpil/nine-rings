@@ -29,6 +29,8 @@ npx playwright test --config=playwright.pwa.config.ts --browser=webkit --workers
 
 GitHub Actions 的 **E2E Native Platforms** 工作流自动运行三系统 × 两浏览器的有限回归集。手动选择 `suite=full` 可运行默认全套和生产/PWA；默认套件失败也会继续生产专项。各平台独立上传 JSON、截图与失败 trace，不因某个平台失败取消其他平台。
 
+当前 runner 为 `ubuntu-22.04`、`macos-15`、`windows-2022`。2026-11-06 将 macOS 从 14 更新至 15：旧作业在分配 runner 前收到 GitHub 的 `macos-14-arm64-us-default is not supported`，不是测试断言失败；历史 macOS 14 成功记录不代表该镜像仍可分配。
+
 ## 编写约定
 
 - 普通复制、全选、撤销、重做和应用快捷键使用 Playwright `ControlOrMeta`。不要把全部 `Control` 替换成 `Meta`。macOS Control 文本移动、快捷键录制、Vim Control-R 等显式行为应保留原按键。
