@@ -60,6 +60,83 @@ test("双栏复制冲突改名并继续，保留源文件和已有目标，进�
   expect(await page.evaluate(() => (window as any).__browserOperations.nodes.get("right").get("a.c"))).toBe("existing");
 });
 
+test("外部变化保留已加载范围、可见行和多选，删除后只清理已消失项", async ({ page }) => {
+  await page.clock.install();
+  const { browser, left } = await setup(page);
+  await page.evaluate(async () => {
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    const fixture = (window as any).__browserOperations;
+    fixture.nodes.set("left", new Map(Array.from({ length: 250 }, (_, index) => [`file-${String(index).padStart(3, "0")}.c`, "A"])));
+    localFileService.list = async (root, _parent, offset = 0) => {
+      const entries = [...fixture.nodes.get(root).keys()].sort().map((id: string) => ({ id, name: id, directory: false, size: fixture.nodes.get(root).get(id).length, modifiedMs: 1 }));
+      return { nodes: entries.slice(offset, offset + 200), next: offset + 200 < entries.length ? offset + 200 : null };
+    };
+  });
+  await left.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await expect(left.locator(".file-browser-pane-status")).toContainText("200 项");
+  await left.getByRole("button", { name: "加载更多", exact: true }).click();
+  await expect(left.locator(".file-browser-pane-status")).toContainText("250 项");
+  const list = left.getByRole("listbox", { name: "文件列表" });
+  await list.evaluate(element => { element.scrollTop = 1600; });
+  await left.getByRole("option", { name: /file-055.c/ }).click();
+  await left.getByRole("option", { name: /file-056.c/ }).click({ modifiers: ["ControlOrMeta"] });
+  const anchor = await list.evaluate(element => {
+    (window as any).__browserLoading = false;
+    new MutationObserver(() => { if (element.getAttribute("aria-busy") === "true") (window as any).__browserLoading = true; }).observe(element, { attributes: true, attributeFilter: ["aria-busy"] });
+    const top = element.getBoundingClientRect().top;
+    const row = [...element.querySelectorAll<HTMLElement>("[data-node-id]")].find(row => row.getBoundingClientRect().top >= top)!;
+    return { id: row.dataset.nodeId!, y: row.getBoundingClientRect().top };
+  });
+  await page.evaluate(() => {
+    (window as any).__browserOperations.nodes.get("left").set("000-added.c", "external");
+    window.dispatchEvent(new Event("focus"));
+  });
+  await expect(left.locator(".file-browser-pane-status")).toContainText("251 项");
+  await expect(left.locator('[aria-selected="true"][role="option"]')).toHaveCount(2);
+  await expect.poll(async () => Math.abs((await left.locator(`[data-node-id="${anchor.id}"]`).boundingBox())!.y - anchor.y)).toBeLessThan(1);
+  await expect(list).toHaveAttribute("aria-busy", "false");
+  await expect(browser.getByRole("status")).toHaveCount(0);
+  await page.evaluate(() => {
+    const entries = (window as any).__browserOperations.nodes.get("left");
+    entries.delete("file-055.c"); entries.set("file-056.c", "longer external content");
+  });
+  await page.clock.fastForward(5000);
+  await expect(left.locator(".file-browser-pane-status")).toContainText("选中 1 项");
+  await expect(left.getByRole("option", { name: /file-056.c/ })).toHaveAttribute("aria-selected", "true");
+  await expect(left.getByRole("option", { name: /file-056.c/ })).toContainText("23 B");
+  expect(await page.evaluate(() => (window as any).__browserLoading)).toBe(false);
+});
+
+test("菜单打开期间暂停检查，切换授权根拒绝迟到的目录结果", async ({ page }) => {
+  const { left } = await setup(page);
+  await page.evaluate(async () => {
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    const original = localFileService.list;
+    (window as any).__browserRefresh = { calls: 0, delay: false, finish: null };
+    localFileService.list = async (...args) => {
+      const fixture = (window as any).__browserRefresh;
+      if (args[0] !== "left") return original(...args);
+      fixture.calls++;
+      const value = await original(...args);
+      if (fixture.delay) await new Promise<void>(resolve => { fixture.finish = resolve; });
+      return value;
+    };
+  });
+  await left.getByRole("option", { name: /a.c/ }).click({ button: "right" });
+  await expect(page.getByRole("menu", { name: "文件菜单" })).toBeVisible();
+  const before = await page.evaluate(() => (window as any).__browserRefresh.calls);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  expect(await page.evaluate(() => (window as any).__browserRefresh.calls)).toBe(before);
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => { (window as any).__browserRefresh.delay = true; window.dispatchEvent(new Event("focus")); });
+  await expect.poll(() => page.evaluate(() => Boolean((window as any).__browserRefresh.finish))).toBe(true);
+  await left.getByRole("combobox", { name: "选择授权目录" }).selectOption("right");
+  await expect(left.getByRole("option", { name: /a.c/ })).toBeVisible();
+  await page.evaluate(() => (window as any).__browserRefresh.finish());
+  await expect(left.getByRole("option", { name: /b.c/ })).toHaveCount(0);
+  await expect(left.getByRole("combobox", { name: "选择授权目录" })).toHaveValue("right");
+});
+
 test("停止双栏移动保留已完成项，不启动后续项", async ({ page }) => {
   const { browser, left } = await setup(page);
   await page.evaluate(() => { const fixture = (window as any).__browserOperations; fixture.nodes.get("right").clear(); fixture.slow = true; });

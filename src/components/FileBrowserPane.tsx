@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode, type CSSProperties } from "react";
 import { browserLocation, moveBrowserHistory, navigateBrowserPane, selectBrowserItems, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
 import { fileSegments, type FileNode, type FileRoot, type LocalFileFingerprint } from "../lib/local-files/service";
 import type { localDirectoryProvider } from "../lib/local-files/browser-provider";
@@ -9,10 +9,12 @@ import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
 import { browserFullPath, clampBrowserColumn, DEFAULT_BROWSER_COLUMNS, parseBrowserColumns, type BrowserColumn } from "../lib/local-files/browser-preferences";
 import { copyToClipboard } from "../lib/clipboard";
 import { useTransientMessage } from "../hooks/useTransientMessage";
-import { appendLocalFileNodes, type LocalFileSort } from "../lib/local-files/tree";
+import { appendLocalFileNodes, sameLocalFilePage, type LocalFileSort } from "../lib/local-files/tree";
 import { localFileService } from "../lib/local-files/service";
 import type { BrowserOperation } from "../lib/local-files/browser-operations";
 import { FileBrowserColumnHeaders } from "./FileBrowserColumnHeaders";
+import { useFileBrowserRefresh } from "../hooks/useFileBrowserRefresh";
+import { browserRefreshScroll, browserRefreshSelection } from "../lib/local-files/browser-refresh";
 
 const ROW = 32;
 const sizeText = (size: number) => size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
@@ -24,6 +26,8 @@ interface Props {
   onCurrentChange: (side: 0 | 1, tabId: string, rootId: string, node: string | null) => void;
   active: boolean;
   visible: boolean;
+  refreshPaused: boolean;
+  onExternalChange: () => void;
   revision: number;
   pane: BrowserPaneState;
   roots: FileRoot[];
@@ -37,7 +41,7 @@ interface Props {
   operationDisabled: (kind: BrowserOperation["kind"], count: number) => boolean;
   onPreview: () => void;
 }
-export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onOperation, operationDisabled, onPreview, tabBar }: Props) {
+export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible, refreshPaused, onExternalChange, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onOperation, operationDisabled, onPreview, tabBar }: Props) {
   const location = browserLocation(pane);
   const rootId = location?.rootId ?? "", node = location?.node ?? "";
   const root = roots.find(item => item.id === rootId);
@@ -69,11 +73,55 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
   const anchor = useRef<string | null>(null);
   const cursor = useRef<string | null>(null);
   const restoring = useRef(false);
+  const refreshPosition = useRef<number | null>(null);
   const key = JSON.stringify([rootId, node, pane.sort, pane.showHidden, query, refresh, revision]);
   const selected = useMemo(() => location?.selected ?? [], [location?.selected]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const start = Math.max(0, Math.min(Math.max(0, nodes.length - 1), Math.floor(scroll / ROW) - 4));
   const end = Math.min(nodes.length, start + Math.ceil(height / ROW) + 10);
+  useFileBrowserRefresh({
+    enabled: visible && Boolean(root) && localFileService.supportsDirectoryChanges(rootId) && !refreshPaused && !menu,
+    identity: key, rootId, node, options: { sort: pane.sort, showHidden: pane.showHidden, query }, provider,
+    canRead: () => Boolean(scrollRef.current?.getClientRects().length) && !restoring.current
+      && !(document.activeElement instanceof HTMLElement && document.activeElement.matches("input, textarea, select, [contenteditable='true']"))
+      && ![...document.querySelectorAll<HTMLElement>("[role='menu'], [role='dialog']")].some(element => element.getClientRects().length > 0),
+    onError: text => showMessage(text, "error"),
+    snapshot: {
+      ready: !loading && !paging && !autoFailed && loadedKey.current === key,
+      nodes, visibleIds: nodes.slice(start, end).map(item => item.id),
+      apply: (page, properties) => {
+        const changed = !sameLocalFilePage({ nodes, next }, page);
+        let metadataChanged = false;
+        if (changed) {
+          const ids = new Set(page.nodes.map(item => item.id));
+          for (const id of metadataCache.current.keys()) if (!ids.has(id)) { metadataCache.current.delete(id); metadataChanged = true; }
+        }
+        for (const [id, value] of Object.entries(properties)) {
+          const previous = metadataCache.current.get(id);
+          if (previous?.size !== value.size || previous.modifiedMs !== value.modifiedMs) { metadataCache.current.set(id, value); metadataChanged = true; }
+        }
+        if (changed) {
+          const element = scrollRef.current;
+          const top = browserRefreshScroll(nodes, page.nodes, element?.scrollTop ?? scroll, ROW, element?.clientHeight ?? height);
+          refreshPosition.current = top; restoring.current = true;
+          setNodes(page.nodes); setNext(page.next);
+          onChange(current => {
+            const entry = browserLocation(current);
+            return entry?.rootId === rootId && entry.node === node ? updateBrowserLocation(current, { scrollTop: top, selected: browserRefreshSelection(entry.selected, page) }) : current;
+          });
+        }
+        if (metadataChanged) setMetadata(Object.fromEntries(metadataCache.current));
+        if (changed || metadataChanged) onExternalChange();
+      },
+    },
+  });
+  useLayoutEffect(() => {
+    const top = refreshPosition.current;
+    if (top === null) return;
+    refreshPosition.current = null;
+    if (scrollRef.current) scrollRef.current.scrollTop = top;
+    setScroll(top); restoring.current = false;
+  }, [nodes]);
   useEffect(() => {
     if (!typeahead.query) return;
     const timer = window.setTimeout(() => setTypeahead({ query: "", at: 0 }), 950);
