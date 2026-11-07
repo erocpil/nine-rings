@@ -1,5 +1,5 @@
 import { fileSegments } from "./service";
-import type { LocalFileSort } from "./tree";
+import { isLocalFileSort, type LocalFileSort } from "./tree";
 import type { BrowserMutation } from "./browser-operations";
 
 export interface BrowserLocation {
@@ -89,7 +89,7 @@ export function parseBrowserState(raw: string | null): FileBrowserState {
         }).slice(0, 2000) : [];
         history.push({ rootId: entry.rootId, node: entry.node, selected: [...new Set(selected)], scrollTop: typeof entry.scrollTop === "number" && Number.isFinite(entry.scrollTop) ? Math.max(0, entry.scrollTop) : 0 });
       }
-      return { history, index: history.length ? Math.max(0, Math.min(history.length - 1, Number.isInteger(pane.index) ? pane.index : history.length - 1)) : -1, sort: pane?.sort === "name-desc" || pane?.sort === "type" ? pane.sort : "name", showHidden: pane?.showHidden === true };
+      return { history, index: history.length ? Math.max(0, Math.min(history.length - 1, Number.isInteger(pane.index) ? pane.index : history.length - 1)) : -1, sort: isLocalFileSort(pane?.sort) ? pane.sort : "name", showHidden: pane?.showHidden === true };
     }) as FileBrowserState["panes"];
     return result;
   } catch { return emptyBrowserState(); }

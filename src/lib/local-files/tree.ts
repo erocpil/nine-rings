@@ -1,6 +1,7 @@
 import type { FileNode, FilePage } from "./service";
 
-export type LocalFileSort = "name" | "name-desc" | "type";
+export type LocalFileSort = "name" | "name-desc" | "type" | "size" | "size-desc" | "modified" | "modified-desc";
+export const isLocalFileSort = (value: unknown): value is LocalFileSort => typeof value === "string" && ["name", "name-desc", "type", "size", "size-desc", "modified", "modified-desc"].includes(value);
 export interface LocalFileListOptions {
   sort: LocalFileSort;
   showHidden: boolean;
@@ -14,7 +15,7 @@ const KEY = "nr:local-files-tree-preferences";
 export function readLocalFileTreePreferences(): Omit<LocalFileListOptions, "query"> {
   try {
     const value = JSON.parse(localStorage.getItem(KEY) ?? "{}");
-    return { sort: value?.sort === "name-desc" || value?.sort === "type" ? value.sort : "name", showHidden: value?.showHidden === true };
+    return { sort: isLocalFileSort(value?.sort) ? value.sort : "name", showHidden: value?.showHidden === true };
   } catch { return { sort: "name", showHidden: false }; }
 }
 export function saveLocalFileTreePreferences(value: Omit<LocalFileListOptions, "query">) {
@@ -29,11 +30,13 @@ export function localFileTreeNodes(nodes: Iterable<FileNode>, options: LocalFile
   return [...nodes].filter(node => (options.showHidden || !node.name.startsWith(".")) && (node.directory || !query || node.name.toLowerCase().includes(query)))
     .sort((a, b) => Number(b.directory) - Number(a.directory)
       || (options.sort === "type" && !a.directory ? compare(extension(a.name), extension(b.name)) : 0)
+      || (!a.directory && options.sort.startsWith("size") ? (a.size - b.size) * (options.sort === "size-desc" ? -1 : 1) : 0)
+      || (!a.directory && options.sort.startsWith("modified") ? ((a.modifiedMs ?? 0) - (b.modifiedMs ?? 0)) * (options.sort === "modified-desc" ? -1 : 1) : 0)
       || compare(a.name, b.name) * (options.sort === "name-desc" ? -1 : 1));
 }
 export function sameLocalFilePage(left: FilePage | undefined, right: FilePage) {
   return left?.next === right.next && left.nodes.length === right.nodes.length
-    && left.nodes.every((node, index) => { const other = right.nodes[index]!; return node.id === other.id && node.name === other.name && node.directory === other.directory && node.size === other.size; });
+    && left.nodes.every((node, index) => { const other = right.nodes[index]!; return node.id === other.id && node.name === other.name && node.directory === other.directory && node.size === other.size && node.modifiedMs === other.modifiedMs; });
 }
 /** Descendants of collapsed or hidden folders do not need background enumeration. */
 export function isLocalFileDirectoryVisible(key: string, expanded: ReadonlySet<string>, pages: Readonly<Record<string, FilePage>>, rootIds: ReadonlySet<string>, showHidden: boolean) {

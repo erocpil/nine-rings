@@ -2,10 +2,12 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 export interface NotesMenuTarget { id: string; title: string; x: number; y: number; trigger: HTMLElement }
-export function NotesContextMenu({ target, close, actions }: {
+export function NotesContextMenu({ target, close, actions, label = "随记菜单", ignoreTrigger = false }: {
   target: NotesMenuTarget;
   close: () => void;
   actions: { label: string; run: () => void; disabled?: boolean }[];
+  label?: string;
+  ignoreTrigger?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -17,7 +19,7 @@ export function NotesContextMenu({ target, close, actions }: {
     el.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
   }, [target]);
   useEffect(() => {
-    const outside = (event: Event) => { if (!ref.current?.contains(event.target as Node)) close(); };
+    const outside = (event: Event) => { if (ignoreTrigger && event.type === "pointerdown" && target.trigger.contains(event.target as Node)) return; if (!ref.current?.contains(event.target as Node)) close(); };
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("scroll", outside, true);
     window.addEventListener("resize", close);
@@ -26,8 +28,8 @@ export function NotesContextMenu({ target, close, actions }: {
       document.removeEventListener("scroll", outside, true);
       window.removeEventListener("resize", close);
     };
-  }, [close]);
-  return createPortal(<div ref={ref} className="doc-context-menu notes-context-menu" role="menu" aria-label="随记菜单" data-sidebar-owned
+  }, [close, ignoreTrigger, target.trigger]);
+  return createPortal(<div ref={ref} className="doc-context-menu notes-context-menu" role="menu" aria-label={label} data-sidebar-owned
     style={{ left: target.x, top: target.y }} onContextMenu={event => event.preventDefault()}
     onKeyDown={event => {
       if (event.key === "Escape") {

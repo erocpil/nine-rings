@@ -1,9 +1,18 @@
-import { useEffect, useLayoutEffect, useId, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode, type CSSProperties } from "react";
 import { browserLocation, moveBrowserHistory, navigateBrowserPane, selectBrowserItems, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
 import { fileSegments, type FileNode, type FileRoot, type LocalFileFingerprint } from "../lib/local-files/service";
 import type { localDirectoryProvider } from "../lib/local-files/browser-provider";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { browserNavigationIndex, browserRowScroll, browserTypeahead, type BrowserTypeahead } from "../lib/local-files/browser-keyboard";
+import { FileBrowserLocations } from "./FileBrowserLocations";
+import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
+import { browserFullPath, clampBrowserColumn, DEFAULT_BROWSER_COLUMNS, parseBrowserColumns, type BrowserColumn } from "../lib/local-files/browser-preferences";
+import { copyToClipboard } from "../lib/clipboard";
+import { useTransientMessage } from "../hooks/useTransientMessage";
+import { appendLocalFileNodes, type LocalFileSort } from "../lib/local-files/tree";
+import { localFileService } from "../lib/local-files/service";
+import type { BrowserOperation } from "../lib/local-files/browser-operations";
+import { FileBrowserColumnHeaders } from "./FileBrowserColumnHeaders";
 
 const ROW = 32;
 const sizeText = (size: number) => size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
@@ -24,12 +33,14 @@ interface Props {
   onChoose: () => void;
   onRefreshRoots: () => void;
   onOpen: (rootId: string, rootName: string, node: FileNode) => void;
+  onOperation: (kind: BrowserOperation["kind"], selection?: readonly string[]) => void;
+  operationDisabled: (kind: BrowserOperation["kind"], count: number) => boolean;
+  onPreview: () => void;
 }
-export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, tabBar }: Props) {
+export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onOperation, operationDisabled, onPreview, tabBar }: Props) {
   const location = browserLocation(pane);
   const rootId = location?.rootId ?? "", node = location?.node ?? "";
   const root = roots.find(item => item.id === rootId);
-  const [pathInput, setPathInput] = useState(node);
   const [query, setQuery] = useState("");
   const [nodes, setNodes] = useState<FileNode[]>([]);
   const [next, setNext] = useState<number | null>(null);
@@ -42,13 +53,19 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
   const [metadata, setMetadata] = useState<Record<string, LocalFileFingerprint>>({});
   const [focused, setFocused] = useState<string | null>(null);
   const [typeahead, setTypeahead] = useState<BrowserTypeahead>({ query: "", at: 0 });
+  const [columns, setColumns] = useState(() => { try { return parseBrowserColumns(localStorage.getItem(`nr:file-browser-columns:${side}`)); } catch { return { ...DEFAULT_BROWSER_COLUMNS }; } });
+  const [paging, setPaging] = useState(false), [autoFailed, setAutoFailed] = useState(false);
+  const [menu, setMenu] = useState<{ target: NotesMenuTarget; item: FileNode; selection: string[]; path: string | null } | null>(null);
+  const { message, showMessage } = useTransientMessage();
+  const columnsMinWidth = columns.name + columns.size + columns.modified + 36;
+  const columnStyle = { "--browser-columns": `${columns.autoName ? `minmax(${columns.name}px, 1fr)` : `${columns.name}px`} ${columns.size}px ${columns.modified}px`, "--browser-columns-min": `${columnsMinWidth}px` } as CSSProperties;
   const listId = useId();
   const rowId = (id: string) => `${listId}-${encodeURIComponent(id)}`;
   const scrollRef = useRef<HTMLDivElement>(null);
   const request = useRef<AbortController | null>(null);
   const metadataCache = useRef(new Map<string, LocalFileFingerprint>());
   const loadedKey = useRef("");
-  const pageBusy = useRef(false);
+  const pageBusy = useRef<AbortController | null>(null);
   const anchor = useRef<string | null>(null);
   const cursor = useRef<string | null>(null);
   const restoring = useRef(false);
@@ -66,7 +83,15 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
     try { fileSegments(path); onChange(current => navigateBrowserPane(current, rootId, path)); setQuery(""); }
     catch (reason) { setError(String(reason)); }
   };
-  useLayoutEffect(() => { setPathInput(node); }, [rootId, node]);
+  useEffect(() => { try { localStorage.setItem(`nr:file-browser-columns:${side}`, JSON.stringify(columns)); } catch { showMessage("无法保存列宽，本次仍可调整", "error"); } }, [columns, side, showMessage]);
+  useEffect(() => { setMenu(null); }, [key, visible]);
+  const menuTarget = menu?.target;
+  useEffect(() => {
+    if (!menuTarget) return;
+    let live = true;
+    void localFileService.displayPath(rootId, node).then(path => { if (live) setMenu(current => current?.target === menuTarget ? { ...current, path } : current); }).catch(() => {});
+    return () => { live = false; };
+  }, [menuTarget, rootId, node]);
   useEffect(() => { anchor.current = null; cursor.current = null; setFocused(null); setTypeahead({ query: "", at: 0 }); onCurrentChange(side, tabId, rootId, null); }, [rootId, node, side, tabId, onCurrentChange]);
   useEffect(() => { setTypeahead({ query: "", at: 0 }); }, [query, pane.sort, pane.showHidden]);
   useEffect(() => {
@@ -85,6 +110,7 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
     request.current?.abort(); request.current = controller;
     if (loadedKey.current === key) return () => controller.abort();
     restoring.current = true;
+    setAutoFailed(false); setPaging(false);
     metadataCache.current.clear(); setMetadata({});
     setLoading(true); setError(""); setNodes([]); setNext(null);
     void provider.page(rootId, node, 0, { sort: pane.sort, showHidden: pane.showHidden, query }, controller.signal)
@@ -97,6 +123,8 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
           entries.push(...more.nodes); nextPage = more.next;
         }
         if (controller.signal.aborted) return;
+        for (const item of entries) if (!item.directory && item.modifiedMs !== undefined) metadataCache.current.set(item.id, { size: item.size, modifiedMs: item.modifiedMs });
+        setMetadata(Object.fromEntries(metadataCache.current));
         loadedKey.current = key; setNodes(entries); setNext(nextPage);
         setScroll(top);
         requestAnimationFrame(() => {
@@ -125,16 +153,21 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
     })).then(() => { if (!controller.signal.aborted) setMetadata(Object.fromEntries(metadataCache.current)); });
     return () => controller.abort();
   }, [key, visible, nodes, start, end, provider, rootId]);
-  const more = async () => {
-    if (pageBusy.current || next === null || !request.current || request.current.signal.aborted) return;
-    pageBusy.current = true;
+  const more = useCallback(async (manual = false) => {
+    if (next === null || !request.current || pageBusy.current === request.current || request.current.signal.aborted || (!manual && autoFailed)) return;
     const controller = request.current;
+    pageBusy.current = controller; setPaging(true); if (manual) { setAutoFailed(false); setError(""); }
     try {
       const page = await provider.page(rootId, node, next, { sort: pane.sort, showHidden: pane.showHidden, query }, controller.signal);
-      if (!controller.signal.aborted) { setNodes(current => [...current, ...page.nodes]); setNext(page.next); }
-    } catch (reason) { if (!controller.signal.aborted) setError(String(reason)); }
-    finally { pageBusy.current = false; }
-  };
+      if (page.next !== null && (!Number.isSafeInteger(page.next) || page.next <= next)) throw new Error("目录分页游标未前进，请刷新后重试");
+      if (!controller.signal.aborted) {
+        for (const item of page.nodes) if (!item.directory && item.modifiedMs !== undefined) metadataCache.current.set(item.id, { size: item.size, modifiedMs: item.modifiedMs });
+        setNodes(current => appendLocalFileNodes(current, page.nodes)); setNext(page.next);
+      }
+    } catch (reason) { if (!controller.signal.aborted) { setAutoFailed(true); setError(String(reason)); } }
+    finally { if (pageBusy.current === controller) pageBusy.current = null; if (request.current === controller && !controller.signal.aborted) setPaging(false); }
+  }, [next, autoFailed, rootId, node, pane.sort, pane.showHidden, query, provider]);
+  useEffect(() => { if (visible && !loading && !paging && nodes.length && scroll + height >= nodes.length * ROW - ROW * 3) void more(); }, [visible, loading, paging, nodes.length, scroll, height, more]);
   const chooseItem = (item: FileNode, toggle = false, range = false) => {
     const rangeAnchor = anchor.current ?? cursor.current ?? selected[selected.length - 1] ?? item.id;
     onChange(current => updateBrowserLocation(current, { selected: selectBrowserItems(browserLocation(current)?.selected ?? [], nodes.map(value => value.id), item.id, rangeAnchor, toggle, range).slice(0, 2000) }));
@@ -147,8 +180,26 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
     if (list) list.scrollTop = browserRowScroll(list.scrollTop, list.clientHeight, index, ROW);
   };
   const openItem = (item: FileNode) => item.directory ? navigate(item.id) : onOpen(rootId, root?.name ?? rootId, item);
+  const openMenu = (item: FileNode, x: number, y: number) => {
+    if (loading || loadedKey.current !== key || !scrollRef.current) return;
+    const selection = selectedSet.has(item.id) ? [...selected] : [item.id];
+    if (!selectedSet.has(item.id)) chooseItem(item);
+    else { cursor.current = item.id; setFocused(item.id); onCurrentChange(side, tabId, rootId, item.id); }
+    setMenu({ target: { id: `${rootId}:${item.id}`, title: item.name, x, y, trigger: scrollRef.current }, item, selection, path: null });
+  };
+  const copy = (value: string, label: string) => { void copyToClipboard(value, { reportFailure: true }).then(() => showMessage(`已复制${label}`)).catch(error => showMessage(`复制失败：${String(error)}`, "error")); };
+  const menuActions = menu ? [
+    { label: "打开", disabled: menu.selection.length !== 1, run: () => openItem(menu.item) },
+    { label: "快速预览", disabled: menu.selection.length !== 1 || menu.item.directory, run: onPreview },
+    { label: "复制名称", run: () => copy(menu.selection.map(id => id.split("/").pop()).join("\n"), "名称") },
+    { label: "复制路径", disabled: menu.path === null, run: () => menu.path !== null && copy(menu.path, "路径") },
+    { label: "复制完整路径", disabled: menu.path === null, run: () => menu.path !== null && copy(menu.selection.map(id => browserFullPath(menu.path!, id.split("/").pop()!)).join("\n"), "完整路径") },
+    ...(["copy", "move", "rename", "batch-rename", "trash"] as const).map(kind => ({ label: { copy: "复制到另一栏", move: "移动到另一栏", rename: "重命名", "batch-rename": "批量重命名", trash: "移入系统回收站" }[kind], disabled: operationDisabled(kind, menu.selection.length), run: () => onOperation(kind, menu.selection) })),
+  ] : [];
+  const changeColumn = (column: BrowserColumn, value: number) => setColumns(current => ({ ...current, [column]: clampBrowserColumn(column, value), autoName: column === "name" ? false : current.autoName }));
+  const sortColumn = (column: BrowserColumn) => { const sort: LocalFileSort = pane.sort === column ? `${column}-desc` : column; onChange(current => ({ ...updateBrowserLocation(current, { scrollTop: 0 }), sort })); };
   const pieces = node ? node.split("/") : [];
-  return <section className={`file-browser-pane${active ? " is-active" : ""}`} aria-label={side === 0 ? "左侧目录" : "右侧目录"} data-browser-side={side} onPointerDown={onActivate} onFocusCapture={onActivate}>
+  return <section style={columnStyle} className={`file-browser-pane${active ? " is-active" : ""}`} aria-label={side === 0 ? "左侧目录" : "右侧目录"} data-browser-side={side} onPointerDown={onActivate} onFocusCapture={onActivate}>
     {tabBar}
     <header className="file-browser-pane-tools">
       <span className="file-browser-pane-badge">{side === 0 ? "左栏" : "右栏"} · {active ? "来源" : "目标"}</span>
@@ -167,15 +218,13 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
       <button type="button" disabled={!rootId} onClick={() => navigate("")}>{root?.name ?? "未选择目录"}</button>
       {pieces.map((part, index) => <button key={index} type="button" onClick={() => navigate(pieces.slice(0, index + 1).join("/"))}>{part}</button>)}
     </nav>
-    <form className="file-browser-path" onSubmit={event => { event.preventDefault(); const path = pathInput.trim().replace(/^\/+|\/+$/g, ""); try { navigateBrowserPane(pane, rootId, path); navigate(path); } catch (reason) { setError(String(reason)); } }}>
-      <input aria-label="根内相对路径" value={pathInput} disabled={!rootId} onChange={event => setPathInput(event.target.value)} placeholder="输入授权根内相对目录，Enter 前往" />
-    </form>
+    <FileBrowserLocations pane={pane} roots={roots} visible={visible} provider={provider} onError={setError} onNavigate={(id, path) => { setQuery(""); onChange(current => navigateBrowserPane(current, id, path)); }} onHistory={index => { setQuery(""); onChange(current => ({ ...current, index })); }} />
     <div className="file-browser-options">
       <input type="search" aria-label="过滤文件名称" placeholder="过滤名称" value={query} onKeyDown={event => { if (event.key === "Escape" && query) { event.preventDefault(); event.stopPropagation(); setQuery(""); } }} onChange={event => { setQuery(event.target.value); setScroll(0); onChange(current => updateBrowserLocation(current, { scrollTop: 0, selected: [] })); }} />
-      <select aria-label="文件排序" value={pane.sort} onChange={event => { const sort = event.target.value as BrowserPaneState["sort"]; onChange(current => ({ ...current, sort })); }}><option value="name">名称 ↑</option><option value="name-desc">名称 ↓</option><option value="type">类型</option></select>
+      <select aria-label="文件排序" title="大小/时间在完整目录中排序，会读取文件属性" value={pane.sort} onChange={event => { const sort = event.target.value as BrowserPaneState["sort"]; onChange(current => ({ ...updateBrowserLocation(current, { scrollTop: 0 }), sort })); }}><option value="name">名称 ↑</option><option value="name-desc">名称 ↓</option><option value="type">类型</option><option value="size">大小 ↑</option><option value="size-desc">大小 ↓</option><option value="modified">修改时间 ↑</option><option value="modified-desc">修改时间 ↓</option></select>
       <label><input type="checkbox" checked={pane.showHidden} onChange={event => { const showHidden = event.target.checked; onChange(current => ({ ...updateBrowserLocation(current, { selected: [], scrollTop: 0 }), showHidden })); }} />隐藏项</label>
     </div>
-    <div className="file-browser-column-viewport" aria-hidden="true"><div className="file-browser-columns" style={{ width: Math.max(363, width), transform: `translateX(${-scrollLeft}px)` }}><span>名称</span><span>大小</span><span>修改时间</span></div></div>
+    <FileBrowserColumnHeaders columns={columns} sort={pane.sort} width={width} scrollLeft={scrollLeft} onSort={sortColumn} onResize={changeColumn} onReset={column => setColumns(current => ({ ...current, [column]: DEFAULT_BROWSER_COLUMNS[column], autoName: column === "name" ? true : current.autoName }))} />
     <div ref={scrollRef} className="file-browser-list" role="listbox" aria-label="文件列表" aria-busy={loading} aria-multiselectable="true" aria-activedescendant={focused && nodes.slice(start, end).some(item => item.id === focused) ? rowId(focused) : undefined} tabIndex={0} onFocus={() => {
       if (loading || loadedKey.current !== key) return;
       const item = nodes.find(item => item.id === cursor.current) ?? nodes.find(item => item.id === selected[selected.length - 1]) ?? nodes[0];
@@ -189,6 +238,7 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
       if (event.target !== event.currentTarget) return;
       if (loading || loadedKey.current !== key) return;
       if (event.nativeEvent.isComposing || event.altKey) return;
+      if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) { event.preventDefault(); event.stopPropagation(); const item = nodes.find(item => item.id === cursor.current); if (item) { const rect = document.getElementById(rowId(item.id))?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect(); openMenu(item, rect.left + 20, rect.top + 20); } return; }
       if (event.key === "Enter") { const item = nodes.find(value => value.id === (cursor.current ?? selected[selected.length - 1])); if (item) { event.preventDefault(); openItem(item); } }
       else if (event.key === "Backspace" && node) { event.preventDefault(); navigate(pieces.slice(0, -1).join("/")); }
       else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") { event.preventDefault(); onChange(current => updateBrowserLocation(current, { selected: nodes.slice(0, 2000).map(item => item.id) })); }
@@ -209,15 +259,17 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
       }
     }}>
       <div style={{ height: start * ROW }} aria-hidden="true" />
-      {nodes.slice(start, end).map(item => <div key={item.id} id={rowId(item.id)} className="file-browser-row" role="option" aria-selected={selectedSet.has(item.id)} data-current={focused === item.id} data-node-id={item.id} title={[root?.name, item.id].filter(Boolean).join("/")} onClick={event => { if (loading || loadedKey.current !== key) return; chooseItem(item, event.ctrlKey || event.metaKey, event.shiftKey); scrollRef.current?.focus({ preventScroll: true }); }} onDoubleClick={() => { if (!loading && loadedKey.current === key) openItem(item); }}>
+      {nodes.slice(start, end).map(item => <div key={item.id} id={rowId(item.id)} className="file-browser-row" role="option" aria-selected={selectedSet.has(item.id)} data-current={focused === item.id} data-node-id={item.id} title={[root?.name, item.id].filter(Boolean).join("/")} onMouseDown={event => { if (event.button === 2) event.preventDefault(); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); openMenu(item, event.clientX, event.clientY); }} onClick={event => { if (loading || loadedKey.current !== key) return; chooseItem(item, event.ctrlKey || event.metaKey, event.shiftKey); scrollRef.current?.focus({ preventScroll: true }); }} onDoubleClick={() => { if (!loading && loadedKey.current === key) openItem(item); }}>
         <span className={`file-browser-name${item.directory ? " is-directory" : ""}`}><ToolbarIcon name={item.directory ? "folder" : "document"} /><span>{item.name}</span></span>
         <span>{item.directory ? "—" : metadata[item.id] ? sizeText(metadata[item.id].size) : item.size ? sizeText(item.size) : "…"}</span>
-        <span>{metadata[item.id]?.modifiedMs ? new Date(metadata[item.id].modifiedMs).toLocaleString() : "—"}</span>
+        <span>{(metadata[item.id]?.modifiedMs ?? item.modifiedMs) ? new Date(metadata[item.id]?.modifiedMs ?? item.modifiedMs!).toLocaleString() : "—"}</span>
       </div>)}
       <div style={{ height: Math.max(0, nodes.length - end) * ROW }} aria-hidden="true" />
       {!nodes.length && <p className="file-browser-empty">{loading ? "正在读取目录…" : rootId ? error ? "目录暂不可用，可返回上级或重新授权" : "空目录" : "选择或添加一个本地目录"}</p>}
     </div>
     {error && <div className="file-browser-error" role="alert">{error}<button type="button" aria-label="关闭目录错误" onClick={() => setError("")}>×</button></div>}
-    <footer className="file-browser-pane-status"><span title="选择操作最多 2000 项；目录数量不包含其内部文件">{selected.length ? `选中 ${selected.length} 项 · ` : ""}{nodes.length} 项{next !== null ? "（已加载）" : ""} · {nodes.filter(item => item.directory).length} 目录 / {nodes.filter(item => !item.directory).length} 文件</span>{typeahead.query && <span className="file-browser-typeahead" role="status">定位：{typeahead.query}（已加载）</span>}{next !== null && <button type="button" onClick={() => void more()}>加载更多</button>}</footer>
+    <footer className="file-browser-pane-status"><span title="选择操作最多 2000 项；目录数量不包含其内部文件">{selected.length ? `选中 ${selected.length} 项 · ` : ""}{nodes.length} 项{next !== null ? "（已加载）" : ""} · {nodes.filter(item => item.directory).length} 目录 / {nodes.filter(item => !item.directory).length} 文件</span>{typeahead.query && <span className="file-browser-typeahead" role="status">定位：{typeahead.query}（已加载）</span>}{next !== null && <button type="button" disabled={paging} onClick={() => void more(true)}>{paging ? "加载中…" : "加载更多"}</button>}</footer>
+    {menu && visible && <NotesContextMenu label="文件菜单" target={menu.target} close={() => setMenu(null)} actions={menuActions} />}
+    {message && <div className="file-browser-notice" role="status">{message}</div>}
   </section>;
 }

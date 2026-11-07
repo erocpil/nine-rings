@@ -56,21 +56,22 @@ export function DualPaneFileBrowser({ request, active, onClose }: {
     window.addEventListener(FILE_BROWSER_MUTATION_EVENT, changed);
     return () => window.removeEventListener(FILE_BROWSER_MUTATION_EVENT, changed);
   }, []);
-  const startOperation = (kind: BrowserOperation["kind"]) => {
-    if (operationDisabled(kind)) return;
-    const source = browserLocation(panes[state.active]);
-    const target = browserLocation(panes[state.active === 0 ? 1 : 0]);
+  const startOperation = (kind: BrowserOperation["kind"], side: 0 | 1 = state.active, selection?: readonly string[]) => {
+    if (operationDisabled(kind, side, selection?.length)) return;
+    const source = browserLocation(panes[side]);
+    const target = browserLocation(panes[side === 0 ? 1 : 0]);
     if (!source || !target) return;
     setOperation({ kind, rootId: source.rootId, rootName: roots.find(root => root.id === source.rootId)?.name ?? source.rootId,
-      parent: source.node, nodes: kind === "file" || kind === "directory" ? [] : [...source.selected],
+      parent: source.node, nodes: kind === "file" || kind === "directory" ? [] : [...(selection ?? source.selected)],
       targetRootId: target.rootId, targetRootName: roots.find(root => root.id === target.rootId)?.name ?? target.rootId, targetParent: target.node });
   };
   const currentLocation = browserLocation(panes[state.active]);
   const currentRow = currentRows[state.active];
   const previewNode = currentRow?.tabId === state.groups[state.active].tabs[state.groups[state.active].active].tabId && currentRow.rootId === currentLocation?.rootId && currentRow.node !== null ? currentRow.node : currentLocation?.selected[currentLocation.selected.length - 1];
-  const selectionCount = currentLocation?.selected.length ?? 0;
-  const writable = Boolean(currentLocation && localFileService.supportsDirectoryChanges(currentLocation.rootId));
-  const operationDisabled = (kind: BrowserOperation["kind"]) => opening || !writable || ((kind === "copy" || kind === "move") && !localFileService.canTransfer()) || (kind === "trash" && !localFileService.canTrash()) || (["copy", "move", "trash", "batch-rename"].includes(kind) && !selectionCount) || (kind === "rename" && selectionCount !== 1);
+  const operationDisabled = (kind: BrowserOperation["kind"], side: 0 | 1 = state.active, count = browserLocation(panes[side])?.selected.length ?? 0) => {
+    const source = browserLocation(panes[side]);
+    return opening || !source || !localFileService.supportsDirectoryChanges(source.rootId) || ((kind === "copy" || kind === "move") && !localFileService.canTransfer()) || (kind === "trash" && !localFileService.canTrash()) || (["copy", "move", "trash", "batch-rename"].includes(kind) && !count) || (kind === "rename" && count !== 1);
+  };
   const restoreBrowserFocus = (selector: string) => {
     const previous = document.activeElement;
     requestAnimationFrame(() => {
@@ -184,7 +185,7 @@ export function DualPaneFileBrowser({ request, active, onClose }: {
     {error && <div className="file-browser-error" role="alert">{error}<button type="button" aria-label="关闭浏览错误" onClick={() => setError("")}>×</button></div>}
     {opening && <p role="status" className="file-browser-opening">正在打开文件…</p>}
     <div className="file-browser-panes" style={{ gridTemplateColumns: `minmax(0, ${state.ratio}fr) 5px minmax(0, ${1 - state.ratio}fr)` }}>
-      {([0, 1] as const).map(side => <div key={side} className="file-browser-pane-slot" data-mobile-active={quickPreview ? state.active !== side : state.active === side} style={{ gridColumn: side === 0 ? 1 : 3 }}><div className="file-browser-directory-host" hidden={quickPreview && state.active !== side}><FileBrowserPane key={state.groups[side].tabs[state.groups[side].active].tabId} tabId={state.groups[side].tabs[state.groups[side].active].tabId} onCurrentChange={onCurrentChange} side={side} active={state.active === side} visible={active && (!quickPreview || state.active === side)} revision={listingRevision} pane={panes[side]} roots={roots} provider={provider} onChange={next => changePane(side, next)} onActivate={() => setState(current => current.active === side ? current : { ...current, active: side })} onChoose={() => void choose(side)} onRefreshRoots={() => setRootsRevision(value => value + 1)} onOpen={(rootId, rootName, node) => void open(rootId, rootName, node)} tabBar={<div className="file-browser-tabs" role="tablist" aria-label={side === 0 ? "左栏目录标签" : "右栏目录标签"}>{state.groups[side].tabs.map((tab, index) => {
+      {([0, 1] as const).map(side => <div key={side} className="file-browser-pane-slot" data-mobile-active={quickPreview ? state.active !== side : state.active === side} style={{ gridColumn: side === 0 ? 1 : 3 }}><div className="file-browser-directory-host" hidden={quickPreview && state.active !== side}><FileBrowserPane key={state.groups[side].tabs[state.groups[side].active].tabId} tabId={state.groups[side].tabs[state.groups[side].active].tabId} onCurrentChange={onCurrentChange} side={side} active={state.active === side} visible={active && (!quickPreview || state.active === side)} revision={listingRevision} pane={panes[side]} roots={roots} provider={provider} onChange={next => changePane(side, next)} onActivate={() => setState(current => current.active === side ? current : { ...current, active: side })} onChoose={() => void choose(side)} onRefreshRoots={() => setRootsRevision(value => value + 1)} onOpen={(rootId, rootName, node) => void open(rootId, rootName, node)} onOperation={(kind, selection) => startOperation(kind, side, selection)} operationDisabled={(kind, count) => operationDisabled(kind, side, count)} onPreview={() => { setState(current => ({ ...current, active: side })); setQuickPreview(true); }} tabBar={<div className="file-browser-tabs" role="tablist" aria-label={side === 0 ? "左栏目录标签" : "右栏目录标签"}>{state.groups[side].tabs.map((tab, index) => {
         const location = browserLocation(tab), label = location?.node.split("/").pop() || roots.find(root => root.id === location?.rootId)?.name || "目录";
         return <div key={tab.tabId} className="file-browser-tab"><button role="tab" type="button" tabIndex={index === state.groups[side].active ? 0 : -1} aria-selected={index === state.groups[side].active} title={location ? `${roots.find(root => root.id === location.rootId)?.name ?? location.rootId}/${location.node}` : label} onKeyDown={event => {
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;

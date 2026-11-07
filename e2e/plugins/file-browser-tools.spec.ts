@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { createBlankDocument } from "../helpers/document";
 import { sourceInfo } from "../helpers/source-editor";
 
-async function fixture(page: Page) {
+async function fixture(page: Page, large = false) {
   await createBlankDocument(page, "效率工具前的文档");
   await page.evaluate(async () => {
     const { setPluginsEnabled } = await import("/src/lib/plugin-system/runtime.ts");
@@ -10,13 +10,13 @@ async function fixture(page: Page) {
     setPluginsEnabled(true); saveLocalFilesEnabled(true);
   });
   await page.getByRole("button", { name: "本地文件", exact: true }).click();
-  const roots = await page.evaluate(async () => {
+  const roots = await page.evaluate(async largeDirectory => {
     const { localFileService } = await import("/src/lib/local-files/service.ts");
     const file = (path: string, text: string) => { const result = new File([text], path.split("/").pop()!, { lastModified: 5000 }); Object.defineProperty(result, "webkitRelativePath", { value: path }); return result; };
-    const left = localFileService.addFiles([file("Left/a.c", "int needle = 1;\n"), file("Left/b.c", "int another = 2;\n"), file("Left/src/deep.c", "int deep = 3;\n"), file("Left/docs/readme.md", "# Read me\n\nbody\n"), file("Left/common.c", "int common = 0;\n"), file("Left/image.svg", '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24" fill="red"/></svg>')])!;
+    const left = localFileService.addFiles([file("Left/a.c", "int needle = 1;\n"), file("Left/b.c", "int another = 2;\n"), file("Left/src/deep.c", "int deep = 3;\n"), file("Left/docs/readme.md", "# Read me\n\nbody\n"), file("Left/common.c", "int common = 0;\n"), file("Left/image.svg", '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24" fill="red"/></svg>'), ...(largeDirectory ? Array.from({ length: 450 }, (_, index) => file(`Left/file-${String(index).padStart(3, "0")}.txt`, `entry ${index}`)) : [])])!;
     const right = localFileService.addFiles([file("Right/common.c", "int common = 0;\n"), file("Right/only.c", "int right = 0;\n")])!;
     return { left, right };
-  });
+  }, large);
   const panel = page.getByRole("region", { name: "本地文件树", exact: true });
   await panel.getByRole("button", { name: "双栏浏览", exact: true }).click();
   const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
@@ -212,4 +212,100 @@ for (const mode of ["light", "dark"] as const) test(`双栏紧凑工具栏与窄
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(left).toBeVisible();
   expect(await browser.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+});
+
+test("右键保留多选，复制完整路径使用手势并且反馈不移动列表", async ({ page }) => {
+  const { browser, left, right } = await fixture(page);
+  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => { (window as any).__browserClipboard = text; } } }));
+  await left.getByRole("option", { name: /^a.c/ }).click();
+  await left.getByRole("option", { name: /^b.c/ }).click({ modifiers: ["ControlOrMeta"] });
+  await right.getByRole("listbox", { name: "文件列表" }).focus();
+  const before = await left.locator('[data-node-id="a.c"]').boundingBox();
+  await left.locator('[data-node-id="a.c"]').click({ button: "right" });
+  const menu = page.getByRole("menu", { name: "文件菜单", exact: true });
+  await expect(left.getByRole("listbox").getByRole("option", { selected: true })).toHaveCount(2);
+  await expect(menu.getByRole("menuitem", { name: "重命名", exact: true })).toBeDisabled();
+  await expect(menu.getByRole("menuitem", { name: "复制完整路径", exact: true })).toBeEnabled();
+  await menu.getByRole("menuitem", { name: "复制完整路径", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__browserClipboard)).toBe("Left/a.c\nLeft/b.c");
+  await expect(left.getByRole("status")).toContainText("已复制完整路径");
+  expect((await left.locator('[data-node-id="a.c"]').boundingBox())!.y).toBe(before!.y);
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("");
+  await left.locator('[data-node-id="common.c"]').click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "复制名称", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__browserClipboard)).toBe("common.c");
+  await expect(left.getByRole("listbox").getByRole("option", { selected: true })).toHaveCount(1);
+  await left.getByRole("listbox").focus(); await left.getByRole("listbox").press("Shift+F10");
+  await expect(menu).toBeVisible(); await menu.press("Escape");
+  await expect(left.getByRole("listbox")).toBeFocused();
+  await expect(browser).toBeVisible();
+});
+
+test("路径历史与常用目录跨栏复用，输入非法目录不改变当前位置", async ({ page }) => {
+  const { browser, left, right } = await fixture(page);
+  await left.getByRole("option", { name: /^src/ }).dblclick();
+  await expect(left.getByRole("option", { name: /deep.c/ })).toBeVisible();
+  await left.getByRole("button", { name: "收藏当前目录", exact: true }).click();
+  await expect(left.getByRole("button", { name: "收藏当前目录", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await left.getByRole("textbox", { name: "根内相对路径" }).fill("docs");
+  await left.getByRole("textbox", { name: "根内相对路径" }).press("Enter");
+  await expect(left.getByRole("option", { name: /readme.md/ })).toBeVisible();
+  await left.getByRole("button", { name: "路径历史", exact: true }).click();
+  await expect(page.getByRole("menu", { name: "路径历史", exact: true })).toBeVisible();
+  await left.getByRole("button", { name: "路径历史", exact: true }).click();
+  await expect(page.getByRole("menu", { name: "路径历史", exact: true })).toHaveCount(0);
+  await left.getByRole("button", { name: "路径历史", exact: true }).click();
+  await page.getByRole("menu", { name: "路径历史", exact: true }).getByRole("menuitem", { name: /Left\/src/ }).click();
+  await expect(left.getByRole("option", { name: /deep.c/ })).toBeVisible();
+  await right.getByRole("button", { name: "常用目录", exact: true }).click();
+  await page.getByRole("menu", { name: "常用目录", exact: true }).getByRole("menuitem", { name: "Left/src", exact: true }).click();
+  await expect(right.getByRole("option", { name: /deep.c/ })).toBeVisible();
+  await right.getByRole("textbox", { name: "根内相对路径" }).fill("../escape");
+  await right.getByRole("textbox", { name: "根内相对路径" }).press("Enter");
+  await expect(right.getByRole("alert")).toBeVisible();
+  await expect(right.getByRole("option", { name: /deep.c/ })).toBeVisible();
+  await expect(browser).toBeVisible();
+});
+
+test("标题排序与列宽调整按栏保存，名称默认填满剩余宽度", async ({ page }) => {
+  const { browser, panel, left } = await fixture(page);
+  await left.getByRole("button", { name: "按大小排序", exact: true }).click();
+  await left.getByRole("button", { name: "按大小排序", exact: true }).click();
+  await expect(left.getByRole("combobox", { name: "文件排序", exact: true })).toHaveValue("size-desc");
+  await expect.poll(() => left.getByRole("listbox").locator(".file-browser-row").evaluateAll(rows => rows[2]?.getAttribute("data-node-id"))).toBe("image.svg");
+  const splitter = left.getByRole("separator", { name: "调整大小列宽", exact: true });
+  const initial = Number(await splitter.getAttribute("aria-valuenow"));
+  await splitter.focus(); await splitter.press("ArrowRight");
+  await expect(splitter).toHaveAttribute("aria-valuenow", String(initial + 8));
+  const bounds = (await splitter.boundingBox())!;
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down(); await page.mouse.move(bounds.x + bounds.width / 2 + 32, bounds.y + bounds.height / 2); await page.mouse.up();
+  await expect(splitter).toHaveAttribute("aria-valuenow", String(initial + 40));
+  await browser.getByRole("button", { name: "返回原视图", exact: true }).click();
+  await panel.getByRole("button", { name: "双栏浏览", exact: true }).click();
+  await expect(left.getByRole("separator", { name: "调整大小列宽", exact: true })).toHaveAttribute("aria-valuenow", String(initial + 40));
+  await expect(left.getByRole("combobox", { name: "文件排序", exact: true })).toHaveValue("size-desc");
+});
+
+test("近底自动分页失败只尝试一次，手动重试后继续加载且虚拟行有界", async ({ page }) => {
+  const { left } = await fixture(page, true);
+  await page.evaluate(async () => {
+    const { localFileService } = await import("/src/lib/local-files/service.ts"); const list = localFileService.list.bind(localFileService);
+    (window as any).__pageAttempts = 0;
+    localFileService.list = async (root, node, offset = 0, options) => {
+      if (offset === 200) { (window as any).__pageAttempts++; if ((window as any).__pageAttempts === 1) throw new Error("simulated page failure"); }
+      return list(root, node, offset, options);
+    };
+  });
+  const list = left.getByRole("listbox", { name: "文件列表" });
+  await expect(left.locator(".file-browser-pane-status")).toContainText("200 项");
+  await list.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await expect(left.getByRole("alert")).toContainText("simulated page failure");
+  await list.evaluate(element => { element.dispatchEvent(new Event("scroll")); element.dispatchEvent(new Event("scroll")); });
+  expect(await page.evaluate(() => (window as any).__pageAttempts)).toBe(1);
+  await left.getByRole("button", { name: "加载更多", exact: true }).click();
+  await expect(left.locator(".file-browser-pane-status")).toContainText("400 项");
+  await list.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await expect(left.locator(".file-browser-pane-status")).toContainText("456 项");
+  expect(await list.getByRole("option").count()).toBeLessThan(50);
 });

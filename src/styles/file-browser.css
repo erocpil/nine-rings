@@ -5,7 +5,7 @@
 .file-browser-heading > button { margin-left: auto; }
 .file-browser-panes { display: grid; flex: 1; min-height: 0; }
 .file-browser-pane-slot { grid-row: 1; min-width: 0; min-height: 0; }
-.file-browser-pane { display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; }
+.file-browser-pane { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; }
 .file-browser-pane.is-active { box-shadow: inset 0 2px var(--accent); }
 .file-browser-pane-tools { display: flex; align-items: center; gap: 3px; padding: 6px; flex-shrink: 0; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .file-browser-pane-tools::-webkit-scrollbar { display: none; }
@@ -15,17 +15,25 @@
 .file-browser-breadcrumb { display: flex; gap: 2px; padding: 2px 8px; overflow-x: auto; flex-shrink: 0; }
 .file-browser-breadcrumb button { color: var(--text-secondary); background: none; border: 0; white-space: nowrap; cursor: pointer; padding: 3px; }
 .file-browser-breadcrumb button + button::before { content: '/'; margin-right: 6px; opacity: .5; }
-.file-browser-path { display: flex; padding: 3px 8px; }
-.file-browser-path input { width: 100%; font-size: 12px; }
+.file-browser-path { display: flex; gap: 2px; padding: 3px 8px; min-width: 0; }
+.file-browser-path input { width: 100%; flex: 1; min-width: 0; font-size: 12px; }
+.file-browser-path .btn-icon { flex-shrink: 0; width: 23px; height: 28px; min-width: 23px; }
+.file-browser-path [aria-pressed='true'] { color: var(--accent); }
 .file-browser-options { display: flex; gap: 5px; align-items: center; padding: 5px 8px; font-size: 12px; }
 .file-browser-options > input { flex: 1; width: 50px; }
 .file-browser-options label { display: flex; gap: 3px; align-items: center; white-space: nowrap; }
-.file-browser-columns, .file-browser-row { display: grid; grid-template-columns: minmax(110px, 1fr) 72px 145px; align-items: center; gap: 8px; padding: 0 10px; box-sizing: border-box; }
+.file-browser-columns, .file-browser-row { display: grid; grid-template-columns: var(--browser-columns, minmax(110px, 1fr) 72px 145px); align-items: center; gap: 8px; padding: 0 10px; box-sizing: border-box; }
+.file-browser-column { position: relative; min-width: 0; }
+.file-browser-column > button { padding: 4px 0; font: inherit; color: inherit; border: 0; background: transparent; cursor: pointer; white-space: nowrap; }
+.file-browser-column > button[aria-pressed='true'] { color: var(--accent); }
+.file-browser-column > [role='separator'] { position: absolute; top: 0; bottom: 0; right: -4px; width: 8px; cursor: col-resize; touch-action: none; }
+.file-browser-column > [role='separator']:hover, .file-browser-column > [role='separator']:focus-visible { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 .file-browser-column-viewport { overflow: hidden; flex-shrink: 0; }
 .file-browser-columns { color: var(--text-secondary); font-size: 12px; min-height: 28px; border-block: 1px solid var(--border); }
 .file-browser-list { flex: 1; min-height: 0; overflow: auto; outline: none; overscroll-behavior: contain; }
 .file-browser-list:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
-.file-browser-row { height: 32px; min-width: 363px; box-sizing: border-box; cursor: default; user-select: none; -webkit-user-select: none; font-size: 13px; }
+.file-browser-row { height: 32px; min-width: var(--browser-columns-min, 363px); box-sizing: border-box; cursor: default; user-select: none; -webkit-user-select: none; font-size: 13px; }
+.file-browser-notice { position: absolute; bottom: 40px; left: 10px; right: 10px; padding: 6px 10px; z-index: 5; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); color: var(--text-secondary); font-size: 12px; pointer-events: none; overflow-wrap: anywhere; }
 .file-browser-row:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
 .file-browser-row[aria-selected='true'] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .file-browser-list:focus .file-browser-row[data-current='true'] { outline: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: -1px; }

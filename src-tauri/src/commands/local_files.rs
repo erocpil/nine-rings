@@ -47,6 +47,7 @@ pub struct Node {
     name: String,
     directory: bool,
     size: u64,
+    modified_ms: u128,
 }
 #[derive(Serialize)]
 pub struct Page {
@@ -598,6 +599,10 @@ enum FileSort {
     Name,
     NameDesc,
     Type,
+    Size,
+    SizeDesc,
+    Modified,
+    ModifiedDesc,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -667,6 +672,12 @@ fn list_with_options(
             name,
             directory: meta.is_dir(),
             size: meta.len(),
+            modified_ms: meta
+                .modified()
+                .ok()
+                .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|time| time.as_millis())
+                .unwrap_or(0),
         });
     }
     nodes.sort_by(|a, b| {
@@ -684,6 +695,18 @@ fn list_with_options(
                     extension(a).cmp(&extension(b))
                 } else {
                     std::cmp::Ordering::Equal
+                }
+            })
+            .then_with(|| {
+                if a.directory {
+                    return std::cmp::Ordering::Equal;
+                }
+                match options.sort {
+                    FileSort::Size => a.size.cmp(&b.size),
+                    FileSort::SizeDesc => b.size.cmp(&a.size),
+                    FileSort::Modified => a.modified_ms.cmp(&b.modified_ms),
+                    FileSort::ModifiedDesc => b.modified_ms.cmp(&a.modified_ms),
+                    _ => std::cmp::Ordering::Equal,
                 }
             })
             .then_with(|| {
@@ -1116,6 +1139,29 @@ pub async fn local_files_save_as(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn metadata_order_is_applied_to_the_whole_directory_before_paging() {
+        let dir = std::env::temp_dir().join(format!("nr-file-sort-{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&dir).unwrap();
+        let dir = fs::canonicalize(dir).unwrap();
+        for i in 0..205 {
+            fs::write(dir.join(format!("item-{i:03}")), vec![0; i + 1]).unwrap();
+        }
+        let options: ListOptions =
+            serde_json::from_str(r#"{"sort":"size-desc","showHidden":true,"query":""}"#).unwrap();
+        let page = list_with_options(&dir, "", 0, &options).unwrap();
+        assert_eq!(page.nodes[0].name, "item-204");
+        assert_eq!(page.next, Some(200));
+        let tail = list_with_options(&dir, "", 200, &options).unwrap();
+        assert_eq!(tail.nodes[4].name, "item-000");
+        let options: ListOptions = serde_json::from_str(r#"{"sort":"modified-desc"}"#).unwrap();
+        let page = list_with_options(&dir, "", 0, &options).unwrap();
+        assert!(page
+            .nodes
+            .windows(2)
+            .all(|pair| pair[0].modified_ms >= pair[1].modified_ms));
+        fs::remove_dir_all(dir).unwrap();
+    }
     #[test]
     fn create_and_move_are_scoped_and_never_replace_existing_entries() {
         let dir = std::env::temp_dir().join(format!("nr-file-ops-{}", uuid::Uuid::new_v4()));

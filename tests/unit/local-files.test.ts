@@ -120,6 +120,37 @@ it("rejects escapes, binary data, invalid UTF-8 and over-budget files, preservin
   expect(() => decodeSource(new Uint8Array([255]))).toThrow();
   expect(() => decodeSource(new Uint8Array(MAX_SOURCE_BYTES + 1))).toThrow();
 });
+it("metadata sorting happens before paging without reading snapshot bodies", async () => {
+  activate();
+  const files = Array.from({ length: 205 }, (_, index) => {
+    const result = file(
+      `item-${String(index).padStart(3, "0")}`,
+      "x".repeat(index + 1),
+    );
+    Object.defineProperty(result, "lastModified", { value: index });
+    return result;
+  });
+  const root = localFileService.addFiles(files)!;
+  const page = await localFileService.list(root.id, "", 0, {
+    sort: "size-desc",
+    showHidden: true,
+    query: "",
+  });
+  expect(page.nodes[0].name).toBe("item-204");
+  expect(page.next).toBe(200);
+  const tail = await localFileService.list(root.id, "", 200, {
+    sort: "modified-desc",
+    showHidden: true,
+    query: "",
+  });
+  expect(tail.nodes.map((item) => item.name)).toEqual([
+    "item-004",
+    "item-003",
+    "item-002",
+    "item-001",
+    "item-000",
+  ]);
+});
 it("requires separate file permission; selected snapshots paginate without importing documents", async () => {
   const imageOwner = pluginRuntime.activate.bind(pluginRuntime);
   pluginRuntime.setEnabled(true);

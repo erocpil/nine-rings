@@ -15,6 +15,7 @@ export interface FileNode {
   name: string;
   directory: boolean;
   size: number;
+  modifiedMs?: number;
 }
 export interface FilePage {
   nodes: FileNode[];
@@ -368,17 +369,27 @@ export const localFileService = {
       for (const part of fileSegments(node))
         dir = await dir.getDirectoryHandle(part);
       let count = 0;
+      const propertyReads: Array<{ node: FileNode; handle: FileHandle }> = [];
       for await (const child of dir.values()) {
         if (++count > 10000)
           throw new Error("单目录超过 10000 项，请选择更具体的目录");
         fileSegments(child.name);
-        nodes.set(child.name, {
+        const value: FileNode = {
           id: node ? `${node}/${child.name}` : child.name,
           name: child.name,
           directory: child.kind === "directory",
           size: 0,
-        });
+        };
+        nodes.set(child.name, value);
+        if (child.kind === "file" && (options?.sort.startsWith("size") || options?.sort.startsWith("modified"))) propertyReads.push({ node: value, handle: child });
       }
+      let index = 0;
+      await Promise.all(Array.from({ length: Math.min(4, propertyReads.length) }, async () => {
+        while (index < propertyReads.length) {
+          check(); const item = propertyReads[index++], file = await item.handle.getFile(); check();
+          item.node.size = file.size; item.node.modifiedMs = file.lastModified;
+        }
+      }));
     } else {
       const prefix = node ? node + "/" : "";
       for (const [path, file] of entry.files ?? []) {
@@ -390,6 +401,7 @@ export const localFileService = {
           name,
           directory: tail.includes("/"),
           size: file.size,
+          modifiedMs: tail.includes("/") ? undefined : file.lastModified,
         });
       }
     }
