@@ -16,19 +16,33 @@ it("persists favorites and notifies both panes without hiding storage failures",
   const values = [{ rootId: "root", node: "src" }];
   const storage = new Map<string, string>();
   const dispatchEvent = vi.fn();
-  vi.stubGlobal("localStorage", { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) });
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+  });
   vi.stubGlobal("window", { dispatchEvent });
   try {
     saveBrowserFavorites(values);
     expect(JSON.parse(storage.get(BROWSER_FAVORITES_KEY)!)).toEqual(values);
     expect(readBrowserFavorites()).toEqual(values);
     expect(dispatchEvent.mock.calls[0][0].type).toBe(BROWSER_FAVORITES_EVENT);
-    expect(() => saveBrowserFavorites(Array.from({ length: 41 }, () => values[0]))).toThrow("40");
-    vi.stubGlobal("localStorage", { getItem: () => { throw new Error("unavailable"); }, setItem: () => { throw new Error("full"); } });
+    expect(() =>
+      saveBrowserFavorites(Array.from({ length: 41 }, () => values[0])),
+    ).toThrow("40");
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new Error("unavailable");
+      },
+      setItem: () => {
+        throw new Error("full");
+      },
+    });
     expect(readBrowserFavorites()).toEqual([]);
     expect(() => saveBrowserFavorites(values)).toThrow("full");
     expect(dispatchEvent).toHaveBeenCalledTimes(1);
-  } finally { vi.unstubAllGlobals(); }
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });
 it("bounds persisted column widths while retaining automatic name fill by default", () => {
   expect(parseBrowserColumns(null)).toEqual(DEFAULT_BROWSER_COLUMNS);

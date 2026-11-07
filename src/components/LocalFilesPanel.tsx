@@ -5,7 +5,8 @@ import {
   localFileService,
   type FileRoot,
 } from "../lib/local-files/service";
-import { LOCAL_FILE_VIEW_ID, FILE_BROWSER_VIEW_ID } from "../lib/plugin-system/builtin-local-files";
+import { LOCAL_FILE_VIEW_ID } from "../lib/plugin-system/builtin-local-files";
+import { openFileBrowser } from "../lib/plugin-system/builtin-file-browser";
 import { workspacePanels } from "../lib/plugin-system/panel-registry";
 import { mainViews } from "../lib/plugin-system/main-view-registry";
 import { panelDisplays } from "../lib/plugin-system/panel-display";
@@ -85,6 +86,7 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
   onBack?: () => void;
   onCloseFiles?: (identities: string[]) => void | Promise<void>;
 }) {
+  const panels = useSyncExternalStore(workspacePanels.subscribe, workspacePanels.getSnapshot);
   const [restored] = useState(readNavigation);
   const [roots, setRoots] = useState<FileRoot[]>([]);
   const [pages, setPageState] = useState<Record<string, ListedFilePage>>({});
@@ -724,7 +726,7 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
           </button>
         )}
         <strong>本地文件</strong>
-        <button type="button" className="btn-icon" title="双栏浏览" aria-label="双栏浏览" onClick={() => mainViews.bind(workspacePanels.assert("files")).open(FILE_BROWSER_VIEW_ID, {})}><ToolbarIcon name="compare" /></button>
+        {panels.some(panel => panel.id === "browser") && <button type="button" className="btn-icon" title="双栏浏览" aria-label="双栏浏览" onClick={openFileBrowser}><ToolbarIcon name="compare" /></button>}
         <button type="button" className="btn-icon" title="按文件名筛选" aria-label="按文件名筛选" aria-expanded={searchOpen} aria-pressed={searchOpen} onClick={() => { setSearchOpen(value => !value); if (searchOpen) { setQuery(""); setAppliedQuery(""); } }}><ToolbarIcon name="filter" /></button>
         <button type="button" className="btn-icon" title="目录全文搜索" aria-label="目录全文搜索" aria-expanded={task === "search"} aria-pressed={task === "search"} onClick={() => { setSearchScope(undefined); setTask(current => current === "search" ? null : "search"); }}><ToolbarIcon name="search" /></button>
         <button type="button" className="btn-icon" title="未保存文件与恢复草稿" aria-label="未保存文件与恢复草稿" aria-expanded={task === "drafts"} aria-pressed={task === "drafts"} onClick={() => setTask(current => current === "drafts" ? null : "drafts")}><ToolbarIcon name="save" /></button>

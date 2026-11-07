@@ -12,6 +12,7 @@ import { BLOCK_MENU_PLUGIN_ID } from "./builtin-block-menu";
 
 /** Installed trusted modules, independent of whether an invocation is currently active. */
 export const BUILTIN_PLUGIN_CATALOG = Object.freeze([
+  Object.freeze({ id: "nine-rings.builtin-file-browser", name: "双栏浏览", type: "活动栏入口 · 文件工作区", description: "独立的双栏目录浏览、预览、比较与文件操作；与本地文件树共享宿主授权，分别启停。", configuration: "file-browser" as const }),
   Object.freeze({ id: "nine-rings.builtin-local-files", name: "本地文件", type: "分栏 · 本地工作区", description: "按需浏览授权目录，在中央区域编辑并安全保存源码；支持外部变更比较和 Markdown、Mermaid、Flow 预览，不导入文档、不上传备份。", configuration: "local-files" as const }),
   Object.freeze({ id: BLOCK_MENU_PLUGIN_ID, name: "块菜单展示", type: "编辑区展示", description: "通过受限配置调整块菜单分组、可见操作、标题、字体、字号、字重和主题配色；编辑命令仍由宿主校验与执行。", configuration: "block-menu" as const }),
   Object.freeze({ id: STATUS_PLUGIN_ID, name: "状态栏展示", type: "编辑区展示", description: "定制渲染与源码状态栏的字体、配色、间距、信息项及顺序，保留宿主保存与位置导航。", configuration: "status" as const }),

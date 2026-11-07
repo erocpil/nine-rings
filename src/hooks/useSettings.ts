@@ -1,4 +1,5 @@
 import { startBuiltinLocalFiles } from "../lib/plugin-system/builtin-local-files";
+import { startBuiltinFileBrowser } from "../lib/plugin-system/builtin-file-browser";
 import { startBuiltinVocabulary } from "../lib/plugin-system/builtin-vocabulary";
 import { startBuiltinThemes } from "../lib/plugin-system/builtin-theme";
 import { bookmarkDisplay } from "../lib/plugin-system/builtin-bookmark-display";
@@ -50,6 +51,7 @@ export function useSettings() {
   useEffect(() => notesDisplay.start(), []);
   useEffect(startBuiltinImageViewer, []);
   useEffect(startBuiltinLocalFiles, []);
+  useEffect(startBuiltinFileBrowser, []);
   useEffect(startBuiltinVocabulary, []);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const configRef = useRef<AppConfig | null>(null);

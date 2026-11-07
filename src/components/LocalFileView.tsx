@@ -33,9 +33,7 @@ import { DocumentSourceSurface } from "./DocumentSourceSurface";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { TextDiffView } from "./TextDiffView";
 import { SourceDocumentPreview } from "./SourceDocumentPreview";
-import { LOCAL_FILE_VIEW_ID } from "../lib/plugin-system/builtin-local-files";
-import { mainViews } from "../lib/plugin-system/main-view-registry";
-import { workspacePanels } from "../lib/plugin-system/panel-registry";
+import { openLocalFileView } from "../lib/plugin-system/local-file-view";
 import { useFocusEditorTools } from "../stores/useFocusEditorTools";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { SourceNavigationDocument } from "../lib/markdown-source-navigation";
@@ -549,7 +547,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     try {
       const nodeId = resolveRelativeNode(data.nodeId, href);
       const pathParts = nodeId.split("/"); const name = pathParts[pathParts.length - 1] ?? nodeId;
-      mainViews.bind(workspacePanels.assert("files")).open(LOCAL_FILE_VIEW_ID, { rootId: data.rootId, nodeId, name });
+      openLocalFileView({ rootId: data.rootId, nodeId, name });
     } catch (reason) { setPreviewError(String(reason)); }
   };
   const resolveResource = useCallback(async (href: string) => {

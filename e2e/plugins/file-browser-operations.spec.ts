@@ -28,7 +28,8 @@ async function setup(page: Page) {
       move: async (root: string, node: string, parent: string, name: string) => { const path = [parent, name].filter(Boolean).join("/"); nodes.get(root)!.set(path, nodes.get(root)!.get(node)!); nodes.get(root)!.delete(node); return path; },
       trash: async (root: string, node: string) => { nodes.get(root)!.delete(node); },
     });
-    setPluginsEnabled(true); saveLocalFilesEnabled(true);
+    const { saveFileBrowserEnabled } = await import("/src/lib/plugin-system/builtin-file-browser.ts");
+    setPluginsEnabled(true); saveLocalFilesEnabled(true); saveFileBrowserEnabled(true);
   });
   await page.getByRole("button", { name: "本地文件", exact: true }).click();
   await page.getByRole("region", { name: "本地文件树", exact: true }).getByRole("button", { name: "双栏浏览", exact: true }).click();

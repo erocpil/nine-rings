@@ -16,7 +16,9 @@ import { documentToolEnabled } from "./lib/plugin-system/builtin-tool-preference
 import { workspacePanels } from "./lib/plugin-system/panel-registry";
 import { PLUGINS_ENABLED_KEY } from "./lib/plugin-system/runtime";
 import { imageViewerEnabled } from "./lib/plugin-system/builtin-image-viewer";
-import { LOCAL_FILE_VIEW_ID, localFilesEnabled } from "./lib/plugin-system/builtin-local-files";
+import { localFilesEnabled } from "./lib/plugin-system/builtin-local-files";
+import { openFileBrowser } from "./lib/plugin-system/builtin-file-browser";
+import { openLocalFileView } from "./lib/plugin-system/local-file-view";
 import { announceLocalFileOpened, LOCAL_FILE_REVEAL_EVENT, localFileIdentity, readRecentLocalFiles, rememberRecentLocalFile, type RecentLocalFile } from "./lib/local-files/recent";
 import { checkpointLocalFile } from "./lib/local-files/session";
 import { focusTabIds, localFocusTabIds, readFocusTabs, readLocalFocusTabs, saveFocusTabs, saveLocalFocusTabs } from "./lib/focus-tabs";
@@ -1081,7 +1083,7 @@ function App() {
   const openRecentLocalFile = async (file: RecentLocalFile) => {
     try {
       await flushAutoSave();
-      mainViews.bind(workspacePanels.assert("files")).open(LOCAL_FILE_VIEW_ID, {
+      openLocalFileView({
         rootId: file.rootId,
         nodeId: file.nodeId,
         name: file.name,
@@ -1120,7 +1122,7 @@ function App() {
         const neighbor = files.find(file => localFileIdentity(file) === neighborId);
         if (neighbor) {
           mainViews.close(local.id);
-          mainViews.bind(workspacePanels.assert("files")).open(LOCAL_FILE_VIEW_ID, { rootId: neighbor.rootId, nodeId: neighbor.nodeId, name: neighbor.name });
+          openLocalFileView({ rootId: neighbor.rootId, nodeId: neighbor.nodeId, name: neighbor.name });
           announceLocalFileOpened(neighbor);
           rememberRecentLocalFile(neighbor);
         } else {
@@ -1662,7 +1664,7 @@ function App() {
     <ReadingTypographyProvider config={config}><EditorFoldIconContext.Provider value={config}>
     <ExhibitionWorkspace home={workspaceHome} desktop={desktopWorkspace} enabled={exhibitionEnabled && !mobileReaderOpen} focus={effectiveFocusMode} onFocusChange={next => preserveReadingPositions(() => setFocusMode(next))} config={config} homeOverviewCollapseRequest={homeOverviewCollapseRequest}
       latestNote={selectedNote} activeSummary={activeWorkspaceSummary}
-      localFilesAvailable={contributedPanels.some(panel => panel.id === "files")}
+      localFilesAvailable={contributedPanels.some(panel => panel.id === "files" || panel.id === "browser")}
       onOpenLocalFile={file => { void openRecentLocalFile(file).catch(() => {}); }}
       onSummary={kind => {
         const saved = summarySidebarSnapshot.current;
@@ -1791,11 +1793,12 @@ function App() {
         <Suspense fallback={null}>
           <TitleBar focus={focusMode} focusAppearance={desktopWorkspace && effectiveFocusMode ? <FocusAppearanceMenu config={config} disabled={protectionBusy || applyingWebUpdate || externalReloading} onChange={async patch => handleConfigChange(await api.config.set(patch))} /> : undefined} onFocusChange={desktopWorkspace ? next => preserveReadingPositions(() => setFocusMode(next)) : undefined} wordmark={desktopWorkspace && effectiveFocusMode} focusTabs={desktopWorkspace && effectiveFocusMode ? <FocusDocumentTabs
             noteId={workspaceHome || pluginMainActive ? undefined : selectedNote?.id} noteTitle={workspaceHome || pluginMainActive ? undefined : selectedNote?.title ?? undefined} refreshKey={docTreeKey}
-            localFilesAvailable={contributedPanels.some(panel => panel.id === "files")}
+            localFilesAvailable={contributedPanels.some(panel => panel.id === "files" || panel.id === "browser")}
             activeLocalIdentity={!workspaceHome && pluginMainActive && pluginMainView?.renderer === "local-file" ? localFileIdentity(pluginMainView.data) : undefined}
             onOpenLocal={openRecentLocalFile}
             onCloseCurrent={closeCurrentFile}
             onRevealLocal={async file => {
+              if (!contributedPanels.some(panel => panel.id === "files")) throw new Error("请先启用本地文件插件，再在文件树中定位。");
               sidebarHover.restore({ panel: "files", hidden: false, pinned: true });
               window.dispatchEvent(new CustomEvent(LOCAL_FILE_REVEAL_EVENT, { detail: file }));
             }}
@@ -1848,7 +1851,7 @@ function App() {
         >
           {(error || autoSave.status === "error") && <button type="button" className="btn-icon workspace-error-indicator" aria-label="查看错误详情" title="查看错误详情" onClick={() => setErrorDetailsOpen(true)}><ToolbarIcon name="warning" /></button>}
           {((() => {
-            return normalizeSidebarOrder(localStorage.getItem('nr:sidebarOrder')?.split(',') ?? [], contributedPanels.map(panel => panel.id)).map((panel) => [panel,
+            return normalizeSidebarOrder(localStorage.getItem('nr:sidebarOrder')?.split(',') ?? [], contributedPanels.filter(panel => panel.id !== "browser").map(panel => panel.id)).map((panel) => [panel,
               sidebarPanelLabel(panel),
               panel === 'files' ? 'disk' : panel === 'tree' ? 'folder' : panel === 'list' ? 'bullet' : panel === 'notes' ? 'note' : panel === 'vocabulary' ? 'book' : panel === 'images' ? 'image' : 'document'] as const);
           })()).map(([panel, label, icon]) => <button key={panel} type="button" className="btn-icon"
@@ -1860,6 +1863,7 @@ function App() {
             onClick={() => void activateSidebarPanel(panel)}>
             <ToolbarIcon name={icon} />
           </button>)}
+          {contributedPanels.some(panel => panel.id === "browser") && <button type="button" className="btn-icon" title="双栏浏览" aria-label="双栏浏览" aria-pressed={pluginMainActive && pluginMainView?.renderer === "file-browser"} onClick={() => { try { openFileBrowser(); } catch (reason) { useNotesStore.setState({ error: String(reason) }); } }}><ToolbarIcon name="compare" /></button>}
           <div className="desktop-activity-footer">
             <button type="button" className="btn-icon" title="全局搜索" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
             <button type="button" className="btn-icon desktop-activity-recycle" title="回收站" aria-label="回收站"
@@ -1880,6 +1884,7 @@ function App() {
           <div className="desktop-panel-content" style={mobileDrawerViewport ? { display: desktopPanel === 'notes' || desktopPanel === 'images' || desktopPanel === 'vocabulary' || desktopPanel === 'files' ? 'none' : 'contents' } : undefined} hidden={desktopPanel === 'notes' || desktopPanel === 'images' || desktopPanel === 'vocabulary' || desktopPanel === 'files' || (!mobileDrawerViewport && desktopPanel !== 'tree')}>
           <WorkspacePanelHeading className="sidebar-tabs" title={mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : null}>
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
+            {mobileDrawerViewport && contributedPanels.some(panel => panel.id === "browser") && <button type="button" className="btn-icon" aria-label="双栏浏览" title="双栏浏览" onClick={() => { openFileBrowser(); setSidebarHidden(true); }}><ToolbarIcon name="compare" /></button>}
             {mobileDrawerViewport && contributedPanels.some(panel => panel.id === "files") && <button type="button" className="btn-icon" aria-label="本地文件" title="本地文件" onClick={() => setDesktopPanel("files")}><ToolbarIcon name="disk" /></button>}
             {mobileDrawerViewport && contributedPanels.some(panel => panel.id === "images") && <button type="button" className="btn-icon" aria-label="图片" title="图片" onClick={() => setDesktopPanel("images")}><ToolbarIcon name="image" /></button>}
             {mobileDrawerViewport && contributedPanels.some(panel => panel.id === "vocabulary") && <button type="button" className="btn-icon" aria-label="词汇学习" title="词汇学习" onClick={() => setDesktopPanel("vocabulary")}><ToolbarIcon name="book" /></button>}

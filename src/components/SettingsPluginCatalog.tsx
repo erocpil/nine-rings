@@ -1,4 +1,5 @@
 import { localFilesEnabled, saveLocalFilesEnabled, subscribeLocalFiles, localFilesSnapshot } from "../lib/plugin-system/builtin-local-files";
+import { fileBrowserEnabled, saveFileBrowserEnabled, subscribeFileBrowser, fileBrowserSnapshot } from "../lib/plugin-system/builtin-file-browser";
 import { SettingsStatusDisplay } from "./SettingsStatusDisplay";
 import { readStatusPreference, saveStatusPreference, subscribeStatusPreference, statusPreferenceSnapshot } from "../lib/plugin-system/builtin-status-display";
 import { SettingsNumberingDisplay } from "./SettingsNumberingDisplay";
@@ -160,7 +161,9 @@ function PluginConfigurationDialog({
           <Field label="例句默认折叠" desc="控制尚无阅读记录的例句默认状态；译文默认折叠，已记录的展开状态优先恢复。"><input type="checkbox" aria-label="例句默认折叠" checked={readVocabularyPreference().collapseExamples} onChange={event => { saveVocabularyPreference({ ...readVocabularyPreference(), collapseExamples: event.target.checked }); showMessage("已更新"); }} /></Field>
           <SettingsVocabularyAppearance onMessage={showMessage} />
           <p className="settings-desc">首版不联网抓取、不改写正文；受保护正文不交给插件。普通文档入口用于编辑和导出，阅读语境关联将在后续接入。</p>
-        </> : plugin.configuration === "local-files" ? (<>
+        </> : plugin.configuration === "file-browser" ? (
+          <p className="settings-desc">从活动栏「双栏浏览」独立进入，两栏分别保存目录、标签、历史、排序和位置。可直接添加授权目录，无需开启本地文件插件；目录授权由宿主管理，文件不导入数据库或上传备份。复制、移动、重命名和回收站操作仍需明确确认。</p>
+        ) : plugin.configuration === "local-files" ? (<>
           <p className="settings-desc">在「本地文件」分栏按需浏览目录、编辑并保存 UTF-8 文件（最多 4 MiB），支持磁盘变化比较、崩溃草稿恢复及 Markdown、Mermaid、Flow 预览。资源不会导入数据库或参与同步；混合换行文件只能另存为。浏览器目录授权仍需按会话重新选择，保存时另行请求写入许可。</p>
           <SettingsPanelDisplay configuration="local-file-display" onMessage={showMessage} />
         </>) : plugin.configuration === "image-viewer" ? (
@@ -255,7 +258,7 @@ function PluginConfigurationDialog({
               ? active.permissions.join("、")
               : plugin.configuration === "vocabulary"
                 ? "分栏与主区域展示、配置路径内的未保护词汇正文读取"
-                : plugin.configuration === "local-files" ? "分栏与主区域展示、用户授权目录的本机文件读写"
+                : plugin.configuration === "local-files" || plugin.configuration === "file-browser" ? "分栏与主区域展示、用户授权目录的本机文件读写"
                 : plugin.configuration === "image-viewer"
                 ? "分栏展示、授权图片目录读取；插入文档另经编辑插件命令"
                 : presenter || plugin.configuration === "block-menu" || plugin.configuration === "theme" || plugin.configuration === "numbering" || plugin.configuration === "status"
@@ -306,6 +309,7 @@ export function SettingsPluginCatalog({ onFailure, previewing, mobile, onPreview
   useSyncExternalStore(subscribeDocumentTools, documentToolsSnapshot);
   useSyncExternalStore(subscribeImageViewer, imageViewerSnapshot);
   useSyncExternalStore(subscribeLocalFiles, localFilesSnapshot);
+  useSyncExternalStore(subscribeFileBrowser, fileBrowserSnapshot);
   useSyncExternalStore(subscribeVocabulary, vocabularySnapshot);
   useSyncExternalStore(subscribeBlockMenuPresentation, blockMenuPresentationSnapshot);
   useSyncExternalStore(outlineDisplay.subscribe, outlineDisplay.snapshot);
@@ -341,7 +345,7 @@ export function SettingsPluginCatalog({ onFailure, previewing, mobile, onPreview
                 : "statistics";
           const presenter = panelPresenter(plugin.configuration);
           const enabled =
-            plugin.configuration === "local-files" ? localFilesEnabled() : plugin.configuration === "block-menu" ? readBlockMenuPresentation().enabled : plugin.configuration === "status" ? readStatusPreference().enabled : plugin.configuration === "numbering" ? readNumberingPreference().enabled : plugin.configuration === "theme" ? readThemePreference().enabled : plugin.configuration === "vocabulary" ? readVocabularyPreference().enabled : plugin.configuration === "image-viewer"
+            plugin.configuration === "file-browser" ? fileBrowserEnabled() : plugin.configuration === "local-files" ? localFilesEnabled() : plugin.configuration === "block-menu" ? readBlockMenuPresentation().enabled : plugin.configuration === "status" ? readStatusPreference().enabled : plugin.configuration === "numbering" ? readNumberingPreference().enabled : plugin.configuration === "theme" ? readThemePreference().enabled : plugin.configuration === "vocabulary" ? readVocabularyPreference().enabled : plugin.configuration === "image-viewer"
               ? imageViewerEnabled()
               : presenter
                 ? presenter.read().enabled
@@ -387,7 +391,8 @@ export function SettingsPluginCatalog({ onFailure, previewing, mobile, onPreview
                     disabled={overridden}
                     onChange={(event) => {
                       try {
-                        if (plugin.configuration === "local-files") saveLocalFilesEnabled(event.target.checked);
+                        if (plugin.configuration === "file-browser") saveFileBrowserEnabled(event.target.checked);
+                        else if (plugin.configuration === "local-files") saveLocalFilesEnabled(event.target.checked);
                         else if (plugin.configuration === "status") saveStatusPreference({ ...readStatusPreference(), enabled: event.target.checked });
                         else if (plugin.configuration === "block-menu") saveBlockMenuPresentation({ ...readBlockMenuPresentation(), enabled: event.target.checked });
                         else if (plugin.configuration === "numbering") saveNumberingPreference({ ...readNumberingPreference(), enabled: event.target.checked });

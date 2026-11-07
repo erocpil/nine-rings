@@ -7,6 +7,7 @@ import {
 /** Declarative slot, never a plugin-supplied React component or DOM callback. */
 export type WorkspacePanelContribution = { label: string } & (
   | { id: "files"; icon: "disk"; renderer: "local-files" }
+  | { id: "browser"; icon: "compare"; renderer: "file-browser" }
   | { id: "images"; icon: "image"; renderer: "image-library" }
   | { id: "vocabulary"; icon: "book"; renderer: "vocabulary-library" }
 );
@@ -42,6 +43,7 @@ export class WorkspacePanelRegistry {
     this.runtime.assert(owner, "panels.present");
     if (
       !(
+        (value.id === "browser" && value.renderer === "file-browser" && value.icon === "compare") ||
         (value.id === "files" &&
           value.renderer === "local-files" &&
           value.icon === "disk") ||
@@ -76,7 +78,7 @@ export class WorkspacePanelRegistry {
     if (!entry) throw new PluginHostError("PLUGIN_DISABLED", "分栏插件未启用");
     this.runtime.assert(
       entry.owner,
-      entry.value.renderer === "local-files"
+      entry.value.renderer === "local-files" || entry.value.renderer === "file-browser"
         ? "filesystem.files.read"
         : entry.value.renderer === "image-library"
           ? "filesystem.images.read"

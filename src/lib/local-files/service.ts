@@ -100,7 +100,7 @@ const roots = new Map<
   { root: FileRoot; handle?: DirectoryHandle; files?: Map<string, File> }
 >();
 let generation = 0;
-const assert = () => workspacePanels.assert("files");
+const assert = () => workspacePanels.assert(workspacePanels.getSnapshot().some(panel => panel.id === "files") ? "files" : "browser");
 async function native<T>(
   command: string,
   args?: Record<string, unknown>,
@@ -135,7 +135,7 @@ export const localFileService = {
   canTransfer: () => isTauriRuntime(),
   async transfer(rootId: string, node: string, targetRootId: string, parent: string, requestedName: string, moving: boolean): Promise<string> {
     const check = guard();
-    pluginRuntime.assert(workspacePanels.assert("files"), "filesystem.files.write");
+    pluginRuntime.assert(assert(), "filesystem.files.write");
     const name = requestedName.trim();
     if (!fileSegments(node).length || fileSegments(name).length !== 1) throw new Error("无效的源路径或目标名称");
     fileSegments(parent);
@@ -146,7 +146,7 @@ export const localFileService = {
   },
   async create(rootId: string, parent: string, requestedName: string, directory: boolean): Promise<string> {
     const check = guard();
-    pluginRuntime.assert(workspacePanels.assert("files"), "filesystem.files.write");
+    pluginRuntime.assert(assert(), "filesystem.files.write");
     const name = requestedName.trim();
     if (fileSegments(name).length !== 1) throw new Error("请输入单个文件或目录名称");
     fileSegments(parent);
@@ -169,7 +169,7 @@ export const localFileService = {
   },
   async move(rootId: string, node: string, parent: string, requestedName: string): Promise<string> {
     const check = guard();
-    pluginRuntime.assert(workspacePanels.assert("files"), "filesystem.files.write");
+    pluginRuntime.assert(assert(), "filesystem.files.write");
     const name = requestedName.trim();
     if (fileSegments(name).length !== 1 || !fileSegments(node).length) throw new Error("不能移动授权根目录或使用无效名称");
     fileSegments(parent);
@@ -197,7 +197,7 @@ export const localFileService = {
   },
   async trash(rootId: string, node: string): Promise<void> {
     const check = guard();
-    pluginRuntime.assert(workspacePanels.assert("files"), "filesystem.files.write");
+    pluginRuntime.assert(assert(), "filesystem.files.write");
     if (!fileSegments(node).length) throw new Error("不能删除授权根目录");
     if (isLocalFileReadOnly(rootId, node)) throw new Error("此路径被设置为只读");
     if (!isTauriRuntime()) throw new Error("浏览器不支持系统回收站，请使用系统文件管理器");
@@ -213,7 +213,7 @@ export const localFileService = {
   },
   async displayPath(rootId: string, node: string): Promise<string> {
     const check = guard();
-    const owner = workspacePanels.assert("files");
+    const owner = assert();
     pluginRuntime.assert(owner, "filesystem.files.read");
     fileSegments(node);
     if (isTauriRuntime()) {
@@ -288,7 +288,7 @@ export const localFileService = {
   },
   async rename(rootId: string, node: string, requestedName: string): Promise<{ root: FileRoot; nodeId: string }> {
     const check = guard();
-    const owner = workspacePanels.assert("files");
+    const owner = assert();
     pluginRuntime.assert(owner, "filesystem.files.write");
     if (isLocalFileReadOnly(rootId, node)) throw new Error("此路径被设置为只读");
     const name = requestedName.trim();
@@ -484,7 +484,7 @@ export const localFileService = {
   async write(rootId: string, node: string, source: string, base: LocalFileSnapshot): Promise<LocalFileSnapshot> {
     const check = guard();
     if (isLocalFileReadOnly(rootId, node)) throw new Error("此本地文件当前为只读，请先切换为可编辑。");
-    const owner = workspacePanels.assert("files");
+    const owner = assert();
     pluginRuntime.assert(owner, "filesystem.files.write");
     if (new TextEncoder().encode(source).length > MAX_SOURCE_BYTES) throw new Error("文件超过 4 MiB");
     if (base.lineEnding === "mixed") throw new Error("文件包含混合换行符；为避免静默改写格式，请使用另存为副本");
@@ -525,7 +525,7 @@ export const localFileService = {
   },
   async saveAs(name: string, source: string, base: LocalFileSnapshot | null): Promise<SaveAsResult> {
     const check = guard();
-    const owner = workspacePanels.assert("files"); pluginRuntime.assert(owner, "filesystem.files.write");
+    const owner = assert(); pluginRuntime.assert(owner, "filesystem.files.write");
     if (new TextEncoder().encode(source).length > MAX_SOURCE_BYTES) throw new Error("文件超过 4 MiB");
     if (isTauriRuntime()) {
       const result = await native<boolean>("local_files_save_as", { name, source, bom: base?.bom ?? false, lineEnding: base?.lineEnding ?? "lf" });

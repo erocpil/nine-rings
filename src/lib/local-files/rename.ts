@@ -5,8 +5,7 @@ import { invalidateLocalFileSessionMounts } from "./session";
 import { renameLocalFocusTabPaths } from "../focus-tabs";
 import { renameRecentLocalPath } from "./recent";
 import { mainViews } from "../plugin-system/main-view-registry";
-import { workspacePanels } from "../plugin-system/panel-registry";
-import { LOCAL_FILE_VIEW_ID } from "../plugin-system/builtin-local-files";
+import { openLocalFileView } from "../plugin-system/local-file-view";
 
 const renamedFocus = new Set<string>();
 export function consumeRenamedFileFocus(identity: string) { const present = renamedFocus.has(identity); renamedFocus.delete(identity); return present; }
@@ -32,6 +31,6 @@ export async function renameLocalDocument(rootId: string, oldNode: string, reque
   const current = mainViews.getSnapshot().current;
   if (current?.renderer === "local-file" && current.data.rootId === rootId && current.data.nodeId === oldNode) {
     renamedFocus.add(`${rootId}:${nodeId}`);
-    mainViews.bind(workspacePanels.assert("files")).open(LOCAL_FILE_VIEW_ID, { rootId, nodeId, name });
+    openLocalFileView({ rootId, nodeId, name });
   }
 }

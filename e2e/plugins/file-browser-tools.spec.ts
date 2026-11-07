@@ -7,7 +7,8 @@ async function fixture(page: Page, large = false) {
   await page.evaluate(async () => {
     const { setPluginsEnabled } = await import("/src/lib/plugin-system/runtime.ts");
     const { saveLocalFilesEnabled } = await import("/src/lib/plugin-system/builtin-local-files.ts");
-    setPluginsEnabled(true); saveLocalFilesEnabled(true);
+    const { saveFileBrowserEnabled } = await import("/src/lib/plugin-system/builtin-file-browser.ts");
+    setPluginsEnabled(true); saveLocalFilesEnabled(true); saveFileBrowserEnabled(true);
   });
   await page.getByRole("button", { name: "本地文件", exact: true }).click();
   const roots = await page.evaluate(async largeDirectory => {

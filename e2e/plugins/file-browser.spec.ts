@@ -7,7 +7,8 @@ async function fixture(page: Page) {
   await page.evaluate(async () => {
     const { setPluginsEnabled } = await import("/src/lib/plugin-system/runtime.ts");
     const { saveLocalFilesEnabled } = await import("/src/lib/plugin-system/builtin-local-files.ts");
-    setPluginsEnabled(true); saveLocalFilesEnabled(true);
+    const { saveFileBrowserEnabled } = await import("/src/lib/plugin-system/builtin-file-browser.ts");
+    setPluginsEnabled(true); saveLocalFilesEnabled(true); saveFileBrowserEnabled(true);
   });
   await page.getByRole("button", { name: "本地文件", exact: true }).click();
   const panel = page.getByRole("region", { name: "本地文件树", exact: true });
@@ -108,9 +109,27 @@ test("浏览位置在重新打开时恢复，停用撤销视图，手机切换�
   await expect(left).toBeHidden();
   expect(await browser.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   await page.evaluate(async () => {
-    const { saveLocalFilesEnabled } = await import("/src/lib/plugin-system/builtin-local-files.ts");
-    saveLocalFilesEnabled(false);
+    const { saveFileBrowserEnabled } = await import("/src/lib/plugin-system/builtin-file-browser.ts");
+    saveFileBrowserEnabled(false);
   });
   await expect(browser).toHaveCount(0);
   await expect(page.locator(".note-title")).toHaveValue("浏览前文档");
+});
+
+test("独立活动栏入口在停用本地文件后保留授权并打开文件", async ({ page }) => {
+  const { browser, left, roots } = await fixture(page);
+  await page.evaluate(async () => {
+    const { saveLocalFilesEnabled } = await import("/src/lib/plugin-system/builtin-local-files.ts");
+    saveLocalFilesEnabled(false);
+  });
+  await expect(page.getByRole("button", { name: "本地文件", exact: true })).toHaveCount(0);
+  await expect(browser).toBeVisible();
+  await browser.getByRole("button", { name: "返回原视图", exact: true }).click();
+  await page.getByRole("navigation", { name: "工作区面板" }).getByRole("button", { name: "双栏浏览", exact: true }).click();
+  await expect(left.getByRole("combobox", { name: "选择授权目录" })).toHaveValue(roots.left.id);
+  await left.getByRole("option", { name: /^src/ }).dblclick();
+  await left.getByRole("option", { name: /main.c/ }).dblclick();
+  await expect(page.locator(".cm-content").filter({ visible: true })).toContainText("int main");
+  await page.getByRole("button", { name: "返回原视图", exact: true }).click();
+  await expect(left.getByRole("option", { name: /main.c/ })).toBeVisible();
 });

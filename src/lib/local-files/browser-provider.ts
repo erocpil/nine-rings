@@ -1,7 +1,7 @@
 import { localFileService, type FileNode } from "./service";
 import { pluginRuntime, type PluginActivation } from "../plugin-system/runtime";
 import { mainViews, type LocalFileViewData } from "../plugin-system/main-view-registry";
-import { FILE_BROWSER_IMAGE_VIEW_ID, LOCAL_FILE_VIEW_ID } from "../plugin-system/builtin-local-files";
+import { FILE_BROWSER_IMAGE_VIEW_ID, FILE_BROWSER_FILE_VIEW_ID } from "../plugin-system/builtin-file-browser";
 import { rememberRecentLocalFile } from "./recent";
 import { checkpointLocalFile } from "./session";
 import type { LocalFileListOptions } from "./tree";
@@ -50,7 +50,7 @@ export function localDirectoryProvider(owner: PluginActivation) {
       } else {
         const identity = `${rootId}:${node.id}`, tabs = readLocalFocusTabs();
         if (tabs.closed.includes(identity)) saveLocalFocusTabs({ closed: tabs.closed.filter(id => id !== identity), order: [...tabs.order.filter(id => id !== identity), identity] });
-        mainViews.bind(owner).open(LOCAL_FILE_VIEW_ID, { rootId, nodeId: node.id, name: node.name, ...(location ? { location } : {}) });
+        mainViews.bind(owner).open(FILE_BROWSER_FILE_VIEW_ID, { rootId, nodeId: node.id, name: node.name, ...(location ? { location } : {}) });
         rememberRecentLocalFile({ rootId, rootName, nodeId: node.id, name: node.name });
       }
     },
