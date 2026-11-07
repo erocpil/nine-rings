@@ -17,7 +17,8 @@ import { DocumentTitleBar, DocumentAccessToggle } from "./DocumentChrome";
 import { NavigationButtons } from "./NavigationButtons";
 import { LocalFilePropertiesPanel } from "./LocalFilePropertiesPanel";
 import { DocumentNavigationWorkspace } from "./DocumentNavigationWorkspace";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { isLocalOperationLocked, subscribeLocalOperationLocks } from "../lib/local-files/operation-lock";
 import type { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { localFileService, resolveRelativeNode, type LocalFileSnapshot } from "../lib/local-files/service";
@@ -104,7 +105,9 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
   const [source, setSource] = useState("");
   const [baseSnapshot, setBaseSnapshot] = useState<LocalFileSnapshot | null>(null);
   const [externalSnapshot, setExternalSnapshot] = useState<LocalFileSnapshot | null>(null);
-  const [readOnly, setReadOnly] = useState(() => isLocalFileReadOnly(data.rootId, data.nodeId));
+  const [accessReadOnly, setReadOnly] = useState(() => isLocalFileReadOnly(data.rootId, data.nodeId));
+  const operationLocked = useSyncExternalStore(subscribeLocalOperationLocks, () => isLocalOperationLocked(data.rootId, data.nodeId));
+  const readOnly = accessReadOnly || operationLocked;
   const editing = !readOnly;
   const [preview, setPreview] = useState(() => readReadingState(`local-file:${identity}`).view === "rendered");
   const previewState = useDocumentPreview();
@@ -570,7 +573,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
   useNativeMenuActions({
     "view.tools": { run: () => setMoreTools(!moreTools), checked: moreTools },
     "document.source": { run: isMarkdown ? changeView : () => setPreview(value => !value), checked: !preview, enabled: !loading && (isMarkdown || isMermaid || isFlow) },
-    "document.readonly": { run: () => setLocalFileReadOnly(data.rootId, data.nodeId, !readOnly), checked: readOnly, enabled: !loading },
+    "document.readonly": { run: () => setLocalFileReadOnly(data.rootId, data.nodeId, !readOnly), checked: readOnly, enabled: !loading && !operationLocked },
   }, active);
   useEffect(() => {
     if (!propertiesOpen) return;
@@ -620,7 +623,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
         const revision = new SourceNavigationDocument(sourceRef.current, [], { sourceLanguage: "markdown" });
         recordHistory(revision.offsetAt(selection.from), revision.offsetAt(selection.to));
       }}
-      onReadonlyChange={value => setLocalFileReadOnly(data.rootId, data.nodeId, value)} saveStatus={saveState}
+      onReadonlyChange={operationLocked ? undefined : value => setLocalFileReadOnly(data.rootId, data.nodeId, value)} saveStatus={saveState}
       viewToggle={<button type="button" className="focus-btn" aria-label="显示源码" title="切换到源码模式" onPointerDown={event => event.preventDefault()} onMouseDown={event => event.preventDefault()} onClick={changeView}><ToolbarIcon name="code" /></button>}
       titleActions={<>
         {editing && <button type="button" className="focus-btn" aria-label="保存文件" title="保存到原文件" disabled={!localFileService.canSaveOriginal(data.rootId) || saveState === "saving" || (source === baseSnapshot.source && !renderedFlush.current?.pending())} onClick={() => void save()}><ToolbarIcon name="save" /></button>}
@@ -639,7 +642,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
       onRemoveBookmark={id => setBookmarks(current => current.filter(item => String(item.offset) !== id))}
       onRenameBookmark={(id, label) => setBookmarks(current => current.map(item => String(item.offset) === id ? { ...item, label: label.trim() || source.split("\n")[item.line - 1]?.trim() || `第 ${item.line} 行` } : item))}>
       {controls => <>
-    <DocumentTitleBar className="local-files-toolbar local-file-titlebar"><DocumentAccessToggle readonly={readOnly} title={editing ? "设为只读" : "允许编辑"} aria-label={editing ? "设为只读" : "允许编辑"} onClick={() => setLocalFileReadOnly(data.rootId, data.nodeId, !readOnly)} /><DocumentTitleField title={data.name} value={titleDraft.draft} inputRef={titleInput} preview={readOnly || !canRename} readonly={readOnly}
+    <DocumentTitleBar className="local-files-toolbar local-file-titlebar"><DocumentAccessToggle readonly={readOnly} disabled={operationLocked} title={operationLocked ? "正在执行文件操作，暂时只读" : editing ? "设为只读" : "允许编辑"} aria-label={editing ? "设为只读" : "允许编辑"} onClick={() => setLocalFileReadOnly(data.rootId, data.nodeId, !readOnly)} /><DocumentTitleField title={data.name} value={titleDraft.draft} inputRef={titleInput} preview={readOnly || !canRename} readonly={readOnly}
       onValueChange={titleDraft.setDraft} onFinish={titleDraft.finish} onCommit={rename} onEnter={() => sourceHandle.current?.focus()} onOpenProperties={() => setPropertiesOpen(value => !value)} info={fileInfo} /><span>{saveState === "saving" ? "正在保存…" : saveState === "dirty" ? "未保存" : saveState === "saved" ? "已保存" : "本地文件 · 不参与备份"}</span>
       {editing && <button type="button" className="btn-icon" title={localFileService.canSaveOriginal(data.rootId) ? "保存到原文件（⌘S / Ctrl+S）" : "目录快照不能覆盖原文件，请另存为"} aria-label="保存文件" disabled={!baseSnapshot || !localFileService.canSaveOriginal(data.rootId) || saveState === "saving" || source === baseSnapshot.source} onClick={() => void save()}><ToolbarIcon name="save" /></button>}
       <button type="button" className="btn-icon" title="另存为副本" aria-label="另存为副本" onClick={saveCopy}><ToolbarIcon name="download" /></button>

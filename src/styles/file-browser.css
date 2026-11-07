@@ -68,6 +68,23 @@
 @container (max-width: 880px) { .file-browser-actions kbd { display: none; } }
 .file-browser-operation-dialog [role='status'] { overflow-wrap: anywhere; font-size: 13px; }
 .file-browser-operation-dialog progress { width: 100%; accent-color: var(--accent); }
+.file-browser-queue-dialog { width: min(760px, calc(100vw - 24px)); max-height: min(85vh, 900px); }
+.file-browser-queue-jobs { overflow-y: auto; max-height: 56vh; min-height: 0; }
+.file-browser-job { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.file-browser-job > header { display: flex; gap: 12px; justify-content: space-between; align-items: center; }
+.file-browser-job > header button { min-width: 0; text-align: left; }
+.file-browser-job-items { list-style: none; margin: 8px 0; padding: 0; font-size: 13px; }
+.file-browser-job-items li { display: grid; grid-template-columns: 5em minmax(0, 1fr); gap: 8px; padding: 3px 0; overflow-wrap: anywhere; }
+.file-browser-job-items small { display: block; color: var(--text-secondary); }
+.file-browser-job-error, .file-browser-job-warning, .file-browser-job-items [data-state='uncertain'], .file-browser-job-items [data-state='failed'] { color: var(--danger, #bc7350); }
+.file-browser-queue-dialog > footer { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.file-browser-queue-dialog > footer > button:last-child { margin-left: auto; }
+.file-browser-queue-dialog button:not(.btn-icon) { border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary); color: var(--text); padding: 6px 10px; font: inherit; line-height: 1.4; cursor: pointer; }
+.file-browser-queue-dialog button:not(.btn-icon):hover:not(:disabled) { background: var(--bg-hover); }
+.file-browser-queue-dialog button:disabled { opacity: .45; cursor: default; }
+.file-browser-queue-dialog .file-browser-job > header { padding: 0; }
+.file-browser-queue-dialog .file-browser-job > header button { padding: 2px 0; border-color: transparent; background: transparent; }
+.file-browser-queue-dialog .file-browser-job-items [data-state='completed'] > span:first-child { color: var(--text-secondary); }
 .file-browser-conflict { border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
 .file-browser-conflict > div { display: flex; gap: 8px; margin-top: 8px; }
 .file-browser-directory-host { height: 100%; min-height: 0; }

@@ -101,12 +101,13 @@ test("批量重命名先预览，再按选中顺序执行且保留扩展名", as
   await left.getByRole("option", { name: /^a.c/ }).click();
   await left.getByRole("option", { name: /^b.c/ }).click({ modifiers: ["ControlOrMeta"] });
   await browser.getByRole("button", { name: "批量重命名", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "批量重命名", exact: true });
+  let dialog = page.getByRole("dialog", { name: "批量重命名", exact: true });
   await expect(dialog.getByRole("button", { name: "确认", exact: true })).toBeDisabled();
   await dialog.getByRole("textbox", { name: "命名模板", exact: true }).fill("{n}-{name}{ext}");
   await expect(dialog.getByLabel("重命名预览", { exact: true })).toContainText("a.c → 1-a.c");
   await expect(left.getByRole("option", { name: /^a.c/ })).toHaveCount(1);
   await dialog.getByRole("button", { name: "确认", exact: true }).click();
+  dialog = page.getByRole("dialog", { name: "文件操作队列", exact: true });
   await expect(dialog.getByRole("status")).toContainText("成功 2 项");
   await dialog.getByRole("button", { name: "关闭", exact: true }).click();
   await expect(left.getByRole("option", { name: /^1-a.c/ })).toBeVisible();

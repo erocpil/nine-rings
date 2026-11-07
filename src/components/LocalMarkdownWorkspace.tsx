@@ -96,7 +96,7 @@ export function LocalMarkdownWorkspace({
   onEditorReady?: (editor: Editor | null) => void;
   onSelectionChange?: (selection: { from: number; to: number }) => void;
   onClick: (event: React.MouseEvent<HTMLDivElement>) => void;
-  onReadonlyChange: (readonly: boolean) => void;
+  onReadonlyChange?: (readonly: boolean) => void;
   titleActions: ReactNode;
   viewToggle: ReactNode;
   navigationControls?: ReactNode;

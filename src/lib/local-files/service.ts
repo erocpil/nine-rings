@@ -4,6 +4,7 @@ import { workspacePanels } from "../plugin-system/panel-registry";
 import { pluginRuntime } from "../plugin-system/runtime";
 import { clearLocalFileAccessRules, isLocalFileReadOnly } from "./access";
 import { DEFAULT_LOCAL_FILE_LIST, localFileTreeNodes, type LocalFileListOptions } from "./tree";
+import { beginLocalFileWrite } from "./operation-lock";
 
 export interface FileRoot {
   id: string;
@@ -482,46 +483,49 @@ export const localFileService = {
   },
   async read(rootId: string, node: string): Promise<string> { return (await this.readSnapshot(rootId, node)).source; },
   async write(rootId: string, node: string, source: string, base: LocalFileSnapshot): Promise<LocalFileSnapshot> {
-    const check = guard();
-    if (isLocalFileReadOnly(rootId, node)) throw new Error("此本地文件当前为只读，请先切换为可编辑。");
-    const owner = assert();
-    pluginRuntime.assert(owner, "filesystem.files.write");
-    if (new TextEncoder().encode(source).length > MAX_SOURCE_BYTES) throw new Error("文件超过 4 MiB");
-    if (base.lineEnding === "mixed") throw new Error("文件包含混合换行符；为避免静默改写格式，请使用另存为副本");
-    if (isTauriRuntime()) {
-      const saved = await native<LocalFileSnapshot>("local_files_write", { rootId, node, source, expectedRevision: base.revision, bom: base.bom, lineEnding: base.lineEnding });
+    const finish = beginLocalFileWrite(rootId, node);
+    try {
+      const check = guard();
+      if (isLocalFileReadOnly(rootId, node)) throw new Error("此本地文件当前为只读，请先切换为可编辑。");
+      const owner = assert();
+      pluginRuntime.assert(owner, "filesystem.files.write");
+      if (new TextEncoder().encode(source).length > MAX_SOURCE_BYTES) throw new Error("文件超过 4 MiB");
+      if (base.lineEnding === "mixed") throw new Error("文件包含混合换行符；为避免静默改写格式，请使用另存为副本");
+      if (isTauriRuntime()) {
+        const saved = await native<LocalFileSnapshot>("local_files_write", { rootId, node, source, expectedRevision: base.revision, bom: base.bom, lineEnding: base.lineEnding });
+        check();
+        return saved;
+      }
+      const entry = roots.get(rootId);
+      if (!entry?.handle) throw new Error("目录快照不能保存原文件，请使用另存为");
+      let permission = await entry.handle.queryPermission?.({ mode: "readwrite" });
+      if (permission !== "granted") permission = await entry.handle.requestPermission?.({ mode: "readwrite" });
       check();
-      return saved;
-    }
-    const entry = roots.get(rootId);
-    if (!entry?.handle) throw new Error("目录快照不能保存原文件，请使用另存为");
-    let permission = await entry.handle.queryPermission?.({ mode: "readwrite" });
-    if (permission !== "granted") permission = await entry.handle.requestPermission?.({ mode: "readwrite" });
-    check();
-    if (permission !== "granted") throw new Error("浏览器未授予写入权限；可重新授权或另存为");
-    let dir = entry.handle;
-    const parts = fileSegments(node);
-    for (const part of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(part);
-    const fileHandle = await dir.getFileHandle(parts[parts.length - 1]!);
-    if (!fileHandle.createWritable) throw new Error("当前浏览器不支持写入；可使用另存为");
-    const currentBytes = new Uint8Array(await (await fileHandle.getFile()).arrayBuffer());
-    const currentHash = await crypto.subtle.digest("SHA-256", new Uint8Array(currentBytes).buffer);
-    const currentRevision = [...new Uint8Array(currentHash)].map(value => value.toString(16).padStart(2, "0")).join("");
-    check();
-    if (currentRevision !== base.revision) throw new Error("STALE_REVISION: 磁盘文件已被外部修改");
-    const normalized = source.replace(/\r\n?/g, "\n");
-    const encoded = base.lineEnding === "crlf" ? normalized.replace(/\n/g, "\r\n") : base.lineEnding === "cr" ? normalized.replace(/\n/g, "\r") : normalized;
-    if (new TextEncoder().encode((base.bom ? "\ufeff" : "") + encoded).length > MAX_SOURCE_BYTES) throw new Error("按原换行格式保存后文件超过 4 MiB");
-    const writable = await fileHandle.createWritable();
-    const immediateBytes = new Uint8Array(await (await fileHandle.getFile()).arrayBuffer());
-    const immediateDigest = await crypto.subtle.digest("SHA-256", new Uint8Array(immediateBytes).buffer);
-    const immediateRevision = [...new Uint8Array(immediateDigest)].map(value => value.toString(16).padStart(2, "0")).join("");
-    check();
-    if (immediateRevision !== base.revision) { await writable.abort?.(); throw new Error("STALE_REVISION: 磁盘文件在保存期间被外部修改"); }
-    try { await writable.write((base.bom ? "\ufeff" : "") + encoded); await writable.close(); }
-    catch (error) { try { await writable.close(); } catch { /* keep original failure */ } throw error; }
-    check();
-    return this.readSnapshot(rootId, node);
+      if (permission !== "granted") throw new Error("浏览器未授予写入权限；可重新授权或另存为");
+      let dir = entry.handle;
+      const parts = fileSegments(node);
+      for (const part of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(part);
+      const fileHandle = await dir.getFileHandle(parts[parts.length - 1]!);
+      if (!fileHandle.createWritable) throw new Error("当前浏览器不支持写入；可使用另存为");
+      const currentBytes = new Uint8Array(await (await fileHandle.getFile()).arrayBuffer());
+      const currentHash = await crypto.subtle.digest("SHA-256", new Uint8Array(currentBytes).buffer);
+      const currentRevision = [...new Uint8Array(currentHash)].map(value => value.toString(16).padStart(2, "0")).join("");
+      check();
+      if (currentRevision !== base.revision) throw new Error("STALE_REVISION: 磁盘文件已被外部修改");
+      const normalized = source.replace(/\r\n?/g, "\n");
+      const encoded = base.lineEnding === "crlf" ? normalized.replace(/\n/g, "\r\n") : base.lineEnding === "cr" ? normalized.replace(/\n/g, "\r") : normalized;
+      if (new TextEncoder().encode((base.bom ? "\ufeff" : "") + encoded).length > MAX_SOURCE_BYTES) throw new Error("按原换行格式保存后文件超过 4 MiB");
+      const writable = await fileHandle.createWritable();
+      const immediateBytes = new Uint8Array(await (await fileHandle.getFile()).arrayBuffer());
+      const immediateDigest = await crypto.subtle.digest("SHA-256", new Uint8Array(immediateBytes).buffer);
+      const immediateRevision = [...new Uint8Array(immediateDigest)].map(value => value.toString(16).padStart(2, "0")).join("");
+      check();
+      if (immediateRevision !== base.revision) { await writable.abort?.(); throw new Error("STALE_REVISION: 磁盘文件在保存期间被外部修改"); }
+      try { await writable.write((base.bom ? "\ufeff" : "") + encoded); await writable.close(); }
+      catch (error) { try { await writable.close(); } catch { /* keep original failure */ } throw error; }
+      check();
+      return await this.readSnapshot(rootId, node);
+    } finally { finish(); }
   },
   async saveAs(name: string, source: string, base: LocalFileSnapshot | null): Promise<SaveAsResult> {
     const check = guard();

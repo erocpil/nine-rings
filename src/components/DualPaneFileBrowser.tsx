@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type SetStateAction } from "react";
 import type { MainViewRequest } from "../lib/plugin-system/main-view-registry";
 import { pluginRuntime } from "../lib/plugin-system/runtime";
 import { localFileService, type FileNode, type FileRoot } from "../lib/local-files/service";
 import { FILE_BROWSER_STATE_KEY, browserLocation, navigateBrowserPane, type BrowserPaneState } from "../lib/local-files/browser-state";
 import { activeBrowserPanes, addBrowserTab, exchangeBrowserPanes, mirrorBrowserPath, MAX_BROWSER_TABS, parseBrowserWorkspace, reconcileBrowserTabs, selectBrowserTab, updateBrowserTab } from "../lib/local-files/browser-tabs";
 import { FILE_BROWSER_MUTATION_EVENT, type BrowserMutation, type BrowserOperation } from "../lib/local-files/browser-operations";
+import { getBrowserOperationQueue, browserJobSettled } from "../lib/local-files/browser-operation-queue";
+import { FileBrowserQueueDialog } from "./FileBrowserQueueDialog";
 import { FileBrowserOperationDialog } from "./FileBrowserOperationDialog";
 import { localDirectoryProvider } from "../lib/local-files/browser-provider";
 import { FileBrowserPane } from "./FileBrowserPane";
@@ -31,6 +33,10 @@ export function DualPaneFileBrowser({ request, active, onClose }: {
   const [error, setError] = useState("");
   const [rootsRevision, setRootsRevision] = useState(0);
   const [opening, setOpening] = useState(false);
+  const queue = useMemo(() => getBrowserOperationQueue(request.owner), [request.owner]);
+  const jobs = useSyncExternalStore(queue.subscribe, queue.getSnapshot);
+  const queueBusy = jobs.some(job => !browserJobSettled(job));
+  const [queueOpen, setQueueOpen] = useState(false);
   const [operation, setOperation] = useState<BrowserOperation | null>(null);
   const [listingRevision, setListingRevision] = useState(0);
   const [quickPreview, setQuickPreview] = useState(false);
@@ -48,7 +54,7 @@ export function DualPaneFileBrowser({ request, active, onClose }: {
   const latestState = useRef(state); latestState.current = state;
   const activity = useRef<AbortController | null>(null);
   const provider = useMemo(() => localDirectoryProvider(request.owner), [request.owner]);
-  useEffect(() => { if (!active) { setOperation(null); setTool(null); } }, [active]);
+  useEffect(() => { if (!active) { setOperation(null); setTool(null); setQueueOpen(false); } }, [active]);
   useEffect(() => {
     const changed = (event: Event) => {
       setState(current => reconcileBrowserTabs(current, (event as CustomEvent<BrowserMutation>).detail));
@@ -176,6 +182,7 @@ export function DualPaneFileBrowser({ request, active, onClose }: {
         return <button key={kind} type="button" aria-label={label} disabled={operationDisabled(kind)} title={(kind === "copy" || kind === "move") && !localFileService.canTransfer() ? "双栏传输需要桌面版" : `${label}${shortcut ? `（${shortcut}，列表焦点内）` : ""}`} onClick={() => startOperation(kind)}><ToolbarIcon name={icons[kind]} /><span>{short}</span>{shortcut && <kbd>{shortcut}</kbd>}</button>;
       })}
       </div><div className="file-browser-action-group" role="group" aria-label="浏览工具">
+      <button type="button" aria-label="操作队列" title="查看操作队列与逐项结果" onClick={() => setQueueOpen(true)}><ToolbarIcon name="ordered" /><span>队列{jobs.length ? ` ${jobs.filter(job => !browserJobSettled(job)).length}/${jobs.length}` : ""}{jobs.some(job => job.status === "waiting") ? " · 等待决定" : ""}</span></button>
       <button type="button" aria-label="快速预览" title="快速预览（空格 / F3，列表焦点内）" aria-pressed={quickPreview} onClick={() => setQuickPreview(value => !value)}><ToolbarIcon name="eye" /><span>预览</span></button>
       <button type="button" aria-label="比较目录" title="比较两栏当前目录" disabled={!currentLocation} onClick={openComparison}><ToolbarIcon name="compare" /><span>比较</span></button>
       <button type="button" aria-label="搜索正文" title="搜索活动目录的正文" disabled={!currentLocation} onClick={() => currentLocation && setTool({ kind: "search", scope: { rootId: currentLocation.rootId, node: currentLocation.node } })}><ToolbarIcon name="search" /><span>搜索</span></button>
@@ -186,7 +193,7 @@ export function DualPaneFileBrowser({ request, active, onClose }: {
     {error && <div className="file-browser-error" role="alert">{error}<button type="button" aria-label="关闭浏览错误" onClick={() => setError("")}>×</button></div>}
     {opening && <p role="status" className="file-browser-opening">正在打开文件…</p>}
     <div className="file-browser-panes" style={{ gridTemplateColumns: `minmax(0, ${state.ratio}fr) 5px minmax(0, ${1 - state.ratio}fr)` }}>
-      {([0, 1] as const).map(side => <div key={side} className="file-browser-pane-slot" data-mobile-active={quickPreview ? state.active !== side : state.active === side} style={{ gridColumn: side === 0 ? 1 : 3 }}><div className="file-browser-directory-host" hidden={quickPreview && state.active !== side}><FileBrowserPane key={state.groups[side].tabs[state.groups[side].active].tabId} tabId={state.groups[side].tabs[state.groups[side].active].tabId} onCurrentChange={onCurrentChange} side={side} active={state.active === side} visible={active && (!quickPreview || state.active === side)} refreshPaused={Boolean(operation || tool || opening)} onExternalChange={() => { if (side === state.active) setPreviewRevision(value => value + 1); }} revision={listingRevision} pane={panes[side]} roots={roots} provider={provider} onChange={next => changePane(side, next)} onActivate={() => setState(current => current.active === side ? current : { ...current, active: side })} onChoose={() => void choose(side)} onRefreshRoots={() => setRootsRevision(value => value + 1)} onOpen={(rootId, rootName, node) => void open(rootId, rootName, node)} onOperation={(kind, selection) => startOperation(kind, side, selection)} operationDisabled={(kind, count) => operationDisabled(kind, side, count)} onPreview={() => { setState(current => ({ ...current, active: side })); setQuickPreview(true); }} tabBar={<div className="file-browser-tabs" role="tablist" aria-label={side === 0 ? "左栏目录标签" : "右栏目录标签"}>{state.groups[side].tabs.map((tab, index) => {
+      {([0, 1] as const).map(side => <div key={side} className="file-browser-pane-slot" data-mobile-active={quickPreview ? state.active !== side : state.active === side} style={{ gridColumn: side === 0 ? 1 : 3 }}><div className="file-browser-directory-host" hidden={quickPreview && state.active !== side}><FileBrowserPane key={state.groups[side].tabs[state.groups[side].active].tabId} tabId={state.groups[side].tabs[state.groups[side].active].tabId} onCurrentChange={onCurrentChange} side={side} active={state.active === side} visible={active && (!quickPreview || state.active === side)} refreshPaused={Boolean(operation || tool || opening || queueOpen || queueBusy)} onExternalChange={() => { if (side === state.active) setPreviewRevision(value => value + 1); }} revision={listingRevision} pane={panes[side]} roots={roots} provider={provider} onChange={next => changePane(side, next)} onActivate={() => setState(current => current.active === side ? current : { ...current, active: side })} onChoose={() => void choose(side)} onRefreshRoots={() => setRootsRevision(value => value + 1)} onOpen={(rootId, rootName, node) => void open(rootId, rootName, node)} onOperation={(kind, selection) => startOperation(kind, side, selection)} operationDisabled={(kind, count) => operationDisabled(kind, side, count)} onPreview={() => { setState(current => ({ ...current, active: side })); setQuickPreview(true); }} tabBar={<div className="file-browser-tabs" role="tablist" aria-label={side === 0 ? "左栏目录标签" : "右栏目录标签"}>{state.groups[side].tabs.map((tab, index) => {
         const location = browserLocation(tab), label = location?.node.split("/").pop() || roots.find(root => root.id === location?.rootId)?.name || "目录";
         return <div key={tab.tabId} className="file-browser-tab"><button role="tab" type="button" tabIndex={index === state.groups[side].active ? 0 : -1} aria-selected={index === state.groups[side].active} title={location ? `${roots.find(root => root.id === location.rootId)?.name ?? location.rootId}/${location.node}` : label} onKeyDown={event => {
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -208,7 +215,8 @@ export function DualPaneFileBrowser({ request, active, onClose }: {
       catch (reason) { setError(String(reason)); }
       event.currentTarget.value = "";
     }} />
-    {operation && active && <FileBrowserOperationDialog operation={operation} owner={request.owner} onClose={() => { setOperation(null); setListingRevision(value => value + 1); }} />}
+    {operation && active && <FileBrowserOperationDialog operation={operation} onConfirm={(snapshot, name) => { queue.enqueue(snapshot, name); setOperation(null); setQueueOpen(true); }} onClose={() => setOperation(null)} />}
+    {queueOpen && active && <FileBrowserQueueDialog queue={queue} onClose={() => { setQueueOpen(false); setListingRevision(value => value + 1); }} />}
     {tool && active && <FileBrowserToolDialog title={tool.kind === "search" ? "目录搜索" : "目录比较"} onClose={() => setTool(null)}>{tool.kind === "search" ? <LocalFileSearch embedded roots={roots} showHidden={panes[state.active].showHidden} active={active} initialScope={tool.scope} onClose={() => setTool(null)} onOpen={hit => { setTool(null); void open(hit.rootId, roots.find(root => root.id === hit.rootId)?.name ?? hit.rootId, { id: hit.node, name: hit.node.split("/").pop()!, directory: false, size: 0 }, { from: hit.from, to: hit.to, revision: hit.revision }); }} /> : <FileBrowserComparison directories={tool.directories} names={tool.names} provider={provider} onOpen={(side, node) => { const directory = tool.directories[side]; setTool(null); setQuickPreview(false); setState(current => ({ ...current, active: side })); if (node.directory) changePane(side, current => navigateBrowserPane(current, directory.rootId, node.id)); else void open(directory.rootId, roots.find(root => root.id === directory.rootId)?.name ?? directory.rootId, node); }} />}</FileBrowserToolDialog>}
   </section>;
 }

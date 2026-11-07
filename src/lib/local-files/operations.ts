@@ -1,14 +1,17 @@
 import { localFileService } from "./service";
 import { checkpointLocalFilePath, dirtyLocalFileIdentities, isLocalFileDirty, localFileSessions, saveMountedLocalFile, setLocalFileDirty } from "./session";
 import { listLocalDrafts, readLocalDraft, removeLocalDraft } from "./recovery";
+import { assertLocalOperationUnlocked, type LocalOperationLease } from "./operation-lock";
 
 export function localPathContains(rootId: string, node: string, identity: string) {
   const prefix = `${rootId}:${node}`;
   return identity === prefix || identity.startsWith(node ? `${prefix}/` : prefix);
 }
 /** Capture the mounted editor, then reject any affected dirty or recovered session. */
-export async function assertLocalPathClean(rootId: string, node: string) {
+export async function assertLocalPathClean(rootId: string, node: string, lease?: LocalOperationLease) {
+  assertLocalOperationUnlocked(rootId, node, lease);
   await checkpointLocalFilePath(rootId, node);
+  assertLocalOperationUnlocked(rootId, node, lease);
   const dirty = dirtyLocalFileIdentities().filter(id => localPathContains(rootId, node, id));
   if (dirty.length || (await listLocalDrafts()).some(draft => localPathContains(rootId, node, draft.identity) && draft.source !== draft.baseSource))
     throw new Error("此路径包含未保存编辑或恢复草稿，请先在“未保存文件”中保存或处理后再操作。");
