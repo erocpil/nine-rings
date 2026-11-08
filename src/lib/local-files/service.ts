@@ -34,6 +34,7 @@ export interface LocalFileFingerprint {
   modifiedMs: number;
   size: number;
 }
+export interface LocalFileDigest extends LocalFileFingerprint { digest: string }
 export type SaveAsResult = "saved" | "cancelled" | "unsupported";
 export const MAX_SOURCE_BYTES = 4 * 1024 * 1024;
 export function fileSegments(path: string): string[] {
@@ -124,6 +125,32 @@ async function requestWritePermission(handle: DirectoryHandle, check: () => void
   if (permission !== "granted") throw new Error("浏览器未授予目录写入权限");
 }
 export const localFileService = {
+  digestByteLimit: () => (isTauriRuntime() ? 256 : 16) * 1024 * 1024,
+  async digest(rootId: string, node: string): Promise<LocalFileDigest> {
+    const check = guard();
+    pluginRuntime.assert(assert(), "filesystem.files.read");
+    if (!fileSegments(node).length) throw new Error("请选择普通文件");
+    if (isTauriRuntime()) {
+      const result = await native<LocalFileDigest>("local_files_digest", { rootId, node }); check(); return result;
+    }
+    const entry = roots.get(rootId);
+    if (!entry) throw new Error("目录授权已失效");
+    let file = entry.files?.get(node);
+    if (entry.handle) {
+      let dir = entry.handle; const parts = fileSegments(node);
+      for (const part of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(part);
+      file = await (await dir.getFileHandle(parts[parts.length - 1]!)).getFile();
+    }
+    check();
+    if (!file) throw new Error("文件已移动或不可访问");
+    if (file.size > 16 * 1024 * 1024) throw new Error("Web 摘要比较单文件最多 16 MiB");
+    const bytes = await file.arrayBuffer(); check();
+    if (bytes.byteLength !== file.size) throw new Error("摘要读取期间文件变化");
+    const hash = await crypto.subtle.digest("SHA-256", bytes); check();
+    const after = await this.stat(rootId, node); check();
+    if (after.size !== file.size || after.modifiedMs !== file.lastModified) throw new Error("摘要读取期间文件变化");
+    return { ...after, digest: [...new Uint8Array(hash)].map(value => value.toString(16).padStart(2, "0")).join("") };
+  },
   supportsDirectoryPicker: () =>
     isTauriRuntime() ||
     typeof (window as unknown as { showDirectoryPicker?: unknown })

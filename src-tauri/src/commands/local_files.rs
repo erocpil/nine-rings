@@ -27,6 +27,197 @@ pub struct Fingerprint {
     modified_ms: u128,
     size: u64,
 }
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentDigest {
+    digest: String,
+    size: u64,
+    modified_ms: u128,
+}
+const MAX_DIGEST_BYTES: u64 = 256 * 1024 * 1024;
+
+#[cfg(test)]
+mod digest_tests {
+    use super::*;
+    struct Fixture(PathBuf);
+    impl Fixture {
+        fn new() -> Self {
+            let path = std::env::temp_dir().join(format!("nr-digest-{}", uuid::Uuid::new_v4()));
+            fs::create_dir(&path).unwrap();
+            Self(fs::canonicalize(path).unwrap())
+        }
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    #[test]
+    fn raw_digest_is_binary_safe_bounded_and_checks_exact_length() {
+        for bytes in [vec![], vec![0, 255, 1, 13, 10], vec![17; 5 * 1024 * 1024]] {
+            assert_eq!(
+                digest_stream(bytes.as_slice(), bytes.len() as u64).unwrap(),
+                format!("{:x}", Sha256::digest(&bytes))
+            );
+        }
+        assert!(digest_stream(&b"ab"[..], 1).unwrap_err().contains("增长"));
+        assert!(digest_stream(&b"a"[..], 2).unwrap_err().contains("截断"));
+        assert!(digest_stream(&b""[..], MAX_DIGEST_BYTES + 1)
+            .unwrap_err()
+            .contains("256 MiB"));
+        struct Failure;
+        impl Read for Failure {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other("read failed"))
+            }
+        }
+        assert!(digest_stream(Failure, 1)
+            .unwrap_err()
+            .contains("read failed"));
+    }
+    #[test]
+    fn digest_is_scoped_readonly_and_rejects_directories_and_oversized_files() {
+        let fixture = Fixture::new();
+        fs::write(fixture.0.join("data.bin"), [0, 255, 9]).unwrap();
+        let result = content_digest(&fixture.0, "data.bin").unwrap();
+        assert_eq!(result.size, 3);
+        assert_eq!(result.digest, format!("{:x}", Sha256::digest([0, 255, 9])));
+        assert_eq!(fs::read(fixture.0.join("data.bin")).unwrap(), [0, 255, 9]);
+        assert!(content_digest(&fixture.0, "../escape").is_err());
+        assert!(content_digest(&fixture.0, "").is_err());
+        fs::create_dir(fixture.0.join("dir")).unwrap();
+        assert!(content_digest(&fixture.0, "dir").is_err());
+        fs::File::create(fixture.0.join("large.bin"))
+            .unwrap()
+            .set_len(MAX_DIGEST_BYTES + 1)
+            .unwrap();
+        assert!(content_digest(&fixture.0, "large.bin")
+            .unwrap_err()
+            .contains("256 MiB"));
+    }
+    #[test]
+    fn digest_identity_detects_replacement_and_rejects_links() {
+        let fixture = Fixture::new();
+        let path = fixture.0.join("data");
+        fs::write(&path, [0, 1]).unwrap();
+        let before = fs::metadata(&path).unwrap();
+        assert!(same_digest_identity(&before, &fs::metadata(&path).unwrap()));
+        fs::write(&path, [0, 1, 2]).unwrap();
+        assert!(!same_digest_identity(
+            &before,
+            &fs::metadata(&path).unwrap()
+        ));
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&path, fixture.0.join("link")).unwrap();
+            assert!(content_digest(&fixture.0, "link").is_err());
+            fs::write(fixture.0.join("other"), [0, 1]).unwrap();
+            assert!(!same_digest_identity(
+                &before,
+                &fs::metadata(fixture.0.join("other")).unwrap()
+            ));
+        }
+    }
+}
+
+fn digest_stream(reader: impl Read, length: u64) -> Result<String, String> {
+    if length > MAX_DIGEST_BYTES {
+        return Err("摘要比较单文件最多 256 MiB".into());
+    }
+    let mut reader = reader.take(length + 1);
+    let mut buffer = [0u8; 65536];
+    let mut hash = Sha256::new();
+    let mut read = 0;
+    loop {
+        let count = reader.read(&mut buffer).map_err(|e| e.to_string())?;
+        if count == 0 {
+            break;
+        }
+        read += count as u64;
+        if read > length {
+            return Err("摘要读取期间文件增长".into());
+        }
+        hash.update(&buffer[..count]);
+    }
+    if read != length {
+        return Err("摘要读取期间文件截断".into());
+    }
+    Ok(format!("{:x}", hash.finalize()))
+}
+fn same_digest_identity(a: &fs::Metadata, b: &fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if a.dev() != b.dev() || a.ino() != b.ino() {
+            return false;
+        }
+    }
+    a.is_file()
+        && b.is_file()
+        && !is_link(a)
+        && !is_link(b)
+        && a.len() == b.len()
+        && a.modified().ok() == b.modified().ok()
+        && a.created().ok() == b.created().ok()
+}
+fn content_digest(root: &Path, node: &str) -> Result<ContentDigest, String> {
+    if node.is_empty() {
+        return Err("请选择普通文件".into());
+    }
+    let path = checked_path(root, node)?;
+    let before = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+    if !before.is_file() || is_link(&before) {
+        return Err("摘要仅支持普通文件".into());
+    }
+    // Check the budget before opening: never wait on a device/pipe or allocate
+    // a buffer proportional to the file. The bounded stream rejects growth.
+    if before.len() > MAX_DIGEST_BYTES {
+        return Err("摘要比较单文件最多 256 MiB".into());
+    }
+    let file = fs::File::open(&path).map_err(|e| e.to_string())?;
+    if !same_digest_identity(&before, &file.metadata().map_err(|e| e.to_string())?) {
+        return Err("摘要打开期间文件变化".into());
+    }
+    let digest = digest_stream(&file, before.len())?;
+    let current = checked_path(root, node)?;
+    if path != current
+        || !same_digest_identity(&before, &file.metadata().map_err(|e| e.to_string())?)
+        || !same_digest_identity(
+            &before,
+            &fs::symlink_metadata(current).map_err(|e| e.to_string())?,
+        )
+    {
+        return Err("摘要读取期间文件变化".into());
+    }
+    Ok(ContentDigest {
+        digest,
+        size: before.len(),
+        modified_ms: before
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|duration| duration.as_millis())
+            .unwrap_or_default(),
+    })
+}
+#[tauri::command]
+pub async fn local_files_digest(
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    node: String,
+) -> Result<ContentDigest, String> {
+    caller(&window)?;
+    let root = library.root(&root_id)?;
+    let expected = root.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || content_digest(&root, &node))
+        .await
+        .map_err(|e| e.to_string())??;
+    if library.root(&root_id)? != expected {
+        return Err("目录授权已变化".into());
+    }
+    Ok(result)
+}
 #[derive(Default)]
 pub struct LocalFiles {
     roots: Arc<Mutex<HashMap<String, PathBuf>>>,

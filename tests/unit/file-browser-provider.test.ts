@@ -159,3 +159,24 @@ it("authenticates bounded original-byte digests and refuses changed or revoked r
   });
   await expect(provider.contentDigest("r", "a.txt", signal)).rejects.toThrow();
 });
+
+it("raw-byte comparison uses the scoped digest service and rejects a late result after revocation", async () => {
+  pluginRuntime.setEnabled(true);
+  const owner = pluginRuntime.activate("test.browser", [
+    "filesystem.files.read",
+  ]);
+  const read = vi.spyOn(localFileService, "readSnapshot");
+  vi.spyOn(localFileService, "digest").mockImplementation(async () => {
+    pluginRuntime.deactivate(owner.pluginId);
+    return { size: 3, modifiedMs: 50, digest: "sha" };
+  });
+  await expect(
+    localDirectoryProvider(owner).contentDigest(
+      "r",
+      "binary",
+      new AbortController().signal,
+      true,
+    ),
+  ).rejects.toThrow();
+  expect(read).not.toHaveBeenCalled();
+});

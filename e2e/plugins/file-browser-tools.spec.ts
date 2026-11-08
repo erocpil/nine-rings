@@ -502,3 +502,31 @@ test("选中大小只汇总已知文件，目录不递归也不冒充零字节",
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await left.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
 });
+
+test("原始字节比较支持二进制，默认与正文模式分开，超预算保持未知", async ({ page }) => {
+  const { browser, left, right } = await fixture(page);
+  const roots = await page.evaluate(async () => {
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    const file = (path: string, bytes: Uint8Array) => { const result = new File([new Uint8Array(bytes).buffer], path.split("/").pop()!, { lastModified: 5000 }); Object.defineProperty(result, "webkitRelativePath", { value: path }); return result; };
+    const large = new Uint8Array(17 * 1024 * 1024);
+    return ["L", "R"].map(root => localFileService.addFiles([file(`${root}/equal.bin`, new Uint8Array([0, 255, 1])), file(`${root}/different.bin`, new Uint8Array([0, root === "L" ? 255 : 254, 1])), file(`${root}/large.bin`, large)])!);
+  });
+  await left.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await left.getByRole("combobox", { name: "选择授权目录" }).selectOption(roots[0].id);
+  await right.getByRole("combobox", { name: "选择授权目录" }).selectOption(roots[1].id);
+  await browser.getByRole("button", { name: "比较目录", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "目录比较", exact: true });
+  const row = (name: string) => dialog.getByRole("row").filter({ has: page.getByRole("cell", { name, exact: true }) });
+  await expect(row("different.bin")).toContainText("元信息一致");
+  await dialog.getByLabel("核验 UTF-8 正文", { exact: true }).check();
+  await dialog.getByRole("button", { name: "重新比较", exact: true }).click();
+  await expect(row("equal.bin")).toContainText("未知");
+  await expect(dialog.getByRole("status")).toContainText("完成");
+  await dialog.getByLabel("核验原始字节（含二进制）", { exact: true }).check();
+  await expect(dialog.getByLabel("核验 UTF-8 正文", { exact: true })).not.toBeChecked();
+  await dialog.getByRole("button", { name: "重新比较", exact: true }).click();
+  await expect(row("equal.bin")).toContainText("字节相同");
+  await expect(row("different.bin")).toContainText("字节不同");
+  await expect(row("large.bin")).toContainText("未知");
+  await expect(row("large.bin")).toContainText("16 MiB");
+});

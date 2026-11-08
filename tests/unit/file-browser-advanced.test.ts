@@ -202,6 +202,42 @@ it("cancels after an in-flight content read and does not read the other side", a
   ).rejects.toThrow();
   expect(provider.contentDigest).toHaveBeenCalledTimes(1);
 });
+
+it("keeps raw-byte mode separate, applies provider limits and forwards the explicit binary request", async () => {
+  const provider = { ...adapter(), digestByteLimit: () => 16 * 1024 * 1024 };
+  provider.properties.mockResolvedValue({
+    size: 5 * 1024 * 1024,
+    modifiedMs: 50,
+  });
+  provider.contentDigest.mockResolvedValue({
+    size: 5 * 1024 * 1024,
+    modifiedMs: 50,
+    digest: "binary-sha",
+  });
+  const result = await compareBrowserDirectories(
+    provider,
+    roots,
+    new AbortController().signal,
+    () => {},
+    { depth: 1, content: true, binary: true },
+  );
+  expect(result[1].status).toBe("content");
+  expect(provider.contentDigest.mock.calls[0]).toEqual([
+    "l",
+    "src/a.txt",
+    expect.any(AbortSignal),
+    true,
+  ]);
+  await expect(
+    compareBrowserDirectories(
+      { ...provider, digestByteLimit: () => Infinity },
+      roots,
+      new AbortController().signal,
+      () => {},
+      { depth: 0, content: true, binary: true },
+    ),
+  ).rejects.toThrow("预算");
+});
 it("preserves active identity across tab reorder, protects pins, and restores independent history after persistence", () => {
   let state = parseBrowserWorkspace(null);
   for (const name of ["first", "second", "third"]) {

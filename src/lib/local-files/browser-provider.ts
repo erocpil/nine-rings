@@ -15,8 +15,10 @@ function check(owner: PluginActivation, signal?: AbortSignal) {
  * native IPC already in progress still settles under its own grant-generation check. */
 export function localDirectoryProvider(owner: PluginActivation) {
   return {
-    async contentDigest(rootId: string, node: string, signal: AbortSignal) {
+    digestByteLimit: () => localFileService.digestByteLimit(),
+    async contentDigest(rootId: string, node: string, signal: AbortSignal, binary = false) {
       check(owner, signal);
+      if (binary) { const result = await localFileService.digest(rootId, node); check(owner, signal); return result; }
       const before = await localFileService.stat(rootId, node);
       check(owner, signal);
       if (before.size > 4 * 1024 * 1024) throw new Error("正文比较单文件最多 4 MiB");

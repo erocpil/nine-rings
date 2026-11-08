@@ -3,8 +3,8 @@ import type { localDirectoryProvider } from "./browser-provider";
 
 export interface BrowserDirectory { rootId: string; node: string }
 export interface ComparedBrowserEntry { name: string; left?: FileNode; right?: FileNode; status: "left" | "right" | "type" | "metadata" | "different" | "directory" | "unknown" | "content" | "content-different"; issue?: string }
-export interface BrowserCompareOptions { depth: number; content: boolean }
-type Provider = Pick<ReturnType<typeof localDirectoryProvider>, "page" | "properties"> & Partial<Pick<ReturnType<typeof localDirectoryProvider>, "contentDigest">>;
+export interface BrowserCompareOptions { depth: number; content: boolean; binary?: boolean }
+type Provider = Pick<ReturnType<typeof localDirectoryProvider>, "page" | "properties"> & Partial<Pick<ReturnType<typeof localDirectoryProvider>, "contentDigest" | "digestByteLimit">>;
 const MAX_ENTRIES = 10000, MAX_CONTENT_BYTES = 32 * 1024 * 1024;
 const same = (a: LocalFileFingerprint, b: LocalFileFingerprint) => a.size === b.size && a.modifiedMs === b.modifiedMs;
 
@@ -12,6 +12,9 @@ const same = (a: LocalFileFingerprint, b: LocalFileFingerprint) => a.size === b.
  * A failed/limited traversal must never turn into an apparently complete result. */
 export async function compareBrowserDirectories(provider: Provider, directories: [BrowserDirectory, BrowserDirectory], signal: AbortSignal, onProgress: (message: string) => void, options: BrowserCompareOptions = { depth: 0, content: false }): Promise<ComparedBrowserEntry[]> {
   if (!Number.isInteger(options.depth) || options.depth < 0 || options.depth > 8) throw new Error("递归深度须为 0–8");
+  const fileLimit = options.binary ? provider.digestByteLimit?.() ?? 16 * 1024 * 1024 : MAX_SOURCE_BYTES;
+  if (!Number.isSafeInteger(fileLimit) || fileLimit <= 0 || fileLimit > 256 * 1024 * 1024) throw new Error("无效的摘要预算");
+  const totalLimit = options.binary ? fileLimit * 2 : MAX_CONTENT_BYTES;
   const sides: Map<string, FileNode>[] = [];
   const metadata = new Map<FileNode, LocalFileFingerprint | string>();
   for (const [side, directory] of directories.entries()) {
@@ -61,15 +64,15 @@ export async function compareBrowserDirectories(provider: Provider, directories:
       const a = metadata.get(left), b = metadata.get(right);
       if (!a || !b || typeof a === "string" || typeof b === "string") row.issue = [a, b].filter(value => typeof value === "string").join("；");
       else if (!options.content) row.status = same(a, b) ? "metadata" : "different";
-      else if (a.size > MAX_SOURCE_BYTES || b.size > MAX_SOURCE_BYTES || contentBytes + a.size + b.size > MAX_CONTENT_BYTES) row.issue = "未读取：单文件最多 4 MiB，本次累计最多 32 MiB；不能据元信息判为内容相同";
+      else if (a.size > fileLimit || b.size > fileLimit || contentBytes + a.size + b.size > totalLimit) row.issue = `未读取：单文件最多 ${fileLimit / 1024 / 1024} MiB，本次累计最多 ${totalLimit / 1024 / 1024} MiB；不能据元信息判为内容相同`;
       else {
         contentBytes += a.size + b.size;
         try {
           if (!provider.contentDigest) throw new Error("此提供者不支持正文比较");
           // Sequential reads bound memory and allow cancellation between files.
-          const l = await provider.contentDigest(directories[0].rootId, left.id, signal);
+          const l = await provider.contentDigest(directories[0].rootId, left.id, signal, options.binary);
           signal.throwIfAborted();
-          const r = await provider.contentDigest(directories[1].rootId, right.id, signal);
+          const r = await provider.contentDigest(directories[1].rootId, right.id, signal, options.binary);
           signal.throwIfAborted();
           const afterL = await provider.properties(directories[0].rootId, left.id, signal);
           const afterR = await provider.properties(directories[1].rootId, right.id, signal);
@@ -80,7 +83,7 @@ export async function compareBrowserDirectories(provider: Provider, directories:
       }
     }
     rows.push(row); done++;
-    if (options.content) onProgress(`已比较 ${done} / ${names.length} 项 · 正文读取预算 ${(contentBytes / 1024 / 1024).toFixed(1)} / 32 MiB`);
+    if (options.content) onProgress(`已比较 ${done} / ${names.length} 项 · 读取预算 ${(contentBytes / 1024 / 1024).toFixed(1)} / ${totalLimit / 1024 / 1024} MiB`);
   }
   return rows;
 }
