@@ -1,5 +1,6 @@
 import { pluginRuntime, type PluginActivation } from "../plugin-system/runtime";
 import { runBrowserOperation, operationTarget, type BrowserOperation, type BrowserProgress, type BrowserItemResult, type ConflictDecision } from "./browser-operations";
+import { BrowserQueueHistory } from "./browser-queue-history";
 
 export const browserOperationTitles = { copy: "复制到另一栏", move: "移动到另一栏", rename: "重命名", "batch-rename": "批量重命名", file: "新建文件", directory: "新建文件夹", trash: "移入系统回收站" } as const;
 export interface BrowserJob {
@@ -24,11 +25,15 @@ export class BrowserOperationQueue {
   private paused = false;
   isPaused = () => this.paused;
   private current: { id: number; controller: AbortController; decide?: (value: ConflictDecision) => void } | null = null;
-  constructor(private owner: PluginActivation) {}
+  private history?: BrowserQueueHistory;
+  constructor(private owner: PluginActivation, persistResults = false) { if (persistResults) this.history = new BrowserQueueHistory(); }
+  historyKey = () => this.history?.key;
+  historyIssue = () => this.history?.issue ?? "";
   getSnapshot = () => this.jobs;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private publish(jobs: readonly BrowserJob[]) {
     this.jobs = Object.freeze([...jobs]);
+    this.history?.capture(this.jobs);
     for (const listener of this.listeners) { try { listener(); } catch { /* isolate UI observers */ } }
   }
   private update(id: number, patch: Partial<BrowserJob>) { this.publish(this.jobs.map(job => job.id === id ? Object.freeze({ ...job, ...patch }) : job)); }
@@ -76,7 +81,7 @@ export class BrowserOperationQueue {
     this.update(id, { conflict: undefined, status: "running" }); resolve(value);
   }
   clearFinished() { this.publish(this.jobs.filter(job => !browserJobSettled(job))); }
-  dispose() { if (this.disposed) return; this.disposed = true; this.stopAll(); this.listeners.clear(); }
+  dispose() { if (this.disposed) return; this.disposed = true; this.stopAll(); this.history?.dispose(); this.listeners.clear(); }
   private async drain() {
     if (this.draining || this.disposed || this.paused) return;
     this.draining = true;
@@ -123,7 +128,7 @@ const queues = new WeakMap<PluginActivation, BrowserOperationQueue>();
 export function getBrowserOperationQueue(owner: PluginActivation) {
   let queue = queues.get(owner);
   if (!queue) {
-    queue = new BrowserOperationQueue(owner);
+    queue = new BrowserOperationQueue(owner, true);
     pluginRuntime.own(owner, () => queue!.dispose());
     queues.set(owner, queue);
   }

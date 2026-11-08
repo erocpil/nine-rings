@@ -42,6 +42,30 @@ async function setup(page: Page) {
   return { browser, left, right };
 }
 
+test("重新激活双栏后可核对历史结果，但不恢复或重试磁盘任务", async ({ page }) => {
+  const { browser, left } = await setup(page);
+  await left.getByRole("option", { name: /b.c/ }).click();
+  await browser.getByRole("button", { name: "复制到另一栏", exact: true }).click();
+  await page.getByRole("dialog", { name: "复制到另一栏", exact: true }).getByRole("button", { name: "确认", exact: true }).click();
+  let dialog = page.getByRole("dialog", { name: "文件操作队列", exact: true });
+  await expect(dialog.getByRole("status")).toContainText("成功 1 项");
+  await dialog.getByRole("button", { name: "关闭", exact: true }).click();
+  await page.evaluate(async () => { const { saveFileBrowserEnabled } = await import("/src/lib/plugin-system/builtin-file-browser.ts"); saveFileBrowserEnabled(false); });
+  await expect(browser).toHaveCount(0);
+  await page.evaluate(async () => { const { saveFileBrowserEnabled } = await import("/src/lib/plugin-system/builtin-file-browser.ts"); saveFileBrowserEnabled(true); });
+  await page.getByRole("navigation", { name: "工作区面板", exact: true }).getByRole("button", { name: "双栏浏览", exact: true }).click();
+  await browser.getByRole("button", { name: "操作队列", exact: true }).click();
+  dialog = page.getByRole("dialog", { name: "文件操作队列", exact: true });
+  await dialog.locator(".file-browser-queue-history > summary").click();
+  await dialog.locator(".file-browser-queue-history details > summary").click();
+  await expect(dialog.locator(".file-browser-queue-history pre")).toContainText("成功 1");
+  await expect(dialog.locator(".file-browser-queue-jobs")).toContainText("当前没有操作记录");
+  await expect(dialog.getByRole("button", { name: /重试未完成项/ })).toHaveCount(0);
+  expect(await page.evaluate(() => (window as any).__browserOperations.attempts)).toEqual(["b.c"]);
+  await dialog.getByRole("button", { name: "清除历史记录", exact: true }).click();
+  await expect(dialog.locator(".file-browser-queue-history pre")).toHaveCount(0);
+});
+
 test("双栏复制冲突改名并继续，保留源文件和已有目标，进度准确", async ({ page }) => {
   const { browser, left, right } = await setup(page);
   await left.getByRole("option", { name: /a.c/ }).click();

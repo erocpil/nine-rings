@@ -6,6 +6,7 @@ import { browserJobSettled, browserOperationTitles, browserQueueReport, retryBro
 import { operationTarget } from "../lib/local-files/browser-operations";
 import { copyToClipboard } from "../lib/clipboard";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { FileBrowserQueueHistory } from "./FileBrowserQueueHistory";
 
 const jobLabels = { queued: "排队中", running: "执行中", waiting: "等待决定", completed: "已完成", stopped: "已停止", failed: "执行失败" };
 const itemLabels = { pending: "未执行", checking: "预检中", running: "执行中", completed: "成功", skipped: "跳过", failed: "预检失败", uncertain: "需核对" };
@@ -35,6 +36,8 @@ export function FileBrowserQueueDialog({ queue, onClose }: { queue: BrowserOpera
   return createPortal(<dialog ref={dialog} className="plugin-parameter-dialog local-file-operation-dialog file-browser-operation-dialog file-browser-queue-dialog" aria-label="文件操作队列" onCancel={event => { event.preventDefault(); onClose(); }}>
     <header><strong>文件操作队列</strong><button ref={close} type="button" className="btn-icon" aria-label="收起操作队列" onClick={onClose}><ToolbarIcon name="close" /></button></header>
     <p>按确认顺序逐项执行。收起后继续；停止会等待当前项结束。成功和跳过项不会重复执行。</p>
+    {queue.historyIssue() && <p role="alert" className="file-browser-job-warning">{queue.historyIssue()}</p>}
+    <FileBrowserQueueHistory current={queue.historyKey()} onError={value => showMessage(value, "error")} />
     {queue.isPaused() && <p className="file-browser-job-warning">队列因失败暂停。请先核对结果，再继续其余已确认任务。<button type="button" onClick={() => queue.resume()}>继续排队任务</button></p>}
     <div className="file-browser-queue-jobs">{jobs.length ? jobs.map(job => <QueueJob key={job.id} job={job} queue={queue} onError={value => showMessage(value, "error")} />) : <p>当前没有操作记录。</p>}</div>
     {message && <p role="status">{message}</p>}

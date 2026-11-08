@@ -1,6 +1,11 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-11-09",
+    title: "双栏操作历史",
+    changes: ["双栏操作结果保存在本机，重新启动或启停插件后可查看、复制和清除；历史只供核对，不会自动重放磁盘任务。"],
+  },
+  {
     date: "2026-11-08",
     title: "双栏移动与进阶浏览",
     changes: [
