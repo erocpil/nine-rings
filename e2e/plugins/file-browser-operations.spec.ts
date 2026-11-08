@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createBlankDocument } from "../helpers/document";
+import { sourceInfo, selectSource } from "../helpers/source-editor";
 
 async function setup(page: Page) {
   await createBlankDocument(page, "双栏操作之前的文档");
@@ -244,6 +245,66 @@ test("未知写入失败保留逐项结果，仅重试尚未执行的项", async
   await queue.getByRole("button", { name: "继续排队任务", exact: true }).click();
   await expect(queue.getByRole("article", { name: "任务 2", exact: true }).getByRole("status")).toContainText("已完成：成功 1 项");
   expect(await page.evaluate(() => (window as any).__browserOperations.attempts)).toEqual(["a.c", "b.c", "c.c"]);
+});
+
+test("跨磁盘目标已发布但来源未收尾时保留两端，排除重复移动", async ({ page }) => {
+  const { browser, left, right } = await setup(page);
+  await page.evaluate(async () => {
+    const fixture = (window as any).__browserOperations; fixture.nodes.get("right").clear();
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    const transfer = localFileService.transfer;
+    localFileService.transfer = async (...args) => {
+      if (args[1] === "a.c") {
+        fixture.attempts.push("a.c"); fixture.nodes.get("right").set("a.c", fixture.nodes.get("left").get("a.c"));
+        throw new Error("MOVE_COPY_PUBLISHED: 目标副本已发布；TARGET_EXISTS: 来源尚未确认移至系统回收站，请核对两处");
+      }
+      return transfer(...args);
+    };
+  });
+  await left.getByRole("option", { name: /a.c/ }).click();
+  await left.getByRole("option", { name: /b.c/ }).click({ modifiers: ["ControlOrMeta"] });
+  await browser.getByRole("button", { name: "移动到另一栏", exact: true }).click();
+  const confirm = page.getByRole("dialog", { name: "移动到另一栏", exact: true });
+  await expect(confirm).toContainText("跨磁盘先复制并校验");
+  await confirm.getByRole("button", { name: "确认", exact: true }).click();
+  const queue = page.getByRole("dialog", { name: "文件操作队列", exact: true });
+  await expect(queue).toContainText("队列因失败暂停");
+  await expect(queue.locator('[data-state="uncertain"]')).toContainText("a.c");
+  await expect(queue.getByRole("group", { name: "同名冲突：a.c", exact: true })).toHaveCount(0);
+  await queue.getByRole("button", { name: "重试未完成项（1）", exact: true }).click();
+  await queue.getByRole("button", { name: "继续排队任务", exact: true }).click();
+  await expect(queue.getByRole("article", { name: "任务 2", exact: true }).getByRole("status")).toContainText("已完成：成功 1 项");
+  expect(await page.evaluate(() => (window as any).__browserOperations.attempts)).toEqual(["a.c", "b.c"]);
+  expect(await page.evaluate(() => [...(window as any).__browserOperations.nodes.get("left")])).toEqual([["a.c", "A"]]);
+  expect(await page.evaluate(() => [...(window as any).__browserOperations.nodes.get("right")])).toEqual([["a.c", "A"], ["b.c", "B"]]);
+  await queue.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(left.getByRole("option", { name: /a.c/ })).toBeVisible();
+  await expect(right.getByRole("option", { name: /a.c/ })).toBeVisible();
+});
+
+test("后台移动已打开来源时同步视图身份并保留光标，不重建旧路径缓存", async ({ page }) => {
+  const { browser, left } = await setup(page);
+  await page.evaluate(async () => {
+    const fixture = (window as any).__browserOperations; fixture.nodes.get("right").clear(); fixture.slow = true;
+    fixture.nodes.get("left").set("a.c", "int alpha;\nint beta;\n");
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    localFileService.readSnapshot = async (root, node) => ({ source: fixture.nodes.get(root).get(node), revision: "r1", size: 1, modifiedMs: 1, bom: false, lineEnding: "lf" });
+  });
+  await left.getByRole("option", { name: /a.c/ }).click();
+  await browser.getByRole("button", { name: "移动到另一栏", exact: true }).click();
+  await page.getByRole("dialog", { name: "移动到另一栏", exact: true }).getByRole("button", { name: "确认", exact: true }).click();
+  const queue = page.getByRole("dialog", { name: "文件操作队列", exact: true });
+  await expect.poll(() => page.evaluate(() => Boolean((window as any).__browserOperations.finish))).toBe(true);
+  await queue.getByRole("button", { name: "收起", exact: true }).click();
+  await left.getByRole("option", { name: /a.c/ }).dblclick();
+  const area = page.locator(".local-file-view .cm-content");
+  await expect(area).toContainText("int beta;");
+  await selectSource(area, 14);
+  await page.evaluate(() => { const fixture = (window as any).__browserOperations; fixture.slow = false; fixture.finish(); });
+  await expect.poll(() => page.evaluate(async () => (await import("/src/lib/plugin-system/main-view-registry.ts")).mainViews.getSnapshot().current?.data)).toMatchObject({ rootId: "right", nodeId: "a.c" });
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(14);
+  await expect(area).toHaveAttribute("contenteditable", "true");
+  expect(await page.evaluate(async () => (await import("/src/lib/local-files/session.ts")).localFileSessions.has("left:a.c"))).toBe(false);
 });
 
 test("后台处理来源文件时暂时只读，完成后恢复且不改变权限偏好", async ({ page }) => {

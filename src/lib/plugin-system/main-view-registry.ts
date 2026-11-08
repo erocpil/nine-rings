@@ -242,6 +242,18 @@ export class MainViewRegistry {
       },
     });
   }
+  /** Host-only identity migration after a confirmed disk operation. */
+  relocateLocalFile(actor: PluginActivation, rootId: string, node: string, targetRootId: string, targetNode: string) {
+    this.runtime.assert(actor, "filesystem.files.write");
+    const relocate = (request: MainViewRequest | null): MainViewRequest | null => {
+      if (request?.renderer !== "local-file" || request.data.rootId !== rootId || !(request.data.nodeId === node || request.data.nodeId.startsWith(`${node}/`))) return request;
+      const nodeId = targetNode + request.data.nodeId.slice(node.length);
+      return Object.freeze({ ...request, data: Object.freeze({ ...request.data, rootId: targetRootId, nodeId, name: nodeId.split("/").pop()! }) });
+    };
+    // Host relocation is not a new navigation request: preserve suspension,
+    // request IDs and any unrelated pending destination/save gate.
+    this.publish({ current: relocate(this.snapshot.current), pending: relocate(this.snapshot.pending) });
+  }
   /** Host accepts only after saving. A stale/disabled request cannot replace the workspace. */
   accept(id: number) {
     const pending = this.snapshot.pending;

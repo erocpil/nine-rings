@@ -2,6 +2,7 @@ pub mod config;
 pub mod doc_tree;
 pub mod export;
 pub mod external_link;
+mod local_file_transfer;
 pub mod note;
 pub mod protection;
 pub mod query;

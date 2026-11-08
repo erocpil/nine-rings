@@ -1,6 +1,14 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-11-08",
+    title: "双栏跨磁盘移动",
+    changes: [
+      "双栏移动支持跨磁盘复制、完整校验和不覆盖发布；确认目标正确后才将来源移入系统回收站。",
+      "目标已发布但来源处理未确认时，保留两端并暂停队列，明确提示核对，禁止将这类失败当作同名冲突重试。",
+    ],
+  },
+  {
     date: "2026-11-07",
     title: "双栏浏览交互与布局",
     changes: [

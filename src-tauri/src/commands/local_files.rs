@@ -250,14 +250,14 @@ fn valid_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 // Never replace an entry created by another process between validation and rename.
-fn move_exclusive(source: &Path, target: &Path) -> Result<(), String> {
+fn move_exclusive(source: &Path, target: &Path) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::ffi::OsStrExt;
-        let from =
-            std::ffi::CString::new(source.as_os_str().as_bytes()).map_err(|e| e.to_string())?;
-        let to =
-            std::ffi::CString::new(target.as_os_str().as_bytes()).map_err(|e| e.to_string())?;
+        let from = std::ffi::CString::new(source.as_os_str().as_bytes())
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+        let to = std::ffi::CString::new(target.as_os_str().as_bytes())
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
         #[cfg(target_os = "macos")]
         let result = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
         #[cfg(target_os = "linux")]
@@ -271,10 +271,13 @@ fn move_exclusive(source: &Path, target: &Path) -> Result<(), String> {
             )
         };
         #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-        return Err("当前平台不支持安全移动".into());
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "当前平台不支持安全移动",
+        ));
         #[cfg(any(target_os = "macos", target_os = "linux"))]
         if result != 0 {
-            return Err(std::io::Error::last_os_error().to_string());
+            return Err(std::io::Error::last_os_error());
         }
     }
     #[cfg(windows)]
@@ -290,7 +293,7 @@ fn move_exclusive(source: &Path, target: &Path) -> Result<(), String> {
                 MOVEFILE_WRITE_THROUGH,
             )
         }
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| std::io::Error::from_raw_os_error(e.code().0 & 0xffff))?;
     }
     Ok(())
 }
@@ -354,7 +357,7 @@ fn move_entry(root: &Path, node: &str, parent: &str, name: &str) -> Result<Strin
     if fs::symlink_metadata(&target).is_ok() {
         return Err("目标名称已存在，未覆盖".into());
     }
-    move_exclusive(&source, &target)?;
+    move_exclusive(&source, &target).map_err(|e| e.to_string())?;
     Ok(if parent.is_empty() {
         name.into()
     } else {
@@ -378,7 +381,7 @@ fn copy_tree(
         return Err("不复制符号链接或重解析点".into());
     }
     if meta.is_dir() {
-        fs::create_dir(target).map_err(|e| e.to_string())?;
+        super::local_file_transfer::create_private_directory(target).map_err(|e| e.to_string())?;
         for entry in fs::read_dir(source).map_err(|e| e.to_string())? {
             let entry = entry.map_err(|e| e.to_string())?;
             copy_tree(
@@ -388,8 +391,16 @@ fn copy_tree(
                 remaining,
             )?;
         }
+        fs::set_permissions(target, meta.permissions()).map_err(|e| e.to_string())?;
+        super::local_file_transfer::sync_directory(target)?;
     } else if meta.is_file() {
-        fs::copy(source, target).map_err(|e| e.to_string())?;
+        // Keep platform copy semantics (including Windows named streams),
+        // rather than replacing the existing native copy with a text buffer.
+        let copied = fs::copy(source, target).map_err(|e| e.to_string())?;
+        if copied != meta.len() {
+            return Err("复制期间源文件长度发生变化".into());
+        }
+        super::local_file_transfer::sync_copied_file(target, meta.permissions())?;
         let after = fs::symlink_metadata(source).map_err(|e| e.to_string())?;
         if is_link(&after)
             || meta.len() != after.len()
@@ -402,6 +413,7 @@ fn copy_tree(
     }
     Ok(())
 }
+#[cfg(test)]
 fn transfer_entry(
     source_root: &Path,
     node: &str,
@@ -410,6 +422,20 @@ fn transfer_entry(
     name: &str,
     moving: bool,
 ) -> Result<String, String> {
+    guarded_transfer_entry(source_root, node, target_root, parent, name, moving, || {
+        Ok(())
+    })
+}
+fn guarded_transfer_entry(
+    source_root: &Path,
+    node: &str,
+    target_root: &Path,
+    parent: &str,
+    name: &str,
+    moving: bool,
+    access: impl Fn() -> Result<(), String>,
+) -> Result<String, String> {
+    access()?;
     if node.is_empty() {
         return Err("不能传输授权根目录".into());
     }
@@ -424,13 +450,32 @@ fn transfer_entry(
         return Err("TARGET_EXISTS: 目标名称已存在，未覆盖".into());
     }
     if moving {
-        move_exclusive(&source, &target)
-            .map_err(|error| format!("移动未完成；源文件保留（跨磁盘移动不支持）：{error}"))?;
+        super::local_file_transfer::move_with_fallback(
+            &source,
+            &target,
+            || {
+                access()?;
+                if checked_path(source_root, node)? != source
+                    || checked_path(target_root, parent)? != destination
+                {
+                    return Err("移动期间授权路径发生变化".into());
+                }
+                Ok(())
+            },
+            move_exclusive,
+            |from, to| copy_tree(from, to, 0, &mut 10000),
+            |path| {
+                super::local_file_transfer::recycle_verified_source(path)
+                    .map_err(|e| format!("移入系统回收站失败（不执行永久删除）：{e}"))
+            },
+        )?;
     } else {
         let staging = destination.join(format!(".nine-rings-copy-{}", uuid::Uuid::new_v4()));
-        fs::create_dir(&staging).map_err(|e| e.to_string())?;
+        super::local_file_transfer::create_private_directory(&staging)
+            .map_err(|e| e.to_string())?;
         let item = staging.join("item");
         let result = copy_tree(&source, &item, 0, &mut 10000).and_then(|()| {
+            access()?;
             if checked_path(source_root, node)? != source
                 || checked_path(target_root, parent)? != destination
             {
@@ -439,7 +484,7 @@ fn transfer_entry(
             if fs::symlink_metadata(&target).is_ok() {
                 return Err("TARGET_EXISTS: 目标名称已存在，未覆盖".into());
             }
-            move_exclusive(&item, &target)
+            move_exclusive(&item, &target).map_err(|e| e.to_string())
         });
         // Only our newly-created staging directory is ever permanently removed.
         let cleanup = fs::remove_dir_all(&staging);
@@ -470,12 +515,17 @@ pub async fn local_files_transfer(
     let target_root = library.root(&target_root_id)?;
     let grants = library.roots.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let grants = grants.lock().map_err(|_| "目录状态不可用")?;
-        if grants.get(&root_id) != Some(&root) || grants.get(&target_root_id) != Some(&target_root)
-        {
-            return Err("目录授权已变化".into());
-        }
-        transfer_entry(&root, &node, &target_root, &parent, &name, moving)
+        // Do not hold the global grant mutex over long copies/hashes: other
+        // directories must remain browsable while a confirmed job executes.
+        guarded_transfer_entry(&root, &node, &target_root, &parent, &name, moving, || {
+            let grants = grants.lock().map_err(|_| "目录状态不可用")?;
+            if grants.get(&root_id) != Some(&root)
+                || grants.get(&target_root_id) != Some(&target_root)
+            {
+                return Err("目录授权已变化".into());
+            }
+            Ok(())
+        })
     })
     .await
     .map_err(|e| e.to_string())?
@@ -551,7 +601,7 @@ pub fn local_files_rename(
     if target.exists() {
         return Err("同名文件或目录已存在".into());
     }
-    move_exclusive(&source, &target)?;
+    move_exclusive(&source, &target).map_err(|e| e.to_string())?;
     let updated_root = if node.is_empty() {
         target.clone()
     } else {
@@ -1139,6 +1189,374 @@ pub async fn local_files_save_as(
 #[cfg(test)]
 mod tests {
     use super::*;
+    struct TransferFixture(PathBuf);
+    impl TransferFixture {
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!("nr-cross-move-{}", uuid::Uuid::new_v4()));
+            fs::create_dir(&root).unwrap();
+            let root = fs::canonicalize(root).unwrap();
+            fs::create_dir(root.join("dest")).unwrap();
+            Self(root)
+        }
+        fn source(&self) -> PathBuf {
+            self.0.join("source")
+        }
+        fn target(&self) -> PathBuf {
+            self.0.join("dest/target")
+        }
+        fn copy(&self, source: &Path, target: &Path) -> Result<(), String> {
+            copy_tree(source, target, 0, &mut 10000)
+        }
+        fn rename(&self, source: &Path, target: &Path) -> std::io::Result<()> {
+            if source == self.source() {
+                Err(std::io::ErrorKind::CrossesDevices.into())
+            } else {
+                move_exclusive(source, target)
+            }
+        }
+        fn retire(&self, source: &Path) -> Result<(), String> {
+            fs::rename(source, self.0.join("recovered-source")).map_err(|e| e.to_string())
+        }
+    }
+    impl Drop for TransferFixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    #[test]
+    fn cross_move_verifies_hidden_binary_and_empty_directories_before_retiring_source() {
+        let area = TransferFixture::new();
+        fs::create_dir(area.source()).unwrap();
+        fs::create_dir(area.source().join("empty")).unwrap();
+        fs::write(area.source().join(".binary"), [0, 255, 5, 0]).unwrap();
+        fs::write(area.0.join("dest/.nine-rings-copy-keep"), "other operation").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(area.source(), fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        super::super::local_file_transfer::move_with_fallback(
+            &area.source(),
+            &area.target(),
+            || Ok(()),
+            |from, to| area.rename(from, to),
+            |from, to| area.copy(from, to),
+            |path| {
+                assert_eq!(
+                    fs::read(area.target().join(".binary")).unwrap(),
+                    [0, 255, 5, 0]
+                );
+                assert!(area.target().join("empty").is_dir());
+                area.retire(path)
+            },
+        )
+        .unwrap();
+        assert!(!area.source().exists());
+        assert_eq!(
+            fs::read(area.0.join("recovered-source/.binary")).unwrap(),
+            [0, 255, 5, 0]
+        );
+        assert_eq!(
+            fs::read_to_string(area.0.join("dest/.nine-rings-copy-keep")).unwrap(),
+            "other operation"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(area.target()).unwrap().permissions().mode() & 0o777,
+                0o700
+            );
+        }
+        assert_eq!(fs::read_dir(area.0.join("dest")).unwrap().count(), 2);
+    }
+    #[test]
+    fn same_device_move_and_other_errors_never_use_cross_device_fallback() {
+        let area = TransferFixture::new();
+        fs::write(area.source(), "keep").unwrap();
+        let result = super::super::local_file_transfer::move_with_fallback(
+            &area.source(),
+            &area.target(),
+            || panic!("unexpected validation"),
+            move_exclusive,
+            |_, _| panic!("unexpected copy"),
+            |_| panic!("unexpected retire"),
+        );
+        result.unwrap();
+        assert_eq!(fs::read_to_string(area.target()).unwrap(), "keep");
+        fs::write(area.source(), "source").unwrap();
+        let result = super::super::local_file_transfer::move_with_fallback(
+            &area.source(),
+            &area.target(),
+            || panic!("unexpected validation"),
+            |_, _| Err(std::io::ErrorKind::PermissionDenied.into()),
+            |_, _| panic!("unexpected copy"),
+            |_| panic!("unexpected retire"),
+        );
+        assert!(result.is_err());
+        assert_eq!(fs::read_to_string(area.source()).unwrap(), "source");
+        #[cfg(unix)]
+        assert_eq!(
+            std::io::Error::from_raw_os_error(libc::EXDEV).kind(),
+            std::io::ErrorKind::CrossesDevices
+        );
+        #[cfg(windows)]
+        assert_eq!(
+            std::io::Error::from_raw_os_error(17).kind(),
+            std::io::ErrorKind::CrossesDevices
+        );
+    }
+    #[test]
+    fn cross_move_rejects_same_size_content_changes_even_when_modified_time_is_restored() {
+        let area = TransferFixture::new();
+        fs::write(area.source(), "old").unwrap();
+        let modified = fs::metadata(area.source()).unwrap().modified().unwrap();
+        let result = super::super::local_file_transfer::move_with_fallback(
+            &area.source(),
+            &area.target(),
+            || Ok(()),
+            |from, to| area.rename(from, to),
+            |from, to| {
+                area.copy(from, to)?;
+                fs::write(from, "new").unwrap();
+                fs::OpenOptions::new()
+                    .write(true)
+                    .open(from)
+                    .unwrap()
+                    .set_times(fs::FileTimes::new().set_modified(modified))
+                    .unwrap();
+                Ok(())
+            },
+            |_| panic!("changed source must not be retired"),
+        );
+        assert!(result.unwrap_err().contains("来源内容"));
+        assert!(!area.target().exists());
+        assert_eq!(fs::read_to_string(area.source()).unwrap(), "new");
+        assert_eq!(fs::read_dir(area.0.join("dest")).unwrap().count(), 0);
+    }
+    #[test]
+    fn cross_move_rejects_corruption_and_partial_copy_without_retiring_source() {
+        for partial in [false, true] {
+            let area = TransferFixture::new();
+            fs::write(area.source(), "source").unwrap();
+            let result = super::super::local_file_transfer::move_with_fallback(
+                &area.source(),
+                &area.target(),
+                || Ok(()),
+                |from, to| area.rename(from, to),
+                |from, to| {
+                    area.copy(from, to)?;
+                    fs::write(to, "broken").unwrap();
+                    if partial {
+                        Err("simulated interruption".into())
+                    } else {
+                        Ok(())
+                    }
+                },
+                |_| panic!("unverified copy must not retire source"),
+            );
+            assert!(result.is_err());
+            assert!(!area.target().exists());
+            assert_eq!(fs::read_to_string(area.source()).unwrap(), "source");
+            assert_eq!(fs::read_dir(area.0.join("dest")).unwrap().count(), 0);
+        }
+    }
+    #[test]
+    fn cross_move_publication_conflict_never_overwrites_or_retires_source() {
+        let area = TransferFixture::new();
+        fs::write(area.source(), "source").unwrap();
+        let result = super::super::local_file_transfer::move_with_fallback(
+            &area.source(),
+            &area.target(),
+            || Ok(()),
+            |from, to| {
+                if from != area.source() {
+                    fs::write(to, "external").unwrap();
+                }
+                area.rename(from, to)
+            },
+            |from, to| area.copy(from, to),
+            |_| panic!("conflicting target must preserve source"),
+        );
+        assert!(result.unwrap_err().contains("TARGET_EXISTS"));
+        assert_eq!(fs::read_to_string(area.target()).unwrap(), "external");
+        assert_eq!(fs::read_to_string(area.source()).unwrap(), "source");
+    }
+    #[test]
+    fn cross_move_post_publication_changes_preserve_both_sides_and_never_retire_source() {
+        for change_source in [false, true] {
+            let area = TransferFixture::new();
+            fs::write(area.source(), "source").unwrap();
+            let result = super::super::local_file_transfer::move_with_fallback(
+                &area.source(),
+                &area.target(),
+                || Ok(()),
+                |from, to| {
+                    area.rename(from, to)?;
+                    fs::write(
+                        if change_source {
+                            area.source()
+                        } else {
+                            area.target()
+                        },
+                        "external",
+                    )
+                    .unwrap();
+                    Ok(())
+                },
+                |from, to| area.copy(from, to),
+                |_| panic!("post-publication changes must preserve source"),
+            );
+            assert!(result.unwrap_err().starts_with("MOVE_COPY_PUBLISHED:"));
+            assert!(area.source().exists() && area.target().exists());
+            assert_eq!(
+                fs::read_to_string(if change_source {
+                    area.source()
+                } else {
+                    area.target()
+                })
+                .unwrap(),
+                "external"
+            );
+        }
+    }
+    #[test]
+    fn cross_move_retirement_failure_keeps_verified_target_and_source_for_review() {
+        let area = TransferFixture::new();
+        fs::write(area.source(), "source").unwrap();
+        let result = super::super::local_file_transfer::move_with_fallback(
+            &area.source(),
+            &area.target(),
+            || Ok(()),
+            |from, to| area.rename(from, to),
+            |from, to| area.copy(from, to),
+            |_| Err("TARGET_EXISTS: simulated trash failure".into()),
+        );
+        assert!(result.unwrap_err().starts_with("MOVE_COPY_PUBLISHED:"));
+        assert_eq!(
+            fs::read(area.source()).unwrap(),
+            fs::read(area.target()).unwrap()
+        );
+        assert_eq!(fs::read_dir(area.0.join("dest")).unwrap().count(), 1);
+    }
+    #[test]
+    fn cross_move_binary_files_are_not_limited_by_the_text_editor_budget() {
+        let area = TransferFixture::new();
+        let bytes: Vec<u8> = (0..MAX_BYTES + 4096)
+            .map(|index| (index % 251) as u8)
+            .collect();
+        fs::write(area.source(), &bytes).unwrap();
+        super::super::local_file_transfer::move_with_fallback(
+            &area.source(),
+            &area.target(),
+            || Ok(()),
+            |from, to| area.rename(from, to),
+            |from, to| area.copy(from, to),
+            |path| area.retire(path),
+        )
+        .unwrap();
+        assert_eq!(fs::read(area.target()).unwrap(), bytes);
+        assert!(!area.source().exists());
+        assert_eq!(
+            fs::metadata(area.0.join("recovered-source")).unwrap().len(),
+            MAX_BYTES + 4096
+        );
+    }
+    #[test]
+    fn cross_move_checks_depth_budget_before_creating_a_final_target() {
+        let area = TransferFixture::new();
+        fs::create_dir(area.source()).unwrap();
+        let mut folder = area.source();
+        for _ in 0..65 {
+            folder = folder.join("d");
+            fs::create_dir(&folder).unwrap();
+        }
+        let result = super::super::local_file_transfer::move_with_fallback(
+            &area.source(),
+            &area.target(),
+            || Ok(()),
+            |from, to| area.rename(from, to),
+            |_, _| panic!("invalid tree must not be copied"),
+            |_| panic!("invalid tree must not be retired"),
+        );
+        assert!(result.unwrap_err().contains("预算"));
+        assert!(area.source().exists());
+        assert!(!area.target().exists());
+        assert_eq!(fs::read_dir(area.0.join("dest")).unwrap().count(), 0);
+    }
+    #[test]
+    fn transfer_rechecks_access_before_copy_publication() {
+        let area = TransferFixture::new();
+        fs::write(area.source(), "source").unwrap();
+        let calls = std::cell::Cell::new(0);
+        let result = guarded_transfer_entry(
+            &area.0,
+            "source",
+            &area.0.join("dest"),
+            "",
+            "target",
+            false,
+            || {
+                calls.set(calls.get() + 1);
+                if calls.get() == 2 {
+                    Err("目录授权已变化".into())
+                } else {
+                    Ok(())
+                }
+            },
+        );
+        assert!(result.unwrap_err().contains("目录授权已变化"));
+        assert_eq!(calls.get(), 2);
+        assert!(!area.target().exists());
+        assert_eq!(fs::read_to_string(area.source()).unwrap(), "source");
+        assert_eq!(fs::read_dir(area.0.join("dest")).unwrap().count(), 0);
+    }
+    #[test]
+    fn cross_move_revalidates_grants_before_publication_and_before_source_retirement() {
+        for fail_at in [2, 3, 4] {
+            let area = TransferFixture::new();
+            fs::write(area.source(), "source").unwrap();
+            let calls = std::cell::Cell::new(0);
+            let result = super::super::local_file_transfer::move_with_fallback(
+                &area.source(),
+                &area.target(),
+                || {
+                    calls.set(calls.get() + 1);
+                    if calls.get() == fail_at {
+                        Err("grant changed".into())
+                    } else {
+                        Ok(())
+                    }
+                },
+                |from, to| area.rename(from, to),
+                |from, to| area.copy(from, to),
+                |_| panic!("invalid grants must preserve source"),
+            );
+            let error = result.unwrap_err();
+            assert_eq!(error.starts_with("MOVE_COPY_PUBLISHED:"), fail_at > 2);
+            assert_eq!(area.target().exists(), fail_at > 2);
+            assert_eq!(fs::read_to_string(area.source()).unwrap(), "source");
+        }
+    }
+    #[cfg(unix)]
+    #[test]
+    fn cross_move_rejects_links_without_touching_external_contents() {
+        let area = TransferFixture::new();
+        fs::create_dir(area.source()).unwrap();
+        fs::write(area.0.join("outside"), "keep").unwrap();
+        std::os::unix::fs::symlink(area.0.join("outside"), area.source().join("link")).unwrap();
+        let result = super::super::local_file_transfer::move_with_fallback(
+            &area.source(),
+            &area.target(),
+            || Ok(()),
+            |from, to| area.rename(from, to),
+            |from, to| area.copy(from, to),
+            |_| panic!("link must not be retired"),
+        );
+        assert!(result.is_err());
+        assert!(!area.target().exists());
+        assert_eq!(fs::read_to_string(area.0.join("outside")).unwrap(), "keep");
+    }
     #[test]
     fn metadata_order_is_applied_to_the_whole_directory_before_paging() {
         let dir = std::env::temp_dir().join(format!("nr-file-sort-{}", uuid::Uuid::new_v4()));

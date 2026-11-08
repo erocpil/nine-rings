@@ -6,6 +6,52 @@ const data = {
   image: { src: "/picture.png", name: "图片" },
   images: [{ src: "/picture.png", name: "图片" }],
 };
+it("relocates mounted and suspended file identities without replacing unrelated pending navigation", () => {
+  const runtime = new PluginRuntime();
+  runtime.setEnabled(true);
+  const registry = new MainViewRegistry(runtime);
+  const actor = runtime.activate("test.move", [
+    "views.present",
+    "filesystem.files.read",
+    "filesystem.files.write",
+  ]);
+  registry.register(actor, {
+    id: "test.file",
+    label: "文件",
+    renderer: "local-file",
+  });
+  const id = registry.open(actor, "test.file", {
+    rootId: "old",
+    nodeId: "src/a.c",
+    name: "a.c",
+  });
+  registry.accept(id);
+  registry.suspend();
+  const pending = registry.open(actor, "test.file", {
+    rootId: "other",
+    nodeId: "b.c",
+    name: "b.c",
+  });
+  const request = registry.getSnapshot().pending;
+  registry.relocateLocalFile(actor, "old", "src", "new", "moved");
+  expect(registry.getSnapshot().current).toMatchObject({
+    id,
+    data: { rootId: "new", nodeId: "moved/a.c" },
+  });
+  expect(registry.getSnapshot().suspended).toBe(true);
+  expect(registry.getSnapshot().pending).toBe(request);
+  registry.relocateLocalFile(actor, "other", "b.c", "new", "renamed.c");
+  expect(registry.getSnapshot().pending).toMatchObject({
+    id: pending,
+    data: { rootId: "new", nodeId: "renamed.c", name: "renamed.c" },
+  });
+  expect(registry.accept(pending)).toBe(true);
+  expect(registry.getSnapshot().suspended).toBe(false);
+  const reader = runtime.activate("test.read", ["filesystem.files.read"]);
+  expect(() =>
+    registry.relocateLocalFile(reader, "new", "renamed.c", "new", "no.c"),
+  ).toThrow();
+});
 it("retains a scoped browser behind its viewers, gates return through pending, and clears on navigation/revocation", () => {
   const runtime = new PluginRuntime();
   runtime.setEnabled(true);

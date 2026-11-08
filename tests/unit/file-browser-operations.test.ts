@@ -271,6 +271,37 @@ it("a later transfer error preserves earlier progress and never retries complete
   expect(transfer).toHaveBeenCalledTimes(2);
   expect(progress.at(-1)?.completed).toBe(1);
 });
+
+it("a published cross-device copy cannot be mistaken for a retryable name conflict", async () => {
+  const activation = activate();
+  const transfer = vi
+    .spyOn(localFileService, "transfer")
+    .mockRejectedValue(
+      new Error(
+        "MOVE_COPY_PUBLISHED: 目标副本已发布；TARGET_EXISTS: 来源未确认移至回收站",
+      ),
+    );
+  const conflict = vi.fn(async () => ({
+    action: "rename" as const,
+    name: "another.c",
+  }));
+  const items: Array<{ status: string }> = [];
+  await expect(
+    runBrowserOperation(
+      activation,
+      { ...operation, kind: "move" },
+      "",
+      new AbortController().signal,
+      () => {},
+      conflict,
+      (value) => items.push(value),
+    ),
+  ).rejects.toThrow("MOVE_COPY_PUBLISHED");
+  expect(transfer).toHaveBeenCalledTimes(1);
+  expect(conflict).not.toHaveBeenCalled();
+  expect(items.at(-1)?.status).toBe("uncertain");
+  expect(readRecentLocalFiles()).toHaveLength(0);
+});
 it("batch rename uses the reviewed targets and refuses name swaps before any mutation", async () => {
   const owner = activate(),
     move = vi

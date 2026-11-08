@@ -2,7 +2,8 @@ import { pluginRuntime, type PluginActivation } from "../plugin-system/runtime";
 import { fileSegments, localFileService } from "./service";
 import { assertLocalPathClean, localPathContains, migrateLocalFileSessions } from "./operations";
 import { migrateLocalFilePathState } from "./path-state";
-import { localFileSessions } from "./session";
+import { localFileSessions, invalidateLocalFileSessionMounts, checkpointLocalFilePath } from "./session";
+import { mainViews } from "../plugin-system/main-view-registry";
 import { renameRecentLocalPath, removeRecentLocalPath } from "./recent";
 import { renameLocalFocusTabPaths, removeLocalFocusTabPaths } from "../focus-tabs";
 import { lockLocalOperation } from "./operation-lock";
@@ -31,12 +32,16 @@ const join = (parent: string, name: string) => [parent, name].filter(Boolean).jo
 function notify(change: BrowserMutation) {
   window.dispatchEvent(new CustomEvent(FILE_BROWSER_MUTATION_EVENT, { detail: change }));
 }
-function migrate(rootId: string, node: string, targetRootId: string, targetNode: string, rootName: string) {
+async function migrate(owner: PluginActivation, rootId: string, node: string, targetRootId: string, targetNode: string, rootName: string) {
+  try { await checkpointLocalFilePath(rootId, node); } catch { /* Disk move already succeeded; retain the last checkpoint if UI storage failed. */ }
+  const current = mainViews.getSnapshot().current;
+  if (current?.renderer === "local-file" && localPathContains(rootId, node, `${current.data.rootId}:${current.data.nodeId}`)) invalidateLocalFileSessionMounts();
   migrateLocalFilePathState(rootId, node, targetNode, targetRootId);
   migrateLocalFileSessions(rootId, node, targetNode, targetRootId);
   // Optional UI persistence must not turn a completed disk operation into a retry.
   try { renameLocalFocusTabPaths(rootId, node, targetNode, targetRootId); } catch { /* optional */ }
   try { renameRecentLocalPath(rootId, node, targetNode, rootName, targetRootId); } catch { /* optional */ }
+  mainViews.relocateLocalFile(owner, rootId, node, targetRootId, targetNode);
 }
 /** Fixed operation snapshot, sequential no-overwrite writes. Cancel only at item
  * boundaries; always reconcile a completed write before observing cancellation. */
@@ -89,11 +94,11 @@ export async function runBrowserOperation(owner: PluginActivation, operation: Br
           attempted = true;
           if (operation.kind === "copy" || operation.kind === "move") {
             const next = await localFileService.transfer(operation.rootId, node, operation.targetRootId, operation.targetParent, targetName, operation.kind === "move");
-            if (operation.kind === "move") migrate(operation.rootId, node, operation.targetRootId, next, operation.targetRootName);
+            if (operation.kind === "move") await migrate(owner, operation.rootId, node, operation.targetRootId, next, operation.targetRootName);
             notify({ kind: operation.kind === "move" ? "move" : "refresh", rootId: operation.rootId, node, targetRootId: operation.targetRootId, targetNode: next });
           } else if (operation.kind === "rename" || operation.kind === "batch-rename") {
             const next = await localFileService.move(operation.rootId, node, operation.parent, targetName);
-            migrate(operation.rootId, node, operation.rootId, next, operation.rootName);
+            await migrate(owner, operation.rootId, node, operation.rootId, next, operation.rootName);
             notify({ kind: "move", rootId: operation.rootId, node, targetRootId: operation.rootId, targetNode: next });
           } else if (operation.kind === "trash") {
             await localFileService.trash(operation.rootId, node);
@@ -106,6 +111,7 @@ export async function runBrowserOperation(owner: PluginActivation, operation: Br
           }
           progress.completed++; emit({ node, targetName, status: "completed" }); break;
         } catch (error) {
+          if (/MOVE_COPY_PUBLISHED/.test(String(error))) throw error;
           if (!/TARGET_EXISTS|目标名称已存在/.test(String(error))) throw error;
           attempted = false; // Explicit no-overwrite conflict: nothing was written.
           if (signal.aborted) { emit({ node, targetName, status: "pending" }); return { ...progress, cancelled: true }; }
