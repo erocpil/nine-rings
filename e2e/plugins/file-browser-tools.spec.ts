@@ -407,3 +407,98 @@ test("双栏拖放冻结多选并明确复制或移动目标，不绕过确认�
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await external.dispose();
 });
+
+test("预览内查找定位、逐项预览与分层 Esc 不改变文档或切入子目录", async ({ page }) => {
+  const { browser, left } = await fixture(page);
+  const data = await page.evaluate(async () => {
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    const source = "Needle [x]\n" + "normal row\n".repeat(150) + "needle\nNeedle\n";
+    const file = (path: string, text: string) => { const result = new File([text], path.split("/").pop()!, { lastModified: 5000 }); Object.defineProperty(result, "webkitRelativePath", { value: path }); return result; };
+    return { source, root: localFileService.addFiles([file("Preview/a.txt", source), file("Preview/b.txt", "next needle"), file("Preview/folder/hidden.txt", "do not enter")])! };
+  });
+  await left.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await left.getByRole("combobox", { name: "选择授权目录" }).selectOption(data.root.id);
+  await left.getByRole("option", { name: /^a.txt/ }).click();
+  await browser.getByRole("button", { name: "快速预览", exact: true }).click();
+  const preview = browser.getByRole("region", { name: "快速预览", exact: true });
+  await preview.getByRole("button", { name: "查找预览", exact: true }).click();
+  const input = preview.getByRole("searchbox", { name: "查找预览文本" });
+  await input.fill("[x]");
+  await expect(preview.locator("mark")).toHaveCount(1);
+  await input.fill("needle");
+  await expect(preview.locator("mark")).toHaveCount(3);
+  await preview.getByRole("button", { name: "下一个预览匹配", exact: true }).click();
+  await expect.poll(() => preview.locator("pre").evaluate(element => element.scrollTop)).toBeGreaterThan(100);
+  expect(await preview.locator("pre").textContent()).toBe(data.source);
+  await preview.getByRole("button", { name: "预览查找区分大小写" }).click();
+  await expect(preview.locator("mark")).toHaveCount(1);
+  await preview.getByRole("button", { name: "预览下一文件", exact: true }).click();
+  await expect(preview.locator("pre")).toContainText("next needle");
+  await expect(input).toHaveValue("needle");
+  await input.press("ArrowUp");
+  await expect(preview.locator("pre")).toContainText("next needle");
+  await preview.getByRole("button", { name: "预览上一文件", exact: true }).focus();
+  await preview.getByRole("button", { name: "预览上一文件", exact: true }).press("ArrowUp");
+  await expect(preview.locator("pre")).toContainText("Needle [x]");
+  await preview.getByRole("button", { name: "预览上一文件", exact: true }).click();
+  await expect(preview.getByRole("status").filter({ hasText: "没有上一文件" })).toBeVisible();
+  await input.press("Escape");
+  await expect(input).toHaveCount(0); await expect(preview).toBeVisible();
+  await expect(preview.locator("mark")).toHaveCount(0);
+  await preview.press("ControlOrMeta+f");
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue("needle");
+  await input.press("Escape");
+  await preview.press("Escape");
+  await expect(preview).toHaveCount(0);
+  await expect(left.getByRole("listbox")).toBeFocused();
+  await expect(left.getByRole("option", { name: /^folder/ })).toBeVisible();
+});
+
+test("快速预览图片使用原始像素缩放、双向滚动和适窗，手机不溢出", async ({ page }) => {
+  const { browser, left } = await fixture(page);
+  await page.evaluate(async () => {
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    localFileService.readImageAsset = async () => 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="3000" height="2000"><rect width="3000" height="2000" fill="red"/></svg>');
+  });
+  await left.getByRole("option", { name: /image.svg/ }).click();
+  await browser.getByRole("button", { name: "快速预览", exact: true }).click();
+  const preview = browser.getByRole("region", { name: "快速预览", exact: true });
+  const image = preview.getByRole("img", { name: "image.svg" });
+  await expect(image).toBeVisible();
+  await expect.poll(() => image.evaluate(element => (element as HTMLImageElement).complete)).toBe(true);
+  await preview.getByRole("button", { name: "200%", exact: true }).click();
+  await expect.poll(() => image.evaluate(element => element.getBoundingClientRect().width)).toBe(6000);
+  const viewport = preview.getByLabel("预览图片可滚动区域", { exact: true });
+  await viewport.evaluate(element => { element.scrollTop = 120; element.scrollLeft = 120; });
+  const bounds = (await viewport.boundingBox())!;
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.wheel(100, 100);
+  await expect.poll(() => viewport.evaluate(element => element.scrollLeft)).toBeGreaterThan(120);
+  await viewport.dispatchEvent("wheel", { deltaY: -20, ctrlKey: true });
+  await expect.poll(() => image.evaluate(element => element.getBoundingClientRect().width)).toBeGreaterThan(6000);
+  await viewport.evaluate(element => {
+    element.dispatchEvent(new Event("gesturestart", { cancelable: true }));
+    const event = new Event("gesturechange", { cancelable: true }); Object.defineProperty(event, "scale", { value: 2 }); element.dispatchEvent(event);
+    element.dispatchEvent(new Event("gestureend", { cancelable: true }));
+  });
+  await expect(preview.getByLabel("预览缩放比例", { exact: true })).toHaveText("400%");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await preview.getByRole("button", { name: "适窗", exact: true }).click();
+  await expect.poll(() => viewport.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThan(2);
+  await expect.poll(() => viewport.evaluate(element => element.scrollHeight - element.clientHeight)).toBeLessThan(2);
+  expect(await browser.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+});
+
+test("选中大小只汇总已知文件，目录不递归也不冒充零字节", async ({ page }) => {
+  const { left } = await fixture(page);
+  await left.getByRole("option", { name: /^a.c/ }).click();
+  await left.getByRole("option", { name: /^b.c/ }).click({ modifiers: ["ControlOrMeta"] });
+  await left.getByRole("option", { name: /^src/ }).click({ modifiers: ["ControlOrMeta"] });
+  const summary = left.getByLabel("选中大小", { exact: true });
+  await expect(summary).toContainText("33 B");
+  await expect(summary).toContainText("1 目录未统计内部");
+  await expect(summary).toHaveAttribute("title", /已知 2 个文件/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await left.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+});

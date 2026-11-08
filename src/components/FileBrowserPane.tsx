@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode, type CSSProperties, type DragEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useId, useImperativeHandle, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode, type CSSProperties, type DragEvent, type Ref } from "react";
 import { browserLocation, moveBrowserHistory, navigateBrowserPane, selectBrowserItems, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
 import { fileSegments, type FileNode, type FileRoot, type LocalFileFingerprint } from "../lib/local-files/service";
 import type { localDirectoryProvider } from "../lib/local-files/browser-provider";
@@ -16,12 +16,14 @@ import { FileBrowserColumnHeaders } from "./FileBrowserColumnHeaders";
 import { useFileBrowserRefresh } from "../hooks/useFileBrowserRefresh";
 import { browserRefreshScroll, browserRefreshSelection } from "../lib/local-files/browser-refresh";
 import { BROWSER_DRAG_TYPE } from "../lib/local-files/browser-drag";
+import { browserPreviewIndex, browserSelectionSummary, type BrowserPreviewNavigation } from "../lib/local-files/browser-preview";
 
 const ROW = 32;
 const sizeText = (size: number) => size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
 type Provider = ReturnType<typeof localDirectoryProvider>;
 interface Props {
   tabBar?: ReactNode;
+  previewRef: Ref<BrowserPreviewNavigation>;
   side: 0 | 1;
   tabId: string;
   onCurrentChange: (side: 0 | 1, tabId: string, rootId: string, node: string | null) => void;
@@ -46,7 +48,7 @@ interface Props {
   canDrop: (parent: string, moving: boolean) => boolean;
   onDrop: (event: DragEvent, parent: string) => void;
 }
-export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible, refreshPaused, onExternalChange, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onOperation, operationDisabled, onPreview, tabBar, onDragStart, onDragEnd, canDrop, onDrop }: Props) {
+export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible, refreshPaused, onExternalChange, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onOperation, operationDisabled, onPreview, tabBar, onDragStart, onDragEnd, canDrop, onDrop, previewRef }: Props) {
   const location = browserLocation(pane);
   const rootId = location?.rootId ?? "", node = location?.node ?? "";
   const root = roots.find(item => item.id === rootId);
@@ -83,6 +85,7 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
   const key = JSON.stringify([rootId, node, pane.sort, pane.showHidden, query, refresh, revision]);
   const selected = useMemo(() => location?.selected ?? [], [location?.selected]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const selectionSummary = useMemo(() => browserSelectionSummary(nodes, selected, metadata), [nodes, selected, metadata]);
   const start = Math.max(0, Math.min(Math.max(0, nodes.length - 1), Math.floor(scroll / ROW) - 4));
   const end = Math.min(nodes.length, start + Math.ceil(height / ROW) + 10);
   useFileBrowserRefresh({
@@ -233,6 +236,12 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
     const list = scrollRef.current;
     if (list) list.scrollTop = browserRowScroll(list.scrollTop, list.clientHeight, index, ROW);
   };
+  useImperativeHandle(previewRef, () => ({ step(direction) {
+    if (!visible || loading || loadedKey.current !== key) return false;
+    const index = browserPreviewIndex(nodes, cursor.current ?? selected[selected.length - 1], direction);
+    if (index === null) return false;
+    chooseItem(nodes[index]); revealIndex(index); return true;
+  } }));
   const openItem = (item: FileNode) => item.directory ? navigate(item.id) : onOpen(rootId, root?.name ?? rootId, item);
   const openMenu = (item: FileNode, x: number, y: number) => {
     if (loading || loadedKey.current !== key || !scrollRef.current) return;
@@ -340,7 +349,7 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
       {!nodes.length && <p className="file-browser-empty">{loading ? "正在读取目录…" : rootId ? error ? "目录暂不可用，可返回上级或重新授权" : "空目录" : "选择或添加一个本地目录"}</p>}
     </div>
     {error && <div className="file-browser-error" role="alert">{error}<button type="button" aria-label="关闭目录错误" onClick={() => setError("")}>×</button></div>}
-    <footer className="file-browser-pane-status"><span title="选择操作最多 2000 项；目录数量不包含其内部文件">{selected.length ? `选中 ${selected.length} 项 · ` : ""}{nodes.length} 项{next !== null ? "（已加载）" : ""} · {nodes.filter(item => item.directory).length} 目录 / {nodes.filter(item => !item.directory).length} 文件</span>{typeahead.query && <span className="file-browser-typeahead" role="status">定位：{typeahead.query}（已加载）</span>}{next !== null && <button type="button" disabled={paging} onClick={() => void more(true)}>{paging ? "加载中…" : "加载更多"}</button>}</footer>
+    <footer className="file-browser-pane-status"><span title="选择操作最多 2000 项；目录数量不包含其内部文件">{selected.length ? `选中 ${selected.length} 项 · ` : ""}{nodes.length} 项{next !== null ? "（已加载）" : ""} · {nodes.filter(item => item.directory).length} 目录 / {nodes.filter(item => !item.directory).length} 文件</span>{selected.length > 0 && <span className="file-browser-selection-size" aria-label="选中大小" title={`已知 ${selectionSummary.files} 个文件，共 ${selectionSummary.bytes} bytes；不扫描目录正文或子项`}>已知文件 {sizeText(selectionSummary.bytes)}{selectionSummary.directories ? ` · ${selectionSummary.directories} 目录未统计内部` : ""}{selectionSummary.unknown ? ` · ${selectionSummary.unknown} 项大小未知` : ""}</span>}{typeahead.query && <span className="file-browser-typeahead" role="status">定位：{typeahead.query}（已加载）</span>}{next !== null && <button type="button" disabled={paging} onClick={() => void more(true)}>{paging ? "加载中…" : "加载更多"}</button>}</footer>
     {menu && visible && <NotesContextMenu label="文件菜单" target={menu.target} close={() => setMenu(null)} actions={menuActions} />}
     {message && <div className="file-browser-notice" role="status">{message}</div>}
   </section>;
