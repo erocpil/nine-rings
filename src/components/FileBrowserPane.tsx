@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode, type CSSProperties, type DragEvent } from "react";
 import { browserLocation, moveBrowserHistory, navigateBrowserPane, selectBrowserItems, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
 import { fileSegments, type FileNode, type FileRoot, type LocalFileFingerprint } from "../lib/local-files/service";
 import type { localDirectoryProvider } from "../lib/local-files/browser-provider";
@@ -15,6 +15,7 @@ import type { BrowserOperation } from "../lib/local-files/browser-operations";
 import { FileBrowserColumnHeaders } from "./FileBrowserColumnHeaders";
 import { useFileBrowserRefresh } from "../hooks/useFileBrowserRefresh";
 import { browserRefreshScroll, browserRefreshSelection } from "../lib/local-files/browser-refresh";
+import { BROWSER_DRAG_TYPE } from "../lib/local-files/browser-drag";
 
 const ROW = 32;
 const sizeText = (size: number) => size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
@@ -40,8 +41,12 @@ interface Props {
   onOperation: (kind: BrowserOperation["kind"], selection?: readonly string[]) => void;
   operationDisabled: (kind: BrowserOperation["kind"], count: number) => boolean;
   onPreview: () => void;
+  onDragStart: (event: DragEvent, nodes: readonly string[]) => void;
+  onDragEnd: () => void;
+  canDrop: (parent: string, moving: boolean) => boolean;
+  onDrop: (event: DragEvent, parent: string) => void;
 }
-export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible, refreshPaused, onExternalChange, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onOperation, operationDisabled, onPreview, tabBar }: Props) {
+export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible, refreshPaused, onExternalChange, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onOperation, operationDisabled, onPreview, tabBar, onDragStart, onDragEnd, canDrop, onDrop }: Props) {
   const location = browserLocation(pane);
   const rootId = location?.rootId ?? "", node = location?.node ?? "";
   const root = roots.find(item => item.id === rootId);
@@ -56,6 +61,7 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
   const [width, setWidth] = useState(363), [scrollLeft, setScrollLeft] = useState(0);
   const [metadata, setMetadata] = useState<Record<string, LocalFileFingerprint>>({});
   const [focused, setFocused] = useState<string | null>(null);
+  const [drop, setDrop] = useState<{ parent: string; moving: boolean } | null>(null);
   const [typeahead, setTypeahead] = useState<BrowserTypeahead>({ query: "", at: 0 });
   const [columns, setColumns] = useState(() => { try { return parseBrowserColumns(localStorage.getItem(`nr:file-browser-columns:${side}`)); } catch { return { ...DEFAULT_BROWSER_COLUMNS }; } });
   const [paging, setPaging] = useState(false), [autoFailed, setAutoFailed] = useState(false);
@@ -273,7 +279,20 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
       <label><input type="checkbox" checked={pane.showHidden} onChange={event => { const showHidden = event.target.checked; onChange(current => ({ ...updateBrowserLocation(current, { selected: [], scrollTop: 0 }), showHidden })); }} />隐藏项</label>
     </div>
     <FileBrowserColumnHeaders columns={columns} sort={pane.sort} width={width} scrollLeft={scrollLeft} onSort={sortColumn} onResize={changeColumn} onReset={column => setColumns(current => ({ ...current, [column]: DEFAULT_BROWSER_COLUMNS[column], autoName: column === "name" ? true : current.autoName }))} />
-    <div ref={scrollRef} className="file-browser-list" role="listbox" aria-label="文件列表" aria-busy={loading} aria-multiselectable="true" aria-activedescendant={focused && nodes.slice(start, end).some(item => item.id === focused) ? rowId(focused) : undefined} tabIndex={0} onFocus={() => {
+    {drop && <div className="file-browser-drop-hint" role="status">{drop.moving ? "移动" : "复制"}到：{root?.name}/{drop.parent} · 松开后确认（Shift 切换移动）</div>}
+    <div ref={scrollRef} className="file-browser-list" data-drop-target={Boolean(drop)} onDragOver={event => {
+      if (loading || loadedKey.current !== key || !event.dataTransfer.types.includes(BROWSER_DRAG_TYPE)) return;
+      const row = (event.target as Element).closest<HTMLElement>('[data-directory="true"]');
+      const parent = row?.dataset.nodeId ?? node;
+      if (!canDrop(parent, event.shiftKey)) { setDrop(null); return; }
+      event.preventDefault(); event.dataTransfer.dropEffect = event.shiftKey ? "move" : "copy";
+      setDrop(current => current?.parent === parent && current.moving === event.shiftKey ? current : { parent, moving: event.shiftKey });
+    }} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDrop(null); }} onDrop={event => {
+      event.preventDefault(); event.stopPropagation();
+      const row = (event.target as Element).closest<HTMLElement>('[data-directory="true"]');
+      const parent = row?.dataset.nodeId ?? node; setDrop(null);
+      if (!loading && loadedKey.current === key && canDrop(parent, event.shiftKey)) onDrop(event, parent);
+    }} role="listbox" aria-label="文件列表" aria-busy={loading} aria-multiselectable="true" aria-activedescendant={focused && nodes.slice(start, end).some(item => item.id === focused) ? rowId(focused) : undefined} tabIndex={0} onFocus={() => {
       if (loading || loadedKey.current !== key) return;
       const item = nodes.find(item => item.id === cursor.current) ?? nodes.find(item => item.id === selected[selected.length - 1]) ?? nodes[0];
       if (item) { cursor.current = item.id; setFocused(item.id); onCurrentChange(side, tabId, rootId, item.id); if (!selected.length) chooseItem(item); }
@@ -307,7 +326,12 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
       }
     }}>
       <div style={{ height: start * ROW }} aria-hidden="true" />
-      {nodes.slice(start, end).map(item => <div key={item.id} id={rowId(item.id)} className="file-browser-row" role="option" aria-selected={selectedSet.has(item.id)} data-current={focused === item.id} data-node-id={item.id} title={[root?.name, item.id].filter(Boolean).join("/")} onMouseDown={event => { if (event.button === 2) event.preventDefault(); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); openMenu(item, event.clientX, event.clientY); }} onClick={event => { if (loading || loadedKey.current !== key) return; chooseItem(item, event.ctrlKey || event.metaKey, event.shiftKey); scrollRef.current?.focus({ preventScroll: true }); }} onDoubleClick={() => { if (!loading && loadedKey.current === key) openItem(item); }}>
+      {nodes.slice(start, end).map(item => <div key={item.id} id={rowId(item.id)} className="file-browser-row" role="option" aria-selected={selectedSet.has(item.id)} data-current={focused === item.id} data-node-id={item.id} data-directory={item.directory} draggable={!loading && localFileService.canTransfer()} onDragStart={event => {
+        if (loading || loadedKey.current !== key) { event.preventDefault(); return; }
+        const selection = selectedSet.has(item.id) ? selected : [item.id];
+        if (!selectedSet.has(item.id)) chooseItem(item);
+        onDragStart(event, selection);
+      }} onDragEnd={() => { setDrop(null); onDragEnd(); }} title={[root?.name, item.id].filter(Boolean).join("/")} onMouseDown={event => { if (event.button === 2) event.preventDefault(); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); openMenu(item, event.clientX, event.clientY); }} onClick={event => { if (loading || loadedKey.current !== key) return; chooseItem(item, event.ctrlKey || event.metaKey, event.shiftKey); scrollRef.current?.focus({ preventScroll: true }); }} onDoubleClick={() => { if (!loading && loadedKey.current === key) openItem(item); }}>
         <span className={`file-browser-name${item.directory ? " is-directory" : ""}`}><ToolbarIcon name={item.directory ? "folder" : "document"} /><span>{item.name}</span></span>
         <span>{item.directory ? "—" : metadata[item.id] ? sizeText(metadata[item.id].size) : item.size ? sizeText(item.size) : "…"}</span>
         <span>{(metadata[item.id]?.modifiedMs ?? item.modifiedMs) ? new Date(metadata[item.id]?.modifiedMs ?? item.modifiedMs!).toLocaleString() : "—"}</span>

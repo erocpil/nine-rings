@@ -107,7 +107,8 @@
 .file-browser-tool-body { overflow: auto; max-height: calc(85dvh - 85px); }
 .file-browser-tool-body p { font-size: 13px; overflow-wrap: anywhere; }
 .file-browser-tool-body .local-file-task-panel { border: none; }
-.file-browser-comparison-controls { display: flex; align-items: center; gap: 8px; }
+.file-browser-comparison-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.file-browser-comparison-controls label { display: inline-flex; gap: 4px; align-items: center; font-size: 13px; }
 .file-browser-comparison-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
 .file-browser-comparison-table :is(th, td) { text-align: left; padding: 6px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 .file-browser-tool-body footer { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin: 10px 0; }
@@ -122,3 +123,7 @@
   .file-browser-mobile-tabs button { flex: 1; border: 1px solid var(--border); color: var(--text-secondary); background: transparent; border-radius: 5px; padding: 5px; }
   .file-browser-mobile-tabs button[aria-pressed='true'] { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 }
+.file-browser-drop-hint { position: absolute; bottom: 32px; left: 6px; right: 6px; z-index: 2; pointer-events: none; padding: 4px 8px; font-size: 12px; color: var(--text); background: color-mix(in srgb, var(--accent) 14%, var(--bg)); border: 1px solid var(--border); border-radius: 5px; overflow-wrap: anywhere; }
+.file-browser-comparison-issue { display: block; color: var(--text-secondary); overflow-wrap: anywhere; }
+.file-browser-list[data-drop-target="true"] { outline: 1px solid var(--accent); outline-offset: -1px; }
+.file-browser-tab[data-pinned="true"] { box-shadow: inset 0 -2px var(--accent); }

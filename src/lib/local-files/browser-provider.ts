@@ -15,6 +15,18 @@ function check(owner: PluginActivation, signal?: AbortSignal) {
  * native IPC already in progress still settles under its own grant-generation check. */
 export function localDirectoryProvider(owner: PluginActivation) {
   return {
+    async contentDigest(rootId: string, node: string, signal: AbortSignal) {
+      check(owner, signal);
+      const before = await localFileService.stat(rootId, node);
+      check(owner, signal);
+      if (before.size > 4 * 1024 * 1024) throw new Error("正文比较单文件最多 4 MiB");
+      const snapshot = await localFileService.readSnapshot(rootId, node);
+      check(owner, signal);
+      const after = await localFileService.stat(rootId, node);
+      check(owner, signal);
+      if (before.size !== snapshot.size || before.modifiedMs !== snapshot.modifiedMs || before.size !== after.size || before.modifiedMs !== after.modifiedMs) throw new Error("正文读取期间文件已变化");
+      return { ...after, digest: snapshot.revision };
+    },
     async preview(rootId: string, node: string, signal: AbortSignal): Promise<{ kind: "text" | "image"; value: string; truncated: boolean }> {
       check(owner, signal);
       const image = /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(node);

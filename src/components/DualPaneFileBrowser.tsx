@@ -3,12 +3,13 @@ import type { MainViewRequest } from "../lib/plugin-system/main-view-registry";
 import { pluginRuntime } from "../lib/plugin-system/runtime";
 import { localFileService, type FileNode, type FileRoot } from "../lib/local-files/service";
 import { FILE_BROWSER_STATE_KEY, browserLocation, navigateBrowserPane, type BrowserPaneState } from "../lib/local-files/browser-state";
-import { activeBrowserPanes, addBrowserTab, exchangeBrowserPanes, mirrorBrowserPath, MAX_BROWSER_TABS, parseBrowserWorkspace, reconcileBrowserTabs, selectBrowserTab, updateBrowserTab } from "../lib/local-files/browser-tabs";
+import { activeBrowserPanes, addBrowserTab, exchangeBrowserPanes, mirrorBrowserPath, modifyBrowserTabs, reorderBrowserTab, parseBrowserWorkspace, reconcileBrowserTabs, selectBrowserTab, updateBrowserTab } from "../lib/local-files/browser-tabs";
 import { FILE_BROWSER_MUTATION_EVENT, type BrowserMutation, type BrowserOperation } from "../lib/local-files/browser-operations";
 import { getBrowserOperationQueue, browserJobSettled } from "../lib/local-files/browser-operation-queue";
 import { FileBrowserQueueDialog } from "./FileBrowserQueueDialog";
 import { FileBrowserOperationDialog } from "./FileBrowserOperationDialog";
 import { localDirectoryProvider } from "../lib/local-files/browser-provider";
+import { FileBrowserTabs } from "./FileBrowserTabs";
 import { FileBrowserPane } from "./FileBrowserPane";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { FileBrowserQuickPreview } from "./FileBrowserQuickPreview";
@@ -18,6 +19,7 @@ import { LocalFileSearch } from "./LocalFileSearch";
 import type { BrowserDirectory } from "../lib/local-files/browser-tools";
 import type { LocalFileViewData } from "../lib/plugin-system/main-view-registry";
 import "../styles/file-browser.css";
+import { BROWSER_DRAG_TYPE, planBrowserDrop, type BrowserDragSource } from "../lib/local-files/browser-drag";
 
 export function DualPaneFileBrowser({ request, active, onClose }: {
   request: Extract<MainViewRequest, { renderer: "file-browser" }>;
@@ -53,8 +55,9 @@ export function DualPaneFileBrowser({ request, active, onClose }: {
   const pickSide = useRef<0 | 1>(0);
   const latestState = useRef(state); latestState.current = state;
   const activity = useRef<AbortController | null>(null);
+  const drag = useRef<{ token: string; source: BrowserDragSource } | null>(null);
   const provider = useMemo(() => localDirectoryProvider(request.owner), [request.owner]);
-  useEffect(() => { if (!active) { setOperation(null); setTool(null); setQueueOpen(false); } }, [active]);
+  useEffect(() => { if (!active) { setOperation(null); setTool(null); setQueueOpen(false); drag.current = null; } }, [active]);
   useEffect(() => {
     const changed = (event: Event) => {
       setState(current => reconcileBrowserTabs(current, (event as CustomEvent<BrowserMutation>).detail));
@@ -193,15 +196,22 @@ export function DualPaneFileBrowser({ request, active, onClose }: {
     {error && <div className="file-browser-error" role="alert">{error}<button type="button" aria-label="关闭浏览错误" onClick={() => setError("")}>×</button></div>}
     {opening && <p role="status" className="file-browser-opening">正在打开文件…</p>}
     <div className="file-browser-panes" style={{ gridTemplateColumns: `minmax(0, ${state.ratio}fr) 5px minmax(0, ${1 - state.ratio}fr)` }}>
-      {([0, 1] as const).map(side => <div key={side} className="file-browser-pane-slot" data-mobile-active={quickPreview ? state.active !== side : state.active === side} style={{ gridColumn: side === 0 ? 1 : 3 }}><div className="file-browser-directory-host" hidden={quickPreview && state.active !== side}><FileBrowserPane key={state.groups[side].tabs[state.groups[side].active].tabId} tabId={state.groups[side].tabs[state.groups[side].active].tabId} onCurrentChange={onCurrentChange} side={side} active={state.active === side} visible={active && (!quickPreview || state.active === side)} refreshPaused={Boolean(operation || tool || opening || queueOpen || queueBusy)} onExternalChange={() => { if (side === state.active) setPreviewRevision(value => value + 1); }} revision={listingRevision} pane={panes[side]} roots={roots} provider={provider} onChange={next => changePane(side, next)} onActivate={() => setState(current => current.active === side ? current : { ...current, active: side })} onChoose={() => void choose(side)} onRefreshRoots={() => setRootsRevision(value => value + 1)} onOpen={(rootId, rootName, node) => void open(rootId, rootName, node)} onOperation={(kind, selection) => startOperation(kind, side, selection)} operationDisabled={(kind, count) => operationDisabled(kind, side, count)} onPreview={() => { setState(current => ({ ...current, active: side })); setQuickPreview(true); }} tabBar={<div className="file-browser-tabs" role="tablist" aria-label={side === 0 ? "左栏目录标签" : "右栏目录标签"}>{state.groups[side].tabs.map((tab, index) => {
-        const location = browserLocation(tab), label = location?.node.split("/").pop() || roots.find(root => root.id === location?.rootId)?.name || "目录";
-        return <div key={tab.tabId} className="file-browser-tab"><button role="tab" type="button" tabIndex={index === state.groups[side].active ? 0 : -1} aria-selected={index === state.groups[side].active} title={location ? `${roots.find(root => root.id === location.rootId)?.name ?? location.rootId}/${location.node}` : label} onKeyDown={event => {
-          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
-          event.preventDefault(); event.stopPropagation(); const count = state.groups[side].tabs.length;
-          const next = event.key === "Home" ? 0 : event.key === "End" ? count - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + count) % count;
-          setState(current => selectBrowserTab(current, side, next)); focusTab(side);
-        }} onClick={() => { setState(current => selectBrowserTab(current, side, index)); focusTab(side); }}>{label}</button><button type="button" aria-label={`关闭目录标签 ${index + 1}`} disabled={state.groups[side].tabs.length === 1} onClick={() => { setState(current => selectBrowserTab(current, side, index, true)); focusTab(side); }}>×</button></div>;
-      })}<button type="button" aria-label="新建目录标签" title="新建目录标签" disabled={state.groups[side].tabs.length >= MAX_BROWSER_TABS} onClick={() => { setState(current => addBrowserTab(current, side)); focusTab(side); }}>＋</button></div>} /></div>{quickPreview && state.active !== side && <FileBrowserQuickPreview rootId={currentLocation?.rootId ?? ""} node={previewNode} provider={provider} active={active} revision={listingRevision + previewRevision} onClose={closePreview} />}</div>)}
+      {([0, 1] as const).map(side => <div key={side} className="file-browser-pane-slot" data-mobile-active={quickPreview ? state.active !== side : state.active === side} style={{ gridColumn: side === 0 ? 1 : 3 }}><div className="file-browser-directory-host" hidden={quickPreview && state.active !== side}><FileBrowserPane key={state.groups[side].tabs[state.groups[side].active].tabId} tabId={state.groups[side].tabs[state.groups[side].active].tabId} onCurrentChange={onCurrentChange} side={side} active={state.active === side} visible={active && (!quickPreview || state.active === side)} refreshPaused={Boolean(operation || tool || opening || queueOpen || queueBusy)} onExternalChange={() => { if (side === state.active) setPreviewRevision(value => value + 1); }} revision={listingRevision} pane={panes[side]} roots={roots} provider={provider} onChange={next => changePane(side, next)} onActivate={() => setState(current => current.active === side ? current : { ...current, active: side })} onChoose={() => void choose(side)} onRefreshRoots={() => setRootsRevision(value => value + 1)} onOpen={(rootId, rootName, node) => void open(rootId, rootName, node)} onOperation={(kind, selection) => startOperation(kind, side, selection)} operationDisabled={(kind, count) => operationDisabled(kind, side, count)} onPreview={() => { setState(current => ({ ...current, active: side })); setQuickPreview(true); }}
+      onDragStart={(event, nodes) => {
+        const location = browserLocation(panes[side]);
+        if (!location || operation || tool || !localFileService.canTransfer()) { event.preventDefault(); return; }
+        const token = crypto.randomUUID();
+        drag.current = { token, source: { rootId: location.rootId, rootName: roots.find(root => root.id === location.rootId)?.name ?? location.rootId, parent: location.node, nodes: [...nodes] } };
+        event.dataTransfer.effectAllowed = "copyMove"; event.dataTransfer.setData(BROWSER_DRAG_TYPE, token);
+      }} onDragEnd={() => { drag.current = null; }} canDrop={(parent, moving) => {
+        const target = browserLocation(panes[side]);
+        if (!drag.current || !target || operation || tool || opening || !localFileService.canTransfer() || !localFileService.supportsDirectoryChanges(target.rootId)) return false;
+        try { planBrowserDrop(drag.current.source, { rootId: target.rootId, rootName: "", parent }, moving); return true; } catch { return false; }
+      }} onDrop={(event, parent) => {
+        const snapshot = drag.current, target = browserLocation(panes[side]); drag.current = null;
+        if (!snapshot || !target || event.dataTransfer.getData(BROWSER_DRAG_TYPE) !== snapshot.token || operation || tool || opening || !localFileService.canTransfer()) return;
+        try { setOperation(planBrowserDrop(snapshot.source, { rootId: target.rootId, rootName: roots.find(root => root.id === target.rootId)?.name ?? target.rootId, parent }, event.shiftKey)); } catch (reason) { setError(String(reason)); }
+      }} tabBar={<FileBrowserTabs group={state.groups[side]} roots={roots} side={side} onSelect={(index, close) => { setState(current => selectBrowserTab(current, side, index, close)); focusTab(side); }} onAdd={() => { setState(current => addBrowserTab(current, side)); focusTab(side); }} onAction={(id, action) => { setState(current => modifyBrowserTabs(current, side, id, action)); focusTab(side); }} onReorder={(id, target) => setState(current => reorderBrowserTab(current, side, id, target))} />} /></div>{quickPreview && state.active !== side && <FileBrowserQuickPreview rootId={currentLocation?.rootId ?? ""} node={previewNode} provider={provider} active={active} revision={listingRevision + previewRevision} onClose={closePreview} />}</div>)}
       <div className="file-browser-splitter" role="separator" aria-label="双栏宽度" aria-orientation="vertical" tabIndex={0} aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(state.ratio * 100)} onKeyDown={event => {
         if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); const delta = event.key === "ArrowRight" ? .05 : -.05; setState(current => ({ ...current, ratio: Math.max(.25, Math.min(.75, current.ratio + delta)) })); }
       }} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={event => {

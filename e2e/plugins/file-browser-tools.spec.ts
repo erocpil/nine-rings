@@ -311,3 +311,99 @@ test("近底自动分页失败只尝试一次，手动重试后继续加载且�
   await expect(left.locator(".file-browser-pane-status")).toContainText("456 项");
   expect(await list.getByRole("option").count()).toBeLessThan(50);
 });
+
+test("明确选择递归和正文核验后发现相同元信息中的内容差异，取消拒绝迟到结果", async ({ page }) => {
+  const { browser, right } = await fixture(page);
+  const root = await page.evaluate(async () => {
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    const file = new File(["int deep = 4;\n"], "deep.c", { lastModified: 5000 });
+    Object.defineProperty(file, "webkitRelativePath", { value: "Other/src/deep.c" });
+    return localFileService.addFiles([file])!;
+  });
+  await right.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await right.getByRole("combobox", { name: "选择授权目录" }).selectOption(root.id);
+  await browser.getByRole("button", { name: "比较目录", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "目录比较", exact: true });
+  await expect(dialog.getByRole("status")).toContainText("完成");
+  await dialog.getByRole("combobox", { name: "比较递归层数" }).selectOption("1");
+  await dialog.getByLabel("核验 UTF-8 正文", { exact: true }).check();
+  await dialog.getByRole("button", { name: "重新比较", exact: true }).click();
+  const row = dialog.getByRole("row").filter({ has: page.getByRole("cell", { name: "src/deep.c", exact: true }) });
+  await expect(row).toContainText("正文不同");
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await dialog.locator(".file-browser-comparison-controls").first().evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.evaluate(async () => {
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    const read = localFileService.readSnapshot.bind(localFileService);
+    localFileService.readSnapshot = async (root, node) => { await new Promise<void>(resolve => { (window as any).__finishComparison = resolve; }); return read(root, node); };
+  });
+  await dialog.getByRole("button", { name: "重新比较", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => Boolean((window as any).__finishComparison))).toBe(true);
+  await dialog.getByRole("button", { name: "取消比较", exact: true }).click();
+  await page.evaluate(() => (window as any).__finishComparison());
+  await expect(dialog.getByRole("status")).toContainText("已取消");
+  await expect(row).toHaveCount(0);
+});
+
+test("目录标签拖动排序、固定、关闭其它和恢复关闭保留独立路径", async ({ page }) => {
+  const { browser, panel, left } = await fixture(page);
+  await left.getByRole("option", { name: /^src/ }).dblclick();
+  const src = left.getByRole("tab", { name: "src", exact: true });
+  await src.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "固定标签", exact: true }).click();
+  await expect(left.getByRole("button", { name: "关闭目录标签 1", exact: true })).toBeDisabled();
+  await left.getByRole("button", { name: "新建目录标签", exact: true }).click();
+  await left.getByRole("textbox", { name: "根内相对路径" }).fill("docs");
+  await left.getByRole("textbox", { name: "根内相对路径" }).press("Enter");
+  const docs = left.getByRole("tab", { name: "docs", exact: true });
+  await docs.dragTo(src);
+  await expect(left.getByRole("tab").first()).toHaveText("docs");
+  await expect(docs).toHaveAttribute("aria-selected", "true");
+  await docs.click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "关闭其它标签", exact: true })).toBeDisabled();
+  await page.getByRole("menu", { name: "目录标签菜单" }).press("Escape");
+  await left.getByRole("button", { name: "关闭目录标签 1", exact: true }).click();
+  await expect(left.getByRole("option", { name: /deep.c/ })).toBeVisible();
+  await left.getByRole("button", { name: "恢复关闭的目录标签", exact: true }).click();
+  await expect(left.getByRole("option", { name: /readme.md/ })).toBeVisible();
+  await browser.getByRole("button", { name: "返回原视图", exact: true }).click();
+  await panel.getByRole("button", { name: "双栏浏览", exact: true }).click();
+  await expect(left.getByRole("tab").first()).toContainText("src");
+  await expect(left.getByRole("tab").last()).toHaveText("docs");
+});
+
+test("双栏拖放冻结多选并明确复制或移动目标，不绕过确认及能力门禁", async ({ page }) => {
+  const { browser, left, right } = await fixture(page);
+  const a = left.getByRole("option", { name: /^a.c/ });
+  await expect(a).toHaveAttribute("draggable", "false");
+  await page.evaluate(async () => {
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    localFileService.canTransfer = () => true; localFileService.supportsDirectoryChanges = () => true;
+  });
+  await a.click();
+  await left.getByRole("option", { name: /^b.c/ }).click({ modifiers: ["ControlOrMeta"] });
+  await a.dragTo(right.getByRole("listbox", { name: "文件列表" }));
+  let dialog = page.getByRole("dialog", { name: "复制到另一栏", exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Right");
+  await expect(dialog).toContainText("2 项");
+  await dialog.getByRole("button", { name: "关闭文件操作", exact: true }).click();
+  const source = (await a.boundingBox())!, target = (await right.getByRole("listbox", { name: "文件列表" }).boundingBox())!;
+  await page.mouse.move(source.x + 40, source.y + source.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(source.x + 65, source.y + source.height / 2, { steps: 3 });
+  await page.keyboard.down("Shift");
+  await page.mouse.move(target.x + 40, target.y + 100, { steps: 5 });
+  await page.mouse.move(target.x + 42, target.y + 102);
+  await page.mouse.up();
+  await page.keyboard.up("Shift");
+  dialog = page.getByRole("dialog", { name: "移动到另一栏", exact: true });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "关闭文件操作", exact: true }).click();
+  await expect(a).toBeVisible();
+  await expect(browser.getByRole("button", { name: "操作队列", exact: true })).toContainText("队列");
+  const external = await page.evaluateHandle(() => { const data = new DataTransfer(); data.setData("application/x-nine-rings-browser-files", "forged-token"); return data; });
+  await right.getByRole("listbox", { name: "文件列表" }).dispatchEvent("drop", { dataTransfer: external });
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await external.dispose();
+});

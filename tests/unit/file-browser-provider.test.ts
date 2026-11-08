@@ -113,3 +113,49 @@ it("rejects a stale preview after its file read finishes", async () => {
     localDirectoryProvider(owner).preview("r", "image.png", controller.signal),
   ).rejects.toThrow();
 });
+
+it("authenticates bounded original-byte digests and refuses changed or revoked reads", async () => {
+  pluginRuntime.setEnabled(true);
+  const owner = pluginRuntime.activate("test.browser", [
+    "filesystem.files.read",
+  ]);
+  const stat = vi
+    .spyOn(localFileService, "stat")
+    .mockResolvedValue({ size: 2, modifiedMs: 50 });
+  const read = vi.spyOn(localFileService, "readSnapshot").mockResolvedValue({
+    source: "a",
+    revision: "raw-byte-sha",
+    bom: false,
+    lineEnding: "lf",
+    size: 2,
+    modifiedMs: 50,
+  });
+  const provider = localDirectoryProvider(owner),
+    signal = new AbortController().signal;
+  await expect(
+    provider.contentDigest("r", "a.txt", signal),
+  ).resolves.toMatchObject({ digest: "raw-byte-sha", size: 2 });
+  stat.mockResolvedValue({ size: 5 * 1024 * 1024, modifiedMs: 50 });
+  read.mockClear();
+  await expect(provider.contentDigest("r", "a.txt", signal)).rejects.toThrow(
+    "4 MiB",
+  );
+  expect(read).not.toHaveBeenCalled();
+  stat.mockResolvedValue({ size: 2, modifiedMs: 51 });
+  await expect(provider.contentDigest("r", "a.txt", signal)).rejects.toThrow(
+    "变化",
+  );
+  stat.mockResolvedValue({ size: 2, modifiedMs: 50 });
+  read.mockImplementation(async () => {
+    pluginRuntime.deactivate(owner.pluginId);
+    return {
+      source: "a",
+      revision: "r",
+      bom: false,
+      lineEnding: "lf",
+      size: 2,
+      modifiedMs: 50,
+    };
+  });
+  await expect(provider.contentDigest("r", "a.txt", signal)).rejects.toThrow();
+});
