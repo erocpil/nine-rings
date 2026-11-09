@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import type { localDirectoryProvider } from "../lib/local-files/browser-provider";
+import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contract";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { FileBrowserPreviewText } from "./FileBrowserPreviewText";
 import { FileBrowserPreviewImage } from "./FileBrowserPreviewImage";
-export function FileBrowserQuickPreview({ rootId, node, provider, active, revision, onClose, onNavigate }: { rootId: string; node?: string; provider: ReturnType<typeof localDirectoryProvider>; active: boolean; revision: number; onClose: () => void; onNavigate: (direction: -1 | 1) => boolean }) {
+export function FileBrowserQuickPreview({ rootId, node, provider, active, revision, onClose, onNavigate }: { rootId: string; node?: string; provider: BrowserDirectoryProvider; active: boolean; revision: number; onClose: () => void; onNavigate: (direction: -1 | 1) => boolean }) {
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof provider.preview>> | null>(null);
   const [error, setError] = useState(""), [loading, setLoading] = useState(false);
   const [findOpen, setFindOpen] = useState(false), [query, setQuery] = useState(""), [matchCase, setMatchCase] = useState(false), [navigationMessage, setNavigationMessage] = useState("");

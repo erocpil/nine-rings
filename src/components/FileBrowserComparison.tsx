@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { compareBrowserDirectories, type BrowserDirectory, type ComparedBrowserEntry } from "../lib/local-files/browser-tools";
-import type { localDirectoryProvider } from "../lib/local-files/browser-provider";
+import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contract";
 import type { FileNode } from "../lib/local-files/service";
 const labels = { left: "仅左侧", right: "仅右侧", type: "类型不同", different: "元信息不同", metadata: "元信息一致", directory: "目录 · 见内部条目/深度限制", unknown: "未核验 · 未知", content: "正文相同（SHA-256）", "content-different": "正文不同（SHA-256）" };
-export function FileBrowserComparison({ directories, names, provider, onOpen }: { directories: [BrowserDirectory, BrowserDirectory]; names: [string, string]; provider: ReturnType<typeof localDirectoryProvider>; onOpen: (side: 0 | 1, node: FileNode) => void }) {
+export function FileBrowserComparison({ directories, names, provider, onOpen }: { directories: [BrowserDirectory, BrowserDirectory]; names: [string, string]; provider: BrowserDirectoryProvider; onOpen: (side: 0 | 1, node: FileNode) => void }) {
   const [rows, setRows] = useState<ComparedBrowserEntry[]>([]), [progress, setProgress] = useState("正在枚举目录…"), [error, setError] = useState(""), [busy, setBusy] = useState(true);
   const [query, setQuery] = useState(""), [page, setPage] = useState(0);
   const [depth, setDepth] = useState(0), [content, setContent] = useState(false);

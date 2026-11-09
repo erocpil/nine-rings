@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { localDirectoryProvider } from "../lib/local-files/browser-provider";
+import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contract";
 import type { FileNode, FilePage, LocalFileFingerprint } from "../lib/local-files/service";
 import type { LocalFileListOptions } from "../lib/local-files/tree";
 import { readBrowserRefresh } from "../lib/local-files/browser-refresh";
@@ -11,7 +11,7 @@ interface Snapshot {
 }
 export function useFileBrowserRefresh({ enabled, identity, rootId, node, options, provider, snapshot, canRead, onError }: {
   enabled: boolean; identity: string; rootId: string; node: string; options: LocalFileListOptions;
-  provider: ReturnType<typeof localDirectoryProvider>; snapshot: Snapshot;
+  provider: BrowserDirectoryProvider; snapshot: Snapshot;
   canRead: () => boolean; onError: (message: string) => void;
 }) {
   const latest = useRef({ snapshot, canRead, onError });

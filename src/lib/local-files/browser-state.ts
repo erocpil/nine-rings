@@ -1,4 +1,4 @@
-import { fileSegments } from "./service";
+import { fileSegments } from "./file-model";
 import { isLocalFileSort, type LocalFileSort } from "./tree";
 import type { BrowserMutation } from "./browser-operations";
 

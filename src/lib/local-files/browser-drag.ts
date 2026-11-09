@@ -1,4 +1,4 @@
-import { fileSegments } from "./service";
+import { fileSegments } from "./file-model";
 import type { BrowserOperation } from "./browser-operations";
 
 export const BROWSER_DRAG_TYPE = "application/x-nine-rings-browser-files";

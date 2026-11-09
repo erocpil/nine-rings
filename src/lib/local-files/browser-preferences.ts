@@ -1,4 +1,4 @@
-import { fileSegments } from "./service";
+import { fileSegments } from "./file-model";
 export interface BrowserColumns { name: number; size: number; modified: number; autoName: boolean }
 export const DEFAULT_BROWSER_COLUMNS: BrowserColumns = { name: 110, size: 72, modified: 145, autoName: true };
 export type BrowserColumn = "name" | "size" | "modified";

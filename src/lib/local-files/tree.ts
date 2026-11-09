@@ -1,4 +1,4 @@
-import type { FileNode, FilePage } from "./service";
+import type { FileNode, FilePage } from "./file-model";
 
 export type LocalFileSort = "name" | "name-desc" | "type" | "size" | "size-desc" | "modified" | "modified-desc";
 export const isLocalFileSort = (value: unknown): value is LocalFileSort => typeof value === "string" && ["name", "name-desc", "type", "size", "size-desc", "modified", "modified-desc"].includes(value);

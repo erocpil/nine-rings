@@ -1,4 +1,4 @@
-import { fileSegments } from "./service";
+import { fileSegments } from "./file-model";
 export { compareBrowserDirectories, type BrowserDirectory, type ComparedBrowserEntry } from "./browser-compare";
 
 export interface BatchRenameItem { node: string; name: string; next: string; changed: boolean }

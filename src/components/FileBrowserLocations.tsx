@@ -5,10 +5,10 @@ import { BROWSER_FAVORITES_EVENT, BROWSER_FAVORITES_KEY, readBrowserFavorites, r
 import { browserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
 import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
 import { ToolbarIcon } from "./ToolbarIcon";
-import type { localDirectoryProvider } from "../lib/local-files/browser-provider";
+import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contract";
 
 export function FileBrowserLocations({ pane, roots, visible, provider, onNavigate, onHistory, onError }: {
-  pane: BrowserPaneState; roots: FileRoot[]; visible: boolean; provider: ReturnType<typeof localDirectoryProvider>;
+  pane: BrowserPaneState; roots: FileRoot[]; visible: boolean; provider: BrowserDirectoryProvider;
   onNavigate: (rootId: string, node: string) => void; onHistory: (index: number) => void; onError: (message: string) => void;
 }) {
   const location = browserLocation(pane), rootId = location?.rootId ?? "", node = location?.node ?? "";

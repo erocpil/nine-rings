@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useId, useImperativeHandle, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode, type CSSProperties, type DragEvent, type Ref } from "react";
 import { browserLocation, moveBrowserHistory, navigateBrowserPane, selectBrowserItems, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
 import { fileSegments, type FileNode, type FileRoot, type LocalFileFingerprint } from "../lib/local-files/service";
-import type { localDirectoryProvider } from "../lib/local-files/browser-provider";
+import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contract";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { browserNavigationIndex, browserRowScroll, browserTypeahead, type BrowserTypeahead } from "../lib/local-files/browser-keyboard";
 import { FileBrowserLocations } from "./FileBrowserLocations";
@@ -20,7 +20,7 @@ import { browserPreviewIndex, browserSelectionSummary, type BrowserPreviewNaviga
 
 const ROW = 32;
 const sizeText = (size: number) => size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
-type Provider = ReturnType<typeof localDirectoryProvider>;
+type Provider = BrowserDirectoryProvider;
 interface Props {
   tabBar?: ReactNode;
   previewRef: Ref<BrowserPreviewNavigation>;

@@ -6,48 +6,10 @@ import { clearLocalFileAccessRules, isLocalFileReadOnly } from "./access";
 import { DEFAULT_LOCAL_FILE_LIST, localFileTreeNodes, type LocalFileListOptions } from "./tree";
 import { beginLocalFileWrite } from "./operation-lock";
 
-export interface FileRoot {
-  id: string;
-  name: string;
-  transient?: boolean;
-}
-export interface FileNode {
-  id: string;
-  name: string;
-  directory: boolean;
-  size: number;
-  modifiedMs?: number;
-}
-export interface FilePage {
-  nodes: FileNode[];
-  next: number | null;
-}
-export interface LocalFileSnapshot {
-  source: string;
-  revision: string;
-  bom: boolean;
-  lineEnding: "lf" | "crlf" | "cr" | "mixed";
-  modifiedMs: number;
-  size: number;
-}
-export interface LocalFileFingerprint {
-  modifiedMs: number;
-  size: number;
-}
-export interface LocalFileDigest extends LocalFileFingerprint { digest: string }
-export type SaveAsResult = "saved" | "cancelled" | "unsupported";
-export const MAX_SOURCE_BYTES = 4 * 1024 * 1024;
-export function fileSegments(path: string): string[] {
-  if (!path) return [];
-  const parts = path.split("/");
-  if (
-    parts.some(
-      (part) => !part || part === "." || part === ".." || /[\\:\0]/.test(part),
-    )
-  )
-    throw new Error("无效的文件路径");
-  return parts;
-}
+import { fileSegments, MAX_SOURCE_BYTES, type FileRoot, type FileNode, type FilePage, type LocalFileSnapshot, type LocalFileFingerprint, type LocalFileDigest, type SaveAsResult } from "./file-model";
+export { fileSegments, MAX_SOURCE_BYTES } from "./file-model";
+export type { FileRoot, FileNode, FilePage, LocalFileSnapshot, LocalFileFingerprint, LocalFileDigest, SaveAsResult } from "./file-model";
+
 export function resolveRelativeNode(fromNode: string, href: string): string {
   if (!href || /^(?:[a-z][a-z0-9+.-]*:|\/\/|\/)/i.test(href)) throw new Error("链接不在本地授权目录内");
   const pathname = decodeURIComponent(href.split(/[?#]/, 1)[0] ?? "");

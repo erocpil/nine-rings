@@ -1,9 +1,9 @@
-import type { FileNode, FilePage, LocalFileFingerprint } from "./service";
-import type { localDirectoryProvider } from "./browser-provider";
+import type { FileNode, FilePage, LocalFileFingerprint } from "./file-model";
+import type { BrowserDirectoryProvider } from "./browser-contract";
 import { appendLocalFileNodes, type LocalFileListOptions } from "./tree";
 
 /** Refresh the loaded extent, never silently fall back to the first page. */
-export async function readBrowserRefresh(provider: Pick<ReturnType<typeof localDirectoryProvider>, "page" | "properties">, rootId: string, node: string, options: LocalFileListOptions, previousCount: number, visibleIds: readonly string[], signal: AbortSignal) {
+export async function readBrowserRefresh(provider: Pick<BrowserDirectoryProvider, "page" | "properties">, rootId: string, node: string, options: LocalFileListOptions, previousCount: number, visibleIds: readonly string[], signal: AbortSignal) {
   signal.throwIfAborted();
   let page = await provider.page(rootId, node, 0, options, signal);
   while (page.next !== null && page.nodes.length < Math.min(10000, previousCount)) {

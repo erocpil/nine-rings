@@ -1,4 +1,4 @@
-import type { FileNode, LocalFileFingerprint } from "./service";
+import type { FileNode, LocalFileFingerprint } from "./file-model";
 
 export interface PreviewMatch { from: number; to: number }
 /** Literal Unicode search; never run user-supplied regex or derive offsets from

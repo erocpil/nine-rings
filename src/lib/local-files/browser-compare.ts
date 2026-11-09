@@ -1,10 +1,10 @@
-import { fileSegments, MAX_SOURCE_BYTES, type FileNode, type LocalFileFingerprint } from "./service";
-import type { localDirectoryProvider } from "./browser-provider";
+import { fileSegments, MAX_SOURCE_BYTES, type FileNode, type LocalFileFingerprint } from "./file-model";
+import type { BrowserDirectoryProvider } from "./browser-contract";
 
 export interface BrowserDirectory { rootId: string; node: string }
 export interface ComparedBrowserEntry { name: string; left?: FileNode; right?: FileNode; status: "left" | "right" | "type" | "metadata" | "different" | "directory" | "unknown" | "content" | "content-different"; issue?: string }
 export interface BrowserCompareOptions { depth: number; content: boolean; binary?: boolean }
-type Provider = Pick<ReturnType<typeof localDirectoryProvider>, "page" | "properties"> & Partial<Pick<ReturnType<typeof localDirectoryProvider>, "contentDigest" | "digestByteLimit">>;
+type Provider = Pick<BrowserDirectoryProvider, "page" | "properties"> & Partial<Pick<BrowserDirectoryProvider, "contentDigest" | "digestByteLimit">>;
 const MAX_ENTRIES = 10000, MAX_CONTENT_BYTES = 32 * 1024 * 1024;
 const same = (a: LocalFileFingerprint, b: LocalFileFingerprint) => a.size === b.size && a.modifiedMs === b.modifiedMs;
 
