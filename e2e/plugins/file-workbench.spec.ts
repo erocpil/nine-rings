@@ -191,3 +191,70 @@ test("全文源码查看不再截断快速预览范围，只读也能定位到�
   await page.keyboard.press("ControlOrMeta+End");
   await expect(content).toContainText("END-LARGE-SOURCE");
 });
+
+// Exercises the real Tauri JS bridge and source leave UI; OS window delivery
+// and native dialogs still require the separate packaged-app acceptance check.
+test("桌面关闭桥接等待保存决定，取消或草稿失败不退出，保存后才确认原生退出", async ({ page }) => {
+  await page.addInitScript(() => {
+    const callbacks = new Map<number, (event: unknown) => void>();
+    let next = 1, closeHandler = 0;
+    const state = { source: "int original;\n", revision: "r1", confirmed: 0, ready: false, copies: 0 };
+    const w = window as any;
+    w.__workbenchNative = state;
+    w.__workbenchNativeClose = () => callbacks.get(closeHandler)?.({ event: "workbench:request-close", id: closeHandler, payload: null });
+    w.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
+    w.__TAURI_INTERNALS__ = {
+      transformCallback(callback: (event: unknown) => void) { const id = next++; callbacks.set(id, callback); return id; },
+      async invoke(command: string, args: any = {}) {
+        if (command === "plugin:event|listen") { if (args.event === "workbench:request-close") closeHandler = args.handler; return args.handler; }
+        if (command === "plugin:event|unlisten") return;
+        if (command === "workbench_ready") { state.ready = true; return; }
+        if (command === "workbench_confirm_close") { state.confirmed++; return; }
+        if (command === "local_files_roots") return [{ id: "native-root", name: "Native" }];
+        if (command === "local_files_display_path") return "/test/" + args.node;
+        if (command === "local_files_list") return { nodes: [{ id: "sample.c", name: "sample.c", directory: false, size: 14, modified_ms: 1 }], next: null };
+        const snapshot = () => ({ source: state.source, revision: state.revision, bom: false, lineEnding: "lf", size: state.source.length, modifiedMs: 1 });
+        if (command === "local_files_read") return snapshot();
+        if (command === "local_files_write") { if (args.expectedRevision !== state.revision) throw new Error("STALE_REVISION"); state.source = args.source; state.revision = "r2"; return snapshot(); }
+        if (command === "local_files_save_as") { state.copies++; return false; }
+        throw new Error("Unexpected native command: " + command);
+      },
+    };
+  });
+  await page.goto("/file-workbench.html");
+  await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.ready)).toBe(true);
+  const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+  await browser.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /sample.c/ }).dblclick();
+  const view = page.getByRole("region", { name: "文件源码工作区", exact: true });
+  await view.getByRole("button", { name: "允许编辑", exact: true }).click();
+  const content = view.locator(".cm-content");
+  await content.click(); await page.keyboard.press("ControlOrMeta+A"); await page.keyboard.insertText("int native_edit;\n");
+  await view.getByRole("button", { name: "导出副本", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.copies)).toBe(1);
+  await expect(view.getByRole("button", { name: "保存文件", exact: true })).toBeEnabled();
+  await page.evaluate(() => (window as any).__workbenchNativeClose());
+  const leave = page.getByRole("dialog", { name: "未保存的文件编辑", exact: true });
+  await expect(leave).toBeVisible();
+  await leave.getByRole("button", { name: "取消", exact: true }).click();
+  expect(await page.evaluate(() => (window as any).__workbenchNative.confirmed)).toBe(0);
+  await expect(content).toContainText("native_edit");
+  await page.evaluate(() => {
+    const original = IDBDatabase.prototype.transaction;
+    (window as any).__restoreDraftWrites = () => { IDBDatabase.prototype.transaction = original; };
+    IDBDatabase.prototype.transaction = function (...args: any[]) {
+      const transaction = original.apply(this, args as any);
+      if (this.name === "file-workbench-local-recovery" && args[1] === "readwrite") queueMicrotask(() => transaction.abort());
+      return transaction;
+    } as any;
+  });
+  await page.evaluate(() => (window as any).__workbenchNativeClose());
+  await leave.getByRole("button", { name: "保留草稿后继续", exact: true }).click();
+  await expect(leave.getByRole("alert")).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__workbenchNative.confirmed)).toBe(0);
+  await leave.getByRole("button", { name: "取消", exact: true }).click();
+  await page.evaluate(() => (window as any).__restoreDraftWrites());
+  await page.evaluate(() => (window as any).__workbenchNativeClose());
+  await leave.getByRole("button", { name: "保存后继续", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.confirmed)).toBe(1);
+  expect(await page.evaluate(() => (window as any).__workbenchNative.source)).toBe("int native_edit;\n");
+});

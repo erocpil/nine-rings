@@ -61,3 +61,6 @@ coverage/
 # Editor undo files and manual backups
 *.un~
 *.bak
+
+# Independent Tauri generated schemas (capability sources are tracked)
+/native/file-workbench/src-tauri/gen/

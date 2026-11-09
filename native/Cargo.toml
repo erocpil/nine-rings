@@ -1,0 +1,3 @@
+[workspace]
+members = ["file-host", "file-workbench/src-tauri"]
+resolver = "2"

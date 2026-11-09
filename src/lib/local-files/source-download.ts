@@ -13,3 +13,15 @@ export function downloadLocalSource(name: string, source: string, base: Pick<Loc
   anchor.href = url; anchor.download = name;
   try { anchor.click(); } finally { window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
 }
+
+/** Save through the host's native picker; download when the host requests Web fallback.
+ * Cancellation never claims success or changes the original document's dirty state. */
+export async function exportLocalSource(
+  name: string, source: string, base: Pick<LocalFileSnapshot, "bom" | "lineEnding"> | null,
+  saveCopy: (name: string, source: string, base: Pick<LocalFileSnapshot, "bom" | "lineEnding"> | null) => Promise<import("./file-model").SaveAsResult>,
+): Promise<boolean> {
+  const result = await saveCopy(name, source, base);
+  if (result === "cancelled") return false;
+  if (result === "unsupported") downloadLocalSource(name, source, base);
+  return true;
+}

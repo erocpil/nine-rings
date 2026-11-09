@@ -1,0 +1,12 @@
+{
+  "identifier": "workbench-main",
+  "description": "Local-only workbench main window; no network, shell or database access.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:allow-open",
+    "dialog:allow-save"
+  ]
+}

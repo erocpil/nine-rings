@@ -516,7 +516,7 @@ export const localFileService = {
       return await this.readSnapshot(rootId, node);
     } finally { finish(); }
   },
-  async saveAs(name: string, source: string, base: LocalFileSnapshot | null): Promise<SaveAsResult> {
+  async saveAs(name: string, source: string, base: Pick<LocalFileSnapshot, "bom" | "lineEnding"> | null): Promise<SaveAsResult> {
     const check = guard();
     const owner = assert(); pluginRuntime.assert(owner, "filesystem.files.write");
     if (new TextEncoder().encode(source).length > MAX_SOURCE_BYTES) throw new Error("文件超过 4 MiB");

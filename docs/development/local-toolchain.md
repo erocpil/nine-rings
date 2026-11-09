@@ -170,3 +170,17 @@ bash scripts/with-local-flutter.sh --project dart format --output=none --set-exi
 项目 npm 依赖固定为 `@wasm-fmt/clang-format@23.1.1`，差异映射回退使用 `@codemirror/merge@6.11.2`，均通过 package-lock 锁定。无需 Homebrew、全局 clang-format 或 clangd；标准 `npm ci` 安装至本仓库 node_modules，Vite 为 Web/Tauri 生成独立 module Worker 和约 2.57 MB（gzip 约 1.10 MB）的 WASM 资源。首次执行按需加载，执行完成/失败或 60 秒超时后终止 Worker，不常驻后台进程。生产 PWA 将资源预缓存，可在离线冷启动后使用。
 
 验证入口为 `tests/unit/source-formatting.test.ts`、`e2e/editor/source-formatting.spec.ts` 和生产包 `e2e/delivery/source-formatting-production.spec.ts`；后者纳入 `playwright.pwa.config.ts`，先构建再运行。CSP 保留 `wasm-unsafe-eval`，不增加 JavaScript `unsafe-eval` 或远端代码服务。产品操作与配置优先级见[源码语言文档](../features/document-source-languages.md)。
+
+## 2026-11-10：独立文件工作台桌面构建
+
+复用既有 `.local-tools` Node/Rust/SDK 缓存，不安装全局依赖或修改系统 PATH。新增 `native/Cargo.lock` 以既有原应用锁定依赖为起点，在离线解析后保留独立工程所需包；原应用锁只新增共享库路径依赖。不能从缓存中无锁解析替代版本后直接升级原应用。
+
+```bash
+bash scripts/with-local-tools.sh cargo test --manifest-path native/Cargo.toml --workspace --locked --offline
+bash scripts/with-local-tools.sh cargo clippy --manifest-path native/Cargo.toml --workspace --all-targets --locked --offline -- -D warnings
+bash scripts/with-local-tools.sh npm run tauri:workbench -- build --target aarch64-apple-darwin --bundles app -- --locked --offline
+```
+
+构建完成：`.local-tools/target/aarch64-apple-darwin/release/bundle/macos/File Workbench.app`，约 16 MiB 本机占用；`file` 确认为 ARM64，Info.plist 的标识为 `com.ninerings.fileworkbench`、版本 0.1.0、最低 macOS 11.0。构建包含独立前端生产资源，不覆盖 Nine Rings 的 `dist/`；未生成 DMG、未安装到 Applications、未运行 GUI 或承诺签名公证。构建日志：`/tmp/nr-workbench-native-build.log`。
+
+前端检查的 tsx 管道、E2E 的 localhost 监听及 Rust 原有 macOS 文件监测测试受沙箱限制；经授权在沙箱外重新执行，未改测试或系统设置。原应用仍使用自己的 `src-tauri/Cargo.lock`；新增 Rust workspace 测试必须显式使用 `--manifest-path native/Cargo.toml --workspace`，否则不会运行作为依赖移动过去的文件服务单测。

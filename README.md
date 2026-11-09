@@ -177,7 +177,9 @@ npx vite --port 8000
 
 ### 独立文件工作台原型
 
-运行 `npm run dev:workbench`，打开 `http://127.0.0.1:1421/file-workbench.html`。原型与 Nine Rings 共用双栏浏览、比较、搜索和预览代码，独立保存浏览设置。现已复用源码编辑器，可全文查看、编辑和导出副本；支持写入的授权目录可保存原文件，目录快照不能覆盖原文件。具备恢复草稿和未保存离开保护，完整 Markdown 渲染、目录操作与原生安装包尚待接入。
+运行 `npm run dev:workbench`，打开 `http://127.0.0.1:1421/file-workbench.html`。原型与 Nine Rings 共用双栏浏览、比较、搜索和预览代码，独立保存浏览设置。现已复用源码编辑器，可全文查看、编辑和导出副本；支持写入的授权目录可保存原文件，目录快照不能覆盖原文件。具备恢复草稿和未保存离开保护，完整 Markdown 渲染与目录操作继续分批接入；已增加独立 macOS 桌面入口。
+
+`bash scripts/with-local-tools.sh npm run tauri:workbench -- dev` 启动独立桌面开发版；macOS ARM64 构建使用 `bash scripts/with-local-tools.sh npm run tauri:workbench -- build --target aarch64-apple-darwin --bundles app -- --locked`。共享原生文件服务在 `native/file-host/`，授权与草稿使用独立应用数据。
 
 `npm run build:workbench` 输出到 `.local-tools/file-workbench-dist/`，不会覆盖 Nine Rings 构建。范围、限制及后续步骤见[独立产品计划](docs/future-evolution/dual-pane-standalone.md)。
 

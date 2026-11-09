@@ -1,5 +1,25 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-10：独立桌面宿主第四批
+
+实现与影响分析：
+
+- `native/file-host/src/local_files.rs:222` 的 `LocalFiles` 在 `load`（298 行）保存宿主提供的授权记录位置；`persist`（321 行）不再读取 Nine Rings 的 `DataDir`。两个临时目录的隔离/重开测试及未初始化拒绝持久化覆盖边界。原记录名称和结构、主窗口限制、路径/链接检查、写入修订和传输算法保留，原有 20 项文件服务测试完整迁移。
+- `src-tauri/src/commands/mod.rs:18` 重导出共享命令，原 `lib.rs` 调用方保持不变；独立桌面注册相同文件命令，不注册数据库命令。原应用 lock 只新增路径依赖。IPC 静态检查同时核对两个宿主及独立关闭握手；CI 的 `native/**` 变更会触发共享 workspace 测试，依赖 crate 的测试不会被原应用 `cargo test` 自动运行。
+- `native/file-workbench/src-tauri/src/main.rs:14`、51、82 行的 ready/关闭/退出与 `native-lifecycle.ts:8` 形成确认协议；先监听再 ready，随后开放编辑。`SourceView.tsx:95` 的离开请求支持继续动作，取消清除待退出动作；保存或事务失败保持原视图，成功后才调用原生确认。后台硬终止不能等待此协议，只恢复已提交草稿。
+- `source-download.ts:19` 的宿主导出协议区分取消、成功和 Web 下载回落；`LocalSourceHost.saveCopy` 接入唯一工作台宿主。`localFileService.saveAs` 参数放宽为实际消费的 BOM/换行字段，既有 `LocalFileView` 调用仍兼容。生产 E2E 初次发现 Chromium 弹出 FSA 另存窗口而原 Web 下载测试等待超时，已保持 Web 直接下载，仅桌面接入系统另存；原测试保留。
+
+验证记录：
+
+- 完整 `npm run check` 通过；Vitest **240 文件 / 2597 项通过**，类型、lint、格式与 IPC 检查通过。后续兼容修正后再次通过类型/lint 及下列双引擎生产回归。
+- 原应用 Rust：**73 单测通过，1 项私有备份演练按原约定忽略；33 集成测试通过**。文件监测单测最初在沙箱内超时，经授权在沙箱外完整重跑后通过，未改变测试断言。独立 workspace：共享文件服务 **21 项**、关闭策略 **1 项**通过；两个工程的 fmt/clippy（警告视为错误）通过。
+- 独立生产组：Chromium **7 passed（6.4s）**、WebKit **7 passed（9.5s）**，无重试。新增用真实 Tauri JS API + IPC 夹具串起前端关闭事件、取消、草稿中止、系统另存取消及保存后确认；这是桥接协议验证，并非真实系统窗口测试。
+- Nine Rings 原入口保存/Markdown/双栏组：Chromium **17 passed（38.8s）**；WebKit **17 passed（41.9s）**，无重试。不是完整产品 E2E，未检查或推送远端 CI。
+- 两种前端生产构建以及独立 macOS ARM64 `.app` 构建成功，无 chunk 超限或循环警告。已检查 Mach-O 架构及 Info.plist 标识/版本，未启动 GUI 或接触原用户数据。构建命令及产物见[本地工具链](../development/local-toolchain.md)。
+
+结论：**SAFE（上述已验证范围）**：现有文件服务、默认授权存储及原插件调用未见退化，新增独立宿主保存/关闭协议通过可执行回归。**UNCERTAIN（未执行）**：真实 macOS 系统 Quit、窗口关闭、授权/另存对话框、独立 WebView 运行数据隔离，以及 Windows/Linux 独立应用的打包与运行；这些保留为现场验收，不能用编译通过替代。
+
+
 ## 2026-11-10：独立工作台共享源码与保存第三批
 
 独立文本打开改为原有 `DocumentSourceSurface` / `MarkdownSourceEditor`，不再截断至快速预览长度。`LocalSourceHost` 仅装配文件内容读写与恢复草稿；目录操作仍在独立队列入口明确拒绝。真实目录需要浏览器写权限，快照只能导出副本；原来的修订、BOM、换行和大小检查由同一文件服务负责。

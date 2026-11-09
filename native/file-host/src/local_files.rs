@@ -221,6 +221,7 @@ pub async fn local_files_digest(
 #[derive(Default)]
 pub struct LocalFiles {
     roots: Arc<Mutex<HashMap<String, PathBuf>>>,
+    grants_path: Option<PathBuf>,
 }
 #[derive(Serialize, Deserialize)]
 struct Grant {
@@ -300,6 +301,7 @@ impl LocalFiles {
             .and_then(|b| serde_json::from_slice(&b).ok())
             .unwrap_or_default();
         Self {
+            grants_path: Some(dir.join("local-file-roots.json")),
             roots: Arc::new(Mutex::new(
                 grants.into_iter().map(|g| (g.id, g.path)).collect(),
             )),
@@ -313,7 +315,10 @@ impl LocalFiles {
             .cloned()
             .ok_or("目录授权已撤销".into())
     }
-    fn save(&self, app: &tauri::AppHandle) -> Result<(), String> {
+    fn save(&self, _app: &tauri::AppHandle) -> Result<(), String> {
+        self.persist()
+    }
+    fn persist(&self) -> Result<(), String> {
         let data: Vec<Grant> = self
             .roots
             .lock()
@@ -325,9 +330,7 @@ impl LocalFiles {
             })
             .collect();
         fs::write(
-            app.state::<crate::DataDir>()
-                .0
-                .join("local-file-roots.json"),
+            self.grants_path.as_ref().ok_or("授权记录目录尚未初始化")?,
             serde_json::to_vec(&data).map_err(|e| e.to_string())?,
         )
         .map_err(|e| e.to_string())
@@ -1413,6 +1416,38 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+    #[test]
+    fn grant_storage_is_host_owned_and_isolated() {
+        let area = TransferFixture::new();
+        let first = LocalFiles::load(&area.0);
+        first
+            .roots
+            .lock()
+            .unwrap()
+            .insert("one".into(), area.source());
+        first.persist().unwrap();
+        let second = LocalFiles::load(&area.0.join("dest"));
+        assert!(second.root("one").is_err());
+        second
+            .roots
+            .lock()
+            .unwrap()
+            .insert("two".into(), area.target());
+        second.persist().unwrap();
+        assert_eq!(
+            LocalFiles::load(&area.0).root("one").unwrap(),
+            area.source()
+        );
+        assert!(LocalFiles::load(&area.0).root("two").is_err());
+        assert_eq!(
+            LocalFiles::load(&area.0.join("dest")).root("two").unwrap(),
+            area.target()
+        );
+        assert!(LocalFiles::default()
+            .persist()
+            .unwrap_err()
+            .contains("尚未初始化"));
     }
     #[test]
     fn cross_move_verifies_hidden_binary_and_empty_directories_before_retiring_source() {

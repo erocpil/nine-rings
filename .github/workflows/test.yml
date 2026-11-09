@@ -77,6 +77,8 @@ jobs:
               - 'scripts/e2e-suites.mjs'
               - '.github/workflows/test.yml'
             rust:
+              - 'native/**'
+              - '.github/workflows/test.yml'
               - 'rust-toolchain.toml'
               - 'src-tauri/**'
               - 'schema/**'
@@ -88,6 +90,8 @@ jobs:
               - 'flutter_app/lib/database/schema_gen.dart'
               - 'scripts/gen-schema.py'
             ipc:
+              - 'native/**'
+              - 'src/apps/file-workbench/native-lifecycle.ts'
               - 'src-tauri/src/**'
               - 'src/lib/storage/tauri.ts'
               - 'src/lib/storage/tauri-driver.ts'
@@ -153,6 +157,9 @@ jobs:
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
       - run: cd src-tauri && cargo test --locked
+      - run: cargo test --manifest-path native/Cargo.toml --workspace --locked
+      - run: cargo fmt --manifest-path native/Cargo.toml --all --check
+      - run: cargo clippy --manifest-path native/Cargo.toml --workspace --all-targets -- -D warnings
       - run: cd src-tauri && cargo fmt --check
       - run: cd src-tauri && cargo clippy --locked --all-targets --all-features -- -D warnings
 

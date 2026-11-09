@@ -1,0 +1,43 @@
+{
+  "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "File Workbench",
+  "version": "0.1.0",
+  "identifier": "com.ninerings.fileworkbench",
+  "build": {
+    "beforeDevCommand": "npm --prefix ../.. run dev:workbench:server",
+    "devUrl": "http://127.0.0.1:1421/file-workbench.html",
+    "beforeBuildCommand": "npm --prefix ../.. run build:workbench",
+    "frontendDist": "../../../.local-tools/file-workbench-dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "File Workbench",
+        "url": "file-workbench.html",
+        "width": 1180,
+        "height": 780,
+        "minWidth": 720,
+        "minHeight": 480,
+        "decorations": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    },
+    "icon": [
+      "../../../src-tauri/icons/icon.png",
+      "../../../src-tauri/icons/icon.icns",
+      "../../../src-tauri/icons/icon.ico"
+    ]
+  }
+}

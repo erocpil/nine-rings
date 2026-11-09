@@ -1,3 +1,4 @@
+import type { WorkbenchCloseRequest } from "./native-lifecycle";
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { EditorState } from "@codemirror/state";
 import { DocumentSourceSurface } from "../../components/DocumentSourceSurface";
@@ -12,13 +13,13 @@ import type { BrowserFileOpen } from "../../lib/local-files/browser-contract";
 import type { LocalFileSnapshot } from "../../lib/local-files/file-model";
 import type { LocalSourceHost } from "../../lib/local-files/source-host";
 import { saveLocalSource } from "../../lib/local-files/source-save";
-import { downloadLocalSource } from "../../lib/local-files/source-download";
+import { exportLocalSource } from "../../lib/local-files/source-download";
 import type { LocalFileDraft } from "../../lib/local-files/recovery";
 import "../../styles/local-files.css";
 
 export function WorkbenchSourceView({ file, host, onClose, closeRequest }: {
   file: BrowserFileOpen; host: LocalSourceHost; onClose: () => void;
-  closeRequest: MutableRefObject<(() => void) | null>;
+  closeRequest: MutableRefObject<WorkbenchCloseRequest | null>;
 }) {
   const identity = `${file.rootId}:${file.node.id}`;
   const handle = useRef<SourceEditorHandle | null>(null), session = useRef<EditorState | null>(null);
@@ -86,15 +87,21 @@ export function WorkbenchSourceView({ file, host, onClose, closeRequest }: {
     window.addEventListener("beforeunload", guard);
     return () => window.removeEventListener("beforeunload", guard);
   }, [current, checkpoint]);
-  const requestClose = useCallback(() => {
+  const pendingClose = useRef<(() => void) | null>(null);
+  const finishClose = useCallback(() => {
+    const finish = pendingClose.current; pendingClose.current = null; finish?.();
+  }, []);
+  const cancelLeave = () => { pendingClose.current = null; setLeave(null); };
+  const requestClose = useCallback((afterLeave?: () => void) => {
     if (busy.current) { setNotice("文件正在保存，请等待完成后再返回。"); return; }
+    pendingClose.current = afterLeave ?? onClose;
     if (baseRef.current && current() !== baseRef.current.source) setLeave("close");
-    else if (candidate || !draftAvailable) onClose();
+    else if (candidate || !draftAvailable) finishClose();
     else void checkpoint().then(() => {
       if (baseRef.current && current() !== baseRef.current.source) setLeave("close");
-      else onClose();
+      else finishClose();
     }).catch(cause => setError(String(cause)));
-  }, [candidate, checkpoint, current, draftAvailable, onClose]);
+  }, [candidate, checkpoint, current, draftAvailable, finishClose, onClose]);
   useEffect(() => { closeRequest.current = requestClose; return () => { closeRequest.current = null; }; }, [closeRequest, requestClose]);
   const save = useCallback(async () => {
     if (busy.current || !baseRef.current) return false;
@@ -124,9 +131,9 @@ export function WorkbenchSourceView({ file, host, onClose, closeRequest }: {
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   }, [save]);
-  const copy = () => { try { downloadLocalSource(file.node.name, current(), baseRef.current); setNotice("已下载当前内容副本；原文件未改变，未保存状态保留。"); } catch (cause) { setError(String(cause)); } };
+  const copy = async () => { try { if (await exportLocalSource(file.node.name, current(), baseRef.current, host.saveCopy)) setNotice("已导出当前内容副本；原文件未改变，未保存状态保留。"); } catch (cause) { setError(String(cause)); } };
   const keepAndLeave = async () => {
-    try { await checkpoint(); const target = leave; setLeave(null); if (target === "close") onClose(); else await read(); }
+    try { await checkpoint(); const target = leave; setLeave(null); if (target === "close") finishClose(); else await read(); }
     catch (cause) { setError(String(cause)); }
   };
   const searchLocation = useRef(file.location), appliedSearch = useRef(false);
@@ -144,21 +151,21 @@ export function WorkbenchSourceView({ file, host, onClose, closeRequest }: {
     <DocumentTitleBar className="local-files-toolbar local-file-titlebar"><strong title={file.node.id}>{file.node.name}</strong><span>{saving ? "正在保存…" : dirty ? "未保存" : "磁盘文本"}</span>
       <button className="btn-icon" type="button" aria-label={readonly ? "允许编辑" : "设为只读"} disabled={loading || !base || Boolean(candidate) || !draftAvailable} onClick={() => setReadonly(value => !value)}><ToolbarIcon name={readonly ? "lock" : "edit"} /></button>
       <button className="btn-icon" type="button" aria-label="保存文件" disabled={loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>
-      <button className="btn-icon" type="button" aria-label="导出副本" disabled={loading || !base} onClick={copy}><ToolbarIcon name="download" /></button>
+      <button className="btn-icon" type="button" aria-label="导出副本" disabled={loading || !base} onClick={() => void copy()}><ToolbarIcon name="download" /></button>
       <button className="btn-icon" type="button" aria-label="重新读取原文件" disabled={loading || saving} onClick={() => { if (dirty) setLeave("reload"); else void read(); }}><ToolbarIcon name="refresh" /></button>
-      <button className="btn-icon" type="button" aria-label="返回文件浏览" onClick={requestClose}><ToolbarIcon name="chevronLeft" /></button>
+      <button className="btn-icon" type="button" aria-label="返回文件浏览" onClick={() => requestClose()}><ToolbarIcon name="chevronLeft" /></button>
     </DocumentTitleBar>
     {loading && <p role="status">正在读取文件…</p>}
     {error && <p role="alert">{error}<button type="button" aria-label="关闭文件错误" onClick={() => setError("")}>×</button></p>}
     {notice && <p className="workbench-source-notice" role="status">{notice}<button type="button" aria-label="关闭文件提示" onClick={() => setNotice("")}>×</button></p>}
-    {candidate && <div role="status">发现此会话未保存草稿。<button type="button" onClick={() => { change(candidate.source); applyBase({ ...base!, source: candidate.baseSource, revision: candidate.baseRevision, bom: candidate.bom, lineEnding: candidate.lineEnding }); setCandidate(null); setReadonly(false); }}>恢复草稿</button><button type="button" onClick={() => { try { downloadLocalSource(file.node.name, candidate.source, candidate); } catch (cause) { setError(String(cause)); } }}>下载草稿</button><button type="button" onClick={() => { void host.drafts.remove(identity).then(() => setCandidate(null)).catch(cause => setError(String(cause))); }}>删除草稿</button></div>}
+    {candidate && <div role="status">发现此会话未保存草稿。<button type="button" onClick={() => { change(candidate.source); applyBase({ ...base!, source: candidate.baseSource, revision: candidate.baseRevision, bom: candidate.bom, lineEnding: candidate.lineEnding }); setCandidate(null); setReadonly(false); }}>恢复草稿</button><button type="button" onClick={() => { void exportLocalSource(file.node.name, candidate.source, candidate, host.saveCopy).catch(cause => setError(String(cause))); }}>下载草稿</button><button type="button" onClick={() => { void host.drafts.remove(identity).then(() => setCandidate(null)).catch(cause => setError(String(cause))); }}>删除草稿</button></div>}
     {!loading && base && <div className="local-file-editor-shell"><DocumentActiveBoundary active><DocumentSourceSurface editor={{ value: source, readonly, areaRef: handle, session, onChange: change, fontSize: 16, highlightActiveLine: true, showLineNumbers: true, showStatusBar: true, contextMenuEnabled: true, documentLanguage: documentLanguageFromFilename(file.node.name, source), saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,
       onReady: bindHandle,
     }} /></DocumentActiveBoundary></div>}
     {external && <WorkspaceDialog title="磁盘版本比较" onClose={() => setExternal(null)}><TextDiffView left={source} right={external.source} leftLabel="当前编辑" rightLabel="磁盘版本" /></WorkspaceDialog>}
-    {leave && <WorkspaceDialog title="未保存的文件编辑" onClose={() => setLeave(null)}>{error && <p role="alert">{error}</p>}<p>请先保存到原文件，或确认恢复草稿已持久化后离开。导出副本不会将原文件标记为已保存。最多保留 5 份草稿，不自动淘汰；满额时须先处理旧草稿。</p><div>
-      <button type="button" disabled={saving || !host.canSaveOriginal(file.rootId)} onClick={() => { void save().then(clean => { if (clean) { const target = leave; setLeave(null); if (target === "close") onClose(); else void read(); } }); }}>保存后继续</button>
-      <button type="button" disabled={saving} onClick={() => void keepAndLeave()}>保留草稿后继续</button><button type="button" onClick={() => setLeave(null)}>取消</button>
+    {leave && <WorkspaceDialog title="未保存的文件编辑" onClose={cancelLeave}>{error && <p role="alert">{error}</p>}<p>请先保存到原文件，或确认恢复草稿已持久化后离开。导出副本不会将原文件标记为已保存。最多保留 5 份草稿，不自动淘汰；满额时须先处理旧草稿。</p><div>
+      <button type="button" disabled={saving || !host.canSaveOriginal(file.rootId)} onClick={() => { void save().then(clean => { if (clean) { const target = leave; setLeave(null); if (target === "close") finishClose(); else void read(); } }); }}>保存后继续</button>
+      <button type="button" disabled={saving} onClick={() => void keepAndLeave()}>保留草稿后继续</button><button type="button" onClick={cancelLeave}>取消</button>
     </div></WorkspaceDialog>}
   </section>;
 }

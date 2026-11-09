@@ -1,0 +1,18 @@
+[package]
+name = "file-workbench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "=2.6.3", features = [] }
+tauri-codegen = "=2.6.3"
+
+[dependencies]
+tauri = { version = "~2.11", features = [] }
+tauri-plugin-dialog = "~2.7"
+tauri-plugin-single-instance = "2"
+nine-rings-file-host = { path = "../../file-host" }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

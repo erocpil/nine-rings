@@ -2,7 +2,6 @@ pub mod config;
 pub mod doc_tree;
 pub mod export;
 pub mod external_link;
-mod local_file_transfer;
 pub mod note;
 pub mod protection;
 pub mod query;
@@ -16,4 +15,4 @@ pub mod image_library;
 
 pub mod native_menu;
 
-pub mod local_files;
+pub use nine_rings_file_host::local_files;

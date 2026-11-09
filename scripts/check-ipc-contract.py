@@ -24,6 +24,8 @@ TEMPLATE_TAURI_TS = os.path.join(PROJECT_ROOT, "src", "lib", "storage", "templat
 IMAGE_LIBRARY_TS = os.path.join(PROJECT_ROOT, "src", "lib", "image-library", "directory-service.ts")
 LIB_RS = os.path.join(PROJECT_ROOT, "src-tauri", "src", "lib.rs")
 COMMANDS_DIR = os.path.join(PROJECT_ROOT, "src-tauri", "src", "commands")
+SHARED_COMMANDS_DIR = os.path.join(PROJECT_ROOT, "native", "file-host", "src")
+WORKBENCH_RS = os.path.join(PROJECT_ROOT, "native", "file-workbench", "src-tauri", "src", "main.rs")
 
 # ── 1. 提取 tauri.ts 中所有 invoke(command, ...) 调用 ──
 
@@ -51,8 +53,10 @@ def extract_registered_commands(filepath: str) -> set[str]:
     handler_match = re.search(r'generate_handler!\[(.*?)\]', content, re.DOTALL)
     if handler_match:
         handler_body = handler_match.group(1)
-        for m in re.finditer(r'commands::(\w+)::(\w+)', handler_body):
-            registered.add(m.group(2))
+        for entry in handler_body.split(','):
+            path = entry.strip()
+            if re.fullmatch(r'(?:[A-Za-z_]\w*::)*[A-Za-z_]\w*', path):
+                registered.add(path.split('::')[-1])
 
     return registered
 
@@ -61,7 +65,7 @@ def extract_registered_commands(filepath: str) -> set[str]:
 def check_rust_command_exists(command_name: str) -> bool:
     """检查是否有对应的 Rust #[tauri::command] 函数定义"""
     # 搜索所有 commands/ 下的 .rs 文件
-    for root, _dirs, files in os.walk(COMMANDS_DIR):
+    for root, _dirs, files in (entry for directory in [COMMANDS_DIR, SHARED_COMMANDS_DIR, os.path.dirname(WORKBENCH_RS)] for entry in os.walk(directory)):
         for fname in files:
             if not fname.endswith(".rs"):
                 continue
@@ -69,7 +73,7 @@ def check_rust_command_exists(command_name: str) -> bool:
             with open(fpath) as f:
                 content = f.read()
             # 匹配同步和异步的公开 Tauri command 函数。
-            pattern = rf'#\[(?:tauri::)?command\]\s*\n\s*pub\s+(?:async\s+)?fn\s+{re.escape(command_name)}\b'
+            pattern = rf'#\[(?:tauri::)?command\]\s*\n\s*(?:pub\s+)?(?:async\s+)?fn\s+{re.escape(command_name)}\b'
             if re.search(pattern, content, re.MULTILINE):
                 return True
     return False
@@ -107,6 +111,20 @@ def main():
 
     # 4.2 提取后端注册列表
     registered = extract_registered_commands(LIB_RS)
+
+    # The independent app must implement the same file service wire contract,
+    # while intentionally omitting Nine Rings document/database commands.
+    workbench = extract_registered_commands(WORKBENCH_RS)
+    file_commands = {command for command, _, _ in image_invokes if command.startswith("local_files_")}
+    lifetime = extract_invoke_commands(os.path.join(PROJECT_ROOT, "src", "apps", "file-workbench", "native-lifecycle.ts"))
+    for command in sorted((file_commands | {command for command, _, _ in lifetime}) - workbench):
+        print(f"❌ 独立工作台未注册共享文件命令: {command}")
+        errors += 1
+    for command in sorted(workbench):
+        if not check_rust_command_exists(command):
+            print(f"❌ 独立工作台命令无实现: {command}")
+            errors += 1
+    print(f"独立工作台共享文件契约: {len(file_commands)}；注册命令: {len(workbench)}")
 
     # 4.3 检查每个 invoke 命令是否注册
     unregistered: list[tuple[str, int, str, str]] = []  # (cmd, line, file, line_content)

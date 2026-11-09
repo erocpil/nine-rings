@@ -76,7 +76,7 @@ Web 复制和跨根移动按钮禁用并提示需要桌面版；可写授权目�
 第二批影响分析：
 
 - **SAFE（已验证范围）**：`src/lib/local-files/browser-operations.ts:36` 的 `runBrowserOperation` 在写入前核验受影响草稿；串行冻结操作快照，完成写入先迁移身份，再检查取消，不回滚已完成项。测试覆盖跳过、改名、停止、权限撤销、后续项失败及脏文件拒绝。操作弹层为每次 effect 建立新的取消控制器，避免开发 StrictMode 的预演清理误取消真正操作。
-- **SAFE（已验证范围）**：`src-tauri/src/commands/local_files.rs:404` 的 `transfer_entry` 和 `local_files_transfer` 检查两侧授权并用排他改名发布，链接/越界/递归环/冲突失败不会覆盖目标；二进制复制与自有暂存清理由真实临时目录单测验证。前端 `localFileService.transfer` 的参数名与 Rust camelCase IPC 对应，契约检查通过。
+- **SAFE（已验证范围）**：`native/file-host/src/local_files.rs:404` 的 `transfer_entry` 和 `local_files_transfer` 检查两侧授权并用排他改名发布，链接/越界/递归环/冲突失败不会覆盖目标；二进制复制与自有暂存清理由真实临时目录单测验证。前端 `localFileService.transfer` 的参数名与 Rust camelCase IPC 对应，契约检查通过。
 - **SAFE（已验证范围）**：路径、会话、tab、最近打开的四个迁移函数只增加可选目标根，默认值保持原调用语义；已检查 `rename.ts` 和 `LocalFilesPanel.tsx` 原调用方，并保留原有本地文件操作回归。位置、书签、tab、最近记录及会话跨根迁移已做断言；不修改数据库或备份格式。
 - **UNCERTAIN（平台边界）**：原生排他改名依赖平台系统调用；本机 macOS 文件服务测试与浏览器 mock 不等于 Windows/Linux 真机验收，也不证明可抵御其它进程对目录持续替换的全部竞态。当前操作不是带崩溃恢复日志的批量事务，不能称为整批原子操作。
 
@@ -138,7 +138,7 @@ WebKit 验证发现并修复了新建标签立即编辑路径的初始化覆盖�
 
 路径输入先验证目录存在，绝对路径只能解析至已授权根，不扩大授权。常用目录、列宽和历史留在设备，不进入共享备份；浏览器无法获取系统绝对路径时，复制完整路径以授权根名称起始。授权失效的收藏不能直接访问，可清理后重新授权。迟到的路径检查与分页结果按请求取消/身份拒绝，分页失败停止自动重试，保留手动重试入口。
 
-共享 `NotesContextMenu` 新增的标签和触发按钮处理均为可选参数，默认维持原随记菜单行为。列头组件独立处理指针捕获和键盘调整，不改变列表虚拟化的行高。影响结论 **SAFE（已验证路径）**：相关前端、Rust、跨浏览器回归未发现退化；原生 GUI、真实权限续期及三平台大目录性能仍需现场验收。实现入口为 `FileBrowserPane`、`FileBrowserLocations`、`FileBrowserColumnHeaders`、`browser-preferences` 和 `commands/local_files.rs`。
+共享 `NotesContextMenu` 新增的标签和触发按钮处理均为可选参数，默认维持原随记菜单行为。列头组件独立处理指针捕获和键盘调整，不改变列表虚拟化的行高。影响结论 **SAFE（已验证路径）**：相关前端、Rust、跨浏览器回归未发现退化；原生 GUI、真实权限续期及三平台大目录性能仍需现场验收。实现入口为 `FileBrowserPane`、`FileBrowserLocations`、`FileBrowserColumnHeaders`、`browser-preferences` 和 `native/file-host/src/local_files.rs`。
 
 ### 第二批：外部变化检查（2026-11-07）
 
