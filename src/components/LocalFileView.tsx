@@ -1,3 +1,5 @@
+import { saveLocalSource } from "../lib/local-files/source-save";
+import { downloadLocalSource } from "../lib/local-files/source-download";
 import { activeLinePluginKey } from "../extensions/EditorHighlights";
 import { DocumentResourceContext } from "./DocumentResourceContext";
 import { DocumentTitleField } from "./DocumentTitleField";
@@ -473,19 +475,18 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     setSaveState("saving"); setError("");
     try {
       const savingSource = sourceHandle.current?.value ?? sourceRef.current;
-      const saved = await localFileService.write(data.rootId, data.nodeId, savingSource, base);
-      setBaseSnapshot(saved); setExternalSnapshot(null);
-      renderedFlush.current?.flush();
-      const currentSource = sourceRef.current;
-      if (currentSource === savingSource) {
-        setSaveState("saved"); setRecoveryNotice("文件已保存到磁盘。");
-        await removeLocalDraft(identity).catch(() => {});
-      } else {
-        setSaveState("dirty"); setRecoveryNotice("已保存提交时的内容；之后的编辑仍未保存。");
-        void writeLocalDraft({ identity, source: currentSource, baseSource: saved.source, baseRevision: saved.revision, bom: saved.bom, lineEnding: saved.lineEnding, savedAt: Date.now() }).catch(() => {});
-      }
+      const result = await saveLocalSource({
+        submitted: savingSource, base,
+        currentSource: () => sourceHandle.current?.value ?? sourceRef.current,
+        write: (text, snapshot) => localFileService.write(data.rootId, data.nodeId, text, snapshot),
+        committed: saved => { setBaseSnapshot(saved); setExternalSnapshot(null); renderedFlush.current?.flush(); },
+        clearDraft: () => removeLocalDraft(identity),
+        keepDraft: (text, saved) => writeLocalDraft({ identity, source: text, baseSource: saved.source, baseRevision: saved.revision, bom: saved.bom, lineEnding: saved.lineEnding, savedAt: Date.now() }),
+      });
+      setSaveState(result.clean ? "saved" : "dirty");
+      setRecoveryNotice(result.recoveryIssue || (result.clean ? "文件已保存到磁盘。" : "已保存提交时的内容；之后的编辑仍未保存。"));
       window.setTimeout(() => setSaveState(current => current === "saved" ? "clean" : current), 1800);
-      return true;
+      return result.clean && !result.recoveryIssue;
     } catch (reason) {
       const message = String(reason);
       setSaveState("error"); setError(message.includes("STALE_REVISION") ? "磁盘文件已变化，请在下方比较后选择重载或覆盖。" : message);
@@ -510,14 +511,8 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
       if (result === "saved") { setRecoveryNotice("已另存为副本；原文件未改变。"); return; }
       if (result === "cancelled") return;
     } catch (reason) { setError(`另存为失败：${String(reason)}`); return; }
-    const normalized = copySource.replace(/\r\n?/g, "\n");
-    const eol = baseSnapshot?.lineEnding === "crlf" ? normalized.replace(/\n/g, "\r\n") : baseSnapshot?.lineEnding === "cr" ? normalized.replace(/\n/g, "\r") : normalized;
-    const copy = (baseSnapshot?.bom ? "\ufeff" : "") + eol;
-    if (new TextEncoder().encode(copy).length > 4 * 1024 * 1024) { setError("另存后文件超过 4 MiB"); return; }
-    const blob = new Blob([copy], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
-    anchor.href = url; anchor.download = data.name; anchor.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    try { downloadLocalSource(data.name, copySource, baseSnapshot); }
+    catch (cause) { setError(String(cause)); return; }
     setRecoveryNotice("已下载当前内容副本；原文件未改变。");
   };
   useEffect(() => {

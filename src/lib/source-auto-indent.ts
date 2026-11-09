@@ -1,3 +1,4 @@
+import { blockWorkspacePreferences } from "./block-display-settings";
 import { isolateHistory } from "@codemirror/commands";
 import { ensureSyntaxTree, getIndentUnit, indentRange, indentString, language } from "@codemirror/language";
 import type { EditorState, TransactionSpec } from "@codemirror/state";
@@ -157,7 +158,6 @@ export function sourceAutoIndentChange(
 export async function sourceFormattedIndentChange(state: EditorState, scope: SourceAutoIndentScope): Promise<{ change: TransactionSpec | null; skipped: number }> {
   const empty = { change: null, skipped: 0 };
   if (state.readOnly || !state.doc.length || (scope === "selection" && state.selection.main.empty)) return empty;
-  const { blockWorkspacePreferences } = await import("./block-display-settings");
   const prefs = blockWorkspacePreferences();
   const source = state.doc.toString();
   const settings = sourceFormatSettings();

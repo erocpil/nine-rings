@@ -19,7 +19,7 @@
 | 分栏/主区域 | `panel-registry.ts`、`main-view-registry.ts` | 分栏与中央视图是不同贡献；pending 通过宿主保存边界后才能成为 current | [主区域](../plugins/plugin-main-area-views.md) |
 | 图片 | `image-library/`、`ImageViewerDialog`、Rust image_library | 授权目录只读且设备本地；适窗与原始像素倍率分开；预览变换不改文件 | [图片插件](../plugins/plugin-local-image-panel.md) |
 | 本地文件夹工作区 | `local-files/`、`LocalFilesPanel`、`LocalFileView`、Rust `local_files` | 独立授权、修订核验写入与恢复草稿；公共编辑／渲染工作区按能力接入，不自动导入或同步磁盘文件 | [方案](../features/local-folder-workspace.md) |
-| 共享双栏核心 | `browser-provider-core`、`browser-operation-core`、`browser-queue-core` | 读取、冲突、取消与队列共用一份实现；授权、草稿、租约、打开文件及状态迁移由宿主提供；共享 `FileBrowserWorkspace` 已驱动独立 Web 只读原型；原生独立应用待实现 | [决策](../decisions/003-shared-file-workbench.md)、[分阶段计划](../future-evolution/dual-pane-standalone.md) |
+| 共享双栏核心 | `browser-provider-core`、`browser-operation-core`、`browser-queue-core` | 读取、冲突、取消与队列共用一份实现；授权、草稿、租约、打开文件及状态迁移由宿主提供；共享 `FileBrowserWorkspace` 已驱动独立 Web 源码编辑原型；原生独立应用待实现 | [决策](../decisions/003-shared-file-workbench.md)、[分阶段计划](../future-evolution/dual-pane-standalone.md) |
 | 词汇 | `vocabulary/`、`builtin-vocabulary.ts` | 普通 Markdown 和独立词库共享资源身份接口；不强迫每词一篇文档 | [词库](../features/vocabulary-corpus-design.md) |
 | 同步 | `sync/entity-review.ts`、`reviewed-publication.ts`、`pull-application.ts` | 固定远端修订、冻结本机候选、显式逐实体选择；发布与接受基线分开 | [手动同步](../sync/incremental-sync.md) |
 | 恢复 | `backup-restore-coordination.ts`、`publication-recovery.ts`、桌面 lifecycle | 不确定写入先只读核验；中断留证据而不盲目重放；数据库恢复不是跨存储原子事务 | [恢复协调](../sync/backup-restore-coordination.md) |

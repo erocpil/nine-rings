@@ -20,12 +20,21 @@ export default defineConfig({
   }],
   // The search worker loads PCRE2 lazily; prebundle before a user searches so
   // the development server cannot reload an authorized directory session.
-  optimizeDeps: { include: ["pcre2-wasm"] },
+  optimizeDeps: { include: ["pcre2-wasm", "@wasm-fmt/clang-format/vite"] },
   cacheDir: ".local-tools/vite-workbench-cache",
   server: { host: "127.0.0.1", port: 1421, strictPort: true },
   preview: { host: "127.0.0.1", port: 1421, strictPort: true },
   define: { __APP_VERSION__: JSON.stringify("file-workbench-prototype") },
   resolve: { alias: { "decode-named-character-reference": fileURLToPath(new URL("./node_modules/decode-named-character-reference/index.js", import.meta.url)) } },
   worker: { format: "es", plugins: () => [pcre2Assets()] },
-  build: { outDir: ".local-tools/file-workbench-dist", rollupOptions: { input: fileURLToPath(new URL("./file-workbench.html", import.meta.url)) } },
+  build: { outDir: ".local-tools/file-workbench-dist", rollupOptions: { input: fileURLToPath(new URL("./file-workbench.html", import.meta.url)), output: {
+    onlyExplicitManualChunks: true,
+    manualChunks(id) {
+      // The shared source editor must not pull CodeMirror's base runtime into a
+      // single oversized UI chunk. Every host still consumes identical modules.
+      const normalized = id.replaceAll("\\", "/");
+      if (/\/node_modules\/(?:@codemirror\/(?:state|view|language|commands|autocomplete|search)|@lezer\/(?:common|highlight|lr))\//.test(normalized)) return "source-editor-runtime";
+      return undefined;
+    },
+  } } },
 });

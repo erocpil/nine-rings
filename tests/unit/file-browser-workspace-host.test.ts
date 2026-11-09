@@ -54,7 +54,7 @@ it("separates workspace state, columns, favorites and theme from Nine Rings keys
   expect(values.has("nr:file-browser-favorites")).toBe(true);
 });
 
-it("delegates authorized reads to the shared provider and rejects direct write calls", async () => {
+it("delegates authorized reads to the shared provider and rejects directory queue calls", async () => {
   storage();
   const opened = vi.fn(),
     { workspace, dispose } = createWorkbenchHost(opened);
@@ -87,11 +87,13 @@ it("delegates authorized reads to the shared provider and rejects direct write c
       targetRootName: "Root",
       targetParent: "",
     };
-    expect(() => workspace.queue.enqueue(operation, "new.c")).toThrow("只读");
+    expect(() => workspace.queue.enqueue(operation, "new.c")).toThrow(
+      "目录操作",
+    );
     const owner = pluginRuntime
       .getStatus()
       .activations.find((value) => value.pluginId === WORKBENCH_ID);
-    expect(owner?.permissions).not.toContain("filesystem.files.write");
+    expect(owner?.permissions).toContain("filesystem.files.write");
   } finally {
     dispose();
   }

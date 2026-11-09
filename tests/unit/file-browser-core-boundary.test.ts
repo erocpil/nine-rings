@@ -11,6 +11,8 @@ const modules = [
   "browser-provider-core",
   "browser-operation-core",
   "browser-queue-core",
+  "source-save",
+  "source-download",
 ];
 it.each(modules)(
   "keeps %s runtime dependencies inside the shared boundary",
