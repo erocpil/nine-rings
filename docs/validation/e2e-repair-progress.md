@@ -2,6 +2,8 @@
 
 ## 2026-11-09：完整回归与阅读菜单定位
 
+补充生产验证：WebKit 风险门禁 **84 passed、1 skipped**（既有 Chromium CDP 限定项）。生产/PWA 初轮 Chromium **20 passed**，WebKit **17 passed、2 skipped、1 failed**；失败在 `setOffline(true)` 后刷新，独立三轮均为 WebKit internal error。根据 [Playwright Service Worker 支持范围](https://playwright.dev/docs/service-workers)及[已记录的离线导航问题](https://github.com/microsoft/playwright/issues/42775)，将生产格式化用例拆为通用在线 CSP/差异/诊断与 Chromium 离线冷启动两项，共用准备和断言，保留原有离线后的全部功能检查。最终生产套件 Chromium **21 passed**，WebKit **18 passed、3 skipped**；新增跳过仅针对离线模拟，WebKit 的真实在线格式化、差异和配置诊断继续执行。Safari 离线冷启动仍需真机验收，没有以在线通过代替离线保证。
+
 远端定时 Test `42418773110` 的最终失败是编号配置双栏对齐：弹层含 140ms 位移动画，分两次 `boundingBox` 会读取不同帧。编号和其它展示配置用例改为同一次浏览器执行读取两栏，保留小于 2px 的阈值与横向分栏断言，没有取消动画或删除测试。编辑命令归属用例改用单段夹具的 Select All，继续同时核对浏览器和 ProseMirror 选区；系统行首/行尾键仍由专门的平台用例覆盖。四组定向用例重复五轮 **40 passed**。
 
 默认完整 Chromium 首次因已定位的选区准备问题中断，记录为 **820 passed、1 failed、4 interrupted、792 did not run**，不能算完整通过。修订后的完整运行 **1616 passed、1 failed（16.1m）**：块菜单排版用例在撤销后重开菜单时消失；随后该用例独立重复五次及四 worker 重复十次均通过，暂不能确认偶发原因，不宣称已修复。远端既有块工作区替换波动在本机五轮定向和本次完整执行均未复现。

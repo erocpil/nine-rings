@@ -1,7 +1,7 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page, type BrowserContext } from "@playwright/test";
 import { createBlankDocument } from "../helpers/document";
 
-test("生产包本地 WASM 格式化在 CSP 下运行，冷启动离线可用", async ({ page, context }) => {
+async function prepareFormattedSource(page: Page, context: BrowserContext) {
   await page.setViewportSize({ width: 1280, height: 850 });
   // The desktop WebView permits WASM compilation, not JavaScript eval.
   await context.route("**/*", async route => {
@@ -19,6 +19,20 @@ test("生产包本地 WASM 格式化在 CSP 下运行，冷启动离线可用", 
   await area.fill("int main(){int value=1;return value;}");
   await page.getByRole("button", { name: "格式化全文", exact: true }).click();
   await expect(area).toContainText("int value = 1;");
+  return area;
+}
+
+test("生产包本地 WASM 格式化、差异和配置诊断在 CSP 下运行", async ({ page, context }) => {
+  await prepareFormattedSource(page, context);
+  await verifyDifferenceAndDiagnostics(page);
+});
+
+test("生产包 WASM 格式化冷启动离线可用", async ({ page, context, browserName }) => {
+  // Keep online CSP/diagnostic coverage above for every browser. Playwright's
+  // WebKit offline emulation rejects even Service Worker-owned navigation:
+  // https://github.com/microsoft/playwright/issues/42775
+  test.skip(browserName !== "chromium", "Playwright 离线 Service Worker 网络模拟仅支持 Chromium；Safari 离线冷启动需真机验证。");
+  const area = await prepareFormattedSource(page, context);
   // Wait for the actual source/type save, not a badge left from the old note.
   await expect.poll(() => page.evaluate(() => new Promise<string | undefined>((resolve, reject) => {
     const opening = indexedDB.open("nine_rings");
@@ -47,6 +61,11 @@ test("生产包本地 WASM 格式化在 CSP 下运行，冷启动离线可用", 
   await context.setOffline(true);
   await page.reload();
   await expect(area).toBeEditable();
+  await verifyDifferenceAndDiagnostics(page);
+});
+
+async function verifyDifferenceAndDiagnostics(page: Page) {
+  const area = page.getByRole("textbox", { name: "C/C++ 源码", exact: true });
   await area.fill("int main(){int other=2;return other;}");
   await page.getByRole("button", { name: "格式化全文", exact: true }).click();
   await expect(area).toContainText("int other = 2;");
@@ -64,4 +83,4 @@ test("生产包本地 WASM 格式化在 CSP 下运行，冷启动离线可用", 
   await page.getByRole("button", { name: "格式化全文", exact: true }).click();
   await expect(config.getByRole("alert")).toContainText("IndentWidth: nope");
   await expect(config.getByRole("alert")).toContainText("第 3 行");
-});
+}
