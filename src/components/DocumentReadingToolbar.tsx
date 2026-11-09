@@ -2,6 +2,7 @@ import { useEffect, useState, type RefObject } from "react";
 import { DocumentToolbar } from "./DocumentChrome";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { BlockActionMenu } from "./BlockActionMenu";
+import { editorCommandTrigger } from "../lib/editor-command-surface";
 
 /** Read commands have no persistence or file identity. Each host supplies the
  * same capabilities against its current renderer and authoritative selection. */
@@ -34,7 +35,7 @@ export function DocumentReadingToolbar({
   onCopy?: () => void;
   canCopy?: boolean;
 }) {
-  const [foldMenu, setFoldMenu] = useState<HTMLButtonElement | null>(null);
+  const [foldMenu, setFoldMenu] = useState<HTMLElement | null>(null);
   useEffect(() => {
     if (!active || findOpen || jumpOpen) setFoldMenu(null);
   }, [active, findOpen, jumpOpen]);
@@ -95,9 +96,13 @@ export function DocumentReadingToolbar({
             aria-label="选择标题折叠级别"
             title="选择标题折叠级别"
             aria-expanded={!!foldMenu}
-            onClick={(event) =>
-              setFoldMenu((previous) => (previous ? null : event.currentTarget))
-            }
+            aria-haspopup="menu"
+            onClick={(event) => {
+              // Selection tools forward the host command; anchor to the visible
+              // invocation button rather than the original toolbar button.
+              const trigger = editorCommandTrigger(event.currentTarget);
+              setFoldMenu((previous) => (previous ? null : trigger));
+            }}
           >
             ▾
           </button>
@@ -120,6 +125,7 @@ export function DocumentReadingToolbar({
         <BlockActionMenu
           title="标题折叠级别"
           trigger={foldMenu}
+          placement="below"
           actions={levels.map((level) => ({
             label: `显示至 H${level}`,
             run: () => onFoldLevel(level),
