@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDialogFocus } from "../hooks/useDialogFocus";
-import { operationTarget, type BrowserOperation } from "../lib/local-files/browser-operations";
-import { browserOperationTitles } from "../lib/local-files/browser-operation-queue";
+import { operationTarget, type BrowserOperation } from "../lib/local-files/browser-operation-contract";
+import { browserOperationTitles } from "../lib/local-files/browser-queue-core";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { planBrowserRename, type BatchRenameItem } from "../lib/local-files/browser-tools";
 

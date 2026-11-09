@@ -1,4 +1,4 @@
-import type { BrowserJob } from "./browser-operation-queue";
+import type { BrowserJob } from "./browser-queue-core";
 
 export const BROWSER_HISTORY_PREFIX = "nr:file-browser-results:";
 const MAX_CHARS = 256 * 1024;

@@ -1,6 +1,6 @@
 import { fileSegments } from "./file-model";
 import { isLocalFileSort, type LocalFileSort } from "./tree";
-import type { BrowserMutation } from "./browser-operations";
+import type { BrowserMutation } from "./browser-operation-contract";
 
 export interface BrowserLocation {
   rootId: string;

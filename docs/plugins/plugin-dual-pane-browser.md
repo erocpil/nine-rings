@@ -1,6 +1,6 @@
 # 双栏文件浏览插件
 
-独立产品方向仅完成[方案评估](../future-evolution/dual-pane-standalone.md)，尚未拆分宿主或创建独立应用；下文仍描述 Nine Rings 内置插件的实际契约。
+独立产品已开始[共享核心抽离](../future-evolution/dual-pane-standalone.md)：目录提供者、操作执行器及队列由宿主端口装配，Nine Rings 插件已委托同一实现。独立应用入口和安装包尚未建立；下文仍描述内置插件的实际契约。
 
 ## 目标与边界
 

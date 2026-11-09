@@ -2,15 +2,15 @@ import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useTransientMessage } from "../hooks/useTransientMessage";
-import { browserJobSettled, browserOperationTitles, browserQueueReport, retryBrowserItems, type BrowserJob, type BrowserOperationQueue } from "../lib/local-files/browser-operation-queue";
-import { operationTarget } from "../lib/local-files/browser-operations";
+import { browserJobSettled, browserOperationTitles, browserQueueReport, retryBrowserItems, type BrowserJob, type BrowserOperationQueueCore } from "../lib/local-files/browser-queue-core";
+import { operationTarget } from "../lib/local-files/browser-operation-contract";
 import { copyToClipboard } from "../lib/clipboard";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { FileBrowserQueueHistory } from "./FileBrowserQueueHistory";
 
 const jobLabels = { queued: "排队中", running: "执行中", waiting: "等待决定", completed: "已完成", stopped: "已停止", failed: "执行失败" };
 const itemLabels = { pending: "未执行", checking: "预检中", running: "执行中", completed: "成功", skipped: "跳过", failed: "预检失败", uncertain: "需核对" };
-function QueueJob({ job, queue, onError }: { job: BrowserJob; queue: BrowserOperationQueue; onError: (value: string) => void }) {
+function QueueJob({ job, queue, onError }: { job: BrowserJob; queue: BrowserOperationQueueCore; onError: (value: string) => void }) {
   const [expanded, setExpanded] = useState(true), [limit, setLimit] = useState(100), [alternative, setAlternative] = useState("");
   const uncertain = job.items.filter(item => item.status === "uncertain").length;
   const failures = job.items.filter(item => item.status === "failed").length;
@@ -26,7 +26,7 @@ function QueueJob({ job, queue, onError }: { job: BrowserJob; queue: BrowserOper
     {!browserJobSettled(job) ? <button type="button" onClick={() => queue.stop(job.id)}>停止后续项</button> : job.retryId !== undefined ? <p>未完成项已加入任务 #{job.retryId}</p> : retry.length > 0 && <button type="button" onClick={() => { try { queue.retry(job.id); } catch (error) { onError(String(error)); } }}>重试未完成项（{retry.length}）</button>}
   </article>;
 }
-export function FileBrowserQueueDialog({ queue, onClose }: { queue: BrowserOperationQueue; onClose: () => void }) {
+export function FileBrowserQueueDialog({ queue, onClose }: { queue: BrowserOperationQueueCore; onClose: () => void }) {
   const jobs = useSyncExternalStore(queue.subscribe, queue.getSnapshot);
   const dialog = useRef<HTMLDialogElement>(null), close = useRef<HTMLButtonElement>(null);
   const { message, showMessage } = useTransientMessage();

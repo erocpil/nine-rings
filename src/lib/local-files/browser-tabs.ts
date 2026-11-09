@@ -1,5 +1,5 @@
 import { browserLocation, emptyBrowserState, navigateBrowserPane, parseBrowserState, reconcileBrowserPaneMutation, type BrowserPaneState } from "./browser-state";
-import type { BrowserMutation } from "./browser-operations";
+import type { BrowserMutation } from "./browser-operation-contract";
 
 export interface BrowserWorkspaceTab extends BrowserPaneState { tabId: string; pinned?: boolean }
 export interface BrowserTabGroup { tabs: BrowserWorkspaceTab[]; active: number; closed?: BrowserWorkspaceTab[] }

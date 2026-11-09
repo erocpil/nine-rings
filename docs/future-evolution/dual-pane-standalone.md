@@ -1,6 +1,6 @@
 # 双栏浏览独立产品评估
 
-日期：2026-11-09。状态：方案评估，尚未实施独立应用或包拆分。
+日期：2026-11-09。状态：已开始实施共享核心边界；独立应用入口和安装包尚未建立。
 
 ## 判断与定位
 
@@ -20,6 +20,16 @@
 | `src/lib/local-files/browser-operations.ts` | 会话、草稿、路径状态迁移、主区域身份 | 移动成功后迁移打开文件；未知结果不伪装成功 |
 | `src/lib/local-files/service.ts` | 工作区面板、插件权限、授权、会话与操作锁 | 保留宿主权限与写入所有权 |
 | `src/components/LocalFileView.tsx` | 共享编辑/渲染、菜单、状态栏与导航 | 复用一份编辑模型，不再复制第二套文件编辑器 |
+
+## 第一批实施：共享核心
+
+已将文件模型、目录读取/摘要/预览、操作执行器和串行队列抽成同目录下的可移植模块：`file-model.ts`、`browser-contract.ts`、`browser-provider-core.ts`、`browser-operation-contract.ts`、`browser-operation-core.ts`、`browser-queue-core.ts`。路径检查、比较、排序、导航等原有纯逻辑继续复用，没有复制另一套实现。
+
+Nine Rings 原有 `browser-provider.ts`、`browser-operations.ts`、`browser-operation-queue.ts` 保留公开调用方式，并实际委托这些核心。宿主必须提供授权、文件服务、打开文件、草稿检查、操作租约及移动/删除后的状态协调；队列结果历史通过可选持久化端口接入。共享核心不读取插件单例、主区域或浏览器存储。现有文件服务仍执行实际授权与路径安全检查。
+
+两个隔离宿主的契约测试覆盖读取撤权、打开文件失败、移动协调、队列串行与取消；导入边界测试防止核心重新引入应用模块。它们证明核心可以脱离 Nine Rings 服务装配，不代表第二款应用已经完成。UI 仍有根授权、主题、查看器等宿主依赖，下一批先为这些依赖提供明确端口，再建立独立入口，不能用复制 App 或无效保存检查冒充独立软件。
+
+实现决策和保护规则见[共享核心决策](../decisions/003-shared-file-workbench.md)。
 
 ## 推荐边界
 
