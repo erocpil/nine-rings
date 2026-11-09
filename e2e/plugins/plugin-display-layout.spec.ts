@@ -12,9 +12,10 @@ for (const name of ["状态栏展示", "文档树展示", "目录展示", "书�
     const dialog = page.getByRole("dialog", { name: `${name}配置`, exact: true });
     const groups = dialog.locator(".plugin-settings-group");
     await expect(groups).toHaveCount(2);
-    const first = await groups.nth(0).boundingBox();
-    const second = await groups.nth(1).boundingBox();
-    expect(Math.abs(first!.y - second!.y)).toBeLessThan(2);
+    // Read both columns in one browser turn: separate boundingBox calls
+    // can observe different frames of the dialog's translateY entrance.
+    await expect.poll(() => groups.evaluateAll(elements => Math.abs(elements[0].getBoundingClientRect().y - elements[1].getBoundingClientRect().y))).toBeLessThan(2);
+    const [first, second] = await groups.evaluateAll(elements => elements.slice(0, 2).map(element => { const rect = element.getBoundingClientRect(); return { x: rect.x, width: rect.width }; }));
     expect(second!.x).toBeGreaterThan(first!.x + first!.width);
     const fontLabel = name === "状态栏展示" ? "状态栏字体" : `${name.replace("展示", "")}字体`;
     await dialog.getByRole("combobox", { name: fontLabel, exact: true }).selectOption("mono");

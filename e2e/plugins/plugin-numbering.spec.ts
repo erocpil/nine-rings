@@ -292,9 +292,10 @@ test("编号配置宽屏分组双栏、窄屏单栏，鼠标打开关闭不突�
   const dialog = await enable(page);
   await expect(dialog).toBeFocused();
   const groups = dialog.locator('.numbering-settings-group');
-  const first = await groups.nth(0).boundingBox();
-  const second = await groups.nth(1).boundingBox();
-  expect(Math.abs(first!.y - second!.y)).toBeLessThan(2);
+  // Read both columns in one browser turn: separate boundingBox calls
+  // can observe different frames of the dialog's translateY entrance.
+  await expect.poll(() => groups.evaluateAll(elements => Math.abs(elements[0].getBoundingClientRect().y - elements[1].getBoundingClientRect().y))).toBeLessThan(2);
+  const [first, second] = await groups.evaluateAll(elements => elements.slice(0, 2).map(element => { const rect = element.getBoundingClientRect(); return { x: rect.x, width: rect.width }; }));
   expect(second!.x).toBeGreaterThan(first!.x + first!.width);
   await page.setViewportSize({ width: 600, height: 900 });
   const narrowFirst = await groups.nth(0).boundingBox();

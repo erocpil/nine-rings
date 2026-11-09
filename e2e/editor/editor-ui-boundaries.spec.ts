@@ -1,5 +1,4 @@
 import { closeDocumentSidebar } from "../helpers/workspace";
-import { pressLineBoundary } from "../helpers/keyboard";
 import { expect, test, type Page } from "@playwright/test";
 
 async function seedNotes(page: Page) {
@@ -26,11 +25,12 @@ async function seedNotes(page: Page) {
   return ids;
 }
 
-async function selectLine(page: Page, text: string) {
+async function selectDocumentText(page: Page, text: string) {
   const editor = page.locator(".ProseMirror");
   await editor.locator("p").first().click();
-  await pressLineBoundary(editor, "end");
-  await pressLineBoundary(editor, "start", true);
+  // These cases verify command ownership, not OS line-boundary movement.
+  // A single Select All avoids an intermediate native selectionchange race.
+  await editor.press("ControlOrMeta+a");
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(text);
   // Native selectionchange is asynchronous; context-menu commands consume
   // ProseMirror's selection, not only the browser's temporary DOM range.
@@ -70,7 +70,7 @@ test("切换工具栏布局和插入弹层不重建正文，选区格式与撤�
   await closeDocumentSidebar(page);
   await page.setViewportSize({ width: 390, height: 850 });
   await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
-  await selectLine(page, "拆分验证甲正文");
+  await selectDocumentText(page, "拆分验证甲正文");
   await page.getByRole("button", { name: "加粗 (Ctrl+B)", exact: true }).click();
   await expect(editor.locator("strong")).toHaveText("拆分验证甲正文");
 
@@ -103,7 +103,7 @@ test("切换文档后右键菜单和链接对话框只更新当前文档", async
   for (const title of ["拆分验证甲", "拆分验证乙"]) {
     await page.locator(".doc-tree-doc").filter({ hasText: title }).click();
     await expect(editor).toHaveText(`${title}正文`);
-    await selectLine(page, `${title}正文`);
+    await selectDocumentText(page, `${title}正文`);
     await editor.evaluate((element) => {
       const range = window.getSelection()!.getRangeAt(0);
       const rect = range.getClientRects()[0];
