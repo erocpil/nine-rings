@@ -7,7 +7,8 @@ for (const kind of ["list", "quote", "table"]) {
     test(`长${kind}内部段落双向对应 virtual=${virtual}`, async ({ page }) => {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto("/");
-      await expect(page.locator(".ProseMirror")).toBeVisible();
+      // Dynamic Vite imports can outlive load; only the initial mount gets 15s.
+      await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
       await page.evaluate(async ({ kind, virtual }) => {
         const load = (path: string) => import(/* @vite-ignore */ path);
         const { api } = await load("/src/lib/api.ts");

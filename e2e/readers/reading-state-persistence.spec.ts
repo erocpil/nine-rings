@@ -8,7 +8,8 @@ test("加密文档清理旧阅读状态，解锁后折叠和源码滚动也不�
   page,
 }) => {
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible();
+  // Dynamic Vite imports can outlive load; only the initial mount gets 15s.
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
   const { a } = await seedReadingDocuments(page, true, true);
   const persisted = () =>
     page.evaluate(
@@ -50,7 +51,7 @@ test("加密文档清理旧阅读状态，解锁后折叠和源码滚动也不�
 
 test("局部只读渲染刷新后恢复折叠和块锚点", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
   const { a } = await seedReadingDocuments(page, true);
   await page.evaluate(() => {
     localStorage.setItem("nr:experimentalReadonlyRendering", "true");
@@ -109,7 +110,7 @@ for (const readonly of [false, true]) {
     page,
   }) => {
     await page.goto("/");
-    await expect(page.locator(".ProseMirror")).toBeVisible();
+    await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
     await seedReadingDocuments(page, readonly);
     const editor = page.locator(".ProseMirror");
     const body = editor
@@ -148,7 +149,7 @@ test("源码模式和源码视口跨刷新恢复，显式返回渲染后不再�
   page,
 }) => {
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
   const { a } = await seedReadingDocuments(page, true);
   await page.getByRole("button", { name: "源码", exact: true }).click();
   const source = page.getByRole("textbox", {
@@ -196,7 +197,7 @@ test("源码模式和源码视口跨刷新恢复，显式返回渲染后不再�
 for (const readonly of [false, true]) {
   test(`关闭前立即滚动，重新打开并改变宽度仍恢复相同文字位置 readonly=${readonly}`, async ({ page, context }) => {
     await page.goto("/");
-    await expect(page.locator(".ProseMirror")).toBeVisible();
+    await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
     const { a } = await seedReadingDocuments(page, readonly);
     const scroll = page.locator(".note-editor-scroll");
     // Settle startup before simulating the final scroll just before shutdown.

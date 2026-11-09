@@ -5,7 +5,8 @@ for (const mode of ["desktop", "mobile", "readonly", "virtual"]) {
   test(`视图切换对应正文位置并尊重源码滚动 ${mode}`, async ({ page }) => {
     await page.setViewportSize({ width: mode === "mobile" ? 390 : 1280, height: 850 });
     await page.goto("/");
-    await expect(page.locator(".ProseMirror")).toBeVisible();
+    // Dynamic Vite imports can outlive load; only the initial mount gets 15s.
+    await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
     await page.evaluate(async mode => {
       const load = (path: string) => import(/* @vite-ignore */ path);
       const { api } = await load("/src/lib/api.ts");
@@ -84,7 +85,7 @@ for (const mode of ["desktop", "mobile", "readonly", "virtual"]) {
 
 test("大文档切换保持离屏当前行，阅读块高亮与光标分离", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
   await page.evaluate(async () => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts");
@@ -121,7 +122,7 @@ test("大文档切换保持离屏当前行，阅读块高亮与光标分离", as
 
 test("长段落按实际换行定位，源码和渲染顶部保持同一段内的位置", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
   await page.evaluate(async () => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts");

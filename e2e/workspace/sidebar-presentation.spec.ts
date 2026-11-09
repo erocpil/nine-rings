@@ -5,7 +5,8 @@ test.use({ serviceWorkers: "block" });
 test("面板边缘事件缺失时正文指针移动仍收起，阅读预览不抢焦点且支持 Esc", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("nr:sidebarPresentation", "overlay"));
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible();
+  // Dynamic Vite imports can outlive load; only the initial mount gets 15s.
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
   const reader = page.locator('[data-sidebar-panel="reader"]');
   const sidebar = page.locator(".app-sidebar");
   await expect(sidebar).toHaveClass(/sidebar-hidden/);
@@ -29,7 +30,7 @@ test("面板边缘事件缺失时正文指针移动仍收起，阅读预览不�
 test("浮层键盘进入、Esc 返回按钮、固定标记与输入焦点边界", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("nr:sidebarPresentation", "overlay"));
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
   const tree = page.locator('[data-sidebar-panel="tree"]');
   const sidebar = page.locator(".app-sidebar");
   // Wait for the initial overlay dismissal before requesting keyboard entry.
@@ -77,7 +78,7 @@ test("浮层键盘进入、Esc 返回按钮、固定标记与输入焦点边界"
 test("树内右键菜单优先处理 Esc，菜单操作期间浮层不收起", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("nr:sidebarPresentation", "overlay"));
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
   const sidebar = page.locator(".app-sidebar");
   await expect(sidebar).toHaveClass(/sidebar-hidden/);
   await page.locator('[data-sidebar-panel="tree"]').hover();
@@ -105,7 +106,7 @@ test("桌面分栏悬停预览、离开收起、点击固定并排且支持宽�
   page,
 }) => {
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
   const main = page.locator(".app-main");
   const width = () => main.evaluate((el) => el.getBoundingClientRect().width);
   const nav = page.locator(".desktop-activity-bar");
@@ -201,7 +202,7 @@ test("手机布局保持原样，减少动态效果偏好禁用过渡", async ({
     localStorage.setItem("nr:sidebarPresentation", "overlay"),
   );
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
   await page.setViewportSize({ width: 390, height: 760 });
   await expect(page.locator(".app-body")).not.toHaveClass(
     /sidebar-hover-enabled/,
@@ -231,7 +232,7 @@ test("手机布局保持原样，减少动态效果偏好禁用过渡", async ({
 test("键盘进入等待浮层解除暂时 inert，Esc 仍返回分栏按钮", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("nr:sidebarPresentation", "overlay"));
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
   const sidebar = page.locator(".app-sidebar");
   await expect(sidebar).toHaveClass(/sidebar-hidden/);
   await sidebar.evaluate(element => {
@@ -265,7 +266,7 @@ test("键盘进入分栏在控件拒绝聚焦及临时 inert 后仍保持焦点"
     };
   });
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15_000 });
   const sidebar = page.locator("#workspace-sidebar");
   await expect(sidebar).toHaveClass(/sidebar-hidden/);
   const tree = page.locator('[data-sidebar-panel="tree"]');
