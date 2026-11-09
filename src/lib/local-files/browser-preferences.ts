@@ -1,3 +1,5 @@
+import type { BrowserSettingsStore } from "./browser-workspace-contract";
+import { browserSettings } from "./browser-settings";
 import { fileSegments } from "./file-model";
 export interface BrowserColumns { name: number; size: number; modified: number; autoName: boolean }
 export const DEFAULT_BROWSER_COLUMNS: BrowserColumns = { name: 110, size: 72, modified: 145, autoName: true };
@@ -22,10 +24,10 @@ export function parseBrowserFavorites(raw: string | null): BrowserFavorite[] {
     });
   } catch { return []; }
 }
-export function readBrowserFavorites() { try { return parseBrowserFavorites(localStorage.getItem(BROWSER_FAVORITES_KEY)); } catch { return []; } }
-export function saveBrowserFavorites(values: BrowserFavorite[]) {
+export function readBrowserFavorites(store: BrowserSettingsStore = browserSettings()) { try { return parseBrowserFavorites(store.getItem(BROWSER_FAVORITES_KEY)); } catch { return []; } }
+export function saveBrowserFavorites(values: BrowserFavorite[], store: BrowserSettingsStore = browserSettings()) {
   if (values.length > 40) throw new Error("常用目录最多 40 项，请先移除不再使用的目录");
-  localStorage.setItem(BROWSER_FAVORITES_KEY, JSON.stringify(values)); window.dispatchEvent(new Event(BROWSER_FAVORITES_EVENT));
+  store.setItem(BROWSER_FAVORITES_KEY, JSON.stringify(values)); window.dispatchEvent(new Event(BROWSER_FAVORITES_EVENT));
 }
 export function browserFullPath(parent: string, name: string) {
   return `${parent.replace(/[\\/]+$/, "")}${parent.includes("\\") ? "\\" : "/"}${name}`;

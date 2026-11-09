@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { isTauriRuntime } from "../lib/runtime";
-import { localFileService, type FileRoot } from "../lib/local-files/service";
+import { useFileBrowserHost } from "./FileBrowserHost";
+import type { FileRoot } from "../lib/local-files/file-model";
 import { BROWSER_FAVORITES_EVENT, BROWSER_FAVORITES_KEY, readBrowserFavorites, resolveBrowserDirectoryInput, saveBrowserFavorites } from "../lib/local-files/browser-preferences";
 import { browserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
 import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
@@ -11,18 +11,19 @@ export function FileBrowserLocations({ pane, roots, visible, provider, onNavigat
   pane: BrowserPaneState; roots: FileRoot[]; visible: boolean; provider: BrowserDirectoryProvider;
   onNavigate: (rootId: string, node: string) => void; onHistory: (index: number) => void; onError: (message: string) => void;
 }) {
+  const workspace = useFileBrowserHost();
   const location = browserLocation(pane), rootId = location?.rootId ?? "", node = location?.node ?? "";
-  const [value, setValue] = useState(node), [busy, setBusy] = useState(false), [favorites, setFavorites] = useState(readBrowserFavorites);
+  const [value, setValue] = useState(node), [busy, setBusy] = useState(false), [favorites, setFavorites] = useState(() => readBrowserFavorites(workspace.settings));
   const [menu, setMenu] = useState<{ kind: "history" | "favorites"; target: NotesMenuTarget } | null>(null);
   const controller = useRef<AbortController | null>(null);
   useLayoutEffect(() => { setValue(node); }, [rootId, node]);
   useEffect(() => { controller.current?.abort(); setBusy(false); setMenu(null); return () => controller.current?.abort(); }, [rootId, node, visible]);
   useEffect(() => {
-    const changed = () => setFavorites(readBrowserFavorites());
-    const storage = (event: StorageEvent) => { if (event.key === BROWSER_FAVORITES_KEY || event.key === null) changed(); };
+    const changed = () => setFavorites(readBrowserFavorites(workspace.settings));
+    const storage = (event: StorageEvent) => { if (event.key === null || event.key.endsWith(BROWSER_FAVORITES_KEY)) changed(); };
     window.addEventListener(BROWSER_FAVORITES_EVENT, changed); window.addEventListener("storage", storage);
     return () => { window.removeEventListener(BROWSER_FAVORITES_EVENT, changed); window.removeEventListener("storage", storage); };
-  }, []);
+  }, [workspace]);
   const starred = favorites.some(item => item.rootId === rootId && item.node === node);
   const pathName = (id: string, path: string) => `${roots.find(root => root.id === id)?.name ?? "需重新授权"}/${path}`;
   const openMenu = (kind: "history" | "favorites", trigger: HTMLButtonElement) => {
@@ -35,8 +36,8 @@ export function FileBrowserLocations({ pane, roots, visible, provider, onNavigat
       const absolute = /^(?:\/|\\|[a-z]:[\\/])/i.test(value.trim());
       let paths: Array<{ id: string; path: string }> = [];
       if (absolute) {
-        if (!isTauriRuntime()) throw new Error("浏览器不能获取本机完整目录路径，请输入授权根内相对路径");
-        const results = await Promise.allSettled(roots.map(async root => ({ id: root.id, path: await localFileService.displayPath(root.id, "") })));
+        if (!workspace.absolutePaths) throw new Error("浏览器不能获取本机完整目录路径，请输入授权根内相对路径");
+        const results = await Promise.allSettled(roots.map(async root => ({ id: root.id, path: await workspace.displayPath(root.id, "") })));
         paths = results.flatMap(result => result.status === "fulfilled" ? [result.value] : []);
       }
       operation.signal.throwIfAborted();
@@ -46,7 +47,7 @@ export function FileBrowserLocations({ pane, roots, visible, provider, onNavigat
     } catch (error) { if (!operation.signal.aborted) onError(String(error)); }
     finally { if (!operation.signal.aborted) setBusy(false); }
   };
-  const save = (next: typeof favorites) => { try { saveBrowserFavorites(next); } catch (error) { onError(String(error)); } };
+  const save = (next: typeof favorites) => { try { saveBrowserFavorites(next, workspace.settings); } catch (error) { onError(String(error)); } };
   const actions = menu?.kind === "history" ? pane.history.map((entry, index) => ({ label: `${index === pane.index ? "✓ " : ""}${pathName(entry.rootId, entry.node)} · ${index + 1}`, disabled: !roots.some(root => root.id === entry.rootId), run: () => onHistory(index) })).reverse() : [
     ...favorites.map(item => ({ label: pathName(item.rootId, item.node), disabled: !roots.some(root => root.id === item.rootId), run: () => onNavigate(item.rootId, item.node) })),
     { label: "清理已撤销授权的常用目录", disabled: !favorites.some(item => !roots.some(root => root.id === item.rootId)), run: () => save(favorites.filter(item => roots.some(root => root.id === item.rootId))) },

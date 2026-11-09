@@ -60,3 +60,29 @@ it.each(modules)(
     ).toEqual([]);
   },
 );
+
+it.each([
+  "FileBrowserWorkspace",
+  "FileBrowserPane",
+  "FileBrowserLocations",
+  "FileBrowserHost",
+])("keeps %s independent of concrete application services", (name) => {
+  const path = new URL(`../../src/components/${name}.tsx`, import.meta.url);
+  const source = ts.createSourceFile(
+    path.pathname,
+    readFileSync(path, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const dependencies = source.statements
+    .filter(ts.isImportDeclaration)
+    .map((node) => (node.moduleSpecifier as ts.StringLiteral).text);
+  expect(
+    dependencies.filter((value) =>
+      /plugin-system|local-files\/(?:service|browser-nine-rings-host|browser-provider|browser-operations)$/.test(
+        value,
+      ),
+    ),
+  ).toEqual([]);
+});

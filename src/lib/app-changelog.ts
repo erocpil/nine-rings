@@ -1,6 +1,14 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-11-10",
+    title: "共享双栏界面与独立文件工作台原型",
+    changes: [
+      "双栏浏览界面通过统一宿主接口复用，Nine Rings 原插件与独立 Web 原型使用同一套导航、比较、搜索和预览组件。",
+      "新增单独启动与构建的 File Workbench 只读原型，浏览设置独立保存；编辑、原生文件操作和安装包尚未开放。",
+    ],
+  },
+  {
     date: "2026-11-09",
     title: "双栏操作历史与字节比较",
     changes: [

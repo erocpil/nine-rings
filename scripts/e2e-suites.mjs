@@ -1,6 +1,9 @@
 import { readdirSync } from "node:fs";
 import { basename } from "node:path";
 
+// This application has its own origin, build and CI steps.
+export const standaloneFiles = ["file-workbench.spec.ts"];
+
 export const productionOnlyFiles = [
   "pwa-offline",
   "pwa-update",

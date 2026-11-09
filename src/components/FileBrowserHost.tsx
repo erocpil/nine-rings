@@ -1,0 +1,9 @@
+import { createContext, useContext } from "react";
+import type { BrowserWorkspaceHost } from "../lib/local-files/browser-workspace-contract";
+
+export const FileBrowserHostContext = createContext<BrowserWorkspaceHost | null>(null);
+export function useFileBrowserHost() {
+  const host = useContext(FileBrowserHostContext);
+  if (!host) throw new Error("文件浏览界面缺少应用宿主");
+  return host;
+}

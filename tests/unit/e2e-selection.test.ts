@@ -7,6 +7,7 @@ import {
   diagnosticFiles,
   discoverE2EFiles,
   productionOnlyFiles,
+  standaloneFiles,
   readingFiles,
   selectE2E,
   webkitGates,
@@ -109,4 +110,16 @@ describe("conservative affected E2E selection", () => {
       expect(readingFiles).not.toContain(name);
     }
   });
+});
+
+test("standalone workspace specs have independent ownership and are excluded from the main app plan", () => {
+  expect(standaloneFiles).toEqual(["file-workbench.spec.ts"]);
+  expect(files).toContain("file-workbench.spec.ts");
+  const available = files.filter((file) => !standaloneFiles.includes(file));
+  expect(selectE2E(available, undefined, { full: true }).files).not.toContain(
+    "file-workbench.spec.ts",
+  );
+  expect(
+    selectE2E(available, ["e2e/plugins/file-workbench.spec.ts"]).files,
+  ).not.toContain("file-workbench.spec.ts");
 });

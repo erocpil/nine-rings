@@ -175,6 +175,12 @@ npx vite --port 8000
 # → http://localhost:8000
 ```
 
+### 独立文件工作台原型
+
+运行 `npm run dev:workbench`，打开 `http://127.0.0.1:1421/file-workbench.html`。原型与 Nine Rings 共用双栏浏览、比较、搜索和预览代码，独立保存浏览设置。目前只读，尚未开放编辑、文件操作或独立安装包。
+
+`npm run build:workbench` 输出到 `.local-tools/file-workbench-dist/`，不会覆盖 Nine Rings 构建。范围、限制及后续步骤见[独立产品计划](docs/future-evolution/dual-pane-standalone.md)。
+
 ### Web 构建
 
 ```bash

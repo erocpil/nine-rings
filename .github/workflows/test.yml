@@ -51,6 +51,8 @@ jobs:
               - 'vitest.config.ts'
               - 'playwright*.config.ts'
               - 'vite.config.*'
+              - 'vite.workbench.config.ts'
+              - 'file-workbench.html'
               - 'tsconfig*.json'
               - 'index.html'
               - '.github/workflows/test.yml'
@@ -219,6 +221,19 @@ jobs:
         run: npm run test:e2e:webkit -- --reporter=line,json --output=test-results/webkit
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/webkit.json
+      - name: Build independent file workbench
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        run: npm run build:workbench
+      - name: Independent file workbench (Chromium)
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        run: npx playwright test --config=playwright.workbench.config.ts --browser=chromium --reporter=line --output=test-results/workbench-chromium
+        env:
+          NR_WORKBENCH_PREVIEW: 'true'
+      - name: Independent file workbench (WebKit)
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        run: npx playwright test --config=playwright.workbench.config.ts --browser=webkit --reporter=line --output=test-results/workbench-webkit
+        env:
+          NR_WORKBENCH_PREVIEW: 'true'
       - name: Full production/PWA gate
         if: ${{ !cancelled() && steps.browsers.outcome == 'success' && (github.event_name == 'schedule' || inputs.suite == 'full' || needs.changes.outputs.production == 'true') }}
         run: |

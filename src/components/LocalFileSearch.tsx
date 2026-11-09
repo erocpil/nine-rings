@@ -4,10 +4,11 @@ import type { FileRoot } from "../lib/local-files/service";
 import type { SearchOptions } from "../lib/search-matching";
 import { ToolbarIcon } from "./ToolbarIcon";
 
-export function LocalFileSearch({ roots, showHidden, active, initialScope, onOpen, onClose, embedded = false }: {
+export function LocalFileSearch({ roots, showHidden, active, initialScope, onOpen, onClose, embedded = false, search = searchLocalFiles }: {
   roots: FileRoot[]; showHidden: boolean; active: boolean;
   initialScope?: { rootId: string; node: string };
   embedded?: boolean;
+  search?: typeof searchLocalFiles;
   onOpen: (hit: LocalFileSearchHit) => void; onClose: () => void;
 }) {
   const [query, setQuery] = useState(""), [options, setOptions] = useState<SearchOptions>({});
@@ -23,7 +24,7 @@ export function LocalFileSearch({ roots, showHidden, active, initialScope, onOpe
     setBusy(true); setHits([]); setProgress(null); setMessage("");
     const at = scope.indexOf(":");
     try {
-      await searchLocalFiles(roots, query, options, showHidden, operation.signal, (next, results) => {
+      await search(roots, query, options, showHidden, operation.signal, (next, results) => {
         if (controller.current === operation && !operation.signal.aborted) { setProgress(next); setHits(results); }
       }, scope ? { rootId: scope.slice(0, at), node: scope.slice(at + 1) } : undefined);
       if (controller.current === operation && !operation.signal.aborted) setMessage("搜索完成。");

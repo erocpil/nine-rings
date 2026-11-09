@@ -1,6 +1,6 @@
 # 双栏浏览独立产品评估
 
-日期：2026-11-09。状态：已开始实施共享核心边界；独立应用入口和安装包尚未建立。
+日期：2026-11-10。状态：共享核心及界面已接入两种宿主；已有独立 Web 只读原型，原生独立应用与安装包待实现。
 
 ## 判断与定位
 
@@ -27,9 +27,39 @@
 
 Nine Rings 原有 `browser-provider.ts`、`browser-operations.ts`、`browser-operation-queue.ts` 保留公开调用方式，并实际委托这些核心。宿主必须提供授权、文件服务、打开文件、草稿检查、操作租约及移动/删除后的状态协调；队列结果历史通过可选持久化端口接入。共享核心不读取插件单例、主区域或浏览器存储。现有文件服务仍执行实际授权与路径安全检查。
 
-两个隔离宿主的契约测试覆盖读取撤权、打开文件失败、移动协调、队列串行与取消；导入边界测试防止核心重新引入应用模块。它们证明核心可以脱离 Nine Rings 服务装配，不代表第二款应用已经完成。UI 仍有根授权、主题、查看器等宿主依赖，下一批先为这些依赖提供明确端口，再建立独立入口，不能用复制 App 或无效保存检查冒充独立软件。
+两个隔离宿主的契约测试覆盖读取撤权、打开文件失败、移动协调、队列串行与取消；导入边界测试防止核心重新引入应用模块。它们证明核心可以脱离 Nine Rings 服务装配。第二批进一步处理界面依赖，形成下述只读原型；原生写入和编辑生命周期仍不能用空保存检查代替。
 
 实现决策和保护规则见[共享核心决策](../decisions/003-shared-file-workbench.md)。
+
+## 第二批实施：独立 Web 入口
+
+共享的 `FileBrowserWorkspace` 由两个入口装配：
+
+- Nine Rings：`DualPaneFileBrowser` 保留原插件接口，经 `createNineRingsBrowserHost` 接入目录授权、原有队列、设备设置、保存门禁及主区域打开。
+- File Workbench：`file-workbench.html`、`src/apps/file-workbench/main.tsx` 与 `host.ts`，装配只读服务能力；不启动 Nine Rings App、文档数据库、内置插件集、同步或 Service Worker。暂用 File Workbench 作为工作名称。
+
+两者复用相同的列表、目录标签、路径、分页、排序、多选、快速预览、目录比较和正文搜索组件。根目录读取/选择、能力、绝对路径、状态存储、队列和变更通知由 `BrowserWorkspaceHost` 指定。共享界面缺少宿主时明确报错，不偷偷使用 Nine Rings 单例。可编辑查看器的进一步装配不在本批伪造。
+
+### 运行与构建
+
+```bash
+npm run dev:workbench
+# http://127.0.0.1:1421/file-workbench.html
+
+npm run build:workbench
+npm run preview:workbench
+# http://127.0.0.1:1421/file-workbench.html
+```
+
+构建只输出到 `.local-tools/file-workbench-dist/`，依赖优化缓存单独保存；不会覆盖 `dist/`，也不向 Nine Rings 的更新入口发布。构建门禁拒绝引入 `App.tsx`、Nine Rings `main.tsx`、文档 API 或数据库适配器入口。独立原型的设置键使用 `file-workbench:` 前缀，包含浏览状态、列宽、常用目录与配色；队列历史暂不启用，不读取或清理 Nine Rings 历史。正式部署须使用独立 origin，不在 Nine Rings 的 PWA scope 下部署；默认开发端口有助于隔离浏览器授权。
+
+### 当前范围与限制
+
+支持真实授权目录（浏览器支持时）或目录快照、相同的浏览/比较/搜索以及只读文本/图片预览。打开文件暂复用快速预览，文本限 1 MiB、仅显示前 65536 字符，图片限 8 MiB；目录搜索使用原来的工作线程与预算，搜索后的完整编辑器定位留待共享查看器接入。双栏返回保留本次状态，Esc 可从独立预览返回。目录句柄和快照仅在当前会话有效，重启需重新授权；本批不承诺文件身份或授权跨重启恢复。
+
+原型没有文件写权限，写入按钮禁用，直接调用队列也拒绝执行。它没有编辑器草稿，因此不装配虚假的保存门禁。下一批接入可编辑查看器和安全操作时，必须同时接入真实草稿、租约、路径迁移和退出保存。
+
+独立 Playwright 配置 `playwright.workbench.config.ts` 使用自己的 1421 端口，真实目录快照验证浏览、预览、比较、工作线程搜索及设置隔离。它从 Nine Rings 默认 E2E 计划排除，由 Test workflow 中的独立 Chromium/WebKit 步骤针对生产产物执行，避免在错误宿主上重复运行。构建后可使用 `NR_WORKBENCH_PREVIEW=true npx playwright test --config playwright.workbench.config.ts --browser=chromium` 验证生产资源路径，默认配置测试开发入口。
 
 ## 推荐边界
 

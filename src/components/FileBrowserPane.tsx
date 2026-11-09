@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useId, useImperativeHandle, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode, type CSSProperties, type DragEvent, type Ref } from "react";
 import { browserLocation, moveBrowserHistory, navigateBrowserPane, selectBrowserItems, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
-import { fileSegments, type FileNode, type FileRoot, type LocalFileFingerprint } from "../lib/local-files/service";
+import { fileSegments, type FileNode, type FileRoot, type LocalFileFingerprint } from "../lib/local-files/file-model";
 import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contract";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { browserNavigationIndex, browserRowScroll, browserTypeahead, type BrowserTypeahead } from "../lib/local-files/browser-keyboard";
@@ -10,8 +10,8 @@ import { browserFullPath, clampBrowserColumn, DEFAULT_BROWSER_COLUMNS, parseBrow
 import { copyToClipboard } from "../lib/clipboard";
 import { useTransientMessage } from "../hooks/useTransientMessage";
 import { appendLocalFileNodes, sameLocalFilePage, type LocalFileSort } from "../lib/local-files/tree";
-import { localFileService } from "../lib/local-files/service";
-import type { BrowserOperation } from "../lib/local-files/browser-operations";
+import { useFileBrowserHost } from "./FileBrowserHost";
+import type { BrowserOperation } from "../lib/local-files/browser-operation-contract";
 import { FileBrowserColumnHeaders } from "./FileBrowserColumnHeaders";
 import { useFileBrowserRefresh } from "../hooks/useFileBrowserRefresh";
 import { browserRefreshScroll, browserRefreshSelection } from "../lib/local-files/browser-refresh";
@@ -49,6 +49,7 @@ interface Props {
   onDrop: (event: DragEvent, parent: string) => void;
 }
 export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible, refreshPaused, onExternalChange, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onOperation, operationDisabled, onPreview, tabBar, onDragStart, onDragEnd, canDrop, onDrop, previewRef }: Props) {
+  const workspace = useFileBrowserHost();
   const location = browserLocation(pane);
   const rootId = location?.rootId ?? "", node = location?.node ?? "";
   const root = roots.find(item => item.id === rootId);
@@ -65,7 +66,7 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
   const [focused, setFocused] = useState<string | null>(null);
   const [drop, setDrop] = useState<{ parent: string; moving: boolean } | null>(null);
   const [typeahead, setTypeahead] = useState<BrowserTypeahead>({ query: "", at: 0 });
-  const [columns, setColumns] = useState(() => { try { return parseBrowserColumns(localStorage.getItem(`nr:file-browser-columns:${side}`)); } catch { return { ...DEFAULT_BROWSER_COLUMNS }; } });
+  const [columns, setColumns] = useState(() => { try { return parseBrowserColumns(workspace.settings.getItem(`nr:file-browser-columns:${side}`)); } catch { return { ...DEFAULT_BROWSER_COLUMNS }; } });
   const [paging, setPaging] = useState(false), [autoFailed, setAutoFailed] = useState(false);
   const [menu, setMenu] = useState<{ target: NotesMenuTarget; item: FileNode; selection: string[]; path: string | null } | null>(null);
   const { message, showMessage } = useTransientMessage();
@@ -89,7 +90,7 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
   const start = Math.max(0, Math.min(Math.max(0, nodes.length - 1), Math.floor(scroll / ROW) - 4));
   const end = Math.min(nodes.length, start + Math.ceil(height / ROW) + 10);
   useFileBrowserRefresh({
-    enabled: visible && Boolean(root) && localFileService.supportsDirectoryChanges(rootId) && !refreshPaused && !menu,
+    enabled: visible && Boolean(root) && workspace.supportsDirectoryChanges(rootId) && !refreshPaused && !menu,
     identity: key, rootId, node, options: { sort: pane.sort, showHidden: pane.showHidden, query }, provider,
     canRead: () => Boolean(scrollRef.current?.getClientRects().length) && !restoring.current
       && !(document.activeElement instanceof HTMLElement && document.activeElement.matches("input, textarea, select, [contenteditable='true']"))
@@ -140,15 +141,15 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
     try { fileSegments(path); onChange(current => navigateBrowserPane(current, rootId, path)); setQuery(""); }
     catch (reason) { setError(String(reason)); }
   };
-  useEffect(() => { try { localStorage.setItem(`nr:file-browser-columns:${side}`, JSON.stringify(columns)); } catch { showMessage("无法保存列宽，本次仍可调整", "error"); } }, [columns, side, showMessage]);
+  useEffect(() => { try { workspace.settings.setItem(`nr:file-browser-columns:${side}`, JSON.stringify(columns)); } catch { showMessage("无法保存列宽，本次仍可调整", "error"); } }, [columns, side, showMessage, workspace]);
   useEffect(() => { setMenu(null); }, [key, visible]);
   const menuTarget = menu?.target;
   useEffect(() => {
     if (!menuTarget) return;
     let live = true;
-    void localFileService.displayPath(rootId, node).then(path => { if (live) setMenu(current => current?.target === menuTarget ? { ...current, path } : current); }).catch(() => {});
+    void workspace.displayPath(rootId, node).then(path => { if (live) setMenu(current => current?.target === menuTarget ? { ...current, path } : current); }).catch(() => {});
     return () => { live = false; };
-  }, [menuTarget, rootId, node]);
+  }, [menuTarget, rootId, node, workspace]);
   useEffect(() => { anchor.current = null; cursor.current = null; setFocused(null); setTypeahead({ query: "", at: 0 }); onCurrentChange(side, tabId, rootId, null); }, [rootId, node, side, tabId, onCurrentChange]);
   useEffect(() => { setTypeahead({ query: "", at: 0 }); }, [query, pane.sort, pane.showHidden]);
   useEffect(() => {
@@ -335,7 +336,7 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
       }
     }}>
       <div style={{ height: start * ROW }} aria-hidden="true" />
-      {nodes.slice(start, end).map(item => <div key={item.id} id={rowId(item.id)} className="file-browser-row" role="option" aria-selected={selectedSet.has(item.id)} data-current={focused === item.id} data-node-id={item.id} data-directory={item.directory} draggable={!loading && localFileService.canTransfer()} onDragStart={event => {
+      {nodes.slice(start, end).map(item => <div key={item.id} id={rowId(item.id)} className="file-browser-row" role="option" aria-selected={selectedSet.has(item.id)} data-current={focused === item.id} data-node-id={item.id} data-directory={item.directory} draggable={!loading && workspace.canTransfer()} onDragStart={event => {
         if (loading || loadedKey.current !== key) { event.preventDefault(); return; }
         const selection = selectedSet.has(item.id) ? selected : [item.id];
         if (!selectedSet.has(item.id)) chooseItem(item);

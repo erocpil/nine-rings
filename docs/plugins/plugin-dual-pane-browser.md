@@ -1,6 +1,6 @@
 # 双栏文件浏览插件
 
-独立产品已开始[共享核心抽离](../future-evolution/dual-pane-standalone.md)：目录提供者、操作执行器及队列由宿主端口装配，Nine Rings 插件已委托同一实现。独立应用入口和安装包尚未建立；下文仍描述内置插件的实际契约。
+独立产品已开始[共享核心抽离](../future-evolution/dual-pane-standalone.md)：目录提供者、操作执行器及队列由宿主端口装配，Nine Rings 插件已委托同一实现。第二批已用相同 `FileBrowserWorkspace` 建立独立 Web 只读原型；原生独立应用和安装包尚未建立。下文仍描述内置插件的实际契约。
 
 ## 目标与边界
 

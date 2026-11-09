@@ -36,7 +36,10 @@
     "test:e2e:ci": "node scripts/run-e2e-ci.mjs",
     "test:e2e:reading": "playwright test --config=playwright.reading.config.ts",
     "test:e2e:webkit": "playwright test --config=playwright.webkit.config.ts",
-    "test:e2e:core": "playwright test --config=playwright.core.config.ts"
+    "test:e2e:core": "playwright test --config=playwright.core.config.ts",
+    "dev:workbench": "vite --config vite.workbench.config.ts --open /file-workbench.html",
+    "build:workbench": "tsc && vite build --config vite.workbench.config.ts",
+    "preview:workbench": "vite preview --config vite.workbench.config.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

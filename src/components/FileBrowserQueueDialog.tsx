@@ -26,7 +26,7 @@ function QueueJob({ job, queue, onError }: { job: BrowserJob; queue: BrowserOper
     {!browserJobSettled(job) ? <button type="button" onClick={() => queue.stop(job.id)}>停止后续项</button> : job.retryId !== undefined ? <p>未完成项已加入任务 #{job.retryId}</p> : retry.length > 0 && <button type="button" onClick={() => { try { queue.retry(job.id); } catch (error) { onError(String(error)); } }}>重试未完成项（{retry.length}）</button>}
   </article>;
 }
-export function FileBrowserQueueDialog({ queue, onClose }: { queue: BrowserOperationQueueCore; onClose: () => void }) {
+export function FileBrowserQueueDialog({ queue, onClose, showHistory = true }: { queue: BrowserOperationQueueCore; onClose: () => void; showHistory?: boolean }) {
   const jobs = useSyncExternalStore(queue.subscribe, queue.getSnapshot);
   const dialog = useRef<HTMLDialogElement>(null), close = useRef<HTMLButtonElement>(null);
   const { message, showMessage } = useTransientMessage();
@@ -37,7 +37,7 @@ export function FileBrowserQueueDialog({ queue, onClose }: { queue: BrowserOpera
     <header><strong>文件操作队列</strong><button ref={close} type="button" className="btn-icon" aria-label="收起操作队列" onClick={onClose}><ToolbarIcon name="close" /></button></header>
     <p>按确认顺序逐项执行。收起后继续；停止会等待当前项结束。成功和跳过项不会重复执行。</p>
     {queue.historyIssue() && <p role="alert" className="file-browser-job-warning">{queue.historyIssue()}</p>}
-    <FileBrowserQueueHistory current={queue.historyKey()} onError={value => showMessage(value, "error")} />
+    {showHistory && <FileBrowserQueueHistory current={queue.historyKey()} onError={value => showMessage(value, "error")} />}
     {queue.isPaused() && <p className="file-browser-job-warning">队列因失败暂停。请先核对结果，再继续其余已确认任务。<button type="button" onClick={() => queue.resume()}>继续排队任务</button></p>}
     <div className="file-browser-queue-jobs">{jobs.length ? jobs.map(job => <QueueJob key={job.id} job={job} queue={queue} onError={value => showMessage(value, "error")} />) : <p>当前没有操作记录。</p>}</div>
     {message && <p role="status">{message}</p>}
