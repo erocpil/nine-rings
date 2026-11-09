@@ -61,8 +61,11 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Check transient download retry policy
+        run: bash scripts/ci/test-build-tauri-with-retry.sh
+
       - name: Build Tauri (release)
-        run: npx tauri build --target x86_64-unknown-linux-gnu --bundles deb,appimage -- --locked
+        run: bash scripts/ci/build-tauri-with-retry.sh --target x86_64-unknown-linux-gnu --bundles deb,appimage -- --locked
         env:
           # Skip the default artifact upload built into tauri-action
           TAURI_SIGNING_PRIVATE_KEY: ""
@@ -96,11 +99,30 @@ jobs:
             # must be readable/traversable by users other than the builder;
             # preserve which regular files are executable without adding write access.
             chmod -R a+rX squashfs-root
-            # Download appimagetool (not in apt)
-            wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+            # Fetch the same tools explicitly with bounded retries. In particular,
+            # appimagetool's implicit runtime download has no retry budget.
+            download_appimage_asset() {
+              curl --fail --location --retry 5 --retry-delay 3 --retry-max-time 180 \
+                --connect-timeout 20 --max-time 120 "$1" --output "$2"
+            }
+            download_appimage_asset \
+              https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage \
+              appimagetool-x86_64.AppImage
+            APPIMAGE_RUNTIME="$RUNNER_TEMP/nine-rings-appimage-runtime-x86_64"
+            download_appimage_asset \
+              https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64 \
+              "$APPIMAGE_RUNTIME"
+            file "$APPIMAGE_RUNTIME" | grep -Eq 'ELF 64-bit.*x86-64'
             chmod +x appimagetool-x86_64.AppImage
-            ./appimagetool-x86_64.AppImage --no-appstream --comp zstd \
+            ./appimagetool-x86_64.AppImage --no-appstream --comp zstd --runtime-file "$APPIMAGE_RUNTIME" \
               squashfs-root "$BUNDLE/appimage/Nine_Rings-egl.AppImage"
+            # Exercise the generated runtime and SquashFS codec before publishing.
+            REBUILT_APPIMAGE=$(realpath "$BUNDLE/appimage/Nine_Rings-egl.AppImage")
+            APPIMAGE_VERIFY_DIR=$(mktemp -d)
+            (cd "$APPIMAGE_VERIFY_DIR" && "$REBUILT_APPIMAGE" --appimage-extract > /dev/null)
+            test -f "$APPIMAGE_VERIFY_DIR/squashfs-root/usr/lib/libEGL.so.1"
+            test -x "$APPIMAGE_VERIFY_DIR/squashfs-root/AppRun"
+            rm -rf "$APPIMAGE_VERIFY_DIR"
             cp -v "$BUNDLE/appimage/Nine_Rings-egl.AppImage" artifacts/
             ls -lh artifacts/
           else

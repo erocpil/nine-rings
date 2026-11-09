@@ -1,5 +1,15 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-09：Linux 打包下载的有界重试
+
+应用修复提交 `41e3c08a` 的 Test、两种浏览器阅读门禁、六组原生平台 E2E 和 macOS/Windows 构建均已通过；本机 WebKit 阅读组亦为 **48 passed（2.6m）**。Linux 首轮已编译和打包，但二次打包的 AppImage runtime 下载失败；重跑又在 Tauri 下载 `AppRun-x86_64` 时收到 HTTP 504，属于上游下载失败。
+
+Linux 构建入口改为 `scripts/ci/build-tauri-with-retry.sh`，仅对已观察的 bundle HTTP 502/503/504 最多执行三次，间隔默认 5 秒；每轮覆盖临时日志，最后保留原退出码，编译/配置/权限错误不重试。八项 mock 回归验证参数透传、首轮成功、网络恢复、耗尽、编译错误、403、先网络后编译错误以及无效/过大等待参数；Linux job 在真实构建前也执行这些检查。
+
+AppImage 二次打包显式下载原有 appimagetool 与配套 type2 runtime，带连接/单次/整体重试时间限制，经 `--runtime-file` 交给打包工具，保留原 zstd 压缩。没有复用可能缺少 zstd 支持的旧运行时。发布前核对运行时 ELF 架构，并实际解包生成的 AppImage，检查 EGL 和可执行 AppRun。参数依据 [appimagetool 官方说明](https://github.com/AppImage/appimagetool/blob/main/README.md)，不是扩大文件或应用权限。
+
+影响结论 **SAFE（本地脚本与接口检查）**：Bash 语法、八项策略回归、YAML 解析与差异检查通过；Tauri target/bundles/locked、签名环境、产物名及发布条件保持原契约，失败仍阻止发布。真实 Linux 工具下载、解包和发布以本修订的远端构建为准。此批仅修改 CI，不改变编辑器或存储；应用验证沿用 `7ab4de3d` 的 1620 项完整 E2E 与 `41e3c08a` 的远端门禁。
+
 ## 2026-11-09：最终完整回归与冷启动边界
 
 菜单修复提交 `7ab4de3d` 的默认完整 Chromium E2E **1620 passed（16.0m，无重试、无失败）**，日志 `/tmp/nr-full-e2e-final-7ab4de3d.log`。前述块菜单偶发路径随完整套件通过。
