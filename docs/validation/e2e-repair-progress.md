@@ -1,5 +1,13 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-09：块菜单迟到滚动通知
+
+继续追踪上一节的偶发失败：未修复时五十轮中一次失败，临时记录事件后五十轮中两次失败，再加位置记录的五十轮中一次失败。失败均发生在撤销后重开菜单：编辑区已滚动到 `scrollTop=10`，按钮 top 已变为 `123.546875`；菜单按此位置打开后约 8ms 才收到滚动通知，偏移与按钮位置没有再变化，原 `BlockActionMenu` 的侧边模式仍无条件关闭。证据保存在 `/tmp/nr-block-menu-debug-position/`，临时记录代码已撤除，没有提交。
+
+`src/components/BlockActionMenu.tsx:96` 在布局定位时保留按钮矩形，`:119` 的滚动处理只在侧边模式的实际锚点变化时关闭。菜单内部滚动、下方模式的位置更新、触发器脱离、外部点击、窗口变化及 Esc 的既有规则保留。核对了 `NoteEditor`、`ReadonlyVirtualNote` 及全部下方菜单调用方，公共接口未改动，未调整正文/保存或阅读位置恢复逻辑。
+
+新增确定性用例模拟没有位移的迟到通知，再用真实滚轮确认实际移动仍关闭。首轮夹具在布局恢复期间强设 `scrollTop=10` 被归零；去除这项无关的准备约束后，确定性用例与原偶发用例各二十五轮 **50 passed**。完整块菜单与阅读菜单组 Chromium/WebKit 各 **37 passed**，覆盖编辑、只读、局部渲染、子菜单、隐藏块号和窄屏。完整前端检查仍为 **232 文件、2541 项通过**，生产构建通过，无 chunk 告警。影响结论 **SAFE（已验证路径）**；远端完整门禁按修复提交继续核对，不将修复前的偶发通过充当修复证据。
+
 ## 2026-11-09：完整回归与阅读菜单定位
 
 补充生产验证：WebKit 风险门禁 **84 passed、1 skipped**（既有 Chromium CDP 限定项）。生产/PWA 初轮 Chromium **20 passed**，WebKit **17 passed、2 skipped、1 failed**；失败在 `setOffline(true)` 后刷新，独立三轮均为 WebKit internal error。根据 [Playwright Service Worker 支持范围](https://playwright.dev/docs/service-workers)及[已记录的离线导航问题](https://github.com/microsoft/playwright/issues/42775)，将生产格式化用例拆为通用在线 CSP/差异/诊断与 Chromium 离线冷启动两项，共用准备和断言，保留原有离线后的全部功能检查。最终生产套件 Chromium **21 passed**，WebKit **18 passed、3 skipped**；新增跳过仅针对离线模拟，WebKit 的真实在线格式化、差异和配置诊断继续执行。Safari 离线冷启动仍需真机验收，没有以在线通过代替离线保证。

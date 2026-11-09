@@ -83,6 +83,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
     : title;
   const presentedActions = groupBlockMenuActions(actions, presentation);
   const root = useRef<HTMLDivElement>(null);
+  const anchorRect = useRef<DOMRect | null>(null);
   const [position, setPosition] = useState({ x: 8, y: 8 });
   const [submenuPath, setSubmenuPath] = useState<string[]>([]);
   const [flyouts, setFlyouts] = useState<{ path: string[]; x: number; y: number }[]>([]);
@@ -93,6 +94,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
   }
   useLayoutEffect(() => {
     const rect = trigger.getBoundingClientRect();
+    anchorRect.current = rect;
     const menu = root.current!.getBoundingClientRect();
     setPosition(menuPosition(rect, menu, placement));
     const focusPath = keyboardFocusPath.current;
@@ -115,8 +117,16 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
     const outside = (event: Event) => { if (!root.current?.contains(event.target as Node) && !trigger.contains(event.target as Node)) onClose(); };
     const scroll = (event: Event) => {
       if (root.current?.contains(event.target as Node)) return;
-      if (placement !== "below" || !root.current || !trigger.isConnected) { onClose(); return; }
+      if (!root.current || !trigger.isConnected) { onClose(); return; }
       const rect = trigger.getBoundingClientRect(), menu = root.current.getBoundingClientRect();
+      if (placement !== "below") {
+        // A scroll notification may arrive after the offset changed and this
+        // menu opened. Dismiss only when its measured anchor actually moved.
+        const previous = anchorRect.current;
+        if (previous && rect.left === previous.left && rect.right === previous.right && rect.top === previous.top && rect.bottom === previous.bottom) return;
+        onClose();
+        return;
+      }
       const next = menuPosition(rect, menu, placement);
       setPosition(previous => previous.x === next.x && previous.y === next.y ? previous : next);
     };

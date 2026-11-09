@@ -26,6 +26,25 @@ async function setup(page: Page, readonly = false, virtual = false, exhibition =
 const menu = (page: Page) => page.getByRole("menu", { name: "第 1 块", exact: true });
 async function open(page: Page) { await page.getByRole("button", { name: "第 1 块操作", exact: true }).click(); await expect(menu(page)).toBeVisible(); }
 
+test("块菜单忽略打开前滚动的迟到通知，实际移动锚点仍关闭", async ({ page }) => {
+  await setup(page);
+  await page.locator(".ProseMirror:visible").evaluate(element => {
+    const editor = (element as any).editor;
+    editor.commands.setContent({ type: "doc", content: Array.from({ length: 60 }, (_, index) => ({ type: "paragraph", content: [{ type: "text", text: `paragraph ${index}` }] })) }, true);
+    editor.commands.setTextSelection(1);
+  });
+  const scroll = page.locator(".note-editor-scroll");
+  await open(page);
+  // The offset is already reflected in the opener's measured position. A
+  // delayed scroll event alone must not invalidate the menu just opened there.
+  await scroll.evaluate(element => element.dispatchEvent(new Event("scroll")));
+  await expect(menu(page)).toBeVisible();
+  const rect = (await scroll.boundingBox())!;
+  await page.mouse.move(rect.x + rect.width - 40, rect.y + rect.height - 40);
+  await page.mouse.wheel(0, 100);
+  await expect(menu(page)).toHaveCount(0);
+});
+
 test("结构块复制保留 Markdown，折叠操作和菜单键盘关闭不改写内容", async ({ page }) => {
   await setup(page);
   const root = page.locator(".ProseMirror:visible");
