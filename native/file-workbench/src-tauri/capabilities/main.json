@@ -1,6 +1,6 @@
 {
   "identifier": "workbench-main",
-  "description": "Local-only workbench main window; no network, shell or database access.",
+  "description": "Local-only workbench main window; no network or database access; explicitly configured program launcher is handled by the main-window Rust command.",
   "windows": [
     "main"
   ],

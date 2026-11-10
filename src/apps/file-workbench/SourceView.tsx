@@ -17,9 +17,10 @@ import { exportLocalSource } from "../../lib/local-files/source-download";
 import type { LocalFileDraft } from "../../lib/local-files/recovery";
 import "../../styles/local-files.css";
 
-export function WorkbenchSourceView({ file, host, onClose, closeRequest }: {
+export function WorkbenchSourceView({ file, host, onClose, closeRequest, onNavigate, previous = false, next = false }: {
   file: BrowserFileOpen; host: LocalSourceHost; onClose: () => void;
   closeRequest: MutableRefObject<WorkbenchCloseRequest | null>;
+  onNavigate?: (direction: -1 | 1) => void; previous?: boolean; next?: boolean;
 }) {
   const identity = `${file.rootId}:${file.node.id}`;
   const handle = useRef<SourceEditorHandle | null>(null), session = useRef<EditorState | null>(null);
@@ -147,8 +148,13 @@ export function WorkbenchSourceView({ file, host, onClose, closeRequest }: {
     editor.setSelectionRange(Math.min(location.from, editor.value.length), Math.min(location.to, editor.value.length));
     editor.scrollToOffset(Math.min(location.from, editor.value.length), true);
   }, [current]);
-  return <section className="local-file-view workbench-source-view" aria-label="文件源码工作区">
+  return <section className="local-file-view workbench-source-view" aria-label="文件源码工作区" onKeyDownCapture={event => {
+    if (!readonly || !onNavigate || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || !["ArrowLeft", "ArrowRight"].includes(event.key) || (event.target as Element).closest("input, textarea, select, dialog, [role=dialog]")) return;
+    event.preventDefault(); event.stopPropagation();
+    if (event.key === "ArrowLeft" ? previous : next) requestClose(() => onNavigate(event.key === "ArrowLeft" ? -1 : 1));
+  }}>
     <DocumentTitleBar className="local-files-toolbar local-file-titlebar"><strong title={file.node.id}>{file.node.name}</strong><span>{saving ? "正在保存…" : dirty ? "未保存" : "磁盘文本"}</span>
+      {onNavigate && <><button className="btn-icon" type="button" aria-label="上一文件" title="上一文件（←，只读预览）" disabled={!previous} onClick={() => requestClose(() => onNavigate(-1))}><ToolbarIcon name="chevronLeft" /></button><button className="btn-icon" type="button" aria-label="下一文件" title="下一文件（→，只读预览）" disabled={!next} onClick={() => requestClose(() => onNavigate(1))}><ToolbarIcon name="chevronRight" /></button></>}
       <button className="btn-icon" type="button" aria-label={readonly ? "允许编辑" : "设为只读"} title={readonly ? "允许编辑" : "设为只读"} disabled={loading || !base || Boolean(candidate) || !draftAvailable} onClick={() => setReadonly(value => !value)}><ToolbarIcon name={readonly ? "lock" : "edit"} /></button>
       <button className="btn-icon" type="button" aria-label="保存文件" title="保存文件（⌘/Ctrl+S）" disabled={loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>
       <button className="btn-icon" type="button" aria-label="导出副本" title="导出副本" disabled={loading || !base} onClick={() => void copy()}><ToolbarIcon name="download" /></button>

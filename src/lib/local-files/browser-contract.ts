@@ -2,7 +2,7 @@ import type { FileNode, FilePage, LocalFileDigest, LocalFileFingerprint, LocalFi
 import type { LocalFileListOptions } from "./tree";
 
 export interface BrowserTextLocation { from: number; to: number; revision: string }
-export interface BrowserFileOpen { rootId: string; rootName: string; node: FileNode; location?: BrowserTextLocation }
+export interface BrowserFileOpen { rootId: string; rootName: string; node: FileNode; location?: BrowserTextLocation; siblings?: readonly FileNode[] }
 
 /** Trusted host ports, not a third-party permission grant. Implementations must
  * enforce their own root authorization and presentation/save boundaries. */
@@ -27,5 +27,5 @@ export interface BrowserDirectoryProvider {
   preview(rootId: string, node: string, signal: AbortSignal): Promise<{ kind: "text" | "image"; value: string; truncated: boolean }>;
   page(rootId: string, node: string, offset: number, options: LocalFileListOptions, signal: AbortSignal): Promise<FilePage>;
   properties(rootId: string, node: string, signal: AbortSignal): Promise<LocalFileFingerprint>;
-  open(rootId: string, rootName: string, node: FileNode, signal: AbortSignal, location?: BrowserTextLocation): Promise<void>;
+  open(rootId: string, rootName: string, node: FileNode, signal: AbortSignal, location?: BrowserTextLocation, siblings?: readonly FileNode[]): Promise<void>;
 }

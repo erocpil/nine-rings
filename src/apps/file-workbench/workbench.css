@@ -21,6 +21,27 @@
 .workbench-view-menu button:hover, .workbench-view-menu button:focus-visible { background: var(--hover); outline: none; }
 .workbench-view-menu button:disabled { opacity: .45; }
 .file-workbench-app .file-browser-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-workbench-palette] .workspace-dialog-backdrop,
+html[data-workbench-palette] dialog::backdrop { background: rgb(0 0 0 / 6%); backdrop-filter: blur(1px); -webkit-backdrop-filter: blur(1px); }
+html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-config) { width: min(880px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); }
+.workbench-tool-config { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 16px; padding: 0 16px 16px; max-height: 72dvh; overflow: auto; }
+.workbench-tool-config aside { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.workbench-tool-config aside button { display: flex; align-items: center; gap: 6px; overflow-wrap: anywhere; text-align: left; }
+.workbench-tool-config form { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.workbench-tool-config label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.workbench-tool-config :is(input, textarea, select) { width: 100%; min-width: 0; padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; color: var(--text); background: var(--surface); font: inherit; }
+.workbench-tool-help { font-size: 12px; color: var(--text-secondary); }
+.workbench-tool-config button { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; font: inherit; cursor: pointer; }
+.workbench-tool-config button[aria-pressed='true'] { color: var(--accent); background: var(--active-bg); }
+.workbench-icon-grid { display: grid; grid-template-columns: repeat(auto-fill, 34px); gap: 4px; }
+.workbench-icon-grid button { display: grid; place-items: center; width: 34px; height: 32px; padding: 5px; }
+.workbench-icon-grid svg, .workbench-tool-icon-preview svg { width: 20px; height: 20px; }
+.workbench-tool-config img, .file-workbench-app button img { width: 20px; height: 20px; object-fit: contain; }
+.workbench-tool-icon-preview { height: 28px; font-size: 22px; }
+.workbench-tool-config footer { display: flex; justify-content: flex-end; gap: 8px; position: sticky; bottom: 0; padding-top: 8px; background: var(--bg); }
+.workbench-tool-notice { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 1100; max-width: 80vw; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: 12px; overflow-wrap: anywhere; }
+.workbench-tool-notice button { margin-left: 8px; }
+@media (max-width: 600px) { .workbench-tool-config { grid-template-columns: minmax(0, 1fr); } .workbench-tool-config aside { max-height: 100px; overflow: auto; } }
 
 /* Colour-only workbench palettes. Calm/Mono-aware borrow Nine Rings' green
  * and rose ink families without opting into its document layout presets. */

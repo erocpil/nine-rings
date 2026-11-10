@@ -42,9 +42,9 @@ export function createBrowserDirectoryProvider(host: BrowserDirectoryHost): Brow
       check(signal);
       return value;
     },
-    async open(rootId, rootName, node, signal, location) {
+    async open(rootId, rootName, node, signal, location, siblings) {
       check(signal);
-      await host.open({ rootId, rootName, node, ...(location ? { location } : {}) }, signal);
+      await host.open({ rootId, rootName, node, ...(location ? { location } : {}), ...(siblings ? { siblings } : {}) }, signal);
     },
   };
 }

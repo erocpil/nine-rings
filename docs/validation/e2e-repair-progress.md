@@ -1,5 +1,19 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-10：自定义工具、多目录区、标签拖动与连续预览
+
+上一批预览/焦点改动已提交为 `85490981`。工具配置位于恢复草稿左侧，支持名称、程序、逐行参数、提示、分组预置图标、Unicode、导入图片及已有工具右键修改。定义由宿主统一持有并独立保存，读写长度上限一致；不在启动时执行。运行通过仅独立主窗口注册的命令，原生核验所用授权路径，参数逐项、非递归展开，通用工具可没有目录上下文。前端显示启动 PID，未将启动误报为程序执行完成。
+
+状态影响分析：`browser-tabs.ts:7` 保留 groups 为活动来源/目标对，以可选 extraGroups/activeRows/visibleRows 表示其它目录区；`updateBrowserRow:128` 防止不存在的行更新活动组，组件也按稳定 tabId 拒绝迟到更新。减少数量停放状态，解析限制/修复重复 ID，交换、镜像与变更协调覆盖全部组。默认 Nine Rings 仍显示一组。`browser-contract.ts:5` 的可选 siblings 由共享提供者透传，原宿主忽略；独立只读连续预览在当前载入顺序中跨文本/图片，不绕回，编辑按钮导航继续走保存/草稿门禁。背景模糊只针对独立页面，1px 且兼容 WebKit 前缀。
+
+验证：最终完整 `npm run check` 通过，**243 文件 / 2615 项**，类型/lint/格式、独立脚本、覆盖率及 IPC 通过；独立注册命令 21 个，共享文件命令仍 16 个。Rust workspace **27 项文件服务 + 2 项退出/参数测试通过**，clippy 通过。两种前端生产构建及 ARM64 `.app` 构建通过，无超限 chunk 警告。
+
+最终独立生产 Chromium **18 passed（18.0s）**、WebKit **18 passed（18.4s）**；覆盖图标导入/持久化、配置背景、叠放区停放恢复、双方第二目录区复制/移动、拖动、跨类型连续预览/二进制跳过、可编辑方向键及未保存确认，以及带/不带文件上下文的工具 IPC。已检查配置及双目录区截图。Nine Rings 共享浏览/操作/工具 Chromium **42 passed（1.4m）**。
+
+初轮回归识别出即时重排反复命中，以及快速拖动第一步已离开按钮时未捕获指针的问题；现按下即捕获、释放才提交，原 dragTo 回归保留并通过。WebKit 模糊断言补读前缀属性，产品本来已声明两者。未删除原有测试。结论 **SAFE（已验证路径）**：保存、授权、活动来源/目标及原菜单导航未见回归；实际外部应用启动、Windows/Linux 原生 GUI 未作验收，不以编译/浏览器桥接替代真机。
+
+日志：`/tmp/nr-workbench-custom-check.log`、`/tmp/nr-workbench-custom-chromium.log`、`/tmp/nr-workbench-custom-webkit.log`、`/tmp/nr-workbench-custom-shared.log`、`/tmp/nr-workbench-custom-rust.log`、`/tmp/nr-workbench-custom-clippy.log`、`/tmp/nr-workbench-custom-native-build.log`。
+
 ## 2026-11-10：预览工具与返回列表焦点
 
 上一批目录操作/配色已提交为 `79e75392`。独立文本标题栏补齐 title，接入原 QuickTooltips；文本和图片统一 × 关闭。共享 QuickPreview 的 onNavigate 改为可选，未提供时不展示空导航按钮，也不接管上下方向键；原 Nine Rings 调用方仍提供逐项导航。新增可选 autoFocus 默认关闭，独立图片入口才聚焦查看区；关闭的无障碍名称继续兼容原有调用与测试。

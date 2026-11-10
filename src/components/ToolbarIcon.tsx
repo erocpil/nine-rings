@@ -92,6 +92,8 @@ const paths = {
   warning: <><path d="m12 3 10 18H2ZM12 9v5M12 17h.01" /></>,
 } satisfies Record<string, ReactNode>;
 
+export const TOOLBAR_ICON_NAMES = Object.keys(paths) as Array<keyof typeof paths>;
+
 export function ToolbarIcon({ name }: { name: keyof typeof paths }) {
   return <svg className="toolbar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">{paths[name]}</svg>;
 }

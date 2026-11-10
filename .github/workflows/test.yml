@@ -93,6 +93,7 @@ jobs:
               - 'native/**'
               - 'src/apps/file-workbench/native-lifecycle.ts'
               - 'src/apps/file-workbench/native-view-menu.ts'
+              - 'src/apps/file-workbench/custom-tools.ts'
               - 'src-tauri/src/**'
               - 'src/lib/storage/tauri.ts'
               - 'src/lib/storage/tauri-driver.ts'

@@ -23,6 +23,9 @@ const ROW = 32;
 const sizeText = (size: number) => size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
 type Provider = BrowserDirectoryProvider;
 interface Props {
+  row?: number;
+  target?: boolean;
+  rowControl?: ReactNode;
   tabBar?: ReactNode;
   previewRef: Ref<BrowserPreviewNavigation>;
   side: 0 | 1;
@@ -40,7 +43,7 @@ interface Props {
   onActivate: () => void;
   onChoose: () => void;
   onRefreshRoots: () => void;
-  onOpen: (rootId: string, rootName: string, node: FileNode) => void;
+  onOpen: (rootId: string, rootName: string, node: FileNode, siblings?: readonly FileNode[]) => void;
   onOperation: (kind: BrowserOperation["kind"], selection?: readonly string[]) => void;
   operationDisabled: (kind: BrowserOperation["kind"], count: number) => boolean;
   onPreview: () => void;
@@ -49,7 +52,7 @@ interface Props {
   canDrop: (parent: string, moving: boolean) => boolean;
   onDrop: (event: DragEvent, parent: string) => void;
 }
-export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible, refreshPaused, onExternalChange, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onOperation, operationDisabled, onPreview, tabBar, onDragStart, onDragEnd, canDrop, onDrop, previewRef }: Props) {
+export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCurrentChange, active, visible, refreshPaused, onExternalChange, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onOperation, operationDisabled, onPreview, tabBar, onDragStart, onDragEnd, canDrop, onDrop, previewRef }: Props) {
   const workspace = useFileBrowserHost();
   const compact = workspace.presentation === "compact";
   const location = browserLocation(pane);
@@ -245,7 +248,7 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
     if (index === null) return false;
     chooseItem(nodes[index]); revealIndex(index); return true;
   } }));
-  const openItem = (item: FileNode) => item.directory ? navigate(item.id) : onOpen(rootId, root?.name ?? rootId, item);
+  const openItem = (item: FileNode) => item.directory ? navigate(item.id) : onOpen(rootId, root?.name ?? rootId, item, compact ? nodes : undefined);
   const openMenu = (item: FileNode, x: number, y: number) => {
     if (loading || loadedKey.current !== key || !scrollRef.current) return;
     const selection = selectedSet.has(item.id) ? [...selected] : [item.id];
@@ -283,10 +286,10 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
       <button type="button" disabled={!rootId} onClick={() => navigate("")}>{root?.name ?? "未选择目录"}</button>
       {pieces.map((part, index) => <button key={index} type="button" onClick={() => navigate(pieces.slice(0, index + 1).join("/"))}>{part}</button>)}
     </nav>;
-  return <section style={columnStyle} className={`file-browser-pane${active ? " is-active" : ""}`} aria-label={side === 0 ? "左侧目录" : "右侧目录"} data-browser-side={side} onPointerDown={onActivate} onFocusCapture={onActivate}>
+  return <section style={columnStyle} className={`file-browser-pane${active ? " is-active" : ""}`} aria-label={`${side === 0 ? "左侧目录" : "右侧目录"}${row ? ` ${row + 1}` : ""}`} data-browser-side={side} data-browser-row={row} onPointerDown={onActivate} onFocusCapture={onActivate}>
     {!compact && tabBar}
     <header className="file-browser-pane-tools">
-      <span className="file-browser-pane-badge">{side === 0 ? "左栏" : "右栏"} · {active ? "来源" : "目标"}</span>
+      <span className="file-browser-pane-badge">{side === 0 ? "左栏" : "右栏"} · {active ? "来源" : target === false ? "待选" : "目标"}</span>
       <button type="button" className="btn-icon" aria-label="后退目录" title="后退目录" disabled={pane.index <= 0} onClick={() => { setQuery(""); onChange(current => moveBrowserHistory(current, -1)); }}><ToolbarIcon name="chevronLeft" /></button>
       <button type="button" className="btn-icon" aria-label="前进目录" title="前进目录" disabled={pane.index >= pane.history.length - 1} onClick={() => { setQuery(""); onChange(current => moveBrowserHistory(current, 1)); }}><ToolbarIcon name="chevronRight" /></button>
       <button type="button" className="btn-icon" aria-label="上级目录" title="上级目录" disabled={!node} onClick={() => navigate(pieces.slice(0, -1).join("/"))}><span aria-hidden="true">↑</span></button>
@@ -296,7 +299,7 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
         {roots.map(item => <option key={item.id} value={item.id}>{item.name}{item.transient ? "（本次授权）" : ""}</option>)}
       </select>
       <button type="button" className="btn-icon" aria-label="添加授权目录" title="添加授权目录" onClick={onChoose}><ToolbarIcon name="folder" /></button>
-      <button type="button" className="btn-icon" aria-label="刷新目录" title="刷新目录" onClick={() => { onRefreshRoots(); setRefresh(value => value + 1); }}><ToolbarIcon name="refresh" /></button>
+      <button type="button" className="btn-icon" aria-label="刷新目录" title="刷新目录" onClick={() => { onRefreshRoots(); setRefresh(value => value + 1); }}><ToolbarIcon name="refresh" /></button>{rowControl}
     </header>
     {!compact && breadcrumbs}
     <FileBrowserLocations breadcrumbs={compact ? breadcrumbs : undefined} filter={compact ? { value: query, onChange: value => { setQuery(value); setScroll(0); onChange(current => updateBrowserLocation(current, { scrollTop: 0, selected: [] })); } } : undefined} pane={pane} roots={roots} visible={visible} provider={provider} onError={setError} onNavigate={(id, path) => { setQuery(""); onChange(current => navigateBrowserPane(current, id, path)); }} onHistory={index => { setQuery(""); onChange(current => ({ ...current, index })); }} />

@@ -4,7 +4,7 @@ import type { BrowserMutation } from "./browser-operation-contract";
 export interface BrowserWorkspaceTab extends BrowserPaneState { tabId: string; pinned?: boolean }
 export interface BrowserTabGroup { tabs: BrowserWorkspaceTab[]; active: number; closed?: BrowserWorkspaceTab[] }
 const tabId = () => crypto.randomUUID();
-export interface BrowserWorkspaceState { version: 2; groups: [BrowserTabGroup, BrowserTabGroup]; active: 0 | 1; ratio: number }
+export interface BrowserWorkspaceState { version: 2; groups: [BrowserTabGroup, BrowserTabGroup]; active: 0 | 1; ratio: number; extraGroups?: [BrowserTabGroup[], BrowserTabGroup[]]; activeRows?: [number, number]; visibleRows?: [number, number] }
 export const MAX_BROWSER_TABS = 16;
 export const activeBrowserPanes = (state: BrowserWorkspaceState): [BrowserPaneState, BrowserPaneState] => [state.groups[0].tabs[state.groups[0].active], state.groups[1].tabs[state.groups[1].active]];
 export function parseBrowserWorkspace(raw: string | null): BrowserWorkspaceState {
@@ -26,7 +26,14 @@ export function parseBrowserWorkspace(raw: string | null): BrowserWorkspaceState
       const closed = (Array.isArray(group.closed) ? group.closed.slice(-16) : []).map(tab => ({ ...parseBrowserState(JSON.stringify({ panes: [tab] })).panes[0], tabId: tabId() })).filter(tab => browserLocation(tab));
       return { tabs, closed, active: Number.isInteger(group.active) ? Math.max(0, Math.min(tabs.length - 1, group.active)) : 0 };
     }) as BrowserWorkspaceState["groups"];
-    return { version: 2, groups, active: value.active === 1 ? 1 : 0, ratio: typeof value.ratio === "number" && Number.isFinite(value.ratio) ? Math.max(.25, Math.min(.75, value.ratio)) : .5 };
+    const extras = Array.isArray(value.extraGroups) && value.extraGroups.length === 2 ? value.extraGroups.map((items: BrowserTabGroup[]) => (Array.isArray(items) ? items.slice(0, 3) : []).map(group => parseBrowserWorkspace(JSON.stringify({ version: 2, groups: [group, group] })).groups[0])) as [BrowserTabGroup[], BrowserTabGroup[]] : undefined;
+    if (extras) for (const side of [0, 1] as const) {
+      const seen = new Set(groups[side].tabs.map(tab => tab.tabId));
+      extras[side] = extras[side].map(group => ({ ...group, tabs: group.tabs.map(tab => { const id = seen.has(tab.tabId) ? tabId() : tab.tabId; seen.add(id); return { ...tab, tabId: id }; }) }));
+    }
+    const visibleRows = extras ? extras.map((items, side) => Math.max(1, Math.min(items.length + 1, Number.isInteger(value.visibleRows?.[side]) ? value.visibleRows[side] : 1))) as [number, number] : undefined;
+    const activeRows = extras ? extras.map((_, side) => Math.max(0, Math.min(visibleRows![side] - 1, Number.isInteger(value.activeRows?.[side]) ? value.activeRows[side] : 0))) as [number, number] : undefined;
+    return { version: 2, groups, ...(extras ? { extraGroups: extras, activeRows, visibleRows } : {}), active: value.active === 1 ? 1 : 0, ratio: typeof value.ratio === "number" && Number.isFinite(value.ratio) ? Math.max(.25, Math.min(.75, value.ratio)) : .5 };
   } catch { return fallback; }
 }
 export function updateBrowserTab(state: BrowserWorkspaceState, side: 0 | 1, update: (pane: BrowserPaneState) => BrowserPaneState): BrowserWorkspaceState {
@@ -57,7 +64,8 @@ export function selectBrowserTab(state: BrowserWorkspaceState, side: 0 | 1, inde
 export function reconcileBrowserTabs(state: BrowserWorkspaceState, change: BrowserMutation): BrowserWorkspaceState {
   if (change.kind === "refresh") return state;
   const reconcile = (tab: BrowserWorkspaceTab) => ({ ...tab, ...reconcileBrowserPaneMutation(tab, change) });
-  return { ...state, groups: state.groups.map(group => ({ ...group, tabs: group.tabs.map(reconcile), closed: group.closed?.map(reconcile).filter(tab => browserLocation(tab)) })) as BrowserWorkspaceState["groups"] };
+  const apply = (group: BrowserTabGroup) => ({ ...group, tabs: group.tabs.map(reconcile), closed: group.closed?.map(reconcile).filter(tab => browserLocation(tab)) });
+  return { ...state, groups: state.groups.map(apply) as BrowserWorkspaceState["groups"], ...(state.extraGroups ? { extraGroups: state.extraGroups.map(groups => groups.map(apply)) as [BrowserTabGroup[], BrowserTabGroup[]] } : {}) };
 }
 
 /** All advanced tab actions address stable IDs, never a stale context-menu index. */
@@ -92,11 +100,48 @@ export function reorderBrowserTab(state: BrowserWorkspaceState, side: 0 | 1, id:
 }
 /** Move entire groups, retaining every tab's identity and state. */
 export function exchangeBrowserPanes(state: BrowserWorkspaceState): BrowserWorkspaceState {
-  return { ...state, groups: [state.groups[1], state.groups[0]], active: state.active === 0 ? 1 : 0 };
+  return { ...state, ...(state.extraGroups ? { extraGroups: [state.extraGroups[1], state.extraGroups[0]] as [BrowserTabGroup[], BrowserTabGroup[]], activeRows: [state.activeRows?.[1] ?? 0, state.activeRows?.[0] ?? 0] as [number, number], visibleRows: [state.visibleRows?.[1] ?? 1, state.visibleRows?.[0] ?? 1] as [number, number] } : {}), groups: [state.groups[1], state.groups[0]], active: state.active === 0 ? 1 : 0 };
 }
 /** Only navigate the opposite active tab; its other tabs remain untouched. */
 export function mirrorBrowserPath(state: BrowserWorkspaceState): BrowserWorkspaceState {
   const source = browserLocation(activeBrowserPanes(state)[state.active]);
   if (!source) return state;
   return updateBrowserTab(state, state.active === 0 ? 1 : 0, pane => navigateBrowserPane(pane, source.rootId, source.node));
+}
+
+
+/** groups always contains each side's active row, so the existing operation,
+ * preview and tab reducers keep one authoritative source/target pair. */
+export function browserSideRows(state: BrowserWorkspaceState, side: 0 | 1) {
+  const rows = [...(state.extraGroups?.[side] ?? [])];
+  rows.splice(state.activeRows?.[side] ?? 0, 0, state.groups[side]);
+  return rows;
+}
+export function activateBrowserRow(state: BrowserWorkspaceState, side: 0 | 1, row: number): BrowserWorkspaceState {
+  if (!state.extraGroups && row === 0) return { ...state, active: side };
+  const rows = browserSideRows(state, side);
+  if (!rows[row]) return state;
+  const groups = [...state.groups] as BrowserWorkspaceState["groups"], extraGroups = [...(state.extraGroups ?? [[], []])] as [BrowserTabGroup[], BrowserTabGroup[]], activeRows = [...(state.activeRows ?? [0, 0])] as [number, number];
+  groups[side] = rows[row]; extraGroups[side] = rows.filter((_, at) => at !== row); activeRows[side] = row;
+  return { ...state, groups, extraGroups, activeRows, active: side };
+}
+export function updateBrowserRow(state: BrowserWorkspaceState, side: 0 | 1, row: number, update: (pane: BrowserPaneState) => BrowserPaneState): BrowserWorkspaceState {
+  if (!browserSideRows(state, side)[row]) return state;
+  if (row === (state.activeRows?.[side] ?? 0)) return updateBrowserTab(state, side, update);
+  const changed = updateBrowserTab(activateBrowserRow(state, side, row), side, update);
+  return { ...activateBrowserRow(changed, side, state.activeRows?.[side] ?? 0), active: state.active };
+}
+export function setBrowserRowCount(state: BrowserWorkspaceState, side: 0 | 1, count: number): BrowserWorkspaceState {
+  if (!Number.isInteger(count) || count < 1 || count > 4) return state;
+  let next = state;
+  const rows = browserSideRows(next, side);
+  while (rows.length < count) {
+    const current = rows[rows.length - 1].tabs[rows[rows.length - 1].active];
+    rows.push({ tabs: [{ ...current, history: current.history.map(entry => ({ ...entry, selected: [], scrollTop: 0 })), tabId: tabId(), pinned: false }], active: 0 });
+  }
+  const activeRow = Math.min(state.activeRows?.[side] ?? 0, count - 1);
+  const groups = [...next.groups] as BrowserWorkspaceState["groups"], extraGroups = [...(next.extraGroups ?? [[], []])] as [BrowserTabGroup[], BrowserTabGroup[]], activeRows = [...(next.activeRows ?? [0, 0])] as [number, number], visibleRows = [...(next.visibleRows ?? [1, 1])] as [number, number];
+  groups[side] = rows[activeRow]; extraGroups[side] = rows.filter((_, at) => at !== activeRow); activeRows[side] = activeRow; visibleRows[side] = count;
+  next = { ...next, groups, extraGroups, activeRows, visibleRows };
+  return next;
 }

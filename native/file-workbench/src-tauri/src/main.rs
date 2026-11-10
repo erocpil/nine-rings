@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod close_policy;
+mod tools;
 mod view_menu;
 use close_policy::ClosePolicy;
 use nine_rings_file_host::local_files;
@@ -75,6 +76,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             workbench_ready,
+            tools::workbench_run_tool,
             workbench_set_view_menu,
             workbench_confirm_close,
             local_files::local_files_choose,
