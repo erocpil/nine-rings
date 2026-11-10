@@ -5,7 +5,8 @@ import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contra
 import { ToolbarIcon } from "./ToolbarIcon";
 import { browserNavigationIndex, browserRowScroll, browserTypeahead, type BrowserTypeahead } from "../lib/local-files/browser-keyboard";
 import { FileBrowserLocations } from "./FileBrowserLocations";
-import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
+import type { NotesMenuTarget } from "./NotesContextMenu";
+import { FileBrowserContextMenu, type FileBrowserMenuAction } from "./FileBrowserContextMenu";
 import { browserFullPath, clampBrowserColumn, DEFAULT_BROWSER_COLUMNS, parseBrowserColumns, type BrowserColumn } from "../lib/local-files/browser-preferences";
 import { copyToClipboard } from "../lib/clipboard";
 import { useTransientMessage } from "../hooks/useTransientMessage";
@@ -252,13 +253,27 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
     setMenu({ target: { id: `${rootId}:${item.id}`, title: item.name, x, y, trigger: scrollRef.current }, item, selection, path: null });
   };
   const copy = (value: string, label: string) => { void copyToClipboard(value, { reportFailure: true }).then(() => showMessage(`已复制${label}`)).catch(error => showMessage(`复制失败：${String(error)}`, "error")); };
-  const menuActions = menu ? [
+  const openExternal = (chooseApplication: boolean) => {
+    if (!menu || !workspace.externalOpen || menu.selection.length !== 1 || menu.item.directory) return;
+    try {
+      workspace.assertActive();
+      void workspace.externalOpen.open(rootId, menu.item.id, chooseApplication).then(opened => {
+        workspace.assertActive(); if (opened) showMessage("已交给系统打开");
+      }).catch(cause => showMessage(`系统打开失败：${String(cause)}`, "error"));
+    } catch (cause) { showMessage(String(cause), "error"); }
+  };
+  const menuActions: FileBrowserMenuAction[] = menu ? [
     { label: "打开", disabled: menu.selection.length !== 1, run: () => openItem(menu.item) },
+    { label: "打开方式", disabled: menu.selection.length !== 1 || menu.item.directory, children: [
+      { label: "内置编辑器", run: () => openItem(menu.item) },
+      { label: "系统默认应用", disabled: !workspace.externalOpen, hint: !workspace.externalOpen ? "仅桌面版" : undefined, separator: true, run: () => openExternal(false) },
+      { label: "其它应用程序…", disabled: !workspace.externalOpen, hint: !workspace.externalOpen ? "仅桌面版" : undefined, run: () => openExternal(true) },
+    ] },
     { label: "快速预览", disabled: menu.selection.length !== 1 || menu.item.directory, run: onPreview },
-    { label: "复制名称", run: () => copy(menu.selection.map(id => id.split("/").pop()).join("\n"), "名称") },
+    { label: "复制名称", separator: true, run: () => copy(menu.selection.map(id => id.split("/").pop()).join("\n"), "名称") },
     { label: "复制路径", disabled: menu.path === null, run: () => menu.path !== null && copy(menu.path, "路径") },
     { label: "复制完整路径", disabled: menu.path === null, run: () => menu.path !== null && copy(menu.selection.map(id => browserFullPath(menu.path!, id.split("/").pop()!)).join("\n"), "完整路径") },
-    ...(["copy", "move", "rename", "batch-rename", "trash"] as const).map(kind => ({ label: { copy: "复制到另一栏", move: "移动到另一栏", rename: "重命名", "batch-rename": "批量重命名", trash: "移入系统回收站" }[kind], disabled: operationDisabled(kind, menu.selection.length), run: () => onOperation(kind, menu.selection) })),
+    ...(["copy", "move", "rename", "batch-rename", "trash"] as const).map(kind => ({ label: { copy: "复制到另一栏", move: "移动到另一栏", rename: "重命名", "batch-rename": "批量重命名", trash: "移入系统回收站" }[kind], separator: kind === "copy" || kind === "trash", danger: kind === "trash", disabled: operationDisabled(kind, menu.selection.length), run: () => onOperation(kind, menu.selection) })),
   ] : [];
   const changeColumn = (column: BrowserColumn, value: number) => setColumns(current => ({ ...current, [column]: clampBrowserColumn(column, value), autoName: column === "name" ? false : current.autoName }));
   const sortColumn = (column: BrowserColumn) => { const sort: LocalFileSort = pane.sort === column ? `${column}-desc` : column; onChange(current => ({ ...updateBrowserLocation(current, { scrollTop: 0 }), sort })); };
@@ -343,7 +358,7 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
         onDragStart(event, selection);
       }} onDragEnd={() => { setDrop(null); onDragEnd(); }} title={[root?.name, item.id].filter(Boolean).join("/")} onMouseDown={event => { if (event.button === 2) event.preventDefault(); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); openMenu(item, event.clientX, event.clientY); }} onClick={event => { if (loading || loadedKey.current !== key) return; chooseItem(item, event.ctrlKey || event.metaKey, event.shiftKey); scrollRef.current?.focus({ preventScroll: true }); }} onDoubleClick={() => { if (!loading && loadedKey.current === key) openItem(item); }}>
         <span className={`file-browser-name${item.directory ? " is-directory" : ""}`}><ToolbarIcon name={item.directory ? "folder" : "document"} /><span>{item.name}</span></span>
-        <span>{item.directory ? "—" : metadata[item.id] ? sizeText(metadata[item.id].size) : item.size ? sizeText(item.size) : "…"}</span>
+        <span title={item.directory ? "目录内部大小尚未统计" : undefined}>{item.directory ? "—" : metadata[item.id] ? sizeText(metadata[item.id].size) : item.size ? sizeText(item.size) : "…"}</span>
         <span>{(metadata[item.id]?.modifiedMs ?? item.modifiedMs) ? new Date(metadata[item.id]?.modifiedMs ?? item.modifiedMs!).toLocaleString() : "—"}</span>
       </div>)}
       <div style={{ height: Math.max(0, nodes.length - end) * ROW }} aria-hidden="true" />
@@ -351,7 +366,7 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
     </div>
     {error && <div className="file-browser-error" role="alert">{error}<button type="button" aria-label="关闭目录错误" onClick={() => setError("")}>×</button></div>}
     <footer className="file-browser-pane-status"><span title="选择操作最多 2000 项；目录数量不包含其内部文件">{selected.length ? `选中 ${selected.length} 项 · ` : ""}{nodes.length} 项{next !== null ? "（已加载）" : ""} · {nodes.filter(item => item.directory).length} 目录 / {nodes.filter(item => !item.directory).length} 文件</span>{selected.length > 0 && <span className="file-browser-selection-size" aria-label="选中大小" title={`已知 ${selectionSummary.files} 个文件，共 ${selectionSummary.bytes} bytes；不扫描目录正文或子项`}>已知文件 {sizeText(selectionSummary.bytes)}{selectionSummary.directories ? ` · ${selectionSummary.directories} 目录未统计内部` : ""}{selectionSummary.unknown ? ` · ${selectionSummary.unknown} 项大小未知` : ""}</span>}{typeahead.query && <span className="file-browser-typeahead" role="status">定位：{typeahead.query}（已加载）</span>}{next !== null && <button type="button" disabled={paging} onClick={() => void more(true)}>{paging ? "加载中…" : "加载更多"}</button>}</footer>
-    {menu && visible && <NotesContextMenu label="文件菜单" target={menu.target} close={() => setMenu(null)} actions={menuActions} />}
+    {menu && visible && <FileBrowserContextMenu target={menu.target} close={() => setMenu(null)} actions={menuActions} />}
     {message && <div className="file-browser-notice" role="status">{message}</div>}
   </section>;
 }

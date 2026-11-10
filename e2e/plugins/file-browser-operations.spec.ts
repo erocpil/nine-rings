@@ -42,6 +42,24 @@ async function setup(page: Page) {
   return { browser, left, right };
 }
 
+// Keep the async task rooted in the page while deactivation replaces its
+// mounted view. Also fail on an actual page reload instead of hiding navigation.
+async function toggleBrowser(page: Page, enabled: boolean) {
+  const token = await page.evaluate(value => {
+    const token = crypto.randomUUID();
+    const state = { token, result: "pending", task: undefined as Promise<void> | undefined };
+    (window as any).__browserToggle = state;
+    state.task = import("/src/lib/plugin-system/builtin-file-browser.ts").then(({ saveFileBrowserEnabled }) => {
+      saveFileBrowserEnabled(value); state.result = "done";
+    }).catch(error => { state.result = String(error); });
+    return token;
+  }, enabled);
+  await expect.poll(() => page.evaluate(expected => {
+    const state = (window as any).__browserToggle;
+    return state?.token === expected ? state.result : "page changed";
+  }, token)).toBe("done");
+}
+
 test("重新激活双栏后可核对历史结果，但不恢复或重试磁盘任务", async ({ page }) => {
   const { browser, left } = await setup(page);
   await left.getByRole("option", { name: /b.c/ }).click();
@@ -50,9 +68,9 @@ test("重新激活双栏后可核对历史结果，但不恢复或重试磁盘�
   let dialog = page.getByRole("dialog", { name: "文件操作队列", exact: true });
   await expect(dialog.getByRole("status")).toContainText("成功 1 项");
   await dialog.getByRole("button", { name: "关闭", exact: true }).click();
-  await page.evaluate(async () => { const { saveFileBrowserEnabled } = await import("/src/lib/plugin-system/builtin-file-browser.ts"); saveFileBrowserEnabled(false); });
+  await toggleBrowser(page, false);
   await expect(browser).toHaveCount(0);
-  await page.evaluate(async () => { const { saveFileBrowserEnabled } = await import("/src/lib/plugin-system/builtin-file-browser.ts"); saveFileBrowserEnabled(true); });
+  await toggleBrowser(page, true);
   await page.getByRole("navigation", { name: "工作区面板", exact: true }).getByRole("button", { name: "双栏浏览", exact: true }).click();
   await browser.getByRole("button", { name: "操作队列", exact: true }).click();
   dialog = page.getByRole("dialog", { name: "文件操作队列", exact: true });

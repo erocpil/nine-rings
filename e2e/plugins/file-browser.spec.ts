@@ -133,3 +133,74 @@ test("独立活动栏入口在停用本地文件后保留授权并打开文件",
   await page.getByRole("button", { name: "返回原视图", exact: true }).click();
   await expect(left.getByRole("option", { name: /main.c/ })).toBeVisible();
 });
+
+for (const presentation of ["split", "overlay"] as const) {
+  test(`双栏临时收起固定分栏，重复打开不覆盖快照，返回恢复宽度与固定状态 ${presentation}`, async ({ page }) => {
+    await page.addInitScript(mode => {
+      localStorage.setItem("nr:sidebarPresentation", mode);
+      localStorage.setItem("nr:desktopSidebar", JSON.stringify({ panel: "tree", pinned: true, hidden: false }));
+      localStorage.setItem("nr:filesSidebarW", "444");
+      localStorage.setItem("nr:workspaceLayout", JSON.stringify({ outlinePinned: true, bookmarkPinned: true }));
+    }, presentation);
+    const { browser } = await fixture(page);
+    const sidebar = page.locator("#workspace-sidebar");
+    await expect(sidebar).toHaveClass(/sidebar-hidden/);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("nr:desktopSidebar")!))).toMatchObject({ panel: "files", hidden: false });
+    const navigation = page.getByRole("navigation", { name: "工作区面板", exact: true });
+    await navigation.getByRole("button", { name: "双栏浏览", exact: true }).click();
+    await expect(browser).toBeVisible(); await expect(sidebar).toHaveClass(/sidebar-hidden/);
+    await browser.getByRole("button", { name: "返回原视图", exact: true }).click();
+    await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+    await expect.poll(() => sidebar.evaluate(element => Math.round(element.getBoundingClientRect().width))).toBe(444);
+    await expect(navigation.getByRole("button", { name: "本地文件", exact: true })).toHaveAttribute("aria-pressed", "true");
+    if (presentation === "overlay") await expect(navigation.getByRole("button", { name: "本地文件", exact: true })).toHaveAttribute("data-pinned", "true");
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("nr:workspaceLayout")!))).toMatchObject({ outlinePinned: true, bookmarkPinned: true });
+  });
+}
+
+for (const closeAgain of [false, true]) {
+  test(`双栏期间主动调整分栏后保留选择，收起=${closeAgain}`, async ({ page }) => {
+    const { browser } = await fixture(page);
+    const sidebar = page.locator("#workspace-sidebar");
+    await expect(sidebar).toHaveClass(/sidebar-hidden/);
+    const list = page.getByRole("navigation", { name: "工作区面板", exact: true }).getByRole("button", { name: "文档列表", exact: true });
+    await list.click(); await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+    await expect(browser).toBeVisible();
+    if (closeAgain) { await list.click(); await expect(sidebar).toHaveClass(/sidebar-hidden/); }
+    await browser.getByRole("button", { name: "返回原视图", exact: true }).click();
+    if (closeAgain) await expect(sidebar).toHaveClass(/sidebar-hidden/);
+    else { await expect(sidebar).not.toHaveClass(/sidebar-hidden/); await expect(list).toHaveAttribute("aria-pressed", "true"); }
+  });
+}
+
+test("双栏期间仅悬停预览不覆盖初始固定分栏", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nr:sidebarPresentation", "overlay");
+    localStorage.setItem("nr:desktopSidebar", JSON.stringify({ panel: "tree", pinned: true, hidden: false }));
+  });
+  const { browser } = await fixture(page);
+  const sidebar = page.locator("#workspace-sidebar");
+  const navigation = page.getByRole("navigation", { name: "工作区面板", exact: true });
+  await navigation.getByRole("button", { name: "文档列表", exact: true }).hover();
+  await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+  await sidebar.locator(".sidebar-document-list-search").click({ position: { x: 2, y: 2 } });
+  await browser.getByRole("button", { name: "返回原视图", exact: true }).click();
+  await expect(navigation.getByRole("button", { name: "本地文件", exact: true })).toHaveAttribute("data-pinned", "true");
+  await page.mouse.move(1000, 500);
+  await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+});
+
+
+test("双栏进入前分栏已收起，离开后保持收起", async ({ page }) => {
+  const { browser } = await fixture(page);
+  const sidebar = page.locator("#workspace-sidebar");
+  await browser.getByRole("button", { name: "返回原视图", exact: true }).click();
+  await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+  const navigation = page.getByRole("navigation", { name: "工作区面板", exact: true });
+  await navigation.getByRole("button", { name: "本地文件", exact: true }).click();
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  await navigation.getByRole("button", { name: "双栏浏览", exact: true }).click();
+  await expect(browser).toBeVisible();
+  await browser.getByRole("button", { name: "返回原视图", exact: true }).click();
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+});

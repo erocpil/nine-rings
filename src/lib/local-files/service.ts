@@ -117,6 +117,13 @@ export const localFileService = {
     isTauriRuntime() ||
     typeof (window as unknown as { showDirectoryPicker?: unknown })
       .showDirectoryPicker === "function",
+  supportsExternalOpen: () => isTauriRuntime(),
+  async openExternal(rootId: string, node: string, chooseApplication = false): Promise<boolean> {
+    const check = guard(); fileSegments(node);
+    if (!node || !isTauriRuntime()) throw new Error("系统打开仅适用于桌面版授权文件");
+    const result = await native<boolean>("local_files_open_external", { rootId, node, chooseApplication });
+    check(); return result;
+  },
   supportsSaveAs: () => isTauriRuntime() || typeof (window as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker === "function",
   canSaveOriginal: (rootId: string) => isTauriRuntime() || Boolean(roots.get(rootId)?.handle),
   supportsDirectoryChanges: (rootId: string) => isTauriRuntime() || Boolean(roots.get(rootId)?.handle),

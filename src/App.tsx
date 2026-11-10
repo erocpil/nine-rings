@@ -1,3 +1,4 @@
+import { useBrowserSidebarSession } from "./hooks/useBrowserSidebarSession";
 import { useNativeMenuHost } from "./hooks/useNativeMenuHost";
 import { useNativeMenuActions } from "./hooks/useNativeMenuActions";
 import { useDocumentSequence } from "./hooks/useDocumentSequence";
@@ -243,6 +244,7 @@ function App() {
   });
   const pluginMainView = pluginViewState.current;
   const pluginMainActive = Boolean(pluginMainView && !pluginViewState.suspended);
+  const fileBrowserMainActive = pluginMainActive && pluginMainView?.renderer === "file-browser";
   const pluginViewDocument = useRef(selectedNote?.id ?? null);
   useEffect(() => {
     const id = selectedNote?.id ?? null;
@@ -910,8 +912,9 @@ function App() {
 
   // ── 持久化侧栏隐藏状态 ──
   useEffect(() => {
+    if (fileBrowserMainActive && !window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return;
     localStorage.setItem(HIDDEN_KEY, String(sidebarHidden));
-  }, [sidebarHidden]);
+  }, [sidebarHidden, fileBrowserMainActive]);
 
   // ── 持久化专注模式 ──
   useEffect(() => {
@@ -1061,6 +1064,7 @@ function App() {
   });
 
   const activateSidebarPanel = async (panel: typeof desktopPanel) => {
+    markBrowserSidebarChanged();
     const resumesLocalView = panel === "files" && (pluginMainView?.renderer === "local-file" || Boolean(pluginViewState.browser));
     if (!workspaceHome && (panel === "images" || panel === "vocabulary" || panel === "files") && pluginViewState.suspended && ((panel === "images" && pluginMainView?.renderer === "image") || (panel === "vocabulary" && pluginMainView?.renderer === "vocabulary") || resumesLocalView)) {
       try { await flushAutoSave(); }
@@ -1226,9 +1230,22 @@ function App() {
     && activeReaderFullscreen;
   const sidebarHoverEnabled = desktopWorkspace && sidebarPresentation === "overlay";
   const sidebarHover = useSidebarHoverPreview({ enabled: sidebarHoverEnabled, panel: desktopPanel, hidden: sidebarHidden, resizing: sidebarResizing || readerFocus, openPanel: setSidebarPanel, setHidden: setSidebarHidden });
+  const markBrowserSidebarChanged = useBrowserSidebarSession({
+    active: desktopWorkspace && fileBrowserMainActive,
+    mode: `${sidebarPresentation}:${workspaceLayout.sidebarSide}`,
+    layout: { panel: desktopPanel, hidden: sidebarHidden, pinned: sidebarHover.pinned },
+    width: sidebarWidthOverride(),
+    restore: (layout, width, options) => {
+      const unavailable = ["files", "images", "vocabulary"].includes(layout.panel) && !contributedPanels.some(panel => panel.id === layout.panel);
+      const target = unavailable ? { ...layout, panel: "tree" as const } : layout;
+      if (target.hidden) setDesktopPanel(target.panel);
+      sidebarHover.restore(target, width, options);
+    },
+  });
   const workspaceHome = workspaceHomeRequested || (!selectedNote && !selectedFolderPath && !selectedConcept);
   useEffect(() => { summarySidebarSnapshot.current = null; setActiveWorkspaceSummary(null); }, [workspaceHome]);
   const closeHomeReaderSidebar = useCallback((format: "pdf" | "epub", documentId: string) => {
+    markBrowserSidebarChanged();
     mainViews.close();
     if (!desktopWorkspace || !workspaceHome) return;
     // The home reader takes over the main area. Cancel both pinned and hover
@@ -1239,7 +1256,7 @@ function App() {
     setExhibitionReturnTarget(current => current
       ? { ...current, homeOpenedReader: { format, documentId } }
       : current);
-  }, [desktopWorkspace, sidebarHover, workspaceHome]);
+  }, [desktopWorkspace, sidebarHover, workspaceHome, markBrowserSidebarChanged]);
   const sidebarOverlay = sidebarHoverEnabled && !sidebarHover.pinned;
   const previousDesktopWorkspace = useRef(desktopWorkspace);
   useEffect(() => {
@@ -1251,9 +1268,9 @@ function App() {
       setSidebarHidden(saved.hidden);
       return;
     }
-    if (desktopWorkspace && !sidebarHoverEnabled)
+    if (desktopWorkspace && !sidebarHoverEnabled && !fileBrowserMainActive)
       saveDesktopSidebarState({ panel: desktopPanel, hidden: sidebarHidden });
-  }, [desktopWorkspace, sidebarHoverEnabled, desktopPanel, sidebarHidden]);
+  }, [desktopWorkspace, sidebarHoverEnabled, desktopPanel, sidebarHidden, fileBrowserMainActive]);
   const announcedErrorRef = useRef<string | null>(null);
   useEffect(() => {
     const message = error || (autoSave.status === "error" ? "保存失败" : null);
@@ -1667,6 +1684,7 @@ function App() {
       localFilesAvailable={contributedPanels.some(panel => panel.id === "files" || panel.id === "browser")}
       onOpenLocalFile={file => { void openRecentLocalFile(file).catch(() => {}); }}
       onSummary={kind => {
+        markBrowserSidebarChanged();
         const saved = summarySidebarSnapshot.current;
         if (saved?.kind === kind) {
           summarySidebarSnapshot.current = null;
@@ -1705,6 +1723,7 @@ function App() {
           ? document.querySelector<HTMLElement>(".app-main-split")?.getBoundingClientRect() ?? null
           : null;
         await flushAutoSave();
+        markBrowserSidebarChanged();
         if (workspaceHome) {
           if (!exhibitionReturnTarget) {
             if (pluginViewState.suspended) mainViews.resume();
@@ -1799,6 +1818,7 @@ function App() {
             onCloseCurrent={closeCurrentFile}
             onRevealLocal={async file => {
               if (!contributedPanels.some(panel => panel.id === "files")) throw new Error("请先启用本地文件插件，再在文件树中定位。");
+              markBrowserSidebarChanged();
               sidebarHover.restore({ panel: "files", hidden: false, pinned: true });
               window.dispatchEvent(new CustomEvent(LOCAL_FILE_REVEAL_EVENT, { detail: file }));
             }}
@@ -1807,6 +1827,7 @@ function App() {
               setDocTreeKey(key => key + 1);
               revealDocTreePath(path); setDocTreeReveal(previous => ({ id, sequence: (previous?.sequence ?? 0) + 1 }));
               setDocTreePopupOpen(false);
+              markBrowserSidebarChanged();
               sidebarHover.restore({ panel: "tree", hidden: false, pinned: true });
             }}
             onCloseLast={async () => { await flushAutoSave(); handleSelectNote(null); setSelectedFolderPath(null); setSelectedConcept(null); }}
@@ -1947,7 +1968,7 @@ function App() {
           )}
           </div>
           {contributedPanels.some(panel => panel.renderer === "local-files") && <div style={{ height: "100%", minHeight: 0 }} hidden={desktopPanel !== "files"} {...(desktopPanel !== "files" ? { inert: "", "aria-hidden": true } : {})}><Suspense fallback={<p>正在加载文件分栏…</p>}><LocalFilesPanel active={desktopPanel === "files" && !sidebarHidden} onBack={mobileDrawerViewport ? () => setDesktopPanel("tree") : undefined} onCloseFiles={closeLocalFiles} /></Suspense></div>}
-          {contributedPanels.some(panel => panel.renderer === "image-library") && <div className="image-library-retained" hidden={desktopPanel !== "images"} {...(desktopPanel !== "images" ? { inert: "", "aria-hidden": true } : {})}><Suspense fallback={desktopPanel === "images" ? <p>正在加载图片分栏…</p> : null}><ImageLibraryPanel active={desktopPanel === "images" && !sidebarHidden} onClose={() => setSidebarHidden(true)} onBack={mobileDrawerViewport ? () => setDesktopPanel("tree") : undefined} /></Suspense></div>}
+          {contributedPanels.some(panel => panel.renderer === "image-library") && <div className="image-library-retained" hidden={desktopPanel !== "images"} {...(desktopPanel !== "images" ? { inert: "", "aria-hidden": true } : {})}><Suspense fallback={desktopPanel === "images" ? <p>正在加载图片分栏…</p> : null}><ImageLibraryPanel active={desktopPanel === "images" && !sidebarHidden} onClose={() => { markBrowserSidebarChanged(); setSidebarHidden(true); }} onBack={mobileDrawerViewport ? () => setDesktopPanel("tree") : undefined} /></Suspense></div>}
           {contributedPanels.some(panel => panel.renderer === "vocabulary-library") && <div className="vocabulary-panel-retained" style={{ height: "100%", minHeight: 0 }} hidden={desktopPanel !== "vocabulary"} {...(desktopPanel !== "vocabulary" ? { inert: "", "aria-hidden": true } : {})}><Suspense fallback={<p>正在加载词汇分栏…</p>}><VocabularyPanel selectedDocumentId={selectedNote?.id} active={desktopPanel === "vocabulary" && !sidebarHidden} refreshKey={docTreeKey} onBack={mobileDrawerViewport ? () => setDesktopPanel("tree") : undefined} onOpen={async id => {
             await flushAutoSave();
             const data = await vocabularyDocuments.read(id);
@@ -1965,7 +1986,7 @@ function App() {
             onRenameGroup={handleRenameFolder}
             onRename={(id, title) => updateNote(id, { title })}
             onDelete={handleDeleteWithUndo}
-            onClose={() => setSidebarHidden(true)}
+            onClose={() => { markBrowserSidebarChanged(); setSidebarHidden(true); }}
           />}
           {!mobileDrawerViewport && desktopPanel === 'list' && <section className="sidebar-document-list is-open" aria-label="文档列表分区">
             <WorkspacePanelHeading className="sidebar-document-list-heading" title={null}>
@@ -2004,7 +2025,7 @@ function App() {
                 showWorkspaceSwitch={false}
                 autoFocusOnOpen={!sidebarOverlay}
                 onHide={desktopWorkspace ? undefined : () => setSidebarHidden(true)}
-                onClose={sidebarOverlay ? sidebarHover.dismiss : () => setSidebarPanel('tree')}
+                onClose={() => { markBrowserSidebarChanged(); if (sidebarOverlay) sidebarHover.dismiss(); else setSidebarPanel('tree'); }}
                 onOpenPdf={id => { closeHomeReaderSidebar("pdf", id); setActiveReaderFormat("pdf"); setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
                 onOpenEpub={id => { closeHomeReaderSidebar("epub", id); setActiveReaderFormat("epub"); setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }} />
             </Suspense>))}

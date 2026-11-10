@@ -198,7 +198,7 @@ test("桌面关闭桥接等待保存决定，取消或草稿失败不退出，�
   await page.addInitScript(() => {
     const callbacks = new Map<number, (event: unknown) => void>();
     let next = 1, closeHandler = 0;
-    const state = { source: "int original;\n", revision: "r1", confirmed: 0, ready: false, copies: 0 };
+    const state = { source: "int original;\n", revision: "r1", confirmed: 0, ready: false, copies: 0, external: [] as Array<{ rootId: string; node: string; chooseApplication: boolean }> };
     const w = window as any;
     w.__workbenchNative = state;
     w.__workbenchNativeClose = () => callbacks.get(closeHandler)?.({ event: "workbench:request-close", id: closeHandler, payload: null });
@@ -212,10 +212,11 @@ test("桌面关闭桥接等待保存决定，取消或草稿失败不退出，�
         if (command === "workbench_confirm_close") { state.confirmed++; return; }
         if (command === "local_files_roots") return [{ id: "native-root", name: "Native" }];
         if (command === "local_files_display_path") return "/test/" + args.node;
-        if (command === "local_files_list") return { nodes: [{ id: "sample.c", name: "sample.c", directory: false, size: 14, modified_ms: 1 }], next: null };
+        if (command === "local_files_list") return { nodes: [{ id: "sample.c", name: "sample.c", directory: false, size: 14, modifiedMs: 1 }], next: null };
         const snapshot = () => ({ source: state.source, revision: state.revision, bom: false, lineEnding: "lf", size: state.source.length, modifiedMs: 1 });
         if (command === "local_files_read") return snapshot();
         if (command === "local_files_write") { if (args.expectedRevision !== state.revision) throw new Error("STALE_REVISION"); state.source = args.source; state.revision = "r2"; return snapshot(); }
+        if (command === "local_files_open_external") { state.external.push(args); return !args.chooseApplication; }
         if (command === "local_files_save_as") { state.copies++; return false; }
         throw new Error("Unexpected native command: " + command);
       },
@@ -224,7 +225,17 @@ test("桌面关闭桥接等待保存决定，取消或草稿失败不退出，�
   await page.goto("/file-workbench.html");
   await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.ready)).toBe(true);
   const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
-  await browser.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /sample.c/ }).dblclick();
+  const item = browser.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /sample.c/ });
+  await item.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "打开方式", exact: true }).hover();
+  await page.getByRole("menuitem", { name: "系统默认应用", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.external)).toEqual([{ rootId: "native-root", node: "sample.c", chooseApplication: false }]);
+  await item.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "打开方式", exact: true }).hover();
+  await page.getByRole("menuitem", { name: "其它应用程序…", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.external.length)).toBe(2);
+  await expect(browser).toBeVisible();
+  await item.dblclick();
   const view = page.getByRole("region", { name: "文件源码工作区", exact: true });
   await view.getByRole("button", { name: "允许编辑", exact: true }).click();
   const content = view.locator(".cm-content");
@@ -257,4 +268,27 @@ test("桌面关闭桥接等待保存决定，取消或草稿失败不退出，�
   await leave.getByRole("button", { name: "保存后继续", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.confirmed)).toBe(1);
   expect(await page.evaluate(() => (window as any).__workbenchNative.source)).toBe("int native_edit;\n");
+});
+
+test("文件右键菜单分组，打开方式支持键盘子菜单，Web 不伪造系统打开能力", async ({ page }) => {
+  await page.goto("/file-workbench.html");
+  const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+  await browser.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const left = browser.getByRole("region", { name: "左侧目录", exact: true });
+  await left.getByRole("option", { name: /alpha.c/ }).click({ button: "right" });
+  const menu = page.getByRole("menu", { name: "文件菜单", exact: true });
+  await expect(menu.getByRole("separator")).toHaveCount(3);
+  await menu.getByRole("menuitem", { name: "打开方式", exact: true }).hover();
+  const submenu = page.getByRole("menu", { name: "打开方式", exact: true });
+  await expect(submenu).toBeVisible();
+  await expect(submenu.getByRole("menuitem", { name: /系统默认应用/ })).toBeDisabled();
+  await expect(submenu.getByRole("menuitem", { name: /其它应用程序/ })).toBeDisabled();
+  await page.keyboard.press("ArrowRight");
+  await expect(submenu.getByRole("menuitem", { name: "内置编辑器", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(submenu).toHaveCount(0);
+  await expect(menu.getByRole("menuitem", { name: "打开方式", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowRight"); await page.keyboard.press("Enter");
+  await expect(page.getByRole("region", { name: "文件源码工作区", exact: true })).toContainText("int alpha(void)");
+  await expect(menu).toHaveCount(0);
 });

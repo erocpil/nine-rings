@@ -274,7 +274,7 @@ export function useSidebarHoverPreview({
   };
   // Home navigation restores a complete layout, including the live pin state.
   // Storage alone cannot cancel a pending preview or keep the restored pane open.
-  const restore = (state: DesktopSidebarState, width?: number) => {
+  const restore = (state: DesktopSidebarState, width?: number, options?: { persist?: boolean }) => {
     cancelFocusEntry.current?.();
     cancel();
     cancelAnimationFrame(focusFrame.current);
@@ -282,7 +282,7 @@ export function useSidebarHoverPreview({
     keyboardInside.current = false;
     previousHidden.current = state.hidden;
     setPinned(state.pinned && !state.hidden);
-    saveDesktopSidebarState(state);
+    if (options?.persist !== false) saveDesktopSidebarState(state);
     if (!state.hidden) openPanel(state.panel, false, width);
     setHidden(state.hidden);
   };

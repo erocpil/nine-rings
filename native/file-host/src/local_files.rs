@@ -234,6 +234,7 @@ pub struct Root {
     name: String,
 }
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Node {
     id: String,
     name: String,
@@ -378,6 +379,69 @@ pub async fn local_files_choose(
             .to_string_lossy()
             .into_owned(),
     }))
+}
+// A user-invoked OS handoff is deliberately separate from text reading and
+// never changes file associations. The app path comes only from a native picker.
+#[tauri::command]
+pub async fn local_files_open_external(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    node: String,
+    choose_application: bool,
+) -> Result<bool, String> {
+    caller(&window)?;
+    let root = library.root(&root_id)?;
+    let original = external_target(&root, &node)?;
+    let application = if choose_application {
+        let picker = app
+            .dialog()
+            .file()
+            .set_parent(&window)
+            .set_title("选择用于打开文件的应用程序");
+        #[cfg(target_os = "macos")]
+        let picker = picker
+            .set_directory("/Applications")
+            .add_filter("应用程序", &["app"]);
+        #[cfg(target_os = "windows")]
+        let picker = picker.add_filter("应用程序", &["exe"]);
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        let picker = picker
+            .set_directory("/usr/share/applications")
+            .add_filter("应用程序", &["desktop"]);
+        let selected = tauri::async_runtime::spawn_blocking(move || picker.blocking_pick_file())
+            .await
+            .map_err(|e| e.to_string())?;
+        let Some(selected) = selected else {
+            return Ok(false);
+        };
+        Some(super::external_open::application(
+            &selected.into_path().map_err(|e| e.to_string())?,
+        )?)
+    } else {
+        None
+    };
+    // Recheck scope after the OS picker; a revoked/moved grant cannot launch.
+    if library.root(&root_id)? != root || external_target(&root, &node)? != original {
+        return Err("文件或目录授权已变化，请重新选择".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        super::external_open::launch(&original, application.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    Ok(true)
+}
+fn external_target(root: &Path, node: &str) -> Result<PathBuf, String> {
+    if node.is_empty() {
+        return Err("请选择一个文件".into());
+    }
+    let path = checked_path(root, node)?;
+    if !path.is_file() {
+        return Err("打开方式仅用于普通文件".into());
+    }
+    Ok(path)
 }
 #[tauri::command]
 pub fn local_files_roots(
@@ -1415,6 +1479,35 @@ mod tests {
     impl Drop for TransferFixture {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    #[test]
+    fn directory_metadata_uses_the_frontend_wire_contract() {
+        let area = TransferFixture::new();
+        let page = list_with_options(&area.0, "", 0, &ListOptions::default()).unwrap();
+        let serialized = serde_json::to_value(&page).unwrap();
+        let directory = serialized["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|node| node["name"] == "dest")
+            .unwrap();
+        assert_eq!(directory["directory"], true);
+        assert!(directory["modifiedMs"].as_u64().unwrap() > 0);
+        assert!(directory.get("modified_ms").is_none());
+    }
+    #[test]
+    fn external_open_is_scoped_and_never_launches_links_or_directories() {
+        let area = TransferFixture::new();
+        fs::write(area.source(), "example").unwrap();
+        assert_eq!(external_target(&area.0, "source").unwrap(), area.source());
+        for node in ["", "..", "../outside", "dest", "/source", "source/.."] {
+            assert!(external_target(&area.0, node).is_err(), "{node}");
+        }
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(area.source(), area.0.join("link")).unwrap();
+            assert!(external_target(&area.0, "link").is_err());
         }
     }
     #[test]
