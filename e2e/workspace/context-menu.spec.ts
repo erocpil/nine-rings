@@ -123,7 +123,13 @@ test.describe("正文右键菜单：菜单项显示与禁用", () => {
       return { x: range.left + range.width / 2, y: range.top + range.height / 2 };
     });
     await page.mouse.move(rect.x, rect.y);
-    await expect(page.locator(".selection-hover-toolbar")).toBeVisible();
+    const selectionTools = page.locator(".selection-hover-toolbar");
+    await expect(selectionTools).toBeVisible();
+    await expect(selectionTools).toHaveCSS("opacity", "0.65");
+    await selectionTools.hover();
+    await expect(selectionTools).toHaveCSS("opacity", "1");
+    await page.mouse.move(rect.x, rect.y);
+    await expect(selectionTools).toHaveCSS("opacity", "0.65");
     await page.mouse.click(rect.x, rect.y, { button: "right" });
     await expect(menu(page)).toBeVisible();
     await expect(page.locator(".selection-hover-toolbar")).toHaveCount(0);

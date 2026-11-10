@@ -1574,6 +1574,17 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
   overflow-y: hidden;
 }
 .selection-hover-toolbar .selection-hover-action { flex-shrink: 0; }
+@media (hover: hover) and (pointer: fine) {
+  .selection-hover-toolbar.editor-menu.toolbar-full {
+    opacity: .65;
+    transition: opacity 120ms ease;
+  }
+  .selection-hover-toolbar.editor-menu.toolbar-full:hover,
+  .selection-hover-toolbar.editor-menu.toolbar-full:focus-within { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .selection-hover-toolbar.editor-menu.toolbar-full { transition: none; }
+}
 
 /* One surface for a command and its compact options button. */
 .editor-menu .toolbar-split-button {
