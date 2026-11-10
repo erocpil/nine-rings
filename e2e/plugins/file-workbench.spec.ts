@@ -8,6 +8,7 @@ test.beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), "nr-workbench-e2e-"));
   await mkdir(join(directory, "sub"));
   await writeFile(join(directory, "large.txt"), "Text source line.\n".repeat(70000) + "END-LARGE-SOURCE\n");
+  await writeFile(join(directory, ".secret"), "hidden\n");
   await writeFile(join(directory, "alpha.c"), "int alpha(void) { return 42; }\n");
   await writeFile(join(directory, "sub", "guide.md"), "# Guide\n\nShared browser search target.\n");
 });
@@ -18,7 +19,8 @@ test("独立入口用真实目录快照浏览、预览和返回，不启动数�
   page.on("request", request => { if (request.resourceType() === "script") scripts.push(request.url()); });
   await page.addInitScript(() => localStorage.setItem("nr:local-file-browser", "original-nine-rings-state"));
   await page.goto("/file-workbench.html");
-  await expect(page.getByText("FILE WORKBENCH", { exact: true })).toBeVisible();
+  await expect(page).toHaveTitle("File Workbench");
+  await expect(page.getByText("FILE WORKBENCH", { exact: true })).toHaveCount(0);
   const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
   await browser.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
   const left = browser.getByRole("region", { name: "左侧目录", exact: true });
@@ -197,17 +199,19 @@ test("全文源码查看不再截断快速预览范围，只读也能定位到�
 test("桌面关闭桥接等待保存决定，取消或草稿失败不退出，保存后才确认原生退出", async ({ page }) => {
   await page.addInitScript(() => {
     const callbacks = new Map<number, (event: unknown) => void>();
-    let next = 1, closeHandler = 0;
+    let next = 1, closeHandler = 0, viewHandler = 0;
     const state = { source: "int original;\n", revision: "r1", confirmed: 0, ready: false, copies: 0, external: [] as Array<{ rootId: string; node: string; chooseApplication: boolean }> };
     const w = window as any;
     w.__workbenchNative = state;
+    w.__workbenchNativeToggleHidden = () => callbacks.get(viewHandler)?.({ event: "workbench:toggle-hidden", id: viewHandler, payload: null });
     w.__workbenchNativeClose = () => callbacks.get(closeHandler)?.({ event: "workbench:request-close", id: closeHandler, payload: null });
     w.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
     w.__TAURI_INTERNALS__ = {
       transformCallback(callback: (event: unknown) => void) { const id = next++; callbacks.set(id, callback); return id; },
       async invoke(command: string, args: any = {}) {
-        if (command === "plugin:event|listen") { if (args.event === "workbench:request-close") closeHandler = args.handler; return args.handler; }
+        if (command === "plugin:event|listen") { if (args.event === "workbench:request-close") closeHandler = args.handler; if (args.event === "workbench:toggle-hidden") viewHandler = args.handler; return args.handler; }
         if (command === "plugin:event|unlisten") return;
+        if (command === "workbench_set_view_menu") { (state as any).viewMenu = args; return; }
         if (command === "workbench_ready") { state.ready = true; return; }
         if (command === "workbench_confirm_close") { state.confirmed++; return; }
         if (command === "local_files_roots") return [{ id: "native-root", name: "Native" }];
@@ -225,6 +229,11 @@ test("桌面关闭桥接等待保存决定，取消或草稿失败不退出，�
   await page.goto("/file-workbench.html");
   await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.ready)).toBe(true);
   const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+  await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.viewMenu?.enabled)).toBe(true);
+  await page.evaluate(() => (window as any).__workbenchNativeToggleHidden());
+  await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.viewMenu?.showHidden)).toBe(true);
+  await page.evaluate(() => (window as any).__workbenchNativeToggleHidden());
+  await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.viewMenu?.showHidden)).toBe(false);
   const item = browser.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /sample.c/ });
   await item.click({ button: "right" });
   await page.getByRole("menuitem", { name: "打开方式", exact: true }).hover();
@@ -236,6 +245,7 @@ test("桌面关闭桥接等待保存决定，取消或草稿失败不退出，�
   await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.external.length)).toBe(2);
   await expect(browser).toBeVisible();
   await item.dblclick();
+  await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.viewMenu?.enabled)).toBe(false);
   const view = page.getByRole("region", { name: "文件源码工作区", exact: true });
   await view.getByRole("button", { name: "允许编辑", exact: true }).click();
   const content = view.locator(".cm-content");
@@ -291,4 +301,142 @@ test("文件右键菜单分组，打开方式支持键盘子菜单，Web 不伪�
   await page.keyboard.press("ArrowRight"); await page.keyboard.press("Enter");
   await expect(page.getByRole("region", { name: "文件源码工作区", exact: true })).toContainText("int alpha(void)");
   await expect(menu).toHaveCount(0);
+});
+
+
+test("独立工作台使用图标工具栏、统一地址栏与列表前的标签，过滤向左展开且 Esc 清除", async ({ page }, testInfo) => {
+  await page.goto("/file-workbench.html");
+  const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+  await browser.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const toolbar = browser.getByRole("toolbar", { name: "双栏文件操作", exact: true });
+  await expect(browser.locator(".file-browser-heading")).toHaveCount(0);
+  const tools = toolbar.getByRole("button");
+  for (const button of await tools.all()) {
+    expect((await button.textContent())?.trim()).toBe("");
+    expect(await button.getAttribute("title")).toBeTruthy();
+    await expect(button.locator("svg")).toHaveCount(1);
+  }
+  await expect(toolbar.getByRole("button", { name: "恢复草稿（0）", exact: true })).toBeVisible();
+  await toolbar.getByRole("button", { name: "恢复草稿（0）", exact: true }).click();
+  const recovery = page.getByRole("dialog", { name: "恢复草稿", exact: true });
+  await expect(recovery).toContainText("没有未保存草稿"); await page.keyboard.press("Escape");
+  await expect(recovery).toHaveCount(0);
+  const left = browser.getByRole("region", { name: "左侧目录", exact: true });
+  await expect(left.locator(".file-browser-breadcrumb")).toHaveCount(1);
+  await expect(left.getByRole("textbox", { name: "根内相对路径", exact: true })).toHaveCount(0);
+  const filter = left.getByRole("button", { name: "过滤名称", exact: true });
+  const input = left.getByRole("searchbox", { name: "过滤文件名称", exact: true });
+  await expect(input).toHaveCount(0);
+  const alpha = left.getByRole("option", { name: /alpha.c/ });
+  await alpha.click();
+  await filter.click(); await expect(input).toBeFocused();
+  await input.press("Escape"); await expect(alpha).toHaveAttribute("aria-selected", "true");
+  await filter.click(); await expect(input).toBeFocused();
+  const fieldBox = await input.boundingBox(), filterBox = await filter.boundingBox(), historyBox = await left.getByRole("button", { name: "路径历史", exact: true }).boundingBox();
+  expect(fieldBox!.x + fieldBox!.width).toBeLessThanOrEqual(filterBox!.x);
+  expect(filterBox!.x + filterBox!.width).toBeLessThanOrEqual(historyBox!.x);
+  await input.fill("alpha");
+  await expect(left.getByRole("option", { name: /alpha.c/ })).toBeVisible();
+  await expect(left.getByRole("option", { name: /large.txt/ })).toHaveCount(0);
+  await input.press("Escape"); await expect(input).toHaveCount(0); await expect(filter).toBeFocused();
+  await expect(left.getByRole("option", { name: /large.txt/ })).toBeVisible();
+  await left.getByRole("option", { name: /sub/ }).dblclick();
+  await expect(left.getByRole("option", { name: /guide.md/ })).toBeVisible();
+  await left.getByRole("button", { name: "编辑路径", exact: true }).click();
+  const path = left.getByRole("textbox", { name: "根内相对路径", exact: true });
+  await expect(path).toBeFocused(); await expect(path).toHaveValue("sub");
+  await path.fill("not-a-folder"); await path.press("Escape"); await expect(path).toHaveCount(0);
+  await expect(left.getByRole("option", { name: /guide.md/ })).toBeVisible();
+  await left.getByRole("button", { name: "编辑路径", exact: true }).click();
+  await path.fill(""); await path.press("Enter");
+  await expect(left.getByRole("option", { name: /alpha.c/ })).toBeVisible();
+  await expect(path).toHaveCount(0);
+  const pathBox = await left.locator(".file-browser-path").boundingBox(), tabsBox = await left.getByRole("tablist").boundingBox(), columnsBox = await left.locator(".file-browser-column-viewport").boundingBox(), listBox = await left.getByRole("listbox").boundingBox();
+  expect(tabsBox!.y).toBeGreaterThanOrEqual(pathBox!.y + pathBox!.height);
+  expect(tabsBox!.y + tabsBox!.height).toBeLessThanOrEqual(columnsBox!.y);
+  expect(columnsBox!.y + columnsBox!.height).toBeLessThanOrEqual(listBox!.y);
+  await page.screenshot({ path: testInfo.outputPath("compact-workbench.png") });
+});
+
+
+test("窄窗口的统一地址栏和向左过滤输入框保持在可视区", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/file-workbench.html");
+  const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+  await browser.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const left = browser.getByRole("region", { name: "左侧目录", exact: true });
+  await expect(left.getByRole("option", { name: /alpha.c/ })).toBeVisible();
+  await left.getByRole("button", { name: "过滤名称", exact: true }).click();
+  const input = left.getByRole("searchbox", { name: "过滤文件名称", exact: true });
+  await expect(input).toBeFocused();
+  const bounds = await input.boundingBox(), pane = await left.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(pane!.x);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(pane!.x + pane!.width);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  await page.setViewportSize({ width: 320, height: 812 });
+  await expect.poll(async () => (await input.boundingBox())!.x).toBeGreaterThanOrEqual(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await input.fill("alpha"); await expect(left.getByRole("option", { name: /large.txt/ })).toHaveCount(0);
+  await input.press("Escape"); await expect(left.getByRole("option", { name: /large.txt/ })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("compact-workbench-narrow.png") });
+});
+
+
+test("View 切换当前栏隐藏项，类型表头双向排序，工具栏首次悬停使用快速提示", async ({ page }) => {
+  await page.goto("/file-workbench.html");
+  // WebKit's directory upload omits dotfiles. Supply the missing fixture through
+  // the same FileList input; the real snapshot provider and filtering still run.
+  await page.getByLabel("选择目录快照", { exact: true }).evaluate(input => {
+    input.addEventListener("change", () => {
+      const element = input as HTMLInputElement, files = Array.from(element.files ?? []);
+      if (!files.length || files.some(file => file.name === ".secret")) return;
+      const hidden = new File(["hidden\n"], ".secret", { type: "text/plain" });
+      Object.defineProperty(hidden, "webkitRelativePath", { value: `${files[0].webkitRelativePath.split("/")[0]}/.secret` });
+      const transfer = new DataTransfer();
+      for (const file of [...files, hidden]) transfer.items.add(file);
+      element.files = transfer.files;
+    }, { capture: true, once: true });
+  });
+  const viewMenu = page.getByRole("button", { name: "View", exact: true });
+  await viewMenu.click();
+  await expect(page.getByRole("menuitemcheckbox", { name: "显示隐藏项（当前栏）", exact: true })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu", { name: "View", exact: true })).toHaveCount(0);
+  const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+  await browser.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const left = browser.getByRole("region", { name: "左侧目录", exact: true });
+  await expect(left.getByRole("option", { name: /alpha.c/ })).toContainText("C 源码");
+  await expect(left.getByRole("option", { name: /^sub/ })).toContainText("文件夹");
+  await expect(browser.getByRole("combobox", { name: "文件排序", exact: true })).toHaveCount(0);
+  await expect(browser.getByRole("checkbox", { name: "隐藏项", exact: true })).toHaveCount(0);
+  const compare = browser.getByRole("button", { name: "比较目录", exact: true });
+  await compare.hover();
+  const tooltip = page.getByRole("tooltip");
+  await expect(tooltip).toHaveText("比较两栏当前目录", { timeout: 1500 });
+  expect(await compare.getAttribute("title")).toBeNull();
+  await viewMenu.click(); await expect(tooltip).toHaveCount(0);
+  const hidden = page.getByRole("menuitemcheckbox", { name: "显示隐藏项（当前栏）", exact: true });
+  await expect(hidden).toHaveAttribute("aria-checked", "false"); await hidden.click();
+  await expect(left.getByRole("option", { name: /\.secret/ })).toBeVisible();
+  await viewMenu.click(); await expect(hidden).toHaveAttribute("aria-checked", "true"); await hidden.click();
+  await expect(left.getByRole("option", { name: /\.secret/ })).toHaveCount(0);
+  const type = left.getByRole("button", { name: "按类型排序", exact: true });
+  await type.click(); await expect(type).toHaveText("类型 ↑");
+  await expect.poll(() => left.getByRole("listbox", { name: "文件列表", exact: true }).getByRole("option").allTextContents()).toEqual([expect.stringContaining("sub"), expect.stringContaining("alpha.c"), expect.stringContaining("large.txt")]);
+  await type.click(); await expect(type).toHaveText("类型 ↓");
+  await expect.poll(() => left.getByRole("listbox", { name: "文件列表", exact: true }).getByRole("option").allTextContents()).toEqual([expect.stringContaining("sub"), expect.stringContaining("large.txt"), expect.stringContaining("alpha.c")]);
+  const right = browser.getByRole("region", { name: "右侧目录", exact: true });
+  const rootId = await left.getByRole("combobox", { name: "选择授权目录", exact: true }).inputValue();
+  await right.getByRole("combobox", { name: "选择授权目录", exact: true }).selectOption(rootId);
+  await right.getByRole("option", { name: /alpha.c/ }).click();
+  await expect(browser).toHaveAttribute("data-active-pane", "1");
+  await viewMenu.click(); await hidden.click();
+  await expect(right.getByRole("option", { name: /\.secret/ })).toBeVisible();
+  await expect(left.getByRole("option", { name: /\.secret/ })).toHaveCount(0);
+  await left.getByRole("option", { name: /alpha.c/ }).dblclick();
+  const editor = page.getByRole("region", { name: "文件源码工作区", exact: true });
+  await expect(editor).toBeVisible();
+  await viewMenu.click(); await expect(hidden).toBeDisabled(); await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu", { name: "View", exact: true })).toHaveCount(0);
+  await expect(editor).toBeVisible();
 });

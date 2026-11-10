@@ -1,7 +1,7 @@
 import type { FileNode, FilePage } from "./file-model";
 
-export type LocalFileSort = "name" | "name-desc" | "type" | "size" | "size-desc" | "modified" | "modified-desc";
-export const isLocalFileSort = (value: unknown): value is LocalFileSort => typeof value === "string" && ["name", "name-desc", "type", "size", "size-desc", "modified", "modified-desc"].includes(value);
+export type LocalFileSort = "name" | "name-desc" | "type" | "type-desc" | "size" | "size-desc" | "modified" | "modified-desc";
+export const isLocalFileSort = (value: unknown): value is LocalFileSort => typeof value === "string" && ["name", "name-desc", "type", "type-desc", "size", "size-desc", "modified", "modified-desc"].includes(value);
 export interface LocalFileListOptions {
   sort: LocalFileSort;
   showHidden: boolean;
@@ -22,14 +22,14 @@ export function saveLocalFileTreePreferences(value: Omit<LocalFileListOptions, "
   try { localStorage.setItem(KEY, JSON.stringify(value)); }
   catch { /* The tree remains usable without persistence. */ }
 }
-const extension = (name: string) => { const index = name.lastIndexOf("."); return index > 0 ? name.slice(index + 1).toLowerCase() : ""; };
+export const localFileExtension = (name: string) => { const index = name.lastIndexOf("."); return index > 0 ? name.slice(index + 1).toLowerCase() : ""; };
 const compare = (left: string, right: string) => left === right ? 0 : left < right ? -1 : 1;
 /** Apply before pagination so matching files beyond the first page remain discoverable. */
 export function localFileTreeNodes(nodes: Iterable<FileNode>, options: LocalFileListOptions): FileNode[] {
   const query = options.query.trim().toLowerCase();
   return [...nodes].filter(node => (options.showHidden || !node.name.startsWith(".")) && (node.directory || !query || node.name.toLowerCase().includes(query)))
     .sort((a, b) => Number(b.directory) - Number(a.directory)
-      || (options.sort === "type" && !a.directory ? compare(extension(a.name), extension(b.name)) : 0)
+      || ((options.sort === "type" || options.sort === "type-desc") && !a.directory ? compare(localFileExtension(a.name), localFileExtension(b.name)) * (options.sort === "type-desc" ? -1 : 1) : 0)
       || (!a.directory && options.sort.startsWith("size") ? (a.size - b.size) * (options.sort === "size-desc" ? -1 : 1) : 0)
       || (!a.directory && options.sort.startsWith("modified") ? ((a.modifiedMs ?? 0) - (b.modifiedMs ?? 0)) * (options.sort === "modified-desc" ? -1 : 1) : 0)
       || compare(a.name, b.name) * (options.sort === "name-desc" ? -1 : 1));
@@ -53,4 +53,12 @@ export function isLocalFileDirectoryVisible(key: string, expanded: ReadonlySet<s
 export function visibleLocalFileDirectories(expanded: ReadonlySet<string>, pages: Readonly<Record<string, FilePage>>, rootIds: ReadonlySet<string>, showHidden: boolean) {
   return [...expanded].filter(key => isLocalFileDirectoryVisible(key, expanded, pages, rootIds, showHidden))
     .sort((a, b) => a.split("/").length - b.split("/").length);
+}
+
+/** Extension-derived display type, not an OS UTI/encoding/executable probe. */
+export function localFileTypeLabel(node: Pick<FileNode, "name" | "directory">): string {
+  if (node.directory) return "文件夹";
+  const extension = localFileExtension(node.name);
+  if (!extension) return /^makefile$/i.test(node.name) ? "Makefile" : "文件";
+  return ({ md: "Markdown", markdown: "Markdown", txt: "Text", c: "C 源码", cpp: "C++ 源码", cc: "C++ 源码", h: "头文件", hpp: "C++ 头文件", json: "JSON", png: "PNG 图像", jpg: "JPEG 图像", jpeg: "JPEG 图像", pdf: "PDF" } as Record<string, string>)[extension] ?? `${extension.toUpperCase()} 文件`;
 }

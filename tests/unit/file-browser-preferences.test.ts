@@ -57,7 +57,7 @@ it("bounds persisted column widths while retaining automatic name fill by defaul
         autoName: false,
       }),
     ),
-  ).toEqual({ name: 110, size: 400, modified: 140, autoName: false });
+  ).toEqual({ name: 110, type: 90, size: 400, modified: 140, autoName: false });
   expect(clampBrowserColumn("name", Infinity)).toBe(110);
 });
 it("favorites are bounded root-relative data, deduplicated and never authorization", () => {

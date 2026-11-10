@@ -149,3 +149,23 @@
 .file-browser-menu-arrow, .file-browser-menu-hint { margin-left: auto; color: var(--text-secondary); }
 .file-browser-menu-hint { font-size: 11px; }
 .file-browser-menu-separator { display: block; height: 1px; background: var(--border); margin: 5px 6px; }
+
+/* Compact host presentation changes chrome only, never file capabilities. */
+.file-browser-compact .file-browser-direction { display: none; }
+.file-browser-compact .file-browser-actions { padding: 5px 8px; gap: 8px; scrollbar-width: none; }
+.file-browser-compact .file-browser-actions::-webkit-scrollbar { display: none; }
+.file-browser-compact .file-browser-actions button { width: 30px; height: 30px; min-width: 30px; padding: 5px; border-color: transparent; background: transparent; }
+.file-browser-compact .file-browser-actions button:hover:enabled { background: var(--hover); }
+.file-browser-compact .file-browser-actions button[aria-pressed='true'] { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+.file-browser-host-tools { margin-left: auto; }
+.file-browser-path-input { display: flex; flex: 1; min-width: 0; }
+.file-browser-address { display: flex; flex: 1; min-width: 0; align-items: center; min-height: 28px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-secondary, var(--bg)); }
+.file-browser-address-breadcrumbs { flex: 1; min-width: 0; cursor: text; }
+.file-browser-address .file-browser-breadcrumb { padding: 0 5px; margin: 0; scrollbar-width: none; }
+.file-browser-address .file-browser-breadcrumb::-webkit-scrollbar { display: none; }
+.file-browser-address > input { border: 0; background: transparent; }
+.file-browser-filter-tool { position: relative; flex: none; }
+.file-browser-path input.file-browser-filter-input { position: absolute; right: calc(100% + 4px); top: 0; z-index: 5; width: 160px; height: 28px; box-sizing: border-box; background: var(--bg); box-shadow: var(--ui-shadow-popover, 0 3px 12px #0002); }
+.file-browser-compact .file-browser-path { flex-shrink: 0; }
+.file-browser-compact .file-browser-options { padding-top: 3px; padding-bottom: 5px; }
+.file-browser-compact .file-browser-tabs { border-top: 1px solid var(--border); }

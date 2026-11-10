@@ -117,6 +117,7 @@ def main():
     workbench = extract_registered_commands(WORKBENCH_RS)
     file_commands = {command for command, _, _ in image_invokes if command.startswith("local_files_")}
     lifetime = extract_invoke_commands(os.path.join(PROJECT_ROOT, "src", "apps", "file-workbench", "native-lifecycle.ts"))
+    lifetime += extract_invoke_commands(os.path.join(PROJECT_ROOT, "src", "apps", "file-workbench", "native-view-menu.ts"))
     for command in sorted((file_commands | {command for command, _, _ in lifetime}) - workbench):
         print(f"❌ 独立工作台未注册共享文件命令: {command}")
         errors += 1

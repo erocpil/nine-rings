@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod close_policy;
+mod view_menu;
 use close_policy::ClosePolicy;
 use nine_rings_file_host::local_files;
 use tauri::{Emitter, Manager};
@@ -31,6 +32,21 @@ fn workbench_confirm_close(
     }
     Ok(())
 }
+#[tauri::command]
+fn workbench_set_view_menu(
+    window: tauri::WebviewWindow,
+    menu: tauri::State<'_, view_menu::ViewMenu>,
+    enabled: bool,
+    show_hidden: bool,
+) -> Result<(), String> {
+    main_window(&window)?;
+    menu.hidden
+        .set_enabled(enabled)
+        .map_err(|e| e.to_string())?;
+    menu.hidden
+        .set_checked(show_hidden)
+        .map_err(|e| e.to_string())
+}
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
@@ -43,6 +59,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(ClosePolicy::default())
         .setup(|app| {
+            view_menu::install(app)?;
             let directory = app.path().app_data_dir()?;
             std::fs::create_dir_all(&directory)?;
             app.manage(local_files::LocalFiles::load(&directory));
@@ -58,6 +75,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             workbench_ready,
+            workbench_set_view_menu,
             workbench_confirm_close,
             local_files::local_files_choose,
             local_files::local_files_roots,

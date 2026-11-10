@@ -1,12 +1,12 @@
 import type { BrowserSettingsStore } from "./browser-workspace-contract";
 import { browserSettings } from "./browser-settings";
 import { fileSegments } from "./file-model";
-export interface BrowserColumns { name: number; size: number; modified: number; autoName: boolean }
-export const DEFAULT_BROWSER_COLUMNS: BrowserColumns = { name: 110, size: 72, modified: 145, autoName: true };
-export type BrowserColumn = "name" | "size" | "modified";
-export function clampBrowserColumn(column: BrowserColumn, width: number) { const min = { name: 110, size: 56, modified: 100 }[column]; return Number.isFinite(width) ? Math.round(Math.max(min, Math.min(column === "name" ? 1000 : 400, width))) : DEFAULT_BROWSER_COLUMNS[column]; }
+export interface BrowserColumns { name: number; type: number; size: number; modified: number; autoName: boolean }
+export const DEFAULT_BROWSER_COLUMNS: BrowserColumns = { name: 110, type: 90, size: 72, modified: 145, autoName: true };
+export type BrowserColumn = "name" | "type" | "size" | "modified";
+export function clampBrowserColumn(column: BrowserColumn, width: number) { const min = { name: 110, type: 64, size: 56, modified: 100 }[column]; return Number.isFinite(width) ? Math.round(Math.max(min, Math.min(column === "name" ? 1000 : 400, width))) : DEFAULT_BROWSER_COLUMNS[column]; }
 export function parseBrowserColumns(raw: string | null): BrowserColumns {
-  try { const value = JSON.parse(raw ?? "{}"); return { name: clampBrowserColumn("name", value.name), size: clampBrowserColumn("size", value.size), modified: clampBrowserColumn("modified", value.modified), autoName: value.autoName !== false }; }
+  try { const value = JSON.parse(raw ?? "{}"); return { name: clampBrowserColumn("name", value.name), type: clampBrowserColumn("type", value.type), size: clampBrowserColumn("size", value.size), modified: clampBrowserColumn("modified", value.modified), autoName: value.autoName !== false }; }
   catch { return { ...DEFAULT_BROWSER_COLUMNS }; }
 }
 export const BROWSER_FAVORITES_KEY = "nr:file-browser-favorites";

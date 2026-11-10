@@ -14,6 +14,8 @@ export interface BrowserWorkspaceHost {
   readonly queue: BrowserOperationQueueCore;
   readonly settings: BrowserSettingsStore;
   readonly showQueueHistory: boolean;
+  readonly presentation?: "compact";
+  readonly viewMenu?: import("./browser-view-menu").BrowserViewMenuPort;
   assertActive(): void;
   roots(): Promise<FileRoot[]>;
   choose(): Promise<FileRoot | null>;

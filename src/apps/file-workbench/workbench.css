@@ -1,8 +1,8 @@
 .file-workbench-app { height: 100dvh; display: flex; flex-direction: column; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-.file-workbench-brand { display: flex; align-items: center; gap: 16px; min-height: 48px; padding: 8px 16px; border-bottom: 1px solid var(--border); }
-.file-workbench-brand strong { letter-spacing: .1em; }
-.file-workbench-brand span { color: var(--text-secondary); font-size: 12px; }
-.file-workbench-brand button { margin-left: auto; }
+.file-workbench-view-tools { display: flex; justify-content: flex-end; flex: none; gap: 4px; padding: 5px 8px; border-bottom: 1px solid var(--border); }
+.file-workbench-view-tools button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; color: var(--text); background: transparent; border: 1px solid transparent; border-radius: 5px; }
+.file-workbench-view-tools button:hover { background: var(--hover); }
+.file-workbench-view-tools svg { width: 16px; height: 16px; }
 .file-workbench-content { flex: 1; min-height: 0; }
 .file-workbench-content > .file-browser-quick-preview { height: 100%; }
 .file-workbench-app > footer { padding: 6px 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-secondary); }
@@ -12,3 +12,12 @@
 .workbench-source-notice { flex: none; padding: 4px 10px; color: var(--text-secondary); font-size: 12px; }
 .workbench-source-notice button { margin-left: 8px; }
 .file-workbench-app .workbench-source-view > [role='alert'] { color: var(--warning, #a66b20); padding: 4px 10px; }
+.workbench-menu-bar { display: flex; flex: none; min-height: 27px; align-items: center; padding: 0 8px; border-bottom: 1px solid var(--border); }
+.workbench-menu-bar .workbench-view-menu-trigger { color: var(--text); background: transparent; border: 0; border-radius: 4px; padding: 4px 10px; font-family: inherit; font-size: 13px; line-height: 1.5; }
+.workbench-menu-bar .workbench-view-menu-trigger:hover, .workbench-menu-bar .workbench-view-menu-trigger[aria-expanded='true'] { background: var(--hover); }
+.workbench-view-menu { min-width: 220px; }
+.workbench-view-menu button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; color: var(--text); background: transparent; border: 0; border-radius: 4px; padding: 6px; font-size: 13px; }
+.workbench-view-menu button > span { min-width: 14px; color: var(--accent); }
+.workbench-view-menu button:hover, .workbench-view-menu button:focus-visible { background: var(--hover); outline: none; }
+.workbench-view-menu button:disabled { opacity: .45; }
+.file-workbench-app .file-browser-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

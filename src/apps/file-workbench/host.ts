@@ -1,3 +1,4 @@
+import { createBrowserViewMenu } from "../../lib/local-files/browser-view-menu";
 import { isTauriRuntime } from "../../lib/runtime";
 import { pluginRuntime } from "../../lib/plugin-system/runtime";
 import { workspacePanels } from "../../lib/plugin-system/panel-registry";
@@ -41,8 +42,10 @@ export function createWorkbenchHost(open: (request: BrowserFileOpen) => void) {
     canSaveOriginal: rootId => localFileService.canSaveOriginal(rootId),
     drafts: createLocalDraftStore("file-workbench-local-recovery", () => window.dispatchEvent(new Event("file-workbench:drafts")), { retainUntilResolved: true }),
   };
+  const viewMenu = createBrowserViewMenu();
   const workspace: BrowserWorkspaceHost = {
-    provider, queue, settings: browserSettings(WORKBENCH_SETTINGS_PREFIX), showQueueHistory: false,
+    viewMenu,
+    provider, queue, settings: browserSettings(WORKBENCH_SETTINGS_PREFIX), showQueueHistory: false, presentation: "compact",
     assertActive, roots: () => localFileService.roots(), choose: () => localFileService.choose(),
     addFiles: files => localFileService.addFiles(files),
     externalOpen: isTauriRuntime() ? { open: (rootId, node, chooseApplication) => localFileService.openExternal(rootId, node, chooseApplication) } : undefined,
@@ -54,7 +57,7 @@ export function createWorkbenchHost(open: (request: BrowserFileOpen) => void) {
     subscribeMutations(listener) { mutations.add(listener); return () => { mutations.delete(listener); }; },
   };
   let disposed = false;
-  return { workspace, source, dispose() {
+  return { workspace, source, viewMenu, dispose() {
     if (disposed) return;
     disposed = true; mutations.clear(); queue.dispose(); pluginRuntime.deactivate(WORKBENCH_ID); localFileService.release();
   } };

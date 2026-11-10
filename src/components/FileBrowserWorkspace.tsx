@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type SetStateAction } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type SetStateAction, type ReactNode } from "react";
 import type { FileNode, FileRoot } from "../lib/local-files/file-model";
-import { FILE_BROWSER_STATE_KEY, browserLocation, navigateBrowserPane, type BrowserPaneState } from "../lib/local-files/browser-state";
+import { FILE_BROWSER_STATE_KEY, browserLocation, navigateBrowserPane, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
 import { activeBrowserPanes, addBrowserTab, exchangeBrowserPanes, mirrorBrowserPath, modifyBrowserTabs, reorderBrowserTab, parseBrowserWorkspace, reconcileBrowserTabs, selectBrowserTab, updateBrowserTab } from "../lib/local-files/browser-tabs";
 import type { BrowserOperation } from "../lib/local-files/browser-operation-contract";
 import { browserJobSettled } from "../lib/local-files/browser-queue-core";
@@ -21,10 +21,12 @@ import "../styles/file-browser.css";
 import type { BrowserPreviewNavigation } from "../lib/local-files/browser-preview";
 import { BROWSER_DRAG_TYPE, planBrowserDrop, type BrowserDragSource } from "../lib/local-files/browser-drag";
 
-export function FileBrowserWorkspace(props: { workspace: BrowserWorkspaceHost; active: boolean; initialRootId?: string; onClose?: () => void }) {
+interface Props { workspace: BrowserWorkspaceHost; active: boolean; initialRootId?: string; onClose?: () => void; toolbarExtras?: ReactNode }
+export function FileBrowserWorkspace(props: Props) {
   return <FileBrowserHostContext.Provider value={props.workspace}><FileBrowserWorkspaceBody {...props} /></FileBrowserHostContext.Provider>;
 }
-function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose }: { workspace: BrowserWorkspaceHost; active: boolean; initialRootId?: string; onClose?: () => void }) {
+function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose, toolbarExtras }: Props) {
+  const compact = workspace.presentation === "compact";
   const [state, setState] = useState(() => {
     try { return parseBrowserWorkspace(workspace.settings.getItem(FILE_BROWSER_STATE_KEY)); }
     catch { return parseBrowserWorkspace(null); }
@@ -72,6 +74,9 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose }:
       targetRootId: target.rootId, targetRootName: roots.find(root => root.id === target.rootId)?.name ?? target.rootId, targetParent: target.node });
   };
   const currentLocation = browserLocation(panes[state.active]);
+  useEffect(() => { workspace.viewMenu?.update({ enabled: active && roots.some(root => root.id === currentLocation?.rootId), showHidden: panes[state.active].showHidden }); }, [workspace, active, currentLocation, panes, state.active, roots]);
+
+  useEffect(() => () => workspace.viewMenu?.update({ enabled: false, showHidden: false }), [workspace]);
   const currentRow = currentRows[state.active];
   const previewNode = currentRow?.tabId === state.groups[state.active].tabs[state.groups[state.active].active].tabId && currentRow.rootId === currentLocation?.rootId && currentRow.node !== null ? currentRow.node : currentLocation?.selected[currentLocation.selected.length - 1];
   const operationDisabled = (kind: BrowserOperation["kind"], side: 0 | 1 = state.active, count = browserLocation(panes[side])?.selected.length ?? 0) => {
@@ -97,6 +102,11 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose }:
   const changePane = useCallback((side: 0 | 1, next: SetStateAction<BrowserPaneState>) => setState(current => {
     return updateBrowserTab(current, side, pane => typeof next === "function" ? next(pane) : next);
   }), []);
+  useEffect(() => workspace.viewMenu?.onToggleHidden(() => {
+    const current = latestState.current, side = current.active;
+    if (!active || !browserLocation(activeBrowserPanes(current)[side])) return;
+    changePane(side, pane => ({ ...updateBrowserLocation(pane, { selected: [], scrollTop: 0 }), showHidden: !pane.showHidden }));
+  }), [workspace, active, changePane]);
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController(); activity.current = controller;
@@ -152,7 +162,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose }:
     catch (reason) { if (!controller.signal.aborted) setError(String(reason)); }
     finally { if (!controller.signal.aborted) setOpening(false); }
   };
-  return <section ref={host} className="dual-file-browser" aria-label="双栏文件浏览" data-active-pane={state.active} hidden={!active} {...(!active ? { inert: "", "aria-hidden": true } : {})} onKeyDownCapture={event => {
+  return <section ref={host} className={`dual-file-browser${compact ? " file-browser-compact" : ""}`} aria-label="双栏文件浏览" data-active-pane={state.active} hidden={!active} {...(!active ? { inert: "", "aria-hidden": true } : {})} onKeyDownCapture={event => {
     if (!active || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey || !(event.target instanceof HTMLElement)) return;
     if (quickPreview && event.key === "Escape" && event.target.matches(".file-browser-list")) {
       event.preventDefault(); event.stopPropagation(); closePreview(); return;
@@ -169,9 +179,9 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose }:
     setState(current => ({ ...current, active: side }));
     requestAnimationFrame(() => host.current?.querySelector<HTMLElement>(`[data-browser-side="${side}"] .file-browser-list`)?.focus({ preventScroll: true }));
   }}>
-    <header className="file-browser-heading"><ToolbarIcon name="compare" /><strong>文件浏览</strong><span>活动栏为来源 · 另一栏为目标</span>{onClose && <button type="button" className="btn-icon" title="返回原视图" aria-label="返回原视图" onClick={onClose}><ToolbarIcon name="chevronLeft" /></button>}</header>
+    {!compact && <header className="file-browser-heading"><ToolbarIcon name="compare" /><strong>文件浏览</strong><span>活动栏为来源 · 另一栏为目标</span>{onClose && <button type="button" className="btn-icon" title="返回原视图" aria-label="返回原视图" onClick={onClose}><ToolbarIcon name="chevronLeft" /></button>}</header>}
     <div className="file-browser-mobile-tabs" role="group" aria-label="切换目录栏">{([0, 1] as const).map(side => <button key={side} type="button" aria-pressed={state.active === side} onClick={() => { setQuickPreview(false); setState(current => ({ ...current, active: side })); }}>{side === 0 ? "左栏" : "右栏"}</button>)}</div>
-    <div className="file-browser-actions" role="group" aria-label="双栏文件操作">
+    <div className="file-browser-actions" role={compact ? "toolbar" : "group"} aria-label="双栏文件操作">
       <span className="file-browser-direction" aria-label="操作方向">{state.active === 0 ? "左" : "右"} → {state.active === 0 ? "右" : "左"}</span>
       <div className="file-browser-action-group" role="group" aria-label="文件操作">
       {(["copy", "move", "rename", "batch-rename", "file", "directory", "trash"] as const).map(kind => {
@@ -179,16 +189,17 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose }:
         const icons = { copy: "copy", move: "move", rename: "rename", "batch-rename": "ordered", file: "document", directory: "folder", trash: "trash" } as const;
         const shortcut = { copy: "F5", move: "F6", rename: "F2", "batch-rename": "", file: "", directory: "F7", trash: "F8" }[kind];
         const short = { copy: "复制", move: "移动", rename: "改名", "batch-rename": "批量", file: "新建", directory: "目录", trash: "回收站" }[kind];
-        return <button key={kind} type="button" aria-label={label} disabled={operationDisabled(kind)} title={(kind === "copy" || kind === "move") && !workspace.canTransfer() ? "双栏传输需要桌面版" : `${label}${shortcut ? `（${shortcut}，列表焦点内）` : ""}`} onClick={() => startOperation(kind)}><ToolbarIcon name={icons[kind]} /><span>{short}</span>{shortcut && <kbd>{shortcut}</kbd>}</button>;
+        return <button key={kind} type="button" aria-label={label} disabled={operationDisabled(kind)} title={compact && operationDisabled(kind) ? `${label}（当前工作台尚未开放此操作）` : (kind === "copy" || kind === "move") && !workspace.canTransfer() ? "双栏传输需要桌面版" : `${label}${shortcut ? `（${shortcut}，列表焦点内）` : ""}`} onClick={() => startOperation(kind)}><ToolbarIcon name={icons[kind]} />{!compact && <><span>{short}</span>{shortcut && <kbd>{shortcut}</kbd>}</>}</button>;
       })}
       </div><div className="file-browser-action-group" role="group" aria-label="浏览工具">
-      <button type="button" aria-label="操作队列" title="查看操作队列与逐项结果" onClick={() => setQueueOpen(true)}><ToolbarIcon name="ordered" /><span>队列{jobs.length ? ` ${jobs.filter(job => !browserJobSettled(job)).length}/${jobs.length}` : ""}{jobs.some(job => job.status === "waiting") ? " · 等待决定" : ""}</span></button>
-      <button type="button" aria-label="快速预览" title="快速预览（空格 / F3，列表焦点内）" aria-pressed={quickPreview} onClick={() => setQuickPreview(value => !value)}><ToolbarIcon name="eye" /><span>预览</span></button>
-      <button type="button" aria-label="比较目录" title="比较两栏当前目录" disabled={!currentLocation} onClick={openComparison}><ToolbarIcon name="compare" /><span>比较</span></button>
-      <button type="button" aria-label="搜索正文" title="搜索活动目录的正文" disabled={!currentLocation} onClick={() => currentLocation && setTool({ kind: "search", scope: { rootId: currentLocation.rootId, node: currentLocation.node } })}><ToolbarIcon name="search" /><span>搜索</span></button>
+      <button type="button" aria-label="操作队列" title="查看操作队列与逐项结果" onClick={() => setQueueOpen(true)}><ToolbarIcon name="ordered" />{!compact && <span>队列{jobs.length ? ` ${jobs.filter(job => !browserJobSettled(job)).length}/${jobs.length}` : ""}{jobs.some(job => job.status === "waiting") ? " · 等待决定" : ""}</span>}</button>
+      <button type="button" aria-label="快速预览" title="快速预览（空格 / F3，列表焦点内）" aria-pressed={quickPreview} onClick={() => setQuickPreview(value => !value)}><ToolbarIcon name="eye" />{!compact && <span>预览</span>}</button>
+      <button type="button" aria-label="比较目录" title="比较两栏当前目录" disabled={!currentLocation} onClick={openComparison}><ToolbarIcon name="compare" />{!compact && <span>比较</span>}</button>
+      <button type="button" aria-label="搜索正文" title="搜索活动目录的正文" disabled={!currentLocation} onClick={() => currentLocation && setTool({ kind: "search", scope: { rootId: currentLocation.rootId, node: currentLocation.node } })}><ToolbarIcon name="search" />{!compact && <span>搜索</span>}</button>
       <button type="button" aria-label="交换两栏" title="交换两栏及其目录标签" onClick={() => { setQuickPreview(false); setState(exchangeBrowserPanes); focusList(state.active === 0 ? 1 : 0); }}><ToolbarIcon name="switchViews" /></button>
       <button type="button" aria-label="两栏同路径" title="将另一栏切换到活动栏的目录" disabled={!currentLocation} onClick={() => { setQuickPreview(false); setState(mirrorBrowserPath); focusList(state.active); }}><ToolbarIcon name="link" /></button>
       </div>
+      {toolbarExtras && <div className="file-browser-action-group file-browser-host-tools" role="group" aria-label="工作台工具">{toolbarExtras}</div>}
     </div>
     {error && <div className="file-browser-error" role="alert">{error}<button type="button" aria-label="关闭浏览错误" onClick={() => setError("")}>×</button></div>}
     {opening && <p role="status" className="file-browser-opening">正在打开文件…</p>}

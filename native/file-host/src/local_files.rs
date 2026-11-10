@@ -907,6 +907,7 @@ enum FileSort {
     Name,
     NameDesc,
     Type,
+    TypeDesc,
     Size,
     SizeDesc,
     Modified,
@@ -999,8 +1000,12 @@ fn list_with_options(
         b.directory
             .cmp(&a.directory)
             .then_with(|| {
-                if matches!(options.sort, FileSort::Type) && !a.directory {
-                    extension(a).cmp(&extension(b))
+                if matches!(options.sort, FileSort::Type | FileSort::TypeDesc) && !a.directory {
+                    if matches!(options.sort, FileSort::TypeDesc) {
+                        extension(b).cmp(&extension(a))
+                    } else {
+                        extension(a).cmp(&extension(b))
+                    }
                 } else {
                     std::cmp::Ordering::Equal
                 }
@@ -1479,6 +1484,28 @@ mod tests {
     impl Drop for TransferFixture {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    #[test]
+    fn type_sorting_supports_both_directions_without_moving_directories() {
+        let area = TransferFixture::new();
+        for name in ["a.c", "z.c", "a.txt"] {
+            fs::write(area.0.join(name), "test").unwrap();
+        }
+        for (sort, expected) in [
+            ("type", vec!["dest", "a.c", "z.c", "a.txt"]),
+            ("type-desc", vec!["dest", "a.txt", "a.c", "z.c"]),
+        ] {
+            let options: ListOptions =
+                serde_json::from_value(serde_json::json!({ "sort": sort })).unwrap();
+            let page = list_with_options(&area.0, "", 0, &options).unwrap();
+            assert_eq!(
+                page.nodes
+                    .iter()
+                    .map(|node| node.name.as_str())
+                    .collect::<Vec<_>>(),
+                expected
+            );
         }
     }
     #[test]
