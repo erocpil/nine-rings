@@ -264,17 +264,17 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
     } catch (cause) { showMessage(String(cause), "error"); }
   };
   const menuActions: FileBrowserMenuAction[] = menu ? [
-    { label: "打开", disabled: menu.selection.length !== 1, run: () => openItem(menu.item) },
-    { label: "打开方式", disabled: menu.selection.length !== 1 || menu.item.directory, children: [
+    ...(!compact || menu.selection.length === 1 ? [{ label: "打开", disabled: menu.selection.length !== 1, run: () => openItem(menu.item) }] : []),
+    ...(!compact || (menu.selection.length === 1 && !menu.item.directory && workspace.externalOpen) ? [{ label: "打开方式", disabled: menu.selection.length !== 1 || menu.item.directory, children: [
       { label: "内置编辑器", run: () => openItem(menu.item) },
       { label: "系统默认应用", disabled: !workspace.externalOpen, hint: !workspace.externalOpen ? "仅桌面版" : undefined, separator: true, run: () => openExternal(false) },
       { label: "其它应用程序…", disabled: !workspace.externalOpen, hint: !workspace.externalOpen ? "仅桌面版" : undefined, run: () => openExternal(true) },
-    ] },
-    { label: "快速预览", disabled: menu.selection.length !== 1 || menu.item.directory, run: onPreview },
+    ] }] : []),
+    ...(!compact || (menu.selection.length === 1 && !menu.item.directory) ? [{ label: "快速预览", disabled: menu.selection.length !== 1 || menu.item.directory, run: onPreview }] : []),
     { label: "复制名称", separator: true, run: () => copy(menu.selection.map(id => id.split("/").pop()).join("\n"), "名称") },
     { label: "复制路径", disabled: menu.path === null, run: () => menu.path !== null && copy(menu.path, "路径") },
     { label: "复制完整路径", disabled: menu.path === null, run: () => menu.path !== null && copy(menu.selection.map(id => browserFullPath(menu.path!, id.split("/").pop()!)).join("\n"), "完整路径") },
-    ...(["copy", "move", "rename", "batch-rename", "trash"] as const).map(kind => ({ label: { copy: "复制到另一栏", move: "移动到另一栏", rename: "重命名", "batch-rename": "批量重命名", trash: "移入系统回收站" }[kind], separator: kind === "copy" || kind === "trash", danger: kind === "trash", disabled: operationDisabled(kind, menu.selection.length), run: () => onOperation(kind, menu.selection) })),
+    ...(["copy", "move", "rename", "batch-rename", "trash"] as const).filter(kind => !compact || (workspace.canWrite(rootId) && (!(kind === "copy" || kind === "move") || workspace.canTransfer()) && (kind !== "trash" || workspace.canTrash()) && (kind !== "rename" || menu.selection.length === 1))).map(kind => ({ label: { copy: "复制到另一栏", move: "移动到另一栏", rename: "重命名", "batch-rename": "批量重命名", trash: "移入系统回收站" }[kind], separator: kind === "copy" || kind === "trash", danger: kind === "trash", disabled: operationDisabled(kind, menu.selection.length), run: () => onOperation(kind, menu.selection) })),
   ] : [];
   const changeColumn = (column: BrowserColumn, value: number) => setColumns(current => ({ ...current, [column]: clampBrowserColumn(column, value), autoName: column === "name" ? false : current.autoName }));
   const sortColumn = (column: BrowserColumn) => { const sort: LocalFileSort = pane.sort === column ? `${column}-desc` : column; onChange(current => ({ ...updateBrowserLocation(current, { scrollTop: 0 }), sort })); };

@@ -4,7 +4,7 @@ import { pluginRuntime } from "../../lib/plugin-system/runtime";
 import { workspacePanels } from "../../lib/plugin-system/panel-registry";
 import { localFileService } from "../../lib/local-files/service";
 import { createBrowserDirectoryProvider } from "../../lib/local-files/browser-provider-core";
-import { BrowserOperationQueueCore } from "../../lib/local-files/browser-queue-core";
+import { createWorkbenchOperations } from "./operations";
 import { browserSettings } from "../../lib/local-files/browser-settings";
 import { searchLocalFiles } from "../../lib/local-files/search";
 import type { BrowserFileOpen } from "../../lib/local-files/browser-contract";
@@ -22,25 +22,27 @@ export function createWorkbenchHost(open: (request: BrowserFileOpen) => void) {
   const owner = pluginRuntime.activate(WORKBENCH_ID, ["panels.present", "filesystem.files.read", "filesystem.files.write"]);
   workspacePanels.register(owner, { id: "browser", label: "文件工作台", icon: "compare", renderer: "file-browser" });
   const assertActive = () => pluginRuntime.assert(owner, "filesystem.files.read");
-  const rejectWrite = () => { assertActive(); throw new Error("独立工作台尚未开放目录操作。"); };
-  const queue = new BrowserOperationQueueCore({ assertActive: rejectWrite, execute: rejectWrite });
+  const mutations = new Set<(change: import("../../lib/local-files/browser-operation-contract").BrowserMutation) => void>();
+  const notify = (change: import("../../lib/local-files/browser-operation-contract").BrowserMutation) => { for (const listener of mutations) { try { listener(change); } catch { /* Observers cannot change a confirmed filesystem result. */ } } };
+  const drafts = createLocalDraftStore("file-workbench-local-recovery", () => window.dispatchEvent(new Event("file-workbench:drafts")), { retainUntilResolved: true });
+  const operations = createWorkbenchOperations({ assertActive: () => { pluginRuntime.assert(owner, "filesystem.files.write"); if (!isTauriRuntime()) throw new Error("目录操作仅适用于桌面版授权目录。"); }, files: localFileService, notify }, drafts);
+  const { queue } = operations;
   const provider = createBrowserDirectoryProvider({
     assertActive, files: localFileService,
-    async open(request, signal) { signal.throwIfAborted(); assertActive(); open(request); },
+    async open(request, signal) { signal.throwIfAborted(); operations.assertIdle(); open(request); },
   });
-  const mutations = new Set<(change: import("../../lib/local-files/browser-operation-contract").BrowserMutation) => void>();
   const source: LocalSourceHost = {
     assertActive,
-    async read(rootId, node) { assertActive(); const result = await localFileService.readSnapshot(rootId, node); assertActive(); return result; },
+    async read(rootId, node) { operations.assertIdle(); const result = await localFileService.readSnapshot(rootId, node); assertActive(); return result; },
     async write(rootId, node, text, base) {
-      assertActive();
+      operations.assertIdle();
       const result = await localFileService.write(rootId, node, text, base);
       for (const notify of mutations) { try { notify({ kind: "refresh", rootId, node }); } catch { /* A viewer observer cannot fail a confirmed write. */ } }
       return result;
     },
     async saveCopy(name, text, base) { assertActive(); if (!isTauriRuntime()) return "unsupported"; const result = await localFileService.saveAs(name, text, base); assertActive(); return result; },
     canSaveOriginal: rootId => localFileService.canSaveOriginal(rootId),
-    drafts: createLocalDraftStore("file-workbench-local-recovery", () => window.dispatchEvent(new Event("file-workbench:drafts")), { retainUntilResolved: true }),
+    drafts,
   };
   const viewMenu = createBrowserViewMenu();
   const workspace: BrowserWorkspaceHost = {
@@ -52,13 +54,13 @@ export function createWorkbenchHost(open: (request: BrowserFileOpen) => void) {
     displayPath: (rootId, node) => localFileService.displayPath(rootId, node), absolutePaths: isTauriRuntime(),
     supportsDirectoryPicker: () => localFileService.supportsDirectoryPicker(),
     supportsDirectoryChanges: rootId => localFileService.supportsDirectoryChanges(rootId),
-    canWrite: () => false, canTransfer: () => false, canTrash: () => false,
+    canWrite: rootId => isTauriRuntime() && localFileService.canRename(rootId), canTransfer: () => isTauriRuntime() && localFileService.canTransfer(), canTrash: () => isTauriRuntime() && localFileService.canTrash(),
     search: searchLocalFiles,
     subscribeMutations(listener) { mutations.add(listener); return () => { mutations.delete(listener); }; },
   };
   let disposed = false;
-  return { workspace, source, viewMenu, dispose() {
+  return { workspace, source, viewMenu, operations, dispose() {
     if (disposed) return;
-    disposed = true; mutations.clear(); queue.dispose(); pluginRuntime.deactivate(WORKBENCH_ID); localFileService.release();
+    disposed = true; mutations.clear(); operations.dispose(); pluginRuntime.deactivate(WORKBENCH_ID); localFileService.release();
   } };
 }

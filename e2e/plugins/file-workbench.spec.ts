@@ -14,6 +14,120 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { if (directory) await rm(directory, { recursive: true, force: true }); });
 
+test("柔和配色和清雅/物哀在浏览、编辑与重启后保持一致", async ({ page }, testInfo) => {
+  await page.addInitScript(() => localStorage.setItem("nr:theme", "original-theme"));
+  await page.goto("/file-workbench.html");
+  const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+  await browser.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const backgrounds = new Set<string>();
+  for (const [label, id] of [["柔和浅色", "light"], ["柔和深色", "dark"], ["清雅", "calm"], ["物哀", "mono-aware"]]) {
+    await page.getByRole("button", { name: "配色", exact: true }).click();
+    await page.getByRole("menuitem", { name: new RegExp(label + "$") }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-workbench-palette", id);
+    const color = await page.locator("main").evaluate(element => getComputedStyle(element).backgroundColor);
+    expect(color).not.toBe("rgb(255, 255, 255)"); expect(color).not.toBe("rgb(0, 0, 0)");
+    backgrounds.add(color);
+    await page.screenshot({ path: testInfo.outputPath(`palette-${id}.png`) });
+  }
+  expect(backgrounds.size).toBe(4);
+  await browser.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /alpha.c/ }).dblclick();
+  await page.getByRole("button", { name: "配色", exact: true }).click();
+  await page.getByRole("menuitem", { name: "清雅", exact: true }).click();
+  await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-workbench-palette", "calm");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-workbench-palette", "calm");
+  expect(await page.evaluate(() => localStorage.getItem("nr:theme"))).toBe("original-theme");
+});
+
+test("桌面目录复制、重命名和移动走确认队列，运行中不退出，恢复草稿阻止路径变更", async ({ page }) => {
+  await page.addInitScript(() => {
+    const callbacks = new Map<number, (event: unknown) => void>(); let sequence = 1, close = 0;
+    const tree: Record<string, { directory: boolean; content?: string }> = { folder: { directory: true }, "folder/a.c": { directory: false, content: "int original;\n" }, "folder/.hidden": { directory: false, content: "hidden" }, target: { directory: true } };
+    const state = { tree, calls: [] as Array<{ command: string; args: any }>, confirmed: 0, hold: true };
+    (window as any).__workbenchOps = state;
+    (window as any).__workbenchOpsClose = () => callbacks.get(close)?.({ event: "workbench:request-close", payload: null });
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback(callback: (value: unknown) => void) { const id = sequence++; callbacks.set(id, callback); return id; },
+      unregisterCallback(id: number) { callbacks.delete(id); },
+      async invoke(command: string, args: any = {}) {
+        if (command === "plugin:event|listen") { if (args.event === "workbench:request-close") close = args.handler; return sequence++; }
+        if (command === "plugin:event|unlisten" || command === "workbench_ready" || command === "workbench_set_view_menu") return;
+        if (command === "workbench_confirm_close") { state.confirmed++; return; }
+        if (command === "local_files_roots") return [{ id: "native-root", name: "Native" }];
+        if (command === "local_files_display_path") return `/fixture/${args.node ?? ""}`;
+        if (command === "local_files_stat") return { size: tree[args.node]?.content?.length ?? 0, modifiedMs: 10 };
+        if (command === "local_files_read") return { source: tree[args.node]?.content ?? "", revision: "r1", bom: false, lineEnding: "lf", size: tree[args.node]?.content?.length ?? 0, modifiedMs: 10 };
+        if (command === "local_files_list") {
+          const prefix = args.node ? args.node + "/" : "";
+          return { nodes: Object.entries(tree).filter(([path]) => path.startsWith(prefix) && path !== args.node && !path.slice(prefix.length).includes("/") && (args.options?.showHidden || !path.split("/").pop()!.startsWith("."))).map(([id, value]) => ({ id, name: id.split("/").pop(), directory: value.directory, size: value.content?.length ?? 0, modifiedMs: 10 })), next: null };
+        }
+        if (command === "local_files_transfer" || command === "local_files_move") {
+          state.calls.push({ command, args });
+          if (state.hold && command === "local_files_transfer") { state.hold = false; await new Promise<void>(resolve => { (window as any).__workbenchOpsRelease = resolve; }); }
+          const target = [args.parent, args.name].filter(Boolean).join("/");
+          if (tree[target]) throw new Error("TARGET_EXISTS");
+          for (const [path, value] of Object.entries(tree)) if (path === args.node || path.startsWith(args.node + "/")) { tree[target + path.slice(args.node.length)] = { ...value }; if (command === "local_files_move" || args.moving) delete tree[path]; }
+          return target;
+        }
+        throw new Error("Unexpected command: " + command);
+      },
+    };
+  });
+  await page.goto("/file-workbench.html");
+  const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+  const left = browser.getByRole("region", { name: "左侧目录", exact: true }), right = browser.getByRole("region", { name: "右侧目录", exact: true });
+  // Rename is local to one pane and must work before the other pane is chosen.
+  const menu = page.getByRole("menu", { name: "文件菜单", exact: true });
+  await left.getByRole("option", { name: /^folder/ }).click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "重命名", exact: true }).click();
+  await page.getByRole("dialog", { name: "重命名", exact: true }).getByRole("textbox", { name: "名称", exact: true }).fill("package");
+  await page.getByRole("dialog", { name: "重命名", exact: true }).getByRole("button", { name: "确认", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => Boolean((window as any).__workbenchOps.tree["package/a.c"]))).toBe(true);
+  await page.getByRole("button", { name: "收起操作队列", exact: true }).click();
+  await right.getByRole("combobox", { name: "选择授权目录", exact: true }).selectOption("native-root");
+  await right.getByRole("option", { name: /^target/ }).dblclick();
+  await left.getByRole("option", { name: /^package/ }).click({ button: "right" });
+  await expect(menu.getByRole("menuitem", { name: "打开方式", exact: true })).toHaveCount(0);
+  await expect(menu.getByRole("menuitem", { name: "快速预览", exact: true })).toHaveCount(0);
+  await menu.getByRole("menuitem", { name: "复制到另一栏", exact: true }).click();
+  await page.getByRole("dialog", { name: "复制到另一栏", exact: true }).getByRole("button", { name: "确认", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__workbenchOps.calls.length)).toBe(2);
+  await page.evaluate(() => (window as any).__workbenchOpsClose());
+  expect(await page.evaluate(() => (window as any).__workbenchOps.confirmed)).toBe(0);
+  await page.evaluate(() => (window as any).__workbenchOpsRelease());
+  await expect.poll(() => page.evaluate(() => Boolean((window as any).__workbenchOps.tree["target/package/.hidden"]))).toBe(true);
+  await page.getByRole("button", { name: "收起操作队列", exact: true }).click();
+  await expect(right.getByRole("option", { name: /^package/ })).toBeVisible();
+  await left.getByRole("option", { name: /^package/ }).click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "重命名", exact: true }).click();
+  const rename = page.getByRole("dialog", { name: "重命名", exact: true });
+  await rename.getByRole("textbox", { name: "名称", exact: true }).fill("renamed");
+  await rename.getByRole("button", { name: "确认", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => Boolean((window as any).__workbenchOps.tree["renamed/a.c"]))).toBe(true);
+  await page.getByRole("button", { name: "收起操作队列", exact: true }).click();
+  await left.getByRole("option", { name: /^renamed/ }).click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "移动到另一栏", exact: true }).click();
+  await page.getByRole("dialog", { name: "移动到另一栏", exact: true }).getByRole("button", { name: "确认", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => Boolean((window as any).__workbenchOps.tree["target/renamed/a.c"]) && !(window as any).__workbenchOps.tree["renamed"])).toBe(true);
+  await page.getByRole("button", { name: "收起操作队列", exact: true }).click();
+  await expect(left.getByRole("option", { name: /^renamed/ })).toHaveCount(0);
+  await right.getByRole("option", { name: /^renamed/ }).dblclick();
+  await right.getByRole("option", { name: /^a.c/ }).dblclick();
+  const view = page.getByRole("region", { name: "文件源码工作区", exact: true });
+  await view.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await view.locator(".cm-content").click(); await page.keyboard.press("ControlOrMeta+A"); await page.keyboard.insertText("int unsaved;\n");
+  await view.getByRole("button", { name: "返回文件浏览", exact: true }).click();
+  await page.getByRole("dialog", { name: "未保存的文件编辑", exact: true }).getByRole("button", { name: "保留草稿后继续", exact: true }).click();
+  await right.getByRole("button", { name: "上级目录", exact: true }).click();
+  await right.getByRole("option", { name: /^renamed/ }).click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "重命名", exact: true }).click();
+  await rename.getByRole("textbox", { name: "名称", exact: true }).fill("protected");
+  await rename.getByRole("button", { name: "确认", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "文件操作队列", exact: true })).toContainText("存在未处理的恢复草稿");
+  expect(await page.evaluate(() => (window as any).__workbenchOps.calls.length)).toBe(4);
+});
+
 test("工作台地址和过滤快捷键只作用于当前栏，保留可见过滤条件并正确显示空文件", async ({ page }) => {
   const fixture = await mkdtemp(join(tmpdir(), "nr-workbench-filter-"));
   try {
@@ -75,7 +189,8 @@ test("独立入口用真实目录快照浏览、预览和返回，不启动数�
   await preview.getByRole("button", { name: "返回文件浏览", exact: true }).click();
   await expect(browser).toBeVisible();
   await expect(left.getByRole("option", { name: /alpha.c/ })).toHaveAttribute("aria-selected", "true");
-  await page.getByRole("button", { name: "深色", exact: true }).click();
+  await page.getByRole("button", { name: "配色", exact: true }).click();
+  await page.getByRole("menuitem", { name: "柔和深色", exact: true }).click();
   await expect(page.locator("html")).toHaveClass(/theme-dark/);
   await expect.poll(() => page.evaluate(() => localStorage.getItem("file-workbench:nr:local-file-browser"))).not.toBeNull();
   expect(await page.evaluate(() => localStorage.getItem("nr:local-file-browser"))).toBe("original-nine-rings-state");
@@ -277,6 +392,13 @@ test("桌面关闭桥接等待保存决定，取消或草稿失败不退出，�
   const item = browser.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /sample.c/ });
   await item.click({ button: "right" });
   await page.getByRole("menuitem", { name: "打开方式", exact: true }).hover();
+  const openWith = page.getByRole("menu", { name: "打开方式", exact: true });
+  await page.keyboard.press("ArrowRight");
+  await expect(openWith.getByRole("menuitem", { name: "内置编辑器", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(openWith).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "打开方式", exact: true })).toBeFocused();
+  await page.keyboard.press("ArrowRight");
   await page.getByRole("menuitem", { name: "系统默认应用", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.external)).toEqual([{ rootId: "native-root", node: "sample.c", chooseApplication: false }]);
   await item.click({ button: "right" });
@@ -320,25 +442,25 @@ test("桌面关闭桥接等待保存决定，取消或草稿失败不退出，�
   expect(await page.evaluate(() => (window as any).__workbenchNative.source)).toBe("int native_edit;\n");
 });
 
-test("文件右键菜单分组，打开方式支持键盘子菜单，Web 不伪造系统打开能力", async ({ page }) => {
+test("文件与目录只显示适用的右键操作，Web 快照不显示系统打开和写入命令", async ({ page }) => {
   await page.goto("/file-workbench.html");
   const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
   await browser.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
   const left = browser.getByRole("region", { name: "左侧目录", exact: true });
   await left.getByRole("option", { name: /alpha.c/ }).click({ button: "right" });
   const menu = page.getByRole("menu", { name: "文件菜单", exact: true });
-  await expect(menu.getByRole("separator")).toHaveCount(3);
-  await menu.getByRole("menuitem", { name: "打开方式", exact: true }).hover();
-  const submenu = page.getByRole("menu", { name: "打开方式", exact: true });
-  await expect(submenu).toBeVisible();
-  await expect(submenu.getByRole("menuitem", { name: /系统默认应用/ })).toBeDisabled();
-  await expect(submenu.getByRole("menuitem", { name: /其它应用程序/ })).toBeDisabled();
-  await page.keyboard.press("ArrowRight");
-  await expect(submenu.getByRole("menuitem", { name: "内置编辑器", exact: true })).toBeFocused();
-  await page.keyboard.press("ArrowLeft");
-  await expect(submenu).toHaveCount(0);
-  await expect(menu.getByRole("menuitem", { name: "打开方式", exact: true })).toBeFocused();
-  await page.keyboard.press("ArrowRight"); await page.keyboard.press("Enter");
+  await expect(menu.getByRole("separator")).toHaveCount(1);
+  await expect(menu.getByRole("menuitem", { name: "打开方式", exact: true })).toHaveCount(0);
+  await expect(menu.getByRole("menuitem", { name: "复制到另一栏", exact: true })).toHaveCount(0);
+  await expect(menu.getByRole("menuitem", { name: "快速预览", exact: true })).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await left.getByRole("option", { name: /^sub/ }).click({ button: "right" });
+  await expect(menu.getByRole("menuitem", { name: "快速预览", exact: true })).toHaveCount(0);
+  await expect(menu.getByRole("menuitem", { name: "打开方式", exact: true })).toHaveCount(0);
+  await expect(menu.getByRole("menuitem", { name: "复制名称", exact: true })).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await left.getByRole("option", { name: /alpha.c/ }).click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "打开", exact: true }).click();
   await expect(page.getByRole("region", { name: "文件源码工作区", exact: true })).toContainText("int alpha(void)");
   await expect(menu).toHaveCount(0);
 });

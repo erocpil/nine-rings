@@ -1,5 +1,19 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-10：独立目录队列、适用菜单与柔和配色
+
+上一批地址/过滤工作流已按用户要求提交为 `4d648b2b`。本批独立宿主接通原 BrowserOperationRunner/Queue 与共享原生服务，目录和文件均支持确认后复制、移动、重命名等操作。`operations.ts` 预检独立恢复草稿库，对来源和目标加路径租约，停止仍等待在途原生调用收尾；队列未结束时不进入编辑器或确认退出。Web 即使程序调用 queue.enqueue 也在执行器入口拒绝，而非仅灰显按钮。未处理草稿当前保守阻止全部目录变更，不删除或迁移草稿。
+
+影响分析：检查 `host.ts:28` 的装配、`operations.ts:9` 的生命周期、主窗口的关闭握手/浏览器离开提示、SourceView 的检查点与未保存离开，以及 FileBrowserWorkspace 的 mutation→两栏标签协调。独立源码编辑器没有后台保留会话，返回浏览必须先通过原保存/草稿门禁；确认操作后无需假造已打开编辑器迁移。将离开页面监听留在 React 宿主，避免文件服务构造依赖 window；保留原 Node 环境宿主契约测试。原生 IPC 与安全文件算法未改动。
+
+`FileBrowserPane.tsx:267` 仅在紧凑宿主按对象和平台筛选菜单，目录不显示文件专属操作，Web 快照不显示系统打开或变更。缺少目标栏是可恢复条件，复制/移动禁用；同时修复 `FileBrowserWorkspace.tsx:66` 中单栏重命名/新建/回收站错误依赖另一栏的问题。Nine Rings 默认菜单呈现保留。原 Web “不可用系统子菜单”测试改为断言命令不存在，原键盘右进左退覆盖迁到真实 Tauri 桥接夹具，未删除测试。
+
+配色通过独立根属性提供柔和浅色/深色、清雅、物哀，浏览和编辑的按钮共用一个宿主状态，避免隐藏入口覆盖新选择。未启用 Nine Rings 的布局预设或写入其主题键。检查三种彩色/深色截图，菜单与列表使用同一套颜色变量。
+
+验证：完整 `npm run check` 通过，**242 文件 / 2611 单元测试**、独立脚本、覆盖率、类型、lint、格式与 IPC。新加目录策略测试 10 项，覆盖全部操作、草稿/存储失败、目标前再次核验、停止后等待和租约释放。独立最终生产 Chromium **14 passed（12.4s）**、WebKit **14 passed（13.1s）**；原生桥接夹具完成整目录含隐藏项复制、单栏改名、移动、任务中关闭拦截、草稿阻止写入，配色覆盖编辑返回与重启保持。Nine Rings 原双栏/操作组 Chromium **22 passed（45.6s）**。共享原生 workspace **27 文件服务 + 1 退出策略测试通过**，含真实临时目录、隐藏项、二进制、排他发布、跨卷失败与撤权。两种生产构建及 ARM64 `.app` 构建通过，无 chunk 超限警告。
+
+结论 **SAFE（已验证路径）**：未发现上述宿主、草稿和队列回归；未执行全产品 E2E、远端 CI 或实际 OS 授权/回收站/跨卷 GUI 验收。最初完整检查的 tsx 管道被沙箱阻止，同命令获准重跑后通过。日志：`/tmp/nr-workbench-operations-check.log`、`/tmp/nr-workbench-operations-chromium.log`、`/tmp/nr-workbench-operations-webkit.log`、`/tmp/nr-workbench-operations-nine-rings.log`、`/tmp/nr-workbench-operations-rust.log`、`/tmp/nr-workbench-operations-native-build.log`。
+
 ## 2026-11-10：工作台地址与过滤工作流
 
 File Workbench 的目录栏增加 Command/Ctrl+L 路径聚焦、Command/Ctrl+F 名称过滤。监听绑定在各自目录栏并在隐藏/卸载时解除，不在 window 上接管编辑器快捷键；已打开输入再次调用时聚焦而不关闭。过滤输入 Enter 阻止表单提交并回到列表，保留条件；Esc 清除。底部持续展示条件及清除按钮，长条件截断并保留完整提示；无匹配结果与空目录区分。没有扩大文件授权或新增正文、递归目录扫描。

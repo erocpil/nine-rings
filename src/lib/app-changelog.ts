@@ -4,6 +4,7 @@ export const APP_CHANGELOG = [
     date: "2026-11-10",
     title: "共享双栏与独立文件工作台",
     changes: [
+      "File Workbench 右键菜单隐藏不适用操作，桌面授权目录支持复制、移动、重命名等确认队列操作；新增草稿与运行任务保护，以及柔和浅色/深色、清雅、物哀配色。",
       "File Workbench 支持用 Command/Ctrl+L 编辑路径、Command/Ctrl+F 过滤当前栏，Enter 返回列表；过滤条件持续可见并可一键清除，补齐无匹配结果提示。",
       "桌面选区悬停工具菜单在鼠标未进入时半透明，进入菜单或使用键盘聚焦后恢复清晰显示。",
       "File Workbench 将隐藏项移入 View 菜单，新增类型列并通过表头双向排序；工具栏首次悬停接入快速提示。",

@@ -68,10 +68,11 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose, t
     if (operationDisabled(kind, side, selection?.length)) return;
     const source = browserLocation(panes[side]);
     const target = browserLocation(panes[side === 0 ? 1 : 0]);
-    if (!source || !target) return;
+    if (!source || ((!target || !workspace.canWrite(target.rootId)) && (kind === "copy" || kind === "move"))) return;
+    const destination = target ?? source;
     setOperation({ kind, rootId: source.rootId, rootName: roots.find(root => root.id === source.rootId)?.name ?? source.rootId,
       parent: source.node, nodes: kind === "file" || kind === "directory" ? [] : [...(selection ?? source.selected)],
-      targetRootId: target.rootId, targetRootName: roots.find(root => root.id === target.rootId)?.name ?? target.rootId, targetParent: target.node });
+      targetRootId: destination.rootId, targetRootName: roots.find(root => root.id === destination.rootId)?.name ?? destination.rootId, targetParent: destination.node });
   };
   const currentLocation = browserLocation(panes[state.active]);
   useEffect(() => { workspace.viewMenu?.update({ enabled: active && roots.some(root => root.id === currentLocation?.rootId), showHidden: panes[state.active].showHidden }); }, [workspace, active, currentLocation, panes, state.active, roots]);
@@ -81,7 +82,8 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose, t
   const previewNode = currentRow?.tabId === state.groups[state.active].tabs[state.groups[state.active].active].tabId && currentRow.rootId === currentLocation?.rootId && currentRow.node !== null ? currentRow.node : currentLocation?.selected[currentLocation.selected.length - 1];
   const operationDisabled = (kind: BrowserOperation["kind"], side: 0 | 1 = state.active, count = browserLocation(panes[side])?.selected.length ?? 0) => {
     const source = browserLocation(panes[side]);
-    return opening || !source || !workspace.canWrite(source.rootId) || ((kind === "copy" || kind === "move") && !workspace.canTransfer()) || (kind === "trash" && !workspace.canTrash()) || (["copy", "move", "trash", "batch-rename"].includes(kind) && !count) || (kind === "rename" && count !== 1);
+    const target = browserLocation(panes[side === 0 ? 1 : 0]);
+    return opening || !source || !workspace.canWrite(source.rootId) || ((kind === "copy" || kind === "move") && (!workspace.canTransfer() || !target || !workspace.canWrite(target.rootId))) || (kind === "trash" && !workspace.canTrash()) || (["copy", "move", "trash", "batch-rename"].includes(kind) && !count) || (kind === "rename" && count !== 1);
   };
   const restoreBrowserFocus = (selector: string) => {
     const previous = document.activeElement;

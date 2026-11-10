@@ -21,3 +21,31 @@
 .workbench-view-menu button:hover, .workbench-view-menu button:focus-visible { background: var(--hover); outline: none; }
 .workbench-view-menu button:disabled { opacity: .45; }
 .file-workbench-app .file-browser-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Colour-only workbench palettes. Calm/Mono-aware borrow Nine Rings' green
+ * and rose ink families without opting into its document layout presets. */
+:root[data-workbench-palette] {
+  --bg: #f2f1ed; --surface: #e8e7e2; --border: #cbd0ca;
+  --text: #343b38; --text-secondary: #646e68; --accent: #4f6f78;
+  --accent-hover: #3b5861; --hover-bg: #e2e6e1; --active-bg: #dbe5e4; --code-bg: #e9ece7;
+  --link-color: var(--accent); --link-hover: var(--accent-hover);
+  --accent-bg: var(--active-bg); --drawer-surface: var(--surface); --hover: var(--hover-bg);
+  --activeline-bg: color-mix(in srgb, var(--accent) 9%, transparent);
+  color-scheme: light;
+}
+:root[data-workbench-palette="dark"] {
+  --bg: #282e34; --surface: #23292f; --border: #46515b;
+  --text: #d5dde2; --text-secondary: #a5b1b9; --accent: #9bbdd3;
+  --accent-hover: #bdd5e4; --hover-bg: #35414a; --active-bg: #3c4e5a; --code-bg: #252c32;
+  color-scheme: dark;
+}
+:root[data-workbench-palette="calm"] {
+  --bg: #e8f0e3; --surface: #e0eadb; --border: #bdcbb7;
+  --text: #29372c; --text-secondary: #53644e; --accent: #416849;
+  --accent-hover: #305539; --hover-bg: #dce9d5; --active-bg: #d4e4cb; --code-bg: #e1ecdc;
+}
+:root[data-workbench-palette="mono-aware"] {
+  --bg: #f3eae9; --surface: #eadfe0; --border: #d2bfc4;
+  --text: #423538; --text-secondary: #756168; --accent: #8c4f62;
+  --accent-hover: #703c4d; --hover-bg: #e9dadf; --active-bg: #e2cbd4; --code-bg: #ecdee3;
+}
