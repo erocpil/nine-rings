@@ -344,6 +344,8 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
         if (index !== null) { chooseItem(nodes[index], false, event.shiftKey); revealIndex(index); }
       } else if (event.key === "Insert" || (event.key === " " && (event.ctrlKey || event.metaKey))) {
         event.preventDefault(); event.stopPropagation(); const item = nodes.find(item => item.id === cursor.current); if (item) chooseItem(item, true);
+      } else if (event.key === "Escape" && query) {
+        event.preventDefault(); event.stopPropagation(); setQuery("");
       } else if (event.key === "Escape" && typeahead.query) {
         event.preventDefault(); event.stopPropagation(); setTypeahead({ query: "", at: 0 });
       } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && event.key !== " ") {
@@ -366,10 +368,10 @@ export function FileBrowserPane({ side, tabId, onCurrentChange, active, visible,
         <span>{(metadata[item.id]?.modifiedMs ?? item.modifiedMs) ? new Date(metadata[item.id]?.modifiedMs ?? item.modifiedMs!).toLocaleString() : "—"}</span>
       </div>)}
       <div style={{ height: Math.max(0, nodes.length - end) * ROW }} aria-hidden="true" />
-      {!nodes.length && <p className="file-browser-empty">{loading ? "正在读取目录…" : rootId ? error ? "目录暂不可用，可返回上级或重新授权" : "空目录" : "选择或添加一个本地目录"}</p>}
+      {!nodes.length && <p className="file-browser-empty">{loading ? "正在读取目录…" : rootId ? error ? "目录暂不可用，可返回上级或重新授权" : query.trim() ? "没有匹配的文件或目录" : "空目录" : "选择或添加一个本地目录"}</p>}
     </div>
     {error && <div className="file-browser-error" role="alert">{error}<button type="button" aria-label="关闭目录错误" onClick={() => setError("")}>×</button></div>}
-    <footer className="file-browser-pane-status"><span title="选择操作最多 2000 项；目录数量不包含其内部文件">{selected.length ? `选中 ${selected.length} 项 · ` : ""}{nodes.length} 项{next !== null ? "（已加载）" : ""} · {nodes.filter(item => item.directory).length} 目录 / {nodes.filter(item => !item.directory).length} 文件</span>{selected.length > 0 && <span className="file-browser-selection-size" aria-label="选中大小" title={`已知 ${selectionSummary.files} 个文件，共 ${selectionSummary.bytes} bytes；不扫描目录正文或子项`}>已知文件 {sizeText(selectionSummary.bytes)}{selectionSummary.directories ? ` · ${selectionSummary.directories} 目录未统计内部` : ""}{selectionSummary.unknown ? ` · ${selectionSummary.unknown} 项大小未知` : ""}</span>}{typeahead.query && <span className="file-browser-typeahead" role="status">定位：{typeahead.query}（已加载）</span>}{next !== null && <button type="button" disabled={paging} onClick={() => void more(true)}>{paging ? "加载中…" : "加载更多"}</button>}</footer>
+    <footer className="file-browser-pane-status">{query && <span className="file-browser-active-filter" title={`名称过滤：${query}`}><span>过滤：{query}</span><button type="button" aria-label="清除名称过滤" title="清除名称过滤（Esc）" onClick={() => { setQuery(""); scrollRef.current?.focus({ preventScroll: true }); }}>×</button></span>}<span title="选择操作最多 2000 项；目录数量不包含其内部文件">{selected.length ? `选中 ${selected.length} 项 · ` : ""}{nodes.length} 项{next !== null ? "（已加载）" : ""} · {nodes.filter(item => item.directory).length} 目录 / {nodes.filter(item => !item.directory).length} 文件</span>{selected.length > 0 && <span className="file-browser-selection-size" aria-label="选中大小" title={`已知 ${selectionSummary.files} 个文件，共 ${selectionSummary.bytes} bytes；不扫描目录正文或子项`}>已知文件 {sizeText(selectionSummary.bytes)}{selectionSummary.directories ? ` · ${selectionSummary.directories} 目录未统计内部` : ""}{selectionSummary.unknown ? ` · ${selectionSummary.unknown} 项大小未知` : ""}</span>}{typeahead.query && <span className="file-browser-typeahead" role="status">定位：{typeahead.query}（已加载）</span>}{next !== null && <button type="button" disabled={paging} onClick={() => void more(true)}>{paging ? "加载中…" : "加载更多"}</button>}</footer>
     {menu && visible && <FileBrowserContextMenu target={menu.target} close={() => setMenu(null)} actions={menuActions} />}
     {message && <div className="file-browser-notice" role="status">{message}</div>}
   </section>;

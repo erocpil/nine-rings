@@ -47,6 +47,9 @@
 .file-browser-typeahead { color: var(--accent); white-space: nowrap; }
 .file-browser-pane-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 10px; min-height: 30px; border-top: 1px solid var(--border); font-size: 12px; }
 .file-browser-pane-status button { background: transparent; color: var(--accent); border: 0; cursor: pointer; }
+.file-browser-active-filter { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; color: var(--accent); }
+.file-browser-active-filter > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-browser-active-filter > button { flex: none; padding: 0 4px; font: inherit; }
 .file-browser-splitter { grid-column: 2; grid-row: 1; cursor: col-resize; touch-action: none; background: linear-gradient(to right, transparent 2px, var(--border) 2px, var(--border) 3px, transparent 3px); }
 .file-browser-splitter:hover { background: color-mix(in srgb, var(--accent) 25%, transparent); }
 .file-browser-empty { padding: 20px; color: var(--text-secondary); font-size: 13px; }

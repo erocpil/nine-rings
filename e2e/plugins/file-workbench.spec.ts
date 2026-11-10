@@ -14,6 +14,46 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { if (directory) await rm(directory, { recursive: true, force: true }); });
 
+test("工作台地址和过滤快捷键只作用于当前栏，保留可见过滤条件并正确显示空文件", async ({ page }) => {
+  const fixture = await mkdtemp(join(tmpdir(), "nr-workbench-filter-"));
+  try {
+    await writeFile(join(fixture, "empty.txt"), "");
+    await writeFile(join(fixture, "alpha.c"), "int alpha;\n");
+    await page.goto("/file-workbench.html");
+    const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+    await browser.getByLabel("选择目录快照", { exact: true }).setInputFiles(fixture);
+    const left = browser.getByRole("region", { name: "左侧目录", exact: true });
+    const right = browser.getByRole("region", { name: "右侧目录", exact: true });
+    const list = left.getByRole("listbox", { name: "文件列表", exact: true });
+    await expect(left.getByRole("option", { name: /empty.txt/ })).toContainText("0 B");
+    const root = await left.getByRole("combobox", { name: "选择授权目录", exact: true }).inputValue();
+    await right.getByRole("combobox", { name: "选择授权目录", exact: true }).selectOption(root);
+    await list.focus(); await list.press("ControlOrMeta+l");
+    const address = left.getByRole("textbox", { name: "根内相对路径", exact: true });
+    await expect(address).toBeFocused(); await address.fill("does-not-exist"); await address.press("Escape");
+    await expect(address).toHaveCount(0);
+    await list.focus(); await list.press("ControlOrMeta+f");
+    const filter = left.getByRole("searchbox", { name: "过滤文件名称", exact: true });
+    await expect(filter).toBeFocused(); await filter.fill("alpha");
+    await expect(list.getByRole("option")).toHaveCount(1);
+    await filter.press("Enter"); await expect(list).toBeFocused();
+    await expect(filter).toHaveCount(0);
+    await expect(left.locator(".file-browser-active-filter")).toContainText("alpha");
+    await expect(right.getByRole("listbox", { name: "文件列表", exact: true }).getByRole("option")).toHaveCount(2);
+    await list.press("Escape");
+    await expect(list.getByRole("option")).toHaveCount(2);
+    await expect(left.locator(".file-browser-active-filter")).toHaveCount(0);
+    await list.press("ControlOrMeta+f"); await filter.fill("no-such-file");
+    await expect(left.getByText("没有匹配的文件或目录", { exact: true })).toBeVisible();
+    await left.locator(".file-browser-pane-badge").click();
+    await expect(filter).toHaveCount(0);
+    await expect(left.locator(".file-browser-active-filter")).toContainText("no-such-file");
+    await left.getByRole("button", { name: "清除名称过滤", exact: true }).click();
+    await expect(list.getByRole("option")).toHaveCount(2);
+    await expect(list).toBeFocused();
+  } finally { await rm(fixture, { recursive: true, force: true }); }
+});
+
 test("独立入口用真实目录快照浏览、预览和返回，不启动数据库应用或覆盖原设置", async ({ page }) => {
   const scripts: string[] = [];
   page.on("request", request => { if (request.resourceType() === "script") scripts.push(request.url()); });

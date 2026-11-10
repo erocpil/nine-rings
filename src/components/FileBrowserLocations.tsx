@@ -20,6 +20,26 @@ export function FileBrowserLocations({ pane, roots, visible, provider, onNavigat
   const pathInput = useRef<HTMLInputElement>(null), filterInput = useRef<HTMLInputElement>(null);
   const editButton = useRef<HTMLButtonElement>(null), filterButton = useRef<HTMLButtonElement>(null), filterHost = useRef<HTMLDivElement>(null);
   const filterId = useId();
+  const form = useRef<HTMLFormElement>(null);
+  const hasBreadcrumbs = Boolean(breadcrumbs), hasFilter = Boolean(filter);
+  useEffect(() => {
+    const paneElement = form.current?.closest(".file-browser-pane");
+    if (!paneElement || !visible || !rootId) return;
+    const shortcut = (event: Event) => {
+      const key = event as KeyboardEvent;
+      if (key.defaultPrevented || key.isComposing || key.altKey || key.shiftKey || !(key.ctrlKey || key.metaKey)) return;
+      if (key.key.toLowerCase() === "l" && hasBreadcrumbs) {
+        key.preventDefault(); key.stopPropagation(); setMenu(null); setFilterOpen(false); setEditing(true);
+        pathInput.current?.focus(); pathInput.current?.select();
+      } else if (key.key.toLowerCase() === "f" && hasFilter) {
+        key.preventDefault(); key.stopPropagation(); setMenu(null); setFilterOpen(true);
+        filterInput.current?.focus(); filterInput.current?.select();
+      }
+    };
+    // Scope shortcuts to this pane, before they reach browser/app handlers.
+    paneElement.addEventListener("keydown", shortcut);
+    return () => paneElement.removeEventListener("keydown", shortcut);
+  }, [visible, rootId, hasBreadcrumbs, hasFilter]);
   useLayoutEffect(() => { if (editing) { pathInput.current?.focus(); pathInput.current?.select(); } }, [editing]);
   useLayoutEffect(() => {
     if (!filterOpen || !filterHost.current || !filterInput.current) return;
@@ -78,14 +98,18 @@ export function FileBrowserLocations({ pane, roots, visible, provider, onNavigat
     { label: "清理已撤销授权的常用目录", disabled: !favorites.some(item => !roots.some(root => root.id === item.rootId)), run: () => save(favorites.filter(item => roots.some(root => root.id === item.rootId))) },
   ];
   const closeFilter = () => { setFilterOpen(false); if (filter?.value) filter.onChange(""); filterButton.current?.focus({ preventScroll: true }); };
-  return <form className="file-browser-path" onSubmit={event => { event.preventDefault(); void submit(); }}>
+  return <form ref={form} className="file-browser-path" onSubmit={event => { event.preventDefault(); void submit(); }}>
     <div className={breadcrumbs ? "file-browser-address" : "file-browser-path-input"} onDoubleClick={event => { if (breadcrumbs && !editing && !(event.target as Element).closest("button")) setEditing(true); }}>
       {breadcrumbs && !editing ? <div className="file-browser-address-breadcrumbs" onClick={event => { if (!(event.target as Element).closest("button")) setEditing(true); }}>{breadcrumbs}</div> : <input ref={pathInput} aria-label="根内相对路径" value={value} disabled={!rootId} aria-busy={busy} onKeyDown={event => { if (breadcrumbs && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); controller.current?.abort(); setBusy(false); setValue(node); setEditing(false); editButton.current?.focus({ preventScroll: true }); } }} onChange={event => { controller.current?.abort(); setBusy(false); setValue(event.target.value); }} placeholder="相对路径；桌面版也可粘贴已授权目录的完整路径" />}
     </div>
-    <button ref={editButton} type={breadcrumbs && !editing ? "button" : "submit"} className="btn-icon" aria-label={breadcrumbs && !editing ? "编辑路径" : "前往路径"} title={breadcrumbs && !editing ? "编辑路径" : "验证并前往路径"} disabled={!rootId || busy} onClick={event => { if (breadcrumbs && !editing) { event.preventDefault(); setMenu(null); setEditing(true); } }}><ToolbarIcon name={breadcrumbs && !editing ? "edit" : "chevronRight"} /></button>
+    <button ref={editButton} type={breadcrumbs && !editing ? "button" : "submit"} className="btn-icon" aria-label={breadcrumbs && !editing ? "编辑路径" : "前往路径"} aria-keyshortcuts={breadcrumbs ? "Meta+L Control+L" : undefined} title={breadcrumbs && !editing ? "编辑路径（⌘/Ctrl+L）" : "验证并前往路径"} disabled={!rootId || busy} onClick={event => { if (breadcrumbs && !editing) { event.preventDefault(); setMenu(null); setEditing(true); } }}><ToolbarIcon name={breadcrumbs && !editing ? "edit" : "chevronRight"} /></button>
     {filter && <div ref={filterHost} className="file-browser-filter-tool">
-      <button ref={filterButton} type="button" className="btn-icon" aria-label="过滤名称" title={filter.value ? `过滤名称：${filter.value}` : "过滤名称"} aria-expanded={filterOpen} aria-controls={filterId} aria-pressed={Boolean(filter.value)} disabled={!rootId} onClick={() => { setMenu(null); if (filterOpen) closeFilter(); else setFilterOpen(true); }}><ToolbarIcon name="filter" /></button>
-      {filterOpen && <input ref={filterInput} id={filterId} className="file-browser-filter-input" type="search" aria-label="过滤文件名称" placeholder="过滤名称" value={filter.value} onChange={event => filter.onChange(event.target.value)} onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeFilter(); } }} />}
+      <button ref={filterButton} type="button" className="btn-icon" aria-label="过滤名称" aria-keyshortcuts="Meta+F Control+F" title={filter.value ? `过滤名称：${filter.value}（⌘/Ctrl+F）` : "过滤名称（⌘/Ctrl+F）"} aria-expanded={filterOpen} aria-controls={filterId} aria-pressed={Boolean(filter.value)} disabled={!rootId} onClick={() => { setMenu(null); if (filterOpen) closeFilter(); else setFilterOpen(true); }}><ToolbarIcon name="filter" /></button>
+      {filterOpen && <input ref={filterInput} id={filterId} className="file-browser-filter-input" type="search" aria-label="过滤文件名称" placeholder="过滤名称" value={filter.value} onChange={event => filter.onChange(event.target.value)} onKeyDown={event => {
+        if (event.nativeEvent.isComposing) return;
+        if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeFilter(); }
+        if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); setFilterOpen(false); form.current?.closest(".file-browser-pane")?.querySelector<HTMLElement>(".file-browser-list")?.focus({ preventScroll: true }); }
+      }} />}
     </div>}
     <button type="button" className="btn-icon" aria-label="路径历史" title="当前标签的路径历史" disabled={!pane.history.length} onClick={event => { setFilterOpen(false); openMenu("history", event.currentTarget); }}><ToolbarIcon name="history" /></button>
     <button type="button" className="btn-icon" aria-label="收藏当前目录" title={starred ? "移除当前常用目录" : "收藏当前目录"} aria-pressed={starred} disabled={!rootId} onClick={() => save(starred ? favorites.filter(item => item.rootId !== rootId || item.node !== node) : [...favorites, { rootId, node }])}><ToolbarIcon name="star" /></button>

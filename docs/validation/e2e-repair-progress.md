@@ -1,5 +1,15 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-10：工作台地址与过滤工作流
+
+File Workbench 的目录栏增加 Command/Ctrl+L 路径聚焦、Command/Ctrl+F 名称过滤。监听绑定在各自目录栏并在隐藏/卸载时解除，不在 window 上接管编辑器快捷键；已打开输入再次调用时聚焦而不关闭。过滤输入 Enter 阻止表单提交并回到列表，保留条件；Esc 清除。底部持续展示条件及清除按钮，长条件截断并保留完整提示；无匹配结果与空目录区分。没有扩大文件授权或新增正文、递归目录扫描。
+
+影响分析：追踪两个宿主的 FileBrowserLocations 调用、FileBrowserWorkspace 键盘捕获/预览/Tab、FileBrowserPane 的查询键/分页/取消、输入表单提交和列表焦点。新快捷键只在紧凑布局启用，原 Nine Rings 过滤输入保留；共享列表的条件反馈及 Esc 清除两者均可使用。核查文件大小发现 Web FileSystemHandle 列表的 `size: 0` 也可能表示尚未获取属性，因此保留原延迟属性解析，避免把未知大小误报成空文件；真实零字节快照纳入回归。
+
+验证：独立生产 Chromium **12 passed（9.6s）**、WebKit **12 passed（10.2s）**；新增流程覆盖地址取消、过滤聚焦/Enter/Esc、双栏独立、无结果、点击外围后条件保留、显式清除及空文件大小。首次新增用例误把授权下拉框的 option 计入文件列表，已限定到 listbox，未降低文件数断言。Nine Rings 原双栏/操作组 Chromium **22 passed（44.4s）**。相关 4 单元文件 **18 项通过**，类型/lint、独立生产与 ARM64 `.app` 构建通过；最终保留原大小解析后的类型/lint再核对。
+
+结论 **SAFE（已验证路径）**：现有导航、保存、菜单和队列回归未发现退化；没有修改 IPC 或存储格式。未执行全产品 E2E、远端 CI 或 OS 原生 GUI 验收。日志：`/tmp/nr-workbench-flow-chromium.log`、`/tmp/nr-workbench-flow-webkit.log`、`/tmp/nr-workbench-flow-nine-rings.log`、`/tmp/nr-workbench-flow-native-build.log`。
+
 ## 2026-11-10：工作台 View 菜单、类型列与快速提示
 
 独立工作台将当前栏的隐藏项开关移入 View：原生宿主提供系统菜单，Web 使用同一命令端口显示应用菜单；未授权目录、编辑或图片视图中禁用。共享浏览器继续持有每栏的状态，菜单不复制偏好；原生更新串行发送，卸载后不执行迟到事件。原有 Nine Rings 入口保持原布局。独立列表增加类型列，可通过表头双向排序，移除面包屑下的排序行；旧列宽配置补入默认类型宽度。类型来自扩展名，不读取正文或递归统计目录。
