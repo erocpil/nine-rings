@@ -2,7 +2,7 @@ import { WorkbenchPalette, useWorkbenchPalette } from "./Palette";
 import { QuickTooltips } from "../../components/QuickTooltips";
 import { WorkbenchViewMenu } from "./ViewMenu";
 import { installWorkbenchViewMenu } from "./native-view-menu";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { FileBrowserWorkspace } from "../../components/FileBrowserWorkspace";
 import { FileBrowserQuickPreview } from "../../components/FileBrowserQuickPreview";
@@ -36,7 +36,33 @@ function Workbench() {
     return () => window.removeEventListener("beforeunload", guard);
   }, []);
   const [file, setFile] = useState<BrowserFileOpen | null>(null);
-  showFile = setFile;
+  const returnTarget = useRef<HTMLElement | null>(null), restoreList = useRef(false);
+  const returnScroll = useRef({ top: 0, left: 0 });
+  showFile = request => {
+    const active = document.activeElement;
+    returnTarget.current = active instanceof HTMLElement ? active.closest<HTMLElement>(".file-browser-list") : null;
+    returnTarget.current ??= document.querySelector<HTMLElement>(".file-browser-pane.is-active .file-browser-list");
+    returnScroll.current = { top: returnTarget.current?.scrollTop ?? 0, left: returnTarget.current?.scrollLeft ?? 0 };
+    setFile(request);
+  };
+  const closeFile = useCallback(() => { restoreList.current = true; setFile(null); }, []);
+  useLayoutEffect(() => {
+    if (file || !restoreList.current) return;
+    restoreList.current = false;
+    const target = returnTarget.current;
+    const frame = requestAnimationFrame(() => {
+      if (!target?.isConnected || target.closest("[hidden], [inert]") || document.querySelector("dialog[open]")) return;
+      const active = document.activeElement;
+      // A new dialog or user-focused control takes precedence over restoration.
+      if (active instanceof HTMLElement && active !== document.body && active !== target && active.isConnected) return;
+      target.focus({ preventScroll: true });
+      // WebKit can still adjust an aria-activedescendant list during hide/show.
+      // Restore the actual two-axis position, not only the browser focus option.
+      target.scrollTop = returnScroll.current.top;
+      target.scrollLeft = returnScroll.current.left;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [file]);
   const closeSource = useRef<WorkbenchCloseRequest | null>(null);
   const [nativeNotice, setNativeNotice] = useState("");
   nativeError = cause => setNativeNotice(`桌面窗口操作失败：${String(cause)}`);
@@ -63,12 +89,12 @@ function Workbench() {
   return <main className="file-workbench-app" onKeyDown={event => {
     if (!file || event.key !== "Escape" || event.defaultPrevented || draftsOpen) return;
     if (event.target instanceof Element && event.target.closest(".cm-editor, dialog, [role='menu']")) return;
-    event.preventDefault(); event.stopPropagation(); if (image) setFile(null); else closeSource.current?.();
+    event.preventDefault(); event.stopPropagation(); if (image) closeFile(); else closeSource.current?.();
   }}>
     {!nativeViewMenuAvailable && <nav className="workbench-menu-bar" aria-label="应用菜单"><WorkbenchViewMenu menu={host.viewMenu} /></nav>}
     {file && <div className="file-workbench-view-tools" role="toolbar" aria-label="工作台工具">{tools}</div>}
     <div className="file-workbench-content"><FileBrowserWorkspace workspace={host.workspace} active={!file} toolbarExtras={tools} />
-    {file && (image ? <FileBrowserQuickPreview rootId={file.rootId} node={file.node.id} provider={host.workspace.provider} active revision={0} onNavigate={() => false} onClose={() => setFile(null)} /> : <Suspense fallback={<p role="status">正在加载共享源码工作区…</p>}><SourceView key={`${file.rootId}:${file.node.id}`} file={file} host={host.source} onClose={() => setFile(null)} closeRequest={closeSource} /></Suspense>)}</div>
+    {file && (image ? <FileBrowserQuickPreview rootId={file.rootId} node={file.node.id} provider={host.workspace.provider} active autoFocus revision={0} closeLabel="返回文件浏览" onClose={closeFile} /> : <Suspense fallback={<p role="status">正在加载共享源码工作区…</p>}><SourceView key={`${file.rootId}:${file.node.id}`} file={file} host={host.source} onClose={closeFile} closeRequest={closeSource} /></Suspense>)}</div>
     <footer>授权目录可请求保存原文件；目录快照只能导出副本。目录操作通过确认队列执行，不覆盖同名项目。{isTauriRuntime() ? "目录授权保存在独立工作台中。" : "授权仅限当前会话。"}{nativeNotice && <span role="alert">{nativeNotice}</span>}{draftError && <span role="alert">{draftError}</span>}</footer>
     {draftsOpen && <WorkspaceDialog title="恢复草稿" onClose={() => { setDraftsOpen(false); setDraftToDelete(null); }}>{draftError && <p role="alert">{draftError}</p>}<p>草稿独立保存在本机。重新授权会生成新的目录身份，请下载草稿，再核对路径后手动恢复；不会自动覆盖重新授权的文件。最多保留 5 份草稿，不自动删除；满额时请先下载并处理旧草稿。</p>{!drafts.length && <p>没有未保存草稿。</p>}{drafts.map(draft => <article key={draft.identity}><strong>{draft.identity.slice(draft.identity.indexOf(":") + 1)}</strong><time>{new Date(draft.savedAt).toLocaleString()}</time><button type="button" onClick={() => { void exportLocalSource(draft.identity.split("/").pop()!.split(":").pop()!, draft.source, draft, host.source.saveCopy).catch(cause => setDraftError(String(cause))); }}>下载草稿</button><button type="button" onClick={() => setDraftToDelete(draft.identity)}>删除草稿</button>{draftToDelete === draft.identity && <div><p>确认删除这份恢复草稿？请先核对或下载其内容。</p><button type="button" onClick={() => { void host.source.drafts.remove(draft.identity).then(() => setDraftToDelete(null)).catch(cause => setDraftError(String(cause))); }}>确认删除草稿</button><button type="button" onClick={() => setDraftToDelete(null)}>取消</button></div>}<pre>{draft.source.slice(0, 2000)}{draft.source.length > 2000 ? "…" : ""}</pre></article>)}</WorkspaceDialog>}
   </main>;

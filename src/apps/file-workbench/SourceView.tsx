@@ -149,11 +149,11 @@ export function WorkbenchSourceView({ file, host, onClose, closeRequest }: {
   }, [current]);
   return <section className="local-file-view workbench-source-view" aria-label="文件源码工作区">
     <DocumentTitleBar className="local-files-toolbar local-file-titlebar"><strong title={file.node.id}>{file.node.name}</strong><span>{saving ? "正在保存…" : dirty ? "未保存" : "磁盘文本"}</span>
-      <button className="btn-icon" type="button" aria-label={readonly ? "允许编辑" : "设为只读"} disabled={loading || !base || Boolean(candidate) || !draftAvailable} onClick={() => setReadonly(value => !value)}><ToolbarIcon name={readonly ? "lock" : "edit"} /></button>
-      <button className="btn-icon" type="button" aria-label="保存文件" disabled={loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>
-      <button className="btn-icon" type="button" aria-label="导出副本" disabled={loading || !base} onClick={() => void copy()}><ToolbarIcon name="download" /></button>
-      <button className="btn-icon" type="button" aria-label="重新读取原文件" disabled={loading || saving} onClick={() => { if (dirty) setLeave("reload"); else void read(); }}><ToolbarIcon name="refresh" /></button>
-      <button className="btn-icon" type="button" aria-label="返回文件浏览" onClick={() => requestClose()}><ToolbarIcon name="chevronLeft" /></button>
+      <button className="btn-icon" type="button" aria-label={readonly ? "允许编辑" : "设为只读"} title={readonly ? "允许编辑" : "设为只读"} disabled={loading || !base || Boolean(candidate) || !draftAvailable} onClick={() => setReadonly(value => !value)}><ToolbarIcon name={readonly ? "lock" : "edit"} /></button>
+      <button className="btn-icon" type="button" aria-label="保存文件" title="保存文件（⌘/Ctrl+S）" disabled={loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>
+      <button className="btn-icon" type="button" aria-label="导出副本" title="导出副本" disabled={loading || !base} onClick={() => void copy()}><ToolbarIcon name="download" /></button>
+      <button className="btn-icon" type="button" aria-label="重新读取原文件" title="重新读取原文件" disabled={loading || saving} onClick={() => { if (dirty) setLeave("reload"); else void read(); }}><ToolbarIcon name="refresh" /></button>
+      <button className="btn-icon" type="button" aria-label="返回文件浏览" title="关闭预览，返回文件浏览" onClick={() => requestClose()}><ToolbarIcon name="close" /></button>
     </DocumentTitleBar>
     {loading && <p role="status">正在读取文件…</p>}
     {error && <p role="alert">{error}<button type="button" aria-label="关闭文件错误" onClick={() => setError("")}>×</button></p>}

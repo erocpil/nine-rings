@@ -1,5 +1,17 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-10：预览工具与返回列表焦点
+
+上一批目录操作/配色已提交为 `79e75392`。独立文本标题栏补齐 title，接入原 QuickTooltips；文本和图片统一 × 关闭。共享 QuickPreview 的 onNavigate 改为可选，未提供时不展示空导航按钮，也不接管上下方向键；原 Nine Rings 调用方仍提供逐项导航。新增可选 autoFocus 默认关闭，独立图片入口才聚焦查看区；关闭的无障碍名称继续兼容原有调用与测试。
+
+影响分析：追踪 Workbench 的 showFile、closeFile、SourceView.requestClose/finishClose、未保存确认、nativeClose 和共享 QuickPreview 的两个调用方。只有真正执行 onClose 才恢复来源列表，取消未保存确认不触发；主窗口确认退出也不调用列表恢复。主组件记录原列表与双轴位置，在解除 hidden/inert 后下一帧恢复，若已有新弹层或用户已转移焦点则让出；重新打开视图会取消旧帧。WebKit 首次测试暴露隐藏/显示后约 30px 的原生滚动调整，两次测量确认 clientHeight/scrollHeight 不变，因此不能仅依赖 focus.preventScroll，现显式恢复保存的位置。
+
+文件列表原 WebKit 样式只定义 width，横向高度由系统决定；现局部同时设置宽高 6px，并使用标准 thin，未全局更改其它滚动区域。新增真实浏览器流程覆盖虚拟列表末尾、图片/文本关闭、按钮图标一致及快速提示、双轴精确恢复、Esc、右侧栏返回后立即用方向键继续选择；断言伪元素宽高均 6px。
+
+验证：全部 Vitest **242 文件 / 2611 项通过**，`npm test` 独立脚本通过，类型/lint 与差异检查通过。独立生产 WebKit **15 passed（14.9s）**；Chromium 同组覆盖 15 项，Nine Rings 共享工具/预览组 Chromium **20 passed（41.9s）**，包括手机布局、逐项导航、查找与分层 Esc。两种前端构建及 ARM64 `.app` 按最终代码重建。日志：`/tmp/nr-workbench-preview-unit.log`、`/tmp/nr-workbench-preview-tests.log`、`/tmp/nr-workbench-preview-chromium.log`、`/tmp/nr-workbench-preview-webkit.log`、`/tmp/nr-workbench-preview-shared.log`。
+
+结论 **SAFE（已验证路径）**：未改文件数据、授权或保存协议，原快捷预览导航和未保存离开门禁保留。未执行全产品 E2E、远端 CI 或原生 GUI 验收。
+
 ## 2026-11-10：独立目录队列、适用菜单与柔和配色
 
 上一批地址/过滤工作流已按用户要求提交为 `4d648b2b`。本批独立宿主接通原 BrowserOperationRunner/Queue 与共享原生服务，目录和文件均支持确认后复制、移动、重命名等操作。`operations.ts` 预检独立恢复草稿库，对来源和目标加路径租约，停止仍等待在途原生调用收尾；队列未结束时不进入编辑器或确认退出。Web 即使程序调用 queue.enqueue 也在执行器入口拒绝，而非仅灰显按钮。未处理草稿当前保守阻止全部目录变更，不删除或迁移草稿。

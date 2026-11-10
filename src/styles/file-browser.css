@@ -31,6 +31,8 @@
 .file-browser-column-viewport { overflow: hidden; flex-shrink: 0; }
 .file-browser-columns { color: var(--text-secondary); font-size: 12px; min-height: 28px; border-block: 1px solid var(--border); }
 .file-browser-list { flex: 1; min-height: 0; overflow: auto; outline: none; overscroll-behavior: contain; }
+.file-browser-list { scrollbar-width: thin; }
+.file-browser-list::-webkit-scrollbar { width: 6px; height: 6px; }
 .file-browser-list:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .file-browser-row { height: 32px; min-width: var(--browser-columns-min, 363px); box-sizing: border-box; cursor: default; user-select: none; -webkit-user-select: none; font-size: 13px; }
 .file-browser-notice { position: absolute; bottom: 40px; left: 10px; right: 10px; padding: 6px 10px; z-index: 5; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); color: var(--text-secondary); font-size: 12px; pointer-events: none; overflow-wrap: anywhere; }

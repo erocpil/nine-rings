@@ -14,6 +14,61 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { if (directory) await rm(directory, { recursive: true, force: true }); });
 
+test("文本和图片预览使用关闭图标与快速提示，关闭恢复文件焦点和双轴滚动", async ({ page }) => {
+  const fixture = await mkdtemp(join(tmpdir(), "nr-workbench-preview-"));
+  try {
+    for (let index = 0; index < 44; index++) await writeFile(join(fixture, `${String(index).padStart(2, "0")}.txt`), `text ${index}\n`);
+    await writeFile(join(fixture, "44.png"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5ioAAAAASUVORK5CYII=", "base64"));
+    await page.setViewportSize({ width: 780, height: 600 });
+    await page.goto("/file-workbench.html");
+    const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+    await browser.getByLabel("选择目录快照", { exact: true }).setInputFiles(fixture);
+    const left = browser.getByRole("region", { name: "左侧目录", exact: true });
+    const list = left.getByRole("listbox", { name: "文件列表", exact: true });
+    await expect(left.getByRole("option", { name: /^00.txt/ })).toBeVisible();
+    await list.focus(); await list.press("End");
+    await expect(left.getByRole("option", { name: /^44.png/ })).toHaveAttribute("aria-selected", "true");
+    await list.evaluate(element => { element.scrollLeft = 50; });
+    const scroll = await list.evaluate(element => ({ top: element.scrollTop, left: element.scrollLeft }));
+    expect(scroll.top).toBeGreaterThan(0); expect(scroll.left).toBeGreaterThan(0);
+    const bars = await list.evaluate(element => { const style = getComputedStyle(element, "::-webkit-scrollbar"); return { width: style.width, height: style.height }; });
+    expect(bars).toEqual({ width: "6px", height: "6px" });
+    await list.press("Enter");
+    const image = page.getByRole("region", { name: "快速预览", exact: true });
+    await expect(image.getByRole("img", { name: "44.png", exact: true })).toBeVisible();
+    await expect(image.getByRole("button", { name: "预览下一文件", exact: true })).toHaveCount(0);
+    const imageClose = image.getByRole("button", { name: "返回文件浏览", exact: true });
+    const closeIcon = await imageClose.locator("svg").innerHTML();
+    await imageClose.hover();
+    await expect(page.getByRole("tooltip")).toHaveText("关闭预览，返回文件浏览");
+    await imageClose.click(); await expect(list).toBeFocused();
+    await expect.poll(() => list.evaluate(element => ({ top: element.scrollTop, left: element.scrollLeft }))).toEqual(scroll);
+    await list.press("ArrowUp");
+    await expect(left.getByRole("option", { name: /^43.txt/ })).toHaveAttribute("aria-selected", "true");
+    await list.press("Enter");
+    const text = page.getByRole("region", { name: "文件源码工作区", exact: true });
+    await expect(text.locator(".cm-content")).toContainText("text 43");
+    const edit = text.getByRole("button", { name: "允许编辑", exact: true });
+    await edit.hover(); await expect(page.getByRole("tooltip")).toHaveText("允许编辑");
+    const textClose = text.getByRole("button", { name: "返回文件浏览", exact: true });
+    expect(await textClose.locator("svg").innerHTML()).toBe(closeIcon);
+    await textClose.hover(); await expect(page.getByRole("tooltip")).toHaveText("关闭预览，返回文件浏览");
+    await textClose.click(); await expect(list).toBeFocused();
+    await list.press("ArrowUp");
+    await expect(left.getByRole("option", { name: /^42.txt/ })).toHaveAttribute("aria-selected", "true");
+    await list.press("End"); await list.press("Enter");
+    await expect(image).toBeFocused(); await page.keyboard.press("Escape");
+    await expect(list).toBeFocused();
+    const right = browser.getByRole("region", { name: "右侧目录", exact: true });
+    await right.getByRole("combobox", { name: "选择授权目录", exact: true }).selectOption(await left.getByRole("combobox", { name: "选择授权目录", exact: true }).inputValue());
+    const rightList = right.getByRole("listbox", { name: "文件列表", exact: true });
+    await right.getByRole("option", { name: /^00.txt/ }).dblclick();
+    await textClose.click(); await expect(rightList).toBeFocused();
+    await rightList.press("ArrowDown");
+    await expect(right.getByRole("option", { name: /^01.txt/ })).toHaveAttribute("aria-selected", "true");
+  } finally { await rm(fixture, { recursive: true, force: true }); }
+});
+
 test("柔和配色和清雅/物哀在浏览、编辑与重启后保持一致", async ({ page }, testInfo) => {
   await page.addInitScript(() => localStorage.setItem("nr:theme", "original-theme"));
   await page.goto("/file-workbench.html");
