@@ -28,6 +28,9 @@ fn workbench_confirm_close(
     policy: tauri::State<'_, ClosePolicy>,
 ) -> Result<(), String> {
     main_window(&window)?;
+    if window.state::<tools::ToolJobs>().active() {
+        return Err("命令行工具仍在运行，请等待执行完成后退出。".into());
+    }
     if policy.confirm() {
         app.exit(0);
     }
@@ -59,6 +62,7 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(ClosePolicy::default())
+        .manage(tools::ToolJobs::default())
         .setup(|app| {
             view_menu::install(app)?;
             let directory = app.path().app_data_dir()?;
@@ -77,6 +81,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             workbench_ready,
             tools::workbench_run_tool,
+            tools::workbench_tool_status,
+            tools::workbench_stop_tool,
             workbench_set_view_menu,
             workbench_confirm_close,
             local_files::local_files_choose,

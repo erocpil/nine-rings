@@ -1,5 +1,18 @@
 # E2E 清理进度（2026-09-28）
 
+
+## 2026-11-10：工具执行预览、实时结果与目录标签关闭
+
+上一批已提交 `b2c34d8b`。本批给工具定义增加可选 separator / capture，旧定义默认启动应用；右键修改、配置箭头排序和竖线分隔均持久化。目录标签移除×，双击关闭，原右键菜单、固定及最后标签保护保留。
+
+影响分析：追踪 `custom-tools.ts:22` 的所有调用、`CustomTools.tsx:18` 的两个工具栏实例、`main.tsx:38` 的宿主持有状态及 native close 握手。执行状态集中在 `ToolExecution.tsx:8`，预览时冻结选择，执行前重新解析并比较完整计划；关闭/重新查看不重复执行，序列轮询清理计时器并拒绝卸载后回写。原生 `tools.rs:190` 保留旧启动返回数字协议，两个新增查询/终止命令在 main 注册并限制主窗口；参数沿用授权路径及逐项展开，未引入 shell。`track_child:158` 统一管道读取、等待回收，退出门禁只检查仍运行的进程，后代保留输出管道不无限阻止退出。每通道末尾128KiB、有界任务/历史记录；终止只针对当前进程，不能声称清理整个进程树。共享 FileBrowserTabs 的全部关闭调用与回归已检查更新。
+
+验证：完整 `npm run check` 通过（243 文件 / 2616 项，含类型、lint、格式、独立脚本、覆盖率与 IPC）；Rust workspace 27 项文件服务 + 6 项独立测试通过，新增真实子进程 stdout/stderr/非零退出、终止回收、输出上限及读取失败覆盖，clippy 无警告。Nine Rings 共享工具/标签 Chromium 20 passed；独立生产 Chromium 19 passed、WebKit 19 passed，无跳过。两种前端构建、ARM64 File Workbench.app 构建通过，未产生超限 chunk 警告。已查看工具执行截图，确认完整命令、进度、详细输出、终止和关闭均在可视区。
+
+初轮两个旧用例使用全页 status 与保存提示冲突，已改为限定执行弹层，保留所有断言。另一次完整 Chromium 回归出现预览返回后 ArrowUp 未定位43.txt；该原有流程连续独立复跑5次通过，随后完整生产19项通过，WebKit也通过。未凭单次重跑删除用例或扩大超时，记录这次偶发迹象供后续定位。
+
+结论 SAFE（已验证范围）：浏览/编辑两入口状态、授权展开、关闭保护、现有标签导航未见回归。UNCERTAIN：Windows/Linux 原生 GUI 与用户自定义外部应用仍需真机验收，不以桥接模拟替代。日志 `/tmp/nr-workbench-tool-check.log`、`/tmp/nr-workbench-tool-native-tests.log`、`/tmp/nr-workbench-tool-clippy.log`、`/tmp/nr-workbench-tool-shared.log`、`/tmp/nr-workbench-tool-final-chromium.log`、`/tmp/nr-workbench-tool-final-webkit.log`、`/tmp/nr-workbench-tool-focus.log`、`/tmp/nr-workbench-tool-native-build.log`。
+
 ## 2026-11-10：自定义工具、多目录区、标签拖动与连续预览
 
 上一批预览/焦点改动已提交为 `85490981`。工具配置位于恢复草稿左侧，支持名称、程序、逐行参数、提示、分组预置图标、Unicode、导入图片及已有工具右键修改。定义由宿主统一持有并独立保存，读写长度上限一致；不在启动时执行。运行通过仅独立主窗口注册的命令，原生核验所用授权路径，参数逐项、非递归展开，通用工具可没有目录上下文。前端显示启动 PID，未将启动误报为程序执行完成。

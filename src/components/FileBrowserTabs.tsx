@@ -20,6 +20,7 @@ export function FileBrowserTabs({ group, roots, side, onSelect, onAdd, onAction,
       const location = browserLocation(tab), label = location?.node.split("/").pop() || roots.find(root => root.id === location?.rootId)?.name || "目录";
       return <div key={tab.tabId} className="file-browser-tab" data-tab-id={tab.tabId} data-pinned={Boolean(tab.pinned)} data-drop-target={dropTarget === tab.tabId}>
         <button role="tab" type="button" tabIndex={index === group.active ? 0 : -1} aria-label={label} aria-description={tab.pinned ? "固定标签" : undefined} aria-selected={index === group.active} title={location ? `${roots.find(root => root.id === location.rootId)?.name ?? location.rootId}/${location.node}` : label}
+          onDoubleClick={event => { event.preventDefault(); if (!tab.pinned && group.tabs.length > 1) onSelect(index, true); }}
           onPointerDown={event => { if (event.button !== 0 || event.pointerType !== "mouse") return; event.preventDefault(); event.currentTarget.focus({ preventScroll: true }); clearTimeout(timer.current); suppressClick.current = false; pointer.current = { id: tab.tabId, x: event.clientX, y: event.clientY, moved: false }; event.currentTarget.setPointerCapture(event.pointerId); }}
           onPointerMove={event => {
             const current = pointer.current;
@@ -39,7 +40,6 @@ export function FileBrowserTabs({ group, roots, side, onSelect, onAdd, onAction,
             event.preventDefault(); event.stopPropagation(); const count = group.tabs.length;
             onSelect(event.key === "Home" ? 0 : event.key === "End" ? count - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + count) % count);
           }} onClick={event => { if (suppressClick.current) { event.preventDefault(); event.stopPropagation(); suppressClick.current = false; return; } onSelect(index); }}>{tab.pinned && <span aria-label="固定">◆ </span>}{label}</button>
-        <button type="button" aria-label={`关闭目录标签 ${index + 1}`} disabled={group.tabs.length === 1 || tab.pinned} onClick={() => onSelect(index, true)}>×</button>
       </div>;
     })}
     <button type="button" aria-label="新建目录标签" title="新建目录标签" disabled={group.tabs.length >= MAX_BROWSER_TABS} onClick={onAdd}>＋</button>

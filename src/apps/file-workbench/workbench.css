@@ -70,3 +70,12 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-config) { wid
   --text: #423538; --text-secondary: #756168; --accent: #8c4f62;
   --accent-hover: #703c4d; --hover-bg: #e9dadf; --active-bg: #e2cbd4; --code-bg: #ecdee3;
 }
+
+.workbench-tool-separator { width: 1px; height: 22px; margin: 0 5px; background: var(--border); flex: 0 0 1px; }
+.workbench-tool-execution { padding: 0 16px 16px; max-height: 72dvh; overflow: auto; }
+.workbench-tool-execution pre { white-space: pre; overflow: auto; max-height: 36dvh; padding: 10px; background: var(--surface); user-select: text; }
+.workbench-tool-execution footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+.workbench-tool-execution button { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; font: inherit; }
+.workbench-tool-execution button:disabled { opacity: .45; }
+html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { width: min(900px, calc(100vw - 24px)); }

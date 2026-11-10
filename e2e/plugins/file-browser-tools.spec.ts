@@ -40,7 +40,7 @@ test("每栏目录标签独立保留历史并在重新进入时恢复", async ({
   await panel.getByRole("button", { name: "双栏浏览", exact: true }).click();
   await expect(left.getByRole("tab", { name: "docs", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(left.getByRole("option", { name: /readme.md/ })).toBeVisible();
-  await left.getByRole("button", { name: "关闭目录标签 1", exact: true }).click();
+  await left.getByRole("tab").first().dblclick();
   await expect(left.getByRole("tab")).toHaveCount(1);
 });
 test("快速预览跟随选中项，迟到文本不覆盖新预览，手机可返回目录", async ({ page }) => {
@@ -351,7 +351,11 @@ test("目录标签拖动排序、固定、关闭其它和恢复关闭保留独�
   const src = left.getByRole("tab", { name: "src", exact: true });
   await src.click({ button: "right" });
   await page.getByRole("menuitem", { name: "固定标签", exact: true }).click();
-  await expect(left.getByRole("button", { name: "关闭目录标签 1", exact: true })).toBeDisabled();
+  await src.dblclick();
+  await expect(src).toBeVisible();
+  await src.click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "关闭标签", exact: true })).toBeDisabled();
+  await page.keyboard.press("Escape");
   await left.getByRole("button", { name: "新建目录标签", exact: true }).click();
   await left.getByRole("textbox", { name: "根内相对路径" }).fill("docs");
   await left.getByRole("textbox", { name: "根内相对路径" }).press("Enter");
@@ -362,7 +366,7 @@ test("目录标签拖动排序、固定、关闭其它和恢复关闭保留独�
   await docs.click({ button: "right" });
   await expect(page.getByRole("menuitem", { name: "关闭其它标签", exact: true })).toBeDisabled();
   await page.getByRole("menu", { name: "目录标签菜单" }).press("Escape");
-  await left.getByRole("button", { name: "关闭目录标签 1", exact: true }).click();
+  await left.getByRole("tab").first().dblclick();
   await expect(left.getByRole("option", { name: /deep.c/ })).toBeVisible();
   await left.getByRole("button", { name: "恢复关闭的目录标签", exact: true }).click();
   await expect(left.getByRole("option", { name: /readme.md/ })).toBeVisible();

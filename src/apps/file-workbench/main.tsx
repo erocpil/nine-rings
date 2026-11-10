@@ -1,3 +1,4 @@
+import { useToolExecution } from "./ToolExecution";
 import { CustomTools } from "./CustomTools";
 import { parseWorkbenchTools, TOOLS_KEY } from "./custom-tools";
 import type { BrowserToolContext } from "../../lib/local-files/browser-tool-context";
@@ -34,6 +35,7 @@ const host = createWorkbenchHost(file => showFile(file));
 window.addEventListener("pagehide", event => { if (!event.persisted) { removeNativeViewMenu?.(); removeNativeClose?.(); host.dispose(); } });
 function Workbench() {
   const palette = useWorkbenchPalette(host.workspace.settings);
+  const execution = useToolExecution(host.operations.assertIdle);
   const [toolContext, setToolContext] = useState<BrowserToolContext | null>(null);
   const [customTools, setCustomTools] = useState(() => { try { return parseWorkbenchTools(host.workspace.settings.getItem(TOOLS_KEY)); } catch { return []; } });
   useEffect(() => {
@@ -97,7 +99,7 @@ function Workbench() {
     return () => { live = false; window.removeEventListener("file-workbench:drafts", refresh); };
   }, []);
   const tools = <>
-    <CustomTools settings={host.workspace.settings} tools={customTools} onToolsChange={setCustomTools} context={file ? { ...toolContext, rootId: file.rootId, node: file.node.id.split("/").slice(0, -1).join("/"), selected: [file.node.id] } : toolContext} beforeRun={host.operations.assertIdle} />
+    <CustomTools settings={host.workspace.settings} tools={customTools} onToolsChange={setCustomTools} context={file ? { ...toolContext, rootId: file.rootId, node: file.node.id.split("/").slice(0, -1).join("/"), selected: [file.node.id] } : toolContext} onRun={(tool, context) => void execution.request(tool, context)} onShowResult={execution.showLast} hasResult={execution.hasResult} />
     <button type="button" aria-label={`恢复草稿（${drafts.length}）`} title={`恢复草稿（${drafts.length}）`} onClick={() => setDraftsOpen(true)}><ToolbarIcon name="history" /></button>
     <WorkbenchPalette {...palette} />
   </>;
@@ -111,6 +113,7 @@ function Workbench() {
   }}>
     {!nativeViewMenuAvailable && <nav className="workbench-menu-bar" aria-label="应用菜单"><WorkbenchViewMenu menu={host.viewMenu} /></nav>}
     {file && <div className="file-workbench-view-tools" role="toolbar" aria-label="工作台工具">{tools}</div>}
+    {execution.element}
     <div className="file-workbench-content"><FileBrowserWorkspace workspace={host.workspace} active={!file} toolbarExtras={tools} onToolContext={setToolContext} />
     {file && (image ? <FileBrowserQuickPreview rootId={file.rootId} node={file.node.id} provider={host.workspace.provider} active autoFocus navigationAxis="horizontal" previous={previous} next={next} onNavigate={file.siblings ? stepPreview : undefined} revision={0} closeLabel="返回文件浏览" onClose={closeFile} /> : <Suspense fallback={<p role="status">正在加载共享源码工作区…</p>}><SourceView key={`${file.rootId}:${file.node.id}`} file={file} host={host.source} onNavigate={file.siblings ? stepPreview : undefined} previous={previous} next={next} onClose={closeFile} closeRequest={closeSource} /></Suspense>)}</div>
     <footer>授权目录可请求保存原文件；目录快照只能导出副本。目录操作通过确认队列执行，不覆盖同名项目。{isTauriRuntime() ? "目录授权保存在独立工作台中。" : "授权仅限当前会话。"}{nativeNotice && <span role="alert">{nativeNotice}</span>}{draftError && <span role="alert">{draftError}</span>}</footer>

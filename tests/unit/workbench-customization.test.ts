@@ -16,6 +16,7 @@ import {
   navigateBrowserPane,
 } from "../../src/lib/local-files/browser-state";
 import {
+  displayToolCommand,
   parseWorkbenchTools,
   serializeWorkbenchTools,
   validateWorkbenchTool,
@@ -159,4 +160,41 @@ it("full-view navigation follows sorted text/image siblings, skips directories/b
   expect(nextWorkbenchPreview(nodes, "d.md", 1)).toBeUndefined();
   expect(nextWorkbenchPreview(nodes, "a.c", -1)).toBeUndefined();
   expect(nextWorkbenchPreview(nodes, "missing", 1)).toBeUndefined();
+});
+
+it("tool separators and capture modes round-trip without changing legacy launchers or argument boundaries", () => {
+  const separator: WorkbenchTool = {
+    id: "separator",
+    kind: "separator",
+    name: "分隔符",
+    command: "",
+    arguments: "",
+    hint: "",
+    icon: { kind: "preset", value: "plus" },
+  };
+  const capture: WorkbenchTool = {
+    ...separator,
+    id: "capture",
+    kind: "command",
+    execution: "capture",
+    name: "test",
+    command: "tool",
+    arguments: "{files}",
+  };
+  expect(
+    parseWorkbenchTools(serializeWorkbenchTools([separator, capture])),
+  ).toEqual([separator, capture]);
+  expect(() =>
+    validateWorkbenchTool({
+      ...capture,
+      execution: "invalid",
+    } as unknown as WorkbenchTool),
+  ).toThrow();
+  expect(
+    displayToolCommand({
+      program: "/my tool",
+      arguments: ["a b", "$(echo x)", 'a"b'],
+      directory: "/root",
+    }),
+  ).toBe('"/my tool" "a b" "$(echo x)" "a\\"b"');
 });
