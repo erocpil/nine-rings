@@ -220,3 +220,62 @@ it("keeps file views pending for host acceptance and revokes them on disable", (
   runtime.deactivate(owner.pluginId);
   expect(views.getSnapshot().current).toBeNull();
 });
+
+it("revoking a separately granted child preserves access through the parent handle and vice versa", async () => {
+  activate();
+  const leaf = {
+    kind: "file",
+    name: "leaf.txt",
+    getFile: async () => file("leaf.txt", "shared bytes"),
+  };
+  const child = {
+    kind: "directory",
+    name: "child",
+    async *values() {
+      yield leaf;
+    },
+    async getDirectoryHandle() {
+      throw new Error("missing");
+    },
+    async getFileHandle() {
+      return leaf;
+    },
+  };
+  const parent = {
+    kind: "directory",
+    name: "parent",
+    async *values() {
+      yield child;
+    },
+    async getDirectoryHandle() {
+      return child;
+    },
+    async getFileHandle() {
+      throw new Error("missing");
+    },
+  };
+  vi.stubGlobal("window", {
+    showDirectoryPicker: vi
+      .fn()
+      .mockResolvedValueOnce(parent)
+      .mockResolvedValueOnce(child)
+      .mockResolvedValueOnce(child),
+  });
+  const parentRoot = (await localFileService.choose())!,
+    childRoot = (await localFileService.choose())!;
+  expect(await localFileService.read(childRoot.id, "leaf.txt")).toBe(
+    "shared bytes",
+  );
+  await localFileService.remove(childRoot.id);
+  await expect(
+    localFileService.read(childRoot.id, "leaf.txt"),
+  ).rejects.toThrow();
+  expect(await localFileService.read(parentRoot.id, "child/leaf.txt")).toBe(
+    "shared bytes",
+  );
+  const newChild = (await localFileService.choose())!;
+  await localFileService.remove(parentRoot.id);
+  expect(await localFileService.read(newChild.id, "leaf.txt")).toBe(
+    "shared bytes",
+  );
+});

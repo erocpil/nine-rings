@@ -2,6 +2,20 @@
 
 
 
+## 2026-11-11：独立工作台授权管理、固定标签与图标隔离
+
+工具栏盾牌“管理授权目录”接入宿主可选 revokeRoot；仅独立工作台提供，Nine Rings 保留原本地文件树入口。完整路径逐项显示，确认撤销、失败重试、处理中防重复/阻止关闭；删除焦点项后恢复弹层焦点，Esc可立即退出。按授权rootId清理活动、停放目录区与关闭记录，回退有效授权或空白页，不按路径前缀拒绝访问。父子目录另行授权时独立保留，磁盘文件/草稿与系统隐私权限不删除。共享标签支持固定项双击/右键确认关闭，批量包含固定项同样确认；最后固定项关闭保留空页，恢复仍可用。目录标签禁止原生文本选择，右键只清理标签内部选区。
+
+影响分析：核对 BrowserWorkspaceHost 的全部构造方与 FileBrowserTabs 唯一组件调用方。新增接口均可选，模型 selectBrowserTab/modifyBrowserTabs 默认保护不变，只有确认路径传入覆盖参数。revokeBrowserRoot 只匹配身份并覆盖extraGroups/closed，保留父授权中相同子路径。底层local_files_remove命令字段不变，revoke_root在写入成功后才从内存移除ID；读/写失败保留内存授权。真实文件测试覆盖父子双向独立撤销、记录重载及路径仍可读取，另测写入目录路径失败与未初始化路径失败，避免仅靠编译结论。
+
+用户指定FKFl4.jpg保存为独立图标源图，Tauri CLI生成PNG/ICO/ICNS，工作台配置与网页favicon仅引用独立目录。原图逐字节相同；Nine Rings src-tauri/icons的SHA256全部未变。ARM64 File Workbench.app已重建，实际包内Resources/icon.icns与新源文件逐字节一致；未修改/覆盖系统Applications里的已安装应用。
+
+验证：完整npm run check通过（243文件 / 2619项；类型、lint、格式、独立脚本、覆盖率与IPC），补充已关闭历史夹具后的15项重点单测通过。Rust workspace **29项文件服务 + 6项独立测试通过**，clippy workspace all-targets -D warnings通过。独立Chromium **21 passed（24.1s）**、最终生产WebKit **21 passed（21.5s）**；Nine Rings共享工具/标签Chromium **20 passed（42.7s）**。两种前端生产构建及独立ARM64 .app构建通过，无超限chunk警告。
+
+初轮新增夹具中Sub同时命中授权select与文件列表，已限定listbox；删除授权按钮导致焦点丢失、Esc无法关闭是产品问题，已恢复焦点并保留回归；200ms浏览状态保存用可观察轮询验证，不假定同步写入。原固定标签测试更新为确认可取消，保留拖动/恢复断言，未删除测试。
+
+结论SAFE（已验证范围）：父子授权、文件内容、队列门禁、固定关闭及现有双栏操作未见回归；UNCERTAIN：Windows/Linux原生GUI及macOS系统权限弹窗仍需真机验收。日志：/tmp/nr-workbench-grants-check.log、/tmp/nr-workbench-grants-focused-unit.log、/tmp/nr-workbench-grants-native.log、/tmp/nr-workbench-grants-clippy.log、/tmp/nr-workbench-grants-chromium.log、/tmp/nr-workbench-grants-webkit.log、/tmp/nr-workbench-grants-shared.log、/tmp/nr-workbench-grants-native-build.log。
+
 ## 2026-11-11：手机源码与首页右侧边缘手势
 
 源码导航复用 DocumentPanelDrawer：右侧上半屏打开 Markdown 目录或源码符号，可切换书签并记住选择；Text 等无大纲能力时回退书签。数据库与本地文件、可编辑/只读、普通/专注共用。设置手势从渲染器提升到 App，右侧下半屏在源码与首页也可使用；首页上半屏不唤醒保留文档。桌面布局和左侧三分区手势不变，沿用30px/60px与选区/控件/模态排除规则。

@@ -177,3 +177,11 @@
 .file-browser-compact .file-browser-path { flex-shrink: 0; }
 .file-browser-compact .file-browser-options { padding-top: 3px; padding-bottom: 5px; }
 .file-browser-compact .file-browser-tabs { border-top: 1px solid var(--border); }
+.file-browser-tab { user-select: none; -webkit-user-select: none; }
+.file-browser-root-manager { padding: 0 16px 16px; max-height: 70dvh; overflow: auto; }
+.file-browser-root-manager article { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.file-browser-root-manager article > div:first-child { flex: 1; min-width: 0; }
+.file-browser-root-path { overflow-wrap: anywhere; color: var(--text-secondary); margin: 4px 0; }
+.file-browser-root-confirm { flex-basis: 100%; }
+.file-browser-root-manager button { color: var(--text); background: var(--surface, var(--bg)); border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; font: inherit; }
+.file-browser-root-confirm button + button { margin-left: 8px; }

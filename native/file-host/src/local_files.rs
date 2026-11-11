@@ -316,6 +316,25 @@ impl LocalFiles {
             .cloned()
             .ok_or("目录授权已撤销".into())
     }
+    fn revoke_root(&self, id: &str) -> Result<(), String> {
+        let mut roots = self.roots.lock().map_err(|_| "目录状态不可用")?;
+        let data: Vec<Grant> = roots
+            .iter()
+            .filter(|(key, _)| key.as_str() != id)
+            .map(|(key, path)| Grant {
+                id: key.clone(),
+                path: path.clone(),
+            })
+            .collect();
+        // Keep the in-memory grant on persistence failure; never revoke by path prefix.
+        fs::write(
+            self.grants_path.as_ref().ok_or("授权记录目录尚未初始化")?,
+            serde_json::to_vec(&data).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+        roots.remove(id);
+        Ok(())
+    }
     fn save(&self, _app: &tauri::AppHandle) -> Result<(), String> {
         self.persist()
     }
@@ -477,19 +496,15 @@ pub fn local_files_display_path(
 }
 #[tauri::command]
 pub fn local_files_remove(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     window: tauri::WebviewWindow,
     library: State<'_, LocalFiles>,
     root_id: String,
 ) -> Result<(), String> {
     caller(&window)?;
-    library
-        .roots
-        .lock()
-        .map_err(|_| "目录状态不可用")?
-        .remove(&root_id);
-    library.save(&app)
+    library.revoke_root(&root_id)
 }
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RenameResult {
@@ -1452,6 +1467,59 @@ pub async fn local_files_save_as(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn independent_parent_and_child_revocation_preserves_files_and_other_grants() {
+        let fixture = TransferFixture::new();
+        let child = fixture.0.join("child");
+        fs::create_dir(&child).unwrap();
+        fs::write(child.join("leaf.txt"), "kept").unwrap();
+        let library = LocalFiles::load(&fixture.0);
+        {
+            let mut roots = library.roots.lock().unwrap();
+            roots.insert("parent".into(), fixture.0.clone());
+            roots.insert("child".into(), child.clone());
+        }
+        library.persist().unwrap();
+        library.revoke_root("child").unwrap();
+        assert!(library.root("child").is_err());
+        assert_eq!(
+            fs::read_to_string(
+                checked_path(&library.root("parent").unwrap(), "child/leaf.txt").unwrap()
+            )
+            .unwrap(),
+            "kept"
+        );
+        assert!(LocalFiles::load(&fixture.0).root("child").is_err());
+        library
+            .roots
+            .lock()
+            .unwrap()
+            .insert("child-two".into(), child.clone());
+        library.revoke_root("parent").unwrap();
+        let restored = LocalFiles::load(&fixture.0);
+        assert!(restored.root("parent").is_err());
+        assert_eq!(restored.root("child-two").unwrap(), child);
+        assert!(restored
+            .root("child-two")
+            .unwrap()
+            .join("leaf.txt")
+            .is_file());
+    }
+    #[test]
+    fn failed_revocation_keeps_the_live_grant() {
+        let mut library = LocalFiles::default();
+        library
+            .roots
+            .lock()
+            .unwrap()
+            .insert("r".into(), std::env::temp_dir());
+        assert!(library.revoke_root("r").is_err());
+        assert!(library.root("r").is_ok());
+        let fixture = TransferFixture::new();
+        library.grants_path = Some(fixture.0.clone()); // Writing a file over a directory must fail.
+        assert!(library.revoke_root("r").is_err());
+        assert!(library.root("r").is_ok());
+    }
     struct TransferFixture(PathBuf);
     impl TransferFixture {
         fn new() -> Self {

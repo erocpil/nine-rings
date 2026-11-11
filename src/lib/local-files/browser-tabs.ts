@@ -52,11 +52,12 @@ export function addBrowserTab(state: BrowserWorkspaceState, side: 0 | 1): Browse
   groups[side] = { ...group, tabs: [...group.tabs, { ...tab, tabId: tabId() }], active: group.tabs.length };
   return { ...state, active: side, groups };
 }
-export function selectBrowserTab(state: BrowserWorkspaceState, side: 0 | 1, index: number, close = false): BrowserWorkspaceState {
+export function selectBrowserTab(state: BrowserWorkspaceState, side: 0 | 1, index: number, close = false, confirmedPinned = false): BrowserWorkspaceState {
   const group = state.groups[side];
-  if (!Number.isInteger(index) || !group.tabs[index] || (close && (group.tabs.length === 1 || group.tabs[index].pinned))) return state;
+  if (!Number.isInteger(index) || !group.tabs[index] || (close && !confirmedPinned && (group.tabs.length === 1 || group.tabs[index].pinned))) return state;
   const groups = [...state.groups] as BrowserWorkspaceState["groups"];
-  const tabs = close ? group.tabs.filter((_, at) => at !== index) : group.tabs;
+  const remaining = close ? group.tabs.filter((_, at) => at !== index) : group.tabs;
+  const tabs = remaining.length ? remaining : [{ ...emptyBrowserState().panes[0], tabId: tabId() }];
   const active = close ? Math.min(tabs.length - 1, group.active - (index < group.active ? 1 : 0)) : index;
   groups[side] = { ...group, tabs, active, ...(close ? { closed: [...(group.closed ?? []), group.tabs[index]].slice(-16) } : {}) };
   return { ...state, active: side, groups };
@@ -69,7 +70,7 @@ export function reconcileBrowserTabs(state: BrowserWorkspaceState, change: Brows
 }
 
 /** All advanced tab actions address stable IDs, never a stale context-menu index. */
-export function modifyBrowserTabs(state: BrowserWorkspaceState, side: 0 | 1, id: string, action: "pin" | "others" | "right" | "restore" | "left" | "next"): BrowserWorkspaceState {
+export function modifyBrowserTabs(state: BrowserWorkspaceState, side: 0 | 1, id: string, action: "pin" | "others" | "right" | "restore" | "left" | "next", confirmedPinned = false): BrowserWorkspaceState {
   const group = state.groups[side], index = group.tabs.findIndex(tab => tab.tabId === id);
   if (index < 0) return state;
   let tabs = [...group.tabs], closed = [...(group.closed ?? [])];
@@ -80,7 +81,7 @@ export function modifyBrowserTabs(state: BrowserWorkspaceState, side: 0 | 1, id:
     tabs.push({ ...closed.pop()!, tabId: tabId(), pinned: false });
   } else if (action === "left" || action === "next") return reorderBrowserTab(state, side, id, tabs[index + (action === "left" ? -1 : 1)]?.tabId);
   else {
-    const removed = tabs.filter((tab, at) => !tab.pinned && at !== index && (action === "others" || at > index));
+    const removed = tabs.filter((tab, at) => (confirmedPinned || !tab.pinned) && at !== index && (action === "others" || at > index));
     closed = [...closed, ...removed].slice(-16);
     tabs = tabs.filter(tab => !removed.includes(tab));
   }
@@ -144,4 +145,16 @@ export function setBrowserRowCount(state: BrowserWorkspaceState, side: 0 | 1, co
   groups[side] = rows[activeRow]; extraGroups[side] = rows.filter((_, at) => at !== activeRow); activeRows[side] = activeRow; visibleRows[side] = count;
   next = { ...next, groups, extraGroups, activeRows, visibleRows };
   return next;
+}
+
+/** Root identity, not path prefixes: independent parent/child grants remain usable. */
+export function revokeBrowserRoot(state: BrowserWorkspaceState, rootId: string, fallbackRootId?: string): BrowserWorkspaceState {
+  const clean = (tab: BrowserWorkspaceTab): BrowserWorkspaceTab => {
+    const history = tab.history.filter(entry => entry.rootId !== rootId);
+    const before = tab.history.slice(0, tab.index).filter(entry => entry.rootId === rootId).length;
+    const next = { ...tab, history, index: Math.min(tab.index - before, history.length - 1) };
+    return history.length || !fallbackRootId ? next : { ...navigateBrowserPane(next, fallbackRootId, ""), tabId: tab.tabId, pinned: tab.pinned };
+  };
+  const apply = (group: BrowserTabGroup) => ({ ...group, tabs: group.tabs.map(clean), closed: group.closed?.filter(tab => tab.history.some(entry => entry.rootId !== rootId)).map(clean) });
+  return { ...state, groups: state.groups.map(apply) as BrowserWorkspaceState["groups"], ...(state.extraGroups ? { extraGroups: state.extraGroups.map(groups => groups.map(apply)) as [BrowserTabGroup[], BrowserTabGroup[]] } : {}) };
 }

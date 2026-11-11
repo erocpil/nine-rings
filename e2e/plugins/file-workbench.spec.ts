@@ -865,3 +865,76 @@ test("命令执行先预览，实时输出和结果可重新打开；竖线可�
   await expect(execution.getByRole("status")).toContainText("退出码 2");
   expect(await page.evaluate(() => (window as any).__toolExecutions)).toBe(2);
 });
+
+test("独立父子授权按身份撤销，失败可重试，父目录仍可访问子目录", async ({ page }) => {
+  await page.addInitScript(() => {
+    let callback = 1;
+    const roots = [{ id: "parent", name: "Parent" }, { id: "child", name: "Sub" }];
+    let fail = true;
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback() { return callback++; }, unregisterCallback() {},
+      async invoke(command: string, args: any) {
+        if (command === "plugin:event|listen") return callback++;
+        if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
+        if (command === "local_files_roots") return [...roots];
+        if (command === "local_files_display_path") return args.rootId === "parent" ? "/Parent" : "/Parent/Sub";
+        if (command === "local_files_list") return { nodes: args.rootId === "parent" && !args.node ? [{ id: "Sub", name: "Sub", directory: true, size: 0, modifiedMs: 1 }] : [{ id: args.node ? "Sub/leaf.c" : "leaf.c", name: "leaf.c", directory: false, size: 20, modifiedMs: 1 }], next: null };
+        if (command === "local_files_remove") {
+          if (fail) { fail = false; throw new Error("persistence unavailable"); }
+          const at = roots.findIndex(root => root.id === args.rootId); if (at >= 0) roots.splice(at, 1);
+          (window as any).__removedRoot = args.rootId; return;
+        }
+        throw new Error(command);
+      },
+    };
+  });
+  await page.goto("/file-workbench.html");
+  const left = page.getByRole("region", { name: "左侧目录", exact: true }), right = page.getByRole("region", { name: "右侧目录", exact: true });
+  await left.getByRole("listbox", { name: "文件列表", exact: true }).getByRole("option", { name: /^Sub/ }).dblclick();
+  await expect(left.getByRole("option", { name: /^leaf.c/ })).toBeVisible();
+  await right.getByRole("combobox", { name: "选择授权目录", exact: true }).selectOption("child");
+  await page.getByRole("button", { name: "管理授权目录", exact: true }).click();
+  const manager = page.getByRole("dialog", { name: "管理授权目录", exact: true });
+  await expect(manager).toContainText("/Parent/Sub");
+  const child = manager.locator("article").filter({ has: page.getByText("/Parent/Sub", { exact: true }) });
+  await child.getByRole("button", { name: "撤销授权", exact: true }).click();
+  await child.getByRole("button", { name: "取消", exact: true }).click();
+  expect(await page.evaluate(() => (window as any).__removedRoot)).toBeUndefined();
+  await child.getByRole("button", { name: "撤销授权", exact: true }).click();
+  await child.getByRole("button", { name: "确认撤销授权", exact: true }).click();
+  await expect(manager.getByRole("alert")).toContainText("persistence unavailable");
+  await expect(child).toBeVisible();
+  await child.getByRole("button", { name: "确认撤销授权", exact: true }).click();
+  await expect(child).toHaveCount(0);
+  expect(await page.evaluate(() => (window as any).__removedRoot)).toBe("child");
+  await page.keyboard.press("Escape");
+  await expect(left.getByRole("option", { name: /^leaf.c/ })).toBeVisible();
+  await expect(right.getByRole("combobox", { name: "选择授权目录", exact: true })).toHaveValue("parent");
+  await right.getByRole("listbox", { name: "文件列表", exact: true }).getByRole("option", { name: /^Sub/ }).dblclick();
+  await expect(right.getByRole("option", { name: /^leaf.c/ })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("file-workbench:nr:local-file-browser"))).not.toContain('"rootId":"child"');
+});
+
+test("固定目录标签经提醒后可关闭最后一个，右键不选中文本", async ({ page }) => {
+  await page.goto("/file-workbench.html");
+  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  const tab = left.getByRole("tab").first();
+  await tab.evaluate(element => { const range = document.createRange(); range.selectNodeContents(element); const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range); });
+  await tab.click({ button: "right" });
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("");
+  await page.getByRole("menuitem", { name: "固定标签", exact: true }).click();
+  await tab.dblclick();
+  const confirmation = page.getByRole("dialog", { name: "关闭固定目录标签", exact: true });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(tab).toContainText("◆");
+  await tab.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "关闭标签", exact: true }).click();
+  await confirmation.getByRole("button", { name: "确认关闭", exact: true }).click();
+  await expect(left.getByRole("tab")).toHaveCount(1);
+  await expect(left.getByRole("tab")).toHaveText("目录");
+  await expect(left.getByRole("combobox", { name: "选择授权目录", exact: true })).toHaveValue("");
+  await left.getByRole("button", { name: "恢复关闭的目录标签", exact: true }).click();
+  await expect(left.getByRole("option", { name: /alpha.c/ })).toBeVisible();
+});

@@ -352,9 +352,12 @@ test("目录标签拖动排序、固定、关闭其它和恢复关闭保留独�
   await src.click({ button: "right" });
   await page.getByRole("menuitem", { name: "固定标签", exact: true }).click();
   await src.dblclick();
+  const pinnedClose = page.getByRole("dialog", { name: "关闭固定目录标签", exact: true });
+  await expect(pinnedClose).toBeVisible();
+  await pinnedClose.getByRole("button", { name: "取消", exact: true }).click();
   await expect(src).toBeVisible();
   await src.click({ button: "right" });
-  await expect(page.getByRole("menuitem", { name: "关闭标签", exact: true })).toBeDisabled();
+  await expect(page.getByRole("menuitem", { name: "关闭标签", exact: true })).toBeEnabled();
   await page.keyboard.press("Escape");
   await left.getByRole("button", { name: "新建目录标签", exact: true }).click();
   await left.getByRole("textbox", { name: "根内相对路径" }).fill("docs");
@@ -364,8 +367,9 @@ test("目录标签拖动排序、固定、关闭其它和恢复关闭保留独�
   await expect(left.getByRole("tab").first()).toHaveText("docs");
   await expect(docs).toHaveAttribute("aria-selected", "true");
   await docs.click({ button: "right" });
-  await expect(page.getByRole("menuitem", { name: "关闭其它标签", exact: true })).toBeDisabled();
-  await page.getByRole("menu", { name: "目录标签菜单" }).press("Escape");
+  await page.getByRole("menuitem", { name: "关闭其它标签", exact: true }).click();
+  await expect(pinnedClose).toBeVisible();
+  await pinnedClose.getByRole("button", { name: "取消", exact: true }).click();
   await left.getByRole("tab").first().dblclick();
   await expect(left.getByRole("option", { name: /deep.c/ })).toBeVisible();
   await left.getByRole("button", { name: "恢复关闭的目录标签", exact: true }).click();

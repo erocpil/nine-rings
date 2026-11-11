@@ -1,3 +1,4 @@
+import { WorkspaceDialog } from "./WorkspaceDialog";
 import { useEffect, useRef, useState } from "react";
 import { browserLocation } from "../lib/local-files/browser-state";
 import { MAX_BROWSER_TABS, type BrowserTabGroup } from "../lib/local-files/browser-tabs";
@@ -7,10 +8,19 @@ import { NotesContextMenu, type NotesMenuTarget } from "./NotesContextMenu";
 type Action = "pin" | "others" | "right" | "restore" | "left" | "next";
 export function FileBrowserTabs({ group, roots, side, onSelect, onAdd, onAction, onReorder }: {
   group: BrowserTabGroup; roots: FileRoot[]; side: 0 | 1;
-  onSelect: (index: number, close?: boolean) => void; onAdd: () => void;
-  onAction: (id: string, action: Action) => void; onReorder: (id: string, targetId: string) => void;
+  onSelect: (index: number, close?: boolean, confirmedPinned?: boolean) => void; onAdd: () => void;
+  onAction: (id: string, action: Action, confirmedPinned?: boolean) => void; onReorder: (id: string, targetId: string) => void;
 }) {
   const [menu, setMenu] = useState<NotesMenuTarget | null>(null);
+  const [closing, setClosing] = useState<{ id: string; type: "single" | "others" | "right" } | null>(null);
+  const requestClose = (id: string, type: "single" | "others" | "right", confirmed = false) => {
+    const at = group.tabs.findIndex(tab => tab.tabId === id);
+    if (at < 0) return;
+    const targets = group.tabs.filter((_, index) => type === "single" ? index === at : index !== at && (type === "others" || index > at));
+    if (!confirmed && targets.some(tab => tab.pinned)) { setMenu(null); setClosing({ id, type }); return; }
+    if (type === "single") onSelect(at, true, confirmed); else onAction(id, type, confirmed);
+    setClosing(null);
+  };
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const pointer = useRef<{ id: string; x: number; y: number; moved: boolean; lastTarget?: string } | null>(null), suppressClick = useRef(false), timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -20,8 +30,8 @@ export function FileBrowserTabs({ group, roots, side, onSelect, onAdd, onAction,
       const location = browserLocation(tab), label = location?.node.split("/").pop() || roots.find(root => root.id === location?.rootId)?.name || "目录";
       return <div key={tab.tabId} className="file-browser-tab" data-tab-id={tab.tabId} data-pinned={Boolean(tab.pinned)} data-drop-target={dropTarget === tab.tabId}>
         <button role="tab" type="button" tabIndex={index === group.active ? 0 : -1} aria-label={label} aria-description={tab.pinned ? "固定标签" : undefined} aria-selected={index === group.active} title={location ? `${roots.find(root => root.id === location.rootId)?.name ?? location.rootId}/${location.node}` : label}
-          onDoubleClick={event => { event.preventDefault(); if (!tab.pinned && group.tabs.length > 1) onSelect(index, true); }}
-          onPointerDown={event => { if (event.button !== 0 || event.pointerType !== "mouse") return; event.preventDefault(); event.currentTarget.focus({ preventScroll: true }); clearTimeout(timer.current); suppressClick.current = false; pointer.current = { id: tab.tabId, x: event.clientX, y: event.clientY, moved: false }; event.currentTarget.setPointerCapture(event.pointerId); }}
+          onDoubleClick={event => { event.preventDefault(); if (tab.pinned || group.tabs.length > 1) requestClose(tab.tabId, "single"); }}
+          onPointerDown={event => { if (event.button === 2) { event.preventDefault(); return; } if (event.button !== 0 || event.pointerType !== "mouse") return; event.preventDefault(); event.currentTarget.focus({ preventScroll: true }); clearTimeout(timer.current); suppressClick.current = false; pointer.current = { id: tab.tabId, x: event.clientX, y: event.clientY, moved: false }; event.currentTarget.setPointerCapture(event.pointerId); }}
           onPointerMove={event => {
             const current = pointer.current;
             if (!current || current.id !== tab.tabId || !(event.buttons & 1)) return;
@@ -33,7 +43,7 @@ export function FileBrowserTabs({ group, roots, side, onSelect, onAdd, onAction,
           }}
           onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); const current = pointer.current; if (current?.moved && current.lastTarget) onReorder(current.id, current.lastTarget); pointer.current = null; setDropTarget(null); timer.current = setTimeout(() => { suppressClick.current = false; }, 0); }}
           onPointerCancel={() => { setDropTarget(null); pointer.current = null; suppressClick.current = false; }}
-          onContextMenu={event => { event.preventDefault(); event.stopPropagation(); setMenu({ id: tab.tabId, title: label, x: event.clientX, y: event.clientY, trigger: event.currentTarget }); }}
+          onContextMenu={event => { event.preventDefault(); event.stopPropagation(); const selection = window.getSelection(); if (selection?.anchorNode && event.currentTarget.contains(selection.anchorNode)) selection.removeAllRanges(); setMenu({ id: tab.tabId, title: label, x: event.clientX, y: event.clientY, trigger: event.currentTarget }); }}
           onKeyDown={event => {
             if (event.altKey && ["ArrowLeft", "ArrowRight"].includes(event.key)) { event.preventDefault(); event.stopPropagation(); onAction(tab.tabId, event.key === "ArrowLeft" ? "left" : "next"); return; }
             if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -44,13 +54,14 @@ export function FileBrowserTabs({ group, roots, side, onSelect, onAdd, onAction,
     })}
     <button type="button" aria-label="新建目录标签" title="新建目录标签" disabled={group.tabs.length >= MAX_BROWSER_TABS} onClick={onAdd}>＋</button>
     <button type="button" aria-label="恢复关闭的目录标签" title="恢复最近关闭的目录标签" disabled={!group.closed?.length || group.tabs.length >= MAX_BROWSER_TABS} onClick={() => onAction(group.tabs[group.active].tabId, "restore")}>↶</button>
+    {closing && <WorkspaceDialog title="关闭固定目录标签" onClose={() => setClosing(null)}><div className="file-browser-root-manager"><p>本次关闭包含固定目录标签。是否仍要关闭？不会删除文件或撤销目录授权，之后可恢复最近关闭的标签。</p><button type="button" onClick={() => setClosing(null)}>取消</button><button type="button" onClick={() => requestClose(closing.id, closing.type, true)}>确认关闭</button></div></WorkspaceDialog>}
     {menu && tab && <NotesContextMenu label="目录标签菜单" target={menu} close={() => setMenu(null)} actions={[
       { label: tab.pinned ? "取消固定标签" : "固定标签", run: () => onAction(tab.tabId, "pin") },
       { label: "向左移动标签", disabled: index === 0, run: () => onAction(tab.tabId, "left") },
       { label: "向右移动标签", disabled: index === group.tabs.length - 1, run: () => onAction(tab.tabId, "next") },
-      { label: "关闭标签", disabled: tab.pinned || group.tabs.length === 1, run: () => onSelect(index, true) },
-      { label: "关闭其它标签", disabled: !group.tabs.some(other => other !== tab && !other.pinned), run: () => onAction(tab.tabId, "others") },
-      { label: "关闭右侧标签", disabled: !group.tabs.slice(index + 1).some(other => !other.pinned), run: () => onAction(tab.tabId, "right") },
+      { label: "关闭标签", disabled: !tab.pinned && group.tabs.length === 1, run: () => requestClose(tab.tabId, "single") },
+      { label: "关闭其它标签", disabled: group.tabs.length <= 1, run: () => requestClose(tab.tabId, "others") },
+      { label: "关闭右侧标签", disabled: index === group.tabs.length - 1, run: () => requestClose(tab.tabId, "right") },
       { label: "恢复关闭的标签", disabled: !group.closed?.length || group.tabs.length >= MAX_BROWSER_TABS, run: () => onAction(tab.tabId, "restore") },
     ]} />}
   </div>;

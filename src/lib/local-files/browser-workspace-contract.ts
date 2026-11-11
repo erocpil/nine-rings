@@ -19,6 +19,7 @@ export interface BrowserWorkspaceHost {
   assertActive(): void;
   roots(): Promise<FileRoot[]>;
   choose(): Promise<FileRoot | null>;
+  revokeRoot?(rootId: string): Promise<void>;
   addFiles(files: readonly File[]): FileRoot | null;
   displayPath(rootId: string, node: string): Promise<string>;
   readonly externalOpen?: { open(rootId: string, node: string, chooseApplication: boolean): Promise<boolean> };

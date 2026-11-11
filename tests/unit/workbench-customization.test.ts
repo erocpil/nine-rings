@@ -1,5 +1,8 @@
 import { expect, it } from "vitest";
 import {
+  revokeBrowserRoot,
+  selectBrowserTab,
+  modifyBrowserTabs,
   activateBrowserRow,
   activeBrowserPanes,
   addBrowserTab,
@@ -197,4 +200,80 @@ it("tool separators and capture modes round-trip without changing legacy launche
       directory: "/root",
     }),
   ).toBe('"/my tool" "a b" "$(echo x)" "a\\"b"');
+});
+
+it("grant revocation cleans stacked and closed histories by identity without blocking a parent's child path", () => {
+  let state = parseBrowserWorkspace(null);
+  state = updateBrowserRow(state, 0, 0, (pane) =>
+    navigateBrowserPane(
+      navigateBrowserPane(pane, "parent", "child"),
+      "child-grant",
+      "",
+    ),
+  );
+  state = addBrowserTab(state, 0);
+  state = updateBrowserRow(state, 0, 0, (pane) =>
+    navigateBrowserPane(pane, "child-grant", "deep"),
+  );
+  state = {
+    ...state,
+    groups: [
+      {
+        ...state.groups[0],
+        closed: state.groups[0].tabs.map((tab) => ({
+          ...tab,
+          tabId: `closed-${tab.tabId}`,
+        })),
+      },
+      state.groups[1],
+    ],
+  };
+  state = setBrowserRowCount(state, 0, 2);
+  state = updateBrowserRow(state, 0, 1, (pane) =>
+    navigateBrowserPane(pane, "child-grant", "more"),
+  );
+  const result = revokeBrowserRoot(state, "child-grant", "parent");
+  for (const group of browserSideRows(result, 0))
+    for (const tab of [...group.tabs, ...(group.closed ?? [])])
+      expect(tab.history.every((entry) => entry.rootId !== "child-grant")).toBe(
+        true,
+      );
+  expect(result.groups[0].tabs[0].history).toContainEqual(
+    expect.objectContaining({ rootId: "parent", node: "child" }),
+  );
+  expect(result.groups[0].closed).toHaveLength(1);
+  expect(result.groups[0].closed?.[0].history).toEqual([
+    expect.objectContaining({ rootId: "parent", node: "child" }),
+  ]);
+  const final = revokeBrowserRoot(result, "parent");
+  expect(
+    browserSideRows(final, 0).every((group) =>
+      group.tabs.every((tab) => !tab.history.length && tab.index === -1),
+    ),
+  ).toBe(true);
+});
+it("confirmed pinned closure handles the final tab and bulk closures without weakening default protection", () => {
+  let state = updateBrowserTabForTest();
+  function updateBrowserTabForTest() {
+    return updateBrowserRow(parseBrowserWorkspace(null), 0, 0, (pane) =>
+      navigateBrowserPane(pane, "r", "dir"),
+    );
+  }
+  const id = state.groups[0].tabs[0].tabId;
+  state = modifyBrowserTabs(state, 0, id, "pin");
+  expect(selectBrowserTab(state, 0, 0, true)).toBe(state);
+  const closed = selectBrowserTab(state, 0, 0, true, true);
+  expect(closed.groups[0].tabs).toHaveLength(1);
+  expect(browserLocation(closed.groups[0].tabs[0])).toBeUndefined();
+  expect(closed.groups[0].closed?.[0].tabId).toBe(id);
+  state = addBrowserTab(state, 0);
+  const other = state.groups[0].tabs[1].tabId;
+  expect(
+    modifyBrowserTabs(state, 0, other, "others").groups[0].tabs,
+  ).toHaveLength(2);
+  expect(
+    modifyBrowserTabs(state, 0, other, "others", true).groups[0].tabs.map(
+      (tab) => tab.tabId,
+    ),
+  ).toEqual([other]);
 });
