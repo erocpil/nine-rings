@@ -26,6 +26,7 @@ import "./workbench.css";
 const SourceView = lazy(() => import("./SourceView").then(module => ({ default: module.WorkbenchSourceView })));
 // A single host lifetime survives React renders; no builtin app bootstrap runs.
 let nativeClose: ((confirm: () => void) => void) | null = null;
+let nativeHint: ((message: string) => void) | null = null;
 let nativeError: ((cause: unknown) => void) | null = null;
 let nativeViewMenuAvailable = false;
 let removeNativeViewMenu: (() => void) | undefined;
@@ -72,6 +73,8 @@ function Workbench() {
     return () => cancelAnimationFrame(frame);
   }, [file]);
   const closeSource = useRef<WorkbenchCloseRequest | null>(null);
+  const [quitHint, setQuitHint] = useState("");
+  nativeHint = setQuitHint;
   const [nativeNotice, setNativeNotice] = useState("");
   nativeError = cause => setNativeNotice(`桌面窗口操作失败：${String(cause)}`);
   nativeClose = confirm => {
@@ -113,6 +116,7 @@ function Workbench() {
   }}>
     {!nativeViewMenuAvailable && <nav className="workbench-menu-bar" aria-label="应用菜单"><WorkbenchViewMenu menu={host.viewMenu} /></nav>}
     {file && <div className="file-workbench-view-tools" role="toolbar" aria-label="工作台工具">{tools}</div>}
+    {quitHint && <div className="quit-confirmation-hint" role="status" aria-live="polite">{quitHint}</div>}
     {execution.element}
     <div className="file-workbench-content"><FileBrowserWorkspace workspace={host.workspace} active={!file} toolbarExtras={tools} onToolContext={setToolContext} />
     {file && (image ? <FileBrowserQuickPreview rootId={file.rootId} node={file.node.id} provider={host.workspace.provider} active autoFocus navigationAxis="horizontal" previous={previous} next={next} onNavigate={file.siblings ? stepPreview : undefined} revision={0} closeLabel="返回文件浏览" onClose={closeFile} /> : <Suspense fallback={<p role="status">正在加载共享源码工作区…</p>}><SourceView key={`${file.rootId}:${file.node.id}`} file={file} host={host.source} onNavigate={file.siblings ? stepPreview : undefined} previous={previous} next={next} onClose={closeFile} closeRequest={closeSource} /></Suspense>)}</div>
@@ -123,7 +127,7 @@ function Workbench() {
 async function bootstrap() {
   if (isTauriRuntime()) {
     try {
-      removeNativeClose = await installWorkbenchClose(confirm => nativeClose ? nativeClose(confirm) : confirm(), cause => nativeError ? nativeError(cause) : console.error(cause));
+      removeNativeClose = await installWorkbenchClose(confirm => nativeClose ? nativeClose(confirm) : confirm(), cause => nativeError ? nativeError(cause) : console.error(cause), undefined, message => nativeHint?.(message));
     } catch (cause) {
       // Do not mount an editable UI if the native close barrier is unavailable.
       document.getElementById("root")!.textContent = `无法建立桌面关闭保护：${String(cause)}`;

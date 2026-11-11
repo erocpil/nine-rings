@@ -3,6 +3,16 @@
 
 
 
+## 2026-11-11：File Workbench 关闭到托盘与连续退出确认
+
+独立宿主接入托盘显示/退出及左键召回，macOS Dock Reopen也召回；标题栏关闭只隐藏，保留编辑实例、草稿和运行任务。全屏关闭先退出全屏，非全屏尺寸事件消费一次隐藏请求，召回时取消尚未消费的请求。系统Quit替换为确认事件，前端复用createQuitConfirmation的两秒窗口；失焦、超时及卸载清理提示。托盘退出仍直接进入原离开门禁，只有源文件保存/放弃/草稿决定和目录任务检查通过后才调用workbench_confirm_close，原生ToolJobs.active再次拦截。
+
+影响分析核对原生CloseRequested/ExitRequested/单实例/Reopen、View菜单默认Quit替换、所有installWorkbenchClose和workbench_confirm_close引用、SourceView.pendingClose/checkpoint以及host.operations.assertIdle。未修改Nine Rings宿主或文档存储；新增可选listenQuit端口兼容原测试替身。先注册两类监听再ready，任一失败移除监听且不开放编辑；卸载拒绝迟到请求。
+
+验证：完整npm run check通过，244文件/2626项；独立Rust测试7项通过；ARM64 File Workbench.app完整构建通过。新增单测覆盖双按、超时、失焦、取消后重试、双监听卸载和注册失败；浏览器替身覆盖真实入口握手、上方提示和确认后退出命令。首轮Chromium为22通过/2失败（预览后键盘目标、大量删除5秒内未完成），对应两项与新退出用例独立复测3项全部通过；生产WebKit24项全部通过（28.9s）。原生系统托盘点击、全屏动画及Command+Q仍需实际安装包人工验收，浏览器替身不验证系统菜单投递。最终完整Chromium复跑24项全部通过（31.7s），首轮两项保留为间歇失败记录，不据此声称已修复其竞态。结论SAFE（已验证的退出门禁、监听生命周期与前端交互）；UNCERTAIN（真实系统托盘、全屏过渡和键盘菜单投递，待人工验收）。
+
+日志：/tmp/nr-workbench-tray-check.log、/tmp/nr-workbench-tray-rust.log、/tmp/nr-workbench-tray-build.log、/tmp/nr-workbench-tray-e2e.log、/tmp/nr-workbench-tray-retest.log、/tmp/nr-workbench-tray-webkit.log、/tmp/nr-workbench-tray-final.log。
+
 ## 2026-11-11：专注模式取消活动栏占位
 
 活动栏始终以绝对定位浮在专注正文上方，修复悬浮布局的更高优先级 relative 规则留下44px占位的问题。NINE RINGS 标识唤出活动栏，原悬停控制器负责面板预览和点击固定；固定时补足面板、44px活动栏及4px边界占位。进入专注保存普通布局并收起，退出恢复；不修改正常并排/悬浮偏好、文档内容或阅读位置。右侧布局镜像处理，移动端继续原抽屉。

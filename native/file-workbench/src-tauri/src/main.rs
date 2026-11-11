@@ -51,6 +51,14 @@ fn workbench_set_view_menu(
         .set_checked(show_hidden)
         .map_err(|e| e.to_string())
 }
+fn show_workbench(app: &tauri::AppHandle) {
+    app.state::<ClosePolicy>().take_deferred_hide();
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
@@ -65,16 +73,70 @@ fn main() {
         .manage(tools::ToolJobs::default())
         .setup(|app| {
             view_menu::install(app)?;
+            let show = tauri::menu::MenuItem::with_id(
+                app,
+                "workbench.show",
+                "显示 File Workbench",
+                true,
+                None::<&str>,
+            )?;
+            let quit =
+                tauri::menu::MenuItem::with_id(app, "workbench.quit", "退出", true, None::<&str>)?;
+            let menu = tauri::menu::Menu::with_items(app, &[&show, &quit])?;
+            let mut tray = tauri::tray::TrayIconBuilder::with_id("workbench")
+                .tooltip("File Workbench")
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "workbench.show" => show_workbench(app),
+                    "workbench.quit" => {
+                        show_workbench(app);
+                        let _ = app.emit_to("main", "workbench:request-close", ());
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if matches!(
+                        event,
+                        tauri::tray::TrayIconEvent::Click {
+                            button: tauri::tray::MouseButton::Left,
+                            button_state: tauri::tray::MouseButtonState::Up,
+                            ..
+                        }
+                    ) {
+                        show_workbench(tray.app_handle());
+                    }
+                });
+            if let Some(icon) = app.default_window_icon() {
+                tray = tray.icon(icon.clone());
+            }
+            tray.build(app)?;
             let directory = app.path().app_data_dir()?;
             std::fs::create_dir_all(&directory)?;
             app.manage(local_files::LocalFiles::load(&directory));
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() == "main"
+                && matches!(event, tauri::WindowEvent::Resized(_))
+                && !window.is_fullscreen().unwrap_or(true)
+                && window.state::<ClosePolicy>().take_deferred_hide()
+            {
+                let _ = window.hide();
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" && window.state::<ClosePolicy>().intercept() {
+                if window.label() == "main" {
                     api.prevent_close();
-                    let _ = window.emit("workbench:request-close", ());
+                    // Hiding retains editors, drafts and running jobs. Only confirmed quit destroys them.
+                    if window.is_fullscreen().unwrap_or(false) {
+                        window.state::<ClosePolicy>().defer_hide();
+                        if window.set_fullscreen(false).is_err() {
+                            window.state::<ClosePolicy>().take_deferred_hide();
+                            let _ = window.hide();
+                        }
+                    } else {
+                        let _ = window.hide();
+                    }
                 }
             }
         })
@@ -106,10 +168,14 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("failed to build File Workbench")
         .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                show_workbench(app);
+            }
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
                 if app.state::<ClosePolicy>().intercept() {
                     api.prevent_exit();
-                    let _ = app.emit_to("main", "workbench:request-close", ());
+                    let _ = app.emit_to("main", "workbench:confirm-quit", ());
                 }
             }
         });

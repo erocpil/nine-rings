@@ -14,6 +14,44 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { if (directory) await rm(directory, { recursive: true, force: true }); });
 
+test("原生退出先提示再确认，菜单监听在 ready 前完成且托盘退出仍走离开门禁", async ({ page }) => {
+  await page.addInitScript(() => {
+    let next = 1;
+    const callbacks = new Map<number, (event: unknown) => void>();
+    const handlers: Record<string, number> = {};
+    Object.assign(window, { workbenchQuitCalls: [] });
+    (window as any).workbenchEmit = (event: string) => callbacks.get(handlers[event])?.({ event, id: 1, payload: null });
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback(callback: (event: unknown) => void) { const id = next++; callbacks.set(id, callback); return id; },
+      unregisterCallback(id: number) { callbacks.delete(id); },
+      async invoke(command: string, args: any) {
+        if (command === "plugin:event|listen") { handlers[args.event] = args.handler; return next++; }
+        if (command === "workbench_ready") {
+          if (!handlers["workbench:request-close"] || !handlers["workbench:confirm-quit"]) throw new Error("quit listeners not ready");
+          return;
+        }
+        if (command === "workbench_confirm_close") { (window as any).workbenchQuitCalls.push("quit"); return; }
+        if (["plugin:event|unlisten", "workbench_set_view_menu"].includes(command)) return;
+        if (command === "local_files_roots") return [];
+        throw new Error(command);
+      },
+    };
+  });
+  await page.goto("/file-workbench.html");
+  await expect(page.getByRole("button", { name: "添加工具", exact: true })).toBeVisible();
+  const press = (event = "workbench:confirm-quit") => page.evaluate(event => (window as any).workbenchEmit(event), event);
+  await press();
+  const hint = page.locator(".quit-confirmation-hint");
+  await expect(hint).toHaveText("再次按下 ⌘Q 退出（2 秒内）");
+  expect((await hint.boundingBox())!.y).toBeLessThan(140);
+  expect(await page.evaluate(() => (window as any).workbenchQuitCalls)).toEqual([]);
+  await press();
+  await expect.poll(() => page.evaluate(() => (window as any).workbenchQuitCalls)).toEqual(["quit"]);
+  await expect(hint).toHaveCount(0);
+  await press("workbench:request-close");
+  await expect.poll(() => page.evaluate(() => (window as any).workbenchQuitCalls)).toEqual(["quit", "quit"]);
+});
+
 test("不依赖文件参数的桌面工具无需先选择目录", async ({ page }) => {
   await page.addInitScript(() => {
     let id = 1;

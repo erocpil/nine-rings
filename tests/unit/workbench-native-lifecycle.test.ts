@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import {
   installWorkbenchClose,
   type WorkbenchCloseTransport,
@@ -78,4 +78,68 @@ it("native copy success, cancellation and failure do not fall back to browser do
       throw new Error("disk full");
     }),
   ).rejects.toThrow("disk full");
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+it("quit needs two presses, expiry and blur reset it; disposal removes both listeners", async () => {
+  vi.useFakeTimers();
+  const events = new EventTarget();
+  vi.stubGlobal("window", events);
+  const f = fixture(),
+    hint = vi.fn();
+  let quit = () => {};
+  const offQuit = vi.fn();
+  f.transport.listenQuit = vi.fn(async (callback) => {
+    quit = callback;
+    return offQuit;
+  });
+  const dispose = await installWorkbenchClose(
+    f.request,
+    f.error,
+    f.transport,
+    hint,
+  );
+  quit();
+  expect(hint).toHaveBeenLastCalledWith("再次按下 ⌘Q 退出（2 秒内）");
+  expect(f.request).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(hint).toHaveBeenLastCalledWith("");
+  quit();
+  expect(f.request).not.toHaveBeenCalled();
+  events.dispatchEvent(new Event("blur"));
+  quit();
+  expect(f.request).not.toHaveBeenCalled();
+  quit();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(f.request).toHaveBeenCalledOnce();
+  expect(f.transport.confirm).not.toHaveBeenCalled();
+  // Cancellation leaves native exit unauthorized. A new pair can retry.
+  quit();
+  quit();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(f.request).toHaveBeenCalledTimes(2);
+  f.request.mock.calls[1][0]();
+  expect(f.transport.confirm).toHaveBeenCalledOnce();
+  dispose();
+  quit();
+  f.event();
+  expect(offQuit).toHaveBeenCalledOnce();
+  expect(f.unlisten).toHaveBeenCalledOnce();
+  expect(f.request).toHaveBeenCalledTimes(2);
+});
+it("a failed quit subscription never signals native ready and removes close listener", async () => {
+  const f = fixture();
+  f.transport.listenQuit = vi.fn(async () => {
+    throw new Error("listener failed");
+  });
+  await expect(
+    installWorkbenchClose(f.request, f.error, f.transport),
+  ).rejects.toThrow("listener failed");
+  expect(f.transport.ready).not.toHaveBeenCalled();
+  expect(f.unlisten).toHaveBeenCalledOnce();
+  f.event();
+  expect(f.request).not.toHaveBeenCalled();
 });

@@ -10,7 +10,7 @@ tauri-codegen = "=2.6.3"
 
 [dependencies]
 serde_json = "1"
-tauri = { version = "~2.11", features = [] }
+tauri = { version = "~2.11", features = ["tray-icon"] }
 tauri-plugin-dialog = "~2.7"
 tauri-plugin-single-instance = "2"
 nine-rings-file-host = { path = "../../file-host" }
