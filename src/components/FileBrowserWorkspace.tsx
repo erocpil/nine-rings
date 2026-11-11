@@ -177,6 +177,10 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose, t
     finally { if (!controller.signal.aborted) setOpening(false); }
   };
   return <section ref={host} className={`dual-file-browser${compact ? " file-browser-compact" : ""}`} aria-label="双栏文件浏览" data-active-pane={state.active} hidden={!active} {...(!active ? { inert: "", "aria-hidden": true } : {})} onKeyDownCapture={event => {
+    if (active && !event.nativeEvent.isComposing && event.altKey && !event.ctrlKey && !event.metaKey && event.key === "Home" && event.target instanceof HTMLElement && event.target.matches(".file-browser-list")) {
+      event.preventDefault(); event.stopPropagation();
+      setState(current => modifyBrowserTabs(current, current.active, current.groups[current.active].tabs[current.groups[current.active].active].tabId, "home")); return;
+    }
     if (!active || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey || !(event.target instanceof HTMLElement)) return;
     if (quickPreview && event.key === "Escape" && event.target.matches(".file-browser-list")) {
       event.preventDefault(); event.stopPropagation(); closePreview(); return;

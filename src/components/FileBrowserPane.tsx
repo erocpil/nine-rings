@@ -1,3 +1,4 @@
+import { browserTabAllows, type BrowserWorkspaceTab } from "../lib/local-files/browser-tabs";
 import { useCallback, useEffect, useLayoutEffect, useId, useImperativeHandle, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode, type CSSProperties, type DragEvent, type Ref } from "react";
 import { browserLocation, moveBrowserHistory, navigateBrowserPane, selectBrowserItems, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
 import { fileSegments, type FileNode, type FileRoot, type LocalFileFingerprint } from "../lib/local-files/file-model";
@@ -148,8 +149,12 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     const timer = window.setTimeout(() => setTypeahead({ query: "", at: 0 }), 950);
     return () => clearTimeout(timer);
   }, [typeahead]);
+  const navigateChange = (update: (pane: BrowserPaneState) => BrowserPaneState) => {
+    if (!browserTabAllows(pane as BrowserWorkspaceTab, browserLocation(update(pane)))) { showMessage("此标签限制在固定目录内；可新建标签或关闭该限制后浏览其它位置。", "error"); return; }
+    setQuery(""); onChange(update);
+  };
   const navigate = (path: string) => {
-    try { fileSegments(path); onChange(current => navigateBrowserPane(current, rootId, path)); setQuery(""); }
+    try { fileSegments(path); navigateChange(current => navigateBrowserPane(current, rootId, path)); }
     catch (reason) { setError(String(reason)); }
   };
   useEffect(() => { try { workspace.settings.setItem(`nr:file-browser-columns:${side}`, JSON.stringify(columns)); } catch { showMessage("无法保存列宽，本次仍可调整", "error"); } }, [columns, side, showMessage, workspace]);
@@ -304,7 +309,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
       <button type="button" className="btn-icon" aria-label="后退目录" title="后退目录" disabled={pane.index <= 0} onClick={() => { setQuery(""); onChange(current => moveBrowserHistory(current, -1)); }}><ToolbarIcon name="chevronLeft" /></button>
       <button type="button" className="btn-icon" aria-label="前进目录" title="前进目录" disabled={pane.index >= pane.history.length - 1} onClick={() => { setQuery(""); onChange(current => moveBrowserHistory(current, 1)); }}><ToolbarIcon name="chevronRight" /></button>
       <button type="button" className="btn-icon" aria-label="上级目录" title="上级目录" disabled={!node} onClick={() => navigate(pieces.slice(0, -1).join("/"))}><span aria-hidden="true">↑</span></button>
-      <select aria-label="选择授权目录" value={rootId} onChange={event => { setQuery(""); onChange(current => navigateBrowserPane(current, event.target.value, "")); }}>
+      <select aria-label="选择授权目录" value={rootId} onChange={event => { const id = event.target.value; navigateChange(current => navigateBrowserPane(current, id, "")); }}>
         {!rootId && <option value="">选择目录</option>}
         {rootId && !root && <option value={rootId}>目录授权待恢复</option>}
         {roots.map(item => <option key={item.id} value={item.id}>{item.name}{item.transient ? "（本次授权）" : ""}</option>)}
@@ -313,7 +318,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
       <button type="button" className="btn-icon" aria-label="刷新目录" title="刷新目录" onClick={() => { onRefreshRoots(); setRefresh(value => value + 1); }}><ToolbarIcon name="refresh" /></button>{rowControl}
     </header>
     {!compact && breadcrumbs}
-    <FileBrowserLocations breadcrumbs={compact ? breadcrumbs : undefined} filter={compact ? { value: query, onChange: value => { setQuery(value); setScroll(0); onChange(current => updateBrowserLocation(current, { scrollTop: 0, selected: [] })); } } : undefined} pane={pane} roots={roots} visible={visible} provider={provider} onError={setError} onNavigate={(id, path) => { setQuery(""); onChange(current => navigateBrowserPane(current, id, path)); }} onHistory={index => { setQuery(""); onChange(current => ({ ...current, index })); }} />
+    <FileBrowserLocations breadcrumbs={compact ? breadcrumbs : undefined} filter={compact ? { value: query, onChange: value => { setQuery(value); setScroll(0); onChange(current => updateBrowserLocation(current, { scrollTop: 0, selected: [] })); } } : undefined} pane={pane} roots={roots} visible={visible} provider={provider} onError={setError} onNavigate={(id, path) => { navigateChange(current => navigateBrowserPane(current, id, path)); }} onHistory={index => { navigateChange(current => ({ ...current, index })); }} />
     {!compact && <div className="file-browser-options">
       {!compact && <input type="search" aria-label="过滤文件名称" placeholder="过滤名称" value={query} onKeyDown={event => { if (event.key === "Escape" && query) { event.preventDefault(); event.stopPropagation(); setQuery(""); } }} onChange={event => { setQuery(event.target.value); setScroll(0); onChange(current => updateBrowserLocation(current, { scrollTop: 0, selected: [] })); }} />}
       <select aria-label="文件排序" title="大小/时间在完整目录中排序，会读取文件属性" value={pane.sort} onChange={event => { const sort = event.target.value as BrowserPaneState["sort"]; onChange(current => ({ ...updateBrowserLocation(current, { scrollTop: 0 }), sort })); }}><option value="name">名称 ↑</option><option value="name-desc">名称 ↓</option><option value="type">类型</option><option value="size">大小 ↑</option><option value="size-desc">大小 ↓</option><option value="modified">修改时间 ↑</option><option value="modified-desc">修改时间 ↓</option></select>

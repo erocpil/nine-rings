@@ -5,7 +5,7 @@ export interface NotesMenuTarget { id: string; title: string; x: number; y: numb
 export function NotesContextMenu({ target, close, actions, label = "随记菜单", ignoreTrigger = false }: {
   target: NotesMenuTarget;
   close: () => void;
-  actions: { label: string; run: () => void; disabled?: boolean }[];
+  actions: { label: string; run: () => void; disabled?: boolean; checked?: boolean }[];
   label?: string;
   ignoreTrigger?: boolean;
 }) {
@@ -45,6 +45,6 @@ export function NotesContextMenu({ target, close, actions, label = "随记菜单
         buttons[next]?.focus();
       }
     }}>
-    {actions.map(action => <button key={action.label} type="button" role="menuitem" className="doc-context-item" disabled={action.disabled} onClick={() => { close(); action.run(); }}>{action.label}</button>)}
+    {actions.map(action => <button key={action.label} type="button" role={action.checked === undefined ? "menuitem" : "menuitemcheckbox"} aria-checked={action.checked} className="doc-context-item" disabled={action.disabled} onClick={() => { close(); action.run(); }}>{action.checked !== undefined && <span aria-hidden="true">{action.checked ? "✓ " : "　"}</span>}{action.label}</button>)}
   </div>, document.body);
 }

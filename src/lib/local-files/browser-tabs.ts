@@ -1,7 +1,24 @@
+import { fileSegments } from "./file-model";
 import { browserLocation, emptyBrowserState, navigateBrowserPane, parseBrowserState, reconcileBrowserPaneMutation, type BrowserPaneState } from "./browser-state";
 import type { BrowserMutation } from "./browser-operation-contract";
 
-export interface BrowserWorkspaceTab extends BrowserPaneState { tabId: string; pinned?: boolean }
+export interface BrowserWorkspaceTab extends BrowserPaneState { tabId: string; pinned?: boolean; anchor?: BrowserTabAnchor; restrictToAnchor?: boolean; returnToAnchor?: boolean }
+export interface BrowserTabAnchor { rootId: string; node: string; label: string; missing?: boolean }
+export type BrowserTabAction = "pin" | "others" | "right" | "restore" | "left" | "next" | "home" | "limit" | "auto-home";
+export function browserTabAnchor(tab: BrowserWorkspaceTab): BrowserTabAnchor | undefined {
+  const at = browserLocation(tab);
+  return tab.anchor ?? (tab.pinned && at ? { rootId: at.rootId, node: at.node, label: at.node.split("/").pop() ?? "" } : undefined);
+}
+export function browserTabAllows(tab: BrowserWorkspaceTab, location: { rootId: string; node: string } | undefined) {
+  const anchor = browserTabAnchor(tab);
+  return !tab.pinned || !tab.restrictToAnchor || !anchor || anchor.missing || !location || (location.rootId === anchor.rootId && (!anchor.node || location.node === anchor.node || location.node.startsWith(anchor.node + "/")));
+}
+function parseAnchor(tab: BrowserWorkspaceTab, saved: BrowserWorkspaceTab): BrowserWorkspaceTab {
+  if (!saved.pinned) return tab;
+  let anchor: BrowserTabAnchor | undefined;
+  try { const value = saved.anchor; if (value && typeof value.rootId === "string" && value.rootId.length > 0 && value.rootId.length <= 4096 && typeof value.node === "string" && typeof value.label === "string" && value.label.length <= 256) { fileSegments(value.node); anchor = { rootId: value.rootId, node: value.node, label: value.label, missing: value.missing === true }; } } catch { /* Fall back to the valid current location, not untrusted metadata. */ }
+  return { ...tab, pinned: true, anchor: anchor ?? browserTabAnchor({ ...tab, pinned: true }), restrictToAnchor: saved.restrictToAnchor === true, returnToAnchor: saved.returnToAnchor === true };
+}
 export interface BrowserTabGroup { tabs: BrowserWorkspaceTab[]; active: number; closed?: BrowserWorkspaceTab[] }
 const tabId = () => crypto.randomUUID();
 export interface BrowserWorkspaceState { version: 2; groups: [BrowserTabGroup, BrowserTabGroup]; active: 0 | 1; ratio: number; extraGroups?: [BrowserTabGroup[], BrowserTabGroup[]]; activeRows?: [number, number]; visibleRows?: [number, number] }
@@ -21,7 +38,7 @@ export function parseBrowserWorkspace(raw: string | null): BrowserWorkspaceState
       const seen = new Set<string>();
       const tabs = group.tabs.map(tab => {
         const id = typeof tab.tabId === "string" && tab.tabId.length <= 80 && tab.tabId && !seen.has(tab.tabId) ? tab.tabId : tabId(); seen.add(id);
-        return { ...parseBrowserState(JSON.stringify({ panes: [tab] })).panes[0], tabId: id, pinned: tab.pinned === true };
+        return parseAnchor({ ...parseBrowserState(JSON.stringify({ panes: [tab] })).panes[0], tabId: id }, tab);
       });
       const closed = (Array.isArray(group.closed) ? group.closed.slice(-16) : []).map(tab => ({ ...parseBrowserState(JSON.stringify({ panes: [tab] })).panes[0], tabId: tabId() })).filter(tab => browserLocation(tab));
       return { tabs, closed, active: Number.isInteger(group.active) ? Math.max(0, Math.min(tabs.length - 1, group.active)) : 0 };
@@ -39,7 +56,7 @@ export function parseBrowserWorkspace(raw: string | null): BrowserWorkspaceState
 export function updateBrowserTab(state: BrowserWorkspaceState, side: 0 | 1, update: (pane: BrowserPaneState) => BrowserPaneState): BrowserWorkspaceState {
   const groups = [...state.groups] as BrowserWorkspaceState["groups"];
   const group = groups[side];
-  groups[side] = { ...group, tabs: group.tabs.map((tab, index) => index === group.active ? { ...update(tab), tabId: tab.tabId, pinned: tab.pinned } : tab) };
+  groups[side] = { ...group, tabs: group.tabs.map((tab, index) => index === group.active ? (() => { const next = update(tab); return browserTabAllows(tab, browserLocation(next)) ? { ...tab, ...next, tabId: tab.tabId, pinned: tab.pinned, anchor: tab.anchor, restrictToAnchor: tab.restrictToAnchor, returnToAnchor: tab.returnToAnchor } : tab; })() : tab) };
   return { ...state, groups };
 }
 export function addBrowserTab(state: BrowserWorkspaceState, side: 0 | 1): BrowserWorkspaceState {
@@ -57,35 +74,50 @@ export function selectBrowserTab(state: BrowserWorkspaceState, side: 0 | 1, inde
   if (!Number.isInteger(index) || !group.tabs[index] || (close && !confirmedPinned && (group.tabs.length === 1 || group.tabs[index].pinned))) return state;
   const groups = [...state.groups] as BrowserWorkspaceState["groups"];
   const remaining = close ? group.tabs.filter((_, at) => at !== index) : group.tabs;
-  const tabs = remaining.length ? remaining : [{ ...emptyBrowserState().panes[0], tabId: tabId() }];
+  let tabs = remaining.length ? remaining : [{ ...emptyBrowserState().panes[0], tabId: tabId() }];
   const active = close ? Math.min(tabs.length - 1, group.active - (index < group.active ? 1 : 0)) : index;
+  if (!close && index !== group.active) {
+    const target = tabs[index], anchor = browserTabAnchor(target);
+    if (target.pinned && target.returnToAnchor && anchor && !anchor.missing) tabs = tabs.map((tab, at) => at === index ? { ...tab, ...navigateBrowserPane(tab, anchor.rootId, anchor.node) } : tab);
+  }
   groups[side] = { ...group, tabs, active, ...(close ? { closed: [...(group.closed ?? []), group.tabs[index]].slice(-16) } : {}) };
   return { ...state, active: side, groups };
 }
 export function reconcileBrowserTabs(state: BrowserWorkspaceState, change: BrowserMutation): BrowserWorkspaceState {
   if (change.kind === "refresh") return state;
-  const reconcile = (tab: BrowserWorkspaceTab) => ({ ...tab, ...reconcileBrowserPaneMutation(tab, change) });
+  const reconcile = (tab: BrowserWorkspaceTab): BrowserWorkspaceTab => {
+    const anchor = browserTabAnchor(tab);
+    const mapped = anchor && !anchor.missing ? reconcileBrowserPaneMutation({ ...emptyBrowserState().panes[0], history: [{ ...anchor, selected: [], scrollTop: 0 }], index: 0 }, change).history[0] : null;
+    return { ...tab, ...reconcileBrowserPaneMutation(tab, change), ...(anchor ? { anchor: mapped ? { ...anchor, rootId: mapped.rootId, node: mapped.node } : { ...anchor, missing: true } } : {}) };
+  };
   const apply = (group: BrowserTabGroup) => ({ ...group, tabs: group.tabs.map(reconcile), closed: group.closed?.map(reconcile).filter(tab => browserLocation(tab)) });
   return { ...state, groups: state.groups.map(apply) as BrowserWorkspaceState["groups"], ...(state.extraGroups ? { extraGroups: state.extraGroups.map(groups => groups.map(apply)) as [BrowserTabGroup[], BrowserTabGroup[]] } : {}) };
 }
 
 /** All advanced tab actions address stable IDs, never a stale context-menu index. */
-export function modifyBrowserTabs(state: BrowserWorkspaceState, side: 0 | 1, id: string, action: "pin" | "others" | "right" | "restore" | "left" | "next", confirmedPinned = false): BrowserWorkspaceState {
+export function modifyBrowserTabs(state: BrowserWorkspaceState, side: 0 | 1, id: string, action: BrowserTabAction, confirmedPinned = false): BrowserWorkspaceState {
   const group = state.groups[side], index = group.tabs.findIndex(tab => tab.tabId === id);
   if (index < 0) return state;
   let tabs = [...group.tabs], closed = [...(group.closed ?? [])];
   const activeId = tabs[group.active].tabId;
-  if (action === "pin") tabs[index] = { ...tabs[index], pinned: !tabs[index].pinned };
+  if (action === "pin") tabs[index] = { ...tabs[index], pinned: !tabs[index].pinned, anchor: tabs[index].pinned ? undefined : browserTabAnchor({ ...tabs[index], pinned: true }), restrictToAnchor: false, returnToAnchor: false };
+  else if (action === "home" || action === "limit" || action === "auto-home") {
+    const tab = tabs[index], anchor = browserTabAnchor(tab);
+    if (!tab.pinned || !anchor || anchor.missing) return state;
+    if (action === "home") tabs[index] = { ...tab, ...navigateBrowserPane(tab, anchor.rootId, anchor.node) };
+    if (action === "limit") tabs[index] = { ...tab, ...(tab.restrictToAnchor ? {} : navigateBrowserPane(tab, anchor.rootId, anchor.node)), restrictToAnchor: !tab.restrictToAnchor };
+    if (action === "auto-home") tabs[index] = { ...tab, returnToAnchor: !tab.returnToAnchor };
+  }
   else if (action === "restore") {
     if (!closed.length || tabs.length >= MAX_BROWSER_TABS) return state;
-    tabs.push({ ...closed.pop()!, tabId: tabId(), pinned: false });
+    tabs.push({ ...closed.pop()!, tabId: tabId(), pinned: false, anchor: undefined, restrictToAnchor: false, returnToAnchor: false });
   } else if (action === "left" || action === "next") return reorderBrowserTab(state, side, id, tabs[index + (action === "left" ? -1 : 1)]?.tabId);
   else {
     const removed = tabs.filter((tab, at) => (confirmedPinned || !tab.pinned) && at !== index && (action === "others" || at > index));
     closed = [...closed, ...removed].slice(-16);
     tabs = tabs.filter(tab => !removed.includes(tab));
   }
-  const active = action === "restore" ? tabs.length - 1 : Math.max(0, tabs.findIndex(tab => tab.tabId === activeId));
+  const active = action === "home" ? index : action === "restore" ? tabs.length - 1 : Math.max(0, tabs.findIndex(tab => tab.tabId === activeId));
   const groups = [...state.groups] as BrowserWorkspaceState["groups"];
   groups[side] = { tabs, closed, active: tabs.some(tab => tab.tabId === activeId) || action === "restore" ? active : tabs.findIndex(tab => tab.tabId === id) };
   return { ...state, groups, active: side };
@@ -138,7 +170,7 @@ export function setBrowserRowCount(state: BrowserWorkspaceState, side: 0 | 1, co
   const rows = browserSideRows(next, side);
   while (rows.length < count) {
     const current = rows[rows.length - 1].tabs[rows[rows.length - 1].active];
-    rows.push({ tabs: [{ ...current, history: current.history.map(entry => ({ ...entry, selected: [], scrollTop: 0 })), tabId: tabId(), pinned: false }], active: 0 });
+    rows.push({ tabs: [{ ...current, history: current.history.map(entry => ({ ...entry, selected: [], scrollTop: 0 })), tabId: tabId(), pinned: false, anchor: undefined, restrictToAnchor: false, returnToAnchor: false }], active: 0 });
   }
   const activeRow = Math.min(state.activeRows?.[side] ?? 0, count - 1);
   const groups = [...next.groups] as BrowserWorkspaceState["groups"], extraGroups = [...(next.extraGroups ?? [[], []])] as [BrowserTabGroup[], BrowserTabGroup[]], activeRows = [...(next.activeRows ?? [0, 0])] as [number, number], visibleRows = [...(next.visibleRows ?? [1, 1])] as [number, number];
@@ -152,7 +184,7 @@ export function revokeBrowserRoot(state: BrowserWorkspaceState, rootId: string, 
   const clean = (tab: BrowserWorkspaceTab): BrowserWorkspaceTab => {
     const history = tab.history.filter(entry => entry.rootId !== rootId);
     const before = tab.history.slice(0, tab.index).filter(entry => entry.rootId === rootId).length;
-    const next = { ...tab, history, index: Math.min(tab.index - before, history.length - 1) };
+    const next = { ...tab, ...(tab.anchor?.rootId === rootId ? { anchor: { ...tab.anchor, missing: true } } : {}), history, index: Math.min(tab.index - before, history.length - 1) };
     return history.length || !fallbackRootId ? next : { ...navigateBrowserPane(next, fallbackRootId, ""), tabId: tab.tabId, pinned: tab.pinned };
   };
   const apply = (group: BrowserTabGroup) => ({ ...group, tabs: group.tabs.map(clean), closed: group.closed?.filter(tab => tab.history.some(entry => entry.rootId !== rootId)).map(clean) });

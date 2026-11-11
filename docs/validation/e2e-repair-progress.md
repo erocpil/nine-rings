@@ -3,6 +3,16 @@
 
 
 
+## 2026-11-11：固定目录标签锚点
+
+标签新增可选锚点和两个独立开关。默认名称/基准路径固定、自由导航；偏离时显示标记及返回按钮，悬停列出固定/当前位置。右键提供返回、限制子树、切换自动返回；Alt+Home仅在列表聚焦时生效。再次点击活动标签不导航，双击仍走原关闭确认。启用子树限制时回到锚点，后续通过根选择、相对路径、历史及其它状态更新都经过中央身份/路径段校验，越界可新建标签或取消限制。没有新增磁盘访问能力。
+
+影响分析：核对所有updateBrowserTab/updateBrowserRow/modifyBrowserTabs/selectBrowserTab调用、比较结果/镜像/路径历史与停放目录区。中央更新保留锚点，新增/恢复未固定页清除旧锚点开关；parseBrowserWorkspace复用原路径解析器并验证可选元数据，旧固定页从当前路径迁移。reconcileBrowserTabs协调移动/改名和删除，撤销授权保留原身份并标记失效，不改成另一个根。NotesContextMenu只增加可选checked字段，所有旧调用角色/行为不变；新菜单为menuitemcheckbox，键盘导航仍使用按钮集合。
+
+验证：完整npm run check通过，244文件/2624项，新增5项锚点单位测试覆盖序列化、限制边界、开关、迁移/删除/撤销和旧数据。独立Chromium **23 passed（30.7s）**、生产WebKit **23 passed（29.7s）**，共享工具/菜单Chromium **20 passed（42.7s）**。无删除原测试；新增用例等待200ms设备状态保存的可观察结果，不对null做即时断言。独立前端构建通过。结论SAFE（已验证路径）：导航/排序/拖动/关闭恢复及授权边界未见回归；真实外部磁盘变更和原生GUI仍沿用现有平台验收。
+
+日志：/tmp/nr-tab-anchor-check.log、/tmp/nr-tab-anchor-chromium.log、/tmp/nr-tab-anchor-webkit.log、/tmp/nr-tab-anchor-shared.log、/tmp/nr-tab-anchor-build.log、/tmp/nr-tab-anchor-native-build.log。
+
 ## 2026-11-11：大量删除后虚拟列表只显示一项
 
 已用205项分页目录实际走批量删除队列复现：选择后200项、滚动到末端，删除完成后仍有5项数据，界面却持续只生成1个option。旧全量重载直接把历史scrollTop写回React，再由RAF赋给DOM；短列表被浏览器夹紧到0且可能不再发scroll事件，虚拟窗口仍用旧值并以nodes.length-1截断，形成最后一项单独显示。
