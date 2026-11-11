@@ -102,8 +102,12 @@ for (const readonly of [false, true]) {
     await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
     const title = page.locator(".note-title-row .note-title");
     await expect(title).toHaveValue("桌面导航验证");
-    const titleBox = await title.boundingBox();
-    expect(titleBox!.x).toBeGreaterThan(360);
+    await expect(page.locator("#workspace-sidebar")).toHaveClass(/sidebar-hidden/);
+    await expect.poll(async () => {
+      const main = (await page.locator(".app-main").boundingBox())!;
+      const body = (await page.locator(".app-body").boundingBox())!;
+      return main.x - body.x;
+    }).toBeCloseTo(0, 0);
     await title.click();
     await expect(page.locator(".properties-panel")).toBeVisible();
     await expect(page.locator(".mobile-focus-full-title")).toHaveCount(0);

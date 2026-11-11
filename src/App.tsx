@@ -46,7 +46,7 @@ import { useWorkspaceSidebar } from "./hooks/useWorkspaceSidebar";
 import { useSidebarPresentation } from "./hooks/useSidebarPresentation";
 import { useSidebarHoverPreview } from "./hooks/useSidebarHoverPreview";
 import { useEditorStartup } from "./hooks/useEditorStartup";
-import { Suspense, lazy, useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent } from "react";
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent } from "react";
 import { useNoteSessionBoundary } from "./hooks/useNoteSessionBoundary";
 import { flushSync } from "react-dom";
 import { useNotes } from "./hooks/useNotes";
@@ -1228,8 +1228,21 @@ function App() {
       : Boolean(pdfReaderDocumentId ? pdfReaderFullscreen : epubReaderDocumentId && epubReaderFullscreen);
   const readerFocus = desktopWorkspace && desktopPanel === "reader" && !sidebarHidden
     && activeReaderFullscreen;
-  const sidebarHoverEnabled = desktopWorkspace && sidebarPresentation === "overlay";
+  const sidebarHoverEnabled = desktopWorkspace && (sidebarPresentation === "overlay" || focusMode);
   const sidebarHover = useSidebarHoverPreview({ enabled: sidebarHoverEnabled, panel: desktopPanel, hidden: sidebarHidden, resizing: sidebarResizing || readerFocus, openPanel: setSidebarPanel, setHidden: setSidebarHidden });
+  const focusSidebarReturn = useRef<ReturnType<typeof readDesktopSidebarState> | null>(null);
+  const previousFocusSidebar = useRef(desktopWorkspace && focusMode);
+  useLayoutEffect(() => {
+    const enabled = desktopWorkspace && focusMode;
+    if (enabled && !previousFocusSidebar.current) {
+      focusSidebarReturn.current = { panel: desktopPanel, hidden: sidebarHidden, pinned: sidebarHover.pinned };
+      sidebarHover.restore({ panel: desktopPanel, hidden: true, pinned: false });
+    } else if (!enabled && previousFocusSidebar.current && focusSidebarReturn.current) {
+      sidebarHover.restore(focusSidebarReturn.current);
+      focusSidebarReturn.current = null;
+    }
+    previousFocusSidebar.current = enabled;
+  }, [desktopWorkspace, focusMode, desktopPanel, sidebarHidden, sidebarHover]);
   const markBrowserSidebarChanged = useBrowserSidebarSession({
     active: desktopWorkspace && fileBrowserMainActive,
     mode: `${sidebarPresentation}:${workspaceLayout.sidebarSide}`,
@@ -1658,19 +1671,18 @@ function App() {
   useEffect(() => {
     setFocusActivityRevealed(false);
     if (!effectiveFocusMode || mobileDrawerViewport) return;
-    // Track the pointer while the pane is open too: closing it must not
-    // discard the hover that keeps the activity bar visible.
+    // Wordmark and rail form one hover interaction. A short exit delay lets
+    // the pointer cross the titlebar/body boundary without collapsing the rail.
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const move = (event: PointerEvent) => {
       if (event.pointerType === "touch") return;
-      const body = document.querySelector(".app-body")?.getBoundingClientRect();
-      if (!body) return;
-      const atEdge = sidebarOnRight ? event.clientX >= body.right - 24 : event.clientX <= body.left + 24;
-      const inside = event.target instanceof Element && Boolean(event.target.closest(".desktop-activity-bar, #workspace-sidebar"));
-      setFocusActivityRevealed(atEdge || inside);
+      const inside = event.target instanceof Element && Boolean(event.target.closest(".titlebar-wordmark, .desktop-activity-bar, #workspace-sidebar, [data-sidebar-owned]"));
+      if (inside) { clearTimeout(timer); timer = undefined; setFocusActivityRevealed(true); setWorkspaceHomeChromeHidden(false); }
+      else if (!timer) timer = setTimeout(() => { timer = undefined; setFocusActivityRevealed(false); }, 300);
     };
     document.addEventListener("pointermove", move, { passive: true });
-    return () => document.removeEventListener("pointermove", move);
-  }, [effectiveFocusMode, mobileDrawerViewport, sidebarOnRight]);
+    return () => { clearTimeout(timer); document.removeEventListener("pointermove", move); };
+  }, [effectiveFocusMode, mobileDrawerViewport]);
 
   const exhibitionEnabled = Boolean(config && effectiveWorkspaceLayout(config) === "exhibition");
   const readerWasOpenBeforeHome = Boolean(
@@ -1869,7 +1881,7 @@ function App() {
         {contributedPanels.length > 0 && <Suspense fallback={null}><ImageViewerHost /></Suspense>}
         {sidebarWidthHint && <div className="sidebar-width-hint" role="status" aria-live="polite">{sidebarWidthHint}</div>}
         {!mobileDrawerViewport && <nav
-          className={`desktop-activity-bar${effectiveFocusMode && sidebarHidden ? " desktop-activity-bar-focus-overlay" : ""}${effectiveFocusMode && sidebarHidden && !focusActivityRevealed ? " desktop-activity-bar-focus-hidden" : ""}${workspaceHomeChromeHidden ? " desktop-activity-bar-home-hidden" : ""}`}
+          className={`desktop-activity-bar${effectiveFocusMode ? " desktop-activity-bar-focus-overlay" : ""}${effectiveFocusMode && (sidebarHidden || !sidebarHover.pinned) && !focusActivityRevealed ? " desktop-activity-bar-focus-hidden" : ""}${workspaceHomeChromeHidden ? " desktop-activity-bar-home-hidden" : ""}`}
           aria-label="工作区面板"
           onPointerEnter={() => { if (workspaceHomeChromeHidden) setWorkspaceHomeChromeHidden(false); }}
           onPointerMove={() => { if (workspaceHomeChromeHidden) setWorkspaceHomeChromeHidden(false); }}
@@ -1902,7 +1914,7 @@ function App() {
             </button>
           </div>
         </nav>}
-        {sidebarHoverEnabled && <div className="sidebar-pin-spacer" aria-hidden="true" style={{ width: sidebarHover.pinned && !sidebarHidden ? sidebarWidth + 4 : 0 }} />}
+        {sidebarHoverEnabled && <div className="sidebar-pin-spacer" aria-hidden="true" style={{ width: sidebarHover.pinned && !sidebarHidden ? sidebarWidth + (effectiveFocusMode ? 48 : 4) : 0 }} />}
         <aside id="workspace-sidebar" tabIndex={-1} ref={sidebarPanelRef} className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}
           onPointerEnter={sidebarHover.enterPanel} onPointerLeave={sidebarHover.leave}
           role={mobileDrawerViewport && !mobileReaderOpen ? "dialog" : undefined} aria-label={mobileDrawerViewport && !mobileReaderOpen ? "文档侧栏" : undefined}
