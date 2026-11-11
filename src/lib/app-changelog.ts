@@ -1,6 +1,11 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-11-11",
+    title: "手机右侧边缘导航",
+    changes: ["源码模式支持从右侧上半屏划出目录、源码符号或书签；右侧下半屏划出设置扩展到源码、本地文件和工作区首页，普通与专注模式共用。"],
+  },
+  {
     date: "2026-11-10",
     title: "共享双栏与独立文件工作台",
     changes: [

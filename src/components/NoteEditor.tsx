@@ -460,7 +460,7 @@ export function RenderedDocumentWorkspace(input: NoteEditorProps) {
   return <FullDocumentWorkspace {...props} readingBlockVersion={readingBlockVersion} initialPdfExportRequest={exportRequested} selectAllOnOpen={selectAllOnOpen} />;
 }
 
-function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, documentCreatedAt, documentUpdatedAt, documentLastAccessedAt, documentType, documentPath, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
+function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, documentCreatedAt, documentUpdatedAt, documentLastAccessedAt, documentType, documentPath, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
   const statusBar = useStatusBarDisplay(showStatusBar, focusMode);
   const [documentSerializer] = useState(() => new IncrementalDocumentSerializer());
   const noteEditorRef = useRef<HTMLDivElement>(null);
@@ -1390,9 +1390,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
 
     return bindViewportEdgeSwipe("right", (touch) => {
       const viewport = swipeViewport();
-      if (touch.clientY >= viewport.middleY) return onOpenSettings ? () => {
-        onOpenSettings();
-      } : null;
+      if (touch.clientY >= viewport.middleY) return null;
       const target = lastMobilePanel.current;
       if (target === "outline" && documentOutline.length === 0) {
         return documentOutline.length === 0 ? () => openDocumentBookmarks("drawer") : null;
@@ -1402,7 +1400,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
         else openDocumentOutline("drawer");
       };
     });
-  }, [documentActive, isMobileToolbarViewport, documentOutline.length, onOpenSettings, openDocumentOutline, openDocumentBookmarks]);
+  }, [documentActive, isMobileToolbarViewport, documentOutline.length, openDocumentOutline, openDocumentBookmarks]);
 
   const toggleDocumentOutline = useCallback(() => {
     if (!isMobileToolbarViewport) { togglePinnedPanel("outline"); return; }

@@ -1,6 +1,19 @@
 # E2E 清理进度（2026-09-28）
 
 
+
+## 2026-11-11：手机源码与首页右侧边缘手势
+
+源码导航复用 DocumentPanelDrawer：右侧上半屏打开 Markdown 目录或源码符号，可切换书签并记住选择；Text 等无大纲能力时回退书签。数据库与本地文件、可编辑/只读、普通/专注共用。设置手势从渲染器提升到 App，右侧下半屏在源码与首页也可使用；首页上半屏不唤醒保留文档。桌面布局和左侧三分区手势不变，沿用30px/60px与选区/控件/模态排除规则。
+
+影响分析：核对 `NoteEditorProps.onOpenSettings` 的仓库调用方（仅 App），设置仍写入原 setter；`App.tsx:1313` 不依赖当前文档。`DocumentNavigationWorkspace.tsx:98` 保留手机面板/最近选择，`navigationNeeded` 在手机仅于展开时更新快照及解析，失活清除面板，已完成符号缓存可复用。跳转复用原偏移映射与异步符号身份核验，完成后关闭抽屉。`DocumentPanelDrawer` 新增可选 outlineLabel，原调用方仍默认目录；反向收回、焦点恢复、Vim Escape 门禁和桌面控制器继续共用。
+
+验证：完整 `npm run check` 通过（243 文件 / 2616 项，类型、lint、格式、独立脚本、覆盖率、IPC），最终 lint 和生产构建通过，无超限 chunk 警告。手机统一标题/手势、共享本地导航、源码符号三组最终 Chromium **17 passed（35.6s）**、WebKit **17 passed（41.1s）**。覆盖上下分区、目录/书签记忆、反向关闭、专注/只读、源码符号跳转、Text 回退、首页设置与保留文档不响应、本地文件旋转及返回桌面；已查看手机源码抽屉截图。
+
+初轮发现 C→Text 后快速划动可短暂打开已失效大纲，现切换能力后强制回退书签并保留回归。另一初轮本地文件用例在 viewport 改变后立即派发触摸，早于媒体查询布局迁移，现等待手机工具区/抽屉壳的可观察状态后再划动，完整两浏览器复跑通过。未删除用例或放宽功能断言。
+
+结论 SAFE（已验证路径）：共享导航跳转、桌面固定布局、渲染模式原手势未见回归。UNCERTAIN：实际 iPhone/Android 浏览器的系统边缘手势竞争仍需真机验收，事件驱动 WebKit 测试不替代该项。日志 `/tmp/nr-mobile-edge-check.log`、`/tmp/nr-mobile-edge-final-lint.log`、`/tmp/nr-mobile-edge-final-chromium.log`、`/tmp/nr-mobile-edge-final-webkit.log`、`/tmp/nr-mobile-edge-build.log`。
+
 ## 2026-11-10：工具执行预览、实时结果与目录标签关闭
 
 上一批已提交 `b2c34d8b`。本批给工具定义增加可选 separator / capture，旧定义默认启动应用；右键修改、配置箭头排序和竖线分隔均持久化。目录标签移除×，双击关闭，原右键菜单、固定及最后标签保护保留。

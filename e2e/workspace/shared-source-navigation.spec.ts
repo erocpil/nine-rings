@@ -71,3 +71,46 @@ test("本地导航复用书签与同词控件，保留工具栏下方的右侧�
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("count", source.indexOf("return")));
   expect((await sourceInfo(area)).value).toBe(source);
 });
+
+test("手机本地源码复用右侧阅读抽屉与设置手势", async ({ page }, testInfo) => {
+  await createBlankDocument(page);
+  await closeDocumentSidebar(page);
+  await page.evaluate(async () => {
+    const { setPluginsEnabled } = await import("/src/lib/plugin-system/runtime.ts");
+    const { saveLocalFilesEnabled } = await import("/src/lib/plugin-system/builtin-local-files.ts");
+    setPluginsEnabled(true); saveLocalFilesEnabled(true);
+    Object.defineProperty(window, "showDirectoryPicker", { value: undefined, configurable: true });
+  });
+  await page.getByRole("button", { name: "本地文件", exact: true }).click();
+  const root = testInfo.outputPath("mobile-local-navigation");
+  await mkdir(root, { recursive: true });
+  await writeFile(join(root, "mobile.c"), "int mobile_local(void) { return 1; }\n");
+  const tree = page.getByRole("region", { name: "本地文件树" });
+  await tree.locator("input[type=file]").setInputFiles(root);
+  await tree.getByRole("button", { name: "mobile.c", exact: true }).click();
+  const viewer = page.getByRole("region", { name: "本地文件工作区" });
+  await expect(viewer.locator(".cm-content")).toContainText("mobile_local");
+  await page.setViewportSize({ width: 390, height: 760 });
+  await expect(viewer.getByRole("button", { name: "源码符号", exact: true })).toHaveCount(0);
+  await expect(page.locator(".mobile-document-drawer-panel")).toHaveCount(1);
+  const swipe = async (y: number) => viewer.evaluate((element, startY) => {
+    window.getSelection()?.removeAllRanges();
+    for (const [type, x] of [["touchstart", 366], ["touchmove", 230], ["touchend", 230]] as const) {
+      const touch = { identifier: 84, target: element, clientX: x, clientY: startY };
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, { touches: { value: type === "touchend" ? [] : [touch] }, changedTouches: { value: [touch] } });
+      element.dispatchEvent(event);
+    }
+  }, y);
+  await swipe(160);
+  const drawer = page.getByRole("dialog", { name: "阅读侧栏", exact: true });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole("complementary", { name: "本地源码符号", exact: true })).toContainText("mobile_local");
+  await page.keyboard.press("Escape");
+  await swipe(630);
+  await expect(page.locator(".settings-panel")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await viewer.getByRole("button", { name: "源码符号", exact: true }).click();
+  await expect(viewer.getByRole("complementary", { name: "本地源码符号", exact: true })).toContainText("mobile_local");
+});

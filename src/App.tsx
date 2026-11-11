@@ -1308,6 +1308,13 @@ function App() {
     };
   }), [mobileDrawerViewport, sidebarHidden, docTreePopupOpen, readingLibraryOpen, setSettingsOpen, setSidebarPanel, openReadingLibrary]);
 
+  // Settings belong to the application, including home and source-only views.
+  // Document-owned recognizers handle only the upper edge (reading panels).
+  useEffect(() => bindViewportEdgeSwipe("right", touch => {
+    if (!mobileDrawerViewport || settingsOpen || touch.clientY < swipeViewport().middleY) return null;
+    return () => setSettingsOpen(true);
+  }), [mobileDrawerViewport, settingsOpen, setSettingsOpen]);
+
   // ── 开发模式后台导入 ──
   const refreshView = useCallback(() => {
     refreshNotes();

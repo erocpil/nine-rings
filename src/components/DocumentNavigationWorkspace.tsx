@@ -1,3 +1,5 @@
+import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
+import { DocumentPanelDrawer } from "./DocumentPanelDrawer";
 import { sourceVimOwnsEscape } from "../lib/vim-escape";
 import { saveCompactPanel, type DocumentWorkspaceOrigin } from "../lib/document-workspace-layout";
 import { OutlineJumpControls, SourceSymbolSearch, SourceSymbolTools } from "./DocumentNavigationTools";
@@ -92,7 +94,10 @@ export function DocumentNavigationWorkspace({
   const retainedActive = useDocumentActive();
   const documentActive = retainedActive && hostActive;
   const narrow = useMobileViewport();
-  const mobile = narrow && origin === "database";
+  const mobile = narrow;
+  const [mobilePanel, setMobilePanel] = useState<"outline" | "bookmark" | null>(null);
+  const lastMobilePanel = useRef<"outline" | "bookmark">("outline");
+  const navigationNeeded = !mobile || mobilePanel !== null;
   const local = origin === "local";
   useEffect(() => { if (currentOffset !== undefined) setOffset(currentOffset); }, [currentOffset]);
   const outlineDisplayConfig = usePanelDisplay("document-outline");
@@ -143,7 +148,7 @@ export function DocumentNavigationWorkspace({
   const matchesStyle = useDocumentPanelPosition({ open: matchesPreview && !matchesOpen, compact: false, triggerRef: matchesTrigger, panelRef: matchesPanel });
   useEffect(() => {
     // Coalesce typing and reuse the same lazy parse as autosave; no hidden rich editor.
-    if (mobile) return;
+    if (!navigationNeeded) return;
     const previousBookmarks = snapshot.bookmarks.map(item => `${item.id}:${item.position}:${item.label ?? ""}`).join("|");
     const nextBookmarks = revision.bookmarks.map(item => `${item.id}:${item.position}:${item.label ?? ""}`).join("|");
     if (snapshot.source === revision.source && previousBookmarks !== nextBookmarks) {
@@ -155,9 +160,10 @@ export function DocumentNavigationWorkspace({
       if (!local) setFolds(new Set());
     }, 160);
     return () => clearTimeout(timer);
-  }, [revision, mobile, snapshot, local]);
+  }, [revision, navigationNeeded, snapshot, local]);
   useEffect(() => {
-    if (mobile || !hasSourceSymbolProvider(snapshotLanguage)) {
+    if (!navigationNeeded) return;
+    if (!hasSourceSymbolProvider(snapshotLanguage)) {
       setSourceSymbols([]);
       setSourceSymbolsSource(null);
       setSymbolsBusy(false);
@@ -196,10 +202,10 @@ export function DocumentNavigationWorkspace({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [snapshotSource, snapshotLanguage, sourceSymbolsSource, sourceSymbolsLanguage, mobile, documentActive]);
+  }, [snapshotSource, snapshotLanguage, sourceSymbolsSource, sourceSymbolsLanguage, navigationNeeded, documentActive]);
   useEffect(() => {
     const area = sourceHandle;
-    if (!area || mobile) return;
+    if (!area || !navigationNeeded) return;
     const sync = () => setOffset(area.selectionStart);
     sync();
     area.addEventListener("select", sync);
@@ -210,7 +216,7 @@ export function DocumentNavigationWorkspace({
       area.removeEventListener("keyup", sync);
       area.removeEventListener("click", sync);
     };
-  }, [sourceHandle, mobile]);
+  }, [sourceHandle, navigationNeeded]);
   const sourceWordEnabled = !["", "markdown", "flow", "mermaid"].includes(snapshotLanguage);
   const scrollSourceTo = useCallback((target: "top" | "middle" | "bottom") => {
     if (onScrollDocument) { onScrollDocument(target); return; }
@@ -227,6 +233,24 @@ export function DocumentNavigationWorkspace({
   }, [matchesOpen, documentActive, mobile, sourceWordEnabled]);
   const symbolOutline = hasSourceSymbolProvider(snapshotLanguage);
   const outlineEnabled = symbolOutline || snapshotLanguage === "markdown";
+  const openMobilePanel = useCallback((panel: "outline" | "bookmark") => {
+    lastMobilePanel.current = panel;
+    setMobilePanel(panel);
+  }, []);
+  useEffect(() => { if (!documentActive || !mobile) setMobilePanel(null); }, [documentActive, mobile]);
+  // A format change can land between touchstart and the next passive effect.
+  // Never keep a now-unavailable outline open or leave its tab disabled/selected.
+  useEffect(() => {
+    if (mobilePanel === "outline" && !outlineEnabled) openMobilePanel("bookmark");
+  }, [mobilePanel, outlineEnabled, openMobilePanel]);
+  useEffect(() => {
+    if (!documentActive || !mobile) return;
+    return bindViewportEdgeSwipe("right", touch => {
+      if (touch.clientY >= swipeViewport().middleY) return null;
+      const panel = lastMobilePanel.current === "outline" && !outlineEnabled ? "bookmark" : lastMobilePanel.current;
+      return () => openMobilePanel(panel);
+    });
+  }, [documentActive, mobile, outlineEnabled, openMobilePanel]);
   const sortedSourceSymbols = useMemo(
     () => sortSourceSymbolTree(sourceSymbolsLanguage === snapshotLanguage ? sourceSymbols : [], symbolsAlphabetical),
     [sourceSymbols, symbolsAlphabetical, sourceSymbolsLanguage, snapshotLanguage],
@@ -236,10 +260,10 @@ export function DocumentNavigationWorkspace({
     [sortedSourceSymbols, symbolQuery],
   );
   const outline = useMemo<SourceOutlineItem[]>(
-    () => mobile ? [] : symbolOutline ? visibleSourceSymbols : headingRevision.outline.map((item) => ({ ...item, kind: undefined })),
-    [headingRevision, mobile, visibleSourceSymbols, symbolOutline],
+    () => !navigationNeeded ? [] : symbolOutline ? visibleSourceSymbols : headingRevision.outline.map((item) => ({ ...item, kind: undefined })),
+    [headingRevision, navigationNeeded, visibleSourceSymbols, symbolOutline],
   );
-  const bookmarks = useMemo(() => (mobile ? [] : bookmarkItems ?? revision.bookmarks), [revision, mobile, bookmarkItems]);
+  const bookmarks = useMemo(() => (!navigationNeeded ? [] : bookmarkItems ?? revision.bookmarks), [revision, navigationNeeded, bookmarkItems]);
   const nearestBookmark = bookmarks.reduce<(typeof bookmarks)[number] | undefined>((current, item) => !current || Math.abs(item.offset - offset) < Math.abs(current.offset - offset) ? item : current, undefined);
   // A disk source file needs a line anchor, not a second ProseMirror model.
   // Keep plain source parsing lazy and avoid scanning its prefix per bookmark.
@@ -291,6 +315,7 @@ export function DocumentNavigationWorkspace({
     onJump(next);
     setOffset(next);
     controller.dismiss();
+    setMobilePanel(null);
   };
   const jumpSourceSymbol = async (item: SourceOutlineItem) => {
     const liveSource = () => sourceHandle?.value ?? revision.source;
@@ -325,6 +350,7 @@ export function DocumentNavigationWorkspace({
     onJump(safeOffset);
     setOffset(safeOffset);
     controller.dismiss();
+    setMobilePanel(null);
   };
   useNativeMenuActions({
     "document.outline": { run: () => controller.toggle("outline"), checked: controller.pinned("outline") || controller.preview === "outline", enabled: outlineEnabled },
@@ -367,7 +393,7 @@ export function DocumentNavigationWorkspace({
     </>
   );
   const renderPanel = (kind: "outline" | "bookmark") => {
-    if (!controller.pinned(kind) && controller.preview !== kind) return null;
+    if (!documentActive || (mobile ? mobilePanel !== kind : !controller.pinned(kind) && controller.preview !== kind)) return null;
     const isOutline = kind === "outline";
     return (
       <nav
@@ -378,8 +404,8 @@ export function DocumentNavigationWorkspace({
         }
         aria-label={local ? (isOutline ? symbolOutline ? "本地源码符号" : "本地文件目录" : "本地文件书签") : isOutline ? (symbolOutline ? "源码符号" : "文档目录") : "文档书签"}
         aria-busy={snapshot !== revision || (symbolOutline && symbolsBusy)}
-        style={controller.pinned(kind) ? undefined : style}
-        data-document-preview={!controller.pinned(kind) || undefined}
+        style={mobile || controller.pinned(kind) ? undefined : style}
+        data-document-preview={!mobile && !controller.pinned(kind) || undefined}
         onPointerEnter={controller.cancel}
         onPointerLeave={controller.leave}
       >
@@ -408,7 +434,7 @@ export function DocumentNavigationWorkspace({
           {(isOutline ? (symbolOutline ? sourceSymbolDisplayConfig?.showCounts === true : outlineDisplayConfig?.showCounts !== false) : bookmarkDisplayConfig?.showCounts !== false) && <span className={isOutline ? "document-outline-count" : "document-bookmark-count"}>
             {isOutline ? outline.length : bookmarks.length} 项
           </span>}
-          {!controller.pinned(kind) && <button type="button" className="btn-icon document-panel-pin-button" onClick={() => controller.toggle(kind)} aria-label={isOutline ? (symbolOutline ? "固定源码符号" : "固定目录") : "固定书签"} title={isOutline ? (symbolOutline ? "固定源码符号" : "固定目录") : "固定书签"}>
+          {!mobile && !controller.pinned(kind) && <button type="button" className="btn-icon document-panel-pin-button" onClick={() => controller.toggle(kind)} aria-label={isOutline ? (symbolOutline ? "固定源码符号" : "固定目录") : "固定书签"} title={isOutline ? (symbolOutline ? "固定源码符号" : "固定目录") : "固定书签"}>
             <ToolbarIcon name="pin" />
           </button>}
           </div>
@@ -445,10 +471,10 @@ export function DocumentNavigationWorkspace({
                   blockNumber={bookmark.blockNumber}
                   indexKind={local ? "line" : "block"}
                   current={currentBookmark?.id === bookmark.id}
-                  mobile={false}
+                  mobile={mobile}
                   open={openBookmarkActionsId === bookmark.id}
                   onOpenChange={setOpenBookmarkActionsId}
-                  onJump={() => { onJump(bookmark.offset); controller.dismiss(); }}
+                  onJump={() => { onJump(bookmark.offset); controller.dismiss(); setMobilePanel(null); }}
                   onEdit={() => setRenamingBookmark(bookmark)}
                   onDelete={() => onRemoveBookmark(bookmark.id)}
                 />
@@ -475,6 +501,9 @@ export function DocumentNavigationWorkspace({
       aria-label={local ? "本地文档编辑区" : "Markdown 源码编辑区"}
     >
       <div className="markdown-source-content">{children(controls, { openBookmarks: () => { if (controller.mode === "compact") setMatchesOpen(false); if (!controller.pinned("bookmark")) controller.toggle("bookmark"); } })}</div>
+      {mobile && <DocumentPanelDrawer enabled presentation="drawer" panel={documentActive ? mobilePanel : null} hasOutline={outlineEnabled} outlineLabel={symbolOutline ? "源码符号" : "目录"} onSelect={openMobilePanel} onClose={() => setMobilePanel(null)}>
+        {renderPanel("outline")}{renderPanel("bookmark")}
+      </DocumentPanelDrawer>}
       {!mobile && matchesPreview && !matchesOpen && matchesList}
       {!mobile && (
         <DesktopDocumentPanels

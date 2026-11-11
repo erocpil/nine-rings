@@ -163,3 +163,72 @@ test("软键盘缩小可视区时标题、编辑工具与正文不重叠", async
   await row.getByRole("button", { name: "退出专注模式", exact: true }).click();
   await expect(page.locator(".app-header, .mobile-focus-bar")).toHaveCount(0);
 });
+
+for (const readonly of [false, true]) {
+  test(`手机源码边缘手势：目录、书签、设置及反向收回 readonly=${readonly}`, async ({ page }, testInfo) => {
+    await fixture(page, readonly);
+    await page.getByRole("button", { name: "源码", exact: true }).click();
+    const content = page.locator(".cm-content");
+    await expect(content).toBeVisible();
+    await swipe(content, 366, 160, 240);
+    const drawer = page.getByRole("dialog", { name: "阅读侧栏", exact: true });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole("navigation", { name: "文档目录", exact: true })).toContainText("阅读标题");
+    await expect(drawer).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+    await page.screenshot({ path: testInfo.outputPath("mobile-source-drawer.png") });
+    await drawer.getByRole("button", { name: "切换到书签", exact: true }).click();
+    await expect(drawer.getByRole("navigation", { name: "文档书签", exact: true })).toContainText("阅读标题");
+    await swipe(page.locator(".mobile-document-drawer-backdrop"), 12, 400, 130);
+    await expect(drawer).not.toBeVisible();
+    await swipe(content, 366, 160, 240);
+    await expect(drawer.getByRole("navigation", { name: "文档书签", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await swipe(content, 366, 630, 240);
+    await expect(page.locator(".settings-panel")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".settings-panel")).not.toBeVisible();
+    await page.getByRole("button", { name: "专注模式", exact: true }).click();
+    await swipe(content, 366, 630, 240);
+    await expect(page.locator(".settings-panel")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await swipe(content, 366, 160, 240);
+    await expect(drawer).toBeVisible();
+  });
+}
+
+test("手机 C 源码划出符号后点击跳转，无标题类型回退书签", async ({ page }) => {
+  await fixture(page);
+  const { selectDocumentLanguage, replaceSource, sourceInfo } = await import("../helpers/source-editor");
+  await selectDocumentLanguage(page, "c");
+  const content = page.locator(".cm-content");
+  await expect(content).toBeVisible();
+  const source = "struct MobileRecord { int value; };\n\nint mobile_function(void) { return 1; }\n";
+  await replaceSource(content, source);
+  await swipe(content, 366, 160, 240);
+  const drawer = page.getByRole("dialog", { name: "阅读侧栏", exact: true });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole("button", { name: "切换到源码符号", exact: true })).toBeVisible();
+  await drawer.locator(".document-outline-item").filter({ hasText: "mobile_function" }).click();
+  await expect(drawer).not.toBeVisible();
+  await expect.poll(async () => (await sourceInfo(content)).selectionStart).toBe(source.indexOf("mobile_function"));
+  await selectDocumentLanguage(page, "");
+  await swipe(content, 366, 160, 240);
+  await expect(drawer.getByRole("navigation", { name: "文档书签", exact: true })).toBeVisible();
+});
+
+test("手机首页右下边缘可打开设置，上半边不唤醒保留文档目录", async ({ page }) => {
+  await fixture(page);
+  await page.evaluate(async () => {
+    const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
+    useNotesStore.getState().selectNote(null);
+  });
+  await expect(page.locator(".ProseMirror")).not.toBeVisible();
+  const host = page.locator(".app-main");
+  await swipe(host, 366, 160, 240);
+  await expect(page.getByRole("dialog", { name: "阅读侧栏", exact: true })).not.toBeVisible();
+  await expect(page.locator(".settings-panel")).not.toBeVisible();
+  await swipe(host, 366, 630, 240);
+  await expect(page.locator(".settings-panel")).toBeVisible();
+  await swipe(page.locator(".settings-panel"), 180, 400, 310);
+  await expect(page.locator(".settings-panel")).not.toBeVisible();
+});

@@ -8,11 +8,12 @@ type Panel = "outline" | "bookmark";
 export type DocumentPanelPresentation = "popover" | "drawer";
 
 /** 点击入口使用浮层，手机普通/专注模式的边缘手势共用阅读侧栏。 */
-export function DocumentPanelDrawer({ enabled, presentation, panel, hasOutline, onSelect, onClose, children }: {
+export function DocumentPanelDrawer({ enabled, presentation, panel, hasOutline, outlineLabel = "目录", onSelect, onClose, children }: {
   enabled: boolean;
   presentation: DocumentPanelPresentation;
   panel: Panel | null;
   hasOutline: boolean;
+  outlineLabel?: string;
   onSelect: (panel: Panel) => void;
   onClose: () => void;
   children: ReactNode;
@@ -56,7 +57,7 @@ export function DocumentPanelDrawer({ enabled, presentation, panel, hasOutline, 
       <div ref={drawerRef} className="mobile-document-drawer-panel" role="dialog" aria-modal={open || undefined}
         aria-label="阅读侧栏" aria-hidden={!open} {...(!open ? { inert: "" } : {})}>
         <div className="mobile-document-drawer-header">
-          <button type="button" aria-label="切换到目录" aria-pressed={panel === "outline"} disabled={!hasOutline} onClick={() => onSelect("outline")}>目录</button>
+          <button type="button" aria-label={`切换到${outlineLabel}`} aria-pressed={panel === "outline"} disabled={!hasOutline} onClick={() => onSelect("outline")}>{outlineLabel}</button>
           <button type="button" aria-label="切换到书签" aria-pressed={panel === "bookmark"} onClick={() => onSelect("bookmark")}>书签</button>
         </div>
         {open ? children : exiting && presentation === "drawer" ? lastContent.current : null}

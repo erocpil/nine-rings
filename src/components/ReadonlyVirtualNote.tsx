@@ -798,18 +798,17 @@ export function ReadonlyVirtualNote(
     panelRef, compact: mobileDrawerViewport, layoutKey: `${props.focusMode}:${preview}`,
     width: mobileDrawerViewport ? 380 : desktopPanels.previewWidths[preview === "bookmarks" ? "bookmark" : "outline"],
   });
-  const onOpenSettings = props.onOpenSettings;
   useEffect(
     () =>
       bindViewportEdgeSwipe("right", (touch) => {
         if (!active || !mobileDrawerViewport) return null;
         const viewport = swipeViewport();
-        if (touch.clientY >= viewport.middleY) return onOpenSettings ?? null;
+        if (touch.clientY >= viewport.middleY) return null;
         const target = lastMobilePanel.current;
         if (target === "outline" && sections.length === 0) return () => openPanel("bookmarks", true);
         return () => openPanel(target, true);
       }),
-    [active, mobileDrawerViewport, sections.length, openPanel, onOpenSettings],
+    [active, mobileDrawerViewport, sections.length, openPanel],
   );
   const [blockJumpValue, setBlockJumpValue] = useState<string | null>(null);
   const [blockJumpError, setBlockJumpError] = useState("");
