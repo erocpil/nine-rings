@@ -938,3 +938,62 @@ test("固定目录标签经提醒后可关闭最后一个，右键不选中文�
   await left.getByRole("button", { name: "恢复关闭的目录标签", exact: true }).click();
   await expect(left.getByRole("option", { name: /alpha.c/ })).toBeVisible();
 });
+
+test("大量文件删除后刷新夹紧滚动，剩余条目完整显示并可继续键盘导航", async ({ page }) => {
+  await page.addInitScript(() => {
+    let callback = 1;
+    const state = { names: Array.from({ length: 205 }, (_, n) => `${String(n).padStart(3, "0")}.txt`) };
+    (window as any).__largeDeletion = state;
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback() { return callback++; }, unregisterCallback() {},
+      async invoke(command: string, args: any = {}) {
+        if (command === "plugin:event|listen") return callback++;
+        if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
+        if (command === "local_files_roots") return [{ id: "large", name: "Large" }];
+        if (command === "local_files_display_path") return "/large";
+        if (command === "local_files_stat") return { size: 1, modifiedMs: 1 };
+        if (command === "local_files_list") { const offset = args.offset ?? 0; return { nodes: state.names.slice(offset, offset + 200).map(name => ({ id: name, name, directory: false, size: 1, modifiedMs: 1 })), next: offset + 200 < state.names.length ? offset + 200 : null }; }
+        if (command === "local_files_trash") { state.names = state.names.filter(name => name !== args.node); return; }
+        throw new Error(command);
+      },
+    };
+  });
+  await page.goto("/file-workbench.html");
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  const list = left.getByRole("listbox", { name: "文件列表", exact: true });
+  await expect(left.locator(".file-browser-pane-status")).toContainText("200 项");
+  await list.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await expect(left.locator(".file-browser-pane-status")).toContainText("205 项");
+  await list.focus(); await list.press("Home");
+  for (let n = 0; n < 5; n++) await list.press("ArrowDown");
+  await list.press("Shift+End");
+  await expect(left.locator(".file-browser-pane-status")).toContainText("选中 200 项");
+  await page.getByRole("button", { name: "移入系统回收站", exact: true }).click();
+  await page.getByRole("dialog", { name: "移入系统回收站", exact: true }).getByRole("button", { name: "确认", exact: true }).click();
+  const queue = page.getByRole("dialog", { name: "文件操作队列", exact: true });
+  await expect.poll(() => page.evaluate(() => (window as any).__largeDeletion.names.length)).toBe(5);
+  await queue.getByRole("button", { name: "收起操作队列", exact: true }).click();
+  await expect(left.locator(".file-browser-pane-status")).toContainText("5 项");
+  await expect(list.getByRole("option")).toHaveCount(5);
+  await expect.poll(() => list.evaluate(element => element.scrollTop)).toBe(0);
+  await list.focus(); await list.press("End");
+  await expect(list.getByRole("option", { name: /^004.txt/ })).toHaveAttribute("aria-selected", "true");
+  // A manual refresh takes the same full-reload path after external deletion.
+  await page.evaluate(() => { (window as any).__largeDeletion.names = Array.from({ length: 205 }, (_, n) => `${String(n).padStart(3, "0")}.txt`); });
+  await left.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await expect(left.locator(".file-browser-pane-status")).toContainText("200 项");
+  await list.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await expect(left.locator(".file-browser-pane-status")).toContainText("205 项");
+  await list.focus(); await list.press("End");
+  await expect.poll(() => list.evaluate(element => element.scrollTop)).toBeGreaterThan(1000);
+  await page.evaluate(() => { (window as any).__largeDeletion.names = (window as any).__largeDeletion.names.slice(0, 5); });
+  await left.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await expect(left.locator(".file-browser-pane-status")).toContainText("5 项");
+  await expect(list.getByRole("option")).toHaveCount(5);
+  await expect.poll(() => list.evaluate(element => element.scrollTop)).toBe(0);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("file-workbench:nr:local-file-browser")!).groups[0].tabs[0].history.at(-1).scrollTop)).toBe(0);
+  await page.evaluate(() => { (window as any).__largeDeletion.names = []; });
+  await left.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await expect(list.getByText("空目录", { exact: true })).toBeVisible();
+  await expect(list.getByRole("option")).toHaveCount(0);
+});

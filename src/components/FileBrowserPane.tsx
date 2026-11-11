@@ -92,8 +92,11 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
   const selected = useMemo(() => location?.selected ?? [], [location?.selected]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const selectionSummary = useMemo(() => browserSelectionSummary(nodes, selected, metadata), [nodes, selected, metadata]);
-  const start = Math.max(0, Math.min(Math.max(0, nodes.length - 1), Math.floor(scroll / ROW) - 4));
-  const end = Math.min(nodes.length, start + Math.ceil(height / ROW) + 10);
+  const visibleRows = Math.max(1, Math.ceil(height / ROW));
+  // The old scroll snapshot can outlive a much shorter refreshed listing.
+  // Keep a full viewport available while the DOM/state restoration commits.
+  const start = Math.max(0, Math.min(Math.max(0, nodes.length - visibleRows), Math.floor(scroll / ROW) - 4));
+  const end = Math.min(nodes.length, start + visibleRows + 10);
   useFileBrowserRefresh({
     enabled: visible && Boolean(root) && workspace.supportsDirectoryChanges(rootId) && !refreshPaused && !menu,
     identity: key, rootId, node, options: { sort: pane.sort, showHidden: pane.showHidden, query }, provider,
@@ -134,8 +137,11 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     const top = refreshPosition.current;
     if (top === null) return;
     refreshPosition.current = null;
-    if (scrollRef.current) scrollRef.current.scrollTop = top;
-    setScroll(top); restoring.current = false;
+    const element = scrollRef.current;
+    if (element) element.scrollTop = top;
+    // Assigning an out-of-range scrollTop may be clamped without a scroll event.
+    // The virtual window must use the actual position, not that stale request.
+    setScroll(element?.scrollTop ?? top); restoring.current = false;
   }, [nodes]);
   useEffect(() => {
     if (!typeahead.query) return;
@@ -188,11 +194,16 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
         if (controller.signal.aborted) return;
         for (const item of entries) if (!item.directory && item.modifiedMs !== undefined) metadataCache.current.set(item.id, { size: item.size, modifiedMs: item.modifiedMs });
         setMetadata(Object.fromEntries(metadataCache.current));
+        const viewportHeight = scrollRef.current?.clientHeight || height;
+        const restoredTop = browserRefreshScroll([], entries, top, ROW, viewportHeight);
+        refreshPosition.current = restoredTop;
         loadedKey.current = key; setNodes(entries); setNext(nextPage);
-        setScroll(top);
-        requestAnimationFrame(() => {
-          if (!controller.signal.aborted && scrollRef.current) scrollRef.current.scrollTop = top;
-          requestAnimationFrame(() => { if (!controller.signal.aborted) restoring.current = false; });
+        onChange(current => {
+          const entry = browserLocation(current);
+          return entry?.rootId === rootId && entry.node === node ? updateBrowserLocation(current, {
+            scrollTop: restoredTop,
+            selected: browserRefreshSelection(entry.selected, { nodes: entries, next: nextPage }),
+          }) : current;
         });
       }).catch(reason => { if (!controller.signal.aborted) setError(String(reason)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });

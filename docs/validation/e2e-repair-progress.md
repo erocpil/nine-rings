@@ -2,6 +2,21 @@
 
 
 
+
+## 2026-11-11：大量删除后虚拟列表只显示一项
+
+已用205项分页目录实际走批量删除队列复现：选择后200项、滚动到末端，删除完成后仍有5项数据，界面却持续只生成1个option。旧全量重载直接把历史scrollTop写回React，再由RAF赋给DOM；短列表被浏览器夹紧到0且可能不再发scroll事件，虚拟窗口仍用旧值并以nodes.length-1截断，形成最后一项单独显示。
+
+修复FileBrowserPane:95的窗口起点上限，至少保留一屏；重载完成按结果条数和当前容器高度夹紧位置，复用refreshPosition/layout effect与实际DOM.scrollTop同步，保存位置同步更新。完整列表的已删除选中项清理仍使用browserRefreshSelection，分页未完成保留未证实删除的选择。自动刷新继续按现有browserRefreshScroll语义锚定；未改排序、分页协议、删除执行器或磁盘数据。
+
+影响分析核对该共享组件在FileBrowserWorkspace的活动/停放目录区调用、key/revision与请求取消、加载更多和自动刷新apply、位置持久化及键盘导航。依赖控制流不变，无需新增接口。新增回归同时验证批量删除205→5、外部删除后手动刷新205→5、持久化scrollTop=0、End键选择最后剩余文件、全部删除后空目录；修复前断言5项实际1项，修复后通过。测试使用隔离的原生接口替身，不删除用户文件。
+
+验证：完整npm run check通过（243文件 / 2619项，类型/lint/格式/独立脚本/覆盖率/IPC）；独立Chromium **22 passed（30.6s）**、最终生产WebKit **22 passed（28.8s）**；Nine Rings共享浏览/工具/操作Chromium **42 passed（1.4m）**，包含位置恢复、自动刷新可见项和多选、分页错误不循环重试。两种前端构建和ARM64 File Workbench.app构建通过，无超限chunk警告。无Rust产品代码变化，未额外重复原生单测。结论SAFE（已验证路径）：刷新、分页、选择与键盘导航未见回归，真实平台的回收站实现沿用原契约。
+
+用户追加的固定标签目录锚点问题仅调研并记录为待定设计，见dual-pane-standalone.md；没有把固定改成限制子树或改变双击关闭。参考Total Commander官方更新说明，建议名称/基准路径固定、自由导航默认开启、显式返回入口，可选限制子树与切换时自动返回。
+
+日志：/tmp/nr-workbench-delete-repro.log（修复前失败）、/tmp/nr-workbench-delete-fixed.log、/tmp/nr-workbench-delete-check.log、/tmp/nr-workbench-delete-chromium.log、/tmp/nr-workbench-delete-webkit.log、/tmp/nr-workbench-delete-shared.log、/tmp/nr-workbench-delete-native-build.log。
+
 ## 2026-11-11：独立工作台授权管理、固定标签与图标隔离
 
 工具栏盾牌“管理授权目录”接入宿主可选 revokeRoot；仅独立工作台提供，Nine Rings 保留原本地文件树入口。完整路径逐项显示，确认撤销、失败重试、处理中防重复/阻止关闭；删除焦点项后恢复弹层焦点，Esc可立即退出。按授权rootId清理活动、停放目录区与关闭记录，回退有效授权或空白页，不按路径前缀拒绝访问。父子目录另行授权时独立保留，磁盘文件/草稿与系统隐私权限不删除。共享标签支持固定项双击/右键确认关闭，批量包含固定项同样确认；最后固定项关闭保留空页，恢复仍可用。目录标签禁止原生文本选择，右键只清理标签内部选区。
