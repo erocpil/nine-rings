@@ -4,7 +4,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     fs,
-    io::{Read, Write},
+    io::{Read, Seek, SeekFrom, Write},
     path::{Component, Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -398,6 +398,53 @@ pub async fn local_files_choose(
             .to_string_lossy()
             .into_owned(),
     }))
+}
+fn file_properties(root: &Path, node: &str) -> Result<(PathBuf, serde_json::Value), String> {
+    let path = checked_path(root, node)?;
+    let meta = fs::metadata(&path).map_err(|e| e.to_string())?;
+    let millis = |time: std::io::Result<std::time::SystemTime>| {
+        time.ok()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|duration| duration.as_millis())
+    };
+    #[cfg(unix)]
+    let permissions = {
+        use std::os::unix::fs::PermissionsExt;
+        format!("{:o}", meta.permissions().mode() & 0o7777)
+    };
+    #[cfg(not(unix))]
+    let permissions = if meta.permissions().readonly() {
+        "只读".to_string()
+    } else {
+        "可写".to_string()
+    };
+    let details = serde_json::json!({ "path": path.to_string_lossy(), "size": meta.len(), "modifiedMs": millis(meta.modified()), "createdMs": millis(meta.created()), "accessedMs": millis(meta.accessed()), "readonly": meta.permissions().readonly(), "permissions": permissions, "directory": meta.is_dir(), "systemShown": false });
+    Ok((path, details))
+}
+#[tauri::command]
+pub async fn local_files_properties(
+    window: tauri::WebviewWindow,
+    library: State<'_, LocalFiles>,
+    root_id: String,
+    node: String,
+    system: bool,
+) -> Result<serde_json::Value, String> {
+    caller(&window)?;
+    let root = library.root(&root_id)?;
+    let roots = library.roots.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (path, mut details) = file_properties(&root, &node)?;
+        if roots.lock().map_err(|_| "目录状态不可用")?.get(&root_id) != Some(&root)
+            || checked_path(&root, &node)? != path
+        {
+            return Err("目录授权或文件已变化".into());
+        }
+        details["systemShown"] =
+            serde_json::json!(system && super::external_open::properties(&path)?);
+        Ok(details)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 // A user-invoked OS handoff is deliberately separate from text reading and
 // never changes file associations. The app path comes only from a native picker.
@@ -1322,7 +1369,12 @@ pub async fn local_files_write(
     Ok(result)
 }
 
-fn read_asset(root: &Path, node: &str) -> Result<Vec<u8>, String> {
+fn read_asset_range(
+    root: &Path,
+    node: &str,
+    offset: u64,
+    length: Option<usize>,
+) -> Result<Vec<u8>, String> {
     let path = checked_path(root, node)?;
     let extension = path
         .extension()
@@ -1331,22 +1383,36 @@ fn read_asset(root: &Path, node: &str) -> Result<Vec<u8>, String> {
         .to_ascii_lowercase();
     if !matches!(
         extension.as_str(),
-        "png" | "jpg" | "jpeg" | "gif" | "webp" | "svg" | "avif"
+        "png"
+            | "jpg"
+            | "jpeg"
+            | "gif"
+            | "webp"
+            | "svg"
+            | "avif"
+            | "bmp"
+            | "ico"
+            | "tif"
+            | "tiff"
+            | "heic"
+            | "heif"
     ) {
         return Err("仅允许预览常见图片文件".into());
     }
-    let file = fs::File::open(path).map_err(|error| error.to_string())?;
+    let mut file = fs::File::open(path).map_err(|error| error.to_string())?;
     let meta = file.metadata().map_err(|error| error.to_string())?;
-    if !meta.is_file() || meta.len() > 20 * 1024 * 1024 {
-        return Err("图片超过 20 MiB 或不是普通文件".into());
+    if !meta.is_file() {
+        return Err("不是普通图片文件".into());
     }
-    let mut bytes = Vec::with_capacity(meta.len() as usize);
-    file.take(20 * 1024 * 1024 + 1)
+    if length.is_some_and(|length| length == 0 || length > 1024 * 1024) {
+        return Err("图片读取分段无效".into());
+    }
+    file.seek(SeekFrom::Start(offset))
+        .map_err(|e| e.to_string())?;
+    let mut bytes = Vec::new();
+    file.take(length.map(|v| v as u64).unwrap_or(u64::MAX))
         .read_to_end(&mut bytes)
-        .map_err(|error| error.to_string())?;
-    if bytes.len() > 20 * 1024 * 1024 {
-        return Err("图片超过 20 MiB".into());
-    }
+        .map_err(|e| e.to_string())?;
     Ok(bytes)
 }
 #[tauri::command]
@@ -1355,12 +1421,16 @@ pub async fn local_files_read_asset(
     library: State<'_, LocalFiles>,
     root_id: String,
     node: String,
+    offset: Option<u64>,
+    length: Option<usize>,
 ) -> Result<tauri::ipc::Response, String> {
     caller(&window)?;
     let root = library.root(&root_id)?;
-    let bytes = tauri::async_runtime::spawn_blocking(move || read_asset(&root, &node))
-        .await
-        .map_err(|error| error.to_string())??;
+    let bytes = tauri::async_runtime::spawn_blocking(move || {
+        read_asset_range(&root, &node, offset.unwrap_or(0), length)
+    })
+    .await
+    .map_err(|error| error.to_string())??;
     library.root(&root_id)?;
     Ok(tauri::ipc::Response::new(bytes))
 }
@@ -2112,5 +2182,37 @@ mod tests {
         assert_eq!(fs::read_to_string(dir.join("outside")).unwrap(), "keep");
         assert_eq!(fs::read_dir(dir.join("dest")).unwrap().count(), 0);
         fs::remove_dir_all(dir).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod preview_properties_tests {
+    use super::*;
+    #[test]
+    fn large_image_ranges_and_properties_remain_scoped() {
+        let temp =
+            std::env::temp_dir().join(format!("nr-image-properties-{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&temp).unwrap();
+        let root = fs::canonicalize(&temp).unwrap();
+        let mut file = fs::File::create(root.join("large.png")).unwrap();
+        let size = 80 * 1024 * 1024;
+        file.set_len(size).unwrap();
+        file.seek(SeekFrom::Start(size - 3)).unwrap();
+        file.write_all(&[1, 2, 3]).unwrap();
+        drop(file);
+        assert_eq!(
+            read_asset_range(&root, "large.png", size - 3, Some(3)).unwrap(),
+            vec![1, 2, 3]
+        );
+        assert!(read_asset_range(&root, "large.png", 0, Some(2 * 1024 * 1024)).is_err());
+        assert!(read_asset_range(&root, "../large.png", 0, Some(3)).is_err());
+        let (_, details) = file_properties(&root, "large.png").unwrap();
+        assert_eq!(details["size"], size);
+        assert_eq!(details["directory"], false);
+        assert!(details["modifiedMs"].is_number());
+        assert!(details["permissions"].is_string());
+        assert!(file_properties(&root, "../escape").is_err());
+        assert_eq!(file_properties(&root, "").unwrap().1["directory"], true);
+        fs::remove_dir_all(root).unwrap();
     }
 }

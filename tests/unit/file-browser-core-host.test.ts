@@ -129,9 +129,13 @@ it("retains preview budgets, truncation and image handling across hosts", async 
     provider = createBrowserDirectoryProvider(port),
     signal = new AbortController().signal;
   port.files.stat.mockResolvedValue({ size: 9 * 1024 * 1024, modifiedMs: 1 });
-  await expect(provider.preview("r", "a.PNG", signal)).rejects.toThrow("8 MiB");
-  expect(port.files.readImageAsset).not.toHaveBeenCalled();
-  await expect(provider.preview("r", "a.txt", signal)).rejects.toThrow("1 MiB");
+  await expect(provider.preview("r", "a.PNG", signal)).resolves.toMatchObject({
+    kind: "image",
+  });
+  expect(port.files.readImageAsset).toHaveBeenCalledWith("r", "a.PNG", signal);
+  await expect(provider.preview("r", "a.txt", signal)).rejects.toThrow(
+    "快速预览范围",
+  );
   expect(port.files.readSnapshot).not.toHaveBeenCalled();
   port.files.stat.mockResolvedValue({ size: 70000, modifiedMs: 1 });
   port.files.readSnapshot.mockResolvedValue({
@@ -176,4 +180,21 @@ it("keeps text fingerprint validation and delegates raw digest limits to the fil
     size: 3,
     modifiedMs: 1,
   });
+});
+it("a cancelled or revoked image preview releases its newly created Blob URL", async () => {
+  const { port } = host("one");
+  const controller = new AbortController();
+  const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  Object.assign(port.files, {
+    readImagePreview: vi.fn(async () => {
+      controller.abort();
+      return "blob:cancelled-image";
+    }),
+  });
+  const provider = createBrowserDirectoryProvider(port);
+  await expect(
+    provider.preview("r", "photo.png", controller.signal),
+  ).rejects.toMatchObject({ name: "AbortError" });
+  expect(revoke).toHaveBeenCalledWith("blob:cancelled-image");
+  expect(port.files.readImageAsset).not.toHaveBeenCalled();
 });

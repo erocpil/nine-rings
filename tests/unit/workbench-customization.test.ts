@@ -277,3 +277,15 @@ it("confirmed pinned closure handles the final tab and bulk closures without wea
     ),
   ).toEqual([other]);
 });
+it("continuous previews retain large images without applying the text budget", () => {
+  const nodes = [
+    { id: "a.c", name: "a.c", directory: false, size: 20 },
+    {
+      id: "large.png",
+      name: "large.png",
+      directory: false,
+      size: 200 * 1024 * 1024,
+    },
+  ];
+  expect(nextWorkbenchPreview(nodes, "a.c", 1)?.id).toBe("large.png");
+});

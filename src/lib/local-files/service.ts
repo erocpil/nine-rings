@@ -6,7 +6,7 @@ import { clearLocalFileAccessRules, isLocalFileReadOnly } from "./access";
 import { DEFAULT_LOCAL_FILE_LIST, localFileTreeNodes, type LocalFileListOptions } from "./tree";
 import { beginLocalFileWrite } from "./operation-lock";
 
-import { fileSegments, MAX_SOURCE_BYTES, type FileRoot, type FileNode, type FilePage, type LocalFileSnapshot, type LocalFileFingerprint, type LocalFileDigest, type SaveAsResult } from "./file-model";
+import { fileSegments, MAX_SOURCE_BYTES, type FileRoot, type FileNode, type FilePage, type LocalFileSnapshot, type LocalFileFingerprint, type LocalFileDigest, type LocalFileDetails, type SaveAsResult } from "./file-model";
 export { fileSegments, MAX_SOURCE_BYTES } from "./file-model";
 export type { FileRoot, FileNode, FilePage, LocalFileSnapshot, LocalFileFingerprint, LocalFileDigest, SaveAsResult } from "./file-model";
 
@@ -123,6 +123,15 @@ export const localFileService = {
     if (!node || !isTauriRuntime()) throw new Error("系统打开仅适用于桌面版授权文件");
     const result = await native<boolean>("local_files_open_external", { rootId, node, chooseApplication });
     check(); return result;
+  },
+  async fileProperties(rootId: string, node: string, system = false): Promise<LocalFileDetails> {
+    const check = guard(); fileSegments(node);
+    if (isTauriRuntime()) {
+      const result = await native<LocalFileDetails>("local_files_properties", { rootId, node, system });
+      check(); return result;
+    }
+    const result = await this.stat(rootId, node); check();
+    return { ...result, path: node, systemShown: false };
   },
   supportsSaveAs: () => isTauriRuntime() || typeof (window as unknown as { showSaveFilePicker?: unknown }).showSaveFilePicker === "function",
   canSaveOriginal: (rootId: string) => isTauriRuntime() || Boolean(roots.get(rootId)?.handle),
@@ -548,15 +557,39 @@ export const localFileService = {
       throw error;
     }
   },
-  async readImageAsset(rootId: string, node: string): Promise<string> {
-    const check = guard(); fileSegments(node);
+  async readImagePreview(rootId: string, node: string, signal?: AbortSignal): Promise<string> {
+    return this.readImageAsset(rootId, node, signal, true);
+  },
+  async readImageAsset(rootId: string, node: string, signal?: AbortSignal, objectUrl = false): Promise<string> {
+    const valid = guard(); const check = () => { signal?.throwIfAborted(); valid(); }; check(); fileSegments(node);
     const extension = node.split(".").pop()?.toLowerCase();
-    const mime = ({ png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", avif: "image/avif" } as Record<string, string>)[extension ?? ""];
+    const mime = ({ png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", avif: "image/avif", bmp: "image/bmp", ico: "image/x-icon", tif: "image/tiff", tiff: "image/tiff", heic: "image/heic", heif: "image/heif" } as Record<string, string>)[extension ?? ""];
     if (!mime) throw new Error("不支持的图片格式");
-    let bytes: Uint8Array;
+    const encoded: string[] = [];
+    const parts: ArrayBuffer[] = [];
+    const append = async (bytes: Uint8Array) => {
+      check();
+      if (objectUrl) { parts.push(bytes.slice().buffer); await new Promise<void>(resolve => setTimeout(resolve, 0)); check(); return; }
+      // Segment sizes are multiples of three: only the final segment may have Base64 padding.
+      for (let offset = 0; offset < bytes.length; offset += 98304) {
+        const chunk = bytes.subarray(offset, offset + 98304);
+        let binary = "";
+        for (let at = 0; at < chunk.length; at += 0x8000) binary += String.fromCharCode(...chunk.subarray(at, at + 0x8000));
+        encoded.push(btoa(binary));
+      }
+      await new Promise<void>(resolve => setTimeout(resolve, 0)); check();
+    };
     if (isTauriRuntime()) {
-      const result = await native<ArrayBuffer | number[]>("local_files_read_asset", { rootId, node });
-      bytes = result instanceof ArrayBuffer ? new Uint8Array(result) : new Uint8Array(result);
+      const before = await this.stat(rootId, node); check();
+      for (let offset = 0; offset < before.size;) {
+        check(); const length = Math.min(786432, before.size - offset);
+        const result = await native<ArrayBuffer | number[]>("local_files_read_asset", { rootId, node, offset, length });
+        check(); const chunk = result instanceof ArrayBuffer ? new Uint8Array(result) : new Uint8Array(result);
+        if (chunk.length !== length) throw new Error("图片读取期间文件已变化");
+        await append(chunk); offset += chunk.length;
+      }
+      const after = await this.stat(rootId, node); check();
+      if (before.size !== after.size || before.modifiedMs !== after.modifiedMs) throw new Error("图片读取期间文件已变化");
     } else {
       const entry = roots.get(rootId); if (!entry) throw new Error("目录授权已失效");
       let file = entry.files?.get(node);
@@ -565,13 +598,15 @@ export const localFileService = {
         for (const part of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(part);
         file = await (await dir.getFileHandle(parts[parts.length - 1]!)).getFile();
       }
-      if (!file || file.size > 20 * 1024 * 1024) throw new Error("图片不可访问或超过 20 MiB");
-      bytes = new Uint8Array(await file.arrayBuffer());
+      if (!file) throw new Error("图片不可访问");
+      for (let offset = 0; offset < file.size; offset += 786432) {
+        check(); const chunk = new Uint8Array(await file.slice(offset, offset + 786432).arrayBuffer()); check(); await append(chunk);
+      }
     }
     check();
-    let binary = ""; for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-    return `data:${mime};base64,${btoa(binary)}`;
+    return objectUrl ? URL.createObjectURL(new Blob(parts, { type: mime })) : `data:${mime};base64,${encoded.join("")}`;
   },
+
   release() {
     generation++;
     roots.clear();

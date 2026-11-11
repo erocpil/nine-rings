@@ -9,6 +9,7 @@ const modules = [
   "browser-contract",
   "browser-operation-contract",
   "browser-provider-core",
+  "browser-preview",
   "browser-operation-core",
   "browser-queue-core",
   "source-save",

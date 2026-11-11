@@ -1,4 +1,4 @@
-import type { FileNode, FilePage, LocalFileDigest, LocalFileFingerprint, LocalFileSnapshot } from "./file-model";
+import type { FileNode, FilePage, LocalFileDigest, LocalFileFingerprint, LocalFileDetails, LocalFileSnapshot } from "./file-model";
 import type { LocalFileListOptions } from "./tree";
 
 export interface BrowserTextLocation { from: number; to: number; revision: string }
@@ -12,7 +12,9 @@ export interface BrowserDirectoryHost {
     list(rootId: string, node: string, offset: number, options: LocalFileListOptions): Promise<FilePage>;
     stat(rootId: string, node: string): Promise<LocalFileFingerprint>;
     readSnapshot(rootId: string, node: string): Promise<LocalFileSnapshot>;
-    readImageAsset(rootId: string, node: string): Promise<string>;
+    readImagePreview?(rootId: string, node: string, signal?: AbortSignal): Promise<string>;
+    readImageAsset(rootId: string, node: string, signal?: AbortSignal): Promise<string>;
+    fileProperties?(rootId: string, node: string): Promise<LocalFileDetails>;
     digest(rootId: string, node: string): Promise<LocalFileDigest>;
     digestByteLimit(): number;
   };
@@ -26,6 +28,7 @@ export interface BrowserDirectoryProvider {
   contentDigest(rootId: string, node: string, signal: AbortSignal, binary?: boolean): Promise<LocalFileDigest>;
   preview(rootId: string, node: string, signal: AbortSignal): Promise<{ kind: "text" | "image"; value: string; truncated: boolean }>;
   page(rootId: string, node: string, offset: number, options: LocalFileListOptions, signal: AbortSignal): Promise<FilePage>;
+  details?(rootId: string, node: string, signal: AbortSignal): Promise<LocalFileDetails>;
   properties(rootId: string, node: string, signal: AbortSignal): Promise<LocalFileFingerprint>;
   open(rootId: string, rootName: string, node: FileNode, signal: AbortSignal, location?: BrowserTextLocation, siblings?: readonly FileNode[]): Promise<void>;
 }

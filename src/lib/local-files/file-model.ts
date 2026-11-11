@@ -41,3 +41,13 @@ export function fileSegments(path: string): string[] {
     throw new Error("无效的文件路径");
   return parts;
 }
+
+export interface LocalFileDetails extends LocalFileFingerprint {
+  path?: string;
+  createdMs?: number | null;
+  accessedMs?: number | null;
+  readonly?: boolean;
+  permissions?: string;
+  directory?: boolean;
+  systemShown?: boolean;
+}

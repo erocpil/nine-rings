@@ -18,6 +18,7 @@ export function createNineRingsBrowserHost(owner: PluginActivation): BrowserWork
     addFiles: files => localFileService.addFiles(files),
     displayPath: (rootId, node) => localFileService.displayPath(rootId, node),
     externalOpen: isTauriRuntime() ? { open: (rootId, node, chooseApplication) => localFileService.openExternal(rootId, node, chooseApplication) } : undefined,
+    systemProperties: isTauriRuntime() ? async (rootId, node) => (await localFileService.fileProperties(rootId, node, true)).systemShown ?? false : undefined,
     absolutePaths: isTauriRuntime(),
     supportsDirectoryPicker: () => localFileService.supportsDirectoryPicker(),
     supportsDirectoryChanges: rootId => localFileService.supportsDirectoryChanges(rootId),

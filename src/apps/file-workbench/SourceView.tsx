@@ -1,3 +1,5 @@
+import { FileBrowserFileDetails } from "../../components/FileBrowserFileDetails";
+import type { BrowserDirectoryProvider } from "../../lib/local-files/browser-contract";
 import type { WorkbenchCloseRequest } from "./native-lifecycle";
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { EditorState } from "@codemirror/state";
@@ -17,8 +19,8 @@ import { exportLocalSource } from "../../lib/local-files/source-download";
 import type { LocalFileDraft } from "../../lib/local-files/recovery";
 import "../../styles/local-files.css";
 
-export function WorkbenchSourceView({ file, host, onClose, closeRequest, onNavigate, previous = false, next = false }: {
-  file: BrowserFileOpen; host: LocalSourceHost; onClose: () => void;
+export function WorkbenchSourceView({ file, host, provider, onClose, closeRequest, onNavigate, previous = false, next = false }: {
+  file: BrowserFileOpen; host: LocalSourceHost; provider: BrowserDirectoryProvider; onClose: () => void;
   closeRequest: MutableRefObject<WorkbenchCloseRequest | null>;
   onNavigate?: (direction: -1 | 1) => void; previous?: boolean; next?: boolean;
 }) {
@@ -162,7 +164,7 @@ export function WorkbenchSourceView({ file, host, onClose, closeRequest, onNavig
       <button className="btn-icon" type="button" aria-label="返回文件浏览" title="关闭预览，返回文件浏览" onClick={() => requestClose()}><ToolbarIcon name="close" /></button>
     </DocumentTitleBar>
     {loading && <p role="status">正在读取文件…</p>}
-    {error && <p role="alert">{error}<button type="button" aria-label="关闭文件错误" onClick={() => setError("")}>×</button></p>}
+    {error && !base ? <><p role="status">此文件暂时无法内置预览，可使用其它应用打开。</p><FileBrowserFileDetails rootId={file.rootId} node={file.node.id} provider={provider} /></> : error && <p role="alert">{error}<button type="button" aria-label="关闭文件错误" onClick={() => setError("")}>×</button></p>}
     {notice && <p className="workbench-source-notice" role="status">{notice}<button type="button" aria-label="关闭文件提示" onClick={() => setNotice("")}>×</button></p>}
     {candidate && <div role="status">发现此会话未保存草稿。<button type="button" onClick={() => { change(candidate.source); applyBase({ ...base!, source: candidate.baseSource, revision: candidate.baseRevision, bom: candidate.bom, lineEnding: candidate.lineEnding }); setCandidate(null); setReadonly(false); }}>恢复草稿</button><button type="button" onClick={() => { void exportLocalSource(file.node.name, candidate.source, candidate, host.saveCopy).catch(cause => setError(String(cause))); }}>下载草稿</button><button type="button" onClick={() => { void host.drafts.remove(identity).then(() => setCandidate(null)).catch(cause => setError(String(cause))); }}>删除草稿</button></div>}
     {!loading && base && <div className="local-file-editor-shell"><DocumentActiveBoundary active><DocumentSourceSurface editor={{ value: source, readonly, areaRef: handle, session, onChange: change, fontSize: 16, highlightActiveLine: true, showLineNumbers: true, showStatusBar: true, contextMenuEnabled: true, documentLanguage: documentLanguageFromFilename(file.node.name, source), saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,

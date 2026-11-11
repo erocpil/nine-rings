@@ -1,3 +1,5 @@
+import { WorkspaceDialog } from "./WorkspaceDialog";
+import { FileBrowserFileDetails } from "./FileBrowserFileDetails";
 import { browserTabAllows, type BrowserWorkspaceTab } from "../lib/local-files/browser-tabs";
 import { useCallback, useEffect, useLayoutEffect, useId, useImperativeHandle, useMemo, useRef, useState, type Dispatch, type SetStateAction, type ReactNode, type CSSProperties, type DragEvent, type Ref } from "react";
 import { browserLocation, moveBrowserHistory, navigateBrowserPane, selectBrowserItems, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
@@ -273,6 +275,17 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     setMenu({ target: { id: `${rootId}:${item.id}`, title: item.name, x, y, trigger: scrollRef.current }, item, selection, path: null });
   };
   const copy = (value: string, label: string) => { void copyToClipboard(value, { reportFailure: true }).then(() => showMessage(`已复制${label}`)).catch(error => showMessage(`复制失败：${String(error)}`, "error")); };
+  const [propertyNode, setPropertyNode] = useState<FileNode | null>(null);
+  const propertyRequest = useRef({ value: 0 });
+  useEffect(() => { const pending = propertyRequest.current; setPropertyNode(null); return () => { pending.value++; }; }, [rootId, node]);
+  const showProperties = () => {
+    if (!menu) return;
+    const item = menu.item, node = item.id, ticket = ++propertyRequest.current.value;
+    workspace.assertActive();
+    if (!workspace.systemProperties) { setPropertyNode(item); return; }
+    void workspace.systemProperties(rootId, node).then(shown => { if (ticket !== propertyRequest.current.value) return; workspace.assertActive(); if (!shown) setPropertyNode(item); })
+      .catch(() => { if (ticket === propertyRequest.current.value) setPropertyNode(item); });
+  };
   const openExternal = (chooseApplication: boolean) => {
     if (!menu || !workspace.externalOpen || menu.selection.length !== 1 || menu.item.directory) return;
     try {
@@ -290,6 +303,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
       { label: "其它应用程序…", disabled: !workspace.externalOpen, hint: !workspace.externalOpen ? "仅桌面版" : undefined, run: () => openExternal(true) },
     ] }] : []),
     ...(!compact || (menu.selection.length === 1 && !menu.item.directory) ? [{ label: "快速预览", disabled: menu.selection.length !== 1 || menu.item.directory, run: onPreview }] : []),
+    ...(menu.selection.length === 1 ? [{ label: "属性", run: showProperties, separator: true }] : []),
     { label: "复制名称", separator: true, run: () => copy(menu.selection.map(id => id.split("/").pop()).join("\n"), "名称") },
     { label: "复制路径", disabled: menu.path === null, run: () => menu.path !== null && copy(menu.path, "路径") },
     { label: "复制完整路径", disabled: menu.path === null, run: () => menu.path !== null && copy(menu.selection.map(id => browserFullPath(menu.path!, id.split("/").pop()!)).join("\n"), "完整路径") },
@@ -303,6 +317,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
       {pieces.map((part, index) => <button key={index} type="button" onClick={() => navigate(pieces.slice(0, index + 1).join("/"))}>{part}</button>)}
     </nav>;
   return <section style={columnStyle} className={`file-browser-pane${active ? " is-active" : ""}`} aria-label={`${side === 0 ? "左侧目录" : "右侧目录"}${row ? ` ${row + 1}` : ""}`} data-browser-side={side} data-browser-row={row} onPointerDown={onActivate} onFocusCapture={onActivate}>
+    {propertyNode !== null && <WorkspaceDialog title="属性" onClose={() => setPropertyNode(null)}><FileBrowserFileDetails rootId={rootId} node={propertyNode.id} directory={propertyNode.directory} provider={provider} /></WorkspaceDialog>}
     {!compact && tabBar}
     <header className="file-browser-pane-tools">
       <span className="file-browser-pane-badge">{side === 0 ? "左栏" : "右栏"} · {active ? "来源" : target === false ? "待选" : "目标"}</span>

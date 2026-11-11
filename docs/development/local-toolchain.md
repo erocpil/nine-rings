@@ -77,6 +77,12 @@ hdiutil verify ".local-tools/target/aarch64-apple-darwin/release/bundle/dmg/Nine
 
 2026-09-28：一次构建在 `bundle_dmg.sh` 阶段失败，留下仍挂载的 `rw.*.dmg`；详细日志重试成功，最终 DMG 的 `hdiutil verify` 校验通过。原失败未复现，具体原因未确定，不能据此认定为 Finder 权限或工具版本问题。该校验不代表签名、公证或应用交互验收通过。
 
+### 2026-11-11：DMG 阶段间歇失败复核
+
+通用 `failed to run bundle_dmg.sh` 无法确定出错阶段。本次详细日志重试完整完成创建、挂载、Finder AppleScript、卸载及压缩；最后一轮构建结束后，`Nine Rings_0.3.0_aarch64.dmg` 的 `hdiutil verify` 返回0并显示VALID。原错误没有复现，不能将旧挂载或权限直接认定为根因。
+
+检查发现三个已无构建进程使用的Nine Rings临时镜像（rw.8977、rw.33829、rw.81861），使用普通detach成功卸载，未强制卸载、未删除磁盘文件。排查时应先核对活动构建进程，避免对同一target输出目录并行执行bundle；不要清理仍在工作的构建卷。详细日志 `/tmp/nr-dmg-diagnosis-20261111.log`，最终校验日志 `/tmp/nr-dmg-verify-20261111.log`。该检查仅证明包装和映像完整性，不代表运行交互、签名或公证验收。
+
 ## 首次安装记录（2026-09-27）
 
 1. 复制之前 `/tmp/nine-rings-cargo`、`/tmp/nine-rings-rustup` 的工具与下载缓存到稳定目录；保留原目录，不影响旧任务。

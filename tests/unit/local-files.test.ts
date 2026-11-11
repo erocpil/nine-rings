@@ -279,3 +279,76 @@ it("revoking a separately granted child preserves access through the parent hand
     "shared bytes",
   );
 });
+it("native image reading is chunked, binary exact and stops before the next chunk on cancellation", async () => {
+  activate();
+  vi.spyOn(environment, "isTauriRuntime").mockReturnValue(true);
+  const data = Uint8Array.from(
+    { length: 786432 + 7 },
+    (_, index) => index % 251,
+  );
+  const controller = new AbortController();
+  let cancel = false,
+    reads = 0;
+  invoke.mockImplementation(async (command, args) => {
+    if (command === "local_files_stat")
+      return { size: data.length, modifiedMs: 10 };
+    if (command === "local_files_read_asset") {
+      reads++;
+      if (cancel) controller.abort();
+      return data.slice(args.offset, args.offset + args.length).buffer;
+    }
+    throw new Error(command);
+  });
+  const image = await localFileService.readImageAsset("root", "large.png");
+  expect(new Uint8Array(Buffer.from(image.split(",")[1], "base64"))).toEqual(
+    data,
+  );
+  expect(reads).toBe(2);
+  reads = 0;
+  cancel = true;
+  await expect(
+    localFileService.readImageAsset("root", "large.png", controller.signal),
+  ).rejects.toMatchObject({ name: "AbortError" });
+  expect(reads).toBe(1);
+});
+it("native property requests retain scoped root/node/system fields and reject revoked results", async () => {
+  activate();
+  vi.spyOn(environment, "isTauriRuntime").mockReturnValue(true);
+  invoke.mockResolvedValue({ size: 9, modifiedMs: 1, systemShown: true });
+  expect(
+    (await localFileService.fileProperties("root", "folder/a.c", true))
+      .systemShown,
+  ).toBe(true);
+  expect(invoke).toHaveBeenCalledWith("local_files_properties", {
+    rootId: "root",
+    node: "folder/a.c",
+    system: true,
+  });
+  invoke.mockImplementation(async () => {
+    localFileService.release();
+    return { size: 9, modifiedMs: 1 };
+  });
+  await expect(
+    localFileService.fileProperties("root", "folder/a.c"),
+  ).rejects.toThrow("授权已变化");
+});
+it("image preview uses a binary Blob URL rather than expanding the file into a Data URL", async () => {
+  activate();
+  vi.spyOn(environment, "isTauriRuntime").mockReturnValue(true);
+  const data = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  invoke.mockImplementation(async (command) => {
+    if (command === "local_files_stat")
+      return { size: data.length, modifiedMs: 10 };
+    if (command === "local_files_read_asset") return data.buffer;
+    throw new Error(command);
+  });
+  const url = await localFileService.readImagePreview("root", "picture.png");
+  try {
+    expect(url.startsWith("blob:")).toBe(true);
+    const response = await fetch(url);
+    expect(response.headers.get("content-type")).toBe("image/png");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(data);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+});

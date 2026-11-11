@@ -23,6 +23,7 @@ export interface BrowserWorkspaceHost {
   addFiles(files: readonly File[]): FileRoot | null;
   displayPath(rootId: string, node: string): Promise<string>;
   readonly externalOpen?: { open(rootId: string, node: string, chooseApplication: boolean): Promise<boolean> };
+  systemProperties?(rootId: string, node: string): Promise<boolean>;
   readonly absolutePaths: boolean;
   supportsDirectoryPicker(): boolean;
   supportsDirectoryChanges(rootId: string): boolean;

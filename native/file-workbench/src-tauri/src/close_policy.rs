@@ -49,3 +49,19 @@ mod tests {
         assert!(!policy.confirm());
     }
 }
+
+/// A visible background window must be recalled, not hidden on the first click.
+pub fn should_hide(visible: bool, minimized: bool, focused: bool) -> bool {
+    visible && !minimized && focused
+}
+#[cfg(test)]
+mod tray_tests {
+    use super::*;
+    #[test]
+    fn background_recall_foreground_hide_and_minimized_restore_have_distinct_actions() {
+        assert!(!should_hide(true, false, false)); // Other application is in front: recall.
+        assert!(should_hide(true, false, true)); // After recall: next click hides.
+        assert!(!should_hide(false, false, false)); // Hidden: next click recalls.
+        assert!(!should_hide(true, true, true)); // Minimized wins over stale focus.
+    }
+}

@@ -36,3 +36,8 @@ export function browserSelectionSummary(nodes: readonly FileNode[], selected: re
   return { bytes, files, directories, unknown };
 }
 export interface BrowserPreviewNavigation { step: (direction: -1 | 1) => boolean }
+
+/** Only preview-owned object URLs are released; data/remote text assets remain untouched. */
+export function releaseBrowserPreview(preview: { kind: "image" | "text"; value: string } | null) {
+  if (preview?.kind === "image" && preview.value.startsWith("blob:")) URL.revokeObjectURL(preview.value);
+}

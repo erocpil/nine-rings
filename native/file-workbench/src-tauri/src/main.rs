@@ -59,6 +59,35 @@ fn show_workbench(app: &tauri::AppHandle) {
         let _ = window.set_focus();
     }
 }
+fn hide_workbench(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    // Closing and tray toggling share the same fullscreen-to-hidden transition.
+    if window.is_fullscreen().unwrap_or(false) {
+        window.state::<ClosePolicy>().defer_hide();
+        if window.set_fullscreen(false).is_err() {
+            window.state::<ClosePolicy>().take_deferred_hide();
+            let _ = window.hide();
+        }
+    } else {
+        let _ = window.hide();
+    }
+}
+fn toggle_workbench(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    if close_policy::should_hide(
+        window.is_visible().unwrap_or(false),
+        window.is_minimized().unwrap_or(true),
+        window.is_focused().unwrap_or(false),
+    ) {
+        hide_workbench(app);
+    } else {
+        show_workbench(app);
+    }
+}
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
@@ -84,7 +113,7 @@ fn main() {
                 tauri::menu::MenuItem::with_id(app, "workbench.quit", "退出", true, None::<&str>)?;
             let menu = tauri::menu::Menu::with_items(app, &[&show, &quit])?;
             let mut tray = tauri::tray::TrayIconBuilder::with_id("workbench")
-                .tooltip("File Workbench")
+                .tooltip("File Workbench · 左键显隐 · 右键菜单")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
@@ -100,11 +129,11 @@ fn main() {
                         event,
                         tauri::tray::TrayIconEvent::Click {
                             button: tauri::tray::MouseButton::Left,
-                            button_state: tauri::tray::MouseButtonState::Up,
+                            button_state: tauri::tray::MouseButtonState::Down,
                             ..
                         }
                     ) {
-                        show_workbench(tray.app_handle());
+                        toggle_workbench(tray.app_handle());
                     }
                 });
             if let Some(icon) = app.default_window_icon() {
@@ -128,15 +157,7 @@ fn main() {
                 if window.label() == "main" {
                     api.prevent_close();
                     // Hiding retains editors, drafts and running jobs. Only confirmed quit destroys them.
-                    if window.is_fullscreen().unwrap_or(false) {
-                        window.state::<ClosePolicy>().defer_hide();
-                        if window.set_fullscreen(false).is_err() {
-                            window.state::<ClosePolicy>().take_deferred_hide();
-                            let _ = window.hide();
-                        }
-                    } else {
-                        let _ = window.hide();
-                    }
+                    hide_workbench(window.app_handle());
                 }
             }
         })
@@ -164,6 +185,7 @@ fn main() {
             local_files::local_files_digest,
             local_files::local_files_save_as,
             local_files::local_files_open_external,
+            local_files::local_files_properties,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build File Workbench")

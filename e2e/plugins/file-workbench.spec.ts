@@ -139,6 +139,11 @@ test("工具栏配置分组图标与 Unicode 持久化，目录区可叠放并�
 });
 
 test("双击预览左右键跨文本与图片，只读可切换，编辑方向键不抢占且未保存须确认", async ({ page }) => {
+  await page.addInitScript(() => {
+    const revoke = URL.revokeObjectURL.bind(URL);
+    (window as any).__releasedPreviewUrls = [];
+    URL.revokeObjectURL = url => { (window as any).__releasedPreviewUrls.push(url); revoke(url); };
+  });
   const fixture = await mkdtemp(join(tmpdir(), "nr-workbench-continuous-"));
   try {
     await writeFile(join(fixture, "a.txt"), "first\n");
@@ -152,8 +157,12 @@ test("双击预览左右键跨文本与图片，只读可切换，编辑方向�
     await expect(text.locator(".cm-content")).toContainText("first");
     await text.locator(".cm-content").click(); await page.keyboard.press("ArrowRight");
     const image = page.getByRole("region", { name: "快速预览", exact: true });
-    await expect(image.getByRole("img", { name: "b.png", exact: true })).toBeVisible();
+    const picture = image.getByRole("img", { name: "b.png", exact: true });
+    await expect(picture).toBeVisible();
+    const imageUrl = await picture.getAttribute("src");
+    expect(imageUrl).toMatch(/^blob:/);
     await page.keyboard.press("ArrowRight"); await expect(text.locator(".cm-content")).toContainText("Last");
+    await expect.poll(() => page.evaluate(() => (window as any).__releasedPreviewUrls)).toContain(imageUrl);
     await expect(text.getByRole("button", { name: "下一文件", exact: true })).toBeDisabled();
     await text.getByRole("button", { name: "允许编辑", exact: true }).click();
     await text.locator(".cm-content").click(); await page.keyboard.press("ControlOrMeta+End"); await page.keyboard.insertText("unsaved");
@@ -679,7 +688,7 @@ test("文件与目录只显示适用的右键操作，Web 快照不显示系统�
   const left = browser.getByRole("region", { name: "左侧目录", exact: true });
   await left.getByRole("option", { name: /alpha.c/ }).click({ button: "right" });
   const menu = page.getByRole("menu", { name: "文件菜单", exact: true });
-  await expect(menu.getByRole("separator")).toHaveCount(1);
+  await expect(menu.getByRole("separator")).toHaveCount(2);
   await expect(menu.getByRole("menuitem", { name: "打开方式", exact: true })).toHaveCount(0);
   await expect(menu.getByRole("menuitem", { name: "复制到另一栏", exact: true })).toHaveCount(0);
   await expect(menu.getByRole("menuitem", { name: "快速预览", exact: true })).toBeEnabled();
@@ -688,6 +697,9 @@ test("文件与目录只显示适用的右键操作，Web 快照不显示系统�
   await expect(menu.getByRole("menuitem", { name: "快速预览", exact: true })).toHaveCount(0);
   await expect(menu.getByRole("menuitem", { name: "打开方式", exact: true })).toHaveCount(0);
   await expect(menu.getByRole("menuitem", { name: "复制名称", exact: true })).toBeEnabled();
+  await menu.getByRole("menuitem", { name: "属性", exact: true }).click();
+  const properties = page.getByRole("dialog", { name: "属性", exact: true });
+  await expect(properties.locator("dd").filter({ hasText: /^目录$/ })).toBeVisible();
   await page.keyboard.press("Escape");
   await left.getByRole("option", { name: /alpha.c/ }).click({ button: "right" });
   await menu.getByRole("menuitem", { name: "打开", exact: true }).click();
@@ -1072,4 +1084,76 @@ test("固定目录标签保持名称，显式返回、子树限制和切换自�
   await tab.click();
   await expect(list.getByRole("option", { name: /^base.txt/ })).toBeVisible();
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("file-workbench:nr:local-file-browser") || "null")?.groups[0]?.tabs[0]?.anchor?.node)).toBe("base");
+});
+
+test("不支持预览时显示文件详情而非错误，右键属性可查看快照元数据", async ({ page }) => {
+  const fixture = await mkdtemp(join(tmpdir(), "nr-unsupported-preview-"));
+  try {
+    await writeFile(join(fixture, "archive.bin"), Buffer.from([0, 255, 0, 17]));
+    await page.goto("/file-workbench.html");
+    const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+    await browser.getByLabel("选择目录快照", { exact: true }).setInputFiles(fixture);
+    const file = browser.getByRole("option", { name: /^archive.bin/ });
+    await file.click({ button: "right" });
+    await page.getByRole("menuitem", { name: "属性", exact: true }).click();
+    const properties = page.getByRole("dialog", { name: "属性", exact: true });
+    await expect(properties).toContainText("archive.bin");
+    await expect(properties).toContainText("4 bytes");
+    await page.keyboard.press("Escape");
+    await file.click(); await page.keyboard.press("Space");
+    const quick = page.getByRole("region", { name: "快速预览", exact: true });
+    await expect(quick).toContainText("此文件暂时无法内置预览");
+    await expect(quick.locator(".file-browser-file-details")).toContainText("4 bytes");
+    await expect(quick.getByRole("alert")).toHaveCount(0);
+    await quick.getByRole("button", { name: "关闭快速预览", exact: true }).click();
+    await file.dblclick();
+    const full = page.getByRole("region", { name: "文件源码工作区", exact: true });
+    await expect(full).toContainText("此文件暂时无法内置预览");
+    await expect(full.locator(".file-browser-file-details")).toContainText("archive.bin");
+    await expect(full.getByRole("alert")).toHaveCount(0);
+  } finally { await rm(fixture, { recursive: true, force: true }); }
+});
+
+test("大图片开始分段读取后可中断，迟到结果不显示；系统属性优先，拒绝后回退", async ({ page }) => {
+  await page.addInitScript(() => {
+    let id = 1;
+    const state = { reads: 0, propertyRequests: [] as boolean[], system: true };
+    (window as any).__imageTest = state;
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback() { return id++; }, unregisterCallback() {},
+      async invoke(command: string, args: any = {}) {
+        if (command === "plugin:event|listen") return id++;
+        if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
+        if (command === "local_files_roots") return [{ id: "images", name: "Images" }];
+        if (command === "local_files_display_path") return "/images";
+        if (command === "local_files_list") return { nodes: [{ id: "huge.png", name: "huge.png", size: 100 * 1024 * 1024, directory: false, modifiedMs: 10 }], next: null };
+        if (command === "local_files_stat") return { size: 100 * 1024 * 1024, modifiedMs: 10 };
+        if (command === "local_files_properties") { state.propertyRequests.push(args.system); return { path: "/images/huge.png", size: 100 * 1024 * 1024, modifiedMs: 10, createdMs: 5, accessedMs: 20, permissions: "644", systemShown: args.system && state.system }; }
+        if (command === "local_files_read_asset") { state.reads++; return new Promise(resolve => { (window as any).__releaseImage = () => resolve(new Uint8Array(args.length).buffer); }); }
+        throw new Error(command);
+      },
+    };
+  });
+  await page.goto("/file-workbench.html");
+  const file = page.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /^huge.png/ });
+  await file.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "属性", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__imageTest.propertyRequests)).toEqual([true]);
+  await expect(page.getByRole("dialog", { name: "属性", exact: true })).toHaveCount(0);
+  await page.evaluate(() => { (window as any).__imageTest.system = false; });
+  await file.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "属性", exact: true }).click();
+  const properties = page.getByRole("dialog", { name: "属性", exact: true });
+  await expect(properties).toContainText("/images/huge.png");
+  await expect(properties).toContainText("644");
+  await page.keyboard.press("Escape");
+  await file.dblclick();
+  const preview = page.getByRole("region", { name: "快速预览", exact: true });
+  await expect.poll(() => page.evaluate(() => (window as any).__imageTest.reads)).toBe(1);
+  await preview.getByRole("button", { name: "中断加载", exact: true }).click();
+  await expect(preview).toContainText("已中断预览加载");
+  await expect(preview.locator(".file-browser-file-details")).toContainText("100.00 MiB");
+  await page.evaluate(() => (window as any).__releaseImage());
+  await expect(preview.getByRole("img")).toHaveCount(0);
+  expect(await page.evaluate(() => (window as any).__imageTest.reads)).toBe(1);
 });

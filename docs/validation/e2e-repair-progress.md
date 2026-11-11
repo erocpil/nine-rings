@@ -3,6 +3,30 @@
 
 
 
+## 2026-11-11：87 MiB PNG 的真实解码与托盘显隐
+
+用户的清水寺.png为91,564,575 bytes、11040×6211的有效PNG，93个chunk的CRC全部正确。以相同原图对照WebKit：Blob URL加载成功，Data URL长度122,086,122字符时触发图片加载失败。前次移除大小预算仍沿用Data URL，没有验证到真实大图解码限制；现将预览单独切换到Blob URL，现有需数据资源的readImageAsset默认行为保留。
+
+新增可选readImagePreview宿主端口，使用同一分段读取、授权和取消检查，直接积累二进制Blob分段，不进行Base64扩展。对象URL由预览拥有：关闭、切换、取消和解码失败时释放，提供者在取消/授权变化时也释放刚生成但尚未交出的URL。独立宿主仍不依赖数据库，边界门禁增加对可移植browser-preview模块本身的检查，而非删除依赖约束。
+
+真实文件通过隔离目录副本进入File Workbench WebKit完整预览，显式等待img.decode()并截图确认像素显示；两次打开分别1768/1352ms，尺寸均正确、URL长度63，关闭后确认撤销，两次对象URL不同。原图未修改，临时副本已清理。证据：/tmp/nr-large-image-probe.log、/tmp/nr-large-image-workbench.log、/tmp/nr-large-image-preview.png。时间仅代表此主机和本次浏览器环境，不等同原生IPC性能承诺。
+
+File Workbench托盘左键改为Down事件时判断：前台且未最小化则收起，隐藏、最小化或后台则召回；右键显示/Dock保持只召回。关闭按钮与托盘共用同一全屏隐藏路径，不重复实现延迟状态。Rust测试覆盖后台召回、前台收起、隐藏召回及最小化时的陈旧焦点。Nine Rings本次托盘不可见先通过open -a系统入口召回，日志确认tray icon created；随后用户确认Stats占用了菜单栏空间。两款应用创建独立状态项，没有据此修改Nine Rings托盘行为。
+
+完整npm run check通过244文件/2633项，含Blob字节准确性及取消时释放测试；原生工作台8项测试通过。最终生产WebKit完整26项通过（31.0s），ARM64 File Workbench.app构建通过。Chromium为25通过/1失败，旧预览关闭后方向键定位用例再次出现间歇失败；新增Blob切换和释放断言通过；失败用例与退出、Blob切换、大图中断合并复测4项全部通过（7.1s），仍保留间歇失败记录，不声称已解决该独立竞态。原生托盘点击仍需系统实测。
+
+## 2026-11-11：不支持预览的文件、系统属性及大图中断
+
+快速预览和独立全视图在无法读取文本/解码图片时显示中性说明及可选文本的详情卡，不把文件格式不受支持作为编辑错误。文件与目录右键增加“属性”，macOS Finder简介、Windows Shell属性及Linux FileManager1接口优先，失败回退应用属性；目录大小明确为条目自身。元数据有完整路径、大小、创建/修改/访问时间及权限。Web无法提供的字段标为不可用，不伪造时间。
+
+图片取消预览8 MiB和服务20 MiB的限制，连续预览也不排除大图。原生增加向后兼容的offset/length可选字段，单请求最多1 MiB，前端按768 KiB读取，96 KiB倍数做Base64编码并让出事件循环；不再同时分配完整原始文件缓冲。取消会在请求间、返回后和转换间检查，迟到结果不更新UI；图像解码也有中断入口。已发出的单段系统读取与浏览器解码器内部释放不承诺硬中断。实际格式解码仍由WebView提供，新增BMP/ICO/TIFF/HEIC识别，不能解码时回退详情。
+
+影响分析：核对所有readImageAsset、local_files_read_asset、BrowserDirectoryProvider、BrowserWorkspaceHost和SourceView调用。新宿主/提供者方法可选，旧替身及图片读取调用仍兼容；新增IPC在两个宿主注册，限定main调用并复用checked_path，系统交接前再次核对授权和路径，参数不拼接进脚本/命令。目录切换和卸载作废迟到属性回调。取消只影响预览，不修改源文件、保存协调或草稿。
+
+验证：完整npm run check通过244文件/2630项；新增服务测试覆盖二进制Base64精确还原、取消后不再读取、属性字段与授权失效；Rust共享文件宿主30项通过，80 MiB稀疏图片验证尾部分段、越界路径、属性和目录字段。独立ARM64应用构建通过并核验Finder权限说明已合并；Nine Rings Rust库cargo check通过，最终lint通过。Chromium完整26项通过（34.3s）；原首轮25通过/1失败为旧菜单分隔线数量断言，增加属性分组后更新为2并验证目录属性展示，不删除旧用例。最终生产WebKit完整26项通过（32.1s），共享Nine Rings浏览工具Chromium20项通过（42.7s），包括图片缩放、双轴滚动、手机布局和目录操作边界。最终应用已重建，NSAppleEventsUsageDescription已确认合并到实际.app的Info.plist。
+
+真实Finder/Windows/Linux系统属性窗口及设备内存极限仍需各平台人工验收；浏览器以授权文件替身验证系统调用优先与回退。结论SAFE（已验证读取、取消、保存与授权边界）；UNCERTAIN（未实测的系统交接与物理内存极限）。日志：/tmp/nr-preview-check.log、/tmp/nr-preview-unit.log、/tmp/nr-preview-rust.log、/tmp/nr-preview-focused.log、/tmp/nr-preview-chromium.log、/tmp/nr-preview-final-chromium.log、/tmp/nr-preview-final-build.log、/tmp/nr-preview-nine-check.log、/tmp/nr-preview-final-lint.log、/tmp/nr-preview-webkit.log、/tmp/nr-preview-shared.log。
+
 ## 2026-11-11：File Workbench 关闭到托盘与连续退出确认
 
 独立宿主接入托盘显示/退出及左键召回，macOS Dock Reopen也召回；标题栏关闭只隐藏，保留编辑实例、草稿和运行任务。全屏关闭先退出全屏，非全屏尺寸事件消费一次隐藏请求，召回时取消尚未消费的请求。系统Quit替换为确认事件，前端复用createQuitConfirmation的两秒窗口；失焦、超时及卸载清理提示。托盘退出仍直接进入原离开门禁，只有源文件保存/放弃/草稿决定和目录任务检查通过后才调用workbench_confirm_close，原生ToolJobs.active再次拦截。

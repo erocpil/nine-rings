@@ -1,3 +1,5 @@
+import { releaseBrowserPreview } from "../lib/local-files/browser-preview";
+import { FileBrowserFileDetails } from "./FileBrowserFileDetails";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contract";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -8,14 +10,18 @@ export function FileBrowserQuickPreview({ rootId, node, provider, active, revisi
   const [error, setError] = useState(""), [loading, setLoading] = useState(false);
   const [findOpen, setFindOpen] = useState(false), [query, setQuery] = useState(""), [matchCase, setMatchCase] = useState(false), [navigationMessage, setNavigationMessage] = useState("");
   const host = useRef<HTMLElement>(null);
+  const request = useRef<AbortController | null>(null);
+  const [cancelled, setCancelled] = useState(false);
   useLayoutEffect(() => { if (active && autoFocus) host.current?.focus({ preventScroll: true }); }, [active, autoFocus]);
   useEffect(() => {
-    setPreview(null); setError(""); setLoading(false); setNavigationMessage("");
+    setPreview(null); setError(""); setLoading(false); setNavigationMessage(""); setCancelled(false);
     if (!active || !node) return;
-    const controller = new AbortController();
+    const controller = new AbortController(); request.current = controller;
+    let owned: Awaited<ReturnType<typeof provider.preview>> | null = null;
+    controller.signal.addEventListener("abort", () => { releaseBrowserPreview(owned); owned = null; }, { once: true });
     const timer = window.setTimeout(() => {
       setLoading(true);
-      void provider.preview(rootId, node, controller.signal).then(value => { if (!controller.signal.aborted) setPreview(value); }).catch(reason => { if (!controller.signal.aborted) setError(String(reason)); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+      void provider.preview(rootId, node, controller.signal).then(value => { if (controller.signal.aborted) releaseBrowserPreview(value); else { owned = value; setPreview(value); } }).catch(reason => { if (!controller.signal.aborted) setError(String(reason)); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     }, 150);
     return () => { clearTimeout(timer); controller.abort(); };
   }, [rootId, node, active, provider, revision]);
@@ -35,10 +41,10 @@ export function FileBrowserQuickPreview({ rootId, node, provider, active, revisi
   }}>
     <header><strong title={node}>预览 · {node?.split("/").pop() || "未选择文件"}</strong>{onNavigate && <><button type="button" className="btn-icon" aria-label={navigationAxis === "horizontal" ? "上一文件" : "预览上一文件"} disabled={!previous} title={`上一文件（${navigationAxis === "horizontal" ? "←" : "↑"}，当前已加载范围）`} onClick={() => step(-1)}><ToolbarIcon name="chevronLeft" /></button><button type="button" className="btn-icon" aria-label={navigationAxis === "horizontal" ? "下一文件" : "预览下一文件"} disabled={!next} title={`下一文件（${navigationAxis === "horizontal" ? "→" : "↓"}，当前已加载范围）`} onClick={() => step(1)}><ToolbarIcon name="chevronRight" /></button></>}{preview?.kind === "text" && <button type="button" className="btn-icon" aria-label="查找预览" title="查找预览（⌘/Ctrl+F）" aria-pressed={findOpen} onClick={() => findOpen ? closeFind() : find()}><ToolbarIcon name="search" /></button>}<button type="button" className="btn-icon" aria-label={closeLabel} title="关闭预览，返回文件浏览" onClick={onClose}><ToolbarIcon name="close" /></button></header>
     <p>磁盘已保存内容 · 只读{preview?.truncated ? " · 仅显示前 65536 字符" : ""}</p>
-    {loading && <p role="status">正在读取预览…</p>}
-    {error && <p role="status">无法预览此项：{error}。请选择文件或直接打开。</p>}
+    {loading && <p role="status">正在加载预览，大文件可能需要较长时间… <button type="button" onClick={() => { request.current?.abort(); setLoading(false); setPreview(null); setCancelled(true); }}>中断加载</button></p>}
+    {(error || cancelled) && <><p role="status">{cancelled ? "已中断预览加载。" : "此文件暂时无法内置预览，可使用其它应用打开。"}</p>{node && <FileBrowserFileDetails rootId={rootId} node={node} provider={provider} />}</>}
     {navigationMessage && <p role="status">{navigationMessage}</p>}
     {!node && <p>在另一栏选择一个文件。</p>}
-    {preview?.kind === "image" ? <FileBrowserPreviewImage key={`${rootId}:${node}`} src={preview.value} name={node?.split("/").pop() ?? "预览"} /> : preview && <FileBrowserPreviewText source={preview.value} query={query} onQuery={setQuery} matchCase={matchCase} onCase={setMatchCase} findOpen={findOpen} onCloseFind={closeFind} />}
+    {preview?.kind === "image" ? <FileBrowserPreviewImage key={`${rootId}:${node}`} src={preview.value} name={node?.split("/").pop() ?? "预览"} onCancel={() => { request.current?.abort(); setPreview(null); setCancelled(true); }} onUnavailable={() => { request.current?.abort(); setPreview(null); setError("unsupported"); }} /> : preview && <FileBrowserPreviewText source={preview.value} query={query} onQuery={setQuery} matchCase={matchCase} onCase={setMatchCase} findOpen={findOpen} onCloseFind={closeFind} />}
   </section>;
 }

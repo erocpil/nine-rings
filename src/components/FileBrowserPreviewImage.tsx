@@ -4,12 +4,13 @@ import { wheelZoomFactor } from "../lib/diagram-gesture";
 
 /** Scroll-based pan keeps both axes bounded by the actual image extent. Zoom is
  * measured against original pixels, not an arbitrary multiple of fit scale. */
-export function FileBrowserPreviewImage({ src, name }: { src: string; name: string }) {
+export function FileBrowserPreviewImage({ src, name, onCancel, onUnavailable }: { src: string; name: string; onCancel?: () => void; onUnavailable?: () => void }) {
   const viewport = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [bounds, setBounds] = useState({ width: 0, height: 0 });
   const [zoom, setZoom] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
   const fit = imageFitScale(size.width, size.height, Math.max(1, bounds.width - 16), Math.max(1, bounds.height - 16), 0);
   const scale = zoom ?? fit;
   const latest = useRef(scale); latest.current = scale;
@@ -51,6 +52,7 @@ export function FileBrowserPreviewImage({ src, name }: { src: string; name: stri
     if (zoom === null && viewport.current) { viewport.current.scrollTop = 0; viewport.current.scrollLeft = 0; }
   }, [zoom, bounds]);
   return <>
+    {loading && <p role="status">正在解码图片，大图片可能需要较长时间… {onCancel && <button type="button" onClick={onCancel}>中断加载</button>}</p>}
     <div className="file-browser-preview-zoom" role="group" aria-label="预览图片缩放">
       <button type="button" aria-pressed={zoom === null} onClick={() => setZoom(null)}>适窗</button>
       <button type="button" aria-pressed={zoom === 1} onClick={() => setZoom(1)}>100%</button>
@@ -61,7 +63,7 @@ export function FileBrowserPreviewImage({ src, name }: { src: string; name: stri
     </div>
     <div ref={viewport} className="file-browser-preview-image" tabIndex={0} aria-label="预览图片可滚动区域">
       <div style={{ width: size.width ? size.width * scale + 16 : "100%", height: size.height ? size.height * scale + 16 : "100%" }}>
-        {failed ? <p role="status">无法解码此图片，请直接打开文件检查。</p> : <img src={src} alt={name} draggable={false} onError={() => setFailed(true)} onLoad={event => setSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })} style={{ width: size.width ? size.width * scale : undefined, height: size.height ? size.height * scale : undefined }} />}
+        {failed ? <p role="status">无法解码此图片，请直接打开文件检查。</p> : <img src={src} alt={name} draggable={false} onError={() => { setLoading(false); setFailed(true); onUnavailable?.(); }} onLoad={event => { setLoading(false); setSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight }); }} style={{ width: size.width ? size.width * scale : undefined, height: size.height ? size.height * scale : undefined }} />}
       </div>
     </div>
   </>;

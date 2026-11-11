@@ -83,7 +83,7 @@ it("bounds quick preview before reading and truncates text without changing the 
   const provider = localDirectoryProvider(owner);
   await expect(
     provider.preview("r", "large.txt", new AbortController().signal),
-  ).rejects.toThrow("1 MiB");
+  ).rejects.toThrow("快速预览范围");
   expect(read).not.toHaveBeenCalled();
   stat.mockResolvedValue({ size: 70000, modifiedMs: 0 });
   const preview = await provider.preview(
@@ -105,10 +105,12 @@ it("rejects a stale preview after its file read finishes", async () => {
     size: 100,
     modifiedMs: 0,
   });
-  vi.spyOn(localFileService, "readImageAsset").mockImplementation(async () => {
-    controller.abort();
-    return "data:image/png;base64,AA==";
-  });
+  vi.spyOn(localFileService, "readImagePreview").mockImplementation(
+    async () => {
+      controller.abort();
+      return "data:image/png;base64,AA==";
+    },
+  );
   await expect(
     localDirectoryProvider(owner).preview("r", "image.png", controller.signal),
   ).rejects.toThrow();
@@ -179,4 +181,26 @@ it("raw-byte comparison uses the scoped digest service and rejects a late result
     ),
   ).rejects.toThrow();
   expect(read).not.toHaveBeenCalled();
+});
+
+it("large images have no artificial preview cap and propagate cancellation to image reading", async () => {
+  pluginRuntime.setEnabled(true);
+  const owner = pluginRuntime.activate("test.large-image", [
+    "filesystem.files.read",
+  ]);
+  vi.spyOn(localFileService, "stat").mockResolvedValue({
+    size: 80 * 1024 * 1024,
+    modifiedMs: 1,
+  });
+  const read = vi
+    .spyOn(localFileService, "readImagePreview")
+    .mockResolvedValue("data:image/png;base64,large");
+  const controller = new AbortController();
+  const result = await localDirectoryProvider(owner).preview(
+    "r",
+    "large.png",
+    controller.signal,
+  );
+  expect(result.kind).toBe("image");
+  expect(read).toHaveBeenCalledWith("r", "large.png", controller.signal);
 });

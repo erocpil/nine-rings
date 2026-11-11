@@ -185,3 +185,8 @@
 .file-browser-root-confirm { flex-basis: 100%; }
 .file-browser-root-manager button { color: var(--text); background: var(--surface, var(--bg)); border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; font: inherit; }
 .file-browser-root-confirm button + button { margin-left: 8px; }
+
+.file-browser-file-details { padding: 12px; overflow: auto; color: var(--text-secondary); }
+.file-browser-file-details dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; margin: 0; font-size: 13px; }
+.file-browser-file-details dt { color: var(--text-muted); }
+.file-browser-file-details dd { margin: 0; overflow-wrap: anywhere; user-select: text; }

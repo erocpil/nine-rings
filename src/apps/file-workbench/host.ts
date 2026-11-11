@@ -52,6 +52,7 @@ export function createWorkbenchHost(open: (request: BrowserFileOpen) => void) {
     addFiles: files => localFileService.addFiles(files),
     async revokeRoot(rootId) { operations.assertIdle(); await localFileService.remove(rootId); assertActive(); },
     externalOpen: isTauriRuntime() ? { open: (rootId, node, chooseApplication) => localFileService.openExternal(rootId, node, chooseApplication) } : undefined,
+    systemProperties: isTauriRuntime() ? async (rootId, node) => (await localFileService.fileProperties(rootId, node, true)).systemShown ?? false : undefined,
     displayPath: (rootId, node) => localFileService.displayPath(rootId, node), absolutePaths: isTauriRuntime(),
     supportsDirectoryPicker: () => localFileService.supportsDirectoryPicker(),
     supportsDirectoryChanges: rootId => localFileService.supportsDirectoryChanges(rootId),

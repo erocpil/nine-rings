@@ -844,6 +844,7 @@ pub fn run() {
             commands::local_files::local_files_digest,
             commands::local_files::local_files_save_as,
             commands::local_files::local_files_open_external,
+            commands::local_files::local_files_properties,
             commands::image_library::image_library_choose,
             commands::image_library::image_library_roots,
             commands::image_library::image_library_remove,

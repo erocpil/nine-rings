@@ -79,7 +79,7 @@ function Workbench() {
   nativeError = cause => setNativeNotice(`桌面窗口操作失败：${String(cause)}`);
   nativeClose = confirm => {
     try { host.operations.assertIdle(); } catch (cause) { setNativeNotice(String(cause)); return; }
-    if (file && !/\.(png|jpe?g|gif|webp|svg|avif)$/i.test(file.node.name)) {
+    if (file && !/\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif)$/i.test(file.node.name)) {
       if (closeSource.current) closeSource.current(confirm);
       else setNativeNotice("文件工作区正在加载，请稍后再关闭窗口。");
     } else confirm();
@@ -92,7 +92,7 @@ function Workbench() {
     return true;
   };
   const previous = Boolean(file?.siblings && nextWorkbenchPreview(file.siblings, file.node.id, -1)), next = Boolean(file?.siblings && nextWorkbenchPreview(file.siblings, file.node.id, 1));
-  const image = file && /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(file.node.name);
+  const image = file && /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif)$/i.test(file.node.name);
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<LocalFileDraft[]>([]), [draftsOpen, setDraftsOpen] = useState(false), [draftError, setDraftError] = useState("");
   useEffect(() => {
@@ -119,7 +119,7 @@ function Workbench() {
     {quitHint && <div className="quit-confirmation-hint" role="status" aria-live="polite">{quitHint}</div>}
     {execution.element}
     <div className="file-workbench-content"><FileBrowserWorkspace workspace={host.workspace} active={!file} toolbarExtras={tools} onToolContext={setToolContext} />
-    {file && (image ? <FileBrowserQuickPreview rootId={file.rootId} node={file.node.id} provider={host.workspace.provider} active autoFocus navigationAxis="horizontal" previous={previous} next={next} onNavigate={file.siblings ? stepPreview : undefined} revision={0} closeLabel="返回文件浏览" onClose={closeFile} /> : <Suspense fallback={<p role="status">正在加载共享源码工作区…</p>}><SourceView key={`${file.rootId}:${file.node.id}`} file={file} host={host.source} onNavigate={file.siblings ? stepPreview : undefined} previous={previous} next={next} onClose={closeFile} closeRequest={closeSource} /></Suspense>)}</div>
+    {file && (image ? <FileBrowserQuickPreview rootId={file.rootId} node={file.node.id} provider={host.workspace.provider} active autoFocus navigationAxis="horizontal" previous={previous} next={next} onNavigate={file.siblings ? stepPreview : undefined} revision={0} closeLabel="返回文件浏览" onClose={closeFile} /> : <Suspense fallback={<p role="status">正在加载共享源码工作区…</p>}><SourceView key={`${file.rootId}:${file.node.id}`} file={file} host={host.source} provider={host.workspace.provider} onNavigate={file.siblings ? stepPreview : undefined} previous={previous} next={next} onClose={closeFile} closeRequest={closeSource} /></Suspense>)}</div>
     <footer>授权目录可请求保存原文件；目录快照只能导出副本。目录操作通过确认队列执行，不覆盖同名项目。{isTauriRuntime() ? "目录授权保存在独立工作台中。" : "授权仅限当前会话。"}{nativeNotice && <span role="alert">{nativeNotice}</span>}{draftError && <span role="alert">{draftError}</span>}</footer>
     {draftsOpen && <WorkspaceDialog title="恢复草稿" onClose={() => { setDraftsOpen(false); setDraftToDelete(null); }}>{draftError && <p role="alert">{draftError}</p>}<p>草稿独立保存在本机。重新授权会生成新的目录身份，请下载草稿，再核对路径后手动恢复；不会自动覆盖重新授权的文件。最多保留 5 份草稿，不自动删除；满额时请先下载并处理旧草稿。</p>{!drafts.length && <p>没有未保存草稿。</p>}{drafts.map(draft => <article key={draft.identity}><strong>{draft.identity.slice(draft.identity.indexOf(":") + 1)}</strong><time>{new Date(draft.savedAt).toLocaleString()}</time><button type="button" onClick={() => { void exportLocalSource(draft.identity.split("/").pop()!.split(":").pop()!, draft.source, draft, host.source.saveCopy).catch(cause => setDraftError(String(cause))); }}>下载草稿</button><button type="button" onClick={() => setDraftToDelete(draft.identity)}>删除草稿</button>{draftToDelete === draft.identity && <div><p>确认删除这份恢复草稿？请先核对或下载其内容。</p><button type="button" onClick={() => { void host.source.drafts.remove(draft.identity).then(() => setDraftToDelete(null)).catch(cause => setDraftError(String(cause))); }}>确认删除草稿</button><button type="button" onClick={() => setDraftToDelete(null)}>取消</button></div>}<pre>{draft.source.slice(0, 2000)}{draft.source.length > 2000 ? "…" : ""}</pre></article>)}</WorkspaceDialog>}
   </main>;
