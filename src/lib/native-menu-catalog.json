@@ -73,15 +73,18 @@
       },
       {
         "id": "workspace.recent",
-        "text": "最近打开"
+        "text": "最近打开",
+        "checkable": true
       },
       {
         "id": "workspace.favorites",
-        "text": "收藏文档"
+        "text": "收藏文档",
+        "checkable": true
       },
       {
         "id": "workspace.today",
-        "text": "今日修改"
+        "text": "今日修改",
+        "checkable": true
       }
     ]
   },

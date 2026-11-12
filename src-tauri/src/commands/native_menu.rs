@@ -7,15 +7,31 @@ pub struct MenuState {
     checked: bool,
     #[serde(default = "default_shortcut")]
     shortcut: bool,
+    #[serde(default)]
+    accelerator: Option<String>,
 }
 
 fn default_shortcut() -> bool {
     true
 }
 
+#[cfg(any(target_os = "macos", test))]
+fn effective_accelerator<'a>(
+    state: Option<&'a MenuState>,
+    default: Option<&'a str>,
+) -> Option<&'a str> {
+    if state.is_some_and(|state| !state.shortcut) {
+        return None;
+    }
+    state
+        .and_then(|state| state.accelerator.as_deref())
+        .or(default)
+        .filter(|value| !value.is_empty())
+}
+
 #[cfg(target_os = "macos")]
 mod macos {
-    use super::MenuState;
+    use super::{effective_accelerator, MenuState};
     use serde::Deserialize;
     use std::{collections::HashMap, sync::Mutex};
     use tauri::{
@@ -38,7 +54,7 @@ mod macos {
     pub struct NativeItem {
         item: MenuItemKind<tauri::Wry>,
         accelerator: Option<String>,
-        shortcut: bool,
+        applied_accelerator: Option<String>,
     }
     pub struct NativeMenu(pub Mutex<HashMap<String, NativeItem>>);
 
@@ -77,8 +93,8 @@ mod macos {
             id,
             NativeItem {
                 item: item.clone(),
+                applied_accelerator: entry.accelerator.clone(),
                 accelerator: entry.accelerator,
-                shortcut: true,
             },
         );
         Ok(item)
@@ -162,20 +178,17 @@ mod macos {
             .map(|s| (format!("nr-menu:{}", s.id), s))
             .collect();
         for (id, entry) in items.iter_mut() {
-            let shortcut = states.get(id).is_none_or(|state| state.shortcut);
-            if shortcut != entry.shortcut {
-                let accelerator = if shortcut {
-                    entry.accelerator.as_deref()
-                } else {
-                    None
-                };
+            let state = states.get(id);
+            let accelerator =
+                effective_accelerator(state, entry.accelerator.as_deref()).map(str::to_owned);
+            if accelerator != entry.applied_accelerator {
                 match &entry.item {
-                    MenuItemKind::MenuItem(item) => item.set_accelerator(accelerator),
-                    MenuItemKind::Check(item) => item.set_accelerator(accelerator),
+                    MenuItemKind::MenuItem(item) => item.set_accelerator(accelerator.as_deref()),
+                    MenuItemKind::Check(item) => item.set_accelerator(accelerator.as_deref()),
                     _ => Ok(()),
                 }
                 .map_err(|e| e.to_string())?;
-                entry.shortcut = shortcut;
+                entry.applied_accelerator = accelerator;
             }
             let item = &entry.item;
             let state = states.get(id);
@@ -216,8 +229,47 @@ pub fn update_native_menu(
         // Windows/Linux dead-code checks clean.
         let _ = app;
         for state in states {
-            let _ = (state.id, state.enabled, state.checked, state.shortcut);
+            let _ = (
+                state.id,
+                state.enabled,
+                state.checked,
+                state.shortcut,
+                state.accelerator,
+            );
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn native_menu_old_states_keep_catalog_accelerators() {
+        let old: MenuState =
+            serde_json::from_str(r#"{"id":"document.save","enabled":true,"checked":false}"#)
+                .unwrap();
+        assert_eq!(
+            effective_accelerator(Some(&old), Some("Command+S")),
+            Some("Command+S")
+        );
+    }
+    #[test]
+    fn native_menu_custom_accelerators_can_change_clear_and_disable() {
+        let mut state: MenuState = serde_json::from_str(
+            r#"{"id":"workspace.recent","enabled":true,"checked":true,"accelerator":"Alt+1"}"#,
+        )
+        .unwrap();
+        assert_eq!(effective_accelerator(Some(&state), None), Some("Alt+1"));
+        state.accelerator = Some("CommandOrControl+1".into());
+        assert_eq!(
+            effective_accelerator(Some(&state), None),
+            Some("CommandOrControl+1")
+        );
+        state.shortcut = false;
+        assert_eq!(effective_accelerator(Some(&state), None), None);
+        state.shortcut = true;
+        state.accelerator = Some(String::new());
+        assert_eq!(effective_accelerator(Some(&state), Some("Alt+1")), None);
     }
 }

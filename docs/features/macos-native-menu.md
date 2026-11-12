@@ -13,7 +13,7 @@ macOS Tauri 保留原有应用、File、编辑、视图和窗口菜单，将文�
 
 ## 命令与状态的权威
 
-`src/lib/native-menu-catalog.json` 仅定义菜单结构、稳定命令 ID、名称及原生快捷键；由 Rust 编译进 macOS 应用。它不保存文档或排版状态，不执行插件脚本。
+`src/lib/native-menu-catalog.json` 仅定义菜单结构、稳定命令 ID、名称及默认原生快捷键；由 Rust 编译进 macOS 应用。它不保存文档或排版状态，不执行插件脚本。
 
 React 活动视图向 `native-menu-registry.ts` 注册现有回调及 enabled/checked 状态。菜单执行的是同一个保存、导航或编辑函数，而不是模拟键盘、匹配按钮文案或复制一套文档实现。格式操作进入原编辑器的撤销和保存链路。分栏菜单与活动栏共用 `activateSidebarPanel`，保留首页快照、悬停/固定模式和插件主视图的挂起/恢复。
 
@@ -58,6 +58,14 @@ React 活动视图向 `native-menu-registry.ts` 注册现有回调及 enabled/ch
 专注模式源码也提供更多编辑工具；展开状态与渲染模式共用，在文档切换及模式往返后保持。只隐藏工具栏容器，不卸载 CodeMirror、历史或已打开的搜索/跳转面板。
 
 菜单初始化/同步异常不阻止应用启动。操作失败交给现有应用错误提示；界面中的原入口仍可使用。此命令注册器是宿主内部接口，当前不作为第三方插件的权限或菜单贡献 API。
+
+## 工作区列表的可配置快捷键
+
+Workspace → 最近打开、收藏文档、今日修改默认分别使用Alt+1、Alt+2、Alt+3。命令共用onSummary：第一次显示对应列表并记录分栏快照，再次执行同项恢复原分栏（包括原来隐藏的状态），切换其他列表不会丢失最初快照。菜单勾选跟随宿主的activeSummary。
+
+在设置 → 快捷键 → 工作区列表（窗口内）录制组合，可选择Command/Control、Alt等组合并恢复默认。默认选Alt避免占用浏览器Command/Ctrl+数字的标签页切换。组合保存在hotkeys的workspace_recent/workspace_favorites/workspace_today字段，旧配置缺项时使用默认；可随已有配置备份传递。此类快捷键只在应用窗口内生效，不注册成系统级全局热键。输入法组合、AltGr、模态弹层和已有门禁仍受保护，按住不反复切换列表；录制结束保持设置页焦点，Tab退出录制和鼠标转移焦点不被抢回。
+
+活动命令可携带可选accelerator覆盖默认加速键；nativeMenuSnapshot将其随enabled/checked发至update_native_menu。Rust比较实际已应用的加速键，只有变化时更新；字段缺省保留编译期默认，空字符串清除，自有shortcut=false仍可停用。旧状态DTO兼容，Windows/Linux消费同一字段而不安装macOS菜单，Web和其他桌面由同一命令注册器匹配执行。设置录制检查三项之间、现有全局热键和内置菜单/常见编辑键冲突。
 
 ## 验证边界
 

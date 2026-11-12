@@ -163,3 +163,33 @@ test("渲染快捷键只执行一次，源码快捷键保留跳转面板切换�
   await run(page, "document.readonly");
   await expect.poll(() => state(page, "format.h2")).toMatchObject({ enabled: false });
 });
+
+
+test("Workspace三组快捷键切换和恢复分栏，可录制自定义并同步菜单状态", async ({ page }) => {
+  await createBlankDocument(page, "列表快捷键");
+  for (const [kind, key] of [["recent", "1"], ["favorites", "2"], ["today", "3"]]) {
+    await expect.poll(() => state(page, `workspace.${kind}`)).toMatchObject({ enabled: true, accelerator: `Alt+${key}`, checked: false });
+    await page.keyboard.press(`Alt+${key}`);
+    await expect.poll(() => state(page, `workspace.${kind}`)).toMatchObject({ checked: true });
+    await expect(page.getByRole("region", { name: "文档列表", exact: true })).toBeVisible();
+    await page.keyboard.press(`Alt+${key}`);
+    await expect.poll(() => state(page, `workspace.${kind}`)).toMatchObject({ checked: false });
+  }
+  await run(page, "workspace.settings");
+  await page.getByRole("button", { name: /^快捷键/ }).click();
+  await page.getByRole("button", { name: "修改最近打开列表快捷键", exact: true }).click();
+  await page.getByRole("textbox", { name: "录制最近打开列表快捷键", exact: true }).press("Alt+2");
+  await expect(page.getByRole("status").filter({ hasText: "此组合已用于" })).toContainText("收藏文档列表");
+  await page.getByRole("button", { name: "修改最近打开列表快捷键", exact: true }).click();
+  await page.getByRole("textbox", { name: "录制最近打开列表快捷键", exact: true }).press("Alt+Shift+1");
+  await expect.poll(() => state(page, "workspace.recent")).toMatchObject({ accelerator: "Alt+Shift+1" });
+  await expect(page.getByRole("button", { name: "修改最近打开列表快捷键", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape"); await page.keyboard.press("Escape");
+  await expect.poll(() => state(page, "workspace.recent")).toMatchObject({ enabled: true });
+  await page.keyboard.press("Alt+1");
+  await expect.poll(() => state(page, "workspace.recent")).toMatchObject({ checked: false });
+  await page.keyboard.press("Alt+Shift+1");
+  await expect.poll(() => state(page, "workspace.recent")).toMatchObject({ checked: true });
+  await page.keyboard.press("Alt+Shift+1");
+  await expect.poll(() => state(page, "workspace.recent")).toMatchObject({ checked: false });
+});

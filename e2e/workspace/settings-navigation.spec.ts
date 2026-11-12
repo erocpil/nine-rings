@@ -563,11 +563,13 @@ test("内置快捷键按用途分组并在宽屏并列展示", async ({ page }) 
   await page.getByTitle("设置").click();
   await page.getByRole("button", { name: /^快捷键/ }).click();
   const groups = page.locator(".hotkey-group");
-  await expect(groups).toHaveCount(2);
+  await expect(groups).toHaveCount(3);
   await expect(groups.nth(0).locator(".hotkey-group-title")).toHaveText("搜索与设置");
   await expect(groups.nth(0).getByText("聚焦搜索", { exact: true })).toBeVisible();
   await expect(groups.nth(0).getByText("打开设置", { exact: true })).toBeVisible();
   await expect(groups.nth(1).locator(".hotkey-group-title")).toHaveText("窗口控制");
+  await expect(groups.nth(2).locator(".hotkey-group-title")).toHaveText("工作区列表（窗口内）");
+  await expect(groups.nth(2).getByRole("button", { name: "修改最近打开列表快捷键", exact: true })).toBeVisible();
   const notes = page.locator(".hotkey-note-card");
   const noteTitles = await notes.locator("h4").allTextContents();
   expect(noteTitles).toEqual(expect.arrayContaining(["文档查找与跳转", "Vim 模式"]));

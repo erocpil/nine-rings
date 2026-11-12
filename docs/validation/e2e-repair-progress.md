@@ -3,6 +3,18 @@
 
 
 
+## 2026-11-12：Workspace列表快捷键与目录标签滚动条
+
+三项使用窗口内Alt+1/2/3默认，可在原HotkeyConfig录制并恢复；macOS菜单使用相同配置动态设置加速键，checked来自activeSummary。只调用既有onSummary，不重写分栏快照逻辑。检查DEFAULT_HOTKEYS、IDB默认和Rust默认、global-shortcuts（未知ID不注册）、配置同步hotkeys策略、菜单注册器/服务及Rust IPC、浏览器编辑命令捕获和录制冲突处理。菜单状态新增可选accelerator，缺省兼容旧DTO；非macOS字段消费保持strict编译，原生重复更新按实际应用值去重。按键匹配共享现有清单，扩展CommandOrControl/Super别名并保留物理Digit，避免Option数字受键盘布局影响；仅三项忽略DOM自动重复。
+
+首次新E2E默认三项开关通过，自定义后失败源于录制输入卸载丢失焦点，Esc没有关闭设置；新增局部layout-effect回到对应录制按钮，仅body焦点时恢复，Tab或点击其他控件不抢回。补测焦点、自定义生效、旧键失效、不同列表冲突及设置分组。现有设置分组测试更新为三组，不删除原断言。
+
+目录tab滚动条改4px，透明轨道和主题滑块，overflow-y:hidden；webkit平台避免标准scrollbar-width覆盖明确高度，其它平台保留thin。用11个目录标签验证真实溢出、伪元素4px高度及横向wheel后scrollLeft增加。首轮测试误用tablist名称“目录标签”而失败，改为真实左栏标签后通过，未修改产品语义。
+
+验证：完整check通过244文件/2639项；WebKit完整native-menu 8项通过（18.5s）、新增快捷键/设置分组2项通过（5.3s），Chromium新增2项通过（5.6s）；目录滚动条WebKit1项通过（3.8s）、Chromium1项通过（2.6s）。Rust首次全套沙箱内74通过/1失败/1忽略，失败为原图片目录监听收不到文件系统通知；沙箱外全套75通过/1忽略（私有备份输入专项保持原忽略条件），新增菜单解析/更新2项通过。Nine Rings及工作台生产构建均通过。macOS系统菜单真实按键仍需新包实机确认；浏览器使用真实DOM命令路径而非Cocoa事件。
+
+影响结论SAFE（命令链路、配置兼容、跨语言DTO、编辑快捷键与菜单回归有验证）。日志：/tmp/nr-summary-keys-final-check.log、/tmp/nr-summary-keys-native-webkit.log、/tmp/nr-summary-keys-webkit.log、/tmp/nr-summary-keys-chromium.log、/tmp/nr-summary-keys-rust-all.log、/tmp/nr-summary-keys-build.log、/tmp/nr-tab-scroll-webkit.log、/tmp/nr-tab-scroll-chromium.log、/tmp/nr-tab-scroll-build.log。
+
 ## 2026-11-12：时间列实际测量与滚动后的路径提示
 
 修改时间列新增autoModified偏好，默认开启：缓存Intl.DateTimeFormat保证显示/测量一致，浏览器canvas按真实日期字体与表头字体测量所有已加载日期（非仅虚拟可视行），包含排序箭头并留8px操作余量；表头与正文使用同一layoutColumns。手动列宽优先，双击恢复自动；旧145px默认迁移自动，旧不同宽度及显式autoModified=false保留。解析测试覆盖迁移和显式选择，两个区域设置命名空间不变。新增钩子仅在条目/属性或字体加载变化时测量，不在滚动时格式化全部条目，日期格式器不逐行构造。

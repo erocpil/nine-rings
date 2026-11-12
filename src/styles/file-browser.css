@@ -97,7 +97,11 @@
 .file-browser-conflict > div { display: flex; gap: 8px; margin-top: 8px; }
 .file-browser-directory-host { height: 100%; min-height: 0; }
 .file-browser-directory-host[hidden] { display: none; }
-.file-browser-tabs { display: flex; gap: 4px; padding: 4px 6px; overflow: auto; flex-shrink: 0; scrollbar-width: thin; }
+.file-browser-tabs { display: flex; gap: 4px; padding: 4px 6px; overflow-x: auto; overflow-y: hidden; flex-shrink: 0; scrollbar-width: thin; }
+.file-browser-tabs::-webkit-scrollbar { height: 4px; }
+.file-browser-tabs::-webkit-scrollbar-track { background: transparent; }
+.file-browser-tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+@supports selector(::-webkit-scrollbar) { .file-browser-tabs { scrollbar-width: auto; } }
 .file-browser-tab { display: flex; flex-shrink: 0; max-width: 180px; border: 1px solid var(--border); border-radius: 4px; }
 .file-browser-tabs button { background: transparent; color: var(--text-secondary); border: 0; font: inherit; padding: 4px 6px; font-size: 12px; cursor: pointer; }
 .file-browser-tab [role='tab'] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   editorShortcutAction,
+  matchesCommandShortcut,
   editorShortcutSpecs,
   shortcutLabel,
 } from "../../src/lib/editor-shortcuts";
@@ -72,4 +73,42 @@ describe("shared editor shortcuts", () => {
     expect(shortcutLabel("edit.redo", "MacIntel")).toBe("⇧⌘Z");
     expect(shortcutLabel("edit.redo", "Win32")).toBe("Ctrl+Y");
   });
+});
+
+it("matches configurable summary keys across platforms and keyboard layouts", () => {
+  expect(
+    matchesCommandShortcut(
+      key("Digit1", { metaKey: false, altKey: true, key: "¡" }),
+      "Alt+1",
+      "MacIntel",
+    ),
+  ).toBe(true);
+  expect(
+    matchesCommandShortcut(key("Digit2"), "CommandOrControl+2", "MacIntel"),
+  ).toBe(true);
+  expect(
+    matchesCommandShortcut(
+      key("Digit2", { metaKey: false, ctrlKey: true }),
+      "CommandOrControl+2",
+      "Win32",
+    ),
+  ).toBe(true);
+  expect(
+    matchesCommandShortcut(key("Digit2"), "CommandOrControl+2", "Win32"),
+  ).toBe(false);
+  expect(
+    matchesCommandShortcut(
+      key("Digit1", { metaKey: false, altKey: true, shiftKey: true }),
+      "Alt+1",
+      "MacIntel",
+    ),
+  ).toBe(false);
+  expect(
+    matchesCommandShortcut(
+      key("Digit1", { metaKey: false }),
+      "Typo+1",
+      "MacIntel",
+    ),
+  ).toBe(false);
+  expect(matchesCommandShortcut(key("Digit1"), "", "MacIntel")).toBe(false);
 });

@@ -285,6 +285,9 @@ fn default_user_language() -> String {
 
 fn default_hotkeys() -> std::collections::HashMap<String, String> {
     std::collections::HashMap::from([
+        ("workspace_recent".into(), "Alt+1".into()),
+        ("workspace_favorites".into(), "Alt+2".into()),
+        ("workspace_today".into(), "Alt+3".into()),
         ("focus_search".into(), "Alt+E".into()),
         ("open_settings".into(), "Alt+,".into()),
         ("show_window".into(), "Alt+Y".into()),

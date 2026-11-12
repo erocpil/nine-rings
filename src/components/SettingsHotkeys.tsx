@@ -1,6 +1,7 @@
+import { editorShortcutAction } from "../lib/editor-shortcuts";
 import { SettingsSourceShortcuts } from "./SettingsSourceShortcuts";
 import { isDocumentNavigationShortcut } from "../lib/document-navigation";
-import React, { useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import type { AppConfig } from "../types/models";
 import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../types/models";
 import { isTauriRuntime } from "../lib/runtime";
@@ -8,6 +9,7 @@ import {
   isDocumentFindShortcut,
   isEditorLineJumpShortcut,
   isMacTextEditingShortcut,
+  isPrimaryShortcutModifier,
 } from "../lib/shortcuts";
 
 // ── 快捷键配置 ──
@@ -15,6 +17,7 @@ import {
 const HOTKEY_GROUPS = [
   { title: "搜索与设置", ids: ["focus_search", "open_settings"] },
   { title: "窗口控制", ids: ["show_window"] },
+  { title: "工作区列表（窗口内）", ids: ["workspace_recent", "workspace_favorites", "workspace_today"] },
 ] as const;
 
 export function HotkeyConfig({
@@ -24,9 +27,18 @@ export function HotkeyConfig({
   config: AppConfig;
   onUpdate: (hk: Record<string, string>) => void;
 }) {
+  const container = useRef<HTMLDivElement>(null);
+  const previousRecording = useRef<string | null>(null);
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [recordingError, setRecordingError] = useState<string | null>(null);
   const mac = /Mac/i.test(navigator.platform);
+
+  useLayoutEffect(() => {
+    const previous = previousRecording.current;
+    previousRecording.current = recordingId;
+    // The recording input disappears after saving/cancelling. Keep Escape in settings.
+    if (previous && recordingId === null && document.activeElement === document.body) container.current?.querySelector<HTMLButtonElement>(`[data-hotkey-id="${previous}"]`)?.focus({ preventScroll: true });
+  }, [recordingId]);
 
   const startRecord = (id: string) => {
     setRecordingError(null);
@@ -69,6 +81,7 @@ export function HotkeyConfig({
     if (recordingId === null) return;
     e.stopPropagation();
     if (e.key === "Tab") {
+      previousRecording.current = null;
       setRecordingId(null);
       return;
     }
@@ -143,6 +156,11 @@ export function HotkeyConfig({
       setRecordingId(null);
       return;
     }
+    if (editorShortcutAction(e.nativeEvent) || (!e.altKey && isPrimaryShortcutModifier(e.nativeEvent) && /^Key[ACVXYZQH]$/.test(e.code)) || e.code === "F11") {
+      setRecordingError("此组合已用于内置菜单命令，请使用其他组合键。");
+      setRecordingId(null);
+      return;
+    }
     const conflict = conflictFor(recordingId, shortcut);
     if (conflict) {
       setRecordingError(`此组合已用于“${conflict[1]}”，请选择其他组合键。`);
@@ -167,11 +185,11 @@ export function HotkeyConfig({
   };
 
   return (
-    <div className="hotkey-list">
+    <div ref={container} className="hotkey-list">
       <div className="hotkey-reserved-note">
         {!isTauriRuntime() && (
           <p className="hotkey-note-web">
-            以下绑定用于 Tauri 桌面版，可随备份迁移。Web 版仍使用 Alt+E
+            工作区列表绑定在 Web 和桌面窗口内生效，再按一次恢复之前分栏；其它绑定用于 Tauri 桌面全局热键，可随备份迁移。Web 版仍使用 Alt+E
             搜索、Alt+, 打开设置；无法用全局热键唤起浏览器窗口。
           </p>
         )}
@@ -231,6 +249,7 @@ export function HotkeyConfig({
                         ) : (
                           <button
                             className="hotkey-btn"
+                            data-hotkey-id={id}
                             onClick={() => startRecord(id)}
                             title="点击修改快捷键"
                             aria-label={`修改${label}快捷键`}

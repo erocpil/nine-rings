@@ -185,6 +185,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   user_default_language: "zh-CN",
   user_default_license: "",
   hotkeys: {
+    workspace_recent: "Alt+1",
+    workspace_favorites: "Alt+2",
+    workspace_today: "Alt+3",
     focus_search:  "Alt+E",
     open_settings: "Alt+,",
   },

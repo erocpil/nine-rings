@@ -98,3 +98,32 @@ describe("macOS 菜单命令", () => {
     );
   });
 });
+
+it("publishes live configurable accelerators and summary toggle state", () => {
+  const owner = {};
+  const stop = registerNativeMenuActions(owner, {
+    "workspace.recent": { run() {}, accelerator: "Alt+1", checked: true },
+  });
+  cleanup.push(stop);
+  expect(nativeMenuSnapshot()).toContainEqual({
+    id: "workspace.recent",
+    enabled: true,
+    checked: true,
+    accelerator: "Alt+1",
+  });
+  cleanup.push(
+    registerNativeMenuActions(owner, {
+      "workspace.recent": {
+        run() {},
+        accelerator: "CommandOrControl+1",
+        checked: false,
+      },
+    }),
+  );
+  expect(nativeMenuSnapshot()).toContainEqual({
+    id: "workspace.recent",
+    enabled: true,
+    checked: false,
+    accelerator: "CommandOrControl+1",
+  });
+});

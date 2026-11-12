@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { editorShortcutAction } from "../lib/editor-shortcuts";
+import { editorShortcutAction, matchesCommandShortcut } from "../lib/editor-shortcuts";
 import {
   nativeMenuSnapshot,
   runNativeMenuAction,
@@ -19,9 +19,10 @@ export function useEditorCommandShortcuts(onError: (error: unknown) => void) {
         event.getModifierState("AltGraph")
       )
         return;
-      const id = editorShortcutAction(event);
-      if (!id) return;
-      const action = nativeMenuSnapshot().find((item) => item.id === id);
+      const snapshot = nativeMenuSnapshot();
+      const id = snapshot.find(item => /^workspace\.(recent|favorites|today)$/.test(item.id) && item.accelerator && matchesCommandShortcut(event, item.accelerator))?.id ?? editorShortcutAction(event);
+      if (!id || (event.repeat && /^workspace\.(recent|favorites|today)$/.test(id))) return;
+      const action = snapshot.find((item) => item.id === id);
       if (!action?.enabled || action.shortcut === false) return;
       const target = event.target instanceof Element ? event.target : null;
       // Reading surfaces own their editing/search keys, even while a retained

@@ -1267,7 +1267,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             {/* ═══════════════════════ */}
             {/* 快捷键 */}
             {/* ═══════════════════════ */}
-            <SettingsSection title="快捷键" desc="点击快捷键录制新组合，Esc 取消；设置用于桌面版全局热键。" visible={settingsPage === "general"}>
+            <SettingsSection title="快捷键" desc="点击快捷键录制新组合，Esc 取消。工作区列表为窗口内切换快捷键，再按一次恢复原分栏；搜索、设置为桌面全局热键。" visible={settingsPage === "general"}>
               <HotkeyConfig
                 config={config}
                 onUpdate={(hk) => update({ hotkeys: hk })}

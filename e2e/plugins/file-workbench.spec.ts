@@ -1495,3 +1495,17 @@ test("路径提示滚动时隐藏，停止后按光标下的新条目恢复并�
   await page.mouse.move(1, 1);
   await expect(hint).toHaveCount(0);
 });
+
+test("大量目录标签使用4px横向滚动条并保留触控板滚动", async ({ page }) => {
+  await page.goto("/file-workbench.html");
+  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  for (let n = 0; n < 10; n++) await left.getByRole("button", { name: "新建目录标签", exact: true }).click();
+  const tabs = left.getByRole("tablist", { name: "左栏目录标签", exact: true });
+  await expect.poll(() => tabs.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+  expect(await tabs.evaluate(element => getComputedStyle(element, "::-webkit-scrollbar").height)).toBe("4px");
+  expect(await tabs.evaluate(element => getComputedStyle(element).overflowY)).toBe("hidden");
+  await tabs.evaluate(element => { element.scrollLeft = 0; });
+  await tabs.hover(); await page.mouse.wheel(200, 0);
+  await expect.poll(() => tabs.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+});

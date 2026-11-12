@@ -307,12 +307,18 @@ export interface AppConfig {
 }
 
 export const DEFAULT_HOTKEYS: Record<string, string> = {
+  workspace_recent: "Alt+1",
+  workspace_favorites: "Alt+2",
+  workspace_today: "Alt+3",
   focus_search:   "Alt+E",
   open_settings:  "Alt+,",
   show_window:    "Alt+Y",
 };
 
 export const HOTKEY_LABELS: Record<string, string> = {
+  workspace_recent: "最近打开列表",
+  workspace_favorites: "收藏文档列表",
+  workspace_today: "今日修改列表",
   focus_search:   "聚焦搜索",
   open_settings:  "打开设置",
   show_window:    "显示主窗口",
