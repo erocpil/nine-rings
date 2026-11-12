@@ -3,7 +3,7 @@ export const APP_CHANGELOG = [
   {
     date: "2026-11-12",
     title: "文件打开与工具栏",
-    changes: ["File Workbench 默认双击交给系统应用，Command/Ctrl+双击使用内置查看；文件可拖入工具并预览参数后执行，分隔符可在配置列表选择删除，About显示Git提交号。", "修复 File Workbench 原生窗口拦截跨栏拖放的问题；支持多选复制、Shift 移动和拖入子目录，保留确认、取消与操作队列门禁。Nine Rings 原生窗口同步采用前端拖放。"],
+    changes: ["File Workbench 默认双击交给系统应用，Command/Ctrl+双击使用内置查看；工具单击无参数启动；拖放或右键可传入选中文件并预览执行。新增工具右键菜单，支持配置运行、编辑、复制、排序和删除；分隔符可插入或删除，About显示Git提交号。", "修复 File Workbench 原生窗口拦截跨栏拖放的问题；支持多选复制、Shift 移动和拖入子目录，保留确认、取消与操作队列门禁。Nine Rings 原生窗口同步采用前端拖放。"],
   },
   {
     date: "2026-11-11",

@@ -102,7 +102,7 @@ function Workbench() {
     return () => { live = false; window.removeEventListener("file-workbench:drafts", refresh); };
   }, []);
   const tools = <>
-    <CustomTools settings={host.workspace.settings} tools={customTools} onToolsChange={setCustomTools} context={file ? { ...toolContext, rootId: file.rootId, node: file.node.id.split("/").slice(0, -1).join("/"), selected: [file.node.id] } : toolContext} onRun={(tool, context) => void execution.request(tool, context)} onShowResult={execution.showLast} hasResult={execution.hasResult} />
+    <CustomTools settings={host.workspace.settings} tools={customTools} onToolsChange={setCustomTools} context={file ? { ...toolContext, rootId: file.rootId, node: file.node.id.split("/").slice(0, -1).join("/"), selected: [file.node.id] } : toolContext} onRun={(tool, context, direct) => void execution.request(tool, context, direct)} onShowResult={execution.showLast} hasResult={execution.hasResult} />
     <button type="button" aria-label={`恢复草稿（${drafts.length}）`} title={`恢复草稿（${drafts.length}）`} onClick={() => setDraftsOpen(true)}><ToolbarIcon name="history" /></button>
     <WorkbenchPalette {...palette} />
   </>;

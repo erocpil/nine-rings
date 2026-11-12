@@ -3,6 +3,18 @@
 
 
 
+## 2026-11-12：工具单击直接启动与分组右键菜单
+
+CustomTools唯一宿主调用方为File Workbench main；增加可选direct参数，默认仍为预览确认。单击构造arguments为空的调用副本，通过prepare、expectedPlan和原生运行复核直接启动；配置不变。捕获输出仍复用轮询/终止和离开门禁，准备中或运行中再次调用只打开现有结果，不并发替换任务。失败打开结果面板，卸载后不更新状态。
+
+工具右键复用FileBrowserContextMenu，提供无参数启动、选中文件调用、配置参数运行、编辑/复制、移动/分隔和删除；分隔符省略执行项。文件调用复用已有workbenchDropInvocation，来源冻结、占位符和防重复追加保持一致。工具列表变更只在持久化成功后发布，错误通过下方通知呈现，删除配置不终止进程。macOS Control点击不触发额外启动。运行后Execute禁用时，Chromium可能把焦点移到body；工具执行内容在阶段切换时校验焦点并接回，保证Esc仍关闭本弹层，不修改共享弹层或文件菜单契约。
+
+新增浏览器场景覆盖空选择禁用、无选择/多选择单击均不传参数且无确认弹层、右键多文件预览再执行、配置参数不变、复制/移动/插入与删除分隔符、删除工具及存储失败保留原配置。原通用工具/关闭桥接/命令预览用例改为右键配置运行，保留原验证内容；捕获输出用例另验证单击无参数立即运行。大量删除用例仍逐项执行200次队列持久化，原5秒只等到约109次完成，改为最多20秒等待完整批次，不删除断言或跳过测试。
+
+完整npm run check通过244文件/2636项，最终typecheck与lint通过，ARM64 File Workbench.app构建通过。中间浏览器运行记录：WebKit首轮27通过/3失败（两项旧调用方式及批次等待）；调整后29通过/1失败（批次等待）；开发服务器后续29通过/1失败（源码编辑用例中热更新触发整页重载，日志有hmr invalidate和navigation）。Chromium中间29通过/1失败揭示执行后焦点丢失，已补上焦点校验。最终改为固定生产包验证：WebKit 30项全部通过（33.4s），Chromium 30项全部通过（30.8s）。日志为/tmp/nr-tool-context-prod-webkit.log、/tmp/nr-tool-context-prod-chromium.log。
+
+日志：/tmp/nr-tool-context-check.log、/tmp/nr-tool-context-final-type.log、/tmp/nr-tool-context-final-lint.log、/tmp/nr-tool-context-build.log。影响分析结论：SAFE（已核对唯一回调方、prepare/execute链路、配置保存和共享菜单边界）；浏览器使用原生端口替身，系统应用启动的实机验收仍由用户执行。
+
 ## 2026-11-12：About构建身份、系统打开与工具拖放
 
 独立桌面默认双击文件交给系统默认应用，本机主修饰键（macOS Command，Windows/Linux Ctrl）+双击进入内置查看；目录导航、Enter及显式内置入口不变，Web快照回退内置。复用isPrimaryShortcutModifier，按用户确认保留macOS Control+点击右键，不保留额外手工Control双击模拟。相关原生替身用例改用ControlOrMeta来表达原来的内置查看意图，默认系统打开另有独立测试。

@@ -74,7 +74,8 @@ test("不依赖文件参数的桌面工具无需先选择目录", async ({ page 
   await dialog.getByRole("textbox", { name: "工具参数", exact: true }).fill("--version");
   await dialog.getByRole("button", { name: "保存工具", exact: true }).click();
   await dialog.getByRole("button", { name: "关闭", exact: true }).click();
-  await page.getByRole("button", { name: "通用工具", exact: true }).click();
+  await page.getByRole("button", { name: "通用工具", exact: true }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "使用配置参数运行", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "工具执行", exact: true })).toContainText('"utility" "--version"');
   await expect.poll(() => page.evaluate(() => (window as any).__genericToolArgs)).toBeUndefined();
   await page.getByRole("button", { name: "执行", exact: true }).click();
@@ -624,7 +625,8 @@ test("桌面关闭桥接等待保存决定，取消或草稿失败不退出，�
   await toolDialog.getByRole("textbox", { name: "工具参数", exact: true }).fill("{file}");
   await toolDialog.getByRole("button", { name: "保存工具", exact: true }).click();
   await toolDialog.getByRole("button", { name: "关闭", exact: true }).click();
-  await page.getByRole("button", { name: "Test launcher", exact: true }).click();
+  await page.getByRole("button", { name: "Test launcher", exact: true }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "使用配置参数运行", exact: true }).click();
   await page.getByRole("button", { name: "执行", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__workbenchNative.tools)).toEqual([{ command: "/Applications/My Tool.app", arguments: ["{file}"], rootId: "native-root", node: "", selected: ["sample.c"], targetRootId: "native-root", targetNode: "", expectedPlan: { program: "/Applications/My Tool.app", arguments: ["{file}"], directory: "/test" } }]);
   await expect(page.getByRole("dialog", { name: "工具执行", exact: true }).getByRole("status")).toContainText("PID 1234");
@@ -884,12 +886,14 @@ test("命令执行先预览，实时输出和结果可重新打开；竖线可�
   const separator = page.getByRole("separator", { name: "分隔符", exact: true });
   await expect(separator).toBeVisible();
   await separator.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "编辑分隔符", exact: true }).click();
   await config.getByLabel("工具名称", { exact: true }).fill("工具分组");
   await config.getByRole("button", { name: "保存工具", exact: true }).click();
   await config.getByRole("button", { name: "关闭", exact: true }).click();
   await page.reload();
   await expect(page.getByRole("separator", { name: "工具分组", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "测试命令", exact: true }).click();
+  await page.getByRole("button", { name: "测试命令", exact: true }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "使用配置参数运行", exact: true }).click();
   const execution = page.getByRole("dialog", { name: "工具执行", exact: true });
   await expect(execution).toContainText('"utility" "a b" "$(literal)"');
   expect(await page.evaluate(() => (window as any).__toolExecutions)).toBe(0);
@@ -910,7 +914,8 @@ test("命令执行先预览，实时输出和结果可重新打开；竖线可�
   await page.keyboard.press("Escape");
   await page.evaluate(() => { (window as any).__toolFinished = false; });
   await page.getByRole("button", { name: "测试命令", exact: true }).click();
-  await execution.getByRole("button", { name: "执行", exact: true }).click();
+  await expect(execution.getByRole("status")).toContainText("正在执行");
+  await expect(execution.locator("pre").first()).toHaveText('"utility"');
   await execution.getByRole("button", { name: "终止当前进程", exact: true }).click();
   await expect(execution.getByRole("status")).toContainText("退出码 2");
   expect(await page.evaluate(() => (window as any).__toolExecutions)).toBe(2);
@@ -1031,7 +1036,8 @@ test("大量文件删除后刷新夹紧滚动，剩余条目完整显示并可�
   await page.getByRole("button", { name: "移入系统回收站", exact: true }).click();
   await page.getByRole("dialog", { name: "移入系统回收站", exact: true }).getByRole("button", { name: "确认", exact: true }).click();
   const queue = page.getByRole("dialog", { name: "文件操作队列", exact: true });
-  await expect.poll(() => page.evaluate(() => (window as any).__largeDeletion.names.length)).toBe(5);
+  // Each of 200 confirmed items persists queue progress; wait for the durable batch, not a single UI update.
+  await expect.poll(() => page.evaluate(() => (window as any).__largeDeletion.names.length), { timeout: 20000 }).toBe(5);
   await queue.getByRole("button", { name: "收起操作队列", exact: true }).click();
   await expect(left.locator(".file-browser-pane-status")).toContainText("5 项");
   await expect(list.getByRole("option")).toHaveCount(5);
@@ -1324,4 +1330,82 @@ test("文件拖到工具后冻结来源多选并预览命令，确认前不执�
   const forged = await page.evaluateHandle(() => { const data = new DataTransfer(); data.setData("application/x-nine-rings-browser-files", "forged"); return data; });
   await tool.dispatchEvent("drop", { dataTransfer: forged }); await forged.dispose();
   expect(await page.evaluate(() => (window as any).__toolDrop.plans.length)).toBe(1);
+});
+
+
+test("工具单击无参数直接启动，右键传文件并支持复制排列分隔和删除", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("file-workbench:custom-tools-v1", JSON.stringify([{ id: "edit", name: "外部编辑", command: "editor", arguments: "--new-window", hint: "打开文件", icon: { kind: "preset", value: "code" } }]));
+    let id = 1;
+    const state = { plans: [] as any[], runs: [] as any[] };
+    (window as any).__toolDrop = state;
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback() { return id++; }, unregisterCallback() {},
+      async invoke(command: string, args: any = {}) {
+        if (command === "plugin:event|listen") return id++;
+        if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
+        if (command === "local_files_roots") return [{ id: "source", name: "Source" }];
+        if (command === "local_files_display_path") return "/source";
+        if (command === "local_files_stat") return { size: 4, modifiedMs: 1 };
+        if (command === "local_files_list") return { nodes: ["a.txt", "b.txt"].map(name => ({ id: name, name, directory: false, size: 4, modifiedMs: 1 })), next: null };
+        if (command === "workbench_run_tool") {
+          if (args.operation === "prepare") { state.plans.push(args); return { program: args.command, arguments: args.arguments.flatMap((argument: string) => argument === "{files}" ? args.selected.map((node: string) => "/source/" + node) : [argument]), directory: "/source" }; }
+          state.runs.push(args); return 123;
+        }
+        throw new Error(command);
+      },
+    };
+  });
+  await page.goto("/file-workbench.html");
+  const tool = page.getByRole("button", { name: "外部编辑", exact: true });
+  const dialog = page.getByRole("dialog", { name: "工具执行", exact: true });
+  await tool.click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "打开当前选中文件", exact: true })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  if (await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform))) {
+    await tool.click({ modifiers: ["Control"] });
+    await expect(page.getByRole("menuitem", { name: "打开应用", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    expect(await page.evaluate(() => (window as any).__toolDrop.runs.length)).toBe(0);
+  }
+  await tool.click();
+  await expect.poll(() => page.evaluate(() => (window as any).__toolDrop.runs.length)).toBe(1);
+  expect(await page.evaluate(() => (window as any).__toolDrop.runs[0].arguments)).toEqual([]);
+  await expect(dialog).toHaveCount(0);
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  await left.getByRole("option", { name: /^a.txt/ }).click();
+  await left.getByRole("option", { name: /^b.txt/ }).click({ modifiers: ["ControlOrMeta"] });
+  await tool.click();
+  await expect.poll(() => page.evaluate(() => (window as any).__toolDrop.runs.length)).toBe(2);
+  expect(await page.evaluate(() => (window as any).__toolDrop.runs[1].arguments)).toEqual([]);
+  await tool.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "打开当前选中文件", exact: true }).click();
+  await expect(dialog).toContainText('"--new-window" "/source/a.txt" "/source/b.txt"');
+  expect(await page.evaluate(() => (window as any).__toolDrop.runs.length)).toBe(2);
+  await dialog.getByRole("button", { name: "执行", exact: true }).click();
+  await expect(dialog).toContainText("PID 123"); await page.keyboard.press("Escape");
+  await tool.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "复制工具", exact: true }).click();
+  const copy = page.getByRole("button", { name: "外部编辑 副本", exact: true });
+  await expect(copy).toBeVisible();
+  await copy.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "向左移动", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("file-workbench:custom-tools-v1")!)[0].name)).toBe("外部编辑 副本");
+  await tool.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "在此前插入分隔符", exact: true }).click();
+  const separator = page.getByRole("separator", { name: "分隔符", exact: true });
+  await separator.click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "打开应用", exact: true })).toHaveCount(0);
+  await page.getByRole("menuitem", { name: "删除分隔符", exact: true }).click();
+  await expect(separator).toHaveCount(0);
+  await copy.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "删除此工具", exact: true }).click();
+  await expect(copy).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("file-workbench:custom-tools-v1")!)[0].arguments)).toBe("--new-window");
+  await page.evaluate(() => { const original = Storage.prototype.setItem; (window as any).__restoreToolStorage = () => { Storage.prototype.setItem = original; }; Storage.prototype.setItem = function(key, value) { if (key === "file-workbench:custom-tools-v1") throw new Error("storage denied"); original.call(this, key, value); }; });
+  await tool.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "删除此工具", exact: true }).click();
+  await expect(tool).toBeVisible();
+  await expect(page.locator(".workbench-tool-notice")).toContainText("无法保存工具");
+  await page.evaluate(() => (window as any).__restoreToolStorage());
 });
