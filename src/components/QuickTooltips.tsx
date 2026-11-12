@@ -54,13 +54,17 @@ export function QuickTooltips() {
   useEffect(() => {
     let target: HTMLElement | null = null;
     let title = "";
+    let pathTarget = false;
     let describedBy: string | null = null;
     let ariaLabel: string | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let scrollTimer: ReturnType<typeof setTimeout> | undefined;
+    let scrollingUntil = 0;
+    let pointer: { x: number; y: number } | null = null;
     const clear = () => {
       clearTimeout(timer);
       if (target) {
-        if (!target.hasAttribute("title")) target.setAttribute("title", title);
+        if (!pathTarget && !target.hasAttribute("title")) target.setAttribute("title", title);
         if (ariaLabel === null) target.removeAttribute("aria-label");
         else target.setAttribute("aria-label", ariaLabel);
         if (describedBy === null) target.removeAttribute("aria-describedby");
@@ -69,23 +73,24 @@ export function QuickTooltips() {
       target = null;
       setHint(null);
     };
-    const enter = (event: PointerEvent | FocusEvent) => {
+    const enter = (event: PointerEvent | FocusEvent, candidate?: HTMLElement) => {
+      if (event instanceof PointerEvent && event.pointerType === "mouse") pointer = { x: event.clientX, y: event.clientY };
       if (event instanceof PointerEvent && event.pointerType !== "mouse")
         return;
       if (target?.contains(event.target as Node)) return;
-      const element =
+      const element = candidate ?? (
         event.target instanceof Element
           ? event.target.closest<HTMLElement>(
-              "button[title], select[title], [role=button][title]",
+              "[data-tooltip-path], button[title], select[title], [role=button][title]",
             )
-          : null;
+          : null);
       if (
         element === target ||
         element?.contains((event as FocusEvent).relatedTarget as Node | null)
       )
         return;
       clear();
-      if (!element || !element.title.trim() || element.getAttribute("aria-expanded") === "true") return;
+      if (!element || !(element.dataset.tooltipPath || element.title).trim() || element.getAttribute("aria-expanded") === "true" || (element.dataset.tooltipPath && Date.now() < scrollingUntil)) return;
       const suppressDocumentPanelHint =
         // Hover previews provide their own context; click-only panels need a hint.
         ["outline", "bookmark"].includes(element.dataset.documentPanelTrigger ?? "") &&
@@ -94,17 +99,18 @@ export function QuickTooltips() {
       if (event.type === "focusin" && !element.matches(":focus-visible"))
         return;
       target = element;
-      title = element.title;
+      pathTarget = Boolean(element.dataset.tooltipPath);
+      title = element.dataset.tooltipPath || element.title;
       describedBy = element.getAttribute("aria-describedby");
       ariaLabel = element.getAttribute("aria-label");
       if (ariaLabel === null && !element.textContent?.trim())
         element.setAttribute("aria-label", title);
       // Suppress the browser's slower, duplicate tooltip while retaining the
       // original title when the pointer leaves the control.
-      element.removeAttribute("title");
+      if (!element.dataset.tooltipPath) element.removeAttribute("title");
       if (suppressDocumentPanelHint) return;
       const show = () => {
-        if (!element.isConnected || element.getAttribute("aria-expanded") === "true") {
+        if (!element.isConnected || element.getAttribute("aria-expanded") === "true" || (pathTarget && !element.dataset.tooltipPath)) {
           clear();
           return;
         }
@@ -114,7 +120,7 @@ export function QuickTooltips() {
           [describedBy, id].filter(Boolean).join(" "),
         );
         setHint({
-          text: title,
+          text: element.dataset.tooltipPath || title,
           target: element,
           // Measure before paint; no character-width estimate for multiline hints.
           left: 8,
@@ -131,26 +137,42 @@ export function QuickTooltips() {
       )
         clear();
     };
+    const move = (event: PointerEvent) => { if (event.pointerType === "mouse") pointer = { x: event.clientX, y: event.clientY }; };
+    const dismiss = () => { clearTimeout(scrollTimer); clear(); };
+    const scroll = (event: Event) => {
+      clear(); clearTimeout(scrollTimer);
+      if (!(event.target instanceof Element) || !event.target.closest(".file-browser-list")) return;
+      scrollingUntil = Date.now() + 240;
+      scrollTimer = setTimeout(() => {
+        if (!pointer || document.querySelector("[role='menu'], .workspace-dialog-backdrop")) return;
+        const element = document.elementFromPoint(pointer.x, pointer.y)?.closest<HTMLElement>("[data-tooltip-path]");
+        if (element) enter(new PointerEvent("pointerover", { pointerType: "mouse", clientX: pointer.x, clientY: pointer.y }), element);
+      }, 260);
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("wheel", scroll, { capture: true, passive: true });
     document.addEventListener("pointerover", enter);
     document.addEventListener("pointerout", leave);
     document.addEventListener("focusin", enter);
     document.addEventListener("focusout", leave);
-    document.addEventListener("pointerdown", clear, true);
-    document.addEventListener("keydown", clear, true);
-    document.addEventListener("scroll", clear, true);
-    window.addEventListener("blur", clear);
-    window.addEventListener("resize", clear);
+    document.addEventListener("pointerdown", dismiss, true);
+    document.addEventListener("keydown", dismiss, true);
+    document.addEventListener("scroll", scroll, true);
+    window.addEventListener("blur", dismiss);
+    window.addEventListener("resize", dismiss);
     return () => {
-      clear();
+      dismiss();
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("wheel", scroll, true);
       document.removeEventListener("pointerover", enter);
       document.removeEventListener("pointerout", leave);
       document.removeEventListener("focusin", enter);
       document.removeEventListener("focusout", leave);
-      document.removeEventListener("pointerdown", clear, true);
-      document.removeEventListener("keydown", clear, true);
-      document.removeEventListener("scroll", clear, true);
-      window.removeEventListener("blur", clear);
-      window.removeEventListener("resize", clear);
+      document.removeEventListener("pointerdown", dismiss, true);
+      document.removeEventListener("keydown", dismiss, true);
+      document.removeEventListener("scroll", scroll, true);
+      window.removeEventListener("blur", dismiss);
+      window.removeEventListener("resize", dismiss);
     };
   }, [id]);
   if (!hint) return null;
@@ -174,7 +196,7 @@ export function QuickTooltips() {
           ref={tooltipRef}
           id={id}
           role="tooltip"
-          className="quick-tooltip"
+          className={`quick-tooltip${hint.target.dataset.tooltipPath ? " quick-tooltip-path" : ""}`}
           style={{
             left,
             top,

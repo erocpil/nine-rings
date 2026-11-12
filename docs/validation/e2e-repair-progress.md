@@ -3,6 +3,24 @@
 
 
 
+## 2026-11-12：时间列实际测量与滚动后的路径提示
+
+修改时间列新增autoModified偏好，默认开启：缓存Intl.DateTimeFormat保证显示/测量一致，浏览器canvas按真实日期字体与表头字体测量所有已加载日期（非仅虚拟可视行），包含排序箭头并留8px操作余量；表头与正文使用同一layoutColumns。手动列宽优先，双击恢复自动；旧145px默认迁移自动，旧不同宽度及显式autoModified=false保留。解析测试覆盖迁移和显式选择，两个区域设置命名空间不变。新增钩子仅在条目/属性或字体加载变化时测量，不在滚动时格式化全部条目，日期格式器不逐行构造。
+
+原生title路径无法控制滚动后的延迟或旧条目显示。文件列表改以data-tooltip-path接入QuickTooltips，宿主每目录一次解析完整路径，迟到结果不应用到新目录。仅路径提示在文件列表滚轮/滚动时清除并等待停止：240ms静默窗口、260ms重新命中elementFromPoint、原120ms提示延迟。不复用旧虚拟条目；点击、键盘、失焦、resize和卸载取消恢复，菜单/弹层期间不重现。普通按钮提示保留原320px限制，路径使用可用视窗宽度后才折行。清理时按原始提示类型恢复title，避免把已移除的数据路径写成原生title。
+
+影响分析检查BrowserColumns全部调用方（Pane、ColumnHeaders、偏好解析和宿主隔离测试）、列宽保存/重置、自动名称填充、异步目录及元数据更新，以及QuickTooltips两款宿主入口、标题恢复、aria-describedby、触摸过滤和定时清理。接口只增加列宽偏好，未改变文件数据、授权或操作队列。专项WebKit4项通过（6.5s），涵盖en-US/de-DE日期几何、排序/手动宽度/恢复、滚动提示换条目及单行、原按钮提示；完整check通过244文件/2637项。最终工作台生产包WebKit 33项通过（35.9s），Chromium 33项通过（34.1s），Nine Rings原有工具提示WebKit专项1项通过（4.1s），最终lint和生产构建通过。
+
+日志：/tmp/nr-list-fit-check.log、/tmp/nr-list-fit-build.log、/tmp/nr-list-fit-webkit.log、/tmp/nr-list-fit-prod-webkit.log、/tmp/nr-list-fit-prod-chromium.log、/tmp/nr-list-fit-shared.log。影响结论SAFE（有偏好兼容、真实浏览器文本几何及交互证据），原生外观最终以新包实机验证为准。
+
+## 2026-11-12：工具保存通知的定位和遮挡
+
+保存/错误通知原来渲染在带container-type与横向滚动的工具栏内，z-index为1100，低于配置遮罩16000。新增位置及点击验证在修复前两种浏览器均失败，WebKit明确记录workspace-dialog-backdrop拦截关闭按钮。通知改为portal到body，固定底部且层级16020；宽度限制calc(100vw - 24px)，显式定义关闭按钮样式，避免依赖原工具栏祖先CSS。关闭按钮pointerdown不抢焦点，保留配置页键盘路径；5秒定时、错误保留配置、运行任务状态不变。
+
+检查CustomTools通知的唯一渲染、保存失败调用、noticeTimer卸载清理、workbench根配色变量和配置遮罩层级；未改共享tooltip或通用弹层。已有配置测试增加桌面1280×800及窄屏375×812通知几何、可点击关闭、配置继续显示与焦点保留断言；错误保存用例同时复测。影响结论SAFE：通知位置/层级与工具配置和执行状态解耦，浏览器几何及点击验证支持结论。
+
+最终WebKit相关2项通过（5.7s），Chromium相关2项通过（5.0s）；typecheck、lint及工作台生产构建通过。日志：/tmp/nr-tool-notice-before.log、/tmp/nr-tool-notice-chrome-before.log（修复前失败）、/tmp/nr-tool-notice-webkit.log、/tmp/nr-tool-notice-chromium.log、/tmp/nr-tool-notice-type.log、/tmp/nr-tool-notice-lint.log、/tmp/nr-tool-notice-build.log。
+
 ## 2026-11-12：工具单击直接启动与分组右键菜单
 
 CustomTools唯一宿主调用方为File Workbench main；增加可选direct参数，默认仍为预览确认。单击构造arguments为空的调用副本，通过prepare、expectedPlan和原生运行复核直接启动；配置不变。捕获输出仍复用轮询/终止和离开门禁，准备中或运行中再次调用只打开现有结果，不并发替换任务。失败打开结果面板，卸载后不更新状态。

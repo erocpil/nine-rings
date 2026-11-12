@@ -57,8 +57,31 @@ it("bounds persisted column widths while retaining automatic name fill by defaul
         autoName: false,
       }),
     ),
-  ).toEqual({ name: 110, type: 90, size: 400, modified: 140, autoName: false });
+  ).toEqual({
+    name: 110,
+    type: 90,
+    size: 400,
+    modified: 140,
+    autoName: false,
+    autoModified: false,
+  });
   expect(clampBrowserColumn("name", Infinity)).toBe(110);
+});
+it("automatic date width upgrades old defaults but preserves explicitly resized widths", () => {
+  expect(
+    parseBrowserColumns(JSON.stringify({ modified: 145 })).autoModified,
+  ).toBe(true);
+  expect(
+    parseBrowserColumns(JSON.stringify({ modified: 200 })).autoModified,
+  ).toBe(false);
+  expect(
+    parseBrowserColumns(JSON.stringify({ modified: 145, autoModified: false }))
+      .autoModified,
+  ).toBe(false);
+  expect(
+    parseBrowserColumns(JSON.stringify({ modified: 200, autoModified: true }))
+      .autoModified,
+  ).toBe(true);
 });
 it("favorites are bounded root-relative data, deduplicated and never authorization", () => {
   expect(

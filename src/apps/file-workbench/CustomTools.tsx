@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { isMacPlatform } from "../../lib/shortcuts";
 import { FileBrowserContextMenu, type FileBrowserMenuAction } from "../../components/FileBrowserContextMenu";
 import type { NotesMenuTarget } from "../../components/NotesContextMenu";
@@ -67,7 +68,7 @@ export function CustomTools({ settings, context, onRun, onShowResult, hasResult,
     }} onClick={event => { if (event.ctrlKey && isMacPlatform()) return; onRun({ ...tool, arguments: "" }, context, true); }} onContextMenu={event => showMenu(event, tool)}><ToolIcon tool={tool} /></button>)}
     <button type="button" aria-label="添加工具" title="添加或配置工具栏工具" onClick={() => configure()}><ToolbarIcon name="plus" /></button>
     {hasResult && <button type="button" aria-label="查看上次工具执行" title="查看正在运行或上次执行的工具" onClick={onShowResult}><ToolbarIcon name="info" /></button>}
-    {notice && <div className="workbench-tool-notice" role="status">{notice}<button type="button" aria-label="关闭工具结果" onClick={() => setNotice("")}>×</button></div>}
+    {notice && createPortal(<div className="workbench-tool-notice" role="status">{notice}<button type="button" aria-label="关闭工具结果" onPointerDown={event => event.preventDefault()} onClick={() => setNotice("")}>×</button></div>, document.body)}
     {menu && selectedTool && <FileBrowserContextMenu target={menu} actions={menuActions(selectedTool)} close={() => setMenu(null)} />}
     {open && <WorkspaceDialog title="工具栏工具" onClose={() => setOpen(false)}><div className="workbench-tool-config">
       <aside aria-label="已配置工具"><button type="button" onClick={() => configure()}>新建工具</button>{tools.map(tool => <button key={tool.id} type="button" aria-pressed={draft.id === tool.id} onClick={() => configure(tool)}>{tool.kind === "separator" ? <><span aria-hidden="true">│</span>{tool.name}（分隔符）</> : <><ToolIcon tool={tool} />{tool.name}</>}</button>)}</aside>

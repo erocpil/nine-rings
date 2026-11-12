@@ -95,16 +95,33 @@ test("工具栏配置分组图标与 Unicode 持久化，目录区可叠放并�
   await tools.getByRole("button", { name: "使用图标 edit", exact: true }).click();
   await page.screenshot({ path: testInfo.outputPath("custom-tool-config.png") });
   await tools.getByRole("button", { name: "保存工具", exact: true }).click();
+  const checkNotice = async () => {
+    const notice = page.locator(".workbench-tool-notice");
+    await expect(notice).toContainText("工具已保存");
+    const bounds = await notice.boundingBox(), viewport = page.viewportSize()!;
+    expect(bounds!.y).toBeGreaterThan(viewport.height / 2);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height - 12);
+    expect(bounds!.x).toBeGreaterThanOrEqual(12);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width - 12);
+    await notice.getByRole("button", { name: "关闭工具结果", exact: true }).click();
+    await expect(notice).toHaveCount(0);
+    await expect(tools).toBeVisible();
+    expect(await tools.evaluate(element => element.contains(document.activeElement))).toBe(true);
+  };
+  await checkNotice();
   await tools.getByRole("button", { name: "关闭", exact: true }).click();
   await expect(page.getByRole("button", { name: "自定义编辑器", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "添加工具", exact: true }).click();
   await tools.getByRole("button", { name: "自定义编辑器", exact: true }).click();
   await tools.getByRole("combobox", { name: "图标来源", exact: true }).selectOption("unicode");
   await tools.getByRole("textbox", { name: "Unicode 图标", exact: true }).fill("🛠");
+  await page.setViewportSize({ width: 375, height: 812 });
   await tools.getByRole("button", { name: "保存工具", exact: true }).click();
+  await checkNotice();
   await tools.getByRole("button", { name: "关闭", exact: true }).click();
   await page.reload();
   await expect(page.getByRole("button", { name: "自定义编辑器", exact: true })).toContainText("🛠");
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.getByRole("button", { name: "添加工具", exact: true }).click();
   await expect.poll(() => page.locator(".workspace-dialog-backdrop").evaluate(element => { const style = getComputedStyle(element); return style.getPropertyValue("backdrop-filter") || style.getPropertyValue("-webkit-backdrop-filter"); })).toBe("blur(1px)");
   await tools.getByRole("button", { name: "自定义编辑器", exact: true }).click();
@@ -1408,4 +1425,73 @@ test("工具单击无参数直接启动，右键传文件并支持复制排列�
   await expect(tool).toBeVisible();
   await expect(page.locator(".workbench-tool-notice")).toContainText("无法保存工具");
   await page.evaluate(() => (window as any).__restoreToolStorage());
+});
+
+
+for (const locale of ["en-US", "de-DE"]) test.describe(`日期列测量 ${locale}`, () => {
+  test.use({ locale });
+  test("修改时间按实际文本收紧，表头行对齐且手动宽度优先", async ({ page }) => {
+    await page.goto("/file-workbench.html");
+    await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+    const left = page.getByRole("region", { name: "左侧目录", exact: true });
+    const row = left.getByRole("option", { name: /alpha.c/ });
+    await expect(row).toBeVisible();
+    const geometry = () => row.evaluate(element => {
+      const cell = element.lastElementChild!, header = element.closest(".file-browser-pane")!.querySelector(".file-browser-column:last-child")!;
+      const range = document.createRange(); range.selectNodeContents(cell);
+      return { gap: cell.getBoundingClientRect().width - range.getBoundingClientRect().width, header: header.getBoundingClientRect().left, body: cell.getBoundingClientRect().left };
+    });
+    await expect.poll(async () => (await geometry()).gap).toBeLessThan(11);
+    expect((await geometry()).gap).toBeGreaterThanOrEqual(7);
+    expect(Math.abs((await geometry()).header - (await geometry()).body)).toBeLessThan(1);
+    await left.getByRole("button", { name: "按修改时间排序", exact: true }).click();
+    await expect.poll(async () => (await geometry()).gap).toBeLessThan(11);
+    const resize = left.getByRole("separator", { name: "调整修改时间列宽", exact: true });
+    await resize.focus(); await resize.press("ArrowRight");
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("file-workbench:nr:file-browser-columns:0")!).autoModified)).toBe(false);
+    const manual = Number(await resize.getAttribute("aria-valuenow"));
+    await left.getByRole("button", { name: "按名称排序", exact: true }).click();
+    await expect(resize).toHaveAttribute("aria-valuenow", String(manual));
+    await resize.dblclick();
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("file-workbench:nr:file-browser-columns:0")!).autoModified)).toBe(true);
+    await expect.poll(async () => (await geometry()).gap).toBeLessThan(11);
+  });
+});
+
+test("路径提示滚动时隐藏，停止后按光标下的新条目恢复并优先单行", async ({ page }) => {
+  await page.addInitScript(() => {
+    let id = 1;
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback() { return id++; }, unregisterCallback() {},
+      async invoke(command: string) {
+        if (command === "plugin:event|listen") return id++;
+        if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
+        if (command === "local_files_roots") return [{ id: "source", name: "Source" }];
+        if (command === "local_files_display_path") return "/authorized/Directory with spaces/Quite a long directory name";
+        if (command === "local_files_stat") return { size: 4, modifiedMs: 1 };
+        if (command === "local_files_list") return { nodes: Array.from({ length: 80 }, (_, n) => ({ id: `item_${String(n).padStart(3, "0")}_long_name.txt`, name: `item_${String(n).padStart(3, "0")}_long_name.txt`, directory: n === 0, size: 4, modifiedMs: 1 })), next: null };
+        throw new Error(command);
+      },
+    };
+  });
+  await page.goto("/file-workbench.html");
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  const first = left.getByRole("option", { name: /^item_000/ });
+  await expect(first).toHaveAttribute("data-tooltip-path", /authorized/);
+  const box = (await first.boundingBox())!, x = box.x + 80, y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  const hint = page.locator(".quick-tooltip-path");
+  await expect(hint).toHaveText("/authorized/Directory with spaces/Quite a long directory name/item_000_long_name.txt");
+  expect(await hint.evaluate(element => element.getBoundingClientRect().height <= Number.parseFloat(getComputedStyle(element).lineHeight) + 12)).toBe(true);
+  const old = await hint.textContent();
+  for (let n = 0; n < 3; n++) {
+    await page.mouse.wheel(0, 96);
+    await expect(hint).toHaveCount(0);
+  }
+  await expect.poll(() => left.getByRole("listbox").evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  const currentPath = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-tooltip-path]")?.dataset.tooltipPath, { x, y });
+  expect(currentPath).not.toBe(old);
+  await expect(hint).toHaveText(currentPath!);
+  await page.mouse.move(1, 1);
+  await expect(hint).toHaveCount(0);
 });

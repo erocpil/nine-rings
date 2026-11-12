@@ -947,6 +947,9 @@
   pointer-events: none;
 }
 
+/* Paths use the available window width before wrapping, instead of the short button-hint limit. */
+.quick-tooltip-path { width: max-content; max-width: calc(100vw - 16px); white-space: normal; }
+
 .cm-fold-preview-bubble {
   position: fixed;
   z-index: 12000;
