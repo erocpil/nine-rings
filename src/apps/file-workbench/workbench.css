@@ -71,7 +71,9 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-config) { wid
   --accent-hover: #703c4d; --hover-bg: #e9dadf; --active-bg: #e2cbd4; --code-bg: #ecdee3;
 }
 
-.workbench-tool-separator { width: 1px; height: 22px; margin: 0 5px; background: var(--border); flex: 0 0 1px; }
+.workbench-tool-separator { width: 12px; height: 22px; margin: 0 2px; position: relative; flex: 0 0 12px; cursor: pointer; }
+.workbench-tool-separator::before { content: ""; position: absolute; left: 50%; inset-block: 0; width: 1px; background: var(--border); pointer-events: none; }
+.file-workbench-app button[data-tool-drop] { outline: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
 .workbench-tool-execution { padding: 0 16px 16px; max-height: 72dvh; overflow: auto; }
 .workbench-tool-execution pre { white-space: pre; overflow: auto; max-height: 36dvh; padding: 10px; background: var(--surface); user-select: text; }
 .workbench-tool-execution footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }

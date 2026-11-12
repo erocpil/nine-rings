@@ -20,7 +20,7 @@ import { LocalFileSearch } from "./LocalFileSearch";
 import type { BrowserDirectory } from "../lib/local-files/browser-tools";
 import type { BrowserTextLocation } from "../lib/local-files/browser-contract";
 import type { BrowserWorkspaceHost } from "../lib/local-files/browser-workspace-contract";
-import { FileBrowserHostContext } from "./FileBrowserHost";
+import { FileBrowserDragContext, FileBrowserHostContext } from "./FileBrowserHost";
 import "../styles/file-browser.css";
 import type { BrowserPreviewNavigation } from "../lib/local-files/browser-preview";
 import { BROWSER_DRAG_TYPE, planBrowserDrop, type BrowserDragSource } from "../lib/local-files/browser-drag";
@@ -176,7 +176,10 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose, t
     catch (reason) { if (!controller.signal.aborted) setError(String(reason)); }
     finally { if (!controller.signal.aborted) setOpening(false); }
   };
-  return <section ref={host} className={`dual-file-browser${compact ? " file-browser-compact" : ""}`} aria-label="双栏文件浏览" data-active-pane={state.active} hidden={!active} {...(!active ? { inert: "", "aria-hidden": true } : {})} onKeyDownCapture={event => {
+  return <FileBrowserDragContext.Provider value={{
+    current: () => active ? drag.current?.source ?? null : null,
+    take: token => { const value = drag.current; if (!active || !value || token !== value.token) return null; drag.current = null; return value.source; },
+  }}><section ref={host} className={`dual-file-browser${compact ? " file-browser-compact" : ""}`} aria-label="双栏文件浏览" data-active-pane={state.active} hidden={!active} {...(!active ? { inert: "", "aria-hidden": true } : {})} onKeyDownCapture={event => {
     if (active && !event.nativeEvent.isComposing && event.altKey && !event.ctrlKey && !event.metaKey && event.key === "Home" && event.target instanceof HTMLElement && event.target.matches(".file-browser-list")) {
       event.preventDefault(); event.stopPropagation();
       setState(current => modifyBrowserTabs(current, current.active, current.groups[current.active].tabs[current.groups[current.active].active].tabId, "home")); return;
@@ -264,5 +267,5 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose, t
     {operation && active && <FileBrowserOperationDialog operation={operation} onConfirm={(snapshot, name) => { queue.enqueue(snapshot, name); setOperation(null); setQueueOpen(true); }} onClose={() => setOperation(null)} />}
     {queueOpen && active && <FileBrowserQueueDialog queue={queue} showHistory={workspace.showQueueHistory} onClose={() => { setQueueOpen(false); setListingRevision(value => value + 1); }} />}
     {tool && active && <FileBrowserToolDialog title={tool.kind === "search" ? "目录搜索" : "目录比较"} onClose={() => setTool(null)}>{tool.kind === "search" ? <LocalFileSearch search={workspace.search} embedded roots={roots} showHidden={panes[state.active].showHidden} active={active} initialScope={tool.scope} onClose={() => setTool(null)} onOpen={hit => { setTool(null); void open(hit.rootId, roots.find(root => root.id === hit.rootId)?.name ?? hit.rootId, { id: hit.node, name: hit.node.split("/").pop()!, directory: false, size: 0 }, { from: hit.from, to: hit.to, revision: hit.revision }); }} /> : <FileBrowserComparison directories={tool.directories} names={tool.names} provider={provider} onOpen={(side, node) => { const directory = tool.directories[side]; setTool(null); setQuickPreview(false); setState(current => ({ ...current, active: side })); if (node.directory) changePane(side, current => navigateBrowserPane(current, directory.rootId, node.id)); else void open(directory.rootId, roots.find(root => root.id === directory.rootId)?.name ?? directory.rootId, node); }} />}</FileBrowserToolDialog>}
-  </section>;
+  </section></FileBrowserDragContext.Provider>;
 }

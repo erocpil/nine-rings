@@ -1,3 +1,4 @@
+import type { BrowserDragSource } from "../../lib/local-files/browser-drag";
 import type { BrowserToolContext } from "../../lib/local-files/browser-tool-context";
 export interface WorkbenchTool { kind?: "command" | "separator"; execution?: "launch" | "capture"; id: string; name: string; command: string; arguments: string; hint: string; icon: { kind: "preset" | "unicode" | "image"; value: string } }
 export const TOOLS_KEY = "custom-tools-v1";
@@ -46,3 +47,11 @@ export function displayToolCommand(plan: PreparedTool) {
 }
 
 export async function stopTool(id: number) { const { invoke } = await import("@tauri-apps/api/core"); return invoke<void>("workbench_stop_tool", { id }); }
+
+export function workbenchDropInvocation(tool: WorkbenchTool, context: BrowserToolContext | null, source: BrowserDragSource) {
+  if (tool.kind === "separator" || !source.nodes.length) throw new Error("此工具不能接收文件");
+  return {
+    tool: { ...tool, arguments: /\{(?:file|files|name)\}/.test(tool.arguments) ? tool.arguments : [tool.arguments, "{files}"].filter(Boolean).join("\n") },
+    context: { ...context, rootId: source.rootId, node: source.parent, selected: [...source.nodes] },
+  };
+}

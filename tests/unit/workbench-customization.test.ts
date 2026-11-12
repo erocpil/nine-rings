@@ -20,6 +20,7 @@ import {
 } from "../../src/lib/local-files/browser-state";
 import {
   displayToolCommand,
+  workbenchDropInvocation,
   parseWorkbenchTools,
   serializeWorkbenchTools,
   validateWorkbenchTool,
@@ -288,4 +289,52 @@ it("continuous previews retain large images without applying the text budget", (
     },
   ];
   expect(nextWorkbenchPreview(nodes, "a.c", 1)?.id).toBe("large.png");
+});
+
+it("dropping on a tool freezes source files rather than using the active target pane", () => {
+  const tool: WorkbenchTool = {
+    id: "open",
+    name: "Editor",
+    command: "editor",
+    arguments: "--new-window",
+    hint: "",
+    icon: { kind: "preset", value: "code" },
+  };
+  const source = {
+    rootId: "source",
+    rootName: "Source",
+    parent: "docs",
+    nodes: ["docs/a.md", "docs/b.md"],
+  };
+  const result = workbenchDropInvocation(
+    tool,
+    {
+      rootId: "other",
+      node: "unrelated",
+      selected: ["unrelated/c.md"],
+      targetRootId: "target",
+      targetNode: "out",
+    },
+    source,
+  );
+  expect(result.tool.arguments).toBe("--new-window\n{files}");
+  expect(result.context).toEqual({
+    rootId: "source",
+    node: "docs",
+    selected: ["docs/a.md", "docs/b.md"],
+    targetRootId: "target",
+    targetNode: "out",
+  });
+  source.nodes.length = 0;
+  expect(result.context.selected).toHaveLength(2);
+  expect(tool.arguments).toBe("--new-window");
+  expect(
+    workbenchDropInvocation({ ...tool, arguments: "--input={file}" }, null, {
+      ...source,
+      nodes: ["docs/a.md"],
+    }).tool.arguments,
+  ).toBe("--input={file}");
+  expect(() =>
+    workbenchDropInvocation({ ...tool, kind: "separator" }, null, source),
+  ).toThrow("不能接收文件");
 });

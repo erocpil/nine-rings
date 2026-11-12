@@ -1,6 +1,11 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-11-12",
+    title: "文件打开与工具栏",
+    changes: ["File Workbench 默认双击交给系统应用，Command/Ctrl+双击使用内置查看；文件可拖入工具并预览参数后执行，分隔符可在配置列表选择删除，About显示Git提交号。", "修复 File Workbench 原生窗口拦截跨栏拖放的问题；支持多选复制、Shift 移动和拖入子目录，保留确认、取消与操作队列门禁。Nine Rings 原生窗口同步采用前端拖放。"],
+  },
+  {
     date: "2026-11-11",
     title: "工作区与文件工作台",
     changes: ["File Workbench 不支持预览时显示文件详情；右键新增系统属性并支持回退。移除图片大小限制，Blob预览修复大PNG解码失败，读取与解码时可中断并释放资源；托盘左键支持前台收起、后台召回。", "File Workbench 关闭窗口时隐藏到托盘，支持托盘及 Dock 召回；连续两次 Command+Q 确认退出，并保留未保存文件与运行任务保护。", "桌面专注模式取消隐藏活动栏的宽度占位，悬停 NINE RINGS 唤出悬浮分栏，点击后固定；退出恢复原分栏布局。", "目录固定标签保留名称和目录锚点，支持返回固定目录、Alt+Home、可选子树限制及切换自动返回，目录变更时迁移或标记失效。", "修复批量删除大量文件后虚拟列表只显示最后一个剩余文件的问题，刷新后同步夹紧滚动位置并保留键盘导航。", "File Workbench 新增授权目录管理，父子目录独立撤销；固定标签可确认后关闭，修复标签右键选中文本；应用图标更换为独立猫咪图片。", "源码模式支持从右侧上半屏划出目录、源码符号或书签；右侧下半屏划出设置扩展到源码、本地文件和工作区首页，普通与专注模式共用。"],

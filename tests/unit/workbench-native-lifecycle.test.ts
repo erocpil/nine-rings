@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, expect, it, vi } from "vitest";
 import {
   installWorkbenchClose,
@@ -142,4 +143,14 @@ it("a failed quit subscription never signals native ready and removes close list
   expect(f.unlisten).toHaveBeenCalledOnce();
   f.event();
   expect(f.request).not.toHaveBeenCalled();
+});
+
+it.each([
+  "native/file-workbench/src-tauri/tauri.conf.json",
+  "src-tauri/tauri.conf.json",
+])("%s leaves drag/drop to the shared DOM confirmation flow", (filename) => {
+  const config = JSON.parse(
+    readFileSync(new URL(`../../${filename}`, import.meta.url), "utf8"),
+  );
+  expect(config.app.windows[0].dragDropEnabled).toBe(false);
 });

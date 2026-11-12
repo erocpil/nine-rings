@@ -1,10 +1,13 @@
+import { useContext } from "react";
+import { FileBrowserDragContext } from "../../components/FileBrowserHost";
+import { BROWSER_DRAG_TYPE } from "../../lib/local-files/browser-drag";
 import { useEffect, useRef, useState } from "react";
 import { WorkspaceDialog } from "../../components/WorkspaceDialog";
 import { ToolbarIcon, TOOLBAR_ICON_NAMES } from "../../components/ToolbarIcon";
 import type { BrowserSettingsStore } from "../../lib/local-files/browser-workspace-contract";
 import type { BrowserToolContext } from "../../lib/local-files/browser-tool-context";
 import { isTauriRuntime } from "../../lib/runtime";
-import { serializeWorkbenchTools, TOOLS_KEY, validateWorkbenchTool, type WorkbenchTool } from "./custom-tools";
+import { serializeWorkbenchTools, workbenchDropInvocation, TOOLS_KEY, validateWorkbenchTool, type WorkbenchTool } from "./custom-tools";
 const categories = {
   "文件与目录": ["folder", "document", "book", "image", "code", "codeBlock", "table", "save", "download", "export", "link", "tag", "trash"],
   "编辑与操作": ["copy", "cut", "paste", "edit", "rename", "move", "bold", "italic", "strike", "color", "palette", "erase", "formatDocument", "formatSelection"],
@@ -16,6 +19,8 @@ function ToolIcon({ tool }: { tool: WorkbenchTool }) {
 }
 const blank = (): WorkbenchTool => ({ id: crypto.randomUUID(), name: "", command: "", arguments: "", hint: "", icon: { kind: "preset", value: "plus" } });
 export function CustomTools({ settings, context, onRun, onShowResult, hasResult, tools, onToolsChange }: { settings: BrowserSettingsStore; context: BrowserToolContext | null; onRun: (tool: WorkbenchTool, context: BrowserToolContext | null) => void; onShowResult: () => void; hasResult: boolean; tools: WorkbenchTool[]; onToolsChange: (tools: WorkbenchTool[]) => void }) {
+  const dragging = useContext(FileBrowserDragContext);
+  const [dropTool, setDropTool] = useState<string | null>(null);
   const [open, setOpen] = useState(false), [draft, setDraft] = useState(blank), [error, setError] = useState(""), [notice, setNotice] = useState(""), [category, setCategory] = useState("文件与目录");
 
   const imageReader = useRef<FileReader | null>(null);
@@ -28,12 +33,20 @@ export function CustomTools({ settings, context, onRun, onShowResult, hasResult,
   const configure = (tool?: WorkbenchTool) => { imageReader.current?.abort(); setDraft(tool ? { ...tool, icon: { ...tool.icon } } : blank()); setError(""); setOpen(true); };
   const iconNames = category === "其它" ? TOOLBAR_ICON_NAMES.filter(name => !Object.values(categories).flat().includes(name)) : TOOLBAR_ICON_NAMES.filter(name => categories[category as keyof typeof categories]?.includes(name));
   return <>
-    {tools.map(tool => tool.kind === "separator" ? <span key={tool.id} role="separator" aria-orientation="vertical" aria-label={tool.name} className="workbench-tool-separator" tabIndex={0} title={`${tool.name} · 右键或 Enter 修改`} onContextMenu={event => { event.preventDefault(); configure(tool); }} onKeyDown={event => { if (event.key === "Enter") configure(tool); }} /> : <button key={tool.id} type="button" aria-label={tool.name} title={!isTauriRuntime() ? `${tool.hint || tool.name}（命令仅桌面版可运行）` : !context ? `${tool.hint || tool.name}（当前未选择目录）` : tool.hint || tool.name} disabled={!isTauriRuntime()} onClick={() => onRun(tool, context)} onContextMenu={event => { event.preventDefault(); configure(tool); }}><ToolIcon tool={tool} /></button>)}
+    {tools.map(tool => tool.kind === "separator" ? <span key={tool.id} role="separator" aria-orientation="vertical" aria-label={tool.name} className="workbench-tool-separator" tabIndex={0} title={`${tool.name} · 右键或 Enter 修改`} onContextMenu={event => { event.preventDefault(); configure(tool); }} onKeyDown={event => { if (event.key === "Enter") configure(tool); }} /> : <button key={tool.id} type="button" aria-label={tool.name} title={!isTauriRuntime() ? `${tool.hint || tool.name}（命令仅桌面版可运行）` : !context ? `${tool.hint || tool.name}（当前未选择目录）` : tool.hint || tool.name} disabled={!isTauriRuntime()} data-tool-drop={dropTool === tool.id || undefined} onDragOver={event => {
+      if (!dragging?.current() || !event.dataTransfer.types.includes(BROWSER_DRAG_TYPE)) return;
+      event.preventDefault(); event.dataTransfer.dropEffect = "copy"; setDropTool(tool.id);
+    }} onDragLeave={() => setDropTool(null)} onDrop={event => {
+      event.preventDefault(); setDropTool(null);
+      const source = dragging?.take(event.dataTransfer.getData(BROWSER_DRAG_TYPE));
+      if (!source) return;
+      const invocation = workbenchDropInvocation(tool, context, source); onRun(invocation.tool, invocation.context);
+    }} onClick={() => onRun(tool, context)} onContextMenu={event => { event.preventDefault(); configure(tool); }}><ToolIcon tool={tool} /></button>)}
     <button type="button" aria-label="添加工具" title="添加或配置工具栏工具" onClick={() => configure()}><ToolbarIcon name="plus" /></button>
     {hasResult && <button type="button" aria-label="查看上次工具执行" title="查看正在运行或上次执行的工具" onClick={onShowResult}><ToolbarIcon name="info" /></button>}
     {notice && <div className="workbench-tool-notice" role="status">{notice}<button type="button" aria-label="关闭工具结果" onClick={() => setNotice("")}>×</button></div>}
     {open && <WorkspaceDialog title="工具栏工具" onClose={() => setOpen(false)}><div className="workbench-tool-config">
-      <aside aria-label="已配置工具"><button type="button" onClick={() => configure()}>新建工具</button>{tools.map(tool => tool.kind === "separator" ? <span key={tool.id} role="separator" aria-orientation="vertical" aria-label={tool.name} className="workbench-tool-separator" tabIndex={0} title={`${tool.name} · 右键或 Enter 修改`} onContextMenu={event => { event.preventDefault(); configure(tool); }} onKeyDown={event => { if (event.key === "Enter") configure(tool); }} /> : <button key={tool.id} type="button" aria-pressed={draft.id === tool.id} onClick={() => configure(tool)}><ToolIcon tool={tool} />{tool.name}</button>)}</aside>
+      <aside aria-label="已配置工具"><button type="button" onClick={() => configure()}>新建工具</button>{tools.map(tool => <button key={tool.id} type="button" aria-pressed={draft.id === tool.id} onClick={() => configure(tool)}>{tool.kind === "separator" ? <><span aria-hidden="true">│</span>{tool.name}（分隔符）</> : <><ToolIcon tool={tool} />{tool.name}</>}</button>)}</aside>
       <form onSubmit={event => { event.preventDefault(); try { validateWorkbenchTool(draft); const next = tools.some(tool => tool.id === draft.id) ? tools.map(tool => tool.id === draft.id ? draft : tool) : [...tools, draft]; if (persist(next)) message("工具已保存"); } catch (cause) { setError(String(cause)); } }}>
         <label>名称<input aria-label="工具名称" value={draft.name} maxLength={80} required onChange={event => change({ name: event.target.value })} /></label>
         <label>工具类型<select aria-label="工具类型" value={draft.kind ?? "command"} onChange={event => change({ kind: event.target.value as WorkbenchTool["kind"], ...(event.target.value === "separator" && !draft.name ? { name: "分隔符" } : {}) })}><option value="command">命令按钮</option><option value="separator">竖线分隔符</option></select></label>

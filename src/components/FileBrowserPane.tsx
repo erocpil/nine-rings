@@ -1,3 +1,4 @@
+import { isMacPlatform, isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { WorkspaceDialog } from "./WorkspaceDialog";
 import { FileBrowserFileDetails } from "./FileBrowserFileDetails";
 import { browserTabAllows, type BrowserWorkspaceTab } from "../lib/local-files/browser-tabs";
@@ -266,7 +267,13 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     if (index === null) return false;
     chooseItem(nodes[index]); revealIndex(index); return true;
   } }));
-  const openItem = (item: FileNode) => item.directory ? navigate(item.id) : onOpen(rootId, root?.name ?? rootId, item, compact ? nodes : undefined);
+  const openItem = (item: FileNode, system = false) => {
+    if (item.directory) { navigate(item.id); return; }
+    if (system && compact && workspace.externalOpen) {
+      workspace.assertActive();
+      void workspace.externalOpen.open(rootId, item.id, false).catch(cause => showMessage(`系统打开失败：${String(cause)}`, "error"));
+    } else onOpen(rootId, root?.name ?? rootId, item, compact ? nodes : undefined);
+  };
   const openMenu = (item: FileNode, x: number, y: number) => {
     if (loading || loadedKey.current !== key || !scrollRef.current) return;
     const selection = selectedSet.has(item.id) ? [...selected] : [item.id];
@@ -395,7 +402,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
         const selection = selectedSet.has(item.id) ? selected : [item.id];
         if (!selectedSet.has(item.id)) chooseItem(item);
         onDragStart(event, selection);
-      }} onDragEnd={() => { setDrop(null); onDragEnd(); }} title={[root?.name, item.id].filter(Boolean).join("/")} onMouseDown={event => { if (event.button === 2) event.preventDefault(); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); openMenu(item, event.clientX, event.clientY); }} onClick={event => { if (loading || loadedKey.current !== key) return; chooseItem(item, event.ctrlKey || event.metaKey, event.shiftKey); scrollRef.current?.focus({ preventScroll: true }); }} onDoubleClick={() => { if (!loading && loadedKey.current === key) openItem(item); }}>
+      }} onDragEnd={() => { setDrop(null); onDragEnd(); }} title={[root?.name, item.id].filter(Boolean).join("/")} onMouseDown={event => { if (event.button === 2) event.preventDefault(); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); openMenu(item, event.clientX, event.clientY); }} onClick={event => { if (loading || loadedKey.current !== key || (event.ctrlKey && isMacPlatform())) return; chooseItem(item, event.ctrlKey || event.metaKey, event.shiftKey); scrollRef.current?.focus({ preventScroll: true }); }} onDoubleClick={event => { if (!loading && loadedKey.current === key) openItem(item, !isPrimaryShortcutModifier(event)); }}>
         <span className={`file-browser-name${item.directory ? " is-directory" : ""}`}><ToolbarIcon name={item.directory ? "folder" : "document"} /><span>{item.name}</span></span>
         {compact && <span className="file-browser-type" title={localFileTypeLabel(item)}>{localFileTypeLabel(item)}</span>}
         <span title={item.directory ? "目录内部大小尚未统计" : undefined}>{item.directory ? "—" : metadata[item.id] ? sizeText(metadata[item.id].size) : item.size ? sizeText(item.size) : "…"}</span>

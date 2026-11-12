@@ -3,6 +3,34 @@
 
 
 
+## 2026-11-12：About构建身份、系统打开与工具拖放
+
+独立桌面默认双击文件交给系统默认应用，本机主修饰键（macOS Command，Windows/Linux Ctrl）+双击进入内置查看；目录导航、Enter及显式内置入口不变，Web快照回退内置。复用isPrimaryShortcutModifier，按用户确认保留macOS Control+点击右键，不保留额外手工Control双击模拟。相关原生替身用例改用ControlOrMeta来表达原来的内置查看意图，默认系统打开另有独立测试。
+
+CustomTools配置列表将分隔符改为有名称的可选按钮，选中后复用删除/保存及持久化失败处理；工具栏仍只画细线，扩大透明命中范围。内部文件拖到工具通过FileBrowserDragContext取得当前视图的冻结来源并核验token，不信任外部传来的路径或当前活动栏。使用源根/父目录/多选覆盖本次调用上下文；已有{file}/{files}/{name}不改写，无文件参数时仅对调用追加{files}。沿用完整命令预览和点击执行，调用前保留目录任务门禁，非静默运行。
+
+原生About保留系统面板，替换About元数据为应用版本、8位提交号、完整提交号及跟踪文件脏构建标识。build.rs通过状态检查的git命令读取基线，失败回退unknown，监视HEAD、当前分支引用、packed-refs、index与前端源目录。Git命令无shell插值，不输出用户状态明细。检查唯一原生菜单装配调用、About和Quit位置及macOS元数据支持，未改应用identifier或数据路径。
+
+影响分析检查所有FileBrowserPane打开入口、菜单与键盘，只有compact原生宿主的双击走系统默认。共享拖放提供者只增加无DOM包装的上下文，不改变视图布局和原复制/移动操作；toolbarExtras在原Provider子树内获取状态，预览工具栏没有拖放来源时拒绝拖入。工具执行仍通过原生权限、参数展开和预备计划复核，不增加外部文件授权。
+
+完整npm run check通过244文件/2636项，Rust工作台9项通过；类型与最终lint通过。新WebKit专项3项通过（6.6s），共享目录标签/多选拖放2项通过（7.5s）。首轮Chromium的5项失败揭示macOS Control右键冲突，最终按用户要求改为本机主修饰键；调整期间一个JSX多余括号被typecheck发现并修复，同轮浏览器前2项受未完成构建影响，27项通过，须以最终复跑结果为准。后续结果补充如下。
+
+用户决定暂不改名，继续使用 File Workbench，不更改应用身份和数据目录。
+
+最终补修macOS Control+点击触发右键后，列表尾随click抢走菜单焦点的问题：该路径不再执行普通列表选择/聚焦，Esc可正常关闭菜单。Chromium完整工作台29项通过（35.6s），最新ARM64 File Workbench.app构建通过。最终生产包WebKit完整工作台29项通过（32.2s）；最终结果日志为/tmp/nr-tools-ready-chromium.log、/tmp/nr-tools-ready-webkit.log、/tmp/nr-tools-ready-build.log。影响结论：SAFE（已检查共享打开、拖放身份、执行确认和菜单焦点路径；原生系统交互的实机验收仍待确认）。
+
+日志：/tmp/nr-tool-opening-check.log、/tmp/nr-tools-about-rust.log、/tmp/nr-tool-opening-focused.log、/tmp/nr-tool-opening-chromium.log、/tmp/nr-tools-platform-chromium.log、/tmp/nr-tool-opening-shared.log、/tmp/nr-tools-final-build.log、/tmp/nr-tools-final-lint.log。系统About原生面板和默认应用启动仍需安装包实测，浏览器验证使用原生端口替身。
+
+## 2026-11-12：原生跨栏拖放被Tauri处理器拦截
+
+用户实测独立File Workbench不能跨栏拖放。此前答复依据前端实现与浏览器测试，未核对原生窗口配置，结论不完整。检查当前依赖：tauri-utils默认drag_drop_enabled=true，tauri-runtime-wry把拖放转为原生事件后返回true；Wry macOS的draggingEntered/Updated/performDragOperation只有在该处理器返回false时才交给WKWebView。两款宿主没有任何DragDropEvent/onDragDropEvent消费者，因而原生层拦截了实际由DOM实现的流程。
+
+修复两个主窗口显式dragDropEnabled=false，保留原DOM拖动身份、多选快照、目标目录、Shift移动、确认/取消及操作队列协议。未改写入能力、目录授权、草稿预检或冲突策略；不新增系统文件拖入授权。影响分析检查所有原生拖放事件订阅（无）和DOM拖放调用，原共享拖放实现继续唯一负责操作提案。配置测试同时锁定两个宿主，避免只修浏览器不修原生包。
+
+验证：完整npm run check通过244文件/2635项。新增独立入口实际鼠标拖动测试，原生接口替身记录真实确认队列的调用：多选拖动先确认、取消无写入、再次确认复制保留来源；Shift目录拖入目标子目录后移除来源并保留后代。Chromium1项通过（2.8s）、WebKit1项通过（3.9s）；Nine Rings既有WebKit拖放回归1项通过（4.7s），包括拒绝伪造token。ARM64 File Workbench.app构建通过，Nine Rings库cargo check通过（2.31s）。原生Cocoa/WebView2事件分发无法由浏览器替身直接测试，仍须用新包实机拖放；本次依赖源代码证据及配置门禁覆盖了拦截条件，未将浏览器测试当作原生实测。
+
+日志：/tmp/nr-native-drag-check.log、/tmp/nr-native-drag-focused.log、/tmp/nr-native-drag-chromium.log、/tmp/nr-native-drag-shared.log、/tmp/nr-native-drag-build.log、/tmp/nr-native-drag-nine-check.log。结论SAFE（已验证配置和共享操作路径），原生手势验收待用户确认。
+
 ## 2026-11-11：87 MiB PNG 的真实解码与托盘显隐
 
 用户的清水寺.png为91,564,575 bytes、11040×6211的有效PNG，93个chunk的CRC全部正确。以相同原图对照WebKit：Blob URL加载成功，Data URL长度122,086,122字符时触发图片加载失败。前次移除大小预算仍沿用Data URL，没有验证到真实大图解码限制；现将预览单独切换到Blob URL，现有需数据资源的readImageAsset默认行为保留。
