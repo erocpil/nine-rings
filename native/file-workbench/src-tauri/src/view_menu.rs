@@ -7,18 +7,9 @@ pub struct ViewMenu {
     pub hidden: CheckMenuItem<tauri::Wry>,
 }
 fn about_metadata() -> tauri::menu::AboutMetadata<'static> {
-    let commit = env!("WORKBENCH_GIT_COMMIT");
-    let dirty = if env!("WORKBENCH_GIT_DIRTY") == "true" {
-        "\n包含未提交更改"
-    } else {
-        ""
-    };
     tauri::menu::AboutMetadata {
         name: Some("File Workbench".into()),
         version: Some(env!("CARGO_PKG_VERSION").into()),
-        short_version: Some(commit.chars().take(8).collect()),
-        credits: Some(format!("Git commit: {commit}{dirty}")),
-        comments: Some(format!("Git commit: {commit}{dirty}")),
         ..Default::default()
     }
 }
@@ -87,19 +78,12 @@ pub fn install(app: &mut tauri::App) -> tauri::Result<()> {
 mod tests {
     use super::*;
     #[test]
-    fn about_contains_full_source_revision_and_short_visible_build_id() {
+    fn about_shows_application_version_without_source_metadata() {
         let metadata = about_metadata();
+        assert_eq!(metadata.name.as_deref(), Some("File Workbench"));
         assert_eq!(metadata.version.as_deref(), Some(env!("CARGO_PKG_VERSION")));
-        assert!(metadata
-            .credits
-            .unwrap()
-            .contains(env!("WORKBENCH_GIT_COMMIT")));
-        assert_eq!(
-            metadata.short_version.unwrap(),
-            env!("WORKBENCH_GIT_COMMIT")
-                .chars()
-                .take(8)
-                .collect::<String>()
-        );
+        assert!(metadata.short_version.is_none());
+        assert!(metadata.credits.is_none());
+        assert!(metadata.comments.is_none());
     }
 }

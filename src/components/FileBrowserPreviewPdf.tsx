@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { getDocument, GlobalWorkerOptions, TextLayer, type PDFDocumentProxy } from "pdfjs-dist";
+import { getDocument, GlobalWorkerOptions, TextLayer, type PDFDocumentLoadingTask, type PDFDocumentProxy } from "pdfjs-dist";
 import worker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { ToolbarIcon } from "./ToolbarIcon";
 import "pdfjs-dist/web/pdf_viewer.css";
 GlobalWorkerOptions.workerSrc = worker;
 
 /** Read-only, one-page-at-a-time projection; never imports the document library. */
-export function FileBrowserPreviewPdf({ src, fallback }: { src: string; fallback?: ReactNode }) {
+export function FileBrowserPreviewPdf({ blob, fallback }: { blob: Blob; fallback?: ReactNode }) {
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1), [zoom, setZoom] = useState(0);
   const [width, setWidth] = useState(0), [error, setError] = useState(""), [busy, setBusy] = useState(true);
@@ -19,11 +19,19 @@ export function FileBrowserPreviewPdf({ src, fallback }: { src: string; fallback
   }, []);
   useEffect(() => {
     let live = true;
-    const task = getDocument({ url: src, cMapUrl: new URL(`${import.meta.env.BASE_URL}pdfjs-cmaps/`, location.href).href, cMapPacked: true, isEvalSupported: false });
-    task.onPassword = () => { if (live) { setError("此 PDF 需要密码，请使用系统应用打开。"); setBusy(false); } void task.destroy().catch(() => {}); };
-    void task.promise.then(value => { if (live) { setDoc(value); setPage(1); } }).catch(cause => { if (live) { setError(previous => previous || String(cause)); setBusy(false); } });
-    return () => { live = false; void task.destroy().catch(() => {}); };
-  }, [src]);
+    let task: PDFDocumentLoadingTask | undefined;
+    // WKWebView's custom tauri: origin can return status 0 for blob URL reads.
+    // Feed bytes directly, as the main reader does, instead of issuing a request.
+    void (async () => {
+      const data = new Uint8Array(await blob.arrayBuffer());
+      if (!live) return;
+      task = getDocument({ data, cMapUrl: new URL(`${import.meta.env.BASE_URL}pdfjs-cmaps/`, location.href).href, cMapPacked: true, isEvalSupported: false });
+      task.onPassword = () => { if (live) { setError("此 PDF 需要密码，请使用系统应用打开。"); setBusy(false); } void task?.destroy().catch(() => {}); };
+      const value = await task.promise;
+      if (live) { setDoc(value); setPage(1); }
+    })().catch(cause => { if (live) { setError(previous => previous || String(cause)); setBusy(false); } });
+    return () => { live = false; void task?.destroy().catch(() => {}); };
+  }, [blob]);
   useEffect(() => {
     if (!doc || !width) return;
     const box = surface.current!;

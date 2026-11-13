@@ -557,13 +557,13 @@ export const localFileService = {
       throw error;
     }
   },
-  async readPdfPreview(rootId: string, node: string, signal?: AbortSignal): Promise<string> {
+  async readPdfPreview(rootId: string, node: string, signal?: AbortSignal): Promise<Blob> {
     const valid = guard(); signal?.throwIfAborted();
     if (!/\.pdf$/i.test(node)) throw new Error("不是 PDF 文件");
     const before = await this.stat(rootId, node);
     valid(); signal?.throwIfAborted();
     if (before.size > 32 * 1024 * 1024) throw new Error("PDF 快速预览最多 32 MiB，请使用系统应用打开");
-    return readPreviewAsset(rootId, node, "application/pdf", signal, true);
+    return readPreviewAsset(rootId, node, "application/pdf", signal, "blob");
   },
   async readImagePreview(rootId: string, node: string, signal?: AbortSignal): Promise<string> {
     return this.readImageAsset(rootId, node, signal, true);
@@ -585,7 +585,9 @@ export const localFileService = {
 
 
 /** Shared authorized binary loader; only typed image/PDF entry points expose it. */
-async function readPreviewAsset(rootId: string, node: string, mime: string, signal?: AbortSignal, objectUrl = true): Promise<string> {
+async function readPreviewAsset(rootId: string, node: string, mime: string, signal: AbortSignal | undefined, objectUrl: "blob"): Promise<Blob>;
+async function readPreviewAsset(rootId: string, node: string, mime: string, signal: AbortSignal | undefined, objectUrl: boolean): Promise<string>;
+async function readPreviewAsset(rootId: string, node: string, mime: string, signal: AbortSignal | undefined, objectUrl: boolean | "blob"): Promise<string | Blob> {
   const valid = guard(); const check = () => { signal?.throwIfAborted(); valid(); }; check(); fileSegments(node);
   const encoded: string[] = [];
   const parts: ArrayBuffer[] = [];
@@ -628,5 +630,5 @@ async function readPreviewAsset(rootId: string, node: string, mime: string, sign
     }
   }
   check();
-  return objectUrl ? URL.createObjectURL(new Blob(parts, { type: mime })) : `data:${mime};base64,${encoded.join("")}`;
+  return objectUrl === "blob" ? new Blob(parts, { type: mime }) : objectUrl ? URL.createObjectURL(new Blob(parts, { type: mime })) : `data:${mime};base64,${encoded.join("")}`;
 }

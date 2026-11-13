@@ -152,10 +152,18 @@ File Workbench 的 PNG/ICO/ICNS 与网页 favicon 独立存放在 native/file-wo
 
 ### PDF与Markdown扩展预览（2026-11-13）
 
-不装配依赖数据库的PdfReader，使用同一PDF.js引擎／Worker／CMap及独立逐页投影。目录提供者通过可选readPdfPreview端口返回pdf类型Blob URL；不支持新端口的宿主明确回退，旧文本／图片接口不变。读取底层与图片共用私有授权分段函数，原生read_asset_range仅新增pdf白名单及32MiB限制，IPC字段不变。对象URL在关闭、切换、撤权或取消时释放；文档任务在卸载时销毁，页面渲染及文本层同时取消。
+不装配依赖数据库的PdfReader，使用同一PDF.js引擎／Worker／CMap及独立逐页投影。目录提供者通过可选readPdfPreview端口返回pdf类型Blob，组件读取二进制并传给PDF.js的data参数，不请求Blob URL；不支持新端口的宿主明确回退，旧文本／图片接口不变。读取底层与图片共用私有授权分段函数，原生read_asset_range仅新增pdf白名单及32MiB限制，IPC字段不变。图片对象URL在关闭、切换、撤权或取消时释放；PDF Blob随预览状态撤回释放引用，文档任务在卸载时销毁，页面渲染及文本层同时取消。
 
 Markdown使用已有SourceNavigationDocument、MarkdownSplitPreview及只读块渲染，不注入原始HTML、不复制解析规则。独立主视图沿用SourceView的正文／草稿所有权；渲染只是当前source的派生视图，进入编辑切回源码；只读渲染自动取得可滚动正文焦点以延续左右键浏览。DocumentImageLibraryContext默认允许既有数据库图片，仅独立文件预览关闭该能力；相对链接不自行跳转，避免绕过来源授权及未保存离开确认。当前限制详见[待办与交付](../planning/file-workbench-followups.md)。
 
 PDF、Markdown、数学及图表依赖保持懒加载；工作台复用CMap资产插件并拆分Markdown／文档运行时及图表工具依赖，最终工作台构建各JS块小于500kB，未放宽警告阈值。独立构建的数据库入口导入检查继续通过。
 
 影响分析SAFE（已验证范围）：检查两个BrowserDirectoryProvider宿主、全部preview返回值／URL释放消费者、工作台关闭与连续预览判定、共享图片授权上下文及Rust读取白名单。新增端口可选、返回类型新增pdf；TypeScript／IPC检查、文件服务及宿主契约测试通过。没有修改文件保存格式、数据库模式或队列执行协议；真实安装版GUI尚未验收。
+
+### 安装版PDF直接读取字节与明确的Markdown模式（2026-11-13）
+
+用户在macOS安装版6564190a报告UnexpectedResponseException，URL为blob:tauri://localhost/...且状态为0。首版用普通网页协议进行的生产验证没有覆盖此路径。修复不放宽CSP：readPdfPreview返回只读Blob，组件将arrayBuffer转换为Uint8Array后传入getDocument({data})，与既有PdfReader的数据入口保持一致，绕过URL网络读取及状态码判断。页渲染、密码提示、取消、撤权及32MiB预算不变；图片仍使用原有URL及回收逻辑。所有返回类型及消费方同步检查，新增回归阻止fetch／XHR读取Blob URL后仍要求真实PDF完成翻页与缩放。
+
+Markdown原来的单图标切换改为共享FileBrowserMarkdownMode，快速预览和独立全视图明确显示“渲染／源码”，当前模式高亮；选择源码不再依赖猜测图标或悬停提示。既有源编辑／草稿及离开保护不变。
+
+About改为只显示名称及应用版本，移除提交号和未提交标记；Git构建元信息无其它消费者，一并清理build.rs中仅供About使用的采集与监听，保留tauri_build::build及原菜单安装／退出流程。原有元信息测试改为断言版本存在且源码元信息字段为空。

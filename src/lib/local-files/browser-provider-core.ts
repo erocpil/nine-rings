@@ -26,7 +26,7 @@ export function createBrowserDirectoryProvider(host: BrowserDirectoryHost): Brow
       if (/\.pdf$/i.test(node)) {
         if (!host.files.readPdfPreview) throw new Error("当前宿主不支持 PDF 预览");
         const value = await host.files.readPdfPreview(rootId, node, signal);
-        try { check(signal); } catch (cause) { releaseBrowserPreview({ kind: "pdf", value }); throw cause; }
+        check(signal);
         return { kind: "pdf", value, truncated: false };
       }
       const image = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif)$/i.test(node);

@@ -199,16 +199,17 @@ it("a cancelled or revoked image preview releases its newly created Blob URL", a
   expect(port.files.readImageAsset).not.toHaveBeenCalled();
 });
 
-it("PDF previews use the optional binary port and release revoked results", async () => {
+it("PDF previews use binary blobs without URLs and discard revoked results", async () => {
   const { port, revoke } = host("pdf");
+  const blob = new Blob(["%PDF-test"], { type: "application/pdf" });
   const pdfPort = {
     ...port,
-    files: { ...port.files, readPdfPreview: vi.fn(async () => "blob:pdf") },
+    files: { ...port.files, readPdfPreview: vi.fn(async () => blob) },
   };
   const provider = createBrowserDirectoryProvider(pdfPort);
   await expect(
     provider.preview("r", "book.PDF", new AbortController().signal),
-  ).resolves.toEqual({ kind: "pdf", value: "blob:pdf", truncated: false });
+  ).resolves.toEqual({ kind: "pdf", value: blob, truncated: false });
   expect(port.files.readSnapshot).not.toHaveBeenCalled();
   await expect(
     createBrowserDirectoryProvider(port).preview(
@@ -217,13 +218,13 @@ it("PDF previews use the optional binary port and release revoked results", asyn
       new AbortController().signal,
     ),
   ).rejects.toThrow("不支持 PDF");
-  const release = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  const create = vi.spyOn(URL, "createObjectURL");
   pdfPort.files.readPdfPreview.mockImplementationOnce(async () => {
     revoke();
-    return "blob:late-pdf";
+    return blob;
   });
   await expect(
     provider.preview("r", "book.pdf", new AbortController().signal),
   ).rejects.toThrow("revoked");
-  expect(release).toHaveBeenCalledWith("blob:late-pdf");
+  expect(create).not.toHaveBeenCalled();
 });

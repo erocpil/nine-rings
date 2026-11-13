@@ -1,5 +1,16 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-13：macOS安装版PDF状态0与Markdown明确切换
+
+用户在6564190a安装版报告PDF读取blob:tauri://localhost/...返回状态0，PDF.js将其判为UnexpectedResponseException。首批HTTP生产预览通过不代表已验证自定义协议。改为宿主返回只读PDF Blob，组件arrayBuffer转Uint8Array后调用getDocument({data})，消除PDF URL请求路径；CSP和Rust／IPC不变。检查所有预览返回值消费者和释放逻辑，图片仍回收对象URL，PDF取消／撤权后丢弃Blob引用，Worker及页面任务仍销毁。Markdown快速／全视图复用明确的“渲染／源码”按钮组，高亮当前模式，窄窗下两项完整可见。
+
+影响分析SAFE（已验证路径）：PDF请求机制的回归同时拦截window.fetch与XHR的Blob URL读取，真实两页PDF仍须显示、翻页、缩放及正常关闭；不以放宽HTTP状态判断或CSP绕过问题。单元测试验证PDF端口返回二进制Blob、不创建对象URL、撤权拒绝迟到结果和预算检查。完整npm run check通过（244个Vitest文件／2642项及独立脚本、类型、lint、格式、IPC）。WebKit开发针对性2项、最终生产WebKit／Chromium各3项通过；覆盖文本／图片、连续预览、损坏PDF回退、Markdown源码和渲染切换及780px窗口几何。两产品前端构建和macOS ARM64 File Workbench.app构建通过，产物仅写入.local-tools，未替换已安装应用。实际安装版GUI修复后仍需用户复测，不能将HTTP浏览器模拟称为原生实测。
+
+日志：`/tmp/nr-preview-bytes-{unit,check,webkit,production-webkit,production-chromium,main-build,build,native-build}.log`。
+
+
+About补充：仅保留应用名称和版本，清除short_version、credits、comments中的提交号／脏构建标记；全仓库引用检查确认WORKBENCH_GIT元信息只用于原About和测试，因此一并删除构建脚本的Git读取与监听。更新原有元信息测试验证相关字段为空，未删除测试。File Workbench原生9项及native workspace Clippy通过，并重新构建macOS ARM64 .app；系统安装目录未改动。日志：`/tmp/nr-workbench-about-{test,clippy}.log`与上述native-build日志。
+
 ## 2026-11-13：File Workbench 扩展预览
 
 待办记录在 `docs/planning/file-workbench-followups.md`，第一批新增 PDF 与 Markdown，后续文件操作进度、快捷键、目录大小等保持未完成。共享预览提供者新增可选 PDF 端口和返回类型，复用授权分段读取与取消检查；Rust 仅扩展资产白名单和32MiB PDF预算，IPC签名不变。PDF逐页画布／文本层在关闭或切换时取消，文档Worker销毁，Blob由预览所有者释放。Markdown复用只读块渲染与原SourceView保存／草稿边界，禁用数据库图片解析及直接本地链接跳转。
