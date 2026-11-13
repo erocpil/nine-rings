@@ -4,7 +4,7 @@ import { captureRenderedPreview } from "../../lib/preview-scroll-position";
 import type { PreviewScrollPosition } from "../../lib/local-files/browser-preview";
 import type { BrowserDirectoryProvider } from "../../lib/local-files/browser-contract";
 import type { WorkbenchCloseRequest } from "./native-lifecycle";
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import type { EditorState } from "@codemirror/state";
 import { DocumentSourceSurface } from "../../components/DocumentSourceSurface";
 import { DocumentTitleBar } from "../../components/DocumentChrome";
@@ -24,7 +24,8 @@ import "../../styles/local-files.css";
 
 const MarkdownPreview = lazy(() => import("../../components/FileBrowserPreviewMarkdown").then(module => ({ default: module.FileBrowserPreviewMarkdown })));
 
-export function WorkbenchSourceView({ file, host, provider, onClose, closeRequest, onNavigate, previous = false, next = false }: {
+export function WorkbenchSourceView({ file, host, provider, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false }: {
+  headerActions?: ReactNode;
   file: BrowserFileOpen; host: LocalSourceHost; provider: BrowserDirectoryProvider; onClose: () => void;
   closeRequest: MutableRefObject<WorkbenchCloseRequest | null>;
   onNavigate?: (direction: -1 | 1) => void; previous?: boolean; next?: boolean;
@@ -189,6 +190,7 @@ export function WorkbenchSourceView({ file, host, provider, onClose, closeReques
       <button className="btn-icon" type="button" aria-label="保存文件" title="保存文件（⌘/Ctrl+S）" disabled={loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>
       <button className="btn-icon" type="button" aria-label="导出副本" title="导出副本" disabled={loading || !base} onClick={() => void copy()}><ToolbarIcon name="download" /></button>
       <button className="btn-icon" type="button" aria-label="重新读取原文件" title="重新读取原文件" disabled={loading || saving} onClick={() => { if (dirty) setLeave("reload"); else void read(); }}><ToolbarIcon name="refresh" /></button>
+      {headerActions}
       <button className="btn-icon" type="button" aria-label="返回文件浏览" title="关闭预览，返回文件浏览" onClick={() => requestClose()}><ToolbarIcon name="close" /></button>
     </DocumentTitleBar>
     {loading && <p role="status">正在读取文件…</p>}

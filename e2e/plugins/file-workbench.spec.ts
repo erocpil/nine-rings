@@ -238,6 +238,7 @@ test("文本和图片预览使用关闭图标与快速提示，关闭恢复文�
     await expect(left.getByRole("option", { name: /^42.txt/ })).toHaveAttribute("aria-selected", "true");
     await list.press("End"); await list.press("Enter");
     await expect(image).toBeFocused(); await page.keyboard.press("Escape");
+    await expect(image).toBeVisible(); await imageClose.click();
     await expect(list).toBeFocused();
     const right = browser.getByRole("region", { name: "右侧目录", exact: true });
     await right.getByRole("combobox", { name: "选择授权目录", exact: true }).selectOption(await left.getByRole("combobox", { name: "选择授权目录", exact: true }).inputValue());
@@ -265,9 +266,11 @@ test("柔和配色和清雅/物哀在浏览、编辑与重启后保持一致", a
     await page.screenshot({ path: testInfo.outputPath(`palette-${id}.png`) });
   }
   expect(backgrounds.size).toBe(4);
-  await browser.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /alpha.c/ }).dblclick();
   await page.getByRole("button", { name: "配色", exact: true }).click();
   await page.getByRole("menuitem", { name: "清雅", exact: true }).click();
+  await browser.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /alpha.c/ }).dblclick();
+  await expect(page.locator("html")).toHaveAttribute("data-workbench-palette", "calm");
+  await expect(page.getByRole("button", { name: "配色", exact: true })).not.toBeVisible();
   await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-workbench-palette", "calm");
   await page.reload();
@@ -1679,10 +1682,11 @@ test("内置编辑器的Markdown按内容锚点切换，编辑后仍提供两种
     let id = 1;
     (window as any).__TAURI_INTERNALS__ = {
       transformCallback() { return id++; }, unregisterCallback() {},
-      async invoke(command: string) {
+      async invoke(command: string, args: unknown) {
         if (command === "plugin:event|listen") return id++;
         if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
         const size = new TextEncoder().encode(source).length;
+        if (command === "local_files_open_external") { (window as any).__externalOpen = args; return true; }
         if (command === "local_files_roots") return [{ id: "framework", name: "Documents" }];
         if (command === "local_files_display_path") return "/fixture/Documents";
         if (command === "local_files_list") return { nodes: [{ id: "Cognitive & Information Encoding Framework.md", name: "Cognitive & Information Encoding Framework.md", directory: false, size, modifiedMs: 1 }], next: null };
@@ -1730,6 +1734,10 @@ test("内置编辑器的Markdown按内容锚点切换，编辑后仍提供两种
   await page.getByRole("menuitem", { name: "内置编辑器", exact: true }).click();
   const heading = page.getByRole("heading", { name: target, exact: true });
   await expect(heading).toBeVisible();
+  const external = page.getByRole("button", { name: "使用默认应用打开", exact: true });
+  await external.click();
+  await expect.poll(() => page.evaluate(() => (window as any).__externalOpen)).toEqual({ rootId: "framework", node: "Cognitive & Information Encoding Framework.md", chooseApplication: false });
+  expect(await external.evaluate(element => element.nextElementSibling?.getAttribute("aria-label"))).toBe("返回文件浏览");
   await heading.evaluate(element => {
     const root = element.closest<HTMLElement>(".markdown-preview-scroll")!;
     root.scrollTop += element.getBoundingClientRect().top - root.getBoundingClientRect().top;
@@ -1749,4 +1757,33 @@ test("内置编辑器的Markdown按内容锚点切换，编辑后仍提供两种
   await expect(page.locator(".cm-content")).toContainText("preview mapping edit");
   await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "未保存的文件编辑", exact: true })).toBeVisible();
+});
+
+
+test("内置 Markdown 和 HTML 预览统一通过关闭按钮返回，Esc 保留内部工具", async ({ page }) => {
+  const folder = await mkdtemp(join(tmpdir(), "nr-preview-close-"));
+  try {
+    await writeFile(join(folder, "sample.md"), "# Markdown preview\n\nContent");
+    await writeFile(join(folder, "sample.html"), "<h1>HTML preview</h1>");
+    await page.goto("/file-workbench.html");
+    await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(folder);
+    const left = page.getByRole("region", { name: "左侧目录", exact: true });
+    const view = page.getByRole("region", { name: "文件源码工作区", exact: true });
+    for (const name of ["sample.md", "sample.html"]) {
+      await left.getByRole("option", { name: new RegExp(`^${name}`) }).dblclick();
+      await expect(view).toBeVisible();
+      await expect(page.getByRole("button", { name: "添加工具", exact: true })).not.toBeVisible();
+      if (name.endsWith("md")) {
+        await expect(view.getByRole("heading", { name: "Markdown preview" })).toBeVisible();
+        await view.getByRole("heading", { name: "Markdown preview" }).click();
+        await page.keyboard.press("Escape"); await expect(view).toBeVisible();
+        await view.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+      }
+      await view.locator(".cm-content").click();
+      await page.keyboard.press("Escape"); await expect(view).toBeVisible();
+      await view.getByRole("button", { name: "返回文件浏览", exact: true }).click();
+      await expect(view).toHaveCount(0);
+      await expect(left.getByRole("listbox", { name: "文件列表", exact: true })).toBeFocused();
+    }
+  } finally { await rm(folder, { recursive: true, force: true }); }
 });

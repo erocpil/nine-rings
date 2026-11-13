@@ -1,5 +1,16 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-13：整页预览关闭与工具精简
+
+Markdown 渲染、HTML／源码、图片及 PDF 整页预览统一用右上角 × 返回，不再用 Esc 关闭整页；编辑器、Vim、查找和弹层的 Esc 保持各自职责。预览首排工具移除，默认应用入口移到 × 左侧，通过原授权 openExternal 调用，不硬编码应用名。共享 QuickPreview 仅增加可选标题操作插槽，双栏快速预览不改变关闭约定。
+
+影响分析 SAFE（已验证范围）：检查 main 的整页／图片路由、SourceView 的 requestClose／nativeClose／草稿持久化、焦点及滚动恢复，以及全部 QuickPreview 调用方。未修改保存、正文、IPC和授权。原配色测试调整为先在浏览页选色，再验证预览沿用配色及首排隐藏；不是删除配色能力。新增 Markdown 渲染／源码、HTML源码 Esc 不退出、× 返回并恢复列表焦点回归；原图片关闭测试同步更新约定。原生 IPC 模拟验证默认打开传入文件身份、chooseApplication=false及按钮紧邻关闭按钮。
+
+最终 Chromium／WebKit 完整工作台各38项通过。npm run check全部通过（244个Vitest文件／2642项，另含独立脚本、类型、lint、格式及IPC检查）；工作台生产构建通过。首轮Chromium有1项旧配色入口断言失败，按新交互更新后完整重跑38项通过。没有运行或替换真实安装版GUI。
+
+日志：`/tmp/nr-preview-close-{chromium,webkit,check,build}.log`。
+
+
 ## 2026-11-13：Markdown内容定位与内置编辑器入口
 
 用户以本机Cognitive & Information Encoding Framework.md反馈像素恢复仍不准。将两个投影各自恢复旧top／left改为同一内容锚点交接：ProseMirror只读文本跨度转换到源码字符偏移，包含列表／引用内段落；渲染侧测量可见边界并缓存，快速源码按DOM Range实际折行测量，全视图源码使用CodeMirror可视字符与scrollToOffset。换模式、允许编辑和查找进入源码均统一交接；旧像素值仅兼容回退。预览内部锚点不写文件、设置或数据库。内置编辑器沿用SourceView，模式按钮前移，明确验证可编辑状态下渲染当前未保存内容及返回源码。
