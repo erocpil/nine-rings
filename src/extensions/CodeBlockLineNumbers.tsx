@@ -421,7 +421,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: No
                 saveBlockWorkspacePreferences({ lineNumbers: !showLineNumbers });
               }}
               title="代码行号（仅改变显示）"
-            >行号</button>
+            ><ToolbarIcon name="listChars" /></button>
             <CodeLanguageSelect
               editable={editable}
               value={normalizeCodeLanguage(node.attrs.language) ?? ""}
