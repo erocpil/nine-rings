@@ -1,5 +1,6 @@
 import { FileBrowserMarkdownMode } from "../../components/FileBrowserMarkdownMode";
 import { FileBrowserFileDetails } from "../../components/FileBrowserFileDetails";
+import { captureRenderedPreview } from "../../lib/preview-scroll-position";
 import type { PreviewScrollPosition } from "../../lib/local-files/browser-preview";
 import type { BrowserDirectoryProvider } from "../../lib/local-files/browser-contract";
 import type { WorkbenchCloseRequest } from "./native-lifecycle";
@@ -32,8 +33,17 @@ export function WorkbenchSourceView({ file, host, provider, onClose, closeReques
   const [renderMarkdown, setRenderMarkdown] = useState(markdown && !file.location);
   const renderedPosition = useRef<PreviewScrollPosition>({ top: 0, left: 0 });
   const sourcePosition = useRef<PreviewScrollPosition | null>(null);
+  const previewRoot = useRef<HTMLElement>(null);
   const changePreviewMode = (value: boolean) => {
-    if (!renderMarkdown && handle.current) sourcePosition.current = { top: handle.current.scrollTop, left: handle.current.view.scrollDOM.scrollLeft };
+    if (!renderMarkdown && handle.current) {
+      const offset = handle.current.position();
+      sourcePosition.current = { top: handle.current.scrollTop, left: handle.current.view.scrollDOM.scrollLeft, offset };
+      renderedPosition.current.offset = offset;
+    } else {
+      const element = previewRoot.current?.querySelector<HTMLElement>(".markdown-preview-scroll");
+      if (element) captureRenderedPreview(element, renderedPosition.current, sourceRef.current.length);
+      sourcePosition.current = { ...renderedPosition.current };
+    }
     setRenderMarkdown(value);
   };
   const identity = `${file.rootId}:${file.node.id}`;
@@ -157,25 +167,28 @@ export function WorkbenchSourceView({ file, host, provider, onClose, closeReques
   const bindHandle = useCallback((editor: SourceEditorHandle | null) => {
     const location = searchLocation.current, snapshot = baseRef.current;
     const position = sourcePosition.current;
-    if (editor && position) editor.view.requestMeasure({ read: () => null, write: () => { editor.view.scrollDOM.scrollTop = position.top; editor.view.scrollDOM.scrollLeft = position.left; } });
+    if (editor && position) {
+      if (position.offset !== undefined) editor.scrollToOffset(Math.max(0, Math.min(editor.value.length, Math.round(position.offset))));
+      else editor.view.requestMeasure({ read: () => null, write: () => { editor.view.scrollDOM.scrollTop = position.top; editor.view.scrollDOM.scrollLeft = position.left; } });
+    }
     if (!editor || appliedSearch.current || !location || !snapshot) return;
     appliedSearch.current = true;
     if (snapshot.revision !== location.revision || current() !== snapshot.source) return;
     editor.setSelectionRange(Math.min(location.from, editor.value.length), Math.min(location.to, editor.value.length));
     editor.scrollToOffset(Math.min(location.from, editor.value.length), true);
   }, [current]);
-  return <section className="local-file-view workbench-source-view" aria-label="文件源码工作区" onKeyDownCapture={event => {
+  return <section ref={previewRoot} className="local-file-view workbench-source-view" aria-label="文件源码工作区" onKeyDownCapture={event => {
     if (!readonly || !onNavigate || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || !["ArrowLeft", "ArrowRight"].includes(event.key) || (event.target as Element).closest("input, textarea, select, dialog, [role=dialog]")) return;
     event.preventDefault(); event.stopPropagation();
     if (event.key === "ArrowLeft" ? previous : next) requestClose(() => onNavigate(event.key === "ArrowLeft" ? -1 : 1));
   }}>
     <DocumentTitleBar className="local-files-toolbar local-file-titlebar"><strong title={file.node.id}>{file.node.name}</strong><span>{saving ? "正在保存…" : dirty ? "未保存" : "磁盘文本"}</span>
+      {markdown && <FileBrowserMarkdownMode rendered={renderMarkdown} disabled={!base} onChange={changePreviewMode} />}
       {onNavigate && <><button className="btn-icon" type="button" aria-label="上一文件" title="上一文件（←，只读预览）" disabled={!previous} onClick={() => requestClose(() => onNavigate(-1))}><ToolbarIcon name="chevronLeft" /></button><button className="btn-icon" type="button" aria-label="下一文件" title="下一文件（→，只读预览）" disabled={!next} onClick={() => requestClose(() => onNavigate(1))}><ToolbarIcon name="chevronRight" /></button></>}
-      <button className="btn-icon" type="button" aria-label={readonly ? "允许编辑" : "设为只读"} title={readonly ? "允许编辑" : "设为只读"} disabled={loading || !base || Boolean(candidate) || !draftAvailable} onClick={() => { setReadonly(value => !value); setRenderMarkdown(false); }}><ToolbarIcon name={readonly ? "lock" : "edit"} /></button>
+      <button className="btn-icon" type="button" aria-label={readonly ? "允许编辑" : "设为只读"} title={readonly ? "允许编辑" : "设为只读"} disabled={loading || !base || Boolean(candidate) || !draftAvailable} onClick={() => { setReadonly(value => !value); if (markdown) changePreviewMode(false); else setRenderMarkdown(false); }}><ToolbarIcon name={readonly ? "lock" : "edit"} /></button>
       <button className="btn-icon" type="button" aria-label="保存文件" title="保存文件（⌘/Ctrl+S）" disabled={loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>
       <button className="btn-icon" type="button" aria-label="导出副本" title="导出副本" disabled={loading || !base} onClick={() => void copy()}><ToolbarIcon name="download" /></button>
       <button className="btn-icon" type="button" aria-label="重新读取原文件" title="重新读取原文件" disabled={loading || saving} onClick={() => { if (dirty) setLeave("reload"); else void read(); }}><ToolbarIcon name="refresh" /></button>
-      {markdown && <FileBrowserMarkdownMode rendered={renderMarkdown} disabled={!base} onChange={changePreviewMode} />}
       <button className="btn-icon" type="button" aria-label="返回文件浏览" title="关闭预览，返回文件浏览" onClick={() => requestClose()}><ToolbarIcon name="close" /></button>
     </DocumentTitleBar>
     {loading && <p role="status">正在读取文件…</p>}

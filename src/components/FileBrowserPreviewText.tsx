@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { browserPreviewMatches, type PreviewScrollPosition } from "../lib/local-files/browser-preview";
+import { captureTextPreview, restoreTextPreview } from "../lib/preview-scroll-position";
 import { ToolbarIcon } from "./ToolbarIcon";
 
 export function FileBrowserPreviewText({ position, wrap, source, query, onQuery, matchCase, onCase, findOpen, onCloseFind }: {
@@ -7,7 +8,7 @@ export function FileBrowserPreviewText({ position, wrap, source, query, onQuery,
 }) {
   const [index, setIndex] = useState(0);
   const pre = useRef<HTMLPreElement>(null);
-  useLayoutEffect(() => { if (pre.current && position) { pre.current.scrollTop = position.top; pre.current.scrollLeft = position.left; } }, [position, source]);
+  useLayoutEffect(() => { if (pre.current && position) restoreTextPreview(pre.current, position); }, [position, source]);
   const result = useMemo(() => browserPreviewMatches(source, findOpen ? query : "", matchCase), [source, query, findOpen, matchCase]);
   const current = Math.min(index, Math.max(0, result.matches.length - 1));
   useEffect(() => { setIndex(0); }, [query, matchCase, source]);
@@ -39,6 +40,6 @@ export function FileBrowserPreviewText({ position, wrap, source, query, onQuery,
       <button type="button" className="btn-icon" aria-label="下一个预览匹配" disabled={!result.matches.length} onClick={() => step(1)}><ToolbarIcon name="chevronRight" /></button>
       <button type="button" className="btn-icon" aria-label="关闭预览查找" onClick={onCloseFind}><ToolbarIcon name="close" /></button>
     </div>}
-    <pre onScroll={event => { if (position) { position.top = event.currentTarget.scrollTop; position.left = event.currentTarget.scrollLeft; } }} className={wrap ? "file-browser-preview-wrapped" : undefined} ref={pre} tabIndex={0} aria-label="预览文本">{parts}</pre>
+    <pre onScroll={event => { if (position) captureTextPreview(event.currentTarget, position); }} className={wrap ? "file-browser-preview-wrapped" : undefined} ref={pre} tabIndex={0} aria-label="预览文本">{parts}</pre>
   </>;
 }

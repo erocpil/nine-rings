@@ -156,7 +156,7 @@ export function MarkdownSplitPreview({
       panel.removeEventListener("scroll", fromPreview);
     };
   }, [sync, areaRef, snapshot, enabled]);
-  useLayoutEffect(() => { if (snapshot && preview.current) onPreviewReady?.(preview.current); }, [snapshot, onPreviewReady]);
+  useLayoutEffect(() => { if (snapshot && preview.current) onPreviewReady?.(preview.current); }, [snapshot, onPreviewReady, states]);
   const tocContext = useMemo(() => ({ items: snapshot ? extractDocumentOutline(snapshot.doc) : [], navigate: (item: { pos: number }) => {
     const block = blocks.find(block => block.pos === item.pos);
     const element = block && [...(preview.current?.querySelectorAll<HTMLElement>("[data-source-offset]") ?? [])].find(element => Number(element.dataset.sourceOffset) === block.offset);

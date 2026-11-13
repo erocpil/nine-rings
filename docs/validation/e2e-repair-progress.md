@@ -1,5 +1,16 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-13：Markdown内容定位与内置编辑器入口
+
+用户以本机Cognitive & Information Encoding Framework.md反馈像素恢复仍不准。将两个投影各自恢复旧top／left改为同一内容锚点交接：ProseMirror只读文本跨度转换到源码字符偏移，包含列表／引用内段落；渲染侧测量可见边界并缓存，快速源码按DOM Range实际折行测量，全视图源码使用CodeMirror可视字符与scrollToOffset。换模式、允许编辑和查找进入源码均统一交接；旧像素值仅兼容回退。预览内部锚点不写文件、设置或数据库。内置编辑器沿用SourceView，模式按钮前移，明确验证可编辑状态下渲染当前未保存内容及返回源码。
+
+影响分析SAFE（已验证范围）：检查预览位置所有读写、模式首次进入／往返、搜索首次定位优先级、只读文本跨度来源、折叠状态回调及两个共享并排预览调用方；不改变文档权威、保存、撤销、IPC或权限。首轮Chromium因亚像素舍入把首字误判为下一折行，导致57px偏差；修正为1px容差，保持45／70px的内容几何断言，不放宽原断言掩盖问题。渲染几何按宽度、高度、源长度缓存，解析／折叠更新失效，跳过隐藏和重复边界；非Markdown纯文本不启用字符锚点测量。
+
+完整Chromium／WebKit工作台各37项通过；完整npm run check通过（244个Vitest文件／2642项及独立脚本、类型、lint、格式和IPC）。新增右键“打开方式→内置编辑器”回归，通过原生IPC模拟验证渲染／源码、编辑预览和未保存确认。使用用户指定文件只读内容进行Chromium／WebKit各2项专项与最终生产WebKit2项验证，覆盖中段标题、列表段落与双栏快速／独立全视图；源文件未修改，测试编辑只在内存中。CI无本机文件时使用含标题、嵌套列表、引用与长段落的合成文本，不把用户文件内容提交进仓库。两产品前端及macOS ARM64 File Workbench.app构建通过，未替换系统应用；真实安装版GUI仍需用户验收。
+
+日志：`/tmp/nr-preview-anchor-{check,chromium,webkit,framework,framework-chromium,framework-webkit,production,main-build,native-build}.log`。
+
+
 ## 2026-11-13：预览位置、Retina字号及短提交号
 
 按最新需求恢复About版本后的短提交号，完整提交号和脏构建说明仍不显示。build.rs只采集短hash并监听HEAD／分支／packed-refs，原生9项测试及native workspace Clippy通过。Markdown改为单个代码／眼睛图标切换，无可见文字，目标模式由悬停提示与无障碍名称说明。

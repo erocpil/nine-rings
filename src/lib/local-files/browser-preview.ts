@@ -43,4 +43,4 @@ export function releaseBrowserPreview(preview: { kind: "image" | "text" | "pdf";
 }
 
 /** Ephemeral per-view position; never part of file content or persisted settings. */
-export interface PreviewScrollPosition { top: number; left: number }
+export interface PreviewScrollPosition { top: number; left: number; offset?: number }

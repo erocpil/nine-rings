@@ -1619,37 +1619,40 @@ test("扩展预览支持 PDF 翻页缩放和 Markdown 渲染原文切换", async
     expect(modeBounds.x + modeBounds.width).toBeLessThanOrEqual(bounds.x + bounds.width);
     expect(await mode.textContent()).toBe("");
     const renderedScroll = preview.locator(".markdown-preview-scroll");
-    await renderedScroll.evaluate(element => { element.scrollTop = 600; });
-    const renderedTop = await renderedScroll.evaluate(element => element.scrollTop);
-    expect(renderedTop).toBeGreaterThan(500);
-    await expect(mode).toHaveAttribute("aria-pressed", "true");
+    await preview.locator("p").filter({ hasText: /^paragraph 20 / }).evaluate(element => {
+      const root = element.closest<HTMLElement>(".markdown-preview-scroll")!;
+      root.scrollTop += element.getBoundingClientRect().top - root.getBoundingClientRect().top;
+    });
     await mode.click();
-    await expect(mode).toHaveAttribute("aria-pressed", "false");
     const raw = preview.getByLabel("预览文本", { exact: true });
-    await expect(raw).toContainText("**bold content**");
-    await raw.evaluate(element => { element.scrollTop = 400; });
-    const rawTop = await raw.evaluate(element => element.scrollTop);
+    await expect.poll(() => raw.evaluate(element => {
+      const text = element.firstChild!; const from = element.textContent!.indexOf("paragraph 20 ");
+      const range = document.createRange(); range.setStart(text, from); range.setEnd(text, from + 1);
+      return Math.abs(range.getBoundingClientRect().top - element.getBoundingClientRect().top);
+    })).toBeLessThan(45);
+    await raw.evaluate(element => {
+      const from = element.textContent!.indexOf("paragraph 40 "); const range = document.createRange();
+      range.setStart(element.firstChild!, from); range.setEnd(element.firstChild!, from + 1);
+      element.scrollTop += range.getBoundingClientRect().top - element.getBoundingClientRect().top;
+    });
     await mode.click();
-    await expect.poll(() => renderedScroll.evaluate(element => element.scrollTop)).toBeCloseTo(renderedTop, 0);
-    await expect(mode).toHaveAttribute("aria-pressed", "true");
-    await mode.click();
-    await expect.poll(() => raw.evaluate(element => element.scrollTop)).toBeCloseTo(rawTop, 0);
+    const targetParagraph = preview.locator("p").filter({ hasText: /^paragraph 40 / });
+    await expect.poll(async () => Math.abs((await targetParagraph.boundingBox())!.y - (await renderedScroll.boundingBox())!.y)).toBeLessThan(45);
 
     await preview.getByRole("button", { name: "关闭快速预览", exact: true }).click();
     await left.getByRole("option", { name: /^sample.md/ }).dblclick();
     await expect(page.getByRole("heading", { name: "Rendered heading" })).toBeVisible();
     const fullRendered = page.locator(".markdown-preview-scroll");
-    await fullRendered.evaluate(element => { element.scrollTop = 800; });
-    const fullTop = await fullRendered.evaluate(element => element.scrollTop);
+    await page.locator("p").filter({ hasText: /^paragraph 20 / }).evaluate(element => {
+      const root = element.closest<HTMLElement>(".markdown-preview-scroll")!;
+      root.scrollTop += element.getBoundingClientRect().top - root.getBoundingClientRect().top;
+    });
     await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
-    await expect(page.locator(".cm-content")).toContainText("**bold content**");
     const codeScroll = page.locator(".cm-scroller");
-    await codeScroll.evaluate(element => { element.scrollTop = 500; });
-    const codeTop = await codeScroll.evaluate(element => element.scrollTop);
+    const codeLine = page.locator(".cm-line").filter({ hasText: /^paragraph 20 / });
+    await expect.poll(async () => Math.abs((await codeLine.boundingBox())!.y - (await codeScroll.boundingBox())!.y)).toBeLessThan(45);
     await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
-    await expect.poll(() => fullRendered.evaluate(element => element.scrollTop)).toBeCloseTo(fullTop, 0);
-    await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
-    await expect.poll(() => codeScroll.evaluate(element => element.scrollTop)).toBeCloseTo(codeTop, 0);
+    await expect.poll(async () => Math.abs((await page.locator("p").filter({ hasText: /^paragraph 20 / }).boundingBox())!.y - (await fullRendered.boundingBox())!.y)).toBeLessThan(70);
 
     await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
     // Full-view PDF follows the same shared renderer, and unsupported PDFs remain closable.
@@ -1664,4 +1667,86 @@ test("扩展预览支持 PDF 翻页缩放和 Markdown 渲染原文切换", async
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
+});
+
+test("内置编辑器的Markdown按内容锚点切换，编辑后仍提供两种模式", async ({ page }) => {
+  const source = process.env.NR_PREVIEW_MARKDOWN_FIXTURE
+    ? await readFile(process.env.NR_PREVIEW_MARKDOWN_FIXTURE, "utf8")
+    : "# Framework\n\n" + Array.from({ length: 6 }, (_, section) => `## Module ${section}\n\n> **Purpose**: 中英文信息与表达。\n\n1. First idea\n   - nested information with **emphasis**\n   - second detail\n2. Next idea\n\n${"A long paragraph for wrapping and source mapping. ".repeat(12)}\n`).join("\n");
+  const headings = [...source.matchAll(/^## (.+)$/gm)];
+  const target = headings[Math.floor(headings.length / 2)][1];
+  await page.addInitScript(source => {
+    let id = 1;
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback() { return id++; }, unregisterCallback() {},
+      async invoke(command: string) {
+        if (command === "plugin:event|listen") return id++;
+        if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
+        const size = new TextEncoder().encode(source).length;
+        if (command === "local_files_roots") return [{ id: "framework", name: "Documents" }];
+        if (command === "local_files_display_path") return "/fixture/Documents";
+        if (command === "local_files_list") return { nodes: [{ id: "Cognitive & Information Encoding Framework.md", name: "Cognitive & Information Encoding Framework.md", directory: false, size, modifiedMs: 1 }], next: null };
+        if (command === "local_files_stat") return { size, modifiedMs: 1 };
+        if (command === "local_files_read") return { source, size, modifiedMs: 1, revision: "base", bom: false, lineEnding: "lf" };
+        throw new Error(command);
+      },
+    };
+  }, source);
+  await page.setViewportSize({ width: 780, height: 600 });
+  await page.goto("/file-workbench.html");
+  const row = page.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /^Cognitive/ });
+  await row.click();
+  await page.getByRole("button", { name: "快速预览", exact: true }).click();
+  const preview = page.getByRole("region", { name: "快速预览", exact: true });
+  await preview.getByRole("heading", { name: target, exact: true }).evaluate(element => {
+    const root = element.closest<HTMLElement>(".markdown-preview-scroll")!;
+    root.scrollTop += element.getBoundingClientRect().top - root.getBoundingClientRect().top;
+  });
+  await preview.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  await expect.poll(() => preview.getByLabel("预览文本", { exact: true }).evaluate((element, target) => {
+    const from = element.textContent!.indexOf("## " + target);
+    const range = document.createRange(); range.setStart(element.firstChild!, from); range.setEnd(element.firstChild!, from + 1);
+    return Math.abs(range.getBoundingClientRect().top - element.getBoundingClientRect().top);
+  }, target)).toBeLessThan(45);
+  await preview.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  await expect.poll(async () => Math.abs((await preview.getByRole("heading", { name: target, exact: true }).boundingBox())!.y - (await preview.locator(".markdown-preview-scroll").boundingBox())!.y)).toBeLessThan(70);
+  const listParagraph = preview.locator("ul li p").first();
+  const token = (await listParagraph.locator("[data-reading-text-start]").first().textContent())!.trim();
+  await listParagraph.evaluate(element => {
+    const root = element.closest<HTMLElement>(".markdown-preview-scroll")!;
+    root.scrollTop += element.getBoundingClientRect().top - root.getBoundingClientRect().top;
+  });
+  await preview.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  await expect.poll(() => preview.getByLabel("预览文本", { exact: true }).evaluate((element, token) => {
+    const from = element.textContent!.indexOf(token);
+    const range = document.createRange(); range.setStart(element.firstChild!, from); range.setEnd(element.firstChild!, from + 1);
+    return Math.abs(range.getBoundingClientRect().top - element.getBoundingClientRect().top);
+  }, token)).toBeLessThan(45);
+  await preview.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  await expect.poll(async () => Math.abs((await listParagraph.boundingBox())!.y - (await preview.locator(".markdown-preview-scroll").boundingBox())!.y)).toBeLessThan(70);
+  await preview.getByRole("button", { name: "关闭快速预览", exact: true }).click();
+  await row.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "打开方式", exact: true }).hover();
+  await page.getByRole("menuitem", { name: "内置编辑器", exact: true }).click();
+  const heading = page.getByRole("heading", { name: target, exact: true });
+  await expect(heading).toBeVisible();
+  await heading.evaluate(element => {
+    const root = element.closest<HTMLElement>(".markdown-preview-scroll")!;
+    root.scrollTop += element.getBoundingClientRect().top - root.getBoundingClientRect().top;
+  });
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  const line = page.locator(".cm-line").filter({ hasText: target });
+  const scroller = page.locator(".cm-scroller");
+  await expect.poll(async () => Math.abs((await line.boundingBox())!.y - (await scroller.boundingBox())!.y)).toBeLessThan(45);
+  await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  await expect.poll(async () => Math.abs((await heading.boundingBox())!.y - (await page.locator(".markdown-preview-scroll").boundingBox())!.y)).toBeLessThan(70);
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await page.locator(".cm-content").click(); await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.insertText("\n\npreview mapping edit");
+  await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  await expect(page.locator(".markdown-preview-scroll")).toContainText("preview mapping edit");
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  await expect(page.locator(".cm-content")).toContainText("preview mapping edit");
+  await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "未保存的文件编辑", exact: true })).toBeVisible();
 });
