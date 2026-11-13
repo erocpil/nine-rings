@@ -27,8 +27,14 @@ export function QuickTooltips() {
         ? scrollViewport.bottom - 8
         : window.innerHeight - 8,
     );
-    const desiredLeft =
-      hint.target.dataset.tooltipAlign === "start"
+    // File rows span all metadata columns. Anchor their path hint to the name
+    // text (after the icon), while retaining the row as the hover owner.
+    const name = hint.target.dataset.tooltipPath
+      ? hint.target.querySelector<HTMLElement>(".file-browser-name > span")
+      : null;
+    const desiredLeft = name
+      ? name.getBoundingClientRect().left
+      : hint.target.dataset.tooltipAlign === "start"
         ? box.left
         : box.left + (box.width - popup.width) / 2;
     const left = Math.max(

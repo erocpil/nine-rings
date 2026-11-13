@@ -1485,7 +1485,17 @@ test("路径提示滚动时隐藏，停止后按光标下的新条目恢复并�
   await page.mouse.move(x, y);
   const hint = page.locator(".quick-tooltip-path");
   await expect(hint).toHaveText("/authorized/Directory with spaces/Quite a long directory name/item_000_long_name.txt");
+  await expect.poll(async () => {
+    const name = (await first.locator(".file-browser-name > span").boundingBox())!;
+    const popup = (await hint.boundingBox())!;
+    // Long paths clamp at the viewport edge rather than following the pointer.
+    return Math.abs(popup.x - Math.max(8, Math.min(name.x, (page.viewportSize()!.width - popup.width - 8))));
+  }).toBeLessThan(1);
   expect(await hint.evaluate(element => element.getBoundingClientRect().height <= Number.parseFloat(getComputedStyle(element).lineHeight) + 12)).toBe(true);
+  const position = (await hint.boundingBox())!;
+  await page.mouse.move(x + 60, y);
+  await expect.poll(async () => Math.abs((await hint.boundingBox())!.x - position.x)).toBeLessThan(1);
+  await page.mouse.move(x, y);
   const old = await hint.textContent();
   for (let n = 0; n < 3; n++) {
     await page.mouse.wheel(0, 96);
