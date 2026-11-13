@@ -420,7 +420,7 @@ test("预览内查找定位、逐项预览与分层 Esc 不改变文档或切入
   const { browser, left } = await fixture(page);
   const data = await page.evaluate(async () => {
     const { localFileService } = await import("/src/lib/local-files/service.ts");
-    const source = "Needle [x]\n" + "normal row\n".repeat(150) + "needle\nNeedle\n";
+    const source = "Needle [x]\n" + "long content ".repeat(200) + "\n" + "normal row\n".repeat(150) + "needle\nNeedle\n";
     const file = (path: string, text: string) => { const result = new File([text], path.split("/").pop()!, { lastModified: 5000 }); Object.defineProperty(result, "webkitRelativePath", { value: path }); return result; };
     return { source, root: localFileService.addFiles([file("Preview/a.txt", source), file("Preview/b.txt", "next needle"), file("Preview/folder/hidden.txt", "do not enter")])! };
   });
@@ -429,6 +429,15 @@ test("预览内查找定位、逐项预览与分层 Esc 不改变文档或切入
   await left.getByRole("option", { name: /^a.txt/ }).click();
   await browser.getByRole("button", { name: "快速预览", exact: true }).click();
   const preview = browser.getByRole("region", { name: "快速预览", exact: true });
+  const wrap = preview.getByRole("button", { name: "预览自动换行", exact: true });
+  await expect(wrap).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => preview.locator("pre").evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThan(2);
+  await wrap.click();
+  await expect(wrap).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(() => preview.locator("pre").evaluate(element => element.scrollWidth - element.clientWidth)).toBeGreaterThan(100);
+  expect(await preview.locator("pre").evaluate(element => getComputedStyle(element, "::-webkit-scrollbar").height)).toBe("4px");
+  await wrap.click();
+  expect(await preview.locator("pre").textContent()).toBe(data.source);
   await preview.getByRole("button", { name: "查找预览", exact: true }).click();
   const input = preview.getByRole("searchbox", { name: "查找预览文本" });
   await input.fill("[x]");

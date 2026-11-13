@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { browserPreviewMatches } from "../lib/local-files/browser-preview";
 import { ToolbarIcon } from "./ToolbarIcon";
 
-export function FileBrowserPreviewText({ source, query, onQuery, matchCase, onCase, findOpen, onCloseFind }: {
-  source: string; query: string; onQuery: (query: string) => void; matchCase: boolean; onCase: (value: boolean) => void; findOpen: boolean; onCloseFind: () => void;
+export function FileBrowserPreviewText({ wrap, source, query, onQuery, matchCase, onCase, findOpen, onCloseFind }: {
+  wrap: boolean; source: string; query: string; onQuery: (query: string) => void; matchCase: boolean; onCase: (value: boolean) => void; findOpen: boolean; onCloseFind: () => void;
 }) {
   const [index, setIndex] = useState(0);
   const pre = useRef<HTMLPreElement>(null);
@@ -38,6 +38,6 @@ export function FileBrowserPreviewText({ source, query, onQuery, matchCase, onCa
       <button type="button" className="btn-icon" aria-label="下一个预览匹配" disabled={!result.matches.length} onClick={() => step(1)}><ToolbarIcon name="chevronRight" /></button>
       <button type="button" className="btn-icon" aria-label="关闭预览查找" onClick={onCloseFind}><ToolbarIcon name="close" /></button>
     </div>}
-    <pre ref={pre} tabIndex={0} aria-label="预览文本">{parts}</pre>
+    <pre className={wrap ? "file-browser-preview-wrapped" : undefined} ref={pre} tabIndex={0} aria-label="预览文本">{parts}</pre>
   </>;
 }

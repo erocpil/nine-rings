@@ -194,3 +194,11 @@
 .file-browser-file-details dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; margin: 0; font-size: 13px; }
 .file-browser-file-details dt { color: var(--text-muted); }
 .file-browser-file-details dd { margin: 0; overflow-wrap: anywhere; user-select: text; }
+
+/* Keep quick-preview scrolling compact; wrapping never changes source text. */
+.file-browser-quick-preview pre { scrollbar-width: thin; }
+.file-browser-quick-preview pre.file-browser-preview-wrapped { white-space: pre-wrap; overflow-wrap: anywhere; }
+@supports selector(::-webkit-scrollbar) {
+  .file-browser-quick-preview pre { scrollbar-width: auto; }
+  .file-browser-quick-preview pre::-webkit-scrollbar { height: 4px; width: 4px; }
+}
