@@ -9,13 +9,15 @@ GlobalWorkerOptions.workerSrc = worker;
 export function FileBrowserPreviewPdf({ blob, fallback }: { blob: Blob; fallback?: ReactNode }) {
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1), [zoom, setZoom] = useState(0);
+  const [density, setDensity] = useState(() => window.devicePixelRatio || 1);
   const [width, setWidth] = useState(0), [error, setError] = useState(""), [busy, setBusy] = useState(true);
   const viewport = useRef<HTMLDivElement>(null), surface = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const element = viewport.current!;
-    const observer = new ResizeObserver(() => setWidth(element.clientWidth));
-    observer.observe(element); setWidth(element.clientWidth);
-    return () => observer.disconnect();
+    const measure = () => { setWidth(element.clientWidth); setDensity(window.devicePixelRatio || 1); };
+    const observer = new ResizeObserver(measure);
+    observer.observe(element); measure(); window.addEventListener("resize", measure);
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
   }, []);
   useEffect(() => {
     let live = true;
@@ -45,12 +47,17 @@ export function FileBrowserPreviewPdf({ blob, fallback }: { blob: Blob; fallback
       // Bound decoded pixels even for unusually large pages.
       const scale = Math.min((zoom || Math.max(100, width - 24) / base.width), Math.sqrt(12_000_000 / (base.width * base.height)));
       const view = pdfPage.getViewport({ scale });
-      const canvas = document.createElement("canvas"); canvas.width = Math.ceil(view.width); canvas.height = Math.ceil(view.height);
+      // CSS dimensions describe zoom; bitmap dimensions independently follow
+      // screen density so Retina displays do not stretch a 1x image.
+      const outputScale = Math.min(Math.max(1, density), 2.5, Math.sqrt(12_000_000 / Math.max(1, view.width * view.height)));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.floor(view.width * outputScale)); canvas.height = Math.max(1, Math.floor(view.height * outputScale));
+      canvas.style.width = `${view.width}px`; canvas.style.height = `${view.height}px`;
       const text = document.createElement("div"); text.className = "textLayer";
       box.replaceChildren(canvas, text);
       box.style.width = `${view.width}px`; box.style.height = `${view.height}px`;
       box.style.setProperty("--scale-factor", String(scale)); box.style.setProperty("--total-scale-factor", String(scale));
-      const render = pdfPage.render({ canvasContext: canvas.getContext("2d")!, viewport: view });
+      const render = pdfPage.render({ canvasContext: canvas.getContext("2d")!, viewport: view, transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0] });
       const layer = new TextLayer({ textContentSource: pdfPage.streamTextContent(), container: text, viewport: view });
       cancel = () => { render.cancel(); layer.cancel(); };
       await render.promise;
@@ -59,7 +66,7 @@ export function FileBrowserPreviewPdf({ blob, fallback }: { blob: Blob; fallback
       if (live) setBusy(false);
     })().catch(cause => { if (live) { setError(String(cause)); setBusy(false); } });
     return () => { live = false; cancel(); box.replaceChildren(); };
-  }, [doc, page, width, zoom]);
+  }, [doc, page, width, zoom, density]);
   return <div className="file-browser-pdf-preview">
     <div className="file-browser-preview-zoom">
       <button type="button" className="btn-icon" aria-label="PDF 上一页" disabled={!doc || page <= 1} onClick={() => setPage(value => value - 1)}><ToolbarIcon name="chevronLeft" /></button>

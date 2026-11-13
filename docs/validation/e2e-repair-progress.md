@@ -1,5 +1,18 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-13：预览位置、Retina字号及短提交号
+
+按最新需求恢复About版本后的短提交号，完整提交号和脏构建说明仍不显示。build.rs只采集短hash并监听HEAD／分支／packed-refs，原生9项测试及native workspace Clippy通过。Markdown改为单个代码／眼睛图标切换，无可见文字，目标模式由悬停提示与无障碍名称说明。
+
+PDF此前canvas像素尺寸等于CSS尺寸，在Retina上被放大。输出采样改为受1200万像素预算限制的DPR，CSS视口、缩放倍数与文本层坐标保持原意。截图中的有序列表编号偏大是快速预览的后代p样式把正文缩为12px而编号继承16px；样式限制为预览直属提示段落，正文正常继承渲染字号。未更改全局编号尺寸。
+
+预览一次会话内分别保存源码／渲染的top、left，换文件重置。派生Markdown完成后用可选onPreviewReady布局回调恢复渲染位置，普通pre在layout阶段恢复，CodeMirror通过稳定onReady及完整read／write测量恢复源码；不写入文档／同步设置，不更改撤销模型。检查MarkdownSplitPreview既有两个并排调用方，新回调可选且缺省不改变其行为。
+
+影响分析SAFE（已验证范围）：Retina WebKit用例验证canvas实际像素／CSS宽度比大于1.95且不超预算，验证编号与正文计算字号一致，以及快速／全视图分别滚动后往返恢复；仍禁止Blob URL请求以保留原生PDF问题的回归。首次实现缺少CodeMirror测量read函数，类型检查和恢复用例均捕获，补齐后通过。完整Chromium工作台36项、WebKit开发针对性1项及最终生产3项通过；完整npm run check通过（244个Vitest文件／2642项及独立脚本、类型、lint、格式、IPC）。主产品前端及macOS ARM64 File Workbench.app构建通过，系统安装目录未替换。真实安装版GUI仍待用户验收。
+
+日志：`/tmp/nr-preview-polish-{check,chromium,production,rust,clippy,main-build,native-build}.log`及`/tmp/nr-preview-retina-webkit.log`。
+
+
 ## 2026-11-13：macOS安装版PDF状态0与Markdown明确切换
 
 用户在6564190a安装版报告PDF读取blob:tauri://localhost/...返回状态0，PDF.js将其判为UnexpectedResponseException。首批HTTP生产预览通过不代表已验证自定义协议。改为宿主返回只读PDF Blob，组件arrayBuffer转Uint8Array后调用getDocument({data})，消除PDF URL请求路径；CSP和Rust／IPC不变。检查所有预览返回值消费者和释放逻辑，图片仍回收对象URL，PDF取消／撤权后丢弃Blob引用，Worker及页面任务仍销毁。Markdown快速／全视图复用明确的“渲染／源码”按钮组，高亮当前模式，窄窗下两项完整可见。

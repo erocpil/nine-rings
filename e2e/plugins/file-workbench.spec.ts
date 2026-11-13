@@ -1557,6 +1557,8 @@ test("活动列表选中背景更明显，非活动侧保留淡色选择并随�
   }
 });
 
+test.describe("Retina 扩展预览", () => {
+  test.use({ deviceScaleFactor: 2 });
 test("扩展预览支持 PDF 翻页缩放和 Markdown 渲染原文切换", async ({ page }) => {
   // Reproduce the native WKWebView failure path: PDF must not fetch a Blob URL.
   const blobRequests: string[] = [];
@@ -1580,7 +1582,7 @@ test("扩展预览支持 PDF 翻页缩放和 Markdown 渲染原文切换", async
   const folder = await mkdtemp(join(tmpdir(), "nr-preview-formats-"));
   try {
     await writeFile(join(folder, "sample.pdf"), await pdf.save());
-    await writeFile(join(folder, "sample.md"), "# Rendered heading\n\n**bold content**\n\n- first item\n- second item\n\n[Local link](other.md)\n\n![private](nr-image://private)\n");
+    await writeFile(join(folder, "sample.md"), "# Rendered heading\n\n**bold content**\n\n- first item\n- second item\n\n[Local link](other.md)\n\n![private](nr-image://private)\n\n1. ordered first\n2. ordered second\n\n" + Array.from({ length: 120 }, (_, n) => `paragraph ${n} with enough text for reading position`).join("\n\n"));
     await writeFile(join(folder, "broken.pdf"), "%PDF-invalid");
     await page.goto("/file-workbench.html");
     await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(folder);
@@ -1589,6 +1591,10 @@ test("扩展预览支持 PDF 翻页缩放和 Markdown 渲染原文切换", async
     await page.getByRole("button", { name: "快速预览", exact: true }).click();
     const preview = page.getByRole("region", { name: "快速预览", exact: true });
     await expect(preview.locator(".textLayer")).toContainText("First PDF page");
+    const resolution = await preview.locator("canvas").evaluate(element => ({ pixels: element.width, css: parseFloat(element.style.width), total: element.width * element.height }));
+    expect(resolution.pixels / resolution.css).toBeGreaterThan(1.95);
+    expect(resolution.total).toBeLessThanOrEqual(12_000_000);
+
     await preview.getByRole("button", { name: "PDF 下一页", exact: true }).click();
     await expect(preview.locator(".textLayer")).toContainText("Second PDF page");
     await expect(preview.getByRole("spinbutton", { name: "PDF 页码" })).toHaveValue("2");
@@ -1604,25 +1610,47 @@ test("扩展预览支持 PDF 翻页缩放和 Markdown 渲染原文切换", async
     await expect(page).toHaveURL(/file-workbench\.html$/);
     await expect(preview.getByRole("status")).toContainText("预览不会跳离当前文件");
     expect((await page.evaluate(() => indexedDB.databases())).map(db => db.name)).not.toContain("nine_rings");
-    const modes = preview.getByRole("group", { name: "Markdown 预览模式" });
+    const markerFont = await preview.locator("ol > li").first().evaluate(element => ({ marker: getComputedStyle(element, "::before").fontSize, text: getComputedStyle(element.querySelector("p")!).fontSize }));
+    expect(markerFont.marker).toBe(markerFont.text);
+    const mode = preview.getByRole("button", { name: /^切换到 Markdown/ });
     const bounds = (await preview.boundingBox())!;
-    const modeBounds = (await modes.boundingBox())!;
+    const modeBounds = (await mode.boundingBox())!;
     expect(modeBounds.x).toBeGreaterThanOrEqual(bounds.x);
     expect(modeBounds.x + modeBounds.width).toBeLessThanOrEqual(bounds.x + bounds.width);
-
-    await expect(modes.getByRole("button", { name: "Markdown 渲染预览", exact: true })).toHaveAttribute("aria-pressed", "true");
-    await modes.getByRole("button", { name: "Markdown 源码预览", exact: true }).click();
-    await expect(modes.getByRole("button", { name: "Markdown 源码预览", exact: true })).toHaveAttribute("aria-pressed", "true");
-    await expect(preview.getByLabel("预览文本", { exact: true })).toContainText("**bold content**");
-    await modes.getByRole("button", { name: "Markdown 渲染预览", exact: true }).click();
-    await expect(preview.getByRole("heading", { name: "Rendered heading" })).toBeVisible();
-    await expect(modes.getByRole("button", { name: "Markdown 渲染预览", exact: true })).toHaveAttribute("aria-pressed", "true");
+    expect(await mode.textContent()).toBe("");
+    const renderedScroll = preview.locator(".markdown-preview-scroll");
+    await renderedScroll.evaluate(element => { element.scrollTop = 600; });
+    const renderedTop = await renderedScroll.evaluate(element => element.scrollTop);
+    expect(renderedTop).toBeGreaterThan(500);
+    await expect(mode).toHaveAttribute("aria-pressed", "true");
+    await mode.click();
+    await expect(mode).toHaveAttribute("aria-pressed", "false");
+    const raw = preview.getByLabel("预览文本", { exact: true });
+    await expect(raw).toContainText("**bold content**");
+    await raw.evaluate(element => { element.scrollTop = 400; });
+    const rawTop = await raw.evaluate(element => element.scrollTop);
+    await mode.click();
+    await expect.poll(() => renderedScroll.evaluate(element => element.scrollTop)).toBeCloseTo(renderedTop, 0);
+    await expect(mode).toHaveAttribute("aria-pressed", "true");
+    await mode.click();
+    await expect.poll(() => raw.evaluate(element => element.scrollTop)).toBeCloseTo(rawTop, 0);
 
     await preview.getByRole("button", { name: "关闭快速预览", exact: true }).click();
     await left.getByRole("option", { name: /^sample.md/ }).dblclick();
     await expect(page.getByRole("heading", { name: "Rendered heading" })).toBeVisible();
-    await page.getByRole("button", { name: "Markdown 源码预览", exact: true }).click();
+    const fullRendered = page.locator(".markdown-preview-scroll");
+    await fullRendered.evaluate(element => { element.scrollTop = 800; });
+    const fullTop = await fullRendered.evaluate(element => element.scrollTop);
+    await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
     await expect(page.locator(".cm-content")).toContainText("**bold content**");
+    const codeScroll = page.locator(".cm-scroller");
+    await codeScroll.evaluate(element => { element.scrollTop = 500; });
+    const codeTop = await codeScroll.evaluate(element => element.scrollTop);
+    await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+    await expect.poll(() => fullRendered.evaluate(element => element.scrollTop)).toBeCloseTo(fullTop, 0);
+    await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+    await expect.poll(() => codeScroll.evaluate(element => element.scrollTop)).toBeCloseTo(codeTop, 0);
+
     await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
     // Full-view PDF follows the same shared renderer, and unsupported PDFs remain closable.
     await left.getByRole("option", { name: /^sample.pdf/ }).dblclick();
@@ -1634,4 +1662,6 @@ test("扩展预览支持 PDF 翻页缩放和 Markdown 渲染原文切换", async
     await expect(left).toBeVisible();
     expect(blobRequests).toEqual([]);
   } finally { await rm(folder, { recursive: true, force: true }); }
+});
+
 });

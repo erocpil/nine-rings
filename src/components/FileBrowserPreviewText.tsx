@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { browserPreviewMatches } from "../lib/local-files/browser-preview";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { browserPreviewMatches, type PreviewScrollPosition } from "../lib/local-files/browser-preview";
 import { ToolbarIcon } from "./ToolbarIcon";
 
-export function FileBrowserPreviewText({ wrap, source, query, onQuery, matchCase, onCase, findOpen, onCloseFind }: {
-  wrap: boolean; source: string; query: string; onQuery: (query: string) => void; matchCase: boolean; onCase: (value: boolean) => void; findOpen: boolean; onCloseFind: () => void;
+export function FileBrowserPreviewText({ position, wrap, source, query, onQuery, matchCase, onCase, findOpen, onCloseFind }: {
+  position?: PreviewScrollPosition; wrap: boolean; source: string; query: string; onQuery: (query: string) => void; matchCase: boolean; onCase: (value: boolean) => void; findOpen: boolean; onCloseFind: () => void;
 }) {
   const [index, setIndex] = useState(0);
   const pre = useRef<HTMLPreElement>(null);
+  useLayoutEffect(() => { if (pre.current && position) { pre.current.scrollTop = position.top; pre.current.scrollLeft = position.left; } }, [position, source]);
   const result = useMemo(() => browserPreviewMatches(source, findOpen ? query : "", matchCase), [source, query, findOpen, matchCase]);
   const current = Math.min(index, Math.max(0, result.matches.length - 1));
   useEffect(() => { setIndex(0); }, [query, matchCase, source]);
@@ -38,6 +39,6 @@ export function FileBrowserPreviewText({ wrap, source, query, onQuery, matchCase
       <button type="button" className="btn-icon" aria-label="下一个预览匹配" disabled={!result.matches.length} onClick={() => step(1)}><ToolbarIcon name="chevronRight" /></button>
       <button type="button" className="btn-icon" aria-label="关闭预览查找" onClick={onCloseFind}><ToolbarIcon name="close" /></button>
     </div>}
-    <pre className={wrap ? "file-browser-preview-wrapped" : undefined} ref={pre} tabIndex={0} aria-label="预览文本">{parts}</pre>
+    <pre onScroll={event => { if (position) { position.top = event.currentTarget.scrollTop; position.left = event.currentTarget.scrollLeft; } }} className={wrap ? "file-browser-preview-wrapped" : undefined} ref={pre} tabIndex={0} aria-label="预览文本">{parts}</pre>
   </>;
 }

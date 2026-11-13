@@ -1,5 +1,6 @@
 import { FileBrowserMarkdownMode } from "../../components/FileBrowserMarkdownMode";
 import { FileBrowserFileDetails } from "../../components/FileBrowserFileDetails";
+import type { PreviewScrollPosition } from "../../lib/local-files/browser-preview";
 import type { BrowserDirectoryProvider } from "../../lib/local-files/browser-contract";
 import type { WorkbenchCloseRequest } from "./native-lifecycle";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
@@ -29,6 +30,12 @@ export function WorkbenchSourceView({ file, host, provider, onClose, closeReques
 }) {
   const markdown = /\.(md|markdown)$/i.test(file.node.name);
   const [renderMarkdown, setRenderMarkdown] = useState(markdown && !file.location);
+  const renderedPosition = useRef<PreviewScrollPosition>({ top: 0, left: 0 });
+  const sourcePosition = useRef<PreviewScrollPosition | null>(null);
+  const changePreviewMode = (value: boolean) => {
+    if (!renderMarkdown && handle.current) sourcePosition.current = { top: handle.current.scrollTop, left: handle.current.view.scrollDOM.scrollLeft };
+    setRenderMarkdown(value);
+  };
   const identity = `${file.rootId}:${file.node.id}`;
   const handle = useRef<SourceEditorHandle | null>(null), session = useRef<EditorState | null>(null);
   const [source, setSource] = useState(""), sourceRef = useRef("");
@@ -149,6 +156,8 @@ export function WorkbenchSourceView({ file, host, provider, onClose, closeReques
   // recreate it on every keystroke and restore obsolete compartments/history.
   const bindHandle = useCallback((editor: SourceEditorHandle | null) => {
     const location = searchLocation.current, snapshot = baseRef.current;
+    const position = sourcePosition.current;
+    if (editor && position) editor.view.requestMeasure({ read: () => null, write: () => { editor.view.scrollDOM.scrollTop = position.top; editor.view.scrollDOM.scrollLeft = position.left; } });
     if (!editor || appliedSearch.current || !location || !snapshot) return;
     appliedSearch.current = true;
     if (snapshot.revision !== location.revision || current() !== snapshot.source) return;
@@ -166,14 +175,14 @@ export function WorkbenchSourceView({ file, host, provider, onClose, closeReques
       <button className="btn-icon" type="button" aria-label="保存文件" title="保存文件（⌘/Ctrl+S）" disabled={loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>
       <button className="btn-icon" type="button" aria-label="导出副本" title="导出副本" disabled={loading || !base} onClick={() => void copy()}><ToolbarIcon name="download" /></button>
       <button className="btn-icon" type="button" aria-label="重新读取原文件" title="重新读取原文件" disabled={loading || saving} onClick={() => { if (dirty) setLeave("reload"); else void read(); }}><ToolbarIcon name="refresh" /></button>
-      {markdown && <FileBrowserMarkdownMode rendered={renderMarkdown} disabled={!base} onChange={setRenderMarkdown} />}
+      {markdown && <FileBrowserMarkdownMode rendered={renderMarkdown} disabled={!base} onChange={changePreviewMode} />}
       <button className="btn-icon" type="button" aria-label="返回文件浏览" title="关闭预览，返回文件浏览" onClick={() => requestClose()}><ToolbarIcon name="close" /></button>
     </DocumentTitleBar>
     {loading && <p role="status">正在读取文件…</p>}
     {error && !base ? <><p role="status">此文件暂时无法内置预览，可使用其它应用打开。</p><FileBrowserFileDetails rootId={file.rootId} node={file.node.id} provider={provider} /></> : error && <p role="alert">{error}<button type="button" aria-label="关闭文件错误" onClick={() => setError("")}>×</button></p>}
     {notice && <p className="workbench-source-notice" role="status">{notice}<button type="button" aria-label="关闭文件提示" onClick={() => setNotice("")}>×</button></p>}
     {candidate && <div role="status">发现此会话未保存草稿。<button type="button" onClick={() => { change(candidate.source); applyBase({ ...base!, source: candidate.baseSource, revision: candidate.baseRevision, bom: candidate.bom, lineEnding: candidate.lineEnding }); setCandidate(null); setReadonly(false); setRenderMarkdown(false); }}>恢复草稿</button><button type="button" onClick={() => { void exportLocalSource(file.node.name, candidate.source, candidate, host.saveCopy).catch(cause => setError(String(cause))); }}>下载草稿</button><button type="button" onClick={() => { void host.drafts.remove(identity).then(() => setCandidate(null)).catch(cause => setError(String(cause))); }}>删除草稿</button></div>}
-    {!loading && base && renderMarkdown ? <Suspense fallback={<p role="status">正在加载 Markdown 预览…</p>}><MarkdownPreview source={source} autoFocus /></Suspense> : !loading && base && <div className="local-file-editor-shell"><DocumentActiveBoundary active><DocumentSourceSurface editor={{ value: source, readonly, areaRef: handle, session, onChange: change, fontSize: 16, highlightActiveLine: true, showLineNumbers: true, showStatusBar: true, contextMenuEnabled: true, documentLanguage: documentLanguageFromFilename(file.node.name, source), saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,
+    {!loading && base && renderMarkdown ? <Suspense fallback={<p role="status">正在加载 Markdown 预览…</p>}><MarkdownPreview source={source} autoFocus position={renderedPosition.current} /></Suspense> : !loading && base && <div className="local-file-editor-shell"><DocumentActiveBoundary active><DocumentSourceSurface editor={{ value: source, readonly, areaRef: handle, session, onChange: change, fontSize: 16, highlightActiveLine: true, showLineNumbers: true, showStatusBar: true, contextMenuEnabled: true, documentLanguage: documentLanguageFromFilename(file.node.name, source), saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,
       onReady: bindHandle,
     }} /></DocumentActiveBoundary></div>}
     {external && <WorkspaceDialog title="磁盘版本比较" onClose={() => setExternal(null)}><TextDiffView left={source} right={external.source} leftLabel="当前编辑" rightLabel="磁盘版本" /></WorkspaceDialog>}

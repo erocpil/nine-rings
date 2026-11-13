@@ -41,3 +41,6 @@ export interface BrowserPreviewNavigation { step: (direction: -1 | 1) => boolean
 export function releaseBrowserPreview(preview: { kind: "image" | "text" | "pdf"; value: string | Blob } | null) {
   if (preview?.kind === "image" && typeof preview.value === "string" && preview.value.startsWith("blob:")) URL.revokeObjectURL(preview.value);
 }
+
+/** Ephemeral per-view position; never part of file content or persisted settings. */
+export interface PreviewScrollPosition { top: number; left: number }

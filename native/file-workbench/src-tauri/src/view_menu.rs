@@ -10,6 +10,7 @@ fn about_metadata() -> tauri::menu::AboutMetadata<'static> {
     tauri::menu::AboutMetadata {
         name: Some("File Workbench".into()),
         version: Some(env!("CARGO_PKG_VERSION").into()),
+        short_version: Some(env!("WORKBENCH_GIT_COMMIT").into()),
         ..Default::default()
     }
 }
@@ -78,11 +79,14 @@ pub fn install(app: &mut tauri::App) -> tauri::Result<()> {
 mod tests {
     use super::*;
     #[test]
-    fn about_shows_application_version_without_source_metadata() {
+    fn about_shows_version_and_short_commit_without_full_source_details() {
         let metadata = about_metadata();
         assert_eq!(metadata.name.as_deref(), Some("File Workbench"));
         assert_eq!(metadata.version.as_deref(), Some(env!("CARGO_PKG_VERSION")));
-        assert!(metadata.short_version.is_none());
+        assert_eq!(
+            metadata.short_version.as_deref(),
+            Some(env!("WORKBENCH_GIT_COMMIT"))
+        );
         assert!(metadata.credits.is_none());
         assert!(metadata.comments.is_none());
     }

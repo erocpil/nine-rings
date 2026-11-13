@@ -15,6 +15,8 @@ export function FileBrowserQuickPreview({ rootId, node, provider, active, revisi
   const markdown = /\.(md|markdown)$/i.test(node ?? "");
   const [wrap, setWrap] = useState(true);
   const [findOpen, setFindOpen] = useState(false), [query, setQuery] = useState(""), [matchCase, setMatchCase] = useState(false), [navigationMessage, setNavigationMessage] = useState("");
+  const positions = useRef({ source: { top: 0, left: 0 }, rendered: { top: 0, left: 0 } });
+  useEffect(() => { positions.current = { source: { top: 0, left: 0 }, rendered: { top: 0, left: 0 } }; }, [rootId, node]);
   const host = useRef<HTMLElement>(null);
   const request = useRef<AbortController | null>(null);
   const [cancelled, setCancelled] = useState(false);
@@ -51,6 +53,6 @@ export function FileBrowserQuickPreview({ rootId, node, provider, active, revisi
     {(error || cancelled) && <><p role="status">{cancelled ? "已中断预览加载。" : "此文件暂时无法内置预览，可使用其它应用打开。"}</p>{node && <FileBrowserFileDetails rootId={rootId} node={node} provider={provider} />}</>}
     {navigationMessage && <p role="status">{navigationMessage}</p>}
     {!node && <p>在另一栏选择一个文件。</p>}
-    {preview?.kind === "pdf" ? <Suspense fallback={<p role="status">正在加载 PDF 预览…</p>}><PdfPreview key={`${rootId}:${node}`} blob={preview.value} fallback={<FileBrowserFileDetails rootId={rootId} node={node!} provider={provider} />} /></Suspense> : preview?.kind === "text" && markdown && renderMarkdown && !findOpen ? <Suspense fallback={<p role="status">正在加载 Markdown 预览…</p>}><MarkdownPreview source={preview.value} /></Suspense> : preview?.kind === "image" ? <FileBrowserPreviewImage key={`${rootId}:${node}`} src={preview.value} name={node?.split("/").pop() ?? "预览"} onCancel={() => { request.current?.abort(); setPreview(null); setCancelled(true); }} onUnavailable={() => { request.current?.abort(); setPreview(null); setError("unsupported"); }} /> : preview && <FileBrowserPreviewText wrap={wrap} source={preview.value} query={query} onQuery={setQuery} matchCase={matchCase} onCase={setMatchCase} findOpen={findOpen} onCloseFind={closeFind} />}
+    {preview?.kind === "pdf" ? <Suspense fallback={<p role="status">正在加载 PDF 预览…</p>}><PdfPreview key={`${rootId}:${node}`} blob={preview.value} fallback={<FileBrowserFileDetails rootId={rootId} node={node!} provider={provider} />} /></Suspense> : preview?.kind === "text" && markdown && renderMarkdown && !findOpen ? <Suspense fallback={<p role="status">正在加载 Markdown 预览…</p>}><MarkdownPreview source={preview.value} position={positions.current.rendered} /></Suspense> : preview?.kind === "image" ? <FileBrowserPreviewImage key={`${rootId}:${node}`} src={preview.value} name={node?.split("/").pop() ?? "预览"} onCancel={() => { request.current?.abort(); setPreview(null); setCancelled(true); }} onUnavailable={() => { request.current?.abort(); setPreview(null); setError("unsupported"); }} /> : preview && <FileBrowserPreviewText position={positions.current.source} wrap={wrap} source={preview.value} query={query} onQuery={setQuery} matchCase={matchCase} onCase={setMatchCase} findOpen={findOpen} onCloseFind={closeFind} />}
   </section>;
 }

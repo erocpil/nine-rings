@@ -7,6 +7,7 @@ import { headingLinkTarget } from "../lib/heading-links";
 import { flowBlockAttributes } from "../lib/flow-presentation";
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -40,6 +41,7 @@ export function MarkdownSplitPreview({
   sync,
   flowLevel = 0,
   highlightActiveLine = true,
+  onPreviewReady,
 }: {
   revision: SourceNavigationDocument;
   areaRef: RefObject<SourceEditorHandle>;
@@ -49,6 +51,7 @@ export function MarkdownSplitPreview({
   sync: boolean;
   flowLevel?: number;
   highlightActiveLine?: boolean;
+  onPreviewReady?: (element: HTMLDivElement) => void;
 }) {
   useBlockDisplayPreferences();
   const [snapshot, setSnapshot] = useState<ReturnType<
@@ -153,6 +156,7 @@ export function MarkdownSplitPreview({
       panel.removeEventListener("scroll", fromPreview);
     };
   }, [sync, areaRef, snapshot, enabled]);
+  useLayoutEffect(() => { if (snapshot && preview.current) onPreviewReady?.(preview.current); }, [snapshot, onPreviewReady]);
   const tocContext = useMemo(() => ({ items: snapshot ? extractDocumentOutline(snapshot.doc) : [], navigate: (item: { pos: number }) => {
     const block = blocks.find(block => block.pos === item.pos);
     const element = block && [...(preview.current?.querySelectorAll<HTMLElement>("[data-source-offset]") ?? [])].find(element => Number(element.dataset.sourceOffset) === block.offset);
