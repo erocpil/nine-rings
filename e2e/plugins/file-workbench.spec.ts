@@ -1787,3 +1787,47 @@ test("内置 Markdown 和 HTML 预览统一通过关闭按钮返回，Esc 保留
     }
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
+
+test("内置源码行号与折叠样式即时生效，重开保留且不影响正文撤销", async ({ page }) => {
+  await page.goto("/file-workbench.html");
+  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  const row = left.getByRole("option", { name: /alpha.c/ });
+  await row.dblclick();
+  const trigger = page.getByRole("button", { name: "行号与折叠设置", exact: true });
+  const menu = page.getByRole("menu", { name: "行号与折叠设置", exact: true });
+  await trigger.click();
+  await menu.getByRole("menuitemcheckbox", { name: "显示行号", exact: true }).click();
+  await expect(page.locator(".cm-lineNumbers")).toHaveCount(0);
+  await expect(menu.getByRole("menuitemcheckbox", { name: "相对行号", exact: true })).toBeDisabled();
+  await menu.getByRole("menuitem", { name: /^折叠图标样式/ }).click();
+  await menu.getByRole("menuitemcheckbox", { name: "加减号 + / −", exact: true }).click();
+  await trigger.click();
+  await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
+  await row.dblclick();
+  await expect(page.locator(".cm-lineNumbers")).toHaveCount(0);
+  await trigger.click();
+  await menu.getByRole("menuitem", { name: /^折叠图标样式/ }).click();
+  await expect(menu.getByRole("menuitemcheckbox", { name: "加减号 + / −", exact: true })).toHaveAttribute("aria-checked", "true");
+  await trigger.click();
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  const content = page.locator(".cm-content");
+  await content.click(); await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.insertText("\nvoid second(void) {\n  return;\n}\n");
+  await expect(page.locator(".cm-foldGutter")).toContainText("−");
+  await trigger.click();
+  await menu.getByRole("menuitemcheckbox", { name: "显示行号", exact: true }).click();
+  await expect(page.locator(".cm-lineNumbers")).toHaveCount(1);
+  await menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true }).click();
+  await expect(page.locator(".cm-foldGutter")).toHaveCount(0);
+  await trigger.click();
+  await content.click(); await page.keyboard.press("ControlOrMeta+Z");
+  await expect(content).not.toContainText("second");
+  await expect(content).toContainText("alpha");
+  await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
+  await page.reload();
+  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  await row.dblclick();
+  await expect(page.locator(".cm-lineNumbers")).toHaveCount(1);
+  await expect(page.locator(".cm-foldGutter")).toHaveCount(0);
+});

@@ -1,3 +1,6 @@
+import { EditorFoldIconContext } from "../../components/EditorFoldIconContext";
+import { readWorkbenchEditorSettings, saveWorkbenchEditorSettings } from "./editor-settings";
+import type { BrowserSettingsStore } from "../../lib/local-files/browser-workspace-contract";
 import { FileBrowserMarkdownMode } from "../../components/FileBrowserMarkdownMode";
 import { FileBrowserFileDetails } from "../../components/FileBrowserFileDetails";
 import { captureRenderedPreview } from "../../lib/preview-scroll-position";
@@ -24,12 +27,14 @@ import "../../styles/local-files.css";
 
 const MarkdownPreview = lazy(() => import("../../components/FileBrowserPreviewMarkdown").then(module => ({ default: module.FileBrowserPreviewMarkdown })));
 
-export function WorkbenchSourceView({ file, host, provider, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false }: {
+export function WorkbenchSourceView({ file, host, provider, settings, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false }: {
+  settings: BrowserSettingsStore;
   headerActions?: ReactNode;
   file: BrowserFileOpen; host: LocalSourceHost; provider: BrowserDirectoryProvider; onClose: () => void;
   closeRequest: MutableRefObject<WorkbenchCloseRequest | null>;
   onNavigate?: (direction: -1 | 1) => void; previous?: boolean; next?: boolean;
 }) {
+  const [editorSettings, setEditorSettings] = useState(() => readWorkbenchEditorSettings(settings));
   const markdown = /\.(md|markdown)$/i.test(file.node.name);
   const [renderMarkdown, setRenderMarkdown] = useState(markdown && !file.location);
   const renderedPosition = useRef<PreviewScrollPosition>({ top: 0, left: 0 });
@@ -197,9 +202,9 @@ export function WorkbenchSourceView({ file, host, provider, onClose, closeReques
     {error && !base ? <><p role="status">此文件暂时无法内置预览，可使用其它应用打开。</p><FileBrowserFileDetails rootId={file.rootId} node={file.node.id} provider={provider} /></> : error && <p role="alert">{error}<button type="button" aria-label="关闭文件错误" onClick={() => setError("")}>×</button></p>}
     {notice && <p className="workbench-source-notice" role="status">{notice}<button type="button" aria-label="关闭文件提示" onClick={() => setNotice("")}>×</button></p>}
     {candidate && <div role="status">发现此会话未保存草稿。<button type="button" onClick={() => { change(candidate.source); applyBase({ ...base!, source: candidate.baseSource, revision: candidate.baseRevision, bom: candidate.bom, lineEnding: candidate.lineEnding }); setCandidate(null); setReadonly(false); setRenderMarkdown(false); }}>恢复草稿</button><button type="button" onClick={() => { void exportLocalSource(file.node.name, candidate.source, candidate, host.saveCopy).catch(cause => setError(String(cause))); }}>下载草稿</button><button type="button" onClick={() => { void host.drafts.remove(identity).then(() => setCandidate(null)).catch(cause => setError(String(cause))); }}>删除草稿</button></div>}
-    {!loading && base && renderMarkdown ? <Suspense fallback={<p role="status">正在加载 Markdown 预览…</p>}><MarkdownPreview source={source} autoFocus position={renderedPosition.current} /></Suspense> : !loading && base && <div className="local-file-editor-shell"><DocumentActiveBoundary active><DocumentSourceSurface editor={{ value: source, readonly, areaRef: handle, session, onChange: change, fontSize: 16, highlightActiveLine: true, showLineNumbers: true, showStatusBar: true, contextMenuEnabled: true, documentLanguage: documentLanguageFromFilename(file.node.name, source), saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,
+    {!loading && base && renderMarkdown ? <Suspense fallback={<p role="status">正在加载 Markdown 预览…</p>}><MarkdownPreview source={source} autoFocus position={renderedPosition.current} /></Suspense> : !loading && base && <div className="local-file-editor-shell"><DocumentActiveBoundary active><EditorFoldIconContext.Provider value={editorSettings}><DocumentSourceSurface editor={{ value: source, readonly, areaRef: handle, session, onChange: change, fontSize: 16, highlightActiveLine: true, showLineNumbers: editorSettings.editor_show_line_numbers, onEditorConfigChange: async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, editorSettings, patch)); }, showStatusBar: true, contextMenuEnabled: true, documentLanguage: documentLanguageFromFilename(file.node.name, source), saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,
       onReady: bindHandle,
-    }} /></DocumentActiveBoundary></div>}
+    }} /></EditorFoldIconContext.Provider></DocumentActiveBoundary></div>}
     {external && <WorkspaceDialog title="磁盘版本比较" onClose={() => setExternal(null)}><TextDiffView left={source} right={external.source} leftLabel="当前编辑" rightLabel="磁盘版本" /></WorkspaceDialog>}
     {leave && <WorkspaceDialog title="未保存的文件编辑" onClose={cancelLeave}>{error && <p role="alert">{error}</p>}<p>请先保存到原文件，或确认恢复草稿已持久化后离开。导出副本不会将原文件标记为已保存。最多保留 5 份草稿，不自动淘汰；满额时须先处理旧草稿。</p><div>
       <button type="button" disabled={saving || !host.canSaveOriginal(file.rootId)} onClick={() => { void save().then(clean => { if (clean) { const target = leave; setLeave(null); if (target === "close") finishClose(); else void read(); } }); }}>保存后继续</button>

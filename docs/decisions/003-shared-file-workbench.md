@@ -191,3 +191,10 @@ PDF此前的canvas像素宽高等于CSS宽高，Retina会把1倍图像放大，2
 整页 Markdown 渲染、源码（包括 HTML）、图片和 PDF 统一使用右上角 × 返回文件列表。移除独立宿主的 Esc 关闭逻辑，让 Esc 留给编辑器、Vim、查找和弹层；不更改双栏快速预览自身的键盘约定。关闭源码仍调用 requestClose，保留未保存确认、草稿持久化、保存中门禁及关闭后列表焦点／滚动恢复。
 
 整页预览不重复显示浏览页的自定义工具、添加工具、恢复草稿和配色首排。通过可选 headerActions 在 × 左侧提供系统默认应用入口，按扩展名由系统决定应用（不硬编码 MacVim）；打开的是磁盘已保存原文件，不把未保存编辑悄悄写回。浏览页工具配置保持原样。共享快速预览其他调用方不传此插槽，保持原界面；没有新增 IPC 或放宽授权。
+
+
+### 内置源码编号设置接入（2026-11-13）
+
+SourceView 原先固定 showLineNumbers=true 且缺少 onEditorConfigChange，导致共用状态栏菜单的行号及折叠符号样式不可用。通过已有 BrowserSettingsStore 将这两项设置保存在 file-workbench:source-editor，并提供 EditorFoldIconContext；复用源码编辑器既有 Compartment 重配，不重建正文会话。只接受行号显隐和折叠样式／两种符号字段，不持久化任意 AppConfig，损坏配置回退默认值。先保存再更新界面，存储失败由原工具栏消息明确报告。
+
+相对行号、当前号对齐、折叠图标显隐及连接线仍使用源码编辑器既有 BlockWorkspacePreferences；本批不迁移这些已有偏好键。两项新增工作台配置不读写 Nine Rings 的数据库配置，不改变原生授权和文件保存协议。
