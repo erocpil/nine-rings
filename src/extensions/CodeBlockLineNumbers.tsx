@@ -453,7 +453,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: No
               title={isFlow ? "复制流程源码" : "复制代码"}
               aria-label={copyError ? (isFlow ? "复制流程失败" : "复制代码失败") : copied ? (isFlow ? "流程已复制" : "代码已复制") : isFlow ? "复制流程源码" : "复制代码"}
             >
-              {copyError ? "!" : copied ? "✓" : "⎘"}
+              <ToolbarIcon name={copyError ? "warning" : copied ? "check" : "copy"} />
             </button>
             <button type="button" className="block-workspace-open" title={isFlow ? "放大阅读流程块" : "放大阅读代码块"} aria-label={isFlow ? "放大阅读流程块" : "放大阅读代码块"}
               onMouseDown={event => event.preventDefault()}

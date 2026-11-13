@@ -66,6 +66,8 @@ test("只读文档显示已保存代码简介和只读语言，并保留查看�
   await expect(collapseButton).toBeEnabled();
   await expect(wrapButton).toBeEnabled();
   await expect(copyButton).toBeEnabled();
+  await expect(copyButton.locator("svg.toolbar-icon")).toHaveCSS("width", "14px");
+  await expect(copyButton.locator("svg.toolbar-icon")).toHaveCSS("height", "14px");
   await collapseButton.click();
   await expect(codeBlock).toHaveAttribute("data-collapsed", "true");
   await expect(codeTitle).toBeVisible();

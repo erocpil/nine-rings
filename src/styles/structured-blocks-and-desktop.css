@@ -37,6 +37,9 @@
 }
 
 .code-block-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 22px;
   min-width: 22px;
   height: 22px;
@@ -51,7 +54,8 @@
   user-select: none;
 }
 
-.code-block-wrap-toggle .toolbar-icon {
+.code-block-wrap-toggle .toolbar-icon,
+.code-block-copy .toolbar-icon {
   width: 14px;
   height: 14px;
 }
