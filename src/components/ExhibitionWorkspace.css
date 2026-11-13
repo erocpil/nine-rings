@@ -373,7 +373,7 @@
   --style-content-width: 690px;
 }
 .exhibition-shell[data-text-width="standard"] {
-  --style-content-width: calc(50% + 345px - clamp(8px, 4%, var(--style-content-inset)) * 0.75);
+  --style-content-width: calc(50% + 345px - var(--document-edge-inset, 12px));
 }
 .exhibition-shell[data-text-width="wide"] {
   --style-content-width: 100%;

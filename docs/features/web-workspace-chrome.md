@@ -51,6 +51,8 @@
 
 标题、工具栏、正文容器和状态栏共用 `document-boundaries.css` 的 `--document-edge-inset`：桌面为 12px，768px 及以下为 8px。渲染／源码、可编辑／只读、普通／专注模式及两种文件来源使用同一规则；分隔线端点对应同一编辑轨道。正文的阅读宽度上限和编号到文本的留白仍分别由原设置控制，窄幅正文在轨道内居中。
 
+展陈标准宽度使用 `50% + 345px - --document-edge-inset`，使未被用户自定义最大宽度进一步约束时的标准宽度仍是窄幅（690px）与宽幅（容器宽度减两侧留白）的中点。不再使用旧版不对称留白对应的计算式。
+
 源码滚动区域将实际滚动条占宽发布到标题、工具栏和状态栏的共同容器；局部只读阅读器也测量自身滚动条，避免系统使用非悬浮滚动条时右边界错位。测量观察器随视图卸载清理，固定面板的位置和宽度继续由面板布局规则管理。
 
 重点覆盖 `mobile-unified-title`、`workspace-chrome`、`desktop-navigation`、`desktop-workspace-parity`、`platform-presentation`、`encrypted-header`、`search-navigation` 和 `reader-sidebar-resize` E2E。手机专项覆盖完整编辑/只读/局部阅读、320px 窄屏、横竖屏往返与安全区、标题预览、正文滚动、键盘视口、左右分区手势及反向关闭。`desktop-workspace-parity` 使用 Tauri SDK 的窗口/IPC 模拟验证共享展示层及全屏按钮调用，不代表 Rust/SQLite 或 Windows WebView2 安装版实测。Windows 原生外观和 iOS 虚拟键盘仍需实机验收。

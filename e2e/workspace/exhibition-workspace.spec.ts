@@ -397,12 +397,14 @@ test("桌面展陈宽度和密度独立持久化，手机保持原布局", async
   await selectAppearance(page, "文本宽度", "wide");
   await expect.poll(async () => (await content.boundingBox())!.width).toBeGreaterThan(standard);
   const wide = (await content.boundingBox())!.width;
-  const margins = await content.evaluate(element => {
-    const style = getComputedStyle(element);
-    return { left: parseFloat(style.marginLeft), right: parseFloat(style.marginRight) };
-  });
-  expect(margins.left).toBeGreaterThanOrEqual(4);
-  expect(margins.right).toBeCloseTo(margins.left * 2, 1);
+  // The outer rail is symmetric across render/source and desktop/mobile.
+  // Use actual geometry: computed auto margins differ between browser engines.
+  await expect.poll(() => content.evaluate(element => {
+    const parent = element.parentElement!, box = element.getBoundingClientRect();
+    const bounds = parent.getBoundingClientRect();
+    const left = box.left - bounds.left, right = bounds.left + parent.clientWidth - box.right;
+    return Math.max(Math.abs(left - 12), Math.abs(right - 12));
+  })).toBeLessThan(1);
   expect(Math.abs(standard - (narrow + wide) / 2)).toBeLessThan(1);
   await page.setViewportSize({ width: 1800, height: 1000 });
   const resizedWide = (await content.boundingBox())!.width;
