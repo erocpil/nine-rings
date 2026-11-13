@@ -24,7 +24,7 @@ it("uses the same property-only password entry on every runtime", () => {
 
 it("uses shared SVG focus controls rather than platform-dependent text glyphs", () => {
   for (const file of [
-    "src/components/NoteEditor.tsx",
+    "src/components/RenderedDocumentWorkspace.tsx",
     "src/components/ReadonlyVirtualNote.tsx",
   ]) {
     expect(source(file)).not.toMatch(/[⊞⊟]/);

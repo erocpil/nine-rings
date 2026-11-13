@@ -5,6 +5,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -15,12 +16,14 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import type { AppConfig, DeltaOps } from "../types/models";
 import { markdownContentFingerprint } from "../lib/external-markdown-source";
 import { writeDocumentSource } from "../lib/document-source";
+import { closeHistory } from "@tiptap/pm/history";
+import { deltaToProseMirror } from "../lib/delta-converter";
 import { deltaToMarkdown } from "../lib/markdown-serializer";
 import { SourceNavigationDocument } from "../lib/markdown-source-navigation";
 import { DocumentResourceContext } from "./DocumentResourceContext";
 
 const Workspace = lazy(() =>
-  import("./NoteEditor").then((module) => ({ default: module.RenderedDocumentWorkspace })),
+  import("./RenderedDocumentWorkspace").then((module) => ({ default: module.RenderedDocumentWorkspace })),
 );
 export interface LocalRenderedFlush {
   flush: () => void;
@@ -70,7 +73,11 @@ export function LocalMarkdownWorkspace({
   onRename,
   onOpenProperties,
   info,
+  pdfExport = true,
+  onExportMarkdown,
 }: {
+  pdfExport?: boolean;
+  onExportMarkdown?: () => Promise<void>;
   identity: string;
   source: string;
   title: string;
@@ -148,23 +155,40 @@ export function LocalMarkdownWorkspace({
     readonly,
     navigation,
   };
+  const live = useRef({ source, active });
+  live.current = { source, active };
+  const instance = useRef<Editor | null>(null);
+  const lastProjection = useRef(initial.source);
+  const projecting = useRef(false);
+  const rawByDocument = useRef(new WeakMap<PMNode, string>());
+  const canonical = useRef<{ source: string; text: string }>();
   const raw = useRef(source);
   raw.current = source;
   const initialDoc = useRef<PMNode | null>(null);
   const pending = useRef<{ read: () => DeltaOps; doc?: PMNode } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const [error, setError] = useState("");
+  const [projectionBlocked, setProjectionBlocked] = useState(false);
   const flush = useCallback(() => {
     clearTimeout(timer.current);
     const edit = pending.current;
     if (!edit) return;
     try {
-      const next =
-        edit.doc && initialDoc.current && edit.doc.eq(initialDoc.current)
+      const serialized = deltaToMarkdown(edit.read());
+      const previous = lastProjection.current;
+      const baseline = canonical.current?.source === previous
+        ? canonical.current.text
+        : deltaToMarkdown(previous === initial.source ? initial.content : writeDocumentSource(previous, "markdown"));
+      // Folding and other presentation attributes must not canonicalize raw text.
+      const next = edit.doc && rawByDocument.current.has(edit.doc)
+        ? rawByDocument.current.get(edit.doc)!
+        : edit.doc && initialDoc.current && edit.doc.eq(initialDoc.current)
           ? initial.source
-          : deltaToMarkdown(edit.read());
+          : serialized === baseline ? previous : serialized;
+      canonical.current = { source: next, text: serialized };
       callbacks.current.onSourceChange(next);
       raw.current = next;
+      lastProjection.current = next;
       pending.current = null;
       setError("");
     } catch (cause) {
@@ -184,6 +208,7 @@ export function LocalMarkdownWorkspace({
     read: () => DeltaOps,
     options?: { metadataOnly?: boolean; batch?: object },
   ) => {
+    if (projecting.current) return;
     if (options?.metadataOnly) {
       flush();
       const map = new SourceNavigationDocument(raw.current, [], {
@@ -214,6 +239,39 @@ export function LocalMarkdownWorkspace({
       }
     }, 200);
   };
+  // A parked rendered view is a projection of the host's latest raw text.
+  // Rebase only when it becomes active, never parse on every source keystroke.
+  const projectSource = useCallback(() => {
+    const editor = instance.current;
+    const current = live.current;
+    if (!editor || !current.active || current.source === lastProjection.current || pending.current) return;
+    projecting.current = true;
+    try {
+      const next = editor.schema.nodeFromJSON(deltaToProseMirror(writeDocumentSource(current.source, "markdown")));
+      if (!editor.state.doc.eq(next)) editor.view.dispatch(closeHistory(editor.state.tr).replaceWith(0, editor.state.doc.content.size, next.content).setMeta("preventUpdate", true));
+      rawByDocument.current.set(editor.state.doc, current.source);
+      lastProjection.current = current.source;
+      setProjectionBlocked(false);
+    } catch (cause) {
+      setProjectionBlocked(true);
+      setError(`Markdown 投影失败，请返回源码编辑；原始内容仍保留：${String(cause)}`);
+    } finally { projecting.current = false; }
+  }, []);
+  useLayoutEffect(projectSource, [active, source, projectSource]);
+  const wasActive = useRef(active);
+  useLayoutEffect(() => {
+    if (active && !wasActive.current && instance.current) callbacks.current.onEditorReady?.(instance.current);
+    wasActive.current = active;
+  }, [active]);
+  const bindEditor = useCallback((editor: Editor | null) => {
+    instance.current = editor;
+    if (editor && !initialDoc.current) {
+      initialDoc.current = editor.state.doc;
+      rawByDocument.current.set(editor.state.doc, initial.source);
+    }
+    projectSource();
+    callbacks.current.onEditorReady?.(editor);
+  }, [initial, projectSource]);
   return (
     <DocumentActiveBoundary active={active}>
       <DocumentResourceContext.Provider value={resolveResource}>
@@ -233,6 +291,9 @@ export function LocalMarkdownWorkspace({
             workspaceHost={{
               origin: "local",
               references: false,
+              documentCache: false,
+              pdfExport,
+              exportMarkdown: onExportMarkdown,
               annotations: false,
               virtualReading: false,
               navigation: false,
@@ -258,7 +319,7 @@ export function LocalMarkdownWorkspace({
             documentViewToggle={viewToggle}
             unifiedTitleBar
             mobileTitleBar
-            readonly={readonly}
+            readonly={readonly || projectionBlocked}
             onReadonlyChange={onReadonlyChange}
             focusMode={focusMode}
             editorFontSize={fontSize}
@@ -278,11 +339,7 @@ export function LocalMarkdownWorkspace({
             onTagsChange={() => {}}
             onContentChange={changed}
             onEditorConfigChange={onEditorConfigChange}
-            onHostEditorReady={(editor) => {
-              if (editor && !initialDoc.current)
-                initialDoc.current = editor.state.doc;
-              callbacks.current.onEditorReady?.(editor);
-            }}
+            onHostEditorReady={bindEditor}
             onHostSelection={onSelectionChange}
             onFlush={async () => {
               flush();

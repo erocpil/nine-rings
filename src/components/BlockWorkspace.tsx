@@ -33,7 +33,7 @@ const CodeMirrorBlockEditor = lazy(() => import("./CodeMirrorBlockEditor").then(
 
 type Request = { position: number; trigger: HTMLElement; restoreFocus?: boolean; startInEditMode?: boolean; selectedPositions?: number[] };
 type Navigate = (position: number, selectedPositions: number[] | undefined, startInEditMode: boolean) => void;
-type Props = { source: Editor; vimModeEnabled?: boolean; highlightActiveLine?: boolean; noteId?: string; readonly?: boolean; sensitive?: boolean; saveStatus?: string; onFlush?: () => Promise<void> };
+type Props = { source: Editor; vimModeEnabled?: boolean; highlightActiveLine?: boolean; noteId?: string; readonly?: boolean; sensitive?: boolean; embedImages?: boolean; manualSave?: boolean; saveStatus?: string; onFlush?: () => Promise<void> };
 
 export function BlockWorkspaceHost(props: Props) {
   const [request, setRequest] = useState<Request | null>(null);
@@ -78,7 +78,7 @@ export function BlockWorkspaceHost(props: Props) {
 
 /** A scoped view of the original block. Edits are mapped into the source
  * transaction stream; only the source owns undo history and persistence. */
-export function BlockWorkspace({ source, vimModeEnabled = false, highlightActiveLine = true, readonly, sensitive, saveStatus, onFlush, request, onClose, onNavigate }: Props & { request: Request; onClose: () => void; onNavigate: Navigate }) {
+export function BlockWorkspace({ source, vimModeEnabled = false, highlightActiveLine = true, readonly, sensitive, embedImages = false, manualSave = false, saveStatus, onFlush, request, onClose, onNavigate }: Props & { request: Request; onClose: () => void; onNavigate: Navigate }) {
   const initial = useMemo(() => source.state.doc.nodeAt(request.position)!, [source, request]);
   const position = useRef(request.position);
   // Track document positions through every edit, including this workspace's
@@ -430,7 +430,7 @@ export function BlockWorkspace({ source, vimModeEnabled = false, highlightActive
           <button type="button" aria-label={showMermaidSource ? "显示 Mermaid 图形" : "显示 Mermaid 源码"} aria-pressed={showMermaidSource} onClick={() => { setFindOpen(false); setShowMermaidSource(current => !current); }}>{showMermaidSource ? "图形" : "源码"}</button>
         </div>}
       </div>
-      {(saveStatus === "error" || saveStatus === "saving" || saveStatus === "dirty") && <span className="block-workspace-save" data-error={saveStatus === "error"} role="status" title="本机保存状态，不代表已完成备份">{saveStatus === "error" ? "保存失败" : "保存中…"}</span>}
+      {(saveStatus === "error" || saveStatus === "saving" || saveStatus === "dirty") && <span className="block-workspace-save" data-error={saveStatus === "error"} role="status" title="本机保存状态，不代表已完成备份">{saveStatus === "error" ? "保存失败" : saveStatus === "dirty" && manualSave ? "未保存" : "保存中…"}</span>}
       {iconButton("复制块", "copy", () => void copy())}
       {!sensitive && !mermaidCodeBlock && iconButton("块内查找", "search", () => { if (flowCodeBlock && !editable) setShowFlowSource(true); setFindOpen(!findOpen); window.requestAnimationFrame(() => searchInput.current?.focus()); })}
       <button type="button" aria-label="关闭块工作区" title="关闭" disabled={closing} onClick={() => void close()}><ToolbarIcon name="compress" /></button>
@@ -486,7 +486,7 @@ export function BlockWorkspace({ source, vimModeEnabled = false, highlightActive
           const selection = editor.state.selection.getBookmark();
           const documentBeforeUpload = editor.state.doc;
           try {
-            const src = await (sensitive ? blobToBase64(file) : storeImage(file));
+            const src = await (sensitive || embedImages ? blobToBase64(file) : storeImage(file));
             if (editor.isDestroyed || !editableRef.current || !source.isEditable) return;
             if (editor.state.doc !== documentBeforeUpload) { setNotice("图片读取期间内容已改变，请在新位置重新插入。"); return; }
             editor.view.dispatch(editor.state.tr.setSelection(selection.resolve(editor.state.doc)));

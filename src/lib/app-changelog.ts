@@ -2,8 +2,8 @@
 export const APP_CHANGELOG = [
   {
     date: "2026-11-14",
-    title: "File Workbench 窗口缩放",
-    changes: ["File Workbench 系统标题栏及预览文件名标题栏支持双击放大／恢复，单独保留原位置和尺寸；按钮与全屏行为保持独立。"],
+    title: "File Workbench 窗口与 Markdown 编辑",
+    changes: ["File Workbench Markdown 复用同一套块号、块菜单和代码／引用／Flow／Mermaid块模式，只读权限与文件未保存保护继续有效；仅折叠等显示变化不改写原始Markdown。", "File Workbench 的 Markdown 渲染正文支持直接编辑、保存和源码切换；两种视图保留编辑实例，保存前纳入待处理输入，并保留草稿与磁盘冲突保护。", "File Workbench 系统标题栏及预览文件名标题栏支持双击放大／恢复，单独保留原位置和尺寸；按钮与全屏行为保持独立。"],
   },
   {
     date: "2026-11-13",

@@ -610,7 +610,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
       showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} defaultCodeBlockWrap={defaultCodeBlockWrap}
       cjkLatinSpacing={cjkLatinSpacing} readonlyHeadingFoldInFocusMode={readonlyHeadingFoldInFocusMode}
       onEditorConfigChange={onEditorConfigChange} onRename={canRename && !readOnly ? rename : undefined} onOpenProperties={() => setPropertiesOpen(value => !value)} info={fileInfo} navigationControls={navigationControls} bookmarks={bookmarks} onBookmarksChange={setBookmarks}
-      onSourceChange={value => { sourceRef.current = value; latestDraft.current.source = value; setSource(value); }}
+      onSourceChange={value => { sourceRef.current = value; latestDraft.current.source = value; setSource(value); setSaveState(current => current === "saving" ? current : value === baseSnapshot.source ? "clean" : "dirty"); }}
       onPending={() => { setSaveState(current => current === "saving" ? "saving" : "dirty"); setLocalFileDirty(identity, true); }}
       onRegisterFlush={registerRenderedFlush} onEditorReady={editor => { renderedEditor.current = editor; viewPosition.onRenderedReady(editor); if (editor && renameFocus.current) { renameFocus.current = false; editor.view.focus(); } }} onClick={openRelative} resolveResource={resolveResource}
       onSelectionChange={selection => {

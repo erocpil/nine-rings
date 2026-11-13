@@ -49,6 +49,7 @@ describe("conservative affected E2E selection", () => {
       [],
       ["src/App.tsx"],
       ["src/components/NoteEditor.tsx"],
+      ["src/components/RenderedDocumentWorkspace.tsx"],
       ["e2e/helpers/document.ts"],
       ["package-lock.json"],
       ["build-plugins/vite-pwa-plugin.ts"],

@@ -8,7 +8,7 @@
 | --- | --- | --- | --- |
 | 工作区及会话 | `App.tsx`、`useNoteSessionBoundary`、编辑会话缓存 | 首页是展示状态；普通文档最多三份完整会话，保护文档另行释放 | [布局](../features/workspace-layout.md)、[首页](../features/web-workspace-chrome.md) |
 | 公共文档工作区 | `RenderedDocumentWorkspace`、`DocumentSourceSurface`、`LocalMarkdownWorkspace` | 渲染会话、菜单和排版只实现一次；来源适配保留原文、授权、写入与资源边界 | [统一工作区](./unified-document-workspace.md) |
-| 编辑权威 | `NoteEditor`、`MarkdownSourceEditor`、Delta/Markdown 转换器 | 活动模型与持久投影分开；保存回执不替换活动模型；两套撤销历史独立 | [权威协议](./editor-authority-and-workspace.md)、[Markdown](../features/markdown-compatibility.md) |
+| 编辑权威 | `NoteEditor`（数据库组合）、`RenderedDocumentWorkspace`（公共渲染）、`MarkdownSourceEditor`、Delta/Markdown 转换器 | 活动模型与持久投影分开；保存回执不替换活动模型；两套撤销历史独立 | [权威协议](./editor-authority-and-workspace.md)、[Markdown](../features/markdown-compatibility.md) |
 | 保存与修订 | `auto-save-queue.ts`、`document-save-revisions.ts` | 接受修订与持久确认分开；延迟正文读取器在 flush 时冻结；失败仅重排未被更新覆盖的字段 | [前置审计](../plugins/plugin-readiness-audit.md) |
 | 存储 | `api.ts`、`storage/`、Rust commands/service/db | UI 经过统一门面和保护层；Schema 是跨端字段来源，不以平台实现自行定义 | [文档系统](./document-system-design.md) |
 | 定位 | `useEditorNavigation`、`document-navigation.ts`、源码位置映射 | 普通近距位置合并；显式跳转独立；选择、滚动、视图修订不是一个坐标 | [导航历史](../features/document-navigation-history.md) |

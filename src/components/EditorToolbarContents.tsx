@@ -73,7 +73,7 @@ export interface EditorToolbarProps {
     handleCut: () => Promise<void>;
     handleClipboardPaste: () => Promise<void>;
     handleExportMarkdown: () => Promise<void>;
-    handleExportPdf: () => void;
+    handleExportPdf?: () => void;
     openEditorReplace: () => void;
     toggleCurrentBookmark: () => void;
     openDocumentBookmarks: () => void;
@@ -433,7 +433,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {actions.copyReference && btn(<ToolbarIcon name="link" />, () => { void actions.copyReference!("position"); }, false, hasSelection() ? "复制选中文字引用" : "复制此处引用")}
     {btn("—", () => editor.chain().focus().setHorizontalRule().run(), false, "水平分隔线", readonly)}
     {btn(<ToolbarIcon name="copy" />, () => selectWholeDocument(editor), false, "全选", false, "edit.all")}
-    {btn(<ToolbarIcon name="document" />, handleExportPdf, false, "导出 PDF", false, "document.export-pdf")}
+    {handleExportPdf && btn(<ToolbarIcon name="document" />, handleExportPdf, false, "导出 PDF", false, "document.export-pdf")}
     {btn(<ToolbarIcon name="link" />, () => { setLinkDialogUrl(editor.getAttributes("link").href || ""); setLinkDialog(true); }, false, "添加或编辑链接", readonly, "format.link")}
     {saveStatus && saveStatus !== "clean" && (
       <span role="status" className={`save-status save-status-${saveStatus}`} title={

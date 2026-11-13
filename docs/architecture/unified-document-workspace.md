@@ -1,12 +1,13 @@
 # 统一文档工作区
 
-更新：2026-10-29。
+更新：2026-11-14。
 
 ## 目标与当前结构
 
 数据库文档和磁盘文件在相同格式、权限、布局及配置下，使用同一套编辑／阅读工作区。以原数据库实现为基线，磁盘适配器直接接入；不通过逐项补齐另一套渲染器维持表面一致。
 
-- `RenderedDocumentWorkspace`（位于 `NoteEditor.tsx`）是两类普通 Markdown 的公共渲染入口。它统一编号展示、schema、TipTap 会话、批量折叠、手势、目录／书签、块菜单、工具栏、选区弹层、右键菜单、状态栏及标题。
+- `RenderedDocumentWorkspace`（位于 `RenderedDocumentWorkspace.tsx`）是两类普通 Markdown 的公共渲染入口。它统一编号展示、schema、TipTap 会话、批量折叠、手势、目录／书签、块菜单、工具栏、选区弹层、右键菜单、状态栏及标题。
+- `NoteEditor.tsx` 保留数据库专属组合层；`LocalMarkdownWorkspace` 直接导入通用渲染器，数据库引用搜索通过 `DocumentReferenceSearchContext` 注入。独立 File Workbench 不装配数据库 API／存储适配器入口。
 - `DocumentSourceSurface` 是共同源码壳。两类来源注入原始文本、CodeMirror 会话及编辑回调，使用同一工具栏／状态栏和 `MarkdownSourceEditor`。
 - `DocumentNavigationWorkspace` 统一源码目录、符号、书签及同词导航；渲染目录使用同一个 `DocumentOutlineList`、导航标题工具、展示插件与布局控制器。两种文本模型分别投影位置，不要求原始行号等于渲染块号。
 - `useDocumentPreview`、`DocumentPreviewControls` 和 `MarkdownSplitPreview` 统一源码并排预览、同步滚动及设备偏好。磁盘 Markdown、Mermaid、Flow 不再另写预览逻辑。
@@ -87,3 +88,15 @@
 - 真实文件选择／续期、原生 IME、系统剪贴板授权不能只凭浏览器夹具宣称验收。每批具体测试与未执行项记录在 [E2E 清理进度](../validation/e2e-repair-progress.md)。
 
 数据库的同步、版本历史、加密、关系元信息，以及文件系统授权、磁盘冲突与原始字节写入仍属于不同来源能力。这些差异不能通过伪造身份或将磁盘文件隐式导入数据库消除。
+
+
+## File Workbench 的 Markdown 编辑
+
+WorkbenchSourceView通过LocalMarkdownWorkspace接入同一渲染工作区，包含块号、菜单、代码／引用／Flow／Mermaid块模式；快速预览仍只读。文件的raw source、磁盘基线、保存、恢复草稿和冲突确认属于宿主，保存／导出／模式切换／离开前先flush渲染序列化；待处理读者失败时不允许离开。未保存退出提示和外部修订拒绝覆盖与源码入口一致。
+
+两个视图按需首次装配，再保留实例和各自历史；非活动投影只读且不接收命令。隐藏渲染视图在进入时按最新源码投影；隐藏源码视图不随每次渲染序列化重建文档。本文仍不承诺单一的跨模式撤销栈。位置交接使用共享useMarkdownViewPosition；测试按真正的工具栏下方可见正文边界定位，并用用户滚动事件中止启动恢复。
+
+原始Markdown仅因实际正文编辑才规范化；折叠等仅表现属性变化通过规范化语义对照保留原始换行、列表标记及空白。文件块模式显示“未保存”而不冒充自动磁盘保存；图片嵌入能力与敏感文档标志分开，文件插图不调用数据库图片库，也不因此禁用块内查找。相对图片／本地链接授权仍沿用现有工作台限制，独立窗口不在本批范围。
+
+
+文件适配器禁止从跨实例的编辑器辅助缓存恢复正文，以免覆盖明确的磁盘基线／草稿选择；重新打开后先显示磁盘版本，只有确认恢复才采用草稿。恢复到源码必须同时开启其按需挂载状态。数据库文档保持原有缓存行为。独立工作台不具备原生PDF打印宿主，按能力隐藏相关入口，Markdown导出委托文件端口；相对链接不得绕过离开保护。

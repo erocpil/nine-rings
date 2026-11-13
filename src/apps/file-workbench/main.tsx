@@ -111,7 +111,7 @@ function Workbench() {
   }}><ToolbarIcon name="export" /></button>;
   return <main className="file-workbench-app" onDoubleClick={event => {
     if (!isTauriRuntime() || !(event.target instanceof Element)) return;
-    if (!event.target.closest(".local-file-titlebar, .file-browser-quick-preview > header") || event.target.closest("button, input, textarea, select, a, [contenteditable]")) return;
+    if (!event.target.closest(".local-file-titlebar, .workbench-rendered-session .note-title-row, .file-browser-quick-preview > header") || (event.target.closest("button, input, textarea, select, a, [contenteditable]") && !event.target.closest(".document-title-preview"))) return;
     event.preventDefault(); event.stopPropagation();
     window.getSelection()?.removeAllRanges();
     void import("@tauri-apps/api/core").then(({ invoke }) => invoke("workbench_toggle_maximize")).catch(cause => setNativeNotice(`窗口缩放失败：${String(cause)}`));

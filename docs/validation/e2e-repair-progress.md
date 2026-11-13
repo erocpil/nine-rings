@@ -1,5 +1,24 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-14：File Workbench Markdown 两批能力
+
+待办先提交为9765d950，用户确认本批范围是Markdown直接渲染编辑，以及块号／菜单／块模式，不包括独立窗口。抽出RenderedDocumentWorkspace，NoteEditor保持数据库组合入口及原类型导出；通用渲染器通过可选Context取得数据库引用搜索，文件适配器不装配API／存储适配器入口。不是重写另一套Markdown编辑器。公共接口调用方已核对：NoteEditor仅App懒入口；LocalMarkdownWorkspace由原LocalFileView及新增工作台调用；BlockWorkspaceHost只有公共渲染器传入新增可选能力，EditorToolbarContents原调用默认保持PDF导出。
+
+SourceView继续管理原始文本、磁盘基线、草稿及保存。活动渲染编辑通过延迟序列化更新raw，保存／导出／切换／离开先flush，失败保持pending并拒绝离开；源码输入回调同步更新raw引用。首次访问按需加载后保留各视图实例，后台源码／渲染不随按键重建，重新激活按最新raw交接。两套原生撤销栈仍独立，不宣传单一跨模式历史。折叠等只改表现属性时用规范化语义对照保持原始空白、列表标记及末尾换行；相同raw确认后文件宿主清理临时dirty，保存中的状态不提前清除。
+
+块号、菜单、折叠、代码行号及代码／引用／Flow／Mermaid块模式直接复用公共实现。只读隐藏写操作和数据库引用；块内修改回写原正文，文件明确显示“未保存”。embedImages与sensitive分开，文件插图内嵌而不读数据库，块查找保持可用。工作台没有原生PDF打印宿主，因此隐藏PDF导出；Markdown导出委托文件端口，避免调用未注册的export_to_file。相对链接阻止默认导航，不绕过未保存保护。
+
+审查发现并修复文件宿主不能复用数据库跨实例辅助文档缓存的问题：同一旧contentVersion可能包含待选择或已丢弃的未保存内容。文件显式禁用该缓存，以磁盘与草稿选择为准；数据库默认行为不变。新增用例覆盖保留草稿后重开先显示磁盘正文、首次恢复源码可编辑、返回渲染、再次重开与删除草稿不复活旧正文。
+
+新增交互回归还覆盖：锁定／解锁后直接编辑、未flush输入立即保存、模式往返保留渲染撤销／重做、外部修订拒绝覆盖、导出原文、不装配nine_rings数据库、只读块菜单、块查找、行号／折叠、四类块模式及回写。位置测试继续45／70px容差，按真正的标题／工具栏下方正文边界测量；滚轮意图先取消启动恢复，不用延时或放宽阈值掩盖竞态。不同产品并行回归使用不同服务端口和输出目录，避免Playwright相互清理trace。
+
+影响分析SAFE（已验证范围）：公共渲染主体移动后仅保留宿主注入差异，数据库保护／链接／插件组合仍在原入口；源码／渲染、pending／flush、缓存／草稿、只读／保存中、导出与链接的跨模块路径已审查，无新增持久字段或文件权限。完整npm run check通过（245个Vitest文件／2644项及独立脚本、类型、lint、格式和IPC），工作台Chromium／WebKit完整各41项通过。原产品Markdown相关Chromium／WebKit各12项及数据库引用Context专项2项通过。Nine Rings Web与macOS ARM64 File Workbench.app构建通过；工作台数据库入口边界检查保持启用；未替换已安装应用。最终生产产物WebKit专项2项通过，覆盖原文导出、编辑／保存／冲突、块模式及草稿恢复／丢弃；资源预算通过，未放宽阈值。
+
+真实macOS安装版交互、超大Markdown性能及完整原生剪贴板实机验收仍未执行。独立窗口和持久侧面板保留为后续任务。
+
+日志：`/tmp/nr-workbench-markdown-{final-check,final-chromium,final-webkit,production,main-build,native-build,bundle-size,drafts}.log`，`/tmp/nr-workbench-{shared-regression,shared-webkit,reference-context}.log`。
+
+
 ## 2026-11-14：File Workbench 双标题栏缩放
 
 用户确认系统标题栏与预览文件名栏均无法双击恢复。前者过去只依赖 AppKit，后者没有接线；本机系统未设置 AppleActionOnDoubleClick，但未运行真实鼠标事件复现，不能认定底层框架丢失 standard frame 已经被证实。新增进程内主窗口标题区 monitor 与只允许 main 调用的 workbench_toggle_maximize，二者在主线程使用同一普通框恢复状态。排除实际交通灯按钮、WebView工具按钮／输入及其他窗口，全屏不改变尺寸；进程退出移除monitor，不改关闭到托盘门禁。
