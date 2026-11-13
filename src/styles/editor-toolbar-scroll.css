@@ -1,7 +1,7 @@
 .note-editor { --editor-toolbar-scrollbar-size: 6px; }
 /* Match the label row to the title controls and leave the same breathing room
    above the editable toolbar as its horizontal scrollbar occupies below. */
-.app-desktop-workspace .note-editor .tag-bar { padding-inline: 12px; }
+.app-desktop-workspace .note-editor .tag-bar { padding-inline: var(--document-edge-inset, 12px); }
 .note-editor .tag-bar + .editor-menu.toolbar-scrollable {
   margin-top: var(--editor-toolbar-scrollbar-size);
 }
@@ -44,14 +44,6 @@
 
 .app .note-editor .editor-menu .menu-btn { font-size: 12px; }
 .app .note-editor .editor-menu .toolbar-icon { width: 17px; height: 17px; }
-
-/* The scroll viewport ends at the title rule, not at the editor's outer edge. */
-.app.app-desktop-workspace .note-editor .editor-menu.toolbar-scrollable {
-  width: calc(100% - 24px);
-  margin-inline: 12px;
-  padding: 0;
-  background-size: 100% 1px;
-}
 
 /* Do not mix the OS "thin" scrollbar with a separately sized WebKit track. */
 @supports selector(::-webkit-scrollbar) {

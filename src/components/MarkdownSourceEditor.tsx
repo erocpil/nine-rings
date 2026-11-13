@@ -1061,17 +1061,21 @@ export function MarkdownSourceEditor({
     const root = host.current?.closest<HTMLElement>(".markdown-source-editor");
     const scroller = view.current?.scrollDOM;
     if (!root || !scroller) return;
-    const measure = () =>
-      root.style.setProperty(
-        "--editor-scrollbar-width",
-        `${Math.max(0, scroller.offsetWidth - scroller.clientWidth)}px`,
-      );
+    const chrome = root.closest<HTMLElement>(".markdown-source-content") ?? root;
+    const measure = () => {
+      const width = `${Math.max(0, scroller.offsetWidth - scroller.clientWidth)}px`;
+      root.style.setProperty("--editor-scrollbar-width", width);
+      // Title/toolbar/status portals are siblings of the editor, so publish
+      // the same measured scrollbar allowance on their shared content track.
+      chrome.style.setProperty("--editor-scrollbar-width", width);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(scroller);
     return () => {
       observer.disconnect();
       root.style.removeProperty("--editor-scrollbar-width");
+      if (chrome !== root) chrome.style.removeProperty("--editor-scrollbar-width");
     };
   }, [areaRef, session, onReady]);
   const changeIndentation = (size: number, style: SourceIndentStyle) => {

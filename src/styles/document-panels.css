@@ -471,7 +471,7 @@
 .app-desktop-workspace :is(.note-title-row, .vr-title) {
   box-sizing: border-box;
   min-height: var(--desktop-header-height);
-  padding: 2px 12px;
+  padding: 2px var(--document-edge-inset, 12px);
   flex-shrink: 0;
 }
 .note-title-row { position: relative; z-index: 12; }
@@ -565,15 +565,15 @@
 .app-desktop-workspace .editor-stats {
   position: relative;
   border-top-style: none;
-  padding-inline: 12px calc(12px + var(--editor-scrollbar-width, 0px));
+  padding-inline: var(--document-edge-inset, 12px) calc(var(--document-edge-inset, 12px) + var(--editor-scrollbar-width, 0px));
   background-image: none;
 }
 .app-desktop-workspace .editor-stats::before {
   content: "";
   position: absolute;
   top: 0;
-  right: calc(12px + var(--editor-scrollbar-width, 0px));
-  left: 12px;
+  right: calc(var(--document-edge-inset, 12px) + var(--editor-scrollbar-width, 0px));
+  left: var(--document-edge-inset, 12px);
   height: 1px;
   background: var(--border);
   pointer-events: none;
@@ -650,7 +650,7 @@
 
 /* Fixed source chrome and rendered sticky chrome share the scroll viewport edge. */
 .app-desktop-workspace .markdown-source-title-row { margin-inline-end: var(--editor-scrollbar-width, 0px); }
-.app-desktop-workspace .markdown-source-toolbar-host { margin-inline-end: calc(12px + var(--editor-scrollbar-width, 0px)); }
+
 
 .document-source-matches-preview {
   position: fixed;

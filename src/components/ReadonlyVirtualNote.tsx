@@ -128,6 +128,16 @@ export function ReadonlyVirtualNote(
   const documentHover = useDocumentHoverPreview(() => doc);
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const viewport = rootRef.current;
+    const host = viewport?.closest<HTMLElement>(".vr-note");
+    if (!viewport || !host) return;
+    const measure = () => host.style.setProperty("--editor-scrollbar-width", `${Math.max(0, viewport.offsetWidth - viewport.clientWidth)}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+    return () => { observer.disconnect(); host.style.removeProperty("--editor-scrollbar-width"); };
+  }, []);
   const heights = useRef(new Map<number, number>());
   const pendingAnchor = useRef<ReadingAnchor | null>(null);
   const pendingNavigationRequest = useRef<number | null>(null);

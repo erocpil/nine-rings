@@ -1,0 +1,66 @@
+/* One outer editing rail. Number/fold gutters and reading-width limits remain
+   inside this rail; dock margins remain owned by document-panels.css. */
+:is(.app, .file-workbench-app) { --document-edge-inset: 12px; }
+@media (max-width: 768px) {
+  :is(.app, .file-workbench-app) { --document-edge-inset: 8px; }
+}
+:is(.app, .file-workbench-app) :is(.note-title-row, .vr-title, .vr-actions) {
+  box-sizing: border-box;
+  padding-inline: var(--document-edge-inset);
+  border-bottom: 1px solid transparent;
+  background-image: linear-gradient(var(--border), var(--border));
+  background-size: calc(100% - 2 * var(--document-edge-inset)) 1px;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+}
+:is(.app, .file-workbench-app) .note-editor .editor-menu.toolbar-scrollable,
+.app.app-mobile-workspace .note-editor.focus-mode.focus-toolbar-expanded .editor-menu.toolbar-scrollable {
+  width: calc(100% - 2 * var(--document-edge-inset));
+  margin-inline: var(--document-edge-inset);
+  padding-inline: 0;
+  background-size: 100% 1px;
+}
+:is(.app, .file-workbench-app) .markdown-source-title-row,
+:is(.app, .file-workbench-app) .local-file-titlebar {
+  margin-inline: 0 var(--editor-scrollbar-width, 0px);
+}
+:is(.app, .file-workbench-app) .markdown-source-toolbar-host {
+  box-sizing: border-box;
+  padding-inline: var(--document-edge-inset) calc(var(--document-edge-inset) + var(--editor-scrollbar-width, 0px));
+}
+:is(.app, .file-workbench-app) .markdown-source-toolbar-host > .markdown-source-tools { padding-inline: 0; }
+:is(.app, .file-workbench-app) .tag-bar { padding-inline: var(--document-edge-inset); }
+:is(.app, .file-workbench-app) .note-editor .editor-stats {
+  position: relative;
+  box-sizing: border-box;
+  padding-inline: var(--document-edge-inset) calc(var(--document-edge-inset) + var(--editor-scrollbar-width, 0px));
+  border-top: 0;
+  background-image: none;
+}
+:is(.app, .file-workbench-app) .note-editor .editor-stats::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  inset-inline: var(--document-edge-inset) calc(var(--document-edge-inset) + var(--editor-scrollbar-width, 0px));
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
+:is(.app, .file-workbench-app) .note-editor-scroll > .editor-content-shell,
+:is(.app, .file-workbench-app) .vr-note .vr-body {
+  box-sizing: border-box;
+  width: calc(100% - 2 * var(--document-edge-inset));
+  margin-inline: auto;
+}
+:is(.app, .file-workbench-app) .vr-note .vr-body { padding-inline: 0; }
+:is(.app, .file-workbench-app) .markdown-cm-host .cm-editor { margin-inline: var(--document-edge-inset); }
+
+:is(.app, .file-workbench-app) .note-editor .note-editor-sticky { border-bottom: 0; }
+
+/* Virtual read-only headers sit outside their scrolling body. Keep dock margins
+   intact and account for its scrollbar inside the header instead. */
+:is(.app, .file-workbench-app) .vr-note :is(.vr-title, .vr-actions) {
+  padding-inline-end: calc(var(--document-edge-inset) + var(--editor-scrollbar-width, 0px));
+  background-size: calc(100% - 2 * var(--document-edge-inset) - var(--editor-scrollbar-width, 0px)) 1px;
+  background-position: left var(--document-edge-inset) bottom 0;
+}

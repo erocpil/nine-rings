@@ -237,19 +237,10 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
 }
 /* Geometry changes only on desktop; touch controls never shrink with density. */
 @media (min-width: 769px) and (pointer: fine) {
-  /* The gutter already reserves room for folding and block numbers. Wide
-     pages need less outer space before those controls than after the text. */
-  html:not([data-interface-style="classic"])
-    .exhibition-shell[data-text-width="wide"]
-    :is(.note-editor-scroll > .editor-content-shell, .vr-note .vr-body) {
-    width: calc(100% - clamp(8px, 4%, var(--style-content-inset)) * 1.5);
-    margin-left: calc(clamp(8px, 4%, var(--style-content-inset)) * 0.5);
-    margin-right: clamp(8px, 4%, var(--style-content-inset));
-  }
+  /* Horizontal rails are shared in document-boundaries.css. */
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .note-editor-scroll
     > .editor-content-shell {
-    width: calc(100% - clamp(8px, 4%, var(--style-content-inset)) * 2);
     max-width: min(var(--style-content-width), var(--style-custom-content-width, 100%));
     margin-inline: auto;
     margin-top: var(--style-content-top);
@@ -257,7 +248,6 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .vr-note
     .vr-body {
-    width: calc(100% - clamp(8px, 4%, var(--style-content-inset)) * 2);
     max-width: min(var(--style-content-width), var(--style-custom-content-width, 100%));
     margin-inline: auto;
   }

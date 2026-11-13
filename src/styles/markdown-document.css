@@ -2,7 +2,7 @@
 .app .markdown-view-toggle { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: auto; min-width: 40px; min-height: 32px; padding: 2px 6px; border: 1px solid transparent; border-radius: 5px; color: var(--text-secondary); background: transparent; cursor: pointer; font-size: 13px; white-space: nowrap; }
 .app .markdown-view-toggle:hover { color: var(--accent); border-color: var(--border); }
 .app .markdown-view-toggle:disabled { opacity: .5; cursor: wait; }
-.markdown-source-title-row { padding: 4px 12px; }
+.markdown-source-title-row { padding: 4px var(--document-edge-inset, 12px); }
 .markdown-source-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .markdown-source-content { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .markdown-source-title-row .focus-mode-icon { width: 18px; height: 18px; }
@@ -397,8 +397,8 @@ blockquote[data-alert] { border-left-color: var(--accent); }
 }
 
 /* The header and toolbar rules share exactly the same horizontal bounds. */
-.markdown-source-title-row { margin-inline: 0; padding-inline: 12px; }
-.markdown-source-toolbar-host { margin-inline: 12px; }
+.markdown-source-title-row { margin-inline: 0; padding-inline: var(--document-edge-inset, 12px); }
+.markdown-source-toolbar-host { margin-inline: 0; }
 .markdown-source-toolbar-host > .markdown-source-tools { padding-inline: 0; }
 
 .markdown-source-status-host { flex: 0 0 auto; min-width: 0; box-sizing: border-box; }
