@@ -1630,6 +1630,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       const insert = shell.querySelector<HTMLElement>(".editor-block-insert")!.getBoundingClientRect();
       return {
         shellLeft: shell.getBoundingClientRect().left,
+        viewportLeft: shell.parentElement!.getBoundingClientRect().left,
         insertRight: insert.right,
         numberLeft: number.left,
         numberRight: number.right,
@@ -1640,7 +1641,9 @@ test.describe("PWA 窄屏应用外壳", () => {
         orderedPadding: Number.parseFloat(getComputedStyle(orderedList).paddingInlineStart),
       };
     });
-    expect(geometry.shellLeft).toBeLessThanOrEqual(4.5);
+    // The shared mobile rail adds 8px inside the editor viewport; gutter
+    // compactness is independent of the outer workspace/safe-area inset.
+    expect(geometry.shellLeft - geometry.viewportLeft).toBeCloseTo(8, 1);
     expect(geometry.paragraphLeft - geometry.numberRight).toBeGreaterThanOrEqual(3.5);
     expect(geometry.orderedNumberRight).toBeLessThanOrEqual(geometry.orderedListLeft);
     expect(geometry.orderedItemOffset).toBeCloseTo(geometry.orderedPadding, 1);
