@@ -5,3 +5,6 @@ import { createContext } from "react";
 export const DocumentResourceContext = createContext<
   ((source: string) => Promise<string | null>) | null
 >(null);
+
+/** Independent file viewers must not resolve database-owned nr-image resources. */
+export const DocumentImageLibraryContext = createContext(true);

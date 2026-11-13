@@ -1,4 +1,4 @@
-import { DocumentResourceContext } from "./DocumentResourceContext";
+import { DocumentImageLibraryContext, DocumentResourceContext } from "./DocumentResourceContext";
 import { requestImageView } from "../lib/image-library/viewer-request";
 import { workspacePanels } from "../lib/plugin-system/panel-registry";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -20,6 +20,7 @@ export function ReadonlyImage({
   width?: string | null;
 }) {
   const resolveResource = useContext(DocumentResourceContext);
+  const allowLibrary = useContext(DocumentImageLibraryContext);
   const imagePanels = useSyncExternalStore(workspacePanels.subscribe, workspacePanels.getSnapshot);
   const host = useRef<HTMLSpanElement>(null);
   const near = useNearViewport(host);
@@ -28,6 +29,7 @@ export function ReadonlyImage({
   const compact = useCompactImage(imageRef, resolved, imagePanels.length > 0);
   useEffect(() => {
     if (!near) return;
+    if (!allowLibrary && src.startsWith("nr-image://")) { setResolved(""); return; }
     if (!src.startsWith("nr-image://")) {
       if (!resolveResource) { setResolved(readonlyImageSource(src, document.baseURI)); return; }
       let cancelled = false;
@@ -52,7 +54,7 @@ export function ReadonlyImage({
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [src, near, resolveResource]);
+  }, [src, near, resolveResource, allowLibrary]);
   return (
     <span ref={host} className="document-image-view-host" data-image-compact={compact || undefined}>
       {resolved ? (

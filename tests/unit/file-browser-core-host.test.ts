@@ -198,3 +198,32 @@ it("a cancelled or revoked image preview releases its newly created Blob URL", a
   expect(revoke).toHaveBeenCalledWith("blob:cancelled-image");
   expect(port.files.readImageAsset).not.toHaveBeenCalled();
 });
+
+it("PDF previews use the optional binary port and release revoked results", async () => {
+  const { port, revoke } = host("pdf");
+  const pdfPort = {
+    ...port,
+    files: { ...port.files, readPdfPreview: vi.fn(async () => "blob:pdf") },
+  };
+  const provider = createBrowserDirectoryProvider(pdfPort);
+  await expect(
+    provider.preview("r", "book.PDF", new AbortController().signal),
+  ).resolves.toEqual({ kind: "pdf", value: "blob:pdf", truncated: false });
+  expect(port.files.readSnapshot).not.toHaveBeenCalled();
+  await expect(
+    createBrowserDirectoryProvider(port).preview(
+      "r",
+      "book.pdf",
+      new AbortController().signal,
+    ),
+  ).rejects.toThrow("不支持 PDF");
+  const release = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  pdfPort.files.readPdfPreview.mockImplementationOnce(async () => {
+    revoke();
+    return "blob:late-pdf";
+  });
+  await expect(
+    provider.preview("r", "book.pdf", new AbortController().signal),
+  ).rejects.toThrow("revoked");
+  expect(release).toHaveBeenCalledWith("blob:late-pdf");
+});

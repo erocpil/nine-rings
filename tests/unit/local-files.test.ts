@@ -352,3 +352,44 @@ it("image preview uses a binary Blob URL rather than expanding the file into a D
     URL.revokeObjectURL(url);
   }
 });
+
+it("PDF binary preview enforces size budget and exact bytes without text decoding", async () => {
+  activate();
+  vi.spyOn(environment, "isTauriRuntime").mockReturnValue(true);
+  const data = new TextEncoder().encode("%PDF-1.7\nexample");
+  let size = data.length;
+  invoke.mockImplementation(async (command, args) => {
+    if (command === "local_files_stat") return { size, modifiedMs: 10 };
+    if (command === "local_files_read_asset")
+      return data.slice(args.offset, args.offset + args.length).buffer;
+    throw new Error(command);
+  });
+  const create = vi
+    .spyOn(URL, "createObjectURL")
+    .mockReturnValue("blob:pdf-preview");
+  await expect(
+    localFileService.readPdfPreview("root", "book.pdf"),
+  ).resolves.toBe("blob:pdf-preview");
+  const blob = create.mock.calls.at(-1)![0] as Blob;
+  expect(blob.type).toBe("application/pdf");
+  expect(new Uint8Array(await blob.arrayBuffer())).toEqual(data);
+  size = 33 * 1024 * 1024;
+  await expect(
+    localFileService.readPdfPreview("root", "large.pdf"),
+  ).rejects.toThrow("32 MiB");
+  await expect(
+    localFileService.readPdfPreview("root", "bad.exe"),
+  ).rejects.toThrow("不是 PDF");
+});
+
+it("PDF preflight does not adopt a replacement authorization lifetime", async () => {
+  activate();
+  vi.spyOn(localFileService, "stat").mockImplementationOnce(async () => {
+    localFileService.release();
+    return { size: 10, modifiedMs: 1 };
+  });
+  await expect(
+    localFileService.readPdfPreview("root", "book.pdf"),
+  ).rejects.toThrow("授权已变化");
+  expect(invoke).not.toHaveBeenCalled();
+});

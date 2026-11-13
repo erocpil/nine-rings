@@ -149,7 +149,7 @@ it("tool definitions validate names, command/argument limits and safe imported i
     ),
   ).toThrow("配置过大");
 });
-it("full-view navigation follows sorted text/image siblings, skips directories/binaries and never wraps", () => {
+it("full-view navigation follows sorted text/image/PDF siblings, skips directories/binaries and never wraps", () => {
   const nodes = ["a.c", "folder", "b.pdf", "c.png", "d.md", "large.txt"].map(
     (name, at) => ({
       id: name,
@@ -158,9 +158,9 @@ it("full-view navigation follows sorted text/image siblings, skips directories/b
       size: at === 5 ? 5 * 1024 * 1024 : 20,
     }),
   );
-  expect(nextWorkbenchPreview(nodes, "a.c", 1)?.id).toBe("c.png");
+  expect(nextWorkbenchPreview(nodes, "a.c", 1)?.id).toBe("b.pdf");
   expect(nextWorkbenchPreview(nodes, "c.png", 1)?.id).toBe("d.md");
-  expect(nextWorkbenchPreview(nodes, "c.png", -1)?.id).toBe("a.c");
+  expect(nextWorkbenchPreview(nodes, "c.png", -1)?.id).toBe("b.pdf");
   expect(nextWorkbenchPreview(nodes, "d.md", 1)).toBeUndefined();
   expect(nextWorkbenchPreview(nodes, "a.c", -1)).toBeUndefined();
   expect(nextWorkbenchPreview(nodes, "missing", 1)).toBeUndefined();

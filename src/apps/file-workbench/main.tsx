@@ -79,7 +79,7 @@ function Workbench() {
   nativeError = cause => setNativeNotice(`桌面窗口操作失败：${String(cause)}`);
   nativeClose = confirm => {
     try { host.operations.assertIdle(); } catch (cause) { setNativeNotice(String(cause)); return; }
-    if (file && !/\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif)$/i.test(file.node.name)) {
+    if (file && !/\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif|pdf)$/i.test(file.node.name)) {
       if (closeSource.current) closeSource.current(confirm);
       else setNativeNotice("文件工作区正在加载，请稍后再关闭窗口。");
     } else confirm();
@@ -92,7 +92,7 @@ function Workbench() {
     return true;
   };
   const previous = Boolean(file?.siblings && nextWorkbenchPreview(file.siblings, file.node.id, -1)), next = Boolean(file?.siblings && nextWorkbenchPreview(file.siblings, file.node.id, 1));
-  const image = file && /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif)$/i.test(file.node.name);
+  const image = file && /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif|pdf)$/i.test(file.node.name);
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<LocalFileDraft[]>([]), [draftsOpen, setDraftsOpen] = useState(false), [draftError, setDraftError] = useState("");
   useEffect(() => {

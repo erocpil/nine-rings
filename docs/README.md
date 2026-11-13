@@ -10,7 +10,7 @@
 | [同步与备份](sync/) | [手动同步指南](./sync/incremental-sync.md)、[人工验收](./sync/sync-manual-validation.md)、[发布恢复](./sync/sync-publication-recovery.md) |
 | [开发与平台](development/) | [本地工具链](./development/local-toolchain.md)、[Tauri 构建](./development/TAURI_BUILD.md)、[Flutter 构建](./development/FLUTTER_BUILD.md)、[经验总结](./development/lessons-learned.md) |
 | [验证记录](validation/) | [E2E 策略](./validation/e2e-suite-policy.md)、[测试审查](./validation/test-suite-audit-2026-11-04.md)、[回归进度](./validation/e2e-repair-progress.md) |
-| [计划](planning/) | [工程计划](./planning/engineering-improvement-plan.md)、[编辑器后续](./planning/editor-followups-2026-09-17.md)、[架构审查候选](./planning/architecture-analysis.md)；插件与同步的当前交付状态另见[总待办](./plugins/plugin-readiness-todo.md) |
+| [计划](planning/) | [工程计划](./planning/engineering-improvement-plan.md)、[File Workbench 待办](./planning/file-workbench-followups.md)、[编辑器后续](./planning/editor-followups-2026-09-17.md)、[架构审查候选](./planning/architecture-analysis.md)；插件与同步的当前交付状态另见[总待办](./plugins/plugin-readiness-todo.md) |
 | [决策](decisions/) | 架构决策记录，保留背景、备选方案与约束 |
 | [示例](examples/) | 可直接使用的配置示例 |
 | [未来方向](future-evolution/) | 尚未承诺实现的研究与产品演进 |

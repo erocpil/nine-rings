@@ -1,6 +1,7 @@
 import type { FileNode, FilePage, LocalFileDigest, LocalFileFingerprint, LocalFileDetails, LocalFileSnapshot } from "./file-model";
 import type { LocalFileListOptions } from "./tree";
 
+export interface BrowserPreview { kind: "text" | "image" | "pdf"; value: string; truncated: boolean }
 export interface BrowserTextLocation { from: number; to: number; revision: string }
 export interface BrowserFileOpen { rootId: string; rootName: string; node: FileNode; location?: BrowserTextLocation; siblings?: readonly FileNode[] }
 
@@ -12,6 +13,7 @@ export interface BrowserDirectoryHost {
     list(rootId: string, node: string, offset: number, options: LocalFileListOptions): Promise<FilePage>;
     stat(rootId: string, node: string): Promise<LocalFileFingerprint>;
     readSnapshot(rootId: string, node: string): Promise<LocalFileSnapshot>;
+    readPdfPreview?(rootId: string, node: string, signal?: AbortSignal): Promise<string>;
     readImagePreview?(rootId: string, node: string, signal?: AbortSignal): Promise<string>;
     readImageAsset(rootId: string, node: string, signal?: AbortSignal): Promise<string>;
     fileProperties?(rootId: string, node: string): Promise<LocalFileDetails>;
@@ -26,7 +28,7 @@ export interface BrowserDirectoryHost {
 export interface BrowserDirectoryProvider {
   digestByteLimit(): number;
   contentDigest(rootId: string, node: string, signal: AbortSignal, binary?: boolean): Promise<LocalFileDigest>;
-  preview(rootId: string, node: string, signal: AbortSignal): Promise<{ kind: "text" | "image"; value: string; truncated: boolean }>;
+  preview(rootId: string, node: string, signal: AbortSignal): Promise<BrowserPreview>;
   page(rootId: string, node: string, offset: number, options: LocalFileListOptions, signal: AbortSignal): Promise<FilePage>;
   details?(rootId: string, node: string, signal: AbortSignal): Promise<LocalFileDetails>;
   properties(rootId: string, node: string, signal: AbortSignal): Promise<LocalFileFingerprint>;

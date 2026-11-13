@@ -203,3 +203,18 @@
   .file-browser-quick-preview pre { scrollbar-width: auto; }
   .file-browser-quick-preview pre::-webkit-scrollbar { height: 4px; width: 4px; }
 }
+.file-browser-pdf-preview, .file-browser-markdown-preview { flex: 1; min-height: 0; overflow: hidden; }
+.file-browser-pdf-preview { display: flex; flex-direction: column; }
+.file-browser-pdf-scroll { flex: 1; min-height: 0; overflow: auto; padding: 12px; background: var(--bg-secondary); }
+.file-browser-pdf-page { position: relative; margin-inline: auto; background: white; }
+.file-browser-pdf-page canvas { display: block; }
+.file-browser-preview-zoom input { width: 4em; }
+.file-browser-markdown-preview .markdown-split-source { display: none; }
+.file-browser-markdown-preview .markdown-preview-pane { width: 100%; border: 0; }
+.file-browser-markdown-preview .markdown-split-preview { height: 100%; }
+.file-browser-markdown-preview .markdown-preview-scroll { padding: 8px 12px; }
+.file-browser-pdf-scroll { scrollbar-width: thin; }
+@supports selector(::-webkit-scrollbar) {
+  .file-browser-pdf-scroll { scrollbar-width: auto; }
+  .file-browser-pdf-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
+}

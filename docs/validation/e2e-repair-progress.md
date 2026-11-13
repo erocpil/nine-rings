@@ -1,5 +1,16 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-13：File Workbench 扩展预览
+
+待办记录在 `docs/planning/file-workbench-followups.md`，第一批新增 PDF 与 Markdown，后续文件操作进度、快捷键、目录大小等保持未完成。共享预览提供者新增可选 PDF 端口和返回类型，复用授权分段读取与取消检查；Rust 仅扩展资产白名单和32MiB PDF预算，IPC签名不变。PDF逐页画布／文本层在关闭或切换时取消，文档Worker销毁，Blob由预览所有者释放。Markdown复用只读块渲染与原SourceView保存／草稿边界，禁用数据库图片解析及直接本地链接跳转。
+
+影响分析 SAFE（已验证范围）：检查两个宿主及预览接口调用方、连续预览与原生关闭分类、源编辑会话和图片上下文；默认上下文保留原数据库图片行为。单元测试覆盖PDF二进制读取、预算、迟到结果释放及预检生命周期失效；Rust覆盖PDF白名单、大小及越界路径。完整 `npm run check` 通过：244个Vitest文件／2642项及独立脚本、类型、lint、格式、Schema和IPC；共享原生文件服务30项通过，native workspace Clippy通过。
+
+工作台完整 Chromium／WebKit 各36项通过。新增用例使用真实两页PDF验证解码、文本层、翻页、缩放、损坏PDF回退，验证Markdown快速及全视图渲染／原文切换与链接／数据库隔离。旧连续预览用例初次因Markdown默认进入渲染而失败，更新为检查渲染标题，保留编辑、离开确认和Blob释放断言；完整重跑通过。之后补充渲染焦点以保留左右键连续切换，Chromium针对性2项通过；最终生产包WebKit2项通过。开发时PDF.js动态worker fallback有Vite分析提示，生产构建没有该警告；两产品生产构建通过，工作台JS块均低于500kB，不放宽阈值。真实Tauri安装版GUI／密码PDF／PDF全文查找未验收。
+
+证据：`/tmp/nr-expanded-preview-{check,chromium,webkit,final-chromium,production,rust,clippy,main-build,build}.log`。开发回归期间一次主产品构建触发Vite对dist HTML的重载，WebKit该轮仍36项通过；最终生产验证在构建结束后独立运行。
+
+
 ## 2026-11-13：完整 E2E 的手机块号边界断言
 
 后续核对：远端 `0b57f0ae` 的 E2E Native Platforms（43362676171）已通过，三个 Tauri 构建和通用 CI 也通过；完整 Test（43362676090）检查时仍在运行。先前 `84369cf6` 的完整 Test（43358317245）最终为2失败、1间歇、1592通过，不能视作全绿。

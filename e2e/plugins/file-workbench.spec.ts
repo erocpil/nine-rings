@@ -179,7 +179,9 @@ test("双击预览左右键跨文本与图片，只读可切换，编辑方向�
     await expect(picture).toBeVisible();
     const imageUrl = await picture.getAttribute("src");
     expect(imageUrl).toMatch(/^blob:/);
-    await page.keyboard.press("ArrowRight"); await expect(text.locator(".cm-content")).toContainText("Last");
+    await page.keyboard.press("ArrowRight"); await expect(text.getByRole("heading", { name: "Last", exact: true })).toBeVisible();
+    await page.keyboard.press("ArrowLeft"); await expect(picture).toBeVisible();
+    await page.keyboard.press("ArrowRight"); await expect(text.getByRole("heading", { name: "Last", exact: true })).toBeVisible();
     await expect.poll(() => page.evaluate(() => (window as any).__releasedPreviewUrls)).toContain(imageUrl);
     await expect(text.getByRole("button", { name: "下一文件", exact: true })).toBeDisabled();
     await text.getByRole("button", { name: "允许编辑", exact: true }).click();
@@ -1553,4 +1555,53 @@ test("活动列表选中背景更明显，非活动侧保留淡色选择并随�
     await expect(leftRow).toHaveAttribute("aria-selected", "true");
     await expect(rightRow).toHaveAttribute("aria-selected", "true");
   }
+});
+
+test("扩展预览支持 PDF 翻页缩放和 Markdown 渲染原文切换", async ({ page }) => {
+  const { PDFDocument, StandardFonts } = await import("pdf-lib");
+  const pdf = await PDFDocument.create(); const font = await pdf.embedFont(StandardFonts.Helvetica);
+  for (const text of ["First PDF page", "Second PDF page"]) pdf.addPage([400, 300]).drawText(text, { x: 30, y: 230, size: 18, font });
+  const folder = await mkdtemp(join(tmpdir(), "nr-preview-formats-"));
+  try {
+    await writeFile(join(folder, "sample.pdf"), await pdf.save());
+    await writeFile(join(folder, "sample.md"), "# Rendered heading\n\n**bold content**\n\n- first item\n- second item\n\n[Local link](other.md)\n\n![private](nr-image://private)\n");
+    await writeFile(join(folder, "broken.pdf"), "%PDF-invalid");
+    await page.goto("/file-workbench.html");
+    await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(folder);
+    const left = page.getByRole("region", { name: "左侧目录", exact: true });
+    await left.getByRole("option", { name: /^sample.pdf/ }).click();
+    await page.getByRole("button", { name: "快速预览", exact: true }).click();
+    const preview = page.getByRole("region", { name: "快速预览", exact: true });
+    await expect(preview.locator(".textLayer")).toContainText("First PDF page");
+    await preview.getByRole("button", { name: "PDF 下一页", exact: true }).click();
+    await expect(preview.locator(".textLayer")).toContainText("Second PDF page");
+    await expect(preview.getByRole("spinbutton", { name: "PDF 页码" })).toHaveValue("2");
+    await preview.getByRole("combobox", { name: "PDF 缩放" }).selectOption("2");
+    await expect(preview.locator(".textLayer")).toContainText("Second PDF page");
+    await preview.getByRole("button", { name: "关闭快速预览", exact: true }).click();
+    await left.getByRole("option", { name: /^sample.md/ }).click();
+    await page.getByRole("button", { name: "快速预览", exact: true }).click();
+    await expect(preview.getByRole("heading", { name: "Rendered heading" })).toBeVisible();
+    await expect(preview.locator("strong").filter({ hasText: "bold content" })).toBeVisible();
+    await preview.getByRole("link", { name: "Local link", exact: true }).click();
+    await expect(page).toHaveURL(/file-workbench\.html$/);
+    await expect(preview.getByRole("status")).toContainText("预览不会跳离当前文件");
+    expect((await page.evaluate(() => indexedDB.databases())).map(db => db.name)).not.toContain("nine_rings");
+    await preview.getByRole("button", { name: "Markdown 渲染预览", exact: true }).click();
+    await expect(preview.getByLabel("预览文本", { exact: true })).toContainText("**bold content**");
+    await preview.getByRole("button", { name: "关闭快速预览", exact: true }).click();
+    await left.getByRole("option", { name: /^sample.md/ }).dblclick();
+    await expect(page.getByRole("heading", { name: "Rendered heading" })).toBeVisible();
+    await page.getByRole("button", { name: "Markdown 渲染预览", exact: true }).click();
+    await expect(page.locator(".cm-content")).toContainText("**bold content**");
+    await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
+    // Full-view PDF follows the same shared renderer, and unsupported PDFs remain closable.
+    await left.getByRole("option", { name: /^sample.pdf/ }).dblclick();
+    await expect(preview.locator(".textLayer")).toContainText("First PDF page");
+    await preview.getByRole("button", { name: "返回文件浏览", exact: true }).click();
+    await left.getByRole("option", { name: /^broken.pdf/ }).dblclick();
+    await expect(preview.getByRole("status")).toContainText("无法预览此 PDF");
+    await preview.getByRole("button", { name: "返回文件浏览", exact: true }).click();
+    await expect(left).toBeVisible();
+  } finally { await rm(folder, { recursive: true, force: true }); }
 });

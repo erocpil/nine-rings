@@ -149,3 +149,13 @@ File Workbench 的 PNG/ICO/ICNS 与网页 favicon 独立存放在 native/file-wo
 共享文件列表沿用 `FileBrowserPane.is-active` 判断活动目录区域；鼠标按下或键盘聚焦通过已有 `onActivate` 更新，保留各侧独立选择。活动侧选中背景沿用14%主题强调色，非活动侧减至6%，不修改文本颜色与选中文件集合。多行目录区域同样按活动区域区分，不仅按左右侧区分。该 CSS 由 Nine Rings 插件及独立工作台共同使用，不新增状态或持久化字段。
 
 影响分析 SAFE（已验证范围）：检查共享 Pane 的活动区域传参与鼠标／焦点激活入口，只增加非活动选择的 CSS 规则，不改变选择、操作来源或目标。Chromium／WebKit 各1项通过，覆盖柔和浅色、柔和深色、清雅和物哀，比较两侧实际背景透明度并确认焦点交换后选择不丢失。独立工作台生产构建通过。测试首次因右栏未选目录而超时，修正为通过目录选择器显式打开相同目录后通过。
+
+### PDF与Markdown扩展预览（2026-11-13）
+
+不装配依赖数据库的PdfReader，使用同一PDF.js引擎／Worker／CMap及独立逐页投影。目录提供者通过可选readPdfPreview端口返回pdf类型Blob URL；不支持新端口的宿主明确回退，旧文本／图片接口不变。读取底层与图片共用私有授权分段函数，原生read_asset_range仅新增pdf白名单及32MiB限制，IPC字段不变。对象URL在关闭、切换、撤权或取消时释放；文档任务在卸载时销毁，页面渲染及文本层同时取消。
+
+Markdown使用已有SourceNavigationDocument、MarkdownSplitPreview及只读块渲染，不注入原始HTML、不复制解析规则。独立主视图沿用SourceView的正文／草稿所有权；渲染只是当前source的派生视图，进入编辑切回源码；只读渲染自动取得可滚动正文焦点以延续左右键浏览。DocumentImageLibraryContext默认允许既有数据库图片，仅独立文件预览关闭该能力；相对链接不自行跳转，避免绕过来源授权及未保存离开确认。当前限制详见[待办与交付](../planning/file-workbench-followups.md)。
+
+PDF、Markdown、数学及图表依赖保持懒加载；工作台复用CMap资产插件并拆分Markdown／文档运行时及图表工具依赖，最终工作台构建各JS块小于500kB，未放宽警告阈值。独立构建的数据库入口导入检查继续通过。
+
+影响分析SAFE（已验证范围）：检查两个BrowserDirectoryProvider宿主、全部preview返回值／URL释放消费者、工作台关闭与连续预览判定、共享图片授权上下文及Rust读取白名单。新增端口可选、返回类型新增pdf；TypeScript／IPC检查、文件服务及宿主契约测试通过。没有修改文件保存格式、数据库模式或队列执行协议；真实安装版GUI尚未验收。

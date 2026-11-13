@@ -1396,16 +1396,20 @@ fn read_asset_range(
             | "tiff"
             | "heic"
             | "heif"
+            | "pdf"
     ) {
-        return Err("仅允许预览常见图片文件".into());
+        return Err("仅允许预览常见图片或 PDF 文件".into());
     }
     let mut file = fs::File::open(path).map_err(|error| error.to_string())?;
     let meta = file.metadata().map_err(|error| error.to_string())?;
     if !meta.is_file() {
-        return Err("不是普通图片文件".into());
+        return Err("不是普通预览文件".into());
+    }
+    if extension == "pdf" && meta.len() > 32 * 1024 * 1024 {
+        return Err("PDF 快速预览最多 32 MiB".into());
     }
     if length.is_some_and(|length| length == 0 || length > 1024 * 1024) {
-        return Err("图片读取分段无效".into());
+        return Err("预览读取分段无效".into());
     }
     file.seek(SeekFrom::Start(offset))
         .map_err(|e| e.to_string())?;
@@ -2206,6 +2210,18 @@ mod preview_properties_tests {
         );
         assert!(read_asset_range(&root, "large.png", 0, Some(2 * 1024 * 1024)).is_err());
         assert!(read_asset_range(&root, "../large.png", 0, Some(3)).is_err());
+        fs::write(root.join("document.pdf"), b"%PDF-test").unwrap();
+        assert_eq!(
+            read_asset_range(&root, "document.pdf", 0, Some(5)).unwrap(),
+            b"%PDF-"
+        );
+        fs::File::create(root.join("large.pdf"))
+            .unwrap()
+            .set_len(33 * 1024 * 1024)
+            .unwrap();
+        assert!(read_asset_range(&root, "large.pdf", 0, Some(3)).is_err());
+        fs::write(root.join("blocked.bin"), b"not a preview").unwrap();
+        assert!(read_asset_range(&root, "blocked.bin", 0, Some(3)).is_err());
         let (_, details) = file_properties(&root, "large.png").unwrap();
         assert_eq!(details["size"], size);
         assert_eq!(details["directory"], false);

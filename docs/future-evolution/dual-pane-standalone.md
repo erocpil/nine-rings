@@ -243,3 +243,7 @@ bash scripts/with-local-tools.sh npm run tauri:workbench -- build \
 目录标签横向滚动条高度4px，轨道透明、滑块使用主题边框色；禁用标签条纵向溢出。支持webkit滚动条的平台以明确像素高度为准，其它平台保留thin；滚轮与触控板横向滚动不变。
 
 工具执行弹层在打开期间以捕获阶段处理Esc，仅最上层可见模态可关闭，并跳过输入法组合；不依赖WebKit是否在按钮禁用后保留焦点。关闭仍不结束进程，菜单和其他弹层不被一起关闭。路径提示回归按滚动停止后的实时指针命中验证，不把惯性滚动中间的条目当作最终值。
+
+## 后续产品优化待办
+
+按批次推进的清单及当前预览限制见[File Workbench 待办](../planning/file-workbench-followups.md)。

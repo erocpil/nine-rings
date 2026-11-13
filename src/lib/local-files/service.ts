@@ -557,6 +557,14 @@ export const localFileService = {
       throw error;
     }
   },
+  async readPdfPreview(rootId: string, node: string, signal?: AbortSignal): Promise<string> {
+    const valid = guard(); signal?.throwIfAborted();
+    if (!/\.pdf$/i.test(node)) throw new Error("不是 PDF 文件");
+    const before = await this.stat(rootId, node);
+    valid(); signal?.throwIfAborted();
+    if (before.size > 32 * 1024 * 1024) throw new Error("PDF 快速预览最多 32 MiB，请使用系统应用打开");
+    return readPreviewAsset(rootId, node, "application/pdf", signal, true);
+  },
   async readImagePreview(rootId: string, node: string, signal?: AbortSignal): Promise<string> {
     return this.readImageAsset(rootId, node, signal, true);
   },
@@ -565,50 +573,60 @@ export const localFileService = {
     const extension = node.split(".").pop()?.toLowerCase();
     const mime = ({ png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", avif: "image/avif", bmp: "image/bmp", ico: "image/x-icon", tif: "image/tiff", tiff: "image/tiff", heic: "image/heic", heif: "image/heif" } as Record<string, string>)[extension ?? ""];
     if (!mime) throw new Error("不支持的图片格式");
-    const encoded: string[] = [];
-    const parts: ArrayBuffer[] = [];
-    const append = async (bytes: Uint8Array) => {
-      check();
-      if (objectUrl) { parts.push(bytes.slice().buffer); await new Promise<void>(resolve => setTimeout(resolve, 0)); check(); return; }
-      // Segment sizes are multiples of three: only the final segment may have Base64 padding.
-      for (let offset = 0; offset < bytes.length; offset += 98304) {
-        const chunk = bytes.subarray(offset, offset + 98304);
-        let binary = "";
-        for (let at = 0; at < chunk.length; at += 0x8000) binary += String.fromCharCode(...chunk.subarray(at, at + 0x8000));
-        encoded.push(btoa(binary));
-      }
-      await new Promise<void>(resolve => setTimeout(resolve, 0)); check();
-    };
-    if (isTauriRuntime()) {
-      const before = await this.stat(rootId, node); check();
-      for (let offset = 0; offset < before.size;) {
-        check(); const length = Math.min(786432, before.size - offset);
-        const result = await native<ArrayBuffer | number[]>("local_files_read_asset", { rootId, node, offset, length });
-        check(); const chunk = result instanceof ArrayBuffer ? new Uint8Array(result) : new Uint8Array(result);
-        if (chunk.length !== length) throw new Error("图片读取期间文件已变化");
-        await append(chunk); offset += chunk.length;
-      }
-      const after = await this.stat(rootId, node); check();
-      if (before.size !== after.size || before.modifiedMs !== after.modifiedMs) throw new Error("图片读取期间文件已变化");
-    } else {
-      const entry = roots.get(rootId); if (!entry) throw new Error("目录授权已失效");
-      let file = entry.files?.get(node);
-      if (entry.handle) {
-        let dir = entry.handle; const parts = fileSegments(node);
-        for (const part of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(part);
-        file = await (await dir.getFileHandle(parts[parts.length - 1]!)).getFile();
-      }
-      if (!file) throw new Error("图片不可访问");
-      for (let offset = 0; offset < file.size; offset += 786432) {
-        check(); const chunk = new Uint8Array(await file.slice(offset, offset + 786432).arrayBuffer()); check(); await append(chunk);
-      }
-    }
-    check();
-    return objectUrl ? URL.createObjectURL(new Blob(parts, { type: mime })) : `data:${mime};base64,${encoded.join("")}`;
+    return readPreviewAsset(rootId, node, mime, signal, objectUrl);
   },
+
 
   release() {
     generation++;
     roots.clear();
   },
 };
+
+
+/** Shared authorized binary loader; only typed image/PDF entry points expose it. */
+async function readPreviewAsset(rootId: string, node: string, mime: string, signal?: AbortSignal, objectUrl = true): Promise<string> {
+  const valid = guard(); const check = () => { signal?.throwIfAborted(); valid(); }; check(); fileSegments(node);
+  const encoded: string[] = [];
+  const parts: ArrayBuffer[] = [];
+  const append = async (bytes: Uint8Array) => {
+    check();
+    if (objectUrl) { parts.push(bytes.slice().buffer); await new Promise<void>(resolve => setTimeout(resolve, 0)); check(); return; }
+    // Segment sizes are multiples of three: only the final segment may have Base64 padding.
+    for (let offset = 0; offset < bytes.length; offset += 98304) {
+      const chunk = bytes.subarray(offset, offset + 98304);
+      let binary = "";
+      for (let at = 0; at < chunk.length; at += 0x8000) binary += String.fromCharCode(...chunk.subarray(at, at + 0x8000));
+      encoded.push(btoa(binary));
+    }
+    await new Promise<void>(resolve => setTimeout(resolve, 0)); check();
+  };
+  if (isTauriRuntime()) {
+    const before = await localFileService.stat(rootId, node); check();
+    if (mime === "application/pdf" && before.size > 32 * 1024 * 1024) throw new Error("PDF 快速预览最多 32 MiB");
+    for (let offset = 0; offset < before.size;) {
+      check(); const length = Math.min(786432, before.size - offset);
+      const result = await native<ArrayBuffer | number[]>("local_files_read_asset", { rootId, node, offset, length });
+      check(); const chunk = result instanceof ArrayBuffer ? new Uint8Array(result) : new Uint8Array(result);
+      if (chunk.length !== length) throw new Error("预览读取期间文件已变化");
+      await append(chunk); offset += chunk.length;
+    }
+    const after = await localFileService.stat(rootId, node); check();
+    if (before.size !== after.size || before.modifiedMs !== after.modifiedMs) throw new Error("预览读取期间文件已变化");
+  } else {
+    const entry = roots.get(rootId); if (!entry) throw new Error("目录授权已失效");
+    let file = entry.files?.get(node);
+    if (entry.handle) {
+      let dir = entry.handle; const parts = fileSegments(node);
+      for (const part of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(part);
+      file = await (await dir.getFileHandle(parts[parts.length - 1]!)).getFile();
+    }
+    if (!file) throw new Error("预览文件不可访问");
+    if (mime === "application/pdf" && file.size > 32 * 1024 * 1024) throw new Error("PDF 快速预览最多 32 MiB");
+    for (let offset = 0; offset < file.size; offset += 786432) {
+      check(); const chunk = new Uint8Array(await file.slice(offset, offset + 786432).arrayBuffer()); check(); await append(chunk);
+    }
+  }
+  check();
+  return objectUrl ? URL.createObjectURL(new Blob(parts, { type: mime })) : `data:${mime};base64,${encoded.join("")}`;
+}
