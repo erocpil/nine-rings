@@ -1400,7 +1400,10 @@ test("工具单击无参数直接启动，右键传文件并支持复制排列�
   await expect(dialog).toContainText('"--new-window" "/source/a.txt" "/source/b.txt"');
   expect(await page.evaluate(() => (window as any).__toolDrop.runs.length)).toBe(2);
   await dialog.getByRole("button", { name: "执行", exact: true }).click();
-  await expect(dialog).toContainText("PID 123"); await page.keyboard.press("Escape");
+  await expect(dialog).toContainText("PID 123");
+  await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
   await tool.click({ button: "right" });
   await page.getByRole("menuitem", { name: "复制工具", exact: true }).click();
   const copy = page.getByRole("button", { name: "外部编辑 副本", exact: true });
@@ -1489,9 +1492,12 @@ test("路径提示滚动时隐藏，停止后按光标下的新条目恢复并�
     await expect(hint).toHaveCount(0);
   }
   await expect.poll(() => left.getByRole("listbox").evaluate(element => element.scrollTop)).toBeGreaterThan(0);
-  const currentPath = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-tooltip-path]")?.dataset.tooltipPath, { x, y });
-  expect(currentPath).not.toBe(old);
-  await expect(hint).toHaveText(currentPath!);
+  // Wheel momentum can continue after scrollTop first changes; compare against the
+  // live hit target when the idle hint appears, not a mid-scroll snapshot.
+  await expect.poll(() => page.evaluate(({ x, y, old }) => {
+    const current = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-tooltip-path]")?.dataset.tooltipPath;
+    return Boolean(current && current !== old && document.querySelector(".quick-tooltip-path")?.textContent === current);
+  }, { x, y, old })).toBe(true);
   await page.mouse.move(1, 1);
   await expect(hint).toHaveCount(0);
 });

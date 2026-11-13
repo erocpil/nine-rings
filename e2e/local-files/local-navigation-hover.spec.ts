@@ -68,15 +68,24 @@ for (const mode of ["compact", "document"] as const) {
   }
 }
 
-test("手机磁盘导航保留点击操作，不因悬停或触摸预先弹出", async ({ page }) => {
+test("手机磁盘导航保留边缘手势操作，不因悬停或触摸预先弹出", async ({ page }) => {
   await createBlankDocument(page);
   const { workspace } = await openWritableLocalDirectory(page, { "touch.md": "# Heading\n\ntext\n" }, "touch.md");
   await page.setViewportSize({ width: 390, height: 844 });
-  const trigger = workspace.locator('[data-document-panel-trigger="outline"]');
-  await trigger.hover();
-  await trigger.dispatchEvent("pointerenter", { pointerType: "touch" });
+  await expect(workspace.locator('[data-document-panel-trigger="outline"]')).toHaveCount(0);
+  await workspace.hover();
+  await workspace.dispatchEvent("pointerenter", { pointerType: "touch" });
   await page.waitForTimeout(250);
   await expect(workspace.locator("[data-document-preview]")).toHaveCount(0);
-  await trigger.click();
-  await expect(workspace.locator('.document-panel-dock [data-panel="outline"]')).toBeVisible();
+  await page.locator(".app").evaluate(element => {
+    const y = innerHeight * .25;
+    for (const [type, x] of [["touchstart", innerWidth - 2], ["touchmove", innerWidth - 220], ["touchend", innerWidth - 220]] as const) {
+      const touch = { identifier: 1, clientX: x, clientY: y };
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, { touches: { value: type === "touchend" ? [] : [touch] }, changedTouches: { value: [touch] } });
+      element.dispatchEvent(event);
+    }
+  });
+  await expect(page.getByRole("dialog", { name: "阅读侧栏", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "本地文件目录", exact: true })).toBeVisible();
 });

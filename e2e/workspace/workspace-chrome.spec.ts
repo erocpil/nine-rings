@@ -1,3 +1,4 @@
+import { revealDesktopActivityBar } from "../helpers/workspace";
 import { expect, test } from "@playwright/test";
 
 test("独立搜索不卸载正文、不退出专注模式，关闭后恢复焦点", async ({ page }, testInfo) => {
@@ -10,6 +11,7 @@ test("独立搜索不卸载正文、不退出专注模式，关闭后恢复焦�
   await editor.evaluate(el => { (el as HTMLElement).dataset.testIdentity = "original-editor"; });
   await page.getByRole("button", { name: "专注模式", exact: true }).click();
   const trigger = page.locator(".desktop-activity-bar").getByRole("button", { name: "全局搜索" });
+  await revealDesktopActivityBar(page);
   await trigger.click();
   const dialog = page.getByRole("dialog", { name: "全局搜索", exact: true });
   await expect(dialog.getByRole("textbox", { name: "全局搜索" })).toBeFocused();
@@ -20,6 +22,7 @@ test("独立搜索不卸载正文、不退出专注模式，关闭后恢复焦�
   await page.screenshot({ path: testInfo.outputPath("workspace-search.png") });
   await dialog.getByRole("button", { name: "关闭全局搜索" }).click();
   await expect(trigger).toBeFocused();
+  await revealDesktopActivityBar(page);
   await trigger.click();
   await dialog.getByRole("textbox", { name: "全局搜索" }).fill("workspace-search-token");
   await dialog.locator(".search-hit").click();

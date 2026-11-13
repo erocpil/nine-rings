@@ -13,6 +13,17 @@ export function useToolExecution(beforeRun: () => void) {
     // Disabling Execute can move Chromium focus to body. Keep Escape routed to this dialog.
     if (open && phase && panel.current && !panel.current.closest(".workspace-dialog")?.contains(document.activeElement)) panel.current.focus({ preventScroll: true });
   }, [open, phase]);
+  useEffect(() => {
+    if (!open) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
+      const dialogs = [...document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"],dialog[open]')].filter(element => element.getClientRects().length);
+      if (dialogs[dialogs.length - 1] !== panel.current?.closest(".workspace-dialog")) return;
+      event.preventDefault(); event.stopPropagation(); setOpen(false);
+    };
+    document.addEventListener("keydown", escape, true);
+    return () => document.removeEventListener("keydown", escape, true);
+  }, [open]);
   const current = useRef(session); current.current = session;
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);

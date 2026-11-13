@@ -3,6 +3,23 @@
 
 
 
+## 2026-11-13：远端完整E2E与原生Clippy修复
+
+检查远端882f50ee的Test运行43331109379与43187750278，未把本地更新的bdf5cc69视作远端已部署。最新默认E2E共8失败、1间歇、1577通过；工作台WebKit2失败、31通过，读取工作区/风险门禁/生产PWA通过。前一次Rust作业另有file-host items_after_test_module错误。
+
+逐项修复：
+- 本地手机导航旧用例寻找仅桌面存在的trigger，改为确认无桌面按钮并使用当前右侧上半屏手势打开阅读侧栏，保留鼠标/触屏不自动预览断言。
+- 专注模式活动栏已按产品要求隐藏，旧图片、搜索、会话恢复用例直接点击被正文覆盖的按钮。新增revealDesktopActivityBar测试助手，通过真实品牌悬停唤出，随后使用原按钮固定；图片固定面板断言也先显式打开。不使用force点击，不修改产品隐藏行为。目录助手在专注模式走同一路径。工具尺寸比较量化到0.01px，消除32与32.000007的浮点差异，保留尺寸/位置/数量要求。
+- 标题栏测试同时存在应用及测试实例，关闭按钮定位收窄到titlebar-test-host，保留悬停提示几何断言。
+- 工具执行按钮禁用后WebKit可在布局阶段修复焦点之后再次失焦；局部捕获Esc处理仅最高可见模态并尊重IME，关闭不终止任务。回归显式blur后按Esc，保留真实交互。
+- 路径提示测试原来在wheel动量结束前固定item007，而实际结束后为item009。改为等待实时elementFromPoint命中与提示一致，不改产品240/260/120ms时序。
+- 随记菜单产物trace显示打开后消失；本地原用例10次通过，但补加后台编辑器scroll后稳定失败，说明共享NotesContextMenu把无关保留编辑器滚动也当作离开。仅来源祖先/视窗滚动关闭，内部菜单及无关窗格不关闭；补验无关滚动后保留、来源滚动后关闭、Esc、移动及改名。调用方含随记、本地树、目录标签、历史/常用目录与目录行数菜单，pointerdown/resize行为不变。
+- file-host把生产properties函数移到测试模块前，去掉macOS/Windows分支末尾的冗余return；参数、安全边界和行为不变。
+
+本地初轮9项中8通过/1浮点尺寸比较失败；修复后Chromium9项全部通过（22.8s），WebKit9项全部通过（26.1s）。工作台原两项WebKit重复3次共6通过（12.8s），最终生产包WebKit34项通过（36.8s），Chromium34项通过（35.6s）。Nine Rings与工作台生产构建通过且无chunk警告。完整check通过244文件/2639项；原生工作区Clippy --workspace --all-targets -D warnings通过，Rust工作区9+30项通过。Rust工作区测试在授权环境运行；未删除/跳过失败用例，也未改CI重试来掩盖错误。
+
+影响结论SAFE：实际产品修改限工具Esc和共享菜单scroll归属，其余为现行入口的测试适配及Rust等价整理；检查模态层级、IME、执行生命周期、NotesContextMenu全部调用方、分栏真实命中和两宿主构建。未运行本地全1586项，不宣称远端修复后已通过；仍需提交/推送后核对相同SHA。日志：/tmp/nr-ci-43331109379.log、/tmp/nr-ci-43187750278.log、/tmp/nr-ci-affected-final.log、/tmp/nr-ci-affected-webkit.log、/tmp/nr-ci-notes-scroll-before.log（补测修复前失败）、/tmp/nr-ci-notes-repeat.log、/tmp/nr-ci-workbench.log、/tmp/nr-ci-workbench-webkit-final.log、/tmp/nr-ci-workbench-chromium-final.log、/tmp/nr-ci-repair-final-check.log、/tmp/nr-ci-native-clippy.log、/tmp/nr-ci-native-tests.log、/tmp/nr-ci-repair-build.log。
+
 ## 2026-11-12：Workspace列表快捷键与目录标签滚动条
 
 三项使用窗口内Alt+1/2/3默认，可在原HotkeyConfig录制并恢复；macOS菜单使用相同配置动态设置加速键，checked来自activeSummary。只调用既有onSummary，不重写分栏快照逻辑。检查DEFAULT_HOTKEYS、IDB默认和Rust默认、global-shortcuts（未知ID不注册）、配置同步hotkeys策略、菜单注册器/服务及Rust IPC、浏览器编辑命令捕获和录制冲突处理。菜单状态新增可选accelerator，缺省兼容旧DTO；非macOS字段消费保持strict编译，原生重复更新按实际应用值去重。按键匹配共享现有清单，扩展CommandOrControl/Super别名并保留物理Digit，避免Option数字受键盘布局影响；仅三项忽略DOM自动重复。

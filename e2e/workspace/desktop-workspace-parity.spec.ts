@@ -1,3 +1,4 @@
+import { revealDesktopActivityBar } from "../helpers/workspace";
 import { expect, test } from "@playwright/test";
 
 for (const native of [false, true]) {
@@ -47,7 +48,7 @@ for (const native of [false, true]) {
     // empty baseline before its toolbar portal has mounted (notably WebKit).
     await expect(tools.first()).toBeVisible();
     const toolSizes = () => tools.evaluateAll(buttons => buttons.map(button => {
-      const rect = button.getBoundingClientRect(); return [rect.width, rect.height];
+      const rect = button.getBoundingClientRect(); return [Number(rect.width.toFixed(2)), Number(rect.height.toFixed(2))];
     }));
     // The toolbar portal can briefly unmount while startup config settles.
     // Capture the full controls, not an empty intermediate baseline.
@@ -59,6 +60,7 @@ for (const native of [false, true]) {
       expect(await toolSizes()).toEqual(ordinaryToolSizes);
       await expect(page.locator(".note-title-row")).toBeVisible();
       await expect(page.locator(".desktop-focus-toolbar")).toHaveCount(0);
+      await revealDesktopActivityBar(page);
       await rail.getByRole("button", { name: "全局搜索" }).click();
       const dialog = page.getByRole("dialog", { name: "全局搜索", exact: true });
       await expect(dialog.getByRole("textbox", { name: "全局搜索" })).toBeFocused();

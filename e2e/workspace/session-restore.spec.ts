@@ -1,4 +1,4 @@
-import { openDocumentSidebar, openMobileDocumentPopup } from "../helpers/workspace";
+import { openDocumentSidebar, openMobileDocumentPopup, revealDesktopActivityBar } from "../helpers/workspace";
 import { expect, test, type Page } from "@playwright/test";
 
 
@@ -138,6 +138,8 @@ test.describe("会话位置恢复与编辑器查找", () => {
     await expect(page.locator(".header-clock")).toBeHidden();
     await expect(page.locator(".daily-overview")).toBeHidden();
 
+    await revealDesktopActivityBar(page);
+    await page.getByRole("button", { name: "文档树", exact: true }).click();
     if (await page.locator("[data-doc-tree-toggle-all]").getAttribute("aria-pressed") !== "true") await page.locator("[data-doc-tree-toggle-all]").click();
     await page.getByTitle("折叠所有目录").click();
     const firstFolder = page.locator(".doc-tree-folder").filter({ has: page.locator("button.doc-tree-toggle") }).first();

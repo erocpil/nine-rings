@@ -1,6 +1,16 @@
 import { expect, type Page } from "@playwright/test";
 import { openMobileReadingLibrary } from "./mobile-reading";
 
+/** Focus mode parks the rail under the editor; reveal through its real brand hit target. */
+export async function revealDesktopActivityBar(page: Page) {
+  const rail = page.getByRole("navigation", { name: "工作区面板", exact: true });
+  if (await page.locator(".app").evaluate(element => element.classList.contains("app-focus-mode"))) {
+    await page.locator(".titlebar-wordmark").hover();
+    await expect(rail).not.toHaveClass(/desktop-activity-bar-focus-hidden/);
+  }
+  return rail;
+}
+
 export async function openReadingLibrary(page: Page) {
   const library = page.getByRole("region", { name: "阅读资料库", exact: true });
   if (await library.isVisible()) return library;
@@ -25,8 +35,10 @@ export async function openDocumentSidebar(page: Page) {
   )
     return sidebar;
   const desktop = page.getByRole("button", { name: "文档树", exact: true });
-  if (await page.evaluate(() => !matchMedia("(max-width: 768px)").matches))
+  if (await page.evaluate(() => !matchMedia("(max-width: 768px)").matches)) {
+    await revealDesktopActivityBar(page);
     await desktop.click();
+  }
   else {
     // matchMedia changes before React has installed the mobile drawer handlers.
     await expect(sidebar).toHaveAttribute("role", "dialog");
@@ -64,8 +76,10 @@ export async function closeDocumentSidebar(page: Page) {
   )
     return;
   const desktop = page.getByRole("button", { name: "文档树", exact: true });
-  if (await page.evaluate(() => !matchMedia("(max-width: 768px)").matches))
+  if (await page.evaluate(() => !matchMedia("(max-width: 768px)").matches)) {
+    await revealDesktopActivityBar(page);
     await desktop.click();
+  }
   else
     await sidebar
       .getByRole("button", { name: "隐藏侧栏", exact: true })

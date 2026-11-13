@@ -1,7 +1,7 @@
 import { createPdfFixture, createEpubFixture } from "../helpers/reader-fixtures";
 import { test, expect } from "../helpers/reader-test";
 import { createBlankDocument } from "../helpers/document";
-import { closeDocumentSidebar, openDocumentSidebar } from "../helpers/workspace";
+import { closeDocumentSidebar, openDocumentSidebar, revealDesktopActivityBar } from "../helpers/workspace";
 async function enable(page: import("@playwright/test").Page) {
   await page.evaluate(async () => {
     const { setPluginsEnabled } =
@@ -679,10 +679,13 @@ test("图片树菜单复制名称路径及目录收起，键盘不会切换图�
 test("图片与文档共享专注状态，切换和返回不会重置", async ({ page }) => {
   const { viewer } = await openTwoPictures(page);
   await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  await revealDesktopActivityBar(page);
   await page.getByRole("button", { name: "文档树", exact: true }).click();
   await expect(page.locator(".note-editor:visible")).toHaveClass(/focus-mode/);
+  await revealDesktopActivityBar(page);
   await page.getByRole("button", { name: "图片", exact: true }).click();
   await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
+  await revealDesktopActivityBar(page);
   await page.getByRole("button", { name: "文档树", exact: true }).click();
   await expect(page.locator(".note-editor:visible")).not.toHaveClass(
     /focus-mode/,
@@ -690,6 +693,7 @@ test("图片与文档共享专注状态，切换和返回不会重置", async ({
   await page
     .getByTitle("专注模式", { exact: true })
     .click();
+  await revealDesktopActivityBar(page);
   await page.getByRole("button", { name: "图片", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "退出专注模式", exact: true }),
@@ -924,6 +928,8 @@ test("图片专注模式保持查看器和分栏状态，属性可浮动和固�
   const before = await viewer.boundingBox();
   await page.getByRole("button", { name: "专注模式", exact: true }).click();
   await expect(page.locator(".exhibition-masthead")).toBeHidden();
+  await revealDesktopActivityBar(page);
+  await page.getByRole("button", { name: "图片", exact: true }).click();
   await expect(panel).toBeVisible();
   await expect(page.locator(".desktop-activity-bar")).toBeVisible();
   await expect(page.locator(".sidebar-divider")).toBeVisible();

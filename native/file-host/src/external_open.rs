@@ -114,6 +114,74 @@ pub(crate) fn launch(path: &Path, application: Option<&Path>) -> Result<(), Stri
         Ok(())
     }
 }
+/// Explicit user action; arguments never become script source or a shell command.
+pub(crate) fn properties(path: &Path) -> Result<bool, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let output = Command::new("/usr/bin/osascript").args(["-e", "on run argv\ntell application \"Finder\"\nactivate\nopen information window of (POSIX file (item 1 of argv) as alias)\nend tell\nend run", "--"]).arg(path).output().map_err(|e| e.to_string())?;
+        // A denied Automation request falls back to the in-app properties card.
+        Ok(output.status.success())
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        use windows::core::PCWSTR;
+        use windows::Win32::UI::{
+            Shell::{ShellExecuteExW, SEE_MASK_INVOKEIDLIST, SHELLEXECUTEINFOW},
+            WindowsAndMessaging::SW_SHOWNORMAL,
+        };
+        let verb: Vec<u16> = "properties\0".encode_utf16().collect();
+        let mut target: Vec<u16> = path.as_os_str().encode_wide().collect();
+        if target.starts_with(&[92, 92, 63, 92, 85, 78, 67, 92]) {
+            drop(target.splice(0..8, [92, 92]));
+        } else if target.starts_with(&[92, 92, 63, 92]) {
+            drop(target.drain(0..4));
+        }
+        target.push(0);
+        let mut info = SHELLEXECUTEINFOW {
+            cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+            fMask: SEE_MASK_INVOKEIDLIST,
+            lpVerb: PCWSTR(verb.as_ptr()),
+            lpFile: PCWSTR(target.as_ptr()),
+            nShow: SW_SHOWNORMAL.0,
+            ..Default::default()
+        };
+        use windows::Win32::System::Com::{
+            CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED,
+        };
+        if unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.is_err() {
+            return Ok(false);
+        }
+        let shown = unsafe { ShellExecuteExW(&mut info) }.is_ok();
+        unsafe {
+            CoUninitialize();
+        }
+        Ok(shown)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let uri = tauri::Url::from_file_path(path).map_err(|_| "文件路径无法转换为URI")?;
+        let uris = serde_json::to_string(&[uri.as_str()]).map_err(|e| e.to_string())?;
+        let shown = Command::new("gdbus")
+            .args([
+                "call",
+                "--session",
+                "--timeout",
+                "5",
+                "--dest",
+                "org.freedesktop.FileManager1",
+                "--object-path",
+                "/org/freedesktop/FileManager1",
+                "--method",
+                "org.freedesktop.FileManager1.ShowItemProperties",
+                &uris,
+                "",
+            ])
+            .output();
+        Ok(shown.is_ok_and(|output| output.status.success()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -171,73 +239,5 @@ mod tests {
             command(path, None).get_args().collect::<Vec<_>>(),
             [path.as_os_str()]
         );
-    }
-}
-
-/// Explicit user action; arguments never become script source or a shell command.
-pub(crate) fn properties(path: &Path) -> Result<bool, String> {
-    #[cfg(target_os = "macos")]
-    {
-        let output = Command::new("/usr/bin/osascript").args(["-e", "on run argv\ntell application \"Finder\"\nactivate\nopen information window of (POSIX file (item 1 of argv) as alias)\nend tell\nend run", "--"]).arg(path).output().map_err(|e| e.to_string())?;
-        // A denied Automation request falls back to the in-app properties card.
-        return Ok(output.status.success());
-    }
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::ffi::OsStrExt;
-        use windows::core::PCWSTR;
-        use windows::Win32::UI::{
-            Shell::{ShellExecuteExW, SEE_MASK_INVOKEIDLIST, SHELLEXECUTEINFOW},
-            WindowsAndMessaging::SW_SHOWNORMAL,
-        };
-        let verb: Vec<u16> = "properties\0".encode_utf16().collect();
-        let mut target: Vec<u16> = path.as_os_str().encode_wide().collect();
-        if target.starts_with(&[92, 92, 63, 92, 85, 78, 67, 92]) {
-            drop(target.splice(0..8, [92, 92]));
-        } else if target.starts_with(&[92, 92, 63, 92]) {
-            drop(target.drain(0..4));
-        }
-        target.push(0);
-        let mut info = SHELLEXECUTEINFOW {
-            cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
-            fMask: SEE_MASK_INVOKEIDLIST,
-            lpVerb: PCWSTR(verb.as_ptr()),
-            lpFile: PCWSTR(target.as_ptr()),
-            nShow: SW_SHOWNORMAL.0,
-            ..Default::default()
-        };
-        use windows::Win32::System::Com::{
-            CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED,
-        };
-        if unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.is_err() {
-            return Ok(false);
-        }
-        let shown = unsafe { ShellExecuteExW(&mut info) }.is_ok();
-        unsafe {
-            CoUninitialize();
-        }
-        return Ok(shown);
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    {
-        let uri = tauri::Url::from_file_path(path).map_err(|_| "文件路径无法转换为URI")?;
-        let uris = serde_json::to_string(&[uri.as_str()]).map_err(|e| e.to_string())?;
-        let shown = Command::new("gdbus")
-            .args([
-                "call",
-                "--session",
-                "--timeout",
-                "5",
-                "--dest",
-                "org.freedesktop.FileManager1",
-                "--object-path",
-                "/org/freedesktop/FileManager1",
-                "--method",
-                "org.freedesktop.FileManager1.ShowItemProperties",
-                &uris,
-                "",
-            ])
-            .output();
-        Ok(shown.is_ok_and(|output| output.status.success()))
     }
 }

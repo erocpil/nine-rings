@@ -19,7 +19,10 @@ export function NotesContextMenu({ target, close, actions, label = "随记菜单
     el.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
   }, [target]);
   useEffect(() => {
-    const outside = (event: Event) => { if (ignoreTrigger && event.type === "pointerdown" && target.trigger.contains(event.target as Node)) return; if (!ref.current?.contains(event.target as Node)) close(); };
+    const outside = (event: Event) => {
+      // A retained editor may restore its own scroll after this menu opens.
+      // Only scrolling an ancestor of the trigger invalidates this anchor.
+      if (event.type === "scroll" && event.target instanceof Element && !event.target.contains(target.trigger)) return; if (ignoreTrigger && event.type === "pointerdown" && target.trigger.contains(event.target as Node)) return; if (!ref.current?.contains(event.target as Node)) close(); };
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("scroll", outside, true);
     window.addEventListener("resize", close);

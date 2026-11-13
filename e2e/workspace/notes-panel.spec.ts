@@ -186,7 +186,14 @@ test("随记名称使用自定义菜单且不选中文本，菜单可关闭并�
   await name.click({ button: "right" });
   const menu = page.getByRole("menu", { name: "随记菜单" });
   await expect(menu).toBeVisible();
+  // Restoring the unrelated editor must not cancel a menu anchored in Notes.
+  await page.locator(".note-editor-scroll:visible").evaluate(element => element.dispatchEvent(new Event("scroll")));
+  await expect(menu).toBeVisible();
   expect(await page.evaluate(() => getSelection()?.toString())).toBe("");
+  await panel.locator(".notes-panel-scroll").evaluate(element => element.dispatchEvent(new Event("scroll")));
+  await expect(menu).toBeHidden();
+  await name.click({ button: "right" });
+  await expect(menu).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(menu).toBeHidden();
   await expect(panel).toBeVisible();
