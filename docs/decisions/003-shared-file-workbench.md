@@ -198,3 +198,12 @@ PDF此前的canvas像素宽高等于CSS宽高，Retina会把1倍图像放大，2
 SourceView 原先固定 showLineNumbers=true 且缺少 onEditorConfigChange，导致共用状态栏菜单的行号及折叠符号样式不可用。通过已有 BrowserSettingsStore 将这两项设置保存在 file-workbench:source-editor，并提供 EditorFoldIconContext；复用源码编辑器既有 Compartment 重配，不重建正文会话。只接受行号显隐和折叠样式／两种符号字段，不持久化任意 AppConfig，损坏配置回退默认值。先保存再更新界面，存储失败由原工具栏消息明确报告。
 
 相对行号、当前号对齐、折叠图标显隐及连接线仍使用源码编辑器既有 BlockWorkspacePreferences；本批不迁移这些已有偏好键。两项新增工作台配置不读写 Nine Rings 的数据库配置，不改变原生授权和文件保存协议。
+
+
+### 双标题栏窗口缩放（2026-11-14）
+
+用户反馈 macOS 系统标题栏与预览标题栏都无法通过双击恢复尺寸。代码确认：前者完全委托 AppKit，后者没有双击处理；尚未通过真实鼠标事件确定系统标题栏异常的底层原因，因此不把它归因为已证实的 Tao／AppKit 缺陷。
+
+为明确提供一致行为，独立工作台在主线程维护自己的普通窗口框，不依赖可变的系统 standard frame。系统标题栏使用进程内 NSEvent local monitor，按实际内容边界识别标题区域、按原生按钮边界排除交通灯，排除其他窗口和全屏；不申请全局监听或辅助功能权限，不更换窗口代理。仅拦截双击的第二次按下／松开，避免 AppKit再次处理。令牌安装一次、替换或进程退出时移除，隐藏到托盘不销毁它。
+
+WebView文件名标题栏新增双击调用 workbench_toggle_maximize；排除按钮、输入、链接及可编辑区域。命令只允许 main 调用，派发至主线程；macOS使用同一几何状态，Windows／Linux沿用Tauri最大化／恢复。全屏时不修改窗口尺寸。未改变关闭、隐藏、托盘及未保存退出门禁，也未修改Nine Rings主产品窗口实现。

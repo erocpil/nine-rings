@@ -1,5 +1,18 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-14：File Workbench 双标题栏缩放
+
+用户确认系统标题栏与预览文件名栏均无法双击恢复。前者过去只依赖 AppKit，后者没有接线；本机系统未设置 AppleActionOnDoubleClick，但未运行真实鼠标事件复现，不能认定底层框架丢失 standard frame 已经被证实。新增进程内主窗口标题区 monitor 与只允许 main 调用的 workbench_toggle_maximize，二者在主线程使用同一普通框恢复状态。排除实际交通灯按钮、WebView工具按钮／输入及其他窗口，全屏不改变尺寸；进程退出移除monitor，不改关闭到托盘门禁。
+
+影响分析 SAFE（已验证范围）：检查 setup／退出、tray／ClosePolicy、所有主窗口缩放入口及文件标题事件；新增命令无持久数据字段和文件权限。Native Cargo.lock只增加已锁定的objc2／block2直接依赖，无版本升级。原生10项测试及Clippy（拒绝警告）／rustfmt通过，覆盖反复放大恢复与工作区几何变化后仍恢复原位置尺寸。Chromium／WebKit完整工作台各39项通过，IPC模拟覆盖双击两次与工具按钮不触发；完整npm run check通过（245个Vitest文件／2644项及独立脚本、类型、lint、格式、IPC）。
+
+macOS ARM64 release及File Workbench.app打包通过，使用--locked，没有替换已安装应用。
+
+UNCERTAIN：真实安装版的系统标题鼠标事件与Windows／Linux窗口管理器尚未实机验收，浏览器IPC模拟不代表原生鼠标验证。
+
+日志：`/tmp/nr-workbench-zoom-{rust,tests,clippy,check,chromium,webkit,native-build}.log`。
+
+
 ## 2026-11-13：内置源码编号设置
 
 SourceView 接入已有源码状态栏的配置回调及折叠图标上下文，移除行号恒为 true 的接线。工作台独立保存行号显隐和折叠样式，损坏值回退；写入失败不更新内存状态，由编辑器报告错误。相对号／折叠显隐／连接线沿用已有偏好机制，未重建编辑器或切换正文权威。

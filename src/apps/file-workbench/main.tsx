@@ -109,7 +109,13 @@ function Workbench() {
   const externalEditor = file && host.workspace.externalOpen && <button type="button" className="btn-icon" aria-label="使用默认应用打开" title="使用此文件类型的系统默认应用打开磁盘原文件" onClick={() => {
     void host.workspace.externalOpen!.open(file.rootId, file.node.id, false).catch(cause => setNativeNotice(`外部打开失败：${String(cause)}`));
   }}><ToolbarIcon name="export" /></button>;
-  return <main className="file-workbench-app" onKeyDownCapture={event => {
+  return <main className="file-workbench-app" onDoubleClick={event => {
+    if (!isTauriRuntime() || !(event.target instanceof Element)) return;
+    if (!event.target.closest(".local-file-titlebar, .file-browser-quick-preview > header") || event.target.closest("button, input, textarea, select, a, [contenteditable]")) return;
+    event.preventDefault(); event.stopPropagation();
+    window.getSelection()?.removeAllRanges();
+    void import("@tauri-apps/api/core").then(({ invoke }) => invoke("workbench_toggle_maximize")).catch(cause => setNativeNotice(`窗口缩放失败：${String(cause)}`));
+  }} onKeyDownCapture={event => {
     if (!image || !file?.siblings || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || !["ArrowLeft", "ArrowRight"].includes(event.key) || (event.target as Element).closest("input, textarea, select, dialog, [role=dialog]")) return;
     event.preventDefault(); event.stopPropagation(); stepPreview(event.key === "ArrowLeft" ? -1 : 1);
   }}>

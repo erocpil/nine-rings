@@ -1043,7 +1043,11 @@ dependencies = [
 name = "file-workbench"
 version = "0.1.0"
 dependencies = [
+ "block2",
  "nine-rings-file-host",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
  "serde_json",
  "tauri",
  "tauri-build",

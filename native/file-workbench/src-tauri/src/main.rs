@@ -1,7 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod close_policy;
+#[cfg(target_os = "macos")]
+mod macos_zoom;
 mod tools;
 mod view_menu;
+#[cfg(any(target_os = "macos", test))]
+mod window_zoom;
 use close_policy::ClosePolicy;
 use nine_rings_file_host::local_files;
 use tauri::{Emitter, Manager};
@@ -50,6 +54,33 @@ fn workbench_set_view_menu(
     menu.hidden
         .set_checked(show_hidden)
         .map_err(|e| e.to_string())
+}
+#[tauri::command]
+async fn workbench_toggle_maximize(window: tauri::WebviewWindow) -> Result<(), String> {
+    main_window(&window)?;
+    let (sender, mut receiver) = tauri::async_runtime::channel(1);
+    let target = window.clone();
+    window
+        .run_on_main_thread(move || {
+            #[cfg(target_os = "macos")]
+            let result = macos_zoom::toggle(&target);
+            #[cfg(not(target_os = "macos"))]
+            let result = target.is_fullscreen().and_then(|fullscreen| {
+                if fullscreen {
+                    return Ok(());
+                }
+                target.is_maximized().and_then(|maximized| {
+                    if maximized {
+                        target.unmaximize()
+                    } else {
+                        target.maximize()
+                    }
+                })
+            });
+            let _ = sender.try_send(result.map_err(|error| error.to_string()));
+        })
+        .map_err(|error| error.to_string())?;
+    receiver.recv().await.ok_or("Window zoom cancelled")?
 }
 fn show_workbench(app: &tauri::AppHandle) {
     app.state::<ClosePolicy>().take_deferred_hide();
@@ -102,6 +133,10 @@ fn main() {
         .manage(tools::ToolJobs::default())
         .setup(|app| {
             view_menu::install(app)?;
+            #[cfg(target_os = "macos")]
+            if let Some(window) = app.get_webview_window("main") {
+                macos_zoom::install(&window)?;
+            }
             let show = tauri::menu::MenuItem::with_id(
                 app,
                 "workbench.show",
@@ -163,6 +198,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             workbench_ready,
+            workbench_toggle_maximize,
             tools::workbench_run_tool,
             tools::workbench_tool_status,
             tools::workbench_stop_tool,
@@ -190,6 +226,10 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("failed to build File Workbench")
         .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if matches!(event, tauri::RunEvent::Exit) {
+                macos_zoom::remove();
+            }
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen { .. } = event {
                 show_workbench(app);

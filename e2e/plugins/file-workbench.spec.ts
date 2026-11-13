@@ -1686,6 +1686,7 @@ test("内置编辑器的Markdown按内容锚点切换，编辑后仍提供两种
         if (command === "plugin:event|listen") return id++;
         if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
         const size = new TextEncoder().encode(source).length;
+        if (command === "workbench_toggle_maximize") { (window as any).__zoomCount = ((window as any).__zoomCount ?? 0) + 1; return; }
         if (command === "local_files_open_external") { (window as any).__externalOpen = args; return true; }
         if (command === "local_files_roots") return [{ id: "framework", name: "Documents" }];
         if (command === "local_files_display_path") return "/fixture/Documents";
@@ -1735,6 +1736,13 @@ test("内置编辑器的Markdown按内容锚点切换，编辑后仍提供两种
   const heading = page.getByRole("heading", { name: target, exact: true });
   await expect(heading).toBeVisible();
   const external = page.getByRole("button", { name: "使用默认应用打开", exact: true });
+  const title = page.locator(".local-file-titlebar > strong");
+  await title.dblclick();
+  await expect.poll(() => page.evaluate(() => (window as any).__zoomCount)).toBe(1);
+  await title.dblclick();
+  await expect.poll(() => page.evaluate(() => (window as any).__zoomCount)).toBe(2);
+  await external.dispatchEvent("dblclick");
+  expect(await page.evaluate(() => (window as any).__zoomCount)).toBe(2);
   await external.click();
   await expect.poll(() => page.evaluate(() => (window as any).__externalOpen)).toEqual({ rootId: "framework", node: "Cognitive & Information Encoding Framework.md", chooseApplication: false });
   expect(await external.evaluate(element => element.nextElementSibling?.getAttribute("aria-label"))).toBe("返回文件浏览");
