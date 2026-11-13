@@ -129,8 +129,14 @@
 
 .code-block-collapse-toggle,
 .code-block-wrap-toggle {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  min-width: 22px;
   height: 22px;
-  padding: 1px 6px;
+  padding: 0;
   border: 1px solid var(--border);
   border-radius: 3px;
   background: var(--surface);
@@ -144,6 +150,10 @@
 .code-block-wrap-toggle.active {
   border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
   color: var(--accent);
+}
+
+.code-block-wrap-toggle .toolbar-icon {
+  flex: 0 0 14px;
 }
 
 .code-block-collapse-toggle {

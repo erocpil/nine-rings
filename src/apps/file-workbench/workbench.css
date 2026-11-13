@@ -81,3 +81,29 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
 .workbench-rendered-session { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .workbench-rendered-session[hidden], .workbench-source-session[hidden] { display: none; }
 .workbench-rendered-session > .note-editor { flex: 1; min-height: 0; }
+.workbench-quit-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.workbench-quit-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  padding: 28px 36px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, .24);
+  text-align: center;
+}
+.workbench-quit-card kbd { font: 500 38px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.workbench-quit-card strong { font-size: 18px; font-weight: 500; }
+.workbench-quit-card span { color: var(--text-secondary); font-size: 13px; }

@@ -120,7 +120,13 @@ function Workbench() {
     event.preventDefault(); event.stopPropagation(); stepPreview(event.key === "ArrowLeft" ? -1 : 1);
   }}>
     {!nativeViewMenuAvailable && <nav className="workbench-menu-bar" aria-label="应用菜单"><WorkbenchViewMenu menu={host.viewMenu} /></nav>}
-    {quitHint && <div className="quit-confirmation-hint" role="status" aria-live="polite">{quitHint}</div>}
+    {quitHint && <div className="workbench-quit-overlay">
+      <div className="workbench-quit-card" role="status" aria-live="polite" aria-atomic="true">
+        <kbd aria-hidden="true">⌘Q</kbd>
+        <strong>{quitHint}</strong>
+        <span>继续使用则无需操作</span>
+      </div>
+    </div>}
     {execution.element}
     <div className="file-workbench-content"><FileBrowserWorkspace workspace={host.workspace} active={!file} toolbarExtras={tools} onToolContext={setToolContext} />
     {file && (image ? <FileBrowserQuickPreview rootId={file.rootId} node={file.node.id} provider={host.workspace.provider} active autoFocus navigationAxis="horizontal" previous={previous} next={next} onNavigate={file.siblings ? stepPreview : undefined} revision={0} closeLabel="返回文件浏览" headerActions={externalEditor} onClose={closeFile} /> : <Suspense fallback={<p role="status">正在加载共享源码工作区…</p>}><SourceView key={`${file.rootId}:${file.node.id}`} file={file} settings={host.workspace.settings} headerActions={externalEditor} host={host.source} provider={host.workspace.provider} onNavigate={file.siblings ? stepPreview : undefined} previous={previous} next={next} onClose={closeFile} closeRequest={closeSource} /></Suspense>)}</div>
