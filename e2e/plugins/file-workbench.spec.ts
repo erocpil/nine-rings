@@ -1936,8 +1936,12 @@ test("Markdown 块号菜单与代码、引用、Flow、Mermaid 块模式复用�
     }).toBe(true);
     const tools = rendered.getByRole("button", { name: "更多工具", exact: true });
     const beforeTools = (await dock.boundingBox())!.y;
-    await tools.click();
+    if (await tools.getAttribute("aria-expanded") !== "true") await tools.click();
     await expect.poll(async () => Math.abs((await dock.boundingBox())!.y - beforeTools)).toBeLessThan(2);
+    await expect.poll(async () => {
+      const panel = (await dock.boundingBox())!, toolbar = (await rendered.getByRole("toolbar", { name: "文档阅读工具" }).boundingBox())!;
+      return toolbar.x + toolbar.width <= panel.x + 2 || toolbar.x >= panel.x + panel.width - 2;
+    }).toBe(true);
     await tools.click();
     await outlineButton.click();
     const code = rendered.locator('.code-block-wrap').filter({ hasText: "int value = 1;" });
