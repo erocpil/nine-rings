@@ -63,21 +63,34 @@ export function DesktopDocumentPanels({
     const dock = root.current, owner = dock?.closest<HTMLElement>(".note-editor");
     const workbench = Boolean(owner?.closest(".file-workbench-app"));
     if (!dock || !owner || (controller.mode !== "compact" && !workbench)) return;
-    const anchor = owner.querySelector<HTMLElement>("[data-workspace-panel-start]") ?? owner.querySelector<HTMLElement>(".editor-menu");
-    const title = owner.querySelector<HTMLElement>(".note-title-row");
+    const observed = new WeakSet<Element>();
     const measure = () => {
+      const anchor = owner.querySelector<HTMLElement>("[data-workspace-panel-start]") ?? owner.querySelector<HTMLElement>(".editor-menu");
+      const title = owner.querySelector<HTMLElement>(".note-title-row");
       const rect = anchor?.getBoundingClientRect();
       const top = workbench
         ? title?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top
         : rect && rect.width > 0 ? rect.top : title?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top;
       dock.style.top = `${Math.max(0, top - owner.getBoundingClientRect().top)}px`;
     };
-    measure();
     const observer = new ResizeObserver(measure);
     observer.observe(owner);
-    for (const child of owner.querySelectorAll<HTMLElement>(".note-title-row, .note-tags, [data-workspace-panel-start], .editor-menu")) observer.observe(child);
-    return () => { observer.disconnect(); dock.style.top = ""; };
-  }, [controller.enabled, controller.mode, controller.layout.outlinePinned, controller.layout.bookmarkPinned, matchesOpen]);
+    const bindChrome = () => {
+      for (const child of owner.querySelectorAll<HTMLElement>(".note-title-row, .note-tags, [data-workspace-panel-start], .editor-menu")) {
+        if (!observed.has(child)) { observed.add(child); observer.observe(child); }
+      }
+      measure();
+    };
+    // Lazy/retained editors can mount their title after the dock. Resolve the
+    // current title on every measurement instead of retaining a missing node.
+    const mounted = new MutationObserver(records => {
+      const selector = ".note-title-row, .note-tags, [data-workspace-panel-start], .editor-menu";
+      if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element && (node.matches(selector) || node.querySelector(selector))))) bindChrome();
+    });
+    mounted.observe(owner, { childList: true, subtree: true });
+    bindChrome();
+    return () => { mounted.disconnect(); observer.disconnect(); dock.style.top = ""; };
+  });
   const horizontal = controller.layout.panelsArrangement === "horizontal";
   const first = controller.pinned("outline") && outline;
   const second = controller.pinned("bookmark") && bookmark;
