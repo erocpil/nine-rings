@@ -116,12 +116,12 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
 .file-workbench-app :is(.document-panels-left, .document-panels-right) > :is(.note-editor-scroll, .markdown-source-content) {
   margin-inline: 0;
 }
-.file-workbench-app .document-panels-right > .note-editor-scroll > .editor-content,
+.file-workbench-app .document-panels-right > .note-editor-scroll > .editor-content-shell,
 .file-workbench-app .document-panels-right > .markdown-source-content .markdown-source-input,
 .file-workbench-app .document-panels-right > .markdown-source-content .markdown-source-status-host {
   margin-right: min(var(--document-dock-width, 280px), 50%);
 }
-.file-workbench-app .document-panels-left > .note-editor-scroll > .editor-content,
+.file-workbench-app .document-panels-left > .note-editor-scroll > .editor-content-shell,
 .file-workbench-app .document-panels-left > .markdown-source-content .markdown-source-input,
 .file-workbench-app .document-panels-left > .markdown-source-content .markdown-source-status-host {
   margin-left: min(var(--document-dock-width, 280px), 50%);
