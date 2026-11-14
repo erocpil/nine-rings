@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { DocumentNavigationWorkspace } from "../../components/DocumentNavigationWorkspace";
-import { SourceNavigationDocument } from "../../lib/markdown-source-navigation";
+import { sourceEditMapping, SourceNavigationDocument } from "../../lib/markdown-source-navigation";
 import { useMarkdownViewPosition } from "../../hooks/useMarkdownViewPosition";
 import { deltaToProseMirror } from "../../lib/delta-converter";
 import { writeDocumentSource } from "../../lib/document-source";
@@ -84,7 +84,9 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     } catch (cause) { setError(String(cause)); }
   };
   const [source, setSource] = useState(""), sourceRef = useRef("");
-  const [lineBookmarks, setLineBookmarks] = useState<{ id: string; position: number; label: string; preview: string }[]>([]);
+  const [lineBookmarks, setLineBookmarks] = useState<{ id: string; position: number; label: string; preview: string }[]>(() => {
+    try { const value: unknown = JSON.parse(settings.getItem(`bookmarks:${identity}`) ?? "[]"); return Array.isArray(value) ? value.filter(item => item && typeof item.id === "string" && Number.isSafeInteger(item.position) && item.position >= 0 && typeof item.label === "string" && typeof item.preview === "string") : []; } catch { return []; }
+  });
   const sourceNavigation = useMemo(() => new SourceNavigationDocument(source, [], { sourceLanguage: documentLanguageFromFilename(file.node.name, source) }), [source, file.node.name]);
   const sourceProjection = useRef("");
   if (!renderMarkdown || !sourceMounted) sourceProjection.current = source;
@@ -99,7 +101,15 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const [candidate, setCandidate] = useState<LocalFileDraft | null>(null);
   const dirty = Boolean(base && (source !== base.source || renderPending));
   const current = useCallback(() => { renderedFlush.current?.flush(); return sourceRef.current; }, []);
-  const change = (text: string) => { sourceRef.current = text; setSource(text); };
+  const change = (text: string) => {
+    const map = sourceEditMapping(sourceRef.current, text);
+    setLineBookmarks(items => items.map(item => ({ ...item, position: Math.max(0, Math.min(text.length, map(item.position))) })));
+    sourceRef.current = text; setSource(text);
+  };
+  useEffect(() => {
+    try { settings.setItem(`bookmarks:${identity}`, JSON.stringify(lineBookmarks)); }
+    catch { setNotice("书签未能保存到本机，请检查存储空间。 "); }
+  }, [identity, lineBookmarks, settings]);
   const renderedChange = (text: string) => { change(text); setRenderPending(false); };
   const applyBase = (snapshot: LocalFileSnapshot) => { baseRef.current = snapshot; setBase(snapshot); };
   const checkpoint = useCallback(async () => {
