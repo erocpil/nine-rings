@@ -102,3 +102,14 @@
   height: var(--document-tool-icon-size);
   flex-shrink: 0;
 }
+
+/* The 24px insertion control is centred at the first block's top edge.
+   Reserve its upper 12px plus breathing room in both document views. */
+:is(.app, .file-workbench-app) { --editor-content-top-gap: 16px; }
+:is(.app, .file-workbench-app) .note-editor .note-editor-scroll > .editor-content-shell {
+  margin-top: 0;
+  padding-top: var(--editor-content-top-gap);
+}
+:is(.app, .file-workbench-app) .note-editor .document-toolbar.toolbar-scrollable {
+  margin-bottom: 0;
+}

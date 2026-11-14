@@ -1933,6 +1933,14 @@ test("Markdown 块号菜单与代码、引用、Flow、Mermaid 块模式复用�
     await scrollport.evaluate(element => { element.scrollTop = element.scrollHeight; });
     await expect.poll(() => scrollport.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
     await scrollport.evaluate(element => { element.scrollTop = 0; });
+    const initialToolsToggle = rendered.getByRole("button", { name: "更多工具", exact: true });
+    if (await initialToolsToggle.getAttribute("aria-expanded") !== "true") await initialToolsToggle.click();
+    await expect.poll(async () => {
+      const title = (await rendered.locator(".document-title-bar").boundingBox())!;
+      const toolbar = (await rendered.getByRole("toolbar", { name: "文档阅读工具" }).boundingBox())!;
+      const inset = await rendered.evaluate(el => parseFloat(getComputedStyle(el).getPropertyValue("--document-edge-inset")));
+      return Math.abs(toolbar.x + toolbar.width - title.x - title.width + inset);
+    }).toBeLessThan(2);
     const outlineButton = rendered.locator('[data-document-panel-trigger="outline"]');
     await outlineButton.click();
     await rendered.getByRole("button", { name: "返回文件浏览", exact: true }).click();
