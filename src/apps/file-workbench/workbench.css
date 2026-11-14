@@ -130,3 +130,9 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
 .file-workbench-app .document-panels-left > .markdown-source-content .markdown-source-status-host {
   margin-left: min(var(--document-dock-width, 280px), 50%);
 }
+
+.file-workbench-app :is(.document-panels-left, .document-panels-right) > .note-editor-scroll > .editor-content-shell {
+  width: calc(100% - min(var(--document-dock-width, 280px), 50%));
+  max-width: calc(100% - min(var(--document-dock-width, 280px), 50%));
+  box-sizing: border-box;
+}

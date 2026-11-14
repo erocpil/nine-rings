@@ -1926,6 +1926,20 @@ test("Markdown 块号菜单与代码、引用、Flow、Mermaid 块模式复用�
     await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(fixture);
     await page.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /^blocks.md/ }).dblclick();
     const rendered = page.locator(".workbench-rendered-session");
+    const outlineButton = rendered.locator('[data-document-panel-trigger="outline"]');
+    await outlineButton.click();
+    const dock = rendered.locator(".document-panel-dock");
+    await expect(dock).toBeVisible();
+    await expect.poll(async () => {
+      const panel = (await dock.boundingBox())!, body = (await rendered.locator(".editor-content-shell").boundingBox())!;
+      return body.x + body.width <= panel.x + 2 || body.x >= panel.x + panel.width - 2;
+    }).toBe(true);
+    const tools = rendered.getByRole("button", { name: "更多工具", exact: true });
+    const beforeTools = (await dock.boundingBox())!.y;
+    await tools.click();
+    await expect.poll(async () => Math.abs((await dock.boundingBox())!.y - beforeTools)).toBeLessThan(2);
+    await tools.click();
+    await outlineButton.click();
     const code = rendered.locator('.code-block-wrap').filter({ hasText: "int value = 1;" });
     const codeNumber = rendered.locator('.editor-block-number[data-block-format="Code"]').first();
     await expect(codeNumber).toBeVisible();

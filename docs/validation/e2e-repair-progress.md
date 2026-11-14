@@ -2777,3 +2777,11 @@ NINE RINGS显式禁止原生drag-region，并阻断mousedown/mouseup向原生默
 Rust 后续 Clippy 阶段另发现本地写入入口参数数量超限：内部实现将授权表及 root ID 合并为一个授权参数，导出命令保持既有平铺 IPC 契约并作局部 lint 说明；不放宽全局警告。完整 `cargo clippy --locked --all-targets --all-features -- -D warnings`、fmt、IPC 检查在本机通过。Rust 全部 lib 测试在沙箱外为 **75 通过、1 忽略**；沙箱内原生目录监听未收到通知的失败通过同一用例在沙箱外执行排除了代码问题。
 
 `c4d7089f` 的原生平台 E2E 六组（macOS 14／Windows 2022／Ubuntu 22.04 × Chromium／WebKit）均已通过；其后提交仅继续修复 Rust 门禁和 Linux 打包，前端代码保持该验证基线。
+
+## 2026-11-14：Workbench 固定目录回归
+
+- Chromium：现有 Markdown 定向组 5/5 通过。
+- WebKit：同组初跑 4/5，通过新增几何断言发现固定目录与正文重叠。
+- 修复：正文外层除留出边距外，显式限制可用宽度，避免宽度仍延伸到固定面板下方。
+- 修复后，同一块工具用例在 Chromium、WebKit 各 1/1 通过；新增断言覆盖正文与固定目录无重叠，以及展开更多工具时目录纵向位置不变。
+- 尚未认证：左右固定与窄窗口的完整组合、源码面板几何、书签重启恢复及多处编辑后的跳转。不能据此声称完整收尾或完整 E2E 通过。
