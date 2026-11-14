@@ -112,79 +112,14 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
 
 .workbench-navigation-actions { display: inline-flex; align-items: center; gap: 4px; }
 
-/* Title stays full width; expanded tools and body yield to the stationary dock. */
-.file-workbench-app :is(.document-panels-left, .document-panels-right) > :is(.note-editor-scroll, .markdown-source-content) {
-  margin-inline: 0;
-}
-.file-workbench-app .document-panels-right > .note-editor-scroll > .note-editor-sticky > .editor-menu,
-.file-workbench-app .document-panels-right > .markdown-source-content > .markdown-source-toolbar-host,
-.file-workbench-app .document-panels-right > .note-editor-scroll > .editor-content-shell,
-.file-workbench-app .document-panels-right > .markdown-source-content .markdown-source-input,
-.file-workbench-app .document-panels-right > .markdown-source-content .markdown-source-status-host {
-  margin-right: min(var(--document-dock-width, 280px), 50%);
-}
-.file-workbench-app .document-panels-left > .note-editor-scroll > .note-editor-sticky > .editor-menu,
-.file-workbench-app .document-panels-left > .markdown-source-content > .markdown-source-toolbar-host,
-.file-workbench-app .document-panels-left > .note-editor-scroll > .editor-content-shell,
-.file-workbench-app .document-panels-left > .markdown-source-content .markdown-source-input,
-.file-workbench-app .document-panels-left > .markdown-source-content .markdown-source-status-host {
-  margin-left: min(var(--document-dock-width, 280px), 50%);
-}
 
-.file-workbench-app :is(.document-panels-left, .document-panels-right) > .note-editor-scroll > .editor-content-shell {
-  width: calc(100% - min(var(--document-dock-width, 280px), 50%));
-  max-width: calc(100% - min(var(--document-dock-width, 280px), 50%));
-  box-sizing: border-box;
-}
-
-/* A long rendered document must scroll inside its retained session. */
+/* The rendered title is outside the scrollport, like the source title. */
+.workbench-render-header { flex: 0 0 auto; }
 .workbench-rendered-session { overflow: hidden; }
 .workbench-rendered-session > .note-editor { overflow: hidden; }
-.workbench-rendered-session .note-editor-scroll {
-  min-height: 0;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-}
-.workbench-rendered-session .note-editor-scroll > .editor-content-shell {
-  flex: 0 0 auto;
-}
-.file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller) {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--text-secondary) 35%, transparent) transparent;
-}
-.file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller)::-webkit-scrollbar {
-  width: 6px;
-  height: 4px;
-}
-.file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller)::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--text-secondary) 35%, transparent);
-  border-radius: 3px;
-}
-
-/* Toolbar width rules also need an explicit dock inset: width:100% plus a
-   margin would otherwise keep the toolbar underneath the fixed panel. */
-.file-workbench-app :is(.document-panels-left, .document-panels-right) > .note-editor-scroll > .note-editor-sticky > .editor-menu {
-  width: calc(100% - min(var(--document-dock-width, 280px), 50%));
-  max-width: calc(100% - min(var(--document-dock-width, 280px), 50%));
-  box-sizing: border-box;
-}
-
-.file-workbench-app .document-panels-right > .note-editor-scroll > .note-editor-sticky > .editor-menu {
-  margin-left: 0;
-}
-.file-workbench-app .document-panels-left > .note-editor-scroll > .note-editor-sticky > .editor-menu {
-  margin-right: 0;
-}
-.workbench-render-scrollbar {
-  position: absolute;
-  width: 8px;
-  overflow-x: hidden;
-  overflow-y: scroll;
-  z-index: 30;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--text-secondary) 35%, transparent) transparent;
-}
-.workbench-render-scrollbar[hidden] { display: none; }
-.workbench-render-scrollbar > div { width: 1px; }
-.workbench-render-scrollbar::-webkit-scrollbar { width: 6px; }
-.workbench-render-scrollbar::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-secondary) 35%, transparent); border-radius: 3px; }
+.workbench-rendered-session .note-editor-scroll > .editor-content-shell { flex: 0 0 auto; }
+.file-workbench-app .document-panels-right > .markdown-source-content { margin-right: min(var(--document-dock-width, 280px), 50%); }
+.file-workbench-app .document-panels-left > .markdown-source-content { margin-left: min(var(--document-dock-width, 280px), 50%); }
+.file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller) { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text-secondary) 35%, transparent) transparent; }
+.file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller)::-webkit-scrollbar { width: 6px; height: 4px; }
+.file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller)::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-secondary) 35%, transparent); border-radius: 3px; }

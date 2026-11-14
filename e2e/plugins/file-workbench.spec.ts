@@ -1926,6 +1926,13 @@ test("Markdown 块号菜单与代码、引用、Flow、Mermaid 块模式复用�
     await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(fixture);
     await page.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /^blocks.md/ }).dblclick();
     const rendered = page.locator(".workbench-rendered-session");
+    const scrollport = rendered.locator(".note-editor-scroll");
+    const scrollGeometry = await scrollport.evaluate(element => ({ overflow: getComputedStyle(element).overflowY, client: element.clientHeight, total: element.scrollHeight }));
+    expect(["auto", "scroll"]).toContain(scrollGeometry.overflow);
+    expect(scrollGeometry.total).toBeGreaterThan(scrollGeometry.client);
+    await scrollport.evaluate(element => { element.scrollTop = element.scrollHeight; });
+    await expect.poll(() => scrollport.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+    await scrollport.evaluate(element => { element.scrollTop = 0; });
     const outlineButton = rendered.locator('[data-document-panel-trigger="outline"]');
     await outlineButton.click();
     const dock = rendered.locator(".document-panel-dock");

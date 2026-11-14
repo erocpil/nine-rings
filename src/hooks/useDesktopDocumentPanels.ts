@@ -28,7 +28,7 @@ export function useDesktopDocumentPanels(
   const mode = compactOnly ? "compact" : preferences[origin];
   const compact = preferences.compact[origin];
   const layout = useMemo(() => {
-    const next = mode === "compact" ? { ...baseLayout, panelsSide: "right" as const, panelsArrangement: "vertical" as const, outlinePinned: compact.active === "outline", bookmarkPinned: compact.active === "bookmark", panelWidth: compact.width } : baseLayout;
+    const next = mode === "compact" ? { ...baseLayout, panelsArrangement: "vertical" as const, outlinePinned: compact.active === "outline", bookmarkPinned: compact.active === "bookmark", panelWidth: compact.width } : baseLayout;
     // Mask unavailable navigation without destroying the user's pinned preference.
     return outlineEnabled ? next : { ...next, outlinePinned: false };
   }, [baseLayout, compact.active, compact.width, mode, outlineEnabled]);

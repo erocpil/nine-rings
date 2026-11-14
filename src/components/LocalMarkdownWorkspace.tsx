@@ -73,9 +73,11 @@ export function LocalMarkdownWorkspace({
   onRename,
   onOpenProperties,
   info,
+  separateTitle = false,
   pdfExport = true,
   onExportMarkdown,
 }: {
+  separateTitle?: boolean;
   pdfExport?: boolean;
   onExportMarkdown?: () => Promise<void>;
   identity: string;
@@ -305,6 +307,7 @@ export function LocalMarkdownWorkspace({
               embedImages: true,
               savedLabel: "已保存到磁盘；不参与数据库备份",
               titleActions,
+              separateTitle,
               bodyClassName: "markdown-reading-view",
               bodyLabel: "Markdown 渲染",
               sourceCopy: {

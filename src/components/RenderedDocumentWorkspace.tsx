@@ -1,3 +1,4 @@
+import { PanelSideToggle } from "./PanelSideToggle";
 import { DocumentTitleField } from "./DocumentTitleField";
 import { createPortal } from "react-dom";
 import { readingHeadingAtPoint, toggleReadingHeading } from "../lib/reading-heading-navigation";
@@ -220,6 +221,7 @@ function insertCodeBlockPlainText(editor: Editor, text: string): void {
 export interface RenderedWorkspaceHost {
   origin: "database" | "local";
   titleActions?: React.ReactNode;
+  separateTitle?: boolean;
   bodyClassName?: string;
   bodyLabel?: string;
   references?: boolean;
@@ -4177,6 +4179,124 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
         </nav>
       );
 
+  const renderDocumentHeader = () => <>
+        <DocumentTitleBar ref={titleRef}>
+          {titleSecurityAction}
+          {onReadonlyChange ? (
+            <DocumentAccessToggle readonly={Boolean(readonly)}
+              type="button"
+              className={readonlyChangeNotice ? "readonly-change-confirmed" : undefined}
+              data-document-readonly={readonly}
+              aria-pressed={readonly}
+              disabled={readonlyChangeBusy}
+              onClick={async () => {
+                if (readonlyChangeBusy) return;
+                blockEditContextRef.current.epoch += 1;
+                setReadonlyChangeBusy(true);
+                try {
+                  await onReadonlyChange(!readonly);
+                  setReadonlyChangeNotice(true);
+                } finally {
+                  setReadonlyChangeBusy(false);
+                }
+              }}
+              title={readonly ? "点击设为可编辑" : "点击设为只读"}
+              aria-label={readonly ? "点击设为可编辑" : "点击设为只读"}
+             />
+          ) : readonly ? (
+            <span className="note-readonly-badge" data-document-readonly="true" title="只读"><ToolbarIcon name="lock" /></span>
+          ) : null}
+          <DocumentTitleField title={title || "无标题"} value={localTitle} inputRef={titleInputRef}
+            preview={workspaceHost?.titleEditable === false || mobileTitleBar && (focusMode || Boolean(readonly))}
+            readonly={Boolean(readonly) || unifiedTitleBar && focusMode}
+            className={saveIssue ? `note-title-save-${saveIssue}` : ""}
+            onOpenProperties={mobileTitleBar && !readonly ? undefined : (workspaceHost?.onOpenProperties ?? onOpenProperties)} onFinish={finishTitleDraft}
+            onValueChange={value => { setLocalTitle(value); if (!workspaceHost?.onRename) onTitleChange(value); }}
+            onCommit={workspaceHost?.onRename} onEnter={() => editor.view.focus()}
+            info={workspaceHost?.info ?? (documentCreatedAt && documentUpdatedAt ? { title: localTitle || "无标题", content, createdAt: documentCreatedAt, updatedAt: documentUpdatedAt, lastAccessedAt: documentLastAccessedAt, readonly, docType: documentType, tags, path: documentPath } : undefined)} />
+          {readonlyChangeNotice && <div className="readonly-change-notice" role="status" aria-live="polite"><span>{readonly ? "已设置为只读" : "已设置为可编辑"}</span></div>}
+          {saveIssue && <button type="button" className="focus-btn workspace-error-indicator" aria-label="查看保存错误详情" title="查看保存错误详情" onClick={onOpenSaveIssue}><ToolbarIcon name="warning" /></button>}
+          {!showLineNumbers && selectedBlockIndexes.size === 0 && (
+            <button type="button" className="focus-btn readonly-copy-block" title="块级操作" aria-label="块级操作" data-title-block-menu="true" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>
+          )}
+          {pdfExcerptSource && onOpenPdfExcerpt && (
+            <button
+              type="button"
+              className="focus-btn pdf-excerpt-source-button"
+              onClick={() => onOpenPdfExcerpt(pdfExcerptSource)}
+              title={`返回 ${pdfExcerptSource.pdfName} 第 ${pdfExcerptSource.page} 页`}
+            >PDF · {pdfExcerptSource.page}</button>
+          )}
+          {epubExcerptSource && onOpenEpubExcerpt && (
+            <button type="button" className="focus-btn pdf-excerpt-source-button" onClick={() => onOpenEpubExcerpt(epubExcerptSource)} title={`返回 ${epubExcerptSource.epubName} · ${epubExcerptSource.chapterTitle}`}>EPUB · {epubExcerptSource.chapter}</button>
+          )}
+          {documentViewToggle}
+          {documentOutline.length > 0 && (
+            <div className="document-outline-control">
+              <button
+                ref={outlineTriggerRef}
+              data-document-panel-trigger="outline" data-pinned={desktopPanels.pinned("outline") || undefined}
+              onPointerEnter={event => desktopPanels.enter("outline", event.pointerType)} onPointerLeave={desktopPanels.leave}
+                className={`focus-btn document-outline-toggle ${outlineOpen ? "active" : ""}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleDocumentOutline();
+                }}
+                title="文档目录"
+                aria-label="文档目录"
+                aria-expanded={outlineOpen}
+                type="button"
+              ><FocusModeIcon name="outline" /></button>
+            </div>
+          )}
+          <button
+            ref={bookmarkTriggerRef}
+            data-document-panel-trigger="bookmark" data-pinned={desktopPanels.pinned("bookmark") || undefined}
+            onPointerEnter={event => desktopPanels.enter("bookmark", event.pointerType)} onPointerLeave={desktopPanels.leave}
+            className={`focus-btn document-bookmark-toggle ${bookmarkOpen ? "active" : ""}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleDocumentBookmarks();
+            }}
+            title={bookmarkPanelTotal > 0 ? `${bookmarkPanelLabel}（${bookmarkPanelTotal}）` : "添加书签"}
+            aria-label="文档书签"
+            aria-expanded={bookmarkOpen}
+            type="button"
+          ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
+          {<button type="button" className="focus-btn" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" data-tooltip-always="true" aria-expanded={focusToolbarExpanded} onClick={() => setToolbarExpandedPreference(!focusToolbarExpanded)}><ToolbarIcon name="annotate" /></button>}<PanelSideToggle />{workspaceHost?.titleActions}
+          {!statusBar.navigationInStatus && (workspaceHost?.navigationControls ?? (workspaceHost?.navigation !== false ? <NavigationButtons /> : null))}
+          {isMobileToolbarViewport && <button
+            className={`focus-btn document-focus-toggle ${focusMode ? "active" : ""}`}
+            onClick={() => { onFocusModeChange?.(!focusMode); }}
+            title={focusMode ? "退出专注模式" : "专注模式"}
+            type="button"
+          >
+            <ToolbarIcon name={focusMode ? "compress" : "expand"} />
+          </button>}
+        </DocumentTitleBar>
+        {/* ── 标签区 ── */}
+        {tags.length > 0 && <div className="tag-bar">
+          {tags.map((t) => (
+            <span key={t} className="tag-chip">
+              {t}
+              {!readonly && <button className="tag-chip-remove" onClick={() => removeTag(t)}>×</button>}
+            </span>
+          ))}
+          {!readonly && <input
+            className="tag-input"
+            placeholder={tags.length === 0 ? "添加标签..." : ""}
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={handleTagKeyDown}
+            onBlur={() => {
+              if (tagInput.trim()) {
+                addTag(tagInput);
+                setTagInput("");
+              }
+            }}
+          />}
+        </div>}
+  </>;
   return (
     <DocumentOutlineContext.Provider value={tocContext}><div
       ref={noteEditorRef}
@@ -4308,7 +4428,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
           ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
           {!showLineNumbers && selectedBlockIndexes.size === 0 && <button type="button" title="块级操作" aria-label="块级操作" data-title-block-menu="true" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>}
           {(
-            <button
+            <><button
               type="button"
               className={focusToolbarExpanded ? "active" : undefined}
               aria-expanded={focusToolbarExpanded}
@@ -4319,7 +4439,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
               }}
               title={shortcutTitle("view.tools", "更多工具")}
               aria-label="更多工具" data-tooltip-always="true"
-            ><FocusModeIcon name="tools" /></button>
+            ><FocusModeIcon name="tools" /></button><PanelSideToggle /></>
           )}{workspaceHost?.titleActions}
           {!statusBar.navigationInStatus && (workspaceHost?.navigationControls ?? (workspaceHost?.navigation !== false ? <NavigationButtons /> : null))}
           <button
@@ -4356,126 +4476,12 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
       >
       {isMobileToolbarViewport ? <>{outlinePanel}{bookmarkPanel}</> : <DesktopDocumentPanels controller={desktopPanels} bookmarkEmpty={bookmarkPanelTotal === 0} outline={outlinePanel} bookmark={bookmarkPanel} />}
       </DocumentPanelDrawer>
+      {workspaceHost?.separateTitle && <div className="workbench-render-header">{renderDocumentHeader()}</div>}
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
       <div aria-label={workspaceHost?.bodyLabel} className={`note-editor-scroll ${workspaceHost?.bodyClassName ?? ""}`} ref={scrollRef}>
         <div className="note-editor-sticky">
           {/* ── 标题 ── */}
-        <DocumentTitleBar ref={titleRef}>
-          {titleSecurityAction}
-          {onReadonlyChange ? (
-            <DocumentAccessToggle readonly={Boolean(readonly)}
-              type="button"
-              className={readonlyChangeNotice ? "readonly-change-confirmed" : undefined}
-              data-document-readonly={readonly}
-              aria-pressed={readonly}
-              disabled={readonlyChangeBusy}
-              onClick={async () => {
-                if (readonlyChangeBusy) return;
-                blockEditContextRef.current.epoch += 1;
-                setReadonlyChangeBusy(true);
-                try {
-                  await onReadonlyChange(!readonly);
-                  setReadonlyChangeNotice(true);
-                } finally {
-                  setReadonlyChangeBusy(false);
-                }
-              }}
-              title={readonly ? "点击设为可编辑" : "点击设为只读"}
-              aria-label={readonly ? "点击设为可编辑" : "点击设为只读"}
-             />
-          ) : readonly ? (
-            <span className="note-readonly-badge" data-document-readonly="true" title="只读"><ToolbarIcon name="lock" /></span>
-          ) : null}
-          <DocumentTitleField title={title || "无标题"} value={localTitle} inputRef={titleInputRef}
-            preview={workspaceHost?.titleEditable === false || mobileTitleBar && (focusMode || Boolean(readonly))}
-            readonly={Boolean(readonly) || unifiedTitleBar && focusMode}
-            className={saveIssue ? `note-title-save-${saveIssue}` : ""}
-            onOpenProperties={mobileTitleBar && !readonly ? undefined : (workspaceHost?.onOpenProperties ?? onOpenProperties)} onFinish={finishTitleDraft}
-            onValueChange={value => { setLocalTitle(value); if (!workspaceHost?.onRename) onTitleChange(value); }}
-            onCommit={workspaceHost?.onRename} onEnter={() => editor.view.focus()}
-            info={workspaceHost?.info ?? (documentCreatedAt && documentUpdatedAt ? { title: localTitle || "无标题", content, createdAt: documentCreatedAt, updatedAt: documentUpdatedAt, lastAccessedAt: documentLastAccessedAt, readonly, docType: documentType, tags, path: documentPath } : undefined)} />
-          {readonlyChangeNotice && <div className="readonly-change-notice" role="status" aria-live="polite"><span>{readonly ? "已设置为只读" : "已设置为可编辑"}</span></div>}
-          {saveIssue && <button type="button" className="focus-btn workspace-error-indicator" aria-label="查看保存错误详情" title="查看保存错误详情" onClick={onOpenSaveIssue}><ToolbarIcon name="warning" /></button>}
-          {!showLineNumbers && selectedBlockIndexes.size === 0 && (
-            <button type="button" className="focus-btn readonly-copy-block" title="块级操作" aria-label="块级操作" data-title-block-menu="true" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>
-          )}
-          {pdfExcerptSource && onOpenPdfExcerpt && (
-            <button
-              type="button"
-              className="focus-btn pdf-excerpt-source-button"
-              onClick={() => onOpenPdfExcerpt(pdfExcerptSource)}
-              title={`返回 ${pdfExcerptSource.pdfName} 第 ${pdfExcerptSource.page} 页`}
-            >PDF · {pdfExcerptSource.page}</button>
-          )}
-          {epubExcerptSource && onOpenEpubExcerpt && (
-            <button type="button" className="focus-btn pdf-excerpt-source-button" onClick={() => onOpenEpubExcerpt(epubExcerptSource)} title={`返回 ${epubExcerptSource.epubName} · ${epubExcerptSource.chapterTitle}`}>EPUB · {epubExcerptSource.chapter}</button>
-          )}
-          {documentViewToggle}
-          {documentOutline.length > 0 && (
-            <div className="document-outline-control">
-              <button
-                ref={outlineTriggerRef}
-              data-document-panel-trigger="outline" data-pinned={desktopPanels.pinned("outline") || undefined}
-              onPointerEnter={event => desktopPanels.enter("outline", event.pointerType)} onPointerLeave={desktopPanels.leave}
-                className={`focus-btn document-outline-toggle ${outlineOpen ? "active" : ""}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  toggleDocumentOutline();
-                }}
-                title="文档目录"
-                aria-label="文档目录"
-                aria-expanded={outlineOpen}
-                type="button"
-              ><FocusModeIcon name="outline" /></button>
-            </div>
-          )}
-          <button
-            ref={bookmarkTriggerRef}
-            data-document-panel-trigger="bookmark" data-pinned={desktopPanels.pinned("bookmark") || undefined}
-            onPointerEnter={event => desktopPanels.enter("bookmark", event.pointerType)} onPointerLeave={desktopPanels.leave}
-            className={`focus-btn document-bookmark-toggle ${bookmarkOpen ? "active" : ""}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              toggleDocumentBookmarks();
-            }}
-            title={bookmarkPanelTotal > 0 ? `${bookmarkPanelLabel}（${bookmarkPanelTotal}）` : "添加书签"}
-            aria-label="文档书签"
-            aria-expanded={bookmarkOpen}
-            type="button"
-          ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
-          {<button type="button" className="focus-btn" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" data-tooltip-always="true" aria-expanded={focusToolbarExpanded} onClick={() => setToolbarExpandedPreference(!focusToolbarExpanded)}><ToolbarIcon name="annotate" /></button>}{workspaceHost?.titleActions}
-          {!statusBar.navigationInStatus && (workspaceHost?.navigationControls ?? (workspaceHost?.navigation !== false ? <NavigationButtons /> : null))}
-          {isMobileToolbarViewport && <button
-            className={`focus-btn document-focus-toggle ${focusMode ? "active" : ""}`}
-            onClick={() => { onFocusModeChange?.(!focusMode); }}
-            title={focusMode ? "退出专注模式" : "专注模式"}
-            type="button"
-          >
-            <ToolbarIcon name={focusMode ? "compress" : "expand"} />
-          </button>}
-        </DocumentTitleBar>
-        {/* ── 标签区 ── */}
-        {tags.length > 0 && <div className="tag-bar">
-          {tags.map((t) => (
-            <span key={t} className="tag-chip">
-              {t}
-              {!readonly && <button className="tag-chip-remove" onClick={() => removeTag(t)}>×</button>}
-            </span>
-          ))}
-          {!readonly && <input
-            className="tag-input"
-            placeholder={tags.length === 0 ? "添加标签..." : ""}
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={handleTagKeyDown}
-            onBlur={() => {
-              if (tagInput.trim()) {
-                addTag(tagInput);
-                setTagInput("");
-              }
-            }}
-          />}
-        </div>}
+        {!workspaceHost?.separateTitle && renderDocumentHeader()}
         {/* ── 工具栏 ── */}
         {readonly && focusToolbarExpanded && <DocumentReadingToolbar active={documentActive} toolbarRef={toolbarRef} headingLevels={headingSections.map(section => section.level)} folded={getCollapsedHeadingKeys(editor).size > 0}
           findOpen={editorFindOpen} jumpOpen={lineJumpOpen} onFind={() => editorFindOpen ? closeEditorFind() : openEditorFind()} onJump={openLineJump}
