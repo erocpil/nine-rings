@@ -213,6 +213,8 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     editor.scrollToOffset(Math.min(location.from, editor.value.length), true);
   }, [current, onSourceReady]);
   const editable = !loading && Boolean(base) && !candidate && draftAvailable;
+  const [moreTools, setMoreTools] = useState(true);
+  const accessToggle = <button className="btn-icon" type="button" aria-label={readonly ? "允许编辑" : "设为只读"} title={readonly ? "允许编辑" : "设为只读"} disabled={!editable} onClick={() => setReadonly(value => !value)}><ToolbarIcon name={readonly ? "lock" : "edit"} /></button>;
   const titleActions = <>
     {onNavigate && <><button className="btn-icon" type="button" aria-label="上一文件" title="上一文件（←，只读预览）" disabled={!previous} onClick={() => requestClose(() => onNavigate(-1))}><ToolbarIcon name="chevronLeft" /></button><button className="btn-icon" type="button" aria-label="下一文件" title="下一文件（→，只读预览）" disabled={!next} onClick={() => requestClose(() => onNavigate(1))}><ToolbarIcon name="chevronRight" /></button></>}
     <button className="btn-icon" type="button" aria-label="保存文件" title="保存文件（⌘/Ctrl+S）" disabled={loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>
@@ -221,7 +223,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     {headerActions}
     <button className="btn-icon" type="button" aria-label="返回文件浏览" title="关闭预览，返回文件浏览" onClick={() => requestClose()}><ToolbarIcon name="close" /></button>
   </>;
-  return <section ref={previewRoot} tabIndex={-1} className="local-file-view workbench-source-view" aria-label="文件源码工作区" onClickCapture={event => {
+  return <section ref={previewRoot} tabIndex={-1} className="local-file-view workbench-source-view" data-source-tools-hidden={!moreTools || undefined} aria-label="文件源码工作区" onClickCapture={event => {
     const href = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]")?.getAttribute("href") : null;
     if (markdown && href && !href.startsWith("#") && !/^(https?:|mailto:|tel:)/i.test(href)) {
       event.preventDefault(); event.stopPropagation(); setNotice("请从文件列表打开本地链接；不会跳离当前编辑会话。");
@@ -231,9 +233,9 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     event.preventDefault(); event.stopPropagation();
     if (event.key === "ArrowLeft" ? previous : next) requestClose(() => onNavigate(event.key === "ArrowLeft" ? -1 : 1));
   }}>
-    {!renderMarkdown && <DocumentTitleBar className="local-files-toolbar local-file-titlebar"><strong title={file.node.id}>{file.node.name}</strong><span>{saving ? "正在保存…" : dirty ? "未保存" : "磁盘文本"}</span>
+    {!renderMarkdown && <DocumentTitleBar className="local-files-toolbar local-file-titlebar"><strong title={file.node.id}>{file.node.name}</strong>{(saving || dirty) && <span>{saving ? "正在保存…" : "未保存"}</span>}
       {markdown && <FileBrowserMarkdownMode rendered={renderMarkdown} disabled={!base} onChange={changePreviewMode} />}
-      <button className="btn-icon" type="button" aria-label={readonly ? "允许编辑" : "设为只读"} title={readonly ? "允许编辑" : "设为只读"} disabled={!editable} onClick={() => setReadonly(value => !value)}><ToolbarIcon name={readonly ? "lock" : "edit"} /></button>
+      {accessToggle}<button className="btn-icon" type="button" title="更多工具" aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(value => !value)}><ToolbarIcon name="annotate" /></button>
       {titleActions}
     </DocumentTitleBar>}
     {loading && <p role="status">正在读取文件…</p>}
@@ -244,7 +246,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       <DocumentImageLibraryContext.Provider value={false}><EditorFoldIconContext.Provider value={editorSettings}>
         <Suspense fallback={<p role="status">正在加载 Markdown 编辑器…</p>}><MarkdownWorkspace key={`${identity}:${renderEpoch}`} identity={`workbench:${identity}`} source={source} title={file.node.name} active={renderMarkdown} readonly={readonly || !editable || !renderMarkdown} focusMode={false} fontSize={16} vimModeEnabled={false} useCustomContextMenu showStatusBlockNumber highlightActiveLine showLineNumbers showStatusBar defaultCodeBlockWrap cjkLatinSpacing={false} readonlyHeadingFoldInFocusMode={false}
           bookmarks={[]} onBookmarksChange={() => {}} onSourceChange={renderedChange} onPending={() => setRenderPending(true)} onRegisterFlush={registerRenderedFlush} onEditorReady={bindRendered} pdfExport={false} onExportMarkdown={copy} onClick={() => {}} onReadonlyChange={editable ? setReadonly : undefined} resolveResource={resolveResource} saveStatus={saving ? "saving" : dirty ? "dirty" : "clean"}
-          titleActions={titleActions} viewToggle={<FileBrowserMarkdownMode rendered onChange={changePreviewMode} />} />
+          titleActions={<>{accessToggle}{titleActions}</>} viewToggle={<FileBrowserMarkdownMode rendered onChange={changePreviewMode} />} />
         </Suspense>
       </EditorFoldIconContext.Provider></DocumentImageLibraryContext.Provider>
     </div>}

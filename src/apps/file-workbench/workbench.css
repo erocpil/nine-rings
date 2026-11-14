@@ -107,3 +107,5 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
 .workbench-quit-card kbd { font: 500 38px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 .workbench-quit-card strong { font-size: 18px; font-weight: 500; }
 .workbench-quit-card span { color: var(--text-secondary); font-size: 13px; }
+
+.workbench-source-view[data-source-tools-hidden] .workbench-source-session .markdown-source-toolbar-host { display: none; }
