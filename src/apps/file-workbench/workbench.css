@@ -136,3 +136,27 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
   max-width: calc(100% - min(var(--document-dock-width, 280px), 50%));
   box-sizing: border-box;
 }
+
+/* A long rendered document must scroll inside its retained session. */
+.workbench-rendered-session { overflow: hidden; }
+.workbench-rendered-session > .note-editor { overflow: hidden; }
+.workbench-rendered-session .note-editor-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.workbench-rendered-session .note-editor-scroll > .editor-content-shell {
+  flex: 0 0 auto;
+}
+.file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller) {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-secondary) 35%, transparent) transparent;
+}
+.file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller)::-webkit-scrollbar {
+  width: 6px;
+  height: 4px;
+}
+.file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller)::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-secondary) 35%, transparent);
+  border-radius: 3px;
+}
