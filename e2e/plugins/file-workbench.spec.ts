@@ -1955,6 +1955,11 @@ test("Markdown 块号菜单与代码、引用、Flow、Mermaid 块模式复用�
       const panel = (await dock.boundingBox())!, toolbar = (await rendered.getByRole("toolbar", { name: "文档阅读工具" }).boundingBox())!;
       return toolbar.x + toolbar.width <= panel.x + 2 || toolbar.x >= panel.x + panel.width - 2;
     }).toBe(true);
+    await expect.poll(async () => {
+      const toolsBox = (await rendered.getByRole("toolbar", { name: "文档阅读工具" }).boundingBox())!;
+      const headerBox = (await dock.locator(".document-outline-header").boundingBox())!;
+      return Math.abs(toolsBox.y + toolsBox.height - headerBox.y - headerBox.height);
+    }).toBeLessThan(2);
     await tools.click();
     await outlineButton.click();
     const code = rendered.locator('.code-block-wrap').filter({ hasText: "int value = 1;" });

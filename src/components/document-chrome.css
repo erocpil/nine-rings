@@ -59,3 +59,21 @@
 @media (max-width: 768px) {
   :is(.app, .file-workbench-app) { --document-title-height: 44px; --document-chrome-button-size: 32px; --document-status-height: 32px; }
 }
+
+/* One row metric for source/render commands and the adjacent dock header. */
+:is(.app, .file-workbench-app) { --document-toolbar-height: 36px; }
+:is(.app, .file-workbench-app) .note-editor :is(.document-toolbar, .markdown-source-tools) {
+  box-sizing: border-box;
+  height: var(--document-toolbar-height);
+  min-height: var(--document-toolbar-height);
+  max-height: var(--document-toolbar-height);
+  padding-block: 1px;
+  flex-shrink: 0;
+}
+:is(.app, .file-workbench-app) .document-panel-slot :is(.document-outline-header, .document-bookmark-header, .document-source-matches-header) {
+  box-sizing: border-box;
+  height: var(--document-toolbar-height);
+  min-height: var(--document-toolbar-height);
+  flex-wrap: nowrap;
+  padding-block: 1px;
+}
