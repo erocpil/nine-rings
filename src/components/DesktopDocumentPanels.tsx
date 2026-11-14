@@ -61,12 +61,13 @@ export function DesktopDocumentPanels({
   useEffect(() => { cleanup.current?.(); setWidth(null); }, [controller.mode]);
   useLayoutEffect(() => {
     const dock = root.current, owner = dock?.closest<HTMLElement>(".note-editor");
-    if (!dock || !owner || controller.mode !== "compact") return;
+    const workbench = Boolean(owner?.closest(".file-workbench-app"));
+    if (!dock || !owner || (controller.mode !== "compact" && !workbench)) return;
     const anchor = owner.querySelector<HTMLElement>("[data-workspace-panel-start]") ?? owner.querySelector<HTMLElement>(".editor-menu");
     const title = owner.querySelector<HTMLElement>(".note-title-row");
     const measure = () => {
       const rect = anchor?.getBoundingClientRect();
-      const top = rect && rect.width > 0 ? rect.top : title?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top;
+      const top = rect && rect.width > 0 ? (workbench ? rect.bottom : rect.top) : title?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top;
       dock.style.top = `${Math.max(0, top - owner.getBoundingClientRect().top)}px`;
     };
     measure();
