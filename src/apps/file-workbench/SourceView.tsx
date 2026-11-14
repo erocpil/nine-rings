@@ -1,3 +1,4 @@
+import { DocumentTitleField } from "../../components/DocumentTitleField";
 import { PanelSideToggle } from "../../components/PanelSideToggle";
 import { createPortal } from "react-dom";
 import { DocumentNavigationWorkspace } from "../../components/DocumentNavigationWorkspace";
@@ -232,6 +233,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const [moreTools, setMoreTools] = useState(true);
   const [navigationTarget, setNavigationTarget] = useState<HTMLSpanElement | null>(null);
   const accessToggle = <DocumentAccessToggle readonly={readonly} aria-label={readonly ? "允许编辑" : "设为只读"} title={readonly ? "允许编辑" : "设为只读"} disabled={!editable} onClick={() => setReadonly(value => !value)} />;
+  const titleInfo = { title: file.node.name, tags: [], path: file.node.id, readonly, contentBytes: base?.size ?? file.node.size, updatedAt: base?.modifiedMs ? new Date(base.modifiedMs).toISOString() : undefined, format: documentLanguageFromFilename(file.node.name, source) };
   const titleActions = <>
     {onNavigate && <><button className="btn-icon" type="button" aria-label="上一文件" title="上一文件（←，只读预览）" disabled={!previous} onClick={() => requestClose(() => onNavigate(-1))}><ToolbarIcon name="chevronLeft" /></button><button className="btn-icon" type="button" aria-label="下一文件" title="下一文件（→，只读预览）" disabled={!next} onClick={() => requestClose(() => onNavigate(1))}><ToolbarIcon name="chevronRight" /></button></>}
     <button className="btn-icon" type="button" aria-label="保存文件" title="保存文件（⌘/Ctrl+S）" disabled={loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>
@@ -250,7 +252,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     event.preventDefault(); event.stopPropagation();
     if (event.key === "ArrowLeft" ? previous : next) requestClose(() => onNavigate(event.key === "ArrowLeft" ? -1 : 1));
   }}>
-    {!renderMarkdown && <DocumentTitleBar className="local-files-toolbar local-file-titlebar">{accessToggle}<strong title={file.node.id}>{file.node.name}</strong>{(saving || dirty) && <span>{saving ? "正在保存…" : "未保存"}</span>}
+    {!renderMarkdown && <DocumentTitleBar className="local-files-toolbar local-file-titlebar">{accessToggle}<DocumentTitleField title={file.node.name} preview readonly={readonly} info={titleInfo} />{(saving || dirty) && <span>{saving ? "正在保存…" : "未保存"}</span>}
       {markdown && <FileBrowserMarkdownMode rendered={renderMarkdown} disabled={!base} onChange={changePreviewMode} />}
       <span ref={setNavigationTarget} className="workbench-navigation-actions" /><button className="btn-icon" type="button" title="更多工具" aria-label="更多工具" data-tooltip-always="true" aria-expanded={moreTools} onClick={() => setMoreTools(value => !value)}><ToolbarIcon name="annotate" /></button><PanelSideToggle />
       {titleActions}
@@ -263,7 +265,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       <DocumentImageLibraryContext.Provider value={false}><EditorFoldIconContext.Provider value={editorSettings}>
         <Suspense fallback={<p role="status">正在加载 Markdown 编辑器…</p>}><MarkdownWorkspace key={`${identity}:${renderEpoch}`} identity={`workbench:${identity}`} source={source} title={file.node.name} active={renderMarkdown} readonly={readonly || !editable || !renderMarkdown} focusMode={false} fontSize={16} vimModeEnabled={false} useCustomContextMenu showStatusBlockNumber highlightActiveLine showLineNumbers showStatusBar defaultCodeBlockWrap cjkLatinSpacing={false} readonlyHeadingFoldInFocusMode={false}
           bookmarks={lineBookmarks.map(item => ({ offset: item.position, line: source.slice(0, item.position).split("\n").length, label: item.label || item.preview }))} onBookmarksChange={items => setLineBookmarks(items.map(item => ({ id: String(item.offset), position: item.offset, label: item.label, preview: item.label })))} onSourceChange={renderedChange} onPending={() => setRenderPending(true)} onRegisterFlush={registerRenderedFlush} onEditorReady={bindRendered} separateTitle pdfExport={false} onExportMarkdown={copy} onClick={() => {}} onReadonlyChange={editable ? setReadonly : undefined} resolveResource={resolveResource} saveStatus={saving ? "saving" : dirty ? "dirty" : "clean"}
-          titleActions={titleActions} viewToggle={<FileBrowserMarkdownMode rendered onChange={changePreviewMode} />} />
+          info={titleInfo} titleActions={titleActions} viewToggle={<FileBrowserMarkdownMode rendered onChange={changePreviewMode} />} />
         </Suspense>
       </EditorFoldIconContext.Provider></DocumentImageLibraryContext.Provider>
     </div>}

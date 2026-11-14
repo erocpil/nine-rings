@@ -2006,6 +2006,12 @@ test("Markdown 块号菜单与代码、引用、Flow、Mermaid 块模式复用�
     await rendered.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
     const source = page.locator(".workbench-source-session .cm-content");
     await expect(source).toContainText("// block edit"); await expect(source).toContainText("quote edit");
+    const sourceTitle = page.locator(".local-file-titlebar");
+    // The retained render view is hidden now; compare the shared source chrome
+    // against its actual desktop geometry, not text or CSS class spelling.
+    await expect(sourceTitle).toHaveCSS("min-height", "40px");
+    await expect(page.locator(".workbench-source-session .editor-status-bar")).toHaveCSS("height", "30px");
+
     const sourceSession = page.locator(".workbench-source-session");
     await page.locator('.local-file-titlebar [data-document-panel-trigger="outline"]').click();
     const sourceDock = sourceSession.locator(".document-panel-dock");
