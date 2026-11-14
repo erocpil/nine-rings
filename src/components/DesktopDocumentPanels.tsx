@@ -67,7 +67,9 @@ export function DesktopDocumentPanels({
     const title = owner.querySelector<HTMLElement>(".note-title-row");
     const measure = () => {
       const rect = anchor?.getBoundingClientRect();
-      const top = rect && rect.width > 0 ? (workbench ? rect.bottom : rect.top) : title?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top;
+      const top = workbench
+        ? title?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top
+        : rect && rect.width > 0 ? rect.top : title?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top;
       dock.style.top = `${Math.max(0, top - owner.getBoundingClientRect().top)}px`;
     };
     measure();
