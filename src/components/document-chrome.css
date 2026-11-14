@@ -113,3 +113,11 @@
 :is(.app, .file-workbench-app) .note-editor .document-toolbar.toolbar-scrollable {
   margin-bottom: 0;
 }
+
+/* The shared detached title must paint above the sticky document commands;
+   otherwise its information card is overprinted by toolbar glyphs. */
+.document-render-header {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 35;
+}

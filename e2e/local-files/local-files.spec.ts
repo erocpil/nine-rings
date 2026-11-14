@@ -116,6 +116,13 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
   await panel.getByRole("button", { name: "guide.md", exact: true }).click();
   const viewer = page.getByRole("region", { name: "本地文件工作区" });
   await expect(viewer.getByRole("button", { name: "目录", exact: true })).toBeVisible();
+  await expect.poll(async () => {
+    const title = (await viewer.locator(".local-file-titlebar").boundingBox())!;
+    const toolbar = (await viewer.locator(".markdown-source-tools").boundingBox())!;
+    const inset = await viewer.evaluate(el => parseFloat(getComputedStyle(el).getPropertyValue("--document-edge-inset")));
+    return Math.max(Math.abs(toolbar.x - title.x - inset), Math.abs(toolbar.x + toolbar.width - title.x - title.width + inset));
+  }).toBeLessThan(2);
+
   await expect(viewer.getByRole("button", { name: "源码符号", exact: true })).toHaveCount(0);
   await expect(viewer.getByRole("button", { name: "同词匹配", exact: true })).toHaveCount(0);
   await viewer.getByRole("button", { name: "目录", exact: true }).click();
@@ -145,6 +152,19 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
   const readingOutline = viewer.getByRole("navigation", {name:"文档目录",exact:true});
   await readingOutline.getByRole("button", { name: "滚动至顶部", exact: true }).dblclick();
   await expect.poll(() => viewer.locator(".markdown-reading-view").evaluate(element => element.scrollTop)).toBeLessThan(2);
+  await expect.poll(async () => {
+    const title = (await viewer.locator(".document-render-header .document-title-bar").boundingBox())!;
+    const dock = (await viewer.locator(".document-panel-dock").boundingBox())!;
+    return Math.abs(dock.y - title.y - title.height);
+  }).toBeLessThan(2);
+  await viewer.locator(".document-render-header .note-title").hover({ position: { x: 10, y: 10 } });
+  const card = viewer.locator(".document-info-card-title-hover");
+  await expect(card).toBeVisible();
+  await expect.poll(() => card.evaluate(element => {
+    const box = element.getBoundingClientRect();
+    return Boolean(document.elementFromPoint(box.left + 30, box.top + 12)?.closest(".document-info-card"));
+  })).toBe(true);
+  await page.mouse.move(0, 0);
   await readingOutline.getByRole("button", { name: "收起固定目录", exact: true }).click();
   await expect(readingOutline).toHaveCount(0);
 });

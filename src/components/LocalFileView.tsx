@@ -605,7 +605,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
   const propertiesPanel = propertiesOpen ? <LocalFilePropertiesPanel info={fileInfo} onClose={() => setPropertiesOpen(false)} /> : null;
   if (preview && isMarkdown && baseSnapshot && !loading) return <section ref={localViewRef} className="local-file-view" data-properties-open={propertiesOpen || undefined} aria-label="本地文件工作区">
     {fileNotices}
-    <LocalMarkdownWorkspace key={`${identity}:${renderEpoch}`} identity={identity} source={source} title={data.name} active={active}
+    <LocalMarkdownWorkspace separateTitle key={`${identity}:${renderEpoch}`} identity={identity} source={source} title={data.name} active={active}
       readonly={readOnly} focusMode={focusMode} fontSize={fontSize} vimModeEnabled={vimModeEnabled} useCustomContextMenu={useCustomContextMenu} showStatusBlockNumber={showStatusBlockNumber} highlightActiveLine={highlightActiveLine}
       showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} defaultCodeBlockWrap={defaultCodeBlockWrap}
       cjkLatinSpacing={cjkLatinSpacing} readonlyHeadingFoldInFocusMode={readonlyHeadingFoldInFocusMode}

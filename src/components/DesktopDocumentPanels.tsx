@@ -61,7 +61,7 @@ export function DesktopDocumentPanels({
   useEffect(() => { cleanup.current?.(); setWidth(null); }, [controller.mode]);
   useLayoutEffect(() => {
     const dock = root.current, owner = dock?.closest<HTMLElement>(".note-editor");
-    const workbench = Boolean(owner?.closest(".file-workbench-app"));
+    const workbench = Boolean(owner?.closest(".file-workbench-app") || owner?.querySelector(":scope > .document-render-header"));
     if (!dock || !owner || (controller.mode !== "compact" && !workbench)) return;
     const observed = new WeakSet<Element>();
     const measure = () => {

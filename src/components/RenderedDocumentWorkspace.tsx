@@ -4476,7 +4476,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
       >
       {isMobileToolbarViewport ? <>{outlinePanel}{bookmarkPanel}</> : <DesktopDocumentPanels controller={desktopPanels} bookmarkEmpty={bookmarkPanelTotal === 0} outline={outlinePanel} bookmark={bookmarkPanel} />}
       </DocumentPanelDrawer>
-      {workspaceHost?.separateTitle && <div className="workbench-render-header">{renderDocumentHeader()}</div>}
+      {workspaceHost?.separateTitle && <div className="document-render-header">{renderDocumentHeader()}</div>}
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
       <div aria-label={workspaceHost?.bodyLabel} className={`note-editor-scroll ${workspaceHost?.bodyClassName ?? ""}`} ref={scrollRef}>
         <div className="note-editor-sticky">

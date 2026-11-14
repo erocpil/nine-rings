@@ -114,7 +114,7 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
 
 
 /* The rendered title is outside the scrollport, like the source title. */
-.workbench-render-header { flex: 0 0 auto; }
+
 .workbench-rendered-session { overflow: hidden; }
 .workbench-rendered-session > .note-editor { overflow: hidden; }
 .workbench-rendered-session .note-editor-scroll > .editor-content-shell { flex: 0 0 auto; }
