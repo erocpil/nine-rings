@@ -1,0 +1,61 @@
+/* Shared geometry for source/render views and both application hosts. */
+:is(.app, .file-workbench-app) {
+  --document-title-height: 40px;
+  --document-title-font-size: 16px;
+  --document-status-height: 30px;
+  --document-chrome-button-size: 28px;
+}
+:is(.app, .file-workbench-app) .document-title-bar {
+  min-height: var(--document-title-height);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding-block: 4px;
+  flex-shrink: 0;
+}
+:is(.app, .file-workbench-app) .document-title-bar :is(.note-title, .note-title-input, .document-source-name, .local-file-titlebar > strong) {
+  font-size: var(--document-title-font-size);
+  font-weight: 500;
+  line-height: 1.4;
+}
+:is(.app, .file-workbench-app) .document-title-bar > strong {
+  font-size: var(--document-title-font-size);
+  font-weight: 500;
+  line-height: 1.4;
+}
+:is(.app, .file-workbench-app) .document-title-bar :is(.btn-icon, .focus-btn, .markdown-view-toggle, .note-readonly-action) {
+  box-sizing: border-box;
+  flex: 0 0 var(--document-chrome-button-size);
+  width: var(--document-chrome-button-size);
+  min-width: var(--document-chrome-button-size);
+  height: var(--document-chrome-button-size);
+  min-height: var(--document-chrome-button-size);
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+}
+:is(.app, .file-workbench-app) .document-title-bar .toolbar-icon { width: 16px; height: 16px; }
+:is(.app, .file-workbench-app) .editor-status-bar {
+  box-sizing: border-box;
+  min-height: var(--document-status-height);
+  height: var(--document-status-height);
+  padding-block: 2px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+:is(.app, .file-workbench-app) .editor-status-bar :is(.btn-icon, .focus-btn, .editor-status-select, .editor-status-create) {
+  min-height: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+@media (max-width: 768px) {
+  :is(.app, .file-workbench-app) { --document-title-height: 44px; --document-chrome-button-size: 32px; --document-status-height: 32px; }
+}

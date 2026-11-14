@@ -1,3 +1,4 @@
+import "./document-chrome.css";
 import { EditorStatusSelect } from "./EditorStatusSelect";
 import {
   useEffect,

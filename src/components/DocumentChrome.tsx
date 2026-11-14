@@ -1,3 +1,4 @@
+import "./document-chrome.css";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { forwardRef, type HTMLAttributes } from "react";
 
@@ -7,7 +8,7 @@ export const DocumentTitleBar = forwardRef<
   HTMLDivElement,
   HTMLAttributes<HTMLDivElement>
 >(function DocumentTitleBar({ className = "", ...props }, ref) {
-  return <div {...props} ref={ref} className={`note-title-row ${className}`} />;
+  return <div {...props} ref={ref} className={`note-title-row document-title-bar ${className}`} />;
 });
 
 /** The live toolbar remains the command source for selection and context menus.
