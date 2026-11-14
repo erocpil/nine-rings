@@ -96,7 +96,7 @@ export function QuickTooltips() {
       )
         return;
       clear();
-      if (!element || !(element.dataset.tooltipPath || element.title).trim() || element.getAttribute("aria-expanded") === "true" || (element.dataset.tooltipPath && Date.now() < scrollingUntil)) return;
+      if (!element || !(element.dataset.tooltipPath || element.title).trim() || (element.getAttribute("aria-expanded") === "true" && element.dataset.tooltipAlways !== "true") || (element.dataset.tooltipPath && Date.now() < scrollingUntil)) return;
       const suppressDocumentPanelHint =
         // Hover previews provide their own context; click-only panels need a hint.
         ["outline", "bookmark"].includes(element.dataset.documentPanelTrigger ?? "") &&
@@ -116,7 +116,7 @@ export function QuickTooltips() {
       if (!element.dataset.tooltipPath) element.removeAttribute("title");
       if (suppressDocumentPanelHint) return;
       const show = () => {
-        if (!element.isConnected || element.getAttribute("aria-expanded") === "true" || (pathTarget && !element.dataset.tooltipPath)) {
+        if (!element.isConnected || (element.getAttribute("aria-expanded") === "true" && element.dataset.tooltipAlways !== "true") || (pathTarget && !element.dataset.tooltipPath)) {
           clear();
           return;
         }

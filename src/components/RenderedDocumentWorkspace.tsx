@@ -4275,7 +4275,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
           {epubExcerptSource && onOpenEpubExcerpt && (
             <button type="button" onClick={() => onOpenEpubExcerpt(epubExcerptSource)} title={`返回 ${epubExcerptSource.epubName} · ${epubExcerptSource.chapterTitle}`} aria-label={`返回 EPUB 第 ${epubExcerptSource.chapter} 章`}><FocusModeIcon name="epub" /><span className="focus-source-position" aria-hidden="true">{epubExcerptSource.chapter}</span></button>
           )}
-          {documentViewToggle}{workspaceHost?.titleActions}
+          {documentViewToggle}
           {documentOutline.length > 0 && (
             <button
               ref={focusOutlineTriggerRef}
@@ -4318,9 +4318,9 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
                 setToolbarExpandedPreference(!focusToolbarExpanded);
               }}
               title={shortcutTitle("view.tools", "更多工具")}
-              aria-label="更多工具"
+              aria-label="更多工具" data-tooltip-always="true"
             ><FocusModeIcon name="tools" /></button>
-          )}
+          )}{workspaceHost?.titleActions}
           {!statusBar.navigationInStatus && (workspaceHost?.navigationControls ?? (workspaceHost?.navigation !== false ? <NavigationButtons /> : null))}
           <button
             type="button"
@@ -4410,7 +4410,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
           {epubExcerptSource && onOpenEpubExcerpt && (
             <button type="button" className="focus-btn pdf-excerpt-source-button" onClick={() => onOpenEpubExcerpt(epubExcerptSource)} title={`返回 ${epubExcerptSource.epubName} · ${epubExcerptSource.chapterTitle}`}>EPUB · {epubExcerptSource.chapter}</button>
           )}
-          {documentViewToggle}{workspaceHost?.titleActions}
+          {documentViewToggle}
           {documentOutline.length > 0 && (
             <div className="document-outline-control">
               <button
@@ -4443,7 +4443,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
             aria-expanded={bookmarkOpen}
             type="button"
           ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
-          {<button type="button" className="focus-btn" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={focusToolbarExpanded} onClick={() => setToolbarExpandedPreference(!focusToolbarExpanded)}><ToolbarIcon name="annotate" /></button>}
+          {<button type="button" className="focus-btn" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" data-tooltip-always="true" aria-expanded={focusToolbarExpanded} onClick={() => setToolbarExpandedPreference(!focusToolbarExpanded)}><ToolbarIcon name="annotate" /></button>}{workspaceHost?.titleActions}
           {!statusBar.navigationInStatus && (workspaceHost?.navigationControls ?? (workspaceHost?.navigation !== false ? <NavigationButtons /> : null))}
           {isMobileToolbarViewport && <button
             className={`focus-btn document-focus-toggle ${focusMode ? "active" : ""}`}

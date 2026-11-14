@@ -109,3 +109,5 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
 .workbench-quit-card span { color: var(--text-secondary); font-size: 13px; }
 
 .workbench-source-view[data-source-tools-hidden] .workbench-source-session .markdown-source-toolbar-host { display: none; }
+
+.workbench-navigation-actions { display: inline-flex; align-items: center; gap: 4px; }

@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { DocumentNavigationWorkspace } from "../../components/DocumentNavigationWorkspace";
 import { SourceNavigationDocument } from "../../lib/markdown-source-navigation";
 import { useMarkdownViewPosition } from "../../hooks/useMarkdownViewPosition";
@@ -84,7 +85,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   };
   const [source, setSource] = useState(""), sourceRef = useRef("");
   const [lineBookmarks, setLineBookmarks] = useState<{ id: string; position: number; label: string; preview: string }[]>([]);
-  const sourceNavigation = useMemo(() => new SourceNavigationDocument(source, [], { sourceLanguage: documentLanguageFromFilename(file.node.name, source) }), [source, lineBookmarks, file.node.name]);
+  const sourceNavigation = useMemo(() => new SourceNavigationDocument(source, [], { sourceLanguage: documentLanguageFromFilename(file.node.name, source) }), [source, file.node.name]);
   const sourceProjection = useRef("");
   if (!renderMarkdown || !sourceMounted) sourceProjection.current = source;
   const [base, setBase] = useState<LocalFileSnapshot | null>(null), baseRef = useRef<LocalFileSnapshot | null>(null);
@@ -218,6 +219,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   }, [current, onSourceReady]);
   const editable = !loading && Boolean(base) && !candidate && draftAvailable;
   const [moreTools, setMoreTools] = useState(true);
+  const [navigationTarget, setNavigationTarget] = useState<HTMLSpanElement | null>(null);
   const accessToggle = <button className="btn-icon" type="button" aria-label={readonly ? "允许编辑" : "设为只读"} title={readonly ? "允许编辑" : "设为只读"} disabled={!editable} onClick={() => setReadonly(value => !value)}><ToolbarIcon name={readonly ? "lock" : "edit"} /></button>;
   const titleActions = <>
     {onNavigate && <><button className="btn-icon" type="button" aria-label="上一文件" title="上一文件（←，只读预览）" disabled={!previous} onClick={() => requestClose(() => onNavigate(-1))}><ToolbarIcon name="chevronLeft" /></button><button className="btn-icon" type="button" aria-label="下一文件" title="下一文件（→，只读预览）" disabled={!next} onClick={() => requestClose(() => onNavigate(1))}><ToolbarIcon name="chevronRight" /></button></>}
@@ -239,7 +241,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   }}>
     {!renderMarkdown && <DocumentTitleBar className="local-files-toolbar local-file-titlebar"><strong title={file.node.id}>{file.node.name}</strong>{(saving || dirty) && <span>{saving ? "正在保存…" : "未保存"}</span>}
       {markdown && <FileBrowserMarkdownMode rendered={renderMarkdown} disabled={!base} onChange={changePreviewMode} />}
-      {accessToggle}<button className="btn-icon" type="button" title="更多工具" aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(value => !value)}><ToolbarIcon name="annotate" /></button>
+      <span ref={setNavigationTarget} className="workbench-navigation-actions" />{accessToggle}<button className="btn-icon" type="button" title="更多工具" aria-label="更多工具" data-tooltip-always="true" aria-expanded={moreTools} onClick={() => setMoreTools(value => !value)}><ToolbarIcon name="annotate" /></button>
       {titleActions}
     </DocumentTitleBar>}
     {loading && <p role="status">正在读取文件…</p>}
@@ -254,7 +256,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
         </Suspense>
       </EditorFoldIconContext.Provider></DocumentImageLibraryContext.Provider>
     </div>}
-    {!loading && base && sourceMounted && <div className="local-file-editor-shell workbench-source-session" hidden={renderMarkdown}><DocumentNavigationWorkspace origin="local" revision={sourceNavigation} bookmarkItems={lineBookmarks.map(item => ({ ...item, offset: item.position, blockNumber: source.slice(0, item.position).split("\n").length }))} sourceHandle={position.sourceHandle} onJump={offset => { handle.current?.setSelectionRange(offset, offset); handle.current?.scrollToOffset(offset, true); }} onToggleBookmark={offset => setLineBookmarks(items => items.some(item => item.position === offset) ? items.filter(item => item.position !== offset) : [...items, { id: crypto.randomUUID(), position: offset, label: "", preview: source.slice(offset, offset + 80) }])} onRemoveBookmark={id => setLineBookmarks(items => items.filter(item => item.id !== id))} onRenameBookmark={(id, label) => setLineBookmarks(items => items.map(item => item.id === id ? { ...item, label } : item))}>{controls => <><div className="workbench-source-navigation">{controls}</div><DocumentActiveBoundary active={!renderMarkdown}><EditorFoldIconContext.Provider value={editorSettings}><DocumentSourceSurface editor={{ value: sourceProjection.current, readonly: readonly || renderMarkdown, areaRef: handle, session, onChange: change, fontSize: 16, highlightActiveLine: true, showLineNumbers: editorSettings.editor_show_line_numbers, onEditorConfigChange: async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, editorSettings, patch)); }, showStatusBar: true, contextMenuEnabled: true, documentLanguage: documentLanguageFromFilename(file.node.name, source), saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,
+    {!loading && base && sourceMounted && <div className="local-file-editor-shell workbench-source-session" hidden={renderMarkdown}><DocumentNavigationWorkspace origin="local" revision={sourceNavigation} bookmarkItems={lineBookmarks.map(item => ({ ...item, offset: item.position, blockNumber: source.slice(0, item.position).split("\n").length }))} sourceHandle={position.sourceHandle} onJump={offset => { handle.current?.setSelectionRange(offset, offset); handle.current?.scrollToOffset(offset, true); }} onToggleBookmark={offset => setLineBookmarks(items => items.some(item => item.position === offset) ? items.filter(item => item.position !== offset) : [...items, { id: crypto.randomUUID(), position: offset, label: "", preview: source.slice(offset, offset + 80) }])} onRemoveBookmark={id => setLineBookmarks(items => items.filter(item => item.id !== id))} onRenameBookmark={(id, label) => setLineBookmarks(items => items.map(item => item.id === id ? { ...item, label } : item))}>{controls => <>{navigationTarget && createPortal(controls, navigationTarget)}<DocumentActiveBoundary active={!renderMarkdown}><EditorFoldIconContext.Provider value={editorSettings}><DocumentSourceSurface editor={{ value: sourceProjection.current, readonly: readonly || renderMarkdown, areaRef: handle, session, onChange: change, fontSize: 16, highlightActiveLine: true, showLineNumbers: editorSettings.editor_show_line_numbers, onEditorConfigChange: async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, editorSettings, patch)); }, showStatusBar: true, contextMenuEnabled: true, documentLanguage: documentLanguageFromFilename(file.node.name, source), saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,
       onReady: bindHandle,
     }} /></EditorFoldIconContext.Provider></DocumentActiveBoundary></>}</DocumentNavigationWorkspace></div>}
     {external && <WorkspaceDialog title="磁盘版本比较" onClose={() => setExternal(null)}><TextDiffView left={source} right={external.source} leftLabel="当前编辑" rightLabel="磁盘版本" /></WorkspaceDialog>}
