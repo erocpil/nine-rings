@@ -168,3 +168,23 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
   max-width: calc(100% - min(var(--document-dock-width, 280px), 50%));
   box-sizing: border-box;
 }
+
+.file-workbench-app .document-panels-right > .note-editor-scroll > .note-editor-sticky > .editor-menu {
+  margin-left: 0;
+}
+.file-workbench-app .document-panels-left > .note-editor-scroll > .note-editor-sticky > .editor-menu {
+  margin-right: 0;
+}
+.workbench-render-scrollbar {
+  position: absolute;
+  width: 8px;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  z-index: 30;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-secondary) 35%, transparent) transparent;
+}
+.workbench-render-scrollbar[hidden] { display: none; }
+.workbench-render-scrollbar > div { width: 1px; }
+.workbench-render-scrollbar::-webkit-scrollbar { width: 6px; }
+.workbench-render-scrollbar::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-secondary) 35%, transparent); border-radius: 3px; }
