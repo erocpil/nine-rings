@@ -175,7 +175,7 @@ export function EditorStatusBar({
     save:
       saveStatus !== undefined ? (
         <span
-          className={`editor-save-state editor-save-state-${saveStatus}`}
+          className={`editor-save-state editor-save-state-${saveStatus}${saveStatus === "saved" ? " save-status-saved" : ""}`}
           role="status"
           aria-label={saveLabel}
           title={saveLabel}

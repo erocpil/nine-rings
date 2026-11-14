@@ -4580,7 +4580,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
           }}
         >
           <EditorToolbarContents
-            editor={editor} readonly={readonly} saveStatus={saveStatus}
+            editor={editor} readonly={readonly} saveStatus={saveStatus === "saved" ? undefined : saveStatus}
             layout={{ isMobileToolbarViewport, toolbarRef }}
             menus={{
               backgroundOpen, setBackgroundOpen, colorOpen, setColorOpen, sizeOpen, setSizeOpen,

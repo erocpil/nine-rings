@@ -9,6 +9,8 @@ test("渲染工具栏横线与标题对齐，首个插入按钮不被工具栏�
   if (await more.getAttribute("aria-expanded") !== "true") await more.click();
   const toolbar = editor.locator(".document-editing-tools");
   await expect(toolbar).toBeVisible();
+  await expect(editor.locator(".editor-save-state-saved")).toBeVisible();
+  await expect(toolbar.locator(".save-status-saved")).toHaveCount(0);
   await expect.poll(async () => {
     const title = (await editor.locator(".document-title-bar").boundingBox())!;
     const tools = (await toolbar.boundingBox())!;
