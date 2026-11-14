@@ -118,8 +118,6 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
 .workbench-rendered-session { overflow: hidden; }
 .workbench-rendered-session > .note-editor { overflow: hidden; }
 .workbench-rendered-session .note-editor-scroll > .editor-content-shell { flex: 0 0 auto; }
-.file-workbench-app .document-panels-right > .markdown-source-content { margin-right: min(var(--document-dock-width, 280px), 50%); }
-.file-workbench-app .document-panels-left > .markdown-source-content { margin-left: min(var(--document-dock-width, 280px), 50%); }
 .file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller) { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text-secondary) 35%, transparent) transparent; }
 .file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller)::-webkit-scrollbar { width: 6px; height: 4px; }
 .file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller)::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-secondary) 35%, transparent); border-radius: 3px; }

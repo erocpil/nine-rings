@@ -2006,6 +2006,23 @@ test("Markdown 块号菜单与代码、引用、Flow、Mermaid 块模式复用�
     await rendered.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
     const source = page.locator(".workbench-source-session .cm-content");
     await expect(source).toContainText("// block edit"); await expect(source).toContainText("quote edit");
+    const sourceSession = page.locator(".workbench-source-session");
+    await page.locator('.local-file-titlebar [data-document-panel-trigger="outline"]').click();
+    const sourceDock = sourceSession.locator(".document-panel-dock");
+    await expect(sourceDock).toBeVisible();
+    for (let side = 0; side < 2; side++) {
+      await expect.poll(async () => {
+        const dockBox = (await sourceDock.boundingBox())!;
+        for (const selector of [".markdown-source-toolbar-host", ".markdown-source-input", ".markdown-source-status-host"]) {
+          const box = (await sourceSession.locator(selector).boundingBox())!;
+          if (!(box.x + box.width <= dockBox.x + 2 || box.x >= dockBox.x + dockBox.width - 2)) return false;
+        }
+        return true;
+      }).toBe(true);
+      await page.locator(".local-file-titlebar").getByRole("button", { name: "切换固定面板位置", exact: true }).click();
+    }
+    await page.locator('.local-file-titlebar [data-document-panel-trigger="outline"]').click();
+
     await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
     await expect(code).toContainText("// block edit");
     await rendered.getByRole("button", { name: "返回文件浏览", exact: true }).click();
