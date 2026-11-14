@@ -1,3 +1,5 @@
+import { DocumentNavigationWorkspace } from "../../components/DocumentNavigationWorkspace";
+import { SourceNavigationDocument } from "../../lib/markdown-source-navigation";
 import { useMarkdownViewPosition } from "../../hooks/useMarkdownViewPosition";
 import { deltaToProseMirror } from "../../lib/delta-converter";
 import { writeDocumentSource } from "../../lib/document-source";
@@ -11,7 +13,7 @@ import { FileBrowserMarkdownMode } from "../../components/FileBrowserMarkdownMod
 import { FileBrowserFileDetails } from "../../components/FileBrowserFileDetails";
 import type { BrowserDirectoryProvider } from "../../lib/local-files/browser-contract";
 import type { WorkbenchCloseRequest } from "./native-lifecycle";
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, useMemo, type MutableRefObject, type ReactNode } from "react";
 import type { EditorState } from "@codemirror/state";
 import { DocumentSourceSurface } from "../../components/DocumentSourceSurface";
 import { DocumentTitleBar } from "../../components/DocumentChrome";
@@ -81,6 +83,8 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     } catch (cause) { setError(String(cause)); }
   };
   const [source, setSource] = useState(""), sourceRef = useRef("");
+  const [lineBookmarks, setLineBookmarks] = useState<{ id: string; position: number; label: string; preview: string }[]>([]);
+  const sourceNavigation = useMemo(() => new SourceNavigationDocument(source, [], { sourceLanguage: documentLanguageFromFilename(file.node.name, source) }), [source, lineBookmarks, file.node.name]);
   const sourceProjection = useRef("");
   if (!renderMarkdown || !sourceMounted) sourceProjection.current = source;
   const [base, setBase] = useState<LocalFileSnapshot | null>(null), baseRef = useRef<LocalFileSnapshot | null>(null);
@@ -250,9 +254,9 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
         </Suspense>
       </EditorFoldIconContext.Provider></DocumentImageLibraryContext.Provider>
     </div>}
-    {!loading && base && sourceMounted && <div className="local-file-editor-shell workbench-source-session" hidden={renderMarkdown}><DocumentActiveBoundary active={!renderMarkdown}><EditorFoldIconContext.Provider value={editorSettings}><DocumentSourceSurface editor={{ value: sourceProjection.current, readonly: readonly || renderMarkdown, areaRef: handle, session, onChange: change, fontSize: 16, highlightActiveLine: true, showLineNumbers: editorSettings.editor_show_line_numbers, onEditorConfigChange: async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, editorSettings, patch)); }, showStatusBar: true, contextMenuEnabled: true, documentLanguage: documentLanguageFromFilename(file.node.name, source), saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,
+    {!loading && base && sourceMounted && <div className="local-file-editor-shell workbench-source-session" hidden={renderMarkdown}><DocumentNavigationWorkspace origin="local" revision={sourceNavigation} bookmarkItems={lineBookmarks.map(item => ({ ...item, offset: item.position, blockNumber: source.slice(0, item.position).split("\n").length }))} sourceHandle={position.sourceHandle} onJump={offset => { handle.current?.setSelectionRange(offset, offset); handle.current?.scrollToOffset(offset, true); }} onToggleBookmark={offset => setLineBookmarks(items => items.some(item => item.position === offset) ? items.filter(item => item.position !== offset) : [...items, { id: crypto.randomUUID(), position: offset, label: "", preview: source.slice(offset, offset + 80) }])} onRemoveBookmark={id => setLineBookmarks(items => items.filter(item => item.id !== id))} onRenameBookmark={(id, label) => setLineBookmarks(items => items.map(item => item.id === id ? { ...item, label } : item))}>{controls => <><div className="workbench-source-navigation">{controls}</div><DocumentActiveBoundary active={!renderMarkdown}><EditorFoldIconContext.Provider value={editorSettings}><DocumentSourceSurface editor={{ value: sourceProjection.current, readonly: readonly || renderMarkdown, areaRef: handle, session, onChange: change, fontSize: 16, highlightActiveLine: true, showLineNumbers: editorSettings.editor_show_line_numbers, onEditorConfigChange: async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, editorSettings, patch)); }, showStatusBar: true, contextMenuEnabled: true, documentLanguage: documentLanguageFromFilename(file.node.name, source), saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,
       onReady: bindHandle,
-    }} /></EditorFoldIconContext.Provider></DocumentActiveBoundary></div>}
+    }} /></EditorFoldIconContext.Provider></DocumentActiveBoundary></>}</DocumentNavigationWorkspace></div>}
     {external && <WorkspaceDialog title="磁盘版本比较" onClose={() => setExternal(null)}><TextDiffView left={source} right={external.source} leftLabel="当前编辑" rightLabel="磁盘版本" /></WorkspaceDialog>}
     {leave && <WorkspaceDialog title="未保存的文件编辑" onClose={cancelLeave}>{error && <p role="alert">{error}</p>}<p>请先保存到原文件，或确认恢复草稿已持久化后离开。导出副本不会将原文件标记为已保存。最多保留 5 份草稿，不自动淘汰；满额时须先处理旧草稿。</p><div>
       <button type="button" disabled={saving || !host.canSaveOriginal(file.rootId)} onClick={() => { void save().then(clean => { if (clean) { const target = leave; setLeave(null); if (target === "close") finishClose(); else void read(); } }); }}>保存后继续</button>
