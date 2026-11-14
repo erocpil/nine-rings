@@ -77,3 +77,28 @@
   flex-wrap: nowrap;
   padding-block: 1px;
 }
+
+:is(.app, .file-workbench-app) {
+  --document-tool-size: 28px;
+  --document-tool-icon-size: 16px;
+  --document-tool-gap: 4px;
+}
+:is(.app, .file-workbench-app) .note-editor :is(.document-toolbar.toolbar-scrollable, .markdown-source-tools) {
+  gap: var(--document-tool-gap);
+}
+:is(.app, .file-workbench-app) .note-editor .document-toolbar.toolbar-scrollable .menu-btn:not(.toolbar-split-caret),
+:is(.app, .file-workbench-app) .note-editor .markdown-source-tools > button {
+  box-sizing: border-box;
+  min-width: var(--document-tool-size);
+  height: var(--document-tool-size);
+  min-height: var(--document-tool-size);
+  padding: 4px;
+  font-size: 12px;
+  line-height: 18px;
+  border-radius: 4px;
+}
+:is(.app, .file-workbench-app) .note-editor :is(.document-toolbar.toolbar-scrollable, .markdown-source-tools) .toolbar-icon {
+  width: var(--document-tool-icon-size);
+  height: var(--document-tool-icon-size);
+  flex-shrink: 0;
+}

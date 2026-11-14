@@ -64,3 +64,14 @@
   background-size: calc(100% - 2 * var(--document-edge-inset) - var(--editor-scrollbar-width, 0px)) 1px;
   background-position: left var(--document-edge-inset) bottom 0;
 }
+
+/* Draw the rendered toolbar rule with the same inset/box model as its title.
+   The rule belongs to the visible toolbar viewport, not its scrollable items. */
+.app .note-editor .editor-menu.toolbar-scrollable {
+  box-sizing: border-box;
+  border-bottom: 1px solid transparent;
+  background-image: linear-gradient(var(--border), var(--border));
+  background-size: 100% 1px;
+  background-position: left bottom;
+  background-repeat: no-repeat;
+}
