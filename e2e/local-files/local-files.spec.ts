@@ -167,6 +167,17 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
   await page.mouse.move(0, 0);
   await readingOutline.getByRole("button", { name: "收起固定目录", exact: true }).click();
   await expect(readingOutline).toHaveCount(0);
+  const more = viewer.getByRole("button", { name: "更多工具", exact: true });
+  if (await more.getAttribute("aria-expanded") !== "true") await more.click();
+  await expect.poll(async () => {
+    const title = (await viewer.locator(".document-render-header .document-title-bar").boundingBox())!;
+    const tools = (await viewer.locator(".note-editor-scroll .document-toolbar").boundingBox())!;
+    const inset = await viewer.evaluate(el => parseFloat(getComputedStyle(el).getPropertyValue("--document-edge-inset")));
+    return Math.max(Math.abs(tools.x - title.x - inset), Math.abs(tools.x + tools.width - title.x - title.width + inset));
+  }).toBeLessThan(2);
+  await viewer.locator(".document-render-header .note-title").hover({ position: { x: 10, y: 10 } });
+  await expect(viewer.locator(".document-render-header .note-title")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+
 });
 
 test("只读文件夹入口按需展开、源码查找和符号跳转，不创建文档，停用返回原视图", async ({
