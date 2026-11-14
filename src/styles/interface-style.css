@@ -472,7 +472,6 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
     :is(
       .note-title-row,
       .vr-title,
-      .editor-menu,
       .document-outline-header,
       .document-bookmark-header,
       header.workspace-panel-heading,

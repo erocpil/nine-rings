@@ -11,12 +11,20 @@ test("渲染工具栏横线与标题对齐，首个插入按钮不被工具栏�
   await expect(toolbar).toBeVisible();
   await expect(editor.locator(".editor-save-state-saved")).toBeVisible();
   await expect(toolbar.locator(".save-status-saved")).toHaveCount(0);
-  await expect.poll(async () => {
-    const title = (await editor.locator(".document-title-bar").boundingBox())!;
-    const tools = (await toolbar.boundingBox())!;
-    const inset = await editor.evaluate(el => parseFloat(getComputedStyle(el).getPropertyValue("--document-edge-inset")));
-    return Math.max(Math.abs(tools.x - title.x - inset), Math.abs(tools.x + tools.width - title.x - title.width + inset));
-  }).toBeLessThan(2);
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 850 });
+    for (const style of ["classic", "calm", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"]) {
+      await page.evaluate(style => document.documentElement.dataset.interfaceStyle = style, style);
+      await expect(toolbar).toHaveCSS("background-size", "100% 1px");
+      await expect.poll(async () => {
+        const title = (await editor.locator(".document-title-bar").boundingBox())!;
+        const tools = (await toolbar.boundingBox())!;
+        const inset = await editor.evaluate(el => parseFloat(getComputedStyle(el).getPropertyValue("--document-edge-inset")));
+        return Math.max(Math.abs(tools.x - title.x - inset), Math.abs(tools.x + tools.width - title.x - title.width + inset));
+      }, { message: `${style} at ${width}: toolbar rule matches title rule` }).toBeLessThan(2);
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 850 });
   const insert = editor.locator(".editor-block-insert").first();
   await expect(insert).toBeAttached();
   await expect.poll(async () => {
