@@ -3,7 +3,7 @@ export const APP_CHANGELOG = [
   {
     date: "2026-11-15",
     title: "共享编辑器标题与状态栏",
-    changes: ["Nine Rings 与 File Workbench 共用标题栏高度、标题字号和按钮尺寸规则，源码与渲染状态栏统一高度；手机使用独立触控尺寸。File Workbench 源码复用共享只读锁，并移除渲染模式重复的只读按钮。"],
+    changes: ["Nine Rings 与 File Workbench 共用标题栏高度、标题字号和按钮尺寸规则，源码与渲染状态栏统一高度；手机使用独立触控尺寸。File Workbench 源码复用共享只读锁，并移除渲染模式重复的只读按钮。", "数据库文档与磁盘文档固定目录、书签、源码符号等面板统一从标题栏下方开始；File Workbench 源码标题线与工具栏线共用左右边界和滚动条留白。修复局部只读标题按钮仍响应非经典风格悬停底色。"],
   },
   {
     date: "2026-11-14",

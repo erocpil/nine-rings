@@ -61,22 +61,27 @@ export function DesktopDocumentPanels({
   useEffect(() => { cleanup.current?.(); setWidth(null); }, [controller.mode]);
   useLayoutEffect(() => {
     const dock = root.current, owner = dock?.closest<HTMLElement>(".note-editor");
-    const workbench = Boolean(owner?.closest(".file-workbench-app") || owner?.querySelector(":scope > .document-render-header"));
-    if (!dock || !owner || (controller.mode !== "compact" && !workbench)) return;
+    if (!dock || !owner) return;
     const observed = new WeakSet<Element>();
     const measure = () => {
-      const anchor = owner.querySelector<HTMLElement>("[data-workspace-panel-start]") ?? owner.querySelector<HTMLElement>(".editor-menu");
-      const title = owner.querySelector<HTMLElement>(".note-title-row");
-      const rect = anchor?.getBoundingClientRect();
-      const top = workbench
-        ? title?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top
-        : rect && rect.width > 0 ? rect.top : title?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top;
+      const chromeHost = owner.closest<HTMLElement>(".local-file-view, .vr-note") ?? owner;
+      const title = owner.querySelector<HTMLElement>(
+        ".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title",
+      ) ?? chromeHost.querySelector<HTMLElement>(
+        ".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title",
+      );
+      const tags = owner.querySelector<HTMLElement>(".tag-bar") ?? chromeHost.querySelector<HTMLElement>(".tag-bar");
+      const top = (tags ?? title)?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top;
       dock.style.top = `${Math.max(0, top - owner.getBoundingClientRect().top)}px`;
     };
     const observer = new ResizeObserver(measure);
     observer.observe(owner);
     const bindChrome = () => {
-      for (const child of owner.querySelectorAll<HTMLElement>(".note-title-row, .note-tags, [data-workspace-panel-start], .editor-menu")) {
+      for (const child of owner.querySelectorAll<HTMLElement>(".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title, .tag-bar")) {
+        if (!observed.has(child)) { observed.add(child); observer.observe(child); }
+      }
+      const chromeHost = owner.closest<HTMLElement>(".local-file-view, .vr-note");
+      for (const child of chromeHost?.querySelectorAll<HTMLElement>(".local-file-titlebar, .vr-title, .tag-bar") ?? []) {
         if (!observed.has(child)) { observed.add(child); observer.observe(child); }
       }
       measure();
@@ -84,7 +89,7 @@ export function DesktopDocumentPanels({
     // Lazy/retained editors can mount their title after the dock. Resolve the
     // current title on every measurement instead of retaining a missing node.
     const mounted = new MutationObserver(records => {
-      const selector = ".note-title-row, .note-tags, [data-workspace-panel-start], .editor-menu";
+      const selector = ".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title, .tag-bar";
       if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element && (node.matches(selector) || node.querySelector(selector))))) bindChrome();
     });
     mounted.observe(owner, { childList: true, subtree: true });

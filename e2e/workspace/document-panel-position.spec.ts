@@ -226,6 +226,17 @@ for (const item of cases) {
   });
 }
 
+test("局部只读视图的标题按钮悬停不填充背景，经典与非经典风格一致", async ({ page }) => {
+  await fixture(page, true, "");
+  const title = page.locator(".vr-title .vr-properties-title");
+  await expect(title).toBeVisible();
+  for (const style of ["classic", "calm", "calm-compact", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"]) {
+    await page.evaluate(style => { document.documentElement.dataset.interfaceStyle = style; }, style);
+    await title.hover({ position: { x: 10, y: 10 } });
+    await expect(title, style).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  }
+});
+
 test("按钮下方空间不足时向上展开，仍留出按钮间隔", async ({ page }) => {
   await fixture(page, false, "");
   const trigger = page.getByRole("button", { name: "文档书签", exact: true });

@@ -19,6 +19,19 @@ for (const source of [false, true]) test(`文档两种布局独立保存面板�
   });
   await expect(page.getByRole("navigation", { name: "文档目录", exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "文档书签", exact: true })).toBeVisible();
+  const expectDockBelowTitle = async () => {
+    const title = page.locator(source ? ".markdown-source-title-row:visible" : ".note-title-row:visible").first();
+    const dock = page.locator(".document-panel-dock:visible");
+    await expect.poll(async () => {
+      const titleRect = (await title.boundingBox())!;
+      const dockRect = (await dock.boundingBox())!;
+      return Math.abs(dockRect.y - titleRect.y - titleRect.height);
+    }).toBeLessThan(2);
+  };
+  for (const style of ["classic", "calm"]) {
+    await page.evaluate(style => { document.documentElement.dataset.interfaceStyle = style; }, style);
+    await expectDockBelowTitle();
+  }
   await page.evaluate(async () => {
     const { saveDocumentWorkspaceMode } = await import("/src/lib/document-workspace-layout.ts");
     saveDocumentWorkspaceMode("database", "compact");
@@ -28,6 +41,7 @@ for (const source of [false, true]) test(`文档两种布局独立保存面板�
   await page.getByRole("button", { name: "文档目录", exact: true }).click();
   const outline = page.getByRole("navigation", { name: "文档目录", exact: true });
   await expect(outline).toBeVisible();
+  await expectDockBelowTitle();
   const title = await page.locator(".note-title-row:visible").boundingBox();
   expect((await outline.boundingBox())!.y).toBeGreaterThanOrEqual(title!.y + title!.height - 1);
   await page.getByRole("button", { name: "文档书签", exact: true }).click();
@@ -36,6 +50,7 @@ for (const source of [false, true]) test(`文档两种布局独立保存面板�
   await page.evaluate(async () => (await import("/src/lib/document-workspace-layout.ts")).saveDocumentWorkspaceMode("database", "document"));
   await expect(outline).toBeVisible();
   await expect(page.getByRole("navigation", { name: "文档书签", exact: true })).toBeVisible();
+  await expectDockBelowTitle();
   expect(await area.evaluate(element => element === (window as any).workspaceEditorElement)).toBe(true);
   if (source) expect((await sourceInfo(area)).value).toContain("保留正文与撤销历史");
   else await expect(area).toContainText("保留正文与撤销历史");

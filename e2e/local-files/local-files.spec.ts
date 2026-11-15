@@ -89,6 +89,24 @@ test("本地文件树可关闭单个打开文件和目录下的全部打开文�
   await file.click();
   const viewer = page.getByRole("region", { name: "本地文件工作区" });
   await expect(viewer.locator(".local-file-titlebar .note-title")).toHaveText("one.c");
+  await expect(viewer.locator(".markdown-source-tools")).toBeVisible();
+  for (const style of ["classic", "calm"]) {
+    await page.evaluate(style => {
+      document.documentElement.dataset.interfaceStyle = style;
+      document.querySelector(".app")?.classList.add("app-desktop-workspace");
+    }, style);
+    const metrics = await viewer.evaluate(el => {
+      const title = el.querySelector<HTMLElement>(".local-file-titlebar")!;
+      const tools = el.querySelector<HTMLElement>(".markdown-source-tools")!;
+      const titleRect = title.getBoundingClientRect();
+      const toolsRect = tools.getBoundingClientRect();
+      const line = getComputedStyle(title, "::after");
+      const lineLeft = titleRect.left + parseFloat(line.left);
+      const lineRight = titleRect.right - parseFloat(line.right);
+      return { difference: Math.max(Math.abs(lineLeft - toolsRect.left), Math.abs(lineRight - toolsRect.right)), title: [titleRect.left, titleRect.right], line: [lineLeft, lineRight], tools: [toolsRect.left, toolsRect.right], scrollbar: getComputedStyle(el).getPropertyValue("--editor-scrollbar-width") };
+    });
+    expect(metrics.difference, `${style}: source toolbar top and bottom rules share endpoints`).toBeLessThan(2);
+  }
   await panel.getByRole("button", { name: "关闭文件 one.c", exact: true }).click();
   await expect(viewer).toBeHidden();
   await file.click();
@@ -176,7 +194,11 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
     return Math.max(Math.abs(tools.x - title.x - inset), Math.abs(tools.x + tools.width - title.x - title.width + inset));
   }).toBeLessThan(2);
   await viewer.locator(".document-render-header .note-title").hover({ position: { x: 10, y: 10 } });
-  await expect(viewer.locator(".document-render-header .note-title")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  for (const style of ["classic", "calm", "calm-compact", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"]) {
+    await page.evaluate(style => { document.documentElement.dataset.interfaceStyle = style; document.querySelector(".app")?.classList.add("app-desktop-workspace"); }, style);
+    await viewer.locator(".document-render-header .note-title").hover({ position: { x: 10, y: 10 } });
+    await expect(viewer.locator(".document-render-header .note-title"), style).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  }
 
 });
 

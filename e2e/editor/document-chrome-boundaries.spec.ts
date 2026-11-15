@@ -32,3 +32,19 @@ test("渲染工具栏横线与标题对齐，首个插入按钮不被工具栏�
     return button.y - tools.y - tools.height;
   }).toBeGreaterThanOrEqual(0);
 });
+
+test("非经典桌面风格的只读标题悬停不填充背景", async ({ page }) => {
+  await createBlankDocument(page);
+  await page.locator(".ProseMirror").fill("Readonly document");
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  const title = page.locator(".document-title-bar .note-title");
+  await expect(title).toBeVisible();
+  for (const style of ["classic", "calm", "calm-compact", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"]) {
+    await page.evaluate(style => {
+      document.documentElement.dataset.interfaceStyle = style;
+      document.querySelector(".app")?.classList.add("app-desktop-workspace");
+    }, style);
+    await title.hover({ position: { x: 10, y: 10 } });
+    await expect(title, style).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  }
+});

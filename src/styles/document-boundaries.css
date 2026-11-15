@@ -24,6 +24,23 @@
 :is(.app, .file-workbench-app) .local-file-titlebar {
   margin-inline: 0 var(--editor-scrollbar-width, 0px);
 }
+/* In Workbench source mode the title and editor are siblings. Draw the title
+   rule over the same inset track as the source toolbar, including its native
+   scrollbar gutter, instead of using the full-width local-files border. */
+:is(.app, .file-workbench-app) .local-files-toolbar.local-file-titlebar {
+  position: relative;
+  border-bottom-color: transparent;
+}
+:is(.app, .file-workbench-app) .local-files-toolbar.local-file-titlebar::after {
+  content: "";
+  position: absolute;
+  /* The title row's right margin already reserves the scrollbar gutter. */
+  inset-inline: var(--document-edge-inset);
+  inset-block-end: 0;
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
+}
 :is(.app, .file-workbench-app) .markdown-source-toolbar-host {
   box-sizing: border-box;
   padding-inline: var(--document-edge-inset) calc(var(--document-edge-inset) + var(--editor-scrollbar-width, 0px));

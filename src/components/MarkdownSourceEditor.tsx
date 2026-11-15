@@ -1062,12 +1062,16 @@ export function MarkdownSourceEditor({
     const scroller = view.current?.scrollDOM;
     if (!root || !scroller) return;
     const chrome = root.closest<HTMLElement>(".markdown-source-content") ?? root;
+    const workbench = root.closest<HTMLElement>(".local-file-view");
     const measure = () => {
       const width = `${Math.max(0, scroller.offsetWidth - scroller.clientWidth)}px`;
       root.style.setProperty("--editor-scrollbar-width", width);
       // Title/toolbar/status portals are siblings of the editor, so publish
       // the same measured scrollbar allowance on their shared content track.
       chrome.style.setProperty("--editor-scrollbar-width", width);
+      // The standalone workbench title is outside that track; share the same
+      // gutter measurement so its bottom rule ends exactly with the toolbar.
+      workbench?.style.setProperty("--editor-scrollbar-width", width);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -1076,6 +1080,7 @@ export function MarkdownSourceEditor({
       observer.disconnect();
       root.style.removeProperty("--editor-scrollbar-width");
       if (chrome !== root) chrome.style.removeProperty("--editor-scrollbar-width");
+      workbench?.style.removeProperty("--editor-scrollbar-width");
     };
   }, [areaRef, session, onReady]);
   const changeIndentation = (size: number, style: SourceIndentStyle) => {
