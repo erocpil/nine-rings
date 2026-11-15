@@ -31,6 +31,14 @@ export function desktopPanelClass(
       : "")
   );
 }
+
+function visibleChromeElement(root: HTMLElement, selector: string): HTMLElement | null {
+  return [...root.querySelectorAll<HTMLElement>(selector)].find((element) => {
+    const style = getComputedStyle(element);
+    return element.getClientRects().length > 0 && style.display !== "none" && style.visibility !== "hidden";
+  }) ?? null;
+}
+
 export function DesktopDocumentPanels({
   controller,
   outline,
@@ -65,12 +73,12 @@ export function DesktopDocumentPanels({
     const observed = new WeakSet<Element>();
     const measure = () => {
       const chromeHost = owner.closest<HTMLElement>(".local-file-view, .vr-note") ?? owner;
-      const title = owner.querySelector<HTMLElement>(
+      const title = visibleChromeElement(owner,
         ".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title",
-      ) ?? chromeHost.querySelector<HTMLElement>(
+      ) ?? visibleChromeElement(chromeHost,
         ".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title",
       );
-      const tags = owner.querySelector<HTMLElement>(".tag-bar") ?? chromeHost.querySelector<HTMLElement>(".tag-bar");
+      const tags = visibleChromeElement(owner, ".tag-bar") ?? visibleChromeElement(chromeHost, ".tag-bar");
       const top = (tags ?? title)?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top;
       dock.style.top = `${Math.max(0, top - owner.getBoundingClientRect().top)}px`;
     };

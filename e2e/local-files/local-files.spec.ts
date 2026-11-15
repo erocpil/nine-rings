@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { closeDocumentSidebar, openDocumentSidebar } from "../helpers/workspace";
 import { selectSource, sourceInfo } from "../helpers/source-editor";
 
+const nonClassicStyles = ["calm", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"] as const;
+
 test("本地文件树长名称和深层路径可横向滚动，宽窄布局均不撑大分栏", async ({ page }, testInfo) => {
   await createBlankDocument(page);
   await closeDocumentSidebar(page);
@@ -90,7 +92,7 @@ test("本地文件树可关闭单个打开文件和目录下的全部打开文�
   const viewer = page.getByRole("region", { name: "本地文件工作区" });
   await expect(viewer.locator(".local-file-titlebar .note-title")).toHaveText("one.c");
   await expect(viewer.locator(".markdown-source-tools")).toBeVisible();
-  for (const style of ["classic", "calm"]) {
+  for (const style of nonClassicStyles) {
     await page.evaluate(style => {
       document.documentElement.dataset.interfaceStyle = style;
       document.querySelector(".app")?.classList.add("app-desktop-workspace");
@@ -134,12 +136,18 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
   await panel.getByRole("button", { name: "guide.md", exact: true }).click();
   const viewer = page.getByRole("region", { name: "本地文件工作区" });
   await expect(viewer.getByRole("button", { name: "目录", exact: true })).toBeVisible();
-  await expect.poll(async () => {
-    const title = (await viewer.locator(".local-file-titlebar").boundingBox())!;
-    const toolbar = (await viewer.locator(".markdown-source-tools").boundingBox())!;
-    const inset = await viewer.evaluate(el => parseFloat(getComputedStyle(el).getPropertyValue("--document-edge-inset")));
-    return Math.max(Math.abs(toolbar.x - title.x - inset), Math.abs(toolbar.x + toolbar.width - title.x - title.width + inset));
-  }).toBeLessThan(2);
+  for (const style of nonClassicStyles) {
+    await page.evaluate(style => {
+      document.documentElement.dataset.interfaceStyle = style;
+      document.querySelector(".app")?.classList.add("app-desktop-workspace");
+    }, style);
+    await expect.poll(async () => {
+      const title = (await viewer.locator(".local-file-titlebar").boundingBox())!;
+      const toolbar = (await viewer.locator(".markdown-source-tools").boundingBox())!;
+      const inset = await viewer.evaluate(el => parseFloat(getComputedStyle(el).getPropertyValue("--document-edge-inset")));
+      return Math.max(Math.abs(toolbar.x - title.x - inset), Math.abs(toolbar.x + toolbar.width - title.x - title.width + inset));
+    }, { message: `${style}: 源码工具栏边界与标题边界对齐` }).toBeLessThan(2);
+  }
 
   await expect(viewer.getByRole("button", { name: "源码符号", exact: true })).toHaveCount(0);
   await expect(viewer.getByRole("button", { name: "同词匹配", exact: true })).toHaveCount(0);
@@ -151,17 +159,35 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
   await viewer.getByRole("button", { name: "目录", exact: true }).click();
   await expect(outline).toBeVisible();
   await expect(outline.locator(".document-outline-item")).toHaveCount(24);
-  const editorBounds = (await viewer.locator(".local-file-editor-shell").boundingBox())!;
-  const outlineBounds = (await outline.boundingBox())!;
-  expect(outlineBounds.x).toBeGreaterThanOrEqual(editorBounds.x + editorBounds.width - 1);
-  expect(Math.abs(outlineBounds.y - editorBounds.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(outlineBounds.height - editorBounds.height)).toBeLessThanOrEqual(1);
+  const dock = viewer.locator(".document-panel-dock");
+  const expectLocalPanelSide = async (side: "left" | "right") => {
+    await page.evaluate(async side => (await import("/src/lib/workspace-layout.ts")).saveWorkspaceLayout({ panelsSide: side }), side);
+    await expect(dock).toHaveClass(new RegExp(`dock-${side}`));
+    const editorBounds = (await viewer.locator(".local-file-editor-shell").boundingBox())!;
+    const outlineBounds = (await outline.boundingBox())!;
+    if (side === "left") expect(outlineBounds.x + outlineBounds.width).toBeLessThanOrEqual(editorBounds.x + 1);
+    else expect(outlineBounds.x).toBeGreaterThanOrEqual(editorBounds.x + editorBounds.width - 1);
+    expect(Math.abs(outlineBounds.y - editorBounds.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(outlineBounds.height - editorBounds.height)).toBeLessThanOrEqual(1);
+    for (const style of nonClassicStyles) {
+      await page.evaluate(style => { document.documentElement.dataset.interfaceStyle = style; }, style);
+      await expect.poll(async () => {
+        const editor = (await viewer.locator(".local-file-editor-shell").boundingBox())!;
+        const outlineBox = (await outline.boundingBox())!;
+        return Math.max(Math.abs(outlineBox.y - editor.y), Math.abs(outlineBox.height - editor.height));
+      }, { message: `${style}/${side}: 源码视图固定目录覆盖正文列高度` }).toBeLessThan(2);
+    }
+  }
+  await expectLocalPanelSide("left");
+  await expectLocalPanelSide("right");
+  const dockIsLeft = await dock.evaluate(element => element.classList.contains("dock-left"));
+  const initialOutlineWidth = (await outline.boundingBox())!.width;
   const resize = await viewer.getByRole("separator", { name: "调整阅读面板宽度", exact: true }).boundingBox();
   await page.mouse.move(resize!.x + resize!.width / 2, resize!.y + 50);
   await page.mouse.down();
-  await page.mouse.move(resize!.x - 60, resize!.y + 50);
+  await page.mouse.move(resize!.x + (dockIsLeft ? 60 : -60), resize!.y + 50);
   await page.mouse.up();
-  await expect.poll(async () => (await outline.boundingBox())!.width).toBeGreaterThan(outlineBounds.width + 40);
+  await expect.poll(async () => (await outline.boundingBox())!.width).toBeGreaterThan(initialOutlineWidth + 40);
   await outline.getByRole("button", { name: "滚动至底部", exact: true }).dblclick();
   await expect.poll(() => viewer.locator(".cm-scroller").evaluate(element => element.scrollTop)).toBeGreaterThan(0);
   await viewer.getByRole("button", { name: "渲染", exact: true }).click();
@@ -170,11 +196,18 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
   const readingOutline = viewer.getByRole("navigation", {name:"文档目录",exact:true});
   await readingOutline.getByRole("button", { name: "滚动至顶部", exact: true }).dblclick();
   await expect.poll(() => viewer.locator(".markdown-reading-view").evaluate(element => element.scrollTop)).toBeLessThan(2);
-  await expect.poll(async () => {
-    const title = (await viewer.locator(".document-render-header .document-title-bar").boundingBox())!;
-    const dock = (await viewer.locator(".document-panel-dock").boundingBox())!;
-    return Math.abs(dock.y - title.y - title.height);
-  }).toBeLessThan(2);
+  for (const side of ["left", "right"] as const) {
+    await page.evaluate(async side => (await import("/src/lib/workspace-layout.ts")).saveWorkspaceLayout({ panelsSide: side }), side);
+    await expect(dock).toHaveClass(new RegExp(`dock-${side}`));
+    for (const style of nonClassicStyles) {
+      await page.evaluate(style => { document.documentElement.dataset.interfaceStyle = style; }, style);
+      await expect.poll(async () => {
+        const title = (await viewer.locator(".document-render-header .document-title-bar").boundingBox())!;
+        const dockBox = (await dock.boundingBox())!;
+        return Math.abs(dockBox.y - title.y - title.height);
+      }, { message: `${style}/${side}: 渲染视图固定目录紧贴标题下沿` }).toBeLessThan(2);
+    }
+  }
   await viewer.locator(".document-render-header .note-title").hover({ position: { x: 10, y: 10 } });
   const card = viewer.locator(".document-info-card-title-hover");
   await expect(card).toBeVisible();

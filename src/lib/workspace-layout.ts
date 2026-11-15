@@ -61,9 +61,10 @@ export function readWorkspaceLayout(): WorkspaceLayout {
     const raw = localStorage.getItem(WORKSPACE_LAYOUT_KEY);
     if (raw) return normalizeWorkspaceLayout(JSON.parse(raw));
     const oldDock = localStorage.getItem("nr:documentOutlineDock");
+    const legacySide = oldDock === "left" || oldDock === "right" ? oldDock : undefined;
     return normalizeWorkspaceLayout({
-      outlinePinned: oldDock === "left" || oldDock === "right",
-      panelsSide: oldDock === "left" ? "left" : "right",
+      outlinePinned: legacySide !== undefined,
+      panelsSide: legacySide ?? DEFAULT_WORKSPACE_LAYOUT.panelsSide,
       panelWidth:
         Number(localStorage.getItem("nr:documentOutlineWidth")) || 280,
     });

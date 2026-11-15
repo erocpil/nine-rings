@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "../helpers/document";
 import { replaceSource, sourceInfo } from "../helpers/source-editor";
 
+const nonClassicStyles = ["calm", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"] as const;
+
 for (const source of [false, true]) test(`文档两种布局独立保存面板状态，切换不重建编辑器：源码=${source}`, async ({ page }) => {
   await createBlankDocument(page, "布局模式");
   await page.locator(".ProseMirror:visible").evaluate(element => (element as any).editor.commands.setContent({ type: "doc", content: [
@@ -19,8 +21,8 @@ for (const source of [false, true]) test(`文档两种布局独立保存面板�
   });
   await expect(page.getByRole("navigation", { name: "文档目录", exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "文档书签", exact: true })).toBeVisible();
-  const expectDockBelowTitle = async () => {
-    const title = page.locator(source ? ".markdown-source-title-row:visible" : ".note-title-row:visible").first();
+  const expectDockBelowTitle = async (sourceView = source) => {
+    const title = page.locator(sourceView ? ".markdown-source-title-row:visible" : ".note-title-row:visible").first();
     const dock = page.locator(".document-panel-dock:visible");
     await expect.poll(async () => {
       const titleRect = (await title.boundingBox())!;
@@ -28,9 +30,24 @@ for (const source of [false, true]) test(`文档两种布局独立保存面板�
       return Math.abs(dockRect.y - titleRect.y - titleRect.height);
     }).toBeLessThan(2);
   };
-  for (const style of ["classic", "calm"]) {
-    await page.evaluate(style => { document.documentElement.dataset.interfaceStyle = style; }, style);
-    await expectDockBelowTitle();
+  for (const side of ["left", "right"] as const) {
+    await page.evaluate(async side => (await import("/src/lib/workspace-layout.ts")).saveWorkspaceLayout({ panelsSide: side }), side);
+    await expect(page.locator(`.document-panel-dock:visible.dock-${side}`)).toBeVisible();
+    for (const style of nonClassicStyles) {
+      await page.evaluate(style => { document.documentElement.dataset.interfaceStyle = style; }, style);
+      await expectDockBelowTitle();
+    }
+  }
+  if (source) {
+    await page.getByRole("button", { name: "渲染", exact: true }).click();
+    await expect(page.locator(".ProseMirror:visible")).toBeVisible();
+    await expectDockBelowTitle(false);
+    await page.getByRole("button", { name: "源码", exact: true }).click();
+    await expect(area).toBeVisible();
+    await expectDockBelowTitle(true);
+    // View changes may remount the CodeMirror DOM while preserving its session;
+    // layout-mode changes below must not remount the active instance.
+    await area.evaluate(element => { (window as any).workspaceEditorElement = element; });
   }
   await page.evaluate(async () => {
     const { saveDocumentWorkspaceMode } = await import("/src/lib/document-workspace-layout.ts");

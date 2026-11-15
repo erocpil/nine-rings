@@ -22,7 +22,7 @@ describe("workspace layout preferences", () => {
     vi.stubGlobal("window", new EventTarget());
   });
   afterEach(() => vi.unstubAllGlobals());
-  it("defaults to right dock, vertical 2:1 and a left workspace", () => {
+  it("defaults to left dock, vertical 2:1 and a left workspace", () => {
     expect(readWorkspaceLayout()).toEqual(DEFAULT_WORKSPACE_LAYOUT);
   });
   it("preserves old fullscreen hover preferences and normalizes one exclusive scope", () => {
