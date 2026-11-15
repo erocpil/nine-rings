@@ -96,6 +96,7 @@ it("retries a same-name conflict with a new name without replacing other targets
     "dest",
     "a.c",
     false,
+    expect.any(Function),
   ]);
   expect(progress.at(-1)?.completed).toBe(2);
 });

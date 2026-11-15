@@ -24,7 +24,7 @@ export function createWorkbenchOperations(host: Pick<BrowserOperationHost<Browse
     assertPathClean: clean,
     lock: lockLocalOperation,
     files: {
-      transfer: (rootId, node, targetRootId, parent, name, moving) => destination(targetRootId, path(parent, name), () => host.files.transfer(rootId, node, targetRootId, parent, name, moving)),
+      transfer: (rootId, node, targetRootId, parent, name, moving, onProgress) => destination(targetRootId, path(parent, name), () => host.files.transfer(rootId, node, targetRootId, parent, name, moving, onProgress)),
       move: (rootId, node, parent, name) => destination(rootId, path(parent, name), () => host.files.move(rootId, node, parent, name)),
       create: (rootId, parent, name, directory) => destination(rootId, path(parent, name), () => host.files.create(rootId, parent, name, directory)),
       trash: (rootId, node) => host.files.trash(rootId, node),

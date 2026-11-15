@@ -72,6 +72,7 @@ it.each([
         "dest",
         "folder",
         kind === "move",
+        expect.any(Function),
       );
     host.dispose();
     expect(() => host.queue.enqueue(operation, "name")).toThrow();

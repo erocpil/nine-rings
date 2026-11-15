@@ -31,7 +31,9 @@ function host() {
       return lease;
     }),
     files: {
-      transfer: vi.fn(async () => "dest/a.c"),
+      transfer: vi.fn<
+        BrowserOperationHost<BrowserOperationLease>["files"]["transfer"]
+      >(async () => "dest/a.c"),
       move: vi.fn(async () => "src/renamed.c"),
       trash: vi.fn(async () => {}),
       create: vi.fn(async () => "src/new"),
@@ -70,6 +72,7 @@ it("uses the same guarded executor for isolated hosts, including move reconcilia
       "dest",
       "a.c",
       true,
+      expect.any(Function),
     );
     expect(instance.port.assertPathClean).toHaveBeenLastCalledWith(
       "left",
@@ -241,4 +244,47 @@ it("releases host-owned method leases with their receiver intact", async () => {
     decide(),
   );
   expect(lease.released).toBe(true);
+});
+
+it("forwards transfer counters without marking a staged copy complete and ignores late notifications", async () => {
+  const instance = host();
+  let report!: (
+    value: import("../../src/lib/local-files/browser-operation-contract").TransferProgress,
+  ) => void;
+  instance.port.files.transfer.mockImplementationOnce(async (...args) => {
+    report = args[6]!;
+    report({
+      current: "src/a.c",
+      processedBytes: 123,
+      processedFiles: 1,
+      elapsedMs: 50,
+      phase: "copying",
+    });
+    return "dest/a.c";
+  });
+  const progress = vi.fn();
+  const result = await createBrowserOperationRunner(instance.port)(
+    operation,
+    "",
+    new AbortController().signal,
+    progress,
+    decide(),
+  );
+  expect(
+    progress.mock.calls.some(
+      ([value]) =>
+        value.transfer?.processedBytes === 123 && value.completed === 0,
+    ),
+  ).toBe(true);
+  expect(result.completed).toBe(1);
+  const calls = progress.mock.calls.length;
+  report({
+    current: "src/a.c",
+    processedBytes: 999,
+    processedFiles: 2,
+    elapsedMs: 100,
+    phase: "copying",
+  });
+  expect(progress).toHaveBeenCalledTimes(calls);
+  expect(result.transfer?.processedBytes).toBe(123);
 });

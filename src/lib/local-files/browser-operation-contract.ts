@@ -10,7 +10,11 @@ export interface BrowserOperation {
   targetRootName: string;
   targetParent: string;
 }
-export interface BrowserProgress { completed: number; skipped: number; total: number; current: string }
+export interface TransferProgress {
+  current: string; processedBytes: number; processedFiles: number; elapsedMs: number;
+  phase: "copying" | "confirming" | "failed";
+}
+export interface BrowserProgress { completed: number; skipped: number; total: number; current: string; transfer?: TransferProgress }
 export interface BrowserItemResult {
   node: string; targetName: string;
   status: "pending" | "checking" | "running" | "completed" | "skipped" | "failed" | "uncertain";
@@ -26,7 +30,7 @@ export interface BrowserOperationHost<Lease extends BrowserOperationLease> {
   assertPathClean(rootId: string, node: string, lease?: Lease): Promise<void>;
   lock(rootId: string, node: string): Lease;
   files: {
-    transfer(rootId: string, node: string, targetRootId: string, parent: string, name: string, moving: boolean): Promise<string>;
+    transfer(rootId: string, node: string, targetRootId: string, parent: string, name: string, moving: boolean, onProgress?: (progress: TransferProgress) => void): Promise<string>;
     move(rootId: string, node: string, parent: string, name: string): Promise<string>;
     trash(rootId: string, node: string): Promise<void>;
     create(rootId: string, parent: string, name: string, directory: boolean): Promise<string>;

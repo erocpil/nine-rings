@@ -27,6 +27,12 @@ function QueueJob({ job, queue, onError }: { job: BrowserJob; queue: BrowserOper
     <header><button type="button" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? "▾" : "▸"} #{job.id} {browserOperationTitles[job.operation.kind]}</button><span>{jobLabels[job.status]}</span></header>
     <p className="local-operation-path">来源：{[job.operation.rootName, job.operation.parent].filter(Boolean).join("/")}{["copy", "move"].includes(job.operation.kind) ? ` → ${operationTarget(job.operation)}` : ""}</p>
     <div role="status"><progress max={job.progress.total} value={job.progress.completed + job.progress.skipped} /><p>{jobLabels[job.status]}：成功 {job.progress.completed} 项，跳过 {job.progress.skipped} 项{failures ? `，预检失败 ${failures} 项` : ""}{uncertain ? `，需核对 ${uncertain} 项` : ""} · {job.progress.completed + job.progress.skipped} / {job.progress.total} 项{job.startedAt ? ` · 已用时 ${elapsed.toFixed(1)}s` : ""}</p>{!browserJobSettled(job) && <p>{job.progress.current || "等待前面的任务完成"}</p>}</div>
+    {job.progress.transfer && <div className="file-browser-transfer-progress" aria-label="传输进度">
+      <p title={job.progress.transfer.current}>当前路径：{job.progress.transfer.current}</p>
+      {(job.progress.transfer.processedFiles > 0 || job.progress.transfer.phase === "copying") && <p>本项复制统计：{job.progress.transfer.processedFiles} 个文件 · {(job.progress.transfer.processedBytes / 1024 / 1024).toFixed(2)} MiB
+        {job.progress.transfer.processedBytes > 0 && job.progress.transfer.elapsedMs > 0 && ` · 平均 ${(job.progress.transfer.processedBytes / 1024 / 1024 / (job.progress.transfer.elapsedMs / 1000)).toFixed(2)} MiB/s`}</p>}
+      {!settled && <p>{job.progress.transfer.phase === "copying" ? "完成文件复制及校验后计入字节；最终写入结果仍待确认。" : "正在确认写入结果…"}</p>}
+    </div>}
     {job.stopRequested && !settled && <p className="file-browser-job-warning" role="status">已请求停止，正在等待当前项目确认结果；后续项目不会执行。</p>}
     {job.error && <p className="file-browser-job-error">{job.error}</p>}
     {uncertain > 0 && <p className="file-browser-job-warning">部分项目可能已写入磁盘，须先核对来源和目标；需核对项不参与重试。</p>}

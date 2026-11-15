@@ -686,16 +686,27 @@ fn move_entry(root: &Path, node: &str, parent: &str, name: &str) -> Result<Strin
 }
 // Copy into an operation-owned staging directory. The final exclusive rename
 // never replaces an existing destination, even when another process creates it.
+#[cfg(test)]
 fn copy_tree(
     source: &Path,
     target: &Path,
     depth: usize,
     remaining: &mut usize,
 ) -> Result<(), String> {
+    copy_tree_reporting(source, target, depth, remaining, &mut |_, _| {})
+}
+fn copy_tree_reporting(
+    source: &Path,
+    target: &Path,
+    depth: usize,
+    remaining: &mut usize,
+    report: &mut impl FnMut(&Path, Option<u64>),
+) -> Result<(), String> {
     if depth > 64 || *remaining == 0 {
         return Err("复制超过目录深度或 10000 项预算".into());
     }
     *remaining -= 1;
+    report(source, None);
     let meta = fs::symlink_metadata(source).map_err(|e| e.to_string())?;
     if is_link(&meta) {
         return Err("不复制符号链接或重解析点".into());
@@ -704,11 +715,12 @@ fn copy_tree(
         super::local_file_transfer::create_private_directory(target).map_err(|e| e.to_string())?;
         for entry in fs::read_dir(source).map_err(|e| e.to_string())? {
             let entry = entry.map_err(|e| e.to_string())?;
-            copy_tree(
+            copy_tree_reporting(
                 &entry.path(),
                 &target.join(entry.file_name()),
                 depth + 1,
                 remaining,
+                report,
             )?;
         }
         fs::set_permissions(target, meta.permissions()).map_err(|e| e.to_string())?;
@@ -728,6 +740,7 @@ fn copy_tree(
         {
             return Err("复制期间源文件发生变化，请刷新后重试".into());
         }
+        report(source, Some(copied));
     } else {
         return Err("不复制设备、管道或其它特殊文件".into());
     }
@@ -746,6 +759,7 @@ fn transfer_entry(
         Ok(())
     })
 }
+#[cfg(test)]
 fn guarded_transfer_entry(
     source_root: &Path,
     node: &str,
@@ -754,6 +768,28 @@ fn guarded_transfer_entry(
     name: &str,
     moving: bool,
     access: impl Fn() -> Result<(), String>,
+) -> Result<String, String> {
+    guarded_transfer_entry_reporting(
+        source_root,
+        node,
+        target_root,
+        parent,
+        name,
+        moving,
+        access,
+        &mut |_, _| {},
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn guarded_transfer_entry_reporting(
+    source_root: &Path,
+    node: &str,
+    target_root: &Path,
+    parent: &str,
+    name: &str,
+    moving: bool,
+    access: impl Fn() -> Result<(), String>,
+    report: &mut impl FnMut(&Path, Option<u64>),
 ) -> Result<String, String> {
     access()?;
     if node.is_empty() {
@@ -783,7 +819,7 @@ fn guarded_transfer_entry(
                 Ok(())
             },
             move_exclusive,
-            |from, to| copy_tree(from, to, 0, &mut 10000),
+            |from, to| copy_tree_reporting(from, to, 0, &mut 10000, report),
             |path| {
                 super::local_file_transfer::recycle_verified_source(path)
                     .map_err(|e| format!("移入系统回收站失败（不执行永久删除）：{e}"))
@@ -794,7 +830,7 @@ fn guarded_transfer_entry(
         super::local_file_transfer::create_private_directory(&staging)
             .map_err(|e| e.to_string())?;
         let item = staging.join("item");
-        let result = copy_tree(&source, &item, 0, &mut 10000).and_then(|()| {
+        let result = copy_tree_reporting(&source, &item, 0, &mut 10000, report).and_then(|()| {
             access()?;
             if checked_path(source_root, node)? != source
                 || checked_path(target_root, parent)? != destination
@@ -817,6 +853,24 @@ fn guarded_transfer_entry(
         format!("{parent}/{name}")
     })
 }
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferProgress {
+    current: String,
+    processed_bytes: u64,
+    processed_files: u64,
+    elapsed_ms: u64,
+    phase: &'static str,
+}
+#[derive(Serialize)]
+#[serde(untagged)]
+pub enum TransferResult {
+    Legacy(String),
+    WithProgress {
+        node: String,
+        progress: TransferProgress,
+    },
+}
 // Keep the scoped IPC fields flat, matching move/create; two are injected context.
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
@@ -829,7 +883,11 @@ pub async fn local_files_transfer(
     parent: String,
     name: String,
     moving: bool,
-) -> Result<String, String> {
+    on_progress: Option<tauri::ipc::JavaScriptChannelId>,
+) -> Result<TransferResult, String> {
+    let on_progress: Option<tauri::ipc::Channel<TransferProgress>> =
+        on_progress.map(|id| id.channel_on(window.as_ref().clone()));
+    // Own the optional channel before fallible validation so errors also drop it.
     caller(&window)?;
     let root = library.root(&root_id)?;
     let target_root = library.root(&target_root_id)?;
@@ -837,14 +895,85 @@ pub async fn local_files_transfer(
     tauri::async_runtime::spawn_blocking(move || {
         // Do not hold the global grant mutex over long copies/hashes: other
         // directories must remain browsable while a confirmed job executes.
-        guarded_transfer_entry(&root, &node, &target_root, &parent, &name, moving, || {
-            let grants = grants.lock().map_err(|_| "目录状态不可用")?;
-            if grants.get(&root_id) != Some(&root)
-                || grants.get(&target_root_id) != Some(&target_root)
-            {
-                return Err("目录授权已变化".into());
+        let started = std::time::Instant::now();
+        let mut last = None;
+        let mut progress = TransferProgress {
+            current: node.clone(),
+            processed_bytes: 0,
+            processed_files: 0,
+            elapsed_ms: 0,
+            phase: "copying",
+        };
+        let result = guarded_transfer_entry_reporting(
+            &root,
+            &node,
+            &target_root,
+            &parent,
+            &name,
+            moving,
+            || {
+                let grants = grants.lock().map_err(|_| "目录状态不可用")?;
+                if grants.get(&root_id) != Some(&root)
+                    || grants.get(&target_root_id) != Some(&target_root)
+                {
+                    return Err("目录授权已变化".into());
+                }
+                Ok(())
+            },
+            &mut |path, bytes| {
+                progress.current = path
+                    .strip_prefix(&root)
+                    .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+                    .unwrap_or_else(|_| node.clone());
+                if let Some(bytes) = bytes {
+                    progress.processed_bytes = progress.processed_bytes.saturating_add(bytes);
+                    progress.processed_files += 1;
+                }
+                if last.is_none_or(|at: std::time::Instant| at.elapsed().as_millis() >= 100) {
+                    progress.elapsed_ms =
+                        started.elapsed().as_millis().min(u64::MAX as u128) as u64;
+                    let authorized = grants
+                        .lock()
+                        .map(|values| {
+                            values.get(&root_id) == Some(&root)
+                                && values.get(&target_root_id) == Some(&target_root)
+                        })
+                        .unwrap_or(false);
+                    if authorized {
+                        if let Some(channel) = &on_progress {
+                            let _ = channel.send(progress.clone());
+                        }
+                    }
+                    last = Some(std::time::Instant::now());
+                }
+            },
+        );
+        progress.phase = if result.is_ok() {
+            "confirming"
+        } else {
+            "failed"
+        };
+        progress.elapsed_ms = started.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        let authorized = grants
+            .lock()
+            .map(|values| {
+                values.get(&root_id) == Some(&root)
+                    && values.get(&target_root_id) == Some(&target_root)
+            })
+            .unwrap_or(false);
+        if authorized {
+            if let Some(channel) = &on_progress {
+                let _ = channel.send(progress.clone());
             }
-            Ok(())
+        }
+        // Return the final counters as well: channel delivery can lag behind
+        // invoke completion, and the frontend stops accepting late messages.
+        result.map(|node| {
+            if on_progress.is_some() && authorized {
+                TransferResult::WithProgress { node, progress }
+            } else {
+                TransferResult::Legacy(node)
+            }
         })
     })
     .await
@@ -1541,6 +1670,63 @@ pub async fn local_files_save_as(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn transfer_result_preserves_legacy_strings_and_camel_case_counters() {
+        assert_eq!(
+            serde_json::to_value(TransferResult::Legacy("dest/a".into())).unwrap(),
+            serde_json::json!("dest/a")
+        );
+        let value = serde_json::to_value(TransferResult::WithProgress {
+            node: "dest/a".into(),
+            progress: TransferProgress {
+                current: "src/a".into(),
+                processed_bytes: 17,
+                processed_files: 1,
+                elapsed_ms: 9,
+                phase: "confirming",
+            },
+        })
+        .unwrap();
+        assert_eq!(
+            value,
+            serde_json::json!({ "node": "dest/a", "progress": { "current": "src/a", "processedBytes": 17, "processedFiles": 1, "elapsedMs": 9, "phase": "confirming" } })
+        );
+    }
+    #[test]
+    fn copy_progress_counts_verified_files_before_publication() {
+        let fixture = TransferFixture::new();
+        let source = fixture.0.join("source");
+        let target = fixture.0.join("target");
+        fs::create_dir_all(source.join("folder/nested")).unwrap();
+        fs::create_dir(&target).unwrap();
+        fs::write(source.join("folder/a.bin"), [0, 1, 255]).unwrap();
+        fs::write(source.join("folder/empty"), []).unwrap();
+        fs::write(source.join("folder/nested/b.bin"), [7; 9]).unwrap();
+        let mut bytes = Vec::new();
+        guarded_transfer_entry_reporting(
+            &source,
+            "folder",
+            &target,
+            "",
+            "copied",
+            false,
+            || Ok(()),
+            &mut |path, copied| {
+                assert!(path.starts_with(&source));
+                assert!(!target.join("copied").exists());
+                if let Some(copied) = copied {
+                    bytes.push(copied);
+                }
+            },
+        )
+        .unwrap();
+        bytes.sort();
+        assert_eq!(bytes, vec![0, 3, 9]);
+        assert_eq!(
+            fs::read(target.join("copied/a.bin")).unwrap(),
+            vec![0, 1, 255]
+        );
+    }
     #[test]
     fn independent_parent_and_child_revocation_preserves_files_and_other_grants() {
         let fixture = TransferFixture::new();

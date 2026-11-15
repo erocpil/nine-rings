@@ -293,7 +293,7 @@ test("桌面目录复制、重命名和移动走确认队列，运行中不退�
   await page.addInitScript(() => {
     const callbacks = new Map<number, (event: unknown) => void>(); let sequence = 1, close = 0;
     const tree: Record<string, { directory: boolean; content?: string }> = { folder: { directory: true }, "folder/a.c": { directory: false, content: "int original;\n" }, "folder/.hidden": { directory: false, content: "hidden" }, target: { directory: true } };
-    const state = { tree, calls: [] as Array<{ command: string; args: any }>, confirmed: 0, hold: true };
+    const state = { tree, calls: [] as Array<{ command: string; args: any }>, confirmed: 0, hold: true, report: null as null | ((value: unknown) => void) };
     (window as any).__workbenchOps = state;
     (window as any).__workbenchOpsClose = () => callbacks.get(close)?.({ event: "workbench:request-close", payload: null });
     (window as any).__TAURI_INTERNALS__ = {
@@ -313,10 +313,15 @@ test("桌面目录复制、重命名和移动走确认队列，运行中不退�
         }
         if (command === "local_files_transfer" || command === "local_files_move") {
           state.calls.push({ command, args });
+          if (args.onProgress) {
+            state.report = value => args.onProgress.onmessage(value);
+            state.report!({ current: args.node, processedBytes: 0, processedFiles: 0, elapsedMs: 0, phase: "copying" });
+          }
           if (state.hold && command === "local_files_transfer") { state.hold = false; await new Promise<void>(resolve => { (window as any).__workbenchOpsRelease = resolve; }); }
           const target = [args.parent, args.name].filter(Boolean).join("/");
           if (tree[target]) throw new Error("TARGET_EXISTS");
           for (const [path, value] of Object.entries(tree)) if (path === args.node || path.startsWith(args.node + "/")) { tree[target + path.slice(args.node.length)] = { ...value }; if (command === "local_files_move" || args.moving) delete tree[path]; }
+          if (args.onProgress) return { node: target, progress: { current: args.node, processedBytes: 2097152, processedFiles: 2, elapsedMs: 2000, phase: "confirming" } };
           return target;
         }
         throw new Error("Unexpected command: " + command);
@@ -354,12 +359,18 @@ test("桌面目录复制、重命名和移动走确认队列，运行中不退�
   expect(await page.evaluate(() => (window as any).__workbenchOps.confirmed)).toBe(0);
   const queue = page.getByRole("dialog", { name: "文件操作队列", exact: true });
   await expect(queue).toContainText("已用时");
+  await page.evaluate(() => (window as any).__workbenchOps.report({ current: "package/a.c", processedBytes: 1048576, processedFiles: 1, elapsedMs: 1000, phase: "copying" }));
+  const transfer = queue.getByLabel("传输进度", { exact: true });
+  await expect(transfer).toContainText("package/a.c");
+  await expect(transfer).toContainText("1 个文件 · 1.00 MiB");
+  await expect(transfer).toContainText("平均 1.00 MiB/s");
   await queue.getByRole("button", { name: "停止后续项", exact: true }).click();
   await expect(queue).toContainText("已请求停止，正在等待当前项目确认结果");
   await expect(queue.getByRole("button", { name: "等待当前项结束…", exact: true })).toBeDisabled();
   expect(await page.evaluate(() => Boolean((window as any).__workbenchOps.tree["target/package"]))).toBe(false);
   await page.evaluate(() => (window as any).__workbenchOpsRelease());
   await expect.poll(() => page.evaluate(() => Boolean((window as any).__workbenchOps.tree["target/package/.hidden"]))).toBe(true);
+  await expect(transfer).toContainText("2 个文件 · 2.00 MiB");
   await page.getByRole("button", { name: "收起操作队列", exact: true }).click();
   await expect(right.getByRole("option", { name: /^package/ })).toBeVisible();
   await expect(left.getByRole("option", { name: /^a.c/ })).toBeVisible();

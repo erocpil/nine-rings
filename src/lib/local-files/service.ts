@@ -1,3 +1,4 @@
+import type { TransferProgress } from "./browser-operation-contract";
 import { checkpointLocalFilePath, clearLocalFileSessions } from "./session";
 import { isTauriRuntime } from "../runtime";
 import { workspacePanels } from "../plugin-system/panel-registry";
@@ -65,11 +66,13 @@ const roots = new Map<
 >();
 let generation = 0;
 const assert = () => workspacePanels.assert(workspacePanels.getSnapshot().some(panel => panel.id === "files") ? "files" : "browser");
+let nativeCorePromise: Promise<typeof import("@tauri-apps/api/core")> | undefined;
+const nativeCore = () => nativeCorePromise ??= import("@tauri-apps/api/core").catch(error => { nativeCorePromise = undefined; throw error; });
 async function native<T>(
   command: string,
   args?: Record<string, unknown>,
 ): Promise<T> {
-  const { invoke } = await import("@tauri-apps/api/core");
+  const { invoke } = await nativeCore();
   return invoke<T>(command, args);
 }
 function guard() {
@@ -139,7 +142,7 @@ export const localFileService = {
   canRename: (rootId: string) => isTauriRuntime() || Boolean(roots.get(rootId)?.handle),
   canTrash: () => isTauriRuntime(),
   canTransfer: () => isTauriRuntime(),
-  async transfer(rootId: string, node: string, targetRootId: string, parent: string, requestedName: string, moving: boolean): Promise<string> {
+  async transfer(rootId: string, node: string, targetRootId: string, parent: string, requestedName: string, moving: boolean, onProgress?: (progress: TransferProgress) => void): Promise<string> {
     const check = guard();
     pluginRuntime.assert(assert(), "filesystem.files.write");
     const name = requestedName.trim();
@@ -147,8 +150,36 @@ export const localFileService = {
     fileSegments(parent);
     if (isLocalFileReadOnly(targetRootId, parent) || isLocalFileReadOnly(targetRootId, [parent, name].filter(Boolean).join("/")) || (moving && isLocalFileReadOnly(rootId, node))) throw new Error("来源或目标被设置为只读");
     if (!isTauriRuntime()) throw new Error("双栏复制与跨目录移动需要桌面版；浏览器不提供排他创建保证");
-    const result = await native<string>("local_files_transfer", { rootId, node, targetRootId, parent, name, moving });
-    check(); return result;
+    const { Channel, invoke } = await nativeCore();
+    check();
+    let live = true;
+    let channel: import("@tauri-apps/api/core").Channel<TransferProgress> | undefined;
+    if (onProgress) {
+      channel = new Channel<TransferProgress>();
+      let previousBytes = 0, previousFiles = 0, previousElapsed = 0;
+      channel.onmessage = value => {
+        if (!live || !value || typeof value.current !== "string" || (value.current !== node && !value.current.startsWith(`${node}/`)) || !["copying", "confirming", "failed"].includes(value.phase)
+          || ![value.processedBytes, value.processedFiles, value.elapsedMs].every(number => Number.isSafeInteger(number) && number >= 0)
+          || value.processedBytes < previousBytes || value.processedFiles < previousFiles || value.elapsedMs < previousElapsed) return;
+        try {
+          check(); fileSegments(value.current);
+          previousBytes = value.processedBytes; previousFiles = value.processedFiles; previousElapsed = value.elapsedMs;
+          onProgress(value);
+        } catch { /* Presentation must never change the outcome of a disk write. */ }
+      };
+    }
+    try {
+      check();
+      const result = await invoke<string | { node: string; progress: TransferProgress }>("local_files_transfer", { rootId, node, targetRootId, parent, name, moving, ...(channel ? { onProgress: channel } : {}) });
+      check();
+      if (typeof result === "string") return result;
+      if (!result || typeof result.node !== "string") throw new Error("文件传输返回了无效结果，请核对目标文件。");
+      channel?.onmessage(result.progress);
+      return result.node;
+    } finally {
+      live = false;
+      if (channel) channel.onmessage = () => {};
+    }
   },
   async create(rootId: string, parent: string, requestedName: string, directory: boolean): Promise<string> {
     const check = guard();

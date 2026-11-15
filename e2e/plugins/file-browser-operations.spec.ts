@@ -16,13 +16,15 @@ async function setup(page: Page) {
       canTransfer: () => true, supportsDirectoryChanges: () => true, canTrash: () => true,
       list: async (root: string, parent: string) => ({ nodes: [...nodes.get(root)!.keys()].filter(id => id.split("/").slice(0, -1).join("/") === parent).map(id => ({ id, name: id.split("/").pop()!, directory: false, size: 1 })), next: null }),
       stat: async () => ({ size: 1, modifiedMs: 1 }),
-      transfer: async (root: string, node: string, target: string, parent: string, name: string, moving: boolean) => {
+      transfer: async (root: string, node: string, target: string, parent: string, name: string, moving: boolean, onProgress?: (value: import("../../src/lib/local-files/browser-operation-contract").TransferProgress) => void) => {
         const destination = [parent, name].filter(Boolean).join("/");
         fixture.attempts.push(destination);
         if (nodes.get(target)!.has(destination)) throw new Error("TARGET_EXISTS: 目标名称已存在，未覆盖");
+        onProgress?.({ current: node, processedBytes: 0, processedFiles: 0, elapsedMs: 0, phase: "copying" });
         if (fixture.slow) await new Promise<void>(resolve => { fixture.finish = resolve; });
         nodes.get(target)!.set(destination, nodes.get(root)!.get(node)!);
         if (moving) nodes.get(root)!.delete(node);
+        onProgress?.({ current: node, processedBytes: 1, processedFiles: 1, elapsedMs: 1, phase: "confirming" });
         return destination;
       },
       create: async (root: string, parent: string, name: string) => { const path = [parent, name].filter(Boolean).join("/"); nodes.get(root)!.set(path, ""); return path; },
@@ -67,6 +69,8 @@ test("重新激活双栏后可核对历史结果，但不恢复或重试磁盘�
   await page.getByRole("dialog", { name: "复制到另一栏", exact: true }).getByRole("button", { name: "确认", exact: true }).click();
   let dialog = page.getByRole("dialog", { name: "文件操作队列", exact: true });
   await expect(dialog.getByRole("status")).toContainText("成功 1 项");
+  await expect(dialog.getByLabel("传输进度", { exact: true })).toContainText("当前路径：b.c");
+  await expect(dialog.getByLabel("传输进度", { exact: true })).toContainText("1 个文件");
   await dialog.getByRole("button", { name: "关闭", exact: true }).click();
   await toggleBrowser(page, false);
   await expect(browser).toHaveCount(0);

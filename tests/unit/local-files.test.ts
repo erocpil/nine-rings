@@ -13,7 +13,12 @@ import {
 } from "../../src/lib/local-files/service";
 import * as environment from "../../src/lib/runtime";
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
-vi.mock("@tauri-apps/api/core", () => ({ invoke }));
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke,
+  Channel: class {
+    onmessage: (value: unknown) => void = () => {};
+  },
+}));
 const panel = {
   id: "files",
   label: "本地文件",
@@ -387,5 +392,176 @@ it("PDF preflight does not adopt a replacement authorization lifetime", async ()
   await expect(
     localFileService.readPdfPreview("root", "book.pdf"),
   ).rejects.toThrow("授权已变化");
+  expect(invoke).not.toHaveBeenCalled();
+});
+
+it("isolates transfer progress by request, ignores invalid and late events, and keeps disk success authoritative", async () => {
+  vi.stubGlobal("localStorage", { getItem: () => null });
+  pluginRuntime.setEnabled(true);
+  const owner = pluginRuntime.activate("test.transfer.progress", [
+    "panels.present",
+    "filesystem.files.read",
+    "filesystem.files.write",
+  ]);
+  workspacePanels.register(owner, panel);
+  vi.spyOn(environment, "isTauriRuntime").mockReturnValue(true);
+  let report!: (value: unknown) => void;
+  invoke.mockImplementationOnce(async (_command, args) => {
+    report = (value) => args.onProgress.onmessage(value);
+    report({
+      current: "src/a",
+      processedBytes: 10,
+      processedFiles: 1,
+      elapsedMs: 20,
+      phase: "copying",
+    });
+    report({
+      current: "src/a",
+      processedBytes: -1,
+      processedFiles: 1,
+      elapsedMs: 30,
+      phase: "copying",
+    });
+    report({
+      current: "/private/path",
+      processedBytes: 20,
+      processedFiles: 2,
+      elapsedMs: 30,
+      phase: "copying",
+    });
+    report({
+      current: "src/a",
+      processedBytes: 9,
+      processedFiles: 1,
+      elapsedMs: 30,
+      phase: "copying",
+    });
+    return {
+      node: "dest/a",
+      progress: {
+        current: "src/a",
+        processedBytes: 25,
+        processedFiles: 2,
+        elapsedMs: 40,
+        phase: "confirming",
+      },
+    };
+  });
+  const observer = vi.fn(
+    (
+      _progress: import("../../src/lib/local-files/browser-operation-contract").TransferProgress,
+    ) => {
+      throw new Error(`UI observer failed: ${_progress.current}`);
+    },
+  );
+  await expect(
+    localFileService.transfer(
+      "left",
+      "src/a",
+      "right",
+      "dest",
+      "a",
+      false,
+      observer,
+    ),
+  ).resolves.toBe("dest/a");
+  expect(observer).toHaveBeenCalledTimes(2);
+  expect(observer.mock.calls[1][0]).toMatchObject({
+    processedBytes: 25,
+    phase: "confirming",
+  });
+  report({
+    current: "src/a",
+    processedBytes: 30,
+    processedFiles: 3,
+    elapsedMs: 50,
+    phase: "confirming",
+  });
+  expect(observer).toHaveBeenCalledTimes(2);
+});
+
+it("keeps overlapping transfer channels and counters independent", async () => {
+  vi.stubGlobal("localStorage", { getItem: () => null });
+  pluginRuntime.setEnabled(true);
+  const owner = pluginRuntime.activate("test.transfer.parallel", [
+    "panels.present",
+    "filesystem.files.read",
+    "filesystem.files.write",
+  ]);
+  workspacePanels.register(owner, panel);
+  vi.spyOn(environment, "isTauriRuntime").mockReturnValue(true);
+  const channels = new Map<string, { onmessage: (value: unknown) => void }>();
+  const complete = new Map<string, (value: string) => void>();
+  const handle = async (
+    _command: string,
+    args: { node: string; onProgress: { onmessage: (value: unknown) => void } },
+  ) => {
+    channels.set(args.node, args.onProgress);
+    return new Promise<string>((resolve) => complete.set(args.node, resolve));
+  };
+  invoke.mockImplementationOnce(handle).mockImplementationOnce(handle);
+  const a = vi.fn(),
+    b = vi.fn();
+  const first = localFileService.transfer(
+    "left",
+    "a",
+    "right",
+    "dest",
+    "a",
+    false,
+    a,
+  );
+  const second = localFileService.transfer(
+    "left",
+    "b",
+    "right",
+    "dest",
+    "b",
+    false,
+    b,
+  );
+  await vi.waitFor(() => expect(channels.size).toBe(2));
+  const data = (current: string, processedBytes: number) => ({
+    current,
+    processedBytes,
+    processedFiles: 1,
+    elapsedMs: 1,
+    phase: "copying",
+  });
+  channels.get("a")!.onmessage(data("a", 100));
+  channels.get("b")!.onmessage(data("b", 2));
+  expect(a).toHaveBeenCalledOnce();
+  expect(b).toHaveBeenCalledOnce();
+  complete.get("b")!("dest/b");
+  await second;
+  channels.get("b")!.onmessage(data("b", 3));
+  channels.get("a")!.onmessage(data("a", 101));
+  expect(b).toHaveBeenCalledOnce();
+  expect(a).toHaveBeenCalledTimes(2);
+  complete.get("a")!("dest/a");
+  await first;
+});
+
+it("rechecks activation after loading the IPC module and does not start a revoked transfer", async () => {
+  vi.stubGlobal("localStorage", { getItem: () => null });
+  pluginRuntime.setEnabled(true);
+  const owner = pluginRuntime.activate("test.transfer.revoked", [
+    "panels.present",
+    "filesystem.files.read",
+    "filesystem.files.write",
+  ]);
+  workspacePanels.register(owner, panel);
+  vi.spyOn(environment, "isTauriRuntime").mockReturnValue(true);
+  const pending = localFileService.transfer(
+    "left",
+    "a",
+    "right",
+    "dest",
+    "a",
+    false,
+    vi.fn(),
+  );
+  pluginRuntime.setEnabled(false);
+  await expect(pending).rejects.toThrow();
   expect(invoke).not.toHaveBeenCalled();
 });

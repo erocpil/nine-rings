@@ -38,6 +38,7 @@ export function createBrowserOperationRunner<Lease extends BrowserOperationLease
           await host.assertPathClean(operation.rootId, node, lease);
           check();
         }
+        delete progress.transfer;
         progress.current = node || targetName; onProgress({ ...progress });
         for (;;) {
           if (signal.aborted) break;
@@ -49,7 +50,12 @@ export function createBrowserOperationRunner<Lease extends BrowserOperationLease
             emit({ node, targetName, status: "running" });
             attempted = true;
             if (operation.kind === "copy" || operation.kind === "move") {
-              const next = await host.files.transfer(operation.rootId, node, operation.targetRootId, operation.targetParent, targetName, operation.kind === "move");
+              let acceptingProgress = true;
+              const next = await host.files.transfer(operation.rootId, node, operation.targetRootId, operation.targetParent, targetName, operation.kind === "move", transfer => {
+                if (!acceptingProgress) return;
+                progress.transfer = transfer;
+                try { onProgress({ ...progress }); } catch { /* Isolate progress UI from disk writes. */ }
+              }).finally(() => { acceptingProgress = false; });
               confirmed = true;
               if (operation.kind === "move") await host.reconcileMove(operation.rootId, node, operation.targetRootId, next, operation.targetRootName);
               host.notify({ kind: operation.kind === "move" ? "move" : "refresh", rootId: operation.rootId, node, targetRootId: operation.targetRootId, targetNode: next });
