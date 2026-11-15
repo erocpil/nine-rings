@@ -2,7 +2,10 @@ import { expect, it } from "vitest";
 import { mdToDelta } from "../../src/lib/md-parser";
 import { deltaToProseMirror } from "../../src/lib/delta-converter";
 import { renderedTextblockMap } from "../../src/lib/markdown-view-position";
-import { SourceNavigationSession } from "../../src/lib/markdown-source-navigation";
+import {
+  sourceAnchorMapping,
+  SourceNavigationSession,
+} from "../../src/lib/markdown-source-navigation";
 
 function fixture(source: string, target: string, occurrence = 0) {
   const content = mdToDelta(source);
@@ -178,4 +181,24 @@ it("adds, renames, removes, and round-trips source bookmarks through shared docu
   reopened.removeBookmark(added.bookmarks[0].id);
   expect(reopened.current.bookmarks).toHaveLength(0);
   expect(reopened.current.read().metadata?.bookmarks ?? []).toHaveLength(0);
+});
+
+it("maps disk bookmark offsets through separate edits while preserving unchanged interior lines", () => {
+  for (const newline of ["\n", "\r\n"]) {
+    const before = ["first", "before", "target bookmark", "after", "last"].join(
+      newline,
+    );
+    const after = [
+      "new first",
+      "inserted",
+      "before",
+      "target bookmark",
+      "after",
+      "new last",
+    ].join(newline);
+    const offset = before.indexOf("bookmark");
+    const mapped = sourceAnchorMapping(before, after)(offset);
+    expect(mapped).toBe(after.indexOf("bookmark"));
+    expect(sourceAnchorMapping(after, before)(mapped)).toBe(offset);
+  }
 });

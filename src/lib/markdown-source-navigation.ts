@@ -68,7 +68,7 @@ export function sourceEditMapping(
 
 /** Whole-buffer paste/repair can contain several separate edits. Keep unchanged
  * lines between them, with a bounded diff and unique-line fallback for big files. */
-function sourceAnchorMapping(
+export function sourceAnchorMapping(
   before: string,
   after: string,
   range?: SourceEditRange,

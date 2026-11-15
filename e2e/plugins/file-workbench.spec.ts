@@ -1930,7 +1930,7 @@ test("Markdown 块号菜单与代码、引用、Flow、Mermaid 块模式复用�
     const scrollGeometry = await scrollport.evaluate(element => ({ overflow: getComputedStyle(element).overflowY, client: element.clientHeight, total: element.scrollHeight }));
     expect(["auto", "scroll"]).toContain(scrollGeometry.overflow);
     expect(scrollGeometry.total).toBeGreaterThan(scrollGeometry.client);
-    await scrollport.evaluate(element => { element.scrollTop = element.scrollHeight; });
+    await scrollport.evaluate(element => { element.dispatchEvent(new WheelEvent("wheel", { bubbles: true })); element.scrollTop = element.scrollHeight; });
     await expect.poll(() => scrollport.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
     await scrollport.evaluate(element => { element.scrollTop = 0; });
     const initialToolsToggle = rendered.getByRole("button", { name: "更多工具", exact: true });
@@ -2064,4 +2064,48 @@ test("Markdown 块号菜单与代码、引用、Flow、Mermaid 块模式复用�
     await rendered.getByRole("button", { name: "返回文件浏览", exact: true }).click();
     expect((await page.evaluate(() => indexedDB.databases())).map(item => item.name)).not.toContain("nine_rings");
   } finally { await rm(fixture, { recursive: true, force: true }); }
+});
+
+test("磁盘书签多处源码修改后保留中间位置，重新打开恢复名称与跳转", async ({ page }) => {
+  const original = "first\nbefore\ntarget bookmark\nafter\nlast\n";
+  await page.addInitScript(original => {
+    let id = 1;
+    const state = { source: localStorage.getItem("bookmark-fixture-source") ?? original, modified: 1 };
+    (window as any).__bookmarkDisk = state;
+    if (!localStorage.getItem("file-workbench:bookmarks:bookmark-root:anchors.txt")) localStorage.setItem("file-workbench:bookmarks:bookmark-root:anchors.txt", JSON.stringify([{ id: "anchor", position: original.indexOf("bookmark"), label: "保留书签", preview: "target bookmark" }]));
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback() { return id++; }, unregisterCallback() {},
+      async invoke(command: string) {
+        if (command === "plugin:event|listen") return id++;
+        if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
+        if (command === "local_files_roots") return [{ id: "bookmark-root", name: "Bookmarks" }];
+        if (command === "local_files_display_path") return "/fixture/Bookmarks";
+        if (command === "local_files_list") return { nodes: [{ id: "anchors.txt", name: "anchors.txt", directory: false, size: state.source.length, modifiedMs: state.modified }], next: null };
+        if (command === "local_files_stat") return { size: state.source.length, modifiedMs: state.modified };
+        if (command === "local_files_read") return { source: state.source, size: state.source.length, modifiedMs: state.modified, revision: String(state.modified), bom: false, lineEnding: "lf" };
+        throw new Error(command);
+      },
+    };
+  }, original);
+  await page.goto("/file-workbench.html");
+  const row = page.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /^anchors.txt/ });
+  const open = async () => {
+    await row.click({ button: "right" });
+    await page.getByRole("menuitem", { name: "打开方式", exact: true }).hover();
+    await page.getByRole("menuitem", { name: "内置编辑器", exact: true }).click();
+    await expect(page.locator(".cm-content:visible")).toContainText("target bookmark");
+  };
+  await open();
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  const { replaceSource, sourceInfo } = await import("../helpers/source-editor");
+  const changed = "new first\ninserted\nbefore\ntarget bookmark\nafter\nnew last\n";
+  await replaceSource(page.locator(".cm-content:visible"), changed);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("file-workbench:bookmarks:bookmark-root:anchors.txt")!)[0].position)).toBe(changed.indexOf("bookmark"));
+  await page.evaluate(changed => localStorage.setItem("bookmark-fixture-source", changed), changed);
+  await page.reload();
+  await open();
+  // Reload the page with persistent storage intact, without replaying initialization.
+  await page.getByRole("button", { name: "书签", exact: true }).click();
+  await page.getByRole("button", { name: /保留书签/ }).first().click();
+  await expect.poll(async () => (await sourceInfo(page.locator(".cm-content:visible"))).selectionStart).toBe(changed.indexOf("bookmark"));
 });

@@ -2,7 +2,7 @@ import { DocumentTitleField } from "../../components/DocumentTitleField";
 import { PanelSideToggle } from "../../components/PanelSideToggle";
 import { createPortal } from "react-dom";
 import { DocumentNavigationWorkspace } from "../../components/DocumentNavigationWorkspace";
-import { sourceEditMapping, SourceNavigationDocument } from "../../lib/markdown-source-navigation";
+import { sourceAnchorMapping, SourceNavigationDocument } from "../../lib/markdown-source-navigation";
 import { useMarkdownViewPosition } from "../../hooks/useMarkdownViewPosition";
 import { deltaToProseMirror } from "../../lib/delta-converter";
 import { writeDocumentSource } from "../../lib/document-source";
@@ -104,8 +104,12 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const dirty = Boolean(base && (source !== base.source || renderPending));
   const current = useCallback(() => { renderedFlush.current?.flush(); return sourceRef.current; }, []);
   const change = (text: string) => {
-    const map = sourceEditMapping(sourceRef.current, text);
-    setLineBookmarks(items => items.map(item => ({ ...item, position: Math.max(0, Math.min(text.length, map(item.position))) })));
+    const before = sourceRef.current;
+    setLineBookmarks(items => {
+      if (!items.length) return items;
+      const map = sourceAnchorMapping(before, text);
+      return items.map(item => ({ ...item, position: Math.max(0, Math.min(text.length, map(item.position))) }));
+    });
     sourceRef.current = text; setSource(text);
   };
   useEffect(() => {
