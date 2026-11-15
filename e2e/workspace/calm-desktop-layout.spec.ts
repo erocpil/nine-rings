@@ -93,7 +93,7 @@ for (const style of ["calm", "calm-compact"] as const) {
     await expect(dock).toBeVisible();
     await expect(dock.locator(".document-outline-header")).toHaveCSS(
       "min-height",
-      style === "calm" ? "48px" : "42px",
+      "36px",
     );
     await page.screenshot({ path: test.info().outputPath(`nr-${style}-desktop-refined.png`) });
     // Keep the content useful with a fixed navigation panel taking half the editor.
@@ -106,7 +106,7 @@ for (const style of ["calm", "calm-compact"] as const) {
     expect(b.x).toBeGreaterThanOrEqual(a.x);
     expect(b.x + b.width).toBeLessThanOrEqual(a.x + a.width + 1);
     await expect
-      .poll(() => dock.evaluate((el) => el.scrollWidth <= el.clientWidth + 1))
+      .poll(() => dock.locator(".document-panel-dock-main").evaluate((el) => el.scrollWidth <= el.clientWidth + 1))
       .toBe(true);
     const frame = (await editor.locator(".code-block-frame").boundingBox())!;
     for (const button of await editor

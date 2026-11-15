@@ -139,7 +139,7 @@ for (const virtual of [false, true]) {
     await page.mouse.move(grip.x + grip.width / 2, grip.y + 80);
     await page.mouse.down();
     await page.mouse.move(
-      grip.x + grip.width / 2 + initial.width - 320,
+      grip.x + grip.width / 2 + (await dock.evaluate(el => el.classList.contains("dock-left")) ? 320 - initial.width : initial.width - 320),
       grip.y + 80,
       {
         steps: 6,

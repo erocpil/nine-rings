@@ -28,12 +28,12 @@ test("专注标题前的线框锁切换只读，横竖屏不退出专注", async
     await titleButton.tap();
     const lock = bar.getByRole("button", { name: "点击设为只读", exact: true });
     const lockBox = (await lock.boundingBox())!;
-    expect(lockBox.width).toBe(26);
-    expect(lockBox.height).toBe(26);
+    expect(lockBox.width).toBe(viewport.width <= 768 ? 32 : 28);
+    expect(lockBox.height).toBe(viewport.width <= 768 ? 32 : 28);
     expect(titleBox.x - (lockBox.x + lockBox.width)).toBe(regularTitle.x - (regularLock.x + regularLock.width));
     if (viewport.width === 390) expect(lockBox.x).toBe(regularLock.x);
-    await expect(titleButton).toHaveCSS("font-size", "18px");
-    await expect(titleButton).toHaveCSS("font-weight", "600");
+    await expect(titleButton).toHaveCSS("font-size", "16px");
+    await expect(titleButton).toHaveCSS("font-weight", "500");
     await expect(lock.locator("svg.toolbar-icon")).toBeVisible();
     await lock.tap();
     await expect(editor).toHaveAttribute("contenteditable", "false");

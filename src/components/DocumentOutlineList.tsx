@@ -261,7 +261,12 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
     if (!virtualized) return;
     // 首次挂载先保留当前章节附近的窗口，让父级可以立即测量并居中；
     // 下一帧再根据实际 scrollTop 收敛到可视范围。
-    const frame = requestAnimationFrame(updateWindow);
+    const frame = requestAnimationFrame(() => {
+      // Browser scroll anchoring may adjust scrollTop after measured rows resize.
+      // Reapply the explicit destination against the settled scroll extent.
+      applyNavigation();
+      updateWindow();
+    });
     return () => {
       cancelAnimationFrame(frame);
       if (frameRef.current) cancelAnimationFrame(frameRef.current);

@@ -208,6 +208,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [loadError, setLoadError] = useState<string | null>(null);
   const configRef = useRef<AppConfig | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const flushConfigRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const pendingConfigRef = useRef<Partial<AppConfig>>({});
   const configSaveTimerRef = useRef<number | null>(null);
   const updateVersionRef = useRef(0);
@@ -258,6 +259,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
       const accepted = await confirmLeaveSync({ title: "GitHub 同步尚未完成", description: "正在执行 Pull / Push。建议留在此页等待结果；现在返回不会取消正在进行的操作。", confirmLabel: "仍然返回" });
       if (!accepted) return;
     }
+    await flushConfigRef.current();
     leave();
   }, [settingsPage, syncBusy, pushRunning, confirmLeaveSync]);
   const requestClose = useCallback(() => { void guardLeave(onClose); }, [guardLeave, onClose]);
@@ -591,7 +593,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     setSaving(key);
     pendingConfigRef.current = { ...pendingConfigRef.current, ...partial };
     if (configSaveTimerRef.current !== null) window.clearTimeout(configSaveTimerRef.current);
-    configSaveTimerRef.current = window.setTimeout(() => {
+    const persistPending = () => {
       configSaveTimerRef.current = null;
       const pending = pendingConfigRef.current;
       pendingConfigRef.current = {};
@@ -624,7 +626,16 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
           }
         }
       });
-    }, 120);
+    };
+    configSaveTimerRef.current = window.setTimeout(persistPending, 120);
+    // Leaving settings must not race the debounce or an older queued write.
+    flushConfigRef.current = () => {
+      if (configSaveTimerRef.current !== null) {
+        window.clearTimeout(configSaveTimerRef.current);
+        persistPending();
+      }
+      return saveQueueRef.current;
+    };
   };
 
   const chk = (key: keyof AppConfig, _val: unknown) => saving === key ? "saving" : "";

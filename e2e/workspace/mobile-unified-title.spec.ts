@@ -52,7 +52,7 @@ for (const mode of ["edit", "readonly", "virtual"] as const) {
       await expect(row).toHaveCount(1);
       const assertRow = async () => {
         const bounds = await row.boundingBox();
-        expect(bounds!.height).toBeLessThanOrEqual(42);
+        expect(bounds!.height).toBeLessThanOrEqual(mode === "virtual" ? 42 : 45);
         if (viewport.width === 844) {
           expect(bounds!.x).toBeGreaterThanOrEqual(44);
           expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(800);

@@ -136,6 +136,13 @@ for (const virtual of [false, true])
     await expect(page.locator("[data-document-preview]")).toBeVisible();
     await outline.click();
     await expect(dock).toBeVisible();
+    if (virtual) {
+      await expect.poll(async () => {
+        const title = (await page.locator(".vr-title:visible").boundingBox())!;
+        const host = (await page.locator(".vr-note:visible").boundingBox())!;
+        return Math.abs(title.width - host.width);
+      }).toBeLessThan(2);
+    }
     await expect(page.locator("[data-document-preview]")).toHaveCount(0);
     await bookmark.hover();
     await expect(page.locator("[data-document-preview]")).toBeVisible();
@@ -153,7 +160,8 @@ for (const virtual of [false, true])
         .getByRole("button", { name: "搜索", exact: true });
       const rect = (await action.boundingBox())!;
       const dockRect = (await dock.boundingBox())!;
-      expect(rect.x + rect.width).toBeLessThanOrEqual(dockRect.x);
+      if (await dock.evaluate(el => el.classList.contains("dock-left"))) expect(rect.x).toBeGreaterThanOrEqual(dockRect.x + dockRect.width);
+      else expect(rect.x + rect.width).toBeLessThanOrEqual(dockRect.x);
       await action.click();
       await expect(
         page.getByRole("region", { name: "文内搜索", exact: true }),

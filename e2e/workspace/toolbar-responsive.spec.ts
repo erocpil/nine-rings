@@ -34,7 +34,7 @@ test.describe("响应式编辑器工具栏", () => {
       }
       if (width > 768) {
         await expect.poll(() => toolbar.evaluate(element => {
-          const title = element.parentElement!.querySelector(".note-title-row")!;
+          const title = element.closest(".note-editor")!.querySelector(".note-title-row")!;
           const row = title.getBoundingClientRect(), tools = element.getBoundingClientRect();
           return Math.max(Math.abs(tools.left - row.left - 12), Math.abs(row.right - tools.right - 12));
         })).toBeLessThanOrEqual(1);
@@ -89,9 +89,9 @@ test.describe("响应式编辑器工具栏", () => {
       };
     });
 
-    await expect.poll(verticalSpacing).toEqual({ before: 0, paddingTop: 0, paddingBottom: 0, after: 8 });
+    await expect.poll(verticalSpacing).toEqual({ before: 0, paddingTop: 0, paddingBottom: 0, after: 0 });
     await page.setViewportSize({ width: 390, height: 760 });
-    await expect.poll(verticalSpacing).toEqual({ before: 0, paddingTop: 0, paddingBottom: 0, after: 3 });
+    await expect.poll(verticalSpacing).toEqual({ before: 0, paddingTop: 0, paddingBottom: 0, after: 0 });
 
     const historyGap = await page.locator(".toolbar-history-actions").evaluate((element) => {
       const [undo, redo] = Array.from(element.querySelectorAll("button"));
@@ -224,12 +224,9 @@ test.describe("响应式编辑器工具栏", () => {
     expect(Number(savedWidth)).toBeGreaterThan(48);
 
     await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
-    const saveStatusRightGap = await page.locator(".editor-menu").evaluate((toolbar) => {
-      const status = toolbar.querySelector<HTMLElement>(".save-status-saved")!;
-      return toolbar.getBoundingClientRect().right - status.getBoundingClientRect().right
-        - Number.parseFloat(getComputedStyle(toolbar).paddingRight);
-    });
-    expect(Math.abs(saveStatusRightGap)).toBeLessThanOrEqual(1);
+    // Saved state belongs to the status bar, not the editing toolbar.
+    await expect(page.locator(".editor-menu .save-status-saved")).toHaveCount(0);
+    await expect(page.locator(".editor-status-bar .save-status-saved")).toBeVisible();
     await page.reload();
     await expect(page.locator(".ProseMirror table th").first()).toHaveAttribute("colwidth", savedWidth!);
   });

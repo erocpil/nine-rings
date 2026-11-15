@@ -5,7 +5,7 @@ import { createBlankDocument } from "../helpers/document";
 import { closeDocumentSidebar } from "../helpers/workspace";
 import { sourceInfo } from "../helpers/source-editor";
 
-test("本地导航复用书签与同词控件，保留工具栏下方的右侧布局", async ({ page }, testInfo) => {
+test("本地导航复用书签与同词控件，遵循共享停靠位置", async ({ page }, testInfo) => {
   await createBlankDocument(page);
   await closeDocumentSidebar(page);
   await page.evaluate(async () => {
@@ -65,8 +65,10 @@ test("本地导航复用书签与同词控件，保留工具栏下方的右侧�
   await expect(matches.locator(".document-source-match-row code").first()).toHaveCSS("font-size", "18px");
   const editorBounds = (await viewer.locator(".local-file-editor-shell").boundingBox())!;
   const panelBounds = (await matches.boundingBox())!;
-  expect(panelBounds.x).toBeGreaterThanOrEqual(editorBounds.x + editorBounds.width - 1);
-  expect(Math.abs(panelBounds.y - editorBounds.y)).toBeLessThanOrEqual(1);
+  const dock = viewer.locator(".document-panel-dock");
+  if (await dock.evaluate(el => el.classList.contains("dock-left"))) expect(panelBounds.x + panelBounds.width).toBeLessThanOrEqual(editorBounds.x + 1);
+  else expect(panelBounds.x).toBeGreaterThanOrEqual(editorBounds.x + editorBounds.width - 1);
+  expect(panelBounds.y).toBeGreaterThanOrEqual(editorBounds.y - 1);
   await matches.locator(".document-source-match-row").last().click();
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("count", source.indexOf("return")));
   expect((await sourceInfo(area)).value).toBe(source);

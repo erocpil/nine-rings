@@ -39,8 +39,8 @@ test('桌面四栏沿工作区铺宽，下拉框保留无障碍名称', async ({
   expect(Math.abs(widths.overview - widths.frame)).toBeLessThan(2);
 });
 
-for (const [density, expected] of [['comfortable', '20px'], ['compact', '14px']] as const) {
-  test(`桌面正文首块顶部留白按风格密度缩短 ${density}`, async ({ page }) => {
+for (const density of ['comfortable', 'compact'] as const) {
+  test(`桌面正文首块保留统一插入控件留白 ${density}`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.addInitScript((density) => localStorage.setItem('nine_rings_config', JSON.stringify({ interface_style: 'calm', workspace_layout: 'exhibition', exhibition_density: density })), density);
     await page.goto('/');
@@ -48,14 +48,16 @@ for (const [density, expected] of [['comfortable', '20px'], ['compact', '14px']]
     await expect(sample).toBeVisible();
     await sample.click();
     await expect.poll(() => page.locator('.note-title').evaluate(element => element instanceof HTMLInputElement ? element.value : element.textContent)).toBe('物哀、幽玄与侘寂：风格设计与验证');
-    await expect(page.locator('.editor-content-shell')).toHaveCSS('margin-top', expected);
+    await expect(page.locator('.editor-content-shell')).toHaveCSS('margin-top', '0px');
+    await expect(page.locator('.editor-content-shell')).toHaveCSS('padding-top', '16px');
   });
 }
 
-test('桌面经典正文首块顶部留白缩短到 6px', async ({ page }) => {
+test('桌面经典正文首块保留统一插入控件留白', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.addInitScript(() => localStorage.setItem('nine_rings_config', JSON.stringify({ interface_style: 'classic', workspace_layout: 'standard' })));
   await page.goto('/');
   await expect(page.locator('.editor-content-shell')).toBeVisible();
-  await expect(page.locator('.editor-content-shell')).toHaveCSS('margin-top', '6px');
+  await expect(page.locator('.editor-content-shell')).toHaveCSS('margin-top', '0px');
+  await expect(page.locator('.editor-content-shell')).toHaveCSS('padding-top', '16px');
 });
