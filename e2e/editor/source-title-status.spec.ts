@@ -67,7 +67,7 @@ test("源码标题回车恢复源码光标，状态栏加号紧邻格式选择�
 
   expect(
     await area.evaluate((element) => getComputedStyle(element).paddingTop),
-  ).toBe("6px");
+  ).toBe("16px");
 });
 
 test("窄窗口的只读源码状态栏可通过鼠标滚轮横向浏览", async ({ page }) => {

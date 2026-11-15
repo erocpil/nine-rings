@@ -355,7 +355,7 @@ test("源码折叠全部后展开恢复原可视行和行内偏移", async ({ pa
         .locator(".cm-content")
         .evaluate((element) => getComputedStyle(element).paddingTop),
     )
-    .toBe("6px");
+    .toBe("16px");
 });
 
 test("C/C++ 折叠占位符预览完整源码并支持高亮与滚动，点击仍展开", async ({

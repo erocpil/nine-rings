@@ -70,7 +70,7 @@
   padding-block: 1px;
   flex-shrink: 0;
 }
-:is(.app, .file-workbench-app) .document-panel-slot :is(.document-outline-header, .document-bookmark-header, .document-source-matches-header) {
+:is(.app, .file-workbench-app) :is(.document-panel-slot, .document-panel-matches-slot) :is(.document-outline-header, .document-bookmark-header, .document-source-matches-header) {
   box-sizing: border-box;
   height: var(--document-toolbar-height);
   min-height: var(--document-toolbar-height);
