@@ -24,7 +24,8 @@ export async function measureBrowserDirectorySize(
     while (offset !== null) {
       signal.throwIfAborted();
       if (++result.pages > limits.pages) throw new Error(`超过 ${limits.pages} 页统计预算，未生成完整结果`);
-      const page = await provider.page(rootId, current.node, offset, { sort: "name", showHidden: true, query: "" }, signal);
+      // Handle-backed browser roots populate real sizes only for metadata-aware sorting.
+      const page = await provider.page(rootId, current.node, offset, { sort: "size", showHidden: true, query: "" }, signal);
       signal.throwIfAborted();
       for (const entry of page.nodes) {
         if (fileSegments(entry.name).length !== 1 || entry.id !== [current.node, entry.name].filter(Boolean).join("/")) throw new Error("目录返回了范围外的路径，统计已停止");

@@ -14,7 +14,7 @@ const file = (id: string, size = 3, directory = false) => ({
 it("counts all pages, empty and hidden files, nested directories without reading content", async () => {
   const page = vi.fn<BrowserDirectoryProvider["page"]>(
     async (_root, node, offset, options) => {
-      expect(options).toEqual({ sort: "name", showHidden: true, query: "" });
+      expect(options).toEqual({ sort: "size", showHidden: true, query: "" });
       if (node === "sub") return { nodes: [file("sub/empty", 0)], next: null };
       return offset === 0
         ? { nodes: [file(".hidden", 7), file("sub", 0, true)], next: 2 }
