@@ -27,8 +27,9 @@ for (const source of [false, true]) test(`文档两种布局独立保存面板�
     await expect.poll(async () => {
       const titleRect = (await title.boundingBox())!;
       const dockRect = (await dock.boundingBox())!;
-      return Math.abs(dockRect.y - titleRect.y - titleRect.height);
-    }).toBeLessThan(2);
+      const owner = (await page.locator(".note-editor.desktop-document-panels:visible").boundingBox())!;
+      return Math.max(Math.abs(dockRect.y - titleRect.y - titleRect.height), Math.max(0, owner.x - titleRect.x), Math.max(0, titleRect.x - dockRect.x), Math.max(0, dockRect.x + dockRect.width - titleRect.x - titleRect.width - 16));
+    }, { message: "固定面板位于完整标题下方，标题横跨正文和面板" }).toBeLessThan(2);
   };
   for (const side of ["left", "right"] as const) {
     await page.evaluate(async side => (await import("/src/lib/workspace-layout.ts")).saveWorkspaceLayout({ panelsSide: side }), side);
@@ -36,6 +37,7 @@ for (const source of [false, true]) test(`文档两种布局独立保存面板�
     for (const style of nonClassicStyles) {
       await page.evaluate(style => { document.documentElement.dataset.interfaceStyle = style; }, style);
       await expectDockBelowTitle();
+      if (style === "calm") await page.screenshot({ path: `/tmp/panel-layout-${source ? "source" : "rendered"}-${side}.png` });
     }
   }
   if (source) {
@@ -112,7 +114,7 @@ test("本地 Markdown 可切换两种布局，并保留源码实例、书签和�
   await page.evaluate(async () => (await import("/src/lib/document-workspace-layout.ts")).saveDocumentWorkspaceMode("local", "compact"));
   await expect(outline).toBeVisible();
   await expect(viewer.getByRole("complementary", { name: "本地文件书签", exact: true })).toHaveCount(0);
-  await expect(viewer.locator(".document-panel-dock")).toHaveClass(/dock-right/);
+  await expect(viewer.locator(".document-panel-dock")).toHaveClass(/dock-left/);
   expect(await area.evaluate(element => element === (window as any).workspaceEditorElement)).toBe(true);
   expect((await sourceInfo(area)).value).toBe("# 本地章节\n\n保留本地原文\n");
   await viewer.getByRole("button", { name: "渲染", exact: true }).click();
