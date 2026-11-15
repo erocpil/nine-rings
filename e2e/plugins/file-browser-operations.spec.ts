@@ -403,3 +403,26 @@ test("Markdown 渲染视图不能把队列的临时只读写入权限偏好", as
   await expect(workspace.locator(".ProseMirror:visible")).toHaveAttribute("contenteditable", "true");
   expect(await page.evaluate(() => localStorage.getItem("nr:local-file-readonly-rules"))).toBeNull();
 });
+
+test("共享快捷键设置在 Nine Rings 插件中立即生效并保留操作确认", async ({ page }) => {
+  const { browser, left } = await setup(page);
+  await browser.getByRole("button", { name: "文件浏览快捷键", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "文件浏览快捷键" });
+  await dialog.getByRole("button", { name: "修改复制到另一栏快捷键", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "录制复制到另一栏快捷键" }).press("Alt+1");
+  await expect(dialog.getByRole("alert")).toContainText("最近打开列表");
+  await dialog.getByRole("textbox", { name: "录制复制到另一栏快捷键" }).press("F9");
+  await dialog.getByRole("button", { name: "保存快捷键", exact: true }).click();
+  await left.getByRole("option", { name: /b.c/ }).click();
+  const list = left.getByRole("listbox");
+  await list.press("F5");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await list.press("F9");
+  await expect(page.getByRole("dialog")).toContainText("b.c");
+  expect(await page.evaluate(() => (window as any).__browserOperations.attempts)).toEqual([]);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await left.getByRole("searchbox", { name: "过滤文件名称", exact: true }).focus();
+  await page.keyboard.press("F9");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});

@@ -1,3 +1,5 @@
+import { useBrowserShortcuts } from "../hooks/useBrowserShortcuts";
+import { browserShortcutAction, displayBrowserShortcut } from "../lib/local-files/browser-shortcuts";
 import { useEffect, useLayoutEffect, useRef, useState, useId, type ReactNode } from "react";
 import { useFileBrowserHost } from "./FileBrowserHost";
 import type { FileRoot } from "../lib/local-files/file-model";
@@ -13,6 +15,7 @@ export function FileBrowserLocations({ pane, roots, visible, provider, onNavigat
   onNavigate: (rootId: string, node: string) => void; onHistory: (index: number) => void; onError: (message: string) => void;
 }) {
   const workspace = useFileBrowserHost();
+  const { shortcuts, mac } = useBrowserShortcuts(workspace.settings);
   const location = browserLocation(pane), rootId = location?.rootId ?? "", node = location?.node ?? "";
   const [value, setValue] = useState(node), [busy, setBusy] = useState(false), [favorites, setFavorites] = useState(() => readBrowserFavorites(workspace.settings));
   const [menu, setMenu] = useState<{ kind: "history" | "favorites"; target: NotesMenuTarget } | null>(null);
@@ -27,19 +30,20 @@ export function FileBrowserLocations({ pane, roots, visible, provider, onNavigat
     if (!paneElement || !visible || !rootId) return;
     const shortcut = (event: Event) => {
       const key = event as KeyboardEvent;
-      if (key.defaultPrevented || key.isComposing || key.altKey || key.shiftKey || !(key.ctrlKey || key.metaKey)) return;
-      if (key.key.toLowerCase() === "l" && hasBreadcrumbs) {
+      const action = browserShortcutAction(key, shortcuts, mac, workspace.shortcutReservations?.());
+      if (action === "address") {
         key.preventDefault(); key.stopPropagation(); setMenu(null); setFilterOpen(false); setEditing(true);
         pathInput.current?.focus(); pathInput.current?.select();
-      } else if (key.key.toLowerCase() === "f" && hasFilter) {
+      } else if (action === "filter") {
         key.preventDefault(); key.stopPropagation(); setMenu(null); setFilterOpen(true);
-        filterInput.current?.focus(); filterInput.current?.select();
+        const input = filterInput.current ?? paneElement.querySelector<HTMLInputElement>('input[aria-label="过滤文件名称"]');
+        input?.focus(); input?.select();
       }
     };
     // Scope shortcuts to this pane, before they reach browser/app handlers.
     paneElement.addEventListener("keydown", shortcut);
     return () => paneElement.removeEventListener("keydown", shortcut);
-  }, [visible, rootId, hasBreadcrumbs, hasFilter]);
+  }, [visible, rootId, hasBreadcrumbs, hasFilter, shortcuts, mac, workspace]);
   useLayoutEffect(() => { if (editing) { pathInput.current?.focus(); pathInput.current?.select(); } }, [editing]);
   useLayoutEffect(() => {
     if (!filterOpen || !filterHost.current || !filterInput.current) return;
@@ -102,9 +106,9 @@ export function FileBrowserLocations({ pane, roots, visible, provider, onNavigat
     <div className={breadcrumbs ? "file-browser-address" : "file-browser-path-input"} onDoubleClick={event => { if (breadcrumbs && !editing && !(event.target as Element).closest("button")) setEditing(true); }}>
       {breadcrumbs && !editing ? <div className="file-browser-address-breadcrumbs" onClick={event => { if (!(event.target as Element).closest("button")) setEditing(true); }}>{breadcrumbs}</div> : <input ref={pathInput} aria-label="根内相对路径" value={value} disabled={!rootId} aria-busy={busy} onKeyDown={event => { if (breadcrumbs && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); controller.current?.abort(); setBusy(false); setValue(node); setEditing(false); editButton.current?.focus({ preventScroll: true }); } }} onChange={event => { controller.current?.abort(); setBusy(false); setValue(event.target.value); }} placeholder="相对路径；桌面版也可粘贴已授权目录的完整路径" />}
     </div>
-    <button ref={editButton} type={breadcrumbs && !editing ? "button" : "submit"} className="btn-icon" aria-label={breadcrumbs && !editing ? "编辑路径" : "前往路径"} aria-keyshortcuts={breadcrumbs ? "Meta+L Control+L" : undefined} title={breadcrumbs && !editing ? "编辑路径（⌘/Ctrl+L）" : "验证并前往路径"} disabled={!rootId || busy} onClick={event => { if (breadcrumbs && !editing) { event.preventDefault(); setMenu(null); setEditing(true); } }}><ToolbarIcon name={breadcrumbs && !editing ? "edit" : "chevronRight"} /></button>
+    <button ref={editButton} type={breadcrumbs && !editing ? "button" : "submit"} className="btn-icon" aria-label={breadcrumbs && !editing ? "编辑路径" : "前往路径"} title={breadcrumbs && !editing ? `编辑路径${shortcuts.address.length ? `（${shortcuts.address.map(key => displayBrowserShortcut(key, mac)).join(" / ")}）` : ""}` : "验证并前往路径"} disabled={!rootId || busy} onClick={event => { if (breadcrumbs && !editing) { event.preventDefault(); setMenu(null); setEditing(true); } }}><ToolbarIcon name={breadcrumbs && !editing ? "edit" : "chevronRight"} /></button>
     {filter && <div ref={filterHost} className="file-browser-filter-tool">
-      <button ref={filterButton} type="button" className="btn-icon" aria-label="过滤名称" aria-keyshortcuts="Meta+F Control+F" title={filter.value ? `过滤名称：${filter.value}（⌘/Ctrl+F）` : "过滤名称（⌘/Ctrl+F）"} aria-expanded={filterOpen} aria-controls={filterId} aria-pressed={Boolean(filter.value)} disabled={!rootId} onClick={() => { setMenu(null); if (filterOpen) closeFilter(); else setFilterOpen(true); }}><ToolbarIcon name="filter" /></button>
+      <button ref={filterButton} type="button" className="btn-icon" aria-label="过滤名称" title={`过滤名称${filter.value ? `：${filter.value}` : ""}${shortcuts.filter.length ? `（${shortcuts.filter.map(key => displayBrowserShortcut(key, mac)).join(" / ")}）` : ""}`} aria-expanded={filterOpen} aria-controls={filterId} aria-pressed={Boolean(filter.value)} disabled={!rootId} onClick={() => { setMenu(null); if (filterOpen) closeFilter(); else setFilterOpen(true); }}><ToolbarIcon name="filter" /></button>
       {filterOpen && <input ref={filterInput} id={filterId} className="file-browser-filter-input" type="search" aria-label="过滤文件名称" placeholder="过滤名称" value={filter.value} onChange={event => filter.onChange(event.target.value)} onKeyDown={event => {
         if (event.nativeEvent.isComposing) return;
         if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeFilter(); }

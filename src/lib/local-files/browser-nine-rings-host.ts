@@ -1,3 +1,4 @@
+import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../../types/models";
 import { pluginRuntime, type PluginActivation } from "../plugin-system/runtime";
 import { isTauriRuntime } from "../runtime";
 import { localFileService } from "./service";
@@ -13,6 +14,11 @@ export function createNineRingsBrowserHost(owner: PluginActivation): BrowserWork
   return {
     provider: localDirectoryProvider(owner), queue: getBrowserOperationQueue(owner),
     settings: browserSettings(), showQueueHistory: true,
+    shortcutReservations: () => {
+      let overrides: Record<string, string> = {};
+      try { overrides = JSON.parse(localStorage.getItem("nine_rings_config") ?? "{}").hotkeys ?? {}; } catch { /* Keep application defaults when storage is unavailable. */ }
+      return Object.entries({ ...DEFAULT_HOTKEYS, ...overrides }).filter(([, shortcut]) => typeof shortcut === "string" && shortcut).map(([id, shortcut]) => ({ shortcut, label: HOTKEY_LABELS[id] ?? id }));
+    },
     assertActive: () => pluginRuntime.assert(owner, "filesystem.files.read"),
     roots: () => localFileService.roots(), choose: () => localFileService.choose(),
     addFiles: files => localFileService.addFiles(files),

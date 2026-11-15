@@ -2126,3 +2126,52 @@ test("磁盘书签多处源码修改后保留中间位置，重新打开恢复�
   await page.getByRole("button", { name: /保留书签/ }).first().click();
   await expect.poll(async () => (await sourceInfo(page.locator(".cm-content:visible"))).selectionStart).toBe(changed.indexOf("bookmark"));
 });
+
+test("集中快捷键可录制、冲突提示、取消与持久化，操作仍受目录能力约束", async ({ page }) => {
+  await page.goto("/file-workbench.html");
+  const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+  await browser.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const left = browser.getByRole("region", { name: "左侧目录", exact: true });
+  const list = left.getByRole("listbox");
+  await expect(left.getByRole("option", { name: /alpha.c/ })).toBeVisible();
+  await browser.getByRole("button", { name: "文件浏览快捷键", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "文件浏览快捷键" });
+  await dialog.getByRole("button", { name: "修改复制到另一栏快捷键", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "录制复制到另一栏快捷键" }).press("F2");
+  await expect(dialog.getByRole("alert")).toContainText("重复");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "修改快速预览快捷键", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "录制快速预览快捷键" }).press("F9");
+  await dialog.getByRole("button", { name: "保存快捷键", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await left.getByRole("option", { name: /alpha.c/ }).click();
+  await list.press("F3");
+  await expect(browser.locator(".file-browser-quick-preview")).toHaveCount(0);
+  await list.press("F9");
+  await expect(browser.locator(".file-browser-quick-preview")).toBeVisible();
+  await list.press("Escape");
+  await list.press("F5");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.reload();
+  await expect(browser.getByRole("button", { name: "快速预览", exact: true })).toHaveAttribute("title", /F9/);
+  await browser.getByRole("button", { name: "文件浏览快捷键", exact: true }).click();
+  const primary = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta" : "Control");
+  for (const [label, key] of [["编辑当前路径", "k"], ["过滤文件名称", "j"]]) {
+    await dialog.getByRole("button", { name: `修改${label}快捷键`, exact: true }).click();
+    await dialog.getByRole("textbox", { name: `录制${label}快捷键` }).press(`${primary}+${key}`);
+  }
+  await dialog.getByRole("button", { name: "保存快捷键", exact: true }).click();
+  await list.focus();
+  await list.press(`${primary}+k`);
+  await expect(left.getByRole("textbox", { name: "根内相对路径", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await list.focus();
+  await list.press(`${primary}+j`);
+  await expect(left.getByRole("searchbox", { name: "过滤文件名称", exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await browser.getByRole("button", { name: "文件浏览快捷键", exact: true }).click();
+  await dialog.getByRole("button", { name: "恢复全部默认", exact: true }).click();
+  await dialog.getByRole("button", { name: "保存快捷键", exact: true }).click();
+  await expect(browser.getByRole("button", { name: "快速预览", exact: true })).toHaveAttribute("title", /F3/);
+});

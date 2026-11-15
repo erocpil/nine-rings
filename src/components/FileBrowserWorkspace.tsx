@@ -1,3 +1,6 @@
+import { FileBrowserShortcuts } from "./FileBrowserShortcuts";
+import { useBrowserShortcuts } from "../hooks/useBrowserShortcuts";
+import { browserShortcutAction, displayBrowserShortcut, saveBrowserShortcuts } from "../lib/local-files/browser-shortcuts";
 import { WorkspaceDialog } from "./WorkspaceDialog";
 import { FileBrowserRootManager } from "./FileBrowserRootManager";
 import type { BrowserToolContext } from "../lib/local-files/browser-tool-context";
@@ -31,6 +34,10 @@ export function FileBrowserWorkspace(props: Props) {
 }
 function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose, toolbarExtras, onToolContext }: Props) {
   const compact = workspace.presentation === "compact";
+  const { shortcuts, mac } = useBrowserShortcuts(workspace.settings);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const shortcutsButton = useRef<HTMLButtonElement>(null);
+  const reservations = workspace.shortcutReservations?.() ?? [];
   const [state, setState] = useState(() => {
     try { return parseBrowserWorkspace(workspace.settings.getItem(FILE_BROWSER_STATE_KEY)); }
     catch { return parseBrowserWorkspace(null); }
@@ -67,7 +74,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose, t
   const previewNavigation = useRef<[BrowserPreviewNavigation | null, BrowserPreviewNavigation | null]>([null, null]);
   const drag = useRef<{ token: string; source: BrowserDragSource } | null>(null);
   const provider = workspace.provider;
-  useEffect(() => { if (!active) { setOperation(null); setTool(null); setQueueOpen(false); drag.current = null; } }, [active]);
+  useEffect(() => { if (!active) { setOperation(null); setTool(null); setQueueOpen(false); setShortcutsOpen(false); drag.current = null; } }, [active]);
   useEffect(() => workspace.subscribeMutations(change => {
     setState(current => reconcileBrowserTabs(current, change));
     setListingRevision(value => value + 1);
@@ -180,19 +187,24 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose, t
     current: () => active ? drag.current?.source ?? null : null,
     take: token => { const value = drag.current; if (!active || !value || token !== value.token) return null; drag.current = null; return value.source; },
   }}><section ref={host} className={`dual-file-browser${compact ? " file-browser-compact" : ""}`} aria-label="双栏文件浏览" data-active-pane={state.active} hidden={!active} {...(!active ? { inert: "", "aria-hidden": true } : {})} onKeyDownCapture={event => {
-    if (active && !event.nativeEvent.isComposing && event.altKey && !event.ctrlKey && !event.metaKey && event.key === "Home" && event.target instanceof HTMLElement && event.target.matches(".file-browser-list")) {
-      event.preventDefault(); event.stopPropagation();
-      setState(current => modifyBrowserTabs(current, current.active, current.groups[current.active].tabs[current.groups[current.active].active].tabId, "home")); return;
-    }
-    if (!active || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey || !(event.target instanceof HTMLElement)) return;
-    if (quickPreview && event.key === "Escape" && event.target.matches(".file-browser-list")) {
+    if (!active || event.nativeEvent.isComposing || !(event.target instanceof HTMLElement) || !event.target.matches(".file-browser-list")) return;
+    if (quickPreview && event.key === "Escape") {
       event.preventDefault(); event.stopPropagation(); closePreview(); return;
     }
-    if (!event.target.matches(".file-browser-list")) return;
-    const operations: Partial<Record<string, BrowserOperation["kind"]>> = { F2: "rename", F5: "copy", F6: "move", F7: "directory", F8: "trash" };
-    if (event.shiftKey) return;
-    if (event.key === " " || event.key === "F3") { event.preventDefault(); event.stopPropagation(); setQuickPreview(value => !value); }
-    else if (operations[event.key]) { event.preventDefault(); event.stopPropagation(); startOperation(operations[event.key]!); }
+    const action = browserShortcutAction(event, shortcuts, mac, workspace.shortcutReservations?.());
+    if (!action || action === "address" || action === "filter") return;
+    event.preventDefault(); event.stopPropagation();
+    switch (action) {
+      case "home": setState(current => modifyBrowserTabs(current, current.active, current.groups[current.active].tabs[current.groups[current.active].active].tabId, "home")); break;
+      case "preview": setQuickPreview(value => !value); break;
+      case "refresh": setListingRevision(value => value + 1); break;
+      case "queue": setQueueOpen(true); break;
+      case "compare": openComparison(); break;
+      case "search": if (currentLocation) setTool({ kind: "search", scope: { rootId: currentLocation.rootId, node: currentLocation.node } }); break;
+      case "exchange": setQuickPreview(false); setState(exchangeBrowserPanes); focusList(state.active === 0 ? 1 : 0); break;
+      case "mirror": if (currentLocation) { setQuickPreview(false); setState(mirrorBrowserPath); focusList(state.active); } break;
+      default: startOperation(action);
+    }
   }} onKeyDown={event => {
     if (quickPreview && !event.defaultPrevented && event.key === "Escape" && event.target instanceof HTMLElement && event.target.closest(".file-browser-quick-preview")) { event.preventDefault(); event.stopPropagation(); closePreview(); return; }
     if (quickPreview || event.defaultPrevented || event.key !== "Tab" || !(event.target instanceof HTMLElement) || !event.target.matches(".file-browser-list")) return;
@@ -219,18 +231,19 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose, t
       {(["copy", "move", "rename", "batch-rename", "file", "directory", "trash"] as const).map(kind => {
         const label = { copy: "复制到另一栏", move: "移动到另一栏", rename: "重命名", "batch-rename": "批量重命名", file: "新建文件", directory: "新建文件夹", trash: "移入系统回收站" }[kind];
         const icons = { copy: "copy", move: "move", rename: "rename", "batch-rename": "ordered", file: "document", directory: "folder", trash: "trash" } as const;
-        const shortcut = { copy: "F5", move: "F6", rename: "F2", "batch-rename": "", file: "", directory: "F7", trash: "F8" }[kind];
+        const shortcut = shortcuts[kind].map(key => displayBrowserShortcut(key, mac)).join(" / ");
         const short = { copy: "复制", move: "移动", rename: "改名", "batch-rename": "批量", file: "新建", directory: "目录", trash: "回收站" }[kind];
         return <button key={kind} type="button" aria-label={label} disabled={operationDisabled(kind)} title={compact && operationDisabled(kind) ? `${label}（当前工作台尚未开放此操作）` : (kind === "copy" || kind === "move") && !workspace.canTransfer() ? "双栏传输需要桌面版" : `${label}${shortcut ? `（${shortcut}，列表焦点内）` : ""}`} onClick={() => startOperation(kind)}><ToolbarIcon name={icons[kind]} />{!compact && <><span>{short}</span>{shortcut && <kbd>{shortcut}</kbd>}</>}</button>;
       })}
       </div><div className="file-browser-action-group" role="group" aria-label="浏览工具">
       <button type="button" aria-label="操作队列" title="查看操作队列与逐项结果" onClick={() => setQueueOpen(true)}><ToolbarIcon name="ordered" />{!compact && <span>队列{jobs.length ? ` ${jobs.filter(job => !browserJobSettled(job)).length}/${jobs.length}` : ""}{jobs.some(job => job.status === "waiting") ? " · 等待决定" : ""}</span>}</button>
-      <button type="button" aria-label="快速预览" title="快速预览（空格 / F3，列表焦点内）" aria-pressed={quickPreview} onClick={() => setQuickPreview(value => !value)}><ToolbarIcon name="eye" />{!compact && <span>预览</span>}</button>
+      <button type="button" aria-label="快速预览" title={`快速预览${shortcuts.preview.length ? `（${shortcuts.preview.map(key => displayBrowserShortcut(key, mac)).join(" / ")}，列表焦点内）` : ""}`} aria-pressed={quickPreview} onClick={() => setQuickPreview(value => !value)}><ToolbarIcon name="eye" />{!compact && <span>预览</span>}</button>
       <button type="button" aria-label="比较目录" title="比较两栏当前目录" disabled={!currentLocation} onClick={openComparison}><ToolbarIcon name="compare" />{!compact && <span>比较</span>}</button>
       <button type="button" aria-label="搜索正文" title="搜索活动目录的正文" disabled={!currentLocation} onClick={() => currentLocation && setTool({ kind: "search", scope: { rootId: currentLocation.rootId, node: currentLocation.node } })}><ToolbarIcon name="search" />{!compact && <span>搜索</span>}</button>
       <button type="button" aria-label="交换两栏" title="交换两栏及其目录标签" onClick={() => { setQuickPreview(false); setState(exchangeBrowserPanes); focusList(state.active === 0 ? 1 : 0); }}><ToolbarIcon name="switchViews" /></button>
       <button type="button" aria-label="两栏同路径" title="将另一栏切换到活动栏的目录" disabled={!currentLocation} onClick={() => { setQuickPreview(false); setState(mirrorBrowserPath); focusList(state.active); }}><ToolbarIcon name="link" /></button>
       </div>
+      <button ref={shortcutsButton} type="button" aria-label="文件浏览快捷键" title="文件浏览快捷键" onClick={() => setShortcutsOpen(true)}><ToolbarIcon name="sliders" /></button>
       {toolbarExtras && <div className="file-browser-action-group file-browser-host-tools" role="group" aria-label="工作台工具">{toolbarExtras}</div>}
     </div>
     {error && <div className="file-browser-error" role="alert">{error}<button type="button" aria-label="关闭浏览错误" onClick={() => setError("")}>×</button></div>}
@@ -264,6 +277,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, onClose, t
       catch (reason) { setError(String(reason)); }
       event.currentTarget.value = "";
     }} />
+    {shortcutsOpen && active && <FileBrowserShortcuts value={shortcuts} mac={mac} reservations={reservations} restoreFocusRef={shortcutsButton} onClose={() => setShortcutsOpen(false)} onSave={next => saveBrowserShortcuts(workspace.settings, next, mac, workspace.shortcutReservations?.())} />}
     {operation && active && <FileBrowserOperationDialog operation={operation} onConfirm={(snapshot, name) => { queue.enqueue(snapshot, name); setOperation(null); setQueueOpen(true); }} onClose={() => setOperation(null)} />}
     {queueOpen && active && <FileBrowserQueueDialog queue={queue} showHistory={workspace.showQueueHistory} onClose={() => { setQueueOpen(false); setListingRevision(value => value + 1); }} />}
     {tool && active && <FileBrowserToolDialog title={tool.kind === "search" ? "目录搜索" : "目录比较"} onClose={() => setTool(null)}>{tool.kind === "search" ? <LocalFileSearch search={workspace.search} embedded roots={roots} showHidden={panes[state.active].showHidden} active={active} initialScope={tool.scope} onClose={() => setTool(null)} onOpen={hit => { setTool(null); void open(hit.rootId, roots.find(root => root.id === hit.rootId)?.name ?? hit.rootId, { id: hit.node, name: hit.node.split("/").pop()!, directory: false, size: 0 }, { from: hit.from, to: hit.to, revision: hit.revision }); }} /> : <FileBrowserComparison directories={tool.directories} names={tool.names} provider={provider} onOpen={(side, node) => { const directory = tool.directories[side]; setTool(null); setQuickPreview(false); setState(current => ({ ...current, active: side })); if (node.directory) changePane(side, current => navigateBrowserPane(current, directory.rootId, node.id)); else void open(directory.rootId, roots.find(root => root.id === directory.rootId)?.name ?? directory.rootId, node); }} />}</FileBrowserToolDialog>}
