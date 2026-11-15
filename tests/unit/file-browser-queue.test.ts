@@ -125,6 +125,12 @@ it("stops at item boundaries and retries only unfinished items", async () => {
   await vi.waitFor(() => expect(transfer).toHaveBeenCalledTimes(1));
   queue.stop(first);
   queue.stop(second);
+  expect(queue.getSnapshot()[0]).toMatchObject({
+    status: "running",
+    stopRequested: true,
+  });
+  expect(queue.getSnapshot()[0].progress.completed).toBe(0);
+  expect(isLocalOperationLocked("left", "src")).toBe(true);
   finish();
   await done(queue);
   expect(queue.getSnapshot()[0].progress.completed).toBe(1);

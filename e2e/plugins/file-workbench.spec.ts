@@ -352,6 +352,12 @@ test("桌面目录复制、重命名和移动走确认队列，运行中不退�
   await expect.poll(() => page.evaluate(() => (window as any).__workbenchOps.calls.length)).toBe(2);
   await page.evaluate(() => (window as any).__workbenchOpsClose());
   expect(await page.evaluate(() => (window as any).__workbenchOps.confirmed)).toBe(0);
+  const queue = page.getByRole("dialog", { name: "文件操作队列", exact: true });
+  await expect(queue).toContainText("已用时");
+  await queue.getByRole("button", { name: "停止后续项", exact: true }).click();
+  await expect(queue).toContainText("已请求停止，正在等待当前项目确认结果");
+  await expect(queue.getByRole("button", { name: "等待当前项结束…", exact: true })).toBeDisabled();
+  expect(await page.evaluate(() => Boolean((window as any).__workbenchOps.tree["target/package"]))).toBe(false);
   await page.evaluate(() => (window as any).__workbenchOpsRelease());
   await expect.poll(() => page.evaluate(() => Boolean((window as any).__workbenchOps.tree["target/package/.hidden"]))).toBe(true);
   await page.getByRole("button", { name: "收起操作队列", exact: true }).click();

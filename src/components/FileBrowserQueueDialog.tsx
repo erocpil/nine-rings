@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useDialogFocus } from "../hooks/useDialogFocus";
 import { useTransientMessage } from "../hooks/useTransientMessage";
@@ -15,15 +15,24 @@ function QueueJob({ job, queue, onError }: { job: BrowserJob; queue: BrowserOper
   const uncertain = job.items.filter(item => item.status === "uncertain").length;
   const failures = job.items.filter(item => item.status === "failed").length;
   const retry = retryBrowserItems(job);
+  const [now, setNow] = useState(Date.now);
+  const settled = browserJobSettled(job);
+  useEffect(() => {
+    if (settled || !job.startedAt) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [settled, job.startedAt]);
+  const elapsed = job.startedAt ? Math.max(0, (job.endedAt ?? now) - job.startedAt) / 1000 : 0;
   return <article className="file-browser-job" aria-label={`任务 ${job.id}`}>
     <header><button type="button" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? "▾" : "▸"} #{job.id} {browserOperationTitles[job.operation.kind]}</button><span>{jobLabels[job.status]}</span></header>
     <p className="local-operation-path">来源：{[job.operation.rootName, job.operation.parent].filter(Boolean).join("/")}{["copy", "move"].includes(job.operation.kind) ? ` → ${operationTarget(job.operation)}` : ""}</p>
-    <div role="status"><progress max={job.progress.total} value={job.progress.completed + job.progress.skipped} /><p>{jobLabels[job.status]}：成功 {job.progress.completed} 项，跳过 {job.progress.skipped} 项{failures ? `，预检失败 ${failures} 项` : ""}{uncertain ? `，需核对 ${uncertain} 项` : ""} · {job.progress.completed + job.progress.skipped} / {job.progress.total} 项{job.endedAt && job.startedAt ? ` · ${((job.endedAt - job.startedAt) / 1000).toFixed(1)}s` : ""}</p>{!browserJobSettled(job) && <p>{job.progress.current || "等待前面的任务完成"}</p>}</div>
+    <div role="status"><progress max={job.progress.total} value={job.progress.completed + job.progress.skipped} /><p>{jobLabels[job.status]}：成功 {job.progress.completed} 项，跳过 {job.progress.skipped} 项{failures ? `，预检失败 ${failures} 项` : ""}{uncertain ? `，需核对 ${uncertain} 项` : ""} · {job.progress.completed + job.progress.skipped} / {job.progress.total} 项{job.startedAt ? ` · 已用时 ${elapsed.toFixed(1)}s` : ""}</p>{!browserJobSettled(job) && <p>{job.progress.current || "等待前面的任务完成"}</p>}</div>
+    {job.stopRequested && !settled && <p className="file-browser-job-warning" role="status">已请求停止，正在等待当前项目确认结果；后续项目不会执行。</p>}
     {job.error && <p className="file-browser-job-error">{job.error}</p>}
     {uncertain > 0 && <p className="file-browser-job-warning">部分项目可能已写入磁盘，须先核对来源和目标；需核对项不参与重试。</p>}
     {job.conflict !== undefined && <fieldset className="file-browser-conflict"><legend>同名冲突：{job.conflict}</legend><label>其它名称<input aria-label="冲突后的名称" value={alternative || job.conflict} maxLength={255} onChange={event => setAlternative(event.target.value)} /></label><div><button type="button" onClick={() => { setAlternative(""); queue.decide(job.id, { action: "skip" }); }}>跳过此项</button><button type="button" disabled={!alternative.trim() || alternative.trim() === job.conflict} onClick={() => { queue.decide(job.id, { action: "rename", name: alternative }); setAlternative(""); }}>按新名称重试</button></div></fieldset>}
     {expanded && <><ol className="file-browser-job-items">{job.items.slice(0, limit).map((item, index) => <li key={item.node || index} data-state={item.status}><span>{itemLabels[item.status]}</span><span title={item.node || item.targetName}>{item.node || item.targetName}{item.node && item.node.split("/").pop() !== item.targetName ? ` → ${item.targetName}` : ""}{item.error && <small>{item.error}</small>}</span></li>)}</ol>{job.items.length > limit && <button type="button" onClick={() => setLimit(value => value + 100)}>再显示 100 项（共 {job.items.length} 项）</button>}</>}
-    {!browserJobSettled(job) ? <button type="button" onClick={() => queue.stop(job.id)}>停止后续项</button> : job.retryId !== undefined ? <p>未完成项已加入任务 #{job.retryId}</p> : retry.length > 0 && <button type="button" onClick={() => { try { queue.retry(job.id); } catch (error) { onError(String(error)); } }}>重试未完成项（{retry.length}）</button>}
+    {!browserJobSettled(job) ? <button type="button" disabled={job.stopRequested} onClick={() => queue.stop(job.id)}>{job.stopRequested ? "等待当前项结束…" : "停止后续项"}</button> : job.retryId !== undefined ? <p>未完成项已加入任务 #{job.retryId}</p> : retry.length > 0 && <button type="button" onClick={() => { try { queue.retry(job.id); } catch (error) { onError(String(error)); } }}>重试未完成项（{retry.length}）</button>}
   </article>;
 }
 export function FileBrowserQueueDialog({ queue, onClose, showHistory = true }: { queue: BrowserOperationQueueCore; onClose: () => void; showHistory?: boolean }) {

@@ -21,6 +21,7 @@ export interface BrowserJob {
   readonly queuedAt: number; readonly startedAt?: number; readonly endedAt?: number;
   readonly error?: string; readonly conflict?: string;
   readonly retryId?: number;
+  readonly stopRequested?: boolean;
 }
 export const browserJobSettled = (job: BrowserJob) => ["completed", "stopped", "failed"].includes(job.status);
 export function retryBrowserItems(job: BrowserJob) {
@@ -80,7 +81,7 @@ export class BrowserOperationQueueCore {
     if (!job || browserJobSettled(job)) return;
     if (this.current?.id === id) {
       this.current.controller.abort(); this.current.decide?.({ action: "stop" }); this.current.decide = undefined;
-      this.update(id, { conflict: undefined, status: "running" });
+      this.update(id, { conflict: undefined, status: "running", stopRequested: true });
     } else this.update(id, { status: "stopped", endedAt: Date.now() });
   }
   stopAll() { for (const job of this.jobs) this.stop(job.id); }
