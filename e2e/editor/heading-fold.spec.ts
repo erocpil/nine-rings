@@ -574,8 +574,9 @@ test.describe("触控目录宽度调整", () => {
       const startX = rect.left + rect.width / 2;
       const startAllowed = element.dispatchEvent(pointer("pointerdown", startX));
       const userSelectDuring = document.body.style.webkitUserSelect;
-      element.dispatchEvent(pointer("pointermove", startX - 50));
-      element.dispatchEvent(pointer("pointerup", startX - 50));
+      const delta = element.closest(".dock-left") ? 50 : -50;
+      element.dispatchEvent(pointer("pointermove", startX + delta));
+      element.dispatchEvent(pointer("pointerup", startX + delta));
       return {
         startAllowed,
         userSelectDuring,

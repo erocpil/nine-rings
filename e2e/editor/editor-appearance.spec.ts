@@ -243,7 +243,8 @@ test("四至六级标题字号不小于正文", async ({ page }) => {
   expect(enlarged.h4).toBeGreaterThan(sizes.h4);
   expect(enlarged.h5).toBeGreaterThan(sizes.h5);
   expect(enlarged.h6).toBeGreaterThan(sizes.h6);
-  expect(noteTitleAfter).toBeGreaterThan(noteTitleBefore);
+  // Document chrome has a shared fixed font size; body typography only scales headings.
+  expect(noteTitleAfter).toBe(noteTitleBefore);
 });
 
 test("纯粗体小节标签与下一段正文保持紧凑间距", async ({ page }) => {

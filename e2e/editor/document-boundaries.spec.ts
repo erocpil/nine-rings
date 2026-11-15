@@ -4,7 +4,7 @@ import { closeDocumentSidebar } from "../helpers/workspace";
 import { createBlankDocument } from "../helpers/document";
 
 async function assertRails(page: Page, source: boolean) {
-  const title = page.locator(source ? ".markdown-source-title-row:visible, .local-file-titlebar:visible" : ".note-editor-scroll:visible .note-title-row, .vr-note:visible .vr-title").first();
+  const title = page.locator(source ? ".markdown-source-title-row:visible, .local-file-titlebar:visible" : ".note-editor:visible .note-title-row:visible, .vr-note:visible .vr-title").first();
   await expect(title).toBeVisible();
   const measure = () => title.evaluate((element, source) => {
     const host = element.closest(source ? ".markdown-source-content" : ".note-editor")!;

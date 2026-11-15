@@ -4274,6 +4274,8 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
             <ToolbarIcon name={focusMode ? "compress" : "expand"} />
           </button>}
         </DocumentTitleBar>
+  </>;
+  const renderDocumentTags = () => <>
         {/* ── 标签区 ── */}
         {tags.length > 0 && <div className="tag-bar">
           {tags.map((t) => (
@@ -4482,6 +4484,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
         <div className="note-editor-sticky">
           {/* ── 标题 ── */}
         {!workspaceHost?.separateTitle && isMobileToolbarViewport && renderDocumentHeader()}
+        {renderDocumentTags()}
         {/* ── 工具栏 ── */}
         {readonly && focusToolbarExpanded && <DocumentReadingToolbar active={documentActive} toolbarRef={toolbarRef} headingLevels={headingSections.map(section => section.level)} folded={getCollapsedHeadingKeys(editor).size > 0}
           findOpen={editorFindOpen} jumpOpen={lineJumpOpen} onFind={() => editorFindOpen ? closeEditorFind() : openEditorFind()} onJump={openLineJump}

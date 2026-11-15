@@ -2073,11 +2073,12 @@ test.describe("PWA 窄屏应用外壳", () => {
       await expect(row).toBeVisible();
       await expect(page.locator(".mobile-focus-bar, .desktop-focus-toolbar, .app-header")).toHaveCount(0);
       await expect(page.getByRole("button", { name: "退出专注模式", exact: true })).toBeVisible();
-      const box = (await row.boundingBox())!;
-      expect(box.x).toBeGreaterThanOrEqual(0);
-      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
-      expect(box.y).toBeGreaterThanOrEqual(0);
-      expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+      // Crossing the mobile breakpoint relocates the single title row.
+      // Wait for the final geometry rather than reading a detached old row.
+      await expect.poll(async () => {
+        const box = await row.boundingBox();
+        return Boolean(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height);
+      }).toBe(true);
     }
     await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
     await expect(page.getByRole("button", { name: "专注模式", exact: true })).toBeVisible();
