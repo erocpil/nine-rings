@@ -229,3 +229,7 @@
 .file-browser-shortcut-row kbd { white-space: normal; }
 .file-browser-shortcut-settings footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 @media (max-width: 720px) { .file-browser-shortcut-groups { grid-template-columns: minmax(0, 1fr); } }
+
+.file-browser-directory-size dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 20px; }
+.file-browser-directory-size dd { margin: 0; overflow-wrap: anywhere; }
+.file-browser-size-path { overflow-wrap: anywhere; font-weight: 600; }

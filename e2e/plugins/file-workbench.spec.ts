@@ -2175,3 +2175,54 @@ test("集中快捷键可录制、冲突提示、取消与持久化，操作仍�
   await dialog.getByRole("button", { name: "保存快捷键", exact: true }).click();
   await expect(browser.getByRole("button", { name: "快速预览", exact: true })).toHaveAttribute("title", /F3/);
 });
+
+test("目录大小仅手动扫描，包含隐藏项和子目录，复用缓存并在刷新后失效", async ({ page, browserName }) => {
+  await page.goto("/file-workbench.html");
+  const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+  await browser.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  await expect(browser.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /alpha.c/ })).toBeVisible();
+  await page.evaluate(async () => {
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    const original = localFileService.list.bind(localFileService);
+    (window as any).__sizePages = 0;
+    localFileService.list = async (...args: Parameters<typeof original>) => {
+      if (args[3]?.showHidden) (window as any).__sizePages++;
+      return original(...args);
+    };
+  });
+  const open = () => browser.getByRole("button", { name: "统计当前目录大小", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "目录大小", exact: true });
+  await open();
+  expect(await page.evaluate(() => (window as any).__sizePages)).toBe(0);
+  await dialog.getByRole("button", { name: "开始统计", exact: true }).click();
+  await expect(dialog.getByRole("status")).toContainText("统计完成");
+  // WebKit directory upload omits dotfiles; statistics cover the supplied snapshot only.
+  await expect(dialog.locator("dt", { hasText: /^文件$/ }).locator("+ dd")).toHaveText(browserName === "webkit" ? "3" : "4");
+  await expect(dialog.locator("dt", { hasText: /^子目录$/ }).locator("+ dd")).toHaveText("1");
+  const count = await page.evaluate(() => (window as any).__sizePages);
+  expect(count).toBe(2);
+  await dialog.getByRole("button", { name: "关闭目录大小", exact: true }).click();
+  await open();
+  await expect(dialog.getByRole("status")).toContainText("统计完成");
+  expect(await page.evaluate(() => (window as any).__sizePages)).toBe(count);
+  await dialog.getByRole("button", { name: "关闭目录大小", exact: true }).click();
+  await browser.getByRole("region", { name: "左侧目录", exact: true }).getByRole("button", { name: "刷新目录", exact: true }).click();
+  await open();
+  await expect(dialog.getByRole("button", { name: "开始统计", exact: true })).toBeVisible();
+  await page.evaluate(async () => {
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    const original = localFileService.list.bind(localFileService);
+    localFileService.list = async (...args: Parameters<typeof original>) => {
+      if (args[3]?.showHidden) await new Promise<void>(resolve => { (window as any).__finishSizePage = resolve; });
+      return original(...args);
+    };
+  });
+  await dialog.getByRole("button", { name: "开始统计", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => typeof (window as any).__finishSizePage)).toBe("function");
+  await dialog.getByRole("button", { name: "取消统计", exact: true }).click();
+  await page.evaluate(() => (window as any).__finishSizePage());
+  await expect(dialog.getByRole("status")).toContainText("统计已取消");
+  await dialog.getByRole("button", { name: "关闭目录大小", exact: true }).click();
+  await open();
+  await expect(dialog.getByRole("button", { name: "开始统计", exact: true })).toBeVisible();
+});

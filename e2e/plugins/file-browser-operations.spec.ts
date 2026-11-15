@@ -426,3 +426,14 @@ test("共享快捷键设置在 Nine Rings 插件中立即生效并保留操作�
   await page.keyboard.press("F9");
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
+
+test("Nine Rings 双栏复用手动目录大小，不因打开弹层自动扫描", async ({ page }) => {
+  const { browser } = await setup(page);
+  await browser.getByRole("button", { name: "统计当前目录大小", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "目录大小", exact: true });
+  await expect(dialog.getByRole("status")).toContainText("尚未统计");
+  await dialog.getByRole("button", { name: "开始统计", exact: true }).click();
+  await expect(dialog.getByRole("status")).toContainText("统计完成");
+  await expect(dialog.locator("dt", { hasText: /^文件$/ }).locator("+ dd")).toHaveText("2");
+  await expect(dialog.locator("dt", { hasText: /^文件大小$/ }).locator("+ dd")).toContainText("2 bytes");
+});
