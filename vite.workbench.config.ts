@@ -23,7 +23,11 @@ export default defineConfig({
   // the development server cannot reload an authorized directory session.
   optimizeDeps: { include: ["pcre2-wasm", "@wasm-fmt/clang-format/vite", "mdast-util-to-markdown", "@tiptap/pm/history"] },
   cacheDir: ".local-tools/vite-workbench-cache",
-  server: { host: "127.0.0.1", port: 1421, strictPort: true },
+  server: { host: "127.0.0.1", port: 1421, strictPort: true,
+    // Build tools and trace snapshots contain HTML, not application pages.
+    // Watching them reloads the editor while a verified file task is running.
+    watch: { ignored: ["**/native/**", "**/src-tauri/**", "**/.local-tools/**", "**/dist/**", "**/test-results/**", "**/playwright-report/**"] },
+  },
   preview: { host: "127.0.0.1", port: 1421, strictPort: true },
   define: { __APP_VERSION__: JSON.stringify("file-workbench-prototype") },
   resolve: { alias: { "decode-named-character-reference": fileURLToPath(new URL("./node_modules/decode-named-character-reference/index.js", import.meta.url)) } },
