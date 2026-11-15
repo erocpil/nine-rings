@@ -28,6 +28,22 @@ for (const local of [false, true]) test(`格式切换保留导航展开状态，
   await expect(outline()).toHaveAttribute("aria-pressed", "true");
   await expect(host.getByRole("button", { name: "渲染", exact: true })).toHaveCount(0);
   await expect(host.locator(".document-outline-list")).toContainText("main");
+  if (!local) {
+    const dock = host.locator(".document-panel-dock:visible");
+    const title = host.locator(".markdown-source-title-row:visible");
+    for (const side of ["left", "right"] as const) {
+      await page.evaluate(async side => (await import("/src/lib/workspace-layout.ts")).saveWorkspaceLayout({ panelsSide: side }), side);
+      await expect(dock).toHaveClass(new RegExp(`dock-${side}`));
+      for (const style of ["calm", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"]) {
+        await page.evaluate(style => { document.documentElement.dataset.interfaceStyle = style; }, style);
+        await expect.poll(async () => {
+          const titleBox = (await title.boundingBox())!;
+          const dockBox = (await dock.boundingBox())!;
+          return Math.abs(dockBox.y - titleBox.y - titleBox.height);
+        }, { message: `${style}/${side}: 数据库源码符号面板从标题栏下沿开始` }).toBeLessThan(2);
+      }
+    }
+  }
   await format("");
   await expect(outline()).toHaveCount(0);
   await expect(host.locator(".document-panel-dock")).toHaveCount(0);

@@ -78,18 +78,20 @@ export function DesktopDocumentPanels({
       ) ?? visibleChromeElement(chromeHost,
         ".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title",
       );
-      const tags = visibleChromeElement(owner, ".tag-bar") ?? visibleChromeElement(chromeHost, ".tag-bar");
-      const top = (tags ?? title)?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top;
+      // Fixed panels start below the title row in every host. A tag row is
+      // document content and must not push the dock down in database notes,
+      // where tags exist but disk-backed editors have no equivalent row.
+      const top = title?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top;
       dock.style.top = `${Math.max(0, top - owner.getBoundingClientRect().top)}px`;
     };
     const observer = new ResizeObserver(measure);
     observer.observe(owner);
     const bindChrome = () => {
-      for (const child of owner.querySelectorAll<HTMLElement>(".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title, .tag-bar")) {
+      for (const child of owner.querySelectorAll<HTMLElement>(".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title")) {
         if (!observed.has(child)) { observed.add(child); observer.observe(child); }
       }
       const chromeHost = owner.closest<HTMLElement>(".local-file-view, .vr-note");
-      for (const child of chromeHost?.querySelectorAll<HTMLElement>(".local-file-titlebar, .vr-title, .tag-bar") ?? []) {
+      for (const child of chromeHost?.querySelectorAll<HTMLElement>(".local-file-titlebar, .vr-title") ?? []) {
         if (!observed.has(child)) { observed.add(child); observer.observe(child); }
       }
       measure();
@@ -97,7 +99,7 @@ export function DesktopDocumentPanels({
     // Lazy/retained editors can mount their title after the dock. Resolve the
     // current title on every measurement instead of retaining a missing node.
     const mounted = new MutationObserver(records => {
-      const selector = ".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title, .tag-bar";
+      const selector = ".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title";
       if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element && (node.matches(selector) || node.querySelector(selector))))) bindChrome();
     });
     mounted.observe(owner, { childList: true, subtree: true });
