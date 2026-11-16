@@ -238,3 +238,9 @@
 .file-browser-display-settings label { display: flex; align-items: center; gap: 8px; }
 .file-browser-display-settings input[type=number] { width: 70px; }
 .file-browser-display-settings fieldset { display: flex; gap: 16px; flex-wrap: wrap; }
+
+.file-browser-conflict-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.file-browser-conflict-comparison section { min-width: 0; overflow-wrap: anywhere; }
+.file-browser-conflict-comparison dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; font-size: 12px; }
+.file-browser-conflict-comparison dd { margin: 0; }
+@media(max-width: 600px) { .file-browser-conflict-comparison { grid-template-columns: minmax(0, 1fr); } }

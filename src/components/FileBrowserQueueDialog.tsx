@@ -1,3 +1,4 @@
+import { FileBrowserConflict } from "./FileBrowserConflict";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useDialogFocus } from "../hooks/useDialogFocus";
@@ -11,7 +12,7 @@ import { FileBrowserQueueHistory } from "./FileBrowserQueueHistory";
 const jobLabels = { queued: "排队中", running: "执行中", waiting: "等待决定", completed: "已完成", stopped: "已停止", failed: "执行失败" };
 const itemLabels = { pending: "未执行", checking: "预检中", running: "执行中", completed: "成功", skipped: "跳过", failed: "预检失败", uncertain: "需核对" };
 function QueueJob({ job, queue, onError }: { job: BrowserJob; queue: BrowserOperationQueueCore; onError: (value: string) => void }) {
-  const [expanded, setExpanded] = useState(true), [limit, setLimit] = useState(100), [alternative, setAlternative] = useState("");
+  const [expanded, setExpanded] = useState(true), [limit, setLimit] = useState(100);
   const uncertain = job.items.filter(item => item.status === "uncertain").length;
   const failures = job.items.filter(item => item.status === "failed").length;
   const retry = retryBrowserItems(job);
@@ -36,7 +37,7 @@ function QueueJob({ job, queue, onError }: { job: BrowserJob; queue: BrowserOper
     {job.stopRequested && !settled && <p className="file-browser-job-warning" role="status">已请求停止，正在等待当前项目确认结果；后续项目不会执行。</p>}
     {job.error && <p className="file-browser-job-error">{job.error}</p>}
     {uncertain > 0 && <p className="file-browser-job-warning">部分项目可能已写入磁盘，须先核对来源和目标；需核对项不参与重试。</p>}
-    {job.conflict !== undefined && <fieldset className="file-browser-conflict"><legend>同名冲突：{job.conflict}</legend><label>其它名称<input aria-label="冲突后的名称" value={alternative || job.conflict} maxLength={255} onChange={event => setAlternative(event.target.value)} /></label><div><button type="button" onClick={() => { setAlternative(""); queue.decide(job.id, { action: "skip" }); }}>跳过此项</button><button type="button" disabled={!alternative.trim() || alternative.trim() === job.conflict} onClick={() => { queue.decide(job.id, { action: "rename", name: alternative }); setAlternative(""); }}>按新名称重试</button></div></fieldset>}
+    {job.conflict !== undefined && <FileBrowserConflict key={`${job.progress.current}:${job.conflict}`} job={job} queue={queue} />}
     {expanded && <><ol className="file-browser-job-items">{job.items.slice(0, limit).map((item, index) => <li key={item.node || index} data-state={item.status}><span>{itemLabels[item.status]}</span><span title={item.node || item.targetName}>{item.node || item.targetName}{item.node && item.node.split("/").pop() !== item.targetName ? ` → ${item.targetName}` : ""}{item.error && <small>{item.error}</small>}</span></li>)}</ol>{job.items.length > limit && <button type="button" onClick={() => setLimit(value => value + 100)}>再显示 100 项（共 {job.items.length} 项）</button>}</>}
     {!browserJobSettled(job) ? <button type="button" disabled={job.stopRequested} onClick={() => queue.stop(job.id)}>{job.stopRequested ? "等待当前项结束…" : "停止后续项"}</button> : job.retryId !== undefined ? <p>未完成项已加入任务 #{job.retryId}</p> : retry.length > 0 && <button type="button" onClick={() => { try { queue.retry(job.id); } catch (error) { onError(String(error)); } }}>重试未完成项（{retry.length}）</button>}
   </article>;

@@ -2526,3 +2526,43 @@ test("列表展示默认值与左右栏覆盖独立持久化，调整行高不�
   await settings.getByLabel("使用统一默认设置").check();
   await expect(settings.getByLabel("列表字号")).toHaveValue("16");
 });
+
+test("重名冲突并排显示来源目标，保留双方适用于本任务后续冲突且不覆盖目标", async ({ page }) => {
+  await page.addInitScript(() => {
+    let id = 1;
+    const writes: string[] = [];
+    (window as any).__conflictWrites = writes;
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback() { return id++; }, unregisterCallback() {},
+      async invoke(command: string, args: any = {}) {
+        if (command === "plugin:event|listen") return id++;
+        if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
+        if (command === "local_files_roots") return [{ id: "source", name: "Source" }, { id: "target", name: "Target" }];
+        if (command === "local_files_display_path") return `/${args.rootId}/${args.node ?? ""}`;
+        if (command === "local_files_stat") return { size: args.rootId === "source" ? 10 : 20, modifiedMs: args.rootId === "source" ? 1000 : 2000 };
+        if (command === "local_files_list") return { nodes: ["a.c", "b.c"].map(name => ({ id: name, name, directory: false, size: 10, modifiedMs: 1000 })), next: null };
+        if (command === "local_files_transfer") {
+          if (["a.c", "a (2).c", "b.c"].includes(args.name)) throw new Error("TARGET_EXISTS");
+          writes.push(args.name); return args.name;
+        }
+        return;
+      },
+    };
+  });
+  await page.goto("/file-workbench.html");
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  await page.getByRole("region", { name: "右侧目录", exact: true }).getByRole("combobox", { name: "选择授权目录", exact: true }).selectOption("target");
+  await left.getByRole("option", { name: /^a.c/ }).click();
+  await left.getByRole("option", { name: /^b.c/ }).click({ modifiers: ["ControlOrMeta"] });
+  await page.getByRole("button", { name: "复制到另一栏", exact: true }).click();
+  await page.getByRole("dialog", { name: "复制到另一栏", exact: true }).getByRole("button", { name: "确认", exact: true }).click();
+  const conflict = page.locator(".file-browser-conflict");
+  await expect(conflict).toContainText("10 bytes"); await expect(conflict).toContainText("20 bytes");
+  await expect(conflict.locator("section")).toHaveCount(2);
+  await expect(conflict.getByRole("button", { name: "按新名称重试", exact: true })).toBeDisabled();
+  await conflict.getByLabel("应用到本任务的后续同名冲突").check();
+  await conflict.getByRole("button", { name: "保留双方", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__conflictWrites)).toEqual(["a (3).c", "b (2).c"]);
+  await expect(conflict).toHaveCount(0);
+  await expect(page.locator(".file-browser-job")).toContainText("成功 2 项");
+});

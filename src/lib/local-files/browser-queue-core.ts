@@ -1,4 +1,4 @@
-import { operationTarget, type BrowserOperation, type BrowserProgress, type BrowserItemResult, type ConflictDecision, type BrowserOperationRunner } from "./browser-operation-contract";
+import { operationTarget, type BrowserOperation, type BrowserProgress, type BrowserItemResult, type ConflictDecision, type BrowserOperationRunner, type BrowserConflictPaths } from "./browser-operation-contract";
 
 export interface BrowserQueueHost {
   assertActive(): void;
@@ -19,7 +19,7 @@ export interface BrowserJob {
   readonly status: "queued" | "running" | "waiting" | "completed" | "stopped" | "failed";
   readonly progress: BrowserProgress; readonly items: readonly BrowserItemResult[];
   readonly queuedAt: number; readonly startedAt?: number; readonly endedAt?: number;
-  readonly error?: string; readonly conflict?: string;
+  readonly error?: string; readonly conflict?: string; readonly conflictPaths?: BrowserConflictPaths;
   readonly retryId?: number;
   readonly stopRequested?: boolean;
 }
@@ -81,7 +81,7 @@ export class BrowserOperationQueueCore {
     if (!job || browserJobSettled(job)) return;
     if (this.current?.id === id) {
       this.current.controller.abort(); this.current.decide?.({ action: "stop" }); this.current.decide = undefined;
-      this.update(id, { conflict: undefined, status: "running", stopRequested: true });
+      this.update(id, { conflict: undefined, conflictPaths: undefined, status: "running", stopRequested: true });
     } else this.update(id, { status: "stopped", endedAt: Date.now() });
   }
   stopAll() { for (const job of this.jobs) this.stop(job.id); }
@@ -89,7 +89,7 @@ export class BrowserOperationQueueCore {
   decide(id: number, value: ConflictDecision) {
     if (this.current?.id !== id || !this.current.decide) return;
     const resolve = this.current.decide; this.current.decide = undefined;
-    this.update(id, { conflict: undefined, status: "running" }); resolve(value);
+    this.update(id, { conflict: undefined, conflictPaths: undefined, status: "running" }); resolve(value);
   }
   clearFinished() { this.publish(this.jobs.filter(job => !browserJobSettled(job))); }
   dispose() { if (this.disposed) return; this.disposed = true; this.stopAll(); this.history?.dispose(); this.listeners.clear(); }
@@ -106,18 +106,18 @@ export class BrowserOperationQueueCore {
         try {
           const result = await this.host.execute(job.operation, job.name, controller.signal,
             progress => this.update(job.id, { progress }),
-            conflict => new Promise(resolve => {
+            (conflict, conflictPaths) => new Promise(resolve => {
               if (controller.signal.aborted || this.disposed) { resolve({ action: "stop" }); return; }
-              this.current!.decide = resolve; this.update(job.id, { status: "waiting", conflict });
+              this.current!.decide = resolve; this.update(job.id, { status: "waiting", conflict, conflictPaths });
             }),
             item => {
               const current = this.jobs.find(value => value.id === job.id);
               if (current) this.update(job.id, { items: Object.freeze(current.items.map(value => value.node === item.node ? Object.freeze(item) : value)) });
             });
-          this.update(job.id, { progress: result, status: result.cancelled ? "stopped" : "completed", endedAt: Date.now(), conflict: undefined });
+          this.update(job.id, { progress: result, status: result.cancelled ? "stopped" : "completed", endedAt: Date.now(), conflict: undefined, conflictPaths: undefined });
         } catch (error) {
           if (!controller.signal.aborted || this.jobs.find(value => value.id === job.id)?.items.some(item => item.status === "uncertain")) this.paused = true;
-          this.update(job.id, { status: controller.signal.aborted ? "stopped" : "failed", error: String(error), endedAt: Date.now(), conflict: undefined });
+          this.update(job.id, { status: controller.signal.aborted ? "stopped" : "failed", error: String(error), endedAt: Date.now(), conflict: undefined, conflictPaths: undefined });
         } finally { this.current = null; }
       }
     } finally { this.draining = false; }

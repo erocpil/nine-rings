@@ -20,7 +20,8 @@ export interface BrowserItemResult {
   status: "pending" | "checking" | "running" | "completed" | "skipped" | "failed" | "uncertain";
   error?: string;
 }
-export type ConflictDecision = { action: "skip" } | { action: "stop" } | { action: "rename"; name: string };
+export interface BrowserConflictPaths { source?: { rootId: string; node: string }; target: { rootId: string; node: string } }
+export type ConflictDecision = { action: "skip"; all?: boolean } | { action: "keep-both"; all?: boolean } | { action: "stop" } | { action: "rename"; name: string };
 
 export interface BrowserOperationLease { release(): void }
 /** Every host must reconcile confirmed writes even after cancellation. Optional
@@ -43,7 +44,7 @@ export interface BrowserOperationResult extends BrowserProgress { cancelled: boo
 export type BrowserOperationRunner = (
   operation: BrowserOperation, name: string, signal: AbortSignal,
   onProgress: (progress: BrowserProgress) => void,
-  onConflict: (name: string) => Promise<ConflictDecision>,
+  onConflict: (name: string, paths?: BrowserConflictPaths) => Promise<ConflictDecision>,
   onItem?: (result: BrowserItemResult) => void,
 ) => Promise<BrowserOperationResult>;
 

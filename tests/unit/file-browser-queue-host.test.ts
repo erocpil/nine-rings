@@ -150,3 +150,37 @@ it("requires explicit conflict decisions and excludes uncertain writes from retr
     queue.dispose();
   }
 });
+
+it("keeps both with exclusive candidate retries and scopes bulk decisions to one job", async () => {
+  const { queue, files } = fixture();
+  files.transfer.mockImplementation(async (_root, _node, _target, parent, name) => {
+    if (["a.c", "a (2).c", "b.c"].includes(name)) throw new Error("TARGET_EXISTS");
+    return `${parent}/${name}`;
+  });
+  try {
+    const id = queue.enqueue({ ...operation, nodes: ["src/a.c", "src/b.c"] }, "");
+    await vi.waitFor(() => expect(queue.getSnapshot()[0].status).toBe("waiting"));
+    expect(queue.getSnapshot()[0].conflictPaths).toEqual({ source: { rootId: "left", node: "src/a.c" }, target: { rootId: "right", node: "dest/a.c" } });
+    queue.decide(id, { action: "keep-both", all: true });
+    await done(queue);
+    expect(queue.getSnapshot()[0].progress.completed).toBe(2);
+    expect(files.transfer.mock.calls.map(args => args[4])).toEqual(["a.c", "a (2).c", "a (3).c", "b.c", "b (2).c"]);
+    queue.enqueue(operation, "");
+    await vi.waitFor(() => expect(queue.getSnapshot()[1].status).toBe("waiting"));
+    queue.stopAll();
+  } finally { queue.dispose(); }
+});
+it("skip-all never retries a conflicting item or applies to later jobs", async () => {
+  const { queue, files } = fixture();
+  files.transfer.mockRejectedValue(new Error("TARGET_EXISTS"));
+  try {
+    const id = queue.enqueue({ ...operation, nodes: ["src/a.c", "src/b.c"] }, "");
+    await vi.waitFor(() => expect(queue.getSnapshot()[0].status).toBe("waiting"));
+    queue.decide(id, { action: "skip", all: true });
+    await done(queue);
+    expect(queue.getSnapshot()[0].progress.skipped).toBe(2);
+    expect(files.transfer).toHaveBeenCalledTimes(2);
+    queue.enqueue(operation, "");
+    await vi.waitFor(() => expect(queue.getSnapshot()[1].status).toBe("waiting"));
+  } finally { queue.dispose(); }
+});

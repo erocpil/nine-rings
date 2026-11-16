@@ -1,5 +1,5 @@
 import { fileSegments } from "./file-model";
-import type { BrowserOperationHost, BrowserOperationLease, BrowserOperationRunner, BrowserProgress, BrowserItemResult } from "./browser-operation-contract";
+import type { BrowserOperationHost, BrowserOperationLease, BrowserOperationRunner, BrowserProgress, BrowserItemResult, ConflictDecision } from "./browser-operation-contract";
 
 /** Shared guarded executor. Application hosts supply effects, never a second
  * implementation of conflict handling, cancellation or result classification. */
@@ -26,10 +26,13 @@ export function createBrowserOperationRunner<Lease extends BrowserOperationLease
       try { await host.assertPathClean(operation.rootId, node); emit({ node, targetName: operation.names?.[node] ?? (operation.kind === "rename" ? name.trim() : node.split("/").pop()!), status: "pending" }); }
       catch (error) { emit({ node, targetName: operation.names?.[node] ?? node.split("/").pop()!, status: "failed", error: String(error) }); throw error; }
     }
+    let conflictPolicy: ConflictDecision | undefined;
     for (const node of nodes) {
       if (signal.aborted) break;
       check();
       let targetName = operation.kind === "batch-rename" ? operation.names![node] : operation.kind === "rename" || operation.kind === "file" || operation.kind === "directory" ? name.trim() : node.split("/").pop()!;
+      let originalTargetName = targetName;
+      let duplicate = 1;
       let attempted = false;
       let release: (() => void) | undefined;
       try {
@@ -80,10 +83,17 @@ export function createBrowserOperationRunner<Lease extends BrowserOperationLease
             if (!/TARGET_EXISTS|目标名称已存在/.test(String(error))) throw error;
             attempted = false; // Explicit no-overwrite conflict: nothing was written.
             if (signal.aborted) { emit({ node, targetName, status: "pending" }); return { ...progress, cancelled: true }; }
-            const decision = await onConflict(targetName);
+            const targetRoot = operation.kind === "copy" || operation.kind === "move" ? operation.targetRootId : operation.rootId;
+            const targetParent = operation.kind === "copy" || operation.kind === "move" ? operation.targetParent : operation.parent;
+            const decision = conflictPolicy ?? await onConflict(targetName, { ...(node ? { source: { rootId: operation.rootId, node } } : {}), target: { rootId: targetRoot, node: [targetParent, targetName].filter(Boolean).join("/") } });
+            if ((decision.action === "skip" || decision.action === "keep-both") && decision.all) conflictPolicy = decision;
             if (decision.action === "stop") { emit({ node, targetName, status: "pending" }); return { ...progress, cancelled: true }; }
             if (decision.action === "skip") { progress.skipped++; emit({ node, targetName, status: "skipped" }); break; }
-            targetName = decision.name.trim();
+            if (decision.action === "keep-both") {
+              if (operation.kind !== "copy" && operation.kind !== "move") throw new Error("当前操作不支持保留双方");
+              if (++duplicate > 1000) throw new Error("自动名称尝试已达上限，请重新指定名称");
+              targetName = browserDuplicateName(originalTargetName, duplicate);
+            } else { targetName = decision.name.trim(); originalTargetName = targetName; duplicate = 1; }
           }
         }
         onProgress({ ...progress });
@@ -94,4 +104,10 @@ export function createBrowserOperationRunner<Lease extends BrowserOperationLease
     }
     return { ...progress, cancelled: signal.aborted };
   };
+}
+
+/** Rename the incoming item; every candidate still uses native no-overwrite. */
+export function browserDuplicateName(name: string, index: number) {
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? `${name.slice(0, dot)} (${index})${name.slice(dot)}` : `${name} (${index})`;
 }
