@@ -2597,3 +2597,60 @@ test("长列表调整行高保持顶部条目、选择和键盘导航一致", as
   await list.focus(); await page.keyboard.press("ArrowDown");
   await expect(left.getByRole("option", { name: /^item-086.c/ })).toHaveAttribute("aria-selected", "true");
 });
+
+for (const independent of [false, true]) for (const styled of [false, true]) test(`Markdown 粘贴保留中文粗体语义与源码原文，独立窗口=${independent}，样式包装=${styled}`, async ({ page }) => {
+  const text = "这句话非常自然，属于英语中常见的**成本—收益（Cost–Benefit）**表达方式。它不仅适用于公共交通，也适用于软件开发、技术研发、基础设施建设等场景。";
+  if (independent) {
+    await setupIndependentEditor(page, { "alpha.c": "int alpha;", "guide.md": "Start\n" });
+    await page.getByRole("button", { name: "切换编辑文件", exact: true }).click();
+    await page.getByRole("menuitemcheckbox", { name: "guide.md", exact: true }).click();
+  } else {
+    await page.goto("/file-workbench.html");
+    await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+    const left = page.getByRole("region", { name: "左侧目录", exact: true });
+    await left.getByRole("option", { name: /^sub/ }).dblclick();
+    await left.getByRole("option", { name: /^guide.md/ }).dblclick();
+  }
+  const rendered = page.locator(".ProseMirror:visible");
+  await expect(rendered).toContainText(independent ? "Start" : "Guide");
+  await page.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+  await expect(rendered).toBeFocused();
+  await expect(rendered).toHaveAttribute("contenteditable", "true");
+  expect(await rendered.evaluate(element => getComputedStyle(element).caretColor)).not.toBe("transparent");
+  await page.keyboard.press("ControlOrMeta+A");
+  await rendered.evaluate((element, { text, styled }) => {
+    const data = new DataTransfer(); data.setData("text/plain", text);
+    if (styled) data.setData("text/html", `<p><span style="font-size:16px; white-space:pre-wrap; color:rgb(40,40,40)">${text}</span></p>`);
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }));
+  }, { text, styled });
+  await expect(rendered.locator("strong")).toHaveText("成本—收益（Cost–Benefit）");
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  const source = page.locator(".cm-content:visible");
+  await expect(source).toContainText("**成本—收益（Cost–Benefit）**");
+  expect(await source.innerText()).not.toContain("\\*");
+  await source.click(); await page.keyboard.press("ControlOrMeta+A");
+  await source.evaluate((element, text) => {
+    const data = new DataTransfer(); data.setData("text/plain", text); data.setData("text/html", `<p>${text}</p>`);
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }));
+  }, text);
+  await expect(source).toHaveText(text);
+});
+
+test("源码解锁编辑后恢复焦点与原光标位置，点击正文即时更新行列", async ({ page }) => {
+  await setupIndependentEditor(page, { "alpha.c": "int first;\nint second;\nint third;\n" });
+  const source = page.locator(".cm-content:visible");
+  await expect(source).toHaveAttribute("aria-readonly", "true");
+  await source.locator(".cm-line").nth(2).click();
+  const position = (await sourceInfo(source)).selectionStart;
+  await expect(page.locator(".markdown-source-status:visible .editor-status-position")).toContainText("Ln 3");
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await expect(source).toBeFocused();
+  await expect(source).toHaveAttribute("aria-readonly", "false");
+  expect((await sourceInfo(source)).selectionStart).toBe(position);
+  await expect(page.locator(".cm-editor:visible")).toHaveClass(/cm-focused/);
+  await expect(page.locator(".cm-editor:visible .cm-cursor").first()).toBeVisible();
+  await source.locator(".cm-line").nth(1).click();
+  await expect(page.locator(".markdown-source-status:visible .editor-status-position")).toContainText("Ln 2");
+  await page.getByRole("button", { name: "设为只读", exact: true }).click();
+  await expect(source).toHaveAttribute("aria-readonly", "true");
+});

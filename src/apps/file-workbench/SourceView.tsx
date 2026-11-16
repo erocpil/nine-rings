@@ -99,6 +99,21 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const [base, setBase] = useState<LocalFileSnapshot | null>(null), baseRef = useRef<LocalFileSnapshot | null>(null);
   const [readonly, setReadonly] = useState(true), [loading, setLoading] = useState(true);
   readonlyCurrent.current = readonly;
+  const previousReadonly = useRef(readonly);
+  useEffect(() => {
+    const unlocked = previousReadonly.current && !readonly;
+    previousReadonly.current = readonly;
+    if (!unlocked || !active) return;
+    const frame = requestAnimationFrame(() => {
+      if (readonlyCurrent.current || !activeCurrent.current || document.querySelector("dialog[open], [role=dialog]")) return;
+      if (renderMode.current) {
+        const editor = renderedEditor.current;
+        if (editor && !editor.isDestroyed && editor.isEditable) editor.view.focus();
+      } else handle.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [readonly, active, handle]);
+
   const [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false), busy = useRef(false);
   const [external, setExternal] = useState<LocalFileSnapshot | null>(null);
@@ -249,12 +264,17 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const bindHandle = useCallback((editor: SourceEditorHandle | null) => {
     const location = searchLocation.current, snapshot = baseRef.current;
     onSourceReady(editor);
+    if (editor && activeCurrent.current && !renderMode.current && !readonlyCurrent.current) {
+      requestAnimationFrame(() => {
+        if (handle.current === editor && activeCurrent.current && !renderMode.current && !readonlyCurrent.current && !document.querySelector("dialog[open], [role=dialog]")) editor.focus();
+      });
+    }
     if (!editor || appliedSearch.current || !location || !snapshot) return;
     appliedSearch.current = true;
     if (snapshot.revision !== location.revision || current() !== snapshot.source) return;
     editor.setSelectionRange(Math.min(location.from, editor.value.length), Math.min(location.to, editor.value.length));
     editor.scrollToOffset(Math.min(location.from, editor.value.length), true);
-  }, [current, onSourceReady]);
+  }, [current, onSourceReady, handle]);
   const editable = !loading && Boolean(base) && !candidate && draftAvailable;
   const [moreTools, setMoreTools] = useState(true);
   const [navigationTarget, setNavigationTarget] = useState<HTMLSpanElement | null>(null);

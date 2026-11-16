@@ -980,3 +980,25 @@ test.describe("文档树移动", () => {
     await expect(page.locator(".doc-tree-doc").filter({ hasText: "移动回归文档" })).toHaveCount(1);
   });
 });
+
+test("中文粗体 Markdown 的展示样式包装可解析，真实富文本样式保持不变", async ({ page }) => {
+  const editor = await createBlankNote(page);
+  const text = "这句话非常自然，属于英语中常见的**成本—收益（Cost–Benefit）**表达方式。";
+  await editor.evaluate((element, text) => {
+    const data = new DataTransfer(); data.setData("text/plain", text);
+    data.setData("text/html", `<p><span style="font-size:16px; white-space:pre-wrap; color:rgb(40,40,40)">${text}</span></p>`);
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }));
+  }, text);
+  await expect(editor.locator("strong")).toHaveText("成本—收益（Cost–Benefit）");
+  await editor.click(); await page.keyboard.press("ControlOrMeta+A");
+  await editor.evaluate(element => {
+    const data = new DataTransfer();
+    data.setData("text/plain", "# literal styled bold");
+    data.setData("text/html", '<p><span style="font-weight:700"># literal</span> <strong>styled bold</strong></p>');
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }));
+  });
+  await expect(editor).toContainText("# literal styled bold");
+  await expect(editor.getByText("# literal", { exact: true })).toHaveCSS("font-weight", "700");
+  await expect(editor.locator("h1")).toHaveCount(0);
+  await expect(editor.locator("strong")).toHaveText(["# literal", "styled bold"]);
+});

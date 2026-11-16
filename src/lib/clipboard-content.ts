@@ -1,3 +1,4 @@
+import { markdownAST } from "./gfm-parser";
 import { isMarkdownTableRow, looksLikeMarkdown } from "./md-parser";
 
 /** Source copied from a browser/code viewer may be wrapped in div/p/br, but
@@ -28,6 +29,24 @@ export function shouldParseClipboardMarkdown(text: string, html = ""): boolean {
       const value = element.textContent?.trim() ?? "";
       return /^(\*{1,3})(?=\S)[\s\S]*\S\1$/.test(value);
     })) return true;
+
+  // Browser/chat source wrappers often attach font size, colour and whitespace
+  // styles without representing the Markdown marks themselves. Distinguish
+  // those from actual rich emphasis and our own clipboard slices.
+  if (text.length <= 32_768
+    && normalize(doc.body.textContent ?? "") === normalize(text)
+    && !doc.body.querySelector("[data-pm-slice], h1, h2, h3, h4, h5, h6, ul, ol, blockquote, pre, code, table, img, a, strong, b, em, i, s, del, u, mark, sub, sup")
+    && ![...doc.body.querySelectorAll<HTMLElement>("[style]")].some(element => {
+      const style = element.style;
+      return (style.fontWeight && !["normal", "400", "inherit", "initial", "unset"].includes(style.fontWeight))
+        || (style.fontStyle && !["normal", "inherit", "initial", "unset"].includes(style.fontStyle))
+        || (style.textDecorationLine && style.textDecorationLine !== "none")
+        || /underline|line-through/.test(style.textDecoration);
+    })) {
+    const hasEmphasis = (node: { type: string; children?: readonly { type: string }[] }): boolean =>
+      ["strong", "emphasis", "delete"].includes(node.type) || !!node.children?.some(hasEmphasis);
+    if (markdownAST(text).children.some(hasEmphasis)) return true;
+  }
 
   // Some apps put each copied Markdown source line in a styled paragraph (and
   // may mark Markdown punctuation as bold/italic). That is still source text:
