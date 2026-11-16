@@ -1,3 +1,5 @@
+import { useLocalFileDetails } from "../hooks/useLocalFileDetails";
+import { localFileInfoTimes } from "../lib/local-files/file-info-times";
 import { saveLocalSource } from "../lib/local-files/source-save";
 import { downloadLocalSource } from "../lib/local-files/source-download";
 import { activeLinePluginKey } from "../extensions/EditorHighlights";
@@ -141,8 +143,11 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
   const titleDraft = useDocumentTitleDraft(data.name, titleInput);
   const canRename = localFileService.canRename(data.rootId);
   const rename = async (name: string) => { renderedFlush.current?.flush(); await renameLocalDocument(data.rootId, data.nodeId, name); };
-  const fileInfo = { title: data.name, contentBytes: baseSnapshot?.size ?? 0, updatedAt: baseSnapshot?.modifiedMs ? new Date(baseSnapshot.modifiedMs).toISOString() : undefined,
+  const loadFileDetails=useCallback(async(signal:AbortSignal)=>{const value=await localFileService.fileProperties(data.rootId,data.nodeId);signal.throwIfAborted();return value;},[data.rootId,data.nodeId]);
+  const fileDetails=useLocalFileDetails(identity,loadFileDetails,baseSnapshot,active);
+  const fileInfo = { title: data.name, contentBytes: baseSnapshot?.size ?? fileDetails?.size ?? 0, ...localFileInfoTimes(fileDetails,baseSnapshot),
     readonly: readOnly, tags: [], path: data.nodeId, format: DOCUMENT_LANGUAGE_OPTIONS.find(item => item.value === language)?.label ?? language };
+
 
   const recordHistory = useCallback((from: number, to: number, explicit = false) => {
     const next = { from: Math.max(0, from), to: Math.max(0, to) };

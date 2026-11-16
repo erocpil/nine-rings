@@ -2789,3 +2789,17 @@ test("EPUB 全书查找、脚注弹层、排版和章节位置共用阅读导航
 
   } finally {await rm(folder,{recursive:true,force:true});}
 });
+
+for(const markdown of [false,true]) test(`内置编辑器标题接入文件系统创建和访问时间，Markdown=${markdown}`,async({page})=>{
+  await page.goto("/file-workbench.html");
+  await page.evaluate(async()=>{const {localFileService}=await import("/src/lib/local-files/service.ts");const original=localFileService.fileProperties.bind(localFileService);localFileService.fileProperties=async(root,node,system)=>({...await original(root,node,system),createdMs:1600000000000,accessedMs:1600000300000});});
+  await page.getByLabel("选择目录快照",{exact:true}).setInputFiles(directory);
+  const left=page.getByRole("region",{name:"左侧目录",exact:true});
+  if(markdown){await left.getByRole("option",{name:/^sub/}).dblclick();await left.getByRole("option",{name:/^guide.md/}).dblclick();}
+  else await left.getByRole("option",{name:/^alpha.c/}).dblclick();
+  const name=markdown?"guide.md":"alpha.c";
+  const title=page.locator(".document-title-preview .note-title").filter({hasText:name});await title.hover({position:{x:await title.evaluate(element=>(parseFloat(getComputedStyle(element).paddingLeft)||0)+3),y:12}});
+  const info=page.getByRole("tooltip",{name:`${name} 的文档信息`,exact:true});
+  const times=await page.evaluate(async()=>{const {formatDocumentTimestamp}=await import("/src/lib/document-info.ts");return [1600000000000,1600000300000].map(value=>formatDocumentTimestamp(new Date(value).toISOString()));});
+  for(const time of times)await expect(info).toContainText(time);
+});

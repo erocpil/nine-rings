@@ -55,3 +55,21 @@ test("磁盘源码状态栏提供独立且可用的位置历史", async ({ page 
   await forward.click();
   await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(target);
 });
+
+for (const rendered of [false,true]) test(`磁盘文档标题和属性接入文件系统创建访问时间，渲染=${rendered}`, async({page})=>{
+  await createBlankDocument(page,"磁盘时间信息");
+  await page.evaluate(async()=>{
+    const {localFileService}=await import("/src/lib/local-files/service.ts"); const original=localFileService.fileProperties.bind(localFileService);
+    localFileService.fileProperties=async(root,node,system)=>({...await original(root,node,system),createdMs:1600000000000,accessedMs:1600000300000});
+  });
+  const name=rendered?"metadata.md":"metadata.c";
+  const {workspace}=await openWritableLocalDirectory(page,{[name]:rendered?"# Title\n\nText":"int value = 1;"},name);
+  if(rendered){await workspace.getByRole("button",{name:"渲染",exact:true}).click();await workspace.getByRole("button",{name:"点击设为只读",exact:true}).click();}
+  else await workspace.getByRole("button",{name:"设为只读",exact:true}).click();
+  const times=await page.evaluate(async()=>{const {formatDocumentTimestamp}=await import("/src/lib/document-info.ts");return [1600000000000,1600000300000].map(value=>formatDocumentTimestamp(new Date(value).toISOString()));});
+  const title=workspace.getByRole("button",{name:"文档属性",exact:true});await title.hover({position:{x:await title.evaluate(element=>(parseFloat(getComputedStyle(element).paddingLeft)||0)+3),y:12}});
+  const info=page.getByRole("tooltip",{name:`${name} 的文档信息`,exact:true});
+  for(const time of times)await expect(info).toContainText(time);
+  await title.click();const properties=workspace.getByRole("complementary",{name:"文件属性",exact:true});
+  for(const time of times)await expect(properties).toContainText(time);
+});

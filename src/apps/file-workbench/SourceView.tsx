@@ -1,3 +1,5 @@
+import { useLocalFileDetails } from "../../hooks/useLocalFileDetails";
+import { localFileInfoTimes } from "../../lib/local-files/file-info-times";
 import { DocumentTitleField } from "../../components/DocumentTitleField";
 import { PanelSideToggle } from "../../components/PanelSideToggle";
 import { createPortal } from "react-dom";
@@ -279,7 +281,9 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const [moreTools, setMoreTools] = useState(true);
   const [navigationTarget, setNavigationTarget] = useState<HTMLSpanElement | null>(null);
   const accessToggle = <DocumentAccessToggle readonly={readonly} aria-label={readonly ? "允许编辑" : "设为只读"} title={readonly ? "允许编辑" : "设为只读"} disabled={!editable} onClick={() => setReadonly(value => !value)} />;
-  const titleInfo = { title: file.node.name, tags: [], path: file.node.id, readonly, contentBytes: base?.size ?? file.node.size, updatedAt: base?.modifiedMs ? new Date(base.modifiedMs).toISOString() : undefined, format: documentLanguageFromFilename(file.node.name, source) };
+  const loadFileDetails=useCallback((signal:AbortSignal)=>provider.details ? provider.details(file.rootId,file.node.id,signal) : provider.properties(file.rootId,file.node.id,signal),[provider,file.rootId,file.node.id]);
+  const fileDetails=useLocalFileDetails(identity,loadFileDetails,base,active);
+  const titleInfo = { title: file.node.name, tags: [], path: file.node.id, readonly, contentBytes: base?.size ?? file.node.size, ...localFileInfoTimes(fileDetails,base), format: documentLanguageFromFilename(file.node.name, source) };
   const titleActions = <>
     {onNavigate && <><button className="btn-icon" type="button" aria-label="上一文件" title="上一文件（←，只读预览）" disabled={!previous} onClick={() => requestClose(() => onNavigate(-1))}><ToolbarIcon name="chevronLeft" /></button><button className="btn-icon" type="button" aria-label="下一文件" title="下一文件（→，只读预览）" disabled={!next} onClick={() => requestClose(() => onNavigate(1))}><ToolbarIcon name="chevronRight" /></button></>}
     <button className="btn-icon" type="button" aria-label="保存文件" title="保存文件（⌘/Ctrl+S）" disabled={loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>

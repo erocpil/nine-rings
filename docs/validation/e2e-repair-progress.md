@@ -1,5 +1,16 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-17：磁盘标题信息卡时间补齐
+
+Nine Rings LocalFileView与File Workbench SourceView接入同一useLocalFileDetails、localFileInfoTimes：使用既有文件属性端口的创建／访问时间，修改时间保持源码快照语义，渲染和源码标题共用结果；Nine Rings右侧属性面板同步受益。有效Unix零时间可显示；null、非有限或超出Date范围的时间不伪造。浏览器缺失创建／访问字段时仍显示暂无记录。
+
+影响分析结论：SAFE（已验证路径未发现回归）。检查LocalFileView.fileInfo与SourceView.titleInfo的所有呈现消费者，以及localFileService.fileProperties→Rust file_properties的字段契约；未修改IPC、磁盘写入、快照或权限模型。新hook只在打开、快照更新、激活和窗口focus时异步读取元信息；身份校验、AbortController与卸载标记阻止旧响应回写，不随源码输入读取，失败不阻断原编辑流程。
+
+验证：完整npm run check通过（255个Vitest文件／2696项）；Nine Rings属性／位置测试Chromium5项，其中源码及渲染时间字段专项WebKit2项；Workbench两种模式的标题时间专项Chromium／WebKit各2项通过。两个生产构建通过。安装版GUI未执行；浏览器用确定的原生接口字段模拟验证接线，不能据此宣称已实测系统原生窗口。
+
+日志：/tmp/nr-file-info-{check,local,local-webkit,workbench,workbench-chromium,build,workbench-build}.log。
+
+
 ## 2026-11-16：阅读第一、二批导航与排版
 
 PDF增加旋转、适应整页、懒加载连续视图、按需缩略图、内部链接；PDF／EPUB共用书签、会话返回历史和带指纹的阅读偏好。EPUB增加全书查找、跨行内标记高亮、排版／配色、章节各自位置、脚注弹层及Esc分层。参考Preview和calibre的交互组织，决策及链接见[架构决策](../architecture-decisions.md)。
