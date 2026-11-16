@@ -1,5 +1,14 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-16：File Workbench 列表、冲突与路径级保护
+
+分批交付：列表展示设置14a35162（字体／行高／列显隐／日期，统一默认与左右栏覆盖），重名冲突对照与保留双方8dd9237f；本批补上原生路径租约和关联草稿保护。只允许无关路径继续目录操作，不移动打开文件或草稿身份；未知旧身份、失效授权仍保守阻止。安全替换、打开文件的移动／改名事务继续留作后续，不以删除原目标模拟替换。设计与影响审查见[统一决策](../architecture-decisions.md)和[工作台待办](../planning/file-workbench-followups.md)。
+
+最终检查：完整npm run check通过（250个Vitest文件／2682项，含脚本测试、覆盖率、格式和IPC）；共享原生文件宿主37项、独立工作台14项Rust测试通过。工作台Chromium／WebKit整组各49项通过；此后新增的长虚拟列表行高定位专项在两内核通过，目录冲突详情专项在WebKit再次通过。Nine Rings共享双栏及文件操作Chromium24项通过。两宿主生产构建均通过，无新增chunk警告。原生GUI、Windows／Linux实机验收未执行，继续由用户完成。
+
+本机证据：`/tmp/nr-workbench-three-batches-{check,e2e,webkit}.log`、`/tmp/nr-shared-browser-three-batches.log`、`/tmp/nr-scoped-{file-host,workbench}-tests.log`、`/tmp/nr-three-batches-{build,workbench-build}.log`。保留这些为本轮快照，不将定向补测累计为新的完整E2E总数。
+
+
 ## 2026-11-14：File Workbench Markdown 两批能力
 
 待办先提交为9765d950，用户确认本批范围是Markdown直接渲染编辑，以及块号／菜单／块模式，不包括独立窗口。抽出RenderedDocumentWorkspace，NoteEditor保持数据库组合入口及原类型导出；通用渲染器通过可选Context取得数据库引用搜索，文件适配器不装配API／存储适配器入口。不是重写另一套Markdown编辑器。公共接口调用方已核对：NoteEditor仅App懒入口；LocalMarkdownWorkspace由原LocalFileView及新增工作台调用；BlockWorkspaceHost只有公共渲染器传入新增可选能力，EditorToolbarContents原调用默认保持PDF导出。

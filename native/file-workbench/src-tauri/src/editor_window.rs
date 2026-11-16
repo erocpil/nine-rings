@@ -234,7 +234,12 @@ fn open_editor(
         drop(value);
         *state.2.lock().map_err(|_| "编辑器窗口状态不可用")? = Some(label.clone());
     }
+    let protected_path = std::path::Path::new(&file.id).to_owned();
+    let new_path = access.protect_editor_path(&label, &protected_path)?;
     if let Err(error) = state.0.lock().map_err(|_| "编辑器状态不可用")?.open(file) {
+        if new_path {
+            access.release_editor_path(&label, &protected_path);
+        }
         if existing.is_none() {
             access.revoke_editor(&label);
         }
@@ -302,6 +307,9 @@ pub fn workbench_editor_remove(window: tauri::WebviewWindow, id: String) -> Resu
     let state = window.state::<EditorWindows>();
     let mut value = state.0.lock().map_err(|_| "编辑器状态不可用")?;
     value.close(&id)?;
+    window
+        .state::<FileWindowAccess>()
+        .release_editor_path(window.label(), std::path::Path::new(&id));
     if value.files.is_empty() && value.closing.is_none() {
         value.revision += 1;
         value.closing = Some(Close {

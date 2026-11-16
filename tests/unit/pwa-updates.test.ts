@@ -414,7 +414,9 @@ describe("PWA update lifecycle", () => {
     const apply = updater.apply();
     await settle();
     expect(previous.postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" });
-    expect(latest.postMessage).not.toHaveBeenCalledWith({ type: "SKIP_WAITING" });
+    expect(latest.postMessage).not.toHaveBeenCalledWith({
+      type: "SKIP_WAITING",
+    });
     expect(registration.installing).toBe(latest);
     container.controller = previous;
     container.dispatchEvent(new Event("controllerchange"));

@@ -1,3 +1,4 @@
+import { canonicalChildPath } from "../../lib/local-files/workbench-path-protection";
 import { createBrowserViewMenu } from "../../lib/local-files/browser-view-menu";
 import { isTauriRuntime } from "../../lib/runtime";
 import { pluginRuntime } from "../../lib/plugin-system/runtime";
@@ -28,7 +29,7 @@ export function createWorkbenchHost(open: (request: BrowserFileOpen) => void | P
     window.dispatchEvent(new Event("file-workbench:drafts"));
     try { localStorage.setItem("file-workbench:drafts-revision", crypto.randomUUID()); } catch { /* The confirmed IndexedDB transaction remains authoritative. */ }
   }, { retainUntilResolved: true });
-  const operations = createWorkbenchOperations({ assertActive: () => { pluginRuntime.assert(owner, "filesystem.files.write"); if (!directoryOperationsAllowed()) throw new Error("独立编辑器正在使用文件；请先保存并关闭编辑器，再执行目录操作。"); if (!isTauriRuntime()) throw new Error("目录操作仅适用于桌面版授权目录。"); }, files: localFileService, notify }, drafts);
+  const operations = createWorkbenchOperations({ assertActive: () => { pluginRuntime.assert(owner, "filesystem.files.write"); if (!isTauriRuntime()) throw new Error("目录操作仅适用于桌面版授权目录。"); }, files: localFileService, notify, resolvePath: async (rootId, node) => canonicalChildPath(await localFileService.displayPath(rootId, ""), node) }, drafts);
   const { queue } = operations;
   const provider = createBrowserDirectoryProvider({
     assertActive, files: localFileService,
@@ -73,7 +74,7 @@ export function createWorkbenchHost(open: (request: BrowserFileOpen) => void | P
     displayPath: (rootId, node) => localFileService.displayPath(rootId, node), absolutePaths: isTauriRuntime(),
     supportsDirectoryPicker: () => localFileService.supportsDirectoryPicker(),
     supportsDirectoryChanges: rootId => localFileService.supportsDirectoryChanges(rootId),
-    canWrite: rootId => directoryOperationsAllowed() && isTauriRuntime() && localFileService.canRename(rootId), canTransfer: () => directoryOperationsAllowed() && isTauriRuntime() && localFileService.canTransfer(), canTrash: () => directoryOperationsAllowed() && isTauriRuntime() && localFileService.canTrash(),
+    canWrite: rootId => isTauriRuntime() && localFileService.canRename(rootId), canTransfer: () => isTauriRuntime() && localFileService.canTransfer(), canTrash: () => isTauriRuntime() && localFileService.canTrash(),
     search: searchLocalFiles,
     subscribeMutations(listener) { mutations.add(listener); return () => { mutations.delete(listener); }; },
   };

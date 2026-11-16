@@ -25,11 +25,12 @@ export function parseBrowserDisplay(raw: string | null): BrowserDisplaySettings 
 export function browserDisplayColumns(display: BrowserDisplay, typeSupported: boolean): BrowserColumn[] {
   return ["name", ...(typeSupported && display.type ? ["type"] : []), ...(display.size ? ["size"] : []), ...(display.modified ? ["modified"] : [])] as BrowserColumn[];
 }
+const localDateFormatter = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" });
 export function browserDateText(value: number | undefined, format: BrowserDisplay["dateFormat"] = "local") {
   if (value === undefined || !Number.isFinite(value)) return "—";
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "—";
-  if (format === "local") return date.toLocaleString();
+  if (format === "local") return localDateFormatter.format(date);
   const pad = (number: number) => String(number).padStart(2, "0");
   const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   return format === "date" ? day : `${day} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;

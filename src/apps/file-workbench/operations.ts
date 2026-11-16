@@ -1,22 +1,32 @@
+import { parseDraftPath, protectedPathsOverlap } from "../../lib/local-files/workbench-path-protection";
 import { createBrowserOperationRunner } from "../../lib/local-files/browser-operation-core";
 import { BrowserOperationQueueCore, browserJobSettled } from "../../lib/local-files/browser-queue-core";
 import { lockLocalOperation } from "../../lib/local-files/operation-lock";
 import type { BrowserOperationHost, BrowserOperationLease } from "../../lib/local-files/browser-operation-contract";
 import type { LocalDraftStore } from "../../lib/local-files/recovery";
 
-/** Standalone host policy: there is one editor, and browsing starts only after
- * its leave checkpoint. Unresolved drafts are retained, never silently moved. */
-export function createWorkbenchOperations(host: Pick<BrowserOperationHost<BrowserOperationLease>, "assertActive" | "files" | "notify">, drafts: LocalDraftStore) {
+/** Open editor paths are protected natively. Recovery drafts are checked by
+ * canonical path here and never silently moved or discarded. */
+export function createWorkbenchOperations(host: Pick<BrowserOperationHost<BrowserOperationLease>, "assertActive" | "files" | "notify"> & { resolvePath?: (rootId: string, node: string) => Promise<string> }, drafts: LocalDraftStore) {
   let disposed = false;
   const assertActive = () => { if (disposed) throw new Error("工作台已关闭"); host.assertActive(); };
-  const clean = async () => {
+  const clean = async (rootId: string, node: string) => {
     assertActive();
-    if ((await drafts.list()).length) throw new Error("存在未处理的恢复草稿；请先通过“恢复草稿”保存或下载并处理，再执行目录操作。");
+    const unresolved = await drafts.list();
+    if (unresolved.length) {
+      if (!host.resolvePath) throw new Error("存在未处理的恢复草稿；请先通过“恢复草稿”处理，再执行目录操作。");
+      const target = await host.resolvePath(rootId, node);
+      for (const draft of unresolved) {
+        const path = parseDraftPath(draft.identity);
+        const protectedPath = await host.resolvePath(path.rootId, path.node);
+        if (protectedPathsOverlap(target, protectedPath)) throw new Error(`PATH_IN_USE: 此路径关联恢复草稿“${path.node}”；请先保存或处理相关草稿。`);
+      }
+    }
     assertActive();
   };
   const destination = async <T>(rootId: string, node: string, action: () => Promise<T>): Promise<T> => {
     const lease = lockLocalOperation(rootId, node);
-    try { await clean(); return await action(); } finally { lease.release(); }
+    try { await clean(rootId, node); return await action(); } finally { lease.release(); }
   };
   const path = (parent: string, name: string) => [parent, name.trim()].filter(Boolean).join("/");
   const runner = createBrowserOperationRunner({
@@ -29,8 +39,8 @@ export function createWorkbenchOperations(host: Pick<BrowserOperationHost<Browse
       create: (rootId, parent, name, directory) => destination(rootId, path(parent, name), () => host.files.create(rootId, parent, name, directory)),
       trash: (rootId, node) => host.files.trash(rootId, node),
     },
-    // No inactive editor sessions are cached in this host. Any unsaved content
-    // is covered by the draft barrier above, including descendants and aliases.
+    // Open paths cannot be moved/trash natively; unrelated operations need no
+    // editor identity migration. Recovery paths are checked at source and target.
     reconcileMove: async () => {}, reconcileTrash: () => {}, notify: host.notify,
   });
   const queue = new BrowserOperationQueueCore({ assertActive, execute: runner });

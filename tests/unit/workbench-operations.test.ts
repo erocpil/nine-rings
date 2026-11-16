@@ -4,7 +4,9 @@ import { isLocalOperationLocked } from "../../src/lib/local-files/operation-lock
 import type { BrowserOperation } from "../../src/lib/local-files/browser-operation-contract";
 import type { LocalDraftStore } from "../../src/lib/local-files/recovery";
 
-function setup() {
+function setup(
+  resolvePath?: (rootId: string, node: string) => Promise<string>,
+) {
   const files = {
     transfer: vi.fn(async () => "dest/folder"),
     move: vi.fn(async () => "renamed"),
@@ -20,7 +22,7 @@ function setup() {
   const notify = vi.fn(),
     assertActive = vi.fn();
   const operations = createWorkbenchOperations(
-    { files, notify, assertActive },
+    { files, notify, assertActive, resolvePath },
     drafts,
   );
   const operation: BrowserOperation = {
@@ -138,5 +140,76 @@ it("a running native call stays busy after stop until it finishes; a queued job 
   await vi.waitFor(() => expect(host.busy()).toBe(false));
   expect(host.files.transfer).toHaveBeenCalledTimes(1);
   expect(host.notify).toHaveBeenCalledOnce();
+  host.dispose();
+});
+
+it("canonical path protection permits unrelated drafts and catches overlapping roots", async () => {
+  for (const related of [false, true]) {
+    const host = setup(
+      async (rootId, node) =>
+        `${rootId === "alias" ? "/root" : `/${rootId}`}/${node}`,
+    );
+    vi.mocked(host.drafts.list).mockResolvedValue([
+      {
+        identity: related ? "alias:folder/file.c" : "alias:unrelated/file.c",
+      } as Awaited<ReturnType<LocalDraftStore["list"]>>[number],
+    ]);
+    host.queue.enqueue(host.operation, "folder");
+    await vi.waitFor(() =>
+      expect(host.queue.getSnapshot()[0].status).toBe(
+        related ? "failed" : "completed",
+      ),
+    );
+    expect(host.files.transfer).toHaveBeenCalledTimes(related ? 0 : 1);
+    host.dispose();
+  }
+});
+it("destination drafts, malformed identities and failed root resolution block without writes", async () => {
+  for (const identity of [
+    "other:dest/folder/file.c",
+    "invalid",
+    "revoked:file.c",
+  ]) {
+    const host = setup(async (rootId, node) => {
+      if (rootId === "revoked") throw new Error("授权已撤销");
+      return `/${rootId}/${node}`;
+    });
+    vi.mocked(host.drafts.list).mockResolvedValue([
+      { identity } as Awaited<ReturnType<LocalDraftStore["list"]>>[number],
+    ]);
+    host.queue.enqueue(host.operation, "folder");
+    await vi.waitFor(() =>
+      expect(host.queue.getSnapshot()[0].status).toBe("failed"),
+    );
+    expect(host.files.transfer).not.toHaveBeenCalled();
+    expect(isLocalOperationLocked("root", "folder")).toBe(false);
+    expect(isLocalOperationLocked("other", "dest/folder")).toBe(false);
+    host.dispose();
+  }
+});
+it("a native path protection rejection is a confirmed no-write failure rather than an uncertain write", async () => {
+  const host = setup();
+  host.files.transfer.mockRejectedValue(
+    new Error("PATH_IN_USE: 文件仍在编辑器中打开"),
+  );
+  host.queue.enqueue(host.operation, "folder");
+  await vi.waitFor(() =>
+    expect(host.queue.getSnapshot()[0].status).toBe("failed"),
+  );
+  expect(host.queue.getSnapshot()[0].items[0].status).toBe("failed");
+  expect(host.notify).not.toHaveBeenCalled();
+  host.dispose();
+});
+
+it("a filesystem error merely mentioning a protected-path marker stays uncertain", async () => {
+  const host = setup();
+  host.files.transfer.mockRejectedValue(
+    new Error("copy failed at /root/PATH_BUSY/file.c"),
+  );
+  host.queue.enqueue(host.operation, "folder");
+  await vi.waitFor(() =>
+    expect(host.queue.getSnapshot()[0].status).toBe("failed"),
+  );
+  expect(host.queue.getSnapshot()[0].items[0].status).toBe("uncertain");
   host.dispose();
 });

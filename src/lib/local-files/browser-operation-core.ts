@@ -80,6 +80,7 @@ export function createBrowserOperationRunner<Lease extends BrowserOperationLease
             progress.completed++; emit({ node, targetName, status: "completed" }); break;
           } catch (error) {
             if (confirmed || /MOVE_COPY_PUBLISHED/.test(String(error))) throw error;
+            if (/^(?:Error: )?PATH_(?:IN_USE|BUSY):/.test(String(error))) { attempted = false; throw error; }
             if (!/TARGET_EXISTS|目标名称已存在/.test(String(error))) throw error;
             attempted = false; // Explicit no-overwrite conflict: nothing was written.
             if (signal.aborted) { emit({ node, targetName, status: "pending" }); return { ...progress, cancelled: true }; }

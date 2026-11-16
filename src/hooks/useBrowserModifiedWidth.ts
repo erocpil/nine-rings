@@ -2,16 +2,14 @@ import { browserDateText, type BrowserDisplay } from "../lib/local-files/browser
 import { useLayoutEffect, useState, type RefObject } from "react";
 import type { FileNode, LocalFileFingerprint } from "../lib/local-files/file-model";
 
-const formatter = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" });
-export function browserModifiedText(value: number | undefined) {
-  return value && Number.isFinite(new Date(value).getTime()) ? formatter.format(value) : "—";
-}
+export const browserModifiedText = browserDateText;
 /** Measure every loaded date, not only virtual rows, so scrolling cannot resize columns. */
 export function useBrowserModifiedWidth(list: RefObject<HTMLDivElement>, nodes: readonly FileNode[], metadata: Record<string, LocalFileFingerprint>, display?: BrowserDisplay) {
   const [width, setWidth] = useState(145);
   useLayoutEffect(() => {
     let live = true;
     const measure = () => {
+      if (display?.modified === false) return;
       const host = list.current?.closest(".file-browser-pane");
       const cell = host?.querySelector<HTMLElement>('.file-browser-row > [data-browser-column="modified"]');
       const header = host?.querySelector<HTMLElement>(".file-browser-column:last-child > button");

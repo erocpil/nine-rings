@@ -105,10 +105,10 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
   useLayoutEffect(() => {
     const previous = previousRowHeight.current; previousRowHeight.current = ROW;
     if (previous === ROW || !scrollRef.current) return;
-    const top = scrollRef.current.scrollTop / previous * ROW;
+    const top = scroll / previous * ROW;
     scrollRef.current.scrollTop = top; setScroll(scrollRef.current.scrollTop);
     onChange(current => updateBrowserLocation(current, { scrollTop: scrollRef.current!.scrollTop }));
-  }, [ROW, onChange]);
+  }, [ROW, onChange, scroll]);
   const request = useRef<AbortController | null>(null);
   const metadataCache = useRef(new Map<string, LocalFileFingerprint>());
   const loadedKey = useRef("");

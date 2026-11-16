@@ -404,7 +404,7 @@ test("桌面目录复制、重命名和移动走确认队列，运行中不退�
   await menu.getByRole("menuitem", { name: "重命名", exact: true }).click();
   await rename.getByRole("textbox", { name: "名称", exact: true }).fill("protected");
   await rename.getByRole("button", { name: "确认", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "文件操作队列", exact: true })).toContainText("存在未处理的恢复草稿");
+  await expect(page.getByRole("dialog", { name: "文件操作队列", exact: true })).toContainText("关联恢复草稿");
   expect(await page.evaluate(() => (window as any).__workbenchOps.calls.length)).toBe(4);
 });
 
@@ -2348,10 +2348,10 @@ test("桌面浏览入口委派独立编辑器，创建失败保留原列表与�
   const rename = browser.getByRole("button", { name: "重命名", exact: true });
   await expect(rename).toBeEnabled();
   await page.evaluate(() => (window as any).__presence({ present: true, revision: 2 }));
-  await expect(rename).toBeDisabled();
+  await expect(rename).toBeEnabled();
   await expect(page.locator(".file-workbench-app > footer")).toContainText("独立编辑器打开期间");
   await page.evaluate(() => (window as any).__presence({ present: false, revision: 1 }));
-  await expect(rename).toBeDisabled();
+  await expect(rename).toBeEnabled();
   await page.evaluate(() => (window as any).__presence({ present: false, revision: 3 }));
   await expect(rename).toBeEnabled();
   await page.evaluate(() => { (window as any).__failEditor = true; });
@@ -2539,7 +2539,7 @@ test("重名冲突并排显示来源目标，保留双方适用于本任务后�
         if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
         if (command === "local_files_roots") return [{ id: "source", name: "Source" }, { id: "target", name: "Target" }];
         if (command === "local_files_display_path") return `/${args.rootId}/${args.node ?? ""}`;
-        if (command === "local_files_stat") return { size: args.rootId === "source" ? 10 : 20, modifiedMs: args.rootId === "source" ? 1000 : 2000 };
+        if (command === "local_files_stat" || command === "local_files_properties") return { size: args.rootId === "source" ? 10 : 20, modifiedMs: args.rootId === "source" ? 1000 : 2000 };
         if (command === "local_files_list") return { nodes: ["a.c", "b.c"].map(name => ({ id: name, name, directory: false, size: 10, modifiedMs: 1000 })), next: null };
         if (command === "local_files_transfer") {
           if (["a.c", "a (2).c", "b.c"].includes(args.name)) throw new Error("TARGET_EXISTS");
@@ -2565,4 +2565,35 @@ test("重名冲突并排显示来源目标，保留双方适用于本任务后�
   await expect.poll(() => page.evaluate(() => (window as any).__conflictWrites)).toEqual(["a (3).c", "b (2).c"]);
   await expect(conflict).toHaveCount(0);
   await expect(page.locator(".file-browser-job")).toContainText("成功 2 项");
+});
+
+test("长列表调整行高保持顶部条目、选择和键盘导航一致", async ({ page }) => {
+  await page.addInitScript(() => {
+    let id = 1;
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback() { return id++; }, unregisterCallback() {},
+      async invoke(command: string, args: any = {}) {
+        if (command === "plugin:event|listen") return id++;
+        if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
+        if (command === "local_files_roots") return [{ id: "root", name: "Root" }];
+        if (command === "local_files_display_path") return `/root/${args.node ?? ""}`;
+        if (command === "local_files_stat") return { size: 1, modifiedMs: 1 };
+        if (command === "local_files_list") return { nodes: Array.from({ length: 160 }, (_, index) => ({ id: `item-${String(index).padStart(3, "0")}.c`, name: `item-${String(index).padStart(3, "0")}.c`, directory: false, size: 1, modifiedMs: 1 })), next: null };
+        return;
+      },
+    };
+  });
+  await page.goto("/file-workbench.html");
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  const list = left.getByRole("listbox", { name: "文件列表", exact: true });
+  await expect(left.getByRole("option", { name: /^item-000.c/ })).toBeVisible();
+  await list.evaluate(element => { element.scrollTop = 80 * 32; element.dispatchEvent(new Event("scroll")); });
+  await left.getByRole("option", { name: /^item-085.c/ }).click();
+  await left.getByRole("button", { name: "文件列表展示", exact: true }).click();
+  await page.getByRole("dialog", { name: "文件列表展示", exact: true }).getByLabel("列表行高").fill("40");
+  await page.keyboard.press("Escape");
+  await expect.poll(() => list.evaluate(element => Math.floor(element.scrollTop / 40))).toBe(80);
+  await expect(left.getByRole("option", { name: /^item-085.c/ })).toHaveAttribute("aria-selected", "true");
+  await list.focus(); await page.keyboard.press("ArrowDown");
+  await expect(left.getByRole("option", { name: /^item-086.c/ })).toHaveAttribute("aria-selected", "true");
 });

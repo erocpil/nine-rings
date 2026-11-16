@@ -273,15 +273,22 @@ fn mutation_caller(
         .map(|access| access.begin(window.label(), true))
         .transpose()
 }
-fn write_caller(
+fn scoped_caller(
     window: &tauri::WebviewWindow,
+    directory_mutation: bool,
+    paths: Vec<PathBuf>,
 ) -> Result<Option<crate::window_access::FileMutationLease>, String> {
-    file_caller(window)?;
+    if directory_mutation {
+        caller(window)?;
+    } else {
+        file_caller(window)?;
+    }
     window
         .try_state::<crate::window_access::FileWindowAccess>()
-        .map(|access| access.begin(window.label(), false))
+        .map(|access| access.begin_paths(window.label(), directory_mutation, paths))
         .transpose()
 }
+
 fn is_link(meta: &fs::Metadata) -> bool {
     #[cfg(windows)]
     {
@@ -679,10 +686,17 @@ pub async fn local_files_create(
     name: String,
     directory: bool,
 ) -> Result<String, String> {
-    let _lease = mutation_caller(&window)?;
+    caller(&window)?;
     let root = library.root(&root_id)?;
+    valid_name(&name)?;
+    let _lease = scoped_caller(
+        &window,
+        true,
+        vec![checked_path(&root, &parent)?.join(&name)],
+    )?;
     let grants = library.roots.clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let _lease = _lease;
         let grants = grants.lock().map_err(|_| "目录状态不可用")?;
         if grants.get(&root_id) != Some(&root) {
             return Err("目录授权已变化".into());
@@ -917,11 +931,21 @@ pub async fn local_files_transfer(
     let on_progress: Option<tauri::ipc::Channel<TransferProgress>> =
         on_progress.map(|id| id.channel_on(window.as_ref().clone()));
     // Own the optional channel before fallible validation so errors also drop it.
-    let _lease = mutation_caller(&window)?;
+    caller(&window)?;
     let root = library.root(&root_id)?;
     let target_root = library.root(&target_root_id)?;
+    valid_name(&name)?;
+    let _lease = scoped_caller(
+        &window,
+        true,
+        vec![
+            checked_path(&root, &node)?,
+            checked_path(&target_root, &parent)?.join(&name),
+        ],
+    )?;
     let grants = library.roots.clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let _lease = _lease;
         // Do not hold the global grant mutex over long copies/hashes: other
         // directories must remain browsable while a confirmed job executes.
         let started = std::time::Instant::now();
@@ -1017,10 +1041,20 @@ pub async fn local_files_move(
     parent: String,
     name: String,
 ) -> Result<String, String> {
-    let _lease = mutation_caller(&window)?;
+    caller(&window)?;
     let root = library.root(&root_id)?;
+    valid_name(&name)?;
+    let _lease = scoped_caller(
+        &window,
+        true,
+        vec![
+            checked_path(&root, &node)?,
+            checked_path(&root, &parent)?.join(&name),
+        ],
+    )?;
     let grants = library.roots.clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let _lease = _lease;
         let grants = grants.lock().map_err(|_| "目录状态不可用")?;
         if grants.get(&root_id) != Some(&root) {
             return Err("目录授权已变化".into());
@@ -1037,13 +1071,15 @@ pub async fn local_files_trash(
     root_id: String,
     node: String,
 ) -> Result<(), String> {
-    let _lease = mutation_caller(&window)?;
+    caller(&window)?;
     if node.is_empty() {
         return Err("不能删除授权根目录；可撤销其授权".into());
     }
     let root = library.root(&root_id)?;
+    let _lease = scoped_caller(&window, true, vec![checked_path(&root, &node)?])?;
     let grants = library.roots.clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let _lease = _lease;
         let grants = grants.lock().map_err(|_| "目录状态不可用")?;
         if grants.get(&root_id) != Some(&root) {
             return Err("目录授权已变化".into());
@@ -1506,11 +1542,13 @@ pub async fn local_files_write(
     bom: bool,
     line_ending: String,
 ) -> Result<Snapshot, String> {
-    let _lease = write_caller(&window)?;
+    file_caller(&window)?;
     let root = library.root(&root_id)?;
+    let _lease = scoped_caller(&window, false, vec![checked_path(&root, &node)?])?;
     let roots = library.roots.clone();
     let write_root_id = root_id.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
+        let _lease = _lease;
         write(
             &root,
             &node,
@@ -1657,6 +1695,7 @@ pub async fn local_files_save_as(
                 return Err("目标不是普通文件，拒绝覆盖".into());
             }
         }
+        let _lease = scoped_caller(&window, false, vec![target.clone()])?;
         let temp = parent.join(format!(".nr-save-as-{}.tmp", uuid::Uuid::new_v4()));
         let result: Result<(), String> = (|| {
             let mut file = fs::OpenOptions::new()
