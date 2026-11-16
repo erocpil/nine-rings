@@ -244,7 +244,7 @@ test("已下载但未刷新时继续检查后续部署，最终保存并启用�
   blockDownload = true;
   await check.click();
   await expect.poll(() => page.evaluate(async () => Boolean((await navigator.serviceWorker.ready).installing))).toBe(true);
-  await expect(page.locator(".settings-web-update [role=status]")).toContainText("正在下载并安装新版");
+  await expect(page.locator(".settings-web-update [role=status]")).toContainText("后续新版正在后台下载");
   await expect.poll(() => activeVersion(page)).toBe(1);
   await expect.poll(() => waitingVersion(page)).toBe(2);
   releaseDownloads();
@@ -264,6 +264,39 @@ test("已下载但未刷新时继续检查后续部署，最终保存并启用�
   await expect.poll(() => activeVersion(page)).toBe(3);
   await expect(page.locator(".note-title")).toHaveValue("连续部署前的最后修改");
   await expect(page.locator(".ProseMirror")).toContainText("等待更新不应丢失当前编辑");
+});
+
+test("已有就绪版本时后续下载不阻塞关闭设置或保存刷新", async ({ page }) => {
+  await page.locator(".note-title").fill("后续下载期间保存");
+  await page.locator(".ProseMirror").fill("刷新前必须保留的编辑内容");
+  await page.keyboard.press("Alt+,");
+  revision = 2;
+  await page.getByRole("button", { name: "点击更新", exact: true }).click();
+  await expect.poll(() => waitingVersion(page)).toBe(2);
+  revision = 3;
+  blockDownload = true;
+  await page.evaluate(async () => { await (await navigator.serviceWorker.ready).update(); });
+  await expect.poll(() => page.evaluate(async () => Boolean((await navigator.serviceWorker.ready).installing))).toBe(true);
+  await expect(page.locator(".settings-web-update [role=status]")).toContainText("后续新版正在后台下载");
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".settings-panel")).toHaveCount(0);
+  await page.keyboard.press("Alt+,");
+  await Promise.all([
+    page.waitForEvent("load", { timeout: 10_000 }),
+    page.getByRole("button", { name: "保存并刷新", exact: true }).click(),
+  ]);
+  // The later resource remains blocked: activation must not depend on it.
+  expect(blockDownload).toBe(true);
+  await expect.poll(() => activeVersion(page)).toBe(2);
+  await expect(page.locator(".note-title")).toHaveValue("后续下载期间保存");
+  await expect(page.locator(".ProseMirror")).toContainText("刷新前必须保留的编辑内容");
+  expect(await page.evaluate(async () => (await caches.keys()).some(key => key.endsWith("-test-3")))).toBe(true);
+  releaseDownloads();
+  await expect.poll(() => waitingVersion(page)).toBe(3);
+  expect(await page.evaluate(async () => {
+    const key = (await caches.keys()).find(key => key.endsWith("-test-3"));
+    return key ? Boolean(await (await caches.open(key)).match("/index.html")) : false;
+  })).toBe(true);
 });
 
 for (const width of [390, 1280]) {

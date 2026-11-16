@@ -257,10 +257,12 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
     /** Caller must flush edits and prevent new edits until this completes. */
     async apply() {
       recordPwaUpdateEvent("apply");
-      // An older waiting release may coexist with a newer download/check.
-      // Finish that attempt before choosing which worker to activate.
-      if (checking) await checking;
-      if (registration?.installing || (!controllerChanged && !registration?.waiting)) await check(true);
+      // A ready release is usable even while a later deployment downloads.
+      // Never hold the caller's edit/close lock behind that background request.
+      if (!controllerChanged && !registration?.waiting) {
+        if (checking) await checking;
+        if (!controllerChanged && !registration?.waiting) await check(true);
+      }
       if (disposed) throw new Error("更新已取消");
       if (controllerChanged) { recordPwaUpdateEvent("reload"); window.location.reload(); return; }
       const worker = registration?.waiting;

@@ -135,7 +135,9 @@ async function cacheResource(cache, url) {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key.startsWith("nine-rings-") && key !== CACHE_NAME).map((key) => caches.delete(key))))
+      // A newer installer can coexist with this ready worker. Its partially
+      // populated cache must survive; the next activation can clean old caches.
+      .then((keys) => self.registration.installing || self.registration.waiting ? undefined : Promise.all(keys.filter((key) => key.startsWith("nine-rings-") && key !== CACHE_NAME).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });

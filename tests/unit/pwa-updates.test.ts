@@ -397,7 +397,7 @@ describe("PWA update lifecycle", () => {
     });
   });
 
-  it("applies the latest waiting worker after an in-flight download rather than activating the older release", async () => {
+  it("activates an already downloaded release without waiting for a later deployment", async () => {
     const previous = new Worker();
     previous.state = "installed";
     registration.waiting = previous;
@@ -410,17 +410,18 @@ describe("PWA update lifecycle", () => {
     });
     const check = updater.check();
     await settle();
+    expect(status.available).toBe(true);
     const apply = updater.apply();
     await settle();
-    expect(previous.postMessage).not.toHaveBeenCalled();
-    installed(latest);
-    await check;
-    await settle();
-    expect(latest.postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" });
-    container.controller = latest;
+    expect(previous.postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" });
+    expect(latest.postMessage).not.toHaveBeenCalledWith({ type: "SKIP_WAITING" });
+    expect(registration.installing).toBe(latest);
+    container.controller = previous;
     container.dispatchEvent(new Event("controllerchange"));
     await apply;
     expect(browser.location.reload).toHaveBeenCalledOnce();
+    installed(latest);
+    await check;
   });
 
   it("retains the downloaded release if a later deployment fails and permits another check", async () => {

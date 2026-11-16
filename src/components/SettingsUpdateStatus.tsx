@@ -107,7 +107,7 @@ export function SettingsUpdateStatus({ webUpdate, showMessage }: Props) {
             {!installing && !webUpdate.checked && <span className="settings-update-status-dot" aria-hidden="true" />}
             {installing ? (
               <span className="settings-update-status-installing">
-                <span>正在下载并安装新版，请保持联网。</span>
+                <span>{webUpdate.available ? "已下载版本可立即保存并刷新；后续新版正在后台下载。" : "正在下载并安装新版，请保持联网。"}</span>
                 <span>{installingProgress}</span>
               </span>
             ) : getUpdateStatusText(webUpdate)}
