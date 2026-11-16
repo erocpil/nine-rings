@@ -244,3 +244,13 @@
 .file-browser-conflict-comparison dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; font-size: 12px; }
 .file-browser-conflict-comparison dd { margin: 0; }
 @media(max-width: 600px) { .file-browser-conflict-comparison { grid-template-columns: minmax(0, 1fr); } }
+
+/* Text previews use the common virtualized readonly source workspace. */
+.file-browser-text-reader { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; position: relative; }
+.file-browser-text-reader > .note-editor { flex: 1; min-height: 0; }
+.file-browser-text-tools { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.file-browser-text-tools > span { display: inline-flex; align-items: center; gap: 4px; }
+.file-browser-reading-notice { position: absolute; bottom: 35px; inset-inline: 12px; padding: 6px 10px; background: var(--surface, var(--bg)); border: 1px solid var(--border); font-size: 12px; z-index: 15; }
+.file-browser-reading-notice button { float: right; color: inherit; background: transparent; border: 0; }
+.file-browser-text-reader .document-toolbar button[aria-pressed="true"] { background: var(--active-bg); color: var(--accent); }
+.file-browser-text-reader .cm-scroller::-webkit-scrollbar { width: 6px; height: 4px; }

@@ -126,6 +126,16 @@ export function openSourceSearch(view: EditorView): boolean {
   input?.select();
   return true;
 }
+/** Presentation-only handoff for adjacent readonly preview files. Never carry
+ * matches/offsets from a different document, and never store clipboard/body text. */
+export interface SourceSearchPresentation { open: boolean; query: string; options: SearchOptions }
+export function sourceSearchPresentation(view: EditorView): SourceSearchPresentation {
+  const state = view.state.field(searchState);
+  return { open: state.open, query: state.query, options: { ...state.options } };
+}
+export function restoreSourceSearchPresentation(view: EditorView, value: SourceSearchPresentation) {
+  change(view, { open: value.open, gotoOpen: false, query: value.query, options: { ...value.options }, active: -1 });
+}
 export function sourcePanelOpen(
   state: EditorView["state"],
   panel: "search" | "goto",
