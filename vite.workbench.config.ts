@@ -21,7 +21,7 @@ export default defineConfig({
   }],
   // The search worker loads PCRE2 lazily; prebundle before a user searches so
   // the development server cannot reload an authorized directory session.
-  optimizeDeps: { include: ["fflate", "pcre2-wasm", "@wasm-fmt/clang-format/vite", "mdast-util-to-markdown", "@tiptap/pm/history"] },
+  optimizeDeps: { include: ["pdfjs-dist/web/pdf_viewer.mjs", "fflate", "pcre2-wasm", "@wasm-fmt/clang-format/vite", "mdast-util-to-markdown", "@tiptap/pm/history"] },
   cacheDir: ".local-tools/vite-workbench-cache",
   server: { host: "127.0.0.1", port: 1421, strictPort: true,
     // Build tools and trace snapshots contain HTML, not application pages.

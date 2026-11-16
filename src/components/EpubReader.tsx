@@ -1,3 +1,4 @@
+import { browserPreviewMatches } from "../lib/local-files/browser-preview";
 import { EditorFoldIcon } from "./EditorFoldIcon";
 import { ReaderToolbar, type ReaderToolPanel } from "./ReaderToolbar";
 import { normalizeEpubWidth } from "../lib/reader-width";
@@ -205,7 +206,7 @@ function restoreViewportTextAnchor(document: Document, window: Window, anchor: V
   return false;
 }
 
-function markFrameSearch(document: Document, query: string, activeOccurrence: number): HTMLElement | null {
+export function markFrameSearch(document: Document, query: string, activeOccurrence: number): HTMLElement | null {
   document.querySelectorAll("mark.epub-search-hit").forEach((mark) => mark.replaceWith(document.createTextNode(mark.textContent ?? "")));
   if (!query) return null;
   const body = document.body;
@@ -215,29 +216,18 @@ function markFrameSearch(document: Document, query: string, activeOccurrence: nu
   });
   const textNodes: Text[] = [];
   while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
-  let occurrence = 0;
+  const matches = browserPreviewMatches(textNodes.map(node => node.data).join(""), query).matches;
+  let offset = 0;
   let activeMark: HTMLElement | null = null;
-  const needle = query.toLocaleLowerCase();
-  textNodes.forEach((textNode) => {
-    const source = textNode.data;
-    const lower = source.toLocaleLowerCase();
-    const ranges: Array<{ start: number; end: number; occurrence: number }> = [];
-    let from = 0;
-    while (from <= lower.length - needle.length) {
-      const start = lower.indexOf(needle, from);
-      if (start < 0) break;
-      ranges.push({ start, end: start + query.length, occurrence });
-      occurrence += 1;
-      from = start + Math.max(1, query.length);
-    }
+  textNodes.forEach(textNode => {
+    const length = textNode.data.length;
+    const ranges = matches.map((match, occurrence) => ({ start: Math.max(0, match.from-offset), end: Math.min(length,match.to-offset), occurrence })).filter(range => range.start < range.end);
+    offset += length;
     for (const range of ranges.reverse()) {
-      const matched = textNode.splitText(range.start);
-      matched.splitText(range.end - range.start);
-      const mark = document.createElement("mark");
-      mark.className = `epub-search-hit${range.occurrence === activeOccurrence ? " epub-search-current" : ""}`;
-      matched.replaceWith(mark);
-      mark.append(matched);
-      if (range.occurrence === activeOccurrence) activeMark = mark;
+      const matched=textNode.splitText(range.start); matched.splitText(range.end-range.start);
+      const mark=document.createElement("mark");mark.className=`epub-search-hit${range.occurrence===activeOccurrence?" epub-search-current":""}`;
+      matched.replaceWith(mark);mark.append(matched);
+      if(range.occurrence===activeOccurrence && !activeMark)activeMark=mark;
     }
   });
   body.normalize();

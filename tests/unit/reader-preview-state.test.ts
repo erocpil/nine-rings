@@ -59,3 +59,26 @@ it("bounds malformed persisted values and tolerates read failure without hiding 
     ).page,
   ).toBe(1);
 });
+
+it("preserves a signed page offset only for continuous PDF view anchors", () => {
+  const values = new Map<string, string>();
+  const store = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
+    },
+  };
+  const state = {
+    fingerprint: "hash",
+    page: 2,
+    zoom: 0,
+    top: -180,
+    left: 0,
+    font: 100,
+    continuous: true,
+  };
+  saveReaderPreviewState(store, "pdf", state);
+  expect(readReaderPreviewState(store, "pdf", "hash")).toEqual(state);
+  saveReaderPreviewState(store, "pdf", { ...state, continuous: false });
+  expect(readReaderPreviewState(store, "pdf", "hash").top).toBe(0);
+});

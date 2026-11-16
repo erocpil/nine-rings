@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -16,6 +18,14 @@ import worker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { ToolbarIcon } from "./ToolbarIcon";
 import "pdfjs-dist/web/pdf_viewer.css";
 import { browserPreviewMatches } from "../lib/local-files/browser-preview";
+import type { ContinuousPdfHandle } from "./FileBrowserPdfContinuous";
+const FileBrowserPdfContinuous = lazy(() =>
+  import("./FileBrowserPdfContinuous").then((module) => ({
+    default: module.FileBrowserPdfContinuous,
+  })),
+);
+import { FileBrowserPdfThumbnails } from "./FileBrowserPdfThumbnails";
+import { useReaderPreviewNavigation } from "./ReaderPreviewNavigation";
 import { browserSettings } from "../lib/local-files/browser-settings";
 import type { BrowserSettingsStore } from "../lib/local-files/browser-workspace-contract";
 import {
@@ -74,23 +84,51 @@ export function FileBrowserPreviewPdf({
   const [notice, setNotice] = useState("");
   const live = useRef({ page, zoom, settings, identity });
   live.current = { page, zoom, settings, identity };
+  const continuousHandle = useRef<ContinuousPdfHandle | null>(null);
+  const [thumbnails, setThumbnails] = useState(false),
+    [height, setHeight] = useState(0);
+  const reading = useReaderPreviewNavigation(
+    settings,
+    identity,
+    fingerprint.current,
+    () => {
+      const point = continuousHandle.current?.location();
+      return {
+        page: point?.page ?? live.current.page,
+        top:
+          point?.top ?? viewport.current?.scrollTop ?? lastScroll.current.top,
+        label: `第 ${point?.page ?? live.current.page} 页`,
+      };
+    },
+    (point) => {
+      restore.current = { top: point.top, left: 0 };
+      ready.current = false;
+      continuousHandle.current?.jump(point.page, point.top);
+      if (point.page === page && viewport.current) {
+        viewport.current.scrollTop = point.top;
+        ready.current = true;
+      } else setPage(point.page);
+    },
+  );
   const persist = () => {
     if (!fingerprint.current) return;
     const value = live.current;
     try {
       saveReaderPreviewState(value.settings, value.identity, {
         fingerprint: fingerprint.current,
-        page: value.page,
+        page: continuousHandle.current?.location().page ?? value.page,
         zoom: value.zoom,
         top:
-          ready.current && viewport.current
+          continuousHandle.current?.location().top ??
+          (ready.current && viewport.current
             ? viewport.current.scrollTop
-            : (restore.current?.top ?? lastScroll.current.top),
+            : (restore.current?.top ?? lastScroll.current.top)),
         left:
           ready.current && viewport.current
             ? viewport.current.scrollLeft
             : (restore.current?.left ?? lastScroll.current.left),
         font: 100,
+        ...(reading.extras.continuous ? { continuous: true } : {}),
       });
     } catch {
       setNotice("无法保存 PDF 阅读位置，本次阅读仍可继续。");
@@ -100,18 +138,22 @@ export function FileBrowserPreviewPdf({
   persistRef.current = persist;
   useEffect(() => {
     if (doc) persistRef.current();
-  }, [doc, page, zoom]);
+  }, [doc, page, zoom, reading.extras.continuous]);
   const jump = (value: number) => {
     if (!doc || value < 1 || value > doc.numPages) return;
     if (value === page) {
       viewport.current?.scrollTo(0, 0);
       return;
     }
+    reading.record();
     persist();
+    continuousHandle.current?.jump(value);
     ready.current = false;
     restore.current = { top: 0, left: 0 };
     setPage(value);
   };
+  const jumpRef = useRef(jump);
+  jumpRef.current = jump;
   const find = async () => {
     const needle = query.trim(),
       epoch = ++searchEpoch.current;
@@ -169,6 +211,7 @@ export function FileBrowserPreviewPdf({
     const element = viewport.current!;
     const measure = () => {
       setWidth(element.clientWidth);
+      setHeight(element.clientHeight);
       setDensity(window.devicePixelRatio || 1);
     };
     const observer = new ResizeObserver(measure);
@@ -265,7 +308,7 @@ export function FileBrowserPreviewPdf({
     };
   }, [blob]);
   useEffect(() => {
-    if (!doc || !width) return;
+    if (!doc || !width || reading.extras.continuous) return;
     const box = surface.current!;
     let live = true;
     let cancel = () => {};
@@ -275,13 +318,24 @@ export function FileBrowserPreviewPdf({
     void (async () => {
       const pdfPage = await doc.getPage(page);
       if (!live) return;
-      const base = pdfPage.getViewport({ scale: 1 });
+      const base = pdfPage.getViewport({
+        scale: 1,
+        rotation: (pdfPage.rotate + reading.extras.rotation) % 360,
+      });
       // Bound decoded pixels even for unusually large pages.
       const scale = Math.min(
-        zoom || Math.max(100, width - 24) / base.width,
+        reading.extras.fitPage
+          ? Math.min(
+              Math.max(100, width - 24) / base.width,
+              Math.max(100, height - 24) / base.height,
+            )
+          : zoom || Math.max(100, width - 24) / base.width,
         Math.sqrt(12_000_000 / (base.width * base.height)),
       );
-      const view = pdfPage.getViewport({ scale });
+      const view = pdfPage.getViewport({
+        scale,
+        rotation: (pdfPage.rotate + reading.extras.rotation) % 360,
+      });
       // CSS dimensions describe zoom; bitmap dimensions independently follow
       // screen density so Retina displays do not stretch a 1x image.
       const outputScale = Math.min(
@@ -326,6 +380,43 @@ export function FileBrowserPreviewPdf({
         return;
       }
       await layer.render();
+      const annotations = await pdfPage.getAnnotations();
+      if (!live) return;
+      for (const annotation of annotations) {
+        if (
+          annotation.subtype !== "Link" ||
+          !annotation.dest ||
+          !annotation.rect
+        )
+          continue;
+        const rect = view.convertToViewportRectangle(annotation.rect);
+        const link = document.createElement("a");
+        link.href = "#";
+        link.className = "reader-pdf-internal-link";
+        link.setAttribute("aria-label", "跳转到 PDF 内部链接");
+        Object.assign(link.style, {
+          left: `${Math.min(rect[0], rect[2])}px`,
+          top: `${Math.min(rect[1], rect[3])}px`,
+          width: `${Math.abs(rect[2] - rect[0])}px`,
+          height: `${Math.abs(rect[3] - rect[1])}px`,
+        });
+        link.onclick = (event) => {
+          event.preventDefault();
+          void (async () => {
+            const dest =
+              typeof annotation.dest === "string"
+                ? await doc.getDestination(annotation.dest)
+                : annotation.dest;
+            if (!live || !Array.isArray(dest)) return;
+            const target =
+              (typeof dest[0] === "number"
+                ? dest[0]
+                : await doc.getPageIndex(dest[0])) + 1;
+            if (live) jumpRef.current(target);
+          })().catch(() => setNotice("此链接位置无法跳转。"));
+        };
+        box.append(link);
+      }
       if (live) {
         textView.current = {
           page,
@@ -357,8 +448,26 @@ export function FileBrowserPreviewPdf({
       textView.current = null;
       box.replaceChildren();
     };
-  }, [doc, page, width, zoom, density]);
+  }, [
+    doc,
+    page,
+    width,
+    height,
+    zoom,
+    density,
+    reading.extras.continuous,
+    reading.extras.rotation,
+    reading.extras.fitPage,
+  ]);
   useEffect(() => {
+    if (reading.extras.continuous && continuousHandle.current) {
+      const selected = results[activeHit];
+      continuousHandle.current.highlight(
+        selected?.page === page ? query.trim() : "",
+        results.slice(0, activeHit).filter((item) => item.page === page).length,
+      );
+      return;
+    }
     const rendered = textView.current,
       selected = results[activeHit];
     if (!rendered || rendered.page !== page) return;
@@ -394,7 +503,14 @@ export function FileBrowserPreviewPdf({
         reveal.scrollIntoView({ block: "center", inline: "nearest" });
     });
     return () => cancelAnimationFrame(frame);
-  }, [activeHit, results, page, textRevision]);
+  }, [
+    activeHit,
+    results,
+    page,
+    textRevision,
+    reading.extras.continuous,
+    query,
+  ]);
   const hit = (delta: number) => {
     if (!results.length) return;
     const index =
@@ -457,6 +573,61 @@ export function FileBrowserPreviewPdf({
         }
       }}
     >
+      {reading.controls}
+      <div className="reader-pdf-options">
+        <button
+          type="button"
+          className="btn-icon"
+          disabled={!doc}
+          aria-label="PDF 旋转"
+          title="顺时针旋转90度，仅影响查看"
+          onClick={() =>
+            reading.update({ rotation: (reading.extras.rotation + 90) % 360 })
+          }
+        >
+          <ToolbarIcon name="rotate" />
+        </button>
+        <button
+          type="button"
+          className="btn-icon"
+          disabled={!doc}
+          aria-label="PDF 适应整页"
+          title="PDF 适应整页"
+          aria-pressed={reading.extras.fitPage}
+          onClick={() => reading.update({ fitPage: !reading.extras.fitPage })}
+        >
+          <ToolbarIcon name="expand" />
+        </button>
+        <button
+          type="button"
+          className="btn-icon"
+          disabled={!doc}
+          aria-label="PDF 连续滚动"
+          title="PDF 连续滚动"
+          aria-pressed={reading.extras.continuous}
+          onClick={() => {
+            persist();
+            restore.current = { top: 0, left: 0 };
+            reading.update({ continuous: !reading.extras.continuous });
+          }}
+        >
+          <ToolbarIcon name="sortSource" />
+        </button>
+        <button
+          type="button"
+          className="btn-icon"
+          disabled={!doc}
+          aria-label="PDF 缩略图"
+          title="PDF 缩略图"
+          aria-pressed={thumbnails}
+          onClick={() => setThumbnails((value) => !value)}
+        >
+          <ToolbarIcon name="image" />
+        </button>
+      </div>
+      {thumbnails && doc && (
+        <FileBrowserPdfThumbnails doc={doc} current={page} onJump={jump} />
+      )}
       <div className="file-browser-preview-zoom">
         <button
           type="button"
@@ -500,8 +671,13 @@ export function FileBrowserPreviewPdf({
         </button>
         <select
           aria-label="PDF 缩放"
-          value={zoom}
+          value={reading.extras.fitPage ? "fit-page" : zoom}
           onChange={(event) => {
+            if (event.target.value === "fit-page") {
+              reading.update({ fitPage: true });
+              return;
+            }
+            reading.update({ fitPage: false });
             persist();
             restore.current = {
               top: viewport.current?.scrollTop ?? 0,
@@ -510,6 +686,7 @@ export function FileBrowserPreviewPdf({
             setZoom(Number(event.target.value));
           }}
         >
+          <option value="fit-page">适应整页</option>
           <option value={0}>适应宽度</option>
           <option value={1}>100%</option>
           <option value={0.75}>75%</option>
@@ -643,7 +820,43 @@ export function FileBrowserPreviewPdf({
           {fallback}
         </>
       )}
+      <div aria-label="阅读进度" className="reader-preview-progress">
+        第{page}/{doc?.numPages ?? "…"}页
+        {doc ? ` · ${Math.round((page / doc.numPages) * 100)}%` : ""}
+      </div>
+      {reading.extras.continuous && doc && (
+        <Suspense fallback={<p role="status">正在加载连续阅读…</p>}>
+          <FileBrowserPdfContinuous
+            doc={doc}
+            page={page}
+            zoom={zoom}
+            rotation={reading.extras.rotation}
+            fitPage={reading.extras.fitPage}
+            initialTop={restore.current?.top ?? 0}
+            onPage={setPage}
+            onReady={(value) => {
+              if (!value && continuousHandle.current) {
+                const previous = continuousHandle.current.location();
+                lastScroll.current = { top: previous.top, left: previous.left };
+              }
+              continuousHandle.current = value;
+              if (value) restore.current = null;
+              setBusy(false);
+              ready.current = Boolean(value);
+            }}
+            onTextReady={() => setTextRevision((value) => value + 1)}
+            onLocation={(point) => {
+              setPage(point.page);
+              lastScroll.current = { top: point.top, left: point.left };
+              clearTimeout(saveTimer.current);
+              saveTimer.current = setTimeout(() => persistRef.current(), 250);
+            }}
+            onBeforeJump={reading.record}
+          />
+        </Suspense>
+      )}
       <div
+        style={reading.extras.continuous ? { display: "none" } : undefined}
         ref={viewport}
         className="file-browser-pdf-scroll"
         tabIndex={0}

@@ -1617,6 +1617,7 @@ test("扩展预览支持 PDF 翻页缩放和 Markdown 渲染原文切换", async
   const outline = pdf.context.obj({ Type: "Outlines" }); const outlineRef = pdf.context.register(outline);
   const entry = pdf.context.register(pdf.context.obj({ Title: PDFString.of("Second section"), Parent: outlineRef, Dest: [pdf.getPage(1).ref, "Fit"] }));
   outline.set(PDFName.of("First"), entry); outline.set(PDFName.of("Last"), entry); outline.set(PDFName.of("Count"), pdf.context.obj(1)); pdf.catalog.set(PDFName.of("Outlines"), outlineRef);
+  pdf.getPage(0).node.set(PDFName.of("Annots"),pdf.context.obj([pdf.context.register(pdf.context.obj({Type:"Annot",Subtype:"Link",Rect:[25,225,200,255],Dest:[pdf.getPage(1).ref,"Fit"],Border:[0,0,0]}))]));
   const folder = await mkdtemp(join(tmpdir(), "nr-preview-formats-"));
   try {
     await writeFile(join(folder, "sample.pdf"), await pdf.save());
@@ -1633,6 +1634,10 @@ test("扩展预览支持 PDF 翻页缩放和 Markdown 渲染原文切换", async
     expect(resolution.pixels / resolution.css).toBeGreaterThan(1.95);
     expect(resolution.total).toBeLessThanOrEqual(12_000_000);
 
+    await preview.getByRole("link",{name:"跳转到 PDF 内部链接",exact:true}).click();
+    await expect(preview.locator(".textLayer")).toContainText("Second PDF page");
+    await preview.getByRole("button",{name:"返回阅读位置",exact:true}).click();
+    await expect(preview.locator(".textLayer")).toContainText("First PDF page");
     await preview.getByRole("combobox", { name: "PDF 目录", exact: true }).selectOption("0");
     await expect(preview.locator(".textLayer")).toContainText("Second PDF page");
     await preview.getByRole("button", { name: "PDF 上一页", exact: true }).click();
@@ -2702,3 +2707,85 @@ test("源码解锁编辑后恢复焦点与原光标位置，点击正文即时�
     expect((await page.evaluate(() => indexedDB.databases())).map(db => db.name)).not.toContain("nine_rings_epub_library");
   } finally { await rm(folder, { recursive: true, force: true }); }
  });
+
+test("PDF 阅读视图支持缩略图、旋转、整页、连续滚动及书签返回", async ({ page }) => {
+  const { createPdfFixture } = await import("../helpers/reader-fixtures");
+  const folder = await mkdtemp(join(tmpdir(), "nr-pdf-navigation-"));
+  try {
+    await writeFile(join(folder, "book.pdf"), createPdfFixture());
+    await page.goto("/file-workbench.html");
+    await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(folder);
+    await page.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", {name: /^book.pdf/}).click();
+    await page.getByRole("button", {name:"快速预览",exact:true}).click();
+    const preview=page.getByRole("region",{name:"快速预览",exact:true});
+    await expect(preview.locator(".textLayer")).toContainText("Nine Rings PDF MVP");
+    await preview.getByRole("button",{name:"添加阅读书签",exact:true}).click();
+    await preview.getByRole("button",{name:"PDF 缩略图",exact:true}).click();
+    await preview.getByRole("button",{name:"跳转到 PDF 第 2 页",exact:true}).click();
+    await expect(preview.getByRole("spinbutton",{name:"PDF 页码"})).toHaveValue("2");
+    await preview.getByRole("button",{name:"返回阅读位置",exact:true}).click();
+    await expect(preview.getByRole("spinbutton",{name:"PDF 页码"})).toHaveValue("1");
+    const original=await preview.locator(".file-browser-pdf-page").boundingBox();
+    await preview.getByRole("button",{name:"PDF 旋转",exact:true}).click();
+    await expect.poll(async()=>{const value=await preview.locator(".file-browser-pdf-page").boundingBox();return value!.height>original!.height;}).toBe(true);
+    await preview.getByRole("button",{name:"PDF 适应整页",exact:true}).click();
+    await expect(preview.getByRole("button",{name:"PDF 适应整页",exact:true})).toHaveAttribute("aria-pressed","true");
+    await preview.getByRole("button",{name:"PDF 缩略图",exact:true}).click();
+    await preview.getByRole("button",{name:"PDF 连续滚动",exact:true}).click();
+    await expect(preview.locator('.reader-pdf-continuous .page[data-page-number="1"] canvas')).toBeVisible();
+    await preview.getByRole("button",{name:"PDF 下一页",exact:true}).click();
+    await expect(preview.getByRole("spinbutton",{name:"PDF 页码"})).toHaveValue("2");
+    await expect(preview.locator('.reader-pdf-continuous .page[data-page-number="2"] canvas')).toBeVisible();
+    await page.screenshot({path:"/tmp/nr-reader-pdf-continuous.png"});
+    await preview.getByRole("button",{name:"关闭快速预览",exact:true}).click();
+    await page.getByRole("button",{name:"快速预览",exact:true}).click();
+    await expect(preview.getByRole("button",{name:"PDF 连续滚动",exact:true})).toHaveAttribute("aria-pressed","true");
+    await expect(preview.getByRole("spinbutton",{name:"PDF 页码"})).toHaveValue("2");
+    await page.setViewportSize({width:390,height:844});
+    expect(await preview.evaluate(element=>element.scrollWidth<=element.clientWidth+1)).toBe(true);
+
+  } finally { await rm(folder,{recursive:true,force:true}); }
+});
+
+test("EPUB 全书查找、脚注弹层、排版和章节位置共用阅读导航", async ({ page }) => {
+  const { createEpubFixture } = await import("../helpers/reader-fixtures");
+  const { unzipSync, zipSync, strToU8, strFromU8 } = await import("fflate");
+  const files=unzipSync(createEpubFixture());
+  files["OEBPS/chapter-1.xhtml"]=strToU8(strFromU8(files["OEBPS/chapter-1.xhtml"]).replace("</body>",'<a role="doc-noteref" href="chapter-2.xhtml#note">查看脚注</a><p>跨<span>内联</span><em>节点</em>搜索。</p></body>'));
+  files["OEBPS/chapter-2.xhtml"]=strToU8(strFromU8(files["OEBPS/chapter-2.xhtml"]).replace("</body>",'<aside id="note" role="doc-footnote">这是独立的脚注说明。</aside></body>'));
+  const folder=await mkdtemp(join(tmpdir(),"nr-epub-tools-"));
+  try {
+    await writeFile(join(folder,"book.epub"),zipSync(files));
+    await page.goto("/file-workbench.html");await page.getByLabel("选择目录快照",{exact:true}).setInputFiles(folder);
+    await page.getByRole("region",{name:"左侧目录",exact:true}).getByRole("option",{name:/^book.epub/}).click();
+    await page.getByRole("button",{name:"快速预览",exact:true}).click();
+    const preview=page.getByRole("region",{name:"快速预览",exact:true}),frame=preview.frameLocator('iframe[title="EPUB 内容"]');
+    await expect(frame.getByRole("heading",{name:"第一章",exact:true})).toBeVisible();
+    await frame.getByRole("link",{name:"查看脚注",exact:true}).click();
+    const note=preview.getByRole("dialog",{name:"EPUB 脚注",exact:true});await expect(note).toContainText("这是独立的脚注说明");
+    await note.press("Escape");await expect(note).toHaveCount(0);await expect(preview).toBeVisible();
+    await preview.getByRole("combobox",{name:"EPUB 配色",exact:true}).selectOption("dark");
+    await expect.poll(()=>frame.locator("html").evaluate(element=>getComputedStyle(element).backgroundColor)).toBe("rgb(32, 33, 36)");
+    await preview.getByRole("combobox",{name:"EPUB 行距",exact:true}).selectOption("2.2");
+    await preview.getByRole("combobox",{name:"EPUB 页边距",exact:true}).selectOption("8");
+    await preview.getByRole("textbox",{name:"EPUB 全书查找",exact:true}).fill("章节末尾内容");
+    await preview.getByRole("button",{name:"查找",exact:true}).click();
+    await preview.getByLabel("EPUB 查找结果").getByRole("button").click();
+    await expect(frame.locator("mark.epub-search-current")).toHaveText("章节末尾内容");
+    await preview.getByRole("button",{name:"添加阅读书签",exact:true}).click();
+    await preview.getByRole("button",{name:"返回阅读位置",exact:true}).click();
+    await expect(frame.getByRole("heading",{name:"第一章",exact:true})).toBeVisible();
+    await preview.getByRole("button",{name:"EPUB 下一章",exact:true}).click();
+    await expect.poll(()=>frame.locator("body").evaluate(element=>element.ownerDocument.defaultView!.scrollY)).toBeGreaterThan(500);
+    await preview.getByRole("button",{name:"关闭快速预览",exact:true}).click();
+    await page.getByRole("button",{name:"快速预览",exact:true}).click();
+    await expect(preview.getByRole("combobox",{name:"EPUB 配色",exact:true})).toHaveValue("dark");
+    await expect(preview.getByRole("combobox",{name:"EPUB 行距",exact:true})).toHaveValue("2.2");
+    await preview.getByRole("textbox",{name:"EPUB 全书查找",exact:true}).fill("跨内联节点");
+    await preview.getByRole("button",{name:"查找",exact:true}).click();
+    await preview.getByLabel("EPUB 查找结果").getByRole("button").click();
+    await expect.poll(async()=>(await frame.locator("mark.epub-search-current").allTextContents()).join("")).toBe("跨内联节点");
+    await page.screenshot({path:"/tmp/nr-reader-epub-search.png"});
+
+  } finally {await rm(folder,{recursive:true,force:true});}
+});

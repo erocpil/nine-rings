@@ -1,5 +1,18 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-16：阅读第一、二批导航与排版
+
+PDF增加旋转、适应整页、懒加载连续视图、按需缩略图、内部链接；PDF／EPUB共用书签、会话返回历史和带指纹的阅读偏好。EPUB增加全书查找、跨行内标记高亮、排版／配色、章节各自位置、脚注弹层及Esc分层。参考Preview和calibre的交互组织，决策及链接见[架构决策](../architecture-decisions.md)。
+
+验证：完整npm run check通过（254个Vitest文件／2694项，含脚本、覆盖率、格式和IPC）。File Workbench完整Chromium58项通过，WebKit阅读专项4项通过；Nine Rings共享预览WebKit4项通过，其中经典／非经典及390px布局覆盖EPUB新工具，字号控件宽度修正后又通过手机定向验证。原有EPUB资料库导入、目录、进度恢复WebKit1项通过。增补连续模式有符号页内偏移、旧记录兼容、阅读偏好预算、失效指纹和损坏元数据单元测试。
+
+定位并修复：加载提示占高造成适应整页的渲染反馈循环；连续整页同时显示两页时错把顶部可见页当成选中页保存；WebKit noscript sandbox阻断宿主点击；新viewer依赖首次开发加载重载授权会话；EPUB字号选择文字截断。书籍脚本仍经清洗及CSP阻止，脚注点击和脚本不执行均有真实归档回归。连续组件懒加载后工作台PDF块从约515KiB降到约365KiB（以最终构建记录为准），未调高警告阈值。
+
+影响结论：SAFE（已覆盖的Web读写、导航、权限与销毁路径未发现回归）。新增元数据及ReaderPreviewState.continuous字段可选，旧单页与EPUB记录继续使用非负偏移；连续PDF明确保存相对选中页的有符号偏移。没有新增Rust命令或扩大磁盘授权，保存和原文件内容不变。EpubReader原有搜索标记复用全文节点索引；资料库回归保持通过。安装版GUI及Windows／Linux实机仍待验证。
+
+证据：/tmp/nr-reader-navigation-{check,workbench-all,webkit-final,nine-rings,library,mobile-final}.log；生产构建为/tmp/nr-reader-navigation-{build,workbench-build}.log。实际效果截图：/tmp/nr-reader-pdf-continuous.png及/tmp/nr-reader-epub-search.png。开发服务器仍可能输出PDF.js变量动态import的既有分析提示，未启用其脚本沙箱功能；不将它混同于生产chunk超限。
+
+
 ## 2026-11-16：磁盘 PDF／EPUB 只读预览
 
 PDF增加目录、逐页全文文本查找／定位高亮与页码／缩放／页内位置记忆；EPUB复用资料库解析与章节安全呈现，但不导入数据库。新增可选取消信号与预览解压预算，原有资料库调用继续保持默认行为。原生文件服务仅扩展EPUB预览类型，继续执行授权、路径、分段和32MiB检查。细节见[工作台待办](../planning/file-workbench-followups.md)及[架构决策](../architecture-decisions.md)。

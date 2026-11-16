@@ -1,17 +1,30 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   parseEpubArchiveAsync,
   resolveEpubPath,
   type EpubTocItem,
   type ParsedEpub,
 } from "../lib/epub-library";
-import { createResourceRegistry, safeChapterDocument } from "./EpubReader";
+import {
+  createResourceRegistry,
+  safeChapterDocument,
+  markFrameSearch,
+} from "./EpubReader";
 import { browserSettings } from "../lib/local-files/browser-settings";
 import type { BrowserSettingsStore } from "../lib/local-files/browser-workspace-contract";
 import {
   readReaderPreviewState,
   saveReaderPreviewState,
 } from "../lib/local-files/reader-preview-state";
+import { useReaderPreviewNavigation } from "./ReaderPreviewNavigation";
+import { browserPreviewMatches } from "../lib/local-files/browser-preview";
 import { ToolbarIcon } from "./ToolbarIcon";
 
 /** Device-local archive projection: no import, library identity or writable book. */
@@ -28,6 +41,7 @@ export function FileBrowserPreviewEpub({
   fallback?: ReactNode;
   onEscape?: () => void;
 }) {
+  const [frameReady, setFrameReady] = useState(false);
   const [book, setBook] = useState<ParsedEpub | null>(null),
     [chapter, setChapter] = useState(0),
     [font, setFont] = useState(100);
@@ -42,6 +56,70 @@ export function FileBrowserPreviewEpub({
     restored = useRef(false);
   const live = useRef({ chapter, font, settings, identity, book });
   live.current = { chapter, font, settings, identity, book };
+  const reading = useReaderPreviewNavigation(
+    settings,
+    identity,
+    fingerprint.current,
+    () => ({
+      page: live.current.chapter + 1,
+      top: top.current,
+      label: live.current.book?.chapters[live.current.chapter]?.title,
+    }),
+    (point) => go(point.page - 1, undefined, point.top, false),
+  );
+  const [query, setQuery] = useState(""),
+    [results, setResults] = useState<
+      Array<{ chapter: number; occurrence: number; snippet: string }>
+    >([]),
+    [searching, setSearching] = useState(false),
+    [scanned, setScanned] = useState(0);
+  const searchInput = useRef<HTMLInputElement>(null),
+    queryRef = useRef(query);
+  queryRef.current = query;
+  const searchEpoch = useRef(0),
+    selectedSearch = useRef<{ query: string; occurrence: number } | null>(null);
+  const [footnote, setFootnote] = useState<{
+    text: string;
+    chapter: number;
+    fragment: string;
+  } | null>(null);
+  const footnoteRef = useRef(footnote);
+  footnoteRef.current = footnote;
+  const find = async () => {
+    const epoch = ++searchEpoch.current,
+      needle = query.trim();
+    setResults([]);
+    setScanned(0);
+    if (!book || !needle) {
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const found: typeof results = [];
+    for (let index = 0; index < book.chapters.length; index++) {
+      if (searchEpoch.current !== epoch) return;
+      const doc = new DOMParser().parseFromString(
+        new TextDecoder().decode(book.files[book.chapters[index].path]),
+        "text/html",
+      );
+      doc.querySelectorAll("script,style").forEach((node) => node.remove());
+      const text = doc.body.textContent ?? "";
+      let occurrence = 0;
+      for (const match of browserPreviewMatches(text, needle).matches) {
+        if (found.length >= 1000) break;
+        found.push({
+          chapter: index,
+          occurrence: occurrence++,
+          snippet: text.slice(Math.max(0, match.from - 30), match.to + 60),
+        });
+      }
+      setResults([...found]);
+      setScanned(index + 1);
+      if (found.length >= 1000) break;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    if (searchEpoch.current === epoch) setSearching(false);
+  };
   const persist = () => {
     if (!fingerprint.current || !live.current.book) return;
     const value = live.current;
@@ -54,6 +132,12 @@ export function FileBrowserPreviewEpub({
         left: 0,
         font: value.font,
       });
+      reading.update({
+        chapters: {
+          ...reading.extras.chapters,
+          [String(value.chapter)]: top.current,
+        },
+      });
     } catch {
       setNotice("无法保存阅读位置，本次阅读仍可继续。");
     }
@@ -61,7 +145,8 @@ export function FileBrowserPreviewEpub({
   const persistRef = useRef(persist);
   persistRef.current = persist;
   useEffect(() => {
-    const abort = new AbortController();
+    const abort = new AbortController(),
+      searches = searchEpoch;
     controller.current = abort;
     void (async () => {
       const bytes = await blob.arrayBuffer();
@@ -95,6 +180,7 @@ export function FileBrowserPreviewEpub({
     });
     return () => {
       binding.current();
+      searches.current++;
       persistRef.current();
       abort.abort();
     };
@@ -136,29 +222,58 @@ export function FileBrowserPreviewEpub({
       resources.resourceUrl,
       font,
       100,
-      "light",
+      reading.extras.theme,
       undefined,
       false,
       [],
       false,
     );
-    return source.replace(
-      /<head([^>]*)>/i,
-      "<head$1><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src blob: data:; style-src blob: 'unsafe-inline'; font-src blob: data:; media-src blob:;\">",
-    );
-  }, [book, resources, chapter, font]);
-  const go = (index: number, fragment?: string) => {
+    const layout = `<style>body{line-height:${reading.extras.lineHeight}!important;padding-left:${reading.extras.margin}vw!important;padding-right:${reading.extras.margin}vw!important}</style>`;
+    return source
+      .replace("</head>", `${layout}</head>`)
+      .replace(
+        /<head([^>]*)>/i,
+        "<head$1><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'none'; img-src blob: data:; style-src blob: 'unsafe-inline'; font-src blob: data:; media-src blob:;\">",
+      );
+  }, [
+    book,
+    resources,
+    chapter,
+    font,
+    reading.extras.theme,
+    reading.extras.lineHeight,
+    reading.extras.margin,
+  ]);
+  useLayoutEffect(() => setFrameReady(false), [html]);
+  const go = (
+    index: number,
+    fragment?: string,
+    destinationTop?: number,
+    track = true,
+  ) => {
     if (!book || index < 0 || index >= book.chapters.length) return;
+    if (track) reading.record();
     persist();
     restored.current = false;
-    top.current = 0;
+    top.current =
+      destinationTop ??
+      (fragment ? 0 : (reading.extras.chapters[String(index)] ?? 0));
     if (index === chapter) {
-      frame.current?.contentWindow?.scrollTo(0, 0);
+      frame.current?.contentWindow?.scrollTo(0, top.current);
       if (fragment)
         frame.current?.contentDocument
           ?.getElementById(fragment)
           ?.scrollIntoView();
       restored.current = true;
+      if (selectedSearch.current) {
+        const selected = selectedSearch.current;
+        markFrameSearch(
+          frame.current!.contentDocument!,
+          selected.query,
+          selected.occurrence,
+        )?.scrollIntoView({ block: "center" });
+        selectedSearch.current = null;
+      }
     } else {
       fragmentRef.current = fragment ?? "";
       setChapter(index);
@@ -183,6 +298,15 @@ export function FileBrowserPreviewEpub({
         doc.getElementById(fragmentRef.current)?.scrollIntoView();
       fragmentRef.current = "";
       restored.current = true;
+      if (selectedSearch.current) {
+        const selected = selectedSearch.current;
+        markFrameSearch(
+          doc,
+          selected.query,
+          selected.occurrence,
+        )?.scrollIntoView({ block: "center" });
+        selectedSearch.current = null;
+      }
     };
     void restore();
     const scroll = () => {
@@ -201,9 +325,53 @@ export function FileBrowserPreviewEpub({
       const index = book.chapters.findIndex(
         (item) => item.path === target.path,
       );
+      if (target.fragment) {
+        const source = book.files[target.path];
+        const noteDoc = source
+          ? new DOMParser().parseFromString(
+              new TextDecoder().decode(source),
+              "text/html",
+            )
+          : null;
+        const note = noteDoc?.getElementById(target.fragment);
+        if (
+          note &&
+          (/noteref/.test(link.getAttribute("epub:type") ?? "") ||
+            link.getAttribute("role") === "doc-noteref" ||
+            /footnote|endnote/.test(
+              note.getAttribute("epub:type") ?? note.getAttribute("role") ?? "",
+            ))
+        ) {
+          setFootnote({
+            text: note.textContent ?? "",
+            chapter: index,
+            fragment: target.fragment,
+          });
+          return;
+        }
+      }
       if (index >= 0) go(index, target.fragment);
     };
     const key = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        searchInput.current?.focus();
+        return;
+      }
+      if (event.key === "Escape" && footnoteRef.current) {
+        event.preventDefault();
+        setFootnote(null);
+        return;
+      }
+      if (event.key === "Escape" && queryRef.current) {
+        event.preventDefault();
+        searchEpoch.current++;
+        setQuery("");
+        setResults([]);
+        setSearching(false);
+        markFrameSearch(doc, "", 0);
+        return;
+      }
       if (event.key === "Escape" && onEscape) {
         event.preventDefault();
         onEscape();
@@ -221,6 +389,7 @@ export function FileBrowserPreviewEpub({
     win.addEventListener("scroll", scroll);
     doc.addEventListener("click", click);
     doc.addEventListener("keydown", key);
+    setFrameReady(true);
     binding.current = () => {
       closed = true;
       clearTimeout(timer);
@@ -230,7 +399,181 @@ export function FileBrowserPreviewEpub({
     };
   };
   return (
-    <div className="file-browser-epub-preview">
+    <div
+      className="file-browser-epub-preview"
+      onKeyDownCapture={(event) => {
+        if (
+          (event.ctrlKey || event.metaKey) &&
+          event.key.toLowerCase() === "f"
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          searchInput.current?.focus();
+          return;
+        }
+        if (event.key === "Escape" && footnote) {
+          event.preventDefault();
+          event.stopPropagation();
+          setFootnote(null);
+        } else if (event.key === "Escape" && query) {
+          event.preventDefault();
+          event.stopPropagation();
+          searchEpoch.current++;
+          setQuery("");
+          setResults([]);
+          setSearching(false);
+          if (frame.current?.contentDocument)
+            markFrameSearch(frame.current.contentDocument, "", 0);
+        }
+      }}
+    >
+      {reading.controls}
+      <div className="reader-epub-preferences">
+        <label>
+          行距
+          <select
+            aria-label="EPUB 行距"
+            value={reading.extras.lineHeight}
+            onChange={(event) => {
+              persist();
+              restored.current = false;
+              reading.update({ lineHeight: Number(event.target.value) });
+            }}
+          >
+            {[1.4, 1.6, 1.75, 2, 2.2].map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          页边距
+          <select
+            aria-label="EPUB 页边距"
+            value={reading.extras.margin}
+            onChange={(event) => {
+              persist();
+              restored.current = false;
+              reading.update({ margin: Number(event.target.value) });
+            }}
+          >
+            {[2, 5, 8, 12].map((value) => (
+              <option key={value} value={value}>
+                {value}%
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          配色
+          <select
+            aria-label="EPUB 配色"
+            value={reading.extras.theme}
+            onChange={(event) => {
+              persist();
+              restored.current = false;
+              reading.update({
+                theme: event.target.value as "light" | "sepia" | "dark",
+              });
+            }}
+          >
+            <option value="light">浅色</option>
+            <option value="sepia">纸色</option>
+            <option value="dark">深色</option>
+          </select>
+        </label>
+      </div>
+      <form
+        className="file-browser-reader-search"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void find();
+        }}
+      >
+        <input
+          ref={searchInput}
+          aria-label="EPUB 全书查找"
+          value={query}
+          onChange={(event) => {
+            searchEpoch.current++;
+            setSearching(false);
+            setQuery(event.target.value);
+            setResults([]);
+          }}
+          placeholder="全书查找"
+        />
+        <button type="submit" disabled={!book || !query.trim()}>
+          查找
+        </button>
+        {searching && (
+          <button
+            type="button"
+            onClick={() => {
+              searchEpoch.current++;
+              setSearching(false);
+            }}
+          >
+            停止查找
+          </button>
+        )}
+        {query && (
+          <span role="status">
+            {results.length}处
+            {searching
+              ? ` · 已扫描${scanned}/${book?.chapters.length}章`
+              : results.length >= 1000
+                ? " · 已达1000条上限"
+                : ""}
+          </span>
+        )}
+      </form>
+      {results.length > 0 && (
+        <div className="file-browser-reader-results" aria-label="EPUB 查找结果">
+          {results.map((item, index) => (
+            <button
+              type="button"
+              key={index}
+              onClick={() => {
+                selectedSearch.current = {
+                  query: query.trim(),
+                  occurrence: item.occurrence,
+                };
+                go(item.chapter);
+              }}
+            >
+              {book?.chapters[item.chapter].title} · {item.snippet}
+            </button>
+          ))}
+        </div>
+      )}
+      {footnote && (
+        <aside className="reader-footnote" role="dialog" aria-label="EPUB 脚注">
+          <header>
+            <strong>脚注</strong>
+            <button
+              type="button"
+              aria-label="关闭脚注"
+              onClick={() => setFootnote(null)}
+            >
+              ×
+            </button>
+          </header>
+          <p>{footnote.text}</p>
+          {footnote.chapter >= 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                go(footnote.chapter, footnote.fragment);
+                setFootnote(null);
+              }}
+            >
+              前往脚注
+            </button>
+          )}
+        </aside>
+      )}
+
       <div className="file-browser-preview-zoom">
         <button
           type="button"
@@ -294,6 +637,12 @@ export function FileBrowserPreviewEpub({
           </select>
         </label>
       </div>
+      {book && (
+        <div aria-label="阅读进度" className="reader-preview-progress">
+          第{chapter + 1}/{book.chapters.length}章 ·{" "}
+          {Math.round(((chapter + 1) / book.chapters.length) * 100)}%
+        </div>
+      )}
       {busy && (
         <p role="status">
           正在解析 EPUB…{" "}
@@ -318,9 +667,10 @@ export function FileBrowserPreviewEpub({
       {notice && <p role="status">{notice}</p>}
       {book && (
         <iframe
+          style={{ visibility: frameReady ? "visible" : "hidden" }}
           title="EPUB 内容"
           ref={frame}
-          sandbox="allow-same-origin"
+          sandbox="allow-same-origin allow-scripts"
           srcDoc={html}
           onLoad={loaded}
         />

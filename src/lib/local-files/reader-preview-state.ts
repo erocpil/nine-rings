@@ -2,6 +2,7 @@ import type { BrowserSettingsStore } from "./browser-workspace-contract";
 const KEY = "nr:file-browser-reading";
 export interface ReaderPreviewState {
   fingerprint: string;
+  continuous?: boolean;
   page: number;
   zoom: number;
   top: number;
@@ -37,7 +38,13 @@ export function readReaderPreviewState(
     fingerprint,
     page: Math.max(1, Math.floor(finite(source?.page, 1, 100000))),
     zoom: finite(source?.zoom, 0, 2),
-    top: finite(source?.top, 0, 10000000),
+    top:
+      source?.continuous === true &&
+      typeof source.top === "number" &&
+      Number.isFinite(source.top)
+        ? Math.max(-10000000, Math.min(10000000, source.top))
+        : finite(source?.top, 0, 10000000),
+    ...(source?.continuous === true ? { continuous: true } : {}),
     left: finite(source?.left, 0, 100000),
     font: Math.max(75, finite(source?.font, 100, 200)),
   };
