@@ -2372,6 +2372,9 @@ test.describe("独立编辑器单标题与边缘滚动条", () => {
     const row = page.locator(".document-title-bar:visible");
     const checkRow = async () => {
       await expect(row).toHaveCount(1);
+      await row.locator(".document-title-preview > .note-title").click();
+      await expect(page.locator(".document-title-tooltip")).toHaveCount(0);
+      await expect(row.getByRole("button", { name: "查看完整标题", exact: true })).toHaveCount(0);
       const labels = ["配色", "在文件浏览中显示", "关闭当前文件"];
       const bounds = await Promise.all(labels.map(label => page.getByRole("button", { name: label, exact: true }).boundingBox()));
       expect(bounds.every(Boolean)).toBe(true);

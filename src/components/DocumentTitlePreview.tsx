@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 /** Editable mobile titles reveal their full name; read-only titles toggle properties. */
-export function DocumentTitlePreview({ title, className = "", onOpenProperties }: { title: string; className?: string; onOpenProperties?: () => void }) {
+export function DocumentTitlePreview({ title, className = "", onOpenProperties, revealOnClick = true }: { title: string; className?: string; onOpenProperties?: () => void; revealOnClick?: boolean }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const id = useId();
@@ -26,6 +26,7 @@ export function DocumentTitlePreview({ title, className = "", onOpenProperties }
       document.removeEventListener("keydown", escape, true);
     };
   }, [open]);
+  if (!revealOnClick && !onOpenProperties) return <div className="document-title-preview"><span className={`note-title ${className}`}>{title || "无标题"}</span></div>;
   return <div className="document-title-preview" ref={root}>
     <button type="button" className={`note-title ${className}`} aria-label={onOpenProperties ? "文档属性" : "查看完整标题"}
       aria-expanded={onOpenProperties ? undefined : open} aria-describedby={open ? id : undefined}

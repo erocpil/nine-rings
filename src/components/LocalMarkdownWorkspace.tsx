@@ -73,10 +73,12 @@ export function LocalMarkdownWorkspace({
   onRename,
   onOpenProperties,
   info,
+  titleRevealOnClick,
   separateTitle = false,
   pdfExport = true,
   onExportMarkdown,
 }: {
+  titleRevealOnClick?: boolean;
   separateTitle?: boolean;
   pdfExport?: boolean;
   onExportMarkdown?: () => Promise<void>;
@@ -301,6 +303,7 @@ export function LocalMarkdownWorkspace({
               navigation: false,
               navigationControls,
               titleEditable: Boolean(onRename),
+              titleRevealOnClick,
               onRename,
               onOpenProperties,
               info,

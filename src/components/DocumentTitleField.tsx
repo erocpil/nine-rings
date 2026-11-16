@@ -15,6 +15,7 @@ export function DocumentTitleField({
   value = title,
   inputRef,
   preview = false,
+  revealOnClick = true,
   readonly = false,
   className = "",
   info,
@@ -28,6 +29,7 @@ export function DocumentTitleField({
   value?: string;
   inputRef?: RefObject<HTMLInputElement>;
   preview?: boolean;
+  revealOnClick?: boolean;
   readonly?: boolean;
   className?: string;
   info?: Omit<
@@ -117,6 +119,7 @@ export function DocumentTitleField({
         {preview ? (
           <DocumentTitlePreview
             title={title}
+            revealOnClick={revealOnClick}
             className={className}
             onOpenProperties={onOpenProperties}
           />

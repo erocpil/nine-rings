@@ -233,6 +233,7 @@ export interface RenderedWorkspaceHost {
   navigation?: boolean;
   navigationControls?: React.ReactNode;
   titleEditable?: boolean;
+  titleRevealOnClick?: boolean;
   embedImages?: boolean;
   savedLabel?: string;
   onRename?: (title: string) => Promise<void>;
@@ -4207,6 +4208,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
             <span className="note-readonly-badge" data-document-readonly="true" title="只读"><ToolbarIcon name="lock" /></span>
           ) : null}
           <DocumentTitleField title={title || "无标题"} value={localTitle} inputRef={titleInputRef}
+            revealOnClick={workspaceHost?.titleRevealOnClick}
             preview={workspaceHost?.titleEditable === false || mobileTitleBar && (focusMode || Boolean(readonly))}
             readonly={Boolean(readonly) || unifiedTitleBar && focusMode}
             className={saveIssue ? `note-title-save-${saveIssue}` : ""}

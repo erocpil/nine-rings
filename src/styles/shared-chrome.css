@@ -843,6 +843,7 @@
   border: 0;
   cursor: pointer;
 }
+.document-title-preview > span.note-title { cursor: default; }
 .document-title-tooltip {
   position: absolute;
   inset-inline: 4px;
