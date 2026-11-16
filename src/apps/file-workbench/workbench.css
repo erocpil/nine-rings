@@ -112,6 +112,19 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
 
 .workbench-navigation-actions { display: inline-flex; align-items: center; gap: 4px; }
 
+/* The shared navigation distinguishes transient previews from docked panes.
+ * Keep the inset rule identical to Nine Rings without changing title rails. */
+.file-workbench-app [data-document-preview] > :is(.document-outline-header, .document-bookmark-header) {
+  background-color: var(--active-bg);
+}
+.file-workbench-app :is(.document-panel-slot, .document-panel-matches-slot) :is(.document-outline-header, .document-bookmark-header) {
+  border-bottom: 1px solid transparent;
+  background-image: linear-gradient(var(--border), var(--border));
+  background-size: calc(100% - 24px) 1px;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+}
+
 
 /* The rendered title is outside the scrollport, like the source title. */
 

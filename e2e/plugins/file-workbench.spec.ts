@@ -2401,12 +2401,43 @@ test.describe("独立编辑器单标题与边缘滚动条", () => {
     };
     await expect(page.locator(".cm-content")).toContainText("int common");
     for (const palette of ["柔和浅色", "柔和深色", "清雅", "物哀"]) { await choosePalette(palette); await checkRow(); await checkScrollbar(page.locator(".cm-scroller")); }
+    const checkPanelHeader = async (preview: boolean) => {
+      const header = page.locator(preview
+        ? '[data-document-preview]:visible > :is(.document-outline-header, .document-bookmark-header)'
+        : ':is(.document-panel-slot, .document-panel-matches-slot) :is(.document-outline-header, .document-bookmark-header):visible').first();
+      await expect(header).toBeVisible();
+      const style = await header.evaluate(element => {
+        const css = getComputedStyle(element);
+        return { background: css.backgroundColor, size: css.backgroundSize, image: css.backgroundImage, border: css.borderBottomColor };
+      });
+      if (preview) {
+        expect(style.background).not.toBe("rgba(0, 0, 0, 0)");
+        const bodyColor = await header.evaluate(element => getComputedStyle(element.parentElement!).backgroundColor);
+        expect(style.background).not.toBe(bodyColor);
+      } else {
+        expect(style.size).toBe("calc(100% - 24px) 1px");
+        expect(style.image).toContain("linear-gradient");
+        expect(style.border).toBe("rgba(0, 0, 0, 0)");
+      }
+    };
+    await page.getByRole("button", { name: "源码符号", exact: true }).hover();
+    for (const palette of ["柔和浅色", "柔和深色", "清雅", "物哀"]) {
+      await choosePalette(palette);
+      await page.getByRole("button", { name: "源码符号", exact: true }).hover();
+      await checkPanelHeader(true);
+    }
     await page.getByRole("button", { name: "源码符号", exact: true }).click();
+    await checkPanelHeader(false);
     await checkScrollbar(page.locator(".document-outline-list:visible"));
+    await page.getByRole("button", { name: "书签", exact: true }).hover();
+    await checkPanelHeader(true);
+    await page.getByRole("button", { name: "书签", exact: true }).click();
+    await checkPanelHeader(false);
     const area = page.locator(".cm-content"); await sourceInfo(area);
     const point = await area.evaluate(element => (window as any).sourceCM.EditorView.findFromDOM(element).coordsAtPos(5));
     const primary = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta" : "Control");
     await page.keyboard.down(primary); await page.mouse.click(point.left + 1, (point.top + point.bottom) / 2); await page.keyboard.up(primary);
+    await checkPanelHeader(false);
     await checkScrollbar(page.locator(".document-source-matches-list:visible"));
     await page.getByRole("button", { name: "打开的编辑文件", exact: true }).click();
     await page.getByRole("menu", { name: "打开的编辑文件" }).getByRole("menuitemcheckbox", { name: "guide.md", exact: true }).click();
@@ -2414,6 +2445,7 @@ test.describe("独立编辑器单标题与边缘滚动条", () => {
     for (const palette of ["柔和浅色", "柔和深色", "清雅", "物哀"]) { await choosePalette(palette); await checkRow(); await checkScrollbar(page.locator(".note-editor-scroll:visible")); }
     const outlineButton = page.getByRole("button", { name: "文档目录", exact: true });
     await outlineButton.hover();
+    await checkPanelHeader(true);
     await checkScrollbar(page.locator(".document-outline-list:visible"));
     await page.screenshot({ path: ".local-tools/artifacts/workbench-single-heading.png" });
     await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
