@@ -87,14 +87,14 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
       let closeRequest = closeRefs.current.get(item.id);
       if (!closeRequest) { closeRequest = { current: null }; closeRefs.current.set(item.id, closeRequest); }
       return <ParkedDocument key={item.id} active={current === item.id} host={container}>
-        <Suspense fallback={<p role="status">正在加载编辑工作区…</p>}><SourceView beforeCloseActions={<><WorkbenchPalette {...palette} /><button type="button" className="btn-icon" aria-label="在文件浏览中显示" title="显示文件浏览窗口；保留当前编辑" onClick={() => { void port.showBrowser(current ?? undefined).catch(report); }}><ToolbarIcon name="folder" /></button></>} headerActions={<><button type="button" className="btn-icon" aria-label="打开的编辑文件" title={`切换编辑文件（${state.files.length}）`} aria-haspopup="menu" aria-expanded={Boolean(fileMenu)} onClick={event => {
+        <Suspense fallback={<p role="status">正在加载编辑工作区…</p>}><SourceView beforeCloseActions={<><WorkbenchPalette {...palette} /><button type="button" className="btn-icon" aria-label="在文件浏览中显示" title="显示文件浏览窗口；保留当前编辑" onClick={() => { void port.showBrowser(current ?? undefined).catch(report); }}><ToolbarIcon name="folder" /></button></>} headerActions={<><button type="button" className="btn-icon" aria-label="切换编辑文件" title={`切换编辑文件（${state.files.length}）`} aria-haspopup="menu" aria-expanded={Boolean(fileMenu)} onClick={event => {
           if (fileMenu) { setFileMenu(null); return; }
           const trigger = event.currentTarget, rect = trigger.getBoundingClientRect();
-          setFileMenu({ id: "workbench-editor-files", title: "打开的编辑文件", x: rect.left, y: rect.bottom, trigger });
+          setFileMenu({ id: "workbench-editor-files", title: "切换编辑文件", x: rect.left, y: rect.bottom, trigger });
         }}><ToolbarIcon name="document" /></button>{host.workspace.externalOpen && <button type="button" className="btn-icon" aria-label="使用默认应用打开" title="使用系统默认应用打开磁盘原文件" onClick={() => { void host.workspace.externalOpen!.open(item.file.rootId, item.file.node.id, false).catch(report); }}><ToolbarIcon name="export" /></button>}</>} file={item.file} navigationRequest={item.openRevision} active={current === item.id} closeLabel="关闭当前文件" closeRequest={closeRequest} onClose={() => { void port.remove(item.id).catch(report); }} onCloseCancelled={cancelClosing} onDirtyChange={value => setDirty(previous => previous[item.id] === value ? previous : { ...previous, [item.id]: value })} host={host.source} provider={host.workspace.provider} settings={host.workspace.settings} /></Suspense>
       </ParkedDocument>;
     })}
-    {fileMenu && <NotesContextMenu label="打开的编辑文件" ignoreTrigger target={fileMenu} close={() => setFileMenu(null)} actions={state.files.map(item => ({ label: `${dirty[item.id] ? "● " : ""}${item.file.node.name}`, checked: current === item.id, run: () => select(item.id) }))} />}
+    {fileMenu && <NotesContextMenu label="切换编辑文件" ignoreTrigger target={fileMenu} close={() => setFileMenu(null)} actions={state.files.map(item => ({ label: `${dirty[item.id] ? "● " : ""}${item.file.node.name}`, checked: current === item.id, run: () => select(item.id) }))} />}
     {!state.files.length && <p role="status">从文件浏览窗口打开文件，即可在此编辑。</p>}
   </main>;
 }

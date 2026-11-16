@@ -2266,8 +2266,8 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
 
 test("独立编辑器保留多标签正文与撤销，保存只作用于活动文档，关闭可取消并逐项确认", async ({ page }) => {
   await setupIndependentEditor(page);
-  const files = page.getByRole("button", { name: "打开的编辑文件", exact: true });
-  const fileMenu = page.getByRole("menu", { name: "打开的编辑文件", exact: true });
+  const files = page.getByRole("button", { name: "切换编辑文件", exact: true });
+  const fileMenu = page.getByRole("menu", { name: "切换编辑文件", exact: true });
   const selectFile = async (name: string) => {
     await files.click(); await fileMenu.getByRole("menuitemcheckbox", { name, exact: true }).click();
   };
@@ -2442,8 +2442,8 @@ test.describe("独立编辑器单标题与边缘滚动条", () => {
     await page.keyboard.down(primary); await page.mouse.click(point.left + 1, (point.top + point.bottom) / 2); await page.keyboard.up(primary);
     await checkPanelHeader(false);
     await checkScrollbar(page.locator(".document-source-matches-list:visible"));
-    await page.getByRole("button", { name: "打开的编辑文件", exact: true }).click();
-    await page.getByRole("menu", { name: "打开的编辑文件" }).getByRole("menuitemcheckbox", { name: "guide.md", exact: true }).click();
+    await page.getByRole("button", { name: "切换编辑文件", exact: true }).click();
+    await page.getByRole("menu", { name: "切换编辑文件" }).getByRole("menuitemcheckbox", { name: "guide.md", exact: true }).click();
     await expect(page.getByRole("heading", { name: /Section 0$/ })).toBeVisible();
     for (const palette of ["柔和浅色", "柔和深色", "清雅", "物哀"]) { await choosePalette(palette); await checkRow(); await checkScrollbar(page.locator(".note-editor-scroll:visible")); }
     const outlineButton = page.getByRole("button", { name: "文档目录", exact: true });
@@ -2453,5 +2453,20 @@ test.describe("独立编辑器单标题与边缘滚动条", () => {
     await page.screenshot({ path: ".local-tools/artifacts/workbench-single-heading.png" });
     await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
     await expect(page.locator(".cm-content")).toContainText("Section 0"); await checkRow();
+    for (const palette of ["柔和浅色", "柔和深色", "清雅", "物哀"]) {
+      await choosePalette(palette);
+      for (const name of ["软换行", "语法高亮", "源码微渲染"]) {
+        const toggle = page.getByRole("button", { name, exact: true });
+        if (await toggle.getAttribute("aria-pressed") === "true") await toggle.click();
+        await expect(toggle).toHaveAttribute("aria-pressed", "false");
+        await page.mouse.move(400, 300);
+        const off = await toggle.evaluate(element => getComputedStyle(element).backgroundColor);
+        await toggle.click();
+        await expect(toggle).toHaveAttribute("aria-pressed", "true");
+        await page.mouse.move(400, 300);
+        const on = await toggle.evaluate(element => getComputedStyle(element).backgroundColor);
+        expect(on).not.toBe(off);
+      }
+    }
   });
 });

@@ -150,3 +150,11 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
 @supports selector(::-webkit-scrollbar) {
   .file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller) { scrollbar-width: auto; scrollbar-color: auto; }
 }
+
+/* Source toggle state must use the workbench palette rather than app-only
+ * --bg-secondary/--bg-active tokens. Shared aria-pressed remains authoritative. */
+.file-workbench-app .markdown-source-tools button[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--active-bg);
+  border-color: var(--border);
+}
