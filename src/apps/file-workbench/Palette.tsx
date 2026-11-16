@@ -19,7 +19,7 @@ export function useWorkbenchPalette(settings: BrowserSettingsStore) {
 export function WorkbenchPalette({ palette, choosePalette }: { palette: string; choosePalette: (value: string) => void }) {
   const [menu, setMenu] = useState<NotesMenuTarget | null>(null);
   return <>
-    <button type="button" aria-label="配色" title={`配色：${palettes.find(item => item.id === palette)?.label}`} aria-haspopup="menu" aria-expanded={Boolean(menu)} onClick={event => {
+    <button type="button" className="btn-icon" aria-label="配色" title={`配色：${palettes.find(item => item.id === palette)?.label}`} aria-haspopup="menu" aria-expanded={Boolean(menu)} onClick={event => {
       if (menu) { setMenu(null); return; }
       const rect = event.currentTarget.getBoundingClientRect();
       setMenu({ id: "workbench-palette", title: "配色", x: rect.left, y: rect.bottom, trigger: event.currentTarget });

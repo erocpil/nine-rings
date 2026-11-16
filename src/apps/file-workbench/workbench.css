@@ -118,15 +118,22 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
 .workbench-rendered-session { overflow: hidden; }
 .workbench-rendered-session > .note-editor { overflow: hidden; }
 .workbench-rendered-session .note-editor-scroll > .editor-content-shell { flex: 0 0 auto; }
-.file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller) { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text-secondary) 35%, transparent) transparent; }
+.file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller) { scrollbar-width: thin; }
 .file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller)::-webkit-scrollbar { width: 6px; height: 4px; }
-.file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller)::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text-secondary) 35%, transparent); border-radius: 3px; }
+.file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller)::-webkit-scrollbar-thumb { background: var(--edge-scrollbar-thumb, color-mix(in srgb, var(--text-secondary) 35%, transparent)); border-radius: 3px; }
 
-.workbench-editor-tabs { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--border); flex: none; }
-.workbench-editor-tabs [role=tablist] { display: flex; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.workbench-editor-tabs [role=tablist]::-webkit-scrollbar { display: none; }
-.workbench-editor-tabs [role=tab] { display: flex; gap: 8px; align-items: center; flex: none; max-width: 260px; padding: 6px 10px; border: 0; border-right: 1px solid var(--border); background: transparent; color: var(--text-secondary); font: inherit; }
-.workbench-editor-tabs [role=tab][aria-selected=true] { color: var(--text); background: var(--active-bg); }
-.workbench-editor-tabs [role=tab] [role=button] { margin-left: 6px; }
 .workbench-editor-sessions { min-height: 0; }
 .workbench-editor-sessions > .retained-document-session { height: 100%; }
+
+/* Single document heading; host window actions reach the same 8px rail as the former palette. */
+.workbench-editor-window .document-render-header,
+.workbench-editor-window .local-file-titlebar { margin-inline-end: 0; }
+.workbench-editor-window .document-title-bar {
+  padding-inline-end: 8px;
+  background-size: calc(100% - 2 * var(--document-edge-inset) - var(--editor-scrollbar-width, 0px)) 1px;
+  background-position: left var(--document-edge-inset) bottom 0;
+}
+.workbench-editor-window .local-file-titlebar::after { inset-inline-end: calc(var(--document-edge-inset) + var(--editor-scrollbar-width, 0px)); }
+@supports selector(::-webkit-scrollbar) {
+  .file-workbench-app :is(.note-editor-scroll, .markdown-cm-host .cm-scroller) { scrollbar-width: auto; scrollbar-color: auto; }
+}

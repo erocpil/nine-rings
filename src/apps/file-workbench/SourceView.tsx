@@ -37,7 +37,8 @@ import "../../styles/local-files.css";
 const MarkdownWorkspace = lazy(() => import("../../components/LocalMarkdownWorkspace").then(module => ({ default: module.LocalMarkdownWorkspace })));
 const resolveResource = async (src: string) => /^(https?:|data:image\/|blob:)/i.test(src) ? null : "";
 
-export function WorkbenchSourceView({ file, host, provider, settings, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false, active = true, closeLabel = "返回文件浏览", onCloseCancelled, onDirtyChange, navigationRequest }: {
+export function WorkbenchSourceView({ file, host, provider, settings, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false, active = true, closeLabel = "返回文件浏览", onCloseCancelled, onDirtyChange, navigationRequest, beforeCloseActions }: {
+  beforeCloseActions?: ReactNode;
   navigationRequest?: number;
   active?: boolean; closeLabel?: string; onCloseCancelled?: () => void; onDirtyChange?: (dirty: boolean) => void;
   settings: BrowserSettingsStore;
@@ -265,7 +266,8 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     <button className="btn-icon" type="button" aria-label="导出副本" title="导出副本" disabled={loading || !base} onClick={() => void copy()}><ToolbarIcon name="download" /></button>
     <button className="btn-icon" type="button" aria-label="重新读取原文件" title="重新读取原文件" disabled={loading || saving} onClick={() => { if (dirty) setLeave("reload"); else void read(); }}><ToolbarIcon name="refresh" /></button>
     {headerActions}
-    <button className="btn-icon" type="button" aria-label={closeLabel} title={closeLabel === "返回文件浏览" ? "关闭预览，返回文件浏览" : closeLabel} onClick={() => requestClose()}><ToolbarIcon name="close" /></button>
+    {beforeCloseActions}
+    <button className="btn-icon workbench-file-close" type="button" aria-label={closeLabel} title={closeLabel === "返回文件浏览" ? "关闭预览，返回文件浏览" : closeLabel} onClick={() => requestClose()}><ToolbarIcon name="close" /></button>
   </>;
   return <section ref={previewRoot} tabIndex={-1} className="local-file-view workbench-source-view" data-source-tools-hidden={!moreTools || undefined} aria-label="文件源码工作区" onClickCapture={event => {
     const href = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]")?.getAttribute("href") : null;

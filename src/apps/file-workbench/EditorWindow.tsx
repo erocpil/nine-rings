@@ -1,3 +1,5 @@
+import { useEdgeScrollbars } from "../../hooks/useEdgeScrollbars";
+import { NotesContextMenu, type NotesMenuTarget } from "../../components/NotesContextMenu";
 import { lazy, Suspense, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { ToolbarIcon } from "../../components/ToolbarIcon";
 import { ParkedDocument } from "../../components/RetainedDocument";
@@ -8,6 +10,8 @@ import { editorWindowPort, watchWorkbenchEditor, type WorkbenchEditorPort, type 
 const SourceView = lazy(() => import("./SourceView").then(module => ({ default: module.WorkbenchSourceView })));
 
 export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host: ReturnType<typeof createWorkbenchHost>; port?: WorkbenchEditorPort }) {
+  useEdgeScrollbars();
+  const [fileMenu, setFileMenu] = useState<NotesMenuTarget | null>(null);
   const [state, setState] = useState<WorkbenchEditorState>({ files: [], current: null, revision: -1, closing: null });
   const [current, setCurrent] = useState<string | null>(null), [error, setError] = useState("");
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
@@ -75,19 +79,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
     if (closing.current) return;
     setCurrent(id); void port.select(id).catch(report);
   };
-  const closeOne = (id: string) => {
-    if (closing.current) return;
-    setCurrent(id);
-    const close = closeRefs.current.get(id)?.current;
-    if (!close) { setError("编辑器仍在加载，请稍后关闭。"); return; }
-    close(() => { void port.remove(id).catch(report); });
-  };
   return <main className="file-workbench-app workbench-editor-window">
-    <header className="workbench-editor-tabs" aria-label="编辑器文件标签">
-      <button type="button" className="btn-icon" aria-label="在文件浏览中显示" title="显示文件浏览窗口；保留当前编辑" onClick={() => { void port.showBrowser(current ?? undefined).catch(report); }}><ToolbarIcon name="folder" /></button>
-      <div role="tablist" aria-label="打开的编辑文件">{state.files.map(item => <button key={item.id} role="tab" type="button" aria-selected={current === item.id} title={item.id} onClick={() => select(item.id)} onDoubleClick={() => closeOne(item.id)}>{dirty[item.id] && <span aria-label="未保存">● </span>}{item.file.node.name}<span role="button" tabIndex={0} aria-label={`关闭 ${item.file.node.name}`} onClick={event => { event.stopPropagation(); closeOne(item.id); }} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); closeOne(item.id); } }}>×</span></button>)}</div>
-      <WorkbenchPalette {...palette} />
-    </header>
     {quitHint && <div className="workbench-quit-overlay"><div className="workbench-quit-card" role="status"><kbd>⌘Q</kbd><strong>{quitHint}</strong><span>继续使用则无需操作</span></div></div>}
     {error && <p role="alert">{error}<button type="button" aria-label="关闭窗口错误" onClick={() => setError("")}>×</button></p>}
     <div ref={container} className="file-workbench-content workbench-editor-sessions" />
@@ -95,9 +87,14 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
       let closeRequest = closeRefs.current.get(item.id);
       if (!closeRequest) { closeRequest = { current: null }; closeRefs.current.set(item.id, closeRequest); }
       return <ParkedDocument key={item.id} active={current === item.id} host={container}>
-        <Suspense fallback={<p role="status">正在加载编辑工作区…</p>}><SourceView headerActions={host.workspace.externalOpen && <button type="button" className="btn-icon" aria-label="使用默认应用打开" title="使用系统默认应用打开磁盘原文件" onClick={() => { void host.workspace.externalOpen!.open(item.file.rootId, item.file.node.id, false).catch(report); }}><ToolbarIcon name="export" /></button>} file={item.file} navigationRequest={item.openRevision} active={current === item.id} closeLabel="关闭当前文件" closeRequest={closeRequest} onClose={() => { void port.remove(item.id).catch(report); }} onCloseCancelled={cancelClosing} onDirtyChange={value => setDirty(previous => previous[item.id] === value ? previous : { ...previous, [item.id]: value })} host={host.source} provider={host.workspace.provider} settings={host.workspace.settings} /></Suspense>
+        <Suspense fallback={<p role="status">正在加载编辑工作区…</p>}><SourceView beforeCloseActions={<><WorkbenchPalette {...palette} /><button type="button" className="btn-icon" aria-label="在文件浏览中显示" title="显示文件浏览窗口；保留当前编辑" onClick={() => { void port.showBrowser(current ?? undefined).catch(report); }}><ToolbarIcon name="folder" /></button></>} headerActions={<><button type="button" className="btn-icon" aria-label="打开的编辑文件" title={`切换编辑文件（${state.files.length}）`} aria-haspopup="menu" aria-expanded={Boolean(fileMenu)} onClick={event => {
+          if (fileMenu) { setFileMenu(null); return; }
+          const trigger = event.currentTarget, rect = trigger.getBoundingClientRect();
+          setFileMenu({ id: "workbench-editor-files", title: "打开的编辑文件", x: rect.left, y: rect.bottom, trigger });
+        }}><ToolbarIcon name="document" /></button>{host.workspace.externalOpen && <button type="button" className="btn-icon" aria-label="使用默认应用打开" title="使用系统默认应用打开磁盘原文件" onClick={() => { void host.workspace.externalOpen!.open(item.file.rootId, item.file.node.id, false).catch(report); }}><ToolbarIcon name="export" /></button>}</>} file={item.file} navigationRequest={item.openRevision} active={current === item.id} closeLabel="关闭当前文件" closeRequest={closeRequest} onClose={() => { void port.remove(item.id).catch(report); }} onCloseCancelled={cancelClosing} onDirtyChange={value => setDirty(previous => previous[item.id] === value ? previous : { ...previous, [item.id]: value })} host={host.source} provider={host.workspace.provider} settings={host.workspace.settings} /></Suspense>
       </ParkedDocument>;
     })}
+    {fileMenu && <NotesContextMenu label="打开的编辑文件" ignoreTrigger target={fileMenu} close={() => setFileMenu(null)} actions={state.files.map(item => ({ label: `${dirty[item.id] ? "● " : ""}${item.file.node.name}`, checked: current === item.id, run: () => select(item.id) }))} />}
     {!state.files.length && <p role="status">从文件浏览窗口打开文件，即可在此编辑。</p>}
   </main>;
 }

@@ -1,8 +1,11 @@
 import { sourceInfo } from "../helpers/source-editor";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+// Exercise real native scrollbar hit testing, including edge-only reveal.
+test.use({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } });
 
 let directory: string;
 test.beforeAll(async () => {
@@ -2228,12 +2231,11 @@ test("目录大小仅手动扫描，包含隐藏项和子目录，复用缓存�
   await expect(dialog.getByRole("button", { name: "开始统计", exact: true })).toBeVisible();
 });
 
-test("独立编辑器保留多标签正文与撤销，保存只作用于活动文档，关闭可取消并逐项确认", async ({ page }) => {
-  await page.addInitScript(() => {
+async function setupIndependentEditor(page: Page, sources: Record<string, string> = { "alpha.c": "int alpha(void) { return 1; }\n", "beta.c": "int beta(void) { return 2; }\n" }) {
+  await page.addInitScript((sources: Record<string, string>) => {
     let next = 1;
     const callbacks = new Map<number, (event: unknown) => void>();
     const handlers = new Map<string, number>();
-    const sources: Record<string, string> = { "alpha.c": "int alpha(void) { return 1; }\n", "beta.c": "int beta(void) { return 2; }\n" };
     const state = { files: Object.entries(sources).map(([name, source]) => ({ id: `/root/${name}`, file: { rootId: "root", rootName: "Root", node: { id: name, name, size: source.length, directory: false } } })), current: "/root/alpha.c", revision: 1, closing: null as null | { token: number; quit: boolean } };
     const fixture = { state, sources, writes: [] as string[], finished: [] as unknown[], quit: 0 };
     const emit = (event: string) => callbacks.get(handlers.get(event)!)?.({ event, id: 1, payload: null });
@@ -2258,17 +2260,25 @@ test("独立编辑器保留多标签正文与撤销，保存只作用于活动�
         return;
       },
     };
-  });
+  }, sources);
   await page.goto("/file-workbench.html");
-  const tabs = page.getByRole("tablist", { name: "打开的编辑文件" });
+}
+
+test("独立编辑器保留多标签正文与撤销，保存只作用于活动文档，关闭可取消并逐项确认", async ({ page }) => {
+  await setupIndependentEditor(page);
+  const files = page.getByRole("button", { name: "打开的编辑文件", exact: true });
+  const fileMenu = page.getByRole("menu", { name: "打开的编辑文件", exact: true });
+  const selectFile = async (name: string) => {
+    await files.click(); await fileMenu.getByRole("menuitemcheckbox", { name, exact: true }).click();
+  };
   const editor = page.locator(".cm-content[contenteditable=true]");
-  await expect(tabs.getByRole("tab")).toHaveCount(2);
+  await files.click(); await expect(fileMenu.getByRole("menuitemcheckbox")).toHaveCount(2); await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "允许编辑", exact: true }).click();
   await editor.click(); await page.keyboard.press("ControlOrMeta+End"); await page.keyboard.type("// changed");
   await editor.evaluate(element => { element.setAttribute("data-retained-check", "alpha-instance"); });
-  await tabs.getByRole("tab", { name: /beta.c/ }).click();
+  await selectFile("beta.c");
   await expect(page.locator(".cm-content")).toContainText("int beta");
-  await tabs.getByRole("tab", { name: /alpha.c/ }).click();
+  await selectFile("● alpha.c");
   await expect(editor).toContainText("// changed");
   await expect(editor).toHaveAttribute("data-retained-check", "alpha-instance");
   await expect(editor).toBeFocused();
@@ -2284,8 +2294,8 @@ test("独立编辑器保留多标签正文与撤销，保存只作用于活动�
     (window as any).__editorEmit("workbench:editor-changed");
   });
   await expect.poll(async () => { const value = await sourceInfo(editor); return [value.selectionStart, value.selectionEnd]; }).toEqual([4, 9]);
-  await tabs.getByRole("tab", { name: /beta.c/ }).click();
-  await tabs.getByRole("tab", { name: /alpha.c/ }).click();
+  await selectFile("beta.c");
+  await selectFile("alpha.c");
   await expect.poll(async () => { const value = await sourceInfo(editor); return [value.selectionStart, value.selectionEnd]; }).toEqual([4, 9]);
   await page.evaluate(() => (window as any).__editorEmit("workbench:confirm-quit"));
   await expect(page.locator(".workbench-quit-card")).toContainText("再次按下");
@@ -2297,11 +2307,11 @@ test("独立编辑器保留多标签正文与撤销，保存只作用于活动�
   await page.evaluate(() => (window as any).__editorClose());
   const leave = page.getByRole("dialog", { name: "未保存的文件编辑" });
   await expect(leave).toBeVisible(); await leave.getByRole("button", { name: "取消", exact: true }).click();
-  await expect(tabs.getByRole("tab")).toHaveCount(2);
+  await files.click(); await expect(fileMenu.getByRole("menuitemcheckbox")).toHaveCount(2); await page.keyboard.press("Escape");
   await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.state.closing)).toBeNull();
   await page.evaluate(() => (window as any).__editorClose());
   await expect(leave).toBeVisible(); await leave.getByRole("button", { name: "保留草稿后继续", exact: true }).click();
-  await expect(tabs.getByRole("tab")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "文件源码工作区", exact: true })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.finished.filter((value: any) => !value.cancelled).length)).toBe(1);
 });
 
@@ -2349,4 +2359,64 @@ test("桌面浏览入口委派独立编辑器，创建失败保留原列表与�
   await expect(browser.getByRole("alert")).toContainText("editor creation failed");
   await expect(item).toHaveAttribute("aria-selected", "true");
   await expect(browser).toBeVisible();
+});
+
+test.describe("独立编辑器单标题与边缘滚动条", () => {
+  test("源码和渲染共用一行标题，右侧配色、浏览、关闭对齐且各面板按边缘显示滚动条", async ({ page }) => {
+    await setupIndependentEditor(page, {
+      "alpha.c": "int common;\n" + Array.from({ length: 220 }, (_, index) => `int variable_${index} = common;`).join("\n"),
+      "guide.md": Array.from({ length: 60 }, (_, index) => `## Section ${index}\n\n` + "Paragraph content. ".repeat(25) + "\n\n").join(""),
+    });
+    await expect(page.locator("html")).toHaveAttribute("data-edge-scrollbars", "");
+    await expect(page.locator(".workbench-editor-tabs")).toHaveCount(0);
+    const row = page.locator(".document-title-bar:visible");
+    const checkRow = async () => {
+      await expect(row).toHaveCount(1);
+      const labels = ["配色", "在文件浏览中显示", "关闭当前文件"];
+      const bounds = await Promise.all(labels.map(label => page.getByRole("button", { name: label, exact: true }).boundingBox()));
+      expect(bounds.every(Boolean)).toBe(true);
+      expect(bounds[0]!.x + bounds[0]!.width).toBeLessThanOrEqual(bounds[1]!.x);
+      expect(bounds[1]!.x + bounds[1]!.width).toBeLessThanOrEqual(bounds[2]!.x);
+      expect(Math.max(...bounds.map(value => value!.y)) - Math.min(...bounds.map(value => value!.y))).toBeLessThan(1);
+      expect(page.viewportSize()!.width - bounds[2]!.x - bounds[2]!.width).toBeCloseTo(8, 0);
+      const heading = await row.boundingBox(); expect(heading!.y).toBeLessThan(2);
+    };
+    const checkScrollbar = async (scroller: import("@playwright/test").Locator) => {
+      await expect(scroller).toBeVisible();
+      await expect.poll(() => scroller.evaluate(element => element.scrollHeight > element.clientHeight + 1)).toBe(true);
+      const rect = (await scroller.boundingBox())!;
+      const before = await scroller.evaluate(element => ({ width: element.clientWidth, height: element.clientHeight, top: element.scrollTop }));
+      await page.mouse.move(rect.x + Math.min(50, rect.width / 2), rect.y + rect.height / 2);
+      await expect(scroller).not.toHaveAttribute("data-scrollbar-visible");
+      await expect.poll(() => scroller.evaluate(element => getComputedStyle(element).getPropertyValue("--edge-scrollbar-thumb").trim())).toBe("transparent");
+      const rtl = await scroller.evaluate(element => getComputedStyle(element).direction === "rtl");
+      await page.mouse.move(rtl ? rect.x + 10 : rect.x + rect.width - 10, rect.y + rect.height / 2);
+      await expect(scroller).toHaveAttribute("data-scrollbar-visible", "");
+      await expect.poll(() => scroller.evaluate(element => getComputedStyle(element).getPropertyValue("--edge-scrollbar-thumb").trim())).not.toBe("transparent");
+      expect(await scroller.evaluate(element => ({ width: element.clientWidth, height: element.clientHeight, top: element.scrollTop }))).toEqual(before);
+    };
+    const choosePalette = async (name: string) => {
+      await page.getByRole("button", { name: "配色", exact: true }).click();
+      await page.getByRole("menu", { name: "工作台配色" }).getByRole("menuitem", { name: new RegExp(name) }).click();
+    };
+    await expect(page.locator(".cm-content")).toContainText("int common");
+    for (const palette of ["柔和浅色", "柔和深色", "清雅", "物哀"]) { await choosePalette(palette); await checkRow(); await checkScrollbar(page.locator(".cm-scroller")); }
+    await page.getByRole("button", { name: "源码符号", exact: true }).click();
+    await checkScrollbar(page.locator(".document-outline-list:visible"));
+    const area = page.locator(".cm-content"); await sourceInfo(area);
+    const point = await area.evaluate(element => (window as any).sourceCM.EditorView.findFromDOM(element).coordsAtPos(5));
+    const primary = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta" : "Control");
+    await page.keyboard.down(primary); await page.mouse.click(point.left + 1, (point.top + point.bottom) / 2); await page.keyboard.up(primary);
+    await checkScrollbar(page.locator(".document-source-matches-list:visible"));
+    await page.getByRole("button", { name: "打开的编辑文件", exact: true }).click();
+    await page.getByRole("menu", { name: "打开的编辑文件" }).getByRole("menuitemcheckbox", { name: "guide.md", exact: true }).click();
+    await expect(page.getByRole("heading", { name: /Section 0$/ })).toBeVisible();
+    for (const palette of ["柔和浅色", "柔和深色", "清雅", "物哀"]) { await choosePalette(palette); await checkRow(); await checkScrollbar(page.locator(".note-editor-scroll:visible")); }
+    const outlineButton = page.getByRole("button", { name: "文档目录", exact: true });
+    await outlineButton.hover();
+    await checkScrollbar(page.locator(".document-outline-list:visible"));
+    await page.screenshot({ path: ".local-tools/artifacts/workbench-single-heading.png" });
+    await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+    await expect(page.locator(".cm-content")).toContainText("Section 0"); await checkRow();
+  });
 });

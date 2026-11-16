@@ -1,3 +1,4 @@
+import { useEdgeScrollbars } from "../../hooks/useEdgeScrollbars";
 import { openWorkbenchEditor, showWorkbenchEditor, workbenchWindowRole, notifyEditorSaved, readEditorPresence, type WorkbenchEditorPresence } from "./editor-window";
 import { useToolExecution } from "./ToolExecution";
 import { CustomTools } from "./CustomTools";
@@ -41,6 +42,7 @@ let showFile: (file: BrowserFileOpen) => void | Promise<void>;
 const host = createWorkbenchHost(file => showFile(file), async (rootId, node) => { if (nativeRole === "editor") await notifyEditorSaved(rootId, node); }, () => nativeRole !== "browser" || !editorPresent);
 window.addEventListener("pagehide", event => { if (!event.persisted) { removeNativeViewMenu?.(); removeNativeClose?.(); removeNativeFileEvents.forEach(stop => stop()); host.dispose(); } });
 function Workbench() {
+  useEdgeScrollbars();
   const [editorOpen, setEditorOpen] = useState(editorPresent);
   updateEditorPresence = setEditorOpen;
   const palette = useWorkbenchPalette(host.workspace.settings);
