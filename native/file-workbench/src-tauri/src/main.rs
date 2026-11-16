@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod close_policy;
+mod editor_window;
 #[cfg(target_os = "macos")]
 mod macos_zoom;
 mod tools;
@@ -34,6 +35,9 @@ fn workbench_confirm_close(
     main_window(&window)?;
     if window.state::<tools::ToolJobs>().active() {
         return Err("命令行工具仍在运行，请等待执行完成后退出。".into());
+    }
+    if editor_window::window(&app).is_some() {
+        return editor_window::request_close(&app, true);
     }
     if policy.confirm() {
         app.exit(0);
@@ -130,6 +134,8 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(ClosePolicy::default())
+        .manage(editor_window::EditorWindows::default())
+        .manage(nine_rings_file_host::window_access::FileWindowAccess::default())
         .manage(tools::ToolJobs::default())
         .setup(|app| {
             view_menu::install(app)?;
@@ -188,7 +194,16 @@ fn main() {
             {
                 let _ = window.hide();
             }
+            if window.label().starts_with("workbench-editor-")
+                && matches!(event, tauri::WindowEvent::Destroyed)
+            {
+                editor_window::destroyed(window.app_handle(), window.label());
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label().starts_with("workbench-editor-") {
+                    api.prevent_close();
+                    let _ = editor_window::request_close(window.app_handle(), false);
+                }
                 if window.label() == "main" {
                     api.prevent_close();
                     // Hiding retains editors, drafts and running jobs. Only confirmed quit destroys them.
@@ -197,6 +212,17 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            editor_window::workbench_window_role,
+            editor_window::workbench_editor_presence,
+            editor_window::workbench_open_editor,
+            editor_window::workbench_editor_state,
+            editor_window::workbench_editor_select,
+            editor_window::workbench_editor_remove,
+            editor_window::workbench_editor_saved,
+            editor_window::workbench_editor_finish_close,
+            editor_window::workbench_editor_request_quit,
+            editor_window::workbench_show_browser,
+            editor_window::workbench_show_editor,
             workbench_ready,
             workbench_toggle_maximize,
             tools::workbench_run_tool,

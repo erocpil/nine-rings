@@ -173,3 +173,43 @@ it("opens a real read-only snapshot with the existing grant service, then revoke
   }
   await expect(workspace.roots()).rejects.toThrow();
 });
+
+it("blocks directory changes while another editor owns files but still delegates reads and opens", async () => {
+  storage();
+  vi.stubGlobal("window", { isTauri: true, dispatchEvent: vi.fn() });
+  let allowed = false;
+  const opened = vi.fn(),
+    { workspace, dispose } = createWorkbenchHost(
+      opened,
+      undefined,
+      () => allowed,
+    );
+  const stat = vi
+    .spyOn(localFileService, "stat")
+    .mockResolvedValue({ size: 2, modifiedMs: 1 });
+  try {
+    expect(workspace.canWrite("root")).toBe(false);
+    expect(workspace.canTransfer()).toBe(false);
+    expect(workspace.canTrash()).toBe(false);
+    await expect(workspace.revokeRoot!("root")).rejects.toThrow(
+      "关闭独立编辑器",
+    );
+    await workspace.provider.properties(
+      "root",
+      "a.c",
+      new AbortController().signal,
+    );
+    expect(stat).toHaveBeenCalledOnce();
+    await workspace.provider.open(
+      "root",
+      "Root",
+      { id: "a.c", name: "a.c", directory: false, size: 2 },
+      new AbortController().signal,
+    );
+    expect(opened).toHaveBeenCalledOnce();
+    allowed = true;
+    expect(workspace.canWrite("root")).toBe(true);
+  } finally {
+    dispose();
+  }
+});

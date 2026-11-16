@@ -1,3 +1,4 @@
+import { openWorkbenchEditor, showWorkbenchEditor, workbenchWindowRole, notifyEditorSaved, readEditorPresence, type WorkbenchEditorPresence } from "./editor-window";
 import { useToolExecution } from "./ToolExecution";
 import { CustomTools } from "./CustomTools";
 import { parseWorkbenchTools, TOOLS_KEY } from "./custom-tools";
@@ -28,13 +29,20 @@ const SourceView = lazy(() => import("./SourceView").then(module => ({ default: 
 let nativeClose: ((confirm: () => void) => void) | null = null;
 let nativeHint: ((message: string) => void) | null = null;
 let nativeError: ((cause: unknown) => void) | null = null;
+let revealFile: ((file: { rootId: string; node: string }) => void) | undefined;
 let nativeViewMenuAvailable = false;
 let removeNativeViewMenu: (() => void) | undefined;
 let removeNativeClose: (() => void) | undefined;
-let showFile: (file: BrowserFileOpen) => void;
-const host = createWorkbenchHost(file => showFile(file));
-window.addEventListener("pagehide", event => { if (!event.persisted) { removeNativeViewMenu?.(); removeNativeClose?.(); host.dispose(); } });
+const removeNativeFileEvents: Array<() => void> = [];
+let editorPresent = false, editorPresenceRevision = -1;
+let updateEditorPresence: ((value: boolean) => void) | undefined;
+let nativeRole: "browser" | "editor" | undefined;
+let showFile: (file: BrowserFileOpen) => void | Promise<void>;
+const host = createWorkbenchHost(file => showFile(file), async (rootId, node) => { if (nativeRole === "editor") await notifyEditorSaved(rootId, node); }, () => nativeRole !== "browser" || !editorPresent);
+window.addEventListener("pagehide", event => { if (!event.persisted) { removeNativeViewMenu?.(); removeNativeClose?.(); removeNativeFileEvents.forEach(stop => stop()); host.dispose(); } });
 function Workbench() {
+  const [editorOpen, setEditorOpen] = useState(editorPresent);
+  updateEditorPresence = setEditorOpen;
   const palette = useWorkbenchPalette(host.workspace.settings);
   const execution = useToolExecution(host.operations.assertIdle);
   const [toolContext, setToolContext] = useState<BrowserToolContext | null>(null);
@@ -44,10 +52,13 @@ function Workbench() {
     window.addEventListener("beforeunload", guard);
     return () => window.removeEventListener("beforeunload", guard);
   }, []);
+  const [reveal, setReveal] = useState<{ rootId: string; node: string }>();
+  revealFile = setReveal;
   const [file, setFile] = useState<BrowserFileOpen | null>(null);
   const returnTarget = useRef<HTMLElement | null>(null), restoreList = useRef(false);
   const returnScroll = useRef({ top: 0, left: 0 });
   showFile = request => {
+    if (nativeRole === "browser" && !/\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif|pdf)$/i.test(request.node.name)) return openWorkbenchEditor(request);
     const active = document.activeElement;
     returnTarget.current = active instanceof HTMLElement ? active.closest<HTMLElement>(".file-browser-list") : null;
     returnTarget.current ??= document.querySelector<HTMLElement>(".file-browser-pane.is-active .file-browser-list");
@@ -98,12 +109,14 @@ function Workbench() {
   useEffect(() => {
     let live = true;
     const refresh = () => { void host.source.drafts.list().then(values => { if (live) setDrafts(values); }).catch(cause => { if (live) setDraftError(`恢复草稿不可用：${String(cause)}`); }); };
-    refresh(); window.addEventListener("file-workbench:drafts", refresh);
-    return () => { live = false; window.removeEventListener("file-workbench:drafts", refresh); };
+    const storage = (event: StorageEvent) => { if (event.key === "file-workbench:drafts-revision" || event.key === null) refresh(); };
+    refresh(); window.addEventListener("file-workbench:drafts", refresh); window.addEventListener("storage", storage);
+    return () => { live = false; window.removeEventListener("file-workbench:drafts", refresh); window.removeEventListener("storage", storage); };
   }, []);
   const tools = <>
     <CustomTools settings={host.workspace.settings} tools={customTools} onToolsChange={setCustomTools} context={file ? { ...toolContext, rootId: file.rootId, node: file.node.id.split("/").slice(0, -1).join("/"), selected: [file.node.id] } : toolContext} onRun={(tool, context, direct) => void execution.request(tool, context, direct)} onShowResult={execution.showLast} hasResult={execution.hasResult} />
     <button type="button" aria-label={`恢复草稿（${drafts.length}）`} title={`恢复草稿（${drafts.length}）`} onClick={() => setDraftsOpen(true)}><ToolbarIcon name="history" /></button>
+    {nativeRole === "browser" && <button type="button" aria-label="显示编辑器窗口" title="显示独立编辑器窗口" onClick={() => { void showWorkbenchEditor().catch(cause => setNativeNotice(String(cause))); }}><ToolbarIcon name="edit" /></button>}
     <WorkbenchPalette {...palette} />
   </>;
   const externalEditor = file && host.workspace.externalOpen && <button type="button" className="btn-icon" aria-label="使用默认应用打开" title="使用此文件类型的系统默认应用打开磁盘原文件" onClick={() => {
@@ -128,13 +141,32 @@ function Workbench() {
       </div>
     </div>}
     {execution.element}
-    <div className="file-workbench-content"><FileBrowserWorkspace workspace={host.workspace} active={!file} toolbarExtras={tools} onToolContext={setToolContext} />
+    <div className="file-workbench-content"><FileBrowserWorkspace workspace={host.workspace} active={!file} revealFile={reveal} toolbarExtras={tools} onToolContext={setToolContext} />
     {file && (image ? <FileBrowserQuickPreview rootId={file.rootId} node={file.node.id} provider={host.workspace.provider} active autoFocus navigationAxis="horizontal" previous={previous} next={next} onNavigate={file.siblings ? stepPreview : undefined} revision={0} closeLabel="返回文件浏览" headerActions={externalEditor} onClose={closeFile} /> : <Suspense fallback={<p role="status">正在加载共享源码工作区…</p>}><SourceView key={`${file.rootId}:${file.node.id}`} file={file} settings={host.workspace.settings} headerActions={externalEditor} host={host.source} provider={host.workspace.provider} onNavigate={file.siblings ? stepPreview : undefined} previous={previous} next={next} onClose={closeFile} closeRequest={closeSource} /></Suspense>)}</div>
-    <footer>授权目录可请求保存原文件；目录快照只能导出副本。目录操作通过确认队列执行，不覆盖同名项目。{isTauriRuntime() ? "目录授权保存在独立工作台中。" : "授权仅限当前会话。"}{nativeNotice && <span role="alert">{nativeNotice}</span>}{draftError && <span role="alert">{draftError}</span>}</footer>
+    <footer>{editorOpen && <span>独立编辑器打开期间可浏览和预览；保存并关闭编辑器后恢复目录操作。 </span>}授权目录可请求保存原文件；目录快照只能导出副本。目录操作通过确认队列执行，不覆盖同名项目。{isTauriRuntime() ? "目录授权保存在独立工作台中。" : "授权仅限当前会话。"}{nativeNotice && <span role="alert">{nativeNotice}</span>}{draftError && <span role="alert">{draftError}</span>}</footer>
     {draftsOpen && <WorkspaceDialog title="恢复草稿" onClose={() => { setDraftsOpen(false); setDraftToDelete(null); }}>{draftError && <p role="alert">{draftError}</p>}<p>草稿独立保存在本机。重新授权会生成新的目录身份，请下载草稿，再核对路径后手动恢复；不会自动覆盖重新授权的文件。最多保留 5 份草稿，不自动删除；满额时请先下载并处理旧草稿。</p>{!drafts.length && <p>没有未保存草稿。</p>}{drafts.map(draft => <article key={draft.identity}><strong>{draft.identity.slice(draft.identity.indexOf(":") + 1)}</strong><time>{new Date(draft.savedAt).toLocaleString()}</time><button type="button" onClick={() => { void exportLocalSource(draft.identity.split("/").pop()!.split(":").pop()!, draft.source, draft, host.source.saveCopy).catch(cause => setDraftError(String(cause))); }}>下载草稿</button><button type="button" onClick={() => setDraftToDelete(draft.identity)}>删除草稿</button>{draftToDelete === draft.identity && <div><p>确认删除这份恢复草稿？请先核对或下载其内容。</p><button type="button" onClick={() => { void host.source.drafts.remove(draft.identity).then(() => setDraftToDelete(null)).catch(cause => setDraftError(String(cause))); }}>确认删除草稿</button><button type="button" onClick={() => setDraftToDelete(null)}>取消</button></div>}<pre>{draft.source.slice(0, 2000)}{draft.source.length > 2000 ? "…" : ""}</pre></article>)}</WorkspaceDialog>}
   </main>;
 }
 async function bootstrap() {
+  if (isTauriRuntime()) {
+    try { nativeRole = await workbenchWindowRole(); } catch (cause) { console.error("Editor window capability unavailable", cause); }
+    if (nativeRole === "editor") {
+      const { WorkbenchEditorWindow } = await import("./EditorWindow");
+      createRoot(document.getElementById("root")!).render(<ErrorBoundary><QuickTooltips /><WorkbenchEditorWindow host={host} /></ErrorBoundary>);
+      return;
+    }
+    const { listen } = await import("@tauri-apps/api/event");
+    if (nativeRole === "browser") {
+      const applyPresence = (value: WorkbenchEditorPresence) => {
+        if (!value || typeof value.present !== "boolean" || !Number.isSafeInteger(value.revision) || value.revision < editorPresenceRevision) return;
+        editorPresenceRevision = value.revision; editorPresent = value.present; updateEditorPresence?.(value.present);
+      };
+      removeNativeFileEvents.push(await listen<WorkbenchEditorPresence>("workbench:editor-presence", event => applyPresence(event.payload)));
+      try { applyPresence(await readEditorPresence()); } catch (cause) { console.error("Editor presence unavailable", cause); }
+    }
+    removeNativeFileEvents.push(await listen<{ rootId: string; node: string }>("workbench:reveal-file", event => { revealFile?.(event.payload); }));
+    removeNativeFileEvents.push(await listen<import("../../lib/local-files/browser-operation-contract").BrowserMutation>("workbench:files-changed", event => { host.receiveMutation(event.payload); }));
+  }
   if (isTauriRuntime()) {
     try {
       removeNativeClose = await installWorkbenchClose(confirm => nativeClose ? nativeClose(confirm) : confirm(), cause => nativeError ? nativeError(cause) : console.error(cause), undefined, message => nativeHint?.(message));

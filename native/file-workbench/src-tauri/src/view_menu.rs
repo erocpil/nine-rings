@@ -66,7 +66,13 @@ pub fn install(app: &mut tauri::App) -> tauri::Result<()> {
     app.manage(ViewMenu { hidden });
     app.on_menu_event(|app, event| {
         if event.id().as_ref() == "workbench.confirm-quit" {
-            let _ = app.emit_to("main", "workbench:confirm-quit", ());
+            let focused = super::editor_window::window(app)
+                .filter(|window| window.is_focused().unwrap_or(false));
+            let target = focused
+                .as_ref()
+                .map(|window| window.label())
+                .unwrap_or("main");
+            let _ = app.emit_to(target, "workbench:confirm-quit", ());
         }
         if event.id().as_ref() == TOGGLE_HIDDEN {
             let _ = app.emit_to("main", "workbench:toggle-hidden", ());

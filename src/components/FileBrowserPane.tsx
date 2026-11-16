@@ -28,6 +28,7 @@ const ROW = 32;
 const sizeText = (size: number) => size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
 type Provider = BrowserDirectoryProvider;
 interface Props {
+  revealNode?: string;
   row?: number;
   target?: boolean;
   rowControl?: ReactNode;
@@ -57,7 +58,7 @@ interface Props {
   canDrop: (parent: string, moving: boolean) => boolean;
   onDrop: (event: DragEvent, parent: string) => void;
 }
-export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCurrentChange, active, visible, refreshPaused, onExternalChange, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onOperation, operationDisabled, onPreview, tabBar, onDragStart, onDragEnd, canDrop, onDrop, previewRef }: Props) {
+export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCurrentChange, active, visible, refreshPaused, onExternalChange, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onOperation, operationDisabled, onPreview, tabBar, onDragStart, onDragEnd, canDrop, onDrop, previewRef, revealNode }: Props) {
   const workspace = useFileBrowserHost();
   const compact = workspace.presentation === "compact";
   const location = browserLocation(pane);
@@ -102,7 +103,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
   const cursor = useRef<string | null>(null);
   const restoring = useRef(false);
   const refreshPosition = useRef<number | null>(null);
-  const key = JSON.stringify([rootId, node, pane.sort, pane.showHidden, query, refresh, revision]);
+  const key = JSON.stringify([rootId, node, pane.sort, pane.showHidden, query, refresh, revision, revealNode]);
   const selected = useMemo(() => location?.selected ?? [], [location?.selected]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const selectionSummary = useMemo(() => browserSelectionSummary(nodes, selected, metadata), [nodes, selected, metadata]);
@@ -205,7 +206,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
         const top = location?.scrollTop ?? 0;
         const entries = [...page.nodes];
         let nextPage = page.next;
-        while (nextPage !== null && entries.length * ROW < top + height && entries.length < 10000) {
+        while (nextPage !== null && (revealNode ? !entries.some(item => item.id === revealNode) : entries.length * ROW < top + height) && entries.length < 10000) {
           const more = await provider.page(rootId, node, nextPage, { sort: pane.sort, showHidden: pane.showHidden, query }, controller.signal);
           entries.push(...more.nodes); nextPage = more.next;
         }
@@ -213,7 +214,9 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
         for (const item of entries) if (!item.directory && item.modifiedMs !== undefined) metadataCache.current.set(item.id, { size: item.size, modifiedMs: item.modifiedMs });
         setMetadata(Object.fromEntries(metadataCache.current));
         const viewportHeight = scrollRef.current?.clientHeight || height;
-        const restoredTop = browserRefreshScroll([], entries, top, ROW, viewportHeight);
+        const revealAt = revealNode ? entries.findIndex(item => item.id === revealNode) : -1;
+        const restoredTop = browserRefreshScroll([], entries, revealAt >= 0 ? revealAt * ROW : top, ROW, viewportHeight);
+        if (revealAt >= 0) { cursor.current = revealNode!; setFocused(revealNode!); onCurrentChange(side, tabId, rootId, revealNode!); }
         refreshPosition.current = restoredTop;
         loadedKey.current = key; setNodes(entries); setNext(nextPage);
         onChange(current => {
@@ -269,7 +272,12 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
   };
   const revealIndex = (index: number) => {
     const list = scrollRef.current;
-    if (list) list.scrollTop = browserRowScroll(list.scrollTop, list.clientHeight, index, ROW);
+    if (list) {
+      list.scrollTop = browserRowScroll(list.scrollTop, list.clientHeight, index, ROW);
+      // A restored DOM position can already equal this target and emit no scroll
+      // event. Keep the virtual rows synchronized even on that no-op assignment.
+      setScroll(list.scrollTop); setScrollLeft(list.scrollLeft);
+    }
   };
   useImperativeHandle(previewRef, () => ({ step(direction) {
     if (!visible || loading || loadedKey.current !== key) return false;
@@ -376,6 +384,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
       const item = nodes.find(item => item.id === cursor.current) ?? nodes.find(item => item.id === selected[selected.length - 1]) ?? nodes[0];
       if (item) { cursor.current = item.id; setFocused(item.id); onCurrentChange(side, tabId, rootId, item.id); if (!selected.length) chooseItem(item); }
     }} onPointerDown={() => { restoring.current = false; }} onWheel={() => { restoring.current = false; }} onScroll={event => {
+      if (!visible || !event.currentTarget.clientHeight) return;
       const top = event.currentTarget.scrollTop; setScroll(top); setScrollLeft(event.currentTarget.scrollLeft);
       // Do not persist the browser's temporary clamp while a previous position
       // is being restored against a newly fetched/virtualized list.

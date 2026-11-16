@@ -1,0 +1,6 @@
+{
+  "identifier": "workbench-editor",
+  "description": "Rust-created trusted editor; file operations are separately checked by command-specific Rust grants. No tool launching or directory grant management.",
+  "windows": ["workbench-editor-*"],
+  "permissions": ["core:default", "dialog:allow-save"]
+}

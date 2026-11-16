@@ -3,3 +3,5 @@
 mod external_open;
 mod local_file_transfer;
 pub mod local_files;
+
+pub mod window_access;

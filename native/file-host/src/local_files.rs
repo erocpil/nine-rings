@@ -207,7 +207,7 @@ pub async fn local_files_digest(
     root_id: String,
     node: String,
 ) -> Result<ContentDigest, String> {
-    caller(&window)?;
+    file_caller(&window)?;
     let root = library.root(&root_id)?;
     let expected = root.clone();
     let result = tauri::async_runtime::spawn_blocking(move || content_digest(&root, &node))
@@ -252,6 +252,35 @@ fn caller(window: &tauri::WebviewWindow) -> Result<(), String> {
         return Err("文件目录仅允许主窗口访问".into());
     }
     Ok(())
+}
+fn file_caller(window: &tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() == "main"
+        || window
+            .try_state::<crate::window_access::FileWindowAccess>()
+            .is_some_and(|access| access.allows(window.label()))
+    {
+        Ok(())
+    } else {
+        Err("文件目录未授权此窗口访问".into())
+    }
+}
+fn mutation_caller(
+    window: &tauri::WebviewWindow,
+) -> Result<Option<crate::window_access::FileMutationLease>, String> {
+    caller(window)?;
+    window
+        .try_state::<crate::window_access::FileWindowAccess>()
+        .map(|access| access.begin(window.label(), true))
+        .transpose()
+}
+fn write_caller(
+    window: &tauri::WebviewWindow,
+) -> Result<Option<crate::window_access::FileMutationLease>, String> {
+    file_caller(window)?;
+    window
+        .try_state::<crate::window_access::FileWindowAccess>()
+        .map(|access| access.begin(window.label(), false))
+        .transpose()
 }
 fn is_link(meta: &fs::Metadata) -> bool {
     #[cfg(windows)]
@@ -429,7 +458,7 @@ pub async fn local_files_properties(
     node: String,
     system: bool,
 ) -> Result<serde_json::Value, String> {
-    caller(&window)?;
+    file_caller(&window)?;
     let root = library.root(&root_id)?;
     let roots = library.roots.clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -457,7 +486,7 @@ pub async fn local_files_open_external(
     node: String,
     choose_application: bool,
 ) -> Result<bool, String> {
-    caller(&window)?;
+    file_caller(&window)?;
     let root = library.root(&root_id)?;
     let original = external_target(&root, &node)?;
     let application = if choose_application {
@@ -514,7 +543,7 @@ pub fn local_files_roots(
     window: tauri::WebviewWindow,
     library: State<'_, LocalFiles>,
 ) -> Result<Vec<Root>, String> {
-    caller(&window)?;
+    file_caller(&window)?;
     Ok(library
         .roots
         .lock()
@@ -537,7 +566,7 @@ pub fn local_files_display_path(
     root_id: String,
     node: String,
 ) -> Result<String, String> {
-    caller(&window)?;
+    file_caller(&window)?;
     let root = library.root(&root_id)?;
     Ok(checked_path(&root, &node)?.to_string_lossy().into_owned())
 }
@@ -548,7 +577,7 @@ pub fn local_files_remove(
     library: State<'_, LocalFiles>,
     root_id: String,
 ) -> Result<(), String> {
-    caller(&window)?;
+    let _lease = mutation_caller(&window)?;
     library.revoke_root(&root_id)
 }
 
@@ -650,7 +679,7 @@ pub async fn local_files_create(
     name: String,
     directory: bool,
 ) -> Result<String, String> {
-    caller(&window)?;
+    let _lease = mutation_caller(&window)?;
     let root = library.root(&root_id)?;
     let grants = library.roots.clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -888,7 +917,7 @@ pub async fn local_files_transfer(
     let on_progress: Option<tauri::ipc::Channel<TransferProgress>> =
         on_progress.map(|id| id.channel_on(window.as_ref().clone()));
     // Own the optional channel before fallible validation so errors also drop it.
-    caller(&window)?;
+    let _lease = mutation_caller(&window)?;
     let root = library.root(&root_id)?;
     let target_root = library.root(&target_root_id)?;
     let grants = library.roots.clone();
@@ -988,7 +1017,7 @@ pub async fn local_files_move(
     parent: String,
     name: String,
 ) -> Result<String, String> {
-    caller(&window)?;
+    let _lease = mutation_caller(&window)?;
     let root = library.root(&root_id)?;
     let grants = library.roots.clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -1008,7 +1037,7 @@ pub async fn local_files_trash(
     root_id: String,
     node: String,
 ) -> Result<(), String> {
-    caller(&window)?;
+    let _lease = mutation_caller(&window)?;
     if node.is_empty() {
         return Err("不能删除授权根目录；可撤销其授权".into());
     }
@@ -1034,7 +1063,7 @@ pub fn local_files_rename(
     node: String,
     name: String,
 ) -> Result<RenameResult, String> {
-    caller(&window)?;
+    let _lease = mutation_caller(&window)?;
     if name.trim().is_empty()
         || name.trim() != name
         || name == "."
@@ -1244,7 +1273,7 @@ pub async fn local_files_list(
     offset: usize,
     options: Option<ListOptions>,
 ) -> Result<Page, String> {
-    caller(&window)?;
+    file_caller(&window)?;
     let root = library.root(&root_id)?;
     let page = tauri::async_runtime::spawn_blocking(move || {
         list_with_options(&root, &node, offset, &options.unwrap_or_default())
@@ -1334,7 +1363,7 @@ pub async fn local_files_stat(
     root_id: String,
     node: String,
 ) -> Result<Fingerprint, String> {
-    caller(&window)?;
+    file_caller(&window)?;
     let root = library.root(&root_id)?;
     let result = tauri::async_runtime::spawn_blocking(move || stat(&root, &node))
         .await
@@ -1349,7 +1378,7 @@ pub async fn local_files_read(
     root_id: String,
     node: String,
 ) -> Result<Snapshot, String> {
-    caller(&window)?;
+    file_caller(&window)?;
     let root = library.root(&root_id)?;
     let bytes = tauri::async_runtime::spawn_blocking(move || read(&root, &node))
         .await
@@ -1477,7 +1506,7 @@ pub async fn local_files_write(
     bom: bool,
     line_ending: String,
 ) -> Result<Snapshot, String> {
-    caller(&window)?;
+    let _lease = write_caller(&window)?;
     let root = library.root(&root_id)?;
     let roots = library.roots.clone();
     let write_root_id = root_id.clone();
@@ -1557,7 +1586,7 @@ pub async fn local_files_read_asset(
     offset: Option<u64>,
     length: Option<usize>,
 ) -> Result<tauri::ipc::Response, String> {
-    caller(&window)?;
+    file_caller(&window)?;
     let root = library.root(&root_id)?;
     let bytes = tauri::async_runtime::spawn_blocking(move || {
         read_asset_range(&root, &node, offset.unwrap_or(0), length)
@@ -1577,7 +1606,7 @@ pub async fn local_files_save_as(
     bom: bool,
     line_ending: String,
 ) -> Result<bool, String> {
-    caller(&window)?;
+    file_caller(&window)?;
     if name.is_empty() || name.len() > 255 || name.contains(['/', '\\', ':', '\0']) {
         return Err("文件名无效".into());
     }

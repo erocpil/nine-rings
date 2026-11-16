@@ -1,3 +1,4 @@
+import { sourceInfo } from "../helpers/source-editor";
 import { expect, test } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -2225,4 +2226,127 @@ test("目录大小仅手动扫描，包含隐藏项和子目录，复用缓存�
   await dialog.getByRole("button", { name: "关闭目录大小", exact: true }).click();
   await open();
   await expect(dialog.getByRole("button", { name: "开始统计", exact: true })).toBeVisible();
+});
+
+test("独立编辑器保留多标签正文与撤销，保存只作用于活动文档，关闭可取消并逐项确认", async ({ page }) => {
+  await page.addInitScript(() => {
+    let next = 1;
+    const callbacks = new Map<number, (event: unknown) => void>();
+    const handlers = new Map<string, number>();
+    const sources: Record<string, string> = { "alpha.c": "int alpha(void) { return 1; }\n", "beta.c": "int beta(void) { return 2; }\n" };
+    const state = { files: Object.entries(sources).map(([name, source]) => ({ id: `/root/${name}`, file: { rootId: "root", rootName: "Root", node: { id: name, name, size: source.length, directory: false } } })), current: "/root/alpha.c", revision: 1, closing: null as null | { token: number; quit: boolean } };
+    const fixture = { state, sources, writes: [] as string[], finished: [] as unknown[], quit: 0 };
+    const emit = (event: string) => callbacks.get(handlers.get(event)!)?.({ event, id: 1, payload: null });
+    Object.assign(window, { __editorFixture: fixture, __editorEmit: emit, __editorClose: () => { state.revision++; state.closing = { token: state.revision, quit: false }; emit("workbench:editor-changed"); } });
+    const snapshot = (node: string) => ({ source: sources[node], revision: sources[node], size: sources[node].length, modifiedMs: 1, lineEnding: "lf", bom: false });
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback(callback: (event: unknown) => void) { const id = next++; callbacks.set(id, callback); return id; },
+      unregisterCallback(id: number) { callbacks.delete(id); },
+      async invoke(command: string, args: any) {
+        if (command === "workbench_window_role") return "editor";
+        if (command === "plugin:event|listen") { handlers.set(args.event, args.handler); return next++; }
+        if (command === "workbench_editor_state") return structuredClone(state);
+        if (command === "workbench_editor_select") { state.current = args.id; state.revision++; emit("workbench:editor-changed"); return; }
+        if (command === "workbench_editor_remove") { state.files = state.files.filter(file => file.id !== args.id); state.current = state.files[0]?.id ?? ""; state.revision++; emit("workbench:editor-changed"); return; }
+        if (command === "workbench_editor_finish_close") { fixture.finished.push(args); if (args.cancelled) { state.closing = null; state.revision++; emit("workbench:editor-changed"); } return; }
+        if (command === "workbench_editor_request_quit") { fixture.quit++; return; }
+        if (command === "local_files_read") return snapshot(args.node);
+        if (command === "local_files_stat") return { size: sources[args.node]?.length ?? 0, modifiedMs: 1 };
+        if (command === "local_files_write") { fixture.writes.push(args.node); sources[args.node] = args.source; return snapshot(args.node); }
+        if (command === "local_files_roots") return [{ id: "root", name: "Root" }];
+        if (command === "local_files_display_path") return `/root/${args.node}`;
+        return;
+      },
+    };
+  });
+  await page.goto("/file-workbench.html");
+  const tabs = page.getByRole("tablist", { name: "打开的编辑文件" });
+  const editor = page.locator(".cm-content[contenteditable=true]");
+  await expect(tabs.getByRole("tab")).toHaveCount(2);
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await editor.click(); await page.keyboard.press("ControlOrMeta+End"); await page.keyboard.type("// changed");
+  await editor.evaluate(element => { element.setAttribute("data-retained-check", "alpha-instance"); });
+  await tabs.getByRole("tab", { name: /beta.c/ }).click();
+  await expect(page.locator(".cm-content")).toContainText("int beta");
+  await tabs.getByRole("tab", { name: /alpha.c/ }).click();
+  await expect(editor).toContainText("// changed");
+  await expect(editor).toHaveAttribute("data-retained-check", "alpha-instance");
+  await expect(editor).toBeFocused();
+  await editor.click(); await page.keyboard.press("ControlOrMeta+z");
+  await expect(editor).not.toContainText("// changed");
+  await page.keyboard.press("ControlOrMeta+End"); await page.keyboard.type("// saved");
+  await page.keyboard.press("ControlOrMeta+s");
+  await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.writes)).toEqual(["alpha.c"]);
+  await page.evaluate(() => {
+    const fixture = (window as any).__editorFixture;
+    fixture.state.files[0].file.location = { from: 4, to: 9, revision: fixture.sources["alpha.c"] };
+    fixture.state.files[0].openRevision = 1; fixture.state.revision++;
+    (window as any).__editorEmit("workbench:editor-changed");
+  });
+  await expect.poll(async () => { const value = await sourceInfo(editor); return [value.selectionStart, value.selectionEnd]; }).toEqual([4, 9]);
+  await tabs.getByRole("tab", { name: /beta.c/ }).click();
+  await tabs.getByRole("tab", { name: /alpha.c/ }).click();
+  await expect.poll(async () => { const value = await sourceInfo(editor); return [value.selectionStart, value.selectionEnd]; }).toEqual([4, 9]);
+  await page.evaluate(() => (window as any).__editorEmit("workbench:confirm-quit"));
+  await expect(page.locator(".workbench-quit-card")).toContainText("再次按下");
+  await page.evaluate(() => (window as any).__editorEmit("workbench:confirm-quit"));
+  await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.quit)).toBe(1);
+  await expect(page.locator(".workbench-quit-card")).toHaveCount(0);
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+End"); await page.keyboard.type("// pending");
+  await page.evaluate(() => (window as any).__editorClose());
+  const leave = page.getByRole("dialog", { name: "未保存的文件编辑" });
+  await expect(leave).toBeVisible(); await leave.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(tabs.getByRole("tab")).toHaveCount(2);
+  await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.state.closing)).toBeNull();
+  await page.evaluate(() => (window as any).__editorClose());
+  await expect(leave).toBeVisible(); await leave.getByRole("button", { name: "保留草稿后继续", exact: true }).click();
+  await expect(tabs.getByRole("tab")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.finished.filter((value: any) => !value.cancelled).length)).toBe(1);
+});
+
+test("桌面浏览入口委派独立编辑器，创建失败保留原列表与选择", async ({ page }) => {
+  await page.addInitScript(() => {
+    let next = 1;
+    const callbacks = new Map<number, (event: unknown) => void>();
+    const handlers = new Map<string, number>();
+    (window as any).__presence = (value: unknown) => callbacks.get(handlers.get("workbench:editor-presence")!)?.({ event: "workbench:editor-presence", id: 1, payload: value });
+    Object.assign(window, { __openEditorCalls: [] as unknown[], __failEditor: false });
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback(callback: (event: unknown) => void) { const id = next++; callbacks.set(id, callback); return id; }, unregisterCallback() {},
+      async invoke(command: string, args: any) {
+        if (command === "plugin:event|listen") { handlers.set(args.event, args.handler); return next++; }
+        if (command === "workbench_window_role") return "browser";
+        if (command === "workbench_editor_presence") return { present: false, revision: 0 };
+        if (command === "local_files_roots") return [{ id: "root", name: "Root" }];
+        if (command === "local_files_list") return { nodes: [{ id: "alpha.c", name: "alpha.c", directory: false, size: 5 }], next: null };
+        if (command === "local_files_stat") return { size: 5, modifiedMs: 1 };
+        if (command === "local_files_display_path") return `/root/${args.node}`;
+        if (command === "workbench_open_editor") { (window as any).__openEditorCalls.push(args); if ((window as any).__failEditor) throw new Error("editor creation failed"); }
+        return next++;
+      },
+    };
+  });
+  await page.goto("/file-workbench.html");
+  const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+  const left = browser.getByRole("region", { name: "左侧目录", exact: true });
+  const item = left.getByRole("option", { name: /alpha.c/ });
+  const primary = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta" : "Control");
+  await item.dblclick({ modifiers: [primary] });
+  await expect.poll(() => page.evaluate(() => (window as any).__openEditorCalls.length)).toBe(1);
+  await expect(browser).toBeVisible(); await expect(page.locator(".cm-content")).toHaveCount(0);
+  const rename = browser.getByRole("button", { name: "重命名", exact: true });
+  await expect(rename).toBeEnabled();
+  await page.evaluate(() => (window as any).__presence({ present: true, revision: 2 }));
+  await expect(rename).toBeDisabled();
+  await expect(page.locator(".file-workbench-app > footer")).toContainText("独立编辑器打开期间");
+  await page.evaluate(() => (window as any).__presence({ present: false, revision: 1 }));
+  await expect(rename).toBeDisabled();
+  await page.evaluate(() => (window as any).__presence({ present: false, revision: 3 }));
+  await expect(rename).toBeEnabled();
+  await page.evaluate(() => { (window as any).__failEditor = true; });
+  await item.dblclick({ modifiers: [primary] });
+  await expect(browser.getByRole("alert")).toContainText("editor creation failed");
+  await expect(item).toHaveAttribute("aria-selected", "true");
+  await expect(browser).toBeVisible();
 });

@@ -52,7 +52,7 @@ export function RetainedDocument({ sessionKey, revision, ready = true, sensitive
   </div>;
 }
 
-function ParkedDocument({ active, host, children }: {
+export function ParkedDocument({ active, host, children }: {
   active: boolean; host: React.RefObject<HTMLDivElement>; children: ReactNode;
 }) {
   const [container] = useState(() => {
