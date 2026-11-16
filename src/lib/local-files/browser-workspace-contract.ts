@@ -10,6 +10,8 @@ export interface BrowserSettingsStore {
 }
 /** Trusted application composition, never an installed plugin permission grant. */
 export interface BrowserWorkspaceHost {
+  /** Optional multi-session editor capability; hosts without it retain single-file opening. */
+  openEditors?(files: readonly import("./browser-contract").BrowserFileOpen[]): Promise<void>;
   readonly provider: BrowserDirectoryProvider;
   readonly queue: BrowserOperationQueueCore;
   readonly settings: BrowserSettingsStore;

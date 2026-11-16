@@ -320,7 +320,19 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
       }).catch(cause => showMessage(`系统打开失败：${String(cause)}`, "error"));
     } catch (cause) { showMessage(String(cause), "error"); }
   };
+  const batchOpening = useRef(false);
+  const selectedEditorFiles = menu ? nodes.filter(item => menu.selection.includes(item.id) && !item.directory && !/\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif|pdf)$/i.test(item.name)) : [];
+  const openSelectedEditors = async () => {
+    if (!workspace.openEditors || batchOpening.current || !selectedEditorFiles.length) return;
+    batchOpening.current = true;
+    try {
+      await workspace.openEditors(selectedEditorFiles.map(item => ({ rootId, rootName: root?.name ?? rootId, node: item })));
+      showMessage(`已在内置编辑器中打开 ${selectedEditorFiles.length} 个文件`);
+    } catch (cause) { showMessage(String(cause), "error"); }
+    finally { batchOpening.current = false; }
+  };
   const menuActions: FileBrowserMenuAction[] = menu ? [
+    ...(menu.selection.length > 1 && workspace.openEditors && selectedEditorFiles.length ? [{ label: `使用内置编辑器打开所选文件（${selectedEditorFiles.length}）`, run: () => { void openSelectedEditors(); } }] : []),
     ...(!compact || menu.selection.length === 1 ? [{ label: "打开", disabled: menu.selection.length !== 1, run: () => openItem(menu.item) }] : []),
     ...(!compact || (menu.selection.length === 1 && !menu.item.directory && workspace.externalOpen) ? [{ label: "打开方式", disabled: menu.selection.length !== 1 || menu.item.directory, children: [
       { label: "内置编辑器", run: () => openItem(menu.item) },

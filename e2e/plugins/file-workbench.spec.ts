@@ -2329,7 +2329,7 @@ test("桌面浏览入口委派独立编辑器，创建失败保留原列表与�
         if (command === "workbench_window_role") return "browser";
         if (command === "workbench_editor_presence") return { present: false, revision: 0 };
         if (command === "local_files_roots") return [{ id: "root", name: "Root" }];
-        if (command === "local_files_list") return { nodes: [{ id: "alpha.c", name: "alpha.c", directory: false, size: 5 }], next: null };
+        if (command === "local_files_list") return { nodes: [{ id: "alpha.c", name: "alpha.c", directory: false, size: 5 }, { id: "beta.c", name: "beta.c", directory: false, size: 5 }, { id: "folder", name: "folder", directory: true }, { id: "picture.png", name: "picture.png", directory: false, size: 5 }], next: null };
         if (command === "local_files_stat") return { size: 5, modifiedMs: 1 };
         if (command === "local_files_display_path") return `/root/${args.node}`;
         if (command === "workbench_open_editor") { (window as any).__openEditorCalls.push(args); if ((window as any).__failEditor) throw new Error("editor creation failed"); }
@@ -2359,6 +2359,19 @@ test("桌面浏览入口委派独立编辑器，创建失败保留原列表与�
   await expect(browser.getByRole("alert")).toContainText("editor creation failed");
   await expect(item).toHaveAttribute("aria-selected", "true");
   await expect(browser).toBeVisible();
+  await page.evaluate(() => { (window as any).__failEditor = false; (window as any).__openEditorCalls = []; });
+  await item.click();
+  for (const name of ["beta.c", "folder", "picture.png"]) await left.getByRole("option", { name: new RegExp(name.replace(".", "\\.")) }).click({ modifiers: [primary] });
+  const second = left.getByRole("option", { name: /beta.c/ });
+  await second.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "使用内置编辑器打开所选文件（2）", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__openEditorCalls.map((call: any) => call.node))).toEqual(["alpha.c", "beta.c"]);
+  await expect(left.locator(".file-browser-row[aria-selected=true]")).toHaveCount(4);
+  await page.evaluate(() => { (window as any).__failEditor = true; (window as any).__openEditorCalls = []; });
+  await second.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "使用内置编辑器打开所选文件（2）", exact: true }).click();
+  await expect(page.getByText(/已打开 0\/2 个文件/)).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__openEditorCalls.length)).toBe(1);
 });
 
 test.describe("独立编辑器单标题与边缘滚动条", () => {

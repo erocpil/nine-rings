@@ -51,6 +51,19 @@ export function createWorkbenchHost(open: (request: BrowserFileOpen) => void | P
   const viewMenu = createBrowserViewMenu();
   const workspace: BrowserWorkspaceHost = {
     viewMenu,
+    openEditors: isTauriRuntime() ? async files => {
+      const signal = new AbortController().signal;
+      let opened = 0;
+      for (const file of files) {
+        try {
+          assertActive(); operations.assertIdle();
+          await provider.open(file.rootId, file.rootName, file.node, signal);
+          opened++;
+        } catch (cause) {
+          throw new Error(`已打开 ${opened}/${files.length} 个文件；打开“${file.node.name}”失败：${String(cause)}`);
+        }
+      }
+    } : undefined,
     provider, queue, settings: browserSettings(WORKBENCH_SETTINGS_PREFIX), showQueueHistory: false, presentation: "compact",
     assertActive, roots: () => localFileService.roots(), choose: () => localFileService.choose(),
     addFiles: files => localFileService.addFiles(files),
