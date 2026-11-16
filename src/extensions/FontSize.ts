@@ -1,3 +1,4 @@
+import { fontSizePixels } from "../lib/font-size";
 import { Extension, type Editor } from "@tiptap/core";
 
 declare module "@tiptap/core" {
@@ -21,10 +22,14 @@ export const FontSize = Extension.create({
         attributes: {
           fontSize: {
             default: null,
-            parseHTML: (el) => el.style.fontSize?.replace("px", "") || null,
+            parseHTML: (el) => {
+              const value = fontSizePixels(el.style.fontSize);
+              return value === undefined ? null : String(value);
+            },
             renderHTML: (attrs) => {
-              if (!attrs.fontSize) return {};
-              return { style: `font-size: ${attrs.fontSize}px` };
+              const value = fontSizePixels(attrs.fontSize);
+              if (value === undefined) return {};
+              return { style: `font-size: ${value}px` };
             },
           },
         },

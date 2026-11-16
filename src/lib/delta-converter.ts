@@ -1,3 +1,4 @@
+import { fontSizePixels } from "./font-size";
 import { normalizeEditorColor } from "./editor-color";
 import { normalizeFootnotes } from "./footnote-model";
 import { bareLinkParts, malformedBareLink } from "./bare-autolinks";
@@ -21,6 +22,7 @@ import { markdownTableToEmbed } from "./md-parser";
 
 /** px → Quill named */
 export function pxToNamed(px: number): string {
+  if (!Number.isFinite(px) || px<=0) return "normal";
   if (px <= 12) return "small";
   if (px <= 14) return "small";
   if (px <= 16) return "normal";
@@ -53,9 +55,8 @@ function pmMarkToAttr(mark: NonNullable<JSONContent["marks"]>[number]): Record<s
     case "link":      return { link: mark.attrs?.href ?? "", ...(mark.attrs?.explicit ? { linkExplicit: true } : {}), ...(mark.attrs?.title ? { linkTitle: mark.attrs.title } : {}) };
     case "textStyle": {
       const attrs: Record<string, unknown> = {};
-      if (mark.attrs?.fontSize) {
-        attrs.size = pxToNamed(Number(mark.attrs.fontSize));
-      }
+      const pixels=fontSizePixels(mark.attrs?.fontSize);
+      if (pixels!==undefined) attrs.size = pxToNamed(pixels);
       if (mark.attrs?.color) {
         attrs.color = mark.attrs.color;
       }

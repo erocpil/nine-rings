@@ -1,6 +1,6 @@
 import { normalizeEditorColor } from "./editor-color";
 import type { JSONContent } from "@tiptap/core";
-import { toMarkdown } from "mdast-util-to-markdown";
+import { toMarkdown, defaultHandlers, type Handle } from "mdast-util-to-markdown";
 import { gfmToMarkdown } from "mdast-util-gfm";
 import { mathToMarkdown } from "mdast-util-math";
 import type {
@@ -31,6 +31,41 @@ function mergeInline(nodes: PhrasingContent[]): PhrasingContent[] {
     } else result.push(node);
   }
   return result;
+}
+/** Markdown attention delimiters cannot contain edge whitespace. Move it
+ * outside the mark without deleting characters or inventing a separator. */
+function attention(
+  type: "strong" | "emphasis",
+  children: PhrasingContent[],
+): PhrasingContent[] {
+  if (!children.some((node) => node.type === "text" && /\S/.test(node.value)))
+    return [{ type, children }];
+  const content = children.map((node) => ({ ...node }));
+  let before = "",
+    after = "";
+  while (content[0]?.type === "text") {
+    const node = content[0] as Text,
+      whitespace = /^\s+/.exec(node.value)?.[0] ?? "";
+    if (!whitespace) break;
+    before += whitespace;
+    node.value = node.value.slice(whitespace.length);
+    if (node.value) break;
+    content.shift();
+  }
+  while (content[content.length - 1]?.type === "text") {
+    const node = content[content.length - 1] as Text,
+      whitespace = /\s+$/.exec(node.value)?.[0] ?? "";
+    if (!whitespace) break;
+    after = whitespace + after;
+    node.value = node.value.slice(0, -whitespace.length);
+    if (node.value) break;
+    content.pop();
+  }
+  return [
+    ...(before ? [{ type: "text" as const, value: before }] : []),
+    ...(content.length ? [{ type, children: content }] : []),
+    ...(after ? [{ type: "text" as const, value: after }] : []),
+  ];
 }
 function inline(content: JSONContent[]): PhrasingContent[] {
   type Token = {
@@ -138,9 +173,9 @@ function inline(content: JSONContent[]): PhrasingContent[] {
             ),
           })),
       );
-      if (chosen.type === "bold") output.push({ type: "strong", children });
+      if (chosen.type === "bold") output.push(...attention("strong", children));
       else if (chosen.type === "italic")
-        output.push({ type: "emphasis", children });
+        output.push(...attention("emphasis", children));
       else if (chosen.type === "strike")
         output.push({ type: "delete", children });
       else if (chosen.type === "link")
@@ -316,6 +351,32 @@ function block(node: JSONContent): RootContent[] {
       return [];
   }
 }
+/** Match the CJK attention parser without encoding adjacent Han letters.
+ * Keep the upstream handler (and peek) for nesting and non-CJK boundaries. */
+function cjkAttentionHandler(kind: "strong" | "emphasis") {
+  const original: Handle = defaultHandlers[kind];
+  const handler: Handle = (node, parent, state, info) => {
+    const children = node.children as PhrasingContent[],
+      first = children[0],
+      last = children[children.length - 1];
+    const head =
+      first?.type === "text" ? Array.from(first.value)[0] : undefined;
+    const tail =
+      last?.type === "text" ? Array.from(last.value).slice(-1)[0] : undefined;
+    const punctuation = (value: string | undefined) =>
+      !!value && value !== "*" && value !== "_" && /[\p{P}\p{S}]/u.test(value);
+    const before =
+      /\p{Script=Han}$/u.test(info.before) && punctuation(head)
+        ? " "
+        : info.before;
+    const after =
+      /^\p{Script=Han}/u.test(info.after) && punctuation(tail)
+        ? " "
+        : info.after;
+    return original(node, parent, state, { ...info, before, after });
+  };
+  return Object.assign(handler, { peek: defaultHandlers[kind].peek });
+}
 function serialize(root: Root): string {
   const gfm = gfmToMarkdown();
   const taskItem = gfm.extensions!.find(
@@ -341,6 +402,8 @@ function serialize(root: Root): string {
     ],
     unsafe: [{ character: "[", after: "\\\\^", inConstruct: ["phrasing"] }],
     handlers: {
+      strong: cjkAttentionHandler("strong"),
+      emphasis: cjkAttentionHandler("emphasis"),
       listItem(node, parent, state, info) {
         if (
           typeof node.checked === "boolean" &&

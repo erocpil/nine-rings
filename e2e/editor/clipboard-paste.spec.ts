@@ -1002,3 +1002,25 @@ test("中文粗体 Markdown 的展示样式包装可解析，真实富文本样�
   await expect(editor.locator("h1")).toHaveCount(0);
   await expect(editor.locator("strong")).toHaveText(["# literal", "styled bold"]);
 });
+
+test("ChatGPT 两段文字经 Control+D 合并和重开后保持字号及粗体源码边界",async({page})=>{
+  await page.addInitScript(()=>Object.defineProperty(navigator,"platform",{get:()=>"MacIntel",configurable:true}));
+  const editor=await createBlankNote(page);
+  const first="某项投资、努力或决定最终取得预期效果，证明是值得的。",second="还可以表示“还清债务”：";
+  await editor.evaluate((element,{first,second})=>{
+    const data=new DataTransfer();data.setData("text/plain",`${first} \n${second}`);
+    data.setData("text/html",`<p><strong>${first} </strong></p><p><span style="font-size:medium;color:rgb(0,0,0)">${second}</span></p>`);
+    element.dispatchEvent(new ClipboardEvent("paste",{bubbles:true,cancelable:true,clipboardData:data}));
+  },{first,second});
+  await expect(editor.locator("p")).toHaveCount(2);
+  await editor.evaluate(element=>{const range=document.createRange();range.selectNodeContents(element.querySelector("p")!);range.collapse(false);const selection=window.getSelection()!;selection.removeAllRanges();selection.addRange(range);(element as HTMLElement).focus();});
+  await page.keyboard.press("Control+d");await expect(editor.locator("p")).toHaveCount(1);
+  const sizes=()=>editor.evaluate(element=>{const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT),values:string[]=[];let node:Node|null;while((node=walker.nextNode()))if(node.textContent?.trim())values.push(getComputedStyle(node.parentElement!).fontSize);return [...new Set(values)];});
+  const before=await sizes();expect(before).toHaveLength(1);
+  const {waitForSavedText}=await import("../helpers/document");await waitForSavedText(page,`${first}${second}`);
+  await page.reload();await expect(editor).toContainText(second);expect(await sizes()).toEqual(before);
+  await page.getByRole("button",{name:"源码",exact:true}).click();
+  const {sourceInfo}=await import("../helpers/source-editor");
+  const source=await sourceInfo(page.getByRole("textbox",{name:"Markdown 源码",exact:true}));
+  expect(source.value).toContain(`**${first}**${second}`);expect(source.value).not.toContain("&#x8FD8;");
+});
