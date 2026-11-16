@@ -1,4 +1,7 @@
-import { browserModifiedText, useBrowserModifiedWidth } from "../hooks/useBrowserModifiedWidth";
+import { useBrowserDisplay } from "../hooks/useBrowserDisplay";
+import { browserDateText, browserDisplayColumns } from "../lib/local-files/browser-display";
+import { FileBrowserDisplaySettings } from "./FileBrowserDisplaySettings";
+import { useBrowserModifiedWidth } from "../hooks/useBrowserModifiedWidth";
 import { isMacPlatform, isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { WorkspaceDialog } from "./WorkspaceDialog";
 import { FileBrowserFileDetails } from "./FileBrowserFileDetails";
@@ -24,7 +27,6 @@ import { browserRefreshScroll, browserRefreshSelection } from "../lib/local-file
 import { BROWSER_DRAG_TYPE } from "../lib/local-files/browser-drag";
 import { browserPreviewIndex, browserSelectionSummary, type BrowserPreviewNavigation } from "../lib/local-files/browser-preview";
 
-const ROW = 32;
 const sizeText = (size: number) => size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
 type Provider = BrowserDirectoryProvider;
 interface Props {
@@ -60,6 +62,9 @@ interface Props {
 }
 export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCurrentChange, active, visible, refreshPaused, onExternalChange, revision, pane, roots, provider, onChange, onActivate, onChoose, onRefreshRoots, onOpen, onOperation, operationDisabled, onPreview, tabBar, onDragStart, onDragEnd, canDrop, onDrop, previewRef, revealNode }: Props) {
   const workspace = useFileBrowserHost();
+  const { display, inherited, change: changeDisplay } = useBrowserDisplay(workspace.settings, side);
+  const ROW = display.rowHeight;
+  const [displaySettings, setDisplaySettings] = useState(false);
   const compact = workspace.presentation === "compact";
   const location = browserLocation(pane);
   const rootId = location?.rootId ?? "", node = location?.node ?? "";
@@ -91,10 +96,19 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
   const listId = useId();
   const rowId = (id: string) => `${listId}-${encodeURIComponent(id)}`;
   const scrollRef = useRef<HTMLDivElement>(null);
-  const measuredModifiedWidth = useBrowserModifiedWidth(scrollRef, nodes, metadata);
+  const measuredModifiedWidth = useBrowserModifiedWidth(scrollRef, nodes, metadata, display);
   const layoutColumns = { ...columns, modified: columns.autoModified ? measuredModifiedWidth : columns.modified };
-  const columnsMinWidth = columns.name + columns.size + layoutColumns.modified + (compact ? columns.type + 44 : 36);
-  const columnStyle = { "--browser-columns": `${columns.autoName ? `minmax(${columns.name}px, 1fr)` : `${columns.name}px`} ${compact ? `${columns.type}px ` : ""}${columns.size}px ${layoutColumns.modified}px`, "--browser-columns-min": `${columnsMinWidth}px` } as CSSProperties;
+  const visibleColumns = browserDisplayColumns(display, compact);
+  const columnsMinWidth = visibleColumns.reduce((sum, column) => sum + layoutColumns[column], 20 + (visibleColumns.length - 1) * 8);
+  const columnStyle = { "--browser-columns": visibleColumns.map(column => column === "name" && columns.autoName ? `minmax(${columns.name}px, 1fr)` : `${layoutColumns[column]}px`).join(" "), "--browser-columns-min": `${columnsMinWidth}px`, "--browser-row-height": `${ROW}px`, "--browser-font-size": `${display.fontSize}px` } as CSSProperties;
+  const previousRowHeight = useRef(ROW);
+  useLayoutEffect(() => {
+    const previous = previousRowHeight.current; previousRowHeight.current = ROW;
+    if (previous === ROW || !scrollRef.current) return;
+    const top = scrollRef.current.scrollTop / previous * ROW;
+    scrollRef.current.scrollTop = top; setScroll(scrollRef.current.scrollTop);
+    onChange(current => updateBrowserLocation(current, { scrollTop: scrollRef.current!.scrollTop }));
+  }, [ROW, onChange]);
   const request = useRef<AbortController | null>(null);
   const metadataCache = useRef(new Map<string, LocalFileFingerprint>());
   const loadedKey = useRef("");
@@ -262,7 +276,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
     } catch (reason) { if (!controller.signal.aborted) { setAutoFailed(true); setError(String(reason)); } }
     finally { if (pageBusy.current === controller) pageBusy.current = null; if (request.current === controller && !controller.signal.aborted) setPaging(false); }
   }, [next, autoFailed, rootId, node, pane.sort, pane.showHidden, query, provider]);
-  useEffect(() => { if (visible && !loading && !paging && nodes.length && scroll + height >= nodes.length * ROW - ROW * 3) void more(); }, [visible, loading, paging, nodes.length, scroll, height, more]);
+  useEffect(() => { if (visible && !loading && !paging && nodes.length && scroll + height >= nodes.length * ROW - ROW * 3) void more(); }, [visible, loading, paging, nodes.length, scroll, height, more, ROW]);
   const chooseItem = (item: FileNode, toggle = false, range = false) => {
     const rangeAnchor = anchor.current ?? cursor.current ?? selected[selected.length - 1] ?? item.id;
     onChange(current => updateBrowserLocation(current, { selected: selectBrowserItems(browserLocation(current)?.selected ?? [], nodes.map(value => value.id), item.id, rangeAnchor, toggle, range).slice(0, 2000) }));
@@ -354,6 +368,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
       {pieces.map((part, index) => <button key={index} type="button" onClick={() => navigate(pieces.slice(0, index + 1).join("/"))}>{part}</button>)}
     </nav>;
   return <section style={columnStyle} className={`file-browser-pane${active ? " is-active" : ""}`} aria-label={`${side === 0 ? "左侧目录" : "右侧目录"}${row ? ` ${row + 1}` : ""}`} data-browser-side={side} data-browser-row={row} onPointerDown={onActivate} onFocusCapture={onActivate}>
+    {displaySettings && <FileBrowserDisplaySettings display={display} inherited={inherited} onChange={patch => { try { changeDisplay(patch); } catch (cause) { showMessage(`无法保存列表设置：${String(cause)}`, "error"); } }} onClose={() => setDisplaySettings(false)} />}
     {propertyNode !== null && <WorkspaceDialog title="属性" onClose={() => setPropertyNode(null)}><FileBrowserFileDetails rootId={rootId} node={propertyNode.id} directory={propertyNode.directory} provider={provider} /></WorkspaceDialog>}
     {!compact && tabBar}
     <header className="file-browser-pane-tools">
@@ -367,6 +382,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
         {roots.map(item => <option key={item.id} value={item.id}>{item.name}{item.transient ? "（本次授权）" : ""}</option>)}
       </select>
       <button type="button" className="btn-icon" aria-label="添加授权目录" title="添加授权目录" onClick={onChoose}><ToolbarIcon name="folder" /></button>
+      <button type="button" className="btn-icon" aria-label="文件列表展示" title="文件列表展示" onClick={() => setDisplaySettings(true)}><ToolbarIcon name="sliders" /></button>
       <button type="button" className="btn-icon" aria-label="刷新目录" title="刷新目录" onClick={() => { onRefreshRoots(); setRefresh(value => value + 1); }}><ToolbarIcon name="refresh" /></button>{rowControl}
     </header>
     {!compact && breadcrumbs}
@@ -377,7 +393,7 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
       <label><input type="checkbox" checked={pane.showHidden} onChange={event => { const showHidden = event.target.checked; onChange(current => ({ ...updateBrowserLocation(current, { selected: [], scrollTop: 0 }), showHidden })); }} />隐藏项</label>
     </div>}
     {compact && tabBar}
-    <FileBrowserColumnHeaders showType={compact} columns={layoutColumns} sort={pane.sort} width={width} scrollLeft={scrollLeft} onSort={sortColumn} onResize={changeColumn} onReset={column => setColumns(current => ({ ...current, [column]: DEFAULT_BROWSER_COLUMNS[column], autoName: column === "name" ? true : current.autoName, autoModified: column === "modified" ? true : current.autoModified }))} />
+    <FileBrowserColumnHeaders visibleColumns={visibleColumns} showType={compact} columns={layoutColumns} sort={pane.sort} width={width} scrollLeft={scrollLeft} onSort={sortColumn} onResize={changeColumn} onReset={column => setColumns(current => ({ ...current, [column]: DEFAULT_BROWSER_COLUMNS[column], autoName: column === "name" ? true : current.autoName, autoModified: column === "modified" ? true : current.autoModified }))} />
     {drop && <div className="file-browser-drop-hint" role="status">{drop.moving ? "移动" : "复制"}到：{root?.name}/{drop.parent} · 松开后确认（Shift 切换移动）</div>}
     <div ref={scrollRef} className="file-browser-list" data-drop-target={Boolean(drop)} onDragOver={event => {
       if (loading || loadedKey.current !== key || !event.dataTransfer.types.includes(BROWSER_DRAG_TYPE)) return;
@@ -435,9 +451,9 @@ export function FileBrowserPane({ row = 0, rowControl, target, side, tabId, onCu
         onDragStart(event, selection);
       }} onDragEnd={() => { setDrop(null); onDragEnd(); }} data-tooltip-path={hintPath?.rootId === rootId && hintPath.node === node ? browserFullPath(hintPath.path, item.name) : undefined} onMouseDown={event => { if (event.button === 2) event.preventDefault(); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); openMenu(item, event.clientX, event.clientY); }} onClick={event => { if (loading || loadedKey.current !== key || (event.ctrlKey && isMacPlatform())) return; chooseItem(item, event.ctrlKey || event.metaKey, event.shiftKey); scrollRef.current?.focus({ preventScroll: true }); }} onDoubleClick={event => { if (!loading && loadedKey.current === key) openItem(item, !isPrimaryShortcutModifier(event)); }}>
         <span className={`file-browser-name${item.directory ? " is-directory" : ""}`}><ToolbarIcon name={item.directory ? "folder" : "document"} /><span>{item.name}</span></span>
-        {compact && <span className="file-browser-type">{localFileTypeLabel(item)}</span>}
-        <span aria-label={item.directory ? "目录内部大小尚未统计" : undefined}>{item.directory ? "—" : metadata[item.id] ? sizeText(metadata[item.id].size) : item.size ? sizeText(item.size) : "…"}</span>
-        <span>{browserModifiedText(metadata[item.id]?.modifiedMs ?? item.modifiedMs)}</span>
+        {compact && display.type && <span className="file-browser-type">{localFileTypeLabel(item)}</span>}
+        {display.size && <span aria-label={item.directory ? "目录内部大小尚未统计" : undefined}>{item.directory ? "—" : metadata[item.id] ? sizeText(metadata[item.id].size) : item.size ? sizeText(item.size) : "…"}</span>}
+        {display.modified && <span data-browser-column="modified">{browserDateText(metadata[item.id]?.modifiedMs ?? item.modifiedMs, display.dateFormat)}</span>}
       </div>)}
       <div style={{ height: Math.max(0, nodes.length - end) * ROW }} aria-hidden="true" />
       {!nodes.length && <p className="file-browser-empty">{loading ? "正在读取目录…" : rootId ? error ? "目录暂不可用，可返回上级或重新授权" : query.trim() ? "没有匹配的文件或目录" : "空目录" : "选择或添加一个本地目录"}</p>}

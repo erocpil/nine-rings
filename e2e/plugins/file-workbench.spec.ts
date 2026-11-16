@@ -2483,3 +2483,46 @@ test.describe("独立编辑器单标题与边缘滚动条", () => {
     }
   });
 });
+
+test("列表展示默认值与左右栏覆盖独立持久化，调整行高不重置排序和列宽", async ({ page }) => {
+  await page.goto("/file-workbench.html");
+  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  const right = page.getByRole("region", { name: "右侧目录", exact: true });
+  await expect(left.locator(".file-browser-row").first()).toBeVisible();
+  await left.getByRole("button", { name: "按大小排序", exact: true }).click();
+  const widths = await page.evaluate(() => localStorage.getItem("file-workbench:nr:file-browser-columns:0"));
+  await left.getByRole("button", { name: "文件列表展示", exact: true }).click();
+  const settings = page.getByRole("dialog", { name: "文件列表展示", exact: true });
+  await settings.getByLabel("列表字号").fill("16");
+  await settings.getByLabel("列表行高").fill("40");
+  await settings.getByLabel("列表日期格式").selectOption("date");
+  await settings.getByLabel("类型", { exact: true }).uncheck();
+  await settings.getByLabel("大小", { exact: true }).uncheck();
+  await page.keyboard.press("Escape");
+  for (const pane of [left, right]) {
+    await expect(pane.getByRole("button", { name: "按类型排序", exact: true })).toHaveCount(0);
+    await expect(pane.getByRole("button", { name: "按大小排序", exact: true })).toHaveCount(0);
+  }
+  const row = left.locator(".file-browser-row").first();
+  await expect(row).toHaveCSS("height", "40px"); await expect(row).toHaveCSS("font-size", "16px");
+  await expect(row.locator('[data-browser-column="modified"]')).toHaveText(/\d{4}-\d{2}-\d{2}|—/);
+  await right.getByRole("button", { name: "文件列表展示", exact: true }).click();
+  await settings.getByLabel("使用统一默认设置").uncheck();
+  await settings.getByLabel("列表字号").fill("14");
+  await settings.getByLabel("大小", { exact: true }).check();
+  await page.keyboard.press("Escape");
+  await expect(right.getByRole("button", { name: "按大小排序", exact: true })).toBeVisible();
+  await expect(left.getByRole("button", { name: "按大小排序", exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("file-workbench:nr:file-browser-columns:0"))).toBe(widths);
+  await page.reload();
+  await left.getByRole("button", { name: "文件列表展示", exact: true }).click();
+  await expect(settings.getByLabel("列表字号")).toHaveValue("16");
+  await settings.getByLabel("大小", { exact: true }).check();
+  await page.keyboard.press("Escape");
+  await expect(left.getByRole("button", { name: "按大小排序", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await right.getByRole("button", { name: "文件列表展示", exact: true }).click();
+  await expect(settings.getByLabel("列表字号")).toHaveValue("14");
+  await settings.getByLabel("使用统一默认设置").check();
+  await expect(settings.getByLabel("列表字号")).toHaveValue("16");
+});

@@ -1,3 +1,4 @@
+import { browserDateText, type BrowserDisplay } from "../lib/local-files/browser-display";
 import { useLayoutEffect, useState, type RefObject } from "react";
 import type { FileNode, LocalFileFingerprint } from "../lib/local-files/file-model";
 
@@ -6,13 +7,13 @@ export function browserModifiedText(value: number | undefined) {
   return value && Number.isFinite(new Date(value).getTime()) ? formatter.format(value) : "—";
 }
 /** Measure every loaded date, not only virtual rows, so scrolling cannot resize columns. */
-export function useBrowserModifiedWidth(list: RefObject<HTMLDivElement>, nodes: readonly FileNode[], metadata: Record<string, LocalFileFingerprint>) {
+export function useBrowserModifiedWidth(list: RefObject<HTMLDivElement>, nodes: readonly FileNode[], metadata: Record<string, LocalFileFingerprint>, display?: BrowserDisplay) {
   const [width, setWidth] = useState(145);
   useLayoutEffect(() => {
     let live = true;
     const measure = () => {
       const host = list.current?.closest(".file-browser-pane");
-      const cell = host?.querySelector<HTMLElement>(".file-browser-row > span:last-child");
+      const cell = host?.querySelector<HTMLElement>('.file-browser-row > [data-browser-column="modified"]');
       const header = host?.querySelector<HTMLElement>(".file-browser-column:last-child > button");
       const context = document.createElement("canvas").getContext("2d");
       if (!host || !header || !context) return;
@@ -24,13 +25,13 @@ export function useBrowserModifiedWidth(list: RefObject<HTMLDivElement>, nodes: 
         return maximum;
       };
       let maximum = textWidth(["修改时间 ↑", "修改时间 ↓"], header, "12px sans-serif");
-      if (cell) maximum = Math.max(maximum, textWidth(new Set(nodes.map(node => browserModifiedText(metadata[node.id]?.modifiedMs ?? node.modifiedMs))), cell, "11px sans-serif"));
+      if (cell) maximum = Math.max(maximum, textWidth(new Set(nodes.map(node => browserDateText(metadata[node.id]?.modifiedMs ?? node.modifiedMs, display?.dateFormat))), cell, "11px sans-serif"));
       if (live) setWidth(Math.ceil(maximum) + 8); // Room for the resize handle and glyph rounding.
     };
     measure();
     void document.fonts.ready.then(() => { if (live) measure(); });
     document.fonts.addEventListener("loadingdone", measure);
     return () => { live = false; document.fonts.removeEventListener("loadingdone", measure); };
-  }, [list, nodes, metadata]);
+  }, [list, nodes, metadata, display?.dateFormat, display?.fontSize, display?.modified]);
   return width;
 }
