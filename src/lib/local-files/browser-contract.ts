@@ -1,7 +1,7 @@
 import type { FileNode, FilePage, LocalFileDigest, LocalFileFingerprint, LocalFileDetails, LocalFileSnapshot } from "./file-model";
 import type { LocalFileListOptions } from "./tree";
 
-export type BrowserPreview = { kind: "text" | "image"; value: string; truncated: boolean } | { kind: "pdf"; value: Blob; truncated: false };
+export type BrowserPreview = { kind: "text" | "image"; value: string; truncated: boolean } | { kind: "pdf"; value: Blob; truncated: false } | { kind: "epub"; value: Blob; truncated: false };
 export interface BrowserTextLocation { from: number; to: number; revision: string }
 export interface BrowserFileOpen { rootId: string; rootName: string; node: FileNode; location?: BrowserTextLocation; siblings?: readonly FileNode[] }
 
@@ -13,6 +13,7 @@ export interface BrowserDirectoryHost {
     list(rootId: string, node: string, offset: number, options: LocalFileListOptions): Promise<FilePage>;
     stat(rootId: string, node: string): Promise<LocalFileFingerprint>;
     readSnapshot(rootId: string, node: string): Promise<LocalFileSnapshot>;
+    readEpubPreview?(rootId: string, node: string, signal?: AbortSignal): Promise<Blob>;
     readPdfPreview?(rootId: string, node: string, signal?: AbortSignal): Promise<Blob>;
     readImagePreview?(rootId: string, node: string, signal?: AbortSignal): Promise<string>;
     readImageAsset(rootId: string, node: string, signal?: AbortSignal): Promise<string>;

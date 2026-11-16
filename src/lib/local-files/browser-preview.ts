@@ -38,7 +38,7 @@ export function browserSelectionSummary(nodes: readonly FileNode[], selected: re
 export interface BrowserPreviewNavigation { step: (direction: -1 | 1) => boolean }
 
 /** Only preview-owned object URLs are released; data/remote text assets remain untouched. */
-export function releaseBrowserPreview(preview: { kind: "image" | "text" | "pdf"; value: string | Blob } | null) {
+export function releaseBrowserPreview(preview: { kind: "image" | "text" | "pdf" | "epub"; value: string | Blob } | null) {
   if (preview?.kind === "image" && typeof preview.value === "string" && preview.value.startsWith("blob:")) URL.revokeObjectURL(preview.value);
 }
 

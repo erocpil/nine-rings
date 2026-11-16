@@ -1593,16 +1593,17 @@ fn read_asset_range(
             | "heic"
             | "heif"
             | "pdf"
+            | "epub"
     ) {
-        return Err("仅允许预览常见图片或 PDF 文件".into());
+        return Err("仅允许预览常见图片、PDF 或 EPUB 文件".into());
     }
     let mut file = fs::File::open(path).map_err(|error| error.to_string())?;
     let meta = file.metadata().map_err(|error| error.to_string())?;
     if !meta.is_file() {
         return Err("不是普通预览文件".into());
     }
-    if extension == "pdf" && meta.len() > 32 * 1024 * 1024 {
-        return Err("PDF 快速预览最多 32 MiB".into());
+    if matches!(extension.as_str(), "pdf" | "epub") && meta.len() > 32 * 1024 * 1024 {
+        return Err("阅读文件快速预览最多 32 MiB".into());
     }
     if length.is_some_and(|length| length == 0 || length > 1024 * 1024) {
         return Err("预览读取分段无效".into());
@@ -2469,6 +2470,16 @@ mod preview_properties_tests {
             read_asset_range(&root, "document.pdf", 0, Some(5)).unwrap(),
             b"%PDF-"
         );
+        fs::write(root.join("book.epub"), b"PK-test").unwrap();
+        assert_eq!(
+            read_asset_range(&root, "book.epub", 0, Some(2)).unwrap(),
+            b"PK"
+        );
+        fs::File::create(root.join("large.epub"))
+            .unwrap()
+            .set_len(33 * 1024 * 1024)
+            .unwrap();
+        assert!(read_asset_range(&root, "large.epub", 0, Some(3)).is_err());
         fs::File::create(root.join("large.pdf"))
             .unwrap()
             .set_len(33 * 1024 * 1024)

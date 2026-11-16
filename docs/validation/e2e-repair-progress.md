@@ -1,5 +1,16 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-16：磁盘 PDF／EPUB 只读预览
+
+PDF增加目录、逐页全文文本查找／定位高亮与页码／缩放／页内位置记忆；EPUB复用资料库解析与章节安全呈现，但不导入数据库。新增可选取消信号与预览解压预算，原有资料库调用继续保持默认行为。原生文件服务仅扩展EPUB预览类型，继续执行授权、路径、分段和32MiB检查。细节见[工作台待办](../planning/file-workbench-followups.md)及[架构决策](../architecture-decisions.md)。
+
+验证：完整npm run check通过（253个Vitest文件／2691项，含脚本、覆盖率、格式与IPC检查）；共享原生文件宿主37项通过。File Workbench完整Chromium 56项通过，随后补充PDF目录／搜索高亮并通过Chromium及WebKit专项各2项；Nine Rings共享预览在Chromium／WebKit各4项通过，包含经典／非经典及390px手机布局。原有EPUB资料库WebKit导入、目录、进度恢复1项通过。新增状态编码、取消／超时、解压限额、原生归档字节与预览导航测试；损坏文件与脚本不执行由真实EPUB回归覆盖。
+
+影响结论：SAFE（上述已覆盖路径未发现回归）。核对BrowserDirectoryHost/BrowserPreview消费者、FileBrowserQuickPreview分支、Workbench主区域／兄弟文件导航、localFileService与Rust read_asset_range扩展名和预算。parseEpubArchiveAsync的旧调用保持默认参数，safeChapterDocument的资料库桥接仍默认开启；磁盘投影禁用桥接脚本并使用无脚本sandbox。安装版GUI和Windows／Linux实机未执行，不能据此保证原生GUI表现。
+
+本机记录：/tmp/nr-reader-final-check.log、/tmp/nr-reader-native.log、/tmp/nr-reader-workbench-all.log、/tmp/nr-reader-final-targeted.log、/tmp/nr-reader-final-webkit.log、/tmp/nr-reader-nine-rings{,-webkit}.log、/tmp/nr-reader-existing-library.log。构建记录：/tmp/nr-reader-{build,workbench-build}.log。
+
+
 ## 2026-11-16：File Workbench 列表、冲突与路径级保护
 
 分批交付：列表展示设置14a35162（字体／行高／列显隐／日期，统一默认与左右栏覆盖），重名冲突对照与保留双方8dd9237f；本批补上原生路径租约和关联草稿保护。只允许无关路径继续目录操作，不移动打开文件或草稿身份；未知旧身份、失效授权仍保守阻止。安全替换、打开文件的移动／改名事务继续留作后续，不以删除原目标模拟替换。设计与影响审查见[统一决策](../architecture-decisions.md)和[工作台待办](../planning/file-workbench-followups.md)。

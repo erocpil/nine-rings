@@ -371,23 +371,28 @@ export function parseEpubArchive(buffer: ArrayBuffer): ParsedEpub {
   }
 }
 
-export function parseEpubArchiveAsync(buffer: ArrayBuffer): Promise<ParsedEpub> {
+export function parseEpubArchiveAsync(buffer: ArrayBuffer, signal?: AbortSignal, maxExpandedBytes = MAX_EXPANDED_EPUB_BYTES): Promise<ParsedEpub> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(signal.reason); return; }
     let expandedBytes = 0;
     let fileCount = 0;
     let limitExceeded = false;
     let terminate: (() => void) | undefined;
+    const abort = () => { terminate?.(); clearTimeout(timer); reject(signal?.reason ?? new DOMException("已取消", "AbortError")); };
+    signal?.addEventListener("abort", abort, { once: true });
     const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
       terminate?.();
       reject(new Error("EPUB 解析超时，请重试打开"));
     }, 30_000);
     try { terminate = unzip(new Uint8Array(buffer), { filter: (file) => {
       expandedBytes += file.originalSize;
       fileCount += 1;
-      limitExceeded ||= expandedBytes > MAX_EXPANDED_EPUB_BYTES || fileCount > MAX_EPUB_FILE_COUNT;
+      limitExceeded ||= expandedBytes > Math.min(MAX_EXPANDED_EPUB_BYTES, maxExpandedBytes) || fileCount > MAX_EPUB_FILE_COUNT;
       return !limitExceeded;
     } }, (error, files) => {
-      clearTimeout(timer);
+      clearTimeout(timer); signal?.removeEventListener("abort", abort);
+      if (signal?.aborted) return;
       if (limitExceeded) {
         reject(new Error("EPUB 解压后体积或文件数量超过安全限制"));
         return;
@@ -398,7 +403,7 @@ export function parseEpubArchiveAsync(buffer: ArrayBuffer): Promise<ParsedEpub> 
       }
       try { resolve(parseEpubFiles(files)); }
       catch (reason) { reject(reason); }
-    }); } catch (reason) { clearTimeout(timer); reject(reason); }
+    }); } catch (reason) { clearTimeout(timer); signal?.removeEventListener("abort", abort); reject(reason); }
   });
 }
 

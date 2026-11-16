@@ -338,3 +338,14 @@ it("dropping on a tool freezes source files rather than using the active target 
     workbenchDropInvocation({ ...tool, kind: "separator" }, null, source),
   ).toThrow("不能接收文件");
 });
+
+it("includes EPUB archives in full-view sibling navigation without treating ZIPs as books", () => {
+  const nodes = ["a.pdf", "b.epub", "c.zip", "d.c"].map((name) => ({
+    id: name,
+    name,
+    directory: false,
+    size: 20,
+  }));
+  expect(nextWorkbenchPreview(nodes, "a.pdf", 1)?.id).toBe("b.epub");
+  expect(nextWorkbenchPreview(nodes, "b.epub", 1)?.id).toBe("d.c");
+});

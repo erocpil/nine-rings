@@ -591,3 +591,30 @@ test("原始字节比较支持二进制，默认与正文模式分开，超预�
   await preview.getByRole("button", { name: "预览文件信息", exact: true }).click();
   await expect(page.getByRole("dialog").filter({ hasText: "a.txt" })).toBeVisible();
  });
+
+test("Nine Rings 双栏复用 EPUB 预览且手机及经典风格不超出可视区", async ({ page }) => {
+  const { createEpubFixture } = await import("../helpers/reader-fixtures");
+  const { browser, left } = await fixture(page);
+  const root = await page.evaluate(async bytes => {
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    const file = new File([new Uint8Array(bytes)], "book.epub"); Object.defineProperty(file, "webkitRelativePath", { value: "Books/book.epub" });
+    return localFileService.addFiles([file])!;
+  }, Array.from(createEpubFixture()));
+  await left.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await left.getByRole("combobox", { name: "选择授权目录" }).selectOption(root.id);
+  await left.getByRole("option", { name: /^book.epub/ }).click();
+  await browser.getByRole("button", { name: "快速预览", exact: true }).click();
+  const preview = browser.getByRole("region", { name: "快速预览", exact: true });
+  const frame = preview.frameLocator('iframe[title="EPUB 内容"]');
+  await expect(frame.getByRole("heading", { name: "第一章", exact: true })).toBeVisible();
+  await preview.getByRole("combobox", { name: "EPUB 目录", exact: true }).selectOption("1");
+  await expect(frame.getByRole("heading", { name: "第二章", exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const style of ["classic", "calm"]) {
+    await page.evaluate(async style => { (await import("/src/lib/interface-style.ts")).applyInterfaceStyle(style); }, style);
+    expect(await preview.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    expect((await preview.locator("iframe").boundingBox())!.height).toBeGreaterThan(100);
+  }
+  await preview.getByRole("button", { name: "关闭快速预览", exact: true }).click();
+  await expect(left).toBeVisible();
+});

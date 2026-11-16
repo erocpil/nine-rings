@@ -23,6 +23,11 @@ export function createBrowserDirectoryProvider(host: BrowserDirectoryHost): Brow
     },
     async preview(rootId: string, node: string, signal: AbortSignal): Promise<BrowserPreview> {
       check(signal);
+      if (/\.epub$/i.test(node)) {
+        if (!host.files.readEpubPreview) throw new Error("当前宿主不支持 EPUB 预览");
+        const value = await host.files.readEpubPreview(rootId, node, signal); check(signal);
+        return { kind: "epub", value, truncated: false };
+      }
       if (/\.pdf$/i.test(node)) {
         if (!host.files.readPdfPreview) throw new Error("当前宿主不支持 PDF 预览");
         const value = await host.files.readPdfPreview(rootId, node, signal);

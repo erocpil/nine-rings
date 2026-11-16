@@ -1611,9 +1611,12 @@ test("扩展预览支持 PDF 翻页缩放和 Markdown 渲染原文切换", async
     };
   });
   page.on("request", request => { if (request.url().startsWith("blob:")) blobRequests.push(request.url()); });
-  const { PDFDocument, StandardFonts } = await import("pdf-lib");
+  const { PDFDocument, StandardFonts, PDFName, PDFString } = await import("pdf-lib");
   const pdf = await PDFDocument.create(); const font = await pdf.embedFont(StandardFonts.Helvetica);
   for (const text of ["First PDF page", "Second PDF page"]) pdf.addPage([400, 300]).drawText(text, { x: 30, y: 230, size: 18, font });
+  const outline = pdf.context.obj({ Type: "Outlines" }); const outlineRef = pdf.context.register(outline);
+  const entry = pdf.context.register(pdf.context.obj({ Title: PDFString.of("Second section"), Parent: outlineRef, Dest: [pdf.getPage(1).ref, "Fit"] }));
+  outline.set(PDFName.of("First"), entry); outline.set(PDFName.of("Last"), entry); outline.set(PDFName.of("Count"), pdf.context.obj(1)); pdf.catalog.set(PDFName.of("Outlines"), outlineRef);
   const folder = await mkdtemp(join(tmpdir(), "nr-preview-formats-"));
   try {
     await writeFile(join(folder, "sample.pdf"), await pdf.save());
@@ -1630,11 +1633,27 @@ test("扩展预览支持 PDF 翻页缩放和 Markdown 渲染原文切换", async
     expect(resolution.pixels / resolution.css).toBeGreaterThan(1.95);
     expect(resolution.total).toBeLessThanOrEqual(12_000_000);
 
+    await preview.getByRole("combobox", { name: "PDF 目录", exact: true }).selectOption("0");
+    await expect(preview.locator(".textLayer")).toContainText("Second PDF page");
+    await preview.getByRole("button", { name: "PDF 上一页", exact: true }).click();
+    await expect(preview.locator(".textLayer")).toContainText("First PDF page");
     await preview.getByRole("button", { name: "PDF 下一页", exact: true }).click();
     await expect(preview.locator(".textLayer")).toContainText("Second PDF page");
     await expect(preview.getByRole("spinbutton", { name: "PDF 页码" })).toHaveValue("2");
     await preview.getByRole("combobox", { name: "PDF 缩放" }).selectOption("2");
     await expect(preview.locator(".textLayer")).toContainText("Second PDF page");
+    await preview.getByRole("textbox", { name: "PDF 查找文本", exact: true }).fill("First PDF");
+    await preview.getByRole("button", { name: "查找", exact: true }).click();
+    await expect(preview.getByLabel("PDF 查找结果").getByRole("button")).toHaveCount(1);
+    await preview.getByLabel("PDF 查找结果").getByRole("button").click();
+    await expect(preview.locator(".file-browser-pdf-match")).toHaveText("First PDF");
+    await expect(preview.locator(".textLayer")).toContainText("First PDF page");
+    await preview.getByRole("button", { name: "PDF 下一页", exact: true }).click();
+    await expect(preview.locator(".textLayer")).toContainText("Second PDF page");
+    await preview.getByRole("button", { name: "关闭快速预览", exact: true }).click();
+    await page.getByRole("button", { name: "快速预览", exact: true }).click();
+    await expect(preview.locator(".textLayer")).toContainText("Second PDF page");
+    await expect(preview.getByRole("combobox", { name: "PDF 缩放" })).toHaveValue("2");
     await preview.getByRole("button", { name: "关闭快速预览", exact: true }).click();
     await page.setViewportSize({ width: 780, height: 600 });
     await left.getByRole("option", { name: /^sample.md/ }).click();
@@ -1694,7 +1713,7 @@ test("扩展预览支持 PDF 翻页缩放和 Markdown 渲染原文切换", async
     await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
     // Full-view PDF follows the same shared renderer, and unsupported PDFs remain closable.
     await left.getByRole("option", { name: /^sample.pdf/ }).dblclick();
-    await expect(preview.locator(".textLayer")).toContainText("First PDF page");
+    await expect(preview.locator(".textLayer")).toContainText("Second PDF page");
     await preview.getByRole("button", { name: "返回文件浏览", exact: true }).click();
     await left.getByRole("option", { name: /^broken.pdf/ }).dblclick();
     await expect(preview.getByRole("status")).toContainText("无法预览此 PDF");
@@ -2654,3 +2673,32 @@ test("源码解锁编辑后恢复焦点与原光标位置，点击正文即时�
   await page.getByRole("button", { name: "设为只读", exact: true }).click();
   await expect(source).toHaveAttribute("aria-readonly", "true");
 });
+
+ test("EPUB 磁盘预览共享章节解析，目录切换、字号和重开恢复且不运行书中脚本", async ({ page }) => {
+  const { createEpubFixture } = await import("../helpers/reader-fixtures");
+  const folder = await mkdtemp(join(tmpdir(), "nr-preview-epub-"));
+  try {
+    await writeFile(join(folder, "sample.epub"), createEpubFixture());
+    await writeFile(join(folder, "broken.epub"), "not a ZIP");
+    await page.goto("/file-workbench.html");
+    await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(folder);
+    const left = page.getByRole("region", { name: "左侧目录", exact: true });
+    await left.getByRole("option", { name: /^sample.epub/ }).click();
+    await page.getByRole("button", { name: "快速预览", exact: true }).click();
+    const preview = page.getByRole("region", { name: "快速预览", exact: true });
+    const frame = preview.frameLocator('iframe[title="EPUB 内容"]');
+    await expect(frame.getByRole("heading", { name: "第一章", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.body.dataset.epubUnsafe)).toBeUndefined();
+    await preview.getByRole("button", { name: "EPUB 下一章", exact: true }).click();
+    await expect(frame.getByRole("heading", { name: "第二章", exact: true })).toBeVisible();
+    await preview.getByRole("combobox", { name: "EPUB 字号", exact: true }).selectOption("150");
+    await expect(frame.getByRole("heading", { name: "第二章", exact: true })).toBeVisible();
+    await preview.getByRole("button", { name: "关闭快速预览", exact: true }).click();
+    await page.getByRole("button", { name: "快速预览", exact: true }).click();
+    await expect(frame.getByRole("heading", { name: "第二章", exact: true })).toBeVisible();
+    await expect(preview.getByRole("combobox", { name: "EPUB 字号", exact: true })).toHaveValue("150");
+    await left.getByRole("option", { name: /^broken.epub/ }).click();
+    await expect(preview.getByRole("status").filter({ hasText: "无法预览此 EPUB" })).toBeVisible();
+    expect((await page.evaluate(() => indexedDB.databases())).map(db => db.name)).not.toContain("nine_rings_epub_library");
+  } finally { await rm(folder, { recursive: true, force: true }); }
+ });

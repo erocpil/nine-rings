@@ -565,3 +565,31 @@ it("rechecks activation after loading the IPC module and does not start a revoke
   await expect(pending).rejects.toThrow();
   expect(invoke).not.toHaveBeenCalled();
 });
+
+it("EPUB preview preserves archive bytes, rejects oversize files and never decodes as source", async () => {
+  activate();
+  vi.spyOn(environment, "isTauriRuntime").mockReturnValue(true);
+  const data = new Uint8Array([80, 75, 3, 4, 255, 0]);
+  let size = data.length;
+  invoke.mockImplementation(async (command, args) => {
+    if (command === "local_files_stat") return { size, modifiedMs: 10 };
+    if (command === "local_files_read_asset")
+      return data.slice(args.offset, args.offset + args.length).buffer;
+    throw Error(command);
+  });
+  const blob = await localFileService.readEpubPreview("root", "book.epub");
+  expect(blob.type).toBe("application/epub+zip");
+  expect(new Uint8Array(await blob.arrayBuffer())).toEqual(data);
+  size = 33 * 1024 * 1024;
+  await expect(
+    localFileService.readEpubPreview("root", "large.epub"),
+  ).rejects.toThrow("32 MiB");
+  await expect(
+    localFileService.readEpubPreview("root", "bad.bin"),
+  ).rejects.toThrow("不是 EPUB");
+  const abort = new AbortController();
+  abort.abort();
+  await expect(
+    localFileService.readEpubPreview("root", "book.epub", abort.signal),
+  ).rejects.toThrow();
+});

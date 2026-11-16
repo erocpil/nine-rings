@@ -588,6 +588,13 @@ export const localFileService = {
       throw error;
     }
   },
+  async readEpubPreview(rootId: string, node: string, signal?: AbortSignal): Promise<Blob> {
+    const valid = guard(); signal?.throwIfAborted();
+    if (!/\.epub$/i.test(node)) throw new Error("不是 EPUB 文件");
+    const before = await this.stat(rootId, node); valid(); signal?.throwIfAborted();
+    if (before.size > 32 * 1024 * 1024) throw new Error("EPUB 快速预览最多 32 MiB，请使用系统应用打开");
+    return readPreviewAsset(rootId, node, "application/epub+zip", signal, "blob");
+  },
   async readPdfPreview(rootId: string, node: string, signal?: AbortSignal): Promise<Blob> {
     const valid = guard(); signal?.throwIfAborted();
     if (!/\.pdf$/i.test(node)) throw new Error("不是 PDF 文件");
@@ -636,7 +643,7 @@ async function readPreviewAsset(rootId: string, node: string, mime: string, sign
   };
   if (isTauriRuntime()) {
     const before = await localFileService.stat(rootId, node); check();
-    if (mime === "application/pdf" && before.size > 32 * 1024 * 1024) throw new Error("PDF 快速预览最多 32 MiB");
+    if ((mime === "application/pdf" || mime === "application/epub+zip") && before.size > 32 * 1024 * 1024) throw new Error("阅读文件快速预览最多 32 MiB");
     for (let offset = 0; offset < before.size;) {
       check(); const length = Math.min(786432, before.size - offset);
       const result = await native<ArrayBuffer | number[]>("local_files_read_asset", { rootId, node, offset, length });
@@ -655,7 +662,7 @@ async function readPreviewAsset(rootId: string, node: string, mime: string, sign
       file = await (await dir.getFileHandle(parts[parts.length - 1]!)).getFile();
     }
     if (!file) throw new Error("预览文件不可访问");
-    if (mime === "application/pdf" && file.size > 32 * 1024 * 1024) throw new Error("PDF 快速预览最多 32 MiB");
+    if ((mime === "application/pdf" || mime === "application/epub+zip") && file.size > 32 * 1024 * 1024) throw new Error("阅读文件快速预览最多 32 MiB");
     for (let offset = 0; offset < file.size; offset += 786432) {
       check(); const chunk = new Uint8Array(await file.slice(offset, offset + 786432).arrayBuffer()); check(); await append(chunk);
     }

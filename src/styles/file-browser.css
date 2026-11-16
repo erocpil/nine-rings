@@ -254,3 +254,12 @@
 .file-browser-reading-notice button { float: right; color: inherit; background: transparent; border: 0; }
 .file-browser-text-reader .document-toolbar button[aria-pressed="true"] { background: var(--active-bg); color: var(--accent); }
 .file-browser-text-reader .cm-scroller::-webkit-scrollbar { width: 6px; height: 4px; }
+.file-browser-reader-search { display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:4px 8px; }
+.file-browser-reader-search input { min-width:80px;flex:1; }
+.file-browser-reader-results { max-height:120px;overflow:auto;display:flex;flex-direction:column;flex-shrink:0; }
+.file-browser-reader-results button { text-align:start;background:transparent;color:var(--text);border:0;padding:4px 10px; }
+.file-browser-epub-preview { display:flex;flex:1;min-height:0;min-width:0;flex-direction:column; }
+.file-browser-epub-preview iframe { flex:1;min-height:0;width:100%;border:0; }
+.file-browser-epub-preview select { min-width:0;max-width:55%; }
+.file-browser-epub-preview .file-browser-preview-zoom { flex-wrap:wrap; }
+.file-browser-pdf-match { background:var(--active-bg, #ead8a5);color:inherit;padding:0; }

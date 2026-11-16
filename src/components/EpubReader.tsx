@@ -308,7 +308,7 @@ function rewriteCssResources(css: string, basePath: string, resourceUrl: (path: 
     });
 }
 
-function createResourceRegistry(book: ParsedEpub) {
+export function createResourceRegistry(book: ParsedEpub) {
   const urls = new Map<string, string>();
   const resourceUrl = (path: string): string | null => {
     if (urls.has(path)) return urls.get(path)!;
@@ -330,7 +330,7 @@ function createResourceRegistry(book: ParsedEpub) {
   };
 }
 
-function safeChapterDocument(
+export function safeChapterDocument(
   book: ParsedEpub,
   chapterPath: string,
   resourceUrl: (path: string) => string | null,
@@ -340,6 +340,7 @@ function safeChapterDocument(
   customBackground?: string,
   smartLineMerge = false,
   manualLineMerges: LocalEpubLineMerge[] = [],
+  includeBridge = true,
 ): string {
   const bytes = book.files[chapterPath];
   if (!bytes) throw new Error("EPUB 章节内容不存在");
@@ -422,7 +423,7 @@ function safeChapterDocument(
   // XMLSerializer 会把空的 script 写成自闭合标签，而 srcDoc 最终按 HTML
   // 解析；保留一个空白文本节点以确保生成显式结束标签。
   bridge.textContent = " ";
-  head.appendChild(bridge);
+  if (includeBridge) head.appendChild(bridge);
   return `<!doctype html>${new XMLSerializer().serializeToString(document.documentElement)}`;
 }
 
