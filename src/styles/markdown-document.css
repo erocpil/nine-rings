@@ -419,7 +419,7 @@ blockquote[data-alert] { border-left-color: var(--accent); }
 
 /* Code and plain text are literal source, independent of prose typography. */
 .markdown-cm-source:not([data-document-language="markdown"]):not([data-document-language="flow"]) .cm-scroller {
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  font-family: var(--editor-source-font-family, ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace);
 }
 
 /* Parser-derived source categories share the active style's palette. */

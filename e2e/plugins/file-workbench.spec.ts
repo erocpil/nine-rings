@@ -2815,3 +2815,81 @@ for (const style of ["light", "calm"]) test(`独立编辑器右键标题级别�
   await expect(content).toContainText("一级");
   for (const x of [20, 1000]) await expectFoldContextSubmenu(page, content, x);
 });
+
+for (const palette of ["light", "calm"]) test(`编辑器排版独立保存并同步源码和渲染正文 ${palette}`, async ({ page }) => {
+  await page.addInitScript(palette => localStorage.setItem("file-workbench:palette", palette), palette);
+  await setupIndependentEditor(page, { "alpha.c": "int alpha(void) { return 1; }\n", "guide.md": "# Guide\n\nFirst paragraph.\n\nSecond paragraph.\n\n```c\nint sample;\n```\n" });
+  const source = page.locator(".cm-content:visible");
+  await expect(source).toHaveCSS("font-size", "18px");
+  await source.evaluate(element => element.setAttribute("data-typography-retained", "yes"));
+  await page.getByRole("button", { name: "编辑器排版", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "编辑器排版", exact: true });
+  await dialog.getByRole("spinbutton", { name: "基础字号", exact: true }).fill("22");
+  await dialog.getByRole("combobox", { name: "正文字体", exact: true }).selectOption("serif");
+  await dialog.getByRole("combobox", { name: "源码字体", exact: true }).selectOption("sans");
+  await dialog.getByRole("spinbutton", { name: "编辑器行距", exact: true }).fill("2");
+  await dialog.getByRole("spinbutton", { name: "编辑器块间距", exact: true }).fill("1.5");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(source).toHaveCSS("font-size", "22px");
+  await expect(source).toHaveCSS("line-height", "44px");
+  await expect(source).toHaveAttribute("data-typography-retained", "yes");
+  expect(await source.evaluate(element => getComputedStyle(element).fontFamily)).toContain("Noto Sans SC");
+  const selectFile = async (name: string) => {
+    await page.getByRole("button", { name: "切换编辑文件", exact: true }).click();
+    await page.getByRole("menuitemcheckbox", { name, exact: true }).click();
+  };
+  await selectFile("guide.md");
+  const paragraph = page.locator(".ProseMirror:visible > p").first();
+  await expect(paragraph).toHaveCSS("font-size", "22px");
+  await expect(paragraph).toHaveCSS("line-height", "44px");
+  await expect(paragraph).toHaveCSS("margin-bottom", "33px");
+  expect(await paragraph.evaluate(element => getComputedStyle(element).fontFamily)).toContain("Noto Serif SC");
+  expect(await page.locator(".ProseMirror:visible pre").first().evaluate(element => getComputedStyle(element).fontFamily)).toMatch(/mono/i);
+  // A retained inactive source session receives later preference changes too.
+  await page.getByRole("button", { name: "编辑器排版", exact: true }).click();
+  await dialog.getByRole("spinbutton", { name: "基础字号", exact: true }).fill("24");
+  await page.keyboard.press("Escape");
+  await selectFile("alpha.c");
+  await expect(source).toHaveCSS("font-size", "24px");
+  await expect(source).toHaveAttribute("data-typography-retained", "yes");
+  await expect(page.getByRole("button", { name: "保存文件", exact: true })).toBeDisabled();
+  expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+  expect(await page.evaluate(() => localStorage.getItem("nine_rings_config"))).toBeNull();
+  await page.reload();
+  await expect(page.locator(".cm-content:visible")).toHaveCSS("font-size", "24px");
+  await page.getByRole("button", { name: "编辑器排版", exact: true }).click();
+  await dialog.getByRole("button", { name: "恢复默认排版", exact: true }).click();
+  await expect(dialog.getByRole("spinbutton", { name: "基础字号", exact: true })).toHaveValue("18");
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".cm-content:visible")).toHaveCSS("font-size", "18px");
+});
+
+test("双栏中点吸附、双击及键盘恢复等宽并保存比例", async ({ page }) => {
+  await page.goto("/file-workbench.html");
+  const splitter = page.getByRole("separator", { name: "双栏宽度", exact: true });
+  const panes = page.locator(".file-browser-panes");
+  const dragTo = async (ratio: number, offset = 0) => {
+    const box = (await splitter.boundingBox())!, bounds = (await panes.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 60);
+    await page.mouse.down();
+    await page.mouse.move(bounds.x + bounds.width * ratio + offset, box.y + 60, { steps: 8 });
+    await page.mouse.up();
+  };
+  await dragTo(.65);
+  await expect(splitter).toHaveAttribute("aria-valuenow", "65");
+  await page.reload();
+  await expect(splitter).toHaveAttribute("aria-valuenow", "65");
+  await dragTo(.5, 8);
+  await expect(splitter).toHaveAttribute("aria-valuenow", "50");
+  await dragTo(.35);
+  await splitter.dblclick();
+  await expect(splitter).toHaveAttribute("aria-valuenow", "50");
+  await splitter.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(splitter).toHaveAttribute("aria-valuenow", "55");
+  await page.keyboard.press("Home");
+  await expect(splitter).toHaveAttribute("aria-valuenow", "50");
+  const widths = await page.locator(".file-browser-pane-slot").evaluateAll(elements => elements.map(element => element.getBoundingClientRect().width));
+  expect(Math.abs(widths[0] - widths[1])).toBeLessThan(1);
+});

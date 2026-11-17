@@ -2880,3 +2880,11 @@ Bot 修复后冻结代码的原失败集合最终复验：32/32 通过（单 wor
 - Nine Rings 阅读菜单与正文右键回归：Chromium 19 passed；WebKit 18 passed、1 skipped（原生剪贴板能力门禁）。包含桌面／手机工具栏原有定位、经典／清雅右键定位和命令执行。
 - File Workbench 独立编辑器浅色／清雅定位：Chromium 2 passed；WebKit 2 passed。测试核验配色实际生效、分组侧向位置、父菜单关闭后标题级别菜单位置和级别命令可执行。
 - 影响分析结论：SAFE（在上述覆盖范围内未发现回归）。涉及 `editor-command-surface`、`EditorContextMenu`、`EditorToolbarContents`、`BlockActionMenu`；选区工具的原有向下定位回归通过。未修改正文、保存接口或 Rust/TypeScript 契约。本机 Tauri 安装版交互尚未实测。
+
+## 2026-11-17 File Workbench 编辑器排版及双栏等宽
+
+- 编辑器共用排版变量与字体栈，偏好独立保存；源码／渲染基础字号默认18px，源码默认等宽，设置只改变显示。
+- 新增回归覆盖浅色／清雅配色下字体、行距、块间距的真实计算样式，保留编辑实例、后台会话同步、重新打开恢复、默认重置和未产生文件写入；另验证分隔条中点吸附、双击、键盘和比例恢复。
+- `npm run check` 通过：258个Vitest文件、2704项测试；Nine Rings及File Workbench构建通过。
+- Chromium新增排版／等宽和菜单回归5 passed；WebKit新增排版／等宽3 passed，既有Markdown编辑保存、粘贴和独立多标签编辑回归6 passed。
+- 影响结论：SAFE（上述覆盖范围内未发现回归）。新增本地偏好只由File Workbench宿主使用，不改变正文、文件身份、草稿、保存协议或Rust命令。共享源码字体CSS新增可选变量，未设置时保持既有等宽回退；共享分隔条继续沿用原比例持久化路径。本机Tauri观感仍由用户验收。

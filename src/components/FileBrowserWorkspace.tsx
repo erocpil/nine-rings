@@ -282,12 +282,15 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
         if (!snapshot || !target || event.dataTransfer.getData(BROWSER_DRAG_TYPE) !== snapshot.token || operation || tool || opening || !workspace.canTransfer()) return;
         try { setOperation(planBrowserDrop(snapshot.source, { rootId: target.rootId, rootName: roots.find(root => root.id === target.rootId)?.name ?? target.rootId, parent }, event.shiftKey)); } catch (reason) { setError(String(reason)); }
       }} tabBar={<FileBrowserTabs group={group} roots={roots} side={side} onSelect={(index, close, confirmed) => { setState(current => selectBrowserTab(activate(current), side, index, close, confirmed)); focusTab(side); }} onAdd={() => { setState(current => addBrowserTab(activate(current), side)); focusTab(side); }} onAction={(id, action, confirmed) => { setState(current => modifyBrowserTabs(activate(current), side, id, action, confirmed)); focusTab(side); }} onReorder={(id, target) => setState(current => reorderBrowserTab(activate(current), side, id, target))} />} />; })}</div>{quickPreview && state.active !== side && <FileBrowserQuickPreview settings={workspace.settings} rootId={currentLocation?.rootId ?? ""} node={previewNode} provider={provider} active={active} revision={listingRevision + previewRevision} onNavigate={direction => previewNavigation.current[state.active]?.step(direction) ?? false} onClose={closePreview} />}</div>)}
-      <div className="file-browser-splitter" role="separator" aria-label="双栏宽度" aria-orientation="vertical" tabIndex={0} aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(state.ratio * 100)} onKeyDown={event => {
+      <div className="file-browser-splitter" role="separator" aria-label="双栏宽度" title="拖动调整双栏宽度；接近中间自动等宽，双击恢复等宽" onDoubleClick={() => setState(current => ({ ...current, ratio: .5 }))} aria-orientation="vertical" tabIndex={0} aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(state.ratio * 100)} onKeyDown={event => {
+        if (["Home", "Enter"].includes(event.key)) { event.preventDefault(); setState(current => ({ ...current, ratio: .5 })); }
         if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); const delta = event.key === "ArrowRight" ? .05 : -.05; setState(current => ({ ...current, ratio: Math.max(.25, Math.min(.75, current.ratio + delta)) })); }
       }} onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={event => {
         if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
         const bounds = event.currentTarget.parentElement!.getBoundingClientRect();
-        setState(current => ({ ...current, ratio: Math.max(.25, Math.min(.75, (event.clientX - bounds.left) / bounds.width)) }));
+        const x = event.clientX - bounds.left;
+        const ratio = Math.abs(x - bounds.width / 2) <= 12 ? .5 : Math.max(.25, Math.min(.75, (x - 2.5) / (bounds.width - 5)));
+        setState(current => ({ ...current, ratio }));
       }} onPointerUp={event => event.currentTarget.releasePointerCapture(event.pointerId)} />
     </div>
     <input ref={element => { input.current = element; element?.setAttribute("webkitdirectory", ""); }} type="file" multiple hidden aria-label="选择目录快照" onChange={event => {
