@@ -1,3 +1,4 @@
+import { anchoredMenuPosition } from "../lib/anchored-menu-position";
 import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { Editor } from "@tiptap/core";
@@ -58,6 +59,14 @@ export function EditorContextMenu({ editor, toolbarRef, readonly, active = true,
     const bounds = element.getBoundingClientRect();
     element.style.left = `${Math.max(8, Math.min(contextMenu.x, window.innerWidth - bounds.width - 8))}px`;
     element.style.top = `${Math.max(8, Math.min(contextMenu.y, window.innerHeight - bounds.height - 8))}px`;
+    const submenu = element.querySelector<HTMLElement>(".editor-context-submenu");
+    const opener = element.querySelector<HTMLElement>('.editor-context-parent[aria-expanded="true"]');
+    if (submenu && opener) {
+      const parent = element.getBoundingClientRect(), item = opener.getBoundingClientRect();
+      const position = anchoredMenuPosition({ left: parent.left, right: parent.right, top: item.top, bottom: item.bottom }, submenu.getBoundingClientRect(), { width: window.innerWidth, height: window.innerHeight }, "side", 0);
+      submenu.style.left = `${position.x}px`;
+      submenu.style.top = `${position.y}px`;
+    }
   }, [contextMenu, contextSubmenu, commands, contextMenuRef]);
   useEffect(() => { if (!active) { setContextMenu(null); setContextSubmenu(null); } }, [active, setContextMenu, setContextSubmenu]);
   if (!contextMenu || !active) return null;
@@ -82,7 +91,7 @@ export function EditorContextMenu({ editor, toolbarRef, readonly, active = true,
       return <div key={group}>
         <button className="editor-context-item editor-context-parent" aria-expanded={contextSubmenu === group}
           onClick={() => setContextSubmenu(current => current === group ? null : group)}>{group}<DisclosureIcon expanded={contextSubmenu === group} /></button>
-        {contextSubmenu === group && <div className="editor-context-submenu" role="group" aria-label={group}>
+        {contextSubmenu === group && <div className="editor-context-submenu" style={{ position: "fixed", margin: 0, maxHeight: "calc(100vh - 16px)", overflowY: "auto" }} role="group" aria-label={group}>
           {items.map(command => <button key={command.id} title={command.source.title} className={`editor-context-item editor-context-subitem ${command.active ? "active" : ""}`} disabled={command.disabled}
             onClick={event => { invokeEditorCommand(command, event.currentTarget); setContextMenu(null); }}>
             {command.label}{command.submenu && <DisclosureIcon expanded={false} />}

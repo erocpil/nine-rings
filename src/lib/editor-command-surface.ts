@@ -10,18 +10,32 @@ export interface EditorSurfaceCommand {
   source: HTMLButtonElement;
 }
 export const editorCommandGroups: EditorCommandGroup[] = ["编辑", "文字格式", "段落", "插入", "表格", "文档"];
-const anchors = new WeakMap<HTMLElement, DOMRect>();
+const anchors = new WeakMap<HTMLElement, CommandAnchor>();
 const invocationTriggers = new WeakMap<HTMLElement, HTMLElement>();
+interface CommandAnchor { rect: DOMRect; placement: "side" | "below" }
+// Invocation buttons can unmount as the context/selection surface closes.
+// Capture their geometry before dispatch, rather than measuring detached DOM.
+const invocationAnchors = new WeakMap<HTMLElement, CommandAnchor>();
+export function editorCommandAnchor(trigger: HTMLElement): CommandAnchor | undefined {
+  return invocationAnchors.get(trigger);
+}
 /** Resolve the visible invocation button while forwarding a host command. */
 export function editorCommandTrigger(original: HTMLElement): HTMLElement {
-  return invocationTriggers.get(original) ?? original;
+  const forwarded = invocationTriggers.get(original);
+  if (!forwarded) invocationAnchors.delete(original);
+  return forwarded ?? original;
 }
 export function commandMenuAnchor(menu: HTMLElement): DOMRect | undefined {
   const owner = menu.closest<HTMLElement>(".menu-dropdown");
-  return owner ? anchors.get(owner) : undefined;
+  return owner ? anchors.get(owner)?.rect : undefined;
+}
+export function commandMenuPlacement(menu: HTMLElement): "side" | "below" {
+  const owner = menu.closest<HTMLElement>(".menu-dropdown");
+  return owner ? anchors.get(owner)?.placement ?? "below" : "below";
 }
 export function clearCommandAnchors(toolbar: HTMLElement) {
   toolbar.querySelectorAll<HTMLElement>(".menu-dropdown").forEach(owner => anchors.delete(owner));
+  toolbar.querySelectorAll<HTMLElement>("button").forEach(button => invocationAnchors.delete(button));
 }
 function group(label: string): EditorCommandGroup {
   if (/跳转|折叠|展开/.test(label)) return "文档";
@@ -47,7 +61,13 @@ export function invokeEditorCommand(command: EditorSurfaceCommand, anchor: HTMLE
   const original = command.source;
   if (!original.isConnected || original.disabled || original.closest("[inert]")) return;
   const owner = original.closest<HTMLElement>(".menu-dropdown");
-  if (owner) anchors.set(owner, anchor.getBoundingClientRect());
+  const snapshot: CommandAnchor = {
+    rect: anchor.getBoundingClientRect(),
+    placement: anchor.closest(".editor-context-menu") ? "side" : "below",
+  };
+  invocationAnchors.set(anchor, snapshot);
+  invocationAnchors.set(original, snapshot);
+  if (owner) anchors.set(owner, snapshot);
   original.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse", button: 0 }));
   invocationTriggers.set(original, anchor);
   try { original.click(); } finally { invocationTriggers.delete(original); }

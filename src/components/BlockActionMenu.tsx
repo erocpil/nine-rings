@@ -1,3 +1,5 @@
+import { anchoredMenuPosition } from "../lib/anchored-menu-position";
+import { editorCommandAnchor } from "../lib/editor-command-surface";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { BLOCK_MENU_GROUPS, blockMenuTitle, readBlockMenuPresentation, subscribeBlockMenuPresentation, blockMenuPresentationSnapshot, type BlockMenuGroupId, type BlockMenuPresentation } from "../lib/plugin-system/builtin-block-menu";
@@ -63,19 +65,15 @@ function InputControl({ action, onClose }: { action: BlockMenuAction; onClose: (
   </form>;
 }
 function menuPosition(rect: DOMRect, menu: DOMRect, placement: "side" | "below") {
-  const below = rect.bottom + 6;
-  const above = rect.top - menu.height - 6;
-  const y = placement === "below"
-    ? below + menu.height <= window.innerHeight - 8 ? below : above >= 8 ? above : below
-    : rect.top;
-  return {
-    x: Math.max(8, Math.min(placement === "below" ? rect.left : rect.right + 6, window.innerWidth - menu.width - 8)),
-    y: Math.max(8, Math.min(y, window.innerHeight - menu.height - 8)),
-  };
+  return anchoredMenuPosition(rect, menu, { width: window.innerWidth, height: window.innerHeight }, placement);
 }
 export function BlockActionMenu({ trigger, title, actions, onClose, placement = "side", blockNumber, blockType }: {
   trigger: HTMLElement; title: string; actions: BlockMenuAction[]; onClose: () => void; placement?: "side" | "below"; blockNumber?: number; blockType?: string;
 }) {
+  // Context commands retain an immutable invocation rect after their parent
+  // menu unmounts; direct toolbar and gutter buttons keep live geometry.
+  const invocation = editorCommandAnchor(trigger);
+  placement = invocation?.placement ?? placement;
   useSyncExternalStore(subscribeBlockMenuPresentation, blockMenuPresentationSnapshot);
   const presentation = readBlockMenuPresentation();
   const displayedTitle = presentation.enabled && blockNumber !== undefined && blockType
@@ -93,7 +91,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
     visibleActions = visibleActions.find(action => action.label === label)?.children ?? [];
   }
   useLayoutEffect(() => {
-    const rect = trigger.getBoundingClientRect();
+    const rect = invocation?.rect ?? trigger.getBoundingClientRect();
     anchorRect.current = rect;
     const menu = root.current!.getBoundingClientRect();
     setPosition(menuPosition(rect, menu, placement));
@@ -104,7 +102,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
         .find(button => button.dataset.submenuPath === focusPath);
       opener?.focus({ preventScroll: true });
     } else root.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
-  }, [trigger, submenuPath, placement]);
+  }, [trigger, submenuPath, placement, invocation]);
   useLayoutEffect(() => {
     const focusPath = keyboardFocusPath.current;
     if (!focusPath) return;

@@ -2871,3 +2871,12 @@ Bot 修复后冻结代码的原失败集合最终复验：32/32 通过（单 wor
 最终本地结果：`npm run check`（248个Vitest文件／2672项，另含既有脚本测试、类型、Lint、格式、覆盖率与IPC）通过；后续焦点增量另经类型／Lint和交互复验。Workbench完整46/46、Nine Rings共享双栏14/14、WebKit定向4/4通过。Rust工作台14项＋共享文件宿主34项全部通过，clippy `-D warnings`通过；Nine Rings Rust检查和前端生产构建通过。原生macOS arm64应用已成功构建过，提交后重建以包含最终修正；不以产物构建替代GUI验收。未推送／未核对本批远端CI，也未运行全仓库完整E2E。
 
 影响分析：SAFE（已验证代码与协议范围），入口为`SourceView.tsx:40`、`EditorWindow.tsx:10`与`editor-window.ts:32`；原文件模型、保存修订及公开源码入口默认兼容。Rust边界在`local_files.rs:256/267/276`区分读取、目录写和正文写，未安装可选窗口状态的Nine Rings仍只允许main。`editor_window.rs:152`串行创建、`:405`校验最终关闭、`:440`撤销销毁实例；纯模型测试核对请求去旧、失败清理仍递增版本及窗口身份不复活。UNCERTAIN：真实Tauri多窗口焦点、系统退出／托盘／全屏、跨平台运行与跨WebView草稿通知，等待本机与对应平台验收；没有将浏览器IPC夹具当作真实原生窗口操作。
+
+## 2026-11-17 正文右键子菜单锚点与侧向展开
+
+- 修复调用按钮随父菜单卸载后被测为零坐标的问题；调用前保存矩形及方向，直接工具栏调用不沿用旧锚点。
+- 文档等分组及其命令子菜单共用侧向布局，右侧不足时向左避让。Nine Rings 与 File Workbench 复用同一命令转发及几何计算。
+- 验证：`npm run check` 通过（257 个 Vitest 文件、2701 项测试）；两款应用生产构建通过。
+- Nine Rings 阅读菜单与正文右键回归：Chromium 19 passed；WebKit 18 passed、1 skipped（原生剪贴板能力门禁）。包含桌面／手机工具栏原有定位、经典／清雅右键定位和命令执行。
+- File Workbench 独立编辑器浅色／清雅定位：Chromium 2 passed；WebKit 2 passed。测试核验配色实际生效、分组侧向位置、父菜单关闭后标题级别菜单位置和级别命令可执行。
+- 影响分析结论：SAFE（在上述覆盖范围内未发现回归）。涉及 `editor-command-surface`、`EditorContextMenu`、`EditorToolbarContents`、`BlockActionMenu`；选区工具的原有向下定位回归通过。未修改正文、保存接口或 Rust/TypeScript 契约。本机 Tauri 安装版交互尚未实测。

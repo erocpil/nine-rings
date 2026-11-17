@@ -1,3 +1,4 @@
+import { expectFoldContextSubmenu } from "../helpers/context-submenu";
 import { sourceInfo } from "../helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
@@ -2802,4 +2803,15 @@ for(const markdown of [false,true]) test(`内置编辑器标题接入文件系�
   const info=page.getByRole("tooltip",{name:`${name} 的文档信息`,exact:true});
   const times=await page.evaluate(async()=>{const {formatDocumentTimestamp}=await import("/src/lib/document-info.ts");return [1600000000000,1600000300000].map(value=>formatDocumentTimestamp(new Date(value).toISOString()));});
   for(const time of times)await expect(info).toContainText(time);
+});
+
+for (const style of ["light", "calm"]) test(`独立编辑器右键标题级别子菜单贴近菜单项展开 ${style}`, async ({ page }) => {
+  await page.addInitScript(style => localStorage.setItem("file-workbench:palette", style), style);
+  await setupIndependentEditor(page, { "alpha.c": "int alpha;", "guide.md": "# 一级\n\n正文\n\n## 二级\n\n正文\n\n### 三级\n\n正文\n" });
+  await page.getByRole("button", { name: "切换编辑文件", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "guide.md", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-workbench-palette", style);
+  const content = page.locator(".ProseMirror:visible");
+  await expect(content).toContainText("一级");
+  for (const x of [20, 1000]) await expectFoldContextSubmenu(page, content, x);
 });

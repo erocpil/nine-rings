@@ -1,3 +1,4 @@
+import { expectFoldContextSubmenu } from "../helpers/context-submenu";
 import { expect, test } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "../helpers/document";
@@ -50,4 +51,25 @@ for (const width of [1280, 390]) test(`阅读折叠级别菜单跟随实际点�
     await page.keyboard.press("Escape");
     await expect(menu).toHaveCount(0);
   }
+});
+
+for (const style of ["classic", "calm"]) test(`右键标题级别子菜单保留关闭前锚点并左右避让 ${style}`, async ({ page }) => {
+  await page.addInitScript(style => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: style })), style);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.addInitScript(() => localStorage.setItem("nr:experimentalReadonlyRendering", "false"));
+  await createBlankDocument(page, "右键菜单定位");
+  await closeDocumentSidebar(page);
+  const content = page.locator(".note-editor .editor-content > .ProseMirror:visible");
+  await content.evaluate(element => (element as HTMLElement & { editor: Editor }).editor.commands.setContent({ type: "doc", content: [1, 2, 3].flatMap(level => [
+    { type: "heading", attrs: { level }, content: [{ type: "text", text: `标题 ${level}` }] },
+    { type: "paragraph", content: [{ type: "text", text: "正文。" }] },
+  ]) }, true));
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  for (const x of [20, 1000]) await expectFoldContextSubmenu(page, content, x);
+  // A later direct toolbar invocation must not reuse a detached context anchor.
+  const button = page.getByRole("toolbar", { name: "文档阅读工具", exact: true }).getByRole("button", { name: "选择标题折叠级别", exact: true });
+  await button.click();
+  const anchor = (await button.boundingBox())!;
+  const popup = (await page.getByRole("menu", { name: "标题折叠级别", exact: true }).boundingBox())!;
+  expect(Math.abs(popup.y - anchor.y - anchor.height - 6)).toBeLessThan(2);
 });

@@ -1,6 +1,7 @@
+import { anchoredMenuPosition } from "../lib/anchored-menu-position";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import { selectWholeDocument } from "../extensions/BlockSelectAll";
-import { commandMenuAnchor, clearCommandAnchors } from "../lib/editor-command-surface";
+import { commandMenuAnchor, commandMenuPlacement, clearCommandAnchors } from "../lib/editor-command-surface";
 import { applyToolbarColor } from "../lib/toolbar-color";
 import { useToolbarColor } from "../hooks/useToolbarColor";
 import { EditorBackgroundMenu } from "./EditorBackgroundMenu";
@@ -170,8 +171,11 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
         const above = anchor.top - 12;
         const flip = below < Math.min(menu.scrollHeight, 240) && above > below;
         menu.style.maxHeight = `${Math.max(40, flip ? above : below)}px`;
-        menu.style.top = `${flip ? Math.max(8, anchor.top - menu.offsetHeight - 4) : anchor.bottom}px`;
-        menu.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - menu.offsetWidth - 8))}px`;
+        const side = commandMenuPlacement(menu) === "side";
+        if (side) menu.style.maxHeight = `${window.innerHeight - 16}px`;
+        const position = anchoredMenuPosition(anchor, { width: menu.offsetWidth, height: menu.offsetHeight }, { width: window.innerWidth, height: window.innerHeight }, side ? "side" : "below");
+        menu.style.top = `${side ? position.y : flip ? Math.max(8, anchor.top - menu.offsetHeight - 4) : anchor.bottom}px`;
+        menu.style.left = `${position.x}px`;
 
         menu.style.overflowY = "auto";
       });
