@@ -12,7 +12,16 @@ export interface EditorSurfaceCommand {
 export const editorCommandGroups: EditorCommandGroup[] = ["编辑", "文字格式", "段落", "插入", "表格", "文档"];
 const anchors = new WeakMap<HTMLElement, CommandAnchor>();
 const invocationTriggers = new WeakMap<HTMLElement, HTMLElement>();
-interface CommandAnchor { rect: DOMRect; placement: "side" | "below" }
+export interface CommandAnchor { rect: DOMRect; placement: "side" | "below"; trigger?: HTMLElement }
+let currentInvocation: CommandAnchor | undefined;
+export function currentEditorCommandAnchor() { return currentInvocation; }
+export function withEditorCommandTrigger<T>(original: HTMLElement, run: () => T): T {
+  const trigger = editorCommandTrigger(original);
+  const anchor = editorCommandAnchor(trigger) ?? { rect: trigger.getBoundingClientRect(), placement: "below" as const, trigger };
+  const previous = currentInvocation;
+  currentInvocation = anchor;
+  try { return run(); } finally { currentInvocation = previous; }
+}
 // Invocation buttons can unmount as the context/selection surface closes.
 // Capture their geometry before dispatch, rather than measuring detached DOM.
 const invocationAnchors = new WeakMap<HTMLElement, CommandAnchor>();
@@ -63,6 +72,7 @@ export function invokeEditorCommand(command: EditorSurfaceCommand, anchor: HTMLE
   const owner = original.closest<HTMLElement>(".menu-dropdown");
   const snapshot: CommandAnchor = {
     rect: anchor.getBoundingClientRect(),
+    trigger: anchor,
     placement: anchor.closest(".editor-context-menu") ? "side" : "below",
   };
   invocationAnchors.set(anchor, snapshot);
@@ -70,7 +80,7 @@ export function invokeEditorCommand(command: EditorSurfaceCommand, anchor: HTMLE
   if (owner) anchors.set(owner, snapshot);
   original.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse", button: 0 }));
   invocationTriggers.set(original, anchor);
-  try { original.click(); } finally { invocationTriggers.delete(original); }
+  try { withEditorCommandTrigger(original, () => original.click()); } finally { invocationTriggers.delete(original); }
   // Existing open popovers also need to follow a newly selected invocation surface.
   window.dispatchEvent(new Event("nr:editor-command-anchor"));
 }

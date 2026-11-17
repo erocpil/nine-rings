@@ -1,3 +1,4 @@
+import { withEditorCommandTrigger } from "../lib/editor-command-surface";
 import { SOURCE_SHORTCUT_EVENT, sourceNavigationKeybindings } from "../lib/source-navigation-shortcuts";
 import { SourceNavigationControls } from "./SourceNavigationControls";
 import { sourceNavigationExtension } from "../lib/source-navigation-actions";
@@ -1319,7 +1320,7 @@ export function MarkdownSourceEditor({
         aria-label={findLabel}
         aria-expanded={tools.search}
         aria-pressed={tools.search}
-        onClick={() => run((v) => toggleSourcePanel(v, "search"))}
+        onClick={event => withEditorCommandTrigger(event.currentTarget, () => run((v) => toggleSourcePanel(v, "search")))}
       >
         <ToolbarIcon name="search" />
       </button>
@@ -1329,7 +1330,7 @@ export function MarkdownSourceEditor({
         aria-label="跳转行"
         aria-expanded={tools.goto}
         aria-pressed={tools.goto}
-        onClick={() => run((v) => toggleSourcePanel(v, "goto"))}
+        onClick={event => withEditorCommandTrigger(event.currentTarget, () => run((v) => toggleSourcePanel(v, "goto")))}
       >
         <ToolbarIcon name="jumpLine" />
       </button>

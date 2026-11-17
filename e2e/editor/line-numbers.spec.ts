@@ -67,7 +67,7 @@ test.describe("编辑器块级 gutter", () => {
 
     const jumpInput = page.getByRole("dialog", { name: "跳转块" }).getByLabel("跳转到块号");
     await expect(jumpInput).toBeVisible();
-    await expect(page.locator(".editor-line-jump")).toHaveCSS("position", "absolute");
+    await expect(page.locator(".editor-line-jump")).toHaveCSS("position", "fixed");
     const editorTopAfter = await editor.evaluate((element) => element.getBoundingClientRect().top);
     expect(Math.abs(editorTopAfter - editorTopBefore)).toBeLessThan(1);
 

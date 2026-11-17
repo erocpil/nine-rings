@@ -1,7 +1,7 @@
 import { anchoredMenuPosition } from "../lib/anchored-menu-position";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import { selectWholeDocument } from "../extensions/BlockSelectAll";
-import { commandMenuAnchor, commandMenuPlacement, clearCommandAnchors } from "../lib/editor-command-surface";
+import { commandMenuAnchor, commandMenuPlacement, clearCommandAnchors, withEditorCommandTrigger } from "../lib/editor-command-surface";
 import { applyToolbarColor } from "../lib/toolbar-color";
 import { useToolbarColor } from "../hooks/useToolbarColor";
 import { EditorBackgroundMenu } from "./EditorBackgroundMenu";
@@ -105,7 +105,7 @@ const dropdownCaret = <span className="toolbar-dropdown-caret" aria-hidden="true
 const btn = (label: ReactNode, action: () => void, active?: boolean, title?: string, disabled?: boolean, shortcut?: string, accessibleLabel?: string) => (
   <button
     className={`menu-btn ${active ? "active" : ""}`}
-    onClick={disabled ? undefined : action}
+    onClick={disabled ? undefined : event => withEditorCommandTrigger(event.currentTarget, action)}
     type="button"
     title={shortcut && title ? shortcutTitle(shortcut, title.replace(/ \(Ctrl[^)]*\)/, "")) : title}
     aria-label={accessibleLabel ?? title}

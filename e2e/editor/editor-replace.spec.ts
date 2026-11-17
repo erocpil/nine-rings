@@ -83,8 +83,11 @@ test("手机从更多打开替换，横竖屏均不溢出", async ({ page }, tes
     await page.setViewportSize(viewport);
     const bar = page.locator(".editor-find-bar");
     const box = (await bar.boundingBox())!;
-    const editorBox = (await page.locator(".note-editor").boundingBox())!;
-    expect(Math.abs(box.x - editorBox.x - 6)).toBeLessThanOrEqual(1);
+    await expect.poll(async () => {
+      const current = (await bar.boundingBox())!;
+      const anchor = (await page.getByRole("button", { name: "查找与替换", exact: true }).boundingBox())!;
+      return Math.abs(current.x - Math.max(8, Math.min(anchor.x, viewport.width - current.width - 8)));
+    }).toBeLessThanOrEqual(1);
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
     expect(await bar.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);

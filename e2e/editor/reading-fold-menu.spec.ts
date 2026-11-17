@@ -73,3 +73,44 @@ for (const style of ["classic", "calm"]) test(`右键标题级别子菜单保留
   const popup = (await page.getByRole("menu", { name: "标题折叠级别", exact: true }).boundingBox())!;
   expect(Math.abs(popup.y - anchor.y - anchor.height - 6)).toBeLessThan(2);
 });
+
+for (const style of ["classic", "calm"]) test(`查找和跳转块浮层跟随入口且不覆盖标题 ${style}`, async ({ page }) => {
+  await page.addInitScript(style => {
+    localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: style }));
+    localStorage.setItem("nr:experimentalReadonlyRendering", "false");
+  }, style);
+  await createBlankDocument(page, "工具浮层定位");
+  await closeDocumentSidebar(page);
+  await page.locator(".ProseMirror[contenteditable=true]").fill("第一块正文\n第二块正文");
+  const find = page.getByRole("button", { name: "查找与替换", exact: true }).first();
+  await find.click();
+  const search = page.getByRole("search", { name: "文档查找", exact: true });
+  const findBox = (await find.boundingBox())!;
+  await expect.poll(async () => (await search.boundingBox())!.y - findBox.y - findBox.height).toBeCloseTo(6, 0);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  const jump = page.getByRole("button", { name: "跳转块", exact: true });
+  const panel = page.getByRole("dialog", { name: "跳转块", exact: true });
+  const before = await page.locator(".note-editor-scroll").boundingBox();
+  await jump.click();
+  const jumpBox = (await jump.boundingBox())!;
+  await expect.poll(async () => (await panel.boundingBox())!.y - jumpBox.y - jumpBox.height).toBeCloseTo(6, 0);
+  expect(await page.locator(".note-editor-scroll").boundingBox()).toEqual(before);
+  await jump.click(); await expect(panel).toHaveCount(0);
+  // A context command keeps its detached button's side anchor.
+  await page.locator(".ProseMirror:visible > p").first().click({ button: "right", position: { x: 70, y: 10 } });
+  const context = page.getByRole("menu", { name: "正文操作", exact: true });
+  await context.getByRole("button", { name: "文档", exact: true }).click();
+  const item = context.getByRole("button", { name: "跳转块", exact: true });
+  const itemBox = (await item.boundingBox())!;
+  await item.click();
+  await expect(panel).toBeVisible();
+  const popup = (await panel.boundingBox())!;
+  expect(popup.x).toBeCloseTo(itemBox.x + itemBox.width + 6, 0);
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Alt+g");
+  await expect(panel).toBeVisible();
+  const title = (await page.locator(".document-render-header:visible").boundingBox())!;
+  expect((await panel.boundingBox())!.y).toBeGreaterThanOrEqual(title.y + title.height);
+  await page.keyboard.press("Escape");
+});

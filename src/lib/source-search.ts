@@ -1,3 +1,5 @@
+import { mountFloatingDocumentTool } from "./floating-document-tool";
+import { currentEditorCommandAnchor } from "./editor-command-surface";
 import { revealSourceTarget } from "./source-navigation-target";
 import { EditorSelection, StateEffect, StateField } from "@codemirror/state";
 import {
@@ -173,6 +175,8 @@ export function toggleSourcePanel(
       : openSourceGoto(view);
 }
 function createGotoPanel(view: EditorView): Panel {
+  const anchor = currentEditorCommandAnchor();
+  let disposePosition: (() => void) | undefined;
   const dom = document.createElement("form");
   dom.className = "cm-goto-line source-tool-panel";
   retainPanelKeyboardFocus(dom, view);
@@ -251,7 +255,10 @@ function createGotoPanel(view: EditorView): Panel {
   };
   row.append(input, go, close);
   dom.append(title, row, help, error);
-  return { dom, top: true };
+  return { dom, top: true,
+    mount: () => { disposePosition = mountFloatingDocumentTool(dom.parentElement!, view.scrollDOM, anchor); },
+    destroy: () => disposePosition?.(),
+  };
 }
 function navigate(view: EditorView, direction: number) {
   let state = view.state.field(searchState);
@@ -308,6 +315,8 @@ function retainPanelKeyboardFocus(dom: HTMLElement, view: EditorView) {
   });
 }
 function createSearchPanel(view: EditorView): Panel {
+  const anchor = currentEditorCommandAnchor();
+  let disposePosition: (() => void) | undefined;
   const dom = document.createElement("div");
   dom.className = "cm-search source-tool-panel";
   retainPanelKeyboardFocus(dom, view);
@@ -451,8 +460,10 @@ function createSearchPanel(view: EditorView): Panel {
   return {
     dom,
     top: true,
+    mount: () => { disposePosition = mountFloatingDocumentTool(dom.parentElement!, view.scrollDOM, anchor); },
     update: (_update: ViewUpdate) => update(),
     destroy: () => {
+      disposePosition?.();
       destroyed = true;
     },
   };

@@ -1,4 +1,7 @@
-import { useId, useLayoutEffect, type RefObject } from "react";
+import { createPortal } from "react-dom";
+import { useFloatingDocumentTool } from "../hooks/useFloatingDocumentTool";
+import type { CommandAnchor } from "../lib/editor-command-surface";
+import { useId, useLayoutEffect, useRef, type RefObject } from "react";
 import type { SearchOptions } from "../lib/search-matching";
 
 interface ReplaceCapability {
@@ -13,6 +16,8 @@ interface ReplaceCapability {
 }
 export function DocumentFindPanel({
   inputRef,
+  viewportRef,
+  anchor,
   query,
   onQueryChange,
   options,
@@ -25,6 +30,8 @@ export function DocumentFindPanel({
   replace,
 }: {
   inputRef: RefObject<HTMLInputElement>;
+  viewportRef: RefObject<HTMLElement>;
+  anchor?: CommandAnchor | null;
   query: string;
   onQueryChange: (value: string) => void;
   options: SearchOptions;
@@ -36,12 +43,15 @@ export function DocumentFindPanel({
   onClose: () => void;
   replace?: ReplaceCapability;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFloatingDocumentTool(panelRef, viewportRef, anchor);
   useLayoutEffect(() => {
     inputRef.current?.focus({ preventScroll: true });
     inputRef.current?.select();
   }, [inputRef]);
-  return (
+  return createPortal(
     <div
+      ref={panelRef}
       className={`editor-find-bar${replace?.open ? " editor-find-bar-replace" : ""}`}
       role="search"
       aria-label="文档查找"
@@ -209,12 +219,14 @@ export function DocumentFindPanel({
           </div>
         </>
       )}
-    </div>
+    </div>, document.body
   );
 }
 
 export function DocumentBlockJumpPanel({
   inputRef,
+  viewportRef,
+  anchor,
   value,
   onChange,
   count,
@@ -223,6 +235,8 @@ export function DocumentBlockJumpPanel({
   onClose,
 }: {
   inputRef: RefObject<HTMLInputElement>;
+  viewportRef: RefObject<HTMLElement>;
+  anchor?: CommandAnchor | null;
   value: string;
   onChange: (value: string) => void;
   count: number;
@@ -231,13 +245,16 @@ export function DocumentBlockJumpPanel({
   onClose: () => void;
 }) {
   const id = useId();
+  const panelRef = useRef<HTMLFormElement>(null);
+  useFloatingDocumentTool(panelRef, viewportRef, anchor);
   useLayoutEffect(() => {
     inputRef.current?.focus({ preventScroll: true });
     inputRef.current?.select();
   }, [inputRef]);
-  return (
+  return createPortal(
     <form
       noValidate
+      ref={panelRef}
       className="editor-line-jump"
       role="dialog"
       aria-label="跳转块"
@@ -292,6 +309,6 @@ export function DocumentBlockJumpPanel({
       >
         ×
       </button>
-    </form>
+    </form>, document.body
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useState, type RefObject } from "react";
 import { DocumentToolbar } from "./DocumentChrome";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { BlockActionMenu } from "./BlockActionMenu";
-import { editorCommandTrigger } from "../lib/editor-command-surface";
+import { editorCommandTrigger, withEditorCommandTrigger } from "../lib/editor-command-surface";
 
 /** Read commands have no persistence or file identity. Each host supplies the
  * same capabilities against its current renderer and authoritative selection. */
@@ -53,7 +53,7 @@ export function DocumentReadingToolbar({
           aria-label="文档查找"
           title="文档查找（⌘F / Ctrl+F）"
           aria-pressed={findOpen}
-          onClick={onFind}
+          onClick={event => withEditorCommandTrigger(event.currentTarget, onFind)}
         >
           <ToolbarIcon name="search" />
         </button>
@@ -63,7 +63,7 @@ export function DocumentReadingToolbar({
           aria-label="跳转块"
           title="跳转块（⌘G / Ctrl+G）"
           aria-pressed={jumpOpen}
-          onClick={onJump}
+          onClick={event => withEditorCommandTrigger(event.currentTarget, onJump)}
         >
           <ToolbarIcon name="jumpLine" />
         </button>

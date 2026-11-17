@@ -1,3 +1,7 @@
+import {
+  currentEditorCommandAnchor,
+  withEditorCommandTrigger,
+} from "../../src/lib/editor-command-surface";
 import { describe, expect, it } from "vitest";
 import { anchoredMenuPosition } from "../../src/lib/anchored-menu-position";
 
@@ -41,4 +45,34 @@ describe("command submenu geometry", () => {
       ),
     ).toEqual({ x: 200, y: 136 });
   });
+});
+
+it("command invocation anchors are scoped and never leak into later keyboard commands", () => {
+  const outer = {
+    getBoundingClientRect: () => ({
+      left: 30,
+      right: 60,
+      top: 80,
+      bottom: 108,
+    }),
+  } as HTMLElement;
+  const inner = {
+    getBoundingClientRect: () => ({
+      left: 90,
+      right: 120,
+      top: 80,
+      bottom: 108,
+    }),
+  } as HTMLElement;
+  expect(currentEditorCommandAnchor()).toBeUndefined();
+  withEditorCommandTrigger(outer, () => {
+    expect(currentEditorCommandAnchor()?.rect.left).toBe(30);
+    expect(() =>
+      withEditorCommandTrigger(inner, () => {
+        throw new Error("cancel");
+      }),
+    ).toThrow("cancel");
+    expect(currentEditorCommandAnchor()?.rect.left).toBe(30);
+  });
+  expect(currentEditorCommandAnchor()).toBeUndefined();
 });

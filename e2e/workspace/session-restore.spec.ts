@@ -195,7 +195,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
 
     const findInput = page.getByRole("search").getByLabel("在当前文档中查找");
     await expect(findInput).toBeVisible();
-    await expect(page.locator(".editor-find-bar")).toHaveCSS("position", "absolute");
+    await expect(page.locator(".editor-find-bar")).toHaveCSS("position", "fixed");
     const editorTopAfter = await editor.evaluate((element) => element.getBoundingClientRect().top);
     expect(Math.abs(editorTopAfter - editorTopBefore)).toBeLessThan(1);
     await findInput.fill("current-find-target");

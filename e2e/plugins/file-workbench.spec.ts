@@ -2893,3 +2893,32 @@ test("双栏中点吸附、双击及键盘恢复等宽并保存比例", async ({
   const widths = await page.locator(".file-browser-pane-slot").evaluateAll(elements => elements.map(element => element.getBoundingClientRect().width));
   expect(Math.abs(widths[0] - widths[1])).toBeLessThan(1);
 });
+
+for (const palette of ["light", "calm"]) test(`查找跳转浮层在源码和渲染工具栏下方 ${palette}`, async ({ page }) => {
+  await page.addInitScript(palette => localStorage.setItem("file-workbench:palette", palette), palette);
+  await setupIndependentEditor(page, { "alpha.c": "int alpha(void) { return 1; }\n", "guide.md": "# Guide\n\nFirst paragraph.\n\nSecond paragraph.\n" });
+  const sourceToolbar = page.getByRole("toolbar", { name: "源码编辑工具", exact: true });
+  const find = sourceToolbar.getByRole("button", { name: "查找", exact: true });
+  const jump = sourceToolbar.getByRole("button", { name: "跳转行", exact: true });
+  await find.click();
+  await expect(page.getByRole("search", { name: "源码查找与替换", exact: true })).toBeVisible();
+  let box = (await find.boundingBox())!;
+  await expect.poll(async () => (await page.locator(".cm-panels-top").boundingBox())!.y - box.y - box.height).toBeCloseTo(6, 0);
+  await jump.click();
+  await expect(page.getByRole("search", { name: "源码查找与替换", exact: true })).toHaveCount(0);
+  box = (await jump.boundingBox())!;
+  await expect.poll(async () => (await page.locator(".cm-panels-top").boundingBox())!.y - box.y - box.height).toBeCloseTo(6, 0);
+  await jump.click();
+  await expect(page.locator(".source-tool-panel")).toHaveCount(0);
+  await page.getByRole("button", { name: "切换编辑文件", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "guide.md", exact: true }).click();
+  const blockButton = page.getByRole("button", { name: "跳转块", exact: true });
+  await blockButton.click();
+  box = (await blockButton.boundingBox())!;
+  const panel = page.getByRole("dialog", { name: "跳转块", exact: true });
+  await expect.poll(async () => (await panel.boundingBox())!.y - box.y - box.height).toBeCloseTo(6, 0);
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await page.getByRole("button", { name: "文档查找", exact: true }).click();
+  await expect(page.getByRole("search", { name: "文档查找", exact: true })).toBeVisible();
+});

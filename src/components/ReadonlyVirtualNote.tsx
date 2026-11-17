@@ -1,3 +1,4 @@
+import { DocumentBlockJumpPanel } from "./DocumentToolPanels";
 import { renderReadonlyBlock, decorateFlowBlock } from "./DocumentBlockContent";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
 import { EditorStatusBar } from "./EditorStatusBar";
@@ -1259,13 +1260,8 @@ export function ReadonlyVirtualNote(
           </button>
         </div>
       )}
-      {blockJumpValue !== null && <form className="editor-line-jump" role="dialog" aria-label="跳转块" onSubmit={event => { event.preventDefault(); submitBlockJump(); }}>
-        <label htmlFor={`block-jump-${noteId}`}>块号</label>
-        <input ref={blockJumpInput} id={`block-jump-${noteId}`} aria-label="跳转到块号" inputMode="numeric" value={blockJumpValue} aria-invalid={Boolean(blockJumpError)} onChange={event => { setBlockJumpValue(event.target.value); setBlockJumpError(""); }} />
-        <span role="status" className={blockJumpError ? "editor-line-jump-error" : "editor-line-jump-range"}>{blockJumpError || `/ ${doc.childCount}`}</span>
-        <button type="submit" aria-label="跳转" title="跳转">↵</button>
-        <button type="button" aria-label="关闭跳转" title="关闭跳转" onClick={closeBlockJump}>×</button>
-      </form>}
+      {blockJumpValue !== null && <DocumentBlockJumpPanel viewportRef={rootRef} inputRef={blockJumpInput} value={blockJumpValue} count={doc.childCount} error={blockJumpError}
+        onChange={value => { setBlockJumpValue(value); setBlockJumpError(""); }} onSubmit={submitBlockJump} onClose={closeBlockJump} />}
       <DocumentPanelDrawer
         enabled={mobileDrawerViewport}
         presentation={presentation}

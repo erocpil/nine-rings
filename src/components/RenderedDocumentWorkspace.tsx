@@ -1,3 +1,4 @@
+import { currentEditorCommandAnchor, type CommandAnchor } from "../lib/editor-command-surface";
 import { PanelSideToggle } from "./PanelSideToggle";
 import { DocumentTitleField } from "./DocumentTitleField";
 import { createPortal } from "react-dom";
@@ -505,6 +506,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
   const findControls = useDocumentFindControls();
   const { matchIndex: activeSearchMatch, setMatchIndex: setActiveSearchMatch } = findControls;
+  const [toolAnchor, setToolAnchor] = useState<CommandAnchor | null>(null);
   const { findOpen: editorFindOpen, setFindOpen: setEditorFindOpen, jumpOpen: lineJumpOpen, setJumpOpen: setLineJumpOpen } = useDocumentToolPanel(documentActive);
   const { query: editorFindQuery, setQuery: setEditorFindQuery, setCaseSensitive: setEditorFindCaseSensitive, setWholeWord: setEditorFindWholeWord, setRegex: setEditorFindRegex } = findControls;
   const [editorReplaceOpen, setEditorReplaceOpen] = useState(false);
@@ -1742,6 +1744,8 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
 
   const openLineJump = useCallback(() => {
     if (!editor || editor.isDestroyed) return;
+    if (lineJumpOpen) { flushSync(() => closeLineJump()); editor.view.focus(); return; }
+    setToolAnchor(currentEditorCommandAnchor() ?? null);
     const position = readonly ? activeLinePluginKey.getState(editor.state)?.readingBlockPosition ?? editor.state.selection.from : editor.state.selection.from;
     const currentLine = documentBlockOrdinal(editor.state.doc, position);
     closeEditorFind();
@@ -1753,7 +1757,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
       lineJumpInputRef.current?.focus({ preventScroll: true });
       lineJumpInputRef.current?.select();
     });
-  }, [closeEditorFind, editor, setOutlineOpen, readonly, setLineJumpOpen]);
+  }, [closeEditorFind, closeLineJump, lineJumpOpen, editor, setOutlineOpen, readonly, setLineJumpOpen]);
 
   const submitLineJump = useCallback(() => {
     if (!editor || editor.isDestroyed) return;
@@ -1793,6 +1797,7 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
     const { from, to } = editor.state.selection;
     const selected = from === to ? "" : editor.state.doc.textBetween(from, to, " ").trim();
     flushSync(() => {
+      setToolAnchor(currentEditorCommandAnchor() ?? null);
       closeLineJump();
       if (selected && !selected.includes("\n")) setEditorFindQuery(selected);
       setEditorFindOpen(true);
@@ -1927,15 +1932,16 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
         event.preventDefault();
         event.stopPropagation();
         if (lineJumpOpen) {
-          closeLineJump();
+          flushSync(() => closeLineJump());
           editor.view.focus();
         } else openLineJump();
         return;
       }
       if (event.key === "Escape" && lineJumpOpen) {
         event.preventDefault();
-        closeLineJump();
-        editor.commands.focus();
+        event.stopPropagation();
+        flushSync(() => closeLineJump());
+        editor.commands.focus(undefined, { scrollIntoView: false });
         return;
       }
       if (event.key === "Escape" && wikiOpen && editor.view.dom.contains(event.target as Node)) {
@@ -4458,15 +4464,15 @@ function FullDocumentWorkspace({ workspaceHost, onCreateDocument, onHostEditorRe
           ><FocusModeIcon name="exit" /></button>
         </FocusModeBar>
       )}
-      {editorFindOpen && <DocumentFindPanel inputRef={editorFindInputRef} query={editorFindQuery} onQueryChange={setEditorFindQuery}
+      {editorFindOpen && <DocumentFindPanel viewportRef={scrollRef} anchor={toolAnchor} inputRef={editorFindInputRef} query={editorFindQuery} onQueryChange={setEditorFindQuery}
         options={findControls.options} onOptionsChange={findControls.setOptions} count={searchMatches.length} activeIndex={activeSearchMatch} error={editorFindError}
-        onNavigate={navigateEditorFind} onClose={() => { closeEditorFind(); editor.commands.focus(); }}
+        onNavigate={navigateEditorFind} onClose={() => { flushSync(() => closeEditorFind()); editor.commands.focus(undefined, { scrollIntoView: false }); }}
         replace={readonly ? undefined : { open: editorReplaceOpen, onToggle: () => setEditorReplaceOpen(open => !open), value: editorReplaceValue,
           onChange: value => { setEditorReplaceValue(value); setEditorReplaceMessage(""); }, inputRef: editorReplaceInputRef,
           onReplace: replaceEditorText, onUndo: () => { editor.commands.undo(); }, message: editorReplaceMessage }} />}
-      {lineJumpOpen && <DocumentBlockJumpPanel inputRef={lineJumpInputRef} value={lineJumpValue} count={Math.max(gutterBlockCount, editor.state.doc.childCount)} error={lineJumpError}
+      {lineJumpOpen && <DocumentBlockJumpPanel viewportRef={scrollRef} anchor={toolAnchor} inputRef={lineJumpInputRef} value={lineJumpValue} count={Math.max(gutterBlockCount, editor.state.doc.childCount)} error={lineJumpError}
         onChange={value => { setLineJumpValue(value); setLineJumpError(null); }} onSubmit={submitLineJump}
-        onClose={() => { closeLineJump(); editor.commands.focus(); }} />}
+        onClose={() => { flushSync(() => closeLineJump()); editor.commands.focus(undefined, { scrollIntoView: false }); }} />}
       <DocumentPanelDrawer
         enabled={isMobileToolbarViewport}
         presentation={panelPresentation}
