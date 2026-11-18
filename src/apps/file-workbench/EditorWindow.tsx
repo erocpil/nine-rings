@@ -1,3 +1,4 @@
+import { WorkspaceDialog } from "../../components/WorkspaceDialog";
 import { useEdgeScrollbars } from "../../hooks/useEdgeScrollbars";
 import { NotesContextMenu, type NotesMenuTarget } from "../../components/NotesContextMenu";
 import { lazy, Suspense, useEffect, useRef, useState, type MutableRefObject } from "react";
@@ -81,7 +82,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
   };
   return <main className="file-workbench-app workbench-editor-window">
     {quitHint && <div className="workbench-quit-overlay"><div className="workbench-quit-card" role="status"><kbd>⌘Q</kbd><strong>{quitHint}</strong><span>继续使用则无需操作</span></div></div>}
-    {error && <p role="alert">{error}<button type="button" aria-label="关闭窗口错误" onClick={() => setError("")}>×</button></p>}
+    {error && <WorkspaceDialog title="编辑器操作异常" onClose={() => setError("")}><p role="alert">{error}</p></WorkspaceDialog>}
     <div ref={container} className="file-workbench-content workbench-editor-sessions" />
     {state.files.map(item => {
       let closeRequest = closeRefs.current.get(item.id);

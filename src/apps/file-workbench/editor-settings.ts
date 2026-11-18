@@ -1,3 +1,4 @@
+import { DOCUMENT_LANGUAGE_OPTIONS, AUTO_DOCUMENT_LANGUAGE } from "../../lib/document-language";
 import type { AppConfig } from "../../types/models";
 import type { BrowserSettingsStore } from "../../lib/local-files/browser-workspace-contract";
 import { DEFAULT_EDITOR_FOLD_ICONS } from "../../lib/editor-fold-icons";
@@ -23,4 +24,14 @@ export function saveWorkbenchEditorSettings(store: BrowserSettingsStore, current
   const next = normalize({ ...current, ...patch });
   store.setItem(EDITOR_SETTINGS_KEY, JSON.stringify(next));
   return next;
+}
+
+/** Presentation override only; never rename the file or change its bytes. */
+export function readWorkbenchFileLanguage(store: BrowserSettingsStore, identity: string): string | null {
+  try { const value = store.getItem(`language:${identity}`); return DOCUMENT_LANGUAGE_OPTIONS.some(option => option.value === value) ? value : null; }
+  catch { return null; }
+}
+export function saveWorkbenchFileLanguage(store: BrowserSettingsStore, identity: string, value: string) {
+  if (value !== AUTO_DOCUMENT_LANGUAGE && !DOCUMENT_LANGUAGE_OPTIONS.some(option => option.value === value)) throw new Error("不支持的文件格式");
+  store.setItem(`language:${identity}`, value);
 }

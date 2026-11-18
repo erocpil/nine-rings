@@ -2,10 +2,19 @@ import { markPasteRule } from "@tiptap/core";
 import Link from "@tiptap/extension-link";
 import { Plugin } from "@tiptap/pm/state";
 import { bareLinkParts, CJK_LINK_BOUNDARY, malformedBareLink, shouldAutoLinkText } from "../lib/bare-autolinks";
+/** Relative file destinations are authorized by their document host. Keep
+ * scheme/control characters excluded; the upstream validator still owns URLs. */
+export function isSafeRelativeFileHref(value: string): boolean {
+  return Boolean(value.trim()) && ![...value].some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) && !/[\\:]/.test(value) && !/^\s*[/#]/.test(value);
+}
 /** Link titles must survive editor hydration and Markdown export. */
 export const DocumentLink = Link.extend({
   addOptions() {
-    return { ...this.parent?.(), shouldAutoLink: shouldAutoLinkText };
+    return { ...this.parent?.(), shouldAutoLink: shouldAutoLinkText,
+      // Some upstream link versions reject bare `folder/file.md` while
+      // accepting `./folder/file.md`. Both are relative, never new schemes.
+      isAllowedUri: (url, context) => context.defaultValidate(url) || isSafeRelativeFileHref(url),
+    };
   },
   addPasteRules() {
     return [markPasteRule({
@@ -26,7 +35,16 @@ export const DocumentLink = Link.extend({
   },
   addProseMirrorPlugins() {
     const linkType = this.type;
-    return [...(this.parent?.() ?? []), new Plugin({
+    return [new Plugin({
+      props: {
+        // ProseMirror handles mouseup before React receives click. Relative
+        // files belong to the host, never the upstream window.open handler.
+        handleClick: (_view, _pos, event) => {
+          const href = (event.target as Element | null)?.closest("a[href]")?.getAttribute("href");
+          return Boolean(href && isSafeRelativeFileHref(href));
+        },
+      },
+    }), ...(this.parent?.() ?? []), new Plugin({
       appendTransaction(transactions, _old, state) {
         if (!transactions.some(tr => tr.docChanged) || transactions.some(tr => tr.getMeta("nr-autolink-repair"))) return null;
         const tr = state.tr;

@@ -1,6 +1,11 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-11-18",
+    title: "内置编辑器操作与文件导航",
+    changes: ["File Workbench 支持按文件覆盖显示格式、未保存标题星号及 Command／Ctrl+W 关闭当前文件；保存反馈不再挤占正文，错误改用中央弹层。", "双栏分隔条拖动和双击不再产生文本选区；修复磁盘 Markdown 相对链接被清空或重复打开窗口，本地文件树跟随链接目标。"],
+  },
+  {
     date: "2026-11-17",
     title: "粘贴重开与磁盘文档信息卡",
     changes: ["统一查找、替换、跳转块和跳转行的浮层定位：工具栏下方展开、右键菜单侧向展开、快捷键定位正文上方；不遮挡标题，并保留光标、滚动和 Esc 关闭优先级。", "File Workbench 新增独立编辑器排版设置，默认18px，支持正文字体、源码字体、行距和块间距；双栏分隔条支持中点吸附及双击恢复等宽。", "修复正文右键菜单的标题折叠级别等子菜单跳到左上角的问题；按点击菜单项的位置向右或向左展开，Nine Rings 与 File Workbench 共用定位逻辑。", "修复 ChatGPT 富文本粘贴并合并后，重开文档字号意外变大的问题；中文粗体、斜体源码保留正确边界，不再无故转义相邻汉字。", "修复 Nine Rings 与 File Workbench 磁盘文档标题信息卡遗漏创建和访问时间的问题；共用文件系统元信息，保存及窗口重新获得焦点后刷新，浏览器未提供的字段仍如实显示暂无记录。"],

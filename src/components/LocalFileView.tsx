@@ -547,6 +547,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     const href = anchor.getAttribute("href") ?? "";
     if (!href || href.startsWith("#") || /^(?:[a-z][a-z0-9+.-]*:|\/\/|\/)/i.test(href)) return;
     event.preventDefault();
+    event.stopPropagation();
     try {
       const nodeId = resolveRelativeNode(data.nodeId, href);
       const pathParts = nodeId.split("/"); const name = pathParts[pathParts.length - 1] ?? nodeId;

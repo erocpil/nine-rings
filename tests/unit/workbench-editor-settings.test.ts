@@ -1,3 +1,8 @@
+import {
+  readWorkbenchFileLanguage,
+  saveWorkbenchFileLanguage,
+} from "../../src/apps/file-workbench/editor-settings";
+import { AUTO_DOCUMENT_LANGUAGE } from "../../src/lib/document-language";
 import { expect, it } from "vitest";
 import {
   readWorkbenchEditorSettings,
@@ -52,4 +57,23 @@ it("recovers corrupt settings and propagates write failures without changing liv
         '{"editor_show_line_numbers":"false","editor_fold_icon_style":"unknown","editor_fold_icon_collapsed":{}}',
     }),
   ).toEqual(current);
+});
+
+it("file language overrides stay in the host settings and do not change filenames", () => {
+  const data = new Map<string, string>();
+  const store = {
+    getItem: (key: string) => data.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      data.set(key, value);
+    },
+  };
+  saveWorkbenchFileLanguage(store, "root:example.txt", "markdown");
+  expect(readWorkbenchFileLanguage(store, "root:example.txt")).toBe("markdown");
+  expect(readWorkbenchFileLanguage(store, "root:other.txt")).toBeNull();
+  saveWorkbenchFileLanguage(store, "root:example.txt", AUTO_DOCUMENT_LANGUAGE);
+  expect(readWorkbenchFileLanguage(store, "root:example.txt")).toBeNull();
+  expect(() =>
+    saveWorkbenchFileLanguage(store, "root:example.txt", "unsupported-format"),
+  ).toThrow();
+  expect([...data.keys()]).toEqual(["language:root:example.txt"]);
 });

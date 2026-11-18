@@ -1,5 +1,5 @@
 import { expectFoldContextSubmenu } from "../helpers/context-submenu";
-import { sourceInfo } from "../helpers/source-editor";
+import { sourceInfo, selectDocumentLanguage } from "../helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -1921,6 +1921,7 @@ test("Markdown 渲染正文可编辑并保存，源码往返保留会话、撤�
   await body.getByRole("link", { name: "Related", exact: true }).click();
   await expect(page).toHaveURL(/file-workbench\.html$/);
   await expect(page.getByRole("status").filter({ hasText: "不会跳离当前编辑会话" })).toBeVisible();
+  await page.getByRole("dialog", { name: "文件提示", exact: true }).getByRole("button", { name: /关闭/ }).click();
   expect(await page.evaluate(() => (window as any).__markdownDisk.writes)).toBe(0);
   await rendered.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
   await expect(body).toBeEditable();
@@ -2884,11 +2885,15 @@ test("双栏中点吸附、双击及键盘恢复等宽并保存比例", async ({
   await expect(splitter).toHaveAttribute("aria-valuenow", "50");
   await dragTo(.35);
   await splitter.dblclick();
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("");
   await expect(splitter).toHaveAttribute("aria-valuenow", "50");
   await splitter.focus();
   await page.keyboard.press("ArrowRight");
   await expect(splitter).toHaveAttribute("aria-valuenow", "55");
   await page.keyboard.press("Home");
+  await page.keyboard.press("Enter");
+  await expect(splitter).toHaveCSS("outline-style", "none");
+  await expect(splitter).toHaveCSS("box-shadow", "none");
   await expect(splitter).toHaveAttribute("aria-valuenow", "50");
   const widths = await page.locator(".file-browser-pane-slot").evaluateAll(elements => elements.map(element => element.getBoundingClientRect().width));
   expect(Math.abs(widths[0] - widths[1])).toBeLessThan(1);
@@ -2921,4 +2926,72 @@ for (const palette of ["light", "calm"]) test(`查找跳转浮层在源码和渲
   await expect(panel).toHaveCount(0);
   await page.getByRole("button", { name: "文档查找", exact: true }).click();
   await expect(page.getByRole("search", { name: "文档查找", exact: true })).toBeVisible();
+});
+
+
+test("编辑器可覆盖文件格式，保留原始文本、文件名及重新打开设置", async ({ page }) => {
+  await setupIndependentEditor(page, { "alpha.c": "# Heading\n\nA paragraph.\n", "beta.c": "int beta;" });
+  const editor = page.getByRole("region", { name: "文件源码工作区", exact: true });
+  await expect(editor.getByRole("button", { name: "文件格式", exact: true })).toBeEnabled();
+  await selectDocumentLanguage(page, "markdown");
+  await expect(editor.getByRole("button", { name: "切换到 Markdown 渲染", exact: true })).toBeVisible();
+  await editor.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  await expect(editor.locator(".ProseMirror:visible h1")).toHaveText("Heading");
+  await editor.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  await selectDocumentLanguage(page, "");
+  await expect(editor.getByRole("button", { name: "切换到 Markdown 渲染", exact: true })).toHaveCount(0);
+  expect(await editor.locator(".cm-content:visible").evaluate(el => (el as any).cmView?.view?.state?.doc?.toString() ?? el.textContent)).toContain("Heading");
+  await expect(editor.getByRole("button", { name: "文件格式", exact: true })).toContainText("Text");
+  await page.reload();
+  await expect(editor.getByRole("button", { name: "文件格式", exact: true })).toContainText("Text");
+  await expect(editor.locator(".note-title")).toHaveText("alpha.c");
+  expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+});
+
+test("编辑器未保存标记、保存反馈和关闭当前文件不挤压正文", async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, "platform", { get: () => "MacIntel" }));
+  await setupIndependentEditor(page);
+  const content = page.locator(".cm-content:visible");
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  const before = (await content.boundingBox())!;
+  await content.click(); await page.keyboard.press("Meta+End"); await page.keyboard.type(" // edited");
+  await expect(page.getByLabel("未保存修改", { exact: true })).toBeVisible();
+  await expect(page.locator(".workbench-source-notice")).toHaveCount(0);
+  await page.evaluate(() => (window as any).__editorEmit("workbench:close-file"));
+  const leave = page.getByRole("dialog", { name: "未保存的文件编辑", exact: true });
+  await expect(leave).toBeVisible(); await leave.getByRole("button", { name: "取消", exact: true }).click();
+  await page.evaluate(() => {
+    const internal = (window as any).__TAURI_INTERNALS__, original = internal.invoke;
+    (window as any).__restoreWrite = () => { internal.invoke = original; };
+    internal.invoke = (command: string, args: any) => command === "local_files_write" ? Promise.reject(new Error("SAVE_DENIED_FIXTURE")) : original(command, args);
+  });
+  await page.getByRole("button", { name: "保存文件", exact: true }).click();
+  const error = page.getByRole("dialog", { name: "文件操作异常", exact: true });
+  await expect(error).toContainText("SAVE_DENIED_FIXTURE");
+  expect((await content.boundingBox())!.y).toBeCloseTo(before.y, 0);
+  await error.getByRole("button", { name: "关闭文件操作异常", exact: true }).click();
+  await page.evaluate(() => (window as any).__restoreWrite());
+  await page.getByRole("button", { name: "保存文件", exact: true }).click();
+  await expect(page.getByLabel("未保存修改", { exact: true })).toHaveCount(0);
+  expect((await content.boundingBox())!.y).toBeCloseTo(before.y, 0);
+  await expect(page.getByText("文件已保存到磁盘。", { exact: true })).toHaveCount(0);
+  // The disk receipt clears dirty first; draft cleanup must also finish.
+  await expect(page.getByRole("button", { name: "重新读取原文件", exact: true })).toBeEnabled();
+  await expect(page.locator("dialog[open], [role=dialog]")).toHaveCount(0);
+  await page.evaluate(() => (window as any).__editorEmit("workbench:close-file"));
+  await expect(page.locator(".note-title:visible")).toHaveText("beta.c");
+  expect(await page.evaluate(() => (window as any).__editorFixture.state.files.length)).toBe(1);
+});
+
+
+test("Web 编辑器 Command+W 只关闭当前文件预览", async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, "platform", { get: () => "MacIntel" }));
+  await page.goto("/file-workbench.html");
+  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  await left.getByRole("option", { name: /^alpha.c/ }).dblclick();
+  await expect(page.locator(".cm-content:visible")).toBeVisible();
+  await page.keyboard.press("Meta+w");
+  await expect(page.getByRole("region", { name: "文件源码工作区", exact: true })).toHaveCount(0);
+  await expect(left.getByRole("option", { name: /^alpha.c/ })).toBeVisible();
 });

@@ -1,5 +1,18 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-18：Workbench 编辑连续性与相对文件导航
+
+范围：文件格式覆盖、标题未保存标记、保存／异常反馈、关闭当前文件快捷键与原生菜单、分隔条防拖选，以及 Nine Rings 本地相对链接和文件树跟随。功能边界及独立 Editor 应用提案见[产品待办](../planning/file-workbench-followups.md)。
+
+影响分析：SAFE（本批已验证路径未发现回归）。检查 WorkbenchSourceView 的保存、草稿、关闭与活动会话生命周期；新增原生菜单事件只发给当前窗口，由活动会话执行既有退出保护。未更改文件写入协议和授权范围。DocumentTitleField 的 modified、LocalMarkdownWorkspace 的 onError 均为可选参数，原调用方保留行为。DocumentLink 仅补充无协议相对路径校验，并阻止上游可编辑链接处理器重复 window.open；路径解析及权限检查仍由宿主负责。LocalFilesPanel 只跟随已确认的本地主区域请求，不触发再次打开，不修改数据库树。
+
+验证：完整 npm run check 通过，259 个 Vitest 文件／2707 项测试通过；File Workbench Rust 14 项通过；Workbench 编辑器定向 Chromium、WebKit 各 10 项通过；Nine Rings 相对链接导航 Chromium、WebKit 各 2 项通过（可编辑、只读，断言无额外窗口及文件树定位）。Nine Rings 与 Workbench 两个生产构建通过。未运行完整 E2E，也未实测安装版 GUI；原生菜单以 Rust 编译测试和事件模拟验证，不能代替本机快捷键验收。
+
+调试中实际发现并修复：上游链接校验将 sub/related.md 的 href 清空；可编辑链接的 mouseup 处理早于 React click，单独阻止 click 传播仍会弹出额外窗口，需在共享链接插件中拦截相对路径的上游处理。关闭测试改为等待完整保存协议而非仅等待未保存星号消失，保留草稿清理期间的关闭门禁。
+
+日志：/tmp/nr-followups-final-check.log、/tmp/nr-final-{wb,local}-{chromium,webkit}.log、/tmp/nr-workbench-close-rust.log、/tmp/nr-followups-final-{build,workbench-build}.log。
+
+
 ## 2026-11-17：磁盘标题信息卡时间补齐
 
 Nine Rings LocalFileView与File Workbench SourceView接入同一useLocalFileDetails、localFileInfoTimes：使用既有文件属性端口的创建／访问时间，修改时间保持源码快照语义，渲染和源码标题共用结果；Nine Rings右侧属性面板同步受益。有效Unix零时间可显示；null、非有限或超出Date范围的时间不伪造。浏览器缺失创建／访问字段时仍显示暂无记录。

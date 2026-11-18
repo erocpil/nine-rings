@@ -999,3 +999,5 @@
 /* Keep horizontal source and rendered editor rails unobtrusive. */
 .note-editor-scroll::-webkit-scrollbar:horizontal,
 .markdown-cm-host .cm-scroller::-webkit-scrollbar:horizontal { height: 4px; }
+
+.document-modified-marker { flex: none; color: var(--accent); font-size: 16px; font-weight: 600; user-select: none; }

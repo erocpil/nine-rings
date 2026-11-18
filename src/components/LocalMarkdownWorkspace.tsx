@@ -42,6 +42,7 @@ export function LocalMarkdownWorkspace({
   identity,
   source,
   title,
+  modified,
   active,
   readonly,
   focusMode,
@@ -77,14 +78,17 @@ export function LocalMarkdownWorkspace({
   separateTitle = false,
   pdfExport = true,
   onExportMarkdown,
+  onError,
 }: {
   titleRevealOnClick?: boolean;
   separateTitle?: boolean;
   pdfExport?: boolean;
   onExportMarkdown?: () => Promise<void>;
+  onError?: (message: string) => void;
   identity: string;
   source: string;
   title: string;
+  modified?: boolean;
   active: boolean;
   readonly: boolean;
   focusMode: boolean;
@@ -276,10 +280,11 @@ export function LocalMarkdownWorkspace({
     projectSource();
     callbacks.current.onEditorReady?.(editor);
   }, [initial, projectSource]);
+  useEffect(() => { if (error) onError?.(error); }, [error, onError]);
   return (
     <DocumentActiveBoundary active={active}>
       <DocumentResourceContext.Provider value={resolveResource}>
-        {error && (
+        {error && !onError && (
           <p role="alert" className="local-files-message">
             {error}
           </p>
@@ -294,6 +299,7 @@ export function LocalMarkdownWorkspace({
             tags={[]}
             workspaceHost={{
               origin: "local",
+              modified,
               references: false,
               documentCache: false,
               pdfExport,

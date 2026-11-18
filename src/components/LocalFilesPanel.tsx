@@ -112,6 +112,19 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
   const [rootsReady, setRootsReady] = useState(false);
   const [openLocalFiles, setOpenLocalFiles] = useState<string[]>(() => localFocusTabIds(readRecentLocalFiles().map(localFileIdentity), readLocalFocusTabs(), readFocusTabs().limit));
   const mainViewState = useSyncExternalStore(mainViews.subscribe, mainViews.getSnapshot, mainViews.getSnapshot);
+  const followedLocalRequest = useRef<number | null>(null);
+  useEffect(() => {
+    const current = mainViewState.current;
+    if (!rootsReady || mainViewState.suspended || current?.renderer !== "local-file" || followedLocalRequest.current === current.id) return;
+    const root = roots.find(root => root.id === current.data.rootId);
+    if (!root) return;
+    followedLocalRequest.current = current.id;
+    const file = { ...current.data, rootName: root.name };
+    setSelectedFile(file);
+    setSelected(`${file.rootId}:${file.nodeId}`);
+    rememberRecentLocalFile(file);
+    if (active) setRevealRequest({ ...file, sequence: current.id });
+  }, [mainViewState, rootsReady, roots, active]);
   useEffect(() => {
     const refresh = () => setOpenLocalFiles(localFocusTabIds(readRecentLocalFiles().map(localFileIdentity), readLocalFocusTabs(), readFocusTabs().limit));
     window.addEventListener(LOCAL_FILE_RECENT_CHANGED_EVENT, refresh);

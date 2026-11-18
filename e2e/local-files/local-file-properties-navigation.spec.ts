@@ -73,3 +73,17 @@ for (const rendered of [false,true]) test(`磁盘文档标题和属性接入文�
   await title.click();const properties=workspace.getByRole("complementary",{name:"文件属性",exact:true});
   for(const time of times)await expect(properties).toContainText(time);
 });
+
+for (const readonly of [false, true]) test(`磁盘 Markdown 相对链接打开后，本地文件树跟随选择并展开目标路径 readonly=${readonly}`, async ({ page }) => {
+  await createBlankDocument(page, "链接导航树");
+  const { workspace, tree } = await openWritableLocalDirectory(page, { "guide.md": "# Guide\n\n[Related](sub/related.md)\n", "sub/related.md": "# Related\n\nTarget paragraph.\n" }, "guide.md");
+  if (readonly) await workspace.getByRole("button", { name: "设为只读", exact: true }).click();
+  await workspace.getByRole("button", { name: "渲染", exact: true }).click();
+  const popups: unknown[] = [];
+  page.on("popup", popup => popups.push(popup));
+  await workspace.getByRole("link", { name: "Related", exact: true }).click();
+  await expect.poll(() => workspace.locator(".note-title:visible").evaluate(element => element instanceof HTMLInputElement ? element.value : element.textContent)).toBe("related.md");
+  await expect(tree.getByRole("button", { name: "related.md", exact: true })).toBeVisible();
+  await expect(tree.getByRole("button", { name: "related.md", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(popups).toHaveLength(0);
+});

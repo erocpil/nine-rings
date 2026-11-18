@@ -2,6 +2,7 @@ use tauri::{
     menu::{CheckMenuItem, Menu, MenuItemKind, Submenu},
     Emitter, Manager,
 };
+pub const CLOSE_FILE: &str = "workbench.close-file";
 pub const TOGGLE_HIDDEN: &str = "workbench.hidden-files";
 pub struct ViewMenu {
     pub hidden: CheckMenuItem<tauri::Wry>,
@@ -38,6 +39,31 @@ pub fn install(app: &mut tauri::App) -> tauri::Result<()> {
             }
         }
     }
+    // Cmd/Ctrl+W closes one file, never the entire multi-file editor window.
+    let close_file = tauri::menu::MenuItemBuilder::with_id(CLOSE_FILE, "Close Current File")
+        .accelerator("CmdOrCtrl+W")
+        .build(app)?;
+    let mut installed = false;
+    for item in menu.items()? {
+        if let MenuItemKind::Submenu(submenu) = item {
+            if submenu.text()? == "File" {
+                for (index, child) in submenu.items()?.iter().enumerate() {
+                    if let MenuItemKind::Predefined(previous) = child {
+                        if matches!(previous.text()?.as_str(), "Close" | "Close Window") {
+                            submenu.remove_at(index)?;
+                            break;
+                        }
+                    }
+                }
+                submenu.append(&close_file)?;
+                installed = true;
+                break;
+            }
+        }
+    }
+    if !installed {
+        menu.append(&Submenu::with_items(app, "File", true, &[&close_file])?)?;
+    }
     let hidden = CheckMenuItem::with_id(
         app,
         TOGGLE_HIDDEN,
@@ -65,6 +91,15 @@ pub fn install(app: &mut tauri::App) -> tauri::Result<()> {
     app.set_menu(menu)?;
     app.manage(ViewMenu { hidden });
     app.on_menu_event(|app, event| {
+        if event.id().as_ref() == CLOSE_FILE {
+            let focused = super::editor_window::window(app)
+                .filter(|window| window.is_focused().unwrap_or(false));
+            let target = focused
+                .as_ref()
+                .map(|window| window.label())
+                .unwrap_or("main");
+            let _ = app.emit_to(target, "workbench:close-file", ());
+        }
         if event.id().as_ref() == "workbench.confirm-quit" {
             let focused = super::editor_window::window(app)
                 .filter(|window| window.is_focused().unwrap_or(false));

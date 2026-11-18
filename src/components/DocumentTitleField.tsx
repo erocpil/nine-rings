@@ -12,6 +12,7 @@ import { isPointerOverTitleText } from "../lib/document-title-hit-test";
  * authorized rename on blur/Enter and retain the draft when it fails. */
 export function DocumentTitleField({
   title,
+  modified = false,
   value = title,
   inputRef,
   preview = false,
@@ -26,6 +27,7 @@ export function DocumentTitleField({
   onOpenProperties,
 }: {
   title: string;
+  modified?: boolean;
   value?: string;
   inputRef?: RefObject<HTMLInputElement>;
   preview?: boolean;
@@ -80,6 +82,7 @@ export function DocumentTitleField({
   };
   return (
     <>
+      {modified && <span className="document-modified-marker" aria-label="未保存修改" title="尚未保存到磁盘">*</span>}
       <div
         className="note-title-field"
         onPointerMove={(event) => {
