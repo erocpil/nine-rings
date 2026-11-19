@@ -1,3 +1,4 @@
+import { MoreToolsButton } from "./MoreToolsButton";
 import { RenderedGutterSettings } from "./RenderedGutterSettings";
 import { currentEditorCommandAnchor, type CommandAnchor } from "../lib/editor-command-surface";
 import { PanelSideToggle } from "./PanelSideToggle";
@@ -4273,7 +4274,7 @@ function FullDocumentWorkspace({ onEditorConfigChange, workspaceHost, onCreateDo
             aria-expanded={bookmarkOpen}
             type="button"
           ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
-          {<button type="button" className="focus-btn" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" data-tooltip-always="true" aria-expanded={focusToolbarExpanded} onClick={() => setToolbarExpandedPreference(!focusToolbarExpanded)}><ToolbarIcon name="annotate" /></button>}<PanelSideToggle />{workspaceHost?.titleActions}
+          {<MoreToolsButton className="focus-btn" title={shortcutTitle("view.tools", "更多工具")} expanded={focusToolbarExpanded} onToggle={() => setToolbarExpandedPreference(!focusToolbarExpanded)} />}<PanelSideToggle />{workspaceHost?.titleActions}
           {!statusBar.navigationInStatus && (workspaceHost?.navigationControls ?? (workspaceHost?.navigation !== false ? <NavigationButtons /> : null))}
           {isMobileToolbarViewport && <button
             className={`focus-btn document-focus-toggle ${focusMode ? "active" : ""}`}
@@ -4440,18 +4441,11 @@ function FullDocumentWorkspace({ onEditorConfigChange, workspaceHost, onCreateDo
           ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
           {!showLineNumbers && selectedBlockIndexes.size === 0 && <button type="button" title="块级操作" aria-label="块级操作" data-title-block-menu="true" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={(event) => event.preventDefault()} onClick={event => openCurrentBlockMenu(event.currentTarget)}><ToolbarIcon name="copy" /></button>}
           {(
-            <><button
-              type="button"
-              className={focusToolbarExpanded ? "active" : undefined}
-              aria-expanded={focusToolbarExpanded}
-              onClick={() => {
-                setOutlineOpen(false);
-                setBookmarkOpen(false);
-                setToolbarExpandedPreference(!focusToolbarExpanded);
-              }}
-              title={shortcutTitle("view.tools", "更多工具")}
-              aria-label="更多工具" data-tooltip-always="true"
-            ><FocusModeIcon name="tools" /></button><PanelSideToggle /></>
+            <><MoreToolsButton expanded={focusToolbarExpanded} title={shortcutTitle("view.tools", "更多工具")} onToggle={() => {
+              setOutlineOpen(false);
+              setBookmarkOpen(false);
+              setToolbarExpandedPreference(!focusToolbarExpanded);
+            }} /><PanelSideToggle /></>
           )}{workspaceHost?.titleActions}
           {!statusBar.navigationInStatus && (workspaceHost?.navigationControls ?? (workspaceHost?.navigation !== false ? <NavigationButtons /> : null))}
           <button

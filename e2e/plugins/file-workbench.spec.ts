@@ -3070,3 +3070,25 @@ test("块号与行号设置同步保留的文件会话，不清空编辑状态",
   await expect(page.getByLabel("未保存修改", { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
 });
+
+test("Workbench 更多工具跨源码与渲染保持相同状态和高亮背景", async ({ page }) => {
+  await setupIndependentEditor(page, { "alpha.c": "## Heading\n\nParagraph\n" });
+  await expect(page.getByRole("button", { name: "文件格式", exact: true })).toBeEnabled();
+  await selectDocumentLanguage(page, "markdown");
+  const tools = page.getByRole("button", { name: "更多工具", exact: true });
+  await expect(tools).toHaveAttribute("aria-pressed", "true");
+  const sourceColor = await tools.evaluate(element => getComputedStyle(element).backgroundColor);
+  expect(sourceColor).not.toBe("rgba(0, 0, 0, 0)");
+  await tools.click();
+  await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  await expect(tools).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".workbench-rendered-session:visible .note-editor")).not.toHaveClass(/focus-toolbar-expanded/);
+  await tools.click();
+  await expect(tools).toHaveAttribute("aria-pressed", "true");
+  await expect(tools).toHaveCSS("background-color", sourceColor);
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  await expect(tools).toHaveAttribute("aria-pressed", "true");
+  await expect(tools).toHaveCSS("background-color", sourceColor);
+  await expect(page.getByRole("toolbar", { name: "源码编辑工具", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+});

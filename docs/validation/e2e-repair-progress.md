@@ -1,5 +1,16 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-19：右键子菜单悬停与更多工具按下状态
+
+正文右键菜单的分组和带子菜单的工具命令支持鼠标悬停打开；点击仍可用于触控和原有调用。两种模式、两种宿主共用 MoreToolsButton；WorkbenchSourceView 改用既有 useFocusEditorTools，避免源码独立状态与渲染状态分离。标题中的工具按钮统一 aria-pressed／aria-expanded 和按下背景，不改变其工具栏布局或编辑会话。
+
+影响分析：SAFE（已验证路径未发现回归）。检查 EditorContextMenu → invokeEditorCommand → 工具栏状态与弹层几何快照的完整调用链，悬停只转发声明有子菜单且未禁用的命令，不执行普通编辑动作；非鼠标指针保留点击路径。所有 MoreToolsButton 调用方仍使用原来的工具栏显隐入口，数据库／磁盘正文、撤销、只读状态、文件保存不变。CSS 回归发现清雅磁盘渲染标题 hover 规则覆盖按下背景，已排除此按钮；手机显式沿用同一背景。
+
+验证：完整 npm run check 通过（259 个 Vitest 文件、2708 项），两个生产构建通过。Chromium：数据库按钮状态／阅读及右键定位 10 项，Workbench 按钮状态 1 项。WebKit：数据库更多工具与右键定位及只读源码 7 项，Workbench 右键子菜单与按钮 3 项，磁盘模式经典及全部八种非经典风格 9 项；最终按钮专项 5 项含 390px 手机均通过（其中桌面 4 项为重复复验）。未执行完整 E2E 或安装版 GUI。
+
+日志：/tmp/nr-tools-hover-{check,chromium,webkit,build,workbench-build}.log、/tmp/nr-workbench-tools-hover{,-webkit}.log、/tmp/nr-local-more-tools.log、/tmp/nr-more-tools-final.log。
+
+
 ## 2026-11-19：渲染状态栏块号与折叠设置
 
 完整渲染与局部只读复用 RenderedGutterSettings，Nine Rings 数据库／磁盘 Markdown、File Workbench 的内置／独立编辑器通过同一宿主配置回调保存显示设置。编号插件接管、隐藏块号或关闭相对编号时，相关内置选项按依赖禁用；代码块行号仍独立可调。不在渲染正文引入源码行号、不可见字符或缩进转换。

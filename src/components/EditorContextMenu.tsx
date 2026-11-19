@@ -89,10 +89,16 @@ export function EditorContextMenu({ editor, toolbarRef, readonly, active = true,
       const items = commands.filter(command => command.group === group && command.label !== "全选" && !(readonly && command.label === "复制"));
       if (!items.length) return null;
       return <div key={group}>
-        <button className="editor-context-item editor-context-parent" aria-expanded={contextSubmenu === group}
-          onClick={() => setContextSubmenu(current => current === group ? null : group)}>{group}<DisclosureIcon expanded={contextSubmenu === group} /></button>
+        <button className="editor-context-item editor-context-parent" aria-haspopup="menu" aria-expanded={contextSubmenu === group}
+          onPointerEnter={event => { if (event.pointerType === "mouse") setContextSubmenu(group); }}
+          onClick={() => setContextSubmenu(group)}>{group}<DisclosureIcon expanded={contextSubmenu === group} /></button>
         {contextSubmenu === group && <div className="editor-context-submenu" style={{ position: "fixed", margin: 0, maxHeight: "calc(100vh - 16px)", overflowY: "auto" }} role="group" aria-label={group}>
-          {items.map(command => <button key={command.id} title={command.source.title} className={`editor-context-item editor-context-subitem ${command.active ? "active" : ""}`} disabled={command.disabled}
+          {items.map(command => <button key={command.id} title={command.source.title} className={`editor-context-item editor-context-subitem ${command.active ? "active" : ""}`} disabled={command.disabled} aria-haspopup={command.submenu ? "menu" : undefined}
+            onPointerEnter={event => {
+              if (event.pointerType !== "mouse" || !command.submenu || command.disabled) return;
+              invokeEditorCommand(command, event.currentTarget);
+              setContextMenu(null);
+            }}
             onClick={event => { invokeEditorCommand(command, event.currentTarget); setContextMenu(null); }}>
             {command.label}{command.submenu && <DisclosureIcon expanded={false} />}
           </button>)}

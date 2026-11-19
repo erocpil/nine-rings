@@ -1001,3 +1001,13 @@
 .markdown-cm-host .cm-scroller::-webkit-scrollbar:horizontal { height: 4px; }
 
 .document-modified-marker { flex: none; color: var(--accent); font-size: 16px; font-weight: 600; user-select: none; }
+
+/* Title buttons share the same pressed state in every editor host and mode. */
+.app .note-editor .editor-menu .document-more-tools[aria-pressed="true"],
+.app button.document-more-tools[aria-pressed="true"],
+html .app.app-mobile-workspace button.document-more-tools[aria-pressed="true"],
+.file-workbench-app button.document-more-tools[aria-pressed="true"] {
+  background: var(--active-bg);
+  color: var(--accent);
+  opacity: 1;
+}

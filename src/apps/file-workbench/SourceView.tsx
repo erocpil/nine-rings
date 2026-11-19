@@ -1,3 +1,5 @@
+import { MoreToolsButton } from "../../components/MoreToolsButton";
+import { useFocusEditorTools } from "../../stores/useFocusEditorTools";
 import { isPrimaryShortcutModifier } from "../../lib/shortcuts";
 import { isTauriRuntime } from "../../lib/runtime";
 import { TypographySettings } from "./TypographySettings";
@@ -308,7 +310,9 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     editor.scrollToOffset(Math.min(location.from, editor.value.length), true);
   }, [current, onSourceReady, handle]);
   const editable = !loading && Boolean(base) && !candidate && draftAvailable;
-  const [moreTools, setMoreTools] = useState(true);
+  const toolsPreference = useFocusEditorTools(state => state.expanded);
+  const setMoreTools = useFocusEditorTools(state => state.setExpanded);
+  const moreTools = toolsPreference ?? true;
   const [navigationTarget, setNavigationTarget] = useState<HTMLSpanElement | null>(null);
   const accessToggle = <DocumentAccessToggle readonly={readonly} aria-label={readonly ? "允许编辑" : "设为只读"} title={readonly ? "允许编辑" : "设为只读"} disabled={!editable} onClick={() => setReadonly(value => !value)} />;
   const loadFileDetails=useCallback((signal:AbortSignal)=>provider.details ? provider.details(file.rootId,file.node.id,signal) : provider.properties(file.rootId,file.node.id,signal),[provider,file.rootId,file.node.id]);
@@ -336,7 +340,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   }}>
     {!renderMarkdown && <DocumentTitleBar className="local-files-toolbar local-file-titlebar">{accessToggle}<DocumentTitleField title={file.node.name} modified={dirty} preview revealOnClick={false} readonly={readonly} info={titleInfo} />
       {markdown && <FileBrowserMarkdownMode rendered={renderMarkdown} disabled={!base} onChange={changePreviewMode} />}
-      <span ref={setNavigationTarget} className="workbench-navigation-actions" /><button className="btn-icon" type="button" title="更多工具" aria-label="更多工具" data-tooltip-always="true" aria-expanded={moreTools} onClick={() => setMoreTools(value => !value)}><ToolbarIcon name="annotate" /></button><PanelSideToggle />
+      <span ref={setNavigationTarget} className="workbench-navigation-actions" /><MoreToolsButton className="btn-icon" expanded={moreTools} onToggle={() => setMoreTools(!moreTools)} /><PanelSideToggle />
       {titleActions}
     </DocumentTitleBar>}
     {loading && <p role="status">正在读取文件…</p>}

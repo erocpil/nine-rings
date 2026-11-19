@@ -7,14 +7,14 @@ export async function expectFoldContextSubmenu(page: Page, content: Locator, x: 
   const bounds = (await paragraph.boundingBox())!;
   await paragraph.click({ button: "right", position: { x: Math.min(Math.max(60, x), bounds.width - 12), y: bounds.height / 2 } });
   const context = page.getByRole("menu", { name: "正文操作", exact: true });
-  await context.getByRole("button", { name: "文档", exact: true }).click();
+  await context.getByRole("button", { name: "文档", exact: true }).hover();
   const trigger = context.getByRole("button", { name: "选择标题折叠级别", exact: true });
   const parent = (await context.boundingBox())!;
   const group = (await context.getByRole("group", { name: "文档", exact: true }).boundingBox())!;
   const groupX = parent.x + parent.width + group.width <= page.viewportSize()!.width - 8 ? parent.x + parent.width : Math.max(8, parent.x - group.width);
   expect(Math.abs(group.x - groupX)).toBeLessThan(2);
   const anchor = (await trigger.boundingBox())!;
-  await trigger.click();
+  await trigger.hover();
   await expect(context).toHaveCount(0);
   const menu = page.getByRole("menu", { name: "标题折叠级别", exact: true });
   await expect(menu).toBeVisible();

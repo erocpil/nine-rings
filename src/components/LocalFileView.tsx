@@ -1,3 +1,4 @@
+import { MoreToolsButton } from "./MoreToolsButton";
 import { useLocalFileDetails } from "../hooks/useLocalFileDetails";
 import { localFileInfoTimes } from "../lib/local-files/file-info-times";
 import { saveLocalSource } from "../lib/local-files/source-save";
@@ -648,7 +649,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
       {editing && <button type="button" className="btn-icon" title={localFileService.canSaveOriginal(data.rootId) ? "保存到原文件（⌘S / Ctrl+S）" : "目录快照不能覆盖原文件，请另存为"} aria-label="保存文件" disabled={!baseSnapshot || !localFileService.canSaveOriginal(data.rootId) || saveState === "saving" || source === baseSnapshot.source} onClick={() => void save()}><ToolbarIcon name="save" /></button>}
       <button type="button" className="btn-icon" title="另存为副本" aria-label="另存为副本" onClick={saveCopy}><ToolbarIcon name="download" /></button>
       {(isMarkdown || isMermaid || isFlow) && <button type="button" className="btn-icon" title={preview ? "切换到源码模式" : "切换到渲染模式（编辑请使用源码）"} aria-label={preview ? "显示源码" : "渲染"} aria-pressed={preview} onClick={isMarkdown ? changeView : () => setPreview(value => !value)}><ToolbarIcon name={preview ? "code" : "eye"} /></button>}
-      {(!preview || isMarkdown) && <button type="button" className="btn-icon" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(!moreTools)}><ToolbarIcon name="annotate" /></button>}
+      {(!preview || isMarkdown) && <MoreToolsButton className="btn-icon" title={shortcutTitle("view.tools", "更多工具")} expanded={moreTools} onToggle={() => setMoreTools(!moreTools)} />}
       {!preview && !mobile && (isMarkdown || isMermaid || isFlow) && <DocumentPreviewControls state={previewState} />}
       {!preview && controls}
       <button type="button" className="btn-icon" title="重新读取原文件" aria-label="重新读取原文件" disabled={loading} onClick={() => { editorSession.current = null; setReload(value => value + 1); }}><ToolbarIcon name="refresh" /></button>

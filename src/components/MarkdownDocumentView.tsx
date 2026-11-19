@@ -1,3 +1,4 @@
+import { MoreToolsButton } from "./MoreToolsButton";
 import { DocumentTitleField } from "./DocumentTitleField";
 import { DocumentPreviewControls } from "./DocumentPreviewControls";
 import { useDocumentPreview } from "../hooks/useDocumentPreview";
@@ -517,7 +518,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           onClick={() => props.onReadonlyChange?.(!props.readonly)} />}
         {sourceTitle}
         {toggle}
-        {(!props.readonly || source !== null) && <button type="button" className="markdown-view-toggle" title={shortcutTitle("view.tools", "更多工具")} aria-label="更多工具" aria-expanded={moreTools} onClick={() => setMoreTools(!moreTools)}><ToolbarIcon name="annotate" /></button>}
+        {(!props.readonly || source !== null) && <MoreToolsButton className="markdown-view-toggle" title={shortcutTitle("view.tools", "更多工具")} expanded={moreTools} onToggle={() => setMoreTools(!moreTools)} />}
         {!mobile && hasPreview && <DocumentPreviewControls state={previewState} />}
         {controls}
         {!(statusBar.navigationInStatus) && <NavigationButtons />}

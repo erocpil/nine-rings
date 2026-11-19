@@ -87,3 +87,21 @@ for (const readonly of [false, true]) test(`磁盘 Markdown 相对链接打开�
   await expect(tree.getByRole("button", { name: "related.md", exact: true })).toHaveAttribute("aria-pressed", "true");
   expect(popups).toHaveLength(0);
 });
+
+for (const style of ["classic", "calm", "calm-compact", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"]) test(`磁盘更多工具在源码与渲染间保留开关及背景 ${style}`, async ({ page }) => {
+  await page.addInitScript(style => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: style })), style);
+  await createBlankDocument(page, "磁盘工具状态");
+  const { workspace } = await openWritableLocalDirectory(page, { "guide.md": "## Heading\n\nParagraph\n" }, "guide.md");
+  const tools = workspace.getByRole("button", { name: "更多工具", exact: true });
+  await expect(tools).toHaveAttribute("aria-pressed", "true");
+  const color = await tools.evaluate(element => getComputedStyle(element).backgroundColor);
+  expect(color).not.toBe("rgba(0, 0, 0, 0)");
+  await tools.click();
+  await workspace.getByRole("button", { name: "渲染", exact: true }).click();
+  await expect(tools).toHaveAttribute("aria-pressed", "false");
+  await tools.click();
+  await expect(tools).toHaveCSS("background-color", color);
+  await workspace.getByRole("button", { name: "显示源码", exact: true }).click();
+  await expect(tools).toHaveAttribute("aria-pressed", "true");
+  await expect(tools).toHaveCSS("background-color", color);
+});
