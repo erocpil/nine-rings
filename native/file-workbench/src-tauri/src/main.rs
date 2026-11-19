@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod buffers;
 mod close_policy;
+mod editor_session;
 mod editor_window;
 #[cfg(target_os = "macos")]
 mod macos_zoom;
@@ -196,22 +197,18 @@ fn main() {
             app.manage(buffers::BufferDocuments::load(
                 &directory.join("editor-documents"),
             )?);
-            let restored = app.state::<buffers::BufferDocuments>().list()?;
-            if !restored.is_empty() {
-                let handle = app.handle().clone();
-                tauri::async_runtime::spawn_blocking(move || {
-                    for record in restored {
-                        if let Err(error) = editor_window::publish_file(
-                            &handle,
-                            record.session(),
-                            record.path.is_some(),
-                        ) {
-                            eprintln!("Editor restore: {error}");
-                            break;
-                        }
-                    }
-                });
-            }
+            app.manage(editor_session::EditorSessionStore::load(
+                &directory.join("editor-session.json"),
+            )?);
+            app.state::<editor_session::EditorSessionStore>()
+                .restoring
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                if let Err(error) = editor_window::restore(&handle) {
+                    eprintln!("Editor restore: {error}");
+                }
+            });
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -251,6 +248,7 @@ fn main() {
             buffers::workbench_buffer_snapshot,
             buffers::workbench_buffer_save,
             buffers::workbench_buffer_discard,
+            buffers::workbench_reopen_drafts,
             editor_window::workbench_window_role,
             editor_window::workbench_editor_presence,
             editor_window::workbench_open_editor,
@@ -259,6 +257,7 @@ fn main() {
             editor_window::workbench_editor_remove,
             editor_window::workbench_editor_saved,
             editor_window::workbench_editor_finish_close,
+            editor_window::workbench_editor_confirm_file,
             editor_window::workbench_editor_request_quit,
             editor_window::workbench_show_browser,
             editor_window::workbench_show_editor,

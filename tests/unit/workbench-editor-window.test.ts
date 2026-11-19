@@ -27,6 +27,7 @@ it("subscribes before the initial snapshot, ignores out-of-order reads and dispo
     },
     select: vi.fn(),
     remove: vi.fn(),
+    confirm: vi.fn(),
     finish: vi.fn(),
     showBrowser: vi.fn(),
   };
@@ -67,6 +68,7 @@ it("reports an initial read error while keeping subsequent refresh available", a
       },
       select: vi.fn(),
       remove: vi.fn(),
+      confirm: vi.fn(),
       finish: vi.fn(),
       showBrowser: vi.fn(),
     },
@@ -78,4 +80,40 @@ it("reports an initial read error while keeping subsequent refresh available", a
   await Promise.resolve();
   expect(update).toHaveBeenCalledWith(snapshot(3));
   dispose();
+});
+
+it("file view state preserves explicit false values and does not rewrite defaults on read", async () => {
+  const { readWorkbenchFileView, saveWorkbenchFileView } =
+    await import("../../src/apps/file-workbench/editor-settings");
+  const values = new Map<string, string>();
+  const store = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: vi.fn((key: string, value: string) => {
+      values.set(key, value);
+    }),
+  };
+  expect(readWorkbenchFileView(store, "root:a.md")).toEqual({});
+  expect(store.setItem).not.toHaveBeenCalled();
+  saveWorkbenchFileView(store, "root:a.md", {
+    readonly: false,
+    rendered: false,
+  });
+  expect(readWorkbenchFileView(store, "root:a.md")).toEqual({
+    readonly: false,
+    rendered: false,
+  });
+  saveWorkbenchFileView(store, "root:a.md", { readonly: true });
+  expect(readWorkbenchFileView(store, "root:a.md")).toEqual({
+    readonly: true,
+    rendered: false,
+  });
+  expect(readWorkbenchFileView(store, "root:b.md")).toEqual({});
+  const original = values.get("view:root:a.md");
+  store.setItem.mockImplementation(() => {
+    throw new Error("quota");
+  });
+  expect(() =>
+    saveWorkbenchFileView(store, "root:a.md", { readonly: false }),
+  ).toThrow("quota");
+  expect(values.get("view:root:a.md")).toBe(original);
 });

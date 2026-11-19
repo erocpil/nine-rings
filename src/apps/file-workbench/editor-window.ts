@@ -8,6 +8,7 @@ export interface WorkbenchEditorPort {
   listen(changed: () => void): Promise<() => void>;
   select(id: string): Promise<void>;
   remove(id: string): Promise<void>;
+  confirm(token: number, id: string): Promise<void>;
   finish(token: number, cancelled: boolean): Promise<void>;
   showBrowser(id?: string): Promise<void>;
   listenQuit?(request: () => void): Promise<() => void>;
@@ -18,6 +19,7 @@ export const editorWindowPort: WorkbenchEditorPort = {
   listen: changed => listen("workbench:editor-changed", changed),
   select: id => invoke("workbench_editor_select", { id }),
   remove: id => invoke("workbench_editor_remove", { id }),
+  confirm: (token, id) => invoke("workbench_editor_confirm_file", { token, id }),
   finish: (token, cancelled) => invoke("workbench_editor_finish_close", { token, cancelled }),
   showBrowser: id => invoke("workbench_show_browser", { id: id ?? null }),
   listenQuit: request => listen("workbench:confirm-quit", request),

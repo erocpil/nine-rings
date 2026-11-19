@@ -61,3 +61,5 @@ export function createBufferDocumentHost(initial: BufferRecord, source: LocalSou
   return { host, provider: { ...provider, details: async () => ({ path: value.path ?? undefined, size: new TextEncoder().encode(value.source).byteLength, modifiedMs: 0, readonly: false }) },
     settled: () => pending };
 }
+
+export const reopenBufferDocuments = () => invoke<number>("workbench_reopen_drafts");

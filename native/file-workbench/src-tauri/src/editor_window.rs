@@ -17,7 +17,7 @@ pub struct Location {
     to: usize,
     revision: String,
 }
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditorFile {
     pub id: String,
@@ -28,6 +28,8 @@ pub struct EditorFile {
 pub struct Close {
     token: u64,
     quit: bool,
+    #[serde(skip)]
+    confirmed: Vec<String>,
 }
 #[derive(Default, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,7 +42,13 @@ pub struct Session {
     ready: bool,
 }
 #[derive(Default)]
-pub struct EditorWindows(Mutex<Session>, Mutex<()>, Mutex<Option<String>>, AtomicU64);
+pub struct EditorWindows(
+    Mutex<Session>,
+    Mutex<()>,
+    Mutex<Option<String>>,
+    AtomicU64,
+    Mutex<()>,
+);
 impl Session {
     fn clear(&mut self) {
         let revision = self.revision + 1;
@@ -77,10 +85,32 @@ impl Session {
             self.revision += 1;
             return Ok(None);
         }
-        if !self.files.is_empty() {
+        if self
+            .files
+            .iter()
+            .any(|file| !close.confirmed.contains(&file.id))
+        {
             return Err("仍有未确认的编辑文件".into());
         }
         Ok(Some(close.quit))
+    }
+    fn confirm_file(&mut self, token: u64, id: &str) -> Result<(), String> {
+        if !self.files.iter().any(|file| file.id == id) {
+            return Err("文件会话已关闭".into());
+        }
+        let close = self
+            .closing
+            .as_mut()
+            .filter(|close| close.token == token)
+            .ok_or("关闭请求已过期")?;
+        if !close.confirmed.iter().any(|value| value == id) {
+            close.confirmed.push(id.to_owned());
+        }
+        Ok(())
+    }
+    fn persist(&self, app: &tauri::AppHandle) -> Result<(), String> {
+        app.state::<super::editor_session::EditorSessionStore>()
+            .save(&self.files, self.current.as_deref())
     }
     fn close(&mut self, id: &str) -> Result<(), String> {
         let index = self
@@ -197,7 +227,22 @@ fn open_editor(
     publish_file(&app, file, true)
 }
 
-pub fn publish_file(
+pub fn publish_file(app: &tauri::AppHandle, file: EditorFile, protect: bool) -> Result<(), String> {
+    let owner = app.state::<EditorWindows>();
+    let _restore = owner.4.lock().map_err(|_| "编辑器恢复状态不可用")?;
+    if app
+        .state::<super::editor_session::EditorSessionStore>()
+        .restoring
+        .load(Ordering::SeqCst)
+    {
+        return Err("编辑器正在恢复标签，请稍后重试".into());
+    }
+    if window(app).is_none() {
+        restore_locked(app)?;
+    }
+    publish_restored_file(app, file, protect)
+}
+fn publish_restored_file(
     app: &tauri::AppHandle,
     mut file: EditorFile,
     protect: bool,
@@ -262,7 +307,15 @@ pub fn publish_file(
     let protected_path =
         std::path::Path::new(file.file["bufferPath"].as_str().unwrap_or(&file.id)).to_owned();
     let new_path = protect && access.protect_editor_path(&label, &protected_path)?;
-    if let Err(error) = state.0.lock().map_err(|_| "编辑器状态不可用")?.open(file) {
+    let opened = (|| {
+        let mut state = state.0.lock().map_err(|_| "编辑器状态不可用")?;
+        let mut next = state.clone();
+        next.open(file)?;
+        next.persist(app)?;
+        *state = next;
+        Ok::<_, String>(())
+    })();
+    if let Err(error) = opened {
         if new_path {
             access.release_editor_path(&label, &protected_path);
         }
@@ -315,10 +368,13 @@ pub(crate) fn reserve_buffer_save(
 pub fn update_buffer(app: &tauri::AppHandle, file: EditorFile) -> Result<(), String> {
     let owner = app.state::<EditorWindows>();
     let mut state = owner.0.lock().map_err(|_| "编辑器状态不可用")?;
-    if let Some(current) = state.files.iter_mut().find(|item| item.id == file.id) {
+    let mut next = state.clone();
+    if let Some(current) = next.files.iter_mut().find(|item| item.id == file.id) {
         current.file = file.file;
     }
-    state.revision += 1;
+    next.revision += 1;
+    next.persist(app)?;
+    *state = next;
     drop(state);
     changed(app);
     Ok(())
@@ -357,17 +413,29 @@ pub fn workbench_editor_select(window: tauri::WebviewWindow, id: String) -> Resu
     if state.closing.is_some() || !state.files.iter().any(|file| file.id == id) {
         return Err("文件会话已变化，请重试".into());
     }
-    state.current = Some(id);
-    state.revision += 1;
+    let mut next = state.clone();
+    next.current = Some(id);
+    next.revision += 1;
+    next.persist(window.app_handle())?;
+    *state = next;
     drop(state);
     changed(window.app_handle());
     Ok(())
 }
 #[tauri::command]
 pub fn workbench_editor_remove(window: tauri::WebviewWindow, id: String) -> Result<(), String> {
+    remove_file(window, id, false)
+}
+pub(crate) fn discard_buffer(window: tauri::WebviewWindow, id: String) -> Result<(), String> {
+    remove_file(window, id, true)
+}
+fn remove_file(window: tauri::WebviewWindow, id: String, discard: bool) -> Result<(), String> {
     editor(&window)?;
     let state = window.state::<EditorWindows>();
     let mut value = state.0.lock().map_err(|_| "编辑器状态不可用")?;
+    if value.closing.is_some() {
+        return Err("编辑器正在确认关闭，请先完成或取消".into());
+    }
     let buffer = value
         .files
         .iter()
@@ -381,12 +449,24 @@ pub fn workbench_editor_remove(window: tauri::WebviewWindow, id: String) -> Resu
         .and_then(|item| item.file["bufferPath"].as_str())
         .unwrap_or(&id)
         .to_owned();
+    let mut next = value.clone();
+    next.close(&id)?;
+    next.persist(window.app_handle())?;
     if let Some(buffer) = buffer {
-        window
-            .state::<super::buffers::BufferDocuments>()
-            .close(&buffer)?;
+        let documents = window.state::<super::buffers::BufferDocuments>();
+        let result = if discard {
+            documents.discard(&buffer)
+        } else {
+            documents.close(&buffer)
+        };
+        if let Err(error) = result {
+            value
+                .persist(window.app_handle())
+                .map_err(|rollback| format!("{error}；标签记录回滚失败：{rollback}"))?;
+            return Err(error);
+        }
     }
-    value.close(&id)?;
+    *value = next;
 
     window
         .state::<FileWindowAccess>()
@@ -396,6 +476,7 @@ pub fn workbench_editor_remove(window: tauri::WebviewWindow, id: String) -> Resu
         value.closing = Some(Close {
             token: value.revision,
             quit: false,
+            confirmed: Vec::new(),
         });
     }
     drop(value);
@@ -428,12 +509,20 @@ pub fn workbench_show_browser(
     Ok(())
 }
 #[tauri::command]
-pub fn workbench_show_editor(window: tauri::WebviewWindow) -> Result<(), String> {
+pub async fn workbench_show_editor(window: tauri::WebviewWindow) -> Result<(), String> {
     super::main_window(&window)?;
-    let editor = self::window(window.app_handle()).ok_or("尚未打开独立编辑器")?;
-    editor.unminimize().map_err(|e| e.to_string())?;
-    editor.show().map_err(|e| e.to_string())?;
-    editor.set_focus().map_err(|e| e.to_string())
+    let app = window.app_handle().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        if self::window(&app).is_none() {
+            restore(&app)?;
+        }
+        let editor = self::window(&app).ok_or("尚未打开独立编辑器；可通过 File → New File 新建")?;
+        editor.unminimize().map_err(|e| e.to_string())?;
+        editor.show().map_err(|e| e.to_string())?;
+        editor.set_focus().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 #[tauri::command]
 pub fn workbench_editor_saved(
@@ -481,6 +570,7 @@ pub fn request_close(app: &tauri::AppHandle, quit: bool) -> Result<(), String> {
     state.closing = Some(Close {
         token: state.revision,
         quit,
+        confirmed: Vec::new(),
     });
     drop(state);
     changed(app);
@@ -489,6 +579,77 @@ pub fn request_close(app: &tauri::AppHandle, quit: bool) -> Result<(), String> {
         let _ = window.set_focus();
     }
     Ok(())
+}
+#[tauri::command]
+pub fn workbench_editor_confirm_file(
+    window: tauri::WebviewWindow,
+    token: u64,
+    id: String,
+) -> Result<(), String> {
+    editor(&window)?;
+    let owner = window.state::<EditorWindows>();
+    let mut state = owner.0.lock().map_err(|_| "编辑器状态不可用")?;
+    state.confirm_file(token, &id)
+}
+pub fn restore(app: &tauri::AppHandle) -> Result<(), String> {
+    let owner = app.state::<EditorWindows>();
+    let _restore = owner.4.lock().map_err(|_| "编辑器恢复状态不可用")?;
+    restore_locked(app)
+}
+fn restore_locked(app: &tauri::AppHandle) -> Result<(), String> {
+    let store = app.state::<super::editor_session::EditorSessionStore>();
+    struct RestoreGuard<'a>(&'a std::sync::atomic::AtomicBool);
+    impl Drop for RestoreGuard<'_> {
+        fn drop(&mut self) {
+            self.0.store(false, Ordering::SeqCst);
+        }
+    }
+    let _restoring = RestoreGuard(&store.restoring);
+    let saved = match store.read()? {
+        Some(saved) => saved,
+        None => {
+            let files = app
+                .state::<super::buffers::BufferDocuments>()
+                .list()?
+                .into_iter()
+                .map(|record| record.session())
+                .collect::<Vec<_>>();
+            let current = files.last().map(|file| file.id.clone());
+            store.initialize(&files, current.as_deref())?;
+            super::editor_session::Snapshot {
+                version: 1,
+                files,
+                current,
+            }
+        }
+    };
+    store.restoring.store(true, Ordering::SeqCst);
+    let result = (|| {
+        for mut file in saved.files {
+            if let Some(id) = file.file["bufferId"].as_str() {
+                file = app
+                    .state::<super::buffers::BufferDocuments>()
+                    .get(id)?
+                    .session();
+            }
+            let protect = file.file["bufferId"].is_null() || file.file["bufferPath"].is_string();
+            publish_restored_file(app, file, protect)?;
+        }
+        let owner = app.state::<EditorWindows>();
+        let mut state = owner.0.lock().map_err(|_| "编辑器状态不可用")?;
+        if let Some(id) = saved
+            .current
+            .filter(|id| state.files.iter().any(|file| &file.id == id))
+        {
+            state.current = Some(id);
+            state.revision += 1;
+        }
+        drop(state);
+        changed(app);
+        Ok(())
+    })();
+    store.restoring.store(false, Ordering::SeqCst);
+    result
 }
 #[tauri::command]
 pub fn workbench_editor_finish_close(
@@ -574,6 +735,7 @@ mod tests {
         state.closing = Some(Close {
             token: 3,
             quit: false,
+            confirmed: Vec::new(),
         });
         assert!(state.open(file("0")).is_err());
     }
@@ -584,6 +746,7 @@ mod tests {
         state.closing = Some(Close {
             token: 5,
             quit: true,
+            confirmed: Vec::new(),
         });
         assert!(state.finish(4, true).is_err());
         assert!(state.finish(5, false).is_err());
@@ -594,9 +757,33 @@ mod tests {
         state.closing = Some(Close {
             token: 6,
             quit: true,
+            confirmed: Vec::new(),
         });
         state.close("a").unwrap();
         assert_eq!(state.finish(6, false).unwrap(), Some(true));
+    }
+    #[test]
+    fn window_close_confirms_contents_without_closing_tabs_and_rejects_stale_acknowledgements() {
+        let mut state = Session::default();
+        state.open(file("a")).unwrap();
+        state.open(file("b")).unwrap();
+        state.closing = Some(Close {
+            token: 12,
+            quit: true,
+            confirmed: Vec::new(),
+        });
+        assert!(state.confirm_file(11, "a").is_err());
+        assert!(state.confirm_file(12, "missing").is_err());
+        state.confirm_file(12, "a").unwrap();
+        state.confirm_file(12, "a").unwrap();
+        assert!(state.finish(12, false).is_err());
+        state.confirm_file(12, "b").unwrap();
+        assert_eq!(state.finish(12, false).unwrap(), Some(true));
+        assert_eq!(state.files.len(), 2);
+        assert_eq!(state.current.as_deref(), Some("b"));
+        state.finish(12, true).unwrap();
+        assert!(state.closing.is_none());
+        assert_eq!(state.files.len(), 2);
     }
     #[test]
     fn failed_or_destroyed_windows_clear_sessions_without_rewinding_presence_versions() {

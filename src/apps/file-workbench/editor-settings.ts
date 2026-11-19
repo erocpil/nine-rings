@@ -37,3 +37,14 @@ export function saveWorkbenchFileLanguage(store: BrowserSettingsStore, identity:
   if (value !== AUTO_DOCUMENT_LANGUAGE && !DOCUMENT_LANGUAGE_OPTIONS.some(option => option.value === value)) throw new Error("不支持的文件格式");
   store.setItem(`language:${identity}`, value);
 }
+
+export interface WorkbenchFileView { readonly?: boolean; rendered?: boolean }
+export function readWorkbenchFileView(store: BrowserSettingsStore, identity: string): WorkbenchFileView {
+  try {
+    const value = JSON.parse(store.getItem(`view:${identity}`) ?? "{}");
+    return { ...(typeof value?.readonly === "boolean" ? { readonly: value.readonly } : {}), ...(typeof value?.rendered === "boolean" ? { rendered: value.rendered } : {}) };
+  } catch { return {}; }
+}
+export function saveWorkbenchFileView(store: BrowserSettingsStore, identity: string, patch: WorkbenchFileView) {
+  store.setItem(`view:${identity}`, JSON.stringify({ ...readWorkbenchFileView(store, identity), ...patch }));
+}

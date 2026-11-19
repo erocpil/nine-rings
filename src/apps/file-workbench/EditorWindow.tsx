@@ -81,7 +81,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
         if (closing.current !== chain) return;
         const close = closeRefs.current.get(id)?.current;
         if (!close) { setError("编辑器仍在加载，请稍后重新关闭。"); closing.current = null; void port.finish(chain.token, true).catch(report); return; }
-        close(() => { if (closing.current === chain) void port.remove(id).then(next).catch(cause => { report(cause); cancelClosing(); }); });
+        close(() => { if (closing.current === chain) void port.confirm(chain.token, id).then(next).catch(cause => { report(cause); cancelClosing(); }); });
       });
     };
     next();
@@ -112,7 +112,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
           if (fileMenu) { setFileMenu(null); return; }
           const trigger = event.currentTarget, rect = trigger.getBoundingClientRect();
           setFileMenu({ id: "workbench-editor-files", title: "切换编辑文件", x: rect.left, y: rect.bottom, trigger });
-        }}><ToolbarIcon name="document" /></button>{!item.file.bufferId && host.workspace.externalOpen && <button type="button" className="btn-icon" aria-label="使用默认应用打开" title="使用系统默认应用打开磁盘原文件" onClick={() => { void host.workspace.externalOpen!.open(item.file.rootId, item.file.node.id, false).catch(report); }}><ToolbarIcon name="export" /></button>}</>} file={item.file} navigationRequest={item.openRevision} active={current === item.id} closeLabel="关闭当前文件" closeRequest={closeRequest} onClose={() => { void port.remove(item.id).catch(report); }} onCloseCancelled={cancelClosing} onDirtyChange={value => setDirty(previous => previous[item.id] === value ? previous : { ...previous, [item.id]: value })} host={host.source} provider={host.workspace.provider} settings={host.workspace.settings} /></Suspense>
+        }}><ToolbarIcon name="document" /></button>{!item.file.bufferId && host.workspace.externalOpen && <button type="button" className="btn-icon" aria-label="使用默认应用打开" title="使用系统默认应用打开磁盘原文件" onClick={() => { void host.workspace.externalOpen!.open(item.file.rootId, item.file.node.id, false).catch(report); }}><ToolbarIcon name="export" /></button>}</>} file={item.file} navigationRequest={item.openRevision} active={current === item.id && !state.closing} closeLabel="关闭当前文件" closeRequest={closeRequest} onClose={() => { void port.remove(item.id).catch(report); }} onCloseCancelled={cancelClosing} onDirtyChange={value => setDirty(previous => previous[item.id] === value ? previous : { ...previous, [item.id]: value })} host={host.source} provider={host.workspace.provider} settings={host.workspace.settings} /></Suspense>
       </ParkedDocument>;
     })}
     {discard && <WorkspaceDialog title="删除本机编辑草稿" onClose={() => { if (!discarding) setDiscard(null); }}><p>删除后无法恢复此编辑文档的未保存内容，已经保存的磁盘文件不会删除。</p><button type="button" disabled={discarding} onClick={() => setDiscard(null)}>取消</button><button type="button" disabled={discarding} onClick={() => {

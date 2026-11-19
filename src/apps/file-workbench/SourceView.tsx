@@ -20,7 +20,7 @@ import { DocumentImageLibraryContext } from "../../components/DocumentResourceCo
 import type { Editor } from "@tiptap/core";
 import type { LocalRenderedFlush } from "../../components/LocalMarkdownWorkspace";
 import { EditorFoldIconContext } from "../../components/EditorFoldIconContext";
-import { readWorkbenchEditorSettings, saveWorkbenchEditorSettings, readWorkbenchFileLanguage, saveWorkbenchFileLanguage, EDITOR_SETTINGS_EVENT } from "./editor-settings";
+import { readWorkbenchEditorSettings, saveWorkbenchEditorSettings, readWorkbenchFileLanguage, saveWorkbenchFileLanguage, readWorkbenchFileView, saveWorkbenchFileView, EDITOR_SETTINGS_EVENT } from "./editor-settings";
 import type { BrowserSettingsStore } from "../../lib/local-files/browser-workspace-contract";
 import { FileBrowserMarkdownMode } from "../../components/FileBrowserMarkdownMode";
 import { FileBrowserFileDetails } from "../../components/FileBrowserFileDetails";
@@ -70,14 +70,16 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     return () => { window.removeEventListener(EDITOR_SETTINGS_EVENT, sync); window.removeEventListener("storage", sync); };
   }, [settings]);
   const identity = `${file.rootId}:${file.node.id}`;
+  const initialView = useMemo(() => readWorkbenchFileView(settings, identity), [settings, identity]);
   const [source, setSource] = useState(""), sourceRef = useRef("");
   const [languageOverride, setLanguageOverride] = useState(() => readWorkbenchFileLanguage(settings, identity));
   const detectedLanguage = documentLanguageFromFilename(file.node.name, source);
   const language = languageOverride ?? detectedLanguage;
   const markdown = language === "markdown";
-  const [renderMarkdown, setRenderMarkdown] = useState(markdown && !file.location);
-  const [renderMounted, setRenderMounted] = useState(markdown && !file.location);
-  const [sourceMounted, setSourceMounted] = useState(!markdown || Boolean(file.location));
+  const startsRendered = markdown && !file.location && initialView.rendered !== false;
+  const [renderMarkdown, setRenderMarkdown] = useState(startsRendered);
+  const [renderMounted, setRenderMounted] = useState(startsRendered);
+  const [sourceMounted, setSourceMounted] = useState(!startsRendered);
   const previewRoot = useRef<HTMLElement>(null);
   const position = useMarkdownViewPosition(`workbench:${identity}`, !renderMarkdown, false, previewRoot);
   const { area: handle, onSourceReady } = position;
@@ -102,6 +104,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     if (value === renderMode.current) return;
     try {
       renderedFlush.current?.flush();
+      saveWorkbenchFileView(settings, identity, { rendered: value });
       const text = sourceRef.current;
       const doc = deltaToProseMirror(writeDocumentSource(text, "markdown"));
       if (value) position.toRendered(text, doc);
@@ -121,7 +124,12 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const sourceProjection = useRef("");
   if (!renderMarkdown || !sourceMounted) sourceProjection.current = source;
   const [base, setBase] = useState<LocalFileSnapshot | null>(null), baseRef = useRef<LocalFileSnapshot | null>(null);
-  const [readonly, setReadonly] = useState(initialReadonly), [loading, setLoading] = useState(true);
+  const [readonly, setReadonlyState] = useState(initialView.readonly ?? initialReadonly), [loading, setLoading] = useState(true);
+  const setReadonly = useCallback((value: boolean | ((previous: boolean) => boolean)) => {
+    const next = typeof value === "function" ? value(readonlyCurrent.current) : value;
+    try { saveWorkbenchFileView(settings, identity, { readonly: next }); readonlyCurrent.current = next; setReadonlyState(next); }
+    catch (cause) { setError(`无法保存只读状态：${String(cause)}`); }
+  }, [settings, identity]);
   readonlyCurrent.current = readonly;
   const previousReadonly = useRef(readonly);
   useEffect(() => {
@@ -182,10 +190,10 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       catch (cause) { setDraftAvailable(false); setNotice(`恢复草稿不可用，暂时只读：${String(cause)}`); }
       setCandidate(draft?.source !== snapshot.source ? draft : null);
       sourceRef.current = snapshot.source; sourceProjection.current = snapshot.source; setSource(snapshot.source); baseRef.current = snapshot; setBase(snapshot);
-      session.current = null; setRenderEpoch(value => value + 1); setRenderPending(false); setExternal(null); setReadonly(initialReadonly);
+      session.current = null; setRenderEpoch(value => value + 1); setRenderPending(false); setExternal(null); setReadonlyState(readWorkbenchFileView(settings, identity).readonly ?? initialReadonly);
     } catch (cause) { setError(String(cause)); }
     finally { setLoading(false); }
-  }, [file.rootId, file.node.id, host, identity, initialReadonly]);
+  }, [file.rootId, file.node.id, host, identity, initialReadonly, settings]);
   useEffect(() => {
     let live = true;
     void host.read(file.rootId, file.node.id).then(async snapshot => {

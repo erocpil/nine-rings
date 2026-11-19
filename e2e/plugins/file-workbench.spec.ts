@@ -2268,10 +2268,13 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
     const records: Record<string, any> = JSON.parse(localStorage.getItem("fixture-editor-buffers") ?? "{}");
     const session = (record: any) => ({ id: `workbench-buffer:${record.id}`, file: { rootId: "workbench-buffer", rootName: "编辑文档", node: { id: record.id, name: record.name, directory: false, size: record.source.length }, bufferId: record.id, bufferPath: record.path, untitled: !record.path } });
     for (const record of Object.values(records)) { const item = session(record); state.files.push(item as any); state.current = item.id; }
-    const persist = () => localStorage.setItem("fixture-editor-buffers", JSON.stringify(records));
+    const savedSession = localStorage.getItem("fixture-editor-session");
+    if (savedSession) { const saved = JSON.parse(savedSession); state.files = saved.files; state.current = saved.current; }
+    const persistSession = () => localStorage.setItem("fixture-editor-session", JSON.stringify({ files: state.files, current: state.current }));
+    const persist = () => { localStorage.setItem("fixture-editor-buffers", JSON.stringify(records)); persistSession(); };
     const fixture = { state, sources, writes: [] as string[], finished: [] as unknown[], quit: 0, records, cancelSave: true, saves: [] as string[] };
     const emit = (event: string) => callbacks.get(handlers.get(event)!)?.({ event, id: 1, payload: null });
-    Object.assign(window, { __editorFixture: fixture, __editorEmit: emit, __editorClose: () => { state.revision++; state.closing = { token: state.revision, quit: false }; emit("workbench:editor-changed"); } });
+    Object.assign(window, { __editorFixture: fixture, __editorEmit: emit, __editorClose: (quit = false) => { state.revision++; state.closing = { token: state.revision, quit }; emit("workbench:editor-changed"); } });
     const snapshot = (node: string) => ({ source: sources[node], revision: sources[node], size: sources[node].length, modifiedMs: 1, lineEnding: "lf", bom: false });
     (window as any).__TAURI_INTERNALS__ = {
       transformCallback(callback: (event: unknown) => void) { const id = next++; callbacks.set(id, callback); return id; },
@@ -2280,23 +2283,24 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
         if (command === "workbench_new_document") {
           const number = Object.keys(records).length + 1, id = `buffer-${number}`;
           records[id] = { id, name: number === 1 ? "未命名" : `未命名 ${number}`, source: "", version: 1, path: null, baseSource: "", baseRevision: "", createdAt: number, bom: false, lineEnding: "lf" };
-          persist(); const item = session(records[id]); state.files.push(item as any); state.current = item.id; state.revision++; emit("workbench:editor-changed"); return;
+          const item = session(records[id]); state.files.push(item as any); state.current = item.id; persist(); state.revision++; emit("workbench:editor-changed"); return;
         }
         if (command === "workbench_buffer_read") return structuredClone(records[args.id]);
         if (command === "workbench_buffer_checkpoint") { const record = records[args.id]; if (record.version !== args.version) throw new Error("stale buffer"); record.source = args.source; record.version++; persist(); return structuredClone(record); }
         if (command === "workbench_buffer_snapshot") { const record = records[args.id]; const text = record.path ? record.baseSource : record.source; return { source: text, revision: record.path ? record.baseRevision : `buffer:${record.version}`, size: text.length, modifiedMs: 0, bom: false, lineEnding: "lf" }; }
         if (command === "workbench_buffer_save") {
           if (fixture.cancelSave) return null;
-          const record = records[args.id]; record.path ??= "/chosen/saved.txt"; record.name = "saved.txt"; record.source = record.baseSource = args.source; record.baseRevision = `saved:${++record.version}`; fixture.saves.push(record.path); persist();
-          const index = state.files.findIndex(item => item.id === `workbench-buffer:${record.id}`); state.files[index] = session(record) as any; state.revision++; emit("workbench:editor-changed");
+          const record = records[args.id]; record.path ??= "/chosen/saved.txt"; record.name = "saved.txt"; record.source = record.baseSource = args.source; record.baseRevision = `saved:${++record.version}`; fixture.saves.push(record.path);
+          const index = state.files.findIndex(item => item.id === `workbench-buffer:${record.id}`); state.files[index] = session(record) as any; persist(); state.revision++; emit("workbench:editor-changed");
           return { record: structuredClone(record), snapshot: { source: record.source, revision: record.baseRevision, size: record.source.length, modifiedMs: 1, bom: false, lineEnding: "lf" } };
         }
         if (command === "workbench_window_role") return "editor";
         if (command === "plugin:event|listen") { handlers.set(args.event, args.handler); return next++; }
         if (command === "workbench_editor_state") return structuredClone(state);
-        if (command === "workbench_editor_select") { state.current = args.id; state.revision++; emit("workbench:editor-changed"); return; }
-        if (command === "workbench_editor_remove") { state.files = state.files.filter(file => file.id !== args.id); state.current = state.files[0]?.id ?? ""; state.revision++; emit("workbench:editor-changed"); return; }
-        if (command === "workbench_editor_finish_close") { fixture.finished.push(args); if (args.cancelled) { state.closing = null; state.revision++; emit("workbench:editor-changed"); } return; }
+        if (command === "workbench_editor_select") { state.current = args.id; persistSession(); state.revision++; emit("workbench:editor-changed"); return; }
+        if (command === "workbench_editor_remove") { state.files = state.files.filter(file => file.id !== args.id); state.current = state.files[0]?.id ?? ""; persistSession(); state.revision++; emit("workbench:editor-changed"); return; }
+        if (command === "workbench_editor_confirm_file") { persistSession(); return; }
+        if (command === "workbench_editor_finish_close") { fixture.finished.push(args); if (args.cancelled) { state.closing = null; state.revision++; emit("workbench:editor-changed"); } else { persistSession(); state.files = []; state.current = ""; state.closing = null; state.revision++; emit("workbench:editor-changed"); } return; }
         if (command === "workbench_editor_request_quit") { fixture.quit++; return; }
         if (command === "local_files_read") return snapshot(args.node);
         if (command === "local_files_stat") return { size: sources[args.node]?.length ?? 0, modifiedMs: 1 };
@@ -2352,7 +2356,10 @@ test("独立编辑器保留多标签正文与撤销，保存只作用于活动�
   await page.keyboard.press("ControlOrMeta+End"); await page.keyboard.type("// pending");
   await page.evaluate(() => (window as any).__editorClose());
   const leave = page.getByRole("dialog", { name: "未保存的文件编辑" });
-  await expect(leave).toBeVisible(); await leave.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(leave).toBeVisible();
+  await expect(page.locator(".cm-content:visible")).toHaveAttribute("contenteditable", "false");
+  await leave.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(page.locator(".cm-content:visible")).toHaveAttribute("contenteditable", "true");
   await files.click(); await expect(fileMenu.getByRole("menuitemcheckbox")).toHaveCount(2); await page.keyboard.press("Escape");
   await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.state.closing)).toBeNull();
   await page.evaluate(() => (window as any).__editorClose());
@@ -3052,6 +3059,9 @@ for (const readonly of [true, false]) test(`Markdown 渲染状态栏共用块号
   await expect(page.getByRole("menu", { name: "行号与折叠设置", exact: true }).getByRole("menuitemcheckbox", { name: "显示行号", exact: true })).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
   await page.reload();
+  // The last explicit source/render choice survives restart as well.
+  await expect(page.locator(".workbench-source-session:visible")).toBeVisible();
+  await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
   await expect(view).toBeVisible();
   await expect(view.locator("h2 .editor-heading-fold")).toContainText("−");
   expect(await page.evaluate(() => (window as any).__editorFixture.sources["alpha.c"])).toBe(original);
@@ -3177,4 +3187,47 @@ test("编辑器未命名文件在取消保存和重启后保留，首次保存�
   await expect(tabs.getByRole("tab")).toHaveCount(4);
   await tabs.getByRole("tab", { name: "saved.txt" }).click();
   await expect(editor).toContainText("draft survives restart");
+});
+
+
+test("退出保留磁盘标签及顺序，主动关闭才移除，并恢复状态栏全部持久偏好", async ({ page }) => {
+  await setupIndependentEditor(page);
+  const tabs = page.getByRole("tablist", { name: "编辑文件标签" });
+  const alpha = tabs.getByRole("tab", { name: "alpha.c", exact: true });
+  await expect(alpha).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await selectDocumentLanguage(page, "c");
+  await page.getByRole("button", { name: "Tab Size", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Tab 8", exact: true }).click();
+  await page.getByRole("button", { name: "缩进方式", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Spaces", exact: true }).click();
+  await page.getByRole("button", { name: "显示不可见字符", exact: true }).click();
+  const gutter = page.getByRole("button", { name: "行号与折叠设置", exact: true });
+  await gutter.click();
+  const menu = page.getByRole("menu", { name: "行号与折叠设置", exact: true });
+  await menu.getByRole("menuitemcheckbox", { name: "相对行号", exact: true }).click();
+  await menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true }).click();
+  await menu.getByRole("menuitemcheckbox", { name: "显示行号", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "源码 Vim 模式", exact: true }).click();
+  await expect(page.getByRole("button", { name: "源码 Vim 模式", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.evaluate(() => (window as any).__editorClose(true));
+  await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.finished.length)).toBe(1);
+  await page.reload();
+  await expect(tabs.getByRole("tab")).toHaveText(["alpha.c", "beta.c"]);
+  await expect(alpha).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("button", { name: "设为只读", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Tab Size", exact: true })).toContainText("8");
+  await expect(page.getByRole("button", { name: "缩进方式", exact: true })).toContainText("Spaces");
+  await expect(page.getByRole("button", { name: "文件格式", exact: true })).toContainText("C/C++");
+  await expect(page.getByRole("button", { name: "隐藏不可见字符", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "源码 Vim 模式", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await gutter.click();
+  await expect(menu.getByRole("menuitemcheckbox", { name: "显示行号", exact: true })).toHaveAttribute("aria-checked", "false");
+  await expect(menu.getByRole("menuitemcheckbox", { name: "相对行号", exact: true })).toHaveAttribute("aria-checked", "true");
+  await expect(menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true })).toHaveAttribute("aria-checked", "false");
+  await page.keyboard.press("Escape");
+  await tabs.getByRole("button", { name: "关闭 beta.c", exact: true }).click();
+  await expect(tabs.getByRole("tab")).toHaveCount(1);
+  await page.reload(); await expect(tabs.getByRole("tab")).toHaveText(["alpha.c"]);
 });

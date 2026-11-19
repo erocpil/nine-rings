@@ -273,7 +273,18 @@ pub async fn workbench_new_document(window: tauri::WebviewWindow) -> Result<(), 
     tauri::async_runtime::spawn_blocking(move || {
         let record = app.state::<BufferDocuments>().create()?;
         if let Err(error) = super::editor_window::publish_file(&app, record.session(), false) {
-            app.state::<BufferDocuments>().discard(&record.id)?;
+            let retained = app
+                .state::<super::editor_session::EditorSessionStore>()
+                .read()?
+                .is_some_and(|saved| {
+                    saved
+                        .files
+                        .iter()
+                        .any(|file| file.id == record.session().id)
+                });
+            if !retained {
+                app.state::<BufferDocuments>().discard(&record.id)?;
+            }
             return Err(error);
         }
         Ok(())
@@ -418,7 +429,12 @@ pub async fn workbench_buffer_save(
                 path.display()
             )
         })?;
-    super::editor_window::update_buffer(&app, saved.session())?;
+    super::editor_window::update_buffer(&app, saved.session()).map_err(|error| {
+        format!(
+            "文件已写入 {}，标签记录更新失败；本机编辑记录仍保留：{error}",
+            path.display()
+        )
+    })?;
     reservation.lock().map_err(|_| "保存状态不可用")?.take();
     Ok(Some(json!({ "record": saved, "snapshot": snapshot })))
 }
@@ -426,8 +442,7 @@ pub async fn workbench_buffer_save(
 #[tauri::command]
 pub fn workbench_buffer_discard(window: tauri::WebviewWindow, id: String) -> Result<(), String> {
     super::editor_window::editor(&window)?;
-    window.state::<BufferDocuments>().discard(&id)?;
-    super::editor_window::workbench_editor_remove(window, format!("workbench-buffer:{id}"))
+    super::editor_window::discard_buffer(window, format!("workbench-buffer:{id}"))
 }
 
 #[cfg(test)]
@@ -541,4 +556,35 @@ mod tests {
         assert!(BufferDocuments::load(&fixture.0).is_err());
         assert_eq!(fs::read_to_string(&path).unwrap(), "invalid json");
     }
+}
+
+/// Explicitly closed unsaved documents stay recoverable without silently
+/// reopening their tabs on the next launch.
+#[tauri::command]
+pub async fn workbench_reopen_drafts(window: tauri::WebviewWindow) -> Result<usize, String> {
+    if window.label() != "main" {
+        super::editor_window::editor(&window)?;
+    }
+    let app = window.app_handle().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let files = app
+            .state::<super::editor_session::EditorSessionStore>()
+            .read()?
+            .map(|saved| saved.files)
+            .unwrap_or_default();
+        let documents = app.state::<BufferDocuments>().list()?;
+        let mut opened = 0;
+        for document in documents {
+            let file = document.session();
+            if files.iter().any(|open| open.id == file.id) {
+                continue;
+            }
+            super::editor_window::publish_file(&app, file, document.path.is_some())
+                .map_err(|error| format!("已恢复 {opened} 份编辑草稿；其余草稿仍保留：{error}"))?;
+            opened += 1;
+        }
+        Ok(opened)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
