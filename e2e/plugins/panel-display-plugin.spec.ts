@@ -122,6 +122,17 @@ test("文档树展示扩展可选择完整文档信息悬停卡", async ({ page 
   await expect(info).toBeVisible({ timeout: 5000 });
   for (const label of ["大小", "创建", "修改", "访问", "权限", "类型", "标签", "路径"])
     await expect(info.getByText(label, { exact: true })).toBeVisible();
+  await page.evaluate(() => { window.dispatchEvent(new Event("blur")); window.dispatchEvent(new Event("focus")); });
+  await expect(info).toHaveCount(0);
+  await page.mouse.move(1200, 10);
+  await document.hover();
+  await expect(info).toBeVisible();
+  await page.mouse.move(1200, 10);
+  await document.hover();
+  await page.evaluate(() => { window.dispatchEvent(new Event("blur")); window.dispatchEvent(new Event("focus")); });
+  // Wait beyond the deliberate 320ms hover delay: a parked timer must not reopen it.
+  await page.waitForTimeout(400);
+  await expect(info).toHaveCount(0);
 });
 
 test("设置入口、浅深主题、独立停用及恢复默认", async ({ page }) => {

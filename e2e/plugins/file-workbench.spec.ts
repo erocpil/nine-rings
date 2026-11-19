@@ -3092,3 +3092,37 @@ test("Workbench 更多工具跨源码与渲染保持相同状态和高亮背景"
   await expect(page.getByRole("toolbar", { name: "源码编辑工具", exact: true })).toBeVisible();
   expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
 });
+
+for (const palette of ["light", "dark", "calm", "mono-aware"]) test(`工作台弹层普通操作按钮沿用主题且保持图标按钮尺寸 ${palette}`, async ({ page }) => {
+  await page.addInitScript(palette => localStorage.setItem("file-workbench:palette", palette), palette);
+  await setupIndependentEditor(page);
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  const content = page.locator(".cm-content:visible");
+  await content.click();
+  await page.keyboard.insertText("changed");
+  await page.getByRole("button", { name: "关闭当前文件", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "未保存的文件编辑", exact: true });
+  await expect(dialog).toBeVisible();
+  const colors = await dialog.evaluate(element => {
+    const probe = document.createElement("span");
+    probe.style.cssText = "color:var(--text);background:var(--surface,var(--bg-secondary))";
+    element.append(probe);
+    const value = { foreground: getComputedStyle(probe).color, background: getComputedStyle(probe).backgroundColor };
+    probe.remove(); return value;
+  });
+  for (const name of ["保存后继续", "保留草稿后继续", "取消"]) {
+    const button = dialog.getByRole("button", { name, exact: true });
+    await expect(button).toHaveCSS("appearance", "none");
+    await expect(button).toHaveCSS("color", colors.foreground);
+    await expect(button).toHaveCSS("background-color", colors.background);
+    await expect(button).toHaveCSS("border-radius", "6px");
+  }
+  const close = dialog.getByRole("button", { name: "关闭未保存的文件编辑", exact: true });
+  const box = (await close.boundingBox())!;
+  expect(box.width).toBeLessThanOrEqual(32);
+  expect(box.height).toBeLessThanOrEqual(32);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByLabel("未保存修改", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+});

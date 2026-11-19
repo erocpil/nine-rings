@@ -1,3 +1,4 @@
+import { watchWindowHoverDismiss } from "../lib/window-hover-lifecycle";
 import { LOCAL_FILE_RENAMED_EVENT, type LocalFileRename } from "../lib/local-files/rename";
 import { FILE_BROWSER_MUTATION_EVENT, type BrowserMutation } from "../lib/local-files/browser-operations";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type SetStateAction } from "react";
@@ -149,6 +150,7 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
   const { message: pathNotice, showMessage: showPathNotice, clearMessage: clearPathNotice } = useTransientMessage();
   const [pathTooltip, setPathTooltip] = useState<LocalPathTooltip | null>(null);
   const pathHoverTargetRef = useRef<string | null>(null);
+  const pathTooltipRequestRef = useRef(0);
   const pathTooltipTimerRef = useRef<number | null>(null);
   const pathTooltipCloseTimerRef = useRef<number | null>(null);
   const display = usePanelDisplay("local-files");
@@ -168,16 +170,26 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
     if (pathTooltipCloseTimerRef.current !== null) window.clearTimeout(pathTooltipCloseTimerRef.current);
     pathTooltipCloseTimerRef.current = null;
   };
+  useEffect(() => watchWindowHoverDismiss(() => {
+    pathTooltipRequestRef.current++;
+    pathHoverTargetRef.current = null;
+    if (pathTooltipTimerRef.current !== null) window.clearTimeout(pathTooltipTimerRef.current);
+    if (pathTooltipCloseTimerRef.current !== null) window.clearTimeout(pathTooltipCloseTimerRef.current);
+    pathTooltipTimerRef.current = null;
+    pathTooltipCloseTimerRef.current = null;
+    setPathTooltip(null);
+  }), []);
   const showLocalPathTooltip = (rootId: string, nodeId: string, row: HTMLElement, pointerType: string) => {
     if (pointerType === "touch") return;
     const target = `${rootId}:${nodeId}`;
+    const request = ++pathTooltipRequestRef.current;
     clearPathTooltipTimer();
     cancelPathTooltipClose();
     pathHoverTargetRef.current = target;
     setPathTooltip(null);
     pathTooltipTimerRef.current = window.setTimeout(() => {
       void localFileService.displayPath(rootId, nodeId).then(path => {
-        if (pathHoverTargetRef.current !== target || !row.isConnected) return;
+        if (request !== pathTooltipRequestRef.current || pathHoverTargetRef.current !== target || !row.isConnected) return;
         const rect = row.getBoundingClientRect();
         const width = Math.min(560, Math.max(220, window.innerWidth - 16));
         const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
@@ -188,7 +200,7 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
         setPathTooltip({ target, path, left, top });
         pathTooltipTimerRef.current = null;
       }).catch(() => {
-        if (pathHoverTargetRef.current === target) pathTooltipTimerRef.current = null;
+        if (request === pathTooltipRequestRef.current && pathHoverTargetRef.current === target) pathTooltipTimerRef.current = null;
       });
     }, 300);
   };
@@ -196,6 +208,7 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
     clearPathTooltipTimer();
     cancelPathTooltipClose();
     pathTooltipCloseTimerRef.current = window.setTimeout(() => {
+      pathTooltipRequestRef.current++;
       pathHoverTargetRef.current = null;
       setPathTooltip(null);
       pathTooltipCloseTimerRef.current = null;
@@ -262,6 +275,7 @@ export function LocalFilesPanel({ active, onBack, onCloseFiles }: {
     if (!active) {
       setViewMenu(null);
       setContextMenu(null);
+      pathTooltipRequestRef.current++;
       pathHoverTargetRef.current = null;
       setPathTooltip(null);
       if (pathTooltipTimerRef.current !== null) window.clearTimeout(pathTooltipTimerRef.current);

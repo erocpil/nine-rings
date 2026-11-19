@@ -1,5 +1,18 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-19：Workbench 弹层按钮与失焦悬停清理
+
+Workbench 的普通弹层操作按钮补齐主题文本、表面、边框、悬停、焦点及禁用状态；通过 html[data-workbench-palette] 覆盖传送到 body 的弹层，基础规则低于组件类优先级，不覆盖图标尺寸、菜单项、已有危险与选中语义。
+
+DocTree、LocalFilesPanel 和 QuickTooltips 共用 watchWindowHoverDismiss：窗口 blur、pagehide、页面隐藏时关闭提示并取消延迟；focus 不自动恢复。磁盘路径请求使用递增序号，失焦、离开或新的悬停会使旧响应失效，包含重新悬停同一路径的情况。旧请求失败也不能清除新请求的计时器引用。
+
+影响分析：SAFE（本批已验证路径未发现回归）。检查三个提示消费者的计时器、异步回写、卸载清理和重新悬停流程；共享订阅卸载时解除所有监听。只清理显示状态，不修改选择、文件、权限、树展开和编辑会话；不把隐藏提示当作文件存在性校验。Workbench 的样式仅限独立宿主，不改变 Nine Rings 按钮规则。
+
+验证：完整 npm run check 通过，260 个 Vitest 文件／2709 项测试，新增窗口生命周期与监听释放单测。Workbench 四种配色按钮 Chromium／WebKit 各 4 项通过，包含未保存离开弹层、关闭图标尺寸和取消后仍保留编辑。Nine Rings 悬停失焦、延迟和同路径旧响应 WebKit 2 项通过；Chromium 加共享提示定位回归共 4 项通过。两个生产构建通过。没有运行完整 E2E，也未模拟操作系统真实 Command+Tab；测试验证其对应 blur／focus 生命周期，安装版仍可据此做实机验收。
+
+日志：/tmp/nr-dialog-hover-{check,build,workbench-build}.log、/tmp/nr-hover-window-{chromium,webkit}.log、/tmp/nr-workbench-dialog-theme{,-webkit}.log。
+
+
 ## 2026-11-19：右键子菜单悬停与更多工具按下状态
 
 正文右键菜单的分组和带子菜单的工具命令支持鼠标悬停打开；点击仍可用于触控和原有调用。两种模式、两种宿主共用 MoreToolsButton；WorkbenchSourceView 改用既有 useFocusEditorTools，避免源码独立状态与渲染状态分离。标题中的工具按钮统一 aria-pressed／aria-expanded 和按下背景，不改变其工具栏布局或编辑会话。

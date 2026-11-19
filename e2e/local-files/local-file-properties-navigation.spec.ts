@@ -105,3 +105,37 @@ for (const style of ["classic", "calm", "calm-compact", "paper", "minimal", "nin
   await expect(tools).toHaveAttribute("aria-pressed", "true");
   await expect(tools).toHaveCSS("background-color", color);
 });
+
+test("磁盘树在应用切换时丢弃悬停信息与迟到路径结果", async ({ page }) => {
+  await createBlankDocument(page, "悬停生命周期");
+  const { tree } = await openWritableLocalDirectory(page, { "task.c": "int a;" }, "task.c");
+  const row = tree.getByRole("button", { name: "task.c", exact: true });
+  const tip = page.locator(".local-file-path-tooltip");
+  await row.hover();
+  await expect(tip).toContainText("task.c");
+  await page.evaluate(() => { window.dispatchEvent(new Event("blur")); window.dispatchEvent(new Event("focus")); });
+  await expect(tip).toHaveCount(0);
+  await page.mouse.move(1200, 10);
+  await page.evaluate(async () => {
+    const { localFileService } = await import("/src/lib/local-files/service.ts");
+    const original = localFileService.displayPath.bind(localFileService);
+    let first = true;
+    localFileService.displayPath = (root, node) => {
+      if (node === "task.c" && first) { first = false; return new Promise(resolve => { (window as any).__finishOldHover = resolve; }); }
+      return original(root, node);
+    };
+  });
+  await row.hover();
+  await expect.poll(() => page.evaluate(() => typeof (window as any).__finishOldHover)).toBe("function");
+  await page.evaluate(() => { window.dispatchEvent(new Event("blur")); window.dispatchEvent(new Event("focus")); });
+  await page.mouse.move(1200, 10);
+  await row.hover();
+  await expect(tip).toContainText("task.c");
+  await page.evaluate(async () => {
+    (window as any).__finishOldHover("/STALE-DELETED/task.c");
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  });
+  await expect(tip).not.toContainText("STALE-DELETED");
+  await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
+  await expect(tip).toHaveCount(0);
+});

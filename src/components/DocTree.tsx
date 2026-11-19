@@ -1,3 +1,4 @@
+import { watchWindowHoverDismiss } from "../lib/window-hover-lifecycle";
 import { panelDisplays } from "../lib/plugin-system/panel-display";
 import { usePanelDisplay } from "../hooks/usePanelDisplay";
 import type { CSSProperties } from "react";
@@ -223,6 +224,14 @@ function DocTree({
       treeInfoCloseTimerRef.current = null;
     }, 180);
   };
+  useEffect(() => watchWindowHoverDismiss(() => {
+    if (treeInfoTimerRef.current !== null) window.clearTimeout(treeInfoTimerRef.current);
+    if (treeInfoCloseTimerRef.current !== null) window.clearTimeout(treeInfoCloseTimerRef.current);
+    treeInfoTimerRef.current = null;
+    treeInfoCloseTimerRef.current = null;
+    treeInfoHoverPathRef.current = null;
+    setTreeInfoTooltip(null);
+  }), []);
   const showTreeDocumentInfo = (node: PathNode, row: HTMLDivElement, pointerType: string) => {
     if (display?.tooltip !== "info" || !node.noteId || pointerType === "touch") return;
     clearTreeInfoTimer();

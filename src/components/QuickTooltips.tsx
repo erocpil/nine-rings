@@ -1,3 +1,4 @@
+import { watchWindowHoverDismiss } from "../lib/window-hover-lifecycle";
 import { useEffect, useId, useState, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
@@ -164,7 +165,7 @@ export function QuickTooltips() {
     document.addEventListener("pointerdown", dismiss, true);
     document.addEventListener("keydown", dismiss, true);
     document.addEventListener("scroll", scroll, true);
-    window.addEventListener("blur", dismiss);
+    const stopWindowDismiss = watchWindowHoverDismiss(dismiss);
     window.addEventListener("resize", dismiss);
     return () => {
       dismiss();
@@ -177,7 +178,7 @@ export function QuickTooltips() {
       document.removeEventListener("pointerdown", dismiss, true);
       document.removeEventListener("keydown", dismiss, true);
       document.removeEventListener("scroll", scroll, true);
-      window.removeEventListener("blur", dismiss);
+      stopWindowDismiss();
       window.removeEventListener("resize", dismiss);
     };
   }, [id]);
