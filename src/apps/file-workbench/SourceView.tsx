@@ -1,3 +1,4 @@
+import { TOOLBAR_PREFERENCES_ERROR } from "./toolbar-preferences";
 import { BufferSaveCancelled } from "./buffer-documents";
 import { MoreToolsButton } from "../../components/MoreToolsButton";
 import { useFocusEditorTools } from "../../stores/useFocusEditorTools";
@@ -147,6 +148,11 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   }, [readonly, active, handle]);
 
   const [error, setError] = useState(""), [notice, setNotice] = useState("");
+  useEffect(() => {
+    const failed = (event: Event) => { if (activeCurrent.current) setError(String((event as CustomEvent<string>).detail)); };
+    window.addEventListener(TOOLBAR_PREFERENCES_ERROR, failed);
+    return () => window.removeEventListener(TOOLBAR_PREFERENCES_ERROR, failed);
+  }, []);
   const [saving, setSaving] = useState(false), busy = useRef(false);
   const [external, setExternal] = useState<LocalFileSnapshot | null>(null);
   const [leave, setLeave] = useState<"close" | "reload" | null>(null);

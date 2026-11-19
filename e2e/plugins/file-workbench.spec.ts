@@ -3309,3 +3309,35 @@ test("启动恢复与权限窗口返回不凭空添加目录标签，显式新�
   await expect(tabs.getByRole("tab")).toHaveCount(3);
   await page.reload(); await expect(tabs.getByRole("tab")).toHaveCount(3);
 });
+
+test("Editor工具栏开关与更多工具在源码、渲染、文件切换和重启后恢复", async ({ page }) => {
+  await setupIndependentEditor(page, { "alpha.c": "# Heading\n\nfirst paragraph\n", "beta.c": "int beta;\n" });
+  await expect(page.getByRole("button", { name: "文件格式", exact: true })).toBeVisible();
+  await selectDocumentLanguage(page, "markdown");
+  await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  const more = page.getByRole("button", { name: "更多工具", exact: true });
+  const toolbar = page.getByRole("toolbar", { name: "源码编辑工具", exact: true });
+  await toolbar.getByRole("button", { name: "软换行", exact: true }).click();
+  await toolbar.getByRole("button", { name: "语法高亮", exact: true }).click();
+  await toolbar.getByRole("button", { name: "源码微渲染", exact: true }).click();
+  await more.click(); await expect(more).toHaveAttribute("aria-pressed", "false");
+  await page.reload();
+  await expect(more).toHaveAttribute("aria-pressed", "false"); await expect(toolbar).toBeHidden();
+  await more.click(); await expect(toolbar).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: "软换行", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await expect(toolbar.getByRole("button", { name: "语法高亮", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await expect(toolbar.getByRole("button", { name: "源码微渲染", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("tab", { name: "beta.c", exact: true }).click(); await expect(more).toHaveAttribute("aria-pressed", "true");
+  await expect(toolbar.getByRole("button", { name: "软换行", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await page.getByRole("tab", { name: "alpha.c", exact: true }).click();
+  await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  await expect(more).toHaveAttribute("aria-pressed", "true"); await more.click();
+  await page.reload(); await expect(more).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("toolbar", { name: "文档阅读工具", exact: true })).toHaveCount(0);
+  await more.click(); await expect(page.getByRole("toolbar", { name: "文档阅读工具", exact: true })).toBeVisible();
+  await page.evaluate(() => { const original = Storage.prototype.setItem; Storage.prototype.setItem = function(key, value) { if (key === "file-workbench:editor-toolbar") throw new Error("TOOLBAR_QUOTA"); return original.call(this, key, value); }; });
+  await more.click();
+  await expect(page.getByRole("dialog", { name: "文件操作异常", exact: true })).toContainText("TOOLBAR_QUOTA");
+  await expect(more).toHaveAttribute("aria-pressed", "true");
+});

@@ -1,3 +1,4 @@
+import { installWorkbenchToolbarPreferences, TOOLBAR_PREFERENCES_ERROR } from "./toolbar-preferences";
 import { bufferDocumentPort, reopenBufferDocuments } from "./buffer-documents";
 import { useEdgeScrollbars } from "../../hooks/useEdgeScrollbars";
 import { openWorkbenchEditor, showWorkbenchEditor, workbenchWindowRole, notifyEditorSaved, readEditorPresence, type WorkbenchEditorPresence } from "./editor-window";
@@ -42,7 +43,10 @@ let updateEditorPresence: ((value: boolean) => void) | undefined;
 let nativeRole: "browser" | "editor" | undefined;
 let showFile: (file: BrowserFileOpen) => void | Promise<void>;
 const host = createWorkbenchHost(file => showFile(file), async (rootId, node) => { if (nativeRole === "editor") await notifyEditorSaved(rootId, node); }, () => nativeRole !== "browser" || !editorPresent);
-window.addEventListener("pagehide", event => { if (!event.persisted) { removeNativeViewMenu?.(); removeNativeClose?.(); removeNativeFileEvents.forEach(stop => stop()); host.dispose(); } });
+const removeToolbarPreferences = installWorkbenchToolbarPreferences(host.workspace.settings, cause => {
+  window.dispatchEvent(new CustomEvent(TOOLBAR_PREFERENCES_ERROR, { detail: `无法保存工具栏状态：${String(cause)}` }));
+});
+window.addEventListener("pagehide", event => { if (!event.persisted) { removeToolbarPreferences(); removeNativeViewMenu?.(); removeNativeClose?.(); removeNativeFileEvents.forEach(stop => stop()); host.dispose(); } });
 function Workbench() {
   useEdgeScrollbars();
   const [editorOpen, setEditorOpen] = useState(editorPresent);
