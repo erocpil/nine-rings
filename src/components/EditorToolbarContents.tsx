@@ -1,7 +1,7 @@
 import { anchoredMenuPosition } from "../lib/anchored-menu-position";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import { selectWholeDocument } from "../extensions/BlockSelectAll";
-import { commandMenuAnchor, commandMenuPlacement, clearCommandAnchors, withEditorCommandTrigger } from "../lib/editor-command-surface";
+import { commandMenuAnchor, commandMenuPlacement, commandMenuContextOwner, completeCommandMenu, clearCommandAnchors, withEditorCommandTrigger } from "../lib/editor-command-surface";
 import { applyToolbarColor } from "../lib/toolbar-color";
 import { useToolbarColor } from "../hooks/useToolbarColor";
 import { EditorBackgroundMenu } from "./EditorBackgroundMenu";
@@ -157,6 +157,9 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     if (!toolbar) return;
     const position = () => {
       toolbar.querySelectorAll<HTMLElement>(".menu-dropdown-list").forEach(menu => {
+        const owner = commandMenuContextOwner(menu);
+        if (owner) menu.dataset.editorContextOwner = owner;
+        else delete menu.dataset.editorContextOwner;
         const anchor = commandMenuAnchor(menu) ?? menu.parentElement?.getBoundingClientRect();
         if (!anchor) return;
         if (typeof menu.showPopover === "function") {
@@ -183,6 +186,13 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     position();
     const resetAnchor = (event: PointerEvent) => { if (event.isTrusted && !(event.target as Element)?.closest(".menu-dropdown-list")) clearCommandAnchors(toolbar); };
     const resetKeyboardAnchor = (event: KeyboardEvent) => { if (event.isTrusted && ["Enter", " "].includes(event.key) && !(event.target as Element)?.closest(".menu-dropdown-list")) clearCommandAnchors(toolbar); };
+    const complete = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const button = target?.closest<HTMLButtonElement>("button");
+      const menu = button?.closest<HTMLElement>(".menu-dropdown-list");
+      if (menu && button && !button.disabled && button.getAttribute("aria-haspopup") !== "menu") completeCommandMenu(menu);
+    };
+    toolbar.addEventListener("click", complete);
     toolbar.addEventListener("keydown", resetKeyboardAnchor, true);
     toolbar.addEventListener("pointerdown", resetAnchor, true);
     window.addEventListener("nr:editor-command-anchor", position);
@@ -194,6 +204,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     const changes = new MutationObserver(position);
     changes.observe(toolbar, { childList: true, subtree: true });
     return () => {
+      toolbar.removeEventListener("click", complete);
       toolbar.removeEventListener("keydown", resetKeyboardAnchor, true);
       toolbar.removeEventListener("pointerdown", resetAnchor, true);
       window.removeEventListener("nr:editor-command-anchor", position);

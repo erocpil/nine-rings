@@ -1,5 +1,16 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-19：保留父级的正文右键级联
+
+问题：悬停分组与命令虽能打开下级，转发工具栏命令时仍清除 contextMenu，导致父菜单消失。现保留根菜单及分组，工具栏原生下拉和 BlockActionMenu 以实例 owner 关联父层。完成叶子动作才关闭菜单链；同级切换只替换分支；Esc／Left 逐层返回，Right 可重新进入，下上键在当前层导航，外部点击与失焦关闭整条链。
+
+影响分析：SAFE（验证范围未发现回归）。检查 EditorContextMenu 的外部事件、焦点、命令引用和活跃状态；editor-command-surface 的锚点转发；EditorToolbarContents 的 popover 定位及点击；BlockActionMenu 的完成、输入／颜色应用及键盘返回。接口以新增菜单归属和完成通知扩展，不改动原工具栏动作、选区保护、读写权限和正文事务。父级收到完成通知不重复切换工具栏按钮，避免同一 React 批次中先关闭又打开；不同实例不用全局当前菜单。无归属的独立块菜单保持原关闭规则。
+
+验证：完整 npm run check 通过，260 个 Vitest 文件／2709 项。Chromium 阅读菜单与完整块菜单回归 42 项通过；WebKit 阅读菜单 7 项通过，覆盖经典／清雅、手机工具入口、左右避让、保留父级、同级切换、外部关闭、Esc／Left／Right、字号最终操作一次及单步撤销。Workbench 级联交互 Chromium／WebKit 各 2 项通过（柔和浅色、清雅），共用加强后的交互 helper。两宿主生产构建通过。没有执行完整 E2E 或本机安装版 GUI。
+
+日志：/tmp/nr-context-cascade-{check,final,webkit,build,workbench-build}.log、/tmp/nr-workbench-context-cascade{,-chromium}.log。
+
+
 ## 2026-11-19：Workbench 弹层按钮与失焦悬停清理
 
 Workbench 的普通弹层操作按钮补齐主题文本、表面、边框、悬停、焦点及禁用状态；通过 html[data-workbench-palette] 覆盖传送到 body 的弹层，基础规则低于组件类优先级，不覆盖图标尺寸、菜单项、已有危险与选中语义。

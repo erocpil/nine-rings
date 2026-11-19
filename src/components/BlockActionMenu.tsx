@@ -1,3 +1,4 @@
+import { completeEditorContextCommand, editorContextOwner } from "../lib/editor-context-chain";
 import { anchoredMenuPosition } from "../lib/anchored-menu-position";
 import { editorCommandAnchor } from "../lib/editor-command-surface";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -70,9 +71,11 @@ function menuPosition(rect: DOMRect, menu: DOMRect, placement: "side" | "below")
 export function BlockActionMenu({ trigger, title, actions, onClose, placement = "side", blockNumber, blockType }: {
   trigger: HTMLElement; title: string; actions: BlockMenuAction[]; onClose: () => void; placement?: "side" | "below"; blockNumber?: number; blockType?: string;
 }) {
-  // Context commands retain an immutable invocation rect after their parent
-  // menu unmounts; direct toolbar and gutter buttons keep live geometry.
+  // Forwarded commands retain their invocation rect, including selection
+  // surfaces that unmount; direct toolbar and gutter buttons keep live geometry.
   const invocation = editorCommandAnchor(trigger);
+  const contextOwner = editorContextOwner(trigger);
+  const finishAction = () => { onClose(); completeEditorContextCommand(trigger); };
   placement = invocation?.placement ?? placement;
   useSyncExternalStore(subscribeBlockMenuPresentation, blockMenuPresentationSnapshot);
   const presentation = readBlockMenuPresentation();
@@ -157,7 +160,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
     .find(button => button.dataset.submenuPath === encodedPath(path))?.focus({ preventScroll: true });
   const renderActions = (items: BlockMenuAction[], path: string[]) => <>{items.map((action, index) => <div key={action.label}>
       {!path.length && action.group && action.group !== items[index - 1]?.group && <div className={`block-action-menu-group${index === 0 ? " first-group" : ""}`} role="presentation">{action.group}</div>}
-      {action.inputControl ? <InputControl action={action} onClose={onClose} /> : action.colorControl ? <ColorControl action={action} onClose={onClose} /> : <button type="button" role={action.checked === undefined ? "menuitem" : "menuitemcheckbox"} aria-checked={action.checked} data-submenu-path={action.children ? encodedPath([...path, action.label]) : undefined} className={`editor-context-item${action.danger ? " block-action-danger" : ""}`} disabled={action.disabled} aria-haspopup={action.children ? "menu" : undefined}
+      {action.inputControl ? <InputControl action={action} onClose={finishAction} /> : action.colorControl ? <ColorControl action={action} onClose={finishAction} /> : <button type="button" role={action.checked === undefined ? "menuitem" : "menuitemcheckbox"} aria-checked={action.checked} data-submenu-path={action.children ? encodedPath([...path, action.label]) : undefined} className={`editor-context-item${action.danger ? " block-action-danger" : ""}`} disabled={action.disabled} aria-haspopup={action.children ? "menu" : undefined}
         aria-expanded={action.children ? flyouts.some(menu => menu.path.join("/") === [...path, action.label].join("/")) : undefined}
         title={presentation?.enabled && presentation.showHints ? ACTION_HINTS[action.label] : undefined}
         onPointerEnter={event => {
@@ -177,7 +180,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
             }
           }
         }}
-        onClick={event => { if (action.children) { setFlyouts([]); setSubmenuPath([...path, action.label]); return; } action.run(); if (action.keepOpen) event.currentTarget.focus({ preventScroll: true }); else onClose(); }}>{action.checked !== undefined && <span aria-hidden="true" className="block-menu-check">{action.checked ? "✓" : ""}</span>}{action.label}{action.children ? " ›" : ""}</button>}
+        onClick={event => { if (action.children) { setFlyouts([]); setSubmenuPath([...path, action.label]); return; } action.run(); if (action.keepOpen) event.currentTarget.focus({ preventScroll: true }); else finishAction(); }}>{action.checked !== undefined && <span aria-hidden="true" className="block-menu-check">{action.checked ? "✓" : ""}</span>}{action.label}{action.children ? " ›" : ""}</button>}
     </div>)}</>;
   const font = presentation.enabled ? presentation.font : "inherit";
   const color = presentation.enabled ? presentation.color : "secondary";
@@ -192,7 +195,7 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
       "--block-menu-title-weight": presentation.boldTitle ? "700" : "500",
     } as React.CSSProperties : {}),
   };
-  return createPortal(<div ref={root} role="menu" aria-label={title} data-sidebar-owned={trigger.closest("#workspace-sidebar") ? "true" : undefined} className={`editor-context-menu block-action-menu${presentation.enabled ? " block-menu-plugin-active" : ""}`} onPointerLeave={() => setFlyouts([])}
+  return createPortal(<div ref={root} role="menu" aria-label={title} data-editor-context-owner={contextOwner} data-sidebar-owned={trigger.closest("#workspace-sidebar") ? "true" : undefined} className={`editor-context-menu block-action-menu${presentation.enabled ? " block-menu-plugin-active" : ""}`} onPointerLeave={() => setFlyouts([])}
     style={menuStyle} onMouseDown={event => event.stopPropagation()}
     onKeyDown={event => {
       if (event.key === "Tab" && root.current?.querySelector("input, textarea")) {
@@ -202,8 +205,9 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
         controls[(index + (event.shiftKey ? -1 : 1) + controls.length) % controls.length]?.focus({ preventScroll: true });
         return;
       }
-      if (event.key === "Escape" || event.key === "Tab") { event.stopPropagation(); if (event.key === "Escape") { event.preventDefault(); trigger.focus({ preventScroll: true }); } onClose(); return; }
-      if (event.key === "ArrowLeft") {
+      const returnToParent = event.key === "ArrowLeft" || (event.key === "Escape" && contextOwner && (flyouts.length > 0 || submenuPath.length > 0));
+      if ((event.key === "Escape" || event.key === "Tab") && !returnToParent) { event.stopPropagation(); if (event.key === "Escape") { event.preventDefault(); trigger.focus({ preventScroll: true }); } onClose(); return; }
+      if (returnToParent) {
         const activeFlyout = (event.target as HTMLElement).closest<HTMLElement>(".block-action-menu-specific");
         if (activeFlyout?.dataset.submenuPath) {
           event.preventDefault(); event.stopPropagation();
@@ -219,6 +223,12 @@ export function BlockActionMenu({ trigger, title, actions, onClose, placement = 
           setSubmenuPath(path => path.slice(0, -1));
           return;
         }
+        if (contextOwner && flyouts.length) {
+          event.preventDefault(); event.stopPropagation();
+          const path = flyouts[flyouts.length - 1].path;
+          setFlyouts(current => current.slice(0, -1)); focusOpener(path); return;
+        }
+        if (contextOwner) { event.preventDefault(); event.stopPropagation(); onClose(); trigger.focus({ preventScroll: true }); return; }
       }
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || !["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
       event.preventDefault(); event.stopPropagation();

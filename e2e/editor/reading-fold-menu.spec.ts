@@ -114,3 +114,35 @@ for (const style of ["classic", "calm"]) test(`查找和跳转块浮层跟随入
   expect((await panel.boundingBox())!.y).toBeGreaterThanOrEqual(title.y + title.height);
   await page.keyboard.press("Escape");
 });
+
+test("可编辑右键字号级联保留父菜单、逐层返回并仅执行一次格式动作", async ({ page }) => {
+  await createBlankDocument(page, "字号级联");
+  await closeDocumentSidebar(page);
+  const content = page.locator(".ProseMirror:visible");
+  await content.fill("Selected content");
+  await content.evaluate(element => {
+    const editor = (element as HTMLElement & { editor: Editor }).editor;
+    editor.commands.setTextSelection({ from: 1, to: editor.state.doc.content.size - 1 });
+  });
+  await content.locator("p").click({ button: "right" });
+  const root = page.getByRole("menu", { name: "正文操作", exact: true });
+  await root.getByRole("button", { name: "文字格式", exact: true }).hover();
+  const trigger = root.getByRole("button", { name: "字号", exact: true });
+  await trigger.hover();
+  const child = page.locator('.menu-dropdown[data-toolbar-tool="size"] .menu-dropdown-list');
+  await expect(child).toBeVisible();
+  await expect(root).toBeVisible();
+  await expect(root.getByRole("group", { name: "文字格式", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(child).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(child).toBeVisible();
+  await child.getByRole("button", { name: "24px", exact: true }).click();
+  await expect(root).toHaveCount(0);
+  await expect(child).toHaveCount(0);
+  await expect(content.locator('span[style*="font-size"]')).toHaveCSS("font-size", "24px");
+  await content.focus();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+z" : "Control+z");
+  await expect(content.locator('span[style*="font-size"]')).toHaveCount(0);
+});

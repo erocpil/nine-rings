@@ -1,6 +1,7 @@
+import { CONTEXT_COMMAND_COMPLETE, editorContextContains } from "../lib/editor-context-chain";
 import { anchoredMenuPosition } from "../lib/anchored-menu-position";
 import { createPortal } from "react-dom";
-import { useEffect, useLayoutEffect, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { Editor } from "@tiptap/core";
 import type { EditorToolbarProps } from "./EditorToolbarContents";
 import { selectWholeDocument } from "../extensions/BlockSelectAll";
@@ -30,6 +31,22 @@ interface EditorContextMenuProps {
 /** Grouped projection of the same live commands used by the toolbar and selection surface. */
 export function EditorContextMenu({ editor, toolbarRef, readonly, active = true, contextMenu, contextMenuRef, setContextMenu, contextSubmenu, setContextSubmenu, hasCurrentBookmark, bookmarkCount, annotationSelectionAvailable = false, onAnnotateSelection, actions, onCopyReference, sourceCopy, bookmarksAvailable = true }: EditorContextMenuProps) {
   const [commands, setCommands] = useState<EditorSurfaceCommand[]>([]);
+  const owner = useId();
+  const childCommand = useRef<{ command: EditorSurfaceCommand; trigger: HTMLElement } | null>(null);
+  const closeChild = useCallback(() => {
+    const child = childCommand.current;
+    childCommand.current = null;
+    if (child?.command.source.isConnected && child.command.source.getAttribute("aria-expanded") === "true") child.command.source.click();
+  }, []);
+  const openChild = (command: EditorSurfaceCommand, trigger: HTMLElement) => {
+    if (command.disabled) return;
+    if (childCommand.current?.command.source === command.source && command.source.getAttribute("aria-expanded") === "true") return;
+    closeChild();
+    childCommand.current = { command, trigger };
+    invokeEditorCommand(command, trigger);
+  };
+
+  useEffect(() => { if (!contextMenu) closeChild(); }, [contextMenu, closeChild]);
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
     if (!contextMenu || !toolbar) { setCommands([]); return; }
@@ -41,18 +58,40 @@ export function EditorContextMenu({ editor, toolbarRef, readonly, active = true,
   }, [contextMenu, toolbarRef]);
   useEffect(() => {
     if (!contextMenu || !active) return;
-    const close = () => { setContextMenu(null); setContextSubmenu(null); };
-    const outside = (event: Event) => { if (!contextMenuRef.current?.contains(event.target as Node)) close(); };
+    const root = contextMenuRef.current;
+    const close = () => { closeChild(); setContextMenu(null); setContextSubmenu(null); };
+    // The leaf menu already closed itself. Do not toggle its toolbar button
+    // again: React may not have committed that close yet.
+    const complete = () => { childCommand.current = null; setContextMenu(null); setContextSubmenu(null); };
+    const outside = (event: Event) => { if (!root || !editorContextContains(root, event.target)) close(); };
     const key = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault(); event.stopPropagation(); close();
+      if (event.key !== "Escape" && event.key !== "ArrowLeft") return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (root && !root.contains(target) && editorContextContains(root, target)) {
+        // BlockActionMenu owns its deeper flyouts and Escape/Left behavior.
+        if (target?.closest(".block-action-menu")) return;
+        const opener = childCommand.current?.trigger;
+        event.preventDefault(); event.stopImmediatePropagation(); closeChild(); opener?.focus({ preventScroll: true }); return;
+      }
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (childCommand.current?.command.source.getAttribute("aria-expanded") === "true") {
+        const opener = childCommand.current.trigger; closeChild(); opener.focus({ preventScroll: true });
+      } else if (contextSubmenu) {
+        setContextSubmenu(null);
+        Array.from(root?.querySelectorAll<HTMLButtonElement>("[data-context-group]") ?? [])
+          .find(button => button.dataset.contextGroup === contextSubmenu)?.focus({ preventScroll: true });
+      } else if (event.key === "Escape") close();
     };
+    root?.addEventListener(CONTEXT_COMMAND_COMPLETE, complete);
     document.addEventListener("mousedown", outside);
     document.addEventListener("keydown", key, true);
     window.addEventListener("scroll", outside, true);
     window.addEventListener("blur", close);
-    return () => { document.removeEventListener("mousedown", outside); document.removeEventListener("keydown", key, true); window.removeEventListener("scroll", outside, true); window.removeEventListener("blur", close); };
-  }, [contextMenu, contextMenuRef, setContextMenu, setContextSubmenu, active]);
+    return () => { root?.removeEventListener(CONTEXT_COMMAND_COMPLETE, complete); document.removeEventListener("mousedown", outside); document.removeEventListener("keydown", key, true); window.removeEventListener("scroll", outside, true); window.removeEventListener("blur", close); };
+  }, [contextMenu, contextMenuRef, setContextMenu, setContextSubmenu, active, contextSubmenu, closeChild]);
+  useLayoutEffect(() => {
+    if (contextMenu) contextMenuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
+  }, [contextMenu, contextMenuRef]);
   useLayoutEffect(() => {
     const element = contextMenuRef.current;
     if (!contextMenu || !element) return;
@@ -68,11 +107,38 @@ export function EditorContextMenu({ editor, toolbarRef, readonly, active = true,
       submenu.style.top = `${position.y}px`;
     }
   }, [contextMenu, contextSubmenu, commands, contextMenuRef]);
-  useEffect(() => { if (!active) { setContextMenu(null); setContextSubmenu(null); } }, [active, setContextMenu, setContextSubmenu]);
+  useEffect(() => { if (!active) { closeChild(); setContextMenu(null); setContextSubmenu(null); } }, [active, closeChild, setContextMenu, setContextSubmenu]);
   if (!contextMenu || !active) return null;
-  const run = (action: () => void) => { action(); setContextMenu(null); };
-  return createPortal(<div ref={contextMenuRef} className="editor-context-menu" role="menu" aria-label="正文操作" style={{ left: contextMenu.x, top: contextMenu.y }}
-    onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }} onClick={event => event.stopPropagation()}>
+  const run = (action: () => void) => { closeChild(); action(); setContextMenu(null); setContextSubmenu(null); };
+  return createPortal(<div ref={contextMenuRef} className="editor-context-menu" data-editor-context-root="true" data-editor-context-owner={owner} role="menu" aria-label="正文操作" style={{ left: contextMenu.x, top: contextMenu.y }}
+    onPointerOver={event => {
+      const target = event.target instanceof Element ? event.target : null;
+      const button = target?.closest("button");
+      if (event.pointerType === "mouse" && button && !button.closest(".editor-context-submenu") && !button.hasAttribute("aria-haspopup")) {
+        closeChild(); setContextSubmenu(null);
+      }
+    }}
+    onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }} onClick={event => event.stopPropagation()}
+    onKeyDown={event => {
+      const target = event.target as HTMLElement;
+      const button = target.closest<HTMLButtonElement>("button");
+      if (event.key === "ArrowRight" && button) {
+        event.preventDefault(); event.stopPropagation();
+        if (button.dataset.contextGroup) {
+          closeChild(); setContextSubmenu(button.dataset.contextGroup);
+          requestAnimationFrame(() => contextMenuRef.current?.querySelector<HTMLButtonElement>(".editor-context-submenu button:not(:disabled)")?.focus({ preventScroll: true }));
+        } else if (button.getAttribute("aria-haspopup") === "menu") button.click();
+        return;
+      }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      event.preventDefault(); event.stopPropagation();
+      const group = target.closest(".editor-context-submenu");
+      const buttons = Array.from((group ?? contextMenuRef.current)?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])
+        .filter(item => group || !item.closest(".editor-context-submenu"));
+      const index = buttons.indexOf(button!);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+      buttons[next]?.focus({ preventScroll: true });
+    }}>
     <button className="editor-context-item" onClick={() => run(() => selectWholeDocument(editor))}>全选</button>
     {readonly && <>
       {annotationSelectionAvailable && <button className="editor-context-item" onClick={() => run(() => onAnnotateSelection?.())}>选中文字并添加阅读标注</button>}
@@ -89,17 +155,17 @@ export function EditorContextMenu({ editor, toolbarRef, readonly, active = true,
       const items = commands.filter(command => command.group === group && command.label !== "全选" && !(readonly && command.label === "复制"));
       if (!items.length) return null;
       return <div key={group}>
-        <button className="editor-context-item editor-context-parent" aria-haspopup="menu" aria-expanded={contextSubmenu === group}
-          onPointerEnter={event => { if (event.pointerType === "mouse") setContextSubmenu(group); }}
-          onClick={() => setContextSubmenu(group)}>{group}<DisclosureIcon expanded={contextSubmenu === group} /></button>
+        <button className="editor-context-item editor-context-parent" data-context-group={group} aria-haspopup="menu" aria-expanded={contextSubmenu === group}
+          onPointerEnter={event => { if (event.pointerType === "mouse") { if (contextSubmenu !== group) closeChild(); setContextSubmenu(group); } }}
+          onClick={() => { if (contextSubmenu !== group) closeChild(); setContextSubmenu(group); }}>{group}<DisclosureIcon expanded={contextSubmenu === group} /></button>
         {contextSubmenu === group && <div className="editor-context-submenu" style={{ position: "fixed", margin: 0, maxHeight: "calc(100vh - 16px)", overflowY: "auto" }} role="group" aria-label={group}>
-          {items.map(command => <button key={command.id} title={command.source.title} className={`editor-context-item editor-context-subitem ${command.active ? "active" : ""}`} disabled={command.disabled} aria-haspopup={command.submenu ? "menu" : undefined}
+          {items.map(command => <button key={command.id} title={command.source.title} className={`editor-context-item editor-context-subitem ${command.active ? "active" : ""}`} disabled={command.disabled} aria-haspopup={command.submenu ? "menu" : undefined} aria-expanded={command.submenu ? command.source.getAttribute("aria-expanded") === "true" : undefined}
             onPointerEnter={event => {
-              if (event.pointerType !== "mouse" || !command.submenu || command.disabled) return;
-              invokeEditorCommand(command, event.currentTarget);
-              setContextMenu(null);
+              if (event.pointerType !== "mouse") return;
+              if (command.submenu && !command.disabled) openChild(command, event.currentTarget);
+              else closeChild();
             }}
-            onClick={event => { invokeEditorCommand(command, event.currentTarget); setContextMenu(null); }}>
+            onClick={event => { if (command.submenu) openChild(command, event.currentTarget); else { closeChild(); invokeEditorCommand(command, event.currentTarget); setContextMenu(null); setContextSubmenu(null); } }}>
             {command.label}{command.submenu && <DisclosureIcon expanded={false} />}
           </button>)}
         </div>}

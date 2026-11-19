@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
-/** Context command sources unmount before the next menu measures its anchor. */
+/** Every parent stays mounted until the final action completes. */
 export async function expectFoldContextSubmenu(page: Page, content: Locator, x: number) {
   const paragraph = content.locator("p").first();
   await paragraph.scrollIntoViewIfNeeded();
@@ -15,7 +15,8 @@ export async function expectFoldContextSubmenu(page: Page, content: Locator, x: 
   expect(Math.abs(group.x - groupX)).toBeLessThan(2);
   const anchor = (await trigger.boundingBox())!;
   await trigger.hover();
-  await expect(context).toHaveCount(0);
+  await expect(context).toBeVisible();
+  await expect(context.getByRole("group", { name: "文档", exact: true })).toBeVisible();
   const menu = page.getByRole("menu", { name: "标题折叠级别", exact: true });
   await expect(menu).toBeVisible();
   const popup = (await menu.boundingBox())!;
@@ -24,6 +25,41 @@ export async function expectFoldContextSubmenu(page: Page, content: Locator, x: 
   const expectedX = right + popup.width <= viewport.width - 8 ? right : Math.max(8, anchor.x - popup.width - 6);
   expect(Math.abs(popup.x - expectedX)).toBeLessThan(2);
   expect(Math.abs(popup.y - Math.max(8, Math.min(anchor.y, viewport.height - popup.height - 8)))).toBeLessThan(2);
+  // Moving to a sibling switches only that branch; an outside click closes all.
+  await context.getByRole("button", { name: "编辑", exact: true }).hover();
+  await expect(menu).toHaveCount(0);
+  await expect(context).toBeVisible();
+  await expect(context.getByRole("group", { name: "编辑", exact: true })).toBeVisible();
+  await context.getByRole("button", { name: "文档", exact: true }).hover();
+  await trigger.hover();
+  await expect(menu).toBeVisible();
+  await page.mouse.click(2, 2);
+  await expect(menu).toHaveCount(0);
+  await expect(context).toHaveCount(0);
+  await paragraph.click({ button: "right", position: { x: Math.min(Math.max(60, x), bounds.width - 12), y: bounds.height / 2 } });
+  await context.getByRole("button", { name: "文档", exact: true }).hover();
+  await trigger.hover();
+  await expect(menu).toBeVisible();
+  // Return one level without losing the parent or its keyboard destination.
+  await page.keyboard.press("ArrowLeft");
+  await expect(menu).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect(context.getByRole("group", { name: "文档", exact: true })).toBeVisible();
+  await page.keyboard.press("ArrowRight");
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(context.getByRole("group", { name: "文档", exact: true })).toHaveCount(0);
+  await expect(context).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(context).toHaveCount(0);
+  await paragraph.click({ button: "right", position: { x: Math.min(Math.max(60, x), bounds.width - 12), y: bounds.height / 2 } });
+  await context.getByRole("button", { name: "文档", exact: true }).hover();
+  await trigger.hover();
+  await expect(menu).toBeVisible();
   await menu.getByRole("menuitem", { name: "显示至 H2", exact: true }).click();
   await expect(menu).toHaveCount(0);
+  await expect(context).toHaveCount(0);
 }

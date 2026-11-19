@@ -1,3 +1,4 @@
+import { editorContextOwner, completeEditorContextCommand } from "./editor-context-chain";
 /** Internal UI adapter: the live host toolbar owns commands, enabled state and selection guards. */
 export type EditorCommandGroup = "编辑" | "文字格式" | "段落" | "插入" | "表格" | "文档";
 export interface EditorSurfaceCommand {
@@ -37,6 +38,16 @@ export function editorCommandTrigger(original: HTMLElement): HTMLElement {
 export function commandMenuAnchor(menu: HTMLElement): DOMRect | undefined {
   const owner = menu.closest<HTMLElement>(".menu-dropdown");
   return owner ? anchors.get(owner)?.rect : undefined;
+}
+export function commandMenuContextOwner(menu: HTMLElement): string | undefined {
+  const owner = menu.closest<HTMLElement>(".menu-dropdown");
+  const trigger = owner && anchors.get(owner)?.trigger;
+  return trigger ? editorContextOwner(trigger) : undefined;
+}
+export function completeCommandMenu(menu: HTMLElement) {
+  const owner = menu.closest<HTMLElement>(".menu-dropdown");
+  const trigger = owner && anchors.get(owner)?.trigger;
+  if (trigger) completeEditorContextCommand(trigger);
 }
 export function commandMenuPlacement(menu: HTMLElement): "side" | "below" {
   const owner = menu.closest<HTMLElement>(".menu-dropdown");
