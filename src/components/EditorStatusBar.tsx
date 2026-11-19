@@ -41,6 +41,7 @@ export function EditorStatusBar({
   documentLanguageOptions,
   onDocumentLanguageChange,
   onCreateDocument,
+  createDocumentLabel,
   sourceModeControl,
   navigation = <NavigationButtons />,
 }: {
@@ -66,6 +67,7 @@ export function EditorStatusBar({
   documentLanguageOptions?: ReadonlyArray<{ value: string; label: string }>;
   onDocumentLanguageChange?: (language: string) => void;
   onCreateDocument?: () => void;
+  createDocumentLabel?: string;
   sourceModeControl?: ReactNode;
   navigation?: ReactNode;
 }) {
@@ -309,8 +311,8 @@ export function EditorStatusBar({
               <button
                 type="button"
                 className="editor-status-create"
-                aria-label="在当前路径新建文档"
-                title="在当前路径新建同格式文档"
+                aria-label={createDocumentLabel ?? "在当前路径新建文档"}
+                title={createDocumentLabel ? "新建文件；保存时选择位置" : "在当前路径新建同格式文档"}
                 onClick={onCreateDocument}
               >
                 <ToolbarIcon name="plus" />

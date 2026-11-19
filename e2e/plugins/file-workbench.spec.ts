@@ -2073,6 +2073,8 @@ test("Markdown 块号菜单与代码、引用、Flow、Mermaid 块模式复用�
     await expect(page.locator(".workbench-source-session .editor-status-bar")).toHaveCSS("height", "30px");
 
     const sourceSession = page.locator(".workbench-source-session");
+    const more = page.getByRole("button", { name: "更多工具", exact: true });
+    if (await more.getAttribute("aria-pressed") !== "true") await more.click();
     await page.locator('.local-file-titlebar [data-document-panel-trigger="outline"]').click();
     const sourceDock = sourceSession.locator(".document-panel-dock");
     await expect(sourceDock).toBeVisible();
@@ -2263,7 +2265,11 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
     const callbacks = new Map<number, (event: unknown) => void>();
     const handlers = new Map<string, number>();
     const state = { files: Object.entries(sources).map(([name, source]) => ({ id: `/root/${name}`, file: { rootId: "root", rootName: "Root", node: { id: name, name, size: source.length, directory: false } } })), current: "/root/alpha.c", revision: 1, closing: null as null | { token: number; quit: boolean } };
-    const fixture = { state, sources, writes: [] as string[], finished: [] as unknown[], quit: 0 };
+    const records: Record<string, any> = JSON.parse(localStorage.getItem("fixture-editor-buffers") ?? "{}");
+    const session = (record: any) => ({ id: `workbench-buffer:${record.id}`, file: { rootId: "workbench-buffer", rootName: "编辑文档", node: { id: record.id, name: record.name, directory: false, size: record.source.length }, bufferId: record.id, bufferPath: record.path, untitled: !record.path } });
+    for (const record of Object.values(records)) { const item = session(record); state.files.push(item as any); state.current = item.id; }
+    const persist = () => localStorage.setItem("fixture-editor-buffers", JSON.stringify(records));
+    const fixture = { state, sources, writes: [] as string[], finished: [] as unknown[], quit: 0, records, cancelSave: true, saves: [] as string[] };
     const emit = (event: string) => callbacks.get(handlers.get(event)!)?.({ event, id: 1, payload: null });
     Object.assign(window, { __editorFixture: fixture, __editorEmit: emit, __editorClose: () => { state.revision++; state.closing = { token: state.revision, quit: false }; emit("workbench:editor-changed"); } });
     const snapshot = (node: string) => ({ source: sources[node], revision: sources[node], size: sources[node].length, modifiedMs: 1, lineEnding: "lf", bom: false });
@@ -2271,6 +2277,20 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
       transformCallback(callback: (event: unknown) => void) { const id = next++; callbacks.set(id, callback); return id; },
       unregisterCallback(id: number) { callbacks.delete(id); },
       async invoke(command: string, args: any) {
+        if (command === "workbench_new_document") {
+          const number = Object.keys(records).length + 1, id = `buffer-${number}`;
+          records[id] = { id, name: number === 1 ? "未命名" : `未命名 ${number}`, source: "", version: 1, path: null, baseSource: "", baseRevision: "", createdAt: number, bom: false, lineEnding: "lf" };
+          persist(); const item = session(records[id]); state.files.push(item as any); state.current = item.id; state.revision++; emit("workbench:editor-changed"); return;
+        }
+        if (command === "workbench_buffer_read") return structuredClone(records[args.id]);
+        if (command === "workbench_buffer_checkpoint") { const record = records[args.id]; if (record.version !== args.version) throw new Error("stale buffer"); record.source = args.source; record.version++; persist(); return structuredClone(record); }
+        if (command === "workbench_buffer_snapshot") { const record = records[args.id]; const text = record.path ? record.baseSource : record.source; return { source: text, revision: record.path ? record.baseRevision : `buffer:${record.version}`, size: text.length, modifiedMs: 0, bom: false, lineEnding: "lf" }; }
+        if (command === "workbench_buffer_save") {
+          if (fixture.cancelSave) return null;
+          const record = records[args.id]; record.path ??= "/chosen/saved.txt"; record.name = "saved.txt"; record.source = record.baseSource = args.source; record.baseRevision = `saved:${++record.version}`; fixture.saves.push(record.path); persist();
+          const index = state.files.findIndex(item => item.id === `workbench-buffer:${record.id}`); state.files[index] = session(record) as any; state.revision++; emit("workbench:editor-changed");
+          return { record: structuredClone(record), snapshot: { source: record.source, revision: record.baseRevision, size: record.source.length, modifiedMs: 1, bom: false, lineEnding: "lf" } };
+        }
         if (command === "workbench_window_role") return "editor";
         if (command === "plugin:event|listen") { handlers.set(args.event, args.handler); return next++; }
         if (command === "workbench_editor_state") return structuredClone(state);
@@ -2407,7 +2427,7 @@ test.describe("独立编辑器单标题与边缘滚动条", () => {
       "guide.md": Array.from({ length: 60 }, (_, index) => `## Section ${index}\n\n` + "Paragraph content. ".repeat(25) + "\n\n").join(""),
     });
     await expect(page.locator("html")).toHaveAttribute("data-edge-scrollbars", "");
-    await expect(page.locator(".workbench-editor-tabs")).toHaveCount(0);
+    await expect(page.getByRole("tablist", { name: "编辑文件标签" })).toBeVisible();
     const row = page.locator(".document-title-bar:visible");
     const checkRow = async () => {
       await expect(row).toHaveCount(1);
@@ -2421,7 +2441,7 @@ test.describe("独立编辑器单标题与边缘滚动条", () => {
       expect(bounds[1]!.x + bounds[1]!.width).toBeLessThanOrEqual(bounds[2]!.x);
       expect(Math.max(...bounds.map(value => value!.y)) - Math.min(...bounds.map(value => value!.y))).toBeLessThan(1);
       expect(page.viewportSize()!.width - bounds[2]!.x - bounds[2]!.width).toBeCloseTo(8, 0);
-      const heading = await row.boundingBox(); expect(heading!.y).toBeLessThan(2);
+      const heading = await row.boundingBox(); const tabs = await page.getByRole("tablist", { name: "编辑文件标签" }).boundingBox(); expect(Math.abs(heading!.y - tabs!.y - tabs!.height)).toBeLessThan(2);
     };
     const checkScrollbar = async (scroller: import("@playwright/test").Locator) => {
       await expect(scroller).toBeVisible();
@@ -3001,6 +3021,8 @@ for (const readonly of [true, false]) test(`Markdown 渲染状态栏共用块号
   await setupIndependentEditor(page, { "alpha.c": original });
   const language = page.getByRole("button", { name: "文件格式", exact: true });
   await expect(language).toBeEnabled();
+  const buttonStyle = (element: HTMLElement) => { const css = getComputedStyle(element); return { height: element.getBoundingClientRect().height, font: css.fontSize, border: css.borderTopWidth, radius: css.borderRadius, padding: css.padding, background: css.backgroundColor, color: css.color }; };
+  const sourceStyle = await page.getByRole("button", { name: "行号与折叠设置", exact: true }).evaluate(buttonStyle);
   await selectDocumentLanguage(page, "markdown");
   if (!readonly) await page.getByRole("button", { name: "允许编辑", exact: true }).click();
   await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
@@ -3009,6 +3031,7 @@ for (const readonly of [true, false]) test(`Markdown 渲染状态栏共用块号
   await expect(body).toHaveAttribute("contenteditable", String(!readonly));
   const before = await body.evaluate(element => JSON.stringify((element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor.state.doc.toJSON()));
   const trigger = view.getByRole("button", { name: "块号与折叠设置", exact: true });
+  expect(await trigger.evaluate(buttonStyle)).toEqual(sourceStyle);
   const menu = page.getByRole("menu", { name: "块号与折叠设置", exact: true });
   await trigger.click();
   await menu.getByRole("menuitemcheckbox", { name: "显示块号", exact: true }).click();
@@ -3125,4 +3148,33 @@ for (const palette of ["light", "dark", "calm", "mono-aware"]) test(`工作台�
   await expect(dialog).toHaveCount(0);
   await expect(page.getByLabel("未保存修改", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+});
+
+
+test("编辑器未命名文件在取消保存和重启后保留，首次保存绑定路径并保留标签顺序", async ({ page }) => {
+  await setupIndependentEditor(page);
+  await page.getByRole("button", { name: "新建文件", exact: true }).click();
+  const tabs = page.getByRole("tablist", { name: "编辑文件标签" });
+  await expect(tabs.getByRole("tab")).toHaveCount(3);
+  await expect(tabs.getByRole("tab").last()).toContainText("未命名");
+  const editor = page.locator(".cm-content[contenteditable=true]");
+  await editor.click(); await page.keyboard.type("draft survives restart");
+  await expect.poll(() => page.evaluate(() => Object.values((window as any).__editorFixture.records).map((item: any) => item.source))).toEqual(["draft survives restart"]);
+  await page.keyboard.press("ControlOrMeta+s");
+  await expect(tabs.getByRole("tab").last()).toContainText("未命名");
+  // Simulate a normal native close, which checkpoints before closing the WebView.
+  await page.evaluate(() => (window as any).__editorClose());
+  const leave = page.getByRole("dialog", { name: "未保存的文件编辑" });
+  await expect(leave).toBeVisible();
+  await leave.getByRole("button", { name: "保留草稿后继续", exact: true }).click();
+  await page.reload();
+  await expect(editor).toContainText("draft survives restart");
+  await page.evaluate(() => { (window as any).__editorFixture.cancelSave = false; });
+  await editor.click(); await page.keyboard.press("ControlOrMeta+s");
+  await expect(tabs.getByRole("tab").last()).toContainText("saved.txt");
+  await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.saves)).toEqual(["/chosen/saved.txt"]);
+  await page.getByRole("button", { name: "新建文件", exact: true }).click();
+  await expect(tabs.getByRole("tab")).toHaveCount(4);
+  await tabs.getByRole("tab", { name: "saved.txt" }).click();
+  await expect(editor).toContainText("draft survives restart");
 });

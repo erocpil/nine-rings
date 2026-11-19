@@ -313,6 +313,7 @@ export function MarkdownSourceEditor({
   savedLabel,
   navigation,
   onCreateDocument,
+  createDocumentLabel,
   documentLanguage = "markdown",
   documentLanguageValue,
   documentLanguageOptions,
@@ -341,6 +342,7 @@ export function MarkdownSourceEditor({
   savedLabel?: string;
   navigation?: ReactNode;
   onCreateDocument?: () => void;
+  createDocumentLabel?: string;
   documentLanguage?: string;
   documentLanguageValue?: string;
   documentLanguageOptions?: ReadonlyArray<{ value: string; label: string }>;
@@ -2005,7 +2007,7 @@ export function MarkdownSourceEditor({
             documentLanguageValue={documentLanguageValue}
             documentLanguageOptions={documentLanguageOptions}
             onDocumentLanguageChange={onDocumentLanguageChange}
-            onCreateDocument={onCreateDocument}
+            onCreateDocument={onCreateDocument} createDocumentLabel={createDocumentLabel}
             sourceModeControl={<><SourceWhitespaceToggle className="source-status-whitespace" />{vimControl}</>}
             enabled={showStatusBar}
             focusMode={focusMode}
@@ -2026,7 +2028,7 @@ export function MarkdownSourceEditor({
           documentLanguageValue={documentLanguageValue}
           documentLanguageOptions={documentLanguageOptions}
           onDocumentLanguageChange={onDocumentLanguageChange}
-          onCreateDocument={onCreateDocument}
+          onCreateDocument={onCreateDocument} createDocumentLabel={createDocumentLabel}
             sourceModeControl={<><SourceWhitespaceToggle className="source-status-whitespace" />{vimControl}</>}
           enabled={showStatusBar}
           focusMode={focusMode}

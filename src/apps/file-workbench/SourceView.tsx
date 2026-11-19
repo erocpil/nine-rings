@@ -1,3 +1,4 @@
+import { BufferSaveCancelled } from "./buffer-documents";
 import { MoreToolsButton } from "../../components/MoreToolsButton";
 import { useFocusEditorTools } from "../../stores/useFocusEditorTools";
 import { isPrimaryShortcutModifier } from "../../lib/shortcuts";
@@ -46,8 +47,10 @@ import "../../styles/local-files.css";
 const MarkdownWorkspace = lazy(() => import("../../components/LocalMarkdownWorkspace").then(module => ({ default: module.LocalMarkdownWorkspace })));
 const resolveResource = async (src: string) => /^(https?:|data:image\/|blob:)/i.test(src) ? null : "";
 
-export function WorkbenchSourceView({ file, host, provider, settings, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false, active = true, closeLabel = "返回文件浏览", onCloseCancelled, onDirtyChange, navigationRequest, beforeCloseActions }: {
+export function WorkbenchSourceView({ file, host, provider, settings, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false, active = true, closeLabel = "返回文件浏览", onCloseCancelled, onDirtyChange, navigationRequest, beforeCloseActions, onCreateDocument, untitled = false, initialReadonly = true, documentPath, persistDocument = false }: {
   beforeCloseActions?: ReactNode;
+  onCreateDocument?: () => void;
+  untitled?: boolean; initialReadonly?: boolean; documentPath?: string; persistDocument?: boolean;
   navigationRequest?: number;
   active?: boolean; closeLabel?: string; onCloseCancelled?: () => void; onDirtyChange?: (dirty: boolean) => void;
   settings: BrowserSettingsStore;
@@ -118,7 +121,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const sourceProjection = useRef("");
   if (!renderMarkdown || !sourceMounted) sourceProjection.current = source;
   const [base, setBase] = useState<LocalFileSnapshot | null>(null), baseRef = useRef<LocalFileSnapshot | null>(null);
-  const [readonly, setReadonly] = useState(true), [loading, setLoading] = useState(true);
+  const [readonly, setReadonly] = useState(initialReadonly), [loading, setLoading] = useState(true);
   readonlyCurrent.current = readonly;
   const previousReadonly = useRef(readonly);
   useEffect(() => {
@@ -141,7 +144,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const [leave, setLeave] = useState<"close" | "reload" | null>(null);
   const [draftAvailable, setDraftAvailable] = useState(true);
   const [candidate, setCandidate] = useState<LocalFileDraft | null>(null);
-  const dirty = Boolean(base && (source !== base.source || renderPending));
+  const dirty = Boolean(base && (untitled || source !== base.source || renderPending));
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   const current = useCallback(() => { renderedFlush.current?.flush(); return sourceRef.current; }, []);
   const change = (text: string) => {
@@ -164,12 +167,12 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     for (let attempt = 0; attempt < 3; attempt++) {
       const snapshot = baseRef.current, text = current();
       if (!snapshot) return;
-      if (text === snapshot.source) await host.drafts.remove(identity);
+      if (text === snapshot.source && !persistDocument) await host.drafts.remove(identity);
       else await host.drafts.write({ identity, source: text, baseSource: snapshot.source, baseRevision: snapshot.revision, bom: snapshot.bom, lineEnding: snapshot.lineEnding, savedAt: Date.now() });
       if (snapshot === baseRef.current && text === current()) return;
     }
     throw new Error("内容持续变化，尚不能安全离开；请暂停输入后重试。");
-  }, [current, host, identity]);
+  }, [current, host, identity, persistDocument]);
   const read = useCallback(async () => {
     setLoading(true); setError("");
     try {
@@ -179,10 +182,10 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       catch (cause) { setDraftAvailable(false); setNotice(`恢复草稿不可用，暂时只读：${String(cause)}`); }
       setCandidate(draft?.source !== snapshot.source ? draft : null);
       sourceRef.current = snapshot.source; sourceProjection.current = snapshot.source; setSource(snapshot.source); baseRef.current = snapshot; setBase(snapshot);
-      session.current = null; setRenderEpoch(value => value + 1); setRenderPending(false); setExternal(null); setReadonly(true);
+      session.current = null; setRenderEpoch(value => value + 1); setRenderPending(false); setExternal(null); setReadonly(initialReadonly);
     } catch (cause) { setError(String(cause)); }
     finally { setLoading(false); }
-  }, [file.rootId, file.node.id, host, identity]);
+  }, [file.rootId, file.node.id, host, identity, initialReadonly]);
   useEffect(() => {
     let live = true;
     void host.read(file.rootId, file.node.id).then(async snapshot => {
@@ -196,10 +199,10 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     return () => { live = false; };
   }, [host, identity, file.rootId, file.node.id]);
   useEffect(() => {
-    if (!dirty || candidate || saving) return;
-    const timer = window.setTimeout(() => { void checkpoint().catch(cause => setNotice(`草稿暂存失败：${String(cause)}`)); }, 500);
+    if (!dirty || candidate || saving || leave || error) return;
+    const timer = window.setTimeout(() => { void checkpoint().catch(cause => setError(`草稿暂存失败：${String(cause)}`)); }, untitled ? 150 : 500);
     return () => clearTimeout(timer);
-  }, [dirty, source, candidate, saving, checkpoint]);
+  }, [dirty, source, candidate, saving, checkpoint, untitled, leave, error]);
   useEffect(() => {
     const guard = (event: BeforeUnloadEvent) => {
       if (busy.current || renderedFlush.current?.pending() || (baseRef.current && sourceRef.current !== baseRef.current.source)) {
@@ -214,24 +217,24 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const finishClose = useCallback(() => {
     const finish = pendingClose.current; pendingClose.current = null; finish?.();
   }, []);
-  const cancelLeave = () => { pendingClose.current = null; setLeave(null); onCloseCancelled?.(); };
+  const cancelLeave = () => { pendingClose.current = null; setLeave(null); setError(""); setNotice(""); onCloseCancelled?.(); };
   const requestClose = useCallback((afterLeave?: () => void) => {
     if (busy.current || loading) { setNotice("文件正在加载或保存，请等待完成后再关闭。"); onCloseCancelled?.(); return; }
     let text: string;
     try { text = current(); } catch (cause) { setError(String(cause)); onCloseCancelled?.(); return; }
     pendingClose.current = afterLeave ?? onClose;
-    if (baseRef.current && text !== baseRef.current.source) setLeave("close");
+    if (baseRef.current && (untitled || text !== baseRef.current.source)) setLeave("close");
     else if (candidate || !draftAvailable) finishClose();
     else void checkpoint().then(() => {
       if (baseRef.current && current() !== baseRef.current.source) setLeave("close");
       else finishClose();
     }).catch(cause => { setError(String(cause)); onCloseCancelled?.(); });
-  }, [candidate, checkpoint, current, draftAvailable, finishClose, onClose, loading, onCloseCancelled]);
+  }, [candidate, checkpoint, current, draftAvailable, finishClose, onClose, loading, onCloseCancelled, untitled]);
   useEffect(() => { closeRequest.current = requestClose; return () => { closeRequest.current = null; }; }, [closeRequest, requestClose]);
   const save = useCallback(async () => {
     if (busy.current || !baseRef.current) return false;
     if (candidate) { setNotice("请先处理已有恢复草稿，未执行保存。"); return false; }
-    try { if (current() === baseRef.current.source) return true; }
+    try { if (!untitled && current() === baseRef.current.source) return true; }
     catch (cause) { setError(String(cause)); return false; }
     if (!host.canSaveOriginal(file.rootId)) { setNotice("目录快照不能保存原文件，请导出副本。"); return false; }
     busy.current = true; setSaving(true); setError("");
@@ -246,13 +249,14 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       else setNotice("");
       return result.clean && !result.recoveryIssue;
     } catch (cause) {
+      if (cause instanceof BufferSaveCancelled) return false;
       if (String(cause).includes("STALE_REVISION")) {
         setExternal(await host.read(file.rootId, file.node.id).catch(() => null));
         setError("磁盘文件已变化，未覆盖。请比较后导出副本或重新读取磁盘文件。");
       } else setError(String(cause));
       return false;
     } finally { busy.current = false; setSaving(false); }
-  }, [current, host, file.rootId, file.node.id, identity, candidate]);
+  }, [current, host, file.rootId, file.node.id, identity, candidate, untitled]);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (!active || event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.shiftKey || document.querySelector("dialog[open], [role=dialog]")) return;
@@ -315,15 +319,16 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const moreTools = toolsPreference ?? true;
   const [navigationTarget, setNavigationTarget] = useState<HTMLSpanElement | null>(null);
   const accessToggle = <DocumentAccessToggle readonly={readonly} aria-label={readonly ? "允许编辑" : "设为只读"} title={readonly ? "允许编辑" : "设为只读"} disabled={!editable} onClick={() => setReadonly(value => !value)} />;
+  const unsupported = !base && /UTF-8|二进制/.test(error);
   const loadFileDetails=useCallback((signal:AbortSignal)=>provider.details ? provider.details(file.rootId,file.node.id,signal) : provider.properties(file.rootId,file.node.id,signal),[provider,file.rootId,file.node.id]);
   const fileDetails=useLocalFileDetails(identity,loadFileDetails,base,active);
-  const titleInfo = { title: file.node.name, tags: [], path: file.node.id, readonly, contentBytes: base?.size ?? file.node.size, ...localFileInfoTimes(fileDetails,base), format: DOCUMENT_LANGUAGE_OPTIONS.find(option => option.value === language)?.label ?? language };
+  const titleInfo = { title: file.node.name, tags: [], path: documentPath ?? file.node.id, readonly, contentBytes: base?.size ?? file.node.size, ...localFileInfoTimes(fileDetails,base), format: DOCUMENT_LANGUAGE_OPTIONS.find(option => option.value === language)?.label ?? language };
   const titleActions = <>
     <button className="btn-icon" type="button" aria-label="编辑器排版" title="编辑器排版" onClick={() => setTypographyOpen(true)}><ToolbarIcon name="sliders" /></button>
     {onNavigate && <><button className="btn-icon" type="button" aria-label="上一文件" title="上一文件（←，只读预览）" disabled={!previous} onClick={() => requestClose(() => onNavigate(-1))}><ToolbarIcon name="chevronLeft" /></button><button className="btn-icon" type="button" aria-label="下一文件" title="下一文件（→，只读预览）" disabled={!next} onClick={() => requestClose(() => onNavigate(1))}><ToolbarIcon name="chevronRight" /></button></>}
     <button className="btn-icon" type="button" aria-label="保存文件" title="保存文件（⌘/Ctrl+S）" disabled={loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>
     <button className="btn-icon" type="button" aria-label="导出副本" title="导出副本" disabled={loading || !base} onClick={() => void copy()}><ToolbarIcon name="download" /></button>
-    <button className="btn-icon" type="button" aria-label="重新读取原文件" title="重新读取原文件" disabled={loading || saving} onClick={() => { if (dirty) setLeave("reload"); else void read(); }}><ToolbarIcon name="refresh" /></button>
+    <button className="btn-icon" type="button" aria-label="重新读取原文件" title="重新读取原文件" disabled={untitled || loading || saving} onClick={() => { if (dirty) setLeave("reload"); else void read(); }}><ToolbarIcon name="refresh" /></button>
     {headerActions}
     {beforeCloseActions}
     <button className="btn-icon workbench-file-close" type="button" aria-label={closeLabel} title={closeLabel === "返回文件浏览" ? "关闭预览，返回文件浏览" : closeLabel} onClick={() => requestClose()}><ToolbarIcon name="close" /></button>
@@ -344,19 +349,19 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       {titleActions}
     </DocumentTitleBar>}
     {loading && <p role="status">正在读取文件…</p>}
-    {error && !base && <FileBrowserFileDetails rootId={file.rootId} node={file.node.id} provider={provider} />}
-    {error && !external && !leave && active && <WorkspaceDialog title="文件操作异常" onClose={() => setError("")}><p role="alert">{error}</p></WorkspaceDialog>}
+    {error && !base && <>{unsupported && <p>此文件暂时无法内置预览，可使用其它应用打开。</p>}<FileBrowserFileDetails rootId={file.rootId} node={file.node.id} provider={provider} /></>}
+    {error && !unsupported && !external && !leave && active && <WorkspaceDialog title="文件操作异常" onClose={() => setError("")}><p role="alert">{error}</p></WorkspaceDialog>}
     {notice && active && <WorkspaceDialog title="文件提示" onClose={() => setNotice("")}><p role="status">{notice}</p></WorkspaceDialog>}
     {candidate && <div role="status">发现此会话未保存草稿。<button type="button" onClick={() => { change(candidate.source); applyBase({ ...base!, source: candidate.baseSource, revision: candidate.baseRevision, bom: candidate.bom, lineEnding: candidate.lineEnding }); setCandidate(null); setReadonly(false); setSourceMounted(true); renderMode.current = false; setRenderMarkdown(false); }}>恢复草稿</button><button type="button" onClick={() => { void exportLocalSource(file.node.name, candidate.source, candidate, host.saveCopy).catch(cause => setError(String(cause))); }}>下载草稿</button><button type="button" onClick={() => { void host.drafts.remove(identity).then(() => setCandidate(null)).catch(cause => setError(String(cause))); }}>删除草稿</button></div>}
     {!loading && base && markdown && renderMounted && <div className="workbench-rendered-session" hidden={!renderMarkdown}>
       <DocumentImageLibraryContext.Provider value={false}><EditorFoldIconContext.Provider value={editorSettings}>
-        <Suspense fallback={<p role="status">正在加载 Markdown 编辑器…</p>}><MarkdownWorkspace key={`${identity}:${renderEpoch}`} identity={`workbench:${identity}`} onError={setError} modified={dirty} source={source} title={file.node.name} active={active && renderMarkdown} readonly={readonly || !editable || !renderMarkdown || !active} focusMode={false} fontSize={typography.note_font_size} vimModeEnabled={false} useCustomContextMenu showStatusBlockNumber highlightActiveLine showLineNumbers={editorSettings.editor_show_line_numbers} onEditorConfigChange={async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, editorSettings, patch)); }} showStatusBar defaultCodeBlockWrap cjkLatinSpacing={false} readonlyHeadingFoldInFocusMode={false}
+        <Suspense fallback={<p role="status">正在加载 Markdown 编辑器…</p>}><MarkdownWorkspace key={`${identity}:${renderEpoch}`} identity={`workbench:${identity}`} onCreateDocument={onCreateDocument} createDocumentLabel="新建文件" onError={setError} modified={dirty} source={source} title={file.node.name} active={active && renderMarkdown} readonly={readonly || !editable || !renderMarkdown || !active} focusMode={false} fontSize={typography.note_font_size} vimModeEnabled={false} useCustomContextMenu showStatusBlockNumber highlightActiveLine showLineNumbers={editorSettings.editor_show_line_numbers} onEditorConfigChange={async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, editorSettings, patch)); }} showStatusBar defaultCodeBlockWrap cjkLatinSpacing={false} readonlyHeadingFoldInFocusMode={false}
           bookmarks={lineBookmarks.map(item => ({ offset: item.position, line: source.slice(0, item.position).split("\n").length, label: item.label || item.preview }))} onBookmarksChange={items => setLineBookmarks(items.map(item => ({ id: String(item.offset), position: item.offset, label: item.label, preview: item.label })))} onSourceChange={renderedChange} onPending={() => setRenderPending(true)} onRegisterFlush={registerRenderedFlush} onEditorReady={bindRendered} separateTitle titleRevealOnClick={false} pdfExport={false} onExportMarkdown={copy} onClick={() => {}} onReadonlyChange={editable ? setReadonly : undefined} resolveResource={resolveResource} saveStatus={saving ? "saving" : dirty ? "dirty" : "clean"}
           info={titleInfo} titleActions={titleActions} viewToggle={<FileBrowserMarkdownMode rendered onChange={changePreviewMode} />} />
         </Suspense>
       </EditorFoldIconContext.Provider></DocumentImageLibraryContext.Provider>
     </div>}
-    {!loading && base && sourceMounted && <div className="local-file-editor-shell workbench-source-session" style={{ "--editor-font-family": blockFontFamily(typography.source_font_family), "--editor-source-font-family": blockFontFamily(typography.source_font_family) } as React.CSSProperties} hidden={renderMarkdown}><DocumentNavigationWorkspace origin="local" revision={sourceNavigation} bookmarkItems={lineBookmarks.map(item => ({ ...item, offset: item.position, blockNumber: source.slice(0, item.position).split("\n").length }))} sourceHandle={position.sourceHandle} onJump={offset => { handle.current?.setSelectionRange(offset, offset); handle.current?.scrollToOffset(offset, true); }} onToggleBookmark={offset => setLineBookmarks(items => items.some(item => item.position === offset) ? items.filter(item => item.position !== offset) : [...items, { id: crypto.randomUUID(), position: offset, label: "", preview: source.slice(offset, offset + 80) }])} onRemoveBookmark={id => setLineBookmarks(items => items.filter(item => item.id !== id))} onRenameBookmark={(id, label) => setLineBookmarks(items => items.map(item => item.id === id ? { ...item, label } : item))}>{controls => <>{navigationTarget && createPortal(controls, navigationTarget)}<DocumentActiveBoundary active={active && !renderMarkdown}><EditorFoldIconContext.Provider value={editorSettings}><DocumentSourceSurface editor={{ value: sourceProjection.current, readonly: readonly || renderMarkdown || !active, areaRef: handle, session, onChange: change, fontSize: typography.note_font_size, highlightActiveLine: true, showLineNumbers: editorSettings.editor_show_line_numbers, onEditorConfigChange: async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, editorSettings, patch)); }, showStatusBar: true, contextMenuEnabled: true, documentLanguage: language, documentLanguageValue: languageOverride ?? AUTO_DOCUMENT_LANGUAGE, documentLanguageOptions: documentLanguageViewOptions(detectedLanguage), onDocumentLanguageChange: value => {
+    {!loading && base && sourceMounted && <div className="local-file-editor-shell workbench-source-session" style={{ "--editor-font-family": blockFontFamily(typography.source_font_family), "--editor-source-font-family": blockFontFamily(typography.source_font_family) } as React.CSSProperties} hidden={renderMarkdown}><DocumentNavigationWorkspace origin="local" revision={sourceNavigation} bookmarkItems={lineBookmarks.map(item => ({ ...item, offset: item.position, blockNumber: source.slice(0, item.position).split("\n").length }))} sourceHandle={position.sourceHandle} onJump={offset => { handle.current?.setSelectionRange(offset, offset); handle.current?.scrollToOffset(offset, true); }} onToggleBookmark={offset => setLineBookmarks(items => items.some(item => item.position === offset) ? items.filter(item => item.position !== offset) : [...items, { id: crypto.randomUUID(), position: offset, label: "", preview: source.slice(offset, offset + 80) }])} onRemoveBookmark={id => setLineBookmarks(items => items.filter(item => item.id !== id))} onRenameBookmark={(id, label) => setLineBookmarks(items => items.map(item => item.id === id ? { ...item, label } : item))}>{controls => <>{navigationTarget && createPortal(controls, navigationTarget)}<DocumentActiveBoundary active={active && !renderMarkdown}><EditorFoldIconContext.Provider value={editorSettings}><DocumentSourceSurface editor={{ value: sourceProjection.current, readonly: readonly || renderMarkdown || !active, areaRef: handle, session, onChange: change, fontSize: typography.note_font_size, highlightActiveLine: true, showLineNumbers: editorSettings.editor_show_line_numbers, onEditorConfigChange: async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, editorSettings, patch)); }, showStatusBar: true, contextMenuEnabled: true, onCreateDocument, createDocumentLabel: "新建文件", documentLanguage: language, documentLanguageValue: languageOverride ?? AUTO_DOCUMENT_LANGUAGE, documentLanguageOptions: documentLanguageViewOptions(detectedLanguage), onDocumentLanguageChange: value => {
         try { saveWorkbenchFileLanguage(settings, identity, value); setLanguageOverride(value === AUTO_DOCUMENT_LANGUAGE ? null : value); }
         catch (cause) { setError(String(cause)); }
       }, saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,
@@ -364,7 +369,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     }} /></EditorFoldIconContext.Provider></DocumentActiveBoundary></>}</DocumentNavigationWorkspace></div>}
     {typographyOpen && <TypographySettings value={typography} store={settings} onClose={() => setTypographyOpen(false)} />}
     {external && <WorkspaceDialog title="磁盘版本比较" onClose={() => setExternal(null)}><p role="alert">{error}</p><TextDiffView left={source} right={external.source} leftLabel="当前编辑" rightLabel="磁盘版本" /></WorkspaceDialog>}
-    {leave && <WorkspaceDialog title="未保存的文件编辑" onClose={cancelLeave}>{error && <p role="alert">{error}</p>}<p>请先保存到原文件，或确认恢复草稿已持久化后离开。导出副本不会将原文件标记为已保存。最多保留 5 份草稿，不自动淘汰；满额时须先处理旧草稿。</p><div>
+    {leave && <WorkspaceDialog title="未保存的文件编辑" onClose={cancelLeave}>{error && <p role="alert">{error}</p>}<p>{persistDocument ? "首次保存时选择文件位置；也可保留本机编辑文档，下次启动会恢复。删除本机编辑草稿需通过标签菜单明确确认。" : "请先保存到原文件，或确认恢复草稿已持久化后离开。导出副本不会将原文件标记为已保存。最多保留 5 份草稿，不自动淘汰；满额时须先处理旧草稿。"}</p><div>
       <button type="button" disabled={saving || !host.canSaveOriginal(file.rootId)} onClick={() => { void save().then(clean => { if (clean) { const target = leave; setLeave(null); if (target === "close") finishClose(); else void read(); } }); }}>保存后继续</button>
       <button type="button" disabled={saving} onClick={() => void keepAndLeave()}>保留草稿后继续</button><button type="button" onClick={cancelLeave}>取消</button>
     </div></WorkspaceDialog>}

@@ -34,7 +34,7 @@ export function RenderedGutterSettings({ visible, onConfigChange }: {
     finally { busy.current = false; setSaving(false); }
   };
   return <>
-    <button type="button" className="editor-status-select" aria-label="块号与折叠设置" title="块号与折叠设置"
+    <button type="button" className="editor-status-select source-gutter-settings" aria-label="块号与折叠设置" title="块号与折叠设置"
       aria-haspopup="menu" aria-expanded={Boolean(trigger)} onMouseDown={event => event.preventDefault()}
       onClick={event => { const target = editorCommandTrigger(event.currentTarget); setTrigger(previous => previous ? null : target); }}>
       # <span aria-hidden="true">▾</span>

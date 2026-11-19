@@ -192,3 +192,12 @@ html:where([data-workbench-palette]) :where(.workspace-dialog, dialog[open], [ro
   opacity: .45;
   cursor: default;
 }
+.workbench-editor-tabs { display: flex; flex: none; min-height: 32px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
+.workbench-editor-tabs::-webkit-scrollbar { display: none; }
+.workbench-editor-tab { display: flex; flex: 0 0 auto; align-items: center; max-width: 220px; border-inline-end: 1px solid var(--border); user-select: none; }
+.workbench-editor-tab[data-active] { background: var(--active-bg); }
+.workbench-editor-tab > [role=tab] { display: flex; align-items: center; gap: 6px; min-width: 0; border: 0; padding: 6px 8px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px; cursor: pointer; }
+.workbench-editor-tab > [role=tab] > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workbench-editor-tab > [role=tab][aria-selected=true] { color: var(--text); }
+.workbench-editor-tab > .btn-icon { width: 22px; height: 22px; padding: 3px; flex: none; margin-inline-end: 3px; }
+.workbench-editor-tab .toolbar-icon { width: 12px; height: 12px; }

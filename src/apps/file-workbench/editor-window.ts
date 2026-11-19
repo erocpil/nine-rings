@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { BrowserFileOpen } from "../../lib/local-files/browser-contract";
-export interface WorkbenchEditorSession { id: string; file: BrowserFileOpen; openRevision?: number }
+export interface WorkbenchEditorSession { id: string; file: BrowserFileOpen & { bufferId?: string; bufferPath?: string; untitled?: boolean }; openRevision?: number }
 export interface WorkbenchEditorState { files: WorkbenchEditorSession[]; current: string | null; revision: number; closing: { token: number; quit: boolean } | null }
 export interface WorkbenchEditorPort {
   read(): Promise<WorkbenchEditorState>;

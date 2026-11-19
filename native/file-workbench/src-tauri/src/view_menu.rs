@@ -2,6 +2,7 @@ use tauri::{
     menu::{CheckMenuItem, Menu, MenuItemKind, Submenu},
     Emitter, Manager,
 };
+pub const NEW_FILE: &str = "workbench.new-file";
 pub const CLOSE_FILE: &str = "workbench.close-file";
 pub const TOGGLE_HIDDEN: &str = "workbench.hidden-files";
 pub struct ViewMenu {
@@ -43,6 +44,9 @@ pub fn install(app: &mut tauri::App) -> tauri::Result<()> {
     let close_file = tauri::menu::MenuItemBuilder::with_id(CLOSE_FILE, "Close Current File")
         .accelerator("CmdOrCtrl+W")
         .build(app)?;
+    let new_file = tauri::menu::MenuItemBuilder::with_id(NEW_FILE, "New File")
+        .accelerator("CmdOrCtrl+N")
+        .build(app)?;
     let mut installed = false;
     for item in menu.items()? {
         if let MenuItemKind::Submenu(submenu) = item {
@@ -55,6 +59,7 @@ pub fn install(app: &mut tauri::App) -> tauri::Result<()> {
                         }
                     }
                 }
+                submenu.insert(&new_file, 0)?;
                 submenu.append(&close_file)?;
                 installed = true;
                 break;
@@ -62,7 +67,12 @@ pub fn install(app: &mut tauri::App) -> tauri::Result<()> {
         }
     }
     if !installed {
-        menu.append(&Submenu::with_items(app, "File", true, &[&close_file])?)?;
+        menu.append(&Submenu::with_items(
+            app,
+            "File",
+            true,
+            &[&new_file, &close_file],
+        )?)?;
     }
     let hidden = CheckMenuItem::with_id(
         app,
@@ -91,6 +101,15 @@ pub fn install(app: &mut tauri::App) -> tauri::Result<()> {
     app.set_menu(menu)?;
     app.manage(ViewMenu { hidden });
     app.on_menu_event(|app, event| {
+        if event.id().as_ref() == NEW_FILE {
+            let focused = super::editor_window::window(app)
+                .filter(|window| window.is_focused().unwrap_or(false));
+            let target = focused
+                .as_ref()
+                .map(|window| window.label())
+                .unwrap_or("main");
+            let _ = app.emit_to(target, "workbench:new-file", ());
+        }
         if event.id().as_ref() == CLOSE_FILE {
             let focused = super::editor_window::window(app)
                 .filter(|window| window.is_focused().unwrap_or(false));

@@ -1,10 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod buffers;
 mod close_policy;
 mod editor_window;
 #[cfg(target_os = "macos")]
 mod macos_zoom;
 mod tools;
 mod view_menu;
+mod window_activation;
 #[cfg(any(target_os = "macos", test))]
 mod window_zoom;
 use close_policy::ClosePolicy;
@@ -94,6 +96,16 @@ fn show_workbench(app: &tauri::AppHandle) {
         let _ = window.set_focus();
     }
 }
+fn show_last_window(app: &tauri::AppHandle) {
+    let label = app.state::<window_activation::WindowActivation>().current();
+    if let Some(window) = app.get_webview_window(&label) {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    } else {
+        show_workbench(app);
+    }
+}
 fn hide_workbench(app: &tauri::AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
@@ -126,14 +138,11 @@ fn toggle_workbench(app: &tauri::AppHandle) {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            show_last_window(app);
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(ClosePolicy::default())
+        .manage(window_activation::WindowActivation::default())
         .manage(editor_window::EditorWindows::default())
         .manage(nine_rings_file_host::window_access::FileWindowAccess::default())
         .manage(tools::ToolJobs::default())
@@ -184,9 +193,33 @@ fn main() {
             let directory = app.path().app_data_dir()?;
             std::fs::create_dir_all(&directory)?;
             app.manage(local_files::LocalFiles::load(&directory));
+            app.manage(buffers::BufferDocuments::load(
+                &directory.join("editor-documents"),
+            )?);
+            let restored = app.state::<buffers::BufferDocuments>().list()?;
+            if !restored.is_empty() {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn_blocking(move || {
+                    for record in restored {
+                        if let Err(error) = editor_window::publish_file(
+                            &handle,
+                            record.session(),
+                            record.path.is_some(),
+                        ) {
+                            eprintln!("Editor restore: {error}");
+                            break;
+                        }
+                    }
+                });
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Focused(true)) {
+                window
+                    .state::<window_activation::WindowActivation>()
+                    .record(window.label());
+            }
             if window.label() == "main"
                 && matches!(event, tauri::WindowEvent::Resized(_))
                 && !window.is_fullscreen().unwrap_or(true)
@@ -212,6 +245,12 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            buffers::workbench_new_document,
+            buffers::workbench_buffer_read,
+            buffers::workbench_buffer_checkpoint,
+            buffers::workbench_buffer_snapshot,
+            buffers::workbench_buffer_save,
+            buffers::workbench_buffer_discard,
             editor_window::workbench_window_role,
             editor_window::workbench_editor_presence,
             editor_window::workbench_open_editor,
@@ -257,8 +296,12 @@ fn main() {
                 macos_zoom::remove();
             }
             #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Reopen { .. } = event {
-                show_workbench(app);
+            if let tauri::RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } = event
+            {
+                show_last_window(app);
             }
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
                 if app.state::<ClosePolicy>().intercept() {

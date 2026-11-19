@@ -1503,7 +1503,7 @@ export function ReadonlyVirtualNote(
           onDelete={() => { void removeAnnotation(annotation.id); }} />;
       })()}
       {documentHover.preview}
-      <EditorStatusBar sourceViewControls={<RenderedGutterSettings visible={props.showLineNumbers} onConfigChange={props.onEditorConfigChange} />} onCreateDocument={props.onCreateDocument} enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus ?? "clean"} blockPosition={(statusBar.display ? statusBar.items.includes("block") : props.showStatusBlockNumber) ? { current: Math.min(Math.max(1, currentNumber), doc.childCount), total: doc.childCount } : undefined} />
+      <EditorStatusBar sourceViewControls={<RenderedGutterSettings visible={props.showLineNumbers} onConfigChange={props.onEditorConfigChange} />} onCreateDocument={props.onCreateDocument} createDocumentLabel={props.createDocumentLabel} enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus ?? "clean"} blockPosition={(statusBar.display ? statusBar.items.includes("block") : props.showStatusBlockNumber) ? { current: Math.min(Math.max(1, currentNumber), doc.childCount), total: doc.childCount } : undefined} />
 
     </div></DocumentOutlineContext.Provider>
   );

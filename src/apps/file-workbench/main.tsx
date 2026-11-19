@@ -1,3 +1,4 @@
+import { bufferDocumentPort } from "./buffer-documents";
 import { useEdgeScrollbars } from "../../hooks/useEdgeScrollbars";
 import { openWorkbenchEditor, showWorkbenchEditor, workbenchWindowRole, notifyEditorSaved, readEditorPresence, type WorkbenchEditorPresence } from "./editor-window";
 import { useToolExecution } from "./ToolExecution";
@@ -159,6 +160,7 @@ async function bootstrap() {
     }
     const { listen } = await import("@tauri-apps/api/event");
     if (nativeRole === "browser") {
+      removeNativeFileEvents.push(await listen("workbench:new-file", () => { void bufferDocumentPort.create().catch(cause => nativeError?.(cause)); }));
       const applyPresence = (value: WorkbenchEditorPresence) => {
         if (!value || typeof value.present !== "boolean" || !Number.isSafeInteger(value.revision) || value.revision < editorPresenceRevision) return;
         editorPresenceRevision = value.revision; editorPresent = value.present; updateEditorPresence?.(value.present);

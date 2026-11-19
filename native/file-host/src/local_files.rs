@@ -1645,6 +1645,22 @@ pub async fn local_files_save_as(
     bom: bool,
     line_ending: String,
 ) -> Result<bool, String> {
+    choose_save_file(app, window, name, source, bom, line_ending, |_| Ok(()))
+        .await
+        .map(|path| path.is_some())
+}
+
+/// Reuse the explicit native save dialog without granting its parent directory.
+/// The caller can reserve the selected file before the atomic write begins.
+pub async fn choose_save_file(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    name: String,
+    source: String,
+    bom: bool,
+    line_ending: String,
+    before_write: impl Fn(&Path) -> Result<(), String> + Send + 'static,
+) -> Result<Option<PathBuf>, String> {
     file_caller(&window)?;
     if name.is_empty() || name.len() > 255 || name.contains(['/', '\\', ':', '\0']) {
         return Err("文件名无效".into());
@@ -1678,14 +1694,14 @@ pub async fn local_files_save_as(
         return Err("另存后文件超过 4 MiB".into());
     }
     let dialog = app.clone();
-    tauri::async_runtime::spawn_blocking(move || -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<Option<PathBuf>, String> {
         let Some(chosen) = dialog
             .dialog()
             .file()
             .set_file_name(name)
             .blocking_save_file()
         else {
-            return Ok(false);
+            return Ok(None);
         };
         let selected = chosen.into_path().map_err(|error| error.to_string())?;
         let parent = fs::canonicalize(selected.parent().ok_or("保存路径无效")?)
@@ -1696,6 +1712,7 @@ pub async fn local_files_save_as(
                 return Err("目标不是普通文件，拒绝覆盖".into());
             }
         }
+        before_write(&target)?;
         let _lease = scoped_caller(&window, false, vec![target.clone()])?;
         let temp = parent.join(format!(".nr-save-as-{}.tmp", uuid::Uuid::new_v4()));
         let result: Result<(), String> = (|| {
@@ -1731,14 +1748,92 @@ pub async fn local_files_save_as(
             let _ = fs::remove_file(&temp);
         }
         result?;
-        Ok(true)
+        Ok(Some(target))
     })
     .await
     .map_err(|error| error.to_string())?
 }
+/// Atomic publication of private application recovery records.
+pub fn replace_recovery_file(temp: &Path, target: &Path) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        use windows::Win32::Storage::FileSystem::{
+            MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+        };
+        let from: Vec<u16> = temp.as_os_str().encode_wide().chain(Some(0)).collect();
+        let to: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
+        unsafe {
+            MoveFileExW(
+                windows::core::PCWSTR(from.as_ptr()),
+                windows::core::PCWSTR(to.as_ptr()),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+            )
+        }
+        .map_err(|error| error.to_string())?;
+    }
+    #[cfg(not(windows))]
+    fs::rename(temp, target).map_err(|error| error.to_string())?;
+    Ok(())
+}
+/// Exact-file capabilities for an application-owned save receipt. These Rust
+/// helpers do not expose a new path-based IPC or authorize directory browsing.
+pub fn read_selected_file(path: &Path) -> Result<Snapshot, String> {
+    let root = path.parent().ok_or("文件路径无效")?;
+    let node = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or("文件名无效")?;
+    read(root, node)
+}
+pub fn write_selected_file(
+    path: &Path,
+    source: &str,
+    revision: &str,
+    bom: bool,
+    eol: &str,
+) -> Result<Snapshot, String> {
+    let root = path.parent().ok_or("文件路径无效")?;
+    let node = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or("文件名无效")?;
+    let id = "selected-file".to_owned();
+    let roots = Arc::new(Mutex::new(HashMap::from([(id.clone(), root.to_owned())])));
+    write(root, node, source, revision, bom, eol, (roots, id))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn selected_file_receipt_keeps_revision_and_encoding_guards() {
+        let fixture = TransferFixture::new();
+        let file = fixture.0.join("selected.txt");
+        fs::write(&file, b"\xef\xbb\xbfhello\r\n").unwrap();
+        let original = read_selected_file(&file).unwrap();
+        assert!(original.bom);
+        assert_eq!(original.line_ending, "crlf");
+        let saved = write_selected_file(&file, "new\n", &original.revision, true, "crlf").unwrap();
+        assert_eq!(fs::read(&file).unwrap(), b"\xef\xbb\xbfnew\r\n");
+        assert!(write_selected_file(&file, "stale", &original.revision, false, "lf").is_err());
+        assert_eq!(read_selected_file(&file).unwrap().revision, saved.revision);
+    }
+    #[cfg(unix)]
+    #[test]
+    fn selected_file_receipt_never_follows_a_replaced_symlink() {
+        let fixture = TransferFixture::new();
+        let file = fixture.0.join("selected.txt");
+        let other = fixture.0.join("other.txt");
+        fs::write(&file, "original").unwrap();
+        fs::write(&other, "private").unwrap();
+        let original = read_selected_file(&file).unwrap();
+        fs::remove_file(&file).unwrap();
+        std::os::unix::fs::symlink(&other, &file).unwrap();
+        assert!(read_selected_file(&file).is_err());
+        assert!(write_selected_file(&file, "changed", &original.revision, false, "lf").is_err());
+        assert_eq!(fs::read_to_string(&other).unwrap(), "private");
+    }
     #[test]
     fn transfer_result_preserves_legacy_strings_and_camel_case_counters() {
         assert_eq!(

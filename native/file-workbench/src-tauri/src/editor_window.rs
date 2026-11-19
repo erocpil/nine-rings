@@ -20,9 +20,9 @@ pub struct Location {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditorFile {
-    id: String,
-    file: Value,
-    open_revision: u64,
+    pub id: String,
+    pub file: Value,
+    pub open_revision: u64,
 }
 #[derive(Clone, Serialize)]
 pub struct Close {
@@ -99,7 +99,7 @@ impl Session {
         Ok(())
     }
 }
-fn editor(window: &tauri::WebviewWindow) -> Result<(), String> {
+pub fn editor(window: &tauri::WebviewWindow) -> Result<(), String> {
     if window.label() != "main" && window.state::<FileWindowAccess>().allows(window.label()) {
         Ok(())
     } else {
@@ -134,7 +134,7 @@ pub fn workbench_editor_presence(window: tauri::WebviewWindow) -> Result<Value, 
         .revision;
     Ok(json!({ "present": self::window(window.app_handle()).is_some(), "revision": revision }))
 }
-fn changed(app: &tauri::AppHandle) {
+pub fn changed(app: &tauri::AppHandle) {
     if let Some(window) = window(app) {
         let _ = window.emit("workbench:editor-changed", ());
     }
@@ -169,8 +169,6 @@ fn open_editor(
     location: Option<Location>,
 ) -> Result<(), String> {
     super::main_window(&window)?;
-    let owner = app.state::<EditorWindows>();
-    let _creation = owner.1.lock().map_err(|_| "编辑器创建状态不可用")?;
     if let Some(location) = &location {
         if location.from > location.to || location.revision.len() > 256 {
             return Err("无效的文件定位".into());
@@ -196,6 +194,33 @@ fn open_editor(
         open_revision: 1,
         file: json!({ "rootId": root_id, "rootName": "本地文件", "node": { "id": node, "name": filename, "directory": false, "size": meta.len(), "modifiedMs": meta.modified().ok().and_then(|value| value.duration_since(UNIX_EPOCH).ok()).map(|value| value.as_millis()) }, "location": location }),
     };
+    publish_file(&app, file, true)
+}
+
+pub fn publish_file(
+    app: &tauri::AppHandle,
+    mut file: EditorFile,
+    protect: bool,
+) -> Result<(), String> {
+    let owner = app.state::<EditorWindows>();
+    let _creation = owner.1.lock().map_err(|_| "编辑器创建状态不可用")?;
+    // A document first saved from a buffer keeps its identity and undo history.
+    // Reopening its disk path must activate that same session, never a second writer.
+    if file.file["bufferId"].is_null() {
+        if app.state::<super::buffers::BufferDocuments>().is_saving()? {
+            return Err("新建文档正在保存，请完成保存后再打开磁盘文件".into());
+        }
+        let state = owner.0.lock().map_err(|_| "编辑器状态不可用")?;
+        if let Some(existing) = state.files.iter().find(|item| {
+            item.file["bufferPath"]
+                .as_str()
+                .is_some_and(|path| path == file.id)
+        }) {
+            let location = file.file["location"].clone();
+            file = existing.clone();
+            file.file["location"] = location;
+        }
+    }
     // The creation mutex serializes publication while WebView construction runs off the UI thread.
     let access = app.state::<FileWindowAccess>();
     let existing = self::window(&app);
@@ -234,8 +259,9 @@ fn open_editor(
         drop(value);
         *state.2.lock().map_err(|_| "编辑器窗口状态不可用")? = Some(label.clone());
     }
-    let protected_path = std::path::Path::new(&file.id).to_owned();
-    let new_path = access.protect_editor_path(&label, &protected_path)?;
+    let protected_path =
+        std::path::Path::new(file.file["bufferPath"].as_str().unwrap_or(&file.id)).to_owned();
+    let new_path = protect && access.protect_editor_path(&label, &protected_path)?;
     if let Err(error) = state.0.lock().map_err(|_| "编辑器状态不可用")?.open(file) {
         if new_path {
             access.release_editor_path(&label, &protected_path);
@@ -249,7 +275,7 @@ fn open_editor(
         existing
     } else {
         match tauri::WebviewWindowBuilder::new(
-            &app,
+            app,
             &label,
             tauri::WebviewUrl::App("file-workbench.html".into()),
         )
@@ -277,6 +303,42 @@ fn open_editor(
     target.show().map_err(|e| e.to_string())?;
     target.set_focus().map_err(|e| e.to_string())
 }
+pub(crate) fn reserve_buffer_save(
+    app: &tauri::AppHandle,
+    id: &str,
+) -> Result<super::buffers::Saving, String> {
+    let owner = app.state::<EditorWindows>();
+    let _publication = owner.1.lock().map_err(|_| "编辑器创建状态不可用")?;
+    app.state::<super::buffers::BufferDocuments>()
+        .begin_save(id)
+}
+pub fn update_buffer(app: &tauri::AppHandle, file: EditorFile) -> Result<(), String> {
+    let owner = app.state::<EditorWindows>();
+    let mut state = owner.0.lock().map_err(|_| "编辑器状态不可用")?;
+    if let Some(current) = state.files.iter_mut().find(|item| item.id == file.id) {
+        current.file = file.file;
+    }
+    state.revision += 1;
+    drop(state);
+    changed(app);
+    Ok(())
+}
+pub fn path_is_open(
+    app: &tauri::AppHandle,
+    path: &std::path::Path,
+    except: &str,
+) -> Result<bool, String> {
+    let owner = app.state::<EditorWindows>();
+    let state = owner.0.lock().map_err(|_| "编辑器状态不可用")?;
+    Ok(state.files.iter().any(|item| {
+        item.id != except
+            && (std::path::Path::new(&item.id) == path
+                || item.file["bufferPath"]
+                    .as_str()
+                    .is_some_and(|value| std::path::Path::new(value) == path))
+    }))
+}
+
 #[tauri::command]
 pub fn workbench_editor_state(
     window: tauri::WebviewWindow,
@@ -306,10 +368,29 @@ pub fn workbench_editor_remove(window: tauri::WebviewWindow, id: String) -> Resu
     editor(&window)?;
     let state = window.state::<EditorWindows>();
     let mut value = state.0.lock().map_err(|_| "编辑器状态不可用")?;
+    let buffer = value
+        .files
+        .iter()
+        .find(|item| item.id == id)
+        .and_then(|item| item.file["bufferId"].as_str())
+        .map(str::to_owned);
+    let protected = value
+        .files
+        .iter()
+        .find(|item| item.id == id)
+        .and_then(|item| item.file["bufferPath"].as_str())
+        .unwrap_or(&id)
+        .to_owned();
+    if let Some(buffer) = buffer {
+        window
+            .state::<super::buffers::BufferDocuments>()
+            .close(&buffer)?;
+    }
     value.close(&id)?;
+
     window
         .state::<FileWindowAccess>()
-        .release_editor_path(window.label(), std::path::Path::new(&id));
+        .release_editor_path(window.label(), std::path::Path::new(&protected));
     if value.files.is_empty() && value.closing.is_none() {
         value.revision += 1;
         value.closing = Some(Close {

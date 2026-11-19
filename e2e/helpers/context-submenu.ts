@@ -33,7 +33,7 @@ export async function expectFoldContextSubmenu(page: Page, content: Locator, x: 
   await context.getByRole("button", { name: "文档", exact: true }).hover();
   await trigger.hover();
   await expect(menu).toBeVisible();
-  await page.mouse.click(2, 2);
+  await page.mouse.click(2, page.viewportSize()!.height - 2);
   await expect(menu).toHaveCount(0);
   await expect(context).toHaveCount(0);
   await paragraph.click({ button: "right", position: { x: Math.min(Math.max(60, x), bounds.width - 12), y: bounds.height / 2 } });

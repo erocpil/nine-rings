@@ -79,12 +79,16 @@ export function LocalMarkdownWorkspace({
   pdfExport = true,
   onExportMarkdown,
   onError,
+  onCreateDocument,
+  createDocumentLabel,
 }: {
   titleRevealOnClick?: boolean;
   separateTitle?: boolean;
   pdfExport?: boolean;
   onExportMarkdown?: () => Promise<void>;
   onError?: (message: string) => void;
+  onCreateDocument?: () => void;
+  createDocumentLabel?: string;
   identity: string;
   source: string;
   title: string;
@@ -291,6 +295,7 @@ export function LocalMarkdownWorkspace({
         )}
         <Suspense fallback={<div role="status">正在加载文档工作区…</div>}>
           <Workspace
+            onCreateDocument={onCreateDocument} createDocumentLabel={createDocumentLabel}
             noteId={`local-file:${identity}`}
             contentVersion={initial.revision}
             readingBlockVersion={initial.revision}
