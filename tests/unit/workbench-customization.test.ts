@@ -6,6 +6,7 @@ import {
   activateBrowserRow,
   activeBrowserPanes,
   addBrowserTab,
+  revealBrowserFile,
   browserSideRows,
   exchangeBrowserPanes,
   mirrorBrowserPath,
@@ -348,4 +349,59 @@ it("includes EPUB archives in full-view sibling navigation without treating ZIPs
   }));
   expect(nextWorkbenchPreview(nodes, "a.pdf", 1)?.id).toBe("b.epub");
   expect(nextWorkbenchPreview(nodes, "b.epub", 1)?.id).toBe("d.c");
+});
+
+it("reveal reuses a matching pinned directory without duplicating tabs, while explicit + still duplicates", () => {
+  let state = parseBrowserWorkspace(null);
+  state = updateBrowserRow(state, 0, 0, (pane) =>
+    navigateBrowserPane(pane, "root", "Downloads"),
+  );
+  state = modifyBrowserTabs(state, 0, state.groups[0].tabs[0].tabId, "pin");
+  const original = state.groups[0].tabs[0].tabId;
+  for (let i = 0; i < 10; i++)
+    state = parseBrowserWorkspace(
+      JSON.stringify(revealBrowserFile(state, "root", "Downloads/file.md")),
+    );
+  expect(state.groups[0].tabs).toHaveLength(1);
+  expect(state.groups[0].tabs[0].tabId).toBe(original);
+  expect(state.groups[0].tabs[0].pinned).toBe(true);
+  state = revealBrowserFile(state, "root", "Documents/file.md");
+  expect(state.groups[0].tabs).toHaveLength(2);
+  state = revealBrowserFile(state, "root", "Downloads/other.md");
+  expect(state.groups[0].tabs).toHaveLength(2);
+  expect(state.groups[0].active).toBe(0);
+  state = addBrowserTab(state, 0);
+  expect(state.groups[0].tabs).toHaveLength(3);
+});
+
+it("directory tab diagnostics are bounded, contain no paths and cannot break browsing on storage failure", async () => {
+  const { recordBrowserTabEvent, BROWSER_TAB_DIAGNOSTICS_KEY } =
+    await import("../../src/lib/local-files/browser-tab-diagnostics");
+  const values = new Map<string, string>();
+  const store = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
+    },
+  };
+  const state = updateBrowserRow(parseBrowserWorkspace(null), 0, 0, (pane) =>
+    navigateBrowserPane(pane, "private-root", "private-path"),
+  );
+  for (let i = 0; i < 60; i++) recordBrowserTabEvent(store, "restore", state);
+  const raw = values.get(BROWSER_TAB_DIAGNOSTICS_KEY)!;
+  expect(JSON.parse(raw)).toHaveLength(40);
+  expect(raw).not.toContain("private-root");
+  expect(raw).not.toContain("private-path");
+  expect(() =>
+    recordBrowserTabEvent(
+      {
+        getItem: () => {
+          throw new Error("quota");
+        },
+        setItem: () => {},
+      },
+      "restore",
+      state,
+    ),
+  ).not.toThrow();
 });

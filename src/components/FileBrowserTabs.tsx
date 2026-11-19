@@ -12,6 +12,10 @@ export function FileBrowserTabs({ group, roots, side, onSelect, onAdd, onAction,
   onSelect: (index: number, close?: boolean, confirmedPinned?: boolean) => void; onAdd: () => void;
   onAction: (id: string, action: Action, confirmedPinned?: boolean) => void; onReorder: (id: string, targetId: string) => void;
 }) {
+  // A native sheet can interrupt a press; an unpaired mouse click must not
+  // become a new tab. Keyboard/accessibility activation keeps detail=0.
+  const addPointer = useRef(false);
+  useEffect(() => { const clear = () => { addPointer.current = false; }; window.addEventListener("blur", clear); return () => window.removeEventListener("blur", clear); }, []);
   const [menu, setMenu] = useState<NotesMenuTarget | null>(null);
   const [closing, setClosing] = useState<{ id: string; type: "single" | "others" | "right" } | null>(null);
   const requestClose = (id: string, type: "single" | "others" | "right", confirmed = false) => {
@@ -57,7 +61,10 @@ export function FileBrowserTabs({ group, roots, side, onSelect, onAdd, onAction,
         {tab.pinned && anchor && away && <button type="button" aria-label="返回固定目录" title={anchor.missing ? "固定目录已失效，请重新固定有效目录" : "返回固定目录（Alt+Home）"} disabled={anchor.missing} onClick={() => onAction(tab.tabId, "home")}><ToolbarIcon name="pageTop" /></button>}
       </div>;
     })}
-    <button type="button" aria-label="新建目录标签" title="新建目录标签" disabled={group.tabs.length >= MAX_BROWSER_TABS} onClick={onAdd}>＋</button>
+    <button type="button" aria-label="新建目录标签" title="新建目录标签" disabled={group.tabs.length >= MAX_BROWSER_TABS}
+      onPointerDown={event => { addPointer.current = event.button === 0; }}
+      onPointerCancel={() => { addPointer.current = false; }}
+      onClick={event => { const paired = addPointer.current; addPointer.current = false; if (event.detail > 0 && !paired) return; onAdd(); }}>＋</button>
     <button type="button" aria-label="恢复关闭的目录标签" title="恢复最近关闭的目录标签" disabled={!group.closed?.length || group.tabs.length >= MAX_BROWSER_TABS} onClick={() => onAction(group.tabs[group.active].tabId, "restore")}>↶</button>
     {closing && <WorkspaceDialog title="关闭固定目录标签" onClose={() => setClosing(null)}><div className="file-browser-root-manager"><p>本次关闭包含固定目录标签。是否仍要关闭？不会删除文件或撤销目录授权，之后可恢复最近关闭的标签。</p><button type="button" onClick={() => setClosing(null)}>取消</button><button type="button" onClick={() => requestClose(closing.id, closing.type, true)}>确认关闭</button></div></WorkspaceDialog>}
     {menu && tab && <NotesContextMenu label="目录标签菜单" target={menu} close={() => setMenu(null)} actions={[

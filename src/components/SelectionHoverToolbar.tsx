@@ -33,6 +33,7 @@ export function SelectionHoverToolbar() {
         host.current?.contains(target) ||
         target.closest(".menu-dropdown-list:popover-open, .block-action-menu"),
       );
+    const hasOpenSubmenu = () => Boolean(host.current?.querySelector('[aria-expanded="true"]'));
     const hide = () => {
       clear();
       // Closing this transient surface dismisses its submenus, not independent
@@ -65,7 +66,7 @@ export function SelectionHoverToolbar() {
         return;
       }
       const target = document.elementFromPoint(x, y);
-      if (withinHoverSurface(target)) {
+      if (hasOpenSubmenu() || withinHoverSurface(target)) {
         clear();
         return;
       }
@@ -84,7 +85,7 @@ export function SelectionHoverToolbar() {
         ?.querySelector<HTMLElement>(
           editor.classList.contains("cm-content")
             ? ".markdown-source-tools"
-            : ".editor-menu",
+            : ".editor-menu, .document-reading-tools",
         );
       let inside = false;
       if (range && editor?.contains(target)) {
@@ -116,7 +117,7 @@ export function SelectionHoverToolbar() {
           hideTimer = window.setTimeout(() => {
             // A leave deadline can beat the next animation frame under load.
             // Recheck the latest pointer before dismissing a surface it entered.
-            if (withinHoverSurface(document.elementFromPoint(x, y))) clear();
+            if (hasOpenSubmenu() || withinHoverSurface(document.elementFromPoint(x, y))) clear();
             else hide();
           }, 160);
         return;
@@ -153,7 +154,7 @@ export function SelectionHoverToolbar() {
     document.addEventListener("focusin", focus);
     const selectionChanged = () => {
       if (
-        document.getSelection()?.isCollapsed &&
+        document.getSelection()?.isCollapsed && !hasOpenSubmenu() &&
         !(
           document.activeElement instanceof Element &&
           document.activeElement.closest(

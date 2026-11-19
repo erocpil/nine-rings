@@ -1,5 +1,5 @@
 import { fileSegments } from "./file-model";
-import { browserLocation, emptyBrowserState, navigateBrowserPane, parseBrowserState, reconcileBrowserPaneMutation, type BrowserPaneState } from "./browser-state";
+import { browserLocation, updateBrowserLocation, emptyBrowserState, navigateBrowserPane, parseBrowserState, reconcileBrowserPaneMutation, type BrowserPaneState } from "./browser-state";
 import type { BrowserMutation } from "./browser-operation-contract";
 
 export interface BrowserWorkspaceTab extends BrowserPaneState { tabId: string; pinned?: boolean; anchor?: BrowserTabAnchor; restrictToAnchor?: boolean; returnToAnchor?: boolean }
@@ -189,4 +189,16 @@ export function revokeBrowserRoot(state: BrowserWorkspaceState, rootId: string, 
   };
   const apply = (group: BrowserTabGroup) => ({ ...group, tabs: group.tabs.map(clean), closed: group.closed?.filter(tab => tab.history.some(entry => entry.rootId !== rootId)).map(clean) });
   return { ...state, groups: state.groups.map(apply) as BrowserWorkspaceState["groups"], ...(state.extraGroups ? { extraGroups: state.extraGroups.map(groups => groups.map(apply)) as [BrowserTabGroup[], BrowserTabGroup[]] } : {}) };
+}
+
+/** An explicit reveal reuses an existing directory; it is not a request to
+ * duplicate the current tab. New tabs remain available through the + control. */
+export function revealBrowserFile(state: BrowserWorkspaceState, rootId: string, file: string): BrowserWorkspaceState {
+  const node = fileSegments(file).slice(0, -1).join("/");
+  const side = state.active, group = state.groups[side];
+  const matches = (tab: BrowserWorkspaceTab) => { const at = browserLocation(tab); return at?.rootId === rootId && at.node === node; };
+  const index = matches(group.tabs[group.active]) ? group.active : group.tabs.findIndex(matches);
+  const next = index >= 0 ? selectBrowserTab(state, side, index) : addBrowserTab(state, side);
+  if (index < 0 && next === state) return state;
+  return updateBrowserTab(next, side, pane => ({ ...updateBrowserLocation(navigateBrowserPane(pane, rootId, node), { selected: [file], scrollTop: 0 }), showHidden: true }));
 }

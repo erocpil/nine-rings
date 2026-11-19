@@ -3231,3 +3231,81 @@ test("退出保留磁盘标签及顺序，主动关闭才移除，并恢复状�
   await expect(tabs.getByRole("tab")).toHaveCount(1);
   await page.reload(); await expect(tabs.getByRole("tab")).toHaveText(["alpha.c"]);
 });
+
+for (const rendered of [false, true]) for (const readonly of [false, true]) test(`独立Editor选区悬浮工具与右键高亮保留 rendered=${rendered} readonly=${readonly}`, async ({ page }) => {
+  await setupIndependentEditor(page, { "alpha.c": "first selected words\n\nsecond paragraph\n" });
+  if (!readonly) await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  if (rendered) {
+    await expect(page.getByRole("button", { name: "文件格式", exact: true })).toBeVisible();
+    await selectDocumentLanguage(page, "markdown");
+    await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  }
+  const content = page.locator(rendered ? ".ProseMirror:visible" : ".cm-content:visible");
+  const line = content.locator(rendered ? "p" : ".cm-line").first();
+  await line.selectText();
+  const box = (await line.boundingBox())!;
+  await page.mouse.move(box.x + 20, box.y + box.height / 2);
+  const hover = page.getByRole("toolbar", { name: "选区编辑工具", exact: true });
+  await expect(hover).toBeVisible();
+  if (rendered && readonly) await expect(hover.getByRole("button", { name: "复制", exact: true })).toBeEnabled();
+  // Right-click away from the selection must still operate on that selection.
+  await content.locator(rendered ? "p" : ".cm-line").last().click({ button: "right", position: { x: 5, y: 8 } });
+  const menu = page.getByRole("menu", { name: rendered ? "正文操作" : "源码编辑菜单", exact: true });
+  await expect(menu).toBeVisible();
+  await expect(hover).toHaveCount(0);
+  if (rendered) {
+    await expect(content.locator(".toolbar-preserved-selection")).toContainText("first selected words");
+  } else {
+    await expect.poll(async () => { const value = await sourceInfo(content); return value.value.slice(value.selectionStart, value.selectionEnd); }).toBe("first selected words");
+    await expect(page.locator(".cm-selectionBackground").first()).toBeVisible();
+  }
+  await page.keyboard.press("Escape"); await expect(menu).toHaveCount(0);
+});
+
+test("Editor选区工具打开下级菜单后保持可见且不透明", async ({ page }) => {
+  await setupIndependentEditor(page, { "alpha.c": "# Heading\n\nfirst selected words\n" });
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await selectDocumentLanguage(page, "markdown");
+  await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  const line = page.locator(".ProseMirror:visible p").first(); await line.selectText();
+  const box = (await line.boundingBox())!; await page.mouse.move(box.x + 12, box.y + box.height / 2);
+  const hover = page.getByRole("toolbar", { name: "选区编辑工具", exact: true }); await expect(hover).toBeVisible();
+  await hover.getByTitle("字号", { exact: true }).click();
+  const menu = page.locator(".menu-dropdown-list:visible"); await expect(menu).toBeVisible();
+  await page.mouse.move(page.viewportSize()!.width - 2, page.viewportSize()!.height - 2);
+  await expect(hover).toHaveCSS("opacity", "1");
+  await page.waitForTimeout(300); // Beyond the explicit 160ms leave deadline.
+  await expect(hover).toBeVisible(); await expect(menu).toBeVisible();
+});
+
+
+test("启动恢复与权限窗口返回不凭空添加目录标签，显式新建仍可复制同路径", async ({ page }) => {
+  await page.addInitScript(() => {
+    const key = "file-workbench:nr:local-file-browser";
+    if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify({ version: 2, active: 0, ratio: .5, groups: [
+      { active: 1, tabs: ["Downloads", "Documents"].map((node, index) => ({ tabId: `left-${index}`, pinned: true, history: [{ rootId: "root", node, selected: [], scrollTop: 0 }], index: 0 })) },
+      { active: 0, tabs: [{ tabId: "right", history: [{ rootId: "root", node: "", selected: [], scrollTop: 0 }], index: 0 }] },
+    ] }));
+    let next = 1;
+    (window as any).__TAURI_INTERNALS__ = { transformCallback() { return next++; }, unregisterCallback() {}, async invoke(command: string) {
+      if (command === "workbench_window_role") return "browser";
+      if (command === "workbench_editor_presence") return { present: false, revision: 0 };
+      if (command === "local_files_roots") return [{ id: "root", name: "Home" }];
+      if (command === "local_files_list") { await new Promise(resolve => setTimeout(resolve, 100)); return { nodes: [], next: null }; }
+    } };
+  });
+  await page.goto("/file-workbench.html");
+  const tabs = page.getByRole("tablist", { name: "左栏目录标签" });
+  for (let pass = 0; pass < 3; pass++) {
+    await expect(tabs.getByRole("tab")).toHaveText([/Downloads$/, /Documents$/]);
+    const add = tabs.getByRole("button", { name: "新建目录标签", exact: true });
+    await page.evaluate(() => { window.dispatchEvent(new Event("blur")); window.dispatchEvent(new Event("focus")); });
+    // An isolated click delivered after a native sheet is not a new user press.
+    await add.dispatchEvent("click", { detail: 1 });
+    await expect(tabs.getByRole("tab")).toHaveCount(2);
+    await page.reload();
+  }
+  await tabs.getByRole("button", { name: "新建目录标签", exact: true }).click();
+  await expect(tabs.getByRole("tab")).toHaveCount(3);
+  await page.reload(); await expect(tabs.getByRole("tab")).toHaveCount(3);
+});

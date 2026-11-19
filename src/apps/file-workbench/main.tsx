@@ -7,6 +7,7 @@ import { parseWorkbenchTools, TOOLS_KEY } from "./custom-tools";
 import type { BrowserToolContext } from "../../lib/local-files/browser-tool-context";
 import { nextWorkbenchPreview } from "./preview-navigation";
 import { WorkbenchPalette, useWorkbenchPalette } from "./Palette";
+import { SelectionHoverToolbar } from "../../components/SelectionHoverToolbar";
 import { QuickTooltips } from "../../components/QuickTooltips";
 import { WorkbenchViewMenu } from "./ViewMenu";
 import { installWorkbenchViewMenu } from "./native-view-menu";
@@ -155,7 +156,7 @@ async function bootstrap() {
     try { nativeRole = await workbenchWindowRole(); } catch (cause) { console.error("Editor window capability unavailable", cause); }
     if (nativeRole === "editor") {
       const { WorkbenchEditorWindow } = await import("./EditorWindow");
-      createRoot(document.getElementById("root")!).render(<ErrorBoundary><QuickTooltips /><WorkbenchEditorWindow host={host} /></ErrorBoundary>);
+      createRoot(document.getElementById("root")!).render(<ErrorBoundary><QuickTooltips /><SelectionHoverToolbar /><WorkbenchEditorWindow host={host} /></ErrorBoundary>);
       return;
     }
     const { listen } = await import("@tauri-apps/api/event");
@@ -184,6 +185,6 @@ async function bootstrap() {
     try { removeNativeViewMenu = await installWorkbenchViewMenu(host.viewMenu, cause => nativeError ? nativeError(cause) : console.error(cause)); nativeViewMenuAvailable = true; }
     catch (cause) { console.error("View menu unavailable", cause); }
   }
-  createRoot(document.getElementById("root")!).render(<ErrorBoundary><QuickTooltips /><Workbench /></ErrorBoundary>);
+  createRoot(document.getElementById("root")!).render(<ErrorBoundary><QuickTooltips /><SelectionHoverToolbar /><Workbench /></ErrorBoundary>);
 }
 void bootstrap();

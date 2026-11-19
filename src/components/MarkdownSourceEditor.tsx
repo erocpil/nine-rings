@@ -66,6 +66,7 @@ import {
   SourceEditorContextMenu,
   type SourceContextTarget,
 } from "./SourceEditorContextMenu";
+import { isMacPlatform } from "../lib/shortcuts";
 import { readonlySourceSelection } from "../lib/readonly-source-selection";
 import { sourceFoldGutter } from "../lib/source-fold-ranges";
 import {
@@ -1847,7 +1848,7 @@ export function MarkdownSourceEditor({
         }
         if (
           !contextMenuEnabled ||
-          event.button !== 2 ||
+          !(event.button === 2 || event.button === 0 && event.ctrlKey && isMacPlatform()) ||
           !(event.target instanceof Element) ||
           !event.target.closest(".cm-content")
         )
@@ -1869,7 +1870,7 @@ export function MarkdownSourceEditor({
         }
         if (
           !contextMenuEnabled ||
-          event.button !== 2 ||
+          !(event.button === 2 || event.button === 0 && event.ctrlKey && isMacPlatform()) ||
           !(event.target instanceof Element) ||
           !event.target.closest(".cm-content")
         )
@@ -1952,7 +1953,7 @@ export function MarkdownSourceEditor({
             currentView.dispatch({ selection: { anchor, head } });
         } else if (
           position !== null &&
-          (current.empty || position < current.from || position > current.to)
+          current.empty
         ) {
           currentView.dispatch({ selection: { anchor: position } });
         }

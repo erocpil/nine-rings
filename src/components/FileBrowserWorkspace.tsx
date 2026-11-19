@@ -1,3 +1,4 @@
+import { recordBrowserTabEvent } from "../lib/local-files/browser-tab-diagnostics";
 import { FileBrowserDirectorySize } from "./FileBrowserDirectorySize";
 import { BrowserDirectorySizeCache } from "../lib/local-files/browser-directory-size";
 import { FileBrowserShortcuts } from "./FileBrowserShortcuts";
@@ -10,7 +11,7 @@ import { FileBrowserRowCount } from "./FileBrowserRowCount";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type SetStateAction, type ReactNode } from "react";
 import type { FileNode, FileRoot } from "../lib/local-files/file-model";
 import { FILE_BROWSER_STATE_KEY, browserLocation, navigateBrowserPane, updateBrowserLocation, type BrowserPaneState } from "../lib/local-files/browser-state";
-import { revokeBrowserRoot, activeBrowserPanes, activateBrowserRow, browserSideRows, setBrowserRowCount, updateBrowserRow, addBrowserTab, exchangeBrowserPanes, mirrorBrowserPath, modifyBrowserTabs, reorderBrowserTab, parseBrowserWorkspace, reconcileBrowserTabs, selectBrowserTab, updateBrowserTab } from "../lib/local-files/browser-tabs";
+import { revokeBrowserRoot, activeBrowserPanes, activateBrowserRow, browserSideRows, setBrowserRowCount, updateBrowserRow, addBrowserTab, revealBrowserFile, exchangeBrowserPanes, mirrorBrowserPath, modifyBrowserTabs, reorderBrowserTab, parseBrowserWorkspace, reconcileBrowserTabs, selectBrowserTab, updateBrowserTab } from "../lib/local-files/browser-tabs";
 import type { BrowserOperation } from "../lib/local-files/browser-operation-contract";
 import { browserJobSettled } from "../lib/local-files/browser-queue-core";
 import { FileBrowserQueueDialog } from "./FileBrowserQueueDialog";
@@ -44,15 +45,22 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
     try { return parseBrowserWorkspace(workspace.settings.getItem(FILE_BROWSER_STATE_KEY)); }
     catch { return parseBrowserWorkspace(null); }
   });
+  const tabCause = useRef("restore");
+  const tabSignature = useRef("");
   useEffect(() => {
-    if (!revealFile || !active) return;
-    setState(current => {
-      const side = current.active;
-      // Open a fresh tab so a pinned path restriction and its selection stay intact.
-      const next = addBrowserTab(current, side);
-      if (next === current) return current;
-      return updateBrowserTab(next, side, pane => ({ ...updateBrowserLocation(navigateBrowserPane(pane, revealFile.rootId, revealFile.node.split("/").slice(0, -1).join("/")), { selected: [revealFile.node], scrollTop: 0 }), showHidden: true }));
-    });
+    const signature = state.groups.map(group => group.tabs.map(tab => tab.tabId).join(",")).join("|");
+    if (signature !== tabSignature.current) {
+      tabSignature.current = signature;
+      recordBrowserTabEvent(workspace.settings, tabCause.current, state);
+    }
+    tabCause.current = "other-tab-action";
+  }, [state, workspace]);
+  const handledReveal = useRef<typeof revealFile>();
+  useEffect(() => {
+    if (!revealFile || !active || handledReveal.current === revealFile) return;
+    handledReveal.current = revealFile;
+    tabCause.current = "reveal-file";
+    setState(current => revealBrowserFile(current, revealFile.rootId, revealFile.node));
   }, [revealFile, active]);
   const panes = activeBrowserPanes(state);
   const [roots, setRoots] = useState<FileRoot[]>([]);
@@ -281,7 +289,7 @@ function FileBrowserWorkspaceBody({ workspace, active, initialRootId, revealFile
         const snapshot = drag.current, target = location; drag.current = null;
         if (!snapshot || !target || event.dataTransfer.getData(BROWSER_DRAG_TYPE) !== snapshot.token || operation || tool || opening || !workspace.canTransfer()) return;
         try { setOperation(planBrowserDrop(snapshot.source, { rootId: target.rootId, rootName: roots.find(root => root.id === target.rootId)?.name ?? target.rootId, parent }, event.shiftKey)); } catch (reason) { setError(String(reason)); }
-      }} tabBar={<FileBrowserTabs group={group} roots={roots} side={side} onSelect={(index, close, confirmed) => { setState(current => selectBrowserTab(activate(current), side, index, close, confirmed)); focusTab(side); }} onAdd={() => { setState(current => addBrowserTab(activate(current), side)); focusTab(side); }} onAction={(id, action, confirmed) => { setState(current => modifyBrowserTabs(activate(current), side, id, action, confirmed)); focusTab(side); }} onReorder={(id, target) => setState(current => reorderBrowserTab(activate(current), side, id, target))} />} />; })}</div>{quickPreview && state.active !== side && <FileBrowserQuickPreview settings={workspace.settings} rootId={currentLocation?.rootId ?? ""} node={previewNode} provider={provider} active={active} revision={listingRevision + previewRevision} onNavigate={direction => previewNavigation.current[state.active]?.step(direction) ?? false} onClose={closePreview} />}</div>)}
+      }} tabBar={<FileBrowserTabs group={group} roots={roots} side={side} onSelect={(index, close, confirmed) => { setState(current => selectBrowserTab(activate(current), side, index, close, confirmed)); focusTab(side); }} onAdd={() => { tabCause.current = "new-tab-button"; setState(current => addBrowserTab(activate(current), side)); focusTab(side); }} onAction={(id, action, confirmed) => { setState(current => modifyBrowserTabs(activate(current), side, id, action, confirmed)); focusTab(side); }} onReorder={(id, target) => setState(current => reorderBrowserTab(activate(current), side, id, target))} />} />; })}</div>{quickPreview && state.active !== side && <FileBrowserQuickPreview settings={workspace.settings} rootId={currentLocation?.rootId ?? ""} node={previewNode} provider={provider} active={active} revision={listingRevision + previewRevision} onNavigate={direction => previewNavigation.current[state.active]?.step(direction) ?? false} onClose={closePreview} />}</div>)}
       <div className="file-browser-splitter" role="separator" data-file-browser-splitter="true" onMouseDown={event => event.preventDefault()} aria-label="双栏宽度" title="拖动调整双栏宽度；接近中间自动等宽，双击恢复等宽" onDoubleClick={() => setState(current => ({ ...current, ratio: .5 }))} aria-orientation="vertical" tabIndex={0} aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(state.ratio * 100)} onKeyDown={event => {
         if (["Home", "Enter"].includes(event.key)) { event.preventDefault(); setState(current => ({ ...current, ratio: .5 })); }
         if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); const delta = event.key === "ArrowRight" ? .05 : -.05; setState(current => ({ ...current, ratio: Math.max(.25, Math.min(.75, current.ratio + delta)) })); }

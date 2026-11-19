@@ -57,7 +57,7 @@ test("右键菜单覆盖宿主按钮并复用字号与所有标题", async ({ pa
   for (let level = 1; level <= 6; level++) await expect(menu.getByRole("button", { name: `标题 ${level}`, exact: true })).toBeVisible();
   await menu.getByRole("button", { name: "文字格式", exact: true }).click();
   await menu.getByRole("button", { name: "字号", exact: true }).click();
-  await expect(menu).toHaveCount(0);
+  await expect(menu).toBeVisible();
   await page.locator(".menu-dropdown-list:visible").getByRole("button", { name: "24px", exact: true }).click();
   await expect(content.locator('span[style*="font-size"]')).toHaveCSS("font-size", "24px");
 });

@@ -1580,7 +1580,8 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
     transition: opacity 120ms ease;
   }
   .selection-hover-toolbar.editor-menu.toolbar-full:hover,
-  .selection-hover-toolbar.editor-menu.toolbar-full:focus-within { opacity: 1; }
+  .selection-hover-toolbar.editor-menu.toolbar-full:focus-within,
+  .selection-hover-toolbar.editor-menu.toolbar-full:has([aria-expanded="true"]) { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
   .selection-hover-toolbar.editor-menu.toolbar-full { transition: none; }

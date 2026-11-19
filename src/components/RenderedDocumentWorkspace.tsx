@@ -321,6 +321,17 @@ export interface NoteEditorProps {
   onOpenEpubExcerpt?: (source: NonNullable<DocumentMetadata["epubExcerpt"]>) => void;
 }
 
+function readNativeEditorRange(editor: Editor) {
+    const native = window.getSelection();
+    if (!native || native.isCollapsed || !native.anchorNode || !native.focusNode
+      || !editor.view.dom.contains(native.anchorNode) || !editor.view.dom.contains(native.focusNode)) return null;
+    try {
+      const from = editor.view.posAtDOM(native.anchorNode, native.anchorOffset);
+      const to = editor.view.posAtDOM(native.focusNode, native.focusOffset);
+      return from === to ? null : { from: Math.min(from, to), to: Math.max(from, to) };
+    } catch { return null; }
+}
+
 interface EditorViewportAnchor {
   position: number;
   offsetTop: number;
@@ -646,6 +657,10 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
   }, []);
   // 编辑器右键菜单 + 右键插入链接对话框
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  // WebKit can select the clicked word before contextmenu; retain the range
+  // from pointerdown until the menu closes, including native readonly ranges.
+  const contextSelectionRef = useRef<{ doc: ProseMirrorNode; from: number; to: number } | null>(null);
+
   const [contextSubmenu, setContextSubmenu] = useState<string | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const [blockMenu, setBlockMenu] = useState<{ position: number; number: number; trigger: HTMLButtonElement; doc: ProseMirrorNode } | null>(null);
@@ -1098,6 +1113,21 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
       viewport?.removeEventListener("scroll", update);
     };
   }, [editor, wikiOpen, wikiPos, wikiSuggestions]);
+  useEffect(() => {
+    if (!editor || !readonly) return;
+    const sync = () => {
+      if (editor.isDestroyed || contextSelectionRef.current) return;
+      const range = readNativeEditorRange(editor);
+      if (range && (range.from !== editor.state.selection.from || range.to !== editor.state.selection.to)) editor.commands.setTextSelection(range);
+    };
+    document.addEventListener("selectionchange", sync);
+    return () => document.removeEventListener("selectionchange", sync);
+  }, [editor, readonly]);
+  useEffect(() => {
+    if (contextMenu || !editor || editor.isDestroyed) return;
+    contextSelectionRef.current = null;
+    setToolbarSelectionHighlight(editor, null);
+  }, [contextMenu, editor]);
   useEffect(() => {
     if (!editor) return;
     const root = editor.view.dom;
@@ -3374,18 +3404,18 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
   };
 
   // ── 正文右键菜单 ──
-  const readNativeAnnotationSelection = () => {
-    const native = window.getSelection();
-    if (!readonly || !native || native.isCollapsed || !native.anchorNode || !native.focusNode
-      || !editor.view.dom.contains(native.anchorNode) || !editor.view.dom.contains(native.focusNode)) return null;
-    try {
-      const from = editor.view.posAtDOM(native.anchorNode, native.anchorOffset);
-      const to = editor.view.posAtDOM(native.focusNode, native.focusOffset);
-      return from === to ? null : { from: Math.min(from, to), to: Math.max(from, to) };
-    } catch { return null; }
+  const readNativeAnnotationSelection = () => readonly ? readNativeEditorRange(editor) : null;
+  const rememberContextSelection = () => {
+    if (contextSelectionRef.current?.doc === editor.state.doc) return;
+    const selection = editor.state.selection;
+    const range = !selection.empty && selection instanceof TextSelection ? { from: selection.from, to: selection.to } : readNativeEditorRange(editor);
+    contextSelectionRef.current = range ? { ...range, doc: editor.state.doc } : null;
   };
   const handleEditorContextMenu = (e: React.MouseEvent) => {
-    let selectedRange = annotationsEnabled ? readNativeAnnotationSelection() ?? lastReadonlySelectionRef.current : null;
+    const remembered = contextSelectionRef.current;
+    const preserved = remembered?.doc === editor.state.doc ? { from: remembered.from, to: remembered.to } : null;
+    if (preserved) editor.commands.setTextSelection(preserved);
+    let selectedRange = annotationsEnabled ? preserved ?? readNativeAnnotationSelection() ?? lastReadonlySelectionRef.current : null;
     if (annotationsEnabled && !selectedRange && readonly && !editor.state.selection.empty) {
       selectedRange = { from: editor.state.selection.from, to: editor.state.selection.to };
     }
@@ -3396,8 +3426,10 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
     e.stopPropagation();
     // Pseudo-element list markers belong to li; coordinate hit testing in
     // their gutter can otherwise resolve to the preceding paragraph.
+    const nativeRange = preserved ?? readNativeAnnotationSelection();
+    if (nativeRange) editor.commands.setTextSelection(nativeRange);
     const item = e.target instanceof Element ? e.target.closest("ol > li") : null;
-    if (item && e.clientX < (item.querySelector("p")?.getBoundingClientRect().left ?? 0)) {
+    if (editor.state.selection.empty && item && e.clientX < (item.querySelector("p")?.getBoundingClientRect().left ?? 0)) {
       editor.commands.setTextSelection(editor.view.posAtDOM(item, 0) + 1);
       setContextSubmenu("paragraph");
       setContextMenu({ x: e.clientX, y: e.clientY });
@@ -3405,28 +3437,9 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
     }
     const at = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
     const selection = editor.state.selection;
-    let nativeSelectionContainsPoint = false;
-    const native = window.getSelection();
-    if (!selection.empty && native && !native.isCollapsed && native.rangeCount > 0
-      && native.anchorNode && native.focusNode
-      && editor.view.dom.contains(native.anchorNode) && editor.view.dom.contains(native.focusNode)) {
-      const range = native.getRangeAt(0);
-      const point = (document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null })
-        .caretRangeFromPoint?.(e.clientX, e.clientY);
-      if (point) nativeSelectionContainsPoint = range.isPointInRange(point.startContainer, point.startOffset);
-      else {
-        const caret = (document as Document & { caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null })
-          .caretPositionFromPoint?.(e.clientX, e.clientY);
-        if (caret) nativeSelectionContainsPoint = range.isPointInRange(caret.offsetNode, caret.offset);
-      }
-      if (!nativeSelectionContainsPoint) {
-        const rect = range.getBoundingClientRect();
-        nativeSelectionContainsPoint = e.clientX >= rect.left && e.clientX <= rect.right
-          && e.clientY >= rect.top && e.clientY <= rect.bottom;
-      }
-    }
-    if (at && (selection.empty || ((at.pos < selection.from || at.pos > selection.to) && !nativeSelectionContainsPoint))) {
-      editor.commands.setTextSelection(at.pos);
+    if (at && (selection.empty || !(selection instanceof TextSelection))) editor.commands.setTextSelection(at.pos);
+    if (!editor.state.selection.empty && editor.state.selection instanceof TextSelection) {
+      setToolbarSelectionHighlight(editor, { from: editor.state.selection.from, to: editor.state.selection.to });
     }
     setContextSubmenu(null);
     setContextMenu({ x: e.clientX, y: e.clientY });
@@ -4334,6 +4347,8 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
         }
       }}
       onMouseDownCapture={(event) => {
+        if (useCustomContextMenu && (event.button === 2 || event.button === 0 && event.ctrlKey && isMacPlatform())
+          && event.target instanceof Node && editor.view.dom.contains(event.target)) { rememberContextSelection(); event.preventDefault(); return; }
         if (readonly && focusMode && readonlyHeadingFoldInFocusMode && event.button === 0
           && event.detail >= 3 && performance.now() < suppressReadonlyDoubleClickUntilRef.current
           && event.target instanceof Node && editor.view.dom.contains(event.target)) {
@@ -4358,12 +4373,15 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
       }}
       onKeyDownCapture={(event) => {
         if (!(event.target instanceof Node) || !editor.view.dom.contains(event.target)) return;
+        contextSelectionRef.current = null;
         toolbarSelectionRef.current = null;
         toolbarCellSelectionRef.current = null;
         setToolbarSelectionHighlight(editor, null);
       }}
       onPointerDownCapture={(event) => {
-        if (event.button === 0) lastReadonlySelectionRef.current = null;
+        if (useCustomContextMenu && (event.button === 2 || event.button === 0 && event.ctrlKey && isMacPlatform())
+          && event.target instanceof Node && editor.view.dom.contains(event.target)) { rememberContextSelection(); event.preventDefault(); return; }
+        if (event.button === 0) { contextSelectionRef.current = null; lastReadonlySelectionRef.current = null; }
         if (event.target instanceof Element && event.target.closest(".flow-block-content")) return;
         if (!(event.target instanceof Element) || !event.target.closest(".ProseMirror")) return;
         if (readonly) readonlyCopyPosition.current = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? null;
