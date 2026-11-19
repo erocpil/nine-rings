@@ -17,7 +17,7 @@ import { DocumentImageLibraryContext } from "../../components/DocumentResourceCo
 import type { Editor } from "@tiptap/core";
 import type { LocalRenderedFlush } from "../../components/LocalMarkdownWorkspace";
 import { EditorFoldIconContext } from "../../components/EditorFoldIconContext";
-import { readWorkbenchEditorSettings, saveWorkbenchEditorSettings, readWorkbenchFileLanguage, saveWorkbenchFileLanguage } from "./editor-settings";
+import { readWorkbenchEditorSettings, saveWorkbenchEditorSettings, readWorkbenchFileLanguage, saveWorkbenchFileLanguage, EDITOR_SETTINGS_EVENT } from "./editor-settings";
 import type { BrowserSettingsStore } from "../../lib/local-files/browser-workspace-contract";
 import { FileBrowserMarkdownMode } from "../../components/FileBrowserMarkdownMode";
 import { FileBrowserFileDetails } from "../../components/FileBrowserFileDetails";
@@ -57,6 +57,13 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const typography = useWorkbenchTypography(settings);
   const [typographyOpen, setTypographyOpen] = useState(false);
   const [editorSettings, setEditorSettings] = useState(() => readWorkbenchEditorSettings(settings));
+  useEffect(() => {
+    const sync = () => setEditorSettings(readWorkbenchEditorSettings(settings));
+    window.addEventListener(EDITOR_SETTINGS_EVENT, sync);
+    window.addEventListener("storage", sync);
+    sync();
+    return () => { window.removeEventListener(EDITOR_SETTINGS_EVENT, sync); window.removeEventListener("storage", sync); };
+  }, [settings]);
   const identity = `${file.rootId}:${file.node.id}`;
   const [source, setSource] = useState(""), sourceRef = useRef("");
   const [languageOverride, setLanguageOverride] = useState(() => readWorkbenchFileLanguage(settings, identity));
@@ -339,7 +346,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     {candidate && <div role="status">发现此会话未保存草稿。<button type="button" onClick={() => { change(candidate.source); applyBase({ ...base!, source: candidate.baseSource, revision: candidate.baseRevision, bom: candidate.bom, lineEnding: candidate.lineEnding }); setCandidate(null); setReadonly(false); setSourceMounted(true); renderMode.current = false; setRenderMarkdown(false); }}>恢复草稿</button><button type="button" onClick={() => { void exportLocalSource(file.node.name, candidate.source, candidate, host.saveCopy).catch(cause => setError(String(cause))); }}>下载草稿</button><button type="button" onClick={() => { void host.drafts.remove(identity).then(() => setCandidate(null)).catch(cause => setError(String(cause))); }}>删除草稿</button></div>}
     {!loading && base && markdown && renderMounted && <div className="workbench-rendered-session" hidden={!renderMarkdown}>
       <DocumentImageLibraryContext.Provider value={false}><EditorFoldIconContext.Provider value={editorSettings}>
-        <Suspense fallback={<p role="status">正在加载 Markdown 编辑器…</p>}><MarkdownWorkspace key={`${identity}:${renderEpoch}`} identity={`workbench:${identity}`} onError={setError} modified={dirty} source={source} title={file.node.name} active={active && renderMarkdown} readonly={readonly || !editable || !renderMarkdown || !active} focusMode={false} fontSize={typography.note_font_size} vimModeEnabled={false} useCustomContextMenu showStatusBlockNumber highlightActiveLine showLineNumbers showStatusBar defaultCodeBlockWrap cjkLatinSpacing={false} readonlyHeadingFoldInFocusMode={false}
+        <Suspense fallback={<p role="status">正在加载 Markdown 编辑器…</p>}><MarkdownWorkspace key={`${identity}:${renderEpoch}`} identity={`workbench:${identity}`} onError={setError} modified={dirty} source={source} title={file.node.name} active={active && renderMarkdown} readonly={readonly || !editable || !renderMarkdown || !active} focusMode={false} fontSize={typography.note_font_size} vimModeEnabled={false} useCustomContextMenu showStatusBlockNumber highlightActiveLine showLineNumbers={editorSettings.editor_show_line_numbers} onEditorConfigChange={async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, editorSettings, patch)); }} showStatusBar defaultCodeBlockWrap cjkLatinSpacing={false} readonlyHeadingFoldInFocusMode={false}
           bookmarks={lineBookmarks.map(item => ({ offset: item.position, line: source.slice(0, item.position).split("\n").length, label: item.label || item.preview }))} onBookmarksChange={items => setLineBookmarks(items.map(item => ({ id: String(item.offset), position: item.offset, label: item.label, preview: item.label })))} onSourceChange={renderedChange} onPending={() => setRenderPending(true)} onRegisterFlush={registerRenderedFlush} onEditorReady={bindRendered} separateTitle titleRevealOnClick={false} pdfExport={false} onExportMarkdown={copy} onClick={() => {}} onReadonlyChange={editable ? setReadonly : undefined} resolveResource={resolveResource} saveStatus={saving ? "saving" : dirty ? "dirty" : "clean"}
           info={titleInfo} titleActions={titleActions} viewToggle={<FileBrowserMarkdownMode rendered onChange={changePreviewMode} />} />
         </Suspense>

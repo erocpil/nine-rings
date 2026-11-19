@@ -8,6 +8,7 @@ import {
   readWorkbenchEditorSettings,
   saveWorkbenchEditorSettings,
   EDITOR_SETTINGS_KEY,
+  EDITOR_SETTINGS_EVENT,
 } from "../../src/apps/file-workbench/editor-settings";
 import { browserSettings } from "../../src/lib/local-files/browser-settings";
 import { vi, afterEach } from "vitest";
@@ -76,4 +77,41 @@ it("file language overrides stay in the host settings and do not change filename
     saveWorkbenchFileLanguage(store, "root:example.txt", "unsupported-format"),
   ).toThrow();
   expect([...data.keys()]).toEqual(["language:root:example.txt"]);
+});
+
+it("notifies retained sessions only after successful persistence", () => {
+  const target = new EventTarget();
+  vi.stubGlobal("window", target);
+  let stored: string | null = null;
+  const store = {
+    getItem: () => stored,
+    setItem: (_key: string, value: string) => {
+      stored = value;
+    },
+  };
+  const updates: boolean[] = [];
+  target.addEventListener(EDITOR_SETTINGS_EVENT, () =>
+    updates.push(readWorkbenchEditorSettings(store).editor_show_line_numbers),
+  );
+  const current = readWorkbenchEditorSettings(store);
+  saveWorkbenchEditorSettings(store, current, {
+    editor_show_line_numbers: false,
+  });
+  expect(updates).toEqual([false]);
+  expect(() =>
+    saveWorkbenchEditorSettings(
+      {
+        ...store,
+        setItem: () => {
+          throw new Error("quota");
+        },
+      },
+      current,
+      { editor_show_line_numbers: true },
+    ),
+  ).toThrow("quota");
+  expect(updates).toEqual([false]);
+  expect(readWorkbenchEditorSettings(store).editor_show_line_numbers).toBe(
+    false,
+  );
 });

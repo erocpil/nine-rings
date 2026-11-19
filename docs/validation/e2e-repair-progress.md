@@ -1,5 +1,16 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-19：渲染状态栏块号与折叠设置
+
+完整渲染与局部只读复用 RenderedGutterSettings，Nine Rings 数据库／磁盘 Markdown、File Workbench 的内置／独立编辑器通过同一宿主配置回调保存显示设置。编号插件接管、隐藏块号或关闭相对编号时，相关内置选项按依赖禁用；代码块行号仍独立可调。不在渲染正文引入源码行号、不可见字符或缩进转换。
+
+影响分析：SAFE（已验证范围未发现回归）。检查 RenderedDocumentWorkspace.FullDocumentWorkspace、ReadonlyVirtualNote、LocalMarkdownWorkspace 的配置传递，以及 WorkbenchSourceView 的源码／渲染与保留会话。新组件仅调用既有 onEditorConfigChange 和 saveBlockWorkspacePreferences；不提交正文事务、不切换只读权限、不重建编辑实例。Workbench source-editor 写入成功后才通知已保留会话，保存失败不发布事件；卸载清理监听。折叠设置沿用 EditorFoldIconContext 和编号插件优先级，默认样式不覆盖已有按范围自定义。未修改 Rust、IPC、文件保存协议及授权。
+
+验证：完整 npm run check 通过（259 个 Vitest 文件／2708 项），含持久化成功后通知及失败不通知单测。Nine Rings Chromium／WebKit 各 5 项（新渲染设置 4 项：经典／清雅、完整／局部只读；既有源码设置 1 项）通过。Workbench Chromium 集中回归 13 项、WebKit 新增设置及会话同步 3 项通过；覆盖只读／可编辑、格式切换、正文和未保存状态保留、存储失败、重开恢复、保存与关闭。最终 WebKit 新渲染 4 项又确认折叠符号实际更新。两宿主生产构建通过，未运行完整 E2E 或安装版 GUI。
+
+日志：/tmp/nr-rendered-gutter-{check,build,workbench-build}.log、/tmp/nr-rendered-status-{chromium,webkit,final}.log、/tmp/nr-workbench-rendered-{status-webkit,gutter-final}.log。
+
+
 ## 2026-11-18：Workbench 编辑连续性与相对文件导航
 
 范围：文件格式覆盖、标题未保存标记、保存／异常反馈、关闭当前文件快捷键与原生菜单、分隔条防拖选，以及 Nine Rings 本地相对链接和文件树跟随。功能边界及独立 Editor 应用提案见[产品待办](../planning/file-workbench-followups.md)。

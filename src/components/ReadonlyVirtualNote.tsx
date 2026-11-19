@@ -1,3 +1,4 @@
+import { RenderedGutterSettings } from "./RenderedGutterSettings";
 import { DocumentBlockJumpPanel } from "./DocumentToolPanels";
 import { renderReadonlyBlock, decorateFlowBlock } from "./DocumentBlockContent";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
@@ -1502,7 +1503,7 @@ export function ReadonlyVirtualNote(
           onDelete={() => { void removeAnnotation(annotation.id); }} />;
       })()}
       {documentHover.preview}
-      <EditorStatusBar onCreateDocument={props.onCreateDocument} enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus ?? "clean"} blockPosition={(statusBar.display ? statusBar.items.includes("block") : props.showStatusBlockNumber) ? { current: Math.min(Math.max(1, currentNumber), doc.childCount), total: doc.childCount } : undefined} />
+      <EditorStatusBar sourceViewControls={<RenderedGutterSettings visible={props.showLineNumbers} onConfigChange={props.onEditorConfigChange} />} onCreateDocument={props.onCreateDocument} enabled={props.showStatusBar} focusMode={props.focusMode} saveStatus={props.saveStatus ?? "clean"} blockPosition={(statusBar.display ? statusBar.items.includes("block") : props.showStatusBlockNumber) ? { current: Math.min(Math.max(1, currentNumber), doc.childCount), total: doc.childCount } : undefined} />
 
     </div></DocumentOutlineContext.Provider>
   );

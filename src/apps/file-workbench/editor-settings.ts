@@ -4,6 +4,7 @@ import type { BrowserSettingsStore } from "../../lib/local-files/browser-workspa
 import { DEFAULT_EDITOR_FOLD_ICONS } from "../../lib/editor-fold-icons";
 
 export const EDITOR_SETTINGS_KEY = "source-editor";
+export const EDITOR_SETTINGS_EVENT = "file-workbench:editor-settings";
 export type WorkbenchEditorSettings = Pick<AppConfig, "editor_show_line_numbers" | "editor_fold_icon_style" | "editor_fold_icon_collapsed" | "editor_fold_icon_expanded">;
 
 function normalize(value: Partial<WorkbenchEditorSettings>): WorkbenchEditorSettings {
@@ -23,6 +24,7 @@ export function readWorkbenchEditorSettings(store: BrowserSettingsStore): Workbe
 export function saveWorkbenchEditorSettings(store: BrowserSettingsStore, current: WorkbenchEditorSettings, patch: Partial<AppConfig>): WorkbenchEditorSettings {
   const next = normalize({ ...current, ...patch });
   store.setItem(EDITOR_SETTINGS_KEY, JSON.stringify(next));
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(EDITOR_SETTINGS_EVENT));
   return next;
 }
 

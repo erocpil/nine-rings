@@ -2995,3 +2995,78 @@ test("Web 编辑器 Command+W 只关闭当前文件预览", async ({ page }) => 
   await expect(page.getByRole("region", { name: "文件源码工作区", exact: true })).toHaveCount(0);
   await expect(left.getByRole("option", { name: /^alpha.c/ })).toBeVisible();
 });
+
+for (const readonly of [true, false]) test(`Markdown 渲染状态栏共用块号与折叠设置，保留磁盘原文 readonly=${readonly}`, async ({ page }) => {
+  const original = "## Section\n\nFirst paragraph\n\nSecond paragraph\n\n```c\nint a;\nint b;\n```\n";
+  await setupIndependentEditor(page, { "alpha.c": original });
+  const language = page.getByRole("button", { name: "文件格式", exact: true });
+  await expect(language).toBeEnabled();
+  await selectDocumentLanguage(page, "markdown");
+  if (!readonly) await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  const view = page.locator(".workbench-rendered-session:visible");
+  const body = view.locator(".ProseMirror:visible");
+  await expect(body).toHaveAttribute("contenteditable", String(!readonly));
+  const before = await body.evaluate(element => JSON.stringify((element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor.state.doc.toJSON()));
+  const trigger = view.getByRole("button", { name: "块号与折叠设置", exact: true });
+  const menu = page.getByRole("menu", { name: "块号与折叠设置", exact: true });
+  await trigger.click();
+  await menu.getByRole("menuitemcheckbox", { name: "显示块号", exact: true }).click();
+  await expect(view.locator(".note-editor")).not.toHaveClass(/show-line-numbers/);
+  await expect(menu.getByRole("menuitem", { name: /^当前块号对齐/ })).toBeDisabled();
+  await menu.getByRole("menuitemcheckbox", { name: "显示块号", exact: true }).click();
+  await menu.getByRole("menuitemcheckbox", { name: "代码块行号", exact: true }).click();
+  await expect(view.locator(".note-editor")).toHaveClass(/show-code-line-numbers/);
+  await menu.getByRole("menuitem", { name: /^默认折叠图标/ }).click();
+  await menu.getByRole("menuitemcheckbox", { name: "加减号 + / −", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(view.locator("h2 .editor-heading-fold")).toContainText("−");
+  expect(await body.evaluate(element => JSON.stringify((element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor.state.doc.toJSON()))).toBe(before);
+  await expect(page.getByLabel("未保存修改", { exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  await page.getByRole("button", { name: "行号与折叠设置", exact: true }).click();
+  await expect(page.getByRole("menu", { name: "行号与折叠设置", exact: true }).getByRole("menuitemcheckbox", { name: "显示行号", exact: true })).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
+  await page.reload();
+  await expect(view).toBeVisible();
+  await expect(view.locator("h2 .editor-heading-fold")).toContainText("−");
+  expect(await page.evaluate(() => (window as any).__editorFixture.sources["alpha.c"])).toBe(original);
+  await page.evaluate(() => {
+    const write = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key.endsWith("source-editor")) throw new Error("DISPLAY_QUOTA_FIXTURE");
+      return write.call(this, key, value);
+    };
+  });
+  await trigger.click();
+  await menu.getByRole("menuitemcheckbox", { name: "显示块号", exact: true }).click();
+  const error = page.getByRole("dialog", { name: "显示设置保存失败", exact: true });
+  await expect(error).toContainText("DISPLAY_QUOTA_FIXTURE");
+  await expect(view.locator(".note-editor")).toHaveClass(/show-line-numbers/);
+  await page.keyboard.press("Escape");
+  await expect(error).toHaveCount(0);
+});
+
+test("块号与行号设置同步保留的文件会话，不清空编辑状态", async ({ page }) => {
+  await setupIndependentEditor(page, { "alpha.c": "## A\n\nText\n", "beta.c": "int beta;" });
+  await expect(page.getByRole("button", { name: "文件格式", exact: true })).toBeEnabled();
+  await selectDocumentLanguage(page, "markdown");
+  await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  await page.getByRole("button", { name: "块号与折叠设置", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "显示块号", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "切换编辑文件", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "beta.c", exact: true }).click();
+  await expect(page.locator(".cm-content:visible")).toContainText("int beta;");
+  await expect(page.locator(".cm-lineNumbers:visible")).toHaveCount(0);
+  await page.getByRole("button", { name: "行号与折叠设置", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "显示行号", exact: true }).click();
+  await expect(page.locator(".cm-lineNumbers:visible")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "切换编辑文件", exact: true }).click();
+  await page.getByRole("menuitemcheckbox", { name: "alpha.c", exact: true }).click();
+  await expect(page.locator(".workbench-rendered-session:visible .note-editor")).toHaveClass(/show-line-numbers/);
+  await expect(page.getByLabel("未保存修改", { exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+});

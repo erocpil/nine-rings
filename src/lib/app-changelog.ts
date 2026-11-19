@@ -1,6 +1,11 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-11-19",
+    title: "渲染状态栏显示设置",
+    changes: ["Nine Rings 和 File Workbench 的渲染状态栏新增块号与折叠设置：调整块号、相对块号及对齐、默认折叠图标和代码块行号；尊重编号插件接管，不修改正文。", "File Workbench 的编号及折叠显示设置同步到保留的其它文件会话与窗口，保存失败不更新显示。"],
+  },
+  {
     date: "2026-11-18",
     title: "内置编辑器操作与文件导航",
     changes: ["File Workbench 支持按文件覆盖显示格式、未保存标题星号及 Command／Ctrl+W 关闭当前文件；保存反馈不再挤占正文，错误改用中央弹层。", "双栏分隔条拖动和双击不再产生文本选区；修复磁盘 Markdown 相对链接被清空或重复打开窗口，本地文件树跟随链接目标。"],
