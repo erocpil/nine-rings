@@ -25,6 +25,7 @@ interface EditorContextMenuProps {
   annotationSelectionAvailable?: boolean;
   onAnnotateSelection?: () => void;
   onCopyLink: (href: string) => void;
+  onOpenLink?: (href: string) => void;
   onCopyReference?: (kind: "block" | "position") => Promise<void>;
   sourceCopy?: { label: string; run: () => void };
   bookmarksAvailable?: boolean;
@@ -32,7 +33,7 @@ interface EditorContextMenuProps {
 }
 
 /** Grouped projection of the same live commands used by the toolbar and selection surface. */
-export function EditorContextMenu({ editor, toolbarRef, readonly, active = true, contextMenu, contextMenuRef, setContextMenu, contextSubmenu, setContextSubmenu, hasCurrentBookmark, bookmarkCount, annotationSelectionAvailable = false, onAnnotateSelection, actions, onCopyLink, onCopyReference, sourceCopy, bookmarksAvailable = true }: EditorContextMenuProps) {
+export function EditorContextMenu({ editor, toolbarRef, readonly, active = true, contextMenu, contextMenuRef, setContextMenu, contextSubmenu, setContextSubmenu, hasCurrentBookmark, bookmarkCount, annotationSelectionAvailable = false, onAnnotateSelection, actions, onCopyLink, onOpenLink, onCopyReference, sourceCopy, bookmarksAvailable = true }: EditorContextMenuProps) {
   const [commands, setCommands] = useState<EditorSurfaceCommand[]>([]);
   const owner = useId();
   const childCommand = useRef<{ command: EditorSurfaceCommand; trigger: HTMLElement } | null>(null);
@@ -142,6 +143,7 @@ export function EditorContextMenu({ editor, toolbarRef, readonly, active = true,
       const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
       buttons[next]?.focus({ preventScroll: true });
     }}>
+    {contextMenu.linkHref && onOpenLink && <button type="button" role="menuitem" className="editor-context-item" onClick={() => run(() => onOpenLink(contextMenu.linkHref!))}>打开链接</button>}
     {contextMenu.linkHref && <button type="button" role="menuitem" className="editor-context-item" onClick={() => {
       const href = contextMenu.linkHref;
       if (href) run(() => onCopyLink(href));

@@ -75,7 +75,7 @@ import { centerSearchMatch } from "../lib/search-scroll";
 import { findFootnoteElement, footnoteBlockPosition, footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
 import { DocumentOutlineContext } from "./TableOfContentsBlock";
 import { extractDocumentOutline } from "../lib/document-outline";
-import { headingLinkTarget, outlineLabel } from "../lib/heading-links";
+import { headingLinkTarget, outlineLabel, resolveHeadingFragment } from "../lib/heading-links";
 import { useDocumentHoverPreview } from "./FootnoteHoverPreview";
 import { createReadingAnnotation, deleteReadingAnnotation, deleteReadingAnnotations, listReadingAnnotations, putReadingAnnotation, reanchorReadingAnnotations, READING_ANNOTATIONS_ENABLED, type ReadingAnnotation } from "../lib/reading-annotations";
 import { ReadingAnnotationBubble } from "./ReadingAnnotationBubble";
@@ -805,6 +805,15 @@ export function ReadonlyVirtualNote(
   useEffect(() => {
     const target = searchTarget;
     if (!target || target.noteId !== noteId) return;
+    if (target.headingFragment) {
+      const heading = resolveHeadingFragment(target.headingFragment, [], doc);
+      if (heading) {
+        pendingBlockJump.current = heading.pos;
+        jump(heading.pos);
+      } else setNotice(`找不到标题或锚点“${target.headingFragment}”`);
+      onSearchTargetConsumed?.(target.requestId);
+      return;
+    }
     if (target.referenceId) {
       const anchor = props.content.metadata?.referenceAnchors?.find(item => item.id === target.referenceId && !item.deleted);
       if (anchor) {

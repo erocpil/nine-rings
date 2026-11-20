@@ -1,3 +1,4 @@
+import { DocumentLinkOpenContext } from "./DocumentLinkOpenContext";
 import {
   canRemoveRenderedLink,
   removeRenderedLink,
@@ -127,6 +128,9 @@ export function RenderedLinkMenu({
   ) => {
     if (!onOpenLinkedNote) return;
     try {
+      const hash = href.indexOf("#");
+      const fragment = hash === -1 ? "" : decodeURIComponent(href.slice(hash + 1));
+      const destination = fragment ? { ...options, headingFragment: fragment } : options;
       const [source, notes] = await Promise.all([
         api.notes.get(noteId),
         api.notes.all(),
@@ -156,7 +160,7 @@ export function RenderedLinkMenu({
         const note = await api.notes.get(target.exact.id);
         if (!note) throw new Error("目标文档已不存在");
         close();
-        await onOpenLinkedNote(note, undefined, options);
+        await onOpenLinkedNote(note, undefined, destination);
         return;
       }
       setMenu(null);
@@ -165,7 +169,7 @@ export function RenderedLinkMenu({
         candidates: target.suggestions,
         x,
         y,
-        options,
+        options: destination,
       });
     } catch (error) {
       showMessage(
@@ -332,7 +336,15 @@ export function RenderedLinkMenu({
         );
       }}
     >
-      {children}
+      <DocumentLinkOpenContext.Provider value={{
+        canOpen: href => Boolean(onOpenLinkedNote && (internalNoteId(href) || isRelativeMarkdownLink(href))),
+        open: href => {
+          const id = internalNoteId(href);
+          if (id) { void openInternal(id, internalReferenceId(href) ?? undefined, { view: "source" }); return; }
+          const rect = document.activeElement?.getBoundingClientRect();
+          void openRelative(href, "", Math.max(12, rect?.left ?? 12), Math.max(12, rect?.top ?? 12), { view: "source" });
+        },
+      }}>{children}</DocumentLinkOpenContext.Provider>
       {menu &&
         createPortal(
           <div

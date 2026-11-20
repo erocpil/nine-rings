@@ -1,3 +1,5 @@
+import { DocumentLinkOpenContext } from "./DocumentLinkOpenContext";
+import { markdownAnchorOffsets } from "../lib/local-files/markdown-link-anchors";
 import { MoreToolsButton } from "./MoreToolsButton";
 import { DocumentTitleField } from "./DocumentTitleField";
 import { DocumentPreviewControls } from "./DocumentPreviewControls";
@@ -26,7 +28,7 @@ import { DocumentSourceSurface } from "./DocumentSourceSurface";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { NavigationButtons } from "./NavigationButtons";
 import { useNavigationStore } from "../stores/useNavigationStore";
-import { Suspense, lazy, useEffect, useLayoutEffect, useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import type { NoteEditorProps } from "./NoteEditor";
 import type { DeltaOps } from "../types/models";
 import { deltaToMarkdownAsync } from "../lib/data-transform-client";
@@ -60,6 +62,7 @@ function mapViewAnchors(from: DeltaOps, to: DeltaOps): DeltaOps {
 
 /** One visible editing surface, one canonical autosave stream for both views. */
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
+  const linkedDocuments = useContext(DocumentLinkOpenContext);
   const statusBar = useStatusBarDisplay(props.showStatusBar, props.focusMode);
   const active = useDocumentActive();
   const activeRef = useRef(active);
@@ -227,7 +230,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         setSource(text);
       } else {
         // A bookmark destination takes priority over the source viewport.
-        if (latestProps.current.searchTarget?.bookmarkId || latestProps.current.searchTarget?.referenceId) viewPosition.cancelHandoff();
+        if (latestProps.current.searchTarget?.bookmarkId || latestProps.current.searchTarget?.referenceId || latestProps.current.searchTarget?.headingFragment) viewPosition.cancelHandoff();
         else if (documentLanguage === "markdown") viewPosition.toRendered(source, deltaToProseMirror(props.readonly && storedDocumentLanguage !== "markdown" ? writeDocumentSource(source, "markdown", content.metadata) : content));
         invalidateEditorDocument(props.noteId);
         setSnapshot({ base: latestProps.current.content, content });
@@ -253,8 +256,8 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       return;
     }
     if (useDocumentOpenStore.getState().target?.noteId === props.noteId) return;
-    if (!useNavigationStore.getState().target && !props.searchTarget?.bookmarkId && !props.searchTarget?.referenceId && supported && saved?.view === "source" && saved.source) void restoreViewRef.current(saved.source.scrollTop);
-  }, [props.noteId, props.sensitive, props.searchTarget?.bookmarkId, props.searchTarget?.referenceId, supported, storedDocumentLanguage, initialRaw, initialReading]);
+    if (!useNavigationStore.getState().target && !props.searchTarget?.bookmarkId && !props.searchTarget?.referenceId && !props.searchTarget?.headingFragment && supported && saved?.view === "source" && saved.source) void restoreViewRef.current(saved.source.scrollTop);
+  }, [props.noteId, props.sensitive, props.searchTarget?.bookmarkId, props.searchTarget?.referenceId, props.searchTarget?.headingFragment, supported, storedDocumentLanguage, initialRaw, initialReading]);
   const handledSourceOpen = useRef<number>();
   useEffect(() => {
     if (!active || !sourceOpenTarget || busy) return;
@@ -269,8 +272,8 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   }, [active, sourceOpenTarget, busy, source, supported]);
   const bookmarkViewRequest = useRef<number>();
   const onSearchTargetConsumed = props.onSearchTargetConsumed;
-  const jumpSourceRef = useRef<(offset: number, record?: boolean) => void>(() => {});
-  jumpSourceRef.current = (offset, record = true) => {
+  const jumpSourceRef = useRef<(offset: number, record?: boolean, revealFold?: boolean) => void>(() => {});
+  jumpSourceRef.current = (offset, record = true, revealFold = false) => {
     const area = viewPosition.area.current, revision = sourceSession.current?.current;
     if (!area || !revision) return;
     viewPosition.cancelHandoff();
@@ -283,8 +286,11 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       history.record({ noteId: props.noteId, from: after, to: after }, true);
     }
     area.focus();
-    area.setSelectionRange(target, target);
-    area.scrollToOffset(target, true);
+    if (revealFold) area.revealOffset(target);
+    else {
+      area.setSelectionRange(target, target);
+      area.scrollToOffset(target, true);
+    }
   };
   useEffect(() => {
     const target = props.searchTarget;
@@ -300,6 +306,14 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   useEffect(() => {
     const target = props.searchTarget;
     if (!target || target.noteId !== props.noteId || target.bookmarkId || target.referenceId || source === null || busy || !viewPosition.sourceHandle || sourceSearchRequest.current === target.requestId) return;
+    if (target.headingFragment) {
+      sourceSearchRequest.current = target.requestId;
+      const offset = markdownAnchorOffsets(source).get(target.headingFragment);
+      if (offset === undefined) setError(`找不到标题或锚点“${target.headingFragment}”`);
+      else jumpSourceRef.current(offset, true, true);
+      onSearchTargetConsumed?.(target.requestId);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       if (target.options?.regex) await initializeSearchRegex();
@@ -532,6 +546,18 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         onDocumentLanguageChange: languageProps.onDocumentLanguageChange, onCreateDocument: props.onCreateDocument,
         focusMode: props.focusMode, showStatusBar: props.showStatusBar, saveStatus: props.saveStatus,
         value: source, readonly: Boolean(props.readonly), editingDisabled: busy,
+        canOpenLink: href => href.startsWith("#") || Boolean(linkedDocuments?.canOpen(href)),
+        onOpenLink: href => {
+          if (!href.startsWith("#")) { linkedDocuments?.open(href); return; }
+          const handle = viewPosition.sourceHandle;
+          if (!handle) return;
+          try {
+            const fragment = decodeURIComponent(href.slice(1));
+            const offset = fragment ? markdownAnchorOffsets(handle.value).get(fragment) : 0;
+            if (offset === undefined) throw new Error(`找不到标题或锚点“${fragment}”`);
+            jumpSourceRef.current(offset, true, true);
+          } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+        },
         areaRef: viewPosition.area, onReady: hostSourceReady, onSelectionChange: hostSelection,
         session: sourceEditorState, onChange: editSource, onEditorConfigChange: props.onEditorConfigChange,
         showLineNumbers: props.showLineNumbers, fontSize: props.editorFontSize, highlightActiveLine: props.highlightActiveLine,

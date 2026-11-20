@@ -1,3 +1,5 @@
+import { LinkHistory, type LinkDestination, type LinkRequest, type LinkViewPosition } from "./link-navigation";
+import type { LocalMarkdownLink } from "../../lib/local-files/markdown-links";
 import { EditorFileTabs } from "./EditorFileTabs";
 import { bufferDocumentPort } from "./buffer-documents";
 import { WorkspaceDialog } from "../../components/WorkspaceDialog";
@@ -92,6 +94,44 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
     if (closing.current) return;
     setCurrent(id); void port.select(id).catch(report);
   };
+  const history = useRef(new LinkHistory<string>());
+  const linkSerial = useRef(0);
+  const linkInFlight = useRef(false);
+  const [link, setLink] = useState<{ id: string; request: LinkRequest }>();
+  const sameFile = (a: string, b: string) => a === b;
+  const navigateLink = (id: string, destination: LinkDestination) => {
+    setLink({ id, request: { ...destination, serial: ++linkSerial.current } });
+  };
+  const followLink = async (item: typeof state.files[number], target: LocalMarkdownLink & { sameFile: boolean; rootId: string }, position: LinkViewPosition) => {
+    if (closing.current) throw new Error("请先完成或取消关闭确认");
+    const same = target.sameFile;
+    if (!same && !port.followLink) throw new Error("当前窗口无法打开本地链接");
+    if (linkInFlight.current) return;
+    linkInFlight.current = true;
+    try {
+      const id = same ? item.id : await port.followLink!(item.id, target.rootId, target.node);
+      const destination = { file: id, fragment: target.fragment, start: same && !target.fragment };
+      history.current.record({ file: item.id, position }, destination, sameFile);
+      navigateLink(id, destination);
+    } finally { linkInFlight.current = false; }
+  };
+  const traverseLinks = async (direction: -1 | 1, position: LinkViewPosition) => {
+    if (closing.current || linkInFlight.current) return;
+    const target = history.current.target(direction);
+    if (!target) return;
+    if (!state.files.some(item => item.id === target.file)) {
+      setError("该跳转位置的文件标签已关闭");
+      history.current.commit(direction, undefined, sameFile);
+      setLink(undefined);
+      return;
+    }
+    linkInFlight.current = true;
+    try {
+      if (current !== target.file) await port.select(target.file);
+      history.current.commit(direction, current ? { file: current, position } : undefined, sameFile);
+      navigateLink(target.file, target);
+    } finally { linkInFlight.current = false; }
+  };
   const createDocument = () => { if (!closing.current) void bufferDocumentPort.create().catch(report); };
   const closeTab = (id: string) => {
     if (closing.current) return;
@@ -112,7 +152,12 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
           if (fileMenu) { setFileMenu(null); return; }
           const trigger = event.currentTarget, rect = trigger.getBoundingClientRect();
           setFileMenu({ id: "workbench-editor-files", title: "切换编辑文件", x: rect.left, y: rect.bottom, trigger });
-        }}><ToolbarIcon name="document" /></button>{!item.file.bufferId && host.workspace.externalOpen && <button type="button" className="btn-icon" aria-label="使用默认应用打开" title="使用系统默认应用打开磁盘原文件" onClick={() => { void host.workspace.externalOpen!.open(item.file.rootId, item.file.node.id, false).catch(report); }}><ToolbarIcon name="export" /></button>}</>} file={item.file} navigationRequest={item.openRevision} active={current === item.id && !state.closing} closeLabel="关闭当前文件" closeRequest={closeRequest} onClose={() => { void port.remove(item.id).catch(report); }} onCloseCancelled={cancelClosing} onDirtyChange={value => setDirty(previous => previous[item.id] === value ? previous : { ...previous, [item.id]: value })} host={host.source} provider={host.workspace.provider} settings={host.workspace.settings} /></Suspense>
+        }}><ToolbarIcon name="document" /></button>{!item.file.bufferId && host.workspace.externalOpen && <button type="button" className="btn-icon" aria-label="使用默认应用打开" title="使用系统默认应用打开磁盘原文件" onClick={() => { void host.workspace.externalOpen!.open(item.file.rootId, item.file.node.id, false).catch(report); }}><ToolbarIcon name="export" /></button>}</>} file={item.file}
+          onFollowFile={(target, position) => followLink(item, target, position)}
+          linkRequest={link?.id === item.id ? link.request : undefined}
+          linkHistory={{ back: history.current.back, forward: history.current.forward }}
+          onLinkHistory={(direction, position) => { void traverseLinks(direction, position).catch(report); }}
+          navigationRequest={item.openRevision} active={current === item.id && !state.closing} closeLabel="关闭当前文件" closeRequest={closeRequest} onClose={() => { void port.remove(item.id).catch(report); }} onCloseCancelled={cancelClosing} onDirtyChange={value => setDirty(previous => previous[item.id] === value ? previous : { ...previous, [item.id]: value })} host={host.source} provider={host.workspace.provider} settings={host.workspace.settings} /></Suspense>
       </ParkedDocument>;
     })}
     {discard && <WorkspaceDialog title="删除本机编辑草稿" onClose={() => { if (!discarding) setDiscard(null); }}><p>删除后无法恢复此编辑文档的未保存内容，已经保存的磁盘文件不会删除。</p><button type="button" disabled={discarding} onClick={() => setDiscard(null)}>取消</button><button type="button" disabled={discarding} onClick={() => {

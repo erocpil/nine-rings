@@ -2,6 +2,7 @@ import { isMacPlatform } from "./shortcuts";
 
 export interface DocumentOpenOptions {
   view?: "source";
+  headingFragment?: string;
 }
 type OpenClick = {
   button: number;

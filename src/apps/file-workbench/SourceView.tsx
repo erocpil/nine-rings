@@ -1,3 +1,10 @@
+import { navigationKey } from "../../lib/document-navigation";
+import { MarkdownLinkCheckDialog } from "./MarkdownLinkCheckDialog";
+import { applyMarkdownLinkEdits } from "../../lib/local-files/markdown-link-repair";
+import { canFollowMarkdownLink, localMarkdownLink, type LocalMarkdownLink } from "../../lib/local-files/markdown-links";
+import { markdownAnchorOffsets } from "../../lib/local-files/markdown-link-anchors";
+import type { LinkViewPosition, LinkRequest } from "./link-navigation";
+import { setNavigationSelection } from "../../hooks/useEditorNavigation";
 import { TOOLBAR_PREFERENCES_ERROR } from "./toolbar-preferences";
 import { BufferSaveCancelled } from "./buffer-documents";
 import { MoreToolsButton } from "../../components/MoreToolsButton";
@@ -49,7 +56,12 @@ import "../../styles/local-files.css";
 const MarkdownWorkspace = lazy(() => import("../../components/LocalMarkdownWorkspace").then(module => ({ default: module.LocalMarkdownWorkspace })));
 const resolveResource = async (src: string) => /^(https?:|data:image\/|blob:)/i.test(src) ? null : "";
 
-export function WorkbenchSourceView({ file, host, provider, settings, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false, active = true, closeLabel = "返回文件浏览", onCloseCancelled, onDirtyChange, navigationRequest, beforeCloseActions, onCreateDocument, untitled = false, initialReadonly = true, documentPath, persistDocument = false }: {
+export function WorkbenchSourceView({ file, host, provider, settings, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false, active = true, closeLabel = "返回文件浏览", onCloseCancelled, onDirtyChange, navigationRequest, beforeCloseActions, onCreateDocument, untitled = false, initialReadonly = true, documentPath, persistDocument = false, onFollowFile, linkRequest, onLinkHistory, linkHistory, linkOrigin }: {
+  linkOrigin?: { rootId: string; node: string; read: LocalSourceHost["read"] };
+  onFollowFile?: (target: LocalMarkdownLink & { sameFile: boolean; rootId: string }, origin: LinkViewPosition, leave: (next: () => void) => void) => Promise<void>;
+  linkRequest?: LinkRequest;
+  onLinkHistory?: (direction: -1 | 1, origin: LinkViewPosition, leave: (next: () => void) => void) => void;
+  linkHistory?: { back: boolean; forward: boolean };
   beforeCloseActions?: ReactNode;
   onCreateDocument?: () => void;
   untitled?: boolean; initialReadonly?: boolean; documentPath?: string; persistDocument?: boolean;
@@ -328,7 +340,100 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const loadFileDetails=useCallback((signal:AbortSignal)=>provider.details ? provider.details(file.rootId,file.node.id,signal) : provider.properties(file.rootId,file.node.id,signal),[provider,file.rootId,file.node.id]);
   const fileDetails=useLocalFileDetails(identity,loadFileDetails,base,active);
   const titleInfo = { title: file.node.name, tags: [], path: documentPath ?? file.node.id, readonly, contentBytes: base?.size ?? file.node.size, ...localFileInfoTimes(fileDetails,base), format: DOCUMENT_LANGUAGE_OPTIONS.find(option => option.value === language)?.label ?? language };
+  const renderedNavigation = useRef<((fragment: string) => boolean) | null>(null);
+  const [renderedLinkReady, setRenderedLinkReady] = useState(false);
+  const bindHeadingNavigation = useCallback((navigate: ((fragment: string) => boolean) | null) => {
+    renderedNavigation.current = navigate;
+    setRenderedLinkReady(Boolean(navigate));
+  }, []);
+  const [linkNotice, setLinkNotice] = useState<{ message: string; offerStart?: boolean }>();
+  const renderedScroller = () => previewRoot.current?.querySelector<HTMLElement>(".workbench-rendered-session .note-editor-scroll");
+  const capturePosition = (): LinkViewPosition => {
+    if (renderMarkdown) {
+      const selection = renderedEditor.current?.state.selection;
+      const scroll = renderedScroller();
+      return { rendered: true, from: selection?.from ?? 0, to: selection?.to ?? 0, top: scroll?.scrollTop ?? 0, left: scroll?.scrollLeft ?? 0 };
+    }
+    const editor = handle.current;
+    const selection = editor?.view.state.selection.main;
+    return { rendered: false, from: selection?.anchor ?? 0, to: selection?.head ?? 0,
+      top: editor?.view.scrollDOM.scrollTop ?? 0, left: editor?.view.scrollDOM.scrollLeft ?? 0 };
+  };
+  const goToFileStart = () => {
+    if (renderMarkdown) renderedScroller()?.scrollTo({ top: 0, left: 0 });
+    else handle.current?.revealOffset(0);
+  };
+  const followingLink = useRef(false);
+  const linkMounted = useRef(false);
+  useEffect(() => { linkMounted.current = true; return () => { linkMounted.current = false; }; }, []);
+  const followLink = async (href: string) => {
+    if (followingLink.current || !activeCurrent.current) return;
+    followingLink.current = true;
+    setLinkNotice(undefined);
+    try {
+      if (persistDocument && !linkOrigin && !href.startsWith("#")) throw new Error("当前文档没有可用于跳转的授权目录");
+      const from = linkOrigin?.node ?? file.node.id;
+      const target = localMarkdownLink(from, href);
+      if (target.node !== from && !onFollowFile) throw new Error("当前文档没有可用于跳转的授权目录");
+      if (onFollowFile) await onFollowFile({ ...target, sameFile: target.node === from, rootId: linkOrigin?.rootId ?? file.rootId }, capturePosition(), next => {
+        if (linkMounted.current && activeCurrent.current) requestClose(next);
+      });
+      else if (!target.fragment) goToFileStart();
+      else if (!jumpToFragment(target.fragment)) showMissingFragment(target.fragment);
+    } catch (cause) {
+      if (linkMounted.current && activeCurrent.current) setLinkNotice({ message: cause instanceof Error ? cause.message : String(cause) });
+    } finally { followingLink.current = false; }
+  };
+  const jumpToFragment = (fragment: string) => {
+    if (renderMode.current) return renderedNavigation.current?.(fragment) ?? false;
+    const editor = handle.current;
+    if (!editor) return false;
+    const offset = markdownAnchorOffsets(editor.value).get(fragment);
+    if (offset === undefined) return false;
+    editor.revealOffset(offset);
+    return true;
+  };
+  const showMissingFragment = (fragment: string) => setLinkNotice({ message: `找不到标题或锚点“${fragment}”。`, offerStart: true });
+  const consumedLink = useRef<number>();
+  const applyLinkRequest = useRef<() => void>(() => {});
+  applyLinkRequest.current = () => {
+    if (!active || !base || !linkRequest || consumedLink.current === linkRequest.serial) return;
+    const saved = linkRequest.position;
+    if (saved && saved.rendered !== renderMarkdown) { changePreviewMode(saved.rendered); return; }
+    if (renderMarkdown ? !renderedLinkReady : !handle.current) return;
+    consumedLink.current = linkRequest.serial;
+    if (saved) {
+      if (renderMarkdown) {
+        const editor = renderedEditor.current;
+        if (editor) setNavigationSelection(editor, { from: Math.max(1, Math.min(saved.from, editor.state.doc.content.size)), to: Math.max(1, Math.min(saved.to, editor.state.doc.content.size)) });
+        renderedScroller()?.scrollTo({ top: saved.top, left: saved.left });
+      } else {
+        const editor = handle.current!;
+        editor.setSelectionRange(Math.min(saved.from, editor.value.length), Math.min(saved.to, editor.value.length));
+        editor.view.scrollDOM.scrollTo({ top: saved.top, left: saved.left });
+      }
+    } else if (linkRequest.start) {
+      goToFileStart();
+    } else if (linkRequest.fragment && !jumpToFragment(linkRequest.fragment)) {
+      showMissingFragment(linkRequest.fragment);
+    }
+  };
+  const linkSourceReady = position.sourceHandle;
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => applyLinkRequest.current());
+    return () => cancelAnimationFrame(frame);
+  }, [active, base, linkRequest, renderMarkdown, renderedLinkReady, linkSourceReady]);
+  const historyControls = onLinkHistory && linkHistory ? <span className="workbench-link-navigation">
+    <button type="button" className="btn-icon" title="链接后退" aria-label="链接后退" disabled={!linkHistory.back} onClick={() => onLinkHistory(-1, capturePosition(), requestClose)}><ToolbarIcon name="chevronLeft" /></button>
+    <button type="button" className="btn-icon" title="链接前进" aria-label="链接前进" disabled={!linkHistory.forward} onClick={() => onLinkHistory(1, capturePosition(), requestClose)}><ToolbarIcon name="chevronRight" /></button>
+  </span> : null;
+  const [linkCheck, setLinkCheck] = useState<string | null>(null);
+  const readLinkTarget = useCallback((node: string) => linkOrigin ? linkOrigin.read(linkOrigin.rootId, node) : host.read(file.rootId, node), [host, file.rootId, linkOrigin]);
   const titleActions = <>
+    {historyControls}
+    {markdown && (!persistDocument || linkOrigin) && <button type="button" className="btn-icon" aria-label="检查文档链接" title="检查文档链接" disabled={!base || loading} onClick={() => {
+      try { setLinkCheck(current()); } catch (cause) { setLinkNotice({ message: String(cause) }); }
+    }}><ToolbarIcon name="link" /></button>}
     <button className="btn-icon" type="button" aria-label="编辑器设置" title="编辑器设置" onClick={() => setSettingsOpen(true)}><ToolbarIcon name="sliders" /></button>
     {onNavigate && <><button className="btn-icon" type="button" aria-label="上一文件" title="上一文件（←，只读预览）" disabled={!previous} onClick={() => requestClose(() => onNavigate(-1))}><ToolbarIcon name="chevronLeft" /></button><button className="btn-icon" type="button" aria-label="下一文件" title="下一文件（→，只读预览）" disabled={!next} onClick={() => requestClose(() => onNavigate(1))}><ToolbarIcon name="chevronRight" /></button></>}
     <button className="btn-icon" type="button" aria-label="保存文件" title="保存文件（⌘/Ctrl+S）" disabled={loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>
@@ -340,10 +445,20 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   </>;
   return <EditorFoldIconContext.Provider value={editorSettings}><section ref={previewRoot} style={workbenchTypographyVariables(typography) as React.CSSProperties} tabIndex={-1} className="local-file-view workbench-source-view" data-source-tools-hidden={!moreTools || undefined} aria-label="文件源码工作区" onClickCapture={event => {
     const href = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]")?.getAttribute("href") : null;
-    if (markdown && href && !href.startsWith("#") && !/^(https?:|mailto:|tel:)/i.test(href)) {
-      event.preventDefault(); event.stopPropagation(); setNotice("请从文件列表打开本地链接；不会跳离当前编辑会话。");
-    }
+    if (!markdown || !href || !canFollowMarkdownLink(href) || !event.currentTarget.contains(event.target as Node)) return;
+    event.preventDefault();
+    if (!readonly && !isPrimaryShortcutModifier(event)) return;
+    event.stopPropagation();
+    void followLink(href);
   }} onKeyDownCapture={event => {
+    const direction = navigationKey(event);
+    if (direction && onLinkHistory && active && !event.nativeEvent.isComposing && !event.repeat
+      && !document.querySelector("dialog[open], [role=dialog]")) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (direction === -1 ? linkHistory?.back : linkHistory?.forward) onLinkHistory(direction, capturePosition(), requestClose);
+      return;
+    }
     if (!readonly || !onNavigate || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || !["ArrowLeft", "ArrowRight"].includes(event.key) || (event.target as Element).closest("input, textarea, select, dialog, [role=dialog]")) return;
     event.preventDefault(); event.stopPropagation();
     if (event.key === "ArrowLeft" ? previous : next) requestClose(() => onNavigate(event.key === "ArrowLeft" ? -1 : 1));
@@ -356,12 +471,28 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     {loading && <p role="status">正在读取文件…</p>}
     {error && !base && <>{unsupported && <p>此文件暂时无法内置预览，可使用其它应用打开。</p>}<FileBrowserFileDetails rootId={file.rootId} node={file.node.id} provider={provider} /></>}
     {error && !unsupported && !external && !leave && active && <WorkspaceDialog title="文件操作异常" onClose={() => setError("")}><p role="alert">{error}</p></WorkspaceDialog>}
+    {linkCheck !== null && active && <MarkdownLinkCheckDialog key={renderMarkdown ? "rendered" : "source"} node={linkOrigin?.node ?? file.node.id} rootId={linkOrigin?.rootId ?? file.rootId}
+      source={linkCheck} provider={provider} read={readLinkTarget} onClose={() => setLinkCheck(null)}
+      onPrepareRepair={!readonly && editable && renderMarkdown ? () => changePreviewMode(false) : undefined}
+      onRepair={!readonly && editable && !renderMarkdown ? edit => {
+        if (current() !== linkCheck) throw new Error("文档已变化，请关闭后重新检查");
+        const editor = handle.current;
+        if (!editor || editor.value !== linkCheck || !edit.link.range) throw new Error("源码仍在同步，请稍后重试");
+        const { from, to } = edit.link.range;
+        const updated = applyMarkdownLinkEdits(linkCheck, [edit]);
+        editor.insertIsolated(from, to, updated.slice(from, updated.length - (linkCheck.length - to)));
+        setLinkCheck(null);
+      } : undefined} />}
+    {linkNotice && active && <WorkspaceDialog title="文档链接" onClose={() => setLinkNotice(undefined)}>
+      <p role="alert">{linkNotice.message}</p>
+      {linkNotice.offerStart && <button type="button" onClick={() => { setLinkNotice(undefined); goToFileStart(); }}>打开文件开头</button>}
+    </WorkspaceDialog>}
     {notice && active && <WorkspaceDialog title="文件提示" onClose={() => setNotice("")}><p role="status">{notice}</p></WorkspaceDialog>}
     {candidate && <div role="status">发现此会话未保存草稿。<button type="button" onClick={() => { change(candidate.source); applyBase({ ...base!, source: candidate.baseSource, revision: candidate.baseRevision, bom: candidate.bom, lineEnding: candidate.lineEnding }); setCandidate(null); setReadonly(false); setSourceMounted(true); renderMode.current = false; setRenderMarkdown(false); }}>恢复草稿</button><button type="button" onClick={() => { void exportLocalSource(file.node.name, candidate.source, candidate, host.saveCopy).catch(cause => setError(String(cause))); }}>下载草稿</button><button type="button" onClick={() => { void host.drafts.remove(identity).then(() => setCandidate(null)).catch(cause => setError(String(cause))); }}>删除草稿</button></div>}
     {!loading && base && markdown && renderMounted && <div className="workbench-rendered-session" hidden={!renderMarkdown}>
       <DocumentImageLibraryContext.Provider value={false}>
         <Suspense fallback={<p role="status">正在加载 Markdown 编辑器…</p>}><MarkdownWorkspace key={`${identity}:${renderEpoch}`} identity={`workbench:${identity}`} onCreateDocument={onCreateDocument} createDocumentLabel="新建文件" onError={setError} modified={dirty} source={source} title={file.node.name} active={active && renderMarkdown} readonly={readonly || !editable || !renderMarkdown || !active} focusMode={false} fontSize={typography.note_font_size} vimModeEnabled={false} useCustomContextMenu={editorSettings.use_custom_context_menu} showStatusBlockNumber={editorSettings.editor_show_status_block_number} highlightActiveLine={editorSettings.highlight_active_line} showLineNumbers={editorSettings.editor_show_line_numbers} onEditorConfigChange={async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, readWorkbenchEditorSettings(settings), patch)); }} showStatusBar={editorSettings.editor_show_status_bar} defaultCodeBlockWrap cjkLatinSpacing={typography.editor_cjk_spacing} readonlyHeadingFoldInFocusMode={false}
-          bookmarks={lineBookmarks.map(item => ({ id: item.id, offset: item.position, line: source.slice(0, item.position).split("\n").length, label: item.label || item.preview }))} onBookmarksChange={items => setLineBookmarks(items.map(item => ({ id: item.id, position: item.offset, label: item.label, preview: item.label })))} onSourceChange={renderedChange} onPending={() => setRenderPending(true)} onRegisterFlush={registerRenderedFlush} onEditorReady={bindRendered} separateTitle titleRevealOnClick={false} pdfExport={false} onExportMarkdown={copy} onClick={() => {}} onReadonlyChange={editable ? setReadonly : undefined} resolveResource={resolveResource} saveStatus={saving ? "saving" : dirty ? "dirty" : "clean"}
+          bookmarks={lineBookmarks.map(item => ({ id: item.id, offset: item.position, line: source.slice(0, item.position).split("\n").length, label: item.label || item.preview }))} onBookmarksChange={items => setLineBookmarks(items.map(item => ({ id: item.id, position: item.offset, label: item.label, preview: item.label })))} onSourceChange={renderedChange} onPending={() => setRenderPending(true)} onRegisterFlush={registerRenderedFlush} onEditorReady={bindRendered} separateTitle titleRevealOnClick={false} pdfExport={false} onExportMarkdown={copy} onClick={() => {}} onOpenLink={href => void followLink(href)} canOpenLink={canFollowMarkdownLink} bindHeadingNavigation={bindHeadingNavigation} onReadonlyChange={editable ? setReadonly : undefined} resolveResource={resolveResource} saveStatus={saving ? "saving" : dirty ? "dirty" : "clean"}
           info={titleInfo} titleActions={titleActions} viewToggle={<FileBrowserMarkdownMode rendered onChange={changePreviewMode} />} />
         </Suspense>
       </DocumentImageLibraryContext.Provider>
@@ -370,7 +501,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
         try { saveWorkbenchFileLanguage(settings, identity, value); setLanguageOverride(value === AUTO_DOCUMENT_LANGUAGE ? null : value); }
         catch (cause) { setError(String(cause)); }
       }, saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,
-      onReady: bindHandle,
+      onReady: bindHandle, onOpenLink: href => void followLink(href), canOpenLink: canFollowMarkdownLink,
     }} /></DocumentActiveBoundary></>}</DocumentNavigationWorkspace></div>}
     {settingsOpen && active && <WorkbenchEditorSettingsDialog typography={typography} config={editorSettings} store={settings} onClose={() => setSettingsOpen(false)} />}
     {external && <WorkspaceDialog title="磁盘版本比较" onClose={() => setExternal(null)}><p role="alert">{error}</p><TextDiffView left={source} right={external.source} leftLabel="当前编辑" rightLabel="磁盘版本" /></WorkspaceDialog>}

@@ -1,3 +1,4 @@
+import { markdownAST } from "./gfm-parser";
 import { ensureSyntaxTree } from "@codemirror/language";
 import type { SyntaxNode } from "@lezer/common";
 import type { EditorState } from "@codemirror/state";
@@ -59,4 +60,12 @@ export function markdownSourceLinkAt(
     });
     return result;
   }
+}
+
+
+/** Keep copied source verbatim. Navigation uses the same decoded URL as rendering. */
+export function semanticMarkdownSourceHref(sourceHref: string): string {
+  const paragraph = markdownAST(`[link](<${sourceHref}>)`).children[0];
+  const link = paragraph?.type === "paragraph" ? paragraph.children[0] : undefined;
+  return link?.type === "link" ? link.url : sourceHref;
 }

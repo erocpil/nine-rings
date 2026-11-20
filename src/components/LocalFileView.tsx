@@ -1,3 +1,6 @@
+import { markdownAnchorOffsets } from "../lib/local-files/markdown-link-anchors";
+import { canFollowMarkdownLink, localMarkdownLink } from "../lib/local-files/markdown-links";
+import { isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { MoreToolsButton } from "./MoreToolsButton";
 import { useLocalFileDetails } from "../hooks/useLocalFileDetails";
 import { localFileInfoTimes } from "../lib/local-files/file-info-times";
@@ -129,7 +132,6 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
   const { onSourceReady, area: handoffArea } = viewPosition;
   const [saveState, setSaveState] = useState<"clean" | "dirty" | "saving" | "saved" | "error">("clean");
   const [recoveryNotice, setRecoveryNotice] = useState("");
-  const [previewError, setPreviewError] = useState("");
   const [viewSwitchError, setViewSwitchError] = useState("");
   const latestDraft = useRef<{ source: string; base: LocalFileSnapshot | null }>({ source: "", base: null });
   const [error, setError] = useState("");
@@ -558,18 +560,73 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     const maximum = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
     scroller.scrollTo({ top: target === "top" ? 0 : target === "middle" ? maximum / 2 : maximum, behavior: "auto" });
   };
+  const [linkError, setLinkError] = useState("");
+  const headingNavigation = useRef<((fragment: string) => boolean) | null>(null);
+  const [headingReady, setHeadingReady] = useState(false);
+  const bindHeadingNavigation = useCallback((navigate: ((fragment: string) => boolean) | null) => {
+    headingNavigation.current = navigate;
+    setHeadingReady(Boolean(navigate));
+  }, []);
+  const jumpToFragment = (fragment: string) => {
+    const jumpRendered = headingNavigation.current;
+    if (preview && jumpRendered?.(fragment)) return;
+    if (!preview && sourceHandle.current) {
+      const offset = markdownAnchorOffsets(sourceRef.current).get(fragment);
+      if (offset !== undefined) {
+        const editor = sourceHandle.current;
+        const current = editor.view.state.selection.main;
+        recordHistory(current.from, current.to, true);
+        editor.revealOffset(offset);
+        recordHistory(offset, offset, true);
+        return;
+      }
+    }
+    setLinkError(`找不到标题或锚点“${fragment}”`);
+  };
+  const applyFragment = useRef(jumpToFragment);
+  applyFragment.current = jumpToFragment;
+  const appliedFragment = useRef<Readonly<LocalFileViewData>>();
+  useEffect(() => {
+    if (!active || !baseSnapshot || !data.headingFragment || appliedFragment.current === data
+      || (preview ? !headingReady : !editorHandle)) return;
+    const frame = requestAnimationFrame(() => {
+      appliedFragment.current = data;
+      applyFragment.current(data.headingFragment!);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [active, baseSnapshot, data, editorHandle, headingReady, preview]);
+  const canOpenFileLink = (href: string) => canFollowMarkdownLink(href) && !/^[a-z][a-z0-9+.-]*:/i.test(href);
+  const openMarkdownLink = async (href: string) => {
+    setLinkError("");
+    try {
+      const target = localMarkdownLink(data.nodeId, href);
+      if (target.node === data.nodeId) {
+        if (target.fragment) jumpToFragment(target.fragment);
+        else scrollLocalDocumentTo("top");
+        return;
+      }
+      await localFileService.stat(data.rootId, target.node);
+      openLocalFileView({ rootId: data.rootId, nodeId: target.node, name: target.node.split("/").pop()!, headingFragment: target.fragment });
+    } catch (cause) { setLinkError(String(cause)); }
+  };
   const openRelative = (event: React.MouseEvent<HTMLDivElement>) => {
     const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[href]");
     if (!anchor || !event.currentTarget.contains(anchor)) return;
     const href = anchor.getAttribute("href") ?? "";
-    if (!href || href.startsWith("#") || /^(?:[a-z][a-z0-9+.-]*:|\/\/|\/)/i.test(href)) return;
+    if (!href || !canOpenFileLink(href)) return;
+    if (!href.startsWith("#") && !/\.(?:md|markdown)(?:[?#]|$)/i.test(href)) {
+      if (href.startsWith("/")) return;
+      event.preventDefault(); event.stopPropagation();
+      try {
+        const nodeId = resolveRelativeNode(data.nodeId, href);
+        openLocalFileView({ rootId: data.rootId, nodeId, name: nodeId.split("/").pop()! });
+      } catch (cause) { setLinkError(String(cause)); }
+      return;
+    }
     event.preventDefault();
+    if (!readOnly && !isPrimaryShortcutModifier(event)) return;
     event.stopPropagation();
-    try {
-      const nodeId = resolveRelativeNode(data.nodeId, href);
-      const pathParts = nodeId.split("/"); const name = pathParts[pathParts.length - 1] ?? nodeId;
-      openLocalFileView({ rootId: data.rootId, nodeId, name });
-    } catch (reason) { setPreviewError(String(reason)); }
+    void openMarkdownLink(href);
   };
   const resolveResource = useCallback(async (href: string) => {
     if (!href || /^(?:[a-z][a-z0-9+.-]*:|\/\/|\/|#)/i.test(href)) return null;
@@ -622,6 +679,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     });
   };
   const fileNotices = <>
+    {linkError && <p role="alert" className="local-files-message">{linkError}</p>}
     {viewSwitchError && <p role="alert" className="local-files-message">{viewSwitchError}</p>}
     {recoveryNotice && <p role="status" className="local-files-message">{recoveryNotice}<button type="button" onClick={() => setRecoveryNotice("")} aria-label="关闭提示">×</button></p>}
     {loading && <p role="status" className="local-files-message">正在读取文件…</p>}
@@ -641,7 +699,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
       onEditorConfigChange={onEditorConfigChange} onRename={canRename && !readOnly ? rename : undefined} onOpenProperties={() => setPropertiesOpen(value => !value)} info={fileInfo} navigationControls={navigationControls} bookmarks={bookmarks} onBookmarksChange={setBookmarks}
       onSourceChange={value => { changeSource(value); setSaveState(current => current === "saving" ? current : value === baseSnapshot.source ? "clean" : "dirty"); }}
       onPending={() => { setSaveState(current => current === "saving" ? "saving" : "dirty"); setLocalFileDirty(identity, true); }}
-      onRegisterFlush={registerRenderedFlush} onEditorReady={editor => { renderedEditor.current = editor; viewPosition.onRenderedReady(editor); if (editor && renameFocus.current) { renameFocus.current = false; editor.view.focus(); } }} onClick={openRelative} resolveResource={resolveResource}
+      onRegisterFlush={registerRenderedFlush} onEditorReady={editor => { renderedEditor.current = editor; viewPosition.onRenderedReady(editor); if (editor && renameFocus.current) { renameFocus.current = false; editor.view.focus(); } }} onClick={openRelative} onOpenLink={href => void openMarkdownLink(href)} canOpenLink={canOpenFileLink} bindHeadingNavigation={bindHeadingNavigation} resolveResource={resolveResource}
       onSelectionChange={selection => {
         if (restoringHistory.current) return;
         const revision = new SourceNavigationDocument(sourceRef.current, [], { sourceLanguage: "markdown" });
@@ -679,8 +737,8 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     </DocumentTitleBar>
     {fileNotices}
     {!loading && !error && <>
-      <div className="local-file-editor-shell" data-workspace-panel-start>{preview ? isMermaid || isFlow ? <SourceDocumentPreview language={language} source={source} fontSize={fontSize} className="local-file-preview" /> : <div className="editor-content local-file-preview"><p role="alert">{previewError || "暂时无法渲染，源码已保留，可切回源码模式。"}</p><pre>{source}</pre></div> : <DocumentSourceSurface editor={{
-        value: source, readonly: !editing, contextMenuEnabled: true, onToggleLineBookmark: toggleBookmark,
+      <div className="local-file-editor-shell" data-workspace-panel-start>{preview ? isMermaid || isFlow ? <SourceDocumentPreview language={language} source={source} fontSize={fontSize} className="local-file-preview" /> : <div className="editor-content local-file-preview"><p role="alert">暂时无法渲染，源码已保留，可切回源码模式。</p><pre>{source}</pre></div> : <DocumentSourceSurface editor={{
+        value: source, readonly: !editing, contextMenuEnabled: true, onToggleLineBookmark: toggleBookmark, onOpenLink: href => void openMarkdownLink(href), canOpenLink: canOpenFileLink,
         areaRef: sourceHandle, onReady: bindHandle, session: editorSession,
         onChange: changeSource,
         fontSize, highlightActiveLine, showLineNumbers, showStatusBar, focusMode, saveStatus: saveState, savedLabel: "已保存到磁盘；不参与数据库备份", navigation: navigationControls,

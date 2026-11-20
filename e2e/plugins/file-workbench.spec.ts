@@ -299,7 +299,11 @@ test("柔和配色和清雅/物哀在浏览、编辑与重启后保持一致", a
 test("桌面目录复制、重命名和移动走确认队列，运行中不退出，恢复草稿阻止路径变更", async ({ page }) => {
   await page.addInitScript(() => {
     const callbacks = new Map<number, (event: unknown) => void>(); let sequence = 1, close = 0;
-    const tree: Record<string, { directory: boolean; content?: string }> = { folder: { directory: true }, "folder/a.c": { directory: false, content: "int original;\n" }, "folder/.hidden": { directory: false, content: "hidden" }, target: { directory: true } };
+    const tree: Record<string, { directory: boolean; content?: string }> = { folder: { directory: true }, "folder/a.c": { directory: false, content: "int original;\n" }, "folder/.hidden": { directory: false, content: "hidden" }, target: { directory: true },
+      "folder/guide.md": { directory: false, content: "# Part\n" },
+      "refs.md": { directory: false, content: '[阅读](folder/guide.md#part "标题")\n\n`[示例](folder/guide.md)`' },
+      "stale.md": { directory: false, content: "[旧链接](folder/guide.md)" },
+    };
     const state = { tree, calls: [] as Array<{ command: string; args: any }>, confirmed: 0, hold: true, report: null as null | ((value: unknown) => void) };
     (window as any).__workbenchOps = state;
     (window as any).__workbenchOpsClose = () => callbacks.get(close)?.({ event: "workbench:request-close", payload: null });
@@ -313,7 +317,12 @@ test("桌面目录复制、重命名和移动走确认队列，运行中不退�
         if (command === "local_files_roots") return [{ id: "native-root", name: "Native" }];
         if (command === "local_files_display_path") return `/fixture/${args.node ?? ""}`;
         if (command === "local_files_stat") return { size: tree[args.node]?.content?.length ?? 0, modifiedMs: 10 };
-        if (command === "local_files_read") return { source: tree[args.node]?.content ?? "", revision: "r1", bom: false, lineEnding: "lf", size: tree[args.node]?.content?.length ?? 0, modifiedMs: 10 };
+        if (command === "local_files_read") return { source: tree[args.node]?.content ?? "", revision: args.node === "stale.md" ? tree[args.node]?.content : "r1", bom: false, lineEnding: "lf", size: tree[args.node]?.content?.length ?? 0, modifiedMs: 10 };
+        if (command === "local_files_write") {
+          if (args.node === "stale.md" && args.expectedRevision !== tree[args.node]?.content) throw new Error("STALE_REVISION");
+          tree[args.node].content = args.source;
+          return { source: args.source, revision: "r2", bom: false, lineEnding: "lf", size: args.source.length, modifiedMs: 20 };
+        }
         if (command === "local_files_list") {
           const prefix = args.node ? args.node + "/" : "";
           return { nodes: Object.entries(tree).filter(([path]) => path.startsWith(prefix) && path !== args.node && !path.slice(prefix.length).includes("/") && (args.options?.showHidden || !path.split("/").pop()!.startsWith("."))).map(([id, value]) => ({ id, name: id.split("/").pop(), directory: value.directory, size: value.content?.length ?? 0, modifiedMs: 10 })), next: null };
@@ -346,6 +355,17 @@ test("桌面目录复制、重命名和移动走确认队列，运行中不退�
   await page.getByRole("dialog", { name: "重命名", exact: true }).getByRole("button", { name: "确认", exact: true }).click();
   await expect.poll(() => page.evaluate(() => Boolean((window as any).__workbenchOps.tree["package/a.c"]))).toBe(true);
   await page.getByRole("button", { name: "收起操作队列", exact: true }).click();
+  await page.getByRole("button", { name: "更新 Markdown 引用", exact: true }).click();
+  const links = page.getByRole("dialog", { name: "预览 Markdown 引用更新", exact: true });
+  await expect(links).toContainText("发现 2 份文档可更新");
+  await expect(links).toContainText("package/guide.md#part");
+  expect(await page.evaluate(() => (window as any).__workbenchOps.tree["refs.md"].content)).toContain("folder/guide.md");
+  await page.evaluate(() => { (window as any).__workbenchOps.tree["stale.md"].content += "\n外部编辑"; });
+  await links.getByRole("button", { name: "确认更新所选文档", exact: true }).click();
+  await expect(links.getByRole("alert")).toContainText("STALE_REVISION");
+  expect(await page.evaluate(() => (window as any).__workbenchOps.tree["refs.md"].content)).toBe('[阅读](package/guide.md#part "标题")\n\n`[示例](folder/guide.md)`');
+  expect(await page.evaluate(() => (window as any).__workbenchOps.tree["stale.md"].content)).toContain("外部编辑");
+  await links.getByRole("button", { name: "关闭预览 Markdown 引用更新", exact: true }).click();
   await left.getByRole("button", { name: "纵向目录数", exact: true }).click();
   await page.getByRole("menuitem", { name: "2 个目录", exact: true }).click();
   const leftSecond = browser.getByRole("region", { name: "左侧目录 2", exact: true });
@@ -2335,12 +2355,13 @@ test("目录大小仅手动扫描，包含隐藏项和子目录，复用缓存�
   await expect(dialog.getByRole("button", { name: "开始统计", exact: true })).toBeVisible();
 });
 
-async function setupIndependentEditor(page: Page, sources: Record<string, string> = { "alpha.c": "int alpha(void) { return 1; }\n", "beta.c": "int beta(void) { return 2; }\n" }) {
-  await page.addInitScript((sources: Record<string, string>) => {
+async function setupIndependentEditor(page: Page, sources: Record<string, string> = { "alpha.c": "int alpha(void) { return 1; }\n", "beta.c": "int beta(void) { return 2; }\n" }, initial = "alpha.c") {
+  await page.addInitScript(({ sources, initial }) => {
     let next = 1;
     const callbacks = new Map<number, (event: unknown) => void>();
     const handlers = new Map<string, number>();
-    const state = { files: Object.entries(sources).map(([name, source]) => ({ id: `/root/${name}`, file: { rootId: "root", rootName: "Root", node: { id: name, name, size: source.length, directory: false } } })), current: "/root/alpha.c", revision: 1, closing: null as null | { token: number; quit: boolean } };
+    const state = { files: Object.entries(sources).map(([name, source]) => ({ id: `/root/${name}`, file: { rootId: "root", rootName: "Root", node: { id: name, name, size: source.length, directory: false } } })), current: `/root/${initial}`, revision: 1, closing: null as null | { token: number; quit: boolean } };
+    if (initial !== "alpha.c") state.files = state.files.filter(file => file.id === state.current);
     const records: Record<string, any> = JSON.parse(localStorage.getItem("fixture-editor-buffers") ?? "{}");
     const session = (record: any) => ({ id: `workbench-buffer:${record.id}`, file: { rootId: "workbench-buffer", rootName: "编辑文档", node: { id: record.id, name: record.name, directory: false, size: record.source.length }, bufferId: record.id, bufferPath: record.path, untitled: !record.path } });
     for (const record of Object.values(records)) { const item = session(record); state.files.push(item as any); state.current = item.id; }
@@ -2373,6 +2394,13 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
         if (command === "workbench_window_role") return "editor";
         if (command === "plugin:event|listen") { handlers.set(args.event, args.handler); return next++; }
         if (command === "workbench_editor_state") return structuredClone(state);
+        if (command === "workbench_follow_editor_link") {
+          if (state.current !== args.sourceId) throw new Error("来源文件已切换");
+          const id = `/root/${args.node}`, source = sources[args.node];
+          if (source === undefined) throw new Error("目标文件不存在");
+          if (!state.files.some(item => item.id === id)) state.files.push({ id, file: { rootId: "root", rootName: "Root", node: { id: args.node, name: args.node.split("/").pop(), size: source.length, directory: false } } });
+          state.current = id; persistSession(); state.revision++; emit("workbench:editor-changed"); return id;
+        }
         if (command === "workbench_editor_select") { state.current = args.id; persistSession(); state.revision++; emit("workbench:editor-changed"); return; }
         if (command === "workbench_editor_remove") { state.files = state.files.filter(file => file.id !== args.id); state.current = state.files[0]?.id ?? ""; persistSession(); state.revision++; emit("workbench:editor-changed"); return; }
         if (command === "workbench_editor_confirm_file") { persistSession(); return; }
@@ -2386,9 +2414,69 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
         return;
       },
     };
-  }, sources);
+  }, { sources, initial });
   await page.goto("/file-workbench.html");
 }
+
+test("Markdown 链接跨标签定位章节，保留未保存正文并支持后退前进", async ({ page }) => {
+  const note = "practice/education/lesson.md";
+  const intro = Array.from({ length: 70 }, (_, index) => `段落 ${index}。`).join("\n\n");
+  await setupIndependentEditor(page, {
+    [note]: "# 练习\n\n[核心库](../../IELTS_Core_Library.md#51-教育education)\n\n[越界](../../../other.md)\n\n原文",
+    "IELTS_Core_Library.md": `# 核心库\n\n${intro}\n\n### 5.1 教育（Education）\n\n目标章节\n\n${intro}`,
+  }, note);
+  const rendered = page.locator(".ProseMirror:visible");
+  await expect(rendered.getByRole("link", { name: "核心库" })).toBeVisible();
+  await page.getByRole("link", { name: "越界", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("超出授权目录");
+  await page.getByRole("button", { name: "关闭文档链接", exact: true }).click();
+  await page.getByRole("button", { name: "点击设为可编辑" }).click();
+  await rendered.getByText("原文", { exact: true }).click();
+  await page.keyboard.press("End");
+  await page.keyboard.insertText("未保存");
+  await page.getByRole("link", { name: "核心库", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "lesson.md" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("link", { name: "核心库", exact: true }).click({ modifiers: ["ControlOrMeta"] });
+  await expect(page.getByRole("tab", { name: "IELTS_Core_Library.md" })).toHaveAttribute("aria-selected", "true");
+  const heading = rendered.getByRole("heading", { name: /5.1 教育/ });
+  await expect(heading).toBeInViewport();
+  await page.getByRole("button", { name: "链接后退", exact: true }).click();
+  await expect(rendered).toContainText("未保存");
+  await page.getByRole("button", { name: "链接前进", exact: true }).click();
+  await expect(heading).toBeInViewport();
+  await page.getByRole("button", { name: "链接后退", exact: true }).click();
+  await page.getByRole("link", { name: "核心库", exact: true }).click({ modifiers: ["ControlOrMeta"] });
+  await expect(page.getByRole("tab", { name: "IELTS_Core_Library.md" })).toHaveCount(1);
+  expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+});
+
+test("Markdown 源码右键打开标题链接并检查断链", async ({ page }) => {
+  const text = "# 前言\n\n[去目标](#目标)\n\n[遗失](missing.md)\n\n[错误锚点](#无此节)\n\n## 目标\n\n正文";
+  await setupIndependentEditor(page, { "guide.md": text }, "guide.md");
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  await page.locator(".cm-line:visible").filter({ hasText: "去目标" }).click({ button: "right", position: { x: 31, y: 8 } });
+  await page.getByRole("menuitem", { name: "打开链接", exact: true }).click();
+  await expect.poll(() => page.locator(".cm-content:visible").evaluate(element => {
+    const selection = window.getSelection();
+    return selection?.anchorNode?.parentElement?.closest(".cm-line")?.textContent
+      ?? element.querySelector(".cm-activeLine")?.textContent;
+  })).toContain("目标");
+  await page.getByRole("button", { name: "检查文档链接", exact: true }).click();
+  const report = page.getByRole("dialog", { name: "检查文档链接", exact: true });
+  await expect(report).toContainText("发现 2 处链接问题");
+  await expect(report).toContainText("missing.md");
+  await expect(report).toContainText("找不到标题或锚点");
+  await report.getByRole("button", { name: "关闭检查文档链接" }).click();
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await page.getByRole("button", { name: "检查文档链接", exact: true }).click();
+  await report.getByRole("button", { name: "修复第 5 行链接" }).click();
+  await report.getByRole("textbox", { name: "新链接路径" }).fill("#目标");
+  await report.getByRole("button", { name: "确认替换链接" }).click();
+  await expect(report).toHaveCount(0);
+  await expect.poll(async () => (await sourceInfo(page.locator(".cm-content:visible"))).value).toContain("[遗失](#目标)");
+  expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+
+});
 
 test("独立编辑器保留多标签正文与撤销，保存只作用于活动文档，关闭可取消并逐项确认", async ({ page }) => {
   await setupIndependentEditor(page);

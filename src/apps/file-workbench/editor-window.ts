@@ -7,6 +7,7 @@ export interface WorkbenchEditorPort {
   read(): Promise<WorkbenchEditorState>;
   listen(changed: () => void): Promise<() => void>;
   select(id: string): Promise<void>;
+  followLink?(sourceId: string, rootId: string, node: string): Promise<string>;
   remove(id: string): Promise<void>;
   confirm(token: number, id: string): Promise<void>;
   finish(token: number, cancelled: boolean): Promise<void>;
@@ -18,6 +19,7 @@ export const editorWindowPort: WorkbenchEditorPort = {
   read: () => invoke("workbench_editor_state"),
   listen: changed => listen("workbench:editor-changed", changed),
   select: id => invoke("workbench_editor_select", { id }),
+  followLink: (sourceId, rootId, node) => invoke("workbench_follow_editor_link", { sourceId, rootId, node }),
   remove: id => invoke("workbench_editor_remove", { id }),
   confirm: (token, id) => invoke("workbench_editor_confirm_file", { token, id }),
   finish: (token, cancelled) => invoke("workbench_editor_finish_close", { token, cancelled }),
@@ -26,6 +28,8 @@ export const editorWindowPort: WorkbenchEditorPort = {
   quit: () => invoke("workbench_editor_request_quit"),
 };
 export const openWorkbenchEditor = (file: BrowserFileOpen) => invoke<void>("workbench_open_editor", { rootId: file.rootId, node: file.node.id, location: file.location ?? null });
+export const readWorkbenchLinkOrigin = (sourceId: string) =>
+  invoke<{ rootId: string; node: string } | null>("workbench_editor_link_origin", { sourceId });
 export const showWorkbenchEditor = () => invoke<void>("workbench_show_editor");
 export const workbenchWindowRole = () => invoke<"browser" | "editor" | undefined>("workbench_window_role");
 export const notifyEditorSaved = (rootId: string, node: string) => invoke<void>("workbench_editor_saved", { rootId, node });

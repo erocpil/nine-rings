@@ -35,6 +35,7 @@ export interface SearchNavigationTarget {
   /** Navigate to a saved bookmark instead of searching text. */
   bookmarkId?: string;
   referenceId?: string;
+  headingFragment?: string;
 }
 
 // ── PathNode: 文档树节点 ──

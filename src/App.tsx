@@ -2142,7 +2142,7 @@ function App() {
                         await flushAutoSave();
                         handleSelectNote(await api.notes.get(note.id) ?? note, options);
                         closeSidebarOnNarrowScreen();
-                        if (referenceId) setEditorSearchTarget({ noteId: note.id, referenceId, query: "", requestId: ++searchRequestIdRef.current });
+                        if (referenceId || options?.headingFragment) setEditorSearchTarget({ noteId: note.id, referenceId, headingFragment: options?.headingFragment, query: "", requestId: ++searchRequestIdRef.current });
                       }}
                       onProtectionBusy={setProtectionBusy}
                       onSecurityError={message => useNotesStore.setState({ error: message })}

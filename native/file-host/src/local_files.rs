@@ -344,6 +344,40 @@ impl LocalFiles {
             )),
         }
     }
+    /// Identify an existing disk buffer inside its most specific active grant.
+    pub fn authorized_document_origin(
+        &self,
+        path: &Path,
+    ) -> Result<Option<(String, String)>, String> {
+        let roots = self.roots.lock().map_err(|_| "目录状态不可用")?.clone();
+        let mut candidates: Vec<_> = roots
+            .iter()
+            .filter_map(|(id, root)| {
+                let relative = path.strip_prefix(root).ok()?;
+                let parts = relative
+                    .iter()
+                    .map(|part| part.to_str())
+                    .collect::<Option<Vec<_>>>()?;
+                if parts.is_empty() {
+                    return None;
+                }
+                Some((root, id, parts.join("/")))
+            })
+            .collect();
+        candidates.sort_by(|(a, a_id, _), (b, b_id, _)| {
+            b.components()
+                .count()
+                .cmp(&a.components().count())
+                .then_with(|| a_id.cmp(b_id))
+        });
+        Ok(candidates.into_iter().find_map(|(root, id, node)| {
+            checked_path(root, &node)
+                .ok()
+                .filter(|resolved| resolved == path && resolved.is_file())
+                .map(|_| (id.clone(), node))
+        }))
+    }
+
     fn root(&self, id: &str) -> Result<PathBuf, String> {
         self.roots
             .lock()
@@ -1978,6 +2012,38 @@ mod tests {
             let _ = fs::remove_dir_all(&self.0);
         }
     }
+    #[test]
+    fn saved_document_links_use_the_most_specific_current_grant() {
+        let area = TransferFixture::new();
+        let nested = area.0.join("dest");
+        let note = nested.join("notes.md");
+        fs::write(&note, "# Notes").unwrap();
+        let library = LocalFiles::default();
+        library.roots.lock().unwrap().extend([
+            ("outer".into(), area.0.clone()),
+            ("nested".into(), nested.clone()),
+        ]);
+
+        assert_eq!(
+            library.authorized_document_origin(&note).unwrap(),
+            Some(("nested".into(), "notes.md".into()))
+        );
+        assert_eq!(library.authorized_document_origin(&nested).unwrap(), None);
+        assert_eq!(
+            library
+                .authorized_document_origin(&nested.join("missing.md"))
+                .unwrap(),
+            None
+        );
+        let outside = TransferFixture::new();
+        let outside_note = outside.0.join("notes.md");
+        fs::write(&outside_note, "# Outside").unwrap();
+        assert_eq!(
+            library.authorized_document_origin(&outside_note).unwrap(),
+            None
+        );
+    }
+
     #[test]
     fn type_sorting_supports_both_directions_without_moving_directories() {
         let area = TransferFixture::new();

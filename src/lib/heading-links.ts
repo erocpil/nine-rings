@@ -29,21 +29,25 @@ export function headingLinkTarget(target: EventTarget | null, items: readonly Do
   if (!href || href.startsWith("#nr-footnote-")) return null;
   const position = /^#nr-heading-(\d+)$/.exec(href)?.[1];
   if (position !== undefined) return items.find(item => item.pos === Number(position)) ?? null;
-  try {
-    const fragment = decodeURIComponent(href.slice(1));
-    if (!doc) return headingLinkMap(items).get(fragment) ?? null;
-    let links = documentLinks.get(doc);
-    if (!links) {
-      links = { headings: [], anchors: new Map() };
-      doc.descendants((node, pos) => {
-        if (node.type.name === "heading") links!.headings.push({ pos, level: node.attrs.level, text: node.textContent.trim() });
-        if (node.type.name === "htmlAnchor" && !links!.anchors.has(String(node.attrs.id))) links!.anchors.set(String(node.attrs.id), { pos, level: 0, text: String(node.attrs.id) });
-      });
-      documentLinks.set(doc, links);
-    }
-    return links.anchors.get(fragment) ?? headingLinkMap(links.headings).get(fragment) ?? null;
-  }
+  try { return resolveHeadingFragment(decodeURIComponent(href.slice(1)), items, doc); }
   catch { return null; }
+}
+
+/** The destination can come from either a DOM anchor or a different file. */
+export function resolveHeadingFragment(fragment: string, items: readonly DocumentOutlineItem[], doc?: PMNode): DocumentOutlineItem | null {
+  if (!doc) return headingLinkMap(items).get(fragment) ?? null;
+  let links = documentLinks.get(doc);
+  if (!links) {
+    links = { headings: [], anchors: new Map() };
+    doc.descendants((node, pos) => {
+      if (node.type.name === "heading") links!.headings.push({ pos, level: node.attrs.level, text: node.textContent.trim() });
+      if (node.type.name === "htmlAnchor" && !links!.anchors.has(String(node.attrs.id))) {
+        links!.anchors.set(String(node.attrs.id), { pos, level: 0, text: String(node.attrs.id) });
+      }
+    });
+    documentLinks.set(doc, links);
+  }
+  return links.anchors.get(fragment) ?? headingLinkMap(links.headings).get(fragment) ?? null;
 }
 
 /** Truncate display only; never use the shortened label as a jump identifier. */

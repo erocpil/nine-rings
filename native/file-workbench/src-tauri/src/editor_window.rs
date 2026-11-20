@@ -204,6 +204,101 @@ fn open_editor(
             return Err("无效的文件定位".into());
         }
     }
+    let file = disk_editor_file(window, &app, root_id, node, location)?;
+    publish_file(&app, file, true)
+}
+
+#[tauri::command]
+pub async fn workbench_follow_editor_link(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    source_id: String,
+    root_id: String,
+    node: String,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        editor(&window)?;
+        if !std::path::Path::new(&node)
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| {
+                extension.eq_ignore_ascii_case("md") || extension.eq_ignore_ascii_case("markdown")
+            })
+        {
+            return Err("文档内跳转需要 Markdown 文件".into());
+        }
+        let owner = app.state::<EditorWindows>();
+        let _restore = owner.4.lock().map_err(|_| "编辑器恢复状态不可用")?;
+        let source = {
+            let state = owner.0.lock().map_err(|_| "编辑器状态不可用")?;
+            state
+                .files
+                .iter()
+                .find(|file| {
+                    file.id == source_id && state.current.as_deref() == Some(source_id.as_str())
+                })
+                .cloned()
+                .ok_or("来源文件已切换，请重新打开链接")?
+        };
+        let (root, _) =
+            editor_link_origin(&app, &source)?.ok_or("当前文件没有可用于跳转的授权目录")?;
+        if root != root_id {
+            return Err("来源授权目录已变化，请重新打开链接".into());
+        }
+        let file = disk_editor_file(window, &app, root, node, None)?;
+        publish_restored_file(&app, file, true, Some(&source_id))
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+fn editor_link_origin(
+    app: &tauri::AppHandle,
+    source: &EditorFile,
+) -> Result<Option<(String, String)>, String> {
+    if !source.file["bufferId"].is_null() {
+        return match source.file["bufferPath"].as_str() {
+            Some(path) => app
+                .state::<local_files::LocalFiles>()
+                .authorized_document_origin(std::path::Path::new(path)),
+            None => Ok(None),
+        };
+    }
+    Ok(source.file["rootId"]
+        .as_str()
+        .zip(source.file["node"]["id"].as_str())
+        .map(|(root, node)| (root.to_owned(), node.to_owned())))
+}
+
+#[tauri::command]
+pub fn workbench_editor_link_origin(
+    window: tauri::WebviewWindow,
+    source_id: String,
+) -> Result<Option<Value>, String> {
+    editor(&window)?;
+    let source = {
+        let owner = window.state::<EditorWindows>();
+        let state = owner.0.lock().map_err(|_| "编辑器状态不可用")?;
+        state
+            .files
+            .iter()
+            .find(|file| file.id == source_id)
+            .cloned()
+    };
+    let Some(source) = source else {
+        return Ok(None);
+    };
+    Ok(editor_link_origin(window.app_handle(), &source)?
+        .map(|(root_id, node)| json!({ "rootId": root_id, "node": node })))
+}
+
+fn disk_editor_file(
+    window: tauri::WebviewWindow,
+    app: &tauri::AppHandle,
+    root_id: String,
+    node: String,
+    location: Option<Location>,
+) -> Result<EditorFile, String> {
     let path = local_files::local_files_display_path(
         window,
         app.state::<local_files::LocalFiles>(),
@@ -219,12 +314,11 @@ fn open_editor(
         .ok_or("无效文件名")?
         .to_string_lossy()
         .to_string();
-    let file = EditorFile {
+    Ok(EditorFile {
         id: path,
         open_revision: 1,
         file: json!({ "rootId": root_id, "rootName": "本地文件", "node": { "id": node, "name": filename, "directory": false, "size": meta.len(), "modifiedMs": meta.modified().ok().and_then(|value| value.duration_since(UNIX_EPOCH).ok()).map(|value| value.as_millis()) }, "location": location }),
-    };
-    publish_file(&app, file, true)
+    })
 }
 
 pub fn publish_file(app: &tauri::AppHandle, file: EditorFile, protect: bool) -> Result<(), String> {
@@ -240,13 +334,14 @@ pub fn publish_file(app: &tauri::AppHandle, file: EditorFile, protect: bool) -> 
     if window(app).is_none() {
         restore_locked(app)?;
     }
-    publish_restored_file(app, file, protect)
+    publish_restored_file(app, file, protect, None).map(|_| ())
 }
 fn publish_restored_file(
     app: &tauri::AppHandle,
     mut file: EditorFile,
     protect: bool,
-) -> Result<(), String> {
+    source_id: Option<&str>,
+) -> Result<String, String> {
     let owner = app.state::<EditorWindows>();
     let _creation = owner.1.lock().map_err(|_| "编辑器创建状态不可用")?;
     // A document first saved from a buffer keeps its identity and undo history.
@@ -307,8 +402,12 @@ fn publish_restored_file(
     let protected_path =
         std::path::Path::new(file.file["bufferPath"].as_str().unwrap_or(&file.id)).to_owned();
     let new_path = protect && access.protect_editor_path(&label, &protected_path)?;
+    let opened_id = file.id.clone();
     let opened = (|| {
         let mut state = state.0.lock().map_err(|_| "编辑器状态不可用")?;
+        if source_id.is_some_and(|id| state.current.as_deref() != Some(id)) {
+            return Err("来源文件已切换，请重新打开链接".into());
+        }
         let mut next = state.clone();
         next.open(file)?;
         next.persist(app)?;
@@ -352,10 +451,14 @@ fn publish_restored_file(
     grant.0 = None;
     publish_presence(&app);
     changed(&app);
-    target.unminimize().map_err(|e| e.to_string())?;
-    target.show().map_err(|e| e.to_string())?;
-    target.set_focus().map_err(|e| e.to_string())
+    if source_id.is_none() {
+        target.unminimize().map_err(|e| e.to_string())?;
+        target.show().map_err(|e| e.to_string())?;
+        target.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(opened_id)
 }
+
 pub(crate) fn reserve_buffer_save(
     app: &tauri::AppHandle,
     id: &str,
@@ -633,7 +736,7 @@ fn restore_locked(app: &tauri::AppHandle) -> Result<(), String> {
                     .session();
             }
             let protect = file.file["bufferId"].is_null() || file.file["bufferPath"].is_string();
-            publish_restored_file(app, file, protect)?;
+            publish_restored_file(app, file, protect, None)?;
         }
         let owner = app.state::<EditorWindows>();
         let mut state = owner.0.lock().map_err(|_| "编辑器状态不可用")?;

@@ -252,6 +252,8 @@ fn main() {
             editor_window::workbench_window_role,
             editor_window::workbench_editor_presence,
             editor_window::workbench_open_editor,
+            editor_window::workbench_follow_editor_link,
+            editor_window::workbench_editor_link_origin,
             editor_window::workbench_editor_state,
             editor_window::workbench_editor_select,
             editor_window::workbench_editor_remove,

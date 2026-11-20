@@ -51,3 +51,17 @@ export interface LocalFileDetails extends LocalFileFingerprint {
   directory?: boolean;
   systemShown?: boolean;
 }
+
+export function resolveRelativeNode(fromNode: string, href: string): string {
+  if (!href || /^(?:[a-z][a-z0-9+.-]*:|\/\/|\/)/i.test(href)) throw new Error("链接不在本地授权目录内");
+  const pathname = decodeURIComponent(href.split(/[?#]/, 1)[0] ?? "");
+  const parts = fromNode.split("/").slice(0, -1);
+  for (const part of pathname.split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") { if (!parts.length) throw new Error("相对资源超出授权目录"); parts.pop(); }
+    else parts.push(part);
+  }
+  const result = parts.join("/");
+  fileSegments(result);
+  return result;
+}

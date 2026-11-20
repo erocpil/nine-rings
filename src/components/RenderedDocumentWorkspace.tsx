@@ -50,7 +50,7 @@ import { useBlockSelectionGestures } from "../hooks/useBlockSelectionGestures";
 import { MOBILE_VIEWPORT_QUERY } from "../hooks/useEdgeDrawer";
 import { useEditor } from "@tiptap/react";
 import { DocumentOutlineContext } from "./TableOfContentsBlock";
-import { headingLinkTarget } from "../lib/heading-links";
+import { headingLinkTarget, resolveHeadingFragment } from "../lib/heading-links";
 import { ReferenceAnchors, createReferenceAnchor, referenceAnchorPluginKey } from "../extensions/ReferenceAnchors";
 import { deltaToMarkdown } from "../lib/markdown-serializer";
 import { exportDocumentPlainText } from "../lib/markdown-export";
@@ -248,6 +248,9 @@ export interface RenderedWorkspaceHost {
   info?: import("./DocumentInfoCard").DocumentInfoCardProps;
   sourceCopy?: { label: string; read: () => string };
   onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
+  onOpenLink?: (href: string) => void;
+  canOpenLink?: (href: string) => boolean;
+  bindHeadingNavigation?: (navigate: ((fragment: string) => boolean) | null) => void;
 }
 
 export interface NoteEditorProps {
@@ -1930,6 +1933,16 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
       root.scrollTo({ top: Math.max(0, nextTop), behavior: "instant" });
     });
   }, [editor, scrollRef, setOutlineOpen]);
+  const bindHeadingNavigation = workspaceHost?.bindHeadingNavigation;
+  useEffect(() => {
+    if (!editor || !bindHeadingNavigation) return;
+    bindHeadingNavigation(fragment => {
+      const item = resolveHeadingFragment(fragment, [], editor.state.doc);
+      if (item) jumpToOutlineHeading(item);
+      return Boolean(item);
+    });
+    return () => bindHeadingNavigation(null);
+  }, [editor, bindHeadingNavigation, jumpToOutlineHeading]);
   const tocContext = useMemo(() => ({ items: documentOutline, navigate: jumpToOutlineHeading }), [documentOutline, jumpToOutlineHeading]);
 
   // 拦截 WebView 原生 Cmd+F，并为 Windows 提供 Alt+F。Ctrl+F 不再
@@ -2036,6 +2049,13 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
   useEffect(() => {
     if (!editor || !searchTarget || searchTarget.noteId !== noteId) return;
     if (searchTarget.options?.regex && !regexEngine.ready) return;
+    if (searchTarget.headingFragment) {
+      const target = resolveHeadingFragment(searchTarget.headingFragment, [], editor.state.doc);
+      if (target) jumpToOutlineHeading(target);
+      else setCopyBlockNotice(`找不到标题或锚点“${searchTarget.headingFragment}”`);
+      onSearchTargetConsumed?.(searchTarget.requestId);
+      return;
+    }
     if (searchTarget.referenceId) {
       const anchor = referenceAnchorPluginKey.getState(editor.state)?.anchors.find(item => item.id === searchTarget.referenceId && !item.deleted);
       if (anchor) requestAnimationFrame(() => {
@@ -2100,7 +2120,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
       }
     }
     onSearchTargetConsumed?.(searchTarget.requestId);
-  }, [editor, jumpToBookmark, noteId, onSearchTargetConsumed, revealSearchMatch, searchTarget, title, regexEngine.ready, setActiveSearchMatch]);
+  }, [editor, jumpToBookmark, jumpToOutlineHeading, noteId, onSearchTargetConsumed, revealSearchMatch, searchTarget, title, regexEngine.ready, setActiveSearchMatch]);
 
   // 宽度变化会让软换行重排。编辑且光标可见时锚定光标；布局按钮暂时
   // 获得焦点时延续该锚点。只读或光标移出视口后改用顶部第一个可见块。
@@ -4863,6 +4883,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
         hasCurrentBookmark={Boolean(currentBookmark)} bookmarkCount={bookmarks.length}
         annotationSelectionAvailable={annotationsEnabled && readonly && Boolean(annotationContextRange)}
         onAnnotateSelection={() => { void createSelectedReadingAnnotation(); setAnnotationContextRange(null); }}
+        onOpenLink={contextMenu?.linkHref && workspaceHost?.canOpenLink?.(contextMenu.linkHref) ? workspaceHost.onOpenLink : undefined}
         onCopyLink={async href => {
           try { await copyToClipboard(href, { reportFailure: true }); setCopyBlockNotice("已复制链接"); }
           catch { setCopyBlockNotice("复制链接失败，请重试"); }

@@ -1,5 +1,6 @@
 import { EditorView } from "@codemirror/view";
 import { Transaction } from "@codemirror/state";
+import { revealSourceTarget } from "./source-navigation-target";
 import { isolateHistory } from "@codemirror/commands";
 
 /** Host navigation and edit adapter. The surface remains a real CodeMirror view. */
@@ -41,6 +42,12 @@ export class SourceEditorHandle extends EventTarget {
         { y: center ? "center" : "start", yMargin: 0 },
       ),
     });
+  }
+  revealOffset(offset: number) {
+    const position = Math.max(0, Math.min(this.view.state.doc.length, offset));
+    const effects = revealSourceTarget(this.view.state, position);
+    this.view.dispatch({ effects, selection: { anchor: position } });
+    this.scrollToOffset(position, true);
   }
   position(): number {
     const rect = this.view.scrollDOM.getBoundingClientRect();

@@ -31,8 +31,12 @@
 ## 编辑器设置接续
 
 - Nine Rings 编辑器设置与 Workbench 的标题栏设置通过 `EditorSettingsContent` 复用，排版继续使用 `EditorAppearancePanel`。Workbench 单独保留源码字体及配色，配置应用于磁盘文件与未命名文档；浏览窗口保留配色入口。
-- 固定目录／书签可以独立占满侧栏高度。文档状态栏与正文列的分隔线沿用 `document-rail.ts`，后续若增加窗口级信息可另设跨列区域。Workbench 相对 Markdown 链接的实测样本和实现边界见[后续待办](../planning/file-workbench-followups.md#markdown-链接后续设计)。
+- 固定目录／书签可以独立占满侧栏高度。文档状态栏与正文列的分隔线沿用 `document-rail.ts`，后续若增加窗口级信息可另设跨列区域。Workbench 相对 Markdown 链接的实测样本和实现边界见[后续待办](../planning/file-workbench-followups.md#markdown-路径跳转检查与更新)。
 - 本批通过 `npm run check`（Vitest 2743 项）、两套前端生产构建、Nine Rings 相关 Playwright Chromium 45 项与 WebKit 串行 8 项，以及 Workbench 定向 Chromium／WebKit 各 7 项。跨窗口测试通过同一浏览器环境和模拟 Tauri 桥接运行，安装版仍待验收。
+
+## Markdown 跳转验证
+
+磁盘路径解析、源码和渲染标题定位、Workbench 跨标签返回、断链修复，以及同一授权根内改名后的预览写入均有定向回归。验证包括原有文件版本变化后拒绝覆盖、未保存来源标签保留、只读与可编辑模式及中文锚点。IELTS 实际示例只读验证定位到核心库「5.1 教育（Education）」。测试使用浏览器和模拟 Tauri，安装版 GUI 保留独立验收。
 
 ## 尚未确认与后续入口
 

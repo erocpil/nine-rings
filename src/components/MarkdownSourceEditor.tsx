@@ -1,4 +1,5 @@
-import { markdownSourceLinkAt } from "../lib/markdown-source-link";
+import { isPrimaryShortcutModifier } from "../lib/shortcuts";
+import { markdownSourceLinkAt, semanticMarkdownSourceHref } from "../lib/markdown-source-link";
 import { withEditorCommandTrigger } from "../lib/editor-command-surface";
 import { SOURCE_SHORTCUT_EVENT, sourceNavigationKeybindings } from "../lib/source-navigation-shortcuts";
 import { SourceNavigationControls } from "./SourceNavigationControls";
@@ -325,6 +326,8 @@ export function MarkdownSourceEditor({
   onEditorConfigChange,
   contextMenuEnabled = false,
   onToggleLineBookmark,
+  onOpenLink,
+  canOpenLink,
 }: {
   value: string;
   readonly: boolean;
@@ -354,6 +357,8 @@ export function MarkdownSourceEditor({
   onEditorConfigChange?: (patch: Partial<AppConfig>) => Promise<void>;
   contextMenuEnabled?: boolean;
   onToggleLineBookmark?: (offset: number) => void;
+  onOpenLink?: (href: string) => void;
+  canOpenLink?: (href: string) => boolean;
 }) {
   const numberingState = useNumberingDisplay();
   const numbering = numberingState.source;
@@ -1807,6 +1812,22 @@ export function MarkdownSourceEditor({
         event.stopPropagation();
       }}
       onClickCapture={(event) => {
+        const current = view.current;
+        if (onOpenLink && documentLanguage === "markdown" && current && documentActive
+          && current.contentDOM.contains(event.target as Node)
+          && (editingReadonly || isPrimaryShortcutModifier(event))) {
+          const selection = window.getSelection();
+          const selecting = selection && !selection.isCollapsed && selection.anchorNode && current.contentDOM.contains(selection.anchorNode);
+          const offset = selecting ? null : current.posAtCoords({ x: event.clientX, y: event.clientY });
+          const rawHref = offset === null ? undefined : markdownSourceLinkAt(current.state, offset);
+          const href = rawHref && semanticMarkdownSourceHref(rawHref);
+          if (href && canOpenLink?.(href) !== false) {
+            event.preventDefault();
+            event.stopPropagation();
+            onOpenLink(href);
+            return;
+          }
+        }
         if (
           !contextMenuEnabled ||
           !view.current ||
@@ -1885,13 +1906,16 @@ export function MarkdownSourceEditor({
         ) {
           currentView.dispatch({ selection: { anchor: position } });
         }
+        const linkHref = documentLanguage === "markdown" && position !== null ? markdownSourceLinkAt(currentView.state, position) : undefined;
+        const navigationHref = linkHref && onOpenLink ? semanticMarkdownSourceHref(linkHref) : undefined;
         setSourceContextMenu({
           x: event.clientX,
           y: event.clientY,
           view: currentView,
           readonly: currentView.state.readOnly,
           trigger: currentView.contentDOM,
-          linkHref: documentLanguage === "markdown" && position !== null ? markdownSourceLinkAt(currentView.state, position) : undefined,
+          linkHref,
+          openLink: navigationHref && onOpenLink && canOpenLink?.(navigationHref) !== false ? () => onOpenLink(navigationHref) : undefined,
         });
       }}
     >

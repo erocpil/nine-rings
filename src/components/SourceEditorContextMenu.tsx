@@ -17,6 +17,7 @@ export interface SourceContextTarget {
   trigger: HTMLElement;
   lineNumber?: number;
   linkHref?: string;
+  openLink?: () => void;
   onToggleBookmark?: () => void;
 }
 
@@ -138,6 +139,7 @@ export function SourceEditorContextMenu({ target, close }: {
     { label: "切换注释", disabled: !canEdit || !canComment, run: () => run(() => editLineCommand(toggleComment)) },
     ...(target.onToggleBookmark ? [{ label: "添加/移除本行书签", group: true, run: () => run(target.onToggleBookmark!) }] : []),
   ] : [
+    ...(target.openLink ? [{ label: "打开链接", run: () => { close(); target.openLink?.(); } }] : []),
     ...(target.linkHref ? [{ label: "复制链接", run: () => { void clipboard("copy-link"); } }] : []),
     { label: "撤销", disabled: !canEdit || undoDepth(target.view.state) === 0, run: () => run(() => { undo(target.view); }) },
     { label: "重做", disabled: !canEdit || redoDepth(target.view.state) === 0, run: () => run(() => { redo(target.view); }) },

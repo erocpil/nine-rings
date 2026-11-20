@@ -1,3 +1,4 @@
+import { readWorkbenchLinkOrigin } from "./editor-window";
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { WorkbenchSourceView } from "./SourceView";
 import { bufferDocumentPort, createBufferDocumentHost, type BufferRecord } from "./buffer-documents";
@@ -20,7 +21,15 @@ function LoadedBuffer({ initial, ...props }: Props & { initial: BufferRecord }) 
     const previous = metadataRef.current; metadataRef.current = value;
     if (value.path !== previous.path || value.name !== previous.name) setMetadata(value);
   }), [initial, props.host, props.provider]);
+  const [origin, setOrigin] = useState<{ rootId: string; node: string } | null>(null);
+  useEffect(() => {
+    if (!metadata.path || !props.active) return;
+    let live = true;
+    void readWorkbenchLinkOrigin(`workbench-buffer:${initial.id}`).then(value => { if (live) setOrigin(value); }, () => { if (live) setOrigin(null); });
+    return () => { live = false; };
+  }, [initial.id, metadata.path, props.active]);
+  const linkOrigin = useMemo(() => origin ? { ...origin, read: props.host.read } : undefined, [origin, props.host.read]);
   const file = { ...props.file, node: { ...props.file.node, name: metadata.name } };
-  return <WorkbenchSourceView {...props} file={file} host={binding.host} provider={binding.provider} initialReadonly={false} persistDocument
+  return <WorkbenchSourceView {...props} file={file} host={binding.host} provider={binding.provider} linkOrigin={linkOrigin} initialReadonly={false} persistDocument
     untitled={!metadata.path} documentPath={metadata.path ?? "尚未选择保存位置"} />;
 }

@@ -197,3 +197,8 @@ html:where([data-workbench-palette]) :where(.workspace-dialog, dialog[open], [ro
 .workbench-editor-tab > [role=tab][aria-selected=true] { color: var(--text); }
 .workbench-editor-tab > .btn-icon { width: 22px; height: 22px; padding: 3px; flex: none; margin-inline-end: 3px; }
 .workbench-editor-tab .toolbar-icon { width: 12px; height: 12px; }
+
+.workbench-link-navigation { display: inline-flex; flex: 0 0 auto; }
+.workbench-markdown-link-dialog { padding: 12px 16px 16px; overflow-wrap: anywhere; }
+.workbench-markdown-link-dialog code { white-space: pre-wrap; }
+.workbench-markdown-link-dialog form { display: grid; gap: 8px; }

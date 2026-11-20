@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("Nine Rings 本地 Markdown 的链接右键只复制相对地址", async ({ page }) => {
+test("Nine Rings 本地 Markdown 的链接右键复制原始相对地址", async ({ page }) => {
   await createBlankDocument(page);
   const { workspace } = await openWritableLocalDirectory(
     page,
@@ -29,6 +29,7 @@ test("Nine Rings 本地 Markdown 的链接右键只复制相对地址", async ({
   await expect(page.getByRole("dialog", { name: "链接操作预览" })).toHaveCount(
     0,
   );
+  await expect(page.getByRole("menuitem", { name: "打开链接", exact: true })).toBeVisible();
   await page.getByRole("menuitem", { name: "复制链接", exact: true }).click();
   await expect
     .poll(() =>

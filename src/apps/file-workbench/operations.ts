@@ -46,5 +46,5 @@ export function createWorkbenchOperations(host: Pick<BrowserOperationHost<Browse
   const queue = new BrowserOperationQueueCore({ assertActive, execute: runner });
   const busy = () => queue.getSnapshot().some(job => !browserJobSettled(job));
   const assertIdle = () => { if (disposed) throw new Error("工作台已关闭"); if (busy()) throw new Error("目录操作尚未结束，请在操作队列中等待完成或停止，再打开文件或退出。"); };
-  return { queue, busy, assertIdle, dispose() { disposed = true; queue.dispose(); } };
+  return { queue, busy, assertIdle, assertPathClean: clean, dispose() { disposed = true; queue.dispose(); } };
 }

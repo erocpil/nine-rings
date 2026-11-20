@@ -79,6 +79,9 @@ export function LocalMarkdownWorkspace({
   onEditorReady,
   onSelectionChange,
   onClick,
+  onOpenLink,
+  canOpenLink,
+  bindHeadingNavigation,
   onReadonlyChange,
   titleActions,
   viewToggle,
@@ -129,6 +132,9 @@ export function LocalMarkdownWorkspace({
   onEditorReady?: (editor: Editor | null) => void;
   onSelectionChange?: (selection: { from: number; to: number }) => void;
   onClick: (event: React.MouseEvent<HTMLDivElement>) => void;
+  onOpenLink?: (href: string) => void;
+  canOpenLink?: (href: string) => boolean;
+  bindHeadingNavigation?: (navigate: ((fragment: string) => boolean) | null) => void;
   onReadonlyChange?: (readonly: boolean) => void;
   titleActions: ReactNode;
   viewToggle: ReactNode;
@@ -376,6 +382,9 @@ export function LocalMarkdownWorkspace({
                 },
               },
               onClick,
+              onOpenLink,
+              canOpenLink,
+              bindHeadingNavigation,
             }}
             documentViewToggle={viewToggle}
             unifiedTitleBar

@@ -115,16 +115,17 @@ test("文档内稳定链接与相对 Markdown 链接支持修饰键进入源码"
     const { buildTextImportInput } = await load("/src/lib/markdown-import.ts");
     const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
     const settings = { mode: "document", storagePath: "ideas/source-opening", date: "2026-10-10" };
-    const target = await api.notes.create(buildTextImportInput({ fileName: "target.md", source: "# 链接目标\n\n目标正文\n" }, settings));
-    const source = await api.notes.create(buildTextImportInput({ fileName: "links.md", source: `# 文档链接入口\n\n[稳定链接](nr-note://${target.id})\n\n[相对链接](target.md)\n` }, settings));
+    const target = await api.notes.create(buildTextImportInput({ fileName: "target.md", source: "# 链接目标\n\n目标正文\n\n## 指定章节\n\n定位内容\n" }, settings));
+    const source = await api.notes.create(buildTextImportInput({ fileName: "links.md", source: `# 文档链接入口\n\n[稳定链接](nr-note://${target.id})\n\n[相对链接](target.md#指定章节)\n` }, settings));
     useNotesStore.getState().selectNote(source);
     return { source: source.id, target: target.id };
   });
   const modifier = await page.evaluate(() => /Mac|iPhone|iPad|iPod/i.test(navigator.platform) ? "Meta" as const : "Control" as const);
-  for (const href of [`nr-note://${ids.target}`, "target.md"]) {
+  for (const href of [`nr-note://${ids.target}`, "target.md#指定章节"]) {
     await page.locator(`.ProseMirror:visible a[href="${href}"]`).click({ modifiers: [modifier] });
     const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
     await expect.poll(async () => (await sourceInfo(source)).value).toContain("# 链接目标");
+    if (href.includes("#")) await expect.poll(async () => (await sourceInfo(source)).selectionStart).toBe("# 链接目标\n\n目标正文\n\n".length);
     await page.getByRole("button", { name: "渲染", exact: true }).click();
     await page.evaluate(async id => {
       const load = (path: string) => import(/* @vite-ignore */ path);
