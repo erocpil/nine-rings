@@ -733,7 +733,6 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
   const [readonlyChangeBusy, setReadonlyChangeBusy] = useState(false);
   const [gutterBlockCount, setGutterBlockCount] = useState(0);
   const { renderedFoldGutter } = useRelativeNumbering();
-  const numberOnlyGutter = readonly && showLineNumbers && !renderedFoldGutter && selectedBlockIndexes.size === 0;
   const [currentStatusBlock, setCurrentStatusBlock] = useState(1);
   const [bookmarkCursorPosition, setBookmarkCursorPosition] = useState(1);
   const [selectedTableCellCount, setSelectedTableCellCount] = useState(0);
@@ -4047,6 +4046,10 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
         editor.view.dispatch(closeHistory(editor.state.tr));
         editor.view.focus();
       };
+      const insertParagraph = (at: number) => {
+        const tr = editor.state.tr.insert(at, editor.schema.nodes.paragraph.create());
+        finishEdit(tr.setSelection(TextSelection.create(tr.doc, at + 1)));
+      };
       const pasteBlocks = async (at: number) => {
         try {
           const { text, html } = await readClipboardContent();
@@ -4115,8 +4118,8 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
         { label: "在本块前粘贴块", run: () => { void pasteBlocks(position); } },
         { label: "在本块后粘贴块", run: () => { void pasteBlocks(end); } },
         { label: "剪切此块", run: () => { void cut(); } },
-        { label: "在上方插入段落", run: () => insert(position, { type: "paragraph" }) },
-        { label: "在下方插入段落", run: () => insert(end, { type: "paragraph" }) },
+        { label: "在上方插入段落", run: () => insertParagraph(position) },
+        { label: "在下方插入段落", run: () => insertParagraph(end) },
         { label: "复制副本", run: () => insert(end, node.toJSON()) },
         { label: "增加缩进", run: () => { target(); changeSelectedBlockIndent(1); } },
         { label: "减少缩进", run: () => { target(); changeSelectedBlockIndent(-1); } },
@@ -4612,7 +4615,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
         >
           <EditorToolbarContents
             editor={editor} readonly={readonly} saveStatus={saveStatus === "saved" ? undefined : saveStatus}
-            layout={{ isMobileToolbarViewport, toolbarRef }}
+            layout={{ showBlankBlockShortcut: isMobileToolbarViewport && renderedFoldGutter, toolbarRef }}
             menus={{
               backgroundOpen, setBackgroundOpen, colorOpen, setColorOpen, sizeOpen, setSizeOpen,
               headingOpen, setHeadingOpen, headingPage, setHeadingPage,
@@ -4716,20 +4719,20 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
           </div>
         )}
         <DocumentRenderBody
-          className={selectedBlockIndexes.size > 0 ? "block-selection-active" : numberOnlyGutter ? "number-only-gutter" : ""}
-          style={{ "--editor-gutter-width": `${editorGutterWidth(gutterBlockCount, showLineNumbers || selectedBlockIndexes.size > 0, isMobileToolbarViewport, !numberOnlyGutter)}px` } as React.CSSProperties}
+          className={`${selectedBlockIndexes.size > 0 ? "block-selection-active" : ""} ${renderedFoldGutter ? "" : "compact-block-gutter"}`}
+          style={{ "--editor-gutter-width": `${editorGutterWidth(gutterBlockCount, showLineNumbers || selectedBlockIndexes.size > 0, isMobileToolbarViewport, renderedFoldGutter)}px` } as React.CSSProperties}
           gutter={<EditorBlockGutter
             foldHosts={foldHostsRef.current}
             editor={editor}
             compact={isMobileToolbarViewport}
             showNumbers={showLineNumbers}
-            showInsertButtons
+            showInsertButtons={renderedFoldGutter}
             readonly={!!readonly}
             bookmarkPositions={bookmarks.map((bookmark) => bookmark.position)}
             highlightedBlockIndex={bookmarkJumpBlockIndex}
             selectedBlockIndexes={selectedBlockIndexList}
             onBlockSelect={extendBlockSelection}
-            onBlockMenu={(position, trigger, reportedNumber) => {
+            onBlockMenu={showLineNumbers || renderedFoldGutter ? (position, trigger, reportedNumber) => {
               closeToolbarDropdowns();
               setContextMenu(null);
               // The visible gutter number is the stable target identity. Re-resolve
@@ -4740,7 +4743,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
                 ? blockRangeAtIndex(number - 1)
                 : { from: position, index: number - 1 };
               setBlockMenu(current => current?.position === target.from && current.doc === editor.state.doc ? null : { position: target.from, number, trigger, doc: editor.state.doc });
-            }}
+            } : undefined}
             onBlockCountChange={setGutterBlockCount}
             onHeadingFoldToggle={toggleEditorHeadingFromGutter}
             onReferenceMenu={useCustomContextMenu ? (position, x, y) => {

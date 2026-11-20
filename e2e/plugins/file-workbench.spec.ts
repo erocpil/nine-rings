@@ -3148,11 +3148,8 @@ for (const readonly of [true, false]) test(`Markdown 渲染状态栏共用块号
   await trigger.click();
   await menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true }).click();
   await expect(view.locator(".editor-heading-fold")).toHaveCount(0);
-  if (readonly) await expect.poll(textWidth).toBeGreaterThan(widthWithFold + 12);
-  else {
-    await expect.poll(textWidth).toBeCloseTo(widthWithFold, 0);
-    await expect(view.locator(".editor-block-insert").first()).toBeAttached();
-  }
+  await expect.poll(textWidth).toBeGreaterThan(widthWithFold + 12);
+  await expect(view.locator(".editor-block-insert")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
   await page.getByRole("button", { name: "行号与折叠设置", exact: true }).click();
@@ -3495,6 +3492,41 @@ test("Markdown 渲染在只读与编辑间保持正文上边缘", async ({ page 
     await page.getByRole("button", { name: "点击设为只读" }).click();
     await expect.poll(() => body.evaluate(element => (element as HTMLElement).isContentEditable)).toBe(false);
   }
+});
+
+test("磁盘 Markdown 的渲染与源码工具按相同顺序呈现代码块、引用和列表", async ({ page }) => {
+  await setupIndependentEditor(page, { "guide.md": "# Heading\n\nFirst paragraph\n" });
+  await page.getByRole("tab", { name: "guide.md", exact: true }).click();
+  await page.getByRole("button", { name: "点击设为可编辑" }).click();
+  const order = (element: Element) => Array.from(element.querySelectorAll("button"))
+    .map(button => (button.getAttribute("aria-label") ?? button.title).split(/ [（(]/, 1)[0])
+    .filter(label => ["代码块", "引用", "无序列表", "有序列表"].includes(label));
+  const group = ["代码块", "引用", "无序列表", "有序列表"];
+  const view = page.locator(".workbench-rendered-session:visible");
+  const render = view.locator(".document-editing-tools");
+  await expect.poll(() => render.evaluate(order)).toEqual(group);
+  const body = view.locator(".ProseMirror");
+  await body.getByText("First paragraph", { exact: true }).click();
+  await view.getByRole("button", { name: "块号与折叠设置", exact: true }).click();
+  const gutter = page.getByRole("menu", { name: "块号与折叠设置", exact: true });
+  for (const name of ["显示块号", "显示折叠图标"]) {
+    const setting = gutter.getByRole("menuitemcheckbox", { name, exact: true });
+    if (await setting.getAttribute("aria-checked") === "true") await setting.click();
+  }
+  await page.keyboard.press("Escape");
+  await expect(body).toHaveCSS("padding-left", "0px");
+  await view.getByRole("button", { name: "块级操作", exact: true }).click();
+  await page.getByRole("menuitem", { name: "在下方插入段落", exact: true }).click();
+  await expect(body).toBeFocused();
+  await page.keyboard.insertText("New disk paragraph");
+  await expect(body.locator("p").last()).toHaveText("New disk paragraph");
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  const source = page.getByRole("toolbar", { name: "源码编辑工具", exact: true });
+  await expect.poll(() => source.evaluate(order)).toEqual(group);
+  const editor = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  await expect(editor).toContainText("New disk paragraph");
+  await source.getByRole("button", { name: "代码块", exact: true }).click();
+  await expect(editor).toContainText("```");
 });
 
 test("磁盘 Markdown 表格右键添加列后可直接在同一行输入", async ({ page }) => {

@@ -23,7 +23,7 @@
 
 - 两款应用复用 `RenderedDocumentWorkspace`、`DocumentSourceSurface`、`DocumentNavigationWorkspace` 及公共菜单／标题／状态栏，差异由宿主能力与文件服务注入。不要再次维护一套 Workbench 专用 Markdown 渲染器。
 - 退出应用／窗口保留打开清单；主动关闭文件才删除清单项。未命名草稿、磁盘原文、只读与源码／渲染显示偏好分别维护；取消保存及关闭不得丢内容。
-- 显示设置不能写正文、增加编辑撤销步骤或重置折叠。只读渲染只剩块号时收窄左栏，编辑态插入按钮和无块号时的块操作入口仍占用各自所需宽度。隐藏正文折叠图标后，工具栏及菜单仍可展开，目录自身的折叠图标继续显示。
+- 显示设置不能写正文、增加编辑撤销步骤或重置折叠。渲染隐藏折叠图标时回收块间加号控制列。插入入口在块号菜单，块号也隐藏时通过标题栏打开当前块菜单。工具栏及菜单仍可展开，目录自身的折叠图标继续显示。
 - 原生选区绘制、ProseMirror／CodeMirror 选区、右键菜单焦点要分别核对。WebKit 可在 contextmenu 前重新选择点击单词；只检查 Chromium 不足以证明原选区保留。
 - Esc／Left 在级联菜单中逐层返回。浏览器测试应确认按钮的 `aria-expanded` 及菜单层级，不假设一次 Esc 就关闭整条菜单链。
 - `useFocusEditorTools` 的 Workbench 持久化由 `src/apps/file-workbench/toolbar-preferences.ts` 装配；保持 Nine Rings 原策略。`nr:blockWorkspaceDisplay` 继续维护软换行、高亮、微渲染及编号相关共享偏好。

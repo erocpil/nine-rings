@@ -397,6 +397,11 @@ function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: No
             aria-label="代码简介"
           />
           <div className="code-block-actions">
+            <CodeLanguageSelect
+              editable={editable}
+              value={normalizeCodeLanguage(node.attrs.language) ?? ""}
+              onChange={language => updateAttributes({ language: language || null })}
+            />
             {isMermaid && <span data-mermaid-controls hidden={!showDiagram || collapsed} />}
             {isRendered && !inWorkspace && <button
               type="button"
@@ -422,11 +427,6 @@ function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: No
               }}
               title="代码行号（仅改变显示）"
             ><ToolbarIcon name="listChars" /></button>
-            <CodeLanguageSelect
-              editable={editable}
-              value={normalizeCodeLanguage(node.attrs.language) ?? ""}
-              onChange={language => updateAttributes({ language: language || null })}
-            />
             <button
               hidden={isRendered && showDiagram}
               className={`code-block-wrap-toggle ${wrapEnabled ? "active" : ""}`}

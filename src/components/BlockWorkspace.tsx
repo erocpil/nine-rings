@@ -457,9 +457,13 @@ export function BlockWorkspace({ source, vimModeEnabled = false, highlightActive
     {editable && editor && <div className="block-workspace-tools" role="toolbar" aria-label="块编辑工具">
       {iconButton("撤销", "undo", () => { source.commands.undo(); })}
       {iconButton("重做", "redo", () => { source.commands.redo(); })}
-      {iconButton("减少缩进", "outdent", () => { editor.chain().focus().updateAttributes(rootType, { indent: Math.max(0, Number(editor.state.doc.firstChild?.attrs.indent ?? 0) - 1) }).run(); })}
-      {iconButton("增加缩进", "indent", () => { editor.chain().focus().updateAttributes(rootType, { indent: Math.min(8, Number(editor.state.doc.firstChild?.attrs.indent ?? 0) + 1) }).run(); })}
       {rootType !== "codeBlock" && <>
+        <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()} title="粗体"><strong>B</strong></button>
+        <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().toggleItalic().run()} title="斜体"><em>I</em></button>
+        <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().toggleStrike().run()} title="删除线"><s>S</s></button>
+        {iconButton("行内代码", "code", () => { editor.chain().focus().toggleCode().run(); })}
+        {iconButton("添加或编辑链接", "link", () => { setInsertKind("link"); setUrl(String(editor.getAttributes("link").href ?? "")); })}
+        {iconButton("移除链接", "erase", () => { editor.chain().focus().unsetLink().run(); })}
         <span className="block-workspace-select">
           <select aria-label="段落样式" defaultValue="paragraph" onChange={event => {
             if (event.target.value === "paragraph") editor.chain().focus().setParagraph().run();
@@ -467,17 +471,11 @@ export function BlockWorkspace({ source, vimModeEnabled = false, highlightActive
           }}><option value="paragraph">正文</option>{[1, 2, 3, 4, 5, 6].map(level => <option key={level} value={level}>H{level}</option>)}</select>
           <span className="toolbar-dropdown-caret" aria-hidden="true"><DisclosureIcon expanded /></span>
         </span>
-        <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()} title="粗体"><strong>B</strong></button>
-        <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().toggleItalic().run()} title="斜体"><em>I</em></button>
-        <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().toggleStrike().run()} title="删除线"><s>S</s></button>
+        {iconButton("插入代码块", "codeBlock", () => { editor.chain().focus().setNode("codeBlock").run(); })}
         {iconButton("无序列表", "bullet", () => { editor.chain().focus().toggleBulletList().run(); })}
         {iconButton("有序列表", "ordered", () => { editor.chain().focus().toggleOrderedList().run(); })}
         {iconButton("块内换行", "lineBreak", () => { editor.chain().focus().setHardBreak().run(); })}
-        {iconButton("行内代码", "code", () => { editor.chain().focus().toggleCode().run(); })}
-        {iconButton("插入代码块", "note", () => { editor.chain().focus().setNode("codeBlock").run(); })}
         {iconButton("插入表格", "table", () => { editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); })}
-        {iconButton("添加或编辑链接", "link", () => { setInsertKind("link"); setUrl(String(editor.getAttributes("link").href ?? "")); })}
-        {iconButton("移除链接", "erase", () => { editor.chain().focus().unsetLink().run(); })}
         {iconButton("插入图片地址", "image", () => { setInsertKind("image"); setUrl(""); })}
         {iconButton("上传图片", "plus", () => imageInput.current?.click())}
         <input ref={imageInput} type="file" accept="image/*" hidden onChange={async event => {
@@ -502,6 +500,8 @@ export function BlockWorkspace({ source, vimModeEnabled = false, highlightActive
           <span className="toolbar-dropdown-caret" aria-hidden="true"><DisclosureIcon expanded /></span>
         </span>
       </>}
+      {iconButton("增加缩进", "indent", () => { editor.chain().focus().updateAttributes(rootType, { indent: Math.min(8, Number(editor.state.doc.firstChild?.attrs.indent ?? 0) + 1) }).run(); })}
+      {iconButton("减少缩进", "outdent", () => { editor.chain().focus().updateAttributes(rootType, { indent: Math.max(0, Number(editor.state.doc.firstChild?.attrs.indent ?? 0) - 1) }).run(); })}
     </div>}
     {insertKind && editable && <form className="block-workspace-options" onSubmit={event => { event.preventDefault(); insertUrl(); }}>
       <input aria-label={insertKind === "link" ? "链接地址" : "图片地址"} placeholder="https://…" value={url} onChange={event => setUrl(event.target.value)} autoFocus />

@@ -96,6 +96,9 @@ test("源码常用格式操作单步撤销，只读隐藏写入而保留折叠",
   await page.getByRole("button", { name: "源码", exact: true }).click();
   const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
   const toolbar = page.getByRole("toolbar", { name: "源码编辑工具" });
+  const toolNames = () => toolbar.getByRole("button").evaluateAll(buttons => buttons.map(button => button.getAttribute("aria-label")));
+  const blockTools = ["代码块", "引用", "无序列表", "有序列表", "待办列表", "表格", "分隔线"];
+  await expect.poll(async () => (await toolNames()).filter(name => name && blockTools.includes(name))).toEqual(blockTools);
   for (const [button, expected] of [["斜体", "*hello*"], ["删除线", "~~hello~~"], ["引用", "> hello"], ["无序列表", "- hello"], ["有序列表", "1. hello"], ["待办列表", "- [ ] hello"]]) {
     await replaceSource(area, "hello");
     await selectSource(area, 0, 5);
@@ -137,9 +140,7 @@ test("源码常用格式操作单步撤销，只读隐藏写入而保留折叠",
     await expect(toolbar.getByRole("button", { name, exact: true })).toHaveCount(0);
   }
   await expect(toolbar.getByRole("button", { name: "折叠全部", exact: true })).toBeEnabled();
-  const names = await toolbar.getByRole("button").evaluateAll(buttons => buttons.map(button => button.getAttribute("aria-label")));
-  const micro = names.indexOf("源码微渲染");
-  expect(names.slice(micro + 1, micro + 5)).toEqual(["折叠全部", "选择折叠标题级别", "展开全部", "选择展开标题级别"]);
+  expect((await toolNames()).slice(0, 9)).toEqual(["查找", "跳转行", "折叠全部", "选择折叠标题级别", "展开全部", "选择展开标题级别", "软换行", "语法高亮", "源码微渲染"]);
   await toolbar.getByRole("button", { name: "查找", exact: true }).click();
   await expect(page.getByRole("search", { name: "源码查找与替换" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "替换为", exact: true })).toBeHidden();

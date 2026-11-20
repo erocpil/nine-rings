@@ -248,18 +248,15 @@ export function renderReadonlyBlock(
             <button hidden={isMermaid && showDiagram || isFlow && showFlow} type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} onClick={() => saveBlockWorkspacePreferences({ lineNumbers: !lineNumbers })}>行号</button>
             <button
               type="button"
-              onClick={() => void copyToClipboard(node.textContent)}
-            >
-              {isFlow ? "复制流程源码" : "复制代码"}
-            </button>
-            <button
-              type="button"
               aria-pressed={wrap}
               aria-label={wrap ? "关闭代码软换行" : "开启代码软换行"}
               hidden={isMermaid && showDiagram || isFlow && showFlow}
               onClick={() => update(pos, { wrap: !wrap })}
             >
               换行
+            </button>
+            <button type="button" onClick={() => void copyToClipboard(node.textContent)}>
+              {isFlow ? "复制流程源码" : "复制代码"}
             </button>
             <button type="button" className="block-workspace-open" data-workspace-position={pos} title={isFlow ? "放大阅读流程块" : "放大阅读代码块"} aria-label={isFlow ? "放大阅读流程块" : "放大阅读代码块"}><ToolbarIcon name="expand" /></button>
             <button

@@ -26,8 +26,11 @@
   .editor-content-shell { margin-top: 6px; }
 }
 
-.show-line-numbers .editor-content-shell {
-  --editor-gutter-width: 30px;
+.vr-note .vr-body { --editor-gutter-text-gap: 0px; }
+.show-line-numbers .editor-content-shell { --editor-gutter-width: 30px; }
+
+.show-line-numbers .editor-content-shell,
+.vr-note.show-line-numbers .vr-body {
   --editor-gutter-text-gap: 4px;
 }
 
@@ -46,7 +49,9 @@
   min-height: 100%;
 }
 
-.number-only-gutter { --editor-gutter-number-offset: 0px; }
+.compact-block-gutter { --editor-gutter-number-offset: 0px; }
+.compact-block-gutter .editor-block-select { padding-inline-start: 0; }
+.compact-block-gutter .editor-block-bookmark.without-number { left: -12px; }
 
 .ProseMirror {
   outline: none !important;

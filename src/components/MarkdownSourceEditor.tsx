@@ -1330,47 +1330,6 @@ export function MarkdownSourceEditor({
       >
         <ToolbarIcon name="jumpLine" />
       </button>
-      <button
-        type="button"
-        title="软换行"
-        aria-label="软换行"
-        aria-pressed={preferences.wrap !== false}
-        onClick={() =>
-          saveBlockWorkspacePreferences({ wrap: preferences.wrap === false })
-        }
-      >
-        <ToolbarIcon name="wrap" />
-      </button>
-      {!statusBar.visible && <><SourceWhitespaceToggle />{vimControl}</>}
-      <button
-        type="button"
-        title="语法高亮"
-        aria-label="语法高亮"
-        aria-pressed={preferences.sourceSyntaxHighlighting !== false}
-        onClick={() =>
-          saveBlockWorkspacePreferences({
-            sourceSyntaxHighlighting:
-              preferences.sourceSyntaxHighlighting === false,
-          })
-        }
-      >
-        <ToolbarIcon name="highlight" />
-      </button>
-      {markupMode && (
-        <button
-          type="button"
-          title="源码微渲染"
-          aria-label="源码微渲染"
-          aria-pressed={preferences.sourceMicroRendering === true}
-          onClick={() =>
-            saveBlockWorkspacePreferences({
-              sourceMicroRendering: preferences.sourceMicroRendering !== true,
-            })
-          }
-        >
-          <ToolbarIcon name="font" />
-        </button>
-      )}
       {markupMode ? (
         [true, false].map((collapse) => (
           <span className="source-fold-tool" key={String(collapse)}>
@@ -1462,6 +1421,19 @@ export function MarkdownSourceEditor({
           ]}
         />
       )}
+      <button type="button" title="软换行" aria-label="软换行" aria-pressed={preferences.wrap !== false}
+        onClick={() => saveBlockWorkspacePreferences({ wrap: preferences.wrap === false })}>
+        <ToolbarIcon name="wrap" />
+      </button>
+      <button type="button" title="语法高亮" aria-label="语法高亮" aria-pressed={preferences.sourceSyntaxHighlighting !== false}
+        onClick={() => saveBlockWorkspacePreferences({ sourceSyntaxHighlighting: preferences.sourceSyntaxHighlighting === false })}>
+        <ToolbarIcon name="highlight" />
+      </button>
+      {markupMode && <button type="button" title="源码微渲染" aria-label="源码微渲染" aria-pressed={preferences.sourceMicroRendering === true}
+        onClick={() => saveBlockWorkspacePreferences({ sourceMicroRendering: preferences.sourceMicroRendering !== true })}>
+        <ToolbarIcon name="font" />
+      </button>}
+      {!statusBar.visible && <><SourceWhitespaceToggle />{vimControl}</>}
       {!readonly && (
         <>
           <button
@@ -1497,17 +1469,6 @@ export function MarkdownSourceEditor({
               </button>
               <button
                 type="button"
-                title={shortcutTitle("format.code", "行内代码")}
-                aria-label="行内代码"
-                aria-pressed={formats.code}
-                className={formats.code ? "active" : undefined}
-                disabled={editingReadonly || formats.codeblock}
-                onClick={() => run((v) => wrapSelection(v, "`"))}
-              >
-                <ToolbarIcon name="code" />
-              </button>
-              <button
-                type="button"
                 title={shortcutTitle("format.italic", "斜体")}
                 aria-label="斜体"
                 aria-pressed={formats.italic}
@@ -1530,6 +1491,17 @@ export function MarkdownSourceEditor({
               </button>
               <button
                 type="button"
+                title={shortcutTitle("format.code", "行内代码")}
+                aria-label="行内代码"
+                aria-pressed={formats.code}
+                className={formats.code ? "active" : undefined}
+                disabled={editingReadonly || formats.codeblock}
+                onClick={() => run((v) => wrapSelection(v, "`"))}
+              >
+                <ToolbarIcon name="code" />
+              </button>
+              <button
+                type="button"
                 title={shortcutTitle("format.link", "链接")}
                 aria-label="链接"
                 aria-pressed={formats.link}
@@ -1541,68 +1513,28 @@ export function MarkdownSourceEditor({
               </button>
               {(
                 [
-                  ["引用", "quote", "quote"],
-                  ["无序列表", "bullet", "bullet"],
-                  ["有序列表", "ordered", "ordered"],
-                  ["待办列表", "task", "check"],
+                  ["代码块", "codeBlock", "codeblock", "code", "format.codeblock"],
+                  ["引用", "quote", "quote", "quote", "format.quote"],
+                  ["无序列表", "bullet", "bullet", "bullet", "format.bullet"],
+                  ["有序列表", "ordered", "ordered", "ordered", "format.ordered"],
+                  ["待办列表", "check", "todo", "task", "format.todo"],
+                  ["表格", "table", "table", "table", null],
+                  ["分隔线", "minus", "rule", "rule", null],
                 ] as const
-              ).map(([label, format, icon]) => (
-                <button
-                  key={format}
-                  type="button"
-                  title={shortcutTitle(
-                    `format.${format === "task" ? "todo" : format}`,
-                    label,
-                  )}
-                  aria-label={label}
-                  aria-pressed={formats[format === "task" ? "todo" : format]}
-                  className={
-                    formats[format === "task" ? "todo" : format]
-                      ? "active"
-                      : undefined
-                  }
-                  disabled={editingReadonly || formats.codeblock}
-                  onClick={() =>
-                    run((v) => {
-                      if (v.composing) return false;
-                      const spec = formatSourceLines(v.state, format);
-                      if (!spec) return false;
-                      v.dispatch(spec);
-                      v.focus();
-                      return true;
-                    })
-                  }
-                >
-                  <ToolbarIcon name={icon} />
-                </button>
-              ))}
-              {(
-                [
-                  ["代码块", "code", "codeBlock"],
-                  ["表格", "table", "table"],
-                  ["分隔线", "rule", "minus"],
-                ] as const
-              ).map(([label, kind, icon]) => (
-                <button
+              ).map(([label, icon, format, kind, shortcut]) => {
+                const insert = kind === "code" || kind === "table" || kind === "rule";
+                return <button
                   key={kind}
                   type="button"
-                  title={
-                    kind === "code"
-                      ? shortcutTitle("format.codeblock", label)
-                      : label
-                  }
+                  title={shortcut ? shortcutTitle(shortcut, label) : label}
                   aria-label={label}
-                  aria-pressed={formats[kind === "code" ? "codeblock" : kind]}
-                  className={
-                    formats[kind === "code" ? "codeblock" : kind]
-                      ? "active"
-                      : undefined
-                  }
-                  disabled={editingReadonly}
+                  aria-pressed={formats[format]}
+                  className={formats[format] ? "active" : undefined}
+                  disabled={editingReadonly || (!insert && formats.codeblock)}
                   onClick={() =>
                     run((v) => {
                       if (v.composing) return false;
-                      const spec = insertSourceBlock(v.state, kind);
+                      const spec = insert ? insertSourceBlock(v.state, kind) : formatSourceLines(v.state, kind);
                       if (!spec) return false;
                       v.dispatch(spec);
                       v.focus();
@@ -1611,8 +1543,8 @@ export function MarkdownSourceEditor({
                   }
                 >
                   <ToolbarIcon name={icon} />
-                </button>
-              ))}
+                </button>;
+              })}
             </>
           )}
           <SourceNavigationControls editorRef={view} onMessage={setSourceMessage} />

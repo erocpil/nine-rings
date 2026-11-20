@@ -294,7 +294,6 @@ export function ReadonlyVirtualNote(
     }
   }, [blocks, currentNumber]);
   const { relativeBlockNumbers, relativeBlockNumberAlignment, renderedFoldGutter } = useRelativeNumbering();
-  const numberOnlyGutter = props.showLineNumbers && !renderedFoldGutter;
   const visibleNumbers = useMemo(() => relativeBlockNumbers ? blocks.map(block => block.number) : [], [blocks, relativeBlockNumbers]);
   const closeBlockMenu = useCallback(() => setBlockMenu(null), []);
   useEffect(() => { setBlockMenu(null); }, [doc, active]);
@@ -352,7 +351,7 @@ export function ReadonlyVirtualNote(
     props.editorFontSize,
     props.cjkLatinSpacing,
     props.showLineNumbers,
-    numberOnlyGutter,
+    renderedFoldGutter,
     props.focusMode,
     preserve,
   ]);
@@ -1222,9 +1221,8 @@ export function ReadonlyVirtualNote(
         {
           ...desktopPanelStyle(desktopPanels),
           "--editor-font-size": `${props.editorFontSize}px`,
-          "--editor-gutter-width": `${editorGutterWidth(doc.childCount, props.showLineNumbers, true, !numberOnlyGutter)}px`,
-          "--editor-gutter-number-offset": numberOnlyGutter ? "0px" : "22px",
-          "--editor-gutter-text-gap": props.showLineNumbers ? "4px" : "0px",
+          "--editor-gutter-width": `${editorGutterWidth(doc.childCount, props.showLineNumbers, mobileDrawerViewport || renderedFoldGutter, renderedFoldGutter)}px`,
+          "--editor-gutter-number-offset": renderedFoldGutter ? "22px" : "0px",
         } as React.CSSProperties
       }
     >

@@ -479,6 +479,56 @@ for (const [readonly, virtual] of [[false, false], [true, false], [true, true]])
   });
 }
 
+for (const [readonly, virtual] of [[false, false], [true, false], [true, true]]) test(`关闭折叠和块号后释放左栏，标题栏仍可操作当前块 readonly=${readonly} virtual=${virtual}`, async ({ page }) => {
+  await setup(page, readonly, virtual, false, false);
+  const settings = page.getByRole("button", { name: "块号与折叠设置", exact: true });
+  await settings.click();
+  await page.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true }).click();
+  await page.keyboard.press("Escape");
+  const content = page.locator(virtual ? ".vr-row:visible" : ".ProseMirror:visible").first();
+  await expect(content).toHaveCSS("padding-left", "0px");
+  await expect(page.locator(".editor-block-menu-target, .editor-block-insert")).toHaveCount(0);
+  await page.getByRole("button", { name: "块级操作", exact: true }).click();
+  const popup = page.locator(".block-action-menu");
+  await expect(popup.getByRole("menuitem", { name: "复制 Markdown", exact: true })).toBeVisible();
+  const insertAfter = popup.getByRole("menuitem", { name: "在下方插入段落", exact: true });
+  if (readonly) await expect(insertAfter).toHaveCount(0);
+  else {
+    await insertAfter.click();
+    await expect(content).toBeFocused();
+    await page.keyboard.insertText("inserted at end");
+    await expect(content.locator("p").last()).toHaveText("inserted at end");
+  }
+});
+
+test("编辑时关闭折叠后用块号菜单插入段落，重新启用后恢复加号", async ({ page }) => {
+  await setup(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const body = page.locator(".ProseMirror:visible");
+  const left = () => body.evaluate(element => parseFloat(getComputedStyle(element).paddingLeft));
+  const button = page.getByRole("button", { name: "块号与折叠设置", exact: true });
+  const folds = page.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true });
+  const shortcut = page.locator(".document-editing-tools").getByTitle("在当前块后插入空白块", { exact: true });
+  await expect(shortcut).toBeAttached();
+  const before = await left();
+  await button.click();
+  await folds.click();
+  await page.keyboard.press("Escape");
+  await expect.poll(left).toBeLessThan(before - 12);
+  await expect(shortcut).toHaveCount(0);
+  await expect(page.locator(".editor-block-insert")).toHaveCount(0);
+  await open(page);
+  await menu(page).getByRole("menuitem", { name: "在上方插入段落", exact: true }).click();
+  await expect(body).toBeFocused();
+  await page.keyboard.insertText("inserted at start");
+  await expect(body.locator("p").first()).toHaveText("inserted at start");
+  await button.click();
+  await folds.click();
+  await expect(page.locator(".editor-block-insert").first()).toBeAttached();
+  await expect(shortcut).toBeAttached();
+  await expect.poll(left).toBe(before);
+});
+
 async function featureFixture(page: Page, node: Record<string, unknown>) {
   await setup(page);
   await page.locator(".ProseMirror:visible").evaluate((element, node) => {

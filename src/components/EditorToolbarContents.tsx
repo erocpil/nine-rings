@@ -25,7 +25,7 @@ export interface EditorToolbarProps {
   readonly?: boolean;
   saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
   layout: {
-    isMobileToolbarViewport: boolean;
+    showBlankBlockShortcut: boolean;
     toolbarRef: RefObject<HTMLDivElement>;
   };
   menus: {
@@ -230,6 +230,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {btn(<i>I</i>, () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"), "斜体 (Ctrl+I)", readonly, "format.italic")}
     {btn(<s>S</s>, () => editor.chain().focus().toggleStrike().run(), editor.isActive("strike"), "删除线 (Ctrl+Shift+X)", readonly, "format.strike")}
     {btn(<ToolbarIcon name="code" />, () => editor.chain().focus().toggleCode().run(), editor.isActive("code"), "行内代码", readonly, "format.code")}
+    {btn(<ToolbarIcon name="link" />, () => { setLinkDialogUrl(editor.getAttributes("link").href || ""); setLinkDialog(true); }, false, "添加或编辑链接", readonly, "format.link")}
     {btn(<ToolbarIcon name="erase" />, clearTextFormatting, false, "清除格式", readonly, "format.clear")}
     </>)}
     <span className="menu-sep" />
@@ -250,6 +251,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     <span className="menu-sep" />
     {(<>
     {btn("P", () => editor.chain().focus().clearNodes().run(), false, "正文", readonly, "format.paragraph")}
+    {btn(<ToolbarIcon name="codeBlock" />, handleToggleCodeBlock, editor.isActive("codeBlock"), "代码块 (Ctrl+Alt+C)", readonly, "format.codeblock")}
     {btn(<ToolbarIcon name="quote" />, toggleBlockquote, editor.isActive("blockquote"), "引用 (Ctrl+Shift+B)", readonly, "format.quote")}
     {btn(<ToolbarIcon name="bullet" />, () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly, "format.bullet")}
     <div className="menu-dropdown ordered-list-toolbar toolbar-split-button">
@@ -260,19 +262,12 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     </div>
     {btn(<ToolbarIcon name="indent" />, () => changeSelectedBlockIndent(1), false, editor.isActive("codeBlock") ? "增加代码块缩进（代码内 Tab 仅缩进代码）" : "增加块缩进 (Tab)", readonly)}
     {btn(<ToolbarIcon name="outdent" />, () => changeSelectedBlockIndent(-1), false, editor.isActive("codeBlock") ? "减少代码块缩进（代码内 Shift+Tab 仅减少代码缩进）" : "减少块缩进 (Shift+Tab)", readonly)}
-    {btn(<ToolbarIcon name="code" />, handleToggleCodeBlock, editor.isActive("codeBlock"), "代码块 (Ctrl+Alt+C)", readonly, "format.codeblock")}
-    {btn(<ToolbarIcon name="table" />, () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), editor.isActive("table"), "插入 3×3 表格", readonly || editor.isActive("table"))}
-    {btn("M↓", convertSelectionFromMarkdown, false, "转换所选 Markdown", readonly || !hasSelection())}
-    <button
-      className={`menu-btn ${showCodeLineNumbers ? "active" : ""}`}
-      onClick={() => {
-        const next = !showCodeLineNumbers;
-        onCodeLineNumbersChange(next);
-      }}
-      title={showCodeLineNumbers ? "隐藏代码行号" : "显示代码行号"}
-      type="button"
-    >#</button>
+    {btn(<ToolbarIcon name="lineBreak" />, () => { editor.chain().focus().setHardBreak().run(); }, false, "块内换行（Shift+Enter）", readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak(), undefined, "块内换行")}
+    {(editor.isActive("codeBlock") || editor.isActive("blockquote")) && btn(<ToolbarIcon name="lineBreak" />, () => { exitCurrentStructuredBlock(editor); }, false, "退出当前块（Ctrl+Enter）", readonly)}
+    {layout.showBlankBlockShortcut && btn(<ToolbarIcon name="plus" />, actions.insertBlankBlockAfterCurrent, false, "在当前块后插入空白块", readonly)}
     </>)}
+    <span className="menu-sep" />
+    {btn(<ToolbarIcon name="table" />, () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), editor.isActive("table"), "插入 3×3 表格", readonly || editor.isActive("table"))}
     {editor.isActive("table") && <>
       {btn(<ToolbarIcon name="tableRow" />, () => setTableSelection("row"), false, "选择当前行", readonly)}
       {btn(<ToolbarIcon name="tableColumn" />, () => setTableSelection("column"), false, "选择当前列", readonly)}
@@ -323,19 +318,14 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
         )}
       </div>
     )}
+    {btn(<ToolbarIcon name="code" />, insertFlow, false, "插入流程块", readonly)}
+    {btn("—", () => editor.chain().focus().setHorizontalRule().run(), false, "水平分隔线", readonly)}
+    <button className="menu-btn" data-toolbar-tool="image" onClick={() => { if (!readonly) setImageDialog(true); }} type="button" title="插入图片" disabled={readonly}>
+      <ToolbarIcon name="image" />
+    </button>
+    {btn("M↓", convertSelectionFromMarkdown, false, "转换所选 Markdown", readonly || !hasSelection())}
     <span className="menu-sep" />
-    {btn(<ToolbarIcon name="lineBreak" />, () => { editor.chain().focus().setHardBreak().run(); }, false, "块内换行（Shift+Enter）", readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak(), undefined, "块内换行")}
     <div className="toolbar-secondary">
-    {(<span className="toolbar-clipboard-actions" data-toolbar-tool="clipboard">
-    {btn(<ToolbarIcon name="copy" />, handleCopy, false, "复制 (Ctrl+C)", readonly || !hasSelection(), "edit.copy")}
-    {btn(<ToolbarIcon name="cut" />, handleCut, false, "剪切 (Ctrl+X)", readonly || !hasSelection(), "edit.cut")}
-    {btn(<ToolbarIcon name="paste" />, handleClipboardPaste, false, "粘贴 (Ctrl+V)", readonly, "edit.paste")}
-    {btn(<ToolbarIcon name="export" />, () => { void handleExportMarkdown(); }, false, "导出 Markdown", false, "document.export-md")}
-    </span>)}
-    <span className="menu-sep" />
-
-
-    {/* 分隔后右区：字号 / 颜色 / 图片 */}
     <div className="menu-dropdown" data-toolbar-tool="size">
       <button className="menu-btn" onClick={(e) => { e.stopPropagation(); if (!readonly) toggleMobileToolbarMenu("size", sizeOpen); }} type="button" title="字号" aria-label="字号" aria-expanded={sizeOpen} disabled={readonly}>
         {selectionSize}{dropdownCaret}
@@ -424,33 +414,26 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       )}
     </div>
 
-    {/* 图片 */}
-    <button
-      className="menu-btn"
-      data-toolbar-tool="image"
-      onClick={() => { if (!readonly) setImageDialog(true); }}
-      type="button"
-      title="插入图片"
-      disabled={readonly}
-    >
-      <ToolbarIcon name="image" />
-    </button>
+    <span className="menu-sep" />
+    <span className="toolbar-clipboard-actions" data-toolbar-tool="clipboard">
+      {btn(<ToolbarIcon name="copy" />, handleCopy, false, "复制 (Ctrl+C)", readonly || !hasSelection(), "edit.copy")}
+      {btn(<ToolbarIcon name="cut" />, handleCut, false, "剪切 (Ctrl+X)", readonly || !hasSelection(), "edit.cut")}
+      {btn(<ToolbarIcon name="paste" />, handleClipboardPaste, false, "粘贴 (Ctrl+V)", readonly, "edit.paste")}
+      {btn(<ToolbarIcon name="copy" />, () => selectWholeDocument(editor), false, "全选", false, "edit.all")}
+      {actions.copyReference && btn(<ToolbarIcon name="link" />, () => { void actions.copyReference!("block"); }, false, "复制块引用")}
+      {actions.copyReference && btn(<ToolbarIcon name="link" />, () => { void actions.copyReference!("position"); }, false, hasSelection() ? "复制选中文字引用" : "复制此处引用")}
+    </span>
+    {btn(<ToolbarIcon name="export" />, () => { void handleExportMarkdown(); }, false, "导出 Markdown", false, "document.export-md")}
+    {handleExportPdf && btn(<ToolbarIcon name="document" />, handleExportPdf, false, "导出 PDF", false, "document.export-pdf")}
     <span className="menu-sep" />
     <span className="toolbar-font-actions" data-toolbar-tool="font">
     {btn("A⁻", () => onEditorFontSizeChange(Math.max(12, editorFontSize - 1)), false, "缩小字号", editorFontSize <= 12)}
     <span className="menu-font-size-label">{editorFontSize}</span>
     {btn("A⁺", () => onEditorFontSizeChange(Math.min(32, editorFontSize + 1)), false, "放大字号", editorFontSize >= 32)}
     </span>
+    <button className={`menu-btn ${showCodeLineNumbers ? "active" : ""}`} onClick={() => onCodeLineNumbersChange(!showCodeLineNumbers)}
+      title={showCodeLineNumbers ? "隐藏代码行号" : "显示代码行号"} type="button">#</button>
     </div>
-    {(editor.isActive("codeBlock") || editor.isActive("blockquote")) && btn(<ToolbarIcon name="lineBreak" />, () => { exitCurrentStructuredBlock(editor); }, false, "退出当前块（Ctrl+Enter）", readonly)}
-    {layout.isMobileToolbarViewport && btn(<ToolbarIcon name="plus" />, actions.insertBlankBlockAfterCurrent, false, "在当前块后插入空白块", readonly)}
-    {btn(<ToolbarIcon name="code" />, insertFlow, false, "插入流程块", readonly)}
-    {actions.copyReference && btn(<ToolbarIcon name="link" />, () => { void actions.copyReference!("block"); }, false, "复制块引用")}
-    {actions.copyReference && btn(<ToolbarIcon name="link" />, () => { void actions.copyReference!("position"); }, false, hasSelection() ? "复制选中文字引用" : "复制此处引用")}
-    {btn("—", () => editor.chain().focus().setHorizontalRule().run(), false, "水平分隔线", readonly)}
-    {btn(<ToolbarIcon name="copy" />, () => selectWholeDocument(editor), false, "全选", false, "edit.all")}
-    {handleExportPdf && btn(<ToolbarIcon name="document" />, handleExportPdf, false, "导出 PDF", false, "document.export-pdf")}
-    {btn(<ToolbarIcon name="link" />, () => { setLinkDialogUrl(editor.getAttributes("link").href || ""); setLinkDialog(true); }, false, "添加或编辑链接", readonly, "format.link")}
     {saveStatus && saveStatus !== "clean" && (
       <span role="status" className={`save-status save-status-${saveStatus}`} title={
         saveStatus === "dirty" ? "未保存" :

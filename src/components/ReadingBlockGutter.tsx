@@ -22,7 +22,7 @@ export function ReadingBlockGutter({ node, number, displayNumber, active, showNu
 }) {
   return <>
     {showNumbers && active && <div className="editor-block-current-band" aria-hidden="true" data-block-index={number} style={{ top: 0, bottom: 0 }} />}
-    {!showNumbers && <button type="button" className="editor-block-menu-target" aria-label={`第 ${number} 块操作`} aria-haspopup="menu"
+    {!showNumbers && showFolds && <button type="button" className="editor-block-menu-target" aria-label={`第 ${number} 块操作`} aria-haspopup="menu"
       onMouseDown={event => event.preventDefault()} onClick={event => { event.stopPropagation(); onOpen(event.currentTarget); }} />}
     <div className="vr-gutter" contentEditable={false}>
       {showFolds && section && section.end > section.headingEnd && <button type="button" aria-label={`折叠切换 ${outlineLabel(section.text)}`} aria-expanded={!folded}
