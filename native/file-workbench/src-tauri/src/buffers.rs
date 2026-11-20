@@ -31,6 +31,14 @@ pub struct BufferRecord {
     pub bom: bool,
     pub line_ending: String,
 }
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BufferBase {
+    source: String,
+    revision: String,
+    bom: bool,
+    line_ending: String,
+}
 pub struct BufferDocuments {
     directory: PathBuf,
     records: Mutex<HashMap<String, BufferRecord>>,
@@ -194,6 +202,7 @@ impl BufferDocuments {
         id: &str,
         expected: u64,
         source: String,
+        base: Option<BufferBase>,
     ) -> Result<BufferRecord, String> {
         if source.len() > MAX_BYTES {
             return Err("文件超过4 MiB，尚未保存到本机".into());
@@ -209,6 +218,15 @@ impl BufferDocuments {
         }
         let mut value = old.clone();
         value.source = source;
+        if let Some(base) = base {
+            if value.path.is_none() || base.source.len() > MAX_BYTES {
+                return Err("磁盘基准无效，未覆盖本机草稿".into());
+            }
+            value.base_source = base.source;
+            value.base_revision = base.revision;
+            value.bom = base.bom;
+            value.line_ending = base.line_ending;
+        }
         value.version += 1;
         self.persist(&value)?;
         records.insert(id.into(), value.clone());
@@ -306,11 +324,12 @@ pub fn workbench_buffer_checkpoint(
     id: String,
     version: u64,
     source: String,
+    base: Option<BufferBase>,
 ) -> Result<BufferRecord, String> {
     super::editor_window::editor(&window)?;
     window
         .state::<BufferDocuments>()
-        .checkpoint(&id, version, source)
+        .checkpoint(&id, version, source, base)
 }
 #[tauri::command]
 pub fn workbench_buffer_snapshot(
@@ -475,7 +494,7 @@ mod tests {
         assert_eq!(first.name, "未命名");
         assert_eq!(second.name, "未命名 2");
         store
-            .checkpoint(&first.id, first.version, "临时想法\nhello".into())
+            .checkpoint(&first.id, first.version, "临时想法\nhello".into(), None)
             .unwrap();
         store.close(&first.id).unwrap();
         drop(store);
@@ -491,14 +510,14 @@ mod tests {
         let fixture = Fixture::new();
         let store = fixture.store();
         let first = store.create().unwrap();
-        let next = store.checkpoint(&first.id, 1, "new".into()).unwrap();
-        assert!(store.checkpoint(&first.id, 1, "old".into()).is_err());
+        let next = store.checkpoint(&first.id, 1, "new".into(), None).unwrap();
+        assert!(store.checkpoint(&first.id, 1, "old".into(), None).is_err());
         assert!(store
-            .checkpoint(&first.id, next.version, "x".repeat(MAX_BYTES + 1))
+            .checkpoint(&first.id, next.version, "x".repeat(MAX_BYTES + 1), None)
             .is_err());
         let saving = store.begin_save(&first.id).unwrap();
         assert!(store
-            .checkpoint(&first.id, next.version, "lost".into())
+            .checkpoint(&first.id, next.version, "lost".into(), None)
             .is_err());
         assert!(store.discard(&first.id).is_err());
         assert!(store.close(&first.id).is_err());
@@ -506,7 +525,7 @@ mod tests {
         drop(saving);
         assert_eq!(store.get(&first.id).unwrap().source, "new");
         store
-            .checkpoint(&first.id, next.version, "".into())
+            .checkpoint(&first.id, next.version, "".into(), None)
             .unwrap();
         assert_eq!(fixture.store().get(&first.id).unwrap().source, "");
     }
@@ -527,12 +546,12 @@ mod tests {
         assert!(saved.bom);
         assert_eq!(saved.line_ending, "crlf");
         let edited = store
-            .checkpoint(&first.id, saved.version, "edited".into())
+            .checkpoint(&first.id, saved.version, "edited".into(), None)
             .unwrap();
         store.close(&first.id).unwrap();
         assert_eq!(fixture.store().get(&first.id).unwrap().source, "edited");
         store
-            .checkpoint(&first.id, edited.version, "saved".into())
+            .checkpoint(&first.id, edited.version, "saved".into(), None)
             .unwrap();
         store.close(&first.id).unwrap();
         assert!(fixture.store().list().unwrap().is_empty());
@@ -540,6 +559,41 @@ mod tests {
         let another = store.create().unwrap();
         store.discard(&another.id).unwrap();
         assert!(fixture.store().list().unwrap().is_empty());
+    }
+    #[test]
+    fn checkpoint_persists_the_reloaded_disk_baseline_with_the_draft() {
+        let fixture = Fixture::new();
+        let store = fixture.store();
+        let first = store.create().unwrap();
+        let path = fixture.0.join("saved.txt");
+        fs::write(&path, "external").unwrap();
+        let saved = store
+            .committed(
+                &first.id,
+                path.clone(),
+                &json!({"source":"previous", "revision":"first"}),
+            )
+            .unwrap();
+        store
+            .checkpoint(
+                &first.id,
+                saved.version,
+                "local edit".into(),
+                Some(BufferBase {
+                    source: "external".into(),
+                    revision: "second".into(),
+                    bom: true,
+                    line_ending: "crlf".into(),
+                }),
+            )
+            .unwrap();
+        let reopened = fixture.store().get(&first.id).unwrap();
+        assert_eq!(reopened.source, "local edit");
+        assert_eq!(reopened.base_source, "external");
+        assert_eq!(reopened.base_revision, "second");
+        assert_eq!(reopened.line_ending, "crlf");
+        assert!(reopened.bom);
+        assert_eq!(fs::read_to_string(path).unwrap(), "external");
     }
     #[test]
     fn limit_and_corruption_never_evict_existing_documents() {

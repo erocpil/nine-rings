@@ -1,5 +1,11 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-20 Workbench Editor 检查磁盘外部修改
+
+- 模拟 Tauri 桥接覆盖窗口恢复焦点后的同长度修改、只读源码选区恢复、只读 Markdown 自动重读、源码与渲染切换、未保存渲染正文与磁盘版的差异比较，以及原文件消失时保留当前内容。已有保存冲突用例继续核对磁盘原文和写入次数。
+- 首次保存后绑定路径的本机文档在重新激活时重读磁盘，并将新版本写入本机草稿基准。Rust 回归核对重开后草稿和新的基准可用，对应磁盘文件保持原外部内容。
+- Workbench Chromium 全量 100 通过。WebKit 首轮 99 通过、1 项在打开目录快照时超时，重新以三个 worker 完整运行后 100 通过。Nine Rings 外部改动自动重读定向 Chromium 1 项通过。Workbench 原生 Rust 28 项、Clippy、`npm run check` 和 Workbench 生产构建通过。macOS 安装版仍待实机验收。
+
 ## 2026-11-20 主分支 CI 与全量复验
 
 - `423ccb27`、`cddd43e0` 和 Workbench 原生 Clippy 修复 `1f75eb57` 已推送至 `origin/main`。`cddd43e0` 的 Rust 门禁报出 4 处多余借用和 2 处多余克隆。`1f75eb57` 的 Rust 测试、Clippy、IPC 契约检查、通用 CI 和三平台 Tauri 构建通过。按变更路径，后一个提交跳过前端 Playwright。`cddd43e0` 的原生平台 E2E 六项通过，Test 工作流中的全量 Playwright 仍在运行。 [原生修复的 Test 工作流](https://github.com/erocpil/nine-rings/actions/runs/44756588684) [前一提交的原生平台 E2E](https://github.com/erocpil/nine-rings/actions/runs/44755132073) [前一提交的全量 Playwright](https://github.com/erocpil/nine-rings/actions/runs/44755132149/job/136352852622)

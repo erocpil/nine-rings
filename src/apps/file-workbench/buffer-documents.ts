@@ -6,11 +6,12 @@ export interface BufferRecord {
   id: string; name: string; source: string; version: number; path: string | null;
   baseSource: string; baseRevision: string; createdAt: number; bom: boolean; lineEnding: LocalFileSnapshot["lineEnding"];
 }
+type BufferBase = Pick<LocalFileSnapshot, "source" | "revision" | "bom" | "lineEnding">;
 export interface BufferDocumentPort {
   create(): Promise<void>;
   discard(id: string): Promise<void>;
   read(id: string): Promise<BufferRecord>;
-  checkpoint(id: string, version: number, source: string): Promise<BufferRecord>;
+  checkpoint(id: string, version: number, source: string, base?: BufferBase): Promise<BufferRecord>;
   snapshot(id: string): Promise<LocalFileSnapshot>;
   save(id: string, source: string, base: LocalFileSnapshot): Promise<{ record: BufferRecord; snapshot: LocalFileSnapshot } | null>;
 }
@@ -18,7 +19,7 @@ export const bufferDocumentPort: BufferDocumentPort = {
   create: () => invoke("workbench_new_document"),
   discard: id => invoke("workbench_buffer_discard", { id }),
   read: id => invoke("workbench_buffer_read", { id }),
-  checkpoint: (id, version, source) => invoke("workbench_buffer_checkpoint", { id, version, source }),
+  checkpoint: (id, version, source, base) => invoke("workbench_buffer_checkpoint", { id, version, source, base }),
   snapshot: id => invoke("workbench_buffer_snapshot", { id }),
   save: (id, source, base) => invoke("workbench_buffer_save", { id, source, revision: base.revision, bom: base.bom, lineEnding: base.lineEnding }),
 };
@@ -34,8 +35,9 @@ export function createBufferDocumentHost(initial: BufferRecord, source: LocalSou
     pending = next; return next;
   };
   const accept = (next: BufferRecord) => { value = next; changed(next); };
-  const checkpoint = async (text: string) => {
-    if (text !== value.source) accept(await port.checkpoint(value.id, value.version, text));
+  const checkpoint = async (text: string, base?: BufferBase) => {
+    const nextBase = value.path && base && base.revision !== value.baseRevision ? base : undefined;
+    if (text !== value.source || nextBase) accept(await port.checkpoint(value.id, value.version, text, nextBase));
   };
   const host: LocalSourceHost = {
     assertActive: source.assertActive,
@@ -43,7 +45,7 @@ export function createBufferDocumentHost(initial: BufferRecord, source: LocalSou
     canSaveOriginal: () => true,
     saveCopy: source.saveCopy,
     write: (_root, _node, text, base) => lane(async () => {
-      await checkpoint(text);
+      await checkpoint(text, base);
       const result = await port.save(value.id, text, base);
       if (!result) throw new BufferSaveCancelled();
       accept(result.record); return result.snapshot;
@@ -53,7 +55,7 @@ export function createBufferDocumentHost(initial: BufferRecord, source: LocalSou
       read: () => lane(async () => value.path && value.source !== value.baseSource
         ? { identity: `workbench-buffer:${value.id}`, source: value.source, baseSource: value.baseSource, baseRevision: value.baseRevision,
           bom: value.bom, lineEnding: value.lineEnding, savedAt: Date.now() } : null),
-      write: draft => lane(() => checkpoint(draft.source)),
+      write: draft => lane(() => checkpoint(draft.source, { source: draft.baseSource, revision: draft.baseRevision, bom: draft.bom, lineEnding: draft.lineEnding })),
       // Clearing a disk draft must not delete the persistent document itself.
       remove: () => lane(async () => { if (value.path) await checkpoint(value.baseSource); }),
     },

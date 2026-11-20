@@ -55,6 +55,8 @@ import type { LocalFileDraft } from "../../lib/local-files/recovery";
 import "../../styles/local-files.css";
 
 const MarkdownWorkspace = lazy(() => import("../../components/LocalMarkdownWorkspace").then(module => ({ default: module.LocalMarkdownWorkspace })));
+const DISK_CONFLICT = "磁盘文件已被外部修改。当前编辑已保留。";
+const DISK_RELOADED = "磁盘文件已重新载入。";
 
 export function WorkbenchSourceView({ file, host, provider, settings, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false, active = true, closeLabel = "返回文件浏览", onCloseCancelled, onDirtyChange, navigationRequest, beforeCloseActions, onCreateDocument, untitled = false, initialReadonly = true, documentPath, persistDocument = false, onFollowFile, linkRequest, onLinkHistory, linkHistory, linkOrigin }: {
   linkOrigin?: { rootId: string; node: string; read: LocalSourceHost["read"] };
@@ -99,6 +101,8 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const { area: handle, onSourceReady } = position;
   const positionRef = useRef(position); positionRef.current = position;
   const session = useRef<EditorState | null>(null);
+  const reloadPosition = useRef<LinkViewPosition>();
+  const renderedScroller = useCallback(() => previewRoot.current?.querySelector<HTMLElement>(".workbench-rendered-session .note-editor-scroll"), []);
   const renderedEditor = useRef<Editor | null>(null);
   const readonlyCurrent = useRef(true);
   const activeCurrent = useRef(active); activeCurrent.current = active;
@@ -111,11 +115,32 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const registerRenderedFlush = useCallback((value: LocalRenderedFlush | null) => { renderedFlush.current = value; }, []);
   const bindRendered = useCallback((editor: Editor | null) => {
     renderedEditor.current = editor; positionRef.current.onRenderedReady(editor);
+    const saved = reloadPosition.current;
+    if (editor && saved?.rendered) {
+      reloadPosition.current = undefined;
+      requestAnimationFrame(() => {
+        if (renderedEditor.current !== editor || editor.isDestroyed || !renderMode.current) return;
+        const end = editor.state.doc.content.size;
+        setNavigationSelection(editor, { from: Math.max(1, Math.min(saved.from, end)), to: Math.max(1, Math.min(saved.to, end)) });
+        renderedScroller()?.scrollTo({ top: saved.top, left: saved.left });
+      });
+    }
     if (editor && activeCurrent.current && renderMode.current && !document.querySelector("dialog[open]")) {
       if (readonlyCurrent.current) previewRoot.current?.focus({ preventScroll: true });
       else requestAnimationFrame(() => { if (activeCurrent.current && renderMode.current && renderedEditor.current === editor && !editor.isDestroyed && !document.querySelector("dialog[open]")) editor.view.focus(); });
     }
-  }, []);
+  }, [renderedScroller]);
+  const capturePosition = useCallback((): LinkViewPosition => {
+    if (renderMode.current) {
+      const selection = renderedEditor.current?.state.selection;
+      const scroll = renderedScroller();
+      return { rendered: true, from: selection?.from ?? 0, to: selection?.to ?? 0, top: scroll?.scrollTop ?? 0, left: scroll?.scrollLeft ?? 0 };
+    }
+    const editor = handle.current;
+    const selection = editor?.view.state.selection.main;
+    return { rendered: false, from: selection?.anchor ?? 0, to: selection?.head ?? 0,
+      top: editor?.view.scrollDOM.scrollTop ?? 0, left: editor?.view.scrollDOM.scrollLeft ?? 0 };
+  }, [handle, renderedScroller]);
   const current = useCallback(() => { renderedFlush.current?.flush(); return sourceRef.current; }, []);
   const changePreviewMode = (value: boolean) => {
     if (value === renderMode.current) return;
@@ -170,17 +195,19 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     return () => window.removeEventListener(TOOLBAR_PREFERENCES_ERROR, failed);
   }, []);
   const [saving, setSaving] = useState(false), busy = useRef(false);
+  const reading = useRef(false);
   const [external, setExternal] = useState<LocalFileSnapshot | null>(null);
+  const [diskChange, setDiskChange] = useState<LocalFileSnapshot | string | null>(null);
   const [leave, setLeave] = useState<"close" | "reload" | null>(null);
   const [draftAvailable, setDraftAvailable] = useState(true);
   const [candidate, setCandidate] = useState<LocalFileDraft | null>(null);
   const dirty = Boolean(base && (untitled || source !== base.source || renderPending));
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
-  const change = (text: string, range?: SourceEditRange) => {
+  const change = useCallback((text: string, range?: SourceEditRange) => {
     const before = sourceRef.current;
     setLineBookmarks(items => remapLocalFileBookmarks(items, before, text, (item, mapOffset) => ({ ...item, position: mapOffset(item.position) }), range));
     sourceRef.current = text; setSource(text);
-  };
+  }, []);
   useEffect(() => {
     try { settings.setItem(`bookmarks:${identity}`, JSON.stringify(lineBookmarks)); }
     catch { setNotice("书签未能保存到本机，请检查存储空间。 "); }
@@ -193,6 +220,8 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     isSaving: () => busy.current,
   }), [current, host, identity, persistDocument]);
   const read = useCallback(async () => {
+    if (reading.current || busy.current) return;
+    reading.current = true;
     setLoading(true); setError("");
     try {
       const snapshot = await host.read(file.rootId, file.node.id);
@@ -201,9 +230,9 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       catch (cause) { setDraftAvailable(false); setNotice(`恢复草稿不可用，暂时只读：${String(cause)}`); }
       setCandidate(draft?.source !== snapshot.source ? draft : null);
       sourceRef.current = snapshot.source; sourceProjection.current = snapshot.source; setSource(snapshot.source); baseRef.current = snapshot; setBase(snapshot);
-      session.current = null; setRenderEpoch(value => value + 1); setRenderPending(false); setExternal(null); setReadonlyState(readWorkbenchFileView(settings, identity).readonly ?? initialReadonly);
+      session.current = null; setRenderEpoch(value => value + 1); setRenderPending(false); setExternal(null); setDiskChange(null); setReadonlyState(readWorkbenchFileView(settings, identity).readonly ?? initialReadonly);
     } catch (cause) { setError(String(cause)); }
-    finally { setLoading(false); }
+    finally { reading.current = false; setLoading(false); }
   }, [file.rootId, file.node.id, host, identity, initialReadonly, settings]);
   useEffect(() => {
     let live = true;
@@ -217,6 +246,67 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     }).catch(cause => { if (live) { setError(String(cause)); setLoading(false); } });
     return () => { live = false; };
   }, [host, identity, file.rootId, file.node.id]);
+  useEffect(() => {
+    if (!active || untitled || loading || candidate || leave) return;
+    let live = true, checking = false, fullCheckRequested = false, lastFullCheck = 0;
+    let observed: LocalFileSnapshot | undefined;
+    const check = async (full = false) => {
+      const baseline = baseRef.current;
+      if (!live || !baseline || busy.current || reading.current || document.visibilityState === "hidden") return;
+      if (checking) { if (full) fullCheckRequested = true; return; }
+      checking = true;
+      const applicable = () => live && activeCurrent.current && !busy.current && !reading.current && baseRef.current === baseline && document.visibilityState !== "hidden";
+      try {
+        const fingerprint = await host.stat?.(file.rootId, file.node.id);
+        if (!applicable() || fingerprint === null) return;
+        const now = Date.now();
+        const previous = observed ?? baseline;
+        if (!full && now - lastFullCheck < 15_000 && (!fingerprint || (fingerprint.size === previous.size && fingerprint.modifiedMs === previous.modifiedMs))) return;
+        lastFullCheck = now;
+        const next = await host.read(file.rootId, file.node.id);
+        if (!applicable()) return;
+        observed = next;
+        if (next.revision === baseline.revision) {
+          setDiskChange(change => change === DISK_RELOADED ? change : null);
+          return;
+        }
+        if (handle.current?.view.composing || renderedEditor.current?.view.composing) { lastFullCheck = 0; return; }
+        if (current() !== baseline.source) {
+          setDiskChange(change => typeof change === "object" && change?.revision === next.revision ? change : next);
+          return;
+        }
+        baseRef.current = next; setBase(next);
+        sourceProjection.current = next.source; change(next.source);
+        if (next.source !== baseline.source) {
+          reloadPosition.current = capturePosition();
+          session.current = null;
+          setRenderEpoch(value => value + 1);
+        }
+        setRenderPending(false); setExternal(null); setDiskChange(DISK_RELOADED);
+        if (persistDocument) {
+          void host.drafts.write({ identity, source: next.source, baseSource: next.source, baseRevision: next.revision, bom: next.bom, lineEnding: next.lineEnding, savedAt: now })
+            .catch(cause => { if (live) setNotice(`本机编辑记录更新失败：${String(cause)}`); });
+        }
+      } catch (cause) {
+        if (applicable()) setDiskChange(`暂时无法重新读取磁盘文件，当前内容已保留。${String(cause)}`);
+      } finally {
+        checking = false;
+        if (fullCheckRequested) { fullCheckRequested = false; void check(true); }
+      }
+    };
+    const resume = () => { void check(true); };
+    // Initial load already read the file. Activating an existing tab checks on the next tick.
+    const activation = window.setTimeout(() => { if (document.hasFocus()) resume(); }, 0);
+    const timer = window.setInterval(() => { void check(); }, 3000);
+    window.addEventListener("focus", resume);
+    document.addEventListener("visibilitychange", resume);
+    return () => {
+      live = false;
+      window.clearTimeout(activation); window.clearInterval(timer);
+      window.removeEventListener("focus", resume);
+      document.removeEventListener("visibilitychange", resume);
+    };
+  }, [active, candidate, capturePosition, change, current, file.node.id, file.rootId, handle, host, identity, leave, loading, persistDocument, untitled]);
   useEffect(() => {
     if (!dirty || candidate || saving || leave || error) return;
     const timer = window.setTimeout(() => { void checkpoint().catch(cause => setError(`草稿暂存失败：${String(cause)}`)); }, untitled ? 150 : 500);
@@ -260,7 +350,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     try {
       const result = await saveLocalSource({ submitted: current(), base: baseRef.current, currentSource: current,
         write: (text, snapshot) => host.write(file.rootId, file.node.id, text, snapshot),
-        committed: saved => { baseRef.current = saved; setBase(saved); setExternal(null); },
+        committed: saved => { baseRef.current = saved; setBase(saved); setExternal(null); setDiskChange(null); },
         clearDraft: () => host.drafts.remove(identity),
         keepDraft: (text, saved) => host.drafts.write({ identity, source: text, baseSource: saved.source, baseRevision: saved.revision, bom: saved.bom, lineEnding: saved.lineEnding, savedAt: Date.now() }),
       });
@@ -270,8 +360,9 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     } catch (cause) {
       if (cause instanceof BufferSaveCancelled) return false;
       if (String(cause).includes("STALE_REVISION")) {
-        setExternal(await host.read(file.rootId, file.node.id).catch(() => null));
-        setError("磁盘文件已变化，未覆盖。请比较后导出副本或重新读取磁盘文件。");
+        const snapshot = await host.read(file.rootId, file.node.id).catch(() => null);
+        setExternal(snapshot);
+        setDiskChange(snapshot ?? "磁盘文件已变化，未覆盖。暂时无法读取磁盘版本。");
       } else setError(String(cause));
       return false;
     } finally { busy.current = false; setSaving(false); }
@@ -321,6 +412,14 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const bindHandle = useCallback((editor: SourceEditorHandle | null) => {
     const location = searchLocation.current, snapshot = baseRef.current;
     onSourceReady(editor);
+    const saved = reloadPosition.current;
+    if (editor && saved && !saved.rendered) {
+      reloadPosition.current = undefined;
+      editor.setSelectionRange(Math.min(saved.from, editor.value.length), Math.min(saved.to, editor.value.length));
+      requestAnimationFrame(() => {
+        if (handle.current === editor && !renderMode.current) editor.view.scrollDOM.scrollTo({ top: saved.top, left: saved.left });
+      });
+    }
     if (editor && activeCurrent.current && !renderMode.current && !readonlyCurrent.current) {
       requestAnimationFrame(() => {
         if (handle.current === editor && activeCurrent.current && !renderMode.current && !readonlyCurrent.current && !document.querySelector("dialog[open], [role=dialog]")) editor.focus();
@@ -349,18 +448,6 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     setRenderedLinkReady(Boolean(navigate));
   }, []);
   const [linkNotice, setLinkNotice] = useState<{ message: string; offerStart?: boolean }>();
-  const renderedScroller = () => previewRoot.current?.querySelector<HTMLElement>(".workbench-rendered-session .note-editor-scroll");
-  const capturePosition = (): LinkViewPosition => {
-    if (renderMarkdown) {
-      const selection = renderedEditor.current?.state.selection;
-      const scroll = renderedScroller();
-      return { rendered: true, from: selection?.from ?? 0, to: selection?.to ?? 0, top: scroll?.scrollTop ?? 0, left: scroll?.scrollLeft ?? 0 };
-    }
-    const editor = handle.current;
-    const selection = editor?.view.state.selection.main;
-    return { rendered: false, from: selection?.anchor ?? 0, to: selection?.head ?? 0,
-      top: editor?.view.scrollDOM.scrollTop ?? 0, left: editor?.view.scrollDOM.scrollLeft ?? 0 };
-  };
   const goToFileStart = () => {
     if (renderMarkdown) renderedScroller()?.scrollTo({ top: 0, left: 0 });
     else handle.current?.revealOffset(0);
@@ -471,6 +558,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       {titleActions}
     </DocumentTitleBar>}
     {loading && <p role="status">正在读取文件…</p>}
+    {diskChange && <div className="workbench-source-notice" role="status">{typeof diskChange === "string" ? diskChange : <>{DISK_CONFLICT}<button type="button" onClick={() => setExternal(diskChange)}>比较磁盘版本</button></>}</div>}
     {error && !base && <>{unsupported && <p>此文件暂时无法内置预览，可使用其它应用打开。</p>}<FileBrowserFileDetails rootId={file.rootId} node={file.node.id} provider={provider} /></>}
     {error && !unsupported && !external && !leave && active && <WorkspaceDialog title="文件操作异常" onClose={() => setError("")}><p role="alert">{error}</p></WorkspaceDialog>}
     {linkCheck !== null && active && <MarkdownLinkCheckDialog key={renderMarkdown ? "rendered" : "source"} node={linkOrigin?.node ?? file.node.id} rootId={linkOrigin?.rootId ?? file.rootId}
@@ -499,14 +587,14 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
         </Suspense>
       </DocumentImageLibraryContext.Provider>
     </div>}
-    {!loading && base && sourceMounted && <div className="local-file-editor-shell workbench-source-session" style={{ "--editor-font-family": blockFontFamily(typography.source_font_family), "--editor-source-font-family": blockFontFamily(typography.source_font_family) } as React.CSSProperties} hidden={renderMarkdown}><DocumentNavigationWorkspace origin="local" active={active && !renderMarkdown} revision={sourceNavigation} bookmarkItems={lineBookmarks.map(item => ({ ...item, offset: item.position, blockNumber: source.slice(0, item.position).split("\n").length }))} sourceHandle={position.sourceHandle} onJump={offset => { handle.current?.setSelectionRange(offset, offset); handle.current?.scrollToOffset(offset, true); }} onToggleBookmark={offset => setLineBookmarks(items => items.some(item => item.position === offset) ? items.filter(item => item.position !== offset) : [...items, { id: crypto.randomUUID(), position: offset, label: "", preview: source.slice(offset, offset + 80) }])} onRemoveBookmark={id => setLineBookmarks(items => items.filter(item => item.id !== id))} onRenameBookmark={(id, label) => setLineBookmarks(items => items.map(item => item.id === id ? { ...item, label } : item))}>{controls => <>{navigationTarget && createPortal(controls, navigationTarget)}<DocumentActiveBoundary active={active && !renderMarkdown}><DocumentSourceSurface editor={{ value: sourceProjection.current, readonly: readonly || renderMarkdown || !active, areaRef: handle, session, onChange: change, fontSize: typography.note_font_size, highlightActiveLine: editorSettings.highlight_active_line, showLineNumbers: editorSettings.editor_show_line_numbers, onEditorConfigChange: async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, readWorkbenchEditorSettings(settings), patch)); }, showStatusBar: editorSettings.editor_show_status_bar, contextMenuEnabled: editorSettings.use_custom_context_menu, onCreateDocument, createDocumentLabel: "新建文件", documentLanguage: language, documentLanguageValue: languageOverride ?? AUTO_DOCUMENT_LANGUAGE, documentLanguageOptions: documentLanguageViewOptions(detectedLanguage), onDocumentLanguageChange: value => {
+    {!loading && base && sourceMounted && <div className="local-file-editor-shell workbench-source-session" style={{ "--editor-font-family": blockFontFamily(typography.source_font_family), "--editor-source-font-family": blockFontFamily(typography.source_font_family) } as React.CSSProperties} hidden={renderMarkdown}><DocumentNavigationWorkspace origin="local" active={active && !renderMarkdown} revision={sourceNavigation} bookmarkItems={lineBookmarks.map(item => ({ ...item, offset: item.position, blockNumber: source.slice(0, item.position).split("\n").length }))} sourceHandle={position.sourceHandle} onJump={offset => { handle.current?.setSelectionRange(offset, offset); handle.current?.scrollToOffset(offset, true); }} onToggleBookmark={offset => setLineBookmarks(items => items.some(item => item.position === offset) ? items.filter(item => item.position !== offset) : [...items, { id: crypto.randomUUID(), position: offset, label: "", preview: source.slice(offset, offset + 80) }])} onRemoveBookmark={id => setLineBookmarks(items => items.filter(item => item.id !== id))} onRenameBookmark={(id, label) => setLineBookmarks(items => items.map(item => item.id === id ? { ...item, label } : item))}>{controls => <>{navigationTarget && createPortal(controls, navigationTarget)}<DocumentActiveBoundary active={active && !renderMarkdown}><DocumentSourceSurface key={renderEpoch} editor={{ value: sourceProjection.current, readonly: readonly || renderMarkdown || !active, areaRef: handle, session, onChange: change, fontSize: typography.note_font_size, highlightActiveLine: editorSettings.highlight_active_line, showLineNumbers: editorSettings.editor_show_line_numbers, onEditorConfigChange: async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, readWorkbenchEditorSettings(settings), patch)); }, showStatusBar: editorSettings.editor_show_status_bar, contextMenuEnabled: editorSettings.use_custom_context_menu, onCreateDocument, createDocumentLabel: "新建文件", documentLanguage: language, documentLanguageValue: languageOverride ?? AUTO_DOCUMENT_LANGUAGE, documentLanguageOptions: documentLanguageViewOptions(detectedLanguage), onDocumentLanguageChange: value => {
         try { saveWorkbenchFileLanguage(settings, identity, value); setLanguageOverride(value === AUTO_DOCUMENT_LANGUAGE ? null : value); }
         catch (cause) { setError(String(cause)); }
       }, saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,
       onReady: bindHandle, onOpenLink: href => void followLink(href), canOpenLink: canFollowMarkdownLink,
     }} /></DocumentActiveBoundary></>}</DocumentNavigationWorkspace></div>}
     {settingsOpen && active && <WorkbenchEditorSettingsDialog typography={typography} config={editorSettings} store={settings} onClose={() => setSettingsOpen(false)} />}
-    {external && <WorkspaceDialog title="磁盘版本比较" onClose={() => setExternal(null)}><p role="alert">{error}</p><TextDiffView left={source} right={external.source} leftLabel="当前编辑" rightLabel="磁盘版本" /></WorkspaceDialog>}
+    {external && active && <WorkspaceDialog title="磁盘版本比较" onClose={() => setExternal(null)}><p role="alert">{DISK_CONFLICT}</p><TextDiffView left={source} right={external.source} leftLabel="当前编辑" rightLabel="磁盘版本" /></WorkspaceDialog>}
     {leave && <WorkspaceDialog title="未保存的文件编辑" onClose={cancelLeave}>{error && <p role="alert">{error}</p>}<p>{persistDocument ? "首次保存时选择文件位置；也可保留本机编辑文档，下次启动会恢复。删除本机编辑草稿需通过标签菜单明确确认。" : "请先保存到原文件，或确认恢复草稿已持久化后离开。导出副本不会将原文件标记为已保存。最多保留 5 份草稿，不自动淘汰；满额时须先处理旧草稿。"}</p><div>
       <button type="button" disabled={saving || !host.canSaveOriginal(file.rootId)} onClick={() => { void save().then(clean => { if (clean) { const target = leave; setLeave(null); if (target === "close") finishClose(); else void read(); } }); }}>保存后继续</button>
       <button type="button" disabled={saving} onClick={() => void keepAndLeave()}>保留草稿后继续</button><button type="button" onClick={cancelLeave}>取消</button>

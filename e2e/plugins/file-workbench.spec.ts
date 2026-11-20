@@ -1,7 +1,7 @@
 import { dragDockPanel, expectNarrowDocumentDock } from "../helpers/document-dock";
 import { measureDocumentRail } from "../helpers/document";
 import { expectFoldContextSubmenu } from "../helpers/context-submenu";
-import { sourceInfo, selectDocumentLanguage } from "../helpers/source-editor";
+import { sourceInfo, selectDocumentLanguage, selectSource } from "../helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -2433,10 +2433,14 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
     if (savedSession) { const saved = JSON.parse(savedSession); state.files = saved.files; state.current = saved.current; }
     const persistSession = () => localStorage.setItem("fixture-editor-session", JSON.stringify({ files: state.files, current: state.current }));
     const persist = () => { localStorage.setItem("fixture-editor-buffers", JSON.stringify(records)); persistSession(); };
-    const fixture = { state, sources, writes: [] as string[], finished: [] as unknown[], quit: 0, records, cancelSave: true, saves: [] as string[], assetReads: [] as string[], stats: [] as string[] };
+    const fixture = { state, sources, writes: [] as string[], finished: [] as unknown[], quit: 0, records, cancelSave: true, saves: [] as string[], assetReads: [] as string[], stats: [] as string[], bufferFiles: {} as Record<string, string> };
     const emit = (event: string) => callbacks.get(handlers.get(event)!)?.({ event, id: 1, payload: null });
     Object.assign(window, { __editorFixture: fixture, __editorEmit: emit, __editorClose: (quit = false) => { state.revision++; state.closing = { token: state.revision, quit }; emit("workbench:editor-changed"); } });
-    const snapshot = (node: string) => ({ source: sources[node], revision: sources[node], size: sources[node].length, modifiedMs: 1, lineEnding: "lf", bom: false });
+    const textSnapshot = (text: string) => ({ source: text, revision: text, size: text.length, modifiedMs: 1, lineEnding: "lf", bom: false });
+    const snapshot = (node: string) => {
+      if (sources[node] === undefined) throw new Error("文件不存在");
+      return textSnapshot(sources[node]);
+    };
     (window as any).__TAURI_INTERNALS__ = {
       transformCallback(callback: (event: unknown) => void) { const id = next++; callbacks.set(id, callback); return id; },
       unregisterCallback(id: number) { callbacks.delete(id); },
@@ -2447,8 +2451,8 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
           const item = session(records[id]); state.files.push(item as any); state.current = item.id; persist(); state.revision++; emit("workbench:editor-changed"); return;
         }
         if (command === "workbench_buffer_read") return structuredClone(records[args.id]);
-        if (command === "workbench_buffer_checkpoint") { const record = records[args.id]; if (record.version !== args.version) throw new Error("stale buffer"); record.source = args.source; record.version++; persist(); return structuredClone(record); }
-        if (command === "workbench_buffer_snapshot") { const record = records[args.id]; const text = record.path ? record.baseSource : record.source; return { source: text, revision: record.path ? record.baseRevision : `buffer:${record.version}`, size: text.length, modifiedMs: 0, bom: false, lineEnding: "lf" }; }
+        if (command === "workbench_buffer_checkpoint") { const record = records[args.id]; if (record.version !== args.version) throw new Error("stale buffer"); record.source = args.source; if (args.base) Object.assign(record, { baseSource: args.base.source, baseRevision: args.base.revision, bom: args.base.bom, lineEnding: args.base.lineEnding }); record.version++; persist(); return structuredClone(record); }
+        if (command === "workbench_buffer_snapshot") { const record = records[args.id]; const disk = fixture.bufferFiles[record.path]; return disk !== undefined ? textSnapshot(disk) : { ...textSnapshot(record.path ? record.baseSource : record.source), revision: record.path ? record.baseRevision : `buffer:${record.version}`, modifiedMs: 0 }; }
         if (command === "workbench_buffer_save") {
           if (fixture.cancelSave) return null;
           const record = records[args.id]; record.path ??= "/chosen/saved.txt"; record.name = "saved.txt"; record.source = record.baseSource = args.source; record.baseRevision = `saved:${++record.version}`; fixture.saves.push(record.path);
@@ -2475,6 +2479,7 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
           fixture.stats.push(args.node);
           const image = images[args.node];
           if (args.node.endsWith(".svg") && image === undefined) throw new Error("image unavailable");
+          if (image === undefined && sources[args.node] === undefined) throw new Error("文件不存在");
           return { size: image === undefined ? sources[args.node]?.length ?? 0 : new TextEncoder().encode(image).length, modifiedMs: 1 };
         }
         if (command === "local_files_read_asset") {
@@ -2491,6 +2496,54 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
   }, { sources, initial, images });
   await page.goto("/file-workbench.html");
 }
+
+test("独立编辑器恢复焦点时重读同长度的外部修改，保留源码光标和只读状态", async ({ page }) => {
+  await setupIndependentEditor(page);
+  const content = page.locator(".cm-content:visible");
+  await expect(content).toContainText("return 1");
+  await expect(page.getByRole("button", { name: "允许编辑", exact: true })).toBeEnabled();
+  await selectSource(content, 4, 9);
+  await page.evaluate(() => {
+    const fixture = (window as any).__editorFixture;
+    fixture.sources["alpha.c"] = fixture.sources["alpha.c"].replace("return 1", "return 8");
+    window.dispatchEvent(new Event("focus"));
+  });
+  await expect(content).toContainText("return 8");
+  await expect(page.getByText("磁盘文件已重新载入。", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "允许编辑", exact: true })).toBeEnabled();
+  await expect.poll(() => sourceInfo(content)).toMatchObject({ selectionStart: 4, selectionEnd: 9 });
+  expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+});
+
+test("独立编辑器轮询发现渲染正文冲突，保留编辑和磁盘副本", async ({ page }) => {
+  await setupIndependentEditor(page, { "guide.md": "# Guide\n\nOriginal paragraph\n" }, "guide.md");
+  const body = page.locator(".ProseMirror:visible");
+  await expect(body).toContainText("Original paragraph");
+  await page.evaluate(() => { (window as any).__editorFixture.sources["guide.md"] = "# Guide\n\nUpdated on disk before editing\n"; });
+  await expect(body).toContainText("Updated on disk before editing", { timeout: 10_000 });
+  // Rendered and source sessions must both consume the new baseline.
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  await expect(page.locator(".cm-content:visible")).toContainText("Updated on disk before editing");
+  await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  await page.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+  await body.locator("p").click();
+  await page.keyboard.press("End");
+  await page.keyboard.insertText(" local edit");
+  await page.evaluate(() => { (window as any).__editorFixture.sources["guide.md"] = "# Guide\n\nAnother external revision\n"; });
+  const compare = page.getByRole("button", { name: "比较磁盘版本", exact: true });
+  await expect(compare).toBeVisible({ timeout: 10_000 });
+  await expect(body).toContainText("local edit");
+  await compare.click();
+  const difference = page.getByRole("dialog", { name: "磁盘版本比较", exact: true });
+  await expect(difference).toContainText("local edit");
+  await expect(difference).toContainText("Another external revision");
+  await page.keyboard.press("Escape");
+  await expect(difference).toHaveCount(0);
+  await page.evaluate(() => { delete (window as any).__editorFixture.sources["guide.md"]; window.dispatchEvent(new Event("focus")); });
+  await expect(page.getByText(/暂时无法重新读取磁盘文件/)).toBeVisible();
+  await expect(body).toContainText("local edit");
+  expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+});
 
 const markdownTestImage = (width: number) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="20"><rect width="${width}" height="20" fill="teal"/></svg>`;
@@ -3599,8 +3652,12 @@ test("编辑器未命名文件在取消保存和重启后保留，首次保存�
   await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.saves)).toEqual(["/chosen/saved.txt"]);
   await page.getByRole("button", { name: "新建文件", exact: true }).click();
   await expect(tabs.getByRole("tab")).toHaveCount(4);
+  await page.evaluate(() => { (window as any).__editorFixture.bufferFiles["/chosen/saved.txt"] = "externally updated saved file"; });
   await tabs.getByRole("tab", { name: "saved.txt" }).click();
-  await expect(editor).toContainText("draft survives restart");
+  await expect(editor).toContainText("externally updated saved file");
+  await expect.poll(() => page.evaluate(() => Object.values((window as any).__editorFixture.records).find((record: any) => record.path))).toMatchObject({
+    source: "externally updated saved file", baseSource: "externally updated saved file", baseRevision: "externally updated saved file",
+  });
 });
 
 

@@ -38,6 +38,10 @@ export function createWorkbenchHost(open: (request: BrowserFileOpen) => void | P
   const source: LocalSourceHost = {
     assertActive,
     async read(rootId, node) { operations.assertIdle(); const result = await localFileService.readSnapshot(rootId, node); assertActive(); return result; },
+    async stat(rootId, node) {
+      if (!localFileService.supportsDirectoryChanges(rootId)) return null;
+      const result = await localFileService.stat(rootId, node); assertActive(); return result;
+    },
     async write(rootId, node, text, base) {
       operations.assertIdle();
       const result = await localFileService.write(rootId, node, text, base);
