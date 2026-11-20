@@ -1,5 +1,12 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-11-20 主分支 CI 与全量复验
+
+- `423ccb27`、`cddd43e0` 和 Workbench 原生 Clippy 修复 `1f75eb57` 已推送至 `origin/main`。`cddd43e0` 的 Rust 门禁报出 4 处多余借用和 2 处多余克隆。`1f75eb57` 的 Rust 测试、Clippy、IPC 契约检查、通用 CI 和三平台 Tauri 构建通过。按变更路径，后一个提交跳过前端 Playwright。`cddd43e0` 的原生平台 E2E 六项通过，Test 工作流中的全量 Playwright 仍在运行。 [原生修复的 Test 工作流](https://github.com/erocpil/nine-rings/actions/runs/44756588684) [前一提交的原生平台 E2E](https://github.com/erocpil/nine-rings/actions/runs/44755132073) [前一提交的全量 Playwright](https://github.com/erocpil/nine-rings/actions/runs/44755132149/job/136352852622)
+- Nine Rings 在干净的 `cddd43e0` 上完整运行 Chromium，1700 通过、2 失败、0 跳过。折叠代码块用例在初始化时遇到页面导航中断，定向重复三次通过。九环风格用例过早读取了当前行颜色，本地调整为等待点击的段落出现有效高亮后再比较两种模式的颜色。该文件的 Chromium 定向复验 9 项、WebKit 3 项通过。
+- Nine Rings 在 `1f75eb57` 加上本批高亮测试修正后再次完整运行 Chromium，1700 通过、2 失败、0 跳过。局部只读全景和 390px 主题用例都在初始化时遇到 `Execution context was destroyed`。前者定向重复三次通过，后者重复三次中有一次复现，导航触发原因尚待定位。
+- File Workbench 的 Chromium 全量 98 项通过，WebKit 全量 98 项通过，两轮均无失败或跳过。浏览器回归使用模拟 Tauri 桥接，macOS 安装版由用户验收。
+
 ## 2026-11-20 窄窗口面板与跨模式书签
 
 - 窗口从 1280px 缩到 820×620，测量标题线、正文外框、状态栏及固定面板的真实边界，核对面板分组无重叠。覆盖 Nine Rings 数据库文档和磁盘 Markdown 的源码及渲染、左右停靠、经典及全部八种非经典风格。Workbench 覆盖四种配色、Markdown 的源码／渲染和只读／可编辑，以及 C 源码的符号、书签标签组与同词面板组合。

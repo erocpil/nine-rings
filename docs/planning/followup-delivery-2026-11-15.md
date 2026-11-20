@@ -8,8 +8,9 @@
 - [x] 页面重载后重新打开、书签名称恢复与跳转（Chromium / WebKit）。原生进程重启不在此认证范围。
 - [x] 标签行留在正文列，避免遮挡固定目录；示例、导入实际点击回归。
 - [x] 更新标题全宽、固定字号、默认左侧和触控拖动方向的过期测试契约。
-- [ ] Nine Rings 完整 E2E 的通过基线。以 `639737ee` 启动的再次全量为 1700 通过、2 失败，随后两项定向复验通过。Workbench 修正后的完整 Chromium 98 项通过。见[验证记录](../validation/e2e-repair-progress.md#2026-11-20-窄窗口面板与跨模式书签)。
-- [ ] `639737ee` 的远端 Test 工作流仍在执行 E2E。通用 CI、原生平台 E2E 和三平台 Tauri 构建已通过。 [远端 Test 工作流](https://github.com/erocpil/nine-rings/actions/runs/44749590700)
+- [ ] 建立 Nine Rings 完整 E2E 的通过基线。最新本地完整 Chromium 1700 通过、2 失败，390px 主题用例定向复验仍能复现初始化导航中断。Workbench 完整 Chromium、WebKit 各 98 项通过。 [验证记录](../validation/e2e-repair-progress.md#2026-11-20-主分支-ci-与全量复验)
+- [x] 推送 `423ccb27`、`cddd43e0` 和 Workbench 原生 Clippy 修复 `1f75eb57`。修复提交的 Rust 门禁、IPC 契约检查、通用 CI 和三平台 Tauri 构建已通过。 [远端 Test 工作流](https://github.com/erocpil/nine-rings/actions/runs/44756588684)
+- [ ] 核验 `cddd43e0` 的远端全量 Playwright，工作仍在运行。该提交的原生平台 E2E 六项已通过。 [远端全量 Playwright](https://github.com/erocpil/nine-rings/actions/runs/44755132149/job/136352852622)
 - [x] 补足 820px 窄窗口多面板组合，以及源码和渲染两边修改、实际点击书签、保存重开后再次定位的回归。
 
 ## 2. File Workbench 产品优化（首个增量已实现）

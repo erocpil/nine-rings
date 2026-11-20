@@ -53,8 +53,13 @@ for (const [style, label, background] of [
     await expect(page.locator("html")).toHaveClass(/theme-dark/);
     let renderedHighlight: string | undefined;
     if (style === "nine-rings") {
-      await page.locator(".note-editor .ProseMirror p").first().click();
-      renderedHighlight = await page.locator(".ProseMirror-activeline").first().evaluate(el => getComputedStyle(el).backgroundColor);
+      const paragraph = page.locator(".note-editor .ProseMirror p").first();
+      await paragraph.click();
+      await expect(paragraph).toHaveClass(/\bProseMirror-activeline\b/);
+      await expect.poll(async () => {
+        renderedHighlight = await paragraph.evaluate(el => getComputedStyle(el).backgroundColor);
+        return renderedHighlight !== "" && renderedHighlight !== "rgba(0, 0, 0, 0)";
+      }).toBe(true);
       await page.screenshot({ path: test.info().outputPath("nr-nine-rings-desktop-dark.png") });
     }
     await page.getByRole("button", { name: "源码", exact: true }).click();
