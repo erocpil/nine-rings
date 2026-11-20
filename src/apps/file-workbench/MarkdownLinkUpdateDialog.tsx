@@ -83,7 +83,7 @@ export function MarkdownLinkUpdateDialog({ batch, provider, read, write, onClose
             else next.delete(file.node);
             setSelected(next);
           }} />{file.node}</label>
-          <ul>{file.changes.map(({ link, href }) => <li key={link.key}>第 {link.line} 行 · <code>{link.href}</code> → <code>{href}</code></li>)}</ul>
+          <ul>{file.changes.map(({ link, href }) => <li key={link.key}>第 {link.line} 行{link.kind === "image" ? " · 图片" : link.kind === "shared" ? " · 图片与链接共用" : ""} · <code>{link.href}</code> → <code>{href}</code></li>)}</ul>
         </section>)}
         <button type="button" disabled={busy || !selected.size} onClick={() => void apply()}>{busy ? "正在更新…" : "确认更新所选文档"}</button>
       </>}

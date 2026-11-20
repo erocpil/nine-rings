@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo } from "react";
 import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contract";
-import { isBrowserImagePath, isDirectMarkdownImageSource, releaseBrowserPreview } from "../lib/local-files/browser-preview";
-import { resolveRelativeNode } from "../lib/local-files/file-model";
+import { isDirectMarkdownImageSource, releaseBrowserPreview } from "../lib/local-files/browser-preview";
+import { localMarkdownImageNode } from "../lib/local-files/markdown-images";
 
 /** The displayed document owns the reads and object URLs, never the Markdown source. */
 export function useLocalMarkdownImages(provider: BrowserDirectoryProvider, rootId: string, node?: string, reload?: number) {
@@ -22,11 +22,9 @@ export function useLocalMarkdownImages(provider: BrowserDirectoryProvider, rootI
       },
       async resolve(src: string) {
         if (isDirectMarkdownImageSource(src)) return null;
-        if (!node || !controller || controller.signal.aborted || /^[#\\]/.test(src) || /%(?:2f|5c|00|3a)/i.test(src.split(/[?#]/, 1)[0])) return "";
-        let target: string;
-        try { target = resolveRelativeNode(node, src); }
-        catch { return ""; }
-        if (!isBrowserImagePath(target)) return "";
+        if (!node || !controller || controller.signal.aborted) return "";
+        const target = localMarkdownImageNode(node, src);
+        if (!target) return "";
         const cached = pending.get(target);
         if (cached) return cached;
         const { signal } = controller;

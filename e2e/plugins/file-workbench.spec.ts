@@ -301,8 +301,9 @@ test("桌面目录复制、重命名和移动走确认队列，运行中不退�
     const callbacks = new Map<number, (event: unknown) => void>(); let sequence = 1, close = 0;
     const tree: Record<string, { directory: boolean; content?: string }> = { folder: { directory: true }, "folder/a.c": { directory: false, content: "int original;\n" }, "folder/.hidden": { directory: false, content: "hidden" }, target: { directory: true },
       "folder/guide.md": { directory: false, content: "# Part\n" },
-      "refs.md": { directory: false, content: '[阅读](folder/guide.md#part "标题")\n\n`[示例](folder/guide.md)`' },
-      "stale.md": { directory: false, content: "[旧链接](folder/guide.md)" },
+      "folder/figure.svg": { directory: false, content: "<svg/>" },
+      "refs.md": { directory: false, content: '[![题图](folder/figure.svg "图题")](folder/guide.md#part "标题")\n\n![引用图][figure]\n\n[figure]: folder/figure.svg\n\n`[示例](folder/guide.md)`' },
+      "stale.md": { directory: false, content: "![旧图片](folder/figure.svg)" },
     };
     const state = { tree, calls: [] as Array<{ command: string; args: any }>, confirmed: 0, hold: true, report: null as null | ((value: unknown) => void) };
     (window as any).__workbenchOps = state;
@@ -359,12 +360,14 @@ test("桌面目录复制、重命名和移动走确认队列，运行中不退�
   const links = page.getByRole("dialog", { name: "预览 Markdown 引用更新", exact: true });
   await expect(links).toContainText("发现 2 份文档可更新");
   await expect(links).toContainText("package/guide.md#part");
+  await expect(links.getByText("package/figure.svg", { exact: true })).toHaveCount(3);
   expect(await page.evaluate(() => (window as any).__workbenchOps.tree["refs.md"].content)).toContain("folder/guide.md");
+  expect(await page.evaluate(() => (window as any).__workbenchOps.tree["refs.md"].content)).toContain("folder/figure.svg");
   await page.evaluate(() => { (window as any).__workbenchOps.tree["stale.md"].content += "\n外部编辑"; });
   await links.getByRole("button", { name: "确认更新所选文档", exact: true }).click();
   await expect(links.getByRole("alert")).toContainText("STALE_REVISION");
-  expect(await page.evaluate(() => (window as any).__workbenchOps.tree["refs.md"].content)).toBe('[阅读](package/guide.md#part "标题")\n\n`[示例](folder/guide.md)`');
-  expect(await page.evaluate(() => (window as any).__workbenchOps.tree["stale.md"].content)).toContain("外部编辑");
+  expect(await page.evaluate(() => (window as any).__workbenchOps.tree["refs.md"].content)).toBe('[![题图](package/figure.svg "图题")](package/guide.md#part "标题")\n\n![引用图][figure]\n\n[figure]: package/figure.svg\n\n`[示例](folder/guide.md)`');
+  expect(await page.evaluate(() => (window as any).__workbenchOps.tree["stale.md"].content)).toBe("![旧图片](folder/figure.svg)\n外部编辑");
   await links.getByRole("button", { name: "关闭预览 Markdown 引用更新", exact: true }).click();
   await left.getByRole("button", { name: "纵向目录数", exact: true }).click();
   await page.getByRole("menuitem", { name: "2 个目录", exact: true }).click();

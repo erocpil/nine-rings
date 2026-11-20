@@ -77,6 +77,66 @@ describe("local Markdown links", () => {
       markdownLinkDestinations("[失效](missing.md)\n\n[ref]: unused.md"),
     ).toHaveLength(1);
   });
+  it("updates image paths and shared definitions once, including a clickable image", () => {
+    const source = [
+      '[![原图](<assets/old.svg?raw=1#part> "图题")](assets/guide.md)',
+      "![图一][photo] ![图二][photo] [下载][photo]",
+      '[photo]: assets/old.svg "原始标题"',
+      "[文档][guide] ![同一引用][guide]",
+      "[guide]: assets/guide.md",
+      "![图片引用][] ![图片引用]",
+      "[图片引用]: assets/old.svg",
+      "[unused]: assets/old.svg",
+      "`![示例](assets/old.svg)`",
+    ].join("\n\n");
+    const changes = planMarkdownLinkEdits(source, "readme.md", [
+      { from: "assets/old.svg", to: "pictures/图 (1)#.svg" },
+      { from: "assets/guide.md", to: "docs/guide.md" },
+    ]);
+    expect(changes).toHaveLength(5);
+    expect(applyMarkdownLinkEdits(source, changes)).toBe(
+      source
+        .replace(
+          "assets/old.svg?raw=1#part",
+          "pictures/%E5%9B%BE%20%281%29%23.svg?raw=1#part",
+        )
+        .replace("](assets/guide.md)", "](docs/guide.md)")
+        .replace(
+          "[photo]: assets/old.svg",
+          "[photo]: pictures/%E5%9B%BE%20%281%29%23.svg",
+        )
+        .replace("[guide]: assets/guide.md", "[guide]: docs/guide.md")
+        .replace(
+          "[图片引用]: assets/old.svg",
+          "[图片引用]: pictures/%E5%9B%BE%20%281%29%23.svg",
+        ),
+    );
+    expect(markdownLinkDestinations(source).map(({ href }) => href)).toEqual([
+      "assets/guide.md",
+      "assets/old.svg",
+      "assets/guide.md",
+    ]);
+  });
+  it("rebases image paths when a document moves and skips unsupported or external destinations", () => {
+    const source = [
+      "![同目录资源](./plot.svg)",
+      "![公共资源](../assets/plan%20one.PNG)",
+      "![远程](https://example.com/plot.svg)",
+      "![绝对路径](/root/plot.svg)",
+      "![越界](../../plot.svg)",
+      "![编码分隔符](..%2Fassets%2Fplot.svg)",
+      "![非图片](../assets/file.txt)",
+    ].join("\r\n");
+    const changes = planMarkdownLinkEdits(source, "deep/notes/lesson.md", [
+      { from: "notes/lesson.md", to: "deep/notes/lesson.md" },
+    ]);
+    expect(changes).toHaveLength(2);
+    expect(applyMarkdownLinkEdits(source, changes)).toBe(
+      source
+        .replace("./plot.svg", "../../notes/plot.svg")
+        .replace("../assets/plan%20one.PNG", "../../assets/plan%20one.PNG"),
+    );
+  });
   it("truncates a forward branch only after recording a successful new jump", () => {
     const history = new LinkHistory<string>();
     const same = (a: string, b: string) => a === b;
