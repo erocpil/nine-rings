@@ -122,7 +122,7 @@ export function DocumentNavigationWorkspace({
   const [folds, setFolds] = useState<Set<number>>(() => new Set());
   const [renamingBookmark, setRenamingBookmark] = useState<NavigationBookmark | null>(null);
   const [openBookmarkActionsId, setOpenBookmarkActionsId] = useState<string | null>(null);
-  const [matchesOpen, setMatchesOpen] = useState(false);
+  const [legacyMatchesOpen, setMatchesOpen] = useState(false);
   const [matchesPreview, setMatchesPreview] = useState(false);
   const matchesTrigger = useRef<HTMLButtonElement>(null);
   const matchesPanel = useRef<HTMLElement>(null);
@@ -145,7 +145,6 @@ export function DocumentNavigationWorkspace({
     window.addEventListener("keydown", dismiss);
     return () => { document.removeEventListener("click", dismiss); window.removeEventListener("keydown", dismiss); };
   }, [matchesPreview]);
-  const matchesStyle = useDocumentPanelPosition({ open: matchesPreview && !matchesOpen, compact: false, triggerRef: matchesTrigger, panelRef: matchesPanel });
   useEffect(() => {
     // Coalesce typing and reuse the same lazy parse as autosave; no hidden rich editor.
     if (!navigationNeeded) return;
@@ -225,12 +224,6 @@ export function DocumentNavigationWorkspace({
     const maximum = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
     scroller.scrollTo({ top: target === "top" ? 0 : target === "middle" ? maximum / 2 : maximum, behavior: "auto" });
   }, [sourceHandle, onScrollDocument]);
-  useEffect(() => {
-    if (matchesOpen || !documentActive || mobile || !sourceWordEnabled) {
-      clearTimeout(matchesTimer.current);
-      setMatchesPreview(false);
-    }
-  }, [matchesOpen, documentActive, mobile, sourceWordEnabled]);
   const symbolOutline = hasSourceSymbolProvider(snapshotLanguage);
   const outlineEnabled = symbolOutline || snapshotLanguage === "markdown";
   const openMobilePanel = useCallback((panel: "outline" | "bookmark") => {
@@ -270,13 +263,23 @@ export function DocumentNavigationWorkspace({
   const currentSourceBlock = local ? undefined : revision.blockAt(offset);
   const currentLineStart = offset > 0 ? revision.source.lastIndexOf("\n", offset - 1) + 1 : 0;
   const currentBookmark = local ? bookmarks.find(bookmark => bookmark.offset === currentLineStart) : bookmarks.find(bookmark => bookmark.position === (currentSourceBlock?.position ?? -2) + 1);
-  const controller = useDesktopDocumentPanels(!mobile, outline, bookmarks, [], symbolOutline ? 35 : undefined, origin, local && narrow, outlineEnabled);
+  const controller = useDesktopDocumentPanels(!mobile, outline, bookmarks, [], symbolOutline ? 35 : undefined, origin, local && narrow, outlineEnabled, sourceWordEnabled);
+  const matchesOpen = controller.dock
+    ? Boolean(controller.dockActive?.some(group => group.panels.includes("matches")))
+    : legacyMatchesOpen;
+  const matchesStyle = useDocumentPanelPosition({ open: matchesPreview && !matchesOpen, compact: false, triggerRef: matchesTrigger, panelRef: matchesPanel });
+  useEffect(() => {
+    if (matchesOpen || !documentActive || mobile || !sourceWordEnabled) {
+      clearTimeout(matchesTimer.current);
+      setMatchesPreview(false);
+    }
+  }, [matchesOpen, documentActive, mobile, sourceWordEnabled]);
   const dismissPanelPreview = controller.dismiss;
   useEffect(() => {
-    if (controller.mode === "compact" && matchesOpen && (controller.layout.outlinePinned || controller.layout.bookmarkPinned)) saveCompactPanel(origin, { active: null });
-  }, [controller.mode, controller.layout.outlinePinned, controller.layout.bookmarkPinned, matchesOpen, origin]);
+    if (documentActive && !mobile && !controller.dock && controller.mode === "compact" && matchesOpen && (controller.layout.outlinePinned || controller.layout.bookmarkPinned)) saveCompactPanel(origin, { active: null });
+  }, [documentActive, mobile, controller.dock, controller.mode, controller.layout.outlinePinned, controller.layout.bookmarkPinned, matchesOpen, origin]);
   const { state: wordState, groups: groupedWordMatches } = useSourceWordMatches(sourceHandle, documentActive && !mobile && sourceWordEnabled, from => {
-    setOffset(from); setMatchesOpen(true); dismissPanelPreview();
+    setOffset(from); if (controller.dock) controller.showDockPanel("matches"); else setMatchesOpen(true); dismissPanelPreview();
   });
   const outlineTrigger = useRef<HTMLButtonElement>(null),
     bookmarkTrigger = useRef<HTMLButtonElement>(null);
@@ -366,13 +369,14 @@ export function DocumentNavigationWorkspace({
           className="btn-icon"
           title={kind === "outline" ? (symbolOutline ? "源码符号" : "文档目录") : "文档书签"}
           aria-label={kind === "outline" ? (symbolOutline ? "源码符号" : local ? "目录" : "文档目录") : local ? "书签" : "文档书签"}
-          aria-expanded={controller.pinned(kind) || controller.preview === kind}
+          aria-expanded={controller.selected(kind) || controller.preview === kind}
           aria-pressed={controller.pinned(kind)}
           data-document-panel-trigger={kind}
+          onPointerDown={event => controller.startDockDrag(kind, event.nativeEvent)}
           data-pinned={controller.pinned(kind)}
           onPointerEnter={(event) => { cancelMatchesPreview(); setMatchesPreview(false); controller.enter(kind, event.pointerType); }}
           onPointerLeave={controller.leave}
-          onClick={() => { if (controller.mode === "compact") setMatchesOpen(false); setOffset(sourceHandle?.selectionStart ?? offset); controller.toggle(kind); }}
+          onClick={() => { if (!controller.dock && controller.mode === "compact") setMatchesOpen(false); setOffset(sourceHandle?.selectionStart ?? offset); controller.toggle(kind); }}
         >
           <FocusModeIcon name={kind} />
         </button>
@@ -383,12 +387,13 @@ export function DocumentNavigationWorkspace({
         title={`同词匹配：显示或隐藏匹配列表（${/Mac/i.test(navigator.platform) ? "⌘" : "Ctrl"}+单击单词可直接打开）`}
         aria-label="同词匹配"
         ref={matchesTrigger}
-        aria-expanded={matchesOpen || matchesPreview}
+        aria-expanded={(controller.dock ? controller.selected("matches") : matchesOpen) || matchesPreview}
         aria-pressed={matchesOpen}
         data-document-panel-trigger="matches"
+        onPointerDown={event => { cancelMatchesPreview(); setMatchesPreview(false); controller.startDockDrag("matches", event.nativeEvent); }}
         onPointerEnter={event => { if (controller.mode === "compact" || event.pointerType !== "mouse" || matchesOpen) return; cancelMatchesPreview(); matchesTimer.current = setTimeout(() => { dismissPanelPreview(); setMatchesPreview(true); }, 140); }}
         onPointerLeave={leaveMatchesPreview}
-        onClick={() => { cancelMatchesPreview(); setMatchesPreview(false); dismissPanelPreview(); setMatchesOpen(open => !open); }}
+        onClick={() => { cancelMatchesPreview(); setMatchesPreview(false); dismissPanelPreview(); if (controller.dock) controller.showDockPanel("matches", controller.dockActive?.some(group => group.active === "matches")); else setMatchesOpen(open => !open); }}
       ><ToolbarIcon name="search" /></button>}
     </>
   );
@@ -487,7 +492,7 @@ export function DocumentNavigationWorkspace({
   const matchesList = sourceWordEnabled && <nav ref={matchesPanel} data-document-preview={!matchesOpen || undefined} onPointerEnter={cancelMatchesPreview} onPointerLeave={leaveMatchesPreview} className={`document-source-matches-panel${matchesOpen ? "" : " document-source-matches-preview"}`} role={local ? "complementary" : undefined} aria-label={local ? "本地文件同词匹配" : "同词匹配列表"} data-panel-display={sourceMatchDisplayConfig ? "plugin" : undefined} style={{ ...panelDisplayStyle(sourceMatchDisplayConfig), ...(!matchesOpen ? matchesStyle : undefined) } as CSSProperties}>
             <div className="document-outline-header document-source-matches-header">
               <div className="document-outline-header-primary"><span>{wordState?.word ? `“${wordState.word}”${sourceMatchDisplayConfig?.showCounts === false ? "" : ` · ${wordState.matches.length} 处`}` : "同词匹配"}</span></div>
-              <div className="document-outline-header-actions"><button type="button" aria-label="隐藏匹配列表" title="隐藏匹配列表" onClick={() => { setMatchesOpen(false); setMatchesPreview(false); }}><ToolbarIcon name="close" /></button></div>
+              <div className="document-outline-header-actions"><button type="button" aria-label="隐藏匹配列表" title="隐藏匹配列表" onClick={() => { if (controller.dock) controller.showDockPanel("matches", true); else setMatchesOpen(false); setMatchesPreview(false); }}><ToolbarIcon name="close" /></button></div>
             </div>
             <SourceWordMatchList groups={groupedWordMatches} word={wordState?.word} activeFrom={wordState?.activeFrom} display={sourceMatchDisplayConfig} onJump={target => {
               if (!sourceHandle) return;
@@ -500,7 +505,7 @@ export function DocumentNavigationWorkspace({
       style={desktopPanelStyle(controller)}
       aria-label={local ? "本地文档编辑区" : "Markdown 源码编辑区"}
     >
-      <div className="markdown-source-content">{children(controls, { openBookmarks: () => { if (controller.mode === "compact") setMatchesOpen(false); if (!controller.pinned("bookmark")) controller.toggle("bookmark"); } })}</div>
+      <div className="markdown-source-content">{children(controls, { openBookmarks: () => { if (!controller.dock && controller.mode === "compact") setMatchesOpen(false); if (controller.dock) controller.showDockPanel("bookmark"); else if (!controller.pinned("bookmark")) controller.toggle("bookmark"); } })}</div>
       {mobile && <DocumentPanelDrawer enabled presentation="drawer" panel={documentActive ? mobilePanel : null} hasOutline={outlineEnabled} outlineLabel={symbolOutline ? "源码符号" : "目录"} onSelect={openMobilePanel} onClose={() => setMobilePanel(null)}>
         {renderPanel("outline")}{renderPanel("bookmark")}
       </DocumentPanelDrawer>}
@@ -508,6 +513,7 @@ export function DocumentNavigationWorkspace({
       {!mobile && (
         <DesktopDocumentPanels
           controller={controller}
+          outlineLabel={symbolOutline ? "源码符号" : "目录"}
           bookmarkEmpty={bookmarks.length === 0}
           outline={renderPanel("outline")}
           bookmark={renderPanel("bookmark")}

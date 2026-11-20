@@ -5,6 +5,7 @@ import {
   normalizeDocumentWorkspace,
   readDocumentWorkspace,
   saveCompactPanel,
+  saveDocumentDock,
   saveDocumentWorkspaceMode,
 } from "../../src/lib/document-workspace-layout";
 
@@ -44,6 +45,28 @@ describe("document workspace placement", () => {
     });
     expect(changed).toHaveBeenCalledTimes(3);
     expect(values.has("nr:workspaceLayout")).toBe(false);
+  });
+  it("persists and resets each custom dock independently of inherited layout", () => {
+    expect(saveCompactPanel("local", { active: "bookmark", width: 320 })).toBe(
+      true,
+    );
+    const dock = {
+      groups: [
+        { panels: ["outline", "bookmark"], active: "bookmark", weight: 1 },
+      ],
+      closed: [],
+    } satisfies NonNullable<
+      ReturnType<typeof readDocumentWorkspace>["docks"]
+    >["local"];
+    expect(saveDocumentDock("local", () => dock)).toBe(true);
+    expect(readDocumentWorkspace().docks?.local).toEqual(dock);
+    expect(saveDocumentDock("database", () => dock)).toBe(true);
+    expect(saveDocumentDock("local", () => undefined)).toBe(true);
+    expect(readDocumentWorkspace()).toMatchObject({
+      docks: { database: dock },
+      compact: { local: { active: "bookmark", width: 320 } },
+    });
+    expect(readDocumentWorkspace().docks?.local).toBeUndefined();
   });
   it("rejects unsupported placement and invalid dimensions", () => {
     expect(

@@ -671,3 +671,77 @@
 .local-file-view .document-workspace-compact .document-panel-dock { z-index: 5; }
 .local-file-view .document-panel-slot > :is(.document-outline-panel, .document-bookmark-panel) { border-radius: 0; }
 .local-file-workspace > .markdown-source-content { min-width: 0; overflow: hidden; }
+
+/* A user-arranged dock keeps the same width and title alignment as the default dock. */
+.document-dock-custom,
+.document-dock-group {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.document-dock-group { min-height: 36px; }
+.document-dock-content { flex: 1 1 0; }
+.document-dock-content[hidden] { display: none; }
+.document-dock-splitter {
+  flex: 0 0 6px;
+  cursor: row-resize;
+  touch-action: none;
+}
+.document-dock-tabs {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--border);
+}
+.document-dock-tabs > button {
+  flex: 1 0 auto;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  color: var(--text-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+}
+.document-dock-tabs > button[aria-selected="true"] {
+  color: var(--text);
+  background: var(--active-bg);
+}
+.document-dock-tabs > button,
+[data-dock-target] :is(.document-outline-header-primary, .document-panel-title) { cursor: grab; }
+[data-dock-target] { position: relative; }
+[data-dock-drop]::after {
+  position: absolute;
+  inset-inline: 2px;
+  z-index: 4;
+  pointer-events: none;
+  content: "";
+}
+[data-dock-drop="before"]::after,
+[data-dock-drop="after"]::after {
+  height: 3px;
+  background: var(--accent, var(--text));
+}
+[data-dock-drop="before"]::after { top: 0; }
+[data-dock-drop="after"]::after { bottom: 0; }
+[data-dock-drop="tab"]::after {
+  inset-block: 0;
+  border: 2px solid var(--accent, var(--text));
+}
+.document-dock-reset {
+  align-self: flex-end;
+  flex: 0 0 auto;
+  min-height: 24px;
+  padding-inline: 8px;
+  border: 0;
+  color: var(--text-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+}
+.document-dock-reset:hover { color: var(--text); background: var(--hover-bg); }

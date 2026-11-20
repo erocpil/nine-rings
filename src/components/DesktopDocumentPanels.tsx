@@ -8,6 +8,9 @@ import {
   type ReactNode,
 } from "react";
 import type { DesktopDocumentPanelController } from "../hooks/useDesktopDocumentPanels";
+import { DOCUMENT_DOCK_HEADER, useDocumentDockDrag } from "../hooks/useDocumentDockDrag";
+import { isDockPanel, moveDockPanel, type DockDrop, type DockPanel, type DocumentDockLayout } from "../lib/document-dock-layout";
+import { CustomDocumentDock } from "./CustomDocumentDock";
 import { saveWorkspaceLayout } from "../lib/workspace-layout";
 export function desktopPanelStyle(
   controller: DesktopDocumentPanelController,
@@ -46,6 +49,7 @@ export function DesktopDocumentPanels({
   matches,
   matchesOpen = false,
   bookmarkEmpty = false,
+  outlineLabel = "目录",
 }: {
   controller: DesktopDocumentPanelController;
   outline: ReactNode;
@@ -53,6 +57,7 @@ export function DesktopDocumentPanels({
   matches?: ReactNode;
   matchesOpen?: boolean;
   bookmarkEmpty?: boolean;
+  outlineLabel?: string;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const cleanup = useRef<() => void>();
@@ -113,6 +118,31 @@ export function DesktopDocumentPanels({
   const compactBookmarks = Boolean(second && bookmarkEmpty);
   const compactMain = compactBookmarks && !first;
   const showMatches = controller.enabled && matchesOpen && matches;
+  // Seed the first move from the panels actually docked in the old layout.
+  const legacyDock = (): DocumentDockLayout => {
+    const mainWeight = showMatches && hasPinned ? 1 - controller.layout.matchesRatio : 1;
+    const groups: DocumentDockLayout["groups"] = [];
+    if (first) groups.push({ panels: ["outline"], active: "outline", weight: second ? mainWeight * ratio : mainWeight });
+    if (second) groups.push({ panels: ["bookmark"], active: "bookmark", weight: first ? mainWeight * (1 - ratio) : mainWeight });
+    if (showMatches) groups.push({ panels: ["matches"], active: "matches", weight: hasPinned ? controller.layout.matchesRatio : 1 });
+    return { groups, closed: [] };
+  };
+  const movePanel = (source: DockPanel, destination: { panel: DockPanel; drop: DockDrop }) => {
+    controller.dismiss();
+    controller.changeDock(current => {
+      const layout = current ?? legacyDock();
+      const next = moveDockPanel(layout, source, destination.panel, destination.drop);
+      return next === layout ? current : next;
+    });
+  };
+  const { begin, target } = useDocumentDockDrag(root, controller.enabled, movePanel, controller.dismiss);
+  const { connectDockDrag } = controller;
+  useLayoutEffect(() => {
+    connectDockDrag(begin);
+    return () => connectDockDrag();
+  }, [begin, connectDockDrag]);
+  const hint = (panel: DockPanel) => target?.row === panel ? target.drop : undefined;
+
   const saveRatio = (value: number) => {
     setError("");
     if (!saveWorkspaceLayout({ panelRatio: value })) {
@@ -229,6 +259,35 @@ export function DesktopDocumentPanels({
           ref={root}
           className={`document-panel-dock dock-${controller.layout.panelsSide} dock-${horizontal ? "horizontal" : "vertical"}`}
           aria-label="固定阅读面板"
+          onPointerDown={event => {
+            if (!(event.target instanceof Element) || event.target.closest(".document-dock-tabs")) return;
+            const header = event.target.closest(DOCUMENT_DOCK_HEADER);
+            const button = event.target.closest("button, input, select, textarea");
+            if (!header || (button && !button.matches(".document-panel-title"))) return;
+            const panel = header.closest<HTMLElement>("[data-panel]")?.dataset.panel;
+            if (isDockPanel(panel)) begin(panel, event.nativeEvent);
+          }}
+          onKeyDown={event => {
+            if (!event.altKey || !(event.target instanceof HTMLElement)) return;
+            const key = event.key;
+            if (key !== "ArrowUp" && key !== "ArrowDown" && key !== "Enter") return;
+            const row = event.target.closest<HTMLElement>("[data-dock-target]");
+            const source = event.target.dataset.dockPanel ?? event.target.closest<HTMLElement>("[data-panel]")?.dataset.panel;
+            if (!row || !isDockPanel(source) || !event.target.closest(`.document-dock-tabs, ${DOCUMENT_DOCK_HEADER}`)) return;
+            const rows = [...event.currentTarget.querySelectorAll<HTMLElement>("[data-dock-target]")];
+            const index = rows.indexOf(row);
+            const adjacent = rows[index + (key === "ArrowDown" ? 1 : -1)] ?? (key === "Enter" ? rows[index + 1] : undefined);
+            const peer = row.dataset.dockTarget === source ? row.dataset.dockPeer : row.dataset.dockTarget;
+            const panel = key !== "Enter" && isDockPanel(peer) ? peer : adjacent?.dataset.dockTarget;
+            if (!isDockPanel(panel)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            movePanel(source, { panel, drop: key === "Enter" ? "tab" : key === "ArrowUp" ? "before" : "after" });
+            requestAnimationFrame(() => {
+              if (document.activeElement !== document.body) return;
+              root.current?.querySelector<HTMLElement>(`[data-dock-panel="${source}"], [data-panel="${source}"] .document-panel-title`)?.focus();
+            });
+          }}
           style={{
             ...(width === null ? {} : { width: `min(${width}px, 50%)` }),
           }}
@@ -240,6 +299,12 @@ export function DesktopDocumentPanels({
             aria-orientation="vertical"
             onPointerDown={(event) => drag(event, "width")}
           />
+          {controller.dock ? <CustomDocumentDock
+            controller={controller} layout={controller.dock}
+            panels={{ outline: first, bookmark: second, matches: showMatches }}
+            labels={{ outline: outlineLabel, bookmark: "书签", matches: "同词匹配" }}
+            hint={hint}
+          /> : <>
           {hasPinned && <div
             className={`document-panel-dock-main dock-${horizontal ? "horizontal" : "vertical"}${showMatches ? " has-matches" : ""}`}
             style={{
@@ -251,7 +316,7 @@ export function DesktopDocumentPanels({
             }}
           >
           {first && (
-            <div className="document-panel-slot" data-panel="outline">
+            <div className="document-panel-slot" data-panel="outline" data-dock-target="outline" data-dock-drop={hint("outline")}>
               {first}
             </div>
           )}
@@ -288,7 +353,7 @@ export function DesktopDocumentPanels({
             />
           )}
           {second && (
-            <div className={`document-panel-slot${compactBookmarks ? " is-empty-bookmark" : ""}`} data-panel="bookmark">
+            <div className={`document-panel-slot${compactBookmarks ? " is-empty-bookmark" : ""}`} data-panel="bookmark" data-dock-target="bookmark" data-dock-drop={hint("bookmark")}>
               {second}
             </div>
           )}
@@ -313,7 +378,8 @@ export function DesktopDocumentPanels({
                 if (!saveWorkspaceLayout({ matchesRatio: next })) setError("匹配列表高度保存失败，请重试。");
               }}
             />}
-            <div className={`document-panel-matches-slot${hasPinned ? " has-pinned-panels" : ""}`} data-panel="matches" style={hasPinned && !compactMain ? { flex: `0 0 calc(${matchesRatio * 100}% - 3px)` } : undefined}>{matches}</div>
+            <div className={`document-panel-matches-slot${hasPinned ? " has-pinned-panels" : ""}`} data-panel="matches" data-dock-target="matches" data-dock-drop={hint("matches")} style={hasPinned && !compactMain ? { flex: `0 0 calc(${matchesRatio * 100}% - 3px)` } : undefined}>{matches}</div>
+          </>}
           </>}
         </aside>
       )}

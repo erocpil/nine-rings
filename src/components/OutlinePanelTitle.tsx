@@ -8,7 +8,7 @@ export function DocumentPanelTitle({
   collapseLabel?: string;
 }) {
   return pinned ? (
-    <button type="button" className="document-panel-title"
+    <button type="button" className="document-panel-title" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Alt+Enter"
       aria-label={collapseLabel ?? `收起固定${label}`} title={collapseLabel ?? `收起固定${label}`} onClick={onCollapse}>
       {label}
     </button>

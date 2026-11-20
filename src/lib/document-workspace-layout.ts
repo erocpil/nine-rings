@@ -1,3 +1,5 @@
+import { normalizeDocumentDock, type DocumentDockLayout } from "./document-dock-layout";
+
 /** Device-local placement policy, independent of document content and permissions. */
 export type DocumentWorkspaceOrigin = "database" | "local";
 export type DocumentWorkspaceMode = "document" | "compact";
@@ -5,6 +7,7 @@ export type NavigationPanelKind = "outline" | "bookmark";
 export interface DocumentWorkspacePreferences {
   database: DocumentWorkspaceMode;
   local: DocumentWorkspaceMode;
+  docks?: Partial<Record<DocumentWorkspaceOrigin, DocumentDockLayout>>;
   compact: Record<
     DocumentWorkspaceOrigin,
     { active: NavigationPanelKind | null; width: number }
@@ -31,7 +34,10 @@ export function normalizeDocumentWorkspace(
           : 300,
     };
   };
+  const databaseDock = normalizeDocumentDock(raw.docks?.database);
+  const localDock = normalizeDocumentDock(raw.docks?.local);
   return {
+    ...(databaseDock || localDock ? { docks: { database: databaseDock, local: localDock } } : {}),
     database: raw.database === "compact" ? "compact" : "document",
     local: raw.local === "document" ? "document" : "compact",
     compact: { database: compact("database"), local: compact("local") },
@@ -94,5 +100,16 @@ export function saveCompactPanel(
       ...current.compact,
       [origin]: { ...current.compact[origin], ...patch },
     },
+  }));
+}
+
+
+export function saveDocumentDock(
+  origin: DocumentWorkspaceOrigin,
+  change: (current: DocumentDockLayout | undefined) => DocumentDockLayout | undefined,
+): boolean {
+  return saveDocumentWorkspace(current => ({
+    ...current,
+    docks: { ...current.docks, [origin]: change(current.docks?.[origin]) },
   }));
 }

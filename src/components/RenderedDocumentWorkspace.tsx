@@ -671,7 +671,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
     if (typeof window === "undefined") return false;
     return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
   });
-  const desktopPanels = useDesktopDocumentPanels(!isMobileToolbarViewport, documentOutline, bookmarks, annotations, undefined, workspaceHost?.origin);
+  const desktopPanels = useDesktopDocumentPanels(!isMobileToolbarViewport, documentOutline, bookmarks, annotations, undefined, workspaceHost?.origin, false, documentOutline.length > 0);
   const { openPreview, dismiss: dismissPreview, toggle: togglePinnedPanel } = desktopPanels;
   const outlineOpen = documentActive && (isMobileToolbarViewport ? mobileOutlineOpen : desktopPanels.pinned("outline") || desktopPanels.preview === "outline");
   outlineOpenRef.current = outlineOpen;
@@ -4260,7 +4260,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
             <div className="document-outline-control">
               <button
                 ref={outlineTriggerRef}
-              data-document-panel-trigger="outline" data-pinned={desktopPanels.pinned("outline") || undefined}
+              onPointerDown={event => desktopPanels.startDockDrag("outline", event.nativeEvent)} data-document-panel-trigger="outline" data-pinned={desktopPanels.pinned("outline") || undefined}
               onPointerEnter={event => desktopPanels.enter("outline", event.pointerType)} onPointerLeave={desktopPanels.leave}
                 className={`focus-btn document-outline-toggle ${outlineOpen ? "active" : ""}`}
                 onClick={(event) => {
@@ -4269,14 +4269,14 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
                 }}
                 title="文档目录"
                 aria-label="文档目录"
-                aria-expanded={outlineOpen}
+                aria-expanded={isMobileToolbarViewport ? outlineOpen : desktopPanels.selected("outline") || desktopPanels.preview === "outline"}
                 type="button"
               ><FocusModeIcon name="outline" /></button>
             </div>
           )}
           <button
             ref={bookmarkTriggerRef}
-            data-document-panel-trigger="bookmark" data-pinned={desktopPanels.pinned("bookmark") || undefined}
+            onPointerDown={event => desktopPanels.startDockDrag("bookmark", event.nativeEvent)} data-document-panel-trigger="bookmark" data-pinned={desktopPanels.pinned("bookmark") || undefined}
             onPointerEnter={event => desktopPanels.enter("bookmark", event.pointerType)} onPointerLeave={desktopPanels.leave}
             className={`focus-btn document-bookmark-toggle ${bookmarkOpen ? "active" : ""}`}
             onClick={(event) => {
@@ -4285,7 +4285,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
             }}
             title={bookmarkPanelTotal > 0 ? `${bookmarkPanelLabel}（${bookmarkPanelTotal}）` : "添加书签"}
             aria-label="文档书签"
-            aria-expanded={bookmarkOpen}
+            aria-expanded={isMobileToolbarViewport ? bookmarkOpen : desktopPanels.selected("bookmark") || desktopPanels.preview === "bookmark"}
             type="button"
           ><FocusModeIcon name="bookmark" />{bookmarkPanelTotal > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarkPanelTotal > 99 ? "99+" : bookmarkPanelTotal}</span>}</button>
           {<MoreToolsButton className="focus-btn" title={shortcutTitle("view.tools", "更多工具")} expanded={focusToolbarExpanded} onToggle={() => setToolbarExpandedPreference(!focusToolbarExpanded)} />}<PanelSideToggle />{workspaceHost?.titleActions}
@@ -4431,11 +4431,11 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
           {documentOutline.length > 0 && (
             <button
               ref={focusOutlineTriggerRef}
-              data-document-panel-trigger="outline" data-pinned={desktopPanels.pinned("outline") || undefined}
+              onPointerDown={event => desktopPanels.startDockDrag("outline", event.nativeEvent)} data-document-panel-trigger="outline" data-pinned={desktopPanels.pinned("outline") || undefined}
               onPointerEnter={event => desktopPanels.enter("outline", event.pointerType)} onPointerLeave={desktopPanels.leave}
               type="button"
               className={outlineOpen ? "active" : undefined}
-              aria-expanded={outlineOpen}
+              aria-expanded={isMobileToolbarViewport ? outlineOpen : desktopPanels.selected("outline") || desktopPanels.preview === "outline"}
               onClick={(event) => {
                 event.stopPropagation();
                         toggleDocumentOutline();
@@ -4446,11 +4446,11 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
           )}
           <button
             ref={focusBookmarkTriggerRef}
-            data-document-panel-trigger="bookmark" data-pinned={desktopPanels.pinned("bookmark") || undefined}
+            onPointerDown={event => desktopPanels.startDockDrag("bookmark", event.nativeEvent)} data-document-panel-trigger="bookmark" data-pinned={desktopPanels.pinned("bookmark") || undefined}
             onPointerEnter={event => desktopPanels.enter("bookmark", event.pointerType)} onPointerLeave={desktopPanels.leave}
             type="button"
             className={bookmarkOpen ? "active" : undefined}
-            aria-expanded={bookmarkOpen}
+            aria-expanded={isMobileToolbarViewport ? bookmarkOpen : desktopPanels.selected("bookmark") || desktopPanels.preview === "bookmark"}
             onClick={(event) => {
               event.stopPropagation();
                     toggleDocumentBookmarks();

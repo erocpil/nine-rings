@@ -1,5 +1,5 @@
 import { useDocumentWorkspace } from "../hooks/useDocumentWorkspace";
-import { saveDocumentWorkspaceMode } from "../lib/document-workspace-layout";
+import { saveDocumentDock, saveDocumentWorkspaceMode } from "../lib/document-workspace-layout";
 import { useWorkspaceLayout } from "../hooks/useWorkspaceLayout";
 import {
   saveWorkspaceLayout,
@@ -28,8 +28,10 @@ export function SettingsWorkspaceLayout({
             {([["document", "文档布局"], ["compact", "紧凑布局"]] as const).map(([mode, name]) => <button key={mode} type="button" className={`settings-radio ${documentWorkspace[origin] === mode ? "active" : ""}`} aria-pressed={documentWorkspace[origin] === mode}
               onClick={() => { if (!saveDocumentWorkspaceMode(origin, mode)) onError("工作区布局保存失败，请重试。"); }}>{name}</button>)}
           </div>
+          {documentWorkspace.docks?.[origin] && <button type="button" className="btn-secondary"
+            onClick={() => { if (!saveDocumentDock(origin, () => undefined)) onError("面板布局恢复失败，请重试。"); }}>恢复默认面板布局</button>}
         </div>)}
-        <p className="sidebar-presentation-description">文档布局支持悬停预览和多个固定面板；紧凑布局在标题栏下方右侧展示单个导航面板。两类文件均可选择，切换布局保留各自的宽度与展开状态，不改变文件内容及编辑权限。手机保留原有导航方式。</p>
+        <p className="sidebar-presentation-description">文档布局默认可固定多个面板，紧凑布局默认一次固定一个。桌面上可把工具栏按钮或固定面板标题拖到现有面板，叠放或合并为标签组。手机使用弹层和抽屉。</p>
       </div>
       <div className="sidebar-settings-card">
         <div className="sidebar-settings-card-heading"><strong>外围信息显示</strong></div>
@@ -77,7 +79,7 @@ export function SettingsWorkspaceLayout({
               ["left", "左侧"],
               ["right", "右侧"],
             ],
-            "点击目录或书签按钮后，面板固定在正文的这一侧；再次点击收起。",
+            "固定面板整体位于正文的这一侧。点击工具栏按钮可固定面板或切到组内对应标签。",
           ],
           [
             "panelsArrangement",
@@ -86,7 +88,7 @@ export function SettingsWorkspaceLayout({
               ["vertical", "上下排列"],
               ["horizontal", "左右排列"],
             ],
-            "上下排列时目录在上、书签在下；左右排列时目录在左、书签在右。两者之间的分隔条可拖动，比例自动记住。",
+            "默认文档布局的排列方式。拖动建立自定义布局后，使用面板内的分隔条调整比例。",
           ],
         ] as const
       ).map(([key, title, options, description]) => (

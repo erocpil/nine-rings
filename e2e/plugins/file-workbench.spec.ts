@@ -1,3 +1,4 @@
+import { dragDockPanel } from "../helpers/document-dock";
 import { expectFoldContextSubmenu } from "../helpers/context-submenu";
 import { sourceInfo, selectDocumentLanguage } from "../helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
@@ -2176,6 +2177,63 @@ test("磁盘书签多处源码修改后保留中间位置，重新打开恢复�
   await expect.poll(async () => (await sourceInfo(page.locator(".cm-content:visible"))).selectionStart).toBe(changed.indexOf("bookmark"));
 });
 
+test("固定导航面板拖拽布局随文件切换与重载恢复，同词仅在适用文件展示", async ({ page }) => {
+  await page.addInitScript(() => {
+    let id = 1;
+    const files = { "panel.c": "int value;\nint read(void) { return value; }\n", "panel.md": "# 目录\n\n正文\n" } as const;
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback() { return id++; }, unregisterCallback() {},
+      async invoke(command: string, args: { node?: keyof typeof files }) {
+        if (command === "plugin:event|listen") return id++;
+        if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
+        if (command === "local_files_roots") return [{ id: "dock-root", name: "Navigation" }];
+        if (command === "local_files_display_path") return "/fixture/Navigation";
+        if (command === "local_files_list") return { nodes: Object.entries(files).map(([name, text]) => ({ id: name, name, directory: false, size: text.length, modifiedMs: 1 })), next: null };
+        const source = args?.node ? files[args.node] : "";
+        if (command === "local_files_stat") return { size: source.length, modifiedMs: 1 };
+        if (command === "local_files_read") return { source, size: source.length, modifiedMs: 1, revision: "1", bom: false, lineEnding: "lf" };
+        throw new Error(command);
+      },
+    };
+  });
+  await page.goto("/file-workbench.html");
+  const open = async (name: string) => {
+    await page.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: new RegExp(name) }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "打开方式", exact: true }).hover();
+    await page.getByRole("menuitem", { name: "内置编辑器", exact: true }).click();
+  };
+  const dock = page.getByRole("complementary", { name: "固定阅读面板" });
+  const groups = dock.locator(".document-dock-group");
+  const activeTab = (name: string) => dock.getByRole("tab", { name, exact: true });
+  const fileSource = page.locator(".cm-content:visible");
+
+  await open("panel.c");
+  await expect(fileSource).toContainText("return value");
+  await page.getByRole("button", { name: "源码符号", exact: true }).click();
+  await dragDockPanel(page, page.getByRole("button", { name: "书签", exact: true }), dock.locator('[data-dock-target="outline"]'), "tab");
+  await expect(activeTab("书签")).toHaveAttribute("aria-selected", "true");
+  await dragDockPanel(page, page.getByRole("button", { name: "同词匹配", exact: true }), groups.first(), "after");
+  await expect(groups.nth(1)).toHaveAttribute("data-dock-target", "matches");
+  await expect(dock.getByRole("complementary", { name: "本地文件同词匹配" })).toBeVisible();
+  await activeTab("源码符号").click();
+  await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
+
+  await open("panel.md");
+  await expect(page.locator(".ProseMirror:visible")).toContainText("正文");
+  await expect(groups).toHaveCount(1);
+  await expect(activeTab("目录")).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  await expect(groups).toHaveCount(1);
+  await expect(activeTab("目录")).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
+
+  await page.reload();
+  await open("panel.c");
+  await expect(fileSource).toContainText("return value");
+  await expect(activeTab("源码符号")).toHaveAttribute("aria-selected", "true");
+  await expect(groups.nth(1)).toHaveAttribute("data-dock-target", "matches");
+});
+
 test("集中快捷键可录制、冲突提示、取消与持久化，操作仍受目录能力约束", async ({ page }) => {
   await page.goto("/file-workbench.html");
   const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
@@ -2551,6 +2609,16 @@ test.describe("独立编辑器单标题与边缘滚动条", () => {
         expect(on).not.toBe(off);
       }
     }
+    const outline = page.getByRole("button", { name: "目录", exact: true });
+    const dock = page.getByRole("complementary", { name: "固定阅读面板" });
+    if (await outline.getAttribute("aria-pressed") !== "true") await outline.click();
+    await dragDockPanel(page, page.getByRole("button", { name: "书签", exact: true }), dock.locator('[data-dock-target="outline"]'), "tab");
+    await expect(dock.getByRole("tab", { name: "书签", exact: true })).toHaveAttribute("aria-selected", "true");
+    await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+    await expect(dock.getByRole("tab", { name: "书签", exact: true })).toHaveAttribute("aria-selected", "true");
+    await page.reload();
+    await expect(dock.getByRole("tab", { name: "书签", exact: true })).toHaveAttribute("aria-selected", "true");
+
   });
 });
 

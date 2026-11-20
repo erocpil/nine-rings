@@ -214,7 +214,7 @@ export function ReadonlyVirtualNote(
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
   const mobileDrawerViewport = useMobileViewport();
-  const desktopPanels = useDesktopDocumentPanels(!mobileDrawerViewport, sections, props.content.metadata?.bookmarks, annotations);
+  const desktopPanels = useDesktopDocumentPanels(!mobileDrawerViewport, sections, props.content.metadata?.bookmarks, annotations, undefined, "database", false, sections.length > 0);
   const { openPreview, dismiss: dismissPreview, toggle: togglePinnedPanel } = desktopPanels;
   const [panel, setPanel] = useState<"outline" | "bookmarks" | "search" | null>(
     null,
@@ -969,8 +969,8 @@ export function ReadonlyVirtualNote(
         type="button"
         title="文档目录"
         aria-label="文档目录"
-        aria-expanded={mobileDrawerViewport ? panel === "outline" : desktopPanels.pinned("outline") || preview === "outline"}
-        data-document-panel-trigger="outline" data-pinned={desktopPanels.pinned("outline")}
+        aria-expanded={mobileDrawerViewport ? panel === "outline" : desktopPanels.selected("outline") || preview === "outline"}
+        onPointerDown={event => desktopPanels.startDockDrag("outline", event.nativeEvent)} data-document-panel-trigger="outline" data-pinned={desktopPanels.pinned("outline")}
         onPointerEnter={event => desktopPanels.enter("outline", event.pointerType)} onPointerLeave={desktopPanels.leave}
         onClick={() => mobileDrawerViewport ? openPanel(panel === "outline" ? null : "outline") : togglePinnedPanel("outline")}
       >
@@ -981,8 +981,8 @@ export function ReadonlyVirtualNote(
         type="button"
         title={bookmarkPanelLabel}
         aria-label="文档书签"
-        aria-expanded={mobileDrawerViewport ? panel === "bookmarks" : desktopPanels.pinned("bookmark") || preview === "bookmarks"}
-        data-document-panel-trigger="bookmark" data-pinned={desktopPanels.pinned("bookmark")}
+        aria-expanded={mobileDrawerViewport ? panel === "bookmarks" : desktopPanels.selected("bookmark") || preview === "bookmarks"}
+        onPointerDown={event => desktopPanels.startDockDrag("bookmark", event.nativeEvent)} data-document-panel-trigger="bookmark" data-pinned={desktopPanels.pinned("bookmark")}
         onPointerEnter={event => desktopPanels.enter("bookmark", event.pointerType)} onPointerLeave={desktopPanels.leave}
         onClick={() => mobileDrawerViewport ? openPanel(panel === "bookmarks" ? null : "bookmarks") : togglePinnedPanel("bookmark")}
       >

@@ -1,7 +1,7 @@
 import { sourceVimOwnsEscape } from "../lib/vim-escape";
 import { outlineLabel } from "../lib/heading-links";
 import { useDocumentWorkspace } from "./useDocumentWorkspace";
-import { saveCompactPanel, type DocumentWorkspaceOrigin } from "../lib/document-workspace-layout";
+import { saveCompactPanel, saveDocumentDock, type DocumentWorkspaceOrigin } from "../lib/document-workspace-layout";
 import { useDocumentActive } from "../components/RetainedDocument";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspaceLayout } from "./useWorkspaceLayout";
@@ -9,6 +9,8 @@ import {
   DEFAULT_WORKSPACE_LAYOUT,
   saveWorkspaceLayout,
 } from "../lib/workspace-layout";
+import { openDockPanel, visibleDockGroups, type DockPanel, type DocumentDockLayout } from "../lib/document-dock-layout";
+
 export type DocumentPanelKind = "outline" | "bookmark";
 const EMPTY_ITEMS: never[] = [];
 export function useDesktopDocumentPanels(
@@ -20,6 +22,7 @@ export function useDesktopDocumentPanels(
   origin: DocumentWorkspaceOrigin = "database",
   compactOnly = false,
   outlineEnabled = true,
+  matchesEnabled = false,
 ) {
   const active = useDocumentActive();
   enabled = enabled && active;
@@ -27,13 +30,38 @@ export function useDesktopDocumentPanels(
   const preferences = useDocumentWorkspace();
   const mode = compactOnly ? "compact" : preferences[origin];
   const compact = preferences.compact[origin];
+  const dock = preferences.docks?.[origin];
+  const available = (kind: DockPanel) => kind === "outline" ? outlineEnabled : kind === "matches" ? matchesEnabled : true;
+  const dockActive = useMemo(() => dock && visibleDockGroups(
+    dock, kind => kind === "outline" ? outlineEnabled : kind === "matches" ? matchesEnabled : true,
+  ), [dock, outlineEnabled, matchesEnabled]);
+  const dragHandler = useRef<(kind: DockPanel, event: PointerEvent) => void>();
+  const connectDockDrag = useCallback((handler?: (kind: DockPanel, event: PointerEvent) => void) => {
+    dragHandler.current = handler;
+  }, []);
+  const startDockDrag = (kind: DockPanel, event: PointerEvent) => {
+    if (enabled && available(kind)) dragHandler.current?.(kind, event);
+  };
   const layout = useMemo(() => {
     const next = mode === "compact" ? { ...baseLayout, panelsArrangement: "vertical" as const, outlinePinned: compact.active === "outline", bookmarkPinned: compact.active === "bookmark", panelWidth: compact.width } : baseLayout;
+    if (dock) return {
+      ...next, panelsArrangement: "vertical" as const,
+      outlinePinned: outlineEnabled && dock.groups.some(group => group.panels.includes("outline")) && !dock.closed.includes("outline"),
+      bookmarkPinned: dock.groups.some(group => group.panels.includes("bookmark")) && !dock.closed.includes("bookmark"),
+    };
     // Mask unavailable navigation without destroying the user's pinned preference.
     return outlineEnabled ? next : { ...next, outlinePinned: false };
-  }, [baseLayout, compact.active, compact.width, mode, outlineEnabled]);
+  }, [baseLayout, compact.active, compact.width, dock, mode, outlineEnabled]);
   const [preview, setPreview] = useState<DocumentPanelKind | null>(null);
   const [error, setError] = useState("");
+  const changeDock = useCallback((change: (current: DocumentDockLayout | undefined) => DocumentDockLayout | undefined) => {
+    const saved = saveDocumentDock(origin, change);
+    setError(saved ? "" : "面板布局保存失败，请检查本机存储权限。");
+    return saved;
+  }, [origin]);
+  const showDockPanel = useCallback((kind: DockPanel, close = false) => {
+    return changeDock(current => current && openDockPanel(current, kind, close));
+  }, [changeDock]);
   const visible =
     enabled &&
     Boolean(preview || layout.outlinePinned || layout.bookmarkPinned);
@@ -105,6 +133,9 @@ export function useDesktopDocumentPanels(
       (kind === "outline" ? layout.outlinePinned : layout.bookmarkPinned),
     [enabled, layout],
   );
+  const selected = useCallback((kind: DockPanel) =>
+    enabled && (dockActive ? dockActive.some(group => group.active === kind) : kind !== "matches" && pinned(kind)),
+  [enabled, dockActive, pinned]);
   const cancel = useCallback(() => {
     clearTimeout(timer.current);
   }, []);
@@ -115,9 +146,11 @@ export function useDesktopDocumentPanels(
   const openPreview = useCallback(
     (kind: DocumentPanelKind) => {
       cancel();
-      if (enabled && (kind !== "outline" || outlineEnabled) && !pinned(kind)) setPreview(kind);
+      if (!enabled || (kind === "outline" && !outlineEnabled)) return;
+      if (!pinned(kind)) setPreview(kind);
+      else if (dock && !selected(kind)) showDockPanel(kind);
     },
-    [cancel, enabled, pinned, outlineEnabled],
+    [cancel, dock, enabled, pinned, outlineEnabled, selected, showDockPanel],
   );
   const enter = (kind: DocumentPanelKind, pointerType: string) => {
     if (kind === "outline" && !outlineEnabled) return;
@@ -144,6 +177,10 @@ export function useDesktopDocumentPanels(
     (kind: DocumentPanelKind) => {
       if (kind === "outline" && !outlineEnabled) return;
       dismiss();
+      if (dock) {
+        showDockPanel(kind, dockActive?.some(group => group.active === kind));
+        return;
+      }
       if (
         !(mode === "compact" ? saveCompactPanel(origin, { active: compact.active === kind ? null : kind }) : saveWorkspaceLayout(
           kind === "outline"
@@ -154,7 +191,7 @@ export function useDesktopDocumentPanels(
         setError("面板设置保存失败，请检查本机存储权限。");
       else setError("");
     },
-    [dismiss, layout, mode, origin, compact.active, outlineEnabled],
+    [dismiss, dock, dockActive, showDockPanel, layout, mode, origin, compact.active, outlineEnabled],
   );
   useEffect(() => {
     dismiss();
@@ -184,6 +221,12 @@ export function useDesktopDocumentPanels(
   }, [preview, dismiss]);
   return {
     enabled,
+    dock,
+    dockActive,
+    changeDock,
+    showDockPanel,
+    connectDockDrag,
+    startDockDrag,
     mode,
     origin,
     saveWidth: (width: number) => mode === "compact" ? saveCompactPanel(origin, { width }) : saveWorkspaceLayout(layout.panelsArrangement === "horizontal" ? { horizontalPanelWidth: width } : { panelWidth: width }),
@@ -193,6 +236,7 @@ export function useDesktopDocumentPanels(
     dockWidth,
     preview: enabled && preview && (preview !== "outline" || outlineEnabled) && !pinned(preview) ? preview : null,
     pinned,
+    selected,
     toggle,
     enter,
     leave,
