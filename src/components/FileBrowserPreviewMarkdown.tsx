@@ -5,8 +5,13 @@ import type { PreviewScrollPosition } from "../lib/local-files/browser-preview";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import { DocumentImageLibraryContext, DocumentResourceContext } from "./DocumentResourceContext";
 import { MarkdownSplitPreview } from "./MarkdownSplitPreview";
+import { useLocalMarkdownImages } from "../hooks/useLocalMarkdownImages";
+import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contract";
 
-export function FileBrowserPreviewMarkdown({ source, autoFocus = false, position }: { source: string; autoFocus?: boolean; position?: PreviewScrollPosition }) {
+export function FileBrowserPreviewMarkdown({ source, rootId, node, provider, autoFocus = false, position }: {
+  source: string; rootId: string; node: string; provider: BrowserDirectoryProvider; autoFocus?: boolean; position?: PreviewScrollPosition;
+}) {
+  const previewImage = useLocalMarkdownImages(provider, rootId, node);
   const revision = useMemo(() => SourceNavigationDocument.from(source, { ops: [] }), [source]);
   const restored = useRef(false);
   const ready = useCallback((element: HTMLDivElement) => {
@@ -33,5 +38,3 @@ export function FileBrowserPreviewMarkdown({ source, autoFocus = false, position
     }
   }}>{notice && <p role="status">{notice}</p>}<MarkdownSplitPreview revision={revision} areaRef={area} enabled sync={false} onPreviewReady={ready} fontSize={16} highlightActiveLine={false}>{null}</MarkdownSplitPreview></div></DocumentResourceContext.Provider></DocumentImageLibraryContext.Provider>;
 }
-
-async function previewImage(src: string) { return /^(https?:|data:image\/|blob:)/i.test(src) ? null : ""; }

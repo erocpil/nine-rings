@@ -12,6 +12,7 @@ import { DocumentReadingToolbar } from "./DocumentReadingToolbar";
 import { DocumentTitleBar, DocumentToolbar, DocumentAccessToggle } from "./DocumentChrome";
 import { OutlineJumpControls } from "./DocumentNavigationTools";
 import { documentRenderingExtensions, readonlyDocumentGuard } from "../extensions/document-rendering";
+import { DocumentImageLibraryContext } from "./DocumentResourceContext";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import { vimModePluginKey } from "../extensions/VimMode";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
@@ -483,6 +484,7 @@ export function RenderedDocumentWorkspace(input: NoteEditorProps) {
 
 function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, workspaceHost, onCreateDocument, onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, documentCreatedAt, documentUpdatedAt, documentLastAccessedAt, documentType, documentPath, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
   const referenceSearch = React.useContext(DocumentReferenceSearchContext);
+  const allowImageLibrary = React.useContext(DocumentImageLibraryContext);
   const statusBar = useStatusBarDisplay(showStatusBar, focusMode);
   const [documentSerializer] = useState(() => new IncrementalDocumentSerializer());
   const noteEditorRef = useRef<HTMLDivElement>(null);
@@ -903,7 +905,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
   // document callbacks read refs so autosave never captures an old handler.
   const [sessionExtensions] = useState(() => [
       Extension.create({ name: "headingFoldHosts", addProseMirrorPlugins: () => [headingFoldAnchors(foldHostsRef.current)] }),
-      ...documentRenderingExtensions({ lineNumbers: showCodeLineNumbers, defaultWrap: defaultCodeBlockWrap }),
+      ...documentRenderingExtensions({ lineNumbers: showCodeLineNumbers, defaultWrap: defaultCodeBlockWrap, authorizeImageSource: !allowImageLibrary }),
       Placeholder.configure({ placeholder: "" }),
       // 仅用于统计，不限制文档长度。长 Markdown 粘贴（例如技术手册）
       // 可能超过 50,000 字符；设置 limit 会让 ProseMirror 拒绝整笔事务。

@@ -22,14 +22,15 @@ import { StandaloneStrongLabel } from "./StandaloneStrongLabel";
 /** The document schema and NodeViews are independent of storage and editability.
  * Both file and database adapters use this definition; session/persistence,
  * navigation and editing commands are attached separately by their owners. */
-export function documentRenderingExtensions({ lineNumbers = false, defaultWrap = true } = {}) {
+export function documentRenderingExtensions({ lineNumbers = false, defaultWrap = true, authorizeImageSource = false } = {}) {
   return [
     DocumentStarterKit.configure({ heading: false, codeBlock: false, blockquote: false }),
     Heading.configure({ levels: [1, 2, 3, 4, 5, 6] }).extend({ addInputRules: () => [] }),
     OrderedListLayout, MarkdownTaskState, FootnoteNumbering, AutomaticTOC,
     MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes, HTMLStyle, HTMLAnchor, RawHTML, RawHTMLInline,
     TextStyle, ThemeAwareColor.configure({ types: ["textStyle"] }), FontSize,
-    MarkdownImage, ResizableImage.configure({ inline: false, allowBase64: true }),
+    MarkdownImage.configure({ authorizeSourceInNodeView: authorizeImageSource }),
+    ResizableImage.configure({ authorizeSourceInNodeView: authorizeImageSource }),
     DocumentLink.configure({ openOnClick: true, protocols: ["nr-note"] }),
     ContentSizedTable.configure({ resizable: true, handleWidth: 8, cellMinWidth: 48, lastColumnResizable: true, allowTableNodeSelection: true }),
     TableRow, AlignedTableHeader, AlignedTableCell,

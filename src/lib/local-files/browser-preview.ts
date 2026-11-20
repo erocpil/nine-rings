@@ -37,6 +37,14 @@ export function browserSelectionSummary(nodes: readonly FileNode[], selected: re
 }
 export interface BrowserPreviewNavigation { step: (direction: -1 | 1) => boolean }
 
+export function isBrowserImagePath(node: string) {
+  return /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif)$/i.test(node);
+}
+
+export function isDirectMarkdownImageSource(src: string) {
+  return /^(https?:|data:image\/|blob:)/i.test(src);
+}
+
 /** Only preview-owned object URLs are released; data/remote text assets remain untouched. */
 export function releaseBrowserPreview(preview: { kind: "image" | "text" | "pdf" | "epub"; value: string | Blob } | null) {
   if (preview?.kind === "image" && typeof preview.value === "string" && preview.value.startsWith("blob:")) URL.revokeObjectURL(preview.value);

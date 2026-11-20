@@ -1,4 +1,4 @@
-import { releaseBrowserPreview } from "./browser-preview";
+import { isBrowserImagePath, releaseBrowserPreview } from "./browser-preview";
 import type { BrowserDirectoryHost, BrowserDirectoryProvider, BrowserPreview } from "./browser-contract";
 import { MAX_SOURCE_BYTES } from "./file-model";
 import type { LocalFileListOptions } from "./tree";
@@ -34,7 +34,7 @@ export function createBrowserDirectoryProvider(host: BrowserDirectoryHost): Brow
         check(signal);
         return { kind: "pdf", value, truncated: false };
       }
-      const image = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico|tiff?|heic|heif)$/i.test(node);
+      const image = isBrowserImagePath(node);
       const fingerprint = await host.files.stat(rootId, node);
       check(signal);
       if (!image && fingerprint.size > 1024 * 1024) throw new Error("此文本超过快速预览范围，可直接打开文件");

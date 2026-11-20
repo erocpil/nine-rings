@@ -2377,8 +2377,8 @@ test("目录大小仅手动扫描，包含隐藏项和子目录，复用缓存�
   await expect(dialog.getByRole("button", { name: "开始统计", exact: true })).toBeVisible();
 });
 
-async function setupIndependentEditor(page: Page, sources: Record<string, string> = { "alpha.c": "int alpha(void) { return 1; }\n", "beta.c": "int beta(void) { return 2; }\n" }, initial = "alpha.c") {
-  await page.addInitScript(({ sources, initial }) => {
+async function setupIndependentEditor(page: Page, sources: Record<string, string> = { "alpha.c": "int alpha(void) { return 1; }\n", "beta.c": "int beta(void) { return 2; }\n" }, initial = "alpha.c", images: Record<string, string> = {}) {
+  await page.addInitScript(({ sources, initial, images }) => {
     let next = 1;
     const callbacks = new Map<number, (event: unknown) => void>();
     const handlers = new Map<string, number>();
@@ -2391,7 +2391,7 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
     if (savedSession) { const saved = JSON.parse(savedSession); state.files = saved.files; state.current = saved.current; }
     const persistSession = () => localStorage.setItem("fixture-editor-session", JSON.stringify({ files: state.files, current: state.current }));
     const persist = () => { localStorage.setItem("fixture-editor-buffers", JSON.stringify(records)); persistSession(); };
-    const fixture = { state, sources, writes: [] as string[], finished: [] as unknown[], quit: 0, records, cancelSave: true, saves: [] as string[] };
+    const fixture = { state, sources, writes: [] as string[], finished: [] as unknown[], quit: 0, records, cancelSave: true, saves: [] as string[], assetReads: [] as string[], stats: [] as string[] };
     const emit = (event: string) => callbacks.get(handlers.get(event)!)?.({ event, id: 1, payload: null });
     Object.assign(window, { __editorFixture: fixture, __editorEmit: emit, __editorClose: (quit = false) => { state.revision++; state.closing = { token: state.revision, quit }; emit("workbench:editor-changed"); } });
     const snapshot = (node: string) => ({ source: sources[node], revision: sources[node], size: sources[node].length, modifiedMs: 1, lineEnding: "lf", bom: false });
@@ -2429,16 +2429,97 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
         if (command === "workbench_editor_finish_close") { fixture.finished.push(args); if (args.cancelled) { state.closing = null; state.revision++; emit("workbench:editor-changed"); } else { persistSession(); state.files = []; state.current = ""; state.closing = null; state.revision++; emit("workbench:editor-changed"); } return; }
         if (command === "workbench_editor_request_quit") { fixture.quit++; return; }
         if (command === "local_files_read") return snapshot(args.node);
-        if (command === "local_files_stat") return { size: sources[args.node]?.length ?? 0, modifiedMs: 1 };
+        if (command === "local_files_stat") {
+          fixture.stats.push(args.node);
+          const image = images[args.node];
+          if (args.node.endsWith(".svg") && image === undefined) throw new Error("image unavailable");
+          return { size: image === undefined ? sources[args.node]?.length ?? 0 : new TextEncoder().encode(image).length, modifiedMs: 1 };
+        }
+        if (command === "local_files_read_asset") {
+          fixture.assetReads.push(args.node);
+          if (args.rootId !== "root" || images[args.node] === undefined) throw new Error("image unavailable");
+          return Array.from(new TextEncoder().encode(images[args.node]).slice(args.offset, args.offset + args.length));
+        }
         if (command === "local_files_write") { fixture.writes.push(args.node); sources[args.node] = args.source; return snapshot(args.node); }
         if (command === "local_files_roots") return [{ id: "root", name: "Root" }];
         if (command === "local_files_display_path") return `/root/${args.node}`;
         return;
       },
     };
-  }, { sources, initial });
+  }, { sources, initial, images });
   await page.goto("/file-workbench.html");
 }
+
+const markdownTestImage = (width: number) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="20"><rect width="${width}" height="20" fill="teal"/></svg>`;
+
+test("Markdown 相对图片在独立编辑器的只读和可编辑视图中共用授权读取", async ({ page }) => {
+  const note = "practice/lesson.md";
+  const source = [
+    "![题图](../images/diagram%20one.svg)",
+    "内联图片：![同一图片](../images/./diagram%20one.svg)",
+    "![图片缺失](missing.svg)",
+    "![越界图片](../../outside.svg)",
+    "![绝对图片](/blocked-absolute.svg)",
+    "![编码分隔符](..%2Fimages%2Fdiagram%20one.svg)",
+    "![数据库图片](nr-image://private.svg)",
+    "![正文文件](lesson.md)",
+  ].join("\n\n");
+  const unexpectedRequests: string[] = [];
+  page.on("request", request => { if (/\/(?:blocked-absolute|outside|missing|private|diagram%20one)\.svg/.test(request.url())) unexpectedRequests.push(request.url()); });
+  await setupIndependentEditor(page, { [note]: source }, note, { "images/diagram one.svg": markdownTestImage(37) });
+  const rendered = page.locator(".ProseMirror:visible");
+  const imageWidth = () => rendered.getByRole("img", { name: "题图", exact: true }).evaluate((image: HTMLImageElement) => image.naturalWidth);
+  await expect.poll(imageWidth).toBe(37);
+  await expect(rendered.getByRole("img", { name: "同一图片" })).toBeVisible();
+  for (const alt of ["图片缺失", "越界图片", "绝对图片", "编码分隔符", "数据库图片", "正文文件"]) {
+    await expect(rendered.getByText(alt, { exact: true })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+  await expect(rendered).toHaveAttribute("contenteditable", "true");
+  await expect.poll(imageWidth).toBe(37);
+  const { reads, stats } = await page.evaluate(() => {
+    const { assetReads, stats } = (window as any).__editorFixture;
+    return { reads: assetReads, stats };
+  });
+  expect(reads).toEqual(["images/diagram one.svg"]);
+  expect(stats).toContain("practice/missing.svg");
+  expect(stats.filter((node: string) => node !== note).every((node: string) => ["images/diagram one.svg", "practice/missing.svg"].includes(node))).toBe(true);
+  expect(unexpectedRequests).toEqual([]);
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  expect((await sourceInfo(page.locator(".cm-content:visible"))).value).toBe(source);
+});
+
+test("Markdown 相对图片在快速预览中随来源目录切换", async ({ page }, testInfo) => {
+  const root = testInfo.outputPath("relative-images");
+  for (const [folder, width] of [["alpha", 31], ["beta", 52]] as const) {
+    await mkdir(join(root, folder), { recursive: true });
+    await writeFile(join(root, folder, "guide.md"), "![目录题图](figure.svg)\n\n![缺失题图](missing.svg)\n");
+    await writeFile(join(root, folder, "figure.svg"), markdownTestImage(width));
+  }
+  await page.goto("/file-workbench.html");
+  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(root);
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  const preview = page.getByRole("region", { name: "快速预览", exact: true });
+  let previousUrl: string | null = null;
+  for (const [folder, width] of [["alpha", 31], ["beta", 52]] as const) {
+    await left.getByRole("option", { name: new RegExp(`^${folder}`) }).dblclick();
+    await left.getByRole("option", { name: /^guide.md/ }).click();
+    await page.getByRole("button", { name: "快速预览", exact: true }).click();
+    const image = preview.getByRole("img", { name: "目录题图" });
+    await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(width);
+    await expect(preview.getByText("缺失题图")).toBeVisible();
+    const url = await image.getAttribute("src");
+    expect(url).toMatch(/^blob:/);
+    expect(url).not.toBe(previousUrl);
+    previousUrl = url;
+    await preview.getByRole("button", { name: "关闭快速预览", exact: true }).click();
+    await expect.poll(() => page.evaluate(async url => {
+      try { await fetch(url!); return false; } catch { return true; }
+    }, url)).toBe(true);
+    if (folder === "alpha") await left.getByRole("button", { name: "上级目录", exact: true }).click();
+  }
+});
 
 test("Markdown 链接跨标签定位章节，保留未保存正文并支持后退前进", async ({ page }) => {
   const note = "practice/education/lesson.md";

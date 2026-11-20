@@ -1,4 +1,4 @@
-import { DocumentResourceContext } from "../components/DocumentResourceContext";
+import { DocumentImageLibraryContext, DocumentResourceContext } from "../components/DocumentResourceContext";
 import { documentImages } from "../lib/image-library/document-images";
 import { requestImageView } from "../lib/image-library/viewer-request";
 import { workspacePanels } from "../lib/plugin-system/panel-registry";
@@ -14,6 +14,7 @@ import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { getImageUrl } from "../lib/storage/db-images";
 import { useCompactImage } from "../hooks/useCompactImage";
+import { isDirectMarkdownImageSource } from "../lib/local-files/browser-preview";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -37,46 +38,48 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: NodeVi
   const dragStart = useRef<{ pointerId: number; x: number; w: number } | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
   const imageTapRef = useRef<{ at: number; x: number; y: number } | null>(null);
-  const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
-  const objectUrlRef = useRef<string | null>(null);
-
   const rawSrc = node.attrs.src as string;
   const resolveResource = useContext(DocumentResourceContext);
+  const allowLibrary = useContext(DocumentImageLibraryContext);
+  const libraryImage = rawSrc?.startsWith("nr-image://");
+  const [resolved, setResolved] = useState<{ raw: string; resolver: typeof resolveResource; uri: string }>();
 
-  // 解析 nr-image:// 引用为 Object URL
   useEffect(() => {
-    if (!rawSrc || !rawSrc.startsWith("nr-image://")) {
-      if (!rawSrc || !resolveResource) { setResolvedSrc(rawSrc); return; }
-      let cancelled = false;
-      setResolvedSrc(null);
-      void resolveResource(rawSrc).then(src => { if (!cancelled) setResolvedSrc(src ?? rawSrc); }, () => { if (!cancelled) setResolvedSrc(rawSrc); });
-      return () => { cancelled = true; };
-    }
+    if (!rawSrc || (libraryImage ? !allowLibrary : !resolveResource)) return;
     let cancelled = false;
-    getImageUrl(rawSrc).then((url) => {
+    let owned: string | null = null;
+    const request = libraryImage ? getImageUrl(rawSrc) : resolveResource!(rawSrc);
+    void request.then(value => {
       if (cancelled) {
-        if (url) URL.revokeObjectURL(url);
+        if (libraryImage && value) URL.revokeObjectURL(value);
         return;
       }
-      objectUrlRef.current = url;
-      setResolvedSrc(url || rawSrc);
-    });
+      if (libraryImage) owned = value;
+      setResolved({ raw: rawSrc, resolver: resolveResource, uri: value ?? (libraryImage ? "" : rawSrc) });
+    }, () => { if (!cancelled) setResolved({ raw: rawSrc, resolver: resolveResource, uri: "" }); });
     return () => {
       cancelled = true;
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-        objectUrlRef.current = null;
-      }
+      if (owned) URL.revokeObjectURL(owned);
     };
-  }, [rawSrc, resolveResource]);
+  }, [rawSrc, resolveResource, allowLibrary, libraryImage]);
+
+  const displaySrc = libraryImage && !allowLibrary ? ""
+    : (libraryImage || resolveResource)
+      ? resolved?.raw === rawSrc && resolved.resolver === resolveResource ? resolved.uri : ""
+      : rawSrc;
 
   const openImage = async () => {
     const images = documentImages(editor.getJSON());
     const index = images.findIndex(image => image.src === rawSrc);
-    const resolved = resolveResource ? await Promise.all(images.map(async image => ({ ...image, src: await resolveResource(image.src).catch(() => null) ?? image.src }))) : images;
-    requestImageView(resolved[index] ?? { src: rawSrc, name: String(node.attrs.alt || node.attrs.title || "文档图片") }, resolved);
+    const gallery = await Promise.all(images.map(async image => ({
+      ...image,
+      src: image.src.startsWith("nr-image://")
+        ? allowLibrary ? image.src : ""
+        : resolveResource ? await resolveResource(image.src).catch(() => "") ?? image.src : image.src,
+    })));
+    const current = gallery[index];
+    if (current?.src) requestImageView(current, gallery.filter(image => image.src));
   };
-  const displaySrc = resolvedSrc ?? rawSrc;
   const compact = useCompactImage(imgRef, displaySrc, imagePanels.length > 0);
 
   const currentWidth = dragWidth ?? (node.attrs.width ? parseInt(node.attrs.width as string, 10) : null);
@@ -164,37 +167,41 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: NodeVi
 
   return (
     <NodeViewWrapper as={node.isInline ? "span" : "div"} className={`resizable-image-wrapper${node.isInline ? " markdown-inline-image" : ""}`} data-selected={selected ? "true" : undefined} data-image-compact={compact || undefined}>
-      <img
+      {displaySrc ? <img
         ref={imgRef}
-        src={displaySrc ?? ""}
+        src={displaySrc}
         alt={(node.attrs.alt as string) ?? ""}
         title={(node.attrs.title as string) ?? ""}
         style={currentWidth ? { width: currentWidth, maxWidth: "100%" } : { maxWidth: "100%" }}
         onDoubleClick={onDoubleClick}
         onPointerUp={onImagePointerUp}
         draggable={false}
-      />
-      {imagePanels.length > 0 && <button type="button" contentEditable={false} className="btn-icon document-image-view-button" aria-label="查看图片" title="查看图片" onClick={event => {event.preventDefault();event.stopPropagation();void openImage();}}><ToolbarIcon name="image" /></button>}
-      <span
+      /> : <span>{node.attrs.alt || "图片"}</span>}
+      {displaySrc && imagePanels.length > 0 && <button type="button" contentEditable={false} className="btn-icon document-image-view-button" aria-label="查看图片" title="查看图片" onClick={event => {event.preventDefault();event.stopPropagation();void openImage();}}><ToolbarIcon name="image" /></button>}
+      {displaySrc && <span
         className="resize-handle"
         onPointerDown={onResizePointerDown}
         title="拖拽调整大小 · 双击恢复原始尺寸"
-      />
+      />}
     </NodeViewWrapper>
   );
 }
 
 // ── TipTap Node 定义 ──
 
-export const ResizableImage = Node.create({
+export const ResizableImage = Node.create<{ authorizeSourceInNodeView: boolean }>({
   name: "resizableImage",
   group: "block",
   inline: false,
   draggable: true,
 
+  addOptions() {
+    return { authorizeSourceInNodeView: false };
+  },
+
   addAttributes() {
     return {
-      src: { default: null },
+      src: { default: null, parseHTML: element => element.getAttribute("data-document-image-src") ?? element.getAttribute("src") },
       alt: { default: null },
       title: { default: null },
       width: { default: null },
@@ -202,13 +209,15 @@ export const ResizableImage = Node.create({
   },
 
   parseHTML() {
-    return [{ tag: "img[src]" }];
+    return [{ tag: "img[src]" }, { tag: "img[data-document-image-src]" }];
   },
 
   renderHTML({ HTMLAttributes }) {
-    const { width, ...attrs } = HTMLAttributes;
+    const { width, src, ...attrs } = HTMLAttributes;
     const style = width ? `width: ${width};` : "";
-    return ["img", { ...attrs, style }];
+    // ProseMirror can materialize this DOM before React attaches the NodeView.
+    const source = this.options.authorizeSourceInNodeView && src && !isDirectMarkdownImageSource(src) ? { "data-document-image-src": src } : { src };
+    return ["img", { ...attrs, ...source, style }];
   },
 
   addCommands() {
@@ -230,7 +239,8 @@ export const MarkdownImage = ResizableImage.extend({
   name: "markdownImage", group: "inline", inline: true,
   parseHTML() { return [{ tag: "img[data-markdown-inline]" }]; },
   renderHTML({ HTMLAttributes }) {
-    const { width, ...attrs } = HTMLAttributes;
-    return ["img", { ...attrs, ...(width ? { style: `width: ${width};` } : {}), "data-markdown-inline": "" }];
+    const { width, src, ...attrs } = HTMLAttributes;
+    const source = this.options.authorizeSourceInNodeView && src && !isDirectMarkdownImageSource(src) ? { "data-document-image-src": src } : { src };
+    return ["img", { ...attrs, ...source, ...(width ? { style: `width: ${width};` } : {}), "data-markdown-inline": "" }];
   },
 });

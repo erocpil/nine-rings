@@ -15,6 +15,7 @@ import { WorkbenchEditorSettingsDialog } from "./EditorSettings";
 import { useWorkbenchTypography, workbenchTypographyVariables } from "./typography";
 import { blockFontFamily } from "../../lib/editor-appearance";
 import { useLocalFileDetails } from "../../hooks/useLocalFileDetails";
+import { useLocalMarkdownImages } from "../../hooks/useLocalMarkdownImages";
 import { localFileInfoTimes } from "../../lib/local-files/file-info-times";
 import { DocumentTitleField } from "../../components/DocumentTitleField";
 import { PanelSideToggle } from "../../components/PanelSideToggle";
@@ -54,7 +55,6 @@ import type { LocalFileDraft } from "../../lib/local-files/recovery";
 import "../../styles/local-files.css";
 
 const MarkdownWorkspace = lazy(() => import("../../components/LocalMarkdownWorkspace").then(module => ({ default: module.LocalMarkdownWorkspace })));
-const resolveResource = async (src: string) => /^(https?:|data:image\/|blob:)/i.test(src) ? null : "";
 
 export function WorkbenchSourceView({ file, host, provider, settings, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false, active = true, closeLabel = "返回文件浏览", onCloseCancelled, onDirtyChange, navigationRequest, beforeCloseActions, onCreateDocument, untitled = false, initialReadonly = true, documentPath, persistDocument = false, onFollowFile, linkRequest, onLinkHistory, linkHistory, linkOrigin }: {
   linkOrigin?: { rootId: string; node: string; read: LocalSourceHost["read"] };
@@ -105,6 +105,8 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const renderedFlush = useRef<LocalRenderedFlush | null>(null);
   const [renderPending, setRenderPending] = useState(false);
   const [renderEpoch, setRenderEpoch] = useState(0);
+  const resourceNode = linkOrigin?.node ?? (persistDocument ? undefined : file.node.id);
+  const resolveResource = useLocalMarkdownImages(provider, linkOrigin?.rootId ?? file.rootId, active && renderMarkdown ? resourceNode : undefined, renderEpoch);
   const renderMode = useRef(renderMarkdown); renderMode.current = renderMarkdown;
   const registerRenderedFlush = useCallback((value: LocalRenderedFlush | null) => { renderedFlush.current = value; }, []);
   const bindRendered = useCallback((editor: Editor | null) => {
