@@ -147,6 +147,12 @@ test("链接右键菜单、复制、打开和窗口边界", async ({ page }) => 
   await expect(menu.getByRole("menuitem", { name: "复制链接" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
+  await link.click({ button: "right" });
+  await expect(menu).toBeVisible();
+  await page.locator("body").evaluate(body => { body.tabIndex = -1; body.focus(); });
+  await expect(page.locator("body")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
 });
 
 test.describe("手机链接", () => {

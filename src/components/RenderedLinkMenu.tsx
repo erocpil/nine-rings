@@ -76,11 +76,11 @@ export function RenderedLinkMenu({
     if (press.current) clearTimeout(press.current.timer);
     press.current = null;
   }, []);
-  const close = () => {
+  const close = useCallback(() => {
     setMenu(null);
     setSuggestion(null);
     focus.current?.focus({ preventScroll: true });
-  };
+  }, []);
   const show = useCallback(
     (link: HTMLAnchorElement, x: number, y: number) => {
       cancelPress();
@@ -207,7 +207,17 @@ export function RenderedLinkMenu({
     ref.current
       .querySelector<HTMLButtonElement>("button")
       ?.focus({ preventScroll: true });
-  }, [menu, suggestion]);
+    // The popup lives in a portal. Capture Escape at the window before
+    // editor or drawer listeners can intercept it on the way to the menu.
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      close();
+    };
+    window.addEventListener("keydown", escape, true);
+    return () => window.removeEventListener("keydown", escape, true);
+  }, [menu, suggestion, close]);
   useEffect(() => {
     if (!menu && !suggestion) return;
     const outside = (event: Event) => {
@@ -355,10 +365,6 @@ export function RenderedLinkMenu({
             style={{ left: menu.x, top: menu.y }}
             onKeyDown={(event) => {
               event.stopPropagation();
-              if (event.key === "Escape") {
-                event.preventDefault();
-                close();
-              }
               if (
                 ["ArrowDown", "ArrowUp", "Home", "End", "Tab"].includes(
                   event.key,
@@ -437,13 +443,6 @@ export function RenderedLinkMenu({
             aria-label="文档链接建议"
             className="rendered-link-menu"
             style={{ left: suggestion.x, top: suggestion.y }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                event.stopPropagation();
-                close();
-              }
-            }}
           >
             <div className="rendered-link-address" title={suggestion.path}>
               目标：{suggestion.path}
