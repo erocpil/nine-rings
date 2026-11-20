@@ -30,7 +30,7 @@ export async function openWritableLocalDirectory(page: Page, files: Record<strin
       const name = parts[parts.length - 1]!;
       const node: any = { name, kind: "file", writes: 0,
         getFile: async () => new File([text], node.name, { lastModified: modified, type: node.name.endsWith(".svg") ? "image/svg+xml" : "text/plain" }),
-        setText: (value: string) => { text = value; modified = ++clock; }, read: () => text,
+        setText: (value: string, keepTimestamp = false) => { text = value; if (!keepTimestamp) modified = ++clock; }, read: () => text,
         async createWritable() { let pending = text; return { write: async (value: string) => { pending = value; }, close: async () => { if (node.beforeClose) await node.beforeClose(); text = pending; modified = ++clock; node.writes++; }, abort: async () => {} }; },
         async move(destination: any, next?: string) { if (typeof destination === "string") { next = destination; destination = parent; } parent.children.delete(node.name); destination.children.set(next, node); node.name = next; parent = destination; },
       };

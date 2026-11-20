@@ -136,6 +136,22 @@ test("磁盘 Markdown 无本机编辑时检测到外部变化会自动重载并�
   await expect(workspace.locator(".local-files-message").filter({ hasText: "检测到磁盘文件变化，已重新载入并保留阅读位置。" })).toBeVisible();
 });
 
+test("磁盘源码恢复焦点时发现同长度外部修改并保留未保存编辑", async ({ page }) => {
+  await createBlankDocument(page);
+  const { workspace } = await openWritableLocalDirectory(page, { "external.md": "# Original\n\nDisk version 1\n" }, "external.md");
+  const area = workspace.locator(".cm-content:visible");
+  await replaceSource(area, "# Original\n\nUnsaved draft\n");
+  await page.evaluate(() => {
+    (window as any).__localWorkspaceFixture.nodes.get("external.md").setText("# Original\n\nDisk version 2\n", true);
+    window.dispatchEvent(new Event("focus"));
+  });
+  const conflict = workspace.getByRole("region", { name: "文件冲突处理" });
+  await expect(conflict).toContainText("Disk version 2", { timeout: 2500 });
+  await expect(conflict).toContainText("Unsaved draft");
+  await expect(area).toContainText("Unsaved draft");
+  expect(await page.evaluate(() => (window as any).__localWorkspaceFixture.nodes.get("external.md").read())).toContain("Disk version 2");
+});
+
 test("桌面磁盘 Markdown 正文和三条横线共用阅读宽度", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "nine-rings", workspace_layout: "exhibition", interface_content_width: 740 })));

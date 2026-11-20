@@ -15,6 +15,7 @@ import { WorkbenchEditorSettingsDialog } from "./EditorSettings";
 import { useWorkbenchTypography, workbenchTypographyVariables } from "./typography";
 import { blockFontFamily } from "../../lib/editor-appearance";
 import { useLocalFileDetails } from "../../hooks/useLocalFileDetails";
+import { useLocalFileRevisionCheck } from "../../hooks/useLocalFileRevisionCheck";
 import { useLocalMarkdownImages } from "../../hooks/useLocalMarkdownImages";
 import { localFileInfoTimes } from "../../lib/local-files/file-info-times";
 import { DocumentTitleField } from "../../components/DocumentTitleField";
@@ -195,6 +196,8 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     return () => window.removeEventListener(TOOLBAR_PREFERENCES_ERROR, failed);
   }, []);
   const [saving, setSaving] = useState(false), busy = useRef(false);
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const reading = useRef(false);
   const [external, setExternal] = useState<LocalFileSnapshot | null>(null);
   const [diskChange, setDiskChange] = useState<LocalFileSnapshot | string | null>(null);
@@ -246,67 +249,37 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     }).catch(cause => { if (live) { setError(String(cause)); setLoading(false); } });
     return () => { live = false; };
   }, [host, identity, file.rootId, file.node.id]);
-  useEffect(() => {
-    if (!active || untitled || loading || candidate || leave) return;
-    let live = true, checking = false, fullCheckRequested = false, lastFullCheck = 0;
-    let observed: LocalFileSnapshot | undefined;
-    const check = async (full = false) => {
-      const baseline = baseRef.current;
-      if (!live || !baseline || busy.current || reading.current || document.visibilityState === "hidden") return;
-      if (checking) { if (full) fullCheckRequested = true; return; }
-      checking = true;
-      const applicable = () => live && activeCurrent.current && !busy.current && !reading.current && baseRef.current === baseline && document.visibilityState !== "hidden";
-      try {
-        const fingerprint = await host.stat?.(file.rootId, file.node.id);
-        if (!applicable() || fingerprint === null) return;
-        const now = Date.now();
-        const previous = observed ?? baseline;
-        if (!full && now - lastFullCheck < 15_000 && (!fingerprint || (fingerprint.size === previous.size && fingerprint.modifiedMs === previous.modifiedMs))) return;
-        lastFullCheck = now;
-        const next = await host.read(file.rootId, file.node.id);
-        if (!applicable()) return;
-        observed = next;
-        if (next.revision === baseline.revision) {
-          setDiskChange(change => change === DISK_RELOADED ? change : null);
-          return;
-        }
-        if (handle.current?.view.composing || renderedEditor.current?.view.composing) { lastFullCheck = 0; return; }
-        if (current() !== baseline.source) {
-          setDiskChange(change => typeof change === "object" && change?.revision === next.revision ? change : next);
-          return;
-        }
-        baseRef.current = next; setBase(next);
-        sourceProjection.current = next.source; change(next.source);
-        if (next.source !== baseline.source) {
-          reloadPosition.current = capturePosition();
-          session.current = null;
-          setRenderEpoch(value => value + 1);
-        }
-        setRenderPending(false); setExternal(null); setDiskChange(DISK_RELOADED);
-        if (persistDocument) {
-          void host.drafts.write({ identity, source: next.source, baseSource: next.source, baseRevision: next.revision, bom: next.bom, lineEnding: next.lineEnding, savedAt: now })
-            .catch(cause => { if (live) setNotice(`本机编辑记录更新失败：${String(cause)}`); });
-        }
-      } catch (cause) {
-        if (applicable()) setDiskChange(`暂时无法重新读取磁盘文件，当前内容已保留。${String(cause)}`);
-      } finally {
-        checking = false;
-        if (fullCheckRequested) { fullCheckRequested = false; void check(true); }
+  useLocalFileRevisionCheck({
+    identity,
+    enabled: active && !untitled && !loading && Boolean(base) && !candidate && !leave,
+    baseline: () => baseRef.current,
+    canCheck: () => !busy.current && !reading.current && !handle.current?.view.composing && !renderedEditor.current?.view.composing,
+    stat: host.stat?.bind(host, file.rootId, file.node.id),
+    read: () => host.read(file.rootId, file.node.id),
+    onChecked(next, baseline) {
+      if (!next) {
+        setDiskChange(change => change === DISK_RELOADED ? change : null);
+        return;
       }
-    };
-    const resume = () => { void check(true); };
-    // Initial load already read the file. Activating an existing tab checks on the next tick.
-    const activation = window.setTimeout(() => { if (document.hasFocus()) resume(); }, 0);
-    const timer = window.setInterval(() => { void check(); }, 3000);
-    window.addEventListener("focus", resume);
-    document.addEventListener("visibilitychange", resume);
-    return () => {
-      live = false;
-      window.clearTimeout(activation); window.clearInterval(timer);
-      window.removeEventListener("focus", resume);
-      document.removeEventListener("visibilitychange", resume);
-    };
-  }, [active, candidate, capturePosition, change, current, file.node.id, file.rootId, handle, host, identity, leave, loading, persistDocument, untitled]);
+      if (current() !== baseline.source) {
+        setDiskChange(change => typeof change === "object" && change?.revision === next.revision ? change : next);
+        return;
+      }
+      baseRef.current = next; setBase(next);
+      sourceProjection.current = next.source; change(next.source);
+      if (next.source !== baseline.source) {
+        reloadPosition.current = capturePosition();
+        session.current = null;
+        setRenderEpoch(value => value + 1);
+      }
+      setRenderPending(false); setExternal(null); setDiskChange(DISK_RELOADED);
+      if (persistDocument) {
+        void host.drafts.write({ identity, source: next.source, baseSource: next.source, baseRevision: next.revision, bom: next.bom, lineEnding: next.lineEnding, savedAt: Date.now() })
+          .catch(cause => { if (mounted.current) setNotice(`本机编辑记录更新失败：${String(cause)}`); });
+      }
+    },
+    onError(cause) { setDiskChange(`暂时无法重新读取磁盘文件，当前内容已保留。${String(cause)}`); },
+  });
   useEffect(() => {
     if (!dirty || candidate || saving || leave || error) return;
     const timer = window.setTimeout(() => { void checkpoint().catch(cause => setError(`草稿暂存失败：${String(cause)}`)); }, untitled ? 150 : 500);
@@ -453,8 +426,6 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     else handle.current?.revealOffset(0);
   };
   const followingLink = useRef(false);
-  const linkMounted = useRef(false);
-  useEffect(() => { linkMounted.current = true; return () => { linkMounted.current = false; }; }, []);
   const followLink = async (href: string) => {
     if (followingLink.current || !activeCurrent.current) return;
     followingLink.current = true;
@@ -465,12 +436,12 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       const target = localMarkdownLink(from, href);
       if (target.node !== from && !onFollowFile) throw new Error("当前文档没有可用于跳转的授权目录");
       if (onFollowFile) await onFollowFile({ ...target, sameFile: target.node === from, rootId: linkOrigin?.rootId ?? file.rootId }, capturePosition(), next => {
-        if (linkMounted.current && activeCurrent.current) requestClose(next);
+        if (mounted.current && activeCurrent.current) requestClose(next);
       });
       else if (!target.fragment) goToFileStart();
       else if (!jumpToFragment(target.fragment)) showMissingFragment(target.fragment);
     } catch (cause) {
-      if (linkMounted.current && activeCurrent.current) setLinkNotice({ message: cause instanceof Error ? cause.message : String(cause) });
+      if (mounted.current && activeCurrent.current) setLinkNotice({ message: cause instanceof Error ? cause.message : String(cause) });
     } finally { followingLink.current = false; }
   };
   const jumpToFragment = (fragment: string) => {

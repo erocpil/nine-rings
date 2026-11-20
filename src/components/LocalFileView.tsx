@@ -3,6 +3,7 @@ import { canFollowMarkdownLink, localMarkdownLink } from "../lib/local-files/mar
 import { isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { MoreToolsButton } from "./MoreToolsButton";
 import { useLocalFileDetails } from "../hooks/useLocalFileDetails";
+import { useLocalFileRevisionCheck } from "../hooks/useLocalFileRevisionCheck";
 import { localFileInfoTimes } from "../lib/local-files/file-info-times";
 import { saveLocalSource } from "../lib/local-files/source-save";
 import { checkpointLocalSource } from "../lib/local-files/source-checkpoint";
@@ -115,7 +116,6 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
   const searchLocation = useRef(data.location);
   searchLocation.current = data.location;
   const positionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const deepFileCheckAt = useRef(0);
   const [source, setSource] = useState("");
   const [baseSnapshot, setBaseSnapshot] = useState<LocalFileSnapshot | null>(null);
   const [externalSnapshot, setExternalSnapshot] = useState<LocalFileSnapshot | null>(null);
@@ -292,7 +292,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     let disposed = false;
     const controller = new AbortController();
     const cached = localFileSessions.get(identity);
-    setLoading(true); setError(""); setBaseSnapshot(null); setExternalSnapshot(null); restoredScroll.current = false; deepFileCheckAt.current = 0;
+    setLoading(true); setError(""); setBaseSnapshot(null); setExternalSnapshot(null); restoredScroll.current = false; latestDraft.current.base = null;
     void localFileService.readSnapshot(data.rootId, data.nodeId).then(async snapshot => {
       if (disposed) return;
       const draft = await readLocalDraft(identity).catch(() => null);
@@ -351,29 +351,27 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     return () => cancelAnimationFrame(frame);
   }, [data.location, loading, baseSnapshot, editorHandle, preview]);
   useEffect(() => { if (data.location) setPreview(false); }, [data.location]);
-  useEffect(() => {
-    if (!baseSnapshot) return;
-    let cancelled = false;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "hidden") return;
-      void localFileService.stat(data.rootId, data.nodeId).then(fingerprint => {
-        const now = Date.now();
-        const changed = fingerprint.size !== baseSnapshot.size || fingerprint.modifiedMs !== baseSnapshot.modifiedMs;
-        if (!changed && now - deepFileCheckAt.current < 15_000) return null;
-        deepFileCheckAt.current = now;
-        return localFileService.readSnapshot(data.rootId, data.nodeId);
-      }).then(next => {
-        if (cancelled || latestDraft.current.base !== baseSnapshot || !next || next.revision === baseSnapshot.revision) return;
-        renderedFlush.current?.flush();
-        if (sourceRef.current === baseSnapshot.source) {
-          setRenderEpoch(value => value + 1);
-          setBaseSnapshot(next); setSource(next.source); sourceRef.current = next.source; editorSession.current = null; setExternalSnapshot(null); setSaveState("clean");
-          setRecoveryNotice("检测到磁盘文件变化，已重新载入并保留阅读位置。");
-        } else setExternalSnapshot(next);
-      }).catch(reason => { if (!cancelled) setRecoveryNotice(`本地文件不可访问：${String(reason)}`); });
-    }, 3000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [baseSnapshot, data.rootId, data.nodeId]);
+  useLocalFileRevisionCheck({
+    identity,
+    enabled: active && !loading && Boolean(baseSnapshot),
+    baseline: () => latestDraft.current.base,
+    canCheck: () => !savingOperation.current && !operationLocked && !sourceHandle.current?.view.composing && !renderedEditor.current?.view.composing,
+    stat: () => localFileService.stat(data.rootId, data.nodeId),
+    read: () => localFileService.readSnapshot(data.rootId, data.nodeId),
+    onChecked(next, baseline) {
+      setRecoveryNotice(notice => notice.startsWith("本地文件不可访问：") ? "" : notice);
+      if (!next) { setExternalSnapshot(null); return; }
+      if (currentSource() !== baseline.source) {
+        setExternalSnapshot(previous => previous?.revision === next.revision ? previous : next);
+        return;
+      }
+      setRenderEpoch(value => value + 1);
+      latestDraft.current = { source: next.source, base: next };
+      setBaseSnapshot(next); setSource(next.source); sourceRef.current = next.source; editorSession.current = null; setExternalSnapshot(null); setSaveState("clean");
+      setRecoveryNotice("检测到磁盘文件变化，已重新载入并保留阅读位置。");
+    },
+    onError(reason) { setRecoveryNotice(`本地文件不可访问：${String(reason)}`); },
+  });
   const bindHandle = useCallback((handle: SourceEditorHandle | null) => {
     const previous = sourceHandle.current;
     if (!handle && previous && !restoringPosition.current && sessionEpochRef.current === localFileSessionEpoch) {
@@ -686,7 +684,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     {error && <p role="alert" className="local-files-message">{error}</p>}
     {externalSnapshot && <section className="local-file-conflict" aria-label="文件冲突处理"><strong>磁盘文件已发生变化</strong><p>当前编辑和磁盘版本均已保留。比较后选择重载，或明确覆盖磁盘版本。</p>
       <TextDiffView left={externalSnapshot.source} right={source} leftLabel="磁盘版本" rightLabel="本机编辑" />
-      <div><button type="button" onClick={() => { renderedFlush.current?.flush(); setRenderEpoch(value => value + 1); editorSession.current = null; setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
+      <div><button type="button" onClick={() => { renderedFlush.current?.flush(); setRenderEpoch(value => value + 1); editorSession.current = null; latestDraft.current = { source: externalSnapshot.source, base: externalSnapshot }; setBaseSnapshot(externalSnapshot); setSource(externalSnapshot.source); sourceRef.current = externalSnapshot.source; setExternalSnapshot(null); setSaveState("clean"); void removeLocalDraft(identity); }}>重载磁盘版本</button><button type="button" disabled={!editing || saveState === "saving"} onClick={() => void save(true)}>确认覆盖磁盘</button><button type="button" onClick={saveCopy}>另存为副本</button></div>
     </section>}
   </>;
   const propertiesPanel = propertiesOpen ? <LocalFilePropertiesPanel info={fileInfo} onClose={() => setPropertiesOpen(false)} /> : null;
