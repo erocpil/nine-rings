@@ -66,11 +66,17 @@ async function setup(page: Page) {
   });
 }
 async function selectTarget(page: Page, range: boolean) {
-  await page.locator(".ProseMirror:visible").evaluate((element, range) => {
+  const content = page.locator(".ProseMirror:visible");
+  await content.evaluate((element, range) => {
     const ed = (element as HTMLElement & { editor: Editor }).editor;
-    ed.commands.focus();
+    // TipTap's focus command restores a saved selection on a later frame.
+    ed.view.focus();
     ed.commands.setTextSelection(range ? { from: 8, to: 14 } : 8);
   }, range);
+  await expect.poll(() => content.evaluate(element => {
+    const { from, to } = (element as HTMLElement & { editor: Editor }).editor.state.selection;
+    return { from, to, selected: document.getSelection()?.toString() };
+  })).toEqual({ from: 8, to: range ? 14 : 8, selected: range ? "TARGET" : "" });
 }
 async function persistedAnchor(page: Page) {
   return page.evaluate(async () => {

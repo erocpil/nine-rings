@@ -1884,8 +1884,18 @@ test("内置 Markdown 和 HTML 预览统一通过关闭按钮返回，Esc 保留
 });
 
 test("内置源码行号与折叠样式即时生效，重开保留且不影响正文撤销", async ({ page }) => {
+  const source = await readFile(join(directory, "alpha.c"), "utf8");
+  const loadSnapshot = () => page.getByLabel("选择目录快照", { exact: true }).evaluate((element, text) => {
+    // This case checks editor preferences, independent of native folder upload.
+    const file = new File([text], "alpha.c");
+    Object.defineProperty(file, "webkitRelativePath", { value: "source-fixture/alpha.c" });
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    (element as HTMLInputElement).files = transfer.files;
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  }, source);
   await page.goto("/file-workbench.html");
-  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  await loadSnapshot();
   const left = page.getByRole("region", { name: "左侧目录", exact: true });
   const row = left.getByRole("option", { name: /alpha.c/ });
   await row.dblclick();
@@ -1921,7 +1931,7 @@ test("内置源码行号与折叠样式即时生效，重开保留且不影响�
   await expect(content).toContainText("alpha");
   await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
   await page.reload();
-  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  await loadSnapshot();
   await row.dblclick();
   await expect(page.locator(".cm-lineNumbers")).toHaveCount(1);
   await expect(page.locator(".cm-foldGutter")).toHaveCount(0);
