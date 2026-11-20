@@ -3130,8 +3130,13 @@ test("重名替换逐项确认，取消不写入并在结果中显示旧版备�
   await page.goto("/file-workbench.html");
   const left = page.getByRole("region", { name: "左侧目录", exact: true });
   await page.getByRole("region", { name: "右侧目录", exact: true }).getByRole("combobox", { name: "选择授权目录", exact: true }).selectOption("target");
-  await left.getByRole("option", { name: /^a.c/ }).click();
-  await left.getByRole("option", { name: /^b.c/ }).click({ modifiers: ["ControlOrMeta"] });
+  const first = left.getByRole("option", { name: /^a.c/ });
+  const second = left.getByRole("option", { name: /^b.c/ });
+  await first.click();
+  // The page emulates macOS even when Playwright's controller runs on Linux.
+  await second.click({ modifiers: ["Meta"] });
+  await expect(first).toHaveAttribute("aria-selected", "true");
+  await expect(second).toHaveAttribute("aria-selected", "true");
   await page.getByRole("button", { name: "复制到另一栏", exact: true }).click();
   await page.getByRole("dialog", { name: "复制到另一栏", exact: true }).getByRole("button", { name: "确认", exact: true }).click();
   const conflict = page.locator(".file-browser-conflict");

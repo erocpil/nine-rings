@@ -5,8 +5,9 @@ import { zipSync, strToU8 } from "fflate";
 
 test.use({ serviceWorkers: "block" });
 test.beforeEach(async ({ page }) => {
-  await page.route("**/", async route => {
-    const response = await route.fetch();
+  await page.route(url => url.pathname === "/", async route => {
+    if (!route.request().isNavigationRequest()) return route.fallback();
+    const response = await route.fetch({ maxRetries: 1 });
     await route.fulfill({ response, headers: { ...response.headers(), "content-security-policy": "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; worker-src 'self' blob:; object-src 'none'" } });
   });
 });

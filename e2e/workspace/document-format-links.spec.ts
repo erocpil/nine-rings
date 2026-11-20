@@ -144,6 +144,7 @@ test("链接右键菜单、复制、打开和窗口边界", async ({ page }) => 
   await menu.getByRole("menuitem", { name: "在新窗口打开" }).click();
   expect(await page.locator("body").getAttribute("data-open-features")).toContain("popup=yes");
   await link.click({ button: "right" });
+  await expect(menu.getByRole("menuitem", { name: "复制链接" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
 });
