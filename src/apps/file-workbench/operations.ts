@@ -7,7 +7,7 @@ import type { LocalDraftStore } from "../../lib/local-files/recovery";
 
 /** Open editor paths are protected natively. Recovery drafts are checked by
  * canonical path here and never silently moved or discarded. */
-export function createWorkbenchOperations(host: Pick<BrowserOperationHost<BrowserOperationLease>, "assertActive" | "files" | "notify"> & { resolvePath?: (rootId: string, node: string) => Promise<string> }, drafts: LocalDraftStore) {
+export function createWorkbenchOperations(host: Pick<BrowserOperationHost<BrowserOperationLease>, "assertActive" | "files" | "notify"> & Partial<Pick<BrowserOperationHost<BrowserOperationLease>, "reconcileMove">> & { resolvePath?: (rootId: string, node: string) => Promise<string> }, drafts: LocalDraftStore) {
   let disposed = false;
   const assertActive = () => { if (disposed) throw new Error("工作台已关闭"); host.assertActive(); };
   const clean = async (rootId: string, node: string) => {
@@ -30,6 +30,7 @@ export function createWorkbenchOperations(host: Pick<BrowserOperationHost<Browse
   };
   const path = (parent: string, name: string) => [parent, name.trim()].filter(Boolean).join("/");
   const replace = host.files.replace?.bind(host.files);
+  const relocateOpen = host.files.relocateOpen?.bind(host.files);
   const runner = createBrowserOperationRunner({
     assertActive,
     assertPathClean: clean,
@@ -50,12 +51,12 @@ export function createWorkbenchOperations(host: Pick<BrowserOperationHost<Browse
         }
       }),
       move: (rootId, node, parent, name) => destination(rootId, path(parent, name), () => host.files.move(rootId, node, parent, name)),
+      relocateOpen: relocateOpen && ((rootId, node, parent, name, signal) => destination(rootId, path(parent, name), () => relocateOpen(rootId, node, parent, name, signal))),
       create: (rootId, parent, name, directory) => destination(rootId, path(parent, name), () => host.files.create(rootId, parent, name, directory)),
       trash: (rootId, node) => host.files.trash(rootId, node),
     },
-    // Open paths cannot be moved/trash natively; unrelated operations need no
-    // editor identity migration. Recovery paths are checked at source and target.
-    reconcileMove: async () => {}, reconcileTrash: () => {}, notify: host.notify,
+    reconcileMove: host.reconcileMove ?? (async () => {}),
+    reconcileTrash: () => {}, notify: host.notify,
   });
   const queue = new BrowserOperationQueueCore({ assertActive, execute: runner });
   const busy = () => queue.getSnapshot().some(job => !browserJobSettled(job));

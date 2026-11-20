@@ -1,5 +1,6 @@
 import { expect, it, vi } from "vitest";
 import { createWorkbenchOperations } from "../../src/apps/file-workbench/operations";
+import { moveWorkbenchFilePreferences } from "../../src/apps/file-workbench/file-path-state";
 import { isLocalOperationLocked } from "../../src/lib/local-files/operation-lock";
 import type { BrowserOperation } from "../../src/lib/local-files/browser-operation-contract";
 import type { LocalDraftStore } from "../../src/lib/local-files/recovery";
@@ -10,6 +11,7 @@ function setup(
   const files = {
     transfer: vi.fn(async () => "dest/folder"),
     move: vi.fn(async () => "renamed"),
+    relocateOpen: vi.fn(async () => "renamed"),
     create: vi.fn(async () => "created"),
     trash: vi.fn(async () => {}),
   };
@@ -101,6 +103,90 @@ it("unresolved drafts or unavailable draft storage block filesystem mutations", 
     expect(host.notify).not.toHaveBeenCalled();
     host.dispose();
   }
+});
+it("a single protected file can use the open-editor move handshake within the same root", async () => {
+  const host = setup();
+  host.files.move.mockRejectedValueOnce(new Error("PATH_IN_USE: open"));
+  host.queue.enqueue({ ...host.operation, kind: "rename" }, "renamed");
+  await vi.waitFor(() =>
+    expect(host.queue.getSnapshot()[0].status).toBe("completed"),
+  );
+  expect(host.files.relocateOpen).toHaveBeenCalledWith(
+    "root",
+    "folder",
+    "",
+    "renamed",
+    expect.any(AbortSignal),
+  );
+  expect(host.notify).toHaveBeenCalledWith({
+    kind: "move",
+    rootId: "root",
+    node: "folder",
+    targetRootId: "root",
+    targetNode: "renamed",
+  });
+
+  host.files.transfer.mockRejectedValueOnce(new Error("PATH_IN_USE: open"));
+  host.queue.enqueue({ ...host.operation, kind: "move" }, "");
+  await vi.waitFor(() =>
+    expect(host.queue.getSnapshot()[1].items[0].status).toBe("failed"),
+  );
+  expect(host.files.relocateOpen).toHaveBeenCalledOnce();
+  host.dispose();
+});
+
+it("confirmed moves carry only the moved subtree's path-scoped preferences and can replay safely", () => {
+  const values = new Map([
+    ["file-workbench:view:root:old/a.md", '{"readonly":false}'],
+    ["file-workbench:bookmarks:root:old/a.md", '[{"id":"a"}]'],
+    ["file-workbench:view:root:older/a.md", '{"readonly":true}'],
+    [
+      "nr:readingState:local-file:workbench:root:old/a.md",
+      '{"headings":["heading"]}',
+    ],
+    [
+      "nr:local-file-readonly-rules",
+      '{"root:old":true,"root:old/a.md":false,"root:elsewhere":true}',
+    ],
+  ]);
+  const storage: Storage = {
+    get length() {
+      return values.size;
+    },
+    clear: () => values.clear(),
+    key: (index) => [...values.keys()][index] ?? null,
+    getItem: (key) => values.get(key) ?? null,
+    removeItem: (key) => {
+      values.delete(key);
+    },
+    setItem: (key, value) => {
+      values.set(key, value);
+    },
+  };
+  moveWorkbenchFilePreferences("root:old", "root:dest", false, storage);
+  expect(values.get("file-workbench:view:root:dest/a.md")).toBe(
+    '{"readonly":false}',
+  );
+  expect(values.get("file-workbench:bookmarks:root:dest/a.md")).toBe(
+    '[{"id":"a"}]',
+  );
+  expect(values.get("file-workbench:view:root:older/a.md")).toBe(
+    '{"readonly":true}',
+  );
+  expect(
+    values.get("nr:readingState:local-file:workbench:root:dest/a.md"),
+  ).toContain("heading");
+  expect(JSON.parse(values.get("nr:local-file-readonly-rules")!)).toEqual({
+    "root:dest": true,
+    "root:dest/a.md": false,
+    "root:elsewhere": true,
+  });
+  values.set("file-workbench:view:root:old/a.md", '{"readonly":true}');
+  moveWorkbenchFilePreferences("root:old", "root:dest", true, storage);
+  expect(values.get("file-workbench:view:root:dest/a.md")).toBe(
+    '{"readonly":false}',
+  );
+  expect(values.has("file-workbench:view:root:old/a.md")).toBe(false);
 });
 it("a draft appearing after preflight is checked again before writing the destination", async () => {
   const host = setup();

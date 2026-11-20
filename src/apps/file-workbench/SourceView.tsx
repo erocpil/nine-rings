@@ -3,6 +3,7 @@ import { MarkdownLinkCheckDialog } from "./MarkdownLinkCheckDialog";
 import { applyMarkdownLinkEdits } from "../../lib/local-files/markdown-link-repair";
 import { canFollowMarkdownLink, localMarkdownLink, type LocalMarkdownLink } from "../../lib/local-files/markdown-links";
 import { markdownAnchorOffsets } from "../../lib/local-files/markdown-link-anchors";
+import type { WorkbenchRelocationRequest, WorkbenchEditorPort } from "./editor-window";
 import type { LinkViewPosition, LinkRequest } from "./link-navigation";
 import { setNavigationSelection } from "../../hooks/useEditorNavigation";
 import { TOOLBAR_PREFERENCES_ERROR } from "./toolbar-preferences";
@@ -59,7 +60,9 @@ const MarkdownWorkspace = lazy(() => import("../../components/LocalMarkdownWorks
 const DISK_CONFLICT = "磁盘文件已被外部修改。当前编辑已保留。";
 const DISK_RELOADED = "磁盘文件已重新载入。";
 
-export function WorkbenchSourceView({ file, host, provider, settings, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false, active = true, closeLabel = "返回文件浏览", onCloseCancelled, onDirtyChange, navigationRequest, beforeCloseActions, onCreateDocument, untitled = false, initialReadonly = true, documentPath, persistDocument = false, onFollowFile, linkRequest, onLinkHistory, linkHistory, linkOrigin }: {
+export function WorkbenchSourceView({ file, host, provider, settings, onClose, closeRequest, onNavigate, headerActions, previous = false, next = false, active = true, closeLabel = "返回文件浏览", onCloseCancelled, onDirtyChange, navigationRequest, beforeCloseActions, onCreateDocument, untitled = false, initialReadonly = true, documentPath, persistDocument = false, onFollowFile, linkRequest, onLinkHistory, linkHistory, linkOrigin, relocation, relocationReply }: {
+  relocation?: WorkbenchRelocationRequest;
+  relocationReply?: WorkbenchEditorPort["relocationReply"];
   linkOrigin?: { rootId: string; node: string; read: LocalSourceHost["read"] };
   onFollowFile?: (target: LocalMarkdownLink & { sameFile: boolean; rootId: string }, origin: LinkViewPosition, leave: (next: () => void) => void) => Promise<void>;
   linkRequest?: LinkRequest;
@@ -72,7 +75,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   active?: boolean; closeLabel?: string; onCloseCancelled?: () => void; onDirtyChange?: (dirty: boolean) => void;
   settings: BrowserSettingsStore;
   headerActions?: ReactNode;
-  file: BrowserFileOpen; host: LocalSourceHost; provider: BrowserDirectoryProvider; onClose: () => void;
+  file: BrowserFileOpen & { relocatedFrom?: string }; host: LocalSourceHost; provider: BrowserDirectoryProvider; onClose: () => void;
   closeRequest: MutableRefObject<WorkbenchCloseRequest | null>;
   onNavigate?: (direction: -1 | 1) => void; previous?: boolean; next?: boolean;
 }) {
@@ -90,7 +93,9 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const initialView = useMemo(() => readWorkbenchFileView(settings, identity), [settings, identity]);
   const [source, setSource] = useState(""), sourceRef = useRef("");
   const [languageOverride, setLanguageOverride] = useState(() => readWorkbenchFileLanguage(settings, identity));
-  const detectedLanguage = documentLanguageFromFilename(file.node.name, source);
+  const sessionName = useRef(file.node.name);
+  const renderedSession = useRef(identity);
+  const detectedLanguage = documentLanguageFromFilename(persistDocument ? file.node.name : sessionName.current, source);
   const language = languageOverride ?? detectedLanguage;
   const markdown = language === "markdown";
   const startsRendered = markdown && !file.location && initialView.rendered !== false;
@@ -173,7 +178,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     try { saveWorkbenchFileView(settings, identity, { readonly: next }); readonlyCurrent.current = next; setReadonlyState(next); }
     catch (cause) { setError(`无法保存只读状态：${String(cause)}`); }
   }, [settings, identity]);
-  readonlyCurrent.current = readonly;
+  readonlyCurrent.current = readonly || Boolean(relocation);
   const previousReadonly = useRef(readonly);
   useEffect(() => {
     const unlocked = previousReadonly.current && !readonly;
@@ -199,6 +204,9 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const mounted = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const reading = useRef(false);
+  const loadedFile = useRef<{ identity: string; host: LocalSourceHost }>();
+  const movePosition = useRef<LinkViewPosition>();
+  const acknowledgedRelocation = useRef<number>();
   const [external, setExternal] = useState<LocalFileSnapshot | null>(null);
   const [diskChange, setDiskChange] = useState<LocalFileSnapshot | string | null>(null);
   const [leave, setLeave] = useState<"close" | "reload" | null>(null);
@@ -239,19 +247,72 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   }, [file.rootId, file.node.id, host, identity, initialReadonly, settings]);
   useEffect(() => {
     let live = true;
+    if (loadedFile.current?.identity === identity && loadedFile.current.host === host) return;
+    if (file.relocatedFrom && loadedFile.current?.identity === file.relocatedFrom && loadedFile.current.host === host && baseRef.current) {
+      loadedFile.current = { identity, host };
+      const saved = movePosition.current;
+      movePosition.current = undefined;
+      if (!saved) return;
+      const frame = requestAnimationFrame(() => {
+        if (saved.rendered) {
+          const editor = renderedEditor.current;
+          if (editor && !editor.isDestroyed) setNavigationSelection(editor, { from: saved.from, to: saved.to });
+          renderedScroller()?.scrollTo({ top: saved.top, left: saved.left });
+        } else {
+          handle.current?.setSelectionRange(saved.from, saved.to);
+          handle.current?.view.scrollDOM.scrollTo({ top: saved.top, left: saved.left });
+        }
+      });
+      return () => cancelAnimationFrame(frame);
+    }
     void host.read(file.rootId, file.node.id).then(async snapshot => {
       const recovery = await host.drafts.read(identity).then(draft => ({ draft, issue: "" })).catch(cause => ({ draft: null, issue: String(cause) }));
       if (!live) return;
       const draft = recovery.draft;
+      loadedFile.current = { identity, host };
       setDraftAvailable(!recovery.issue);
       if (recovery.issue) setNotice(`恢复草稿不可用，暂时只读：${recovery.issue}`);
       sourceRef.current = snapshot.source; sourceProjection.current = snapshot.source; setSource(snapshot.source); baseRef.current = snapshot; setBase(snapshot); setCandidate(draft?.source !== snapshot.source ? draft : null); setLoading(false);
     }).catch(cause => { if (live) { setError(String(cause)); setLoading(false); } });
     return () => { live = false; };
-  }, [host, identity, file.rootId, file.node.id]);
+  }, [host, identity, file.rootId, file.node.id, file.relocatedFrom, handle, renderedScroller]);
+  useEffect(() => {
+    if (!relocation || !relocationReply || acknowledgedRelocation.current === relocation.token) return;
+    let live = true;
+    const respond = async () => {
+      let revision: string | undefined;
+      let reason: string | undefined;
+      try {
+        const baseline = baseRef.current;
+        if (!baseline || loading || busy.current || reading.current || candidate || !draftAvailable || leave || external ||
+            handle.current?.view.composing || renderedEditor.current?.view.composing || document.querySelector("dialog[open], [role=dialog]")) {
+          throw new Error("标签正在编辑或处理对话框，请完成后再移动。");
+        }
+        if ((handle.current && !handle.current.view.state.readOnly) || renderedEditor.current?.isEditable) {
+          throw new Error("无法暂停标签写入，请稍后重试。");
+        }
+        if (current() !== baseline.source || await host.drafts.read(identity)) {
+          throw new Error("此标签有未保存内容或恢复草稿，请保存或处理草稿后再移动。");
+        }
+        if (!live) return;
+        if (baseRef.current !== baseline || current() !== baseline.source || busy.current || reading.current) {
+          throw new Error("编辑或磁盘版本已发生变化，请重新移动。");
+        }
+        movePosition.current = capturePosition();
+        revision = baseline.revision;
+      } catch (cause) { reason = String(cause); }
+      if (!live) return;
+      acknowledgedRelocation.current = relocation.token;
+      await relocationReply(relocation.token, revision, reason);
+    };
+    // Wait until the retained source and rendered surfaces have applied their
+    // readonly effects. A backend lease already blocks writes to both paths.
+    queueMicrotask(() => { if (live) void respond().catch(cause => { if (live) setError(String(cause)); }); });
+    return () => { live = false; };
+  }, [relocation, relocationReply, loading, candidate, draftAvailable, leave, external, host, identity, current, capturePosition, handle]);
   useLocalFileRevisionCheck({
     identity,
-    enabled: active && !untitled && !loading && Boolean(base) && !candidate && !leave,
+    enabled: active && !relocation && !untitled && !loading && Boolean(base) && !candidate && !leave,
     baseline: () => baseRef.current,
     canCheck: () => !busy.current && !reading.current && !handle.current?.view.composing && !renderedEditor.current?.view.composing,
     stat: host.stat?.bind(host, file.rootId, file.node.id),
@@ -314,7 +375,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   }, [candidate, checkpoint, current, draftAvailable, finishClose, onClose, loading, onCloseCancelled, untitled]);
   useEffect(() => { closeRequest.current = requestClose; return () => { closeRequest.current = null; }; }, [closeRequest, requestClose]);
   const save = useCallback(async () => {
-    if (busy.current || !baseRef.current) return false;
+    if (relocation || busy.current || !baseRef.current) return false;
     if (candidate) { setNotice("请先处理已有恢复草稿，未执行保存。"); return false; }
     try { if (!untitled && current() === baseRef.current.source) return true; }
     catch (cause) { setError(String(cause)); return false; }
@@ -339,7 +400,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       } else setError(String(cause));
       return false;
     } finally { busy.current = false; setSaving(false); }
-  }, [current, host, file.rootId, file.node.id, identity, candidate, untitled]);
+  }, [current, host, file.rootId, file.node.id, identity, candidate, untitled, relocation]);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (!active || event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.shiftKey || document.querySelector("dialog[open], [role=dialog]")) return;
@@ -404,7 +465,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     editor.setSelectionRange(Math.min(location.from, editor.value.length), Math.min(location.to, editor.value.length));
     editor.scrollToOffset(Math.min(location.from, editor.value.length), true);
   }, [current, onSourceReady, handle]);
-  const editable = !loading && Boolean(base) && !candidate && draftAvailable;
+  const editable = !relocation && !loading && Boolean(base) && !candidate && draftAvailable;
   const toolsPreference = useFocusEditorTools(state => state.expanded);
   const setMoreTools = useFocusEditorTools(state => state.setExpanded);
   const moreTools = toolsPreference ?? true;
@@ -496,7 +557,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     }}><ToolbarIcon name="link" /></button>}
     <button className="btn-icon" type="button" aria-label="编辑器设置" title="编辑器设置" onClick={() => setSettingsOpen(true)}><ToolbarIcon name="sliders" /></button>
     {onNavigate && <><button className="btn-icon" type="button" aria-label="上一文件" title="上一文件（←，只读预览）" disabled={!previous} onClick={() => requestClose(() => onNavigate(-1))}><ToolbarIcon name="chevronLeft" /></button><button className="btn-icon" type="button" aria-label="下一文件" title="下一文件（→，只读预览）" disabled={!next} onClick={() => requestClose(() => onNavigate(1))}><ToolbarIcon name="chevronRight" /></button></>}
-    <button className="btn-icon" type="button" aria-label="保存文件" title="保存文件（⌘/Ctrl+S）" disabled={loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>
+    <button className="btn-icon" type="button" aria-label="保存文件" title="保存文件（⌘/Ctrl+S）" disabled={Boolean(relocation) || loading || !dirty || saving || !host.canSaveOriginal(file.rootId)} onClick={() => void save()}><ToolbarIcon name="save" /></button>
     <button className="btn-icon" type="button" aria-label="导出副本" title="导出副本" disabled={loading || !base} onClick={() => void copy()}><ToolbarIcon name="download" /></button>
     <button className="btn-icon" type="button" aria-label="重新读取原文件" title="重新读取原文件" disabled={untitled || loading || saving} onClick={() => { if (dirty) setLeave("reload"); else void read(); }}><ToolbarIcon name="refresh" /></button>
     {headerActions}
@@ -552,13 +613,13 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     {candidate && <div role="status">发现此会话未保存草稿。<button type="button" onClick={() => { change(candidate.source); applyBase({ ...base!, source: candidate.baseSource, revision: candidate.baseRevision, bom: candidate.bom, lineEnding: candidate.lineEnding }); setCandidate(null); setReadonly(false); setSourceMounted(true); renderMode.current = false; setRenderMarkdown(false); }}>恢复草稿</button><button type="button" onClick={() => { void exportLocalSource(file.node.name, candidate.source, candidate, host.saveCopy).catch(cause => setError(String(cause))); }}>下载草稿</button><button type="button" onClick={() => { void host.drafts.remove(identity).then(() => setCandidate(null)).catch(cause => setError(String(cause))); }}>删除草稿</button></div>}
     {!loading && base && markdown && renderMounted && <div className="workbench-rendered-session" hidden={!renderMarkdown}>
       <DocumentImageLibraryContext.Provider value={false}>
-        <Suspense fallback={<p role="status">正在加载 Markdown 编辑器…</p>}><MarkdownWorkspace key={`${identity}:${renderEpoch}`} identity={`workbench:${identity}`} onCreateDocument={onCreateDocument} createDocumentLabel="新建文件" onError={setError} modified={dirty} source={source} title={file.node.name} active={active && renderMarkdown} readonly={readonly || !editable || !renderMarkdown || !active} focusMode={false} fontSize={typography.note_font_size} vimModeEnabled={false} useCustomContextMenu={editorSettings.use_custom_context_menu} showStatusBlockNumber={editorSettings.editor_show_status_block_number} highlightActiveLine={editorSettings.highlight_active_line} showLineNumbers={editorSettings.editor_show_line_numbers} onEditorConfigChange={async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, readWorkbenchEditorSettings(settings), patch)); }} showStatusBar={editorSettings.editor_show_status_bar} defaultCodeBlockWrap cjkLatinSpacing={typography.editor_cjk_spacing} readonlyHeadingFoldInFocusMode={false}
+        <Suspense fallback={<p role="status">正在加载 Markdown 编辑器…</p>}><MarkdownWorkspace key={renderEpoch} identity={`workbench:${identity}`} editorSessionId={renderedSession.current} onCreateDocument={onCreateDocument} createDocumentLabel="新建文件" onError={setError} modified={dirty} source={source} title={file.node.name} active={active && renderMarkdown} readonly={readonly || !editable || !renderMarkdown || !active} focusMode={false} fontSize={typography.note_font_size} vimModeEnabled={false} useCustomContextMenu={editorSettings.use_custom_context_menu} showStatusBlockNumber={editorSettings.editor_show_status_block_number} highlightActiveLine={editorSettings.highlight_active_line} showLineNumbers={editorSettings.editor_show_line_numbers} onEditorConfigChange={async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, readWorkbenchEditorSettings(settings), patch)); }} showStatusBar={editorSettings.editor_show_status_bar} defaultCodeBlockWrap cjkLatinSpacing={typography.editor_cjk_spacing} readonlyHeadingFoldInFocusMode={false}
           bookmarks={lineBookmarks.map(item => ({ id: item.id, offset: item.position, line: source.slice(0, item.position).split("\n").length, label: item.label || item.preview }))} onBookmarksChange={items => setLineBookmarks(items.map(item => ({ id: item.id, position: item.offset, label: item.label, preview: item.label })))} onSourceChange={renderedChange} onPending={() => setRenderPending(true)} onRegisterFlush={registerRenderedFlush} onEditorReady={bindRendered} separateTitle titleRevealOnClick={false} pdfExport={false} onExportMarkdown={copy} onClick={() => {}} onOpenLink={href => void followLink(href)} canOpenLink={canFollowMarkdownLink} bindHeadingNavigation={bindHeadingNavigation} onReadonlyChange={editable ? setReadonly : undefined} resolveResource={resolveResource} saveStatus={saving ? "saving" : dirty ? "dirty" : "clean"}
           info={titleInfo} titleActions={titleActions} viewToggle={<FileBrowserMarkdownMode rendered onChange={changePreviewMode} />} />
         </Suspense>
       </DocumentImageLibraryContext.Provider>
     </div>}
-    {!loading && base && sourceMounted && <div className="local-file-editor-shell workbench-source-session" style={{ "--editor-font-family": blockFontFamily(typography.source_font_family), "--editor-source-font-family": blockFontFamily(typography.source_font_family) } as React.CSSProperties} hidden={renderMarkdown}><DocumentNavigationWorkspace origin="local" active={active && !renderMarkdown} revision={sourceNavigation} bookmarkItems={lineBookmarks.map(item => ({ ...item, offset: item.position, blockNumber: source.slice(0, item.position).split("\n").length }))} sourceHandle={position.sourceHandle} onJump={offset => { handle.current?.setSelectionRange(offset, offset); handle.current?.scrollToOffset(offset, true); }} onToggleBookmark={offset => setLineBookmarks(items => items.some(item => item.position === offset) ? items.filter(item => item.position !== offset) : [...items, { id: crypto.randomUUID(), position: offset, label: "", preview: source.slice(offset, offset + 80) }])} onRemoveBookmark={id => setLineBookmarks(items => items.filter(item => item.id !== id))} onRenameBookmark={(id, label) => setLineBookmarks(items => items.map(item => item.id === id ? { ...item, label } : item))}>{controls => <>{navigationTarget && createPortal(controls, navigationTarget)}<DocumentActiveBoundary active={active && !renderMarkdown}><DocumentSourceSurface key={renderEpoch} editor={{ value: sourceProjection.current, readonly: readonly || renderMarkdown || !active, areaRef: handle, session, onChange: change, fontSize: typography.note_font_size, highlightActiveLine: editorSettings.highlight_active_line, showLineNumbers: editorSettings.editor_show_line_numbers, onEditorConfigChange: async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, readWorkbenchEditorSettings(settings), patch)); }, showStatusBar: editorSettings.editor_show_status_bar, contextMenuEnabled: editorSettings.use_custom_context_menu, onCreateDocument, createDocumentLabel: "新建文件", documentLanguage: language, documentLanguageValue: languageOverride ?? AUTO_DOCUMENT_LANGUAGE, documentLanguageOptions: documentLanguageViewOptions(detectedLanguage), onDocumentLanguageChange: value => {
+    {!loading && base && sourceMounted && <div className="local-file-editor-shell workbench-source-session" style={{ "--editor-font-family": blockFontFamily(typography.source_font_family), "--editor-source-font-family": blockFontFamily(typography.source_font_family) } as React.CSSProperties} hidden={renderMarkdown}><DocumentNavigationWorkspace origin="local" active={active && !renderMarkdown} revision={sourceNavigation} bookmarkItems={lineBookmarks.map(item => ({ ...item, offset: item.position, blockNumber: source.slice(0, item.position).split("\n").length }))} sourceHandle={position.sourceHandle} onJump={offset => { handle.current?.setSelectionRange(offset, offset); handle.current?.scrollToOffset(offset, true); }} onToggleBookmark={offset => setLineBookmarks(items => items.some(item => item.position === offset) ? items.filter(item => item.position !== offset) : [...items, { id: crypto.randomUUID(), position: offset, label: "", preview: source.slice(offset, offset + 80) }])} onRemoveBookmark={id => setLineBookmarks(items => items.filter(item => item.id !== id))} onRenameBookmark={(id, label) => setLineBookmarks(items => items.map(item => item.id === id ? { ...item, label } : item))}>{controls => <>{navigationTarget && createPortal(controls, navigationTarget)}<DocumentActiveBoundary active={active && !renderMarkdown}><DocumentSourceSurface key={renderEpoch} editor={{ value: sourceProjection.current, readonly: readonly || Boolean(relocation) || renderMarkdown || !active, areaRef: handle, session, onChange: change, fontSize: typography.note_font_size, highlightActiveLine: editorSettings.highlight_active_line, showLineNumbers: editorSettings.editor_show_line_numbers, onEditorConfigChange: async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, readWorkbenchEditorSettings(settings), patch)); }, showStatusBar: editorSettings.editor_show_status_bar, contextMenuEnabled: editorSettings.use_custom_context_menu, onCreateDocument, createDocumentLabel: "新建文件", documentLanguage: language, documentLanguageValue: languageOverride ?? AUTO_DOCUMENT_LANGUAGE, documentLanguageOptions: documentLanguageViewOptions(detectedLanguage), onDocumentLanguageChange: value => {
         try { saveWorkbenchFileLanguage(settings, identity, value); setLanguageOverride(value === AUTO_DOCUMENT_LANGUAGE ? null : value); }
         catch (cause) { setError(String(cause)); }
       }, saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,

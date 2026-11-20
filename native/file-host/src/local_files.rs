@@ -10,7 +10,9 @@ use std::{
 };
 use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
+mod relocation;
 pub mod replacement;
+pub use relocation::{sync_relocation_paths, RelocationStamp};
 const MAX_BYTES: u64 = 4 * 1024 * 1024;
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

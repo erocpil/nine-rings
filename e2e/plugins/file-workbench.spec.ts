@@ -2440,7 +2440,7 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
     let next = 1;
     const callbacks = new Map<number, (event: unknown) => void>();
     const handlers = new Map<string, number>();
-    const state = { files: Object.entries(sources).map(([name, source]) => ({ id: `/root/${name}`, file: { rootId: "root", rootName: "Root", node: { id: name, name, size: source.length, directory: false } } })), current: `/root/${initial}`, revision: 1, closing: null as null | { token: number; quit: boolean } };
+    const state = { files: Object.entries(sources).map(([name, source]) => ({ id: `/root/${name}`, file: { rootId: "root", rootName: "Root", node: { id: name, name, size: source.length, directory: false } } })), current: `/root/${initial}`, revision: 1, closing: null as null | { token: number; quit: boolean }, relocation: null as null | { id: string; token: number; targetNode: string } };
     if (initial !== "alpha.c") state.files = state.files.filter(file => file.id === state.current);
     const records: Record<string, any> = JSON.parse(localStorage.getItem("fixture-editor-buffers") ?? "{}");
     const session = (record: any) => ({ id: `workbench-buffer:${record.id}`, file: { rootId: "workbench-buffer", rootName: "编辑文档", node: { id: record.id, name: record.name, directory: false, size: record.source.length }, bufferId: record.id, bufferPath: record.path, untitled: !record.path } });
@@ -2449,9 +2449,10 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
     if (savedSession) { const saved = JSON.parse(savedSession); state.files = saved.files; state.current = saved.current; }
     const persistSession = () => localStorage.setItem("fixture-editor-session", JSON.stringify({ files: state.files, current: state.current }));
     const persist = () => { localStorage.setItem("fixture-editor-buffers", JSON.stringify(records)); persistSession(); };
-    const fixture = { state, sources, writes: [] as string[], finished: [] as unknown[], quit: 0, records, cancelSave: true, saves: [] as string[], assetReads: [] as string[], stats: [] as string[], bufferFiles: {} as Record<string, string> };
+    const fixture = { state, sources, writes: [] as string[], relocations: [] as { revision?: string; reason?: string }[], finished: [] as unknown[], quit: 0, records, cancelSave: true, saves: [] as string[], assetReads: [] as string[], stats: [] as string[], bufferFiles: {} as Record<string, string> };
     const emit = (event: string) => callbacks.get(handlers.get(event)!)?.({ event, id: 1, payload: null });
-    Object.assign(window, { __editorFixture: fixture, __editorEmit: emit, __editorClose: (quit = false) => { state.revision++; state.closing = { token: state.revision, quit }; emit("workbench:editor-changed"); } });
+    const requestRelocation = (targetNode: string) => { state.relocation = { id: state.current, token: ++state.revision, targetNode }; emit("workbench:editor-changed"); };
+    Object.assign(window, { __editorFixture: fixture, __editorEmit: emit, __editorRequestRelocation: requestRelocation, __editorClose: (quit = false) => { state.revision++; state.closing = { token: state.revision, quit }; emit("workbench:editor-changed"); } });
     const textSnapshot = (text: string) => ({ source: text, revision: text, size: text.length, modifiedMs: 1, lineEnding: "lf", bom: false });
     const snapshot = (node: string) => {
       if (sources[node] === undefined) throw new Error("文件不存在");
@@ -2478,6 +2479,28 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
         if (command === "workbench_window_role") return "editor";
         if (command === "plugin:event|listen") { handlers.set(args.event, args.handler); return next++; }
         if (command === "workbench_editor_state") return structuredClone(state);
+        if (command === "workbench_editor_relocation_reply") {
+          const pending = state.relocation;
+          if (!pending || args.token !== pending.token) return;
+          fixture.relocations.push(args);
+          const item = state.files.find(file => file.id === pending.id)!;
+          const oldNode = item.file.node.id;
+          if (args.revision && args.revision === sources[oldNode]) {
+            Object.assign(item.file, { sessionKey: item.id, relocatedFrom: `root:${oldNode}` });
+            sources[pending.targetNode] = sources[oldNode]!;
+            delete sources[oldNode];
+            item.id = `/root/${pending.targetNode}`;
+            Object.assign(item.file.node, { id: pending.targetNode, name: pending.targetNode.split("/").pop() });
+            state.current = item.id;
+            persistSession();
+          }
+          state.relocation = null; state.revision++; emit("workbench:editor-changed"); return;
+        }
+        if (command === "workbench_editor_relocation_preferences_done") {
+          const item = state.files.find(file => file.id === args.id);
+          if (item) delete (item.file as { relocatedFrom?: string }).relocatedFrom;
+          persistSession(); state.revision++; emit("workbench:editor-changed"); return;
+        }
         if (command === "workbench_follow_editor_link") {
           if (state.current !== args.sourceId) throw new Error("来源文件已切换");
           const id = `/root/${args.node}`, source = sources[args.node];
@@ -2513,6 +2536,70 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
   }, { sources, initial, images });
   await page.goto("/file-workbench.html");
 }
+
+test("已打开文件只在干净时迁移，源码实例、选区、撤销和偏好跟随新路径", async ({ page }) => {
+  await setupIndependentEditor(page);
+  const editor = page.locator(".cm-content:visible");
+  const relocate = () => page.evaluate(() => (window as any).__editorRequestRelocation("sub/moved.c"));
+  const replies = () => page.evaluate(() => (window as any).__editorFixture.relocations);
+  await expect(editor).toContainText("return 1");
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.type("// stored edit");
+  await relocate();
+  await expect.poll(replies).toMatchObject([{ reason: expect.stringContaining("未保存") }]);
+  await expect(editor).toHaveAttribute("contenteditable", "true");
+  await page.getByRole("button", { name: "保存文件", exact: true }).click();
+  await expect(page.getByRole("button", { name: "保存文件", exact: true })).toBeDisabled();
+  await editor.evaluate(element => element.setAttribute("data-retained-check", "before-move"));
+  await selectSource(editor, 4, 9);
+  await page.evaluate(() => localStorage.setItem("file-workbench:language:root:alpha.c", "c"));
+  await relocate();
+  await expect.poll(replies).toHaveLength(2);
+  await expect(page.getByText("moved.c", { exact: true }).first()).toBeVisible();
+  await expect(editor).toHaveAttribute("data-retained-check", "before-move");
+  await expect(editor).toHaveAttribute("contenteditable", "true");
+  await expect.poll(() => sourceInfo(editor)).toMatchObject({ selectionStart: 4, selectionEnd: 9 });
+  expect(await page.evaluate(() => ({
+    before: localStorage.getItem("file-workbench:language:root:alpha.c"),
+    after: localStorage.getItem("file-workbench:language:root:sub/moved.c"),
+    view: JSON.parse(localStorage.getItem("file-workbench:view:root:sub/moved.c") ?? "{}"),
+  }))).toEqual({ before: null, after: "c", view: { readonly: false } });
+  await editor.focus();
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(editor).not.toContainText("// stored edit");
+  await page.getByRole("button", { name: "保存文件", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.writes)).toEqual(["alpha.c", "sub/moved.c"]);
+});
+
+test("已打开 Markdown 迁移后保留只读渲染实例并迁移书签", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("file-workbench:bookmarks:root:alpha.md", JSON.stringify([
+      { id: "move-test", position: 0, label: "保存的标题", preview: "Move" },
+    ]));
+  });
+  await setupIndependentEditor(page, { "alpha.md": "# Move\n\nKeep this paragraph.\n" }, "alpha.md");
+  const rendered = page.locator(".workbench-rendered-session .ProseMirror:visible");
+  await expect(rendered).toContainText("Keep this paragraph.");
+  await expect(rendered).toHaveAttribute("contenteditable", "false");
+  await rendered.evaluate(element => {
+    (window as Window & { __renderedBeforeMove?: unknown }).__renderedBeforeMove = (element as HTMLElement & { editor?: unknown }).editor;
+  });
+  await page.evaluate(() => (window as any).__editorRequestRelocation("sub/moved.md"));
+  await expect(page.getByText("moved.md", { exact: true }).first()).toBeVisible();
+  await expect.poll(() => rendered.evaluate(element => {
+    const editor = (element as HTMLElement & { editor?: unknown }).editor;
+    return Boolean(editor) && editor === (window as Window & { __renderedBeforeMove?: unknown }).__renderedBeforeMove;
+  })).toBe(true);
+  await expect(rendered).toHaveAttribute("contenteditable", "false");
+  const migrated = await page.evaluate(() => ({
+    old: localStorage.getItem("file-workbench:bookmarks:root:alpha.md"),
+    current: JSON.parse(localStorage.getItem("file-workbench:bookmarks:root:sub/moved.md") ?? "[]"),
+  }));
+  expect(migrated.old).toBeNull();
+  expect(migrated.current).toMatchObject([{ id: "move-test", label: "保存的标题" }]);
+});
 
 test("独立编辑器恢复焦点时重读同长度的外部修改，保留源码光标和只读状态", async ({ page }) => {
   await setupIndependentEditor(page);

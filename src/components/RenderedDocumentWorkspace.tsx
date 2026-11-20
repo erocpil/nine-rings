@@ -255,6 +255,8 @@ export interface RenderedWorkspaceHost {
 }
 
 export interface NoteEditorProps {
+  /** A mounted disk editor can retain its engine when its persistence path changes. */
+  editorSessionId?: string;
   workspaceHost?: RenderedWorkspaceHost;
   documentViewToggle?: React.ReactNode;
   unifiedTitleBar?: boolean;
@@ -482,7 +484,7 @@ export function RenderedDocumentWorkspace(input: NoteEditorProps) {
   return <FullDocumentWorkspace {...props} readingBlockVersion={readingBlockVersion} initialPdfExportRequest={exportRequested} selectAllOnOpen={selectAllOnOpen} />;
 }
 
-function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, workspaceHost, onCreateDocument, onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, documentCreatedAt, documentUpdatedAt, documentLastAccessedAt, documentType, documentPath, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
+function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, workspaceHost, onCreateDocument, onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, documentCreatedAt, documentUpdatedAt, documentLastAccessedAt, documentType, documentPath, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenProperties, editorSessionId, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
   const referenceSearch = React.useContext(DocumentReferenceSearchContext);
   const allowImageLibrary = React.useContext(DocumentImageLibraryContext);
   const statusBar = useStatusBarDisplay(showStatusBar, focusMode);
@@ -903,6 +905,8 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
   // configuration on every UI render makes useEditor call setOptions and
   // update the entire EditorView twice. Live preferences use the effects below;
   // document callbacks read refs so autosave never captures an old handler.
+  const preferenceIdentity = useRef(noteId);
+  preferenceIdentity.current = noteId;
   const [sessionExtensions] = useState(() => [
       Extension.create({ name: "headingFoldHosts", addProseMirrorPlugins: () => [headingFoldAnchors(foldHostsRef.current)] }),
       ...documentRenderingExtensions({ lineNumbers: showCodeLineNumbers, defaultWrap: defaultCodeBlockWrap, authorizeImageSource: !allowImageLibrary }),
@@ -913,7 +917,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
       ActiveLinePlugin,
       ToolbarSelection,
       SearchHighlights,
-      ReadingBlockSession.configure({ noteId, version: readingBlockVersion, sensitive }),
+      ReadingBlockSession.configure({ noteId, version: readingBlockVersion, sensitive, ...(editorSessionId === undefined ? {} : { states: new Map() }) }),
       readonlyDocumentGuard(() => readonlyRef.current),
       StructuredBlockExit,
       CodeBlockIndent,
@@ -924,7 +928,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
       HeadingFold.configure({
         initialCollapsedKeys: sensitive ? [] : sessionHeadingFoldStore.load(noteId)?.collapsedKeys ?? [],
         onChange: (collapsedKeys) => {
-          if (!sensitive) sessionHeadingFoldStore.save(noteId, { version: 1, collapsedKeys });
+          if (!sensitive) sessionHeadingFoldStore.save(preferenceIdentity.current, { version: 1, collapsedKeys });
           pendingOutlineFoldSyncRef.current = { keys: collapsedKeys, intent: outlineFoldIntentRef.current };
           if (headingFoldRenderFrameRef.current === null) {
             headingFoldRenderFrameRef.current = window.requestAnimationFrame(() => {
@@ -1084,7 +1088,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
         if (!hasQuery) wikiDocumentsRef.current = null;
       }
     },
-  }, [noteId]);
+  }, [editorSessionId ?? noteId]);
   useLayoutEffect(() => {
     const scope = noteEditorRef.current;
     const body = scrollRef.current?.querySelector<HTMLElement>(".editor-content-shell");

@@ -54,6 +54,7 @@ function projectBookmarks(
  * actual edits are serialized; save/checkpoint can flush the pending reader. */
 export function LocalMarkdownWorkspace({
   identity,
+  editorSessionId,
   source,
   title,
   modified,
@@ -107,6 +108,7 @@ export function LocalMarkdownWorkspace({
   onCreateDocument?: () => void;
   createDocumentLabel?: string;
   identity: string;
+  editorSessionId?: string;
   source: string;
   title: string;
   modified?: boolean;
@@ -346,7 +348,7 @@ export function LocalMarkdownWorkspace({
         <Suspense fallback={<div role="status">正在加载文档工作区…</div>}>
           <Workspace
             onCreateDocument={onCreateDocument} createDocumentLabel={createDocumentLabel}
-            noteId={`local-file:${identity}`}
+            noteId={`local-file:${identity}`} editorSessionId={editorSessionId}
             contentVersion={initial.revision}
             readingBlockVersion={initial.revision}
             title={title}

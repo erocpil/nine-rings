@@ -15,10 +15,10 @@ import { createLocalDraftStore } from "../../lib/local-files/recovery";
 import type { LocalSourceHost } from "../../lib/local-files/source-host";
 import { invoke } from "@tauri-apps/api/core";
 import { isLocalFileReadOnly } from "../../lib/local-files/access";
+import { moveWorkbenchFilePreferences, WORKBENCH_SETTINGS_PREFIX } from "./file-path-state";
 import type { ReplacementPaths, ReplacementReview } from "../../lib/local-files/browser-operation-contract";
 
 export const WORKBENCH_ID = "file-workbench.shell";
-export const WORKBENCH_SETTINGS_PREFIX = "file-workbench:";
 /** Independent file host. Uses the real service authorization engine, without
  * starting Nine Rings App, builtin plugins, document database or sync services. */
 export function createWorkbenchHost(open: (request: BrowserFileOpen) => void | Promise<void>, afterSave?: (rootId: string, node: string) => Promise<void>, directoryOperationsAllowed: () => boolean = () => true) {
@@ -43,7 +43,15 @@ export function createWorkbenchHost(open: (request: BrowserFileOpen) => void | P
       assertReplacementTarget(paths);
       return invoke<{ backupPath: string }>("workbench_replace_file", { paths, expected });
     } : undefined,
-  }, notify, resolvePath: async (rootId, node) => canonicalChildPath(await localFileService.displayPath(rootId, ""), node) }, drafts);
+    relocateOpen: isTauriRuntime() ? (rootId, node, parent, name, signal) => {
+      if (signal.aborted) throw new Error("MOVE_RELOCATION_NOT_WRITTEN: 已停止移动");
+      if (isLocalFileReadOnly(rootId, [parent, name].filter(Boolean).join("/"))) throw new Error("MOVE_RELOCATION_NOT_WRITTEN: 目标为只读");
+      return invoke<string>("workbench_move_open_file", { rootId, node, parent, name });
+    } : undefined,
+  }, notify, resolvePath: async (rootId, node) => canonicalChildPath(await localFileService.displayPath(rootId, ""), node),
+  async reconcileMove(rootId, node, targetRootId, targetNode) {
+    moveWorkbenchFilePreferences(`${rootId}:${node}`, `${targetRootId}:${targetNode}`);
+  } }, drafts);
   const { queue } = operations;
   const provider = createBrowserDirectoryProvider({
     assertActive, files: localFileService,

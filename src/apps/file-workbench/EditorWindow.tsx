@@ -11,7 +11,8 @@ import { ParkedDocument } from "../../components/RetainedDocument";
 import { useWorkbenchPalette } from "./Palette";
 import type { createWorkbenchHost } from "./host";
 import { installWorkbenchClose, type WorkbenchCloseRequest } from "./native-lifecycle";
-import { editorWindowPort, watchWorkbenchEditor, type WorkbenchEditorPort, type WorkbenchEditorState } from "./editor-window";
+import { editorSessionKey, editorWindowPort, watchWorkbenchEditor, type WorkbenchEditorPort, type WorkbenchEditorState } from "./editor-window";
+import { moveWorkbenchFilePreferences } from "./file-path-state";
 const BufferView = lazy(() => import("./BufferSourceView").then(module => ({ default: module.BufferSourceView })));
 const SourceView = lazy(() => import("./SourceView").then(module => ({ default: module.WorkbenchSourceView })));
 
@@ -21,6 +22,11 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
   const [discarding, setDiscarding] = useState(false);
   const [fileMenu, setFileMenu] = useState<NotesMenuTarget | null>(null);
   const [state, setState] = useState<WorkbenchEditorState>({ files: [], current: null, revision: -1, closing: null });
+  const previousFiles = useRef<WorkbenchEditorState["files"]>([]);
+  const relocatedViews = useRef(new Map<string, string>());
+  const migratedPreferences = useRef(new Map<string, string>());
+  const history = useRef(new LinkHistory<string>());
+  const [link, setLink] = useState<{ id: string; request: LinkRequest }>();
   const [current, setCurrent] = useState<string | null>(null), [error, setError] = useState("");
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
   const closeRefs = useRef(new Map<string, MutableRefObject<WorkbenchCloseRequest | null>>());
@@ -48,13 +54,49 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
     let live = true, dispose: (() => void) | undefined;
     void watchWorkbenchEditor(port, value => {
       if (!live) return;
-      setState(value);
+      const retainedIds = new Set(value.files.map(item => item.id));
+      for (const id of relocatedViews.current.keys()) if (!retainedIds.has(id)) relocatedViews.current.delete(id);
+      for (const item of value.files) {
+        const from = item.file.relocatedFrom;
+        if (!from) continue;
+        const previous = previousFiles.current.find(candidate => editorSessionKey(candidate) === editorSessionKey(item));
+        if (previous && previous.id !== item.id) {
+          relocatedViews.current.set(item.id, from);
+          history.current.relocate(previous.id, item.id);
+          setLink(request => request?.id === previous.id ? { ...request, id: item.id } : request);
+        }
+        if (previous?.file.relocatedFrom === from) continue;
+        try {
+          moveWorkbenchFilePreferences(from, `${item.file.rootId}:${item.file.node.id}`, previous?.id === undefined);
+          migratedPreferences.current.set(item.id, from);
+        } catch (cause) { report(`文件已移动，显示设置迁移待重试。 ${String(cause)}`); }
+      }
+      previousFiles.current = value.files;
+      // An acknowledgement can arrive before React paints the new location.
+      // Keep the handoff on the mounted view after native clears its receipt.
+      setState({ ...value, files: value.files.map(item => {
+        const from = relocatedViews.current.get(item.id);
+        return from && !item.file.relocatedFrom ? { ...item, file: { ...item.file, relocatedFrom: from } } : item;
+      }) });
       if (!closing.current) setCurrent(value.current);
       const ids = new Set(value.files.map(file => file.id));
       for (const id of closeRefs.current.keys()) if (!ids.has(id)) closeRefs.current.delete(id);
     }, report).then(stop => { if (live) dispose = stop; else stop(); }).catch(report);
     return () => { live = false; dispose?.(); };
   }, [port]);
+  useEffect(() => {
+    for (const [id, from] of migratedPreferences.current) {
+      migratedPreferences.current.delete(id);
+      const item = state.files.find(file => file.id === id);
+      if (!item) continue;
+      try {
+        // The departing rendered view may flush its old scroll key when the
+        // path changes. Retire those keys after the mounted view has switched.
+        moveWorkbenchFilePreferences(from, `${item.file.rootId}:${item.file.node.id}`, true);
+        void port.relocationPreferencesDone?.(id, from).catch(cause => setError(String(cause)));
+      } catch (cause) { setError(`文件已移动，显示设置迁移待重试。 ${String(cause)}`); }
+    }
+  }, [port, state]);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       if (document.querySelector("dialog[open], [role=dialog]")) return;
@@ -94,10 +136,8 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
     if (closing.current) return;
     setCurrent(id); void port.select(id).catch(report);
   };
-  const history = useRef(new LinkHistory<string>());
   const linkSerial = useRef(0);
   const linkInFlight = useRef(false);
-  const [link, setLink] = useState<{ id: string; request: LinkRequest }>();
   const sameFile = (a: string, b: string) => a === b;
   const navigateLink = (id: string, destination: LinkDestination) => {
     setLink({ id, request: { ...destination, serial: ++linkSerial.current } });
@@ -147,7 +187,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
       let closeRequest = closeRefs.current.get(item.id);
       if (!closeRequest) { closeRequest = { current: null }; closeRefs.current.set(item.id, closeRequest); }
       const View = item.file.bufferId ? BufferView : SourceView;
-      return <ParkedDocument key={item.id} active={current === item.id} host={container}>
+      return <ParkedDocument key={editorSessionKey(item)} active={current === item.id} host={container}>
         <Suspense fallback={<p role="status">正在加载编辑工作区…</p>}><View bufferId={item.file.bufferId!} onCreateDocument={createDocument} beforeCloseActions={<><button type="button" className="btn-icon" aria-label="在文件浏览中显示" title="显示文件浏览窗口；保留当前编辑" onClick={() => { void port.showBrowser(item.file.bufferId ? undefined : current ?? undefined).catch(report); }}><ToolbarIcon name="folder" /></button></>} headerActions={<><button type="button" className="btn-icon" aria-label="切换编辑文件" title={`切换编辑文件（${state.files.length}）`} aria-haspopup="menu" aria-expanded={Boolean(fileMenu)} onClick={event => {
           if (fileMenu) { setFileMenu(null); return; }
           const trigger = event.currentTarget, rect = trigger.getBoundingClientRect();
@@ -157,6 +197,8 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
           linkRequest={link?.id === item.id ? link.request : undefined}
           linkHistory={{ back: history.current.back, forward: history.current.forward }}
           onLinkHistory={(direction, position) => { void traverseLinks(direction, position).catch(report); }}
+          relocation={state.relocation?.id === item.id ? state.relocation : undefined}
+          relocationReply={port.relocationReply}
           navigationRequest={item.openRevision} active={current === item.id && !state.closing} closeLabel="关闭当前文件" closeRequest={closeRequest} onClose={() => { void port.remove(item.id).catch(report); }} onCloseCancelled={cancelClosing} onDirtyChange={value => setDirty(previous => previous[item.id] === value ? previous : { ...previous, [item.id]: value })} host={host.source} provider={host.workspace.provider} settings={host.workspace.settings} /></Suspense>
       </ParkedDocument>;
     })}

@@ -1,4 +1,6 @@
+pub mod relocation;
 use nine_rings_file_host::{local_files, window_access::FileWindowAccess};
+use relocation::{PendingRelocation, RelocationRequest};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -38,8 +40,11 @@ pub struct Session {
     current: Option<String>,
     revision: u64,
     closing: Option<Close>,
+    relocation: Option<RelocationRequest>,
     #[serde(skip)]
     ready: bool,
+    #[serde(skip)]
+    unsynced_move: Option<(std::path::PathBuf, std::path::PathBuf)>,
 }
 #[derive(Default)]
 pub struct EditorWindows(
@@ -48,6 +53,7 @@ pub struct EditorWindows(
     Mutex<Option<String>>,
     AtomicU64,
     Mutex<()>,
+    Mutex<Option<PendingRelocation>>,
 );
 impl Session {
     fn clear(&mut self) {
@@ -57,7 +63,7 @@ impl Session {
             ..Self::default()
         };
     }
-    fn open(&mut self, file: EditorFile) -> Result<(), String> {
+    fn open(&mut self, mut file: EditorFile) -> Result<(), String> {
         if self.closing.is_some() {
             return Err("编辑器正在确认关闭，请先完成或取消".into());
         }
@@ -67,6 +73,13 @@ impl Session {
         } else {
             if self.files.len() >= 32 {
                 return Err("编辑器最多同时保留32个文件，请先关闭部分标签".into());
+            }
+            if self
+                .files
+                .iter()
+                .any(|existing| existing.file["sessionKey"] == file.id)
+            {
+                file.file["sessionKey"] = json!(format!("{}\0{}", file.id, self.revision));
             }
             self.files.push(file.clone());
         }
@@ -109,6 +122,9 @@ impl Session {
         Ok(())
     }
     fn persist(&self, app: &tauri::AppHandle) -> Result<(), String> {
+        if let Some((source, target)) = &self.unsynced_move {
+            local_files::sync_relocation_paths(source, target)?;
+        }
         app.state::<super::editor_session::EditorSessionStore>()
             .save(&self.files, self.current.as_deref())
     }
@@ -550,8 +566,8 @@ fn remove_file(window: tauri::WebviewWindow, id: String, discard: bool) -> Resul
     editor(&window)?;
     let state = window.state::<EditorWindows>();
     let mut value = state.0.lock().map_err(|_| "编辑器状态不可用")?;
-    if value.closing.is_some() {
-        return Err("编辑器正在确认关闭，请先完成或取消".into());
+    if value.closing.is_some() || value.relocation.is_some() {
+        return Err("编辑器正在确认关闭或移动标签，请等待完成".into());
     }
     let buffer = value
         .files
@@ -680,6 +696,9 @@ pub fn request_close(app: &tauri::AppHandle, quit: bool) -> Result<(), String> {
         }
         return Ok(());
     }
+    if state.relocation.is_some() {
+        return Err("文件移动尚未完成，请稍后关闭编辑器".into());
+    }
     if state.closing.is_some() {
         return Ok(());
     }
@@ -737,6 +756,7 @@ fn restore_locked(app: &tauri::AppHandle) -> Result<(), String> {
                 version: 1,
                 files,
                 current,
+                relocation: None,
             }
         }
     };
@@ -744,10 +764,12 @@ fn restore_locked(app: &tauri::AppHandle) -> Result<(), String> {
     let result = (|| {
         for mut file in saved.files {
             if let Some(id) = file.file["bufferId"].as_str() {
-                file = app
-                    .state::<super::buffers::BufferDocuments>()
-                    .get(id)?
-                    .session();
+                let Ok(record) = app.state::<super::buffers::BufferDocuments>().get(id) else {
+                    // Invalid draft records are reported by the loader and left
+                    // intact. Continue restoring the remaining tabs.
+                    continue;
+                };
+                file = record.session();
             }
             let protect = file.file["bufferId"].is_null() || file.file["bufferPath"].is_string();
             publish_restored_file(app, file, protect, None)?;

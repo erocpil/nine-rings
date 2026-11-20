@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 use std::{
     collections::{HashMap, HashSet},
     fs,
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -79,38 +79,70 @@ impl BufferRecord {
     }
 }
 impl BufferDocuments {
-    pub fn load(directory: &Path) -> Result<Self, String> {
-        fs::create_dir_all(directory).map_err(|error| error.to_string())?;
+    pub fn load(directory: &Path, notices: &mut Vec<String>) -> Self {
         let mut records = HashMap::new();
-        for item in fs::read_dir(directory).map_err(|error| error.to_string())? {
-            let path = item.map_err(|error| error.to_string())?.path();
-            if path.extension().and_then(|value| value.to_str()) != Some("json") {
-                continue;
+        match fs::create_dir_all(directory).and_then(|()| fs::read_dir(directory)) {
+            Ok(entries) => {
+                for entry in entries {
+                    let path = match entry {
+                        Ok(entry) => entry.path(),
+                        Err(error) => {
+                            notices.push(format!(
+                                "无法枚举草稿目录 {}（{error}）。",
+                                directory.display()
+                            ));
+                            continue;
+                        }
+                    };
+                    if path.extension().and_then(|value| value.to_str()) != Some("json") {
+                        continue;
+                    }
+                    match Self::load_record(&path) {
+                        Ok(value) => {
+                            records.insert(value.id.clone(), value);
+                        }
+                        Err(error) => notices.push(format!(
+                            "无法恢复草稿 {}（{error}）。原记录已保留。",
+                            path.display()
+                        )),
+                    }
+                }
             }
-            if fs::metadata(&path)
-                .map_err(|error| error.to_string())?
-                .len()
-                > (MAX_BYTES * 13) as u64
-            {
-                return Err("未保存文档记录过大，请检查本机存储".into());
+            Err(error) => {
+                notices.push(format!(
+                    "草稿目录 {} 暂不可用（{error}）。",
+                    directory.display()
+                ));
             }
-            let bytes = fs::read(&path).map_err(|error| error.to_string())?;
-            if bytes.len() > MAX_BYTES * 13 {
-                return Err("未保存文档记录过大，请检查本机存储".into());
-            }
-            let value: BufferRecord = serde_json::from_slice(&bytes)
-                .map_err(|error| format!("无法读取未保存文档 {}: {error}", path.display()))?;
-            validate(&value)?;
-            if path.file_stem().and_then(|value| value.to_str()) != Some(value.id.as_str()) {
-                return Err("未保存文档身份不符".into());
-            }
-            records.insert(value.id.clone(), value);
         }
-        Ok(Self {
+        Self {
             directory: directory.to_owned(),
             records: Mutex::new(records),
             saving: Arc::new(Mutex::new(HashSet::new())),
-        })
+        }
+    }
+    fn load_record(path: &Path) -> Result<BufferRecord, String> {
+        if !fs::symlink_metadata(path)
+            .map_err(|error| error.to_string())?
+            .is_file()
+        {
+            return Err("草稿记录须为普通文件".into());
+        }
+        let limit = MAX_BYTES * 13;
+        let mut bytes = Vec::new();
+        fs::File::open(path)
+            .and_then(|file| file.take(limit as u64 + 1).read_to_end(&mut bytes))
+            .map_err(|error| error.to_string())?;
+        if bytes.len() > limit {
+            return Err("未保存文档记录过大".into());
+        }
+        let value: BufferRecord =
+            serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
+        validate(&value)?;
+        if path.file_stem().and_then(|value| value.to_str()) != Some(value.id.as_str()) {
+            return Err("未保存文档身份不符".into());
+        }
+        Ok(value)
     }
     pub(crate) fn begin_save(&self, id: &str) -> Result<Saving, String> {
         let mut values = self.saving.lock().map_err(|_| "保存状态不可用")?;
@@ -162,10 +194,17 @@ impl BufferDocuments {
             .duration_since(UNIX_EPOCH)
             .map_err(|error| error.to_string())?
             .as_nanos();
-        let id = format!(
-            "buffer-{created_at}-{}",
-            NEXT.fetch_add(1, Ordering::SeqCst)
-        );
+        let id = loop {
+            let id = format!(
+                "buffer-{created_at}-{}",
+                NEXT.fetch_add(1, Ordering::SeqCst)
+            );
+            match fs::symlink_metadata(self.directory.join(format!("{id}.json"))) {
+                Ok(_) => continue,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => break id,
+                Err(error) => return Err(error.to_string()),
+            }
+        };
         let mut index = 1;
         while records.values().any(|item| {
             item.name
@@ -477,7 +516,7 @@ mod tests {
             )))
         }
         fn store(&self) -> BufferDocuments {
-            BufferDocuments::load(&self.0).unwrap()
+            BufferDocuments::load(&self.0, &mut Vec::new())
         }
     }
     impl Drop for Fixture {
@@ -607,7 +646,10 @@ mod tests {
         let first = store.list().unwrap()[0].clone();
         let path = fixture.0.join(format!("{}.json", first.id));
         fs::write(&path, "invalid json").unwrap();
-        assert!(BufferDocuments::load(&fixture.0).is_err());
+        let mut notices = Vec::new();
+        let recovered = BufferDocuments::load(&fixture.0, &mut notices);
+        assert_eq!(notices.len(), 1);
+        assert_eq!(recovered.list().unwrap().len(), 31);
         assert_eq!(fs::read_to_string(&path).unwrap(), "invalid json");
     }
 }

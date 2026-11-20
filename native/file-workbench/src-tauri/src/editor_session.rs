@@ -1,10 +1,10 @@
 //! Persist user-open tabs independently of a window's close/quit transaction.
 use super::editor_window::EditorFile;
-use nine_rings_file_host::local_files::replace_recovery_file;
+use nine_rings_file_host::local_files::{replace_recovery_file, LocalFiles, RelocationStamp};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    io::Write,
+    io::{self, Read, Write},
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -17,31 +17,105 @@ pub struct Snapshot {
     pub version: u8,
     pub files: Vec<EditorFile>,
     pub current: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relocation: Option<Relocation>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Relocation {
+    pub source: String,
+    pub target: EditorFile,
+    pub stamp: RelocationStamp,
+}
+impl Relocation {
+    pub fn apply(&self, files: &mut [EditorFile], current: &mut Option<String>) {
+        if let Some(file) = files.iter_mut().find(|file| file.id == self.source) {
+            *file = self.target.clone();
+            if current.as_deref() == Some(&self.source) {
+                *current = Some(file.id.clone());
+            }
+        }
+    }
 }
 pub struct EditorSessionStore {
-    path: PathBuf,
+    path: Option<PathBuf>,
     snapshot: Mutex<Option<Snapshot>>,
     pub restoring: AtomicBool,
 }
 impl EditorSessionStore {
-    pub fn load(path: &Path) -> Result<Self, String> {
-        let snapshot = if path.exists() {
-            if fs::metadata(path).map_err(|e| e.to_string())?.len() > 512 * 1024 {
-                return Err("编辑器标签记录过大，未覆盖原记录".into());
+    pub fn load(path: &Path, notices: &mut Vec<String>) -> Self {
+        let (path, snapshot) = match Self::read_snapshot(path) {
+            Ok(Ok(snapshot)) => (Some(path.to_owned()), snapshot),
+            Ok(Err(issue)) => match Self::quarantine(path) {
+                Ok(backup) => {
+                    notices.push(format!("{issue}。原记录已保留在 {}", backup.display()));
+                    (Some(path.to_owned()), None)
+                }
+                Err(error) => {
+                    notices.push(format!(
+                        "{issue}，无法移存原记录（{error}）。本次标签仅在内存中保留。"
+                    ));
+                    (None, None)
+                }
+            },
+            Err(error) => {
+                notices.push(format!(
+                    "无法读取标签记录 {}（{error}）。本次标签仅在内存中保留。",
+                    path.display()
+                ));
+                (None, None)
             }
-            let value: Snapshot =
-                serde_json::from_slice(&fs::read(path).map_err(|e| e.to_string())?)
-                    .map_err(|e| format!("编辑器标签记录读取失败，未覆盖原记录：{e}"))?;
-            Self::validate(&value)?;
-            Some(value)
-        } else {
-            None
         };
-        Ok(Self {
-            path: path.to_owned(),
+        Self {
+            path,
             snapshot: Mutex::new(snapshot),
             restoring: AtomicBool::new(false),
-        })
+        }
+    }
+    const MAX_BYTES: usize = 512 * 1024;
+
+    fn read_snapshot(path: &Path) -> io::Result<Result<Option<Snapshot>, String>> {
+        match fs::symlink_metadata(path) {
+            Ok(metadata) if !metadata.is_file() => {
+                return Err(io::Error::other("标签记录须为普通文件"))
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Ok(None)),
+            Err(error) => return Err(error),
+        }
+        let file = match fs::File::open(path) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Ok(None)),
+            Err(error) => return Err(error),
+        };
+        let mut bytes = Vec::new();
+        file.take(Self::MAX_BYTES as u64 + 1)
+            .read_to_end(&mut bytes)?;
+        if bytes.len() > Self::MAX_BYTES {
+            return Ok(Err("编辑器标签记录过大".into()));
+        }
+        Ok(serde_json::from_slice::<Snapshot>(&bytes)
+            .map_err(|error| format!("编辑器标签记录无法解析（{error}）"))
+            .and_then(|value| {
+                Self::validate(&value)?;
+                Ok(Some(value))
+            }))
+    }
+
+    fn quarantine(path: &Path) -> io::Result<PathBuf> {
+        for index in 1..=1000 {
+            let directory = path.with_extension(format!("recovery-{index}"));
+            match fs::create_dir(&directory) {
+                Ok(()) => {
+                    let backup = directory.join("editor-session.json");
+                    fs::rename(path, &backup)?;
+                    return Ok(backup);
+                }
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        Err(io::Error::other("标签恢复目录已满"))
     }
     fn validate(value: &Snapshot) -> Result<(), String> {
         let mut ids = std::collections::HashSet::new();
@@ -66,6 +140,24 @@ impl EditorSessionStore {
                 return Err("编辑器标签身份无效".into());
             }
         }
+        if let Some(relocation) = &value.relocation {
+            let source = value
+                .files
+                .iter()
+                .find(|file| file.id == relocation.source)
+                .ok_or("编辑器迁移来源无效")?;
+            if ids.contains(&relocation.target.id)
+                || !source.file["bufferId"].is_null()
+                || !relocation.target.file["bufferId"].is_null()
+                || source.file["rootId"] != relocation.target.file["rootId"]
+            {
+                return Err("编辑器迁移记录无效".into());
+            }
+            let mut finalized = value.clone();
+            finalized.relocation = None;
+            relocation.apply(&mut finalized.files, &mut finalized.current);
+            Self::validate(&finalized)?;
+        }
         Ok(())
     }
     pub fn read(&self) -> Result<Option<Snapshot>, String> {
@@ -75,18 +167,95 @@ impl EditorSessionStore {
             .map_err(|_| "编辑器标签存储不可用")?
             .clone())
     }
+    pub fn recover_relocation(
+        &mut self,
+        library: &LocalFiles,
+        notices: &mut Vec<String>,
+    ) -> Result<(), String> {
+        let Some(mut saved) = self.read()? else {
+            return Ok(());
+        };
+        let Some(journal) = saved.relocation.take() else {
+            return Ok(());
+        };
+        let matches = |file: &EditorFile| {
+            let root = file.file["rootId"].as_str().unwrap_or_default();
+            let node = file.file["node"]["id"].as_str().unwrap_or_default();
+            library
+                .editor_relocation_stamp(root, node, Path::new(&file.id))
+                .is_ok_and(|stamp| stamp.same_file(&journal.stamp))
+        };
+        let source_matches = saved
+            .files
+            .iter()
+            .find(|file| file.id == journal.source)
+            .is_some_and(matches);
+        match (source_matches, matches(&journal.target)) {
+            (false, true) => journal.apply(&mut saved.files, &mut saved.current),
+            (true, false) => {}
+            _ => {
+                let issue = "无法根据两端文件身份确认中断的移动。可能受影响的标签已跳过，请核对原文件和目标。";
+                if let Some(path) = &self.path {
+                    match Self::quarantine(path) {
+                        Ok(backup) => {
+                            notices.push(format!("{issue} 原记录位于 {}", backup.display()))
+                        }
+                        Err(error) => {
+                            notices.push(format!(
+                                "{issue} 原记录保持原位（{error}），本次标签仅保留在内存。"
+                            ));
+                            self.path = None;
+                        }
+                    }
+                }
+                saved.files.retain(|file| file.id != journal.source);
+                if saved.current.as_deref() == Some(&journal.source) {
+                    saved.current = saved.files.last().map(|file| file.id.clone());
+                }
+            }
+        }
+        if let Err(error) = self.commit_value(saved.clone()) {
+            notices.push(format!(
+                "恢复结果无法写入（{error}），本次标签仅保留在内存。"
+            ));
+            self.path = None;
+            self.commit_value(saved)?;
+        }
+        Ok(())
+    }
+    pub fn prepare_relocation(
+        &self,
+        files: &[EditorFile],
+        current: Option<&str>,
+        relocation: Relocation,
+    ) -> Result<(), String> {
+        let path = self
+            .path
+            .as_deref()
+            .ok_or("标签清单当前无法持久保存，请关闭此标签后再移动")?;
+        if self.read()?.is_some_and(|saved| saved.relocation.is_some()) {
+            return Err("上一次移动仍待核对".into());
+        }
+        self.commit(files, current, Some(relocation))?;
+        nine_rings_file_host::local_files::sync_relocation_paths(path, path)
+    }
     pub fn save(&self, files: &[EditorFile], current: Option<&str>) -> Result<(), String> {
         if self.restoring.load(Ordering::SeqCst) {
             return Ok(());
         }
-        self.commit(files, current)
+        self.commit(files, current, None)
     }
     // Bootstrap must write the initial (including empty) manifest even while
     // partial UI publications are intentionally excluded from persistence.
     pub fn initialize(&self, files: &[EditorFile], current: Option<&str>) -> Result<(), String> {
-        self.commit(files, current)
+        self.commit(files, current, None)
     }
-    fn commit(&self, files: &[EditorFile], current: Option<&str>) -> Result<(), String> {
+    fn commit(
+        &self,
+        files: &[EditorFile],
+        current: Option<&str>,
+        relocation: Option<Relocation>,
+    ) -> Result<(), String> {
         let mut retained = files.to_vec();
         for file in &mut retained {
             if let Some(value) = file.file.as_object_mut() {
@@ -97,16 +266,26 @@ impl EditorSessionStore {
             version: 1,
             files: retained,
             current: current.map(str::to_owned),
+            relocation,
         };
+        self.commit_value(value)
+    }
+    fn commit_value(&self, value: Snapshot) -> Result<(), String> {
         Self::validate(&value)?;
         let mut state = self.snapshot.lock().map_err(|_| "编辑器标签存储不可用")?;
-        let temp = self.path.with_extension("tmp");
-        let mut output = fs::File::create(&temp).map_err(|e| e.to_string())?;
-        output
-            .write_all(&serde_json::to_vec(&value).map_err(|e| e.to_string())?)
-            .and_then(|_| output.sync_all())
-            .map_err(|e| e.to_string())?;
-        replace_recovery_file(&temp, &self.path)?;
+        if let Some(path) = &self.path {
+            let bytes = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
+            if bytes.len() > Self::MAX_BYTES {
+                return Err("编辑器标签记录超过 512 KiB".into());
+            }
+            let temp = path.with_extension("tmp");
+            let mut output = fs::File::create(&temp).map_err(|e| e.to_string())?;
+            output
+                .write_all(&bytes)
+                .and_then(|_| output.sync_all())
+                .map_err(|e| e.to_string())?;
+            replace_recovery_file(&temp, path)?;
+        }
         *state = Some(value);
         Ok(())
     }
@@ -135,7 +314,7 @@ mod tests {
             }
         }
         fn store(&self) -> EditorSessionStore {
-            EditorSessionStore::load(&self.0.join("session.json")).unwrap()
+            EditorSessionStore::load(&self.0.join("session.json"), &mut Vec::new())
         }
     }
     impl Drop for Fixture {
@@ -157,6 +336,94 @@ mod tests {
         store.restoring.store(true, Ordering::SeqCst);
         store.initialize(&[], None).unwrap();
         assert!(fixture.store().read().unwrap().unwrap().files.is_empty());
+    }
+    #[test]
+    fn corrupt_manifest_is_preserved_and_a_fresh_manifest_can_be_saved() {
+        let fixture = Fixture::new();
+        let path = fixture.0.join("session.json");
+        let mut notices = Vec::new();
+        fs::write(&path, b"{truncated").unwrap();
+        let store = EditorSessionStore::load(&path, &mut notices);
+        assert_eq!(notices.len(), 1);
+        assert!(store.read().unwrap().is_none());
+        assert_eq!(
+            fs::read(fixture.0.join("session.recovery-1/editor-session.json")).unwrap(),
+            b"{truncated"
+        );
+        store.initialize(&[], None).unwrap();
+        assert!(fixture.store().read().unwrap().unwrap().files.is_empty());
+    }
+    #[test]
+    fn process_restart_resolves_open_relocation_from_the_original_file_identity() {
+        for published in [false, true] {
+            let fixture = Fixture::new();
+            let root = fixture.0.canonicalize().unwrap();
+            fs::write(
+                root.join("local-file-roots.json"),
+                serde_json::to_vec(&serde_json::json!([{ "id": "root", "path": root }])).unwrap(),
+            )
+            .unwrap();
+            let library = LocalFiles::load(&root);
+            let (source_path, target_path) = (root.join("source.c"), root.join("target.c"));
+            fs::write(&source_path, "my edit").unwrap();
+            let stamp = library
+                .editor_relocation_stamp("root", "source.c", &source_path)
+                .unwrap();
+            let entry = |name: &str| {
+                let mut value = file(name);
+                value.id = root.join(name).to_str().unwrap().to_owned();
+                value
+            };
+            let (source, target) = (entry("source.c"), entry("target.c"));
+            fixture
+                .store()
+                .prepare_relocation(
+                    std::slice::from_ref(&source),
+                    Some(&source.id),
+                    Relocation {
+                        source: source.id.clone(),
+                        target: target.clone(),
+                        stamp: stamp.clone(),
+                    },
+                )
+                .unwrap();
+            if published {
+                library
+                    .publish_editor_relocation(
+                        "root",
+                        "source.c",
+                        "target.c",
+                        &source_path,
+                        &target_path,
+                        &stamp,
+                    )
+                    .unwrap();
+            } else {
+                fs::write(&target_path, "other process").unwrap();
+                assert!(library
+                    .publish_editor_relocation(
+                        "root",
+                        "source.c",
+                        "target.c",
+                        &source_path,
+                        &target_path,
+                        &stamp
+                    )
+                    .is_err());
+                assert_eq!(fs::read_to_string(&target_path).unwrap(), "other process");
+            }
+            let mut notices = Vec::new();
+            fixture
+                .store()
+                .recover_relocation(&library, &mut notices)
+                .unwrap();
+            assert!(notices.is_empty());
+            let restored = fixture.store().read().unwrap().unwrap();
+            let expected = if published { target.id } else { source.id };
+            assert_eq!(restored.files[0].id, expected);
+            assert_eq!(restored.current.as_deref(), Some(expected.as_str()));
+            assert!(restored.relocation.is_none());
+        }
     }
     #[test]
     fn process_restart_restores_tab_order_and_active_file_without_replaying_search() {

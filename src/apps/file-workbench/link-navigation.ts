@@ -32,6 +32,10 @@ export class LinkHistory<T> {
 
   target(direction: -1 | 1) { return this.entries[this.index + direction]; }
 
+  relocate(from: T, to: T) {
+    this.entries = this.entries.map(entry => entry.file === from ? { ...entry, file: to } : entry);
+  }
+
   commit(direction: -1 | 1, origin: Entry<T> | undefined, sameFile: (a: T, b: T) => boolean) {
     const selected = this.entries[this.index];
     if (origin && selected && sameFile(origin.file, selected.file)) this.entries[this.index] = origin;

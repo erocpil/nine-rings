@@ -14,6 +14,9 @@ mod window_zoom;
 use close_policy::ClosePolicy;
 use nine_rings_file_host::local_files;
 use tauri::{Emitter, Manager};
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+
+struct StartupNotices(std::sync::Mutex<Vec<String>>);
 
 fn main_window(window: &tauri::WebviewWindow) -> Result<(), String> {
     if window.label() != "main" {
@@ -28,6 +31,27 @@ fn workbench_ready(
 ) -> Result<(), String> {
     main_window(&window)?;
     policy.ready();
+    if let Ok(mut notices) = window.state::<StartupNotices>().0.lock() {
+        if !notices.is_empty() {
+            let omitted = notices.len().saturating_sub(8);
+            let mut message = notices
+                .iter()
+                .take(8)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            if omitted > 0 {
+                message.push_str(&format!("\n另有 {omitted} 项，请检查应用数据目录。"));
+            }
+            notices.clear();
+            window
+                .dialog()
+                .message(message)
+                .title("File Workbench · 恢复记录")
+                .kind(MessageDialogKind::Warning)
+                .show(|_| {});
+        }
+    }
     Ok(())
 }
 #[tauri::command]
@@ -202,13 +226,22 @@ fn main() {
             tray.build(app)?;
             let directory = app.path().app_data_dir()?;
             std::fs::create_dir_all(&directory)?;
-            app.manage(local_files::LocalFiles::load(&directory));
+            let library = local_files::LocalFiles::load(&directory);
+            let mut notices = Vec::new();
             app.manage(buffers::BufferDocuments::load(
                 &directory.join("editor-documents"),
-            )?);
-            app.manage(editor_session::EditorSessionStore::load(
+                &mut notices,
+            ));
+            let mut sessions = editor_session::EditorSessionStore::load(
                 &directory.join("editor-session.json"),
-            )?);
+                &mut notices,
+            );
+            if let Err(error) = sessions.recover_relocation(&library, &mut notices) {
+                notices.push(format!("移动记录暂不可用（{error}）。"));
+            }
+            app.manage(library);
+            app.manage(sessions);
+            app.manage(StartupNotices(std::sync::Mutex::new(notices)));
             app.state::<editor_session::EditorSessionStore>()
                 .restoring
                 .store(true, std::sync::atomic::Ordering::SeqCst);
@@ -261,6 +294,9 @@ fn main() {
             editor_window::workbench_window_role,
             editor_window::workbench_editor_presence,
             editor_window::workbench_open_editor,
+            editor_window::relocation::workbench_move_open_file,
+            editor_window::relocation::workbench_editor_relocation_reply,
+            editor_window::relocation::workbench_editor_relocation_preferences_done,
             editor_window::workbench_follow_editor_link,
             editor_window::workbench_editor_link_origin,
             editor_window::workbench_editor_state,

@@ -109,6 +109,46 @@ impl FileWindowAccess {
         state.mutations.insert(id, paths);
         Ok(FileMutationLease(self.0.clone(), id))
     }
+    /// Only the Workbench editor manager can transfer one exact reservation.
+    /// Normal directory commands continue to reject all open paths.
+    pub fn begin_editor_relocation(
+        &self,
+        editor: &str,
+        source: &Path,
+        target: &Path,
+    ) -> Result<FileMutationLease, String> {
+        let mut state = self.0.lock().map_err(|_| "文件窗口状态不可用")?;
+        if !source.is_absolute()
+            || !target.is_absolute()
+            || overlaps(source, target)
+            || !state
+                .editors
+                .get(editor)
+                .is_some_and(|paths| paths.contains(source))
+            || state.editors.iter().any(|(label, paths)| {
+                paths.iter().any(|path| {
+                    !(label == editor && path == source)
+                        && (overlaps(path, source) || overlaps(path, target))
+                })
+            })
+        {
+            return Err("PATH_IN_USE: 只能迁移该编辑器独占的普通文件，且目标不能被打开".into());
+        }
+        if state.mutations.values().any(|paths| {
+            paths.is_empty()
+                || paths
+                    .iter()
+                    .any(|path| overlaps(path, source) || overlaps(path, target))
+        }) {
+            return Err("PATH_BUSY: 相关文件正在保存或移动，请稍后重试".into());
+        }
+        state.sequence += 1;
+        let id = state.sequence;
+        state
+            .mutations
+            .insert(id, vec![source.to_owned(), target.to_owned()]);
+        Ok(FileMutationLease(self.0.clone(), id))
+    }
     pub fn begin(
         &self,
         label: &str,
@@ -130,6 +170,33 @@ impl FileWindowAccess {
         let id = state.sequence;
         state.mutations.insert(id, Vec::new());
         Ok(FileMutationLease(self.0.clone(), id))
+    }
+}
+impl FileMutationLease {
+    pub fn publish_editor_relocation<T>(
+        &self,
+        label: &str,
+        source: &Path,
+        target: &Path,
+        publish: impl FnOnce() -> Result<T, String>,
+    ) -> Result<T, String> {
+        let mut state = self.0.lock().map_err(|_| "文件窗口状态不可用")?;
+        if !state
+            .mutations
+            .get(&self.1)
+            .is_some_and(|paths| paths.as_slice() == [source, target])
+        {
+            return Err("文件迁移租约已失效".into());
+        }
+        let paths = state
+            .editors
+            .get_mut(label)
+            .filter(|paths| paths.contains(source))
+            .ok_or("来源标签已关闭")?;
+        let result = publish()?;
+        paths.remove(source);
+        paths.insert(target.to_owned());
+        Ok(result)
     }
 }
 impl Drop for FileMutationLease {
@@ -179,6 +246,32 @@ mod tests {
 #[cfg(test)]
 mod scoped_tests {
     use super::*;
+    #[test]
+    fn editor_relocation_keeps_both_paths_locked_then_transfers_the_reservation() {
+        let access = FileWindowAccess::default();
+        let editor = "workbench-editor-1";
+        let (old, new) = (path("one.c"), path("dest/two.c"));
+        access.grant_editor(editor).unwrap();
+        access.protect_editor_path(editor, &old).unwrap();
+        let save = access
+            .begin_paths(editor, false, vec![old.clone()])
+            .unwrap();
+        assert!(access.begin_editor_relocation(editor, &old, &new).is_err());
+        drop(save);
+        let lease = access.begin_editor_relocation(editor, &old, &new).unwrap();
+        for reserved in [&old, &new] {
+            assert!(access
+                .begin_paths(editor, false, vec![reserved.clone()])
+                .is_err());
+        }
+        lease
+            .publish_editor_relocation(editor, &old, &new, || Ok(()))
+            .unwrap();
+        drop(lease);
+        assert!(access.begin_paths("main", true, vec![old]).is_ok());
+        assert!(access.begin_paths("main", true, vec![new.clone()]).is_err());
+        assert!(access.begin_paths(editor, false, vec![new]).is_ok());
+    }
     fn path(value: &str) -> PathBuf {
         std::env::temp_dir().join("workbench-path-test").join(value)
     }

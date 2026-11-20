@@ -37,6 +37,7 @@ export interface BrowserOperationHost<Lease extends BrowserOperationLease> {
   files: {
     transfer(rootId: string, node: string, targetRootId: string, parent: string, name: string, moving: boolean, onProgress?: (progress: TransferProgress) => void): Promise<string>;
     replace?(paths: ReplacementPaths, expected: ReplacementReview, signal: AbortSignal): Promise<{ backupPath: string }>;
+    relocateOpen?(rootId: string, node: string, parent: string, name: string, signal: AbortSignal): Promise<string>;
     move(rootId: string, node: string, parent: string, name: string): Promise<string>;
     trash(rootId: string, node: string): Promise<void>;
     create(rootId: string, parent: string, name: string, directory: boolean): Promise<string>;

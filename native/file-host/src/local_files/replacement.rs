@@ -198,11 +198,12 @@ mod atomic {
         )?;
         Ok(review)
     }
-    fn exchange(
+    fn rename_at(
         staging: &fs::File,
         incoming: &CStr,
         destination: &fs::File,
         name: &CStr,
+        exchange: bool,
     ) -> io::Result<()> {
         #[cfg(target_os = "macos")]
         let result = unsafe {
@@ -211,7 +212,11 @@ mod atomic {
                 incoming.as_ptr(),
                 destination.as_raw_fd(),
                 name.as_ptr(),
-                libc::RENAME_SWAP,
+                if exchange {
+                    libc::RENAME_SWAP
+                } else {
+                    libc::RENAME_EXCL
+                },
             )
         };
         #[cfg(target_os = "linux")]
@@ -221,7 +226,11 @@ mod atomic {
                 incoming.as_ptr(),
                 destination.as_raw_fd(),
                 name.as_ptr(),
-                libc::RENAME_EXCHANGE,
+                if exchange {
+                    libc::RENAME_EXCHANGE
+                } else {
+                    libc::RENAME_NOREPLACE
+                },
             )
         };
         status(result)
@@ -233,7 +242,29 @@ mod atomic {
             return Err("暂存与原文件必须位于同一目录".into());
         }
         let dir = directory(destination).map_err(|error| error.to_string())?;
-        exchange(&dir, &incoming, &dir, &name).map_err(|error| error.to_string())
+        rename_at(&dir, &incoming, &dir, &name, true).map_err(|error| error.to_string())
+    }
+    pub(super) fn rename_editor_file(
+        source: &Path,
+        target: &Path,
+        stamp: &RelocationStamp,
+    ) -> Result<(), String> {
+        let (source_parent, source_name) = parent(source)?;
+        let (target_parent, target_name) = parent(target)?;
+        let open = |path: &Path| directory(path).map_err(|error| error.to_string());
+        let source_dir = open(source_parent)?;
+        let target_dir = open(target_parent)?;
+        let (observed, file) = revision(&source_dir, &source_name)?;
+        let metadata = file.metadata().map_err(|error| error.to_string())?;
+        if observed.digest != stamp.digest
+            || !stamp.matches_identity(metadata.dev(), metadata.ino())
+        {
+            return Err("来源在迁移期间已变化，请先刷新编辑器".into());
+        }
+        verify_directory(source_parent, &source_dir)
+            .and_then(|_| verify_directory(target_parent, &target_dir))
+            .and_then(|_| rename_at(&source_dir, &source_name, &target_dir, &target_name, false))
+            .map_err(|error| error.to_string())
     }
     fn copy(mut source: &fs::File, mut target: &fs::File, size: u64) -> io::Result<()> {
         use std::io::Read;
@@ -302,7 +333,7 @@ mod atomic {
             verify_directory(source_parent, &source_dir)
                 .and_then(|_| verify_directory(destination, &target_dir))
                 .and_then(|_| verify_directory(&stage_path, &stage))
-                .and_then(|_| exchange(&stage, c"previous", &target_dir, &target_name))
+                .and_then(|_| rename_at(&stage, c"previous", &target_dir, &target_name, true))
                 .map_err(|error| error.to_string())?;
             Ok(incoming)
         })();
@@ -382,6 +413,15 @@ use atomic::{replace, review};
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 pub(super) fn exchange_save(temp: &Path, target: &Path) -> Result<(), String> {
     atomic::exchange_save(temp, target)
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+pub(super) fn rename_editor_file(
+    source: &Path,
+    target: &Path,
+    stamp: &RelocationStamp,
+) -> Result<(), String> {
+    atomic::rename_editor_file(source, target, stamp)
 }
 
 fn authorized_paths(

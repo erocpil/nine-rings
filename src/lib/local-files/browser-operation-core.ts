@@ -49,24 +49,47 @@ export function createBrowserOperationRunner<Lease extends BrowserOperationLease
           if (operation.kind !== "trash" && fileSegments(targetName).length !== 1) throw new Error("请输入单个文件或目录名称");
           if (operation.kind === "batch-rename" && nodes.some(other => other !== node && (operation.names![other].toLowerCase() === targetName.toLowerCase() || other.split("/").pop()!.toLowerCase() === targetName.toLowerCase()))) throw new Error("此名称被批量计划中的其它项目占用，请重新规划");
           let confirmed = false;
+          let movedByEditor = false;
           try {
             emit({ node, targetName, status: "running" });
             attempted = true;
+            const moveOpenFallback = async (write: Promise<string>, rootId: string, parent: string) => {
+              try { return await write; }
+              catch (error) {
+                const relocate = host.files.relocateOpen;
+                if (!relocate || nodes.length !== 1 || rootId !== operation.rootId || !/^(?:Error: )?PATH_IN_USE:/.test(String(error))) throw error;
+                if (signal.aborted) throw new Error("MOVE_RELOCATION_NOT_WRITTEN: 已停止移动");
+                try {
+                  const target = await relocate(rootId, node, parent, targetName, signal);
+                  movedByEditor = true;
+                  return target;
+                }
+                catch (cause) {
+                  if (/MOVE_RELOCATION_PUBLISHED:/.test(String(cause))) {
+                    const targetNode = [parent, targetName].filter(Boolean).join("/");
+                    host.notify({ kind: "move", rootId, node, targetRootId: rootId, targetNode });
+                  }
+                  throw cause;
+                }
+              }
+            };
             if (operation.kind === "copy" || operation.kind === "move") {
               let acceptingProgress = true;
-              const next = await host.files.transfer(operation.rootId, node, operation.targetRootId, operation.targetParent, targetName, operation.kind === "move", transfer => {
+              const transfer = host.files.transfer(operation.rootId, node, operation.targetRootId, operation.targetParent, targetName, operation.kind === "move", transfer => {
                 if (!acceptingProgress) return;
                 progress.transfer = transfer;
                 try { onProgress({ ...progress }); } catch { /* Isolate progress UI from disk writes. */ }
               }).finally(() => { acceptingProgress = false; });
+              const next = operation.kind === "move" ? await moveOpenFallback(transfer, operation.targetRootId, operation.targetParent) : await transfer;
               confirmed = true;
-              if (operation.kind === "move") await host.reconcileMove(operation.rootId, node, operation.targetRootId, next, operation.targetRootName);
-              host.notify({ kind: operation.kind === "move" ? "move" : "refresh", rootId: operation.rootId, node, targetRootId: operation.targetRootId, targetNode: next });
+              try { if (operation.kind === "move" && !movedByEditor) await host.reconcileMove(operation.rootId, node, operation.targetRootId, next, operation.targetRootName); }
+              finally { host.notify({ kind: operation.kind === "move" ? "move" : "refresh", rootId: operation.rootId, node, targetRootId: operation.targetRootId, targetNode: next }); }
             } else if (operation.kind === "rename" || operation.kind === "batch-rename") {
-              const next = await host.files.move(operation.rootId, node, operation.parent, targetName);
+              const write = host.files.move(operation.rootId, node, operation.parent, targetName);
+              const next = operation.kind === "rename" ? await moveOpenFallback(write, operation.rootId, operation.parent) : await write;
               confirmed = true;
-              await host.reconcileMove(operation.rootId, node, operation.rootId, next, operation.rootName);
-              host.notify({ kind: "move", rootId: operation.rootId, node, targetRootId: operation.rootId, targetNode: next });
+              try { if (!movedByEditor) await host.reconcileMove(operation.rootId, node, operation.rootId, next, operation.rootName); }
+              finally { host.notify({ kind: "move", rootId: operation.rootId, node, targetRootId: operation.rootId, targetNode: next }); }
             } else if (operation.kind === "trash") {
               await host.files.trash(operation.rootId, node);
               confirmed = true;
@@ -79,8 +102,8 @@ export function createBrowserOperationRunner<Lease extends BrowserOperationLease
             }
             progress.completed++; emit({ node, targetName, status: "completed" }); break;
           } catch (error) {
-            if (confirmed || /MOVE_COPY_PUBLISHED/.test(String(error))) throw error;
-            if (/^(?:Error: )?PATH_(?:IN_USE|BUSY):/.test(String(error))) { attempted = false; throw error; }
+            if (confirmed || /MOVE_(?:COPY|RELOCATION)_PUBLISHED/.test(String(error))) throw error;
+            if (/^(?:Error: )?(?:PATH_(?:IN_USE|BUSY)|MOVE_RELOCATION_NOT_WRITTEN):/.test(String(error))) { attempted = false; throw error; }
             if (!/TARGET_EXISTS|目标名称已存在/.test(String(error))) throw error;
             attempted = false; // Explicit no-overwrite conflict: nothing was written.
             if (signal.aborted) { emit({ node, targetName, status: "pending" }); return { ...progress, cancelled: true }; }

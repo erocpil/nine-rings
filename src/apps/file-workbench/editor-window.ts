@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { BrowserFileOpen } from "../../lib/local-files/browser-contract";
-export interface WorkbenchEditorSession { id: string; file: BrowserFileOpen & { bufferId?: string; bufferPath?: string; untitled?: boolean }; openRevision?: number }
-export interface WorkbenchEditorState { files: WorkbenchEditorSession[]; current: string | null; revision: number; closing: { token: number; quit: boolean } | null }
+export interface WorkbenchEditorSession { id: string; file: BrowserFileOpen & { bufferId?: string; bufferPath?: string; untitled?: boolean; sessionKey?: string; relocatedFrom?: string }; openRevision?: number }
+export interface WorkbenchRelocationRequest { id: string; token: number; targetNode: string }
+export interface WorkbenchEditorState { files: WorkbenchEditorSession[]; current: string | null; revision: number; closing: { token: number; quit: boolean } | null; relocation?: WorkbenchRelocationRequest | null }
+export const editorSessionKey = (item: WorkbenchEditorSession) => item.file.sessionKey ?? item.id;
 export interface WorkbenchEditorPort {
   read(): Promise<WorkbenchEditorState>;
   listen(changed: () => void): Promise<() => void>;
@@ -14,6 +16,8 @@ export interface WorkbenchEditorPort {
   showBrowser(id?: string): Promise<void>;
   listenQuit?(request: () => void): Promise<() => void>;
   quit?(): Promise<void>;
+  relocationReply?(token: number, revision?: string, reason?: string): Promise<void>;
+  relocationPreferencesDone?(id: string, from: string): Promise<void>;
 }
 export const editorWindowPort: WorkbenchEditorPort = {
   read: () => invoke("workbench_editor_state"),
@@ -26,6 +30,8 @@ export const editorWindowPort: WorkbenchEditorPort = {
   showBrowser: id => invoke("workbench_show_browser", { id: id ?? null }),
   listenQuit: request => listen("workbench:confirm-quit", request),
   quit: () => invoke("workbench_editor_request_quit"),
+  relocationReply: (token, revision, reason) => invoke("workbench_editor_relocation_reply", { token, revision: revision ?? null, reason: reason ?? null }),
+  relocationPreferencesDone: (id, from) => invoke("workbench_editor_relocation_preferences_done", { id, from }),
 };
 export const openWorkbenchEditor = (file: BrowserFileOpen) => invoke<void>("workbench_open_editor", { rootId: file.rootId, node: file.node.id, location: file.location ?? null });
 export const readWorkbenchLinkOrigin = (sourceId: string) =>
