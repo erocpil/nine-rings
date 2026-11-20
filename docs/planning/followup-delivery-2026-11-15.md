@@ -8,8 +8,8 @@
 - [x] 页面重载后重新打开、书签名称恢复与跳转（Chromium / WebKit）。原生进程重启不在此认证范围。
 - [x] 标签行留在正文列，避免遮挡固定目录；示例、导入实际点击回归。
 - [x] 更新标题全宽、固定字号、默认左侧和触控拖动方向的过期测试契约。
-- [ ] Nine Rings 最终分支完整 E2E 复验。首轮 25 个失败用例已全部修正并定向复验，Workbench 修正后的完整 Chromium 98 项通过。见[验证记录](../validation/e2e-repair-progress.md#2026-11-20-窄窗口面板与跨模式书签)。
-- [ ] 远端 CI 按提交核验（本轮尚未推送）。
+- [ ] Nine Rings 完整 E2E 的通过基线。以 `639737ee` 启动的再次全量为 1700 通过、2 失败，随后两项定向复验通过。Workbench 修正后的完整 Chromium 98 项通过。见[验证记录](../validation/e2e-repair-progress.md#2026-11-20-窄窗口面板与跨模式书签)。
+- [ ] `639737ee` 的远端 Test 工作流仍在执行 E2E。通用 CI、原生平台 E2E 和三平台 Tauri 构建已通过。 [远端 Test 工作流](https://github.com/erocpil/nine-rings/actions/runs/44749590700)
 - [x] 补足 820px 窄窗口多面板组合，以及源码和渲染两边修改、实际点击书签、保存重开后再次定位的回归。
 
 ## 2. File Workbench 产品优化（首个增量已实现）
