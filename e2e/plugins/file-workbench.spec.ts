@@ -3381,12 +3381,31 @@ test("Editor选区工具打开下级菜单后保持可见且不透明", async ({
 test("启动恢复与权限窗口返回不凭空添加目录标签，显式新建仍可复制同路径", async ({ page }) => {
   await page.addInitScript(() => {
     const key = "file-workbench:nr:local-file-browser";
-    if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify({ version: 2, active: 0, ratio: .5, groups: [
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem("file-workbench:directory-tab-events", JSON.stringify([
+        { cause: "restore", counts: [2, 1], active: 1 },
+        { cause: "reveal-file", counts: [2, 2], active: 1 },
+      ]));
+      localStorage.setItem(key, JSON.stringify({ version: 2, active: 1, ratio: .5, groups: [
       { active: 1, tabs: ["Downloads", "Documents"].map((node, index) => ({ tabId: `left-${index}`, pinned: true, history: [{ rootId: "root", node, selected: [], scrollTop: 0 }], index: 0 })) },
-      { active: 0, tabs: [{ tabId: "right", history: [{ rootId: "root", node: "", selected: [], scrollTop: 0 }], index: 0 }] },
+      { active: 1, tabs: [
+        { tabId: "right", history: [{ rootId: "root", node: "", selected: [], scrollTop: 0 }], index: 0 },
+        { tabId: "legacy-reveal", showHidden: true, history: [{ rootId: "root", node: "", selected: [], scrollTop: 0 }, { rootId: "root", node: "Documents", selected: ["Documents/guide.md"], scrollTop: 0 }], index: 1 },
+      ] },
     ] }));
+    }
     let next = 1;
-    (window as any).__TAURI_INTERNALS__ = { transformCallback() { return next++; }, unregisterCallback() {}, async invoke(command: string) {
+    const callbacks = new Map<number, (value: unknown) => void>();
+    let reveal: number | undefined;
+    (window as any).__revealDirectoryFile = () => {
+      if (reveal === undefined) throw new Error("missing reveal listener");
+      callbacks.get(reveal)?.({ event: "workbench:reveal-file", id: reveal, payload: { rootId: "root", node: "Documents/guide.md" } });
+    };
+    (window as any).__TAURI_INTERNALS__ = { transformCallback(fn: (value: unknown) => void) { const id = next++; callbacks.set(id, fn); return id; }, unregisterCallback() {}, async invoke(command: string, args: { event?: string; handler?: number }) {
+      if (command === "plugin:event|listen") {
+        if (args.event === "workbench:reveal-file") reveal = args.handler;
+        return next++;
+      }
       if (command === "workbench_window_role") return "browser";
       if (command === "workbench_editor_presence") return { present: false, revision: 0 };
       if (command === "local_files_roots") return [{ id: "root", name: "Home" }];
@@ -3395,13 +3414,19 @@ test("启动恢复与权限窗口返回不凭空添加目录标签，显式新�
   });
   await page.goto("/file-workbench.html");
   const tabs = page.getByRole("tablist", { name: "左栏目录标签" });
+  const rightTabs = page.getByRole("tablist", { name: "右栏目录标签" });
   for (let pass = 0; pass < 3; pass++) {
+    await expect(rightTabs.getByRole("tab")).toHaveCount(1);
     await expect(tabs.getByRole("tab")).toHaveText([/Downloads$/, /Documents$/]);
     const add = tabs.getByRole("button", { name: "新建目录标签", exact: true });
     await page.evaluate(() => { window.dispatchEvent(new Event("blur")); window.dispatchEvent(new Event("focus")); });
     // An isolated click delivered after a native sheet is not a new user press.
     await add.dispatchEvent("click", { detail: 1 });
     await expect(tabs.getByRole("tab")).toHaveCount(2);
+    await rightTabs.getByRole("tab").click();
+    await page.evaluate(() => (window as any).__revealDirectoryFile());
+    await expect(tabs.getByRole("tab", { name: /Documents$/ })).toHaveAttribute("aria-selected", "true");
+    await expect(rightTabs.getByRole("tab")).toHaveCount(1);
     await page.reload();
   }
   await tabs.getByRole("button", { name: "新建目录标签", exact: true }).click();
@@ -3439,4 +3464,63 @@ test("Editor工具栏开关与更多工具在源码、渲染、文件切换和�
   await more.click();
   await expect(page.getByRole("dialog", { name: "文件操作异常", exact: true })).toContainText("TOOLBAR_QUOTA");
   await expect(more).toHaveAttribute("aria-pressed", "true");
+});
+
+test("Markdown 渲染在只读与编辑间保持正文上边缘", async ({ page }) => {
+  await setupIndependentEditor(page, { "guide.md": "# Heading\n\nFirst paragraph\n" });
+  await page.getByRole("tab", { name: "guide.md", exact: true }).click();
+  const body = page.getByLabel("Markdown 渲染", { exact: true }).locator(".ProseMirror");
+  const measure = () => body.evaluate(element => {
+    const root = element.closest(".note-editor")!;
+    const title = root.querySelector(".document-title-bar")!.getBoundingClientRect();
+    const toolbar = root.querySelector(".document-toolbar");
+    const bar = toolbar?.getBoundingClientRect();
+    return { top: element.getBoundingClientRect().top - title.bottom, barHeight: bar?.height, barTop: bar ? bar.top - title.bottom : null };
+  });
+  for (const palette of ["柔和浅色", "清雅"]) {
+    await page.getByRole("button", { name: "配色", exact: true }).click();
+    await page.getByRole("menu", { name: "工作台配色" }).getByRole("menuitem", { name: new RegExp(palette) }).click();
+    const read = await measure();
+    await page.getByRole("button", { name: "点击设为可编辑" }).click();
+    await expect(body).toBeEditable();
+    const edit = await measure();
+    expect(edit, palette).toEqual(read);
+    await page.getByRole("button", { name: "点击设为只读" }).click();
+    await expect.poll(() => body.evaluate(element => (element as HTMLElement).isContentEditable)).toBe(false);
+  }
+});
+
+test("磁盘 Markdown 链接右键复制原始地址，覆盖渲染与源码", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator.clipboard, "writeText", { configurable: true, value: async (value: string) => {
+      sessionStorage.setItem("fixture-copied-link", value);
+    } });
+  });
+  const href = "./other.md#part";
+  await setupIndependentEditor(page, { "guide.md": `# Heading\n\n[目标链接](${href})\n\n普通文字\n` });
+  await page.getByRole("tab", { name: "guide.md", exact: true }).click();
+  const link = page.getByRole("link", { name: "目标链接", exact: true });
+  const copied = () => page.evaluate(() => sessionStorage.getItem("fixture-copied-link"));
+  const copy = () => page.getByRole("menuitem", { name: "复制链接", exact: true }).click();
+  await link.click({ button: "right" });
+  await copy();
+  await expect.poll(copied).toBe(href);
+  await page.getByRole("button", { name: "点击设为可编辑" }).click();
+  await page.getByText("普通文字", { exact: true }).click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "复制链接", exact: true })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await link.click({ button: "right" });
+  await copy();
+  await expect.poll(copied).toBe(href);
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  await sourceInfo(source);
+  const point = await source.evaluate(element => {
+    const view = (window as any).sourceCM.EditorView.findFromDOM(element);
+    return view.coordsAtPos(view.state.doc.toString().indexOf("目标链接") + 1);
+  });
+  await page.evaluate(() => sessionStorage.removeItem("fixture-copied-link"));
+  await page.mouse.click(point.left + 1, (point.top + point.bottom) / 2, { button: "right" });
+  await copy();
+  await expect.poll(copied).toBe(href);
 });

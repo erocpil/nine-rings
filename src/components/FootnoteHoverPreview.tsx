@@ -18,7 +18,7 @@ export function footnotePreviewText(doc: PMNode | null, id: string): string | nu
 }
 
 /** Desktop previews share presentation; hovering never loads or opens the target. */
-export function useDocumentHoverPreview(getDocument: () => PMNode | null, root: HTMLElement | null = null) {
+export function useDocumentHoverPreview(getDocument: () => PMNode | null, root: HTMLElement | null = null, suspended = false) {
   const [bubble, setBubble] = useState<Bubble | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -26,6 +26,12 @@ export function useDocumentHoverPreview(getDocument: () => PMNode | null, root: 
   const clear = () => { cancelHide(); setBubble(null); };
   const deferHide = () => { cancelHide(); hideTimer.current = setTimeout(() => { hideTimer.current = null; setBubble(null); }, 180); };
   useEffect(() => () => { if (hideTimer.current !== null) clearTimeout(hideTimer.current); }, []);
+  useEffect(() => {
+    if (!suspended) return;
+    if (hideTimer.current !== null) clearTimeout(hideTimer.current);
+    hideTimer.current = null;
+    setBubble(null);
+  }, [suspended]);
   useLayoutEffect(() => {
     if (!bubble || !previewRef.current) return;
     const rect = bubble.anchor.getBoundingClientRect();
@@ -65,6 +71,7 @@ export function useDocumentHoverPreview(getDocument: () => PMNode | null, root: 
     };
   }, [bubble]);
   const show = (target: EventTarget | null, root: HTMLElement) => {
+    if (suspended) return;
     if (target instanceof Element && target.closest(".document-image-view-button")) { clear(); return; }
     if (window.innerWidth < 768 || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
     const reference = target instanceof Element ? target.closest<HTMLElement>(".nr-footnote-reference") : null;
@@ -103,7 +110,7 @@ export function useDocumentHoverPreview(getDocument: () => PMNode | null, root: 
     onFocusCapture: (event: FocusEvent<HTMLElement>) => show(event.target, event.currentTarget),
     onBlurCapture: (event: FocusEvent<HTMLElement>) => hide(event.target, event.relatedTarget),
     onScrollCapture: clear,
-    preview: bubble && createPortal(<div ref={previewRef}
+    preview: !suspended && bubble && createPortal(<div ref={previewRef}
       className={`nr-footnote-hover-preview${bubble.kind === "link" ? " nr-link-hover-preview" : ""}${editableLink ? " nr-link-hover-actions" : ""}`}
       role={editableLink ? "dialog" : "tooltip"} aria-label={editableLink ? "链接操作预览" : undefined}
       onPointerOver={event => { event.stopPropagation(); cancelHide(); }}

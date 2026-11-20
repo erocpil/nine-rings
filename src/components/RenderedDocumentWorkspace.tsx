@@ -98,7 +98,8 @@ import { DocumentOutlineList, OutlineDisplayTools, OUTLINE_SCROLL_EVENT, type Vi
 import { EditorToolbarContents } from "./EditorToolbarContents";
 import { flushSync } from "react-dom";
 import { createReplacementTransaction } from "../lib/editor-replace";
-import { EditorContextMenu } from "./EditorContextMenu";
+import { documentLinkAtTarget } from "../lib/document-link-context";
+import { EditorContextMenu, type EditorContextPosition } from "./EditorContextMenu";
 import { EditorInsertDialogs } from "./EditorInsertDialogs";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -656,7 +657,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
     if (selection && !selection.isCollapsed) selection.removeAllRanges();
   }, []);
   // 编辑器右键菜单 + 右键插入链接对话框
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<EditorContextPosition | null>(null);
   // WebKit can select the clicked word before contextmenu; retain the range
   // from pointerdown until the menu closes, including native readonly ranges.
   const contextSelectionRef = useRef<{ doc: ProseMirrorNode; from: number; to: number } | null>(null);
@@ -3160,7 +3161,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
       })
   ), [documentOutline, headingSectionByPosition, outlineCollapsedHeadingKeys, outlineVisibleHeadingPositions]);
 
-  const documentHover = useDocumentHoverPreview(() => editor?.state.doc ?? null, editor && !editor.isDestroyed ? editor.view.dom : null);
+  const documentHover = useDocumentHoverPreview(() => editor?.state.doc ?? null, editor && !editor.isDestroyed ? editor.view.dom : null, contextMenu !== null);
   const presentationLevel = flowHeadingLevel(content.metadata);
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
@@ -3412,6 +3413,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
     contextSelectionRef.current = range ? { ...range, doc: editor.state.doc } : null;
   };
   const handleEditorContextMenu = (e: React.MouseEvent) => {
+    const linkHref = documentLinkAtTarget(e.target, editor.view.dom);
     const remembered = contextSelectionRef.current;
     const preserved = remembered?.doc === editor.state.doc ? { from: remembered.from, to: remembered.to } : null;
     if (preserved) editor.commands.setTextSelection(preserved);
@@ -3432,7 +3434,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
     if (editor.state.selection.empty && item && e.clientX < (item.querySelector("p")?.getBoundingClientRect().left ?? 0)) {
       editor.commands.setTextSelection(editor.view.posAtDOM(item, 0) + 1);
       setContextSubmenu("paragraph");
-      setContextMenu({ x: e.clientX, y: e.clientY });
+      setContextMenu({ x: e.clientX, y: e.clientY, linkHref });
       return;
     }
     const at = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
@@ -3442,7 +3444,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
       setToolbarSelectionHighlight(editor, { from: editor.state.selection.from, to: editor.state.selection.to });
     }
     setContextSubmenu(null);
-    setContextMenu({ x: e.clientX, y: e.clientY });
+    setContextMenu({ x: e.clientX, y: e.clientY, linkHref });
   };
   contextMenuHandlerRef.current = event => handleEditorContextMenu(event as unknown as React.MouseEvent);
 
@@ -4849,6 +4851,10 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
         hasCurrentBookmark={Boolean(currentBookmark)} bookmarkCount={bookmarks.length}
         annotationSelectionAvailable={annotationsEnabled && readonly && Boolean(annotationContextRange)}
         onAnnotateSelection={() => { void createSelectedReadingAnnotation(); setAnnotationContextRange(null); }}
+        onCopyLink={async href => {
+          try { await copyToClipboard(href, { reportFailure: true }); setCopyBlockNotice("已复制链接"); }
+          catch { setCopyBlockNotice("复制链接失败，请重试"); }
+        }}
         onCopyReference={workspaceHost?.references === false ? undefined : copyReference}
         sourceCopy={workspaceHost?.sourceCopy ? { label: workspaceHost.sourceCopy.label, run: async () => { try { await copyToClipboard(workspaceHost.sourceCopy!.read(), { reportFailure: true }); setCopyBlockNotice("已复制原始文本"); } catch { setCopyBlockNotice("复制失败，请重试"); } } } : undefined}
         actions={{ hasSelection, handleCut, handleClipboardPaste, handleCopy, handleCopyBlock, openDocumentBookmarks,

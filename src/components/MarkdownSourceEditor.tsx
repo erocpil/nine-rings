@@ -1,3 +1,4 @@
+import { markdownSourceLinkAt } from "../lib/markdown-source-link";
 import { withEditorCommandTrigger } from "../lib/editor-command-surface";
 import { SOURCE_SHORTCUT_EVENT, sourceNavigationKeybindings } from "../lib/source-navigation-shortcuts";
 import { SourceNavigationControls } from "./SourceNavigationControls";
@@ -1955,6 +1956,7 @@ export function MarkdownSourceEditor({
           view: currentView,
           readonly: currentView.state.readOnly,
           trigger: currentView.contentDOM,
+          linkHref: documentLanguage === "markdown" && position !== null ? markdownSourceLinkAt(currentView.state, position) : undefined,
         });
       }}
     >

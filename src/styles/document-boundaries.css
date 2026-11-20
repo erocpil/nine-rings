@@ -72,7 +72,11 @@
 :is(.app, .file-workbench-app) .vr-note .vr-body { padding-inline: 0; }
 :is(.app, .file-workbench-app) .markdown-cm-host .cm-editor { margin-inline: var(--document-edge-inset); }
 
-:is(.app, .file-workbench-app) .note-editor .note-editor-sticky { border-bottom: 0; }
+/* The shared 16px body inset already clears the first block controls. */
+:is(.app, .file-workbench-app) .note-editor .note-editor-sticky {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
 
 /* Virtual read-only headers sit outside their scrolling body. Keep dock margins
    intact and account for its scrollbar inside the header instead. */

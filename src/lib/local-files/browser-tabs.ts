@@ -195,10 +195,24 @@ export function revokeBrowserRoot(state: BrowserWorkspaceState, rootId: string, 
  * duplicate the current tab. New tabs remain available through the + control. */
 export function revealBrowserFile(state: BrowserWorkspaceState, rootId: string, file: string): BrowserWorkspaceState {
   const node = fileSegments(file).slice(0, -1).join("/");
-  const side = state.active, group = state.groups[side];
   const matches = (tab: BrowserWorkspaceTab) => { const at = browserLocation(tab); return at?.rootId === rootId && at.node === node; };
-  const index = matches(group.tabs[group.active]) ? group.active : group.tabs.findIndex(matches);
-  const next = index >= 0 ? selectBrowserTab(state, side, index) : addBrowserTab(state, side);
-  if (index < 0 && next === state) return state;
-  return updateBrowserTab(next, side, pane => ({ ...updateBrowserLocation(navigateBrowserPane(pane, rootId, node), { selected: [file], scrollTop: 0 }), showHidden: true }));
+  const selectFile = (pane: BrowserPaneState) => ({
+    ...updateBrowserLocation(navigateBrowserPane(pane, rootId, node), { selected: [file], scrollTop: 0 }),
+    showHidden: true,
+  });
+  const other = state.active === 0 ? 1 : 0;
+  for (const side of [state.active, other] as const) {
+    const rows = browserSideRows(state, side).slice(0, state.visibleRows?.[side] ?? 1);
+    const activeRow = state.activeRows?.[side] ?? 0;
+    for (const row of [activeRow, ...rows.map((_, index) => index).filter(index => index !== activeRow)]) {
+      const group = rows[row];
+      if (!group) continue;
+      const index = matches(group.tabs[group.active]) ? group.active : group.tabs.findIndex(matches);
+      if (index < 0) continue;
+      const next = selectBrowserTab(activateBrowserRow(state, side, row), side, index);
+      return updateBrowserTab(next, side, selectFile);
+    }
+  }
+  const next = addBrowserTab(state, state.active);
+  return next === state ? state : updateBrowserTab(next, state.active, selectFile);
 }

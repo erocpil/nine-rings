@@ -16,6 +16,7 @@ export interface SourceContextTarget {
   readonly: boolean;
   trigger: HTMLElement;
   lineNumber?: number;
+  linkHref?: string;
   onToggleBookmark?: () => void;
 }
 
@@ -84,11 +85,13 @@ export function SourceEditorContextMenu({ target, close }: {
     try { assertCurrent(); action(); finish(); }
     catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
   };
-  const clipboard = async (kind: "copy" | "cut" | "paste" | "paste-before" | "paste-after") => {
+  const clipboard = async (kind: "copy-link" | "copy" | "cut" | "paste" | "paste-before" | "paste-after") => {
     setBusy(true); setMessage("");
     try {
-      assertCurrent(kind !== "copy");
-      if (kind === "copy" || kind === "cut") {
+      assertCurrent(kind !== "copy" && kind !== "copy-link");
+      if (kind === "copy-link") {
+        if (target.linkHref) await copyToClipboard(target.linkHref, { reportFailure: true });
+      } else if (kind === "copy" || kind === "cut") {
         await copyToClipboard(line ? `${line.text}\n` : snapshot.doc.sliceString(selection.from, selection.to), { reportFailure: true });
         assertCurrent(kind === "cut");
         if (kind === "cut") {
@@ -135,6 +138,7 @@ export function SourceEditorContextMenu({ target, close }: {
     { label: "切换注释", disabled: !canEdit || !canComment, run: () => run(() => editLineCommand(toggleComment)) },
     ...(target.onToggleBookmark ? [{ label: "添加/移除本行书签", group: true, run: () => run(target.onToggleBookmark!) }] : []),
   ] : [
+    ...(target.linkHref ? [{ label: "复制链接", run: () => { void clipboard("copy-link"); } }] : []),
     { label: "撤销", disabled: !canEdit || undoDepth(target.view.state) === 0, run: () => run(() => { undo(target.view); }) },
     { label: "重做", disabled: !canEdit || redoDepth(target.view.state) === 0, run: () => run(() => { redo(target.view); }) },
     { label: "剪切", disabled: !canEdit || selection.empty, run: () => { void clipboard("cut"); } },

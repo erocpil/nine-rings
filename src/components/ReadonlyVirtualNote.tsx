@@ -60,6 +60,7 @@ import {
   type SearchMatch,
 } from "../extensions/SearchHighlights";
 import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
+import { documentLinkAtTarget } from "../lib/document-link-context";
 import { copyToClipboard } from "../lib/clipboard";
 import { referenceAnchorAt } from "../extensions/ReferenceAnchors";
 import { deltaToMarkdown } from "../lib/markdown-serializer";
@@ -122,12 +123,42 @@ export function ReadonlyVirtualNote(
   const bookmarkDisplayConfig = usePanelDisplay("bookmarks");
   const [annotations, setAnnotations] = useState<ReadingAnnotation[]>([]);
   const bookmarkPanelLabel = READING_ANNOTATIONS_ENABLED ? "书签与标注" : "书签";
-  const [annotationContext, setAnnotationContext] = useState<{ x: number; y: number; from: number; to: number } | null>(null);
+  const [annotationContext, setAnnotationContext] = useState<{ x: number; y: number; range?: { from: number; to: number } | null; linkHref?: string } | null>(null);
+  const annotationContextRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const menu = annotationContextRef.current;
+    if (!annotationContext || !menu) return;
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(annotationContext.x, innerWidth - rect.width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(annotationContext.y, innerHeight - rect.height - 8))}px`;
+    menu.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+  }, [annotationContext]);
+  useEffect(() => {
+    if (!annotationContext) return;
+    const close = () => setAnnotationContext(null);
+    const outside = (event: PointerEvent) => {
+      if (!annotationContextRef.current?.contains(event.target as Node)) close();
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      close();
+    };
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("keydown", escape, true);
+    window.addEventListener("blur", close);
+    return () => {
+      document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("keydown", escape, true);
+      window.removeEventListener("blur", close);
+    };
+  }, [annotationContext]);
+
   const [annotationPopover, setAnnotationPopover] = useState<{ id: string; left: number; top: number } | null>(null);
   const annotationLeaveTimer = useRef<number | null>(null);
   const lastAnnotationSelection = useRef<{ from: number; to: number } | null>(null);
   const bookmarkDisplayListRef = useRef<HTMLDivElement>(null);
-  const documentHover = useDocumentHoverPreview(() => doc);
+  const documentHover = useDocumentHoverPreview(() => doc, null, annotationContext !== null);
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -1299,13 +1330,15 @@ export function ReadonlyVirtualNote(
           onPointerOverCapture={handleAnnotationPointerOver}
           onPointerOutCapture={handleAnnotationPointerOut}
           onContextMenu={event => {
-            if (!READING_ANNOTATIONS_ENABLED || !props.readonly) return;
             const root = bodyRef.current;
-            const range = (root && selectedReadonlyRange(root)) ?? lastAnnotationSelection.current;
-            if (!range) return;
+            const linkHref = props.useCustomContextMenu !== false ? documentLinkAtTarget(event.target, root) : undefined;
+            const range = READING_ANNOTATIONS_ENABLED && props.readonly
+              ? (root && selectedReadonlyRange(root)) ?? lastAnnotationSelection.current
+              : null;
+            if (!range && !linkHref) return;
             event.preventDefault();
             event.stopPropagation();
-            setAnnotationContext({ x: event.clientX, y: event.clientY, ...range });
+            setAnnotationContext({ x: event.clientX, y: event.clientY, range, linkHref });
           }}
           onPointerDownCapture={event => {
             if (event.button === 0) lastAnnotationSelection.current = null;
@@ -1487,9 +1520,20 @@ export function ReadonlyVirtualNote(
           />
         </div>
       </div>
-      {annotationContext && <div className="reading-annotation-context" role="menu" aria-label="选区标注操作" style={{ left: annotationContext.x, top: annotationContext.y }}
+      {annotationContext && <div ref={annotationContextRef} className="reading-annotation-context" role="menu" aria-label={annotationContext.range ? "选区标注操作" : "链接操作"} style={{ left: annotationContext.x, top: annotationContext.y }}
         onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }} onClick={event => event.stopPropagation()}>
-        <button type="button" role="menuitem" onClick={() => { lastAnnotationSelection.current = null; void addAnnotation(annotationContext); }}>添加阅读高亮</button>
+        {annotationContext.linkHref && <button type="button" role="menuitem" onClick={async () => {
+          const href = annotationContext.linkHref;
+          setAnnotationContext(null);
+          if (!href) return;
+          try { await copyToClipboard(href, { reportFailure: true }); setNotice("已复制链接"); }
+          catch { setNotice("复制链接失败，请重试"); }
+        }}>复制链接</button>}
+        {annotationContext.range && <button type="button" role="menuitem" onClick={() => {
+          if (!annotationContext.range) return;
+          lastAnnotationSelection.current = null;
+          void addAnnotation(annotationContext.range);
+        }}>添加阅读高亮</button>}
         <button type="button" role="menuitem" onClick={() => setAnnotationContext(null)}>取消</button>
       </div>}
       {annotationPopover && (() => {

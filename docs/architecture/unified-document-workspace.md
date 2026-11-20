@@ -122,4 +122,6 @@ WorkbenchSourceView通过LocalMarkdownWorkspace接入同一渲染工作区，包
 
 选区工具由宿主挂载共享 `SelectionHoverToolbar`，命令回到活动编辑器。只读允许选择／复制／导航，不写正文。右键菜单保留原选区；已有下级菜单打开时父工具集保持可见且不透明。菜单链的归属与完成通知由 `editor-context-chain.ts` 协调，不能只关闭叶子弹层而遗留父级状态。
 
+链接右键项以指针命中的链接为准。渲染复制链接属性原值，源码通过 Markdown 语法树读取目标。相对路径和片段保留，内置脚注跳转继续使用原操作。常规渲染的正文上边缘使用公共正文间距，只读工具栏不另加底部留白。
+
 文件名仅是定位线索；上述文件位于 `src/` 和 `native/file-workbench/src-tauri/src/`，使用仓库搜索确定当前路径。针对性验证与未解决问题见[开发交接](../development/session-handoff.md)。

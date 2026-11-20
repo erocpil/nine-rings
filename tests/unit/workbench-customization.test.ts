@@ -405,3 +405,96 @@ it("directory tab diagnostics are bounded, contain no paths and cannot break bro
     ),
   ).not.toThrow();
 });
+
+it("reveals an existing directory on the other side or another visible row", () => {
+  let state = parseBrowserWorkspace(null);
+  state = setBrowserRowCount(state, 0, 2);
+  state = updateBrowserRow(state, 0, 1, (pane) =>
+    navigateBrowserPane(pane, "root", "Documents"),
+  );
+  state = activateBrowserRow(state, 1, 0);
+  const id = browserSideRows(state, 0)[1].tabs[0].tabId;
+  const result = revealBrowserFile(state, "root", "Documents/guide.md");
+  expect(result.active).toBe(0);
+  expect(result.activeRows?.[0]).toBe(1);
+  expect(result.groups[0].tabs[0].tabId).toBe(id);
+  expect(result.groups[1].tabs).toHaveLength(1);
+  expect(browserLocation(activeBrowserPanes(result)[0])?.selected).toEqual([
+    "Documents/guide.md",
+  ]);
+});
+
+it("only repairs the unchanged legacy duplicate supported by local diagnostics", async () => {
+  const { repairLegacyRevealDuplicate } =
+    await import("../../src/lib/local-files/browser-tab-diagnostics");
+  const location = (node: string, selected: string[] = []) => ({
+    rootId: "root",
+    node,
+    selected,
+    scrollTop: 0,
+  });
+  const saved = parseBrowserWorkspace(
+    JSON.stringify({
+      version: 2,
+      active: 1,
+      groups: [
+        {
+          active: 0,
+          tabs: [
+            {
+              tabId: "left",
+              pinned: true,
+              index: 0,
+              history: [location("Documents")],
+            },
+          ],
+        },
+        {
+          active: 1,
+          tabs: [
+            {
+              tabId: "right",
+              pinned: true,
+              index: 0,
+              history: [location("Downloads")],
+            },
+            {
+              tabId: "legacy",
+              index: 1,
+              showHidden: true,
+              history: [
+                location("Downloads"),
+                location("Documents", ["Documents/guide.md"]),
+              ],
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  const restore = { cause: "restore", counts: [1, 1] };
+  const store = (cause: string) => ({
+    setItem() {},
+    getItem: () =>
+      JSON.stringify([
+        restore,
+        { cause, counts: [1, 2], active: 1 },
+        { cause: "restore", counts: [1, 2] },
+      ]),
+  });
+  const repaired = repairLegacyRevealDuplicate(store("reveal-file"), saved);
+  expect(repaired.groups[1].tabs.map((tab) => tab.tabId)).toEqual(["right"]);
+  expect(repaired.groups[1].active).toBe(0);
+  expect(repairLegacyRevealDuplicate(store("new-tab-button"), saved)).toBe(
+    saved,
+  );
+  expect(repairLegacyRevealDuplicate(store("reveal-file"), repaired)).toBe(
+    repaired,
+  );
+  const edited = updateBrowserRow(saved, 1, 0, (pane) =>
+    navigateBrowserPane(pane, "root", "Elsewhere"),
+  );
+  expect(repairLegacyRevealDuplicate(store("reveal-file"), edited)).toBe(
+    edited,
+  );
+});
