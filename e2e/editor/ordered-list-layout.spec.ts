@@ -117,7 +117,7 @@ for (const mobile of [false, true]) {
       await expect(list).toBeVisible();
       expect(await gapEm(list)).toBeCloseTo(0.35, 2);
       if (mobile) await openMobileSettings(page);
-      else await page.getByTitle("设置").click();
+      else await page.getByRole("button", { name: "设置", exact: true }).click();
       await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
       await page.getByRole("button", { name: /打开排版设置/ }).click();
       const preview = page.getByLabel("编辑器渲染排版预览").locator(":scope > ol");

@@ -1,3 +1,4 @@
+import { createBlankDocument, measureDocumentRail } from "../helpers/document";
 import { openVersionHistory } from "../helpers/version-history";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
@@ -244,35 +245,17 @@ for (const style of ["classic", "mono-aware"]) for (const side of ["left", "righ
 
 
 for (const style of ["classic", "mono-aware"]) test(`状态栏与标题分隔线两端对齐：${style}`, async ({ page }) => {
-  await page.setViewportSize({width:1280,height:800});
-  await page.addInitScript(style => localStorage.setItem("nine_rings_config", JSON.stringify({interface_style:style,editor_show_status_bar:true})), style);
-  const {createBlankDocument} = await import("../helpers/document");
-  await createBlankDocument(page,"分隔线对齐");
-  const title = page.locator(".note-title-row:visible");
-  const footer = page.locator(".editor-stats:visible");
-  await expect(footer).toBeVisible();
-  const line = (element: Element) => {
-    const css = getComputedStyle(element), box = element.getBoundingClientRect();
-    const rule = getComputedStyle(element, "::before");
-    if (rule.content !== "none") {
-      const left = Number.parseFloat(rule.left), right = Number.parseFloat(rule.right);
-      return {left:box.left+left,right:box.right-right,inset:left+right,repeat:css.backgroundRepeat};
-    }
-    const inset = Number(css.backgroundSize.match(/calc\(100% - ([\d.]+)px\) 1px/)?.[1]);
-    const offset = css.backgroundPositionX === "50%" ? inset/2 : Number.parseFloat(css.backgroundPositionX);
-    return {left:box.left+offset, right:box.right-inset+offset, inset, repeat:css.backgroundRepeat};
-  };
-  for (const width of [1280,900]) {
-    await page.setViewportSize({width,height:800});
+  await page.addInitScript(style => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: style, editor_show_status_bar: true })), style);
+  await createBlankDocument(page, "分隔线对齐");
+  const workspace = page.locator(".note-editor:visible");
+  const status = workspace.locator(".editor-status-bar");
+  await expect(status).toBeVisible();
+  for (const width of [1280, 900]) {
+    await page.setViewportSize({ width, height: 800 });
     await expect.poll(async () => {
-      const a = await title.evaluate(line), b = await footer.evaluate(line);
-      return Math.max(Math.abs(a.left-b.left),Math.abs(a.right-b.right));
+      const rail = await measureDocumentRail(workspace, false);
+      return rail.title && rail.toolbar && rail.status && !rail.docked ? rail.maxDifference : Infinity;
     }).toBeLessThan(1);
-    const top = await title.evaluate(line), bottom = await footer.evaluate(line);
-    expect(top.inset).toBe(24);
-    expect(bottom.inset).toBeGreaterThanOrEqual(24);
-    // The divider is a pseudo-element, not a repeating background image.
-    expect(Number.isFinite(bottom.left) && Number.isFinite(bottom.right)).toBe(true);
-    expect(await footer.evaluate(el => getComputedStyle(el).borderTopStyle)).toBe("none");
+    await expect(status).toHaveCSS("border-top-style", "none");
   }
 });

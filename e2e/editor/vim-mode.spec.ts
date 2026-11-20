@@ -4,7 +4,7 @@ import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "../helpers/document";
 
 async function setCodeVim(page: Page, enabled: boolean) {
-  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await page.getByRole("button", { name: /打开 Vim 设置/ }).click();
   await expect(page.locator("#settings-dialog-title")).toHaveText("代码块 Vim");

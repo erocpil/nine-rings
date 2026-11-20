@@ -34,7 +34,7 @@ for (const fallback of [false, true]) {
     const original = await plain.textContent();
     const enabledWidth = await width(plain);
     const codeWidth = await width(editor.locator("code"));
-    await page.getByTitle("设置").click();
+    await page.getByRole("button", { name: "设置", exact: true }).click();
     await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
     await page.getByRole("button", { name: /打开排版设置/ }).click();
     const toggle = page.getByLabel("中英文自动间距", { exact: true });

@@ -14,7 +14,7 @@ async function createListFixture(page: Page) {
 }
 
 async function openEditorSettings(page: Page) {
-  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
 }
 

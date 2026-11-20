@@ -31,7 +31,12 @@ async function selectDocumentText(page: Page, text: string) {
   // These cases verify command ownership, not OS line-boundary movement.
   // A single Select All avoids an intermediate native selectionchange race.
   await editor.press("ControlOrMeta+a");
-  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(text);
+  await expect.poll(() => editor.evaluate(element => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount) return "";
+    const range = selection.getRangeAt(0);
+    return element.contains(range.commonAncestorContainer) ? range.toString() : "";
+  })).toBe(text);
   // Native selectionchange is asynchronous; context-menu commands consume
   // ProseMirror's selection, not only the browser's temporary DOM range.
   await expect.poll(() => editor.evaluate(element => {
@@ -104,14 +109,12 @@ test("切换文档后右键菜单和链接对话框只更新当前文档", async
     await page.locator(".doc-tree-doc").filter({ hasText: title }).click();
     await expect(editor).toHaveText(`${title}正文`);
     await selectDocumentText(page, `${title}正文`);
-    await editor.evaluate((element) => {
+    const point = await editor.evaluate(() => {
       const range = window.getSelection()!.getRangeAt(0);
       const rect = range.getClientRects()[0];
-      element.dispatchEvent(new MouseEvent("contextmenu", {
-        clientX: rect.left + 2, clientY: rect.top + rect.height / 2,
-        bubbles: true, cancelable: true, view: window,
-      }));
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     });
+    await page.mouse.click(point.x, point.y, { button: "right" });
     const menu = page.locator(".editor-context-menu");
     await menu.getByRole("button", { name: "插入", exact: true }).click();
     await menu.getByRole("button", { name: "添加或编辑链接", exact: true }).click();

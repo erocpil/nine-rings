@@ -1,35 +1,15 @@
 import { openWritableLocalDirectory } from "../helpers/local-files";
 import { expect, test, type Page } from "@playwright/test";
 import { closeDocumentSidebar } from "../helpers/workspace";
-import { createBlankDocument } from "../helpers/document";
+import { createBlankDocument, measureDocumentRail } from "../helpers/document";
 
 async function assertRails(page: Page, source: boolean) {
-  const title = page.locator(source ? ".markdown-source-title-row:visible, .local-file-titlebar:visible" : ".note-editor:visible .note-title-row:visible, .vr-note:visible .vr-title").first();
-  await expect(title).toBeVisible();
-  const measure = () => title.evaluate((element, source) => {
-    const host = element.closest(source ? ".markdown-source-content" : ".note-editor")!;
-    const rect = element.getBoundingClientRect(), style = getComputedStyle(element);
-    const start = rect.left + parseFloat(style.paddingLeft), end = rect.right - parseFloat(style.paddingRight);
-    const footer = host.querySelector<HTMLElement>(".editor-status-bar"), toolbar = host.querySelector<HTMLElement>(source ? ".markdown-source-tools" : ".editor-menu.toolbar-scrollable, .vr-actions");
-    const visible = (node: HTMLElement | null) => node && node.getClientRects().length && getComputedStyle(node).display !== "none";
-    const boundaries: Record<string, number> = {};
-    if (visible(toolbar)) { const box = toolbar!.getBoundingClientRect(), css = getComputedStyle(toolbar!); boundaries.toolbarLeft = box.left + parseFloat(css.paddingLeft) - start; boundaries.toolbarRight = box.right - parseFloat(css.paddingRight) - end; }
-    if (visible(footer)) { const box = footer!.getBoundingClientRect(), css = getComputedStyle(footer!, "::before"); boundaries.statusLeft = box.left + parseFloat(css.left) - start; boundaries.statusRight = box.right - parseFloat(css.right) - end; }
-    const body = host.querySelector<HTMLElement>(source ? ".cm-scroller" : ".editor-content-shell, .vr-body");
-    if (body) { const box = body.getBoundingClientRect(); boundaries.bodyLeft = box.left - start; boundaries.bodyRight = end - (source ? box.left + body.clientWidth - parseFloat(getComputedStyle(body).borderRightWidth || "0") : box.right); }
-    return { start, end, boundaries };
-  }, source);
+  const workspace = page.locator(source ? ".markdown-source-editor:visible" : ".note-editor:visible").first();
+  await expect(workspace).toBeVisible();
   await expect.poll(async () => {
-    const { boundaries } = await measure();
-    return Math.max(...Object.entries(boundaries).filter(([key]) => !key.startsWith("body")).map(([, value]) => Math.abs(value)));
+    const rail = await measureDocumentRail(workspace, source);
+    return rail.title && rail.toolbar && rail.status && !rail.docked ? rail.maxDifference : Infinity;
   }).toBeLessThan(1.1);
-  const result = await measure();
-  expect(Object.keys(result.boundaries)).toContain("statusLeft");
-  expect(result.boundaries.bodyLeft).toBeGreaterThanOrEqual(-1);
-  expect(result.boundaries.bodyRight).toBeGreaterThanOrEqual(-1);
-  // Reading width can narrow the body, but never makes its outer inset asymmetric.
-  expect(Math.abs(result.boundaries.bodyLeft - result.boundaries.bodyRight)).toBeLessThan(1.1);
-  return result;
 }
 
 for (const width of [390, 1280]) for (const style of ["classic", "paper"]) {

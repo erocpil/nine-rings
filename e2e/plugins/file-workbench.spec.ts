@@ -1,4 +1,4 @@
-import { dragDockPanel } from "../helpers/document-dock";
+import { dragDockPanel, expectNarrowDocumentDock } from "../helpers/document-dock";
 import { measureDocumentRail } from "../helpers/document";
 import { expectFoldContextSubmenu } from "../helpers/context-submenu";
 import { sourceInfo, selectDocumentLanguage } from "../helpers/source-editor";
@@ -1935,7 +1935,16 @@ test("Markdown 渲染正文可编辑并保存，源码往返保留会话、撤�
       let pending = state.source;
       return { write: async (text: string) => { pending = text; }, close: async () => { state.source = pending; state.modified++; state.writes++; }, abort: async () => {} };
     } };
-    (window as any).showDirectoryPicker = async () => ({ kind: "directory", name: "Granted", values: async function* () { yield file; }, getFileHandle: async () => file, queryPermission: async () => "granted" });
+    const related = { kind: "file", name: "related.md", getFile: async () => new File(["# Related\n\nRelated destination."], "related.md", { lastModified: 1 }) };
+    (window as any).showDirectoryPicker = async () => ({
+      kind: "directory", name: "Granted", values: async function* () { yield file; yield related; },
+      getFileHandle: async (name: string) => {
+        if (name === "sample.md") return file;
+        if (name === "related.md") return related;
+        throw new DOMException("File not found", "NotFoundError");
+      },
+      queryPermission: async () => "granted",
+    });
   });
   await page.goto("/file-workbench.html");
   await page.getByRole("region", { name: "左侧目录", exact: true }).getByRole("button", { name: "添加授权目录", exact: true }).click();
@@ -1945,8 +1954,9 @@ test("Markdown 渲染正文可编辑并保存，源码往返保留会话、撤�
   await expect(body).toHaveAttribute("contenteditable", "false");
   await body.getByRole("link", { name: "Related", exact: true }).click();
   await expect(page).toHaveURL(/file-workbench\.html$/);
-  await expect(page.getByRole("status").filter({ hasText: "不会跳离当前编辑会话" })).toBeVisible();
-  await page.getByRole("dialog", { name: "文件提示", exact: true }).getByRole("button", { name: /关闭/ }).click();
+  await expect(body).toContainText("Related destination.");
+  await rendered.getByRole("button", { name: "链接后退", exact: true }).click();
+  await expect(body).toContainText("Original paragraph.");
   expect(await page.evaluate(() => (window as any).__markdownDisk.writes)).toBe(0);
   await rendered.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
   await expect(body).toBeEditable();
@@ -2140,7 +2150,7 @@ test("Markdown 块号菜单与代码、引用、Flow、Mermaid 块模式复用�
   } finally { await rm(fixture, { recursive: true, force: true }); }
 });
 
-test("磁盘书签多处源码修改后保留中间位置，重新打开恢复名称与跳转", async ({ page }) => {
+test("磁盘书签跨源码和渲染修改后，保存重开仍定位到原内容", async ({ page }) => {
   const original = "first\n\nbefore\n\ntarget bookmark\n\nafter\n\nlast\n";
   await page.addInitScript(original => {
     let id = 1;
@@ -2149,13 +2159,20 @@ test("磁盘书签多处源码修改后保留中间位置，重新打开恢复�
     if (!localStorage.getItem("file-workbench:bookmarks:bookmark-root:anchors.md")) localStorage.setItem("file-workbench:bookmarks:bookmark-root:anchors.md", JSON.stringify([{ id: "anchor", position: original.indexOf("bookmark"), label: "保留书签", preview: "target bookmark" }]));
     (window as any).__TAURI_INTERNALS__ = {
       transformCallback() { return id++; }, unregisterCallback() {},
-      async invoke(command: string) {
+      async invoke(command: string, args: { source?: string; expectedRevision?: string } = {}) {
         if (command === "plugin:event|listen") return id++;
         if (["plugin:event|unlisten", "workbench_ready", "workbench_set_view_menu"].includes(command)) return;
         if (command === "local_files_roots") return [{ id: "bookmark-root", name: "Bookmarks" }];
         if (command === "local_files_display_path") return "/fixture/Bookmarks";
         if (command === "local_files_list") return { nodes: [{ id: "anchors.md", name: "anchors.md", directory: false, size: state.source.length, modifiedMs: state.modified }], next: null };
         if (command === "local_files_stat") return { size: state.source.length, modifiedMs: state.modified };
+        if (command === "local_files_write") {
+          if (args.expectedRevision !== String(state.modified)) throw new Error("STALE_REVISION");
+          state.source = args.source!;
+          state.modified++;
+          localStorage.setItem("bookmark-fixture-source", state.source);
+          return { source: state.source, size: state.source.length, modifiedMs: state.modified, revision: String(state.modified), bom: false, lineEnding: "lf" };
+        }
         if (command === "local_files_read") return { source: state.source, size: state.source.length, modifiedMs: state.modified, revision: String(state.modified), bom: false, lineEnding: "lf" };
         throw new Error(command);
       },
@@ -2171,7 +2188,7 @@ test("磁盘书签多处源码修改后保留中间位置，重新打开恢复�
   };
   await open();
   await page.getByRole("button", { name: "允许编辑", exact: true }).click();
-  const { replaceSource, sourceInfo } = await import("../helpers/source-editor");
+  const { replaceSource, selectSource } = await import("../helpers/source-editor");
   const area = page.locator(".cm-content:visible");
   const body = page.locator(".workbench-rendered-session .ProseMirror:visible");
   const toRendered = page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true });
@@ -2185,20 +2202,33 @@ test("磁盘书签多处源码修改后保留中间位置，重新打开恢复�
   await toRendered.click();
   await expect(body).toContainText("new first");
   await page.getByRole("button", { name: "文档书签", exact: true }).click();
-  await page.getByRole("navigation", { name: "文档书签", exact: true }).getByRole("button", { name: /保留书签/ }).first().click();
-  await expect.poll(() => body.evaluate(element => {
+  const jumpRendered = page.getByRole("navigation", { name: "文档书签", exact: true }).locator(".document-bookmark-jump").filter({ hasText: "保留书签" });
+  const renderedSelection = () => body.evaluate(element => {
     const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
     return editor.state.selection.$from.parent.textContent;
-  })).toBe("target bookmark");
+  });
+  await jumpRendered.click();
+  await expect.poll(renderedSelection).toBe("target bookmark");
+  await body.evaluate(element => {
+    const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    editor.commands.insertContentAt(0, { type: "paragraph", content: [{ type: "text", text: "rendered insertion" }] });
+  });
+  await expect.poll(renderedSelection).toBe("rendered insertion");
+  await jumpRendered.click();
+  await expect.poll(renderedSelection).toBe("target bookmark");
   await toSource.click();
-  await page.evaluate(changed => localStorage.setItem("bookmark-fixture-source", changed), changed);
+  await expect(area).toContainText("rendered insertion");
+  const savedSource = (await sourceInfo(area)).value;
+  await page.getByRole("button", { name: "保存文件", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("bookmark-fixture-source"))).toBe(savedSource);
   await page.reload();
   await open();
   // Reload the page with persistent storage intact, without replaying initialization.
   const bookmark = page.locator(".document-bookmark-jump:visible").filter({ hasText: "保留书签" });
   if (!(await bookmark.isVisible())) await page.getByRole("button", { name: "书签", exact: true }).click();
+  await selectSource(area, 0);
   await bookmark.click();
-  await expect.poll(async () => (await sourceInfo(page.locator(".cm-content:visible"))).selectionStart).toBe(changed.indexOf("bookmark"));
+  await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(savedSource.indexOf("bookmark"));
 });
 
 test("固定导航面板拖拽布局随文件切换与重载恢复，同词仅在适用文件展示", async ({ page }) => {
@@ -2229,7 +2259,7 @@ test("固定导航面板拖拽布局随文件切换与重载恢复，同词仅�
   const dock = page.getByRole("complementary", { name: "固定阅读面板" });
   const groups = dock.locator(".document-dock-group");
   const workspace = page.getByRole("region", { name: "文件源码工作区" });
-  const checkDockTitle = async (source: boolean) => {
+  const checkDockTitle = async (source: boolean, groupCount: number) => {
     for (const side of ["left", "right"]) {
       await page.evaluate(async side => (await import("/src/lib/workspace-layout.ts")).saveWorkspaceLayout({ panelsSide: side }), side);
       await expect(dock).toHaveClass(new RegExp(`dock-${side}`));
@@ -2240,6 +2270,15 @@ test("固定导航面板拖拽布局随文件切换与重载恢复，同词仅�
           return rail.docked && rail.title && rail.toolbar && rail.status && rail.titleWidth > rail.width ? rail.maxDifference : Infinity;
         }, { message: `${side}/${palette}: 标题贯穿停靠面板，工具栏和状态栏保持正文宽度` }).toBeLessThan(2);
       }
+      await page.setViewportSize({ width: 820, height: 620 });
+      for (const palette of ["light", "dark", "calm", "mono-aware"]) {
+        await page.evaluate(palette => { document.documentElement.dataset.workbenchPalette = palette; }, palette);
+        await expectNarrowDocumentDock(workspace, dock, {
+          source, groups: groupCount,
+          description: `820px · Workbench · ${source ? "源码" : "渲染"} · ${side} · ${palette}`,
+        });
+      }
+      await page.setViewportSize({ width: 1280, height: 800 });
     }
   };
   const activeTab = (name: string) => dock.getByRole("tab", { name, exact: true });
@@ -2253,7 +2292,7 @@ test("固定导航面板拖拽布局随文件切换与重载恢复，同词仅�
   await dragDockPanel(page, page.getByRole("button", { name: "同词匹配", exact: true }), groups.first(), "after");
   await expect(groups.nth(1)).toHaveAttribute("data-dock-target", "matches");
   await expect(dock.getByRole("complementary", { name: "本地文件同词匹配" })).toBeVisible();
-  await checkDockTitle(true);
+  await checkDockTitle(true, 2);
   await activeTab("源码符号").click();
   await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
 
@@ -2261,16 +2300,16 @@ test("固定导航面板拖拽布局随文件切换与重载恢复，同词仅�
   await expect(page.locator(".ProseMirror:visible")).toContainText("正文");
   await expect(groups).toHaveCount(1);
   await expect(activeTab("目录")).toHaveAttribute("aria-selected", "true");
-  await checkDockTitle(false);
+  await checkDockTitle(false, 1);
   await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
   await expect(groups).toHaveCount(1);
   await expect(activeTab("目录")).toHaveAttribute("aria-selected", "true");
-  await checkDockTitle(true);
+  await checkDockTitle(true, 1);
   await page.getByRole("button", { name: "允许编辑", exact: true }).click();
-  await checkDockTitle(true);
+  await checkDockTitle(true, 1);
   await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
   await expect(page.locator(".ProseMirror:visible")).toBeEditable();
-  await checkDockTitle(false);
+  await checkDockTitle(false, 1);
   await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
 
   await page.reload();

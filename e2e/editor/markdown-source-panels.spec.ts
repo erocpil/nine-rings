@@ -262,7 +262,28 @@ for (const virtual of [false, true])
     await expect(dock.locator(".document-bookmark-jump")).toContainText(
       "目标书签正文已经更新",
     );
-    const saved = await page.evaluate(async (noteId) => {
+    const rendered = page.locator(".ProseMirror:visible");
+    await rendered.evaluate((element) => {
+      const { editor } = element as HTMLElement & { editor: import("@tiptap/core").Editor };
+      editor.commands.insertContentAt(0, {
+        type: "paragraph",
+        content: [{ type: "text", text: "渲染新增正文" }],
+      });
+    });
+    const renderedSelection = () => rendered.evaluate((element) => {
+      const { editor } = element as HTMLElement & { editor: import("@tiptap/core").Editor };
+      return editor.state.selection.$from.parent.textContent;
+    });
+    await expect.poll(renderedSelection).toBe("渲染新增正文");
+    await dock.locator(".document-bookmark-jump").click();
+    await expect.poll(renderedSelection).toBe("目标书签正文已经更新");
+    await page.getByRole("button", { name: "源码", exact: true }).click();
+    await expect(area).toContainText("渲染新增正文");
+    const finalSource = (await sourceInfo(area)).value;
+    await dock.locator(".document-bookmark-jump").click();
+    await expect.poll(() => sourceInfo(area).then(info => info.selectionStart)).toBe(finalSource.indexOf("目标书签正文已经更新"));
+    await page.getByRole("button", { name: "渲染", exact: true }).click();
+    await expect.poll(() => page.evaluate(async (noteId) => {
       const load = (path: string) =>
         import(
           /* @vite-ignore */ performance
@@ -276,19 +297,32 @@ for (const virtual of [false, true])
         "/src/lib/markdown-view-position.ts",
       );
       const note = await api.notes.get(noteId);
-      const bookmark = note.content.metadata.bookmarks[0];
+      const bookmark = note?.content?.metadata?.bookmarks?.[0];
+      if (!note || !bookmark) return null;
+      const blocks = renderedTextblockMap(deltaToProseMirror(note.content));
       return {
-        bookmark,
-        text: renderedTextblockMap(deltaToProseMirror(note.content)).find(
+        id: bookmark.id,
+        renderedEditSaved: blocks.some(
+          (block: { text: string }) => block.text === "渲染新增正文",
+        ),
+        text: blocks.find(
           (block: { position: number }) =>
             block.position + 1 === bookmark.position,
         )?.text,
       };
-    }, noteId);
-    expect(saved.bookmark.id).toBe("source-bookmark");
-    expect(saved.text).toBe("目标书签正文已经更新");
+    }, noteId)).toEqual({
+      id: "source-bookmark",
+      renderedEditSaved: true,
+      text: "目标书签正文已经更新",
+    });
     await page.reload();
     await expect(dock.locator(".document-bookmark-jump")).toContainText(
       "目标书签正文已经更新",
     );
+    await rendered.evaluate((element) => {
+      const { editor } = element as HTMLElement & { editor: import("@tiptap/core").Editor };
+      editor.commands.setTextSelection(1);
+    });
+    await dock.locator(".document-bookmark-jump").click();
+    await expect.poll(renderedSelection).toBe("目标书签正文已经更新");
   });

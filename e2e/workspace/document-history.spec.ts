@@ -110,7 +110,7 @@ test("跨文档恢复位置，鼠标侧键一次只跳一次且弹窗内不切�
   await sideButton(page, 4);
   await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:lastNote"))).toBe(second);
   await expect.poll(() => location(page)).toEqual(secondPosition);
-  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   await sideButton(page, 3);
   expect(await page.evaluate(() => localStorage.getItem("nr:lastNote"))).toBe(second);
 });

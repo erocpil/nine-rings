@@ -1,8 +1,38 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument, measureDocumentRail } from "../helpers/document";
+import { expectNarrowDocumentDock } from "../helpers/document-dock";
+import { openWritableLocalDirectory } from "../helpers/local-files";
 import { replaceSource, sourceInfo } from "../helpers/source-editor";
 
 const styles = ["classic", "calm", "calm-compact", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"] as const;
+
+test("窄窗口的 Nine Rings 磁盘 Markdown 在源码和渲染中保留多面板边界", async ({ page }) => {
+  await createBlankDocument(page, "窄窗磁盘文档");
+  const { workspace } = await openWritableLocalDirectory(page, {
+    "narrow.md": "# 固定目录\n\n需要保留完整宽度的 Markdown 正文。\n",
+  }, "narrow.md");
+  await page.evaluate(async () => {
+    const { saveDocumentWorkspaceMode } = await import("/src/lib/document-workspace-layout.ts");
+    saveDocumentWorkspaceMode("local", "document");
+  });
+  const dock = workspace.getByRole("complementary", { name: "固定阅读面板" });
+  await workspace.getByRole("button", { name: "目录", exact: true }).click();
+  await workspace.getByRole("button", { name: "书签", exact: true }).click();
+  await page.setViewportSize({ width: 820, height: 620 });
+  for (const source of [true, false]) {
+    if (!source) await workspace.getByRole("button", { name: "渲染", exact: true }).click();
+    for (const side of ["left", "right"] as const) {
+      await page.evaluate(async side => (await import("/src/lib/workspace-layout.ts")).saveWorkspaceLayout({ panelsSide: side }), side);
+      await expect(dock).toHaveClass(new RegExp(`dock-${side}`));
+      for (const style of styles) {
+        await page.evaluate(style => { document.documentElement.dataset.interfaceStyle = style; }, style);
+        await expectNarrowDocumentDock(workspace, dock, {
+          source, groups: 2, description: `820px · 磁盘 Markdown · ${source ? "源码" : "渲染"} · ${side} · ${style}`,
+        });
+      }
+    }
+  }
+});
 
 for (const source of [false, true]) test(`文档两种布局独立保存面板状态，切换不重建编辑器：源码=${source}`, async ({ page }) => {
   await createBlankDocument(page, "布局模式");
@@ -35,6 +65,7 @@ for (const source of [false, true]) test(`文档两种布局独立保存面板�
       return rail.docked && rail.title && rail.toolbar && rail.status && rail.titleWidth > rail.width ? rail.maxDifference : Infinity;
     }).toBeLessThan(2);
   };
+  const dock = page.locator(".document-panel-dock:visible");
   for (const side of ["left", "right"] as const) {
     await page.evaluate(async side => (await import("/src/lib/workspace-layout.ts")).saveWorkspaceLayout({ panelsSide: side }), side);
     await expect(page.locator(`.document-panel-dock:visible.dock-${side}`)).toBeVisible();
@@ -43,6 +74,14 @@ for (const source of [false, true]) test(`文档两种布局独立保存面板�
       await expectDockBelowTitle();
       if (style === "calm") await page.screenshot({ path: `/tmp/panel-layout-${source ? "source" : "rendered"}-${side}.png` });
     }
+    await page.setViewportSize({ width: 820, height: 620 });
+    for (const style of styles) {
+      await page.evaluate(style => { document.documentElement.dataset.interfaceStyle = style; }, style);
+      await expectNarrowDocumentDock(page.locator(".note-editor:visible"), dock, {
+        source, groups: 2, description: `820px · 数据库 · ${source ? "源码" : "渲染"} · ${side} · ${style}`,
+      });
+    }
+    await page.setViewportSize({ width: 1280, height: 800 });
   }
   if (source) {
     await page.getByRole("button", { name: "渲染", exact: true }).click();

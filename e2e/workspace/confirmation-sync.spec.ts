@@ -33,7 +33,7 @@ test("Pull 预检显示字符串请求错误和失败阶段，不显示 undefine
 
 test("Token 保存确认可取消，Esc 不关闭设置，确认后才修改配置", async ({ page }) => {
   await page.goto("/");
-  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("button", { name: /^云端同步/ }).click();
   const remember = page.getByLabel("在此设备记住 Token");
   await remember.click();
@@ -62,7 +62,7 @@ test("预检错误保留长文档路径与设备信息，允许复制", async ({
       writeText: async (text: string) => { document.body.dataset.copiedError = text; },
     } });
   });
-  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("button", { name: /^云端同步/ }).click();
   await page.getByRole("button", { name: /Pull/ }).first().click();
   const error = page.locator(".ui-operation-error");

@@ -98,7 +98,7 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
   await page.keyboard.press("Escape");
   await expect(workspace).toHaveCount(0);
   await page.keyboard.press(process.platform === "darwin" ? "Meta+f" : "Control+f");
-  const find = viewer.getByRole("search", { name: "文档查找", exact: true });
+  const find = page.getByRole("search", { name: "文档查找", exact: true });
   await find.getByRole("textbox", { name: "在当前文档中查找", exact: true }).fill("引用内容");
   await expect(find.getByRole("status")).toHaveText("0/1");
   await page.keyboard.press("Enter");
@@ -107,7 +107,7 @@ for (const width of [1280, 390]) test(`本地 Markdown 渲染复用目录、脚�
   await page.keyboard.press("Escape");
   await expect(find).toHaveCount(0);
   await page.keyboard.press(process.platform === "darwin" ? "Meta+g" : "Control+g");
-  const jump = viewer.getByRole("dialog", { name: "跳转块", exact: true });
+  const jump = page.getByRole("dialog", { name: "跳转块", exact: true });
   await jump.getByRole("textbox", { name: "跳转到块号", exact: true }).fill("3");
   await jump.getByRole("button", { name: "跳转", exact: true }).click();
   await expect(jump).toHaveCount(0);

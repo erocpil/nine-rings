@@ -108,7 +108,7 @@ for (const origin of ["database", "local"] as const) test(`共享查找与块号
   const tools = root.getByRole("toolbar", { name: "文档阅读工具", exact: true });
   // The same controlled find/jump surface is hosted by both source adapters.
   await tools.getByRole("button", { name: "文档查找", exact: true }).click();
-  const find = root.getByRole("search", { name: "文档查找", exact: true });
+  const find = page.getByRole("search", { name: "文档查找", exact: true });
   const query = find.getByRole("textbox", { name: "在当前文档中查找", exact: true });
   await query.fill("共同正文");
   await expect(find.getByRole("status")).toHaveText("0/1");
@@ -120,7 +120,7 @@ for (const origin of ["database", "local"] as const) test(`共享查找与块号
   await expect(root.locator(".search-match-active")).toHaveCount(0);
   await page.keyboard.press(process.platform === "darwin" ? "Meta+g" : "Control+g");
   await expect(find).toHaveCount(0);
-  const jump = root.getByRole("dialog", { name: "跳转块", exact: true });
+  const jump = page.getByRole("dialog", { name: "跳转块", exact: true });
   await jump.getByRole("textbox", { name: "跳转到块号", exact: true }).fill("1.5");
   await jump.getByRole("button", { name: "跳转", exact: true }).click();
   await expect(jump.getByRole("status")).toHaveText("请输入 1–2 的块号");

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "../helpers/document";
-import { replaceSource, selectDocumentLanguage, sourceInfo } from "../helpers/source-editor";
+import { replaceSource, selectDocumentLanguage, selectSource, sourceInfo } from "../helpers/source-editor";
 
 test("没有其它同词匹配时使用常规同词高亮", async ({ page }) => {
   await createBlankDocument(page, "单次源码词");
@@ -30,16 +30,17 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
   await replaceSource(area, source);
 
   const word = "packet_count";
-  const clickWord = async (offset: number, modifiers: ("Control" | "Meta")[] = []) => {
+  const primaryModifier = await page.evaluate(() => /Mac/i.test(navigator.platform) ? "Meta" : "Control");
+  const clickWord = async (offset: number, modified = false) => {
     const point = await area.evaluate(async (element, at) => {
       const { EditorView } = (window as unknown as { sourceCM: typeof import("@codemirror/view") }).sourceCM;
       const view = EditorView.findFromDOM(element)!;
       const coords = view.coordsAtPos(at)!;
       return { x: coords.left + 2, y: (coords.top + coords.bottom) / 2 };
     }, offset);
-    for (const modifier of modifiers) await page.keyboard.down(modifier);
+    if (modified) await page.keyboard.down(primaryModifier);
     await page.mouse.click(point.x, point.y);
-    for (const modifier of [...modifiers].reverse()) await page.keyboard.up(modifier);
+    if (modified) await page.keyboard.up(primaryModifier);
   };
 
   await clickWord(source.indexOf(word) + 2);
@@ -78,11 +79,11 @@ test("源码点击高亮全词匹配，Ctrl/Command+单击打开可跳转的匹�
   await page.getByRole("button", { name: "源码符号", exact: true }).click();
   const symbolsPanel = page.getByRole("navigation", { name: "源码符号", exact: true });
   await expect(symbolsPanel).toBeVisible();
-  await clickWord(source.lastIndexOf(word) + 2, ["Control", "Meta"]);
+  await clickWord(source.lastIndexOf(word) + 2, true);
   const panel = page.getByRole("navigation", { name: "同词匹配列表", exact: true });
   await expect(panel).toBeVisible();
   await expect(area.locator(".cm-source-word-match")).toHaveCount(4);
-  await clickWord(source.indexOf("=") + 1);
+  await selectSource(area, source.indexOf("=") + 1);
   await expect(area.locator(".cm-source-word-match")).toHaveCount(0);
   await expect(panel.locator(".document-source-match-row")).toHaveCount(3);
   const symbolLeadingInset = await symbolsPanel.evaluate(element => {
