@@ -1,6 +1,6 @@
 import type { FileRoot } from "./file-model";
 import type { BrowserDirectoryProvider } from "./browser-contract";
-import type { BrowserMutation } from "./browser-operation-contract";
+import type { BrowserMutation, ReplacementPaths, ReplacementReview } from "./browser-operation-contract";
 import type { BrowserOperationQueueCore } from "./browser-queue-core";
 import type { searchLocalFiles } from "./search";
 
@@ -32,6 +32,7 @@ export interface BrowserWorkspaceHost {
   supportsDirectoryChanges(rootId: string): boolean;
   canWrite(rootId: string): boolean;
   canTransfer(): boolean;
+  previewReplacement?(paths: ReplacementPaths): Promise<ReplacementReview>;
   canTrash(): boolean;
   subscribeMutations(listener: (change: BrowserMutation) => void): () => void;
   search: typeof searchLocalFiles;

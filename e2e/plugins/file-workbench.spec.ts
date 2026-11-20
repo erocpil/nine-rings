@@ -3010,6 +3010,62 @@ test("重名冲突并排显示来源目标，保留双方适用于本任务后�
   await expect(page.locator(".file-browser-job")).toContainText("成功 2 项");
 });
 
+test("重名替换逐项确认，取消不写入并在结果中显示旧版备份", async ({ page }) => {
+  const review = {
+    source: { identity: "1:2", digest: "a".repeat(64), size: 12, modifiedMs: 1000 },
+    target: { identity: "1:3", digest: "b".repeat(64), size: 22, modifiedMs: 2000 },
+  };
+  await page.addInitScript(review => {
+    Object.defineProperty(navigator, "platform", { value: "MacIntel" });
+    let id = 1;
+    const replacements: unknown[] = [];
+    Object.assign(window, {
+      __replacementCalls: replacements,
+      __TAURI_INTERNALS__: {
+        transformCallback() { return id++; }, unregisterCallback() {},
+        async invoke(command: string, args: Record<string, unknown> = {}) {
+          if (command === "plugin:event|listen") return id++;
+          if (command === "local_files_roots") return [{ id: "source", name: "Source" }, { id: "target", name: "Target" }];
+          if (command === "local_files_list") return { nodes: ["a.c", "b.c"].map(name => ({ id: name, name, directory: false, size: 10, modifiedMs: 1000 })), next: null };
+          if (command === "local_files_display_path") return `/${args.rootId}/${args.node ?? ""}`;
+          if (command === "local_files_stat" || command === "local_files_properties") return { size: 10, modifiedMs: 1000 };
+          if (command === "local_files_transfer") throw new Error("TARGET_EXISTS");
+          if (command === "workbench_preview_replacement") return review;
+          if (command === "workbench_replace_file") {
+            replacements.push(args);
+            return { backupPath: "/target/.nine-rings-replaced-example/previous" };
+          }
+        },
+      },
+    });
+  }, review);
+  const calls = () => page.evaluate(() => (window as Window & { __replacementCalls?: unknown[] }).__replacementCalls);
+  await page.goto("/file-workbench.html");
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  await page.getByRole("region", { name: "右侧目录", exact: true }).getByRole("combobox", { name: "选择授权目录", exact: true }).selectOption("target");
+  await left.getByRole("option", { name: /^a.c/ }).click();
+  await left.getByRole("option", { name: /^b.c/ }).click({ modifiers: ["ControlOrMeta"] });
+  await page.getByRole("button", { name: "复制到另一栏", exact: true }).click();
+  await page.getByRole("dialog", { name: "复制到另一栏", exact: true }).getByRole("button", { name: "确认", exact: true }).click();
+  const conflict = page.locator(".file-browser-conflict");
+  const inspect = conflict.getByRole("button", { name: "检查能否替换" });
+  await inspect.click();
+  const confirmation = conflict.getByRole("region", { name: "替换确认" });
+  await expect(confirmation).toContainText("22 bytes");
+  await confirmation.getByRole("button", { name: "取消替换" }).click();
+  await expect(confirmation).toHaveCount(0);
+  expect(await calls()).toEqual([]);
+  await conflict.getByLabel("应用到本任务的后续同名冲突").check();
+  await inspect.click();
+  await confirmation.getByRole("button", { name: "确认替换并保留备份" }).click();
+  await expect(conflict).toContainText("b.c");
+  await expect(confirmation).toHaveCount(0);
+  expect(await calls()).toEqual([{ paths: { rootId: "source", node: "a.c", targetRootId: "target", targetNode: "a.c" }, expected: review }]);
+  await conflict.getByRole("button", { name: "跳过此项" }).click();
+  await expect(page.locator(".file-browser-job")).toContainText("成功 1 项");
+  await expect(page.locator(".file-browser-job")).toContainText("/target/.nine-rings-replaced-example/previous");
+});
+
 test("长列表调整行高保持顶部条目、选择和键盘导航一致", async ({ page }) => {
   await page.addInitScript(() => {
     let id = 1;

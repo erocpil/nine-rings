@@ -90,6 +90,24 @@ export function createBrowserOperationRunner<Lease extends BrowserOperationLease
             if ((decision.action === "skip" || decision.action === "keep-both") && decision.all) conflictPolicy = decision;
             if (decision.action === "stop") { emit({ node, targetName, status: "pending" }); return { ...progress, cancelled: true }; }
             if (decision.action === "skip") { progress.skipped++; emit({ node, targetName, status: "skipped" }); break; }
+            if (decision.action === "replace") {
+              if (operation.kind !== "copy" || !host.files.replace) throw new Error("当前操作不支持替换同名目标");
+              if (signal.aborted) { emit({ node, targetName, status: "pending" }); return { ...progress, cancelled: true }; }
+              check();
+              const targetNode = [targetParent, targetName].filter(Boolean).join("/");
+              const refresh = () => host.notify({ kind: "refresh", rootId: operation.rootId, node, targetRootId: targetRoot, targetNode });
+              attempted = true;
+              emit({ node, targetName, status: "running" });
+              const { backupPath } = await host.files.replace({ rootId: operation.rootId, node, targetRootId: targetRoot, targetNode }, decision.expected, signal).catch(error => {
+                if (/REPLACEMENT_NOT_WRITTEN:|PATH_IN_USE:|PATH_BUSY:/.test(String(error))) attempted = false;
+                if (/REPLACEMENT_PUBLISHED:/.test(String(error))) refresh();
+                throw error;
+              });
+              refresh();
+              progress.completed++;
+              emit({ node, targetName, status: "completed", backupPath });
+              break;
+            }
             if (decision.action === "keep-both") {
               if (operation.kind !== "copy" && operation.kind !== "move") throw new Error("当前操作不支持保留双方");
               if (++duplicate > 1000) throw new Error("自动名称尝试已达上限，请重新指定名称");

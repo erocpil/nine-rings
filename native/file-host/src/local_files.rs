@@ -10,6 +10,7 @@ use std::{
 };
 use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
+pub mod replacement;
 const MAX_BYTES: u64 = 4 * 1024 * 1024;
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

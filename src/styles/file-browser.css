@@ -95,7 +95,7 @@
 .file-browser-queue-dialog .file-browser-job > header button { padding: 2px 0; border-color: transparent; background: transparent; }
 .file-browser-queue-dialog .file-browser-job-items [data-state='completed'] > span:first-child { color: var(--text-secondary); }
 .file-browser-conflict { border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
-.file-browser-conflict > div { display: flex; gap: 8px; margin-top: 8px; }
+.file-browser-conflict > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .file-browser-directory-host { height: 100%; min-height: 0; }
 .file-browser-directory-host[hidden] { display: none; }
 .file-browser-tabs { display: flex; gap: 4px; padding: 4px 6px; overflow-x: auto; overflow-y: hidden; flex-shrink: 0; scrollbar-width: thin; }

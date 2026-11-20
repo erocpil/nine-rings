@@ -13,6 +13,9 @@ import type { BrowserWorkspaceHost } from "../../lib/local-files/browser-workspa
 
 import { createLocalDraftStore } from "../../lib/local-files/recovery";
 import type { LocalSourceHost } from "../../lib/local-files/source-host";
+import { invoke } from "@tauri-apps/api/core";
+import { isLocalFileReadOnly } from "../../lib/local-files/access";
+import type { ReplacementPaths, ReplacementReview } from "../../lib/local-files/browser-operation-contract";
 
 export const WORKBENCH_ID = "file-workbench.shell";
 export const WORKBENCH_SETTINGS_PREFIX = "file-workbench:";
@@ -29,7 +32,18 @@ export function createWorkbenchHost(open: (request: BrowserFileOpen) => void | P
     window.dispatchEvent(new Event("file-workbench:drafts"));
     try { localStorage.setItem("file-workbench:drafts-revision", crypto.randomUUID()); } catch { /* The confirmed IndexedDB transaction remains authoritative. */ }
   }, { retainUntilResolved: true });
-  const operations = createWorkbenchOperations({ assertActive: () => { pluginRuntime.assert(owner, "filesystem.files.write"); if (!isTauriRuntime()) throw new Error("目录操作仅适用于桌面版授权目录。"); }, files: localFileService, notify, resolvePath: async (rootId, node) => canonicalChildPath(await localFileService.displayPath(rootId, ""), node) }, drafts);
+  const replacementsSupported = isTauriRuntime() && /^(Mac|Linux)/.test(navigator.platform);
+  const assertReplacementTarget = (paths: ReplacementPaths) => {
+    pluginRuntime.assert(owner, "filesystem.files.write");
+    if (isLocalFileReadOnly(paths.targetRootId, paths.targetNode)) throw new Error("REPLACEMENT_NOT_WRITTEN: 目标文件或目录为只读");
+  };
+  const operations = createWorkbenchOperations({ assertActive: () => { pluginRuntime.assert(owner, "filesystem.files.write"); if (!isTauriRuntime()) throw new Error("目录操作仅适用于桌面版授权目录。"); }, files: {
+    ...localFileService,
+    replace: replacementsSupported ? (paths, expected) => {
+      assertReplacementTarget(paths);
+      return invoke<{ backupPath: string }>("workbench_replace_file", { paths, expected });
+    } : undefined,
+  }, notify, resolvePath: async (rootId, node) => canonicalChildPath(await localFileService.displayPath(rootId, ""), node) }, drafts);
   const { queue } = operations;
   const provider = createBrowserDirectoryProvider({
     assertActive, files: localFileService,
@@ -79,6 +93,13 @@ export function createWorkbenchHost(open: (request: BrowserFileOpen) => void | P
     supportsDirectoryPicker: () => localFileService.supportsDirectoryPicker(),
     supportsDirectoryChanges: rootId => localFileService.supportsDirectoryChanges(rootId),
     canWrite: rootId => isTauriRuntime() && localFileService.canRename(rootId), canTransfer: () => isTauriRuntime() && localFileService.canTransfer(), canTrash: () => isTauriRuntime() && localFileService.canTrash(),
+    previewReplacement: replacementsSupported ? async paths => {
+      assertReplacementTarget(paths);
+      await operations.assertPathClean(paths.rootId, paths.node);
+      await operations.assertPathClean(paths.targetRootId, paths.targetNode);
+      assertReplacementTarget(paths);
+      return invoke<ReplacementReview>("workbench_preview_replacement", { paths });
+    } : undefined,
     search: searchLocalFiles,
     subscribeMutations(listener) { mutations.add(listener); return () => { mutations.delete(listener); }; },
   };

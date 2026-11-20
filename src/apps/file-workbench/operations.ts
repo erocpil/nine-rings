@@ -29,12 +29,26 @@ export function createWorkbenchOperations(host: Pick<BrowserOperationHost<Browse
     try { await clean(rootId, node); return await action(); } finally { lease.release(); }
   };
   const path = (parent: string, name: string) => [parent, name.trim()].filter(Boolean).join("/");
+  const replace = host.files.replace?.bind(host.files);
   const runner = createBrowserOperationRunner({
     assertActive,
     assertPathClean: clean,
     lock: lockLocalOperation,
     files: {
       transfer: (rootId, node, targetRootId, parent, name, moving, onProgress) => destination(targetRootId, path(parent, name), () => host.files.transfer(rootId, node, targetRootId, parent, name, moving, onProgress)),
+      replace: replace && (async (paths, expected, signal) => {
+        let dispatched = false;
+        try {
+          return await destination(paths.targetRootId, paths.targetNode, () => {
+            signal.throwIfAborted();
+            dispatched = true;
+            return replace(paths, expected, signal);
+          });
+        } catch (error) {
+          if (!dispatched) throw new Error(`REPLACEMENT_NOT_WRITTEN: ${String(error)}`);
+          throw error;
+        }
+      }),
       move: (rootId, node, parent, name) => destination(rootId, path(parent, name), () => host.files.move(rootId, node, parent, name)),
       create: (rootId, parent, name, directory) => destination(rootId, path(parent, name), () => host.files.create(rootId, parent, name, directory)),
       trash: (rootId, node) => host.files.trash(rootId, node),

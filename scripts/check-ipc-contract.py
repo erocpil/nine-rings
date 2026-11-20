@@ -120,6 +120,7 @@ def main():
     lifetime += extract_invoke_commands(os.path.join(PROJECT_ROOT, "src", "apps", "file-workbench", "native-view-menu.ts"))
     lifetime += extract_invoke_commands(os.path.join(PROJECT_ROOT, "src", "apps", "file-workbench", "custom-tools.ts"))
     lifetime += extract_invoke_commands(os.path.join(PROJECT_ROOT, "src", "apps", "file-workbench", "editor-window.ts"))
+    lifetime += extract_invoke_commands(os.path.join(PROJECT_ROOT, "src", "apps", "file-workbench", "host.ts"))
     for command in sorted((file_commands | {command for command, _, _ in lifetime}) - workbench):
         print(f"❌ 独立工作台未注册共享文件命令: {command}")
         errors += 1

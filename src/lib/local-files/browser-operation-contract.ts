@@ -19,9 +19,13 @@ export interface BrowserItemResult {
   node: string; targetName: string;
   status: "pending" | "checking" | "running" | "completed" | "skipped" | "failed" | "uncertain";
   error?: string;
+  backupPath?: string;
 }
 export interface BrowserConflictPaths { source?: { rootId: string; node: string }; target: { rootId: string; node: string } }
-export type ConflictDecision = { action: "skip"; all?: boolean } | { action: "keep-both"; all?: boolean } | { action: "stop" } | { action: "rename"; name: string };
+export interface ReplacementPaths { rootId: string; node: string; targetRootId: string; targetNode: string }
+interface ReplacementRevision { identity: string; digest: string; size: number; modifiedMs: number }
+export interface ReplacementReview { source: ReplacementRevision; target: ReplacementRevision }
+export type ConflictDecision = { action: "skip"; all?: boolean } | { action: "keep-both"; all?: boolean } | { action: "stop" } | { action: "rename"; name: string } | { action: "replace"; expected: ReplacementReview };
 
 export interface BrowserOperationLease { release(): void }
 /** Every host must reconcile confirmed writes even after cancellation. Optional
@@ -32,6 +36,7 @@ export interface BrowserOperationHost<Lease extends BrowserOperationLease> {
   lock(rootId: string, node: string): Lease;
   files: {
     transfer(rootId: string, node: string, targetRootId: string, parent: string, name: string, moving: boolean, onProgress?: (progress: TransferProgress) => void): Promise<string>;
+    replace?(paths: ReplacementPaths, expected: ReplacementReview, signal: AbortSignal): Promise<{ backupPath: string }>;
     move(rootId: string, node: string, parent: string, name: string): Promise<string>;
     trash(rootId: string, node: string): Promise<void>;
     create(rootId: string, parent: string, name: string, directory: boolean): Promise<string>;

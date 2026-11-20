@@ -287,6 +287,8 @@ fn main() {
             local_files::local_files_create,
             local_files::local_files_move,
             local_files::local_files_transfer,
+            local_files::replacement::workbench_preview_replacement,
+            local_files::replacement::workbench_replace_file,
             local_files::local_files_trash,
             local_files::local_files_list,
             local_files::local_files_read,

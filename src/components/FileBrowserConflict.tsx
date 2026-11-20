@@ -3,10 +3,13 @@ import type { BrowserJob, BrowserOperationQueueCore } from "../lib/local-files/b
 import { browserDateText } from "../lib/local-files/browser-display";
 import { fileSegments } from "../lib/local-files/file-model";
 import { useFileBrowserHost } from "./FileBrowserHost";
+import type { ReplacementReview } from "../lib/local-files/browser-operation-contract";
 export function FileBrowserConflict({ job, queue }: { job: BrowserJob; queue: BrowserOperationQueueCore }) {
-  const { provider } = useFileBrowserHost();
+  const { provider, previewReplacement } = useFileBrowserHost();
   const [alternative, setAlternative] = useState(job.conflict ?? ""), [all, setAll] = useState(false);
   const [details, setDetails] = useState<Array<{ label: string; node: string; size?: number; modifiedMs?: number; error?: string }>>([]);
+  const [review, setReview] = useState<ReplacementReview>();
+  const [reviewError, setReviewError] = useState("");
   useEffect(() => {
     const controller = new AbortController();
     const paths = job.conflictPaths;
@@ -17,6 +20,17 @@ export function FileBrowserConflict({ job, queue }: { job: BrowserJob; queue: Br
     })).then(value => { if (!controller.signal.aborted) setDetails(value); });
     return () => controller.abort();
   }, [job.conflictPaths, provider]);
+  const inspectReplacement = async () => {
+    const paths = job.conflictPaths;
+    if (!previewReplacement || !paths?.source) return;
+    setReviewError("正在校验两份文件…");
+    try {
+      const checked = await previewReplacement({ rootId: paths.source.rootId, node: paths.source.node, targetRootId: paths.target.rootId, targetNode: paths.target.node });
+      if (!checked?.source?.digest || !checked?.target?.digest) throw new Error("无法读取文件修订");
+      setReview(checked);
+      setReviewError("");
+    } catch (cause) { setReviewError(String(cause)); }
+  };
   let valid = false;
   try { valid = alternative === alternative.trim() && alternative !== job.conflict && fileSegments(alternative).length === 1; } catch { /* The original conflict remains available. */ }
   return <fieldset className="file-browser-conflict"><legend>同名冲突：{job.conflict}</legend>
@@ -27,6 +41,17 @@ export function FileBrowserConflict({ job, queue }: { job: BrowserJob; queue: Br
     <div><button type="button" onClick={() => queue.decide(job.id, { action: "skip", all })}>跳过此项</button>
       {['copy', 'move'].includes(job.operation.kind) && <button type="button" onClick={() => queue.decide(job.id, { action: "keep-both", all })}>保留双方</button>}
       <button type="button" disabled={!valid} onClick={() => queue.decide(job.id, { action: "rename", name: alternative })}>按新名称重试</button>
+      {previewReplacement && job.operation.kind === "copy" && !review && <button type="button" disabled={reviewError === "正在校验两份文件…"} onClick={() => void inspectReplacement()}>检查能否替换</button>}
     </div>
+    {reviewError && <p role="status">{reviewError}</p>}
+    {review && <section aria-label="替换确认">
+      <dl>
+        <dt>来源修订</dt><dd>{review.source.size.toLocaleString()} bytes · {browserDateText(review.source.modifiedMs)} · SHA-256 {review.source.digest.slice(0, 12)}</dd>
+        <dt>目标修订</dt><dd>{review.target.size.toLocaleString()} bytes · {browserDateText(review.target.modifiedMs)} · SHA-256 {review.target.digest.slice(0, 12)}</dd>
+      </dl>
+      <p>只替换这一项。原目标将保留在同一目录下的备份中。</p>
+      <button type="button" onClick={() => queue.decide(job.id, { action: "replace", expected: review })}>确认替换并保留备份</button>
+      <button type="button" onClick={() => setReview(undefined)}>取消替换</button>
+    </section>}
   </fieldset>;
 }
