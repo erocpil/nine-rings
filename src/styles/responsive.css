@@ -368,15 +368,15 @@
   }
 
   .editor-block-number {
-    left: 22px;
-    width: calc(var(--editor-gutter-width) - 22px);
+    left: var(--editor-gutter-number-offset, 22px);
+    width: calc(var(--editor-gutter-width) - var(--editor-gutter-number-offset, 22px));
     padding-right: 1px;
     font-size: 11px;
   }
 
   .show-line-numbers .editor-block-number {
-    left: 22px;
-    width: calc(var(--editor-gutter-width) - 22px);
+    left: var(--editor-gutter-number-offset, 22px);
+    width: calc(var(--editor-gutter-width) - var(--editor-gutter-number-offset, 22px));
   }
 
   .editor-block-select {

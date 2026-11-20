@@ -3143,9 +3143,16 @@ for (const readonly of [true, false]) test(`Markdown 渲染状态栏共用块号
     await trigger.click();
     await expect(menu).toHaveCount(0);
   }
+  const textWidth = () => body.locator("h2").evaluate(element => element.getBoundingClientRect().width);
+  const widthWithFold = await textWidth();
   await trigger.click();
   await menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true }).click();
   await expect(view.locator(".editor-heading-fold")).toHaveCount(0);
+  if (readonly) await expect.poll(textWidth).toBeGreaterThan(widthWithFold + 12);
+  else {
+    await expect.poll(textWidth).toBeCloseTo(widthWithFold, 0);
+    await expect(view.locator(".editor-block-insert").first()).toBeAttached();
+  }
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
   await page.getByRole("button", { name: "行号与折叠设置", exact: true }).click();
@@ -3488,6 +3495,23 @@ test("Markdown 渲染在只读与编辑间保持正文上边缘", async ({ page 
     await page.getByRole("button", { name: "点击设为只读" }).click();
     await expect.poll(() => body.evaluate(element => (element as HTMLElement).isContentEditable)).toBe(false);
   }
+});
+
+test("磁盘 Markdown 表格右键添加列后可直接在同一行输入", async ({ page }) => {
+  await setupIndependentEditor(page, { "guide.md": "| A | B |\n| --- | --- |\n| A1 | B1 |\n" });
+  await page.getByRole("tab", { name: "guide.md", exact: true }).click();
+  await page.getByRole("button", { name: "点击设为可编辑" }).click();
+  const body = page.getByLabel("Markdown 渲染", { exact: true }).locator(".ProseMirror");
+  await body.getByText("B1", { exact: true }).click({ button: "right" });
+  const context = page.getByRole("menu", { name: "正文操作" });
+  await context.getByRole("button", { name: "表格", exact: true }).click();
+  await context.getByRole("button", { name: "表格操作", exact: true }).click();
+  await page.locator(".table-context-menu").getByRole("button", { name: "在右侧添加列", exact: true }).click();
+  await expect(context).toHaveCount(0);
+  await expect(body).toBeFocused();
+  await page.keyboard.insertText("C1");
+  await expect(body.locator("tr").nth(1).locator("td").nth(2)).toHaveText("C1");
+  await expect(body.getByText("B1", { exact: true })).toBeVisible();
 });
 
 test("磁盘 Markdown 链接右键复制原始地址，覆盖渲染与源码", async ({ page }) => {

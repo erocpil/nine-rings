@@ -46,6 +46,8 @@
   min-height: 100%;
 }
 
+.number-only-gutter { --editor-gutter-number-offset: 0px; }
+
 .ProseMirror {
   outline: none !important;
   padding-bottom: var(--editor-tail-space, max(72px, 70vh));
@@ -150,8 +152,8 @@
 
 .show-line-numbers .editor-block-number {
   /* Keep the number outside the heading fold button's 20px hit target. */
-  left: 22px;
-  width: calc(var(--editor-gutter-width) - 22px);
+  left: var(--editor-gutter-number-offset, 22px);
+  width: calc(var(--editor-gutter-width) - var(--editor-gutter-number-offset, 22px));
 }
 
 .editor-block-number::after {
@@ -716,7 +718,7 @@
 .editor-content .tableWrapper th, .editor-content .tableWrapper td { min-width: 48px; }
 
 .editor-block-number.relative-current { text-align: left; }
-.vr-gutter .editor-block-number.relative-current { width: calc(var(--editor-gutter-width) - 24px); margin-left: auto; }
+.vr-gutter .editor-block-number.relative-current { width: calc(var(--editor-gutter-width) - var(--editor-gutter-number-offset, 22px) - 2px); margin-left: auto; }
 .editor-block-number.relative-current.relative-current-right { text-align: right; }
 
 .block-action-menu-group.first-group { border-top: 0; margin-top: 0; }

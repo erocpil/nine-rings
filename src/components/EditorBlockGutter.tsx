@@ -768,7 +768,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           onTouchEnd={(event) => runGutterActionFromTouch(event, () => onBlockSelect(block.pos))}
           onClick={(event) => runGutterActionFromClick(event, () => onBlockSelect(block.pos))}
         >
-          <span className="editor-block-select-fold" aria-hidden="true">{block.heading && <EditorFoldIcon scope="heading" expanded={!block.folded} />}</span>
+          <span className="editor-block-select-fold" aria-hidden="true">{renderedFoldGutter && block.heading && <EditorFoldIcon scope="heading" expanded={!block.folded} />}</span>
           <span className={blockHasBookmark(block) ? "bookmarked" : ""} aria-hidden="true">{relativeBlockNumbers ? relativeNumber(block.index, currentNumber, visibleNumbers) : block.index}</span>
         </button>
       ))}

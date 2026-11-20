@@ -8,6 +8,7 @@ import { EditorBackgroundMenu } from "./EditorBackgroundMenu";
 import { OrderedListNumberingMenu } from "./OrderedListNumberingMenu";
 import { FLOW_BLOCK_TEMPLATE } from "../lib/flow-block";
 import { resetTableColumnWidths } from "../extensions/ContentSizedTable";
+import { insertTableAxis } from "../lib/table-insertion";
 import { exitCurrentStructuredBlock } from "../extensions/StructuredBlockExit";
 import { type ReactNode, type RefObject } from "react";
 import type { Editor } from "@tiptap/core";
@@ -305,10 +306,10 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
             <button className="menu-dropdown-item" disabled={readonly || !editor.can().mergeCells()} onClick={() => { editor.chain().focus().mergeCells().run(); setTableOpen(false); }} type="button">合并所选单元格</button>
             <button className="menu-dropdown-item" disabled={readonly || !editor.can().splitCell()} onClick={() => { editor.chain().focus().splitCell().run(); setTableOpen(false); }} type="button">拆分单元格</button>
             <div className="menu-dropdown-sep" />
-            <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addRowBefore().run(); setTableOpen(false); }} type="button">在上方添加行</button>
-            <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addRowAfter().run(); setTableOpen(false); }} type="button">在下方添加行</button>
-            <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addColumnBefore().run(); setTableOpen(false); }} type="button">在左侧添加列</button>
-            <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addColumnAfter().run(); setTableOpen(false); }} type="button">在右侧添加列</button>
+            <button className="menu-dropdown-item" onClick={() => { insertTableAxis(editor, "row", "before"); setTableOpen(false); }} type="button">在上方添加行</button>
+            <button className="menu-dropdown-item" onClick={() => { insertTableAxis(editor, "row", "after"); setTableOpen(false); }} type="button">在下方添加行</button>
+            <button className="menu-dropdown-item" onClick={() => { insertTableAxis(editor, "column", "before"); setTableOpen(false); }} type="button">在左侧添加列</button>
+            <button className="menu-dropdown-item" onClick={() => { insertTableAxis(editor, "column", "after"); setTableOpen(false); }} type="button">在右侧添加列</button>
             <div className="menu-dropdown-sep" />
             <button className="menu-dropdown-item" onClick={() => { resetTableColumnWidths(editor); setTableOpen(false); }} type="button">按内容调整列宽</button>
             <button className="menu-dropdown-item" onClick={() => { setTableCellAlignment("left"); setTableOpen(false); }} type="button">{selectedTableCellCount > 0 ? "所选单元格左对齐" : "当前列左对齐"}</button>

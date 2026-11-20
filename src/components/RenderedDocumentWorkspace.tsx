@@ -132,6 +132,7 @@ import { FULLSCREEN_WILL_CHANGE_EVENT } from "../lib/fullscreen";
 import { DocumentPanelTitle, OutlinePanelTitle } from "./OutlinePanelTitle";
 import { preserveReadingPositions } from "../lib/reading-position";
 import { editorGutterWidth } from "../lib/editor-gutter";
+import { useRelativeNumbering } from "../hooks/useRelativeNumbering";
 import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
 import { clipboardSliceToPlainText, flattenPartialStructuredClipboard } from "../lib/clipboard-plain-text";
 import { StructuredBlockExit } from "../extensions/StructuredBlockExit";
@@ -731,6 +732,8 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
   useEffect(() => { setSelectedBlockIndexes(new Set()); }, [noteId]);
   const [readonlyChangeBusy, setReadonlyChangeBusy] = useState(false);
   const [gutterBlockCount, setGutterBlockCount] = useState(0);
+  const { renderedFoldGutter } = useRelativeNumbering();
+  const numberOnlyGutter = readonly && showLineNumbers && !renderedFoldGutter && selectedBlockIndexes.size === 0;
   const [currentStatusBlock, setCurrentStatusBlock] = useState(1);
   const [bookmarkCursorPosition, setBookmarkCursorPosition] = useState(1);
   const [selectedTableCellCount, setSelectedTableCellCount] = useState(0);
@@ -4713,8 +4716,8 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
           </div>
         )}
         <DocumentRenderBody
-          className={selectedBlockIndexes.size > 0 ? "block-selection-active" : ""}
-          style={{ "--editor-gutter-width": `${editorGutterWidth(gutterBlockCount, showLineNumbers || selectedBlockIndexes.size > 0, isMobileToolbarViewport)}px` } as React.CSSProperties}
+          className={selectedBlockIndexes.size > 0 ? "block-selection-active" : numberOnlyGutter ? "number-only-gutter" : ""}
+          style={{ "--editor-gutter-width": `${editorGutterWidth(gutterBlockCount, showLineNumbers || selectedBlockIndexes.size > 0, isMobileToolbarViewport, !numberOnlyGutter)}px` } as React.CSSProperties}
           gutter={<EditorBlockGutter
             foldHosts={foldHostsRef.current}
             editor={editor}

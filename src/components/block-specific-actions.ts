@@ -13,6 +13,7 @@ import {
   MAX_LIST_START,
 } from "../lib/ordered-list-numbering";
 import { resetTableColumnWidths } from "../extensions/ContentSizedTable";
+import { insertTableAxis } from "../lib/table-insertion";
 import type { BlockMenuAction } from "./BlockActionMenu";
 
 const submenu = (
@@ -320,7 +321,6 @@ export function blockEditingActions({
   if (type === "table") {
     const map = TableMap.get(node);
     const first = position + 1 + map.map[0] + 2;
-    const last = position + 1 + map.map[map.map.length - 1] + 2;
     const command = (at: number, action: () => void) =>
       runCommand(() => {
         editor.commands.setTextSelection(at);
@@ -329,17 +329,11 @@ export function blockEditingActions({
     return [
       {
         label: "在表格末尾添加行",
-        run: () =>
-          command(last, () => {
-            editor.commands.addRowAfter();
-          }),
+        run: () => runCommand(() => insertTableAxis(editor, "row", "after", position)),
       },
       {
         label: "在表格右侧添加列",
-        run: () =>
-          command(last, () => {
-            editor.commands.addColumnAfter();
-          }),
+        run: () => runCommand(() => insertTableAxis(editor, "column", "after", position)),
       },
       {
         label: "切换表头行",

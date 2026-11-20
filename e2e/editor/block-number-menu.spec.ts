@@ -602,14 +602,83 @@ test("表格块级功能在末尾添加行列，恢复自动列宽并支持撤�
   await specific(page);
   await menu(page).getByRole("menuitem", { name: "在表格末尾添加行", exact: true }).click();
   expect((await firstNode(page)).content).toHaveLength(2);
+  const body = page.locator(".ProseMirror:visible");
+  const table = body.locator("table");
+  await expect(body).toBeFocused();
+  await page.keyboard.insertText("New row");
+  await expect(table.locator("tr").nth(1).locator("td").first()).toHaveText("New row");
   await specific(page);
   await menu(page).getByRole("menuitem", { name: "在表格右侧添加列", exact: true }).click();
   expect((await firstNode(page)).content[0].content).toHaveLength(3);
+  await page.keyboard.insertText("New column");
+  await expect(table.locator("tr").nth(1).locator("td").nth(2)).toHaveText("New column");
   await specific(page);
   await menu(page).getByRole("menuitem", { name: "恢复自动列宽", exact: true }).click();
   expect((await firstNode(page)).content[0].content.every((cell: any) => !cell.attrs.colwidth)).toBe(true);
   await page.locator(".ProseMirror:visible").evaluate(element => (element as any).editor.commands.undo());
   expect((await firstNode(page)).content[0].content[0].attrs.colwidth).toEqual([140]);
+});
+
+test("表格正文右键和工具栏把光标放进新单元格", async ({ page }) => {
+  const cell = (text: string) => ({ type: "tableCell", content: [textParagraph(text)] });
+  await featureFixture(page, { type: "table", content: [
+    { type: "tableRow", content: [cell("A1"), cell("B1")] },
+    { type: "tableRow", content: [cell("A2"), cell("B2")] },
+  ] });
+  const body = page.locator(".ProseMirror:visible");
+  const context = page.getByRole("menu", { name: "正文操作" });
+  const table = body.locator("table");
+  const original = await body.evaluate(element => (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor.getJSON());
+  const commands = [
+    { label: "在下方添加行", rightClick: true, row: 2, column: 1 },
+    { label: "在右侧添加列", rightClick: true, row: 1, column: 2 },
+    { label: "在上方添加行", rightClick: false, row: 1, column: 1 },
+    { label: "在左侧添加列", rightClick: false, row: 1, column: 1 },
+  ];
+  for (const { label, rightClick, row, column } of commands) {
+    const origin = table.getByText("B2", { exact: true });
+    await origin.click();
+    if (rightClick) {
+      await origin.click({ button: "right" });
+      await context.getByRole("button", { name: "表格", exact: true }).click();
+      await context.getByRole("button", { name: "表格操作", exact: true }).click();
+    } else await page.locator(".toolbar-table-menu").getByTitle("表格操作", { exact: true }).click();
+    await page.locator(".table-context-menu").getByRole("button", { name: label, exact: true }).click();
+    await expect(context).toHaveCount(0);
+    await expect(body).toBeFocused();
+    const target = table.locator("tr").nth(row).locator("td").nth(column);
+    await page.keyboard.insertText(label);
+    await expect(target).toHaveText(label);
+    await expect(origin).toHaveText("B2");
+    // Restore the same fixture for the next insertion direction.
+    await body.evaluate((element, content) => {
+      const { commands } = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      commands.setContent(content, true);
+    }, original);
+  }
+});
+
+test("表格插入行时绕开跨行单元格并定位到新行", async ({ page }) => {
+  const cell = (text: string, rowspan = 1) => ({ type: "tableCell", attrs: { rowspan }, content: [textParagraph(text)] });
+  await featureFixture(page, { type: "table", content: [
+    { type: "tableRow", content: [cell("Span", 2), cell("B1")] },
+    { type: "tableRow", content: [cell("B2")] },
+    { type: "tableRow", content: [cell("A3"), cell("B3")] },
+  ] });
+  const body = page.locator(".ProseMirror:visible");
+  await body.evaluate(element => {
+    const { commands, view } = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    const cells = element.querySelectorAll("td");
+    const anchorCell = view.posAtDOM(cells[2], 0) - 1;
+    const headCell = view.posAtDOM(cells[3], 0) - 1;
+    commands.setCellSelection({ anchorCell, headCell });
+  });
+  await page.locator(".toolbar-table-menu").getByTitle("表格操作", { exact: true }).click();
+  await page.locator(".table-context-menu").getByRole("button", { name: "在上方添加行", exact: true }).click();
+  const table = body.locator("table");
+  await expect(table.getByText("Span", { exact: true }).locator("..")).toHaveAttribute("rowspan", "3");
+  await page.keyboard.insertText("New row");
+  await expect(table.locator("tr").nth(1).locator("td")).toHaveText("New row");
 });
 
 for (const virtual of [false, true]) test(`只读图块可切换源码并保留内容，virtual=${virtual}`, async ({ page }) => {

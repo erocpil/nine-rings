@@ -2,7 +2,10 @@ import { expect, test } from "@playwright/test";
 import { createBlankDocument, waitForSavedText } from "../helpers/document";
 import { closeDocumentSidebar } from "../helpers/workspace";
 
-for (const virtual of [false, true]) for (const style of ["classic", "calm"]) test(`渲染状态栏管理块号与折叠且不修改正文 style=${style} virtual=${virtual}`, async ({ page }) => {
+const layouts = [false, true].flatMap(virtual => ["classic", "calm"].map(style => ({ virtual, style, mobile: false })));
+layouts.push({ virtual: false, style: "classic", mobile: true });
+
+for (const { virtual, style, mobile } of layouts) test(`渲染状态栏管理块号与折叠且不修改正文 style=${style} virtual=${virtual} mobile=${mobile}`, async ({ page }) => {
   await page.addInitScript(({ virtual, style }) => {
     localStorage.setItem("nr:experimentalReadonlyRendering", String(virtual));
     localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true, interface_style: style }));
@@ -50,18 +53,30 @@ for (const virtual of [false, true]) for (const style of ["classic", "calm"]) te
   await page.keyboard.press("Escape");
   await expect(page.locator(".note-editor:visible .editor-fold-symbol").first()).toHaveText("−");
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config") ?? "{}").editor_fold_icon_collapsed)).toBe("+");
+  if (!virtual) await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  if (mobile) await page.setViewportSize({ width: 390, height: 844 });
   const folds = page.locator(".note-editor:visible .editor-heading-fold, .note-editor:visible .vr-gutter > button[aria-expanded]");
   await expect(folds).toHaveCount(1);
+  const heading = page.locator(".note-editor:visible h2").filter({ hasText: "Section" });
+  const textWidth = () => heading.evaluate(element => element.getBoundingClientRect().width);
+  const widthWithFold = await textWidth();
   if (await trigger.getAttribute("aria-expanded") == "true") {
     await trigger.click();
     await expect(menu).toHaveCount(0);
   }
+  await folds.click();
+  await expect(page.getByText("First paragraph", { exact: true })).not.toBeVisible();
   await trigger.click();
   await menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true }).click();
   await expect(menu).toBeVisible();
   await expect(folds).toHaveCount(0);
+  await expect.poll(textWidth).toBeGreaterThan(widthWithFold + 12);
+  await expect(page.getByText("First paragraph", { exact: true })).not.toBeVisible();
   await expect(page.locator(".note-editor:visible")).toHaveClass(/show-line-numbers/);
   await expect(menu.getByRole("menuitem", { name: /^默认折叠图标/ })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "第 1 块操作", exact: true }).click();
+  await expect(page.getByRole("menu", { name: "第 1 块", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   expect(await savedContent()).toBe(before);
   await page.reload();

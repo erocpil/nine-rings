@@ -114,7 +114,8 @@ WorkbenchSourceView通过LocalMarkdownWorkspace接入同一渲染工作区，包
 | 状态 | 实现入口 | 约束 |
 | --- | --- | --- |
 | 更多工具展开状态 | `useFocusEditorTools`、Workbench `toolbar-preferences.ts` | 源码与渲染共用 store；Workbench 启动时装配持久化适配器、跨窗口监听和卸载清理，不改变 Nine Rings 原有生命周期策略。写入失败不先改变界面。 |
-| 行号、块号及折叠图标可见性 | `block-display-settings.ts`、`useRelativeNumbering`、`RenderedGutterSettings` | `nr:blockWorkspaceDisplay` 保存共享偏好；`sourceFoldGutter` 和 `renderedFoldGutter` 分别记忆，缺省均显示。隐藏只影响正文编号栏按钮，不重置折叠、不隐藏目录三角或块内工具。 |
+| 行号、块号及折叠图标可见性 | `block-display-settings.ts`、`useRelativeNumbering`、`RenderedGutterSettings` | `nr:blockWorkspaceDisplay` 分别保存源码和渲染的折叠图标可见性，缺省均显示。隐藏后回收只供折叠使用的宽度，保留块号、插入及块菜单入口所需空间，也保留折叠状态、目录三角和块内工具。 |
+| 表格插入行列 | `table-insertion.ts`、正文右键投影的表格工具栏、块级菜单 | 表格结构和光标在同一事务内更新。新行优先同列，新列优先同行，合并单元格占据该位置时选择新行列中最近的新单元格。从表格外打开块菜单时从第一列或第一行开始。 |
 | 折叠图标样式与编号展示 | AppConfig、`EditorFoldIconContext`、编号插件 | 与可见性分开；沿用既有插件接管及禁用规则，不由菜单另建样式权威。 |
 | Workbench 打开文件清单 | `editor_session.rs`、`editor_window.rs` | 原生修订快照拥有打开顺序、活动文件与退出确认；退出保留清单，主动关闭才移除。未命名正文由 `buffers.rs` 持久化，显示偏好不能替代草稿保存。 |
 
