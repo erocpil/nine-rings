@@ -2225,6 +2225,20 @@ test("固定导航面板拖拽布局随文件切换与重载恢复，同词仅�
   };
   const dock = page.getByRole("complementary", { name: "固定阅读面板" });
   const groups = dock.locator(".document-dock-group");
+  const workspace = page.getByRole("region", { name: "文件源码工作区" });
+  const checkDockTitle = async (source: boolean) => {
+    for (const side of ["left", "right"]) {
+      await page.evaluate(async side => (await import("/src/lib/workspace-layout.ts")).saveWorkspaceLayout({ panelsSide: side }), side);
+      await expect(dock).toHaveClass(new RegExp(`dock-${side}`));
+      for (const palette of ["light", "dark", "calm", "mono-aware"]) {
+        await page.evaluate(palette => { document.documentElement.dataset.workbenchPalette = palette; }, palette);
+        await expect.poll(async () => {
+          const rail = await measureDocumentRail(workspace, source);
+          return rail.docked && rail.title && rail.toolbar && rail.status && rail.titleWidth > rail.width ? rail.maxDifference : Infinity;
+        }, { message: `${side}/${palette}: 标题贯穿停靠面板，工具栏和状态栏保持正文宽度` }).toBeLessThan(2);
+      }
+    }
+  };
   const activeTab = (name: string) => dock.getByRole("tab", { name, exact: true });
   const fileSource = page.locator(".cm-content:visible");
 
@@ -2236,6 +2250,7 @@ test("固定导航面板拖拽布局随文件切换与重载恢复，同词仅�
   await dragDockPanel(page, page.getByRole("button", { name: "同词匹配", exact: true }), groups.first(), "after");
   await expect(groups.nth(1)).toHaveAttribute("data-dock-target", "matches");
   await expect(dock.getByRole("complementary", { name: "本地文件同词匹配" })).toBeVisible();
+  await checkDockTitle(true);
   await activeTab("源码符号").click();
   await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
 
@@ -2243,9 +2258,16 @@ test("固定导航面板拖拽布局随文件切换与重载恢复，同词仅�
   await expect(page.locator(".ProseMirror:visible")).toContainText("正文");
   await expect(groups).toHaveCount(1);
   await expect(activeTab("目录")).toHaveAttribute("aria-selected", "true");
+  await checkDockTitle(false);
   await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
   await expect(groups).toHaveCount(1);
   await expect(activeTab("目录")).toHaveAttribute("aria-selected", "true");
+  await checkDockTitle(true);
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await checkDockTitle(true);
+  await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  await expect(page.locator(".ProseMirror:visible")).toBeEditable();
+  await checkDockTitle(false);
   await page.getByRole("button", { name: "返回文件浏览", exact: true }).click();
 
   await page.reload();

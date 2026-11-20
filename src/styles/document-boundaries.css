@@ -97,8 +97,8 @@
   background-repeat: no-repeat;
 }
 
-/* Place chrome rules on the measured reading column. Title actions can still
-   use the full heading row, including Workbench's window controls. */
+/* Place chrome rules on the measured reading column. A docked title also
+   covers the panel column below it. */
 [data-document-rail] {
   --document-rail-start: var(--document-edge-inset);
   --document-rail-end: var(--document-edge-inset);
@@ -108,7 +108,14 @@
   background-size: var(--document-rail-width) 1px;
   background-position: left var(--document-rail-start) bottom 0;
 }
-:root :is(.app, .file-workbench-app) .local-file-titlebar[data-document-rail]::after { content: none; }
+:root :is(.app, .file-workbench-app) .local-file-titlebar:is([data-document-rail], [data-document-dock-title])::after { content: none; }
+:root :is(.app, .file-workbench-app) :is(.note-title-row.document-title-bar, .vr-title)[data-document-dock-title] {
+  background-size: calc(100% - 2 * var(--document-edge-inset)) 1px;
+  background-position: left var(--document-edge-inset) bottom 0;
+}
+:root :is(.app, .file-workbench-app) .note-title-row:is(.markdown-source-title-row, .local-file-titlebar)[data-document-dock-title] {
+  margin-inline-end: 0;
+}
 :root :is(.app, .file-workbench-app) .note-editor .document-toolbar.editor-menu[data-document-rail] {
   box-sizing: border-box;
   width: var(--document-rail-width);

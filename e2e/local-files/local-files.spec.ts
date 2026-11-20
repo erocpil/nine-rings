@@ -174,6 +174,10 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
         const outlineBox = (await outline.boundingBox())!;
         return Math.max(Math.abs(outlineBox.y - editor.y), Math.abs(outlineBox.height - editor.height));
       }, { message: `${style}/${side}: 源码视图固定目录覆盖正文列高度` }).toBeLessThan(2);
+      await expect.poll(async () => {
+        const rail = await measureDocumentRail(viewer, true);
+        return rail.docked && rail.title && rail.toolbar && rail.status && rail.titleWidth > rail.width ? rail.maxDifference : Infinity;
+      }).toBeLessThan(2);
     }
   }
   await expectLocalPanelSide("left");
@@ -204,6 +208,10 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
         const dockBox = (await dock.boundingBox())!;
         return Math.abs(dockBox.y - title.y - title.height);
       }, { message: `${style}/${side}: 渲染视图固定目录紧贴标题下沿` }).toBeLessThan(2);
+      await expect.poll(async () => {
+        const rail = await measureDocumentRail(viewer, false);
+        return rail.docked && rail.title && rail.toolbar && rail.status && rail.titleWidth > rail.width ? rail.maxDifference : Infinity;
+      }).toBeLessThan(2);
     }
   }
   await viewer.locator(".document-render-header .note-title").hover({ position: { x: 10, y: 10 } });

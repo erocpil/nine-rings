@@ -76,23 +76,26 @@ export function DesktopDocumentPanels({
     const dock = root.current, owner = dock?.closest<HTMLElement>(".note-editor");
     if (!dock || !owner) return;
     const observed = new WeakSet<Element>();
+    const titleSelector = ".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title";
+    let dockTitle: HTMLElement | null = null;
     const measure = () => {
       const chromeHost = owner.closest<HTMLElement>(".local-file-view, .vr-note") ?? owner;
-      const title = visibleChromeElement(owner,
-        ".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title",
-      ) ?? visibleChromeElement(chromeHost,
-        ".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title",
-      );
-      // Fixed panels start below the title row in every host. A tag row is
-      // document content and must not push the dock down in database notes,
-      // where tags exist but disk-backed editors have no equivalent row.
+      const title = dock.getClientRects().length
+        ? visibleChromeElement(owner, titleSelector) ?? visibleChromeElement(chromeHost, titleSelector)
+        : null;
+      // The title and dock share one boundary, even when the source title is a sibling.
+      if (dockTitle !== title) {
+        dockTitle?.removeAttribute("data-document-dock-title");
+        title?.setAttribute("data-document-dock-title", "");
+        dockTitle = title;
+      }
       const top = title?.getBoundingClientRect().bottom ?? owner.getBoundingClientRect().top;
       dock.style.top = `${Math.max(0, top - owner.getBoundingClientRect().top)}px`;
     };
     const observer = new ResizeObserver(measure);
     observer.observe(owner);
     const bindChrome = () => {
-      for (const child of owner.querySelectorAll<HTMLElement>(".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title")) {
+      for (const child of owner.querySelectorAll<HTMLElement>(titleSelector)) {
         if (!observed.has(child)) { observed.add(child); observer.observe(child); }
       }
       const chromeHost = owner.closest<HTMLElement>(".local-file-view, .vr-note");
@@ -104,12 +107,16 @@ export function DesktopDocumentPanels({
     // Lazy/retained editors can mount their title after the dock. Resolve the
     // current title on every measurement instead of retaining a missing node.
     const mounted = new MutationObserver(records => {
-      const selector = ".note-title-row, .markdown-source-title-row, .local-file-titlebar, .vr-title";
-      if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element && (node.matches(selector) || node.querySelector(selector))))) bindChrome();
+      if (records.some(record => [...record.addedNodes, ...record.removedNodes].some(node => node instanceof Element && (node.matches(titleSelector) || node.querySelector(titleSelector))))) bindChrome();
     });
     mounted.observe(owner, { childList: true, subtree: true });
     bindChrome();
-    return () => { mounted.disconnect(); observer.disconnect(); dock.style.top = ""; };
+    return () => {
+      mounted.disconnect();
+      observer.disconnect();
+      dockTitle?.removeAttribute("data-document-dock-title");
+      dock.style.top = "";
+    };
   });
   const horizontal = controller.layout.panelsArrangement === "horizontal";
   const first = controller.pinned("outline") && outline;

@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { createBlankDocument } from "../helpers/document";
+import { createBlankDocument, measureDocumentRail } from "../helpers/document";
 import { replaceSource, sourceInfo } from "../helpers/source-editor";
 
-const nonClassicStyles = ["calm", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"] as const;
+const styles = ["classic", "calm", "calm-compact", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"] as const;
 
 for (const source of [false, true]) test(`文档两种布局独立保存面板状态，切换不重建编辑器：源码=${source}`, async ({ page }) => {
   await createBlankDocument(page, "布局模式");
@@ -30,11 +30,15 @@ for (const source of [false, true]) test(`文档两种布局独立保存面板�
       const owner = (await page.locator(".note-editor.desktop-document-panels:visible").boundingBox())!;
       return Math.max(Math.abs(dockRect.y - titleRect.y - titleRect.height), Math.max(0, owner.x - titleRect.x), Math.max(0, titleRect.x - dockRect.x), Math.max(0, dockRect.x + dockRect.width - titleRect.x - titleRect.width - 16));
     }, { message: "固定面板位于完整标题下方，标题横跨正文和面板" }).toBeLessThan(2);
+    await expect.poll(async () => {
+      const rail = await measureDocumentRail(page.locator(".note-editor:visible"), sourceView);
+      return rail.docked && rail.title && rail.toolbar && rail.status && rail.titleWidth > rail.width ? rail.maxDifference : Infinity;
+    }).toBeLessThan(2);
   };
   for (const side of ["left", "right"] as const) {
     await page.evaluate(async side => (await import("/src/lib/workspace-layout.ts")).saveWorkspaceLayout({ panelsSide: side }), side);
     await expect(page.locator(`.document-panel-dock:visible.dock-${side}`)).toBeVisible();
-    for (const style of nonClassicStyles) {
+    for (const style of styles) {
       await page.evaluate(style => { document.documentElement.dataset.interfaceStyle = style; }, style);
       await expectDockBelowTitle();
       if (style === "calm") await page.screenshot({ path: `/tmp/panel-layout-${source ? "source" : "rendered"}-${side}.png` });

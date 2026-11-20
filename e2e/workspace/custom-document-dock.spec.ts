@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createBlankDocument } from "../helpers/document";
+import { createBlankDocument, measureDocumentRail } from "../helpers/document";
 import { dragDockPanel } from "../helpers/document-dock";
 import { openWritableLocalDirectory } from "../helpers/local-files";
 
@@ -142,6 +142,14 @@ test("局部只读面板标题可拖进标签组并恢复默认布局", async ({
   await page.getByRole("button", { name: "文档目录", exact: true }).click();
   await page.getByRole("button", { name: "文档书签", exact: true }).click();
   const dock = page.getByRole("complementary", { name: "固定阅读面板" });
+  for (const side of ["left", "right"]) {
+    await page.evaluate(async side => (await import("/src/lib/workspace-layout.ts")).saveWorkspaceLayout({ panelsSide: side }), side);
+    await expect(dock).toHaveClass(new RegExp(`dock-${side}`));
+    await expect.poll(async () => {
+      const rail = await measureDocumentRail(page.locator("[data-virtual-reader]"), false);
+      return rail.docked && rail.title && rail.toolbar && rail.titleWidth > rail.width ? rail.maxDifference : Infinity;
+    }).toBeLessThan(2);
+  }
   const bookTitle = dock.locator(
     '[data-panel="bookmark"] .document-panel-title',
   );

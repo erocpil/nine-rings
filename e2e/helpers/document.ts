@@ -6,7 +6,7 @@ export function measureDocumentRail(scope: Locator, source: boolean) {
       .find(element => element.getClientRects().length && getComputedStyle(element).visibility !== "hidden");
     const body = visible(source ? ".cm-scroller" : ".editor-content-shell, .vr-body");
     const scroll = source ? body : visible(".note-editor-scroll");
-    if (!body || !scroll) return { left: 0, width: 0, title: false, toolbar: false, status: false, maxDifference: Infinity, scrollbar: 0 };
+    if (!body || !scroll) return { left: 0, width: 0, title: false, toolbar: false, status: false, maxDifference: Infinity, scrollbar: 0, docked: false, titleWidth: 0 };
     const bounds = body.getBoundingClientRect();
     const preview = source ? visible(".markdown-preview-scroll") : null;
     const split = preview?.closest(".markdown-split-preview");
@@ -16,21 +16,33 @@ export function measureDocumentRail(scope: Locator, source: boolean) {
     const line = (element?: HTMLElement) => {
       if (!element) return null;
       const style = getComputedStyle(element);
-      const background = style.backgroundSize.split(",").at(-1)!;
+      const background = style.backgroundSize.split(",").at(-1)!.trim();
       const position = style.backgroundPositionX.split(",").at(-1)!;
       const offset = position.match(/(-?[\d.]+)px/)?.[1];
-      if (!style.backgroundImage.includes("linear-gradient") || offset === undefined || !background.endsWith("px 1px")) return null;
-      return {
-        left: element.getBoundingClientRect().left + Number(offset),
-        width: parseFloat(background),
-      };
+      const inset = background.match(/^calc\(100% - ([\d.]+)px\) 1px$/)?.[1];
+      const width = inset === undefined ? parseFloat(background) : element.clientWidth - Number(inset);
+      if (!style.backgroundImage.includes("linear-gradient") || offset === undefined || (inset === undefined && !background.endsWith("px 1px")) || !Number.isFinite(width)) return null;
+      return { left: element.getBoundingClientRect().left + Number(offset), width };
     };
     const toolbar = visible(".document-toolbar, .vr-actions");
-    const title = line(visible(".document-title-bar, .vr-title"));
+    const titleElement = visible(".document-title-bar, .vr-title");
+    const title = line(titleElement);
+    const dock = visible(".document-panel-dock");
+    const dockWorkspace = dock?.closest(".note-editor")?.getBoundingClientRect();
+    const titleBounds = titleElement?.getBoundingClientRect();
     const status = line(visible(".editor-status-bar"));
     const toolbarLine = toolbar?.matches(".vr-actions") ? line(toolbar) : toolbar?.getBoundingClientRect();
-    const differences = [title, toolbarLine, status].flatMap(item => item ? [Math.abs(item.left - left), Math.abs(item.width - width)] : []);
-    return { left, width, title: !!title, toolbar: !!toolbar, status: !!status, maxDifference: Math.max(0, ...differences), scrollbar: scroll.offsetWidth - scroll.clientWidth };
+    const differences = [toolbarLine, status].flatMap(item => item ? [Math.abs(item.left - left), Math.abs(item.width - width)] : []);
+    if (title && dock && dockWorkspace && titleBounds) {
+      differences.push(
+        Math.abs(title.left - dockWorkspace.left - inset),
+        Math.abs(title.left + title.width - dockWorkspace.right + inset),
+        Math.abs(titleBounds.bottom - dock.getBoundingClientRect().top),
+      );
+    } else if (title) {
+      differences.push(Math.abs(title.left - left), Math.abs(title.width - width));
+    }
+    return { left, width, title: !!title, toolbar: !!toolbar, status: !!status, maxDifference: Math.max(0, ...differences), scrollbar: scroll.offsetWidth - scroll.clientWidth, docked: Boolean(dock), titleWidth: title?.width ?? 0 };
   }, source);
 }
 

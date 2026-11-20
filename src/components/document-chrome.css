@@ -124,6 +124,7 @@
 
 /* Detached titles sit outside the body's native scrollbar gutter. */
 .document-render-header { margin-inline-end: var(--editor-scrollbar-width, 0px); }
+.document-render-header:has(> [data-document-dock-title]) { margin-inline-end: 0; }
 .app .document-title-bar .note-title:hover,
 .app .document-title-bar .document-title-preview:hover {
   background: transparent;
