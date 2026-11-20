@@ -3,7 +3,7 @@ import type { AppConfig } from "../types/models";
 import { useNumberingDisplay } from "../hooks/useNumberingDisplay";
 import { useRelativeNumbering } from "../hooks/useRelativeNumbering";
 import { useBlockDisplayPreferences } from "../hooks/useBlockDisplayPreferences";
-import { saveBlockWorkspacePreferences } from "../lib/block-display-settings";
+import { foldGutterVisibilityAction, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
 import { EDITOR_FOLD_PRESETS, editorFoldPreset, editorFoldPresetPatch } from "../lib/editor-fold-icons";
 import { editorCommandTrigger } from "../lib/editor-command-surface";
 import { BlockActionMenu } from "./BlockActionMenu";
@@ -49,7 +49,8 @@ export function RenderedGutterSettings({ visible, onConfigChange }: {
         children: (["left", "right"] as const).map(alignment => ({ label: alignment === "left" ? "左对齐" : "右对齐",
           checked: relative.relativeBlockNumberAlignment === alignment, keepOpen: true,
           run: () => saveBlockWorkspacePreferences({ relativeBlockNumberAlignment: alignment }) })) },
-      { label: "默认折叠图标", group: "折叠", disabled: sharedOwned || saving || !onConfigChange, run: () => {},
+      foldGutterVisibilityAction("rendered", relative.renderedFoldGutter),
+      { label: "默认折叠图标", group: "折叠", disabled: !relative.renderedFoldGutter || sharedOwned || saving || !onConfigChange, run: () => {},
         children: EDITOR_FOLD_PRESETS.map(preset => ({ label: preset.label, checked: editorFoldPreset(foldConfig) === preset.id,
           disabled: saving, keepOpen: true, run: () => { void save(editorFoldPresetPatch(preset.id)); } })) },
       { label: "代码块行号", group: "代码块", checked: preferences.lineNumbers === true, keepOpen: true,

@@ -15,6 +15,7 @@ function read() {
     relativeBlockNumbers: preferences.relativeBlockNumbers === true,
     relativeSourceLineNumbers: preferences.relativeSourceLineNumbers === true,
     sourceFoldGutter: preferences.sourceFoldGutter !== false,
+    renderedFoldGutter: preferences.renderedFoldGutter !== false,
     sourceFoldConnectorStyle: preferences.sourceFoldConnectorStyle ?? "solid",
     sourceFoldConnectorWidth: preferences.sourceFoldConnectorWidth ?? 2,
     sourceFoldConnectorOpacity: preferences.sourceFoldConnectorOpacity ?? 100,
@@ -30,6 +31,7 @@ export function useRelativeNumbering() {
         old.relativeBlockNumbers === next.relativeBlockNumbers &&
         old.relativeSourceLineNumbers === next.relativeSourceLineNumbers &&
         old.sourceFoldGutter === next.sourceFoldGutter &&
+        old.renderedFoldGutter === next.renderedFoldGutter &&
         old.sourceFoldConnectorStyle === next.sourceFoldConnectorStyle &&
         old.sourceFoldConnectorWidth === next.sourceFoldConnectorWidth &&
         old.sourceFoldConnectorOpacity === next.sourceFoldConnectorOpacity &&
@@ -51,6 +53,7 @@ export function useRelativeNumbering() {
   }, []);
   return {
     sourceFoldGutter: value.sourceFoldGutter,
+    renderedFoldGutter: value.renderedFoldGutter,
     sourceFoldConnectorStyle: value.sourceFoldConnectorStyle,
     sourceFoldConnectorWidth: value.sourceFoldConnectorWidth,
     sourceFoldConnectorOpacity: value.sourceFoldConnectorOpacity,

@@ -262,7 +262,7 @@ export function ReadonlyVirtualNote(
       reportSelection.current?.({ from: position, to: position });
     }
   }, [blocks, currentNumber]);
-  const { relativeBlockNumbers, relativeBlockNumberAlignment } = useRelativeNumbering();
+  const { relativeBlockNumbers, relativeBlockNumberAlignment, renderedFoldGutter } = useRelativeNumbering();
   const visibleNumbers = useMemo(() => relativeBlockNumbers ? blocks.map(block => block.number) : [], [blocks, relativeBlockNumbers]);
   const closeBlockMenu = useCallback(() => setBlockMenu(null), []);
   useEffect(() => { setBlockMenu(null); }, [doc, active]);
@@ -1457,7 +1457,7 @@ export function ReadonlyVirtualNote(
               >
                 <ReadingBlockGutter node={block.node} number={block.number}
                   displayNumber={relativeBlockNumbers ? relativeNumber(block.number, currentNumber, visibleNumbers) : block.number}
-                  active={block.number === currentNumber} showNumbers={props.showLineNumbers} relative={relativeBlockNumbers} alignment={relativeBlockNumberAlignment}
+                  active={block.number === currentNumber} showFolds={renderedFoldGutter} showNumbers={props.showLineNumbers} relative={relativeBlockNumbers} alignment={relativeBlockNumberAlignment}
                   section={section} folded={!!section && folds.has(section.key)} onToggleFold={() => toggleHeading(block.pos)}
                   onOpen={trigger => setBlockMenu(current => current?.position === block.pos && current.doc === doc ? null : { position: block.pos, number: block.number, trigger, doc })} />
                 <div className={`ProseMirror vr-block${block.number === currentNumber ? " ProseMirror-activeline" : ""}`} contentEditable={false}>

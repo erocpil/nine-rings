@@ -94,7 +94,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
   const [blocks, setBlocks] = useState<GutterBlock[]>([]);
   const [currentNumber, setCurrentNumber] = useState(1);
   const [visibleNumbers, setVisibleNumbers] = useState<readonly number[]>([]);
-  const { relativeBlockNumbers, relativeBlockNumberAlignment } = useRelativeNumbering();
+  const { relativeBlockNumbers, relativeBlockNumberAlignment, renderedFoldGutter } = useRelativeNumbering();
   const selectingBlocks = selectedBlockIndexes.length > 0;
 
   useEffect(() => {
@@ -802,7 +802,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           title={`第 ${block.index} 块有书签`}
         />
       ))}
-      {selectedBlockIndexes.length === 0 && onHeadingFoldToggle && blocks.filter((block) => block.foldable).map((block) => {
+      {renderedFoldGutter && selectedBlockIndexes.length === 0 && onHeadingFoldToggle && blocks.filter((block) => block.foldable).map((block) => {
         const host = foldHosts.get(block.pos);
         if (!host?.isConnected) return null;
         return createPortal(

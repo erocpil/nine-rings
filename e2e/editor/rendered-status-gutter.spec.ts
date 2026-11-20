@@ -50,12 +50,32 @@ for (const virtual of [false, true]) for (const style of ["classic", "calm"]) te
   await page.keyboard.press("Escape");
   await expect(page.locator(".note-editor:visible .editor-fold-symbol").first()).toHaveText("−");
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config") ?? "{}").editor_fold_icon_collapsed)).toBe("+");
+  const folds = page.locator(".note-editor:visible .editor-heading-fold, .note-editor:visible .vr-gutter > button[aria-expanded]");
+  await expect(folds).toHaveCount(1);
+  if (await trigger.getAttribute("aria-expanded") == "true") {
+    await trigger.click();
+    await expect(menu).toHaveCount(0);
+  }
+  await trigger.click();
+  await menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true }).click();
+  await expect(menu).toBeVisible();
+  await expect(folds).toHaveCount(0);
+  await expect(page.locator(".note-editor:visible")).toHaveClass(/show-line-numbers/);
+  await expect(menu.getByRole("menuitem", { name: /^默认折叠图标/ })).toBeDisabled();
+  await page.keyboard.press("Escape");
   expect(await savedContent()).toBe(before);
   await page.reload();
+  await expect(folds).toHaveCount(0);
   await trigger.click();
   await expect(menu.getByRole("menuitemcheckbox", { name: "显示块号", exact: true })).toHaveAttribute("aria-checked", "true");
   await expect(menu.getByRole("menuitemcheckbox", { name: "相对块号", exact: true })).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
+  await trigger.click();
+  await expect(menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true })).toHaveAttribute("aria-checked", "false");
+  await menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(folds).toHaveCount(1);
+  expect(await savedContent()).toBe(before);
   await page.evaluate(async () => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { pluginRuntime } = await load("/src/lib/plugin-system/runtime.ts");

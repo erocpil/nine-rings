@@ -3054,15 +3054,29 @@ for (const readonly of [true, false]) test(`Markdown 渲染状态栏共用块号
   expect(await body.evaluate(element => JSON.stringify((element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor.state.doc.toJSON()))).toBe(before);
   await expect(page.getByLabel("未保存修改", { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+  if (await trigger.getAttribute("aria-expanded") == "true") {
+    await trigger.click();
+    await expect(menu).toHaveCount(0);
+  }
+  await trigger.click();
+  await menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true }).click();
+  await expect(view.locator(".editor-heading-fold")).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
   await page.getByRole("button", { name: "行号与折叠设置", exact: true }).click();
   await expect(page.getByRole("menu", { name: "行号与折叠设置", exact: true }).getByRole("menuitemcheckbox", { name: "显示行号", exact: true })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("menu", { name: "行号与折叠设置", exact: true }).getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true })).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
   await page.reload();
   // The last explicit source/render choice survives restart as well.
   await expect(page.locator(".workbench-source-session:visible")).toBeVisible();
   await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
   await expect(view).toBeVisible();
+  await expect(view.locator(".editor-heading-fold")).toHaveCount(0);
+  await trigger.click();
+  await expect(menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true })).toHaveAttribute("aria-checked", "false");
+  await menu.getByRole("menuitemcheckbox", { name: "显示折叠图标", exact: true }).click();
+  await page.keyboard.press("Escape");
   await expect(view.locator("h2 .editor-heading-fold")).toContainText("−");
   expect(await page.evaluate(() => (window as any).__editorFixture.sources["alpha.c"])).toBe(original);
   await page.evaluate(() => {

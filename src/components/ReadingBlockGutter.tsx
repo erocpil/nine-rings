@@ -6,12 +6,13 @@ import { BlockNumber } from "./BlockNumber";
 import { EditorFoldIcon } from "./EditorFoldIcon";
 
 /** Both database and disk readers use the same block identity and controls. */
-export function ReadingBlockGutter({ node, number, displayNumber, active, showNumbers, relative, alignment, section, folded, onToggleFold, onOpen }: {
+export function ReadingBlockGutter({ node, number, displayNumber, active, showNumbers, showFolds = true, relative, alignment, section, folded, onToggleFold, onOpen }: {
   node: PMNode;
   number: number;
   displayNumber: number;
   active: boolean;
   showNumbers: boolean;
+  showFolds?: boolean;
   relative: boolean;
   alignment: "left" | "right";
   section?: HeadingSection;
@@ -24,7 +25,7 @@ export function ReadingBlockGutter({ node, number, displayNumber, active, showNu
     {!showNumbers && <button type="button" className="editor-block-menu-target" aria-label={`第 ${number} 块操作`} aria-haspopup="menu"
       onMouseDown={event => event.preventDefault()} onClick={event => { event.stopPropagation(); onOpen(event.currentTarget); }} />}
     <div className="vr-gutter" contentEditable={false}>
-      {section && section.end > section.headingEnd && <button type="button" aria-label={`折叠切换 ${outlineLabel(section.text)}`} aria-expanded={!folded}
+      {showFolds && section && section.end > section.headingEnd && <button type="button" aria-label={`折叠切换 ${outlineLabel(section.text)}`} aria-expanded={!folded}
         title={folded ? "展开本节" : "折叠本节"} onMouseDown={event => event.preventDefault()}
         onClick={event => { event.stopPropagation(); onToggleFold(); }}>
         <EditorFoldIcon scope="heading" expanded={!folded} />

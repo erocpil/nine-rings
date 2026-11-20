@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { blockWorkspacePreferences } from "../../src/lib/block-display-settings";
+import {
+  blockWorkspacePreferences,
+  foldGutterVisibilityAction,
+} from "../../src/lib/block-display-settings";
 
 describe("status bar idle glow preferences", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -63,5 +66,47 @@ describe("status bar idle glow preferences", () => {
     expect(
       blockWorkspacePreferences().sourceFoldConnectorOpacity,
     ).toBeUndefined();
+  });
+});
+
+describe("fold gutter visibility", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("persists source and rendered visibility independently and leaves existing preferences intact", () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    });
+    vi.stubGlobal("document", {
+      documentElement: { style: { setProperty: vi.fn() } },
+    });
+    const dispatchEvent = vi.fn();
+    vi.stubGlobal("window", { dispatchEvent });
+    expect(blockWorkspacePreferences().renderedFoldGutter).toBeUndefined();
+    values.set(
+      "nr:blockWorkspaceDisplay",
+      JSON.stringify({ relativeBlockNumbers: true, sourceFoldGutter: true }),
+    );
+    const hide = foldGutterVisibilityAction("rendered", true);
+    expect(hide).toMatchObject({ checked: true, keepOpen: true });
+    hide.run();
+    expect(blockWorkspacePreferences()).toMatchObject({
+      renderedFoldGutter: false,
+      sourceFoldGutter: true,
+      relativeBlockNumbers: true,
+    });
+    foldGutterVisibilityAction("source", true).run();
+    foldGutterVisibilityAction("rendered", false).run();
+    expect(blockWorkspacePreferences()).toMatchObject({
+      renderedFoldGutter: true,
+      sourceFoldGutter: false,
+    });
+    expect(dispatchEvent).toHaveBeenCalledTimes(3);
+    values.set(
+      "nr:blockWorkspaceDisplay",
+      JSON.stringify({ renderedFoldGutter: "false" }),
+    );
+    expect(blockWorkspacePreferences().renderedFoldGutter).toBeUndefined();
   });
 });

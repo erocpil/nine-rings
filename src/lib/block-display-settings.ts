@@ -5,7 +5,7 @@ export type StatusBarIdleGlowIntensity = "soft" | "balanced" | "prominent";
 export type SourceFoldConnectorStyle = "solid" | "dashed" | "dotted" | "none";
 export type SourceFoldConnectorWidth = 1 | 2 | 3 | 4;
 export type SourceFoldConnectorOpacity = 25 | 50 | 75 | 100;
-export type WorkspacePreferences = { sourceLineNumbers?: boolean; sourceFoldGutter?: boolean; sourceFoldConnectorStyle?: SourceFoldConnectorStyle; sourceFoldConnectorWidth?: SourceFoldConnectorWidth; sourceFoldConnectorOpacity?: SourceFoldConnectorOpacity; sourceWhitespace?: boolean; quoteAlertColors?: "semantic" | "style"; mermaidDisplay?: "fit" | "scroll"; fontSize?: number; tabSize?: number; sourceIndentStyle?: "tabs" | "spaces"; whitespace?: "off" | "all" | "abnormal"; lineNumbers?: boolean; wrap?: boolean; listFollowupIndent?: boolean; statusBarInFocus?: boolean; statusBarTotals?: boolean; statusBarIdleGlow?: boolean; statusBarIdleDelaySeconds?: 15 | 30 | 60 | 120; statusBarIdleGlowIntensity?: StatusBarIdleGlowIntensity; sourceMicroRendering?: boolean; sourceSyntaxHighlighting?: boolean; relativeBlockNumbers?: boolean; relativeSourceLineNumbers?: boolean; relativeBlockNumberAlignment?: "left" | "right"; relativeSourceLineNumberAlignment?: "left" | "right" };
+export type WorkspacePreferences = { renderedFoldGutter?: boolean; sourceLineNumbers?: boolean; sourceFoldGutter?: boolean; sourceFoldConnectorStyle?: SourceFoldConnectorStyle; sourceFoldConnectorWidth?: SourceFoldConnectorWidth; sourceFoldConnectorOpacity?: SourceFoldConnectorOpacity; sourceWhitespace?: boolean; quoteAlertColors?: "semantic" | "style"; mermaidDisplay?: "fit" | "scroll"; fontSize?: number; tabSize?: number; sourceIndentStyle?: "tabs" | "spaces"; whitespace?: "off" | "all" | "abnormal"; lineNumbers?: boolean; wrap?: boolean; listFollowupIndent?: boolean; statusBarInFocus?: boolean; statusBarTotals?: boolean; statusBarIdleGlow?: boolean; statusBarIdleDelaySeconds?: 15 | 30 | 60 | 120; statusBarIdleGlowIntensity?: StatusBarIdleGlowIntensity; sourceMicroRendering?: boolean; sourceSyntaxHighlighting?: boolean; relativeBlockNumbers?: boolean; relativeSourceLineNumbers?: boolean; relativeBlockNumberAlignment?: "left" | "right"; relativeSourceLineNumberAlignment?: "left" | "right" };
 const WORKSPACE_KEY = "nr:blockWorkspaceDisplay";
 const CODE_LINE_NUMBERS_KEY = "nr:codeLineNumbers";
 export function codeLineNumbersEnabled(): boolean {
@@ -42,6 +42,7 @@ export function blockWorkspacePreferences(): WorkspacePreferences {
     if (typeof value.relativeBlockNumbers === "boolean") preferences.relativeBlockNumbers = value.relativeBlockNumbers;
     if (typeof value.relativeSourceLineNumbers === "boolean") preferences.relativeSourceLineNumbers = value.relativeSourceLineNumbers;
     if (typeof value.sourceLineNumbers === "boolean") preferences.sourceLineNumbers = value.sourceLineNumbers;
+    if (typeof value.renderedFoldGutter === "boolean") preferences.renderedFoldGutter = value.renderedFoldGutter;
     if (typeof value.sourceFoldGutter === "boolean") preferences.sourceFoldGutter = value.sourceFoldGutter;
     if (value.sourceFoldConnectorStyle === "solid" || value.sourceFoldConnectorStyle === "dashed" || value.sourceFoldConnectorStyle === "dotted" || value.sourceFoldConnectorStyle === "none") preferences.sourceFoldConnectorStyle = value.sourceFoldConnectorStyle;
     if (value.sourceFoldConnectorWidth === 1 || value.sourceFoldConnectorWidth === 2 || value.sourceFoldConnectorWidth === 3 || value.sourceFoldConnectorWidth === 4) preferences.sourceFoldConnectorWidth = value.sourceFoldConnectorWidth;
@@ -107,4 +108,10 @@ export function watchBlockDisplaySettings() {
   apply();
   window.addEventListener("storage", apply);
   return () => window.removeEventListener("storage", apply);
+}
+
+/** Shared status-menu action; source and rendered gutters keep independent preferences. */
+export function foldGutterVisibilityAction(target: "source" | "rendered", visible: boolean) {
+  return { label: "显示折叠图标", group: "折叠", checked: visible, keepOpen: true,
+    run: () => saveBlockWorkspacePreferences(target === "source" ? { sourceFoldGutter: !visible } : { renderedFoldGutter: !visible }) };
 }

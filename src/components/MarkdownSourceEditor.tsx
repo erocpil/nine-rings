@@ -148,6 +148,7 @@ import { SourceEditorHandle } from "../lib/source-editor-handle";
 import {
   BLOCK_WORKSPACE_DISPLAY_EVENT,
   blockWorkspacePreferences,
+  foldGutterVisibilityAction,
   saveBlockWorkspacePreferences,
 } from "../lib/block-display-settings";
 import type { SourceEditRange } from "../lib/markdown-source-navigation";
@@ -1201,16 +1202,7 @@ export function MarkdownSourceEditor({
                   }),
               })),
             },
-            {
-              label: "显示折叠图标",
-              group: "折叠图标",
-              checked: preferences.sourceFoldGutter !== false,
-              keepOpen: true,
-              run: () =>
-                saveBlockWorkspacePreferences({
-                  sourceFoldGutter: preferences.sourceFoldGutter === false,
-                }),
-            },
+            foldGutterVisibilityAction("source", preferences.sourceFoldGutter !== false),
             {
               label: "折叠图标样式",
               disabled:
