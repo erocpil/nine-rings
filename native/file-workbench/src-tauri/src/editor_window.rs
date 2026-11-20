@@ -321,6 +321,20 @@ fn disk_editor_file(
     })
 }
 
+pub(crate) fn open_native_path(
+    app: &tauri::AppHandle,
+    normalized: &std::path::Path,
+    root_id: String,
+    node: String,
+) -> Result<(), String> {
+    let main = app.get_webview_window("main").ok_or("文件浏览窗口不可用")?;
+    let file = disk_editor_file(main, app, root_id, node, None)?;
+    if std::path::Path::new(&file.id) != normalized {
+        return Err("目录授权已变化，请重新打开文件".into());
+    }
+    publish_file(app, file, true)
+}
+
 pub fn publish_file(app: &tauri::AppHandle, file: EditorFile, protect: bool) -> Result<(), String> {
     let owner = app.state::<EditorWindows>();
     let _restore = owner.4.lock().map_err(|_| "编辑器恢复状态不可用")?;

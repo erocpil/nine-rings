@@ -32,6 +32,22 @@
     "targets": [
       "app"
     ],
+    "fileAssociations": [
+      {
+        "ext": ["md", "markdown"],
+        "contentTypes": ["net.daringfireball.markdown"],
+        "name": "Markdown",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["txt"],
+        "contentTypes": ["public.plain-text"],
+        "name": "Plain Text",
+        "role": "Editor",
+        "rank": "Alternate"
+      }
+    ],
     "macOS": {
       "minimumSystemVersion": "11.0",
       "infoPlist": "Info.plist"

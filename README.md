@@ -181,6 +181,10 @@ npx vite --port 8000
 
 `bash scripts/with-local-tools.sh npm run tauri:workbench -- dev` 启动独立桌面开发版；macOS ARM64 构建使用 `bash scripts/with-local-tools.sh npm run tauri:workbench -- build --target aarch64-apple-darwin --bundles app -- --locked`。共享原生文件服务在 `native/file-host/`，授权与草稿使用独立应用数据。
 
+构建生成的 `File Workbench.app` 位于 `.local-tools/target/aarch64-apple-darwin/release/bundle/macos/`。如已安装旧版，请先退出正在运行的 Workbench，再用新包替换 `/Applications` 里的应用。运行中的旧实例可能接收新进程转发的打开请求。
+
+安装后可以从 Finder 的「打开方式」选择 File Workbench 打开 Markdown 或纯文本，也可以运行 `open -a "/Applications/File Workbench.app" "$PWD/notes.md"`。直接运行应用包内的 `Contents/MacOS/file-workbench` 时，可传入多个文件路径，支持按调用目录解析相对路径。请先在 File Workbench 授权文件所在目录。已经打开的文件会激活原标签。
+
 `npm run build:workbench` 输出到 `.local-tools/file-workbench-dist/`，不会覆盖 Nine Rings 构建。范围、限制及后续步骤见[独立产品计划](docs/future-evolution/dual-pane-standalone.md)。
 
 ### Web 构建

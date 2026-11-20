@@ -3,6 +3,7 @@ mod buffers;
 mod close_policy;
 mod editor_session;
 mod editor_window;
+mod external_open;
 #[cfg(target_os = "macos")]
 mod macos_zoom;
 mod tools;
@@ -137,17 +138,25 @@ fn toggle_workbench(app: &tauri::AppHandle) {
     }
 }
 fn main() {
+    let (open_requests, requests) = tauri::async_runtime::channel(32);
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            show_last_window(app);
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            let paths = external_open::argument_paths(
+                argv.into_iter().skip(1).map(std::ffi::OsString::from),
+                std::path::Path::new(&cwd),
+            );
+            if !external_open::submit(app, paths) {
+                show_last_window(app);
+            }
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(ClosePolicy::default())
         .manage(window_activation::WindowActivation::default())
         .manage(editor_window::EditorWindows::default())
+        .manage(external_open::Requests(open_requests))
         .manage(nine_rings_file_host::window_access::FileWindowAccess::default())
         .manage(tools::ToolJobs::default())
-        .setup(|app| {
+        .setup(move |app| {
             view_menu::install(app)?;
             #[cfg(target_os = "macos")]
             if let Some(window) = app.get_webview_window("main") {
@@ -203,12 +212,12 @@ fn main() {
             app.state::<editor_session::EditorSessionStore>()
                 .restoring
                 .store(true, std::sync::atomic::Ordering::SeqCst);
-            let handle = app.handle().clone();
-            tauri::async_runtime::spawn_blocking(move || {
-                if let Err(error) = editor_window::restore(&handle) {
-                    eprintln!("Editor restore: {error}");
-                }
-            });
+            let cwd = std::env::current_dir().unwrap_or_default();
+            external_open::submit(
+                app.handle(),
+                external_open::argument_paths(std::env::args_os().skip(1), &cwd),
+            );
+            tauri::async_runtime::spawn(external_open::process(app.handle().clone(), requests));
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -292,6 +301,10 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("failed to build File Workbench")
         .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = &event {
+                external_open::submit(app, urls.iter().filter_map(|url| url.to_file_path().ok()));
+            }
             #[cfg(target_os = "macos")]
             if matches!(event, tauri::RunEvent::Exit) {
                 macos_zoom::remove();
