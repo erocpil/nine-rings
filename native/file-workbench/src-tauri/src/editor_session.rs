@@ -115,19 +115,24 @@ impl EditorSessionStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::AtomicU64;
+
     struct Fixture(PathBuf);
     impl Fixture {
         fn new() -> Self {
-            let dir = std::env::temp_dir().join(format!(
-                "workbench-session-{}-{}",
-                std::process::id(),
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_nanos()
-            ));
-            fs::create_dir_all(&dir).unwrap();
-            Self(dir)
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+            loop {
+                let dir = std::env::temp_dir().join(format!(
+                    "workbench-session-{}-{}",
+                    std::process::id(),
+                    NEXT.fetch_add(1, Ordering::Relaxed),
+                ));
+                match fs::create_dir(&dir) {
+                    Ok(()) => return Self(dir),
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                    Err(error) => panic!("cannot create editor session fixture: {error}"),
+                }
+            }
         }
         fn store(&self) -> EditorSessionStore {
             EditorSessionStore::load(&self.0.join("session.json")).unwrap()
