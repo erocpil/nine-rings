@@ -377,7 +377,7 @@ fn publish_restored_file(
     }
     // The creation mutex serializes publication while WebView construction runs off the UI thread.
     let access = app.state::<FileWindowAccess>();
-    let existing = self::window(&app);
+    let existing = self::window(app);
     let label = existing
         .as_ref()
         .map(|window| window.label().to_string())
@@ -457,14 +457,14 @@ fn publish_restored_file(
                 access.revoke_editor(&label);
                 state.0.lock().map_err(|_| "编辑器状态不可用")?.clear();
                 *state.2.lock().map_err(|_| "编辑器窗口状态不可用")? = None;
-                publish_presence(&app);
+                publish_presence(app);
                 return Err(error.to_string());
             }
         }
     };
     grant.0 = None;
-    publish_presence(&app);
-    changed(&app);
+    publish_presence(app);
+    changed(app);
     if source_id.is_none() {
         target.unminimize().map_err(|e| e.to_string())?;
         target.show().map_err(|e| e.to_string())?;

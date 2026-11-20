@@ -183,11 +183,15 @@ mod tests {
         let fixture = Fixture::new();
         let store = fixture.store();
         let file = file("a.c");
-        store.save(&[file.clone()], Some(&file.id)).unwrap();
+        store
+            .save(std::slice::from_ref(&file), Some(&file.id))
+            .unwrap();
         assert!(store
             .save(&[file.clone(), file.clone()], Some(&file.id))
             .is_err());
-        assert!(store.save(&[file.clone()], Some("missing")).is_err());
+        assert!(store
+            .save(std::slice::from_ref(&file), Some("missing"))
+            .is_err());
         fs::create_dir(fixture.0.join("session.tmp")).unwrap();
         assert!(store.save(&[], None).is_err());
         assert_eq!(fixture.store().read().unwrap().unwrap().files.len(), 1);
