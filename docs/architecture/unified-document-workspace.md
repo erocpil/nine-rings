@@ -1,6 +1,6 @@
 # 统一文档工作区
 
-更新：2026-11-14。
+更新：2026-11-20。
 
 ## 目标与当前结构
 
@@ -100,3 +100,20 @@ WorkbenchSourceView通过LocalMarkdownWorkspace接入同一渲染工作区，包
 
 
 文件适配器禁止从跨实例的编辑器辅助缓存恢复正文，以免覆盖明确的磁盘基线／草稿选择；重新打开后先显示磁盘版本，只有确认恢复才采用草稿。恢复到源码必须同时开启其按需挂载状态。数据库文档保持原有缓存行为。独立工作台不具备原生PDF打印宿主，按能力隐藏相关入口，Markdown导出委托文件端口；相对链接不得绕过离开保护。
+
+## 显示偏好与宿主恢复边界
+
+正文、显示偏好和打开清单由不同边界维护，修改一项不能顺带重置另外两项。
+
+| 状态 | 实现入口 | 约束 |
+| --- | --- | --- |
+| 更多工具展开状态 | `useFocusEditorTools`、Workbench `toolbar-preferences.ts` | 源码与渲染共用 store；Workbench 启动时装配持久化适配器、跨窗口监听和卸载清理，不改变 Nine Rings 原有生命周期策略。写入失败不先改变界面。 |
+| 行号、块号及折叠图标可见性 | `block-display-settings.ts`、`useRelativeNumbering`、`RenderedGutterSettings` | `nr:blockWorkspaceDisplay` 保存共享偏好；`sourceFoldGutter` 和 `renderedFoldGutter` 分别记忆，缺省均显示。隐藏只影响正文编号栏按钮，不重置折叠、不隐藏目录三角或块内工具。 |
+| 折叠图标样式与编号展示 | AppConfig、`EditorFoldIconContext`、编号插件 | 与可见性分开；沿用既有插件接管及禁用规则，不由菜单另建样式权威。 |
+| Workbench 打开文件清单 | `editor_session.rs`、`editor_window.rs` | 原生修订快照拥有打开顺序、活动文件与退出确认；退出保留清单，主动关闭才移除。未命名正文由 `buffers.rs` 持久化，显示偏好不能替代草稿保存。 |
+
+源码状态菜单和渲染状态菜单复用 `foldGutterVisibilityAction`。完整渲染通过 `EditorBlockGutter`，局部只读通过 `ReadingBlockGutter` 应用同一可见性；磁盘渲染由 `LocalMarkdownWorkspace` 接入公共渲染器，不另写菜单及图标规则。
+
+选区工具由宿主挂载共享 `SelectionHoverToolbar`，命令回到活动编辑器。只读允许选择／复制／导航，不写正文。右键菜单保留原选区；已有下级菜单打开时父工具集保持可见且不透明。菜单链的归属与完成通知由 `editor-context-chain.ts` 协调，不能只关闭叶子弹层而遗留父级状态。
+
+文件名仅是定位线索；上述文件位于 `src/` 和 `native/file-workbench/src-tauri/src/`，使用仓库搜索确定当前路径。针对性验证与未解决问题见[开发交接](../development/session-handoff.md)。
