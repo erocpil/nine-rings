@@ -1,57 +1,57 @@
+import {
+  createDocumentInWorkspace,
+  setRenderedFixture,
+  waitForSavedText,
+} from "../helpers/document";
 import { expect, test, type Page } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
+import {
+  closeDocumentSidebar,
+  openDocumentSidebar,
+} from "../helpers/workspace";
 
 async function fixture(page: Page, virtual = false) {
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 20000 });
-  await page.evaluate(async (virtual) => {
-    const load = (p: string) =>
-      import(
-        /* @vite-ignore */ performance
-          .getEntriesByType("resource")
-          .map((e) => e.name)
-          .find((u) => new URL(u).pathname === p) ?? p
-      );
-    const { api } = await load("/src/lib/api.ts");
-    const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
-    const p = (text: string) => ({
-      type: "paragraph",
-      content: [{ type: "text", text }],
-    });
-    const code = (text: string) => ({
-      type: "codeBlock",
-      attrs: { language: "python" },
-      content: [{ type: "text", text }],
-    });
-    const note = await api.notes.create({
-      title: "布局与缩进验证",
-      storagePath: "tests",
-      content: {
-        type: "doc",
-        content: [
-          {
-            type: "heading",
-            attrs: { level: 1 },
-            content: [{ type: "text", text: "章节" }],
-          },
-          {
-            type: "bulletList",
-            content: [{ type: "listItem", content: [p("列表条目")] }],
-          },
-          code("print(1)"),
-          { type: "blockquote", content: [p("列表补充说明")] },
-          code("print(2)"),
-          p("独立正文"),
-          code("print(3)"),
-        ],
+  await expect(page.locator(".note-editor")).toBeVisible();
+  const restoreSidebar = await page
+    .locator(".app-sidebar")
+    .evaluate((element) => element.classList.contains("sidebar-hidden"));
+  await openDocumentSidebar(page);
+  await createDocumentInWorkspace(page, "布局与缩进验证");
+  if (restoreSidebar) await closeDocumentSidebar(page);
+  const p = (text: string) => ({
+    type: "paragraph",
+    content: [{ type: "text", text }],
+  });
+  const code = (text: string) => ({
+    type: "codeBlock",
+    attrs: { language: "python" },
+    content: [{ type: "text", text }],
+  });
+  await setRenderedFixture(page, {
+    type: "doc",
+    content: [
+      {
+        type: "heading",
+        attrs: { level: 1 },
+        content: [{ type: "text", text: "章节" }],
       },
-    });
-    if (virtual) {
-      localStorage.setItem("nr:experimentalReadonlyRendering", "true");
-      await api.notes.update(note.id, { readonly: true });
-    }
-    useNotesStore.getState().selectNote(await api.notes.get(note.id));
-  }, virtual);
+      {
+        type: "bulletList",
+        content: [{ type: "listItem", content: [p("列表条目")] }],
+      },
+      code("print(1)"),
+      { type: "blockquote", content: [p("列表补充说明")] },
+      code("print(2)"),
+      p("独立正文"),
+      code("print(3)"),
+    ],
+  });
+  await waitForSavedText(page, "独立正文");
+  if (virtual)
+    await page
+      .getByRole("button", { name: "点击设为只读", exact: true })
+      .click();
   if (virtual)
     await expect(page.locator(".vr-title")).toContainText("布局与缩进验证");
   else await expect(page.locator(".note-title")).toHaveValue("布局与缩进验证");

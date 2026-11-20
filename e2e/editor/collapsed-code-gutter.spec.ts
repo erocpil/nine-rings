@@ -1,3 +1,4 @@
+import { setRenderedFixture } from "../helpers/document";
 import { scrollEditorBlockTo } from "../helpers/editor-scroll";
 import { expect, test } from "@playwright/test";
 
@@ -40,75 +41,58 @@ for (const width of [1280, 390])
           };
         }, delayed);
         await page.goto("/");
-        await expect(page.locator(".ProseMirror")).toBeVisible();
-        await page.evaluate(async () => {
-          const load = (path: string) =>
-            import(
-              /* @vite-ignore */ performance
-                .getEntriesByType("resource")
-                .map((e) => e.name)
-                .find((url) => new URL(url).pathname === path) ?? path
-            );
-          const { api } = await load("/src/lib/api.ts");
-          const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
-          const paragraph = (text: string) => ({
-            type: "paragraph",
-            content: [{ type: "text", text }],
-          });
-          const list = {
-            type: "bulletList",
-            content: [
-              {
-                type: "listItem",
-                content: [paragraph("200 Number of Islands")],
-              },
-            ],
-          };
-          const code = {
-            type: "codeBlock",
-            attrs: { language: "python", collapsed: true },
-            content: [
-              {
-                type: "text",
-                text: Array.from({ length: 40 }, (_, i) => `print(${i})`).join(
-                  "\n",
-                ),
-              },
-            ],
-          };
-          const note = await api.notes.create({
-            title: "折叠代码块号",
-            date: useNotesStore.getState().currentDate,
-            storagePath: "tests",
-            content: {
-              type: "doc",
-              content: [
-                ...Array.from({ length: 399 }, (_, i) =>
-                  paragraph(`前文 ${i + 1}`),
-                ),
-                list,
-                code,
-                {
-                  type: "heading",
-                  attrs: { level: 2 },
-                  content: [{ type: "text", text: "Recursive State" }],
-                },
-                list,
-                code,
-                paragraph("后续正文"),
-                ...Array.from({ length: 30 }, (_, i) =>
-                  paragraph(`后文 ${i + 1}`),
-                ),
-              ],
-            },
-          });
-          useNotesStore.getState().selectNote(note);
+        const paragraph = (text: string) => ({
+          type: "paragraph",
+          content: [{ type: "text", text }],
         });
-        await expect(page.locator(".note-title")).toHaveValue("折叠代码块号");
+        const list = {
+          type: "bulletList",
+          content: [
+            {
+              type: "listItem",
+              content: [paragraph("200 Number of Islands")],
+            },
+          ],
+        };
+        const codeBlock = {
+          type: "codeBlock",
+          attrs: { language: "python", collapsed: true },
+          content: [
+            {
+              type: "text",
+              text: Array.from({ length: 40 }, (_, i) => `print(${i})`).join(
+                "\n",
+              ),
+            },
+          ],
+        };
+        await setRenderedFixture(page, {
+          type: "doc",
+          content: [
+            ...Array.from({ length: 399 }, (_, i) =>
+              paragraph(`前文 ${i + 1}`),
+            ),
+            list,
+            codeBlock,
+            {
+              type: "heading",
+              attrs: { level: 2 },
+              content: [{ type: "text", text: "Recursive State" }],
+            },
+            list,
+            codeBlock,
+            paragraph("后续正文"),
+            ...Array.from({ length: 30 }, (_, i) => paragraph(`后文 ${i + 1}`)),
+          ],
+        });
         const editor = page.locator(".ProseMirror");
         const code = editor.locator(".code-block-wrap").first();
         const align = async () => {
-          await scrollEditorBlockTo(page, editor.locator(":scope > *").nth(399), 170);
+          await scrollEditorBlockTo(
+            page,
+            editor.locator(":scope > *").nth(399),
+            170,
+          );
           await page.waitForTimeout(450);
         };
         const check = async () => {

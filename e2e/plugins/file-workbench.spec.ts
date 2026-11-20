@@ -2267,7 +2267,8 @@ test("固定导航面板拖拽布局随文件切换与重载恢复，同词仅�
   const workspace = page.getByRole("region", { name: "文件源码工作区" });
   const checkDockTitle = async (source: boolean, groupCount: number) => {
     for (const side of ["left", "right"]) {
-      await page.evaluate(async side => (await import("/src/lib/workspace-layout.ts")).saveWorkspaceLayout({ panelsSide: side }), side);
+      const toggle = workspace.getByRole("button", { name: "切换固定面板位置", exact: true });
+      if ((await toggle.getAttribute("aria-pressed")) !== String(side === "left")) await toggle.click();
       await expect(dock).toHaveClass(new RegExp(`dock-${side}`));
       for (const palette of ["light", "dark", "calm", "mono-aware"]) {
         await page.evaluate(palette => { document.documentElement.dataset.workbenchPalette = palette; }, palette);
@@ -2380,51 +2381,54 @@ test("集中快捷键可录制、冲突提示、取消与持久化，操作仍�
   await expect(browser.getByRole("button", { name: "快速预览", exact: true })).toHaveAttribute("title", /F3/);
 });
 
-test("目录大小仅手动扫描，包含隐藏项和子目录，复用缓存并在刷新后失效", async ({ page, browserName }) => {
-  await page.goto("/file-workbench.html");
-  const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
-  await browser.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
-  await expect(browser.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /alpha.c/ })).toBeVisible();
-  await page.evaluate(async () => {
-    const { localFileService } = await import("/src/lib/local-files/service.ts");
-    const original = localFileService.list.bind(localFileService);
-    (window as any).__sizePages = 0;
-    localFileService.list = async (...args: Parameters<typeof original>) => {
-      if (args[3]?.showHidden) (window as any).__sizePages++;
-      return original(...args);
+test("目录大小仅手动扫描，包含隐藏项和子目录，复用缓存并在刷新后失效", async ({ page }) => {
+  await page.addInitScript(() => {
+    const state = { pages: 0, hold: false, finish: undefined as (() => void) | undefined };
+    (window as any).__sizeFixture = state;
+    (window as any).__TAURI_INTERNALS__ = {
+      transformCallback: () => 1,
+      async invoke(command: string, args: { node: string; options?: { showHidden: boolean } }) {
+        if (command === "plugin:event|listen") return 1;
+        if (command === "local_files_roots") return [{ id: "root", name: "目录大小样本" }];
+        if (command === "local_files_display_path") return "/sample";
+        if (command !== "local_files_list") return;
+        const entries = args.node ? ["guide.md"] : ["alpha.c", "large.txt", "sub", ".secret"];
+        if (args.options?.showHidden) {
+          state.pages++;
+          if (state.hold) await new Promise<void>(resolve => { state.finish = resolve; });
+        }
+        return { nodes: entries.filter(name => args.options?.showHidden || !name.startsWith(".")).map(name => ({
+          id: args.node ? `${args.node}/${name}` : name, name, directory: name === "sub", size: name === "sub" ? 0 : 8, modifiedMs: 1,
+        })), next: null };
+      },
     };
   });
+  await page.goto("/file-workbench.html");
+  const browser = page.getByRole("region", { name: "双栏文件浏览", exact: true });
+  await expect(browser.getByRole("region", { name: "左侧目录", exact: true }).getByRole("option", { name: /alpha.c/ })).toBeVisible();
   const open = () => browser.getByRole("button", { name: "统计当前目录大小", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "目录大小", exact: true });
+  const pages = () => page.evaluate(() => (window as any).__sizeFixture.pages);
   await open();
-  expect(await page.evaluate(() => (window as any).__sizePages)).toBe(0);
+  expect(await pages()).toBe(0);
   await dialog.getByRole("button", { name: "开始统计", exact: true }).click();
   await expect(dialog.getByRole("status")).toContainText("统计完成");
-  // WebKit directory upload omits dotfiles; statistics cover the supplied snapshot only.
-  await expect(dialog.locator("dt", { hasText: /^文件$/ }).locator("+ dd")).toHaveText(browserName === "webkit" ? "3" : "4");
+  await expect(dialog.locator("dt", { hasText: /^文件$/ }).locator("+ dd")).toHaveText("4");
   await expect(dialog.locator("dt", { hasText: /^子目录$/ }).locator("+ dd")).toHaveText("1");
-  const count = await page.evaluate(() => (window as any).__sizePages);
-  expect(count).toBe(2);
+  expect(await pages()).toBe(2);
   await dialog.getByRole("button", { name: "关闭目录大小", exact: true }).click();
   await open();
   await expect(dialog.getByRole("status")).toContainText("统计完成");
-  expect(await page.evaluate(() => (window as any).__sizePages)).toBe(count);
+  expect(await pages()).toBe(2);
   await dialog.getByRole("button", { name: "关闭目录大小", exact: true }).click();
   await browser.getByRole("region", { name: "左侧目录", exact: true }).getByRole("button", { name: "刷新目录", exact: true }).click();
   await open();
   await expect(dialog.getByRole("button", { name: "开始统计", exact: true })).toBeVisible();
-  await page.evaluate(async () => {
-    const { localFileService } = await import("/src/lib/local-files/service.ts");
-    const original = localFileService.list.bind(localFileService);
-    localFileService.list = async (...args: Parameters<typeof original>) => {
-      if (args[3]?.showHidden) await new Promise<void>(resolve => { (window as any).__finishSizePage = resolve; });
-      return original(...args);
-    };
-  });
+  await page.evaluate(() => { (window as any).__sizeFixture.hold = true; });
   await dialog.getByRole("button", { name: "开始统计", exact: true }).click();
-  await expect.poll(() => page.evaluate(() => typeof (window as any).__finishSizePage)).toBe("function");
+  await expect.poll(() => page.evaluate(() => typeof (window as any).__sizeFixture.finish)).toBe("function");
   await dialog.getByRole("button", { name: "取消统计", exact: true }).click();
-  await page.evaluate(() => (window as any).__finishSizePage());
+  await page.evaluate(() => (window as any).__sizeFixture.finish());
   await expect(dialog.getByRole("status")).toContainText("统计已取消");
   await dialog.getByRole("button", { name: "关闭目录大小", exact: true }).click();
   await open();
@@ -2486,6 +2490,7 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
         if (command === "workbench_editor_confirm_file") { persistSession(); return; }
         if (command === "workbench_editor_finish_close") { fixture.finished.push(args); if (args.cancelled) { state.closing = null; state.revision++; emit("workbench:editor-changed"); } else { persistSession(); state.files = []; state.current = ""; state.closing = null; state.revision++; emit("workbench:editor-changed"); } return; }
         if (command === "workbench_editor_request_quit") { fixture.quit++; return; }
+        if (command === "local_files_properties") return { path: `/root/${args.node}`, size: sources[args.node]?.length ?? 0, modifiedMs: 1, createdMs: 1600000000000, accessedMs: 1600000300000 };
         if (command === "local_files_read") return snapshot(args.node);
         if (command === "local_files_stat") {
           fixture.stats.push(args.node);
@@ -3204,18 +3209,19 @@ test("EPUB 全书查找、脚注弹层、排版和章节位置共用阅读导航
   } finally {await rm(folder,{recursive:true,force:true});}
 });
 
-for(const markdown of [false,true]) test(`内置编辑器标题接入文件系统创建和访问时间，Markdown=${markdown}`,async({page})=>{
-  await page.goto("/file-workbench.html");
-  await page.evaluate(async()=>{const {localFileService}=await import("/src/lib/local-files/service.ts");const original=localFileService.fileProperties.bind(localFileService);localFileService.fileProperties=async(root,node,system)=>({...await original(root,node,system),createdMs:1600000000000,accessedMs:1600000300000});});
-  await page.getByLabel("选择目录快照",{exact:true}).setInputFiles(directory);
-  const left=page.getByRole("region",{name:"左侧目录",exact:true});
-  if(markdown){await left.getByRole("option",{name:/^sub/}).dblclick();await left.getByRole("option",{name:/^guide.md/}).dblclick();}
-  else await left.getByRole("option",{name:/^alpha.c/}).dblclick();
-  const name=markdown?"guide.md":"alpha.c";
-  const title=page.locator(".document-title-preview .note-title").filter({hasText:name});await title.hover({position:{x:await title.evaluate(element=>(parseFloat(getComputedStyle(element).paddingLeft)||0)+3),y:12}});
-  const info=page.getByRole("tooltip",{name:`${name} 的文档信息`,exact:true});
-  const times=await page.evaluate(async()=>{const {formatDocumentTimestamp}=await import("/src/lib/document-info.ts");return [1600000000000,1600000300000].map(value=>formatDocumentTimestamp(new Date(value).toISOString()));});
-  for(const time of times)await expect(info).toContainText(time);
+for (const markdown of [false, true]) test(`内置编辑器标题接入文件系统创建和访问时间，Markdown=${markdown}`, async ({ page }) => {
+  const name = markdown ? "guide.md" : "alpha.c";
+  await setupIndependentEditor(page, { [name]: markdown ? "# Guide\n" : "int alpha;\n" }, name);
+  const title = page.locator(".document-title-preview .note-title").filter({ hasText: name });
+  await title.hover({ position: { x: await title.evaluate(element => (parseFloat(getComputedStyle(element).paddingLeft) || 0) + 3), y: 12 } });
+  const info = page.getByRole("tooltip", { name: `${name} 的文档信息`, exact: true });
+  const times = await page.evaluate(() => {
+    const format = new Intl.DateTimeFormat(undefined, {
+      year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+    });
+    return [1600000000000, 1600000300000].map(time => format.format(time));
+  });
+  for (const time of times) await expect(info).toContainText(time);
 });
 
 for (const style of ["light", "calm"]) test(`独立编辑器右键标题级别子菜单贴近菜单项展开 ${style}`, async ({ page }) => {

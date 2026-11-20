@@ -1,3 +1,4 @@
+import { createBlankDocument, setRenderedFixture, waitForSavedText } from "../helpers/document";
 import { expect, test, type Page } from "@playwright/test";
 
 const paper = "nine-rings.builtin-theme/paper", calm = "nine-rings.builtin-theme/calm";
@@ -10,21 +11,14 @@ async function color(page: Page) {
 }
 for (const width of [390, 1280]) {
   test(`主题资源浅深配对、排版覆盖与停用回退 ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 844 });
     await page.emulateMedia({ colorScheme: "light" });
     await page.addInitScript(() => {
       if (!localStorage.getItem("nine_rings_config")) localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "yugen", interface_color_mode: "system", interface_font_size: 19, editor_h1_font_size: 31, editor_code_font_family: "serif", editor_code_font_size: 21 }));
     });
-    await page.goto("/");
-    await expect(page.locator(".note-editor")).toBeVisible();
-    await page.evaluate(async () => {
-      const load = (path: string) => import(/* @vite-ignore */ path);
-      const { api } = await load("/src/lib/api.ts");
-      const { buildTextImportInput } = await load("/src/lib/markdown-import.ts");
-      const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
-      const note = await api.notes.create(buildTextImportInput({ fileName: "主题测试.md", source: "# 标题保持自定义字号\n\n> 引用默认字体\n\n```js\nconst theme = 1;\n```\n\n" + Array.from({ length: 40 }, (_, i) => `段落 ${i}：主题切换保留实例。`).join("\n\n") }, { mode: "document", storagePath: "ideas", date: "2026-10-17" }));
-      useNotesStore.getState().selectNote(note);
-    });
+    await createBlankDocument(page, "主题测试");
+    await setRenderedFixture(page, '<h1>标题保持自定义字号</h1><blockquote><p>引用默认字体</p></blockquote><pre><code class="language-javascript">const theme = 1;</code></pre>' + Array.from({ length: 40 }, (_, i) => '<p>段落 ' + i + '：主题切换保留实例。</p>').join(""));
+    await waitForSavedText(page, "主题切换保留实例");
+    await page.setViewportSize({ width, height: 844 });
     const body = page.locator(".note-editor .ProseMirror");
     await expect(body.locator("h1")).toHaveCSS("font-size", "31px");
     await body.evaluate(element => element.setAttribute("data-theme-session-test", "retained"));

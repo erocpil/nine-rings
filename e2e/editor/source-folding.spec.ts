@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createBlankDocument } from "../helpers/document";
+import { createBlankDocument, measureDocumentRail } from "../helpers/document";
 import {
   replaceSource,
   selectDocumentLanguage,
@@ -112,11 +112,18 @@ test("源码标题级别菜单保留源码与只读保护，并排工具栏无�
   await page.getByRole("menuitem", { name: "展开至 H6", exact: true }).click();
   await expect(area).toContainText("nested");
   expect((await sourceInfo(area)).value).toBe(text);
+  const workspace = page.locator(".note-editor:visible");
+  const railDifference = async () => {
+    const rail = await measureDocumentRail(workspace, true);
+    return rail.toolbar && rail.status ? rail.maxDifference : Infinity;
+  };
+  await expect.poll(railDifference).toBeLessThan(2);
   const singleToolbarBox = (await toolbar.boundingBox())!;
   await page.getByRole("button", { name: "并排预览", exact: true }).click();
-  await expect
-    .poll(async () => (await toolbar.boundingBox())!.width)
-    .toBeCloseTo(singleToolbarBox.width, 0);
+  await expect(page.locator(".markdown-split-source")).toBeVisible();
+  // Each mode uses its own scrollbar insets. Check the visible rails in that
+  // mode so a native scrollbar width does not look like toolbar overflow.
+  await expect.poll(railDifference).toBeLessThan(2);
   await expect
     .poll(async () => (await toolbar.boundingBox())!.y)
     .toBeCloseTo(singleToolbarBox.y, 0);

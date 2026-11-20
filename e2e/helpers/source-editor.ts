@@ -1,4 +1,5 @@
 import { expect, type Locator } from "@playwright/test";
+import { DOCUMENT_LANGUAGE_OPTIONS } from "../../src/lib/document-language";
 
 export async function selectDocumentLanguage(page: import("@playwright/test").Page, language: string) {
   const picker = page.getByRole("combobox", { name: "文件格式", exact: true });
@@ -9,8 +10,8 @@ export async function selectDocumentLanguage(page: import("@playwright/test").Pa
   const button = page.locator(".editor-status-bar").getByRole("button", { name: "文件格式", exact: true });
   if (await button.isVisible().catch(() => false) && await button.isEnabled()) {
     await button.click();
-    const options = await page.evaluate(async () => (await import("/src/lib/document-language.ts")).DOCUMENT_LANGUAGE_OPTIONS);
-    await page.getByRole("menuitemcheckbox", { name: options.find(option => option.value === language)!.label, exact: true }).click();
+    const option = DOCUMENT_LANGUAGE_OPTIONS.find(option => option.value === language)!;
+    await page.getByRole("menuitemcheckbox", { name: option.label, exact: true }).click();
     return;
   }
   await page.evaluate(async value => {
@@ -20,10 +21,17 @@ export async function selectDocumentLanguage(page: import("@playwright/test").Pa
 }
 
 async function prepare(area: Locator) {
-  await area.page().evaluate(async () => {
-    (
-      window as unknown as { sourceCM: typeof import("@codemirror/view") }
-    ).sourceCM = await import("/node_modules/@codemirror/view/dist/index.js");
+  await area.evaluate((element) => {
+    type View = import("@codemirror/view").EditorView;
+    type EditorDOM = HTMLElement & { cmTile?: { root?: { view?: View } } };
+    // Use the production editor's live instance, including its own extensions.
+    // This is the same DOM attachment used by EditorView.findFromDOM.
+    const content = (element.matches(".cm-content") ? element : element.querySelector(".cm-content")) as EditorDOM | null;
+    const view = content?.cmTile?.root?.view;
+    if (!view) throw new Error("Missing source editor view");
+    (window as unknown as { sourceCM: { EditorView: typeof import("@codemirror/view").EditorView } }).sourceCM = {
+      EditorView: view.constructor as typeof import("@codemirror/view").EditorView,
+    };
   });
 }
 export async function sourceInfo(area: Locator) {

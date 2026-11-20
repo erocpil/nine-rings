@@ -1,4 +1,21 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import type { Editor, JSONContent } from "@tiptap/core";
+
+/** Seed the mounted editor without importing application modules into the page. */
+export async function setRenderedFixture(page: Page, content: JSONContent | string) {
+  const body = page.locator(".note-editor:visible .tiptap.ProseMirror");
+  await expect.poll(async () => {
+    try {
+      return await body.evaluate((element, content) => {
+        const editor = (element as HTMLElement & { editor?: Editor }).editor;
+        return editor?.isEditable ? editor.commands.setContent(content, true) : false;
+      }, content);
+    } catch (error) {
+      if (!String(error).includes("Execution context was destroyed")) throw error;
+      return false;
+    }
+  }).toBe(true);
+}
 
 export function measureDocumentRail(scope: Locator, source: boolean) {
   return scope.evaluate((root, source) => {

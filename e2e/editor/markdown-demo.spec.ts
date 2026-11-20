@@ -107,12 +107,9 @@ test("局部只读开启时全景示例保留块号与标题折叠按钮", async
   });
   await page.goto("/");
   await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:builtin-markdown-demo:v1"))).not.toBeNull();
-  await page.evaluate(async () => {
-    const { api } = await import("/src/lib/api.ts");
-    const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
-    const note = await api.notes.update(localStorage.getItem("nr:builtin-markdown-demo:v1")!, { readonly: true });
-    useNotesStore.getState().selectNote(note);
-  });
+  await openDocumentSidebar(page);
+  await page.getByRole("button", { name: "Markdown 全景：GFM、GitHub 与 Nine Rings", exact: true }).click();
+  await expect(page.getByRole("button", { name: "点击设为可编辑", exact: true })).toBeVisible();
   const root = page.locator(".note-editor:visible");
   await expect(root).toBeVisible();
   // Unsupported demo features may use the full readonly renderer; its gutter

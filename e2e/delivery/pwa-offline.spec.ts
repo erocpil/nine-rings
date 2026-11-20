@@ -37,7 +37,23 @@ test('生产 PWA 安装后可以离线冷启动并恢复本地编辑', async ({ 
 
   const title = page.locator('.note-title');
   await title.fill('PWA 离线恢复验证');
-  await expect(page.locator('.save-status')).toHaveAttribute('title', /已保存/);
+  await title.press('Enter');
+  await expect.poll(() => page.evaluate(async () => {
+    const id = localStorage.getItem('nr:lastNote');
+    if (!id) return null;
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('nine_rings');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      return await new Promise<string | null>((resolve, reject) => {
+        const request = db.transaction('notes').objectStore('notes').get(id);
+        request.onsuccess = () => resolve(request.result?.title ?? null);
+        request.onerror = () => reject(request.error);
+      });
+    } finally { db.close(); }
+  })).toBe('PWA 离线恢复验证');
 
   await context.setOffline(true);
   await page.reload();

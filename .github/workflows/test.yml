@@ -192,11 +192,15 @@ jobs:
           path: test-results/
           retention-days: 7
 
-  e2e:
-    name: E2E (Playwright)
+  e2e-core:
+    name: Nine Rings E2E (${{ matrix.shard }}/4)
     needs: changes
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -206,53 +210,116 @@ jobs:
           node-version-file: '.node-version'
           cache: 'npm'
       - run: npm ci
-      - name: Install browsers
-        id: browsers
-        run: npx playwright install chromium webkit --with-deps
+      - run: npx playwright install chromium --with-deps
       - name: Core and affected E2E (full on schedule, manual request or unknown paths)
-        run: npm run test:e2e:ci -- --reporter=line,json --output=test-results/default
+        run: npm run test:e2e:ci -- --shard=${{ matrix.shard }}/4 --reporter=line,json --output=test-results/default
         env:
           NR_E2E_CHANGED_BASE: ${{ inputs.base || github.event.pull_request.base.sha || github.event.before }}
           NR_E2E_FULL: ${{ github.event_name == 'schedule' || inputs.suite == 'full' }}
           NR_E2E_READING_SEPARATE: 'true'
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/default.json
-      - name: Preserve default E2E failure diagnostics
-        uses: actions/upload-artifact@v4
-        if: failure()
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
         with:
-          name: e2e-default
-          path: |
-            test-results/default/
-            test-results/default.json
+          name: e2e-default-${{ matrix.shard }}
+          path: test-results/
           retention-days: 7
-      - name: WebKit risk gates (one invocation, no duplicate reading cases)
-        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
-        run: npm run test:e2e:webkit -- --reporter=line,json --output=test-results/webkit
+
+  e2e-webkit:
+    name: Nine Rings WebKit risk gates
+    needs: changes
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.node-version'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install webkit --with-deps
+      - run: npm run test:e2e:webkit -- --reporter=line,json --output=test-results/webkit
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/webkit.json
-      - name: Build independent file workbench
-        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
-        run: npm run build:workbench
-      - name: Independent file workbench (Chromium)
-        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
-        run: npx playwright test --config=playwright.workbench.config.ts --browser=chromium --reporter=line --output=test-results/workbench-chromium
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-webkit
+          path: test-results/
+          retention-days: 7
+
+  e2e-workbench:
+    name: Workbench production E2E (${{ matrix.browser }})
+    needs: changes
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.node-version'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install ${{ matrix.browser }} --with-deps
+      - run: npm run build:workbench
+      - run: npx playwright test --config=playwright.workbench.config.ts --browser=${{ matrix.browser }} --reporter=line,json --output=test-results/workbench
         env:
           NR_WORKBENCH_PREVIEW: 'true'
-      - name: Independent file workbench (WebKit)
-        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
-        run: npx playwright test --config=playwright.workbench.config.ts --browser=webkit --reporter=line --output=test-results/workbench-webkit
-        env:
-          NR_WORKBENCH_PREVIEW: 'true'
-      - name: Full production/PWA gate
-        if: ${{ !cancelled() && steps.browsers.outcome == 'success' && (github.event_name == 'schedule' || inputs.suite == 'full' || needs.changes.outputs.production == 'true') }}
-        run: |
-          npm run build
-          npx playwright test --config=playwright.pwa.config.ts --browser=chromium --workers=1 --reporter=line,json --output=test-results/production
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/workbench.json
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-workbench-${{ matrix.browser }}
+          path: test-results/
+          retention-days: 7
+
+  e2e-production:
+    name: Nine Rings production and PWA E2E
+    needs: changes
+    if: ${{ github.event_name == 'schedule' || inputs.suite == 'full' || needs.changes.outputs.production == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: '.node-version'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install chromium --with-deps
+      - run: npm run build
+      - run: npx playwright test --config=playwright.pwa.config.ts --browser=chromium --workers=1 --reporter=line,json --output=test-results/production
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/production.json
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
-          name: e2e-gates
+          name: e2e-production
           path: test-results/
           retention-days: 7
+
+  e2e:
+    name: E2E (Playwright)
+    needs: [changes, e2e-core, e2e-webkit, e2e-workbench, e2e-production]
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.production == 'true') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require successful E2E suites
+        env:
+          CORE: ${{ needs.e2e-core.result }}
+          WEBKIT: ${{ needs.e2e-webkit.result }}
+          WORKBENCH: ${{ needs.e2e-workbench.result }}
+          PRODUCTION: ${{ needs.e2e-production.result }}
+          FRONTEND_REQUIRED: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' }}
+          PRODUCTION_REQUIRED: ${{ github.event_name == 'schedule' || inputs.suite == 'full' || needs.changes.outputs.production == 'true' }}
+        run: |
+          printf 'Core %s | WebKit %s | Workbench %s | Production %s\n' "$CORE" "$WEBKIT" "$WORKBENCH" "$PRODUCTION"
+          if [ "$FRONTEND_REQUIRED" = true ]; then
+            test "$CORE" = success && test "$WEBKIT" = success && test "$WORKBENCH" = success || exit 1
+          fi
+          if [ "$PRODUCTION_REQUIRED" = true ]; then
+            test "$PRODUCTION" = success
+          fi
