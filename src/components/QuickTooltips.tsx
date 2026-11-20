@@ -9,7 +9,7 @@ export function QuickTooltips() {
     text: string;
     left: number;
     top: number;
-    host: Element;
+    host: HTMLElement;
     target: HTMLElement;
   } | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -18,16 +18,21 @@ export function QuickTooltips() {
     if (!hint || !element) return;
     const box = hint.target.getBoundingClientRect(),
       popup = element.getBoundingClientRect();
+    // Keep modal hints in the modal's layer and visible client area. Native
+    // dialogs can also scroll, so translate viewport coordinates after clamping.
+    const overlay = hint.host === document.body ? null : hint.host;
+    const overlayBounds = overlay?.getBoundingClientRect();
+    const originLeft = overlayBounds ? overlayBounds.left + hint.host.clientLeft : 0;
+    const originTop = overlayBounds ? overlayBounds.top + hint.host.clientTop : 0;
     const scrollViewport = hint.target
       .closest<HTMLElement>(".note-editor-scroll")
       ?.getBoundingClientRect();
-    const minTop = Math.max(8, (scrollViewport?.top ?? 0) + (scrollViewport ? 8 : 0));
+    const minTop = Math.max(0, originTop, scrollViewport?.top ?? 0) + 8;
     const maxBottom = Math.min(
-      window.innerHeight - 8,
-      scrollViewport?.bottom !== undefined
-        ? scrollViewport.bottom - 8
-        : window.innerHeight - 8,
-    );
+      window.innerHeight,
+      overlay ? originTop + overlay.clientHeight : Infinity,
+      scrollViewport?.bottom ?? Infinity,
+    ) - 8;
     // File rows span all metadata columns. Anchor their path hint to the name
     // text (after the icon), while retaining the row as the hover owner.
     const name = hint.target.dataset.tooltipPath
@@ -38,10 +43,9 @@ export function QuickTooltips() {
       : hint.target.dataset.tooltipAlign === "start"
         ? box.left
         : box.left + (box.width - popup.width) / 2;
-    const left = Math.max(
-      8,
-      Math.min(desiredLeft, window.innerWidth - popup.width - 8),
-    );
+    const minLeft = Math.max(0, originLeft) + 8;
+    const maxRight = Math.min(window.innerWidth, overlay ? originLeft + overlay.clientWidth : Infinity) - 8;
+    const left = Math.max(minLeft, Math.min(desiredLeft, maxRight - popup.width)) - originLeft + (overlay?.scrollLeft ?? 0);
     const above = box.bottom + 6 + popup.height > maxBottom;
     const maxTop = Math.max(minTop, maxBottom - popup.height);
     const desiredTop = above
@@ -51,7 +55,7 @@ export function QuickTooltips() {
     // (for example, when the last block is clipped by the editor viewport).
     // Flip first, then clamp the tooltip itself so it cannot be cut off at the
     // window edge even when the anchor is partially or entirely outside it.
-    const top = Math.max(minTop, Math.min(desiredTop, maxTop));
+    const top = Math.max(minTop, Math.min(desiredTop, maxTop)) - originTop + (overlay?.scrollTop ?? 0);
     if (
       Math.abs(hint.left - left) > 0.5 ||
       Math.abs(hint.top - top) > 0.5
@@ -121,7 +125,6 @@ export function QuickTooltips() {
           clear();
           return;
         }
-        const box = element.getBoundingClientRect();
         element.setAttribute(
           "aria-describedby",
           [describedBy, id].filter(Boolean).join(" "),
@@ -130,9 +133,9 @@ export function QuickTooltips() {
           text: element.dataset.tooltipPath || title,
           target: element,
           // Measure before paint; no character-width estimate for multiline hints.
-          left: 8,
-          top: box.bottom + 6,
-          host: element.closest("dialog[open]") ?? document.body,
+          left: 0,
+          top: 0,
+          host: element.closest<HTMLElement>("dialog[open], .workspace-dialog-backdrop") ?? document.body,
         });
       };
       timer = setTimeout(show, event.type === "focusin" ? 0 : 120);
@@ -146,6 +149,9 @@ export function QuickTooltips() {
     };
     const move = (event: PointerEvent) => { if (event.pointerType === "mouse") pointer = { x: event.clientX, y: event.clientY }; };
     const dismiss = () => { clearTimeout(scrollTimer); clear(); };
+    const closeDialog = (event: Event) => {
+      if (target?.closest("dialog") === event.target) dismiss();
+    };
     const scroll = (event: Event) => {
       clear(); clearTimeout(scrollTimer);
       if (!(event.target instanceof Element) || !event.target.closest(".file-browser-list")) return;
@@ -164,6 +170,7 @@ export function QuickTooltips() {
     document.addEventListener("focusout", leave);
     document.addEventListener("pointerdown", dismiss, true);
     document.addEventListener("keydown", dismiss, true);
+    document.addEventListener("close", closeDialog, true);
     document.addEventListener("scroll", scroll, true);
     const stopWindowDismiss = watchWindowHoverDismiss(dismiss);
     window.addEventListener("resize", dismiss);
@@ -177,36 +184,23 @@ export function QuickTooltips() {
       document.removeEventListener("focusout", leave);
       document.removeEventListener("pointerdown", dismiss, true);
       document.removeEventListener("keydown", dismiss, true);
+      document.removeEventListener("close", closeDialog, true);
       document.removeEventListener("scroll", scroll, true);
       stopWindowDismiss();
       window.removeEventListener("resize", dismiss);
     };
   }, [id]);
   if (!hint) return null;
-  // A tooltip portaled into a modal dialog must remain in the dialog's top
-  // layer. Since the dialog is transformed to center it, fixed-position
-  // coordinates inside it are relative to the dialog, not the viewport.
-  const dialog =
-    hint.host instanceof HTMLElement && hint.host.tagName === "DIALOG"
-      ? hint.host
-      : null;
-  const dialogBounds = dialog?.getBoundingClientRect();
-  const dialogStyle = dialog ? getComputedStyle(dialog) : null;
-  const left = dialogBounds
-    ? hint.left - dialogBounds.left - Number.parseFloat(dialogStyle?.borderLeftWidth ?? "0")
-    : hint.left;
-  const top = dialogBounds
-    ? hint.top - dialogBounds.top - Number.parseFloat(dialogStyle?.borderTopWidth ?? "0")
-    : hint.top;
+  const inDialog = hint.host !== document.body;
   return createPortal(
         <div
           ref={tooltipRef}
           id={id}
           role="tooltip"
-          className={`quick-tooltip${hint.target.dataset.tooltipPath ? " quick-tooltip-path" : ""}`}
+          className={`quick-tooltip${inDialog ? " quick-tooltip-in-dialog" : ""}${hint.target.dataset.tooltipPath ? " quick-tooltip-path" : ""}`}
           style={{
-            left,
-            top,
+            left: hint.left,
+            top: hint.top,
           }}
         >
           {hint.text}

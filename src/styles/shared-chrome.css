@@ -935,6 +935,7 @@
 .quick-tooltip {
   position: fixed;
   z-index: 10000;
+  width: max-content;
   max-width: min(320px, calc(100vw - 16px));
   padding: 5px 8px;
   border: 1px solid var(--border);
@@ -949,7 +950,9 @@
 }
 
 /* Paths use the available window width before wrapping, instead of the short button-hint limit. */
-.quick-tooltip-path { width: max-content; max-width: calc(100vw - 16px); white-space: normal; }
+.quick-tooltip-path { max-width: calc(100vw - 16px); white-space: normal; }
+.quick-tooltip-in-dialog { position: absolute; max-width: min(320px, calc(100% - 16px), calc(100vw - 16px)); }
+.quick-tooltip-in-dialog.quick-tooltip-path { max-width: min(calc(100% - 16px), calc(100vw - 16px)); }
 
 .cm-fold-preview-bubble {
   position: fixed;

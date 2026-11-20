@@ -2064,6 +2064,12 @@ test("Markdown 块号菜单与代码、引用、Flow、Mermaid 块模式复用�
     let workspace = page.getByRole("dialog", { name: "代码块工作区", exact: true });
     await expect(workspace).toContainText("int value = 1;");
     await expect(workspace.getByRole("button", { name: "切换到编辑模式", exact: true })).toHaveCount(0);
+    const findBlock = workspace.getByRole("button", { name: "块内查找", exact: true });
+    await findBlock.hover();
+    const findHint = workspace.getByRole("tooltip", { name: "块内查找", exact: true });
+    await expect(findHint).toBeVisible();
+    const [findButtonBox, findHintBox] = await Promise.all([findBlock.boundingBox(), findHint.boundingBox()]);
+    expect(Math.abs(findHintBox!.y - (findButtonBox!.y + findButtonBox!.height + 6))).toBeLessThan(2);
     await workspace.getByRole("button", { name: "块内查找", exact: true }).click();
     await expect(workspace.getByRole("textbox", { name: "在当前块查找", exact: true })).toBeVisible();
     await page.keyboard.press("Escape"); await expect(workspace).toHaveCount(0);
@@ -2328,6 +2334,12 @@ test("集中快捷键可录制、冲突提示、取消与持久化，操作仍�
   await expect(left.getByRole("option", { name: /alpha.c/ })).toBeVisible();
   await browser.getByRole("button", { name: "文件浏览快捷键", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "文件浏览快捷键" });
+  const disableCopy = dialog.getByRole("button", { name: "禁用复制到另一栏快捷键", exact: true });
+  await disableCopy.hover();
+  const shortcutHint = page.locator(".workspace-dialog-backdrop").filter({ has: dialog }).getByRole("tooltip");
+  await expect(shortcutHint).toHaveText("禁用复制到另一栏快捷键");
+  const [shortcutButtonBox, shortcutHintBox] = await Promise.all([disableCopy.boundingBox(), shortcutHint.boundingBox()]);
+  expect(Math.abs(shortcutHintBox!.y - (shortcutButtonBox!.y + shortcutButtonBox!.height + 6))).toBeLessThan(2);
   await dialog.getByRole("button", { name: "修改复制到另一栏快捷键", exact: true }).click();
   await dialog.getByRole("textbox", { name: "录制复制到另一栏快捷键" }).press("F2");
   await expect(dialog.getByRole("alert")).toContainText("重复");

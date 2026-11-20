@@ -194,7 +194,13 @@ test("正文图片弹层可转到主区域，停用恢复原文档", async ({ pa
     .click();
   const modal = page.getByRole("dialog", { name: "图片查看器" });
   await expect(modal).toBeVisible();
-  await modal.getByRole("button", { name: "在主区域打开" }).click();
+  const openMain = modal.getByRole("button", { name: "在主区域打开" });
+  await openMain.hover();
+  const hint = modal.getByRole("tooltip", { name: "在主区域打开", exact: true });
+  await expect(hint).toBeVisible();
+  const [buttonBox, hintBox] = await Promise.all([openMain.boundingBox(), hint.boundingBox()]);
+  expect(Math.abs(hintBox!.y - (buttonBox!.y + buttonBox!.height + 6))).toBeLessThan(2);
+  await openMain.click();
   await expect(modal).toHaveCount(0);
   const main = page.getByRole("region", { name: "图片查看器" });
   await expect(main).toBeVisible();

@@ -433,7 +433,7 @@ export function BlockWorkspace({ source, vimModeEnabled = false, highlightActive
       {(saveStatus === "error" || saveStatus === "saving" || saveStatus === "dirty") && <span className="block-workspace-save" data-error={saveStatus === "error"} role="status" title="本机保存状态，不代表已完成备份">{saveStatus === "error" ? "保存失败" : saveStatus === "dirty" && manualSave ? "未保存" : "保存中…"}</span>}
       {iconButton("复制块", "copy", () => void copy())}
       {!sensitive && !mermaidCodeBlock && iconButton("块内查找", "search", () => { if (flowCodeBlock && !editable) setShowFlowSource(true); setFindOpen(!findOpen); window.requestAnimationFrame(() => searchInput.current?.focus()); })}
-      <button type="button" aria-label="关闭块工作区" title="关闭" disabled={closing} onClick={() => void close()}><ToolbarIcon name="compress" /></button>
+      <button type="button" aria-label="关闭块工作区" title="关闭" disabled={closing} onClick={() => void close()}><ToolbarIcon name="close" /></button>
     </header>
     {findOpen && !sensitive && <div className="block-workspace-find" role="search" aria-label="当前块查找">
       <input ref={searchInput} aria-label="在当前块查找" placeholder="在当前块查找" value={query} onChange={event => { setQuery(event.target.value); setMatchIndex(0); }} onKeyDown={event => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); navigateMatch(event.shiftKey ? -1 : 1); } }} />
