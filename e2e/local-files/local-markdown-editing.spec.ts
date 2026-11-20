@@ -2,7 +2,64 @@ import { readFile } from "node:fs/promises";
 import { test, expect } from "@playwright/test";
 import { createBlankDocument } from "../helpers/document";
 import { openWritableLocalDirectory } from "../helpers/local-files";
-import { sourceInfo } from "../helpers/source-editor";
+import { replaceSource, selectSource, sourceInfo } from "../helpers/source-editor";
+
+test("磁盘书签多处源码修改后跳转到原内容并保存新位置", async ({ page }) => {
+  const before = "first\n\nbefore\n\ntarget bookmark\n\nafter\n\nlast\n";
+  const after = "new first\n\ninserted\n\nbefore\n\ntarget bookmark\n\nafter\n\nnew last\n";
+  await createBlankDocument(page);
+  const { tree, workspace: viewer } = await openWritableLocalDirectory(page, { "anchors.md": before }, "anchors.md");
+  const area = viewer.locator(".cm-content");
+  await selectSource(area, before.indexOf("target bookmark"));
+  await viewer.getByRole("button", { name: "书签", exact: true }).click();
+  await viewer.getByRole("button", { name: "添加或移除当前行书签", exact: true }).click();
+  const bookmark = viewer.locator(".document-bookmark-jump").filter({ hasText: "target bookmark" });
+  await expect(bookmark).toBeVisible();
+  const checkJump = async (source: string) => {
+    await bookmark.click();
+    await expect.poll(async () => (await sourceInfo(area)).selectionStart).toBe(source.indexOf("target bookmark"));
+  };
+  await replaceSource(area, after);
+  await checkJump(after);
+  await area.focus();
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(before);
+  await checkJump(before);
+  await area.focus();
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect.poll(async () => (await sourceInfo(area)).value).toBe(after);
+  await viewer.getByRole("button", { name: "渲染", exact: true }).click();
+  const body = viewer.getByLabel("Markdown 渲染", { exact: true }).locator(".ProseMirror");
+  await expect(body.getByText("target bookmark", { exact: true })).toBeVisible();
+  await body.evaluate(element => {
+    const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    editor.commands.insertContentAt(0, { type: "paragraph", content: [{ type: "text", text: "rendered insertion" }] });
+  });
+  await viewer.getByRole("button", { name: "显示源码", exact: true }).click();
+  await expect(area).toContainText("rendered insertion");
+  const renderedSource = (await sourceInfo(area)).value;
+  if (!(await bookmark.isVisible())) await viewer.getByRole("button", { name: "书签", exact: true }).click();
+  await checkJump(renderedSource);
+  await expect.poll(() => page.evaluate(() => {
+    const key = Object.keys(localStorage).find(key => key.startsWith("nr:local-file-bookmarks:") && key.endsWith(":anchors.md"));
+    return key && JSON.parse(localStorage.getItem(key)!)[0]?.offset;
+  })).toBe(renderedSource.indexOf("target bookmark"));
+
+  await viewer.getByRole("button", { name: "保存文件", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__localWorkspaceFixture.nodes.get("anchors.md").read())).toBe(renderedSource);
+  await tree.getByRole("button", { name: "关闭文件 anchors.md", exact: true }).click();
+  await expect(viewer).toBeHidden();
+  // Simulate an existing record from before bookmarks had stable IDs.
+  await page.evaluate(() => {
+    const key = Object.keys(localStorage).find(key => key.startsWith("nr:local-file-bookmarks:") && key.endsWith(":anchors.md"))!;
+    const [{ offset, line, label }] = JSON.parse(localStorage.getItem(key)!);
+    localStorage.setItem(key, JSON.stringify([{ offset, line, label }]));
+  });
+  await tree.getByRole("button", { name: "anchors.md", exact: true }).click();
+  await expect(area).toContainText("rendered insertion");
+  if (!(await bookmark.isVisible())) await viewer.getByRole("button", { name: "书签", exact: true }).click();
+  await checkJump(renderedSource);
+});
 
 const original = "#   原始标题\n\n正文 *斜体* 与 [链接](other.md)\n\n![本地图片](pic.svg)\n";
 test("磁盘 Markdown 共用渲染编辑器，原文往返、撤销、立即保存、相对资源与只读门禁", async ({ page }) => {

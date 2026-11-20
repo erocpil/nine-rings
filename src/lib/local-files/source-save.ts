@@ -16,15 +16,19 @@ export async function saveLocalSource(ports: LocalSourceSavePorts) {
   const saved = await ports.write(ports.submitted, ports.base);
   try { ports.committed(saved); }
   catch (cause) { return { saved, clean: false, recoveryIssue: `磁盘保存已完成，但编辑器状态更新失败，请核对文件：${String(cause)}` }; }
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const current = ports.currentSource(), clean = current === ports.submitted;
-    try {
-      if (clean) await ports.clearDraft();
-      else await ports.keepDraft(current, saved);
-    } catch (cause) {
-      return { saved, clean: ports.currentSource() === ports.submitted, recoveryIssue: `磁盘保存已完成，但恢复草稿更新失败：${String(cause)}` };
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const current = ports.currentSource(), clean = current === ports.submitted;
+      try {
+        if (clean) await ports.clearDraft();
+        else await ports.keepDraft(current, saved);
+      } catch (cause) {
+        return { saved, clean: ports.currentSource() === ports.submitted, recoveryIssue: `磁盘保存已完成，但恢复草稿更新失败：${String(cause)}` };
+      }
+      if (current === ports.currentSource()) return { saved, clean, recoveryIssue: "" };
     }
-    if (current === ports.currentSource()) return { saved, clean, recoveryIssue: "" };
+    return { saved, clean: ports.currentSource() === ports.submitted, recoveryIssue: "磁盘保存已完成；之后的编辑持续变化，请暂时停止输入并检查恢复草稿。" };
+  } catch (cause) {
+    return { saved, clean: false, recoveryIssue: `磁盘保存已完成，但无法读取之后的编辑：${String(cause)}` };
   }
-  return { saved, clean: ports.currentSource() === ports.submitted, recoveryIssue: "磁盘保存已完成；之后的编辑持续变化，请暂时停止输入并检查恢复草稿。" };
 }

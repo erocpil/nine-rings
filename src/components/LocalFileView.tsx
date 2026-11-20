@@ -2,6 +2,7 @@ import { MoreToolsButton } from "./MoreToolsButton";
 import { useLocalFileDetails } from "../hooks/useLocalFileDetails";
 import { localFileInfoTimes } from "../lib/local-files/file-info-times";
 import { saveLocalSource } from "../lib/local-files/source-save";
+import { checkpointLocalSource } from "../lib/local-files/source-checkpoint";
 import { downloadLocalSource } from "../lib/local-files/source-download";
 import { activeLinePluginKey } from "../extensions/EditorHighlights";
 import { DocumentResourceContext } from "./DocumentResourceContext";
@@ -13,11 +14,10 @@ import { MarkdownSplitPreview } from "./MarkdownSplitPreview";
 import { useDocumentPreview } from "../hooks/useDocumentPreview";
 import { useMarkdownViewPosition } from "../hooks/useMarkdownViewPosition";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
-import { writeDocumentSource } from "../lib/document-source";
-import { deltaToProseMirror } from "../lib/delta-converter";
+import { prepareLocalMarkdownView } from "../lib/local-files/markdown-view-switch";
 import type { Editor } from "@tiptap/core";
 import { patchReadingState, readReadingState } from "../lib/reading-state";
-import { LocalMarkdownWorkspace, type LocalRenderedFlush } from "./LocalMarkdownWorkspace";
+import { LocalMarkdownWorkspace, type LocalLineBookmark, type LocalRenderedFlush } from "./LocalMarkdownWorkspace";
 import { DocumentTitleBar, DocumentAccessToggle } from "./DocumentChrome";
 import { NavigationButtons } from "./NavigationButtons";
 import { LocalFilePropertiesPanel } from "./LocalFilePropertiesPanel";
@@ -42,12 +42,12 @@ import { SourceDocumentPreview } from "./SourceDocumentPreview";
 import { openLocalFileView } from "../lib/plugin-system/local-file-view";
 import { useFocusEditorTools } from "../stores/useFocusEditorTools";
 import { useNativeMenuActions } from "../hooks/useNativeMenuActions";
-import { SourceNavigationDocument } from "../lib/markdown-source-navigation";
+import { SourceNavigationDocument, type SourceEditRange } from "../lib/markdown-source-navigation";
+import { remapLocalFileBookmarks } from "../lib/local-files/bookmark-positions";
 import { shortcutTitle } from "../lib/editor-shortcuts";
 import { navigationKey } from "../lib/document-navigation";
 import "../styles/local-files.css";
 
-type LocalBookmark = { offset: number; line: number; label: string };
 function bookmarkStorageKey(identity: string) { return `nr:local-file-bookmarks:${identity}`; }
 function symbolFoldsStorageKey(identity: string) { return `nr:local-file-symbol-folds:${identity}`; }
 function localFilePosition(handle: SourceEditorHandle) {
@@ -55,10 +55,16 @@ function localFilePosition(handle: SourceEditorHandle) {
   const block = view.lineBlockAtHeight(scrollTop);
   return { offset: handle.selectionStart, scrollTop, scrollLeft: view.scrollDOM.scrollLeft, anchor: block.from, topOffset: block.top - scrollTop };
 }
-function loadBookmarks(identity: string): LocalBookmark[] {
+function loadBookmarks(identity: string): LocalLineBookmark[] {
   try {
     const value = JSON.parse(localStorage.getItem(bookmarkStorageKey(identity)) ?? "[]");
-    return Array.isArray(value) ? value.filter((item): item is LocalBookmark => typeof item?.offset === "number" && typeof item?.line === "number" && typeof item?.label === "string") : [];
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter(item => Number.isSafeInteger(item?.offset) && item.offset >= 0 && Number.isSafeInteger(item.line) && typeof item.label === "string")
+      .map((item, index) => ({
+        id: typeof item.id === "string" && item.id ? item.id : `legacy:${index}`,
+        offset: item.offset, line: item.line, label: item.label,
+      }));
   } catch { return []; }
 }
 function loadSymbolFolds(identity: string) {
@@ -124,12 +130,23 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
   const [saveState, setSaveState] = useState<"clean" | "dirty" | "saving" | "saved" | "error">("clean");
   const [recoveryNotice, setRecoveryNotice] = useState("");
   const [previewError, setPreviewError] = useState("");
+  const [viewSwitchError, setViewSwitchError] = useState("");
   const latestDraft = useRef<{ source: string; base: LocalFileSnapshot | null }>({ source: "", base: null });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [foldedSymbols, setFoldedSymbols] = useState<Set<string>>(() => loadSymbolFolds(identity));
   const [activeOffset, setActiveOffset] = useState(0);
-  const [bookmarks, setBookmarks] = useState<LocalBookmark[]>(() => loadBookmarks(identity));
+  const [bookmarks, setBookmarks] = useState<LocalLineBookmark[]>(() => loadBookmarks(identity));
+  const changeSource = (next: string, range?: SourceEditRange) => {
+    const previous = sourceRef.current;
+    setBookmarks(items => remapLocalFileBookmarks(items, previous, next, (item, mapOffset) => {
+      const offset = mapOffset(item.offset);
+      return { ...item, offset, line: next.slice(0, offset).split("\n").length };
+    }, range));
+    sourceRef.current = next;
+    latestDraft.current.source = next;
+    setSource(next);
+  };
   const [reload, setReload] = useState(0);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const history = useRef<Array<{ from: number; to: number }>>([]);
@@ -216,6 +233,10 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
   latestDraft.current = { source, base: baseSnapshot };
   const saveBusy = useRef(false);
   const savingOperation = useRef(false);
+  const currentSource = useCallback(() => {
+    renderedFlush.current?.flush();
+    return sourceRef.current;
+  }, []);
   saveBusy.current = saveState === "saving";
   useEffect(() => registerLocalFileCheckpoint(identity, async () => {
     renderedFlush.current?.flush();
@@ -224,17 +245,13 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
       saveLocalFilePosition(identity, localFilePosition(handle));
       localFileSessions.set(identity, { state: handle.view.state, scrollTop: handle.view.scrollDOM.scrollTop, scrollLeft: handle.view.scrollDOM.scrollLeft, source: handle.value, scrollSnapshot: handle.view.scrollSnapshot() });
     }
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (saveBusy.current) throw new Error("文件正在保存，请等待保存完成后关闭。");
-      const current = latestDraft.current;
-      const text = sourceHandle.current?.value ?? current.source;
-      if (!current.base) return;
-      if (text === current.base.source) { await removeLocalDraft(identity); return; }
-      await writeLocalDraft({ identity, source: text, baseSource: current.base.source, baseRevision: current.base.revision, bom: current.base.bom, lineEnding: current.base.lineEnding, savedAt: Date.now() });
-      if (!saveBusy.current && (sourceHandle.current?.value ?? latestDraft.current.source) === text && latestDraft.current.base === current.base) return;
-    }
-    throw new Error("文件在关闭准备期间持续变化，请停止输入后重试。");
-  }), [identity]);
+    await checkpointLocalSource({
+      identity,
+      drafts: { write: writeLocalDraft, remove: removeLocalDraft },
+      read: () => ({ source: currentSource(), base: latestDraft.current.base }),
+      isSaving: () => savingOperation.current,
+    });
+  }), [identity, currentSource]);
   useEffect(() => {
     setLocalFileDirty(identity, Boolean(baseSnapshot && source !== baseSnapshot.source) || saveState === "saving" || Boolean(renderedFlush.current?.pending()));
     return () => setLocalFileDirty(identity, false);
@@ -468,7 +485,6 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     recordHistory(at, at, true);
   };
   const save = useCallback(async (overwriteExternal = false) => {
-    renderedFlush.current?.flush();
     if (savingOperation.current) return false;
     if (isLocalFileReadOnly(data.rootId, data.nodeId)) {
       setError("此本地文件当前为只读。请先在文件树右键菜单中切换为可编辑。");
@@ -480,12 +496,12 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     savingOperation.current = true;
     setSaveState("saving"); setError("");
     try {
-      const savingSource = sourceHandle.current?.value ?? sourceRef.current;
+      const savingSource = currentSource();
       const result = await saveLocalSource({
         submitted: savingSource, base,
-        currentSource: () => sourceHandle.current?.value ?? sourceRef.current,
+        currentSource,
         write: (text, snapshot) => localFileService.write(data.rootId, data.nodeId, text, snapshot),
-        committed: saved => { setBaseSnapshot(saved); setExternalSnapshot(null); renderedFlush.current?.flush(); },
+        committed: saved => { latestDraft.current.base = saved; setBaseSnapshot(saved); setExternalSnapshot(null); },
         clearDraft: () => removeLocalDraft(identity),
         keepDraft: (text, saved) => writeLocalDraft({ identity, source: text, baseSource: saved.source, baseRevision: saved.revision, bom: saved.bom, lineEnding: saved.lineEnding, savedAt: Date.now() }),
       });
@@ -504,7 +520,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     } finally {
       savingOperation.current = false;
     }
-  }, [baseSnapshot, data.nodeId, data.rootId, editing, externalSnapshot, identity]);
+  }, [baseSnapshot, currentSource, data.nodeId, data.rootId, editing, externalSnapshot, identity]);
   useEffect(() => registerLocalFileSaver(identity, async () => {
     if (saveBusy.current) throw new Error("文件正在保存，请稍后重试");
     return (await save()) === true;
@@ -535,7 +551,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
   const isFlow = language === "flow";
   useEffect(() => { if (!isMarkdown && !isMermaid && !isFlow) setPreview(false); }, [isMarkdown, isMermaid, isFlow]);
   const navigationRevision = useMemo(() => new SourceNavigationDocument(source, [], { sourceLanguage: language }), [source, language]);
-  const navigationBookmarks = useMemo(() => bookmarks.map(bookmark => ({ id: String(bookmark.offset), position: bookmark.offset, offset: bookmark.offset, blockNumber: bookmark.line, label: bookmark.label, preview: bookmark.label })), [bookmarks]);
+  const navigationBookmarks = useMemo(() => bookmarks.map(bookmark => ({ id: bookmark.id, position: bookmark.offset, offset: bookmark.offset, blockNumber: bookmark.line, label: bookmark.label, preview: bookmark.label })), [bookmarks]);
   const scrollLocalDocumentTo = (target: "top" | "middle" | "bottom") => {
     const scroller = preview ? localViewRef.current?.querySelector<HTMLElement>(".local-file-preview") : sourceHandle.current?.view.scrollDOM;
     if (!scroller) return;
@@ -560,17 +576,22 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     return localFileService.readImageAsset(data.rootId, resolveRelativeNode(data.nodeId, href));
   }, [data.rootId, data.nodeId]);
   const changeView = () => {
-    renderedFlush.current?.flush();
-    const text = sourceRef.current;
-    const doc = deltaToProseMirror(writeDocumentSource(text, "markdown"));
-    if (preview) {
-      sourceHandoff.current = true;
-      const editor = renderedEditor.current;
-      const selection = editor ? activeLinePluginKey.getState(editor.state)?.readingBlockPosition ?? editor.state.selection.from : undefined;
-      viewPosition.toSource(text, doc, undefined, selection);
-    } else viewPosition.toRendered(text, doc);
-    patchReadingState(`local-file:${identity}`, { view: preview ? "source" : "rendered" });
-    setPreview(value => !value);
+    const rendered = !preview;
+    try {
+      prepareLocalMarkdownView({
+        rendered, readSource: currentSource, position: viewPosition,
+        readRenderedSelection: () => {
+          const editor = renderedEditor.current;
+          return editor ? activeLinePluginKey.getState(editor.state)?.readingBlockPosition ?? editor.state.selection.from : undefined;
+        },
+        persist: () => patchReadingState(`local-file:${identity}`, { view: rendered ? "rendered" : "source" }),
+      });
+      sourceHandoff.current = !rendered;
+      setViewSwitchError("");
+      setPreview(rendered);
+    } catch (cause) {
+      setViewSwitchError(`无法切换 Markdown 视图：${String(cause)}`);
+    }
   };
   useNativeMenuActions({
     "view.tools": { run: () => setMoreTools(!moreTools), checked: moreTools },
@@ -597,10 +618,11 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
     setBookmarks(current => {
       const existing = current.find(item => item.line === number);
       if (existing) return current.filter(item => item !== existing);
-      return [...current, { offset: from, line: number, label: text.trim() || `第 ${number} 行` }].sort((left, right) => left.offset - right.offset);
+      return [...current, { id: crypto.randomUUID(), offset: from, line: number, label: text.trim() || `第 ${number} 行` }].sort((left, right) => left.offset - right.offset);
     });
   };
   const fileNotices = <>
+    {viewSwitchError && <p role="alert" className="local-files-message">{viewSwitchError}</p>}
     {recoveryNotice && <p role="status" className="local-files-message">{recoveryNotice}<button type="button" onClick={() => setRecoveryNotice("")} aria-label="关闭提示">×</button></p>}
     {loading && <p role="status" className="local-files-message">正在读取文件…</p>}
     {error && <p role="alert" className="local-files-message">{error}</p>}
@@ -617,7 +639,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
       showLineNumbers={showLineNumbers} showStatusBar={showStatusBar} defaultCodeBlockWrap={defaultCodeBlockWrap}
       cjkLatinSpacing={cjkLatinSpacing} readonlyHeadingFoldInFocusMode={readonlyHeadingFoldInFocusMode}
       onEditorConfigChange={onEditorConfigChange} onRename={canRename && !readOnly ? rename : undefined} onOpenProperties={() => setPropertiesOpen(value => !value)} info={fileInfo} navigationControls={navigationControls} bookmarks={bookmarks} onBookmarksChange={setBookmarks}
-      onSourceChange={value => { sourceRef.current = value; latestDraft.current.source = value; setSource(value); setSaveState(current => current === "saving" ? current : value === baseSnapshot.source ? "clean" : "dirty"); }}
+      onSourceChange={value => { changeSource(value); setSaveState(current => current === "saving" ? current : value === baseSnapshot.source ? "clean" : "dirty"); }}
       onPending={() => { setSaveState(current => current === "saving" ? "saving" : "dirty"); setLocalFileDirty(identity, true); }}
       onRegisterFlush={registerRenderedFlush} onEditorReady={editor => { renderedEditor.current = editor; viewPosition.onRenderedReady(editor); if (editor && renameFocus.current) { renameFocus.current = false; editor.view.focus(); } }} onClick={openRelative} resolveResource={resolveResource}
       onSelectionChange={selection => {
@@ -641,8 +663,8 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
       revision={navigationRevision} sourceHandle={preview ? null : editorHandle} currentOffset={activeOffset} bookmarkItems={navigationBookmarks}
       symbolFoldIds={foldedSymbols} onSymbolFoldIdsChange={setFoldedSymbols} onScrollDocument={scrollLocalDocumentTo}
       onJump={jump} onToggleBookmark={toggleBookmark}
-      onRemoveBookmark={id => setBookmarks(current => current.filter(item => String(item.offset) !== id))}
-      onRenameBookmark={(id, label) => setBookmarks(current => current.map(item => String(item.offset) === id ? { ...item, label: label.trim() || source.split("\n")[item.line - 1]?.trim() || `第 ${item.line} 行` } : item))}>
+      onRemoveBookmark={id => setBookmarks(current => current.filter(item => item.id !== id))}
+      onRenameBookmark={(id, label) => setBookmarks(current => current.map(item => item.id === id ? { ...item, label: label.trim() || source.split("\n")[item.line - 1]?.trim() || `第 ${item.line} 行` } : item))}>
       {controls => <>
     <DocumentTitleBar className="local-files-toolbar local-file-titlebar"><DocumentAccessToggle readonly={readOnly} disabled={operationLocked} title={operationLocked ? "正在执行文件操作，暂时只读" : editing ? "设为只读" : "允许编辑"} aria-label={editing ? "设为只读" : "允许编辑"} onClick={() => setLocalFileReadOnly(data.rootId, data.nodeId, !readOnly)} /><DocumentTitleField title={data.name} value={titleDraft.draft} inputRef={titleInput} preview={readOnly || !canRename} readonly={readOnly}
       onValueChange={titleDraft.setDraft} onFinish={titleDraft.finish} onCommit={rename} onEnter={() => sourceHandle.current?.focus()} onOpenProperties={() => setPropertiesOpen(value => !value)} info={fileInfo} /><span>{saveState === "saving" ? "正在保存…" : saveState === "dirty" ? "未保存" : saveState === "saved" ? "已保存" : "本地文件 · 不参与备份"}</span>
@@ -660,7 +682,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
       <div className="local-file-editor-shell" data-workspace-panel-start>{preview ? isMermaid || isFlow ? <SourceDocumentPreview language={language} source={source} fontSize={fontSize} className="local-file-preview" /> : <div className="editor-content local-file-preview"><p role="alert">{previewError || "暂时无法渲染，源码已保留，可切回源码模式。"}</p><pre>{source}</pre></div> : <DocumentSourceSurface editor={{
         value: source, readonly: !editing, contextMenuEnabled: true, onToggleLineBookmark: toggleBookmark,
         areaRef: sourceHandle, onReady: bindHandle, session: editorSession,
-        onChange: next => { sourceRef.current = next; setSource(next); },
+        onChange: changeSource,
         fontSize, highlightActiveLine, showLineNumbers, showStatusBar, focusMode, saveStatus: saveState, savedLabel: "已保存到磁盘；不参与数据库备份", navigation: navigationControls,
         documentLanguage: language, documentLanguageValue: languageOverride ?? AUTO_DOCUMENT_LANGUAGE,
         documentLanguageOptions: documentLanguageViewOptions(detectedLanguage),

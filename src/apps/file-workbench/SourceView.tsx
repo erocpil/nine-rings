@@ -13,10 +13,10 @@ import { DocumentTitleField } from "../../components/DocumentTitleField";
 import { PanelSideToggle } from "../../components/PanelSideToggle";
 import { createPortal } from "react-dom";
 import { DocumentNavigationWorkspace } from "../../components/DocumentNavigationWorkspace";
-import { sourceAnchorMapping, SourceNavigationDocument } from "../../lib/markdown-source-navigation";
+import { SourceNavigationDocument, type SourceEditRange } from "../../lib/markdown-source-navigation";
+import { remapLocalFileBookmarks } from "../../lib/local-files/bookmark-positions";
 import { useMarkdownViewPosition } from "../../hooks/useMarkdownViewPosition";
-import { deltaToProseMirror } from "../../lib/delta-converter";
-import { writeDocumentSource } from "../../lib/document-source";
+import { prepareLocalMarkdownView } from "../../lib/local-files/markdown-view-switch";
 import { DocumentImageLibraryContext } from "../../components/DocumentResourceContext";
 import type { Editor } from "@tiptap/core";
 import type { LocalRenderedFlush } from "../../components/LocalMarkdownWorkspace";
@@ -41,6 +41,7 @@ import type { BrowserFileOpen } from "../../lib/local-files/browser-contract";
 import type { LocalFileSnapshot } from "../../lib/local-files/file-model";
 import type { LocalSourceHost } from "../../lib/local-files/source-host";
 import { saveLocalSource } from "../../lib/local-files/source-save";
+import { checkpointLocalSource } from "../../lib/local-files/source-checkpoint";
 import { exportLocalSource } from "../../lib/local-files/source-download";
 import type { LocalFileDraft } from "../../lib/local-files/recovery";
 import "../../styles/local-files.css";
@@ -101,18 +102,19 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
       else requestAnimationFrame(() => { if (activeCurrent.current && renderMode.current && renderedEditor.current === editor && !editor.isDestroyed && !document.querySelector("dialog[open]")) editor.view.focus(); });
     }
   }, []);
+  const current = useCallback(() => { renderedFlush.current?.flush(); return sourceRef.current; }, []);
   const changePreviewMode = (value: boolean) => {
     if (value === renderMode.current) return;
     try {
-      renderedFlush.current?.flush();
-      saveWorkbenchFileView(settings, identity, { rendered: value });
-      const text = sourceRef.current;
-      const doc = deltaToProseMirror(writeDocumentSource(text, "markdown"));
-      if (value) position.toRendered(text, doc);
-      else {
-        if (handle.current && handle.current.value !== text) handle.current.insertIsolated(0, handle.current.view.state.doc.length, text);
-        position.toSource(text, doc, undefined, renderedEditor.current?.state.selection.from);
-      }
+      prepareLocalMarkdownView({
+        rendered: value, readSource: current, position,
+        readRenderedSelection: () => renderedEditor.current?.state.selection.from,
+        prepareSource: text => {
+          const editor = handle.current;
+          if (editor && editor.value !== text) editor.insertIsolated(0, editor.view.state.doc.length, text);
+        },
+        persist: () => saveWorkbenchFileView(settings, identity, { rendered: value }),
+      });
       if (value) setRenderMounted(true); else setSourceMounted(true);
       renderMode.current = value;
       setRenderMarkdown(value);
@@ -160,14 +162,9 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const [candidate, setCandidate] = useState<LocalFileDraft | null>(null);
   const dirty = Boolean(base && (untitled || source !== base.source || renderPending));
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
-  const current = useCallback(() => { renderedFlush.current?.flush(); return sourceRef.current; }, []);
-  const change = (text: string) => {
+  const change = (text: string, range?: SourceEditRange) => {
     const before = sourceRef.current;
-    setLineBookmarks(items => {
-      if (!items.length) return items;
-      const map = sourceAnchorMapping(before, text);
-      return items.map(item => ({ ...item, position: Math.max(0, Math.min(text.length, map(item.position))) }));
-    });
+    setLineBookmarks(items => remapLocalFileBookmarks(items, before, text, (item, mapOffset) => ({ ...item, position: mapOffset(item.position) }), range));
     sourceRef.current = text; setSource(text);
   };
   useEffect(() => {
@@ -176,17 +173,11 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   }, [identity, lineBookmarks, settings]);
   const renderedChange = (text: string) => { change(text); setRenderPending(false); };
   const applyBase = (snapshot: LocalFileSnapshot) => { baseRef.current = snapshot; setBase(snapshot); };
-  const checkpoint = useCallback(async () => {
-    if (busy.current) throw new Error("文件正在保存，请等待完成。");
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const snapshot = baseRef.current, text = current();
-      if (!snapshot) return;
-      if (text === snapshot.source && !persistDocument) await host.drafts.remove(identity);
-      else await host.drafts.write({ identity, source: text, baseSource: snapshot.source, baseRevision: snapshot.revision, bom: snapshot.bom, lineEnding: snapshot.lineEnding, savedAt: Date.now() });
-      if (snapshot === baseRef.current && text === current()) return;
-    }
-    throw new Error("内容持续变化，尚不能安全离开；请暂停输入后重试。");
-  }, [current, host, identity, persistDocument]);
+  const checkpoint = useCallback(() => checkpointLocalSource({
+    identity, drafts: host.drafts, retainClean: persistDocument,
+    read: () => ({ source: current(), base: baseRef.current }),
+    isSaving: () => busy.current,
+  }), [current, host, identity, persistDocument]);
   const read = useCallback(async () => {
     setLoading(true); setError("");
     try {
@@ -370,7 +361,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     {!loading && base && markdown && renderMounted && <div className="workbench-rendered-session" hidden={!renderMarkdown}>
       <DocumentImageLibraryContext.Provider value={false}><EditorFoldIconContext.Provider value={editorSettings}>
         <Suspense fallback={<p role="status">正在加载 Markdown 编辑器…</p>}><MarkdownWorkspace key={`${identity}:${renderEpoch}`} identity={`workbench:${identity}`} onCreateDocument={onCreateDocument} createDocumentLabel="新建文件" onError={setError} modified={dirty} source={source} title={file.node.name} active={active && renderMarkdown} readonly={readonly || !editable || !renderMarkdown || !active} focusMode={false} fontSize={typography.note_font_size} vimModeEnabled={false} useCustomContextMenu showStatusBlockNumber highlightActiveLine showLineNumbers={editorSettings.editor_show_line_numbers} onEditorConfigChange={async patch => { setEditorSettings(saveWorkbenchEditorSettings(settings, editorSettings, patch)); }} showStatusBar defaultCodeBlockWrap cjkLatinSpacing={false} readonlyHeadingFoldInFocusMode={false}
-          bookmarks={lineBookmarks.map(item => ({ offset: item.position, line: source.slice(0, item.position).split("\n").length, label: item.label || item.preview }))} onBookmarksChange={items => setLineBookmarks(items.map(item => ({ id: String(item.offset), position: item.offset, label: item.label, preview: item.label })))} onSourceChange={renderedChange} onPending={() => setRenderPending(true)} onRegisterFlush={registerRenderedFlush} onEditorReady={bindRendered} separateTitle titleRevealOnClick={false} pdfExport={false} onExportMarkdown={copy} onClick={() => {}} onReadonlyChange={editable ? setReadonly : undefined} resolveResource={resolveResource} saveStatus={saving ? "saving" : dirty ? "dirty" : "clean"}
+          bookmarks={lineBookmarks.map(item => ({ id: item.id, offset: item.position, line: source.slice(0, item.position).split("\n").length, label: item.label || item.preview }))} onBookmarksChange={items => setLineBookmarks(items.map(item => ({ id: item.id, position: item.offset, label: item.label, preview: item.label })))} onSourceChange={renderedChange} onPending={() => setRenderPending(true)} onRegisterFlush={registerRenderedFlush} onEditorReady={bindRendered} separateTitle titleRevealOnClick={false} pdfExport={false} onExportMarkdown={copy} onClick={() => {}} onReadonlyChange={editable ? setReadonly : undefined} resolveResource={resolveResource} saveStatus={saving ? "saving" : dirty ? "dirty" : "clean"}
           info={titleInfo} titleActions={titleActions} viewToggle={<FileBrowserMarkdownMode rendered onChange={changePreviewMode} />} />
         </Suspense>
       </EditorFoldIconContext.Provider></DocumentImageLibraryContext.Provider>

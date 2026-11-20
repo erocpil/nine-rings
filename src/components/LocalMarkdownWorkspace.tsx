@@ -13,7 +13,7 @@ import {
 } from "react";
 import type { Editor } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
-import type { AppConfig, DeltaOps } from "../types/models";
+import type { AppConfig, DeltaOps, DocumentBookmark } from "../types/models";
 import { markdownContentFingerprint } from "../lib/external-markdown-source";
 import { writeDocumentSource } from "../lib/document-source";
 import { closeHistory } from "@tiptap/pm/history";
@@ -21,6 +21,7 @@ import { deltaToProseMirror } from "../lib/delta-converter";
 import { deltaToMarkdown } from "../lib/markdown-serializer";
 import { SourceNavigationDocument } from "../lib/markdown-source-navigation";
 import { DocumentResourceContext } from "./DocumentResourceContext";
+import { documentBookmarkPluginKey, getDocumentBookmarks } from "../extensions/DocumentBookmarks";
 
 const Workspace = lazy(() =>
   import("./RenderedDocumentWorkspace").then((module) => ({ default: module.RenderedDocumentWorkspace })),
@@ -30,9 +31,22 @@ export interface LocalRenderedFlush {
   pending: () => boolean;
 }
 export interface LocalLineBookmark {
+  id: string;
   offset: number;
   line: number;
   label: string;
+}
+
+function projectBookmarks(
+  bookmarks: LocalLineBookmark[], navigation: SourceNavigationDocument,
+): DocumentBookmark[] {
+  return bookmarks.map(bookmark => ({
+    id: bookmark.id,
+    position: (navigation.blockAt(bookmark.offset)?.position ?? 0) + 1,
+    label: bookmark.label,
+    preview: bookmark.label,
+    createdAt: "1970-01-01T00:00:00.000Z",
+  }));
 }
 
 /** File adapter for the same rendered workspace used by database documents.
@@ -140,13 +154,7 @@ export function LocalMarkdownWorkspace({
       ...initial.content,
       metadata: {
         ...initial.content.metadata,
-        bookmarks: bookmarks.map((bookmark) => ({
-          id: String(bookmark.offset),
-          position: (navigation.blockAt(bookmark.offset)?.position ?? 0) + 1,
-          label: bookmark.label,
-          preview: bookmark.label,
-          createdAt: "1970-01-01T00:00:00.000Z",
-        })),
+        bookmarks: projectBookmarks(bookmarks, navigation),
       },
     }),
     [initial, navigation, bookmarks],
@@ -167,10 +175,12 @@ export function LocalMarkdownWorkspace({
     readonly,
     navigation,
   };
-  const live = useRef({ source, active });
-  live.current = { source, active };
+  const live = useRef({ source, active, bookmarks, navigation });
+  live.current = { source, active, bookmarks, navigation };
   const instance = useRef<Editor | null>(null);
   const lastProjection = useRef(initial.source);
+  const projectionActive = useRef(false);
+  const projectedBookmarks = useRef(bookmarks);
   const projecting = useRef(false);
   const rawByDocument = useRef(new WeakMap<PMNode, string>());
   const canonical = useRef<{ source: string; text: string }>();
@@ -231,6 +241,7 @@ export function LocalMarkdownWorkspace({
         items.map((item) => {
           const offset = map.offsetAt(item.position);
           return {
+            id: item.id,
             offset,
             line: raw.current.slice(0, offset).split("\n").length,
             label: item.label || item.preview,
@@ -256,12 +267,45 @@ export function LocalMarkdownWorkspace({
   const projectSource = useCallback(() => {
     const editor = instance.current;
     const current = live.current;
-    if (!editor || !current.active || current.source === lastProjection.current || pending.current) return;
+    if (!current.active) {
+      projectionActive.current = false;
+      return;
+    }
+    if (!editor || pending.current) return;
+    const previousBookmarks = projectedBookmarks.current;
+    const sourceChanged = current.source !== lastProjection.current;
+    const bookmarksChanged = !projectionActive.current && (
+      previousBookmarks.length !== current.bookmarks.length ||
+      previousBookmarks.some((item, index) => {
+        const next = current.bookmarks[index];
+        return item.id !== next.id || item.offset !== next.offset || item.label !== next.label;
+      })
+    );
+    projectionActive.current = true;
+    projectedBookmarks.current = current.bookmarks;
+    if (!sourceChanged && !bookmarksChanged) return;
     projecting.current = true;
     try {
-      const next = editor.schema.nodeFromJSON(deltaToProseMirror(writeDocumentSource(current.source, "markdown")));
-      if (!editor.state.doc.eq(next)) editor.view.dispatch(closeHistory(editor.state.tr).replaceWith(0, editor.state.doc.content.size, next.content).setMeta("preventUpdate", true));
+      const transaction = editor.state.tr;
+      if (sourceChanged) {
+        const next = editor.schema.nodeFromJSON(deltaToProseMirror(writeDocumentSource(current.source, "markdown")));
+        if (!editor.state.doc.eq(next)) {
+          closeHistory(transaction).replaceWith(0, editor.state.doc.content.size, next.content).setMeta("preventUpdate", true);
+        }
+      }
+      // Source edits also move or change bookmarks while this editor is parked.
+      const existing = new Map(getDocumentBookmarks(editor).map(bookmark => [bookmark.id, bookmark]));
+      transaction.setMeta(documentBookmarkPluginKey, {
+        type: "transfer",
+        removeIds: [...existing.keys()],
+        add: projectBookmarks(current.bookmarks, current.navigation).map(bookmark => {
+          const previous = existing.get(bookmark.id);
+          return previous ? { ...bookmark, key: previous.key, createdAt: previous.createdAt } : bookmark;
+        }),
+      });
+      editor.view.dispatch(transaction);
       rawByDocument.current.set(editor.state.doc, current.source);
+      raw.current = current.source;
       lastProjection.current = current.source;
       setProjectionBlocked(false);
     } catch (cause) {
@@ -269,7 +313,7 @@ export function LocalMarkdownWorkspace({
       setError(`Markdown 投影失败，请返回源码编辑；原始内容仍保留：${String(cause)}`);
     } finally { projecting.current = false; }
   }, []);
-  useLayoutEffect(projectSource, [active, source, projectSource]);
+  useLayoutEffect(projectSource, [active, source, bookmarks, projectSource]);
   const wasActive = useRef(active);
   useLayoutEffect(() => {
     if (active && !wasActive.current && instance.current) callbacks.current.onEditorReady?.(instance.current);

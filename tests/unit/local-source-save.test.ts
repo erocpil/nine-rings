@@ -86,6 +86,20 @@ it("leaves the baseline and recovery draft untouched when revision validation fa
   expect(ports.clearDraft).not.toHaveBeenCalled();
   expect(ports.keepDraft).not.toHaveBeenCalled();
 });
+
+it("returns the confirmed disk receipt when a later rendered edit cannot be read", async () => {
+  const { ports, saved } = fixture();
+  ports.currentSource = () => {
+    throw new Error("Markdown projection failed");
+  };
+  expect(await saveLocalSource(ports)).toEqual({
+    saved,
+    clean: false,
+    recoveryIssue: expect.stringContaining("Markdown projection failed"),
+  });
+  expect(ports.committed).toHaveBeenCalledWith(saved);
+  expect(ports.clearDraft).not.toHaveBeenCalled();
+});
 it("bounds continuously changing recovery settlement and reports that editing remains unsaved", async () => {
   const { ports, edit } = fixture();
   let next = 0;
