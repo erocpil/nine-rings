@@ -5,11 +5,27 @@ import { DEFAULT_EDITOR_FOLD_ICONS } from "../../lib/editor-fold-icons";
 
 export const EDITOR_SETTINGS_KEY = "source-editor";
 export const EDITOR_SETTINGS_EVENT = "file-workbench:editor-settings";
-export type WorkbenchEditorSettings = Pick<AppConfig, "editor_show_line_numbers" | "editor_fold_icon_style" | "editor_fold_icon_collapsed" | "editor_fold_icon_expanded">;
+export type WorkbenchEditorSettings = Pick<AppConfig, "editor_show_line_numbers" | "highlight_active_line" | "editor_show_status_bar" | "editor_show_status_block_number" | "use_custom_context_menu" | "editor_fold_icon_overrides" | "editor_fold_icon_style" | "editor_fold_icon_collapsed" | "editor_fold_icon_expanded">;
 
 function normalize(value: Partial<WorkbenchEditorSettings>): WorkbenchEditorSettings {
   const symbol = (text: unknown, fallback: string) => typeof text === "string" && text.trim() && [...text].length <= 8 ? text : fallback;
+  const overrides: WorkbenchEditorSettings["editor_fold_icon_overrides"] = {};
+  for (const scope of ["heading", "block", "outline"]) {
+    const override = value.editor_fold_icon_overrides?.[scope];
+    if (override && ["inherit", "triangle", "chevron", "custom"].includes(override.style)) {
+      overrides[scope] = {
+        style: override.style,
+        collapsed: symbol(override.collapsed, DEFAULT_EDITOR_FOLD_ICONS.editor_fold_icon_collapsed),
+        expanded: symbol(override.expanded, DEFAULT_EDITOR_FOLD_ICONS.editor_fold_icon_expanded),
+      };
+    }
+  }
   return {
+    highlight_active_line: value.highlight_active_line !== false,
+    editor_show_status_bar: value.editor_show_status_bar !== false,
+    editor_show_status_block_number: value.editor_show_status_block_number !== false,
+    use_custom_context_menu: value.use_custom_context_menu !== false,
+    editor_fold_icon_overrides: overrides,
     editor_show_line_numbers: typeof value.editor_show_line_numbers === "boolean" ? value.editor_show_line_numbers : true,
     editor_fold_icon_style: ["chevron", "triangle", "custom"].includes(value.editor_fold_icon_style ?? "") ? value.editor_fold_icon_style! : "chevron",
     editor_fold_icon_collapsed: symbol(value.editor_fold_icon_collapsed, DEFAULT_EDITOR_FOLD_ICONS.editor_fold_icon_collapsed),

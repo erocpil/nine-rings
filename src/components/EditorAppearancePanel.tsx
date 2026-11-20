@@ -4,11 +4,12 @@ import { DeferredMermaidDiagram } from "./DeferredMermaidDiagram";
 import { DeferredFlowBlock } from "./DeferredFlowBlock";
 import React, { useEffect, useLayoutEffect, useState, useRef } from "react";
 import type { AppConfig } from "../types/models";
-import { DEFAULT_EDITOR_APPEARANCE, DEFAULT_BLOCK_TYPOGRAPHY, editorAppearanceVariables } from "../lib/editor-appearance";
+import { DEFAULT_EDITOR_APPEARANCE, DEFAULT_BLOCK_TYPOGRAPHY, blockFontFamily, editorAppearanceVariables } from "../lib/editor-appearance";
 import { cjkSpacedText } from "./CjkSpacedText";
-import { blockWorkspacePreferences, codeBlockHeightPercent } from "../lib/block-display-settings";
+import { blockWorkspacePreferences, codeBlockHeightPercent, type WorkspacePreferences } from "../lib/block-display-settings";
 import { DEFAULT_CONFIG } from "../lib/storage/types";
 
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import type { BlockDisplayDraft } from "../lib/save-editor-appearance";
 
 interface Props {
@@ -18,12 +19,17 @@ interface Props {
   dirty: boolean;
   onUpdate: (partial: Partial<AppConfig>) => void;
   initialSearch?: string;
+  sourceFontFamily?: AppConfig["editor_font_family"];
+  onSourceFontChange?: (value: AppConfig["editor_font_family"]) => void;
+  appearanceDefaults?: Partial<AppConfig> & { source_font_family: AppConfig["editor_font_family"] };
   mobile: boolean;
   onPreviewChange: (previewing: boolean) => void;
 }
 
-export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdate, initialSearch, mobile, onPreviewChange }: Props) {
+export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdate, initialSearch, mobile, onPreviewChange, sourceFontFamily, onSourceFontChange, appearanceDefaults }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useDialogFocus(panelRef, Boolean(onSourceFontChange), closeRef);
   const [applying, setApplying] = useState(false);
   const applyingRef = useRef(false);
   const [applyError, setApplyError] = useState("");
@@ -33,7 +39,12 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
     applyingRef.current = true;
     setApplying(true);
     setApplyError("");
-    try { await onApply(blockDirty ? { preferences: blockDisplay, height: codeHeight } : undefined); }
+    try {
+      await onApply(blockDirty ? {
+        preferences: { ...blockWorkspacePreferences(), ...blockDraft },
+        height: codeHeightDraft ?? codeBlockHeightPercent(),
+      } : undefined);
+    }
     catch (error) { setApplyError(`保存失败，调整已保留，请重试：${error instanceof Error ? error.message : String(error)}`); }
     finally { applyingRef.current = false; setApplying(false); }
   };
@@ -66,11 +77,15 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, [config]);
-  const [blockDisplay, setBlockDisplay] = useState(blockWorkspacePreferences);
-  const [codeHeight, setCodeHeight] = useState(codeBlockHeightPercent);
-  const [blockDirty, setBlockDirty] = useState(false);
+  const [blockDefaults] = useState(blockWorkspacePreferences);
+  const [initialCodeHeight] = useState(codeBlockHeightPercent);
+  const [blockDraft, setBlockDraft] = useState<WorkspacePreferences>({});
+  const [codeHeightDraft, setCodeHeightDraft] = useState<number>();
+  const blockDisplay = { ...blockDefaults, ...blockDraft };
+  const codeHeight = codeHeightDraft ?? initialCodeHeight;
+  const blockDirty = Object.keys(blockDraft).length > 0 || codeHeightDraft !== undefined;
   const [previewMode, setPreviewMode] = useState<"rendered" | "source">("rendered");
-  const updateBlock = (patch: typeof blockDisplay) => { setBlockDisplay(value => ({ ...value, ...patch })); setBlockDirty(true); };
+  const updateBlock = (patch: WorkspacePreferences) => setBlockDraft(value => ({ ...value, ...patch }));
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -116,7 +131,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
             <p>调整只影响阅读和编辑外观，不会修改文档内容或 Markdown 导出结果。</p>
             <p className="editor-appearance-error" role="alert" hidden={!applyError}>{applyError}</p>
           </div>
-          <button className="settings-close" type="button" onClick={close} disabled={applying} aria-label="关闭编辑器排版">✕</button>
+          <button ref={closeRef} className="settings-close" type="button" onClick={close} disabled={applying} aria-label="关闭编辑器排版">✕</button>
         </header>
 
         <div className="editor-appearance-workspace">
@@ -156,6 +171,16 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
               </select>
             </AppearanceField>
 
+            {onSourceFontChange && <AppearanceField label="源码字体" desc="选择源码模式的字体">
+              <select className="settings-input editor-appearance-select" aria-label="源码字体" value={sourceFontFamily}
+                onChange={event => onSourceFontChange(event.target.value as AppConfig["editor_font_family"])}>
+                <option value="system">系统默认</option>
+                <option value="sans">无衬线</option>
+                <option value="serif">衬线 / 宋体</option>
+                <option value="monospace">等宽字体</option>
+              </select>
+            </AppearanceField>}
+
             <div className="editor-appearance-control-grid">
               <AppearanceField label="正文与标题字号" desc="同步调整文档标题、正文及各级标题">
                 <AppearanceStepper label="正文与标题字号" value={config.note_font_size} minimum={12} maximum={32} step={1} unit="px" onChange={(value) => onUpdate({ note_font_size: value })} />
@@ -192,7 +217,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
               </AppearanceField>
             </div>
 
-            <AppearanceField label="搜索关键字颜色" desc="Alt+F、Cmd+F 和笔记搜索定位时的匹配背景色">
+            <AppearanceField label="搜索关键字颜色" desc={onSourceFontChange ? "文档内查找时的匹配背景色" : "Alt+F、Cmd+F 和笔记搜索定位时的匹配背景色"}>
               <label className="settings-color-control">
                 <input
                   type="color"
@@ -284,7 +309,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                   <select className="settings-input editor-appearance-select" aria-label="弹层字号" value={blockDisplay.fontSize ?? ""} onChange={event => updateBlock({ fontSize: event.target.value ? Number(event.target.value) : undefined })}><option value="">跟随正文</option>{Array.from({ length: 21 }, (_, i) => i + 12).map(size => <option key={size}>{size}</option>)}</select>
                 </AppearanceField>
                 <AppearanceField label="代码／引用高度" desc="长代码与引用块内部滚动，最高不超过可视区">
-                  <select className="settings-input editor-appearance-select" aria-label="正文代码最大高度" value={codeHeight} onChange={event => { setCodeHeight(Number(event.target.value)); setBlockDirty(true); }}>{[40, 50, 60, 80, 100].map(value => <option value={value} key={value}>{value}% 可视区</option>)}</select>
+                  <select className="settings-input editor-appearance-select" aria-label="正文代码最大高度" value={codeHeight} onChange={event => setCodeHeightDraft(Number(event.target.value))}>{[40, 50, 60, 80, 100].map(value => <option value={value} key={value}>{value}% 可视区</option>)}</select>
                 </AppearanceField>
                 <AppearanceField label="代码行号" desc="正文代码块与块弹层共用；在任一处切换都会同步">
                   <label className="block-display-toggle"><input type="checkbox" aria-label="显示代码行号" checked={blockDisplay.lineNumbers ?? false} onChange={event => updateBlock({ lineNumbers: event.target.checked })} /><span>{blockDisplay.lineNumbers ? "显示行号" : "隐藏行号"}</span></label>
@@ -318,7 +343,11 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                 editor_source_gutter_divider_width: DEFAULT_CONFIG.editor_source_gutter_divider_width,
                 editor_source_gutter_divider_left_space: DEFAULT_CONFIG.editor_source_gutter_divider_left_space,
                 editor_source_gutter_divider_right_space: DEFAULT_CONFIG.editor_source_gutter_divider_right_space,
-              } : { ...DEFAULT_EDITOR_APPEARANCE, editor_block_number_gap: DEFAULT_CONFIG.editor_block_number_gap }) }); setBlockDisplay({ mermaidDisplay: "fit", fontSize: undefined, whitespace: "off", tabSize: 4, lineNumbers: false, wrap: true }); setCodeHeight(60); setBlockDirty(true); }}
+              } : { ...DEFAULT_EDITOR_APPEARANCE, editor_block_number_gap: DEFAULT_CONFIG.editor_block_number_gap }), ...appearanceDefaults });
+                if (appearanceDefaults) onSourceFontChange?.(appearanceDefaults.source_font_family);
+                updateBlock({ mermaidDisplay: "fit", fontSize: undefined, whitespace: "off", tabSize: 4, lineNumbers: false, wrap: true, listFollowupIndent: true });
+                setCodeHeightDraft(appearanceDefaults ? 50 : 60);
+              }}
             >恢复默认排版</button>
             <div className="editor-appearance-actions">
               <button className="settings-btn-secondary editor-appearance-cancel" type="button" onClick={close} disabled={applying}>取消</button>
@@ -346,7 +375,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
             </div>
             {previewMode === "rendered" ? <article className={`editor-appearance-preview editor-appearance-document ${displayConfig.editor_cjk_spacing ? "editor-auto-cjk-spacing" : ""}`} style={{ ...variables, "--list-followup-indent-enabled": blockDisplay.listFollowupIndent === false ? "0" : "1", "--editor-block-number-gap": `${Number(config.editor_block_number_gap) || 8}px` } as React.CSSProperties} aria-label="编辑器渲染排版预览">
                 <h1>把想法整理成可读的结构</h1>
-                <p>{cjkSpacedText("Nine Rings支持Markdown编辑，排版不改变内容本身，却会直接影响阅读节奏。标题、段落、列表和代码块共同构成一篇可连续阅读的文档。")}</p>
+                <p>{cjkSpacedText("Markdown编辑支持多种内容结构，排版不改变内容本身，却会直接影响阅读节奏。标题、段落、列表和代码块共同构成一篇可连续阅读的文档。")}</p>
                 <h2>清晰的层级</h2>
                 <p>先用标题标记主题，再用正文解释上下文。适当的标题间距帮助读者分辨章节，同时保持内容连贯。</p>
                 <ul>
@@ -376,7 +405,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                   <tbody><tr><td>字体与字号</td><td>决定页面的基本气质</td></tr><tr><td>行距与间距</td><td>控制信息密度和阅读节奏</td></tr></tbody>
                 </table>
                 <h3>较小层级</h3><h4>四级标题</h4><h5>五级标题</h5><h6>六级标题</h6>
-              </article> : <SourceTypographyPreview config={displayConfig} variables={variables} />}
+              </article> : <SourceTypographyPreview config={displayConfig} variables={{ ...variables, "--editor-source-font-family": blockFontFamily(sourceFontFamily) } as React.CSSProperties} />}
           </div>
         </div>
       </div>

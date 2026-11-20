@@ -66,3 +66,31 @@ it("notifies other sessions only after persistence succeeds", () => {
   ).toThrow("quota");
   expect(dispatchEvent).not.toHaveBeenCalled();
 });
+it("restores the saved typography when the block display write fails", () => {
+  const dispatchEvent = vi.fn();
+  vi.stubGlobal("window", { dispatchEvent });
+  const original = JSON.stringify({ note_font_size: 20 });
+  let saved = original;
+  const store = {
+    getItem: () => saved,
+    setItem: (_key: string, value: string) => {
+      saved = value;
+    },
+  };
+  const storage = {
+    getItem: () => null,
+    setItem: vi.fn(() => {
+      throw new Error("quota");
+    }),
+  };
+  vi.stubGlobal("localStorage", storage);
+  expect(() =>
+    saveWorkbenchTypography(
+      store,
+      { ...DEFAULT_TYPOGRAPHY, note_font_size: 22 },
+      { preferences: { wrap: false }, height: 60 },
+    ),
+  ).toThrow("quota");
+  expect(saved).toBe(original);
+  expect(dispatchEvent).not.toHaveBeenCalled();
+});

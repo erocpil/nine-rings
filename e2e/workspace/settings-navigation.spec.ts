@@ -23,7 +23,7 @@ async function openMobileSettings(page: import("@playwright/test").Page) {
 test("设置使用分类首页和二级页面精简内容", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await expect(page.getByRole("button", { name: "打开设置查找" })).toBeVisible();
   expect(await page.getByRole("button", { name: "打开设置查找" }).evaluate(button => {
     const close = button.closest(".settings-header")!.querySelector(".settings-close")!;
@@ -58,7 +58,7 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.getByRole("heading", { name: "外观与布局", exact: true })).toBeVisible();
   await page.getByLabel("返回设置分类").click();
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
-  await expect(page.getByRole("heading", { name: "编辑器", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "编辑器设置", exact: true })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "相对块号", exact: true })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "相对行号", exact: true })).toBeVisible();
   await expect(page.getByText("状态栏块号", { exact: true })).toBeVisible();
@@ -87,7 +87,7 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
 test("从子设置页查找后保留原页面作为返回位置", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^外观与布局/ }).click();
   const body = page.locator(".settings-body");
   await page.getByRole("button", { name: "打开设置查找" }).click();
@@ -107,7 +107,7 @@ test("设置子页首个分组没有多余顶部留白和分割线", async ({ pa
   await page.goto("/");
   await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
   await expect(page.locator(".ProseMirror")).toBeVisible();
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
 
   for (const pageName of ["作者与文档默认值", "备份与导入", "云端同步"]) {
     if (pageName === "作者与文档默认值") await page.getByRole("button", { name: /^文档管理/ }).click();
@@ -157,7 +157,7 @@ test("层次展示可分别设置路径与目录标题颜色", async ({ page }) 
   });
   await page.goto("/");
   await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^外观与布局/ }).click();
   await page.getByRole("button", { name: /^层次展示/ }).click();
   await expect(page.getByRole("heading", { name: "层次展示", exact: true })).toBeVisible();
@@ -266,7 +266,7 @@ test("编辑器状态栏紧凑且可以关闭并持久化", async ({ page }) => 
     return Number.parseFloat(getComputedStyle(element).paddingBottom) / viewportHeight;
   })).toBeGreaterThan(0.5);
 
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   const statusSetting = page.locator(".settings-field").filter({ hasText: "编辑器状态栏" });
   const toggle = statusSetting.locator('input[type="checkbox"]');
@@ -282,7 +282,7 @@ test("编辑器状态栏紧凑且可以关闭并持久化", async ({ page }) => 
 
 test("PWA 可关闭只读专注模式双击折叠并持久化", async ({ page }) => {
   const openSetting = async () => {
-    await page.getByTitle("设置").click();
+    await page.getByTitle("设置", { exact: true }).click();
     await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
     return page.locator(".settings-field").filter({ hasText: "只读文档双击标题折叠" });
   };
@@ -332,7 +332,7 @@ test("诊断报告只导出脱敏运行信息", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
   await expect(page.locator(".ProseMirror")).toBeEditable({ timeout: 10000 });
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^高级/ }).click();
 
   const downloadPromise = page.waitForEvent("download");
@@ -377,7 +377,7 @@ test.describe("移动端设置", () => {
 test("Owner / Repo 与 Token 一样直接显示输入框", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^云端同步/ }).click();
 
   await expect(page.getByRole("textbox", { name: "Owner / Repo" })).toBeVisible();
@@ -482,7 +482,7 @@ test("Web/PWA 从 GitHub Pull 后自动应用设置并恢复最后文档位置",
       };
     };
   }));
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^云端同步/ }).click();
   await expect(page.getByText(/Pull 会先按文档 UUID 比较本地、远端和上次同步基线/)).toBeVisible();
   await page.getByRole("button", { name: "Pull ↓" }).click();
@@ -560,7 +560,7 @@ test("内置快捷键按用途分组并在宽屏并列展示", async ({ page }) 
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/");
   await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^快捷键/ }).click();
   const groups = page.locator(".hotkey-group");
   await expect(groups).toHaveCount(3);

@@ -2504,7 +2504,7 @@ test("桌面浏览入口委派独立编辑器，创建失败保留原列表与�
 });
 
 test.describe("独立编辑器单标题与边缘滚动条", () => {
-  test("源码和渲染共用一行标题，右侧配色、浏览、关闭对齐且各面板按边缘显示滚动条", async ({ page }) => {
+  test("源码和渲染共用一行标题，右侧设置、浏览、关闭对齐且各面板按边缘显示滚动条", async ({ page }) => {
     await setupIndependentEditor(page, {
       "alpha.c": "int common;\n" + Array.from({ length: 220 }, (_, index) => `int variable_${index} = common;`).join("\n"),
       "guide.md": Array.from({ length: 60 }, (_, index) => `## Section ${index}\n\n` + "Paragraph content. ".repeat(25) + "\n\n").join(""),
@@ -2517,7 +2517,7 @@ test.describe("独立编辑器单标题与边缘滚动条", () => {
       await row.locator(".document-title-preview > .note-title").click();
       await expect(page.locator(".document-title-tooltip")).toHaveCount(0);
       await expect(row.getByRole("button", { name: "查看完整标题", exact: true })).toHaveCount(0);
-      const labels = ["配色", "在文件浏览中显示", "关闭当前文件"];
+      const labels = ["编辑器设置", "在文件浏览中显示", "关闭当前文件"];
       const bounds = await Promise.all(labels.map(label => page.getByRole("button", { name: label, exact: true }).boundingBox()));
       expect(bounds.every(Boolean)).toBe(true);
       expect(bounds[0]!.x + bounds[0]!.width).toBeLessThanOrEqual(bounds[1]!.x);
@@ -2541,8 +2541,9 @@ test.describe("独立编辑器单标题与边缘滚动条", () => {
       expect(await scroller.evaluate(element => ({ width: element.clientWidth, height: element.clientHeight, top: element.scrollTop }))).toEqual(before);
     };
     const choosePalette = async (name: string) => {
-      await page.getByRole("button", { name: "配色", exact: true }).click();
-      await page.getByRole("menu", { name: "工作台配色" }).getByRole("menuitem", { name: new RegExp(name) }).click();
+      const settings = await openWorkbenchEditorSettings(page);
+      await settings.getByRole("combobox", { name: "配色", exact: true }).selectOption({ label: name });
+      await settings.getByRole("button", { name: "关闭编辑器设置", exact: true }).click();
     };
     await expect(page.locator(".cm-content")).toContainText("int common");
     for (const palette of ["柔和浅色", "柔和深色", "清雅", "物哀"]) { await choosePalette(palette); await checkRow(); await checkScrollbar(page.locator(".cm-scroller")); }
@@ -2930,20 +2931,42 @@ for (const style of ["light", "calm"]) test(`独立编辑器右键标题级别�
   for (const x of [20, 1000]) await expectFoldContextSubmenu(page, content, x);
 });
 
+async function openWorkbenchEditorSettings(page: Page) {
+  await expect(page.getByRole("button", { name: "配色", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "编辑器设置", exact: true }).click();
+  return page.getByRole("dialog", { name: "编辑器设置", exact: true });
+}
+
 for (const palette of ["light", "calm"]) test(`编辑器排版独立保存并同步源码和渲染正文 ${palette}`, async ({ page }) => {
   await page.addInitScript(palette => localStorage.setItem("file-workbench:palette", palette), palette);
   await setupIndependentEditor(page, { "alpha.c": "int alpha(void) { return 1; }\n", "guide.md": "# Guide\n\nFirst paragraph.\n\nSecond paragraph.\n\n```c\nint sample;\n```\n" });
   const source = page.locator(".cm-content:visible");
   await expect(source).toHaveCSS("font-size", "18px");
   await source.evaluate(element => element.setAttribute("data-typography-retained", "yes"));
-  await page.getByRole("button", { name: "编辑器排版", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "编辑器排版", exact: true });
-  await dialog.getByRole("spinbutton", { name: "基础字号", exact: true }).fill("22");
+  const dialog = page.getByRole("dialog", { name: "排版设置", exact: true });
+  const openAppearance = async () => {
+    const settings = await openWorkbenchEditorSettings(page);
+    await expect(settings.getByRole("button", { name: /Vim 设置/ })).toHaveCount(0);
+    await settings.getByRole("button", { name: /打开排版设置/ }).click();
+  };
+  const applyAppearance = async () => {
+    await dialog.getByRole("button", { name: "应用到编辑器", exact: true }).click();
+    await page.getByRole("button", { name: "关闭编辑器设置", exact: true }).click();
+  };
+  const increase = async (label: string, count: number) => {
+    const button = dialog.getByRole("button", { name: `增大${label}`, exact: true });
+    for (let index = 0; index < count; index++) await button.click();
+  };
+  await openAppearance();
+  await increase("正文与标题字号", 4);
   await dialog.getByRole("combobox", { name: "正文字体", exact: true }).selectOption("serif");
   await dialog.getByRole("combobox", { name: "源码字体", exact: true }).selectOption("sans");
-  await dialog.getByRole("spinbutton", { name: "编辑器行距", exact: true }).fill("2");
-  await dialog.getByRole("spinbutton", { name: "编辑器块间距", exact: true }).fill("1.5");
-  await page.keyboard.press("Escape");
+  await increase("行距", 3);
+  await increase("正文块间距", 10);
+  await expect(source).toHaveCSS("font-size", "18px");
+  await dialog.getByRole("button", { name: "源码", exact: true }).click();
+  await expect(dialog.getByLabel("源码模式排版预览")).toBeVisible();
+  await applyAppearance();
   await expect(dialog).toHaveCount(0);
   await expect(source).toHaveCSS("font-size", "22px");
   await expect(source).toHaveCSS("line-height", "44px");
@@ -2961,9 +2984,9 @@ for (const palette of ["light", "calm"]) test(`编辑器排版独立保存并同
   expect(await paragraph.evaluate(element => getComputedStyle(element).fontFamily)).toContain("Noto Serif SC");
   expect(await page.locator(".ProseMirror:visible pre").first().evaluate(element => getComputedStyle(element).fontFamily)).toMatch(/mono/i);
   // A retained inactive source session receives later preference changes too.
-  await page.getByRole("button", { name: "编辑器排版", exact: true }).click();
-  await dialog.getByRole("spinbutton", { name: "基础字号", exact: true }).fill("24");
-  await page.keyboard.press("Escape");
+  await openAppearance();
+  await increase("正文与标题字号", 2);
+  await applyAppearance();
   await selectFile("alpha.c");
   await expect(source).toHaveCSS("font-size", "24px");
   await expect(source).toHaveAttribute("data-typography-retained", "yes");
@@ -2972,11 +2995,65 @@ for (const palette of ["light", "calm"]) test(`编辑器排版独立保存并同
   expect(await page.evaluate(() => localStorage.getItem("nine_rings_config"))).toBeNull();
   await page.reload();
   await expect(page.locator(".cm-content:visible")).toHaveCSS("font-size", "24px");
-  await page.getByRole("button", { name: "编辑器排版", exact: true }).click();
+  await openAppearance();
   await dialog.getByRole("button", { name: "恢复默认排版", exact: true }).click();
-  await expect(dialog.getByRole("spinbutton", { name: "基础字号", exact: true })).toHaveValue("18");
-  await page.keyboard.press("Escape");
+  await expect(dialog.locator(".editor-appearance-preview-heading small")).toHaveText("18px · 1.7 行距");
+  await applyAppearance();
   await expect(page.locator(".cm-content:visible")).toHaveCSS("font-size", "18px");
+});
+
+test("编辑器设置统一配色并在 Markdown 两种模式和读写状态同步显示偏好", async ({ page, context }) => {
+  await setupIndependentEditor(page, { "alpha.c": "int alpha;\n", "guide.md": "# Guide\n\n## Chapter\n\nBody text.\n" });
+  await page.getByRole("tab", { name: "guide.md", exact: true }).click();
+  const rendered = page.locator(".ProseMirror:visible");
+  await expect(rendered).toContainText("Body text.");
+  const browserWindow = await context.newPage();
+  await browserWindow.goto("/file-workbench.html");
+  const settings = await openWorkbenchEditorSettings(page);
+  await settings.getByRole("combobox", { name: "配色", exact: true }).selectOption("mono-aware");
+  await expect(page.locator("html")).toHaveAttribute("data-workbench-palette", "mono-aware");
+  await expect(browserWindow.locator("html")).toHaveAttribute("data-workbench-palette", "mono-aware");
+  await settings.getByRole("checkbox", { name: "编辑器状态栏", exact: true }).uncheck();
+  await settings.getByRole("checkbox", { name: "高亮当前行", exact: true }).uncheck();
+  await settings.getByRole("checkbox", { name: "显示块编号", exact: true }).uncheck();
+  await settings.getByRole("button", { name: "关闭编辑器设置", exact: true }).click();
+  await expect(page.locator(".editor-stats:visible")).toHaveCount(0);
+  await page.getByRole("button", { name: "点击设为可编辑" }).click();
+  await expect(rendered).toBeEditable();
+  await expect(page.locator(".editor-stats:visible")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  const source = page.locator(".cm-content:visible");
+  await expect(source).toBeEditable();
+  await expect(page.locator(".editor-stats:visible")).toHaveCount(0);
+  await expect(page.locator(".cm-lineNumbers:visible")).toHaveCount(0);
+  await page.getByRole("button", { name: "设为只读", exact: true }).click();
+  await expect(source).not.toBeEditable();
+  await page.reload();
+  await expect(source).toContainText("Body text.");
+  await expect(page.locator("html")).toHaveAttribute("data-workbench-palette", "mono-aware");
+  await expect(page.locator(".editor-stats:visible")).toHaveCount(0);
+  await expect(page.locator(".cm-lineNumbers:visible")).toHaveCount(0);
+  await openWorkbenchEditorSettings(page);
+  await expect(settings.getByRole("checkbox", { name: "高亮当前行", exact: true })).not.toBeChecked();
+  await expect(settings.getByRole("combobox", { name: "配色", exact: true })).toHaveValue("mono-aware");
+  await settings.getByRole("button", { name: /打开排版设置/ }).click();
+  const appearance = page.getByRole("dialog", { name: "排版设置", exact: true });
+  await appearance.getByRole("button", { name: "增大正文与标题字号", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(settings).toBeVisible();
+  await expect(source).toHaveCSS("font-size", "18px");
+
+  // Applying a block display draft keeps unrelated preferences written in another window.
+  await settings.getByRole("button", { name: /打开排版设置/ }).click();
+  await appearance.getByRole("combobox", { name: "正文代码最大高度", exact: true }).selectOption("80");
+  await browserWindow.evaluate(() => {
+    localStorage.setItem("nr:blockWorkspaceDisplay", JSON.stringify({ relativeSourceLineNumbers: true }));
+  });
+  await appearance.getByRole("button", { name: "应用到编辑器", exact: true }).click();
+  await expect(settings).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("nr:blockWorkspaceDisplay"))).toContain('"relativeSourceLineNumbers":true');
+  expect(await page.evaluate(() => localStorage.getItem("nr:codeBlockHeightPercent"))).toBe("80");
 });
 
 test("双栏中点吸附、双击及键盘恢复等宽并保存比例", async ({ page }) => {
@@ -3512,8 +3589,9 @@ test("Markdown 渲染在只读与编辑间保持正文上边缘", async ({ page 
     return { top: element.getBoundingClientRect().top - title.bottom, barHeight: bar?.height, barTop: bar ? bar.top - title.bottom : null };
   });
   for (const palette of ["柔和浅色", "清雅"]) {
-    await page.getByRole("button", { name: "配色", exact: true }).click();
-    await page.getByRole("menu", { name: "工作台配色" }).getByRole("menuitem", { name: new RegExp(palette) }).click();
+    const settings = await openWorkbenchEditorSettings(page);
+    await settings.getByRole("combobox", { name: "配色", exact: true }).selectOption({ label: palette });
+    await settings.getByRole("button", { name: "关闭编辑器设置", exact: true }).click();
     const read = await measure();
     await page.getByRole("button", { name: "点击设为可编辑" }).click();
     await expect(body).toBeEditable();

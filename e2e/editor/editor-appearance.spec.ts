@@ -3,7 +3,7 @@ import { createBlankDocument } from "../helpers/document";
 
 test("块显示设置迁移到排版页，取消不保存且应用后重载保留", async ({ page }) => {
   await page.goto("/");
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   const open = page.getByRole("button", { name: /打开排版设置/ });
   await open.click();
@@ -19,7 +19,7 @@ test("块显示设置迁移到排版页，取消不保存且应用后重载保�
   await page.getByRole("button", { name: "应用到编辑器", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "排版设置" })).toHaveCount(0);
   await page.reload();
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await page.getByRole("button", { name: /打开排版设置/ }).click();
   await expect(page.getByLabel("Tab 显示宽度")).toHaveValue("8");
@@ -31,7 +31,7 @@ test("块显示设置迁移到排版页，取消不保存且应用后重载保�
 
 test("排版设置中的调整即时生效并在重载后保持", async ({ page }) => {
   await page.goto("/");
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await expect(page.getByText("编辑器排版", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /打开排版设置/ }).click();
@@ -162,7 +162,7 @@ test("中英文自动间距只改变渲染且开关可以持久化", async ({ pa
   await expect(editor.locator(".cjk-auto-space-after")).toHaveCount(2);
   await expect(editor).toHaveText("中文Codex中文，ABC。第3章");
 
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await page.getByRole("button", { name: /打开排版设置/ }).click();
   const toggle = page.getByLabel("中英文自动间距");
@@ -231,7 +231,7 @@ test("四至六级标题字号不小于正文", async ({ page }) => {
   expect(sizes.h5).toBeGreaterThanOrEqual(sizes.paragraph);
   expect(sizes.h6).toBeGreaterThanOrEqual(sizes.paragraph);
 
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await page.getByRole("button", { name: /打开排版设置/ }).click();
   await page.getByRole("button", { name: "增大正文与标题字号" }).click();

@@ -28,6 +28,12 @@
 - Esc／Left 在级联菜单中逐层返回。浏览器测试应确认按钮的 `aria-expanded` 及菜单层级，不假设一次 Esc 就关闭整条菜单链。
 - `useFocusEditorTools` 的 Workbench 持久化由 `src/apps/file-workbench/toolbar-preferences.ts` 装配；保持 Nine Rings 原策略。`nr:blockWorkspaceDisplay` 继续维护软换行、高亮、微渲染及编号相关共享偏好。
 
+## 编辑器设置接续
+
+- Nine Rings 编辑器设置与 Workbench 的标题栏设置通过 `EditorSettingsContent` 复用，排版继续使用 `EditorAppearancePanel`。Workbench 单独保留源码字体及配色，配置应用于磁盘文件与未命名文档；浏览窗口保留配色入口。
+- 固定目录／书签可以独立占满侧栏高度。文档状态栏与正文列的分隔线沿用 `document-rail.ts`，后续若增加窗口级信息可另设跨列区域。Workbench 相对 Markdown 链接的实测样本和实现边界见[后续待办](../planning/file-workbench-followups.md#markdown-链接后续设计)。
+- 本批通过 `npm run check`（Vitest 2743 项）、两套前端生产构建、Nine Rings 相关 Playwright Chromium 45 项与 WebKit 串行 8 项，以及 Workbench 定向 Chromium／WebKit 各 7 项。跨窗口测试通过同一浏览器环境和模拟 Tauri 桥接运行，安装版仍待验收。
+
 ## 尚未确认与后续入口
 
 - **已定位 Workbench 右栏副本的直接原因。** 本机记录先恢复四对四个标签，随后 `reveal-file` 将右栏增为五个。旧定位只查活动栏，因此给左栏已有目录另开了一项。定位现在按活动侧优先查找两侧可见行；首次读取旧状态时，只清理诊断与旧定位生成形态均能核实的末尾副本。

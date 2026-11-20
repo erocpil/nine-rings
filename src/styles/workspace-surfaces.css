@@ -896,6 +896,21 @@
   display: none;
 }
 
+.editor-settings-toggle { position: relative; }
+.editor-settings-toggle input {
+  display: block;
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 1;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.editor-settings-toggle input:focus-visible + .toggle-track { outline: 2px solid var(--accent); outline-offset: 3px; }
+.editor-settings-toggle:has(input:disabled) { opacity: .6; cursor: default; }
+
 .toggle-track {
   position: relative;
   width: 36px;

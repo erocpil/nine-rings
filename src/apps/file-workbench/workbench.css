@@ -137,7 +137,7 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
 .workbench-editor-sessions { min-height: 0; }
 .workbench-editor-sessions > .retained-document-session { height: 100%; }
 
-/* Single document heading; host window actions reach the same 8px rail as the former palette. */
+/* Single document heading; host window actions reach the 8px window rail. */
 .workbench-editor-window .document-render-header,
 .workbench-editor-window .local-file-titlebar { margin-inline-end: 0; }
 .workbench-editor-window .document-title-bar {
@@ -158,13 +158,10 @@ html[data-workbench-palette] .workspace-dialog:has(.workbench-tool-execution) { 
   border-color: var(--border);
 }
 
-.workbench-typography-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px; }
-.workbench-typography-settings > :is(p, small) { grid-column: 1 / -1; }
-.workbench-typography-settings label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.workbench-typography-settings input { width: 68px; }
-.workbench-typography-settings :is(input, select, button) { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; font: inherit; }
-.workbench-typography-settings small { color: var(--text-secondary); }
-@media (max-width: 560px) { .workbench-typography-settings { grid-template-columns: minmax(0, 1fr); } }
+.workbench-editor-settings { padding: 0 16px 16px; }
+.workbench-editor-settings .settings-field > :is(.settings-desc, .settings-control) { min-width: 0; }
+.workbench-editor-settings .settings-control > select { max-width: 100%; color: var(--text); background: var(--surface); }
+.workbench-appearance-previewing > .editor-appearance-overlay { opacity: 0; }
 
 /* Portaled dialogs are outside .file-workbench-app. Keep this baseline below
    component-class specificity so icon, menu and destructive actions retain

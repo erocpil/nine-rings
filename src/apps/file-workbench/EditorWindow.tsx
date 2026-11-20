@@ -6,7 +6,7 @@ import { NotesContextMenu, type NotesMenuTarget } from "../../components/NotesCo
 import { lazy, Suspense, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { ToolbarIcon } from "../../components/ToolbarIcon";
 import { ParkedDocument } from "../../components/RetainedDocument";
-import { WorkbenchPalette, useWorkbenchPalette } from "./Palette";
+import { useWorkbenchPalette } from "./Palette";
 import type { createWorkbenchHost } from "./host";
 import { installWorkbenchClose, type WorkbenchCloseRequest } from "./native-lifecycle";
 import { editorWindowPort, watchWorkbenchEditor, type WorkbenchEditorPort, type WorkbenchEditorState } from "./editor-window";
@@ -24,7 +24,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
   const closeRefs = useRef(new Map<string, MutableRefObject<WorkbenchCloseRequest | null>>());
   const container = useRef<HTMLDivElement>(null);
   const closing = useRef<{ token: number; ids: string[]; index: number } | null>(null);
-  const palette = useWorkbenchPalette(host.workspace.settings);
+  useWorkbenchPalette(host.workspace.settings);
   const [quitHint, setQuitHint] = useState("");
   useEffect(() => {
     if (!port.listenQuit || !port.quit) return;
@@ -108,7 +108,7 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
       if (!closeRequest) { closeRequest = { current: null }; closeRefs.current.set(item.id, closeRequest); }
       const View = item.file.bufferId ? BufferView : SourceView;
       return <ParkedDocument key={item.id} active={current === item.id} host={container}>
-        <Suspense fallback={<p role="status">正在加载编辑工作区…</p>}><View bufferId={item.file.bufferId!} onCreateDocument={createDocument} beforeCloseActions={<><WorkbenchPalette {...palette} /><button type="button" className="btn-icon" aria-label="在文件浏览中显示" title="显示文件浏览窗口；保留当前编辑" onClick={() => { void port.showBrowser(item.file.bufferId ? undefined : current ?? undefined).catch(report); }}><ToolbarIcon name="folder" /></button></>} headerActions={<><button type="button" className="btn-icon" aria-label="切换编辑文件" title={`切换编辑文件（${state.files.length}）`} aria-haspopup="menu" aria-expanded={Boolean(fileMenu)} onClick={event => {
+        <Suspense fallback={<p role="status">正在加载编辑工作区…</p>}><View bufferId={item.file.bufferId!} onCreateDocument={createDocument} beforeCloseActions={<><button type="button" className="btn-icon" aria-label="在文件浏览中显示" title="显示文件浏览窗口；保留当前编辑" onClick={() => { void port.showBrowser(item.file.bufferId ? undefined : current ?? undefined).catch(report); }}><ToolbarIcon name="folder" /></button></>} headerActions={<><button type="button" className="btn-icon" aria-label="切换编辑文件" title={`切换编辑文件（${state.files.length}）`} aria-haspopup="menu" aria-expanded={Boolean(fileMenu)} onClick={event => {
           if (fileMenu) { setFileMenu(null); return; }
           const trigger = event.currentTarget, rect = trigger.getBoundingClientRect();
           setFileMenu({ id: "workbench-editor-files", title: "切换编辑文件", x: rect.left, y: rect.bottom, trigger });

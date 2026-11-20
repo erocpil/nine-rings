@@ -569,7 +569,7 @@
   grid-template-columns: max-content minmax(0, 1fr);
   min-width: 0;
   overflow: auto;
-  font: var(--editor-font-size, 16px)/var(--editor-line-height, 1.7) var(--font-mono);
+  font: var(--editor-font-size, 16px)/var(--editor-line-height, 1.7) var(--editor-source-font-family, var(--font-mono));
   tab-size: 4;
 }
 

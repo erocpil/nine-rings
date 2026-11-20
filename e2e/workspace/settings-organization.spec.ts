@@ -65,7 +65,7 @@ test("设置搜索定位具体选项，手机返回与右滑遵循分类层级",
       element.dispatchEvent(event);
     }
   });
-  await expect(page.getByRole('heading', { name: '编辑器', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '编辑器设置', exact: true })).toBeVisible();
   await page.getByLabel("返回设置分类").click();
   await expect(page.getByRole("button", { name: "打开设置查找" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "查找设置", exact: true })).toBeHidden();
