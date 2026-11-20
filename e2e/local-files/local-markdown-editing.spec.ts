@@ -152,6 +152,33 @@ test("磁盘源码恢复焦点时发现同长度外部修改并保留未保存�
   expect(await page.evaluate(() => (window as any).__localWorkspaceFixture.nodes.get("external.md").read())).toContain("Disk version 2");
 });
 
+test("浏览器磁盘保存暂存期间的外部写入会取消已打开的写入流", async ({ page }) => {
+  await createBlankDocument(page);
+  const { workspace } = await openWritableLocalDirectory(page, { "race.md": "# Version\n\nOriginal\n" }, "race.md");
+  const area = workspace.locator(".cm-content:visible");
+  await replaceSource(area, "# Version\n\nIn editor\n");
+  await page.evaluate(() => {
+    const node = (window as any).__localWorkspaceFixture.nodes.get("race.md");
+    const create = node.createWritable.bind(node);
+    node.aborts = 0;
+    node.createWritable = async () => {
+      const writer = await create();
+      return {
+        ...writer,
+        write: async (text: string) => { await writer.write(text); node.setText("# Version\n\nFrom disk\n"); },
+        abort: async () => { node.aborts++; await writer.abort(); },
+      };
+    };
+  });
+  await workspace.getByRole("button", { name: "保存文件", exact: true }).click();
+  await expect(workspace.getByRole("region", { name: "文件冲突处理" })).toContainText("From disk");
+  await expect(area).toContainText("In editor");
+  expect(await page.evaluate(() => {
+    const node = (window as any).__localWorkspaceFixture.nodes.get("race.md");
+    return { content: node.read(), writes: node.writes, aborts: node.aborts };
+  })).toEqual({ content: "# Version\n\nFrom disk\n", writes: 0, aborts: 1 });
+});
+
 test("桌面磁盘 Markdown 正文和三条横线共用阅读宽度", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "nine-rings", workspace_layout: "exhibition", interface_content_width: 740 })));

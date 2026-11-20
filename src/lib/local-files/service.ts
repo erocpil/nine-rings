@@ -531,24 +531,36 @@ export const localFileService = {
       for (const part of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(part);
       const fileHandle = await dir.getFileHandle(parts[parts.length - 1]!);
       if (!fileHandle.createWritable) throw new Error("当前浏览器不支持写入；可使用另存为");
-      const currentBytes = new Uint8Array(await (await fileHandle.getFile()).arrayBuffer());
-      const currentHash = await crypto.subtle.digest("SHA-256", new Uint8Array(currentBytes).buffer);
-      const currentRevision = [...new Uint8Array(currentHash)].map(value => value.toString(16).padStart(2, "0")).join("");
-      check();
-      if (currentRevision !== base.revision) throw new Error("STALE_REVISION: 磁盘文件已被外部修改");
+      const assertRevision = async () => {
+        const disk = await fileHandle.getFile();
+        if (disk.size > MAX_SOURCE_BYTES || disk.size !== base.size) throw new Error("STALE_REVISION: 磁盘文件已被外部修改");
+        const hash = await crypto.subtle.digest("SHA-256", await disk.arrayBuffer());
+        const revision = [...new Uint8Array(hash)].map(value => value.toString(16).padStart(2, "0")).join("");
+        check();
+        if (revision !== base.revision) throw new Error("STALE_REVISION: 磁盘文件已被外部修改");
+      };
+      await assertRevision();
       const normalized = source.replace(/\r\n?/g, "\n");
       const encoded = base.lineEnding === "crlf" ? normalized.replace(/\n/g, "\r\n") : base.lineEnding === "cr" ? normalized.replace(/\n/g, "\r") : normalized;
-      if (new TextEncoder().encode((base.bom ? "\ufeff" : "") + encoded).length > MAX_SOURCE_BYTES) throw new Error("按原换行格式保存后文件超过 4 MiB");
+      const payload = (base.bom ? "\ufeff" : "") + encoded;
+      const bytes = new TextEncoder().encode(payload);
+      if (bytes.length > MAX_SOURCE_BYTES) throw new Error("按原换行格式保存后文件超过 4 MiB");
+      const savedHash = await crypto.subtle.digest("SHA-256", bytes);
+      const incoming = [...new Uint8Array(savedHash)].map(value => value.toString(16).padStart(2, "0")).join("");
+      check();
       const writable = await fileHandle.createWritable();
-      const immediateBytes = new Uint8Array(await (await fileHandle.getFile()).arrayBuffer());
-      const immediateDigest = await crypto.subtle.digest("SHA-256", new Uint8Array(immediateBytes).buffer);
-      const immediateRevision = [...new Uint8Array(immediateDigest)].map(value => value.toString(16).padStart(2, "0")).join("");
+      try {
+        await writable.write(payload);
+        await assertRevision();
+        await writable.close();
+      } catch (error) {
+        try { await writable.abort?.(); } catch { /* Preserve the failure that prevented publication. */ }
+        throw error;
+      }
       check();
-      if (immediateRevision !== base.revision) { await writable.abort?.(); throw new Error("STALE_REVISION: 磁盘文件在保存期间被外部修改"); }
-      try { await writable.write((base.bom ? "\ufeff" : "") + encoded); await writable.close(); }
-      catch (error) { try { await writable.close(); } catch { /* keep original failure */ } throw error; }
-      check();
-      return await this.readSnapshot(rootId, node);
+      const saved = await this.readSnapshot(rootId, node);
+      if (saved.revision !== incoming) throw new Error("STALE_REVISION: 保存完成后磁盘文件再次变化");
+      return saved;
     } finally { finish(); }
   },
   async saveAs(name: string, source: string, base: Pick<LocalFileSnapshot, "bom" | "lineEnding"> | null): Promise<SaveAsResult> {

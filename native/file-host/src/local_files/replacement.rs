@@ -198,12 +198,17 @@ mod atomic {
         )?;
         Ok(review)
     }
-    fn exchange(staging: &fs::File, destination: &fs::File, name: &CStr) -> io::Result<()> {
+    fn exchange(
+        staging: &fs::File,
+        incoming: &CStr,
+        destination: &fs::File,
+        name: &CStr,
+    ) -> io::Result<()> {
         #[cfg(target_os = "macos")]
         let result = unsafe {
             libc::renameatx_np(
                 staging.as_raw_fd(),
-                c"previous".as_ptr(),
+                incoming.as_ptr(),
                 destination.as_raw_fd(),
                 name.as_ptr(),
                 libc::RENAME_SWAP,
@@ -213,13 +218,22 @@ mod atomic {
         let result = unsafe {
             libc::renameat2(
                 staging.as_raw_fd(),
-                c"previous".as_ptr(),
+                incoming.as_ptr(),
                 destination.as_raw_fd(),
                 name.as_ptr(),
                 libc::RENAME_EXCHANGE,
             )
         };
         status(result)
+    }
+    pub(super) fn exchange_save(temp: &Path, target: &Path) -> Result<(), String> {
+        let (source, incoming) = parent(temp)?;
+        let (destination, name) = parent(target)?;
+        if source != destination {
+            return Err("暂存与原文件必须位于同一目录".into());
+        }
+        let dir = directory(destination).map_err(|error| error.to_string())?;
+        exchange(&dir, &incoming, &dir, &name).map_err(|error| error.to_string())
     }
     fn copy(mut source: &fs::File, mut target: &fs::File, size: u64) -> io::Result<()> {
         use std::io::Read;
@@ -288,7 +302,7 @@ mod atomic {
             verify_directory(source_parent, &source_dir)
                 .and_then(|_| verify_directory(destination, &target_dir))
                 .and_then(|_| verify_directory(&stage_path, &stage))
-                .and_then(|_| exchange(&stage, &target_dir, &target_name))
+                .and_then(|_| exchange(&stage, c"previous", &target_dir, &target_name))
                 .map_err(|error| error.to_string())?;
             Ok(incoming)
         })();
@@ -363,6 +377,12 @@ mod atomic {
 }
 
 use atomic::{replace, review};
+
+/// Reuse the same exchange primitive for revision-checked editor saves.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+pub(super) fn exchange_save(temp: &Path, target: &Path) -> Result<(), String> {
+    atomic::exchange_save(temp, target)
+}
 
 fn authorized_paths(
     window: &tauri::WebviewWindow,

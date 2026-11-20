@@ -1458,6 +1458,115 @@ pub async fn local_files_read(
     Ok(bytes)
 }
 
+fn save_digest(path: &Path) -> Result<String, String> {
+    let before = fs::symlink_metadata(path).map_err(|error| error.to_string())?;
+    if !before.is_file() || is_link(&before) || before.len() > MAX_BYTES {
+        return Err("磁盘文件已变化，或超过 4 MiB 普通文本保存上限".into());
+    }
+    let mut options = fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW);
+    }
+    let file = options.open(path).map_err(|error| error.to_string())?;
+    if !same_digest_identity(
+        &before,
+        &file.metadata().map_err(|error| error.to_string())?,
+    ) {
+        return Err("检查期间文件已变化".into());
+    }
+    let digest = digest_stream(file, before.len())?;
+    if !same_digest_identity(
+        &before,
+        &fs::symlink_metadata(path).map_err(|error| error.to_string())?,
+    ) {
+        return Err("检查期间文件已变化".into());
+    }
+    Ok(digest)
+}
+
+#[cfg(target_os = "windows")]
+fn replace_save_with_backup(temp: &Path, target: &Path, previous: &Path) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::{
+        core::PCWSTR,
+        Win32::Storage::FileSystem::{ReplaceFileW, REPLACE_FILE_FLAGS},
+    };
+    let wide = |p: &Path| {
+        p.as_os_str()
+            .encode_wide()
+            .chain(Some(0))
+            .collect::<Vec<_>>()
+    };
+    let (temp, target, previous) = (wide(temp), wide(target), wide(previous));
+    unsafe {
+        ReplaceFileW(
+            PCWSTR(target.as_ptr()),
+            PCWSTR(temp.as_ptr()),
+            PCWSTR(previous.as_ptr()),
+            REPLACE_FILE_FLAGS(0),
+            None,
+            None,
+        )
+    }
+    .map_err(|error| error.to_string())
+}
+
+/// The file displaced by publication supplies the final revision evidence. A
+/// racing external write remains recoverable even if it was too late to veto.
+fn publish_editor_save(
+    temp: &Path,
+    target: &Path,
+    expected: &str,
+    incoming: &str,
+    before_exchange: impl FnOnce(),
+) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let previous = temp.with_extension("previous");
+    #[cfg(not(target_os = "windows"))]
+    let previous = temp.to_owned();
+
+    before_exchange();
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    replacement::exchange_save(temp, target)?;
+    #[cfg(target_os = "windows")]
+    if let Err(error) = replace_save_with_backup(temp, target, &previous) {
+        // Windows can move the old file to its backup before returning a
+        // failure. Preserve both names in that case.
+        if !matches!(fs::symlink_metadata(&previous), Err(ref error) if error.kind() == std::io::ErrorKind::NotFound)
+        {
+            return Err(format!(
+                "SAVE_PUBLISHED: 保存状态需要核对（{error}）。原文件备份 {}，待保存内容 {}",
+                previous.display(),
+                temp.display()
+            ));
+        }
+        return Err(error);
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    return Err("当前系统不支持可恢复的文件覆盖，请另存为副本。".into());
+
+    let pending = |detail: &str| {
+        format!(
+            "SAVE_PUBLISHED: {detail}。请核对当前文件和保存前的内容 {}",
+            previous.display()
+        )
+    };
+    let parent = target.parent().ok_or_else(|| pending("无法核对保存目录"))?;
+    super::local_file_transfer::sync_directory(parent).map_err(|error| pending(&error))?;
+    if save_digest(&previous).as_deref() != Ok(expected)
+        || save_digest(target).as_deref() != Ok(incoming)
+    {
+        return Err(pending("保存时检测到外部文件变化，已保留保存前的内容"));
+    }
+    // Successful editing keeps the existing no-backup UX. A failed cleanup
+    // leaves a harmless recovery copy rather than making a confirmed write retryable.
+    let _ = fs::remove_file(previous);
+    Ok(())
+}
+
 fn write(
     root: &Path,
     node: &str,
@@ -1484,9 +1593,7 @@ fn write(
         return Err("换行格式无效".into());
     }
     let target = checked_path(root, node)?;
-    let current = fs::read(&target).map_err(|error| error.to_string())?;
-    let actual_revision = format!("{:x}", Sha256::digest(&current));
-    if actual_revision != expected_revision {
+    if save_digest(&target)? != expected_revision {
         return Err("STALE_REVISION: 磁盘文件已被外部修改".into());
     }
     let target_permissions = fs::metadata(&target)
@@ -1518,50 +1625,36 @@ fn write(
             .open(&temp)
             .map_err(|error| error.to_string())?;
         file.write_all(&bytes).map_err(|error| error.to_string())?;
-        file.sync_all().map_err(|error| error.to_string())?;
-        fs::set_permissions(&temp, target_permissions.clone())
+        file.set_permissions(target_permissions.clone())
             .map_err(|error| error.to_string())?;
+        file.sync_all().map_err(|error| error.to_string())?;
+        // ReplaceFileW opens the staged file without sharing; release this handle.
+        drop(file);
         // Revalidate the authorized root immediately before replacing the file.
         if checked_path(root, node)? != target {
             return Err("授权路径在保存期间发生变化".into());
         }
-        let latest = fs::read(&target).map_err(|error| error.to_string())?;
-        if format!("{:x}", Sha256::digest(&latest)) != expected_revision {
+        if save_digest(&target)? != expected_revision {
             return Err("STALE_REVISION: 磁盘文件在保存期间被外部修改".into());
         }
-        // Keep revocation from racing the final replacement. If the grant was
-        // removed while the temporary file was being prepared, abort instead.
         let grants = roots.lock().map_err(|_| "目录状态不可用")?;
         if grants.get(&root_id).map(PathBuf::as_path) != Some(root) {
             return Err("目录授权已撤销，未写入文件".into());
         }
-        #[cfg(windows)]
-        {
-            use std::os::windows::ffi::OsStrExt;
-            use windows::Win32::Storage::FileSystem::{
-                MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
-            };
-            let from: Vec<u16> = temp.as_os_str().encode_wide().chain(Some(0)).collect();
-            let to: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
-            unsafe {
-                MoveFileExW(
-                    windows::core::PCWSTR(from.as_ptr()),
-                    windows::core::PCWSTR(to.as_ptr()),
-                    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-                )
-            }
-            .map_err(|error| error.to_string())?;
-        }
-        #[cfg(not(windows))]
-        fs::rename(&temp, &target).map_err(|error| error.to_string())?;
+        let incoming = format!("{:x}", Sha256::digest(&bytes));
+        publish_editor_save(&temp, &target, expected_revision, &incoming, || {})?;
         drop(grants);
         Ok(())
     })();
-    if result.is_err() {
+    if matches!(result, Err(ref error) if !error.starts_with("SAVE_PUBLISHED:")) {
         let _ = fs::remove_file(&temp);
     }
     result?;
-    read(root, node)
+    let saved = read(root, node)?;
+    if saved.revision != format!("{:x}", Sha256::digest(&bytes)) {
+        return Err("STALE_REVISION: 保存完成后磁盘文件再次变化".into());
+    }
+    Ok(saved)
 }
 
 // Keep the established IPC fields flat; two arguments are injected Tauri context.
@@ -1841,6 +1934,28 @@ pub fn write_selected_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn save_keeps_the_exact_version_displaced_at_publication() {
+        let fixture = TransferFixture::new();
+        let target = fixture.0.join("document.md");
+        let temp = fixture.0.join(".nr-save-pending.tmp");
+        fs::write(&target, "baseline").unwrap();
+        fs::write(&temp, "my edit").unwrap();
+        let baseline = save_digest(&target).unwrap();
+        let incoming = save_digest(&temp).unwrap();
+        let error = publish_editor_save(&temp, &target, &baseline, &incoming, || {
+            fs::write(&target, "external edit during save").unwrap();
+        })
+        .unwrap_err();
+        assert!(error.starts_with("SAVE_PUBLISHED:"));
+        assert_eq!(fs::read_to_string(&target).unwrap(), "my edit");
+        #[cfg(windows)]
+        let temp = temp.with_extension("previous");
+        assert_eq!(
+            fs::read_to_string(&temp).unwrap(),
+            "external edit during save"
+        );
+    }
     #[test]
     fn selected_file_receipt_keeps_revision_and_encoding_guards() {
         let fixture = TransferFixture::new();
