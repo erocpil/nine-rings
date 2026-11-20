@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { test, expect, type Locator } from "@playwright/test";
-import { createBlankDocument } from "../helpers/document";
+import { createBlankDocument, measureDocumentRail } from "../helpers/document";
 import { openWritableLocalDirectory } from "../helpers/local-files";
 import { replaceSource, selectSource, sourceInfo } from "../helpers/source-editor";
 
@@ -134,6 +134,37 @@ test("磁盘 Markdown 无本机编辑时检测到外部变化会自动重载并�
   await page.evaluate(() => (window as any).__localWorkspaceFixture.nodes.get("external.md").setText("# External revision\n\nParagraph changed on disk\n"));
   await expect(body).toContainText("Paragraph changed on disk");
   await expect(workspace.locator(".local-files-message").filter({ hasText: "检测到磁盘文件变化，已重新载入并保留阅读位置。" })).toBeVisible();
+});
+
+test("桌面磁盘 Markdown 正文和三条横线共用阅读宽度", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "nine-rings", workspace_layout: "exhibition", interface_content_width: 740 })));
+  await createBlankDocument(page);
+  await page.addStyleTag({ content: ":is(.note-editor-scroll, .cm-scroller)::-webkit-scrollbar { width: 12px; }" });
+  const { workspace } = await openWritableLocalDirectory(page, { "rail.md": "# Heading\n\nParagraph\n" }, "rail.md");
+  await workspace.getByRole("button", { name: "渲染", exact: true }).click();
+  const editor = workspace.locator(".note-editor");
+  const alignment = async (source: boolean, label: string) => {
+    await expect.poll(async () => {
+      const { maxDifference, title, toolbar, status, scrollbar } = await measureDocumentRail(workspace, source);
+      return title && toolbar && status && scrollbar === 12 ? maxDifference : Infinity;
+    }, { message: label }).toBeLessThan(1);
+  };
+  await expect(page.locator(".app")).toHaveClass(/app-desktop-workspace/);
+  await expect.poll(() => editor.evaluate(element => getComputedStyle(element).getPropertyValue("--editor-scrollbar-width"))).toBe("12px");
+  for (const style of ["nine-rings", "classic", "calm", "calm-compact", "paper", "minimal", "mono-aware", "yugen", "wabi-sabi"]) {
+    await page.evaluate(value => { document.documentElement.dataset.interfaceStyle = value; }, style);
+    await alignment(false, style);
+  }
+  const rendered = await measureDocumentRail(workspace, false);
+  expect(rendered.width).toBeLessThan(900);
+  await workspace.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  await alignment(false, "readonly rendered");
+  await workspace.getByRole("button", { name: "显示源码", exact: true }).click();
+  await alignment(true, "readonly source");
+  expect((await measureDocumentRail(workspace, true)).width).toBeCloseTo(rendered.width, 0);
+  await workspace.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await alignment(true, "editable source");
 });
 
 test("磁盘 Markdown 共用渲染编辑器，原文往返、撤销、立即保存、相对资源与只读门禁", async ({ page }) => {

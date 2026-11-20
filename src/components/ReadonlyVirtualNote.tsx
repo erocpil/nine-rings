@@ -61,6 +61,7 @@ import {
 } from "../extensions/SearchHighlights";
 import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
 import { documentLinkAtTarget } from "../lib/document-link-context";
+import { observeDocumentRail } from "../lib/document-rail";
 import { copyToClipboard } from "../lib/clipboard";
 import { referenceAnchorAt } from "../extensions/ReferenceAnchors";
 import { deltaToMarkdown } from "../lib/markdown-serializer";
@@ -164,12 +165,14 @@ export function ReadonlyVirtualNote(
   useLayoutEffect(() => {
     const viewport = rootRef.current;
     const host = viewport?.closest<HTMLElement>(".vr-note");
-    if (!viewport || !host) return;
+    const body = bodyRef.current;
+    if (!viewport || !host || !body) return;
     const measure = () => host.style.setProperty("--editor-scrollbar-width", `${Math.max(0, viewport.offsetWidth - viewport.clientWidth)}px`);
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(viewport);
-    return () => { observer.disconnect(); host.style.removeProperty("--editor-scrollbar-width"); };
+    const stopRail = observeDocumentRail(host, body);
+    return () => { observer.disconnect(); stopRail(); host.style.removeProperty("--editor-scrollbar-width"); };
   }, []);
   const heights = useRef(new Map<number, number>());
   const pendingAnchor = useRef<ReadingAnchor | null>(null);

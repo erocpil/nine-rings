@@ -24,6 +24,7 @@ import {
 import { insertSourceNewline } from "../lib/source-newline";
 import { sourceCodeSupport } from "../lib/source-code-highlighting";
 import { DOCUMENT_LANGUAGE_OPTIONS } from "../lib/document-language";
+import { observeDocumentRail } from "../lib/document-rail";
 import { mermaidSourceLanguage } from "../lib/source-mermaid-language";
 import { sourceLanguages } from "../lib/source-language-data";
 import { shortcutTitle } from "../lib/editor-shortcuts";
@@ -1082,8 +1083,10 @@ export function MarkdownSourceEditor({
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(scroller);
+    const stopRail = observeDocumentRail(root, scroller, workbench);
     return () => {
       observer.disconnect();
+      stopRail();
       root.style.removeProperty("--editor-scrollbar-width");
       if (chrome !== root) chrome.style.removeProperty("--editor-scrollbar-width");
       workbench?.style.removeProperty("--editor-scrollbar-width");

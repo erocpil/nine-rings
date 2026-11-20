@@ -99,6 +99,7 @@ import { EditorToolbarContents } from "./EditorToolbarContents";
 import { flushSync } from "react-dom";
 import { createReplacementTransaction } from "../lib/editor-replace";
 import { documentLinkAtTarget } from "../lib/document-link-context";
+import { observeDocumentRail } from "../lib/document-rail";
 import { EditorContextMenu, type EditorContextPosition } from "./EditorContextMenu";
 import { EditorInsertDialogs } from "./EditorInsertDialogs";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
@@ -1079,6 +1080,11 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
       }
     },
   }, [noteId]);
+  useLayoutEffect(() => {
+    const scope = noteEditorRef.current;
+    const body = scrollRef.current?.querySelector<HTMLElement>(".editor-content-shell");
+    if (scope && body) return observeDocumentRail(scope, body);
+  }, [editor]);
   useLayoutEffect(() => {
     const menu = wikiMenuRef.current;
     if (!wikiOpen || !editor || !menu) return;

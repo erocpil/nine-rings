@@ -650,7 +650,6 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
     .app-desktop-workspace
     .editor-stats {
     min-height: 26px;
-    padding-inline: 12px;
     background-color: transparent;
   }
 }

@@ -1,4 +1,5 @@
 import { dragDockPanel } from "../helpers/document-dock";
+import { measureDocumentRail } from "../helpers/document";
 import { expectFoldContextSubmenu } from "../helpers/context-submenu";
 import { sourceInfo, selectDocumentLanguage } from "../helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
@@ -3468,6 +3469,35 @@ test("Editor工具栏开关与更多工具在源码、渲染、文件切换和�
   await more.click();
   await expect(page.getByRole("dialog", { name: "文件操作异常", exact: true })).toContainText("TOOLBAR_QUOTA");
   await expect(more).toHaveAttribute("aria-pressed", "true");
+});
+
+test("Markdown 源码和渲染在只读与编辑下共用分隔线并使用滚动条实际占宽", async ({ page }) => {
+  await setupIndependentEditor(page, { "guide.md": "# Heading\n\nFirst paragraph\n" });
+  await page.getByRole("tab", { name: "guide.md", exact: true }).click();
+  const scope = page.getByRole("region", { name: "文件源码工作区" });
+  const scrollbarStyle = await page.addStyleTag({ content: "/* scrollbar fixture */" });
+  const check = async (source: boolean) => {
+    const widths: number[] = [];
+    for (const scrollbar of [0, 12, 0]) {
+      await scrollbarStyle.evaluate((element, width) => {
+        element.textContent = `:is(.note-editor-scroll, .cm-scroller)::-webkit-scrollbar { width: ${width}px !important; }`;
+      }, scrollbar);
+      await expect.poll(async () => {
+        const rail = await measureDocumentRail(scope, source);
+        return rail.title && rail.toolbar && rail.status && rail.scrollbar === scrollbar ? rail.maxDifference : Infinity;
+      }).toBeLessThan(1);
+      widths.push((await measureDocumentRail(scope, source)).width);
+    }
+    expect(widths[0] - widths[1]).toBeCloseTo(12, 0);
+    expect(widths[2]).toBeCloseTo(widths[0], 0);
+  };
+  await check(false);
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  await check(true);
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await check(true);
+  await page.getByRole("button", { name: "切换到 Markdown 渲染", exact: true }).click();
+  await check(false);
 });
 
 test("Markdown 渲染在只读与编辑间保持正文上边缘", async ({ page }) => {

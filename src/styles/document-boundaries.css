@@ -96,3 +96,55 @@
   background-position: left bottom;
   background-repeat: no-repeat;
 }
+
+/* Place chrome rules on the measured reading column. Title actions can still
+   use the full heading row, including Workbench's window controls. */
+[data-document-rail] {
+  --document-rail-start: var(--document-edge-inset);
+  --document-rail-end: var(--document-edge-inset);
+  --document-rail-width: calc(100% - 2 * var(--document-edge-inset));
+}
+:root :is(.app, .file-workbench-app) :is(.note-title-row.document-title-bar, .vr-title, .vr-actions)[data-document-rail] {
+  background-size: var(--document-rail-width) 1px;
+  background-position: left var(--document-rail-start) bottom 0;
+}
+:root :is(.app, .file-workbench-app) .local-file-titlebar[data-document-rail]::after { content: none; }
+:root :is(.app, .file-workbench-app) .note-editor .document-toolbar.editor-menu[data-document-rail] {
+  box-sizing: border-box;
+  width: var(--document-rail-width);
+  margin-inline: var(--document-rail-start) 0;
+  padding-inline: 0;
+  border-bottom: 1px solid transparent;
+  background: linear-gradient(var(--border), var(--border)) left bottom / 100% 1px no-repeat;
+}
+:root :is(.app, .file-workbench-app) .markdown-source-toolbar-host[data-document-rail],
+:root :is(.app, .file-workbench-app) .note-editor .editor-status-bar[data-document-rail] {
+  padding-inline: var(--document-rail-start) var(--document-rail-end);
+}
+:root :is(.app, .file-workbench-app) .note-editor .editor-status-bar[data-document-rail] {
+  --status-rule-image: linear-gradient(var(--border), var(--border));
+  --status-rule-size: var(--document-rail-width) 1px;
+  --status-rule-position: left var(--document-rail-start) top 0;
+  background-repeat: no-repeat;
+}
+:root :is(.app, .file-workbench-app) .note-editor .editor-status-bar[data-document-rail]:not([data-status-idle-glow]) {
+  background-image: var(--status-rule-image);
+  background-size: var(--status-rule-size);
+  background-position: var(--status-rule-position);
+}
+:root :is(.app, .file-workbench-app) .note-editor .editor-status-bar[data-document-rail]::before { content: none; }
+
+@media (min-width: 769px) and (pointer: fine) {
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
+    .app .markdown-cm-source[data-document-language="markdown"] .cm-editor {
+    /* The CM box contains its scrollbar. The reading limit covers its text
+       and line-number gutter, which end at the scroller's client edge. */
+    --document-cap-scrollbar: var(--editor-scrollbar-width, 0px);
+    max-width: calc(min(var(--source-reading-limit, var(--style-content-width, 100%)), var(--style-custom-content-width, 100%)) + var(--document-cap-scrollbar));
+    margin-inline: auto;
+    width: calc(100% - 2 * var(--document-edge-inset));
+  }
+  .exhibition-shell[data-text-width="standard"] .markdown-cm-source[data-document-language="markdown"] .cm-editor {
+    --source-reading-limit: calc(var(--style-content-width) - var(--document-cap-scrollbar, 0px) / 2);
+  }
+}

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createBlankDocument, waitForSavedText } from "../helpers/document";
+import { createBlankDocument, measureDocumentRail, waitForSavedText } from "../helpers/document";
 import { closeDocumentSidebar } from "../helpers/workspace";
 
 const layouts = [false, true].flatMap(virtual => ["classic", "calm"].map(style => ({ virtual, style, mobile: false })));
@@ -55,6 +55,10 @@ for (const { virtual, style, mobile } of layouts) test(`渲染状态栏管理块
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config") ?? "{}").editor_fold_icon_collapsed)).toBe("+");
   if (!virtual) await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   if (mobile) await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(async () => {
+    const rail = await measureDocumentRail(page.locator(".note-editor:visible"), false);
+    return rail.title && rail.toolbar && rail.status ? rail.maxDifference : Infinity;
+  }).toBeLessThan(1);
   const folds = page.locator(".note-editor:visible .editor-heading-fold, .note-editor:visible .vr-gutter > button[aria-expanded]");
   await expect(folds).toHaveCount(1);
   const heading = page.locator(".note-editor:visible h2").filter({ hasText: "Section" });

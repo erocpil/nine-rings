@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { createBlankDocument, waitForSavedText } from "../helpers/document";
+import { createBlankDocument, measureDocumentRail, waitForSavedText } from "../helpers/document";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { closeDocumentSidebar, openDocumentSidebar } from "../helpers/workspace";
@@ -142,10 +142,8 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
       document.querySelector(".app")?.classList.add("app-desktop-workspace");
     }, style);
     await expect.poll(async () => {
-      const title = (await viewer.locator(".local-file-titlebar").boundingBox())!;
-      const toolbar = (await viewer.locator(".markdown-source-tools").boundingBox())!;
-      const inset = await viewer.evaluate(el => parseFloat(getComputedStyle(el).getPropertyValue("--document-edge-inset")));
-      return Math.max(Math.abs(toolbar.x - title.x - inset), Math.abs(toolbar.x + toolbar.width - title.x - title.width + inset));
+      const rail = await measureDocumentRail(viewer, true);
+      return rail.title && rail.toolbar && rail.status ? rail.maxDifference : Infinity;
     }, { message: `${style}: 源码工具栏边界与标题边界对齐` }).toBeLessThan(2);
   }
 
@@ -221,10 +219,8 @@ test("本地 Markdown 目录与编辑区左右并排，可调整宽度且双击�
   const more = viewer.getByRole("button", { name: "更多工具", exact: true });
   if (await more.getAttribute("aria-expanded") !== "true") await more.click();
   await expect.poll(async () => {
-    const title = (await viewer.locator(".document-render-header .document-title-bar").boundingBox())!;
-    const tools = (await viewer.locator(".note-editor-scroll .document-toolbar").boundingBox())!;
-    const inset = await viewer.evaluate(el => parseFloat(getComputedStyle(el).getPropertyValue("--document-edge-inset")));
-    return Math.max(Math.abs(tools.x - title.x - inset), Math.abs(tools.x + tools.width - title.x - title.width + inset));
+    const rail = await measureDocumentRail(viewer, false);
+    return rail.title && rail.toolbar && rail.status ? rail.maxDifference : Infinity;
   }).toBeLessThan(2);
   await viewer.locator(".document-render-header .note-title").hover({ position: { x: 10, y: 10 } });
   for (const style of ["classic", "calm", "calm-compact", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"]) {

@@ -1,7 +1,7 @@
 import { zipSync, strToU8 } from "fflate";
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { createBlankDocument } from "../helpers/document";
+import { createBlankDocument, measureDocumentRail } from "../helpers/document";
 import { closeDocumentSidebar } from "../helpers/workspace";
 
 async function settings(page: import('@playwright/test').Page, category: RegExp) {
@@ -26,12 +26,14 @@ test('状态栏导航随隐藏回到标题，源码预览保留全宽与共同�
   if((await toggle.getAttribute('aria-pressed')==='true')!==preview) await toggle.click();
   const actual=await page.locator('.markdown-source-title-row').evaluate(el=>({left:el.getBoundingClientRect().left,right:el.getBoundingClientRect().right,padding:getComputedStyle(el).paddingLeft}));
   expect(actual).toEqual(rendered);
-  const title=(await page.locator('.markdown-source-title-row').boundingBox())!,toolbar=(await page.locator('.markdown-source-tools').boundingBox())!,footer=(await sourceBar.boundingBox())!;
+  const title=(await page.locator('.markdown-source-title-row').boundingBox())!,footer=(await sourceBar.boundingBox())!;
   expect(Math.abs(title.x-footer.x)).toBeLessThanOrEqual(1);
   const scrollbar=await page.locator('.markdown-source-editor').evaluate(el=>parseFloat(getComputedStyle(el).getPropertyValue('--editor-scrollbar-width'))||0);
   expect(Math.abs(title.width+scrollbar-footer.width)).toBeLessThanOrEqual(1);
-  expect(Math.abs(toolbar.x-title.x-12)).toBeLessThanOrEqual(1);
-  expect(Math.abs(toolbar.width-title.width+24)).toBeLessThanOrEqual(1);
+  await expect.poll(async () => {
+    const rail = await measureDocumentRail(page.locator('.note-editor.markdown-source-editor:visible'), true);
+    return rail.title && rail.toolbar && rail.status ? rail.maxDifference : Infinity;
+  }).toBeLessThan(1);
  }
  await settings(page,/^编辑器.*字体排版/);
  await page.getByRole('checkbox',{name:'编辑器状态栏',exact:true}).uncheck();

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createBlankDocument } from "../helpers/document";
+import { createBlankDocument, measureDocumentRail } from "../helpers/document";
 
 test("渲染工具栏横线与标题对齐，首个插入按钮不被工具栏遮挡", async ({ page }) => {
   await createBlankDocument(page);
@@ -17,10 +17,8 @@ test("渲染工具栏横线与标题对齐，首个插入按钮不被工具栏�
       await page.evaluate(style => document.documentElement.dataset.interfaceStyle = style, style);
       await expect(toolbar).toHaveCSS("background-size", "100% 1px");
       await expect.poll(async () => {
-        const title = (await editor.locator(".document-title-bar").boundingBox())!;
-        const tools = (await toolbar.boundingBox())!;
-        const inset = await editor.evaluate(el => parseFloat(getComputedStyle(el).getPropertyValue("--document-edge-inset")));
-        return Math.max(Math.abs(tools.x - title.x - inset), Math.abs(tools.x + tools.width - title.x - title.width + inset));
+        const rail = await measureDocumentRail(editor, false);
+        return rail.title && rail.toolbar && rail.status ? rail.maxDifference : Infinity;
       }, { message: `${style} at ${width}: toolbar rule matches title rule` }).toBeLessThan(2);
     }
   }
