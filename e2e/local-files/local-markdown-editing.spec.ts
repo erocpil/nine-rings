@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import { createBlankDocument } from "../helpers/document";
 import { openWritableLocalDirectory } from "../helpers/local-files";
 import { replaceSource, selectSource, sourceInfo } from "../helpers/source-editor";
@@ -62,6 +62,80 @@ test("磁盘书签多处源码修改后跳转到原内容并保存新位置", as
 });
 
 const original = "#   原始标题\n\n正文 *斜体* 与 [链接](other.md)\n\n![本地图片](pic.svg)\n";
+
+test("磁盘 Markdown 表格后补反引号并输入空格，只留下行内代码与普通空格", async ({ page }) => {
+  await createBlankDocument(page);
+  const { workspace } = await openWritableLocalDirectory(page, { "code.md": "| Header |\n| --- |\n| sample |\n| x |\n" }, "code.md");
+  await workspace.getByRole("button", { name: "渲染", exact: true }).click();
+  const body = workspace.locator(".ProseMirror:visible");
+  const cell = body.locator("td p").first();
+  const placeCaret = (target: Locator, atEnd: boolean) => target.evaluate((element, end) => {
+    const root = element.closest(".ProseMirror") as HTMLElement & { editor: import("@tiptap/core").Editor };
+    const { view, commands } = root.editor;
+    commands.setTextSelection(view.posAtDOM(element, end ? element.childNodes.length : 0));
+    view.focus();
+  }, atEnd);
+  await placeCaret(cell, true);
+  await page.keyboard.insertText("`");
+  await placeCaret(cell, false);
+  await page.keyboard.insertText("`");
+  await expect(cell).toHaveText("`sample`");
+  await placeCaret(cell, true);
+  await page.keyboard.insertText(" ");
+  await expect(cell.locator("code")).toHaveText("sample");
+  await page.keyboard.insertText("next");
+  await expect(cell).toHaveText("sample next");
+  await expect(cell.locator("code")).toHaveText("sample");
+  const nextCell = body.locator("td p").last();
+  await placeCaret(nextCell, true);
+  await page.keyboard.insertText("`x");
+  await page.keyboard.insertText("`");
+  await expect(nextCell).toHaveText("xx");
+  await expect(nextCell.locator("code")).toHaveText("x");
+  await workspace.getByRole("button", { name: "显示源码", exact: true }).click();
+  await expect.poll(async () => (await sourceInfo(workspace.locator(".cm-content"))).value).toContain("| `sample` next |");
+});
+
+for (const style of ["classic", "calm", "paper"]) test(`磁盘 Markdown 状态栏折叠按钮留在工作区右边界内 ${style}`, async ({ page }) => {
+  await page.addInitScript(style => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: style })), style);
+  await createBlankDocument(page);
+  const { workspace } = await openWritableLocalDirectory(page, { "status.md": "# Heading\n\nFirst paragraph\n" }, "status.md");
+  await workspace.getByRole("button", { name: "渲染", exact: true }).click();
+  const settings = workspace.getByRole("button", { name: "块号与折叠设置", exact: true });
+  for (const width of [1280, 900, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    if (width === 900) {
+      await workspace.getByRole("button", { name: "文档目录", exact: true }).click();
+      await expect(workspace.locator(".note-editor.document-panels-pinned .document-panel-dock")).toBeVisible();
+    }
+    for (const readonly of [false, true]) {
+      if (readonly) await workspace.getByRole("button", { name: "点击设为只读", exact: true }).click();
+      await expect(settings).toBeVisible();
+      const measure = () => settings.evaluate(element => {
+        const bar = element.closest<HTMLElement>(".editor-status-bar")!;
+        // The typography preset may center a narrower text column inside the chrome.
+        const scroll = bar.closest(".note-editor")!.querySelector(".note-editor-scroll")!;
+        const edge = Math.min(bar.getBoundingClientRect().right, scroll.getBoundingClientRect().right)
+          - parseFloat(getComputedStyle(bar).paddingRight);
+        return element.getBoundingClientRect().right - edge;
+      });
+      await expect.poll(measure, { message: `width=${width} readonly=${readonly}` }).toBeLessThanOrEqual(1);
+      if (readonly) await workspace.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+    }
+  }
+});
+
+test("磁盘 Markdown 无本机编辑时检测到外部变化会自动重载并提示", async ({ page }) => {
+  await createBlankDocument(page);
+  const { workspace } = await openWritableLocalDirectory(page, { "external.md": "# Original\n\nOriginal paragraph\n" }, "external.md");
+  await workspace.getByRole("button", { name: "渲染", exact: true }).click();
+  const body = workspace.locator(".ProseMirror:visible");
+  await expect(body).toContainText("Original paragraph");
+  await page.evaluate(() => (window as any).__localWorkspaceFixture.nodes.get("external.md").setText("# External revision\n\nParagraph changed on disk\n"));
+  await expect(body).toContainText("Paragraph changed on disk");
+  await expect(workspace.locator(".local-files-message").filter({ hasText: "检测到磁盘文件变化，已重新载入并保留阅读位置。" })).toBeVisible();
+});
+
 test("磁盘 Markdown 共用渲染编辑器，原文往返、撤销、立即保存、相对资源与只读门禁", async ({ page }) => {
   await createBlankDocument(page);
   const { workspace } = await openWritableLocalDirectory(page, { "note.md": original, "pic.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="red"/></svg>' }, "note.md");
