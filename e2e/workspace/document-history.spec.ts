@@ -266,6 +266,29 @@ test("源码视图后退保持源码并恢复位置，手机标题栏按钮可�
   await expect(page.getByRole("button", { name: "前进", exact: true })).toBeInViewport();
 });
 
+test("鼠标释放后才同步的正文选区仍保留跳转前位置", async ({ page }) => {
+  const noteId = await fixture(page);
+  const paragraph = editor(page).locator("p").nth(20);
+  const destination = await paragraph.evaluate(element => {
+    const instance = (element.closest(".ProseMirror") as HTMLElement & { editor: Editor }).editor;
+    element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerId: 1 }));
+    window.dispatchEvent(new PointerEvent("pointerup", { button: 0, pointerId: 1 }));
+    // Chromium can deliver this selection without ProseMirror's pointer metadata.
+    const position = instance.view.posAtDOM(element, 0) + 1;
+    instance.commands.setTextSelection(position);
+    return position;
+  });
+  await expect.poll(async () => {
+    const state = await history(page);
+    return state.entries.slice(state.index - 1, state.index + 1);
+  }).toEqual([{ noteId, from: 1, to: 1 }, { noteId, from: destination, to: destination }]);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  await expect(source).toBeVisible();
+  await page.getByRole("button", { name: "后退", exact: true }).click();
+  await expect.poll(() => sourceInfo(source).then(info => info.selectionStart)).toBe(0);
+});
+
 test("连续历史位置所属文档已删除时仍能返回更早文档", async ({ page }) => {
   const first = await fixture(page);
   const second = await newDocument(page, "多个位置的已删除文档");

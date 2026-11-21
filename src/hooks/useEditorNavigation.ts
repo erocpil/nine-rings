@@ -7,6 +7,10 @@ import { expandHeadingFoldsAt } from "../extensions/HeadingFold";
 import { useNavigationStore } from "../stores/useNavigationStore";
 import { EDITOR_NAVIGATION_EVENT } from "./useEditorScrollPersistence";
 
+// Browsers can publish selectionchange after pointerup, including after
+// ProseMirror's short-lived pointer-origin marker has expired.
+const POINTER_SELECTION_TIMEOUT = 300;
+
 export function setNavigationSelection(editor: Editor, range: number | { from: number; to: number }) {
   editor.chain().setTextSelection(range).command(({ tr }) => {
     tr.setMeta("navigation-jump", true);
@@ -26,17 +30,43 @@ export function useEditorNavigation(editor: Editor | null, noteId: string, scrol
     history.record(location());
     let previous = editor.state.selection;
     let keyboardMovement = false;
-    let dragging = false;
+    let pointerId: number | null = null;
+    let pointerBlock: Node | null = null;
+    let pointerReleaseTimer = 0;
     let pointerRecorded = false;
-    const down = (event: PointerEvent) => { if (event.button === 0) { dragging = true; pointerRecorded = false; } };
-    const up = () => { dragging = false; };
+    const clearPointer = () => {
+      window.clearTimeout(pointerReleaseTimer);
+      pointerReleaseTimer = 0;
+      pointerId = null;
+      pointerBlock = null;
+    };
+    const down = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      clearPointer();
+      pointerId = event.pointerId;
+      let node = event.target instanceof Node ? event.target : null;
+      while (node?.parentNode && node.parentNode !== editor.view.dom) node = node.parentNode;
+      if (node?.parentNode === editor.view.dom) pointerBlock = node;
+      pointerRecorded = false;
+    };
+    const up = (event: PointerEvent) => {
+      if (pointerId === event.pointerId)
+        pointerReleaseTimer = window.setTimeout(clearPointer, POINTER_SELECTION_TIMEOUT);
+    };
+    const cancel = (event: PointerEvent) => {
+      if (pointerId === event.pointerId) clearPointer();
+    };
     const key = (event: KeyboardEvent) => {
+      clearPointer();
       keyboardMovement = /^(Arrow(Left|Right|Up|Down)|Home|End|PageUp|PageDown)$/.test(event.key);
     };
     const keyup = () => { keyboardMovement = false; };
     const transaction = ({ transaction: tr }: { transaction: Transaction }) => {
       const state = useNavigationStore.getState();
-      if (tr.docChanged) state.map(noteId, pos => tr.mapping.map(pos));
+      if (tr.docChanged) {
+        clearPointer();
+        state.map(noteId, pos => tr.mapping.map(pos));
+      }
       const selection = editor.state.selection;
       const moved = !selection.eq(previous);
       if (moved || tr.docChanged) {
@@ -44,28 +74,37 @@ export function useEditorNavigation(editor: Editor | null, noteId: string, scrol
         // Nearby editing clicks belong to one working area. Explicit jumps are
         // always retained, including matches within the same paragraph.
         const far = isOrdinaryNavigationJump(blockDistance, Math.abs(selection.from - previous.from));
-        const pointer = Boolean(tr.getMeta("pointer")) || dragging;
+        const awaitingPointer = pointerId !== null && (
+          !pointerReleaseTimer || pointerBlock?.contains(editor.view.domAtPos(selection.head).node)
+        );
+        const pointer = Boolean(tr.getMeta("pointer")) || awaitingPointer;
         const jump = moved && !tr.docChanged && !tr.getMeta("navigation-history") && !keyboardMovement
           && !(selection instanceof AllSelection)
           && (tr.getMeta("navigation-jump") || (pointer && !pointerRecorded && far));
         state.record(location(), jump);
-        if (pointer && moved) pointerRecorded = true;
+        if (pointer && moved) {
+          pointerRecorded = true;
+          if (pointerReleaseTimer) clearPointer();
+        }
       }
       previous = selection;
     };
     editor.on("transaction", transaction);
     editor.view.dom.addEventListener("pointerdown", down);
     editor.view.dom.addEventListener("keydown", key, true);
+    editor.view.dom.addEventListener("focusout", clearPointer);
     window.addEventListener("pointerup", up, true);
-    window.addEventListener("pointercancel", up, true);
+    window.addEventListener("pointercancel", cancel, true);
     window.addEventListener("keyup", keyup, true);
     return () => {
       editor.off("transaction", transaction);
       editor.view.dom.removeEventListener("pointerdown", down);
       editor.view.dom.removeEventListener("keydown", key, true);
+      editor.view.dom.removeEventListener("focusout", clearPointer);
       window.removeEventListener("pointerup", up, true);
-      window.removeEventListener("pointercancel", up, true);
+      window.removeEventListener("pointercancel", cancel, true);
       window.removeEventListener("keyup", keyup, true);
+      clearPointer();
     };
   }, [editor, noteId, active, enabled]);
 
