@@ -317,6 +317,7 @@ fn main() {
             tools::workbench_tool_status,
             tools::workbench_stop_tool,
             workbench_set_view_menu,
+            view_menu::workbench_set_editor_menu,
             workbench_confirm_close,
             local_files::local_files_choose,
             local_files::local_files_roots,

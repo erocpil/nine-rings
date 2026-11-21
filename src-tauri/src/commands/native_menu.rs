@@ -36,17 +36,21 @@ mod macos {
     use std::{collections::HashMap, sync::Mutex};
     use tauri::{
         menu::{
-            CheckMenuItem, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu, HELP_SUBMENU_ID,
+            CheckMenuItem, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu, WINDOW_SUBMENU_ID,
         },
         Manager,
     };
 
     #[derive(Deserialize)]
     struct Entry {
+        #[serde(default)]
         text: String,
         id: Option<String>,
         accelerator: Option<String>,
         merge: Option<String>,
+        before: Option<String>,
+        #[serde(default)]
+        separator: bool,
         #[serde(default)]
         checkable: bool,
         items: Option<Vec<Entry>>,
@@ -63,6 +67,11 @@ mod macos {
         entry: Entry,
         states: &mut HashMap<String, NativeItem>,
     ) -> tauri::Result<MenuItemKind<tauri::Wry>> {
+        if entry.separator {
+            return Ok(MenuItemKind::Predefined(PredefinedMenuItem::separator(
+                app,
+            )?));
+        }
         if let Some(children) = entry.items {
             let submenu = Submenu::new(app, entry.text, true)?;
             for child in children {
@@ -99,6 +108,14 @@ mod macos {
         );
         Ok(item)
     }
+
+    fn menu_role(item: &MenuItemKind<tauri::Wry>, role: &str) -> bool {
+        if role == "window" {
+            return item.id().as_ref() == WINDOW_SUBMENU_ID;
+        }
+        matches!(item, MenuItemKind::Submenu(submenu) if submenu.text().is_ok_and(|title| title.eq_ignore_ascii_case(role)))
+    }
+
     pub fn install(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let Some(menu) = app.menu() else {
             return Ok(());
@@ -112,7 +129,10 @@ mod macos {
         // Tauri's default File and Window menus both install a Cocoa Close
         // responder with Command+W. The application now owns that shortcut for
         // closing a file, and exposes window hiding separately as Shift+Command+W.
-        for item in &original {
+        for item in original
+            .iter()
+            .filter(|item| menu_role(item, "file") || menu_role(item, "window"))
+        {
             if let MenuItemKind::Submenu(submenu) = item {
                 for child in submenu.items()? {
                     if let MenuItemKind::Predefined(predefined) = &child {
@@ -126,28 +146,35 @@ mod macos {
                 }
             }
         }
-        let help = original
-            .iter()
-            .find(|item| item.id().as_ref() == HELP_SUBMENU_ID);
-        if let Some(help) = help {
-            menu.remove(help)?;
-        }
         for mut entry in entries {
-            if entry.merge.as_deref() == Some("file") {
-                let file = original.iter().find_map(|item| match item {
-                    MenuItemKind::Submenu(submenu)
-                        if submenu
-                            .text()
-                            .is_ok_and(|name| name == "File" || name == "文件") =>
-                    {
-                        Some(submenu)
-                    }
-                    _ => None,
-                });
-                if let Some(file) = file {
-                    if !file.items()?.is_empty() {
-                        file.insert(&PredefinedMenuItem::separator(app)?, 0)?;
-                    }
+            if let Some(role) = entry.merge.as_deref() {
+                let existing = if role == "app" {
+                    original.first()
+                } else {
+                    original.iter().find(|item| menu_role(item, role))
+                };
+                if let Some(MenuItemKind::Submenu(submenu)) = existing {
+                    submenu.set_text(&entry.text)?;
+                    let count = submenu.items()?.len();
+                    // Put Settings between About and Services. Keep the
+                    // full-screen action at the end of View and Cocoa Edit first.
+                    let start = match role {
+                        "app" if count >= 2 => {
+                            submenu.insert(&PredefinedMenuItem::separator(app)?, 2)?;
+                            2
+                        }
+                        "view" => {
+                            if count > 0 {
+                                submenu.insert(&PredefinedMenuItem::separator(app)?, 0)?;
+                            }
+                            0
+                        }
+                        "edit" if count > 0 => {
+                            submenu.append(&PredefinedMenuItem::separator(app)?)?;
+                            count + 1
+                        }
+                        _ => count,
+                    };
                     for (index, child) in entry
                         .items
                         .take()
@@ -155,15 +182,22 @@ mod macos {
                         .into_iter()
                         .enumerate()
                     {
-                        file.insert(&build(app, child, &mut states)?, index)?;
+                        submenu.insert(&build(app, child, &mut states)?, start + index)?;
                     }
                     continue;
                 }
             }
-            menu.append(&build(app, entry, &mut states)?)?;
-        }
-        if let Some(help) = help {
-            menu.append(help)?;
+            let before = entry.before.as_deref().unwrap_or("window");
+            let position = menu
+                .items()?
+                .iter()
+                .position(|item| menu_role(item, before));
+            let item = build(app, entry, &mut states)?;
+            if let Some(index) = position {
+                menu.insert(&item, index)?;
+            } else {
+                menu.append(&item)?;
+            }
         }
         app.manage(NativeMenu(Mutex::new(states)));
         Ok(())

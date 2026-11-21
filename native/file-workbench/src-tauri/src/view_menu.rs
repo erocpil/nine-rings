@@ -1,13 +1,115 @@
+#[cfg(target_os = "macos")]
+use std::collections::HashMap;
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItemKind, Submenu},
     Emitter, Manager,
 };
+
 pub const NEW_FILE: &str = "workbench.new-file";
 pub const CLOSE_FILE: &str = "workbench.close-file";
 pub const TOGGLE_HIDDEN: &str = "workbench.hidden-files";
 pub struct ViewMenu {
     pub hidden: CheckMenuItem<tauri::Wry>,
+    #[cfg(target_os = "macos")]
+    editor_commands: HashMap<String, MenuItemKind<tauri::Wry>>,
 }
+
+#[cfg(target_os = "macos")]
+const EDITOR_PREFIX: &str = "workbench-editor-menu:";
+
+#[derive(serde::Deserialize)]
+pub struct EditorMenuState {
+    id: String,
+    enabled: bool,
+    checked: bool,
+}
+
+#[tauri::command]
+pub fn workbench_set_editor_menu(
+    window: tauri::WebviewWindow,
+    menu: tauri::State<'_, ViewMenu>,
+    states: Vec<EditorMenuState>,
+) -> Result<(), String> {
+    super::editor_window::editor(&window)?;
+    #[cfg(target_os = "macos")]
+    {
+        for (id, item) in &menu.editor_commands {
+            let state = states.iter().find(|state| state.id == *id);
+            let enabled = state.is_some_and(|state| state.enabled);
+            match item {
+                MenuItemKind::MenuItem(item) => item.set_enabled(enabled),
+                MenuItemKind::Check(item) => {
+                    item.set_checked(state.is_some_and(|state| state.checked))
+                        .map_err(|error| error.to_string())?;
+                    item.set_enabled(enabled)
+                }
+                _ => continue,
+            }
+            .map_err(|error| error.to_string())?;
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = menu;
+        for state in states {
+            let _ = (state.id, state.enabled, state.checked);
+        }
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn install_editor_commands(
+    app: &tauri::App,
+    file: &Submenu<tauri::Wry>,
+    edit: &Submenu<tauri::Wry>,
+    view: &Submenu<tauri::Wry>,
+) -> tauri::Result<HashMap<String, MenuItemKind<tauri::Wry>>> {
+    use tauri::menu::{MenuItem, PredefinedMenuItem};
+    let mut commands = HashMap::new();
+    let mut standard =
+        |id: &str, title: &str, key: Option<&str>| -> tauri::Result<MenuItem<tauri::Wry>> {
+            let item = MenuItem::with_id(app, format!("{EDITOR_PREFIX}{id}"), title, false, key)?;
+            commands.insert(id.to_owned(), MenuItemKind::MenuItem(item.clone()));
+            Ok(item)
+        };
+    file.insert(&standard("document.save", "Save", Some("Command+S"))?, 1)?;
+    file.append(&PredefinedMenuItem::separator(app)?)?;
+    let export = Submenu::with_items(
+        app,
+        "Export",
+        true,
+        &[
+            &standard("workbench.export-copy", "Source Copy…", None)?,
+            &standard("document.export-html", "HTML…", None)?,
+        ],
+    )?;
+    file.append(&export)?;
+    file.append(&standard(
+        "document.export-pdf",
+        "Print or Save as PDF…",
+        None,
+    )?)?;
+    edit.append(&PredefinedMenuItem::separator(app)?)?;
+    edit.append(&standard("document.find", "Find…", Some("Command+F"))?)?;
+    edit.append(&standard(
+        "document.replace",
+        "Find and Replace…",
+        Some("Command+Alt+F"),
+    )?)?;
+    let source = CheckMenuItem::with_id(
+        app,
+        format!("{EDITOR_PREFIX}document.source"),
+        "Source Mode",
+        false,
+        false,
+        None::<&str>,
+    )?;
+    view.insert(&source, 0)?;
+    commands.insert("document.source".into(), MenuItemKind::Check(source));
+    Ok(commands)
+}
+
 fn about_metadata() -> tauri::menu::AboutMetadata<'static> {
     tauri::menu::AboutMetadata {
         name: Some("File Workbench".into()),
@@ -77,15 +179,53 @@ pub fn install(app: &mut tauri::App) -> tauri::Result<()> {
     let hidden = CheckMenuItem::with_id(
         app,
         TOGGLE_HIDDEN,
-        "显示隐藏项（当前栏）",
+        if cfg!(target_os = "macos") {
+            "Show Hidden Files in Active Panel"
+        } else {
+            "显示隐藏项（当前栏）"
+        },
         false,
         false,
         None::<&str>,
     )?;
-    let view = Submenu::with_items(app, "View", true, &[&hidden])?;
     let items = menu.items()?;
-    let position = items.iter().position(|item| matches!(item, MenuItemKind::Submenu(submenu) if submenu.text().is_ok_and(|label| label == "Window" || label == "Help"))).unwrap_or(items.len());
-    menu.insert(&view, position)?;
+    let existing_submenu = |name: &str| {
+        items.iter().find_map(|item| match item {
+            MenuItemKind::Submenu(submenu) if submenu.text().is_ok_and(|label| label == name) => {
+                Some(submenu.clone())
+            }
+            _ => None,
+        })
+    };
+    let view = if let Some(view) = existing_submenu("View") {
+        view.insert(&tauri::menu::PredefinedMenuItem::separator(app)?, 0)?;
+        view.insert(&hidden, 0)?;
+        view
+    } else {
+        let view = Submenu::with_items(app, "View", true, &[&hidden])?;
+        let position = items.iter().position(|item| matches!(item, MenuItemKind::Submenu(submenu) if submenu.text().is_ok_and(|label| label == "Window" || label == "Help"))).unwrap_or(items.len());
+        menu.insert(&view, position)?;
+        view
+    };
+    #[cfg(target_os = "macos")]
+    let editor_commands =
+        if let (Some(file), Some(edit)) = (existing_submenu("File"), existing_submenu("Edit")) {
+            install_editor_commands(app, &file, &edit, &view)?
+        } else {
+            HashMap::new()
+        };
+    #[cfg(not(target_os = "macos"))]
+    let _ = view;
+    #[cfg(target_os = "macos")]
+    if let Some(window) = existing_submenu("Window") {
+        // The focused editor owns Command+W. Keep native Minimize and Zoom.
+        for item in window.items()?.into_iter().rev() {
+            if matches!(&item, MenuItemKind::Predefined(predefined) if predefined.text().is_ok_and(|label| matches!(label.as_str(), "Close" | "Close Window" | "C&lose Window" | "")))
+            {
+                window.remove(&item)?;
+            }
+        }
+    }
     #[cfg(target_os = "macos")]
     if let Some(MenuItemKind::Submenu(submenu)) = menu.items()?.first() {
         let items = submenu.items()?;
@@ -99,8 +239,21 @@ pub fn install(app: &mut tauri::App) -> tauri::Result<()> {
         }
     }
     app.set_menu(menu)?;
-    app.manage(ViewMenu { hidden });
+    app.manage(ViewMenu {
+        hidden,
+        #[cfg(target_os = "macos")]
+        editor_commands,
+    });
     app.on_menu_event(|app, event| {
+        #[cfg(target_os = "macos")]
+        if let Some(id) = event.id().as_ref().strip_prefix(EDITOR_PREFIX) {
+            if let Some(window) = super::editor_window::window(app)
+                .filter(|window| window.is_focused().unwrap_or(false))
+            {
+                let _ = app.emit_to(window.label(), "workbench:editor-menu", id);
+            }
+            return;
+        }
         if event.id().as_ref() == NEW_FILE {
             let focused = super::editor_window::window(app)
                 .filter(|window| window.is_focused().unwrap_or(false));

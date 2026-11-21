@@ -15,7 +15,7 @@ import { WorkbenchPalette, useWorkbenchPalette } from "./Palette";
 import { SelectionHoverToolbar } from "../../components/SelectionHoverToolbar";
 import { QuickTooltips } from "../../components/QuickTooltips";
 import { WorkbenchViewMenu } from "./ViewMenu";
-import { installWorkbenchViewMenu } from "./native-view-menu";
+import { installWorkbenchEditorMenu, installWorkbenchViewMenu } from "./native-view-menu";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { FileBrowserWorkspace } from "../../components/FileBrowserWorkspace";
@@ -226,6 +226,10 @@ async function bootstrap() {
     if (nativeRole === "editor") {
       const { WorkbenchEditorWindow } = await import("./EditorWindow");
       createRoot(document.getElementById("root")!).render(<ErrorBoundary><QuickTooltips /><SelectionHoverToolbar /><WorkbenchEditorWindow host={host} /></ErrorBoundary>);
+      if (/Mac/.test(navigator.platform)) {
+        try { removeNativeViewMenu = await installWorkbenchEditorMenu(); }
+        catch (cause) { console.error("Editor menu unavailable", cause); }
+      }
       return;
     }
     const { listen } = await import("@tauri-apps/api/event");

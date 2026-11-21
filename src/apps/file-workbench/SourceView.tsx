@@ -18,6 +18,7 @@ import { blockFontFamily } from "../../lib/editor-appearance";
 import { useLocalFileDetails } from "../../hooks/useLocalFileDetails";
 import { useLocalFileRevisionCheck } from "../../hooks/useLocalFileRevisionCheck";
 import { useLocalMarkdownImages } from "../../hooks/useLocalMarkdownImages";
+import { useNativeMenuActions } from "../../hooks/useNativeMenuActions";
 import { useDocumentPreview } from "../../hooks/useDocumentPreview";
 import { useMobileViewport } from "../../hooks/useEdgeDrawer";
 import { DocumentPreviewControls } from "../../components/DocumentPreviewControls";
@@ -473,6 +474,11 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     editor.scrollToOffset(Math.min(location.from, editor.value.length), true);
   }, [current, onSourceReady, handle]);
   const editable = !relocation && !loading && Boolean(base) && !candidate && draftAvailable;
+  useNativeMenuActions({
+    "document.save": { run: () => save(), enabled: editable && !readonly && dirty && !saving && host.canSaveOriginal(file.rootId) },
+    "workbench.export-copy": { run: copy },
+    "document.source": { run: () => changePreviewMode(!renderMarkdown), enabled: markdown, checked: !renderMarkdown },
+  }, active && Boolean(base) && !loading);
   const toolsPreference = useFocusEditorTools(state => state.expanded);
   const setMoreTools = useFocusEditorTools(state => state.setExpanded);
   const moreTools = toolsPreference ?? true;

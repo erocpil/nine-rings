@@ -3,7 +3,13 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { nativeMenuSnapshot, runNativeMenuAction, subscribeNativeMenu } from "./native-menu-registry";
 
-export async function startNativeMenuService(onError: (error: unknown) => void = error => console.warn("[Menu] 操作失败", error)) {
+export async function startNativeMenuService(
+  onError: (error: unknown) => void = error => console.warn("[Menu] 操作失败", error),
+  transport: { update: (states: ReturnType<typeof nativeMenuSnapshot>) => Promise<unknown>; actionEvent: string } = {
+    update: (states) => invoke("update_native_menu", { states }),
+    actionEvent: "nine-rings:native-menu",
+  },
+) {
   let stopped = false, running = false, dirty = false;
   let previous = "";
   let focused = true;
@@ -23,7 +29,7 @@ export async function startNativeMenuService(onError: (error: unknown) => void =
         const states = contextualStates();
         const signature = JSON.stringify(states);
         if (signature !== previous) {
-          await invoke("update_native_menu", { states });
+          await transport.update(states);
           previous = signature;
         }
       }
@@ -39,7 +45,7 @@ export async function startNativeMenuService(onError: (error: unknown) => void =
     const window = getCurrentWindow();
     focused = await window.isFocused();
     unfocus = await window.onFocusChanged(event => { focused = event.payload; void update(); });
-    unlisten = await listen<string>("nine-rings:native-menu", event => {
+    unlisten = await listen<string>(transport.actionEvent, event => {
       if (stopped) return;
       // Cocoa check items toggle before emitting; even a no-op or rejected
       // action must restore the host's authoritative checked state.

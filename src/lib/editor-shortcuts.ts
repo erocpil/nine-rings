@@ -1,9 +1,9 @@
 import catalog from "./native-menu-catalog.json";
-interface Entry { id?: string; text: string; accelerator?: string; items?: Entry[] }
+interface Entry { id?: string; text?: string; accelerator?: string; items?: Entry[] }
 export const editorShortcutSpecs: { id: string; text: string; accelerator: string }[] = [];
 function collect(entries: Entry[]) {
   for (const entry of entries) {
-    if (entry.id && entry.accelerator) editorShortcutSpecs.push({ id: entry.id, text: entry.text, accelerator: entry.accelerator });
+    if (entry.id && entry.accelerator && entry.text) editorShortcutSpecs.push({ id: entry.id, text: entry.text, accelerator: entry.accelerator });
     if (entry.items) collect(entry.items);
   }
 }

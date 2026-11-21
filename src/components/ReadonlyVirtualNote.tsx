@@ -1223,6 +1223,8 @@ export function ReadonlyVirtualNote(
     "document.outline": { run: () => desktopPanels.toggle("outline"), checked: desktopPanels.pinned("outline") || preview === "outline", enabled: sections.length > 0 },
     "document.bookmarks": { run: () => desktopPanels.toggle("bookmark"), checked: desktopPanels.pinned("bookmark") || preview === "bookmarks" },
     "document.find": { run: () => openPanel("search") },
+    "document.export-pdf": { run: () => exportDocument("pdf"), enabled: props.workspaceHost?.pdfExport !== false },
+    "document.export-html": { run: () => exportDocument("html") },
   }, active);
   const tocContext = useMemo(() => ({ items: extractDocumentOutline(doc), navigate: navigateHeading }), [doc, navigateHeading]);
   return (

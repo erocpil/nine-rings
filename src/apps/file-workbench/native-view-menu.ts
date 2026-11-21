@@ -1,4 +1,16 @@
 import type { createBrowserViewMenu, BrowserViewMenuState } from "../../lib/local-files/browser-view-menu";
+
+export async function installWorkbenchEditorMenu() {
+  const [{ startNativeMenuService }, { invoke }] = await Promise.all([
+    import("../../lib/native-menu-service"),
+    import("@tauri-apps/api/core"),
+  ]);
+  return startNativeMenuService(undefined, {
+    update: states => invoke("workbench_set_editor_menu", { states }),
+    actionEvent: "workbench:editor-menu",
+  });
+}
+
 export interface ViewMenuTransport {
   listen(toggle: () => void): Promise<() => void>;
   update(state: BrowserViewMenuState): Promise<void>;

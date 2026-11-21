@@ -1,257 +1,262 @@
 [
   {
-    "text": "Workspace",
+    "text": "Nine Rings",
+    "merge": "app",
     "items": [
       {
-        "id": "workspace.home",
-        "text": "工作区首页／返回文档",
-        "accelerator": "Command+Shift+H"
-      },
-      {
-        "id": "workspace.new",
-        "text": "新建文档…",
-        "accelerator": "Command+N"
-      },
-      {
-        "id": "workspace.search",
-        "text": "全局搜索…",
-        "accelerator": "Command+Shift+F"
-      },
-      {
-        "id": "workspace.switch",
-        "text": "快速切换文档…",
-        "accelerator": "Command+P"
-      },
-      {
-        "id": "workspace.recycle",
-        "text": "回收站…"
-      },
-      {
         "id": "workspace.settings",
-        "text": "设置…",
+        "text": "Settings…",
         "accelerator": "Command+,"
-      },
-      {
-        "text": "分栏",
-        "items": [
-          {
-            "id": "sidebar.tree",
-            "text": "文档树",
-            "checkable": true
-          },
-          {
-            "id": "sidebar.list",
-            "text": "文档列表",
-            "checkable": true
-          },
-          {
-            "id": "sidebar.notes",
-            "text": "随记",
-            "checkable": true
-          },
-          {
-            "id": "sidebar.readers",
-            "text": "PDF／EPUB 阅读资料库",
-            "checkable": true
-          },
-          {
-            "id": "sidebar.images",
-            "text": "图片",
-            "checkable": true
-          },
-          {
-            "id": "sidebar.vocabulary",
-            "text": "词汇学习",
-            "checkable": true
-          }
-        ]
-      },
-      {
-        "id": "workspace.overview",
-        "text": "展开工作区概览",
-        "checkable": true
-      },
-      {
-        "id": "workspace.recent",
-        "text": "最近打开",
-        "checkable": true
-      },
-      {
-        "id": "workspace.favorites",
-        "text": "收藏文档",
-        "checkable": true
-      },
-      {
-        "id": "workspace.today",
-        "text": "今日修改",
-        "checkable": true
       }
     ]
   },
   {
     "text": "File",
+    "merge": "file",
     "items": [
       {
+        "id": "workspace.new",
+        "text": "New Document…",
+        "accelerator": "Command+N"
+      },
+      {
         "id": "document.save",
-        "text": "保存",
+        "text": "Save",
         "accelerator": "Command+S"
       },
       {
         "id": "document.close",
-        "text": "关闭当前文件",
+        "text": "Close Document",
         "accelerator": "Command+W"
       },
       {
-        "id": "window.hide",
-        "text": "关闭到托盘",
-        "accelerator": "Command+Shift+W"
-      },
-      {
-        "id": "edit.undo",
-        "text": "撤销正文编辑"
-      },
-      {
-        "id": "edit.redo",
-        "text": "重做正文编辑"
-      },
-      {
-        "id": "document.source",
-        "text": "源码模式",
-        "checkable": true,
-        "accelerator": "Command+Alt+S"
+        "separator": true
       },
       {
         "id": "document.readonly",
-        "text": "只读",
+        "text": "Read Only",
         "checkable": true
       },
       {
         "id": "document.properties",
-        "text": "文档属性",
+        "text": "Document Properties",
         "checkable": true,
         "accelerator": "Command+Alt+Enter"
       },
       {
-        "id": "document.find",
-        "text": "文档内查找…",
-        "accelerator": "Command+F"
-      },
-      {
-        "id": "document.replace",
-        "text": "查找替换…",
-        "accelerator": "Command+Alt+F"
-      },
-      {
-        "id": "document.jump",
-        "text": "跳转行／块…",
-        "accelerator": "Command+G"
-      },
-      {
-        "id": "document.outline",
-        "text": "文档目录",
-        "checkable": true,
-        "accelerator": "Command+Alt+O"
-      },
-      {
-        "id": "document.bookmarks",
-        "text": "书签",
-        "checkable": true,
-        "accelerator": "Command+Alt+B"
-      },
-      {
         "id": "document.history",
-        "text": "版本历史…"
+        "text": "Version History…"
       },
       {
-        "text": "导出",
+        "id": "workspace.recycle",
+        "text": "Trash…"
+      },
+      {
+        "separator": true
+      },
+      {
+        "text": "Export",
         "items": [
           {
             "id": "document.export-md",
-            "text": "导出 Markdown…",
+            "text": "Markdown…",
             "accelerator": "Command+Shift+E"
           },
           {
             "id": "document.export-text",
-            "text": "导出纯文本…"
+            "text": "Plain Text…"
           },
           {
-            "id": "document.export-pdf",
-            "text": "导出／打印 PDF…",
-            "accelerator": "Command+Alt+P"
+            "id": "document.export-html",
+            "text": "HTML…"
           }
         ]
       },
       {
-        "id": "document.collapse",
-        "text": "折叠全部标题"
-      },
-      {
-        "id": "document.expand",
-        "text": "展开全部标题"
-      },
-      {
-        "text": "源码显示",
-        "items": [
-          {
-            "id": "source.wrap",
-            "text": "软换行",
-            "checkable": true
-          },
-          {
-            "id": "source.highlight",
-            "text": "语法高亮",
-            "checkable": true
-          },
-          {
-            "id": "source.micro",
-            "text": "微渲染",
-            "checkable": true
-          }
-        ]
-      },
-      {
-        "text": "源码整理",
-        "items": [
-          {
-            "id": "source.autoIndentSelection",
-            "text": "自动缩进选区"
-          },
-          {
-            "id": "source.autoIndentDocument",
-            "text": "自动缩进全文"
-          },
-          {
-            "id": "source.formatSelection",
-            "text": "格式化选区"
-          },
-          {
-            "id": "source.formatDocument",
-            "text": "格式化全文"
-          }
-        ]
+        "id": "document.export-pdf",
+        "text": "Print or Save as PDF…",
+        "accelerator": "Command+Alt+P"
       }
-    ],
-    "merge": "file"
+    ]
+  },
+  {
+    "text": "Edit",
+    "merge": "edit",
+    "items": [
+      {
+        "id": "edit.undo",
+        "text": "Undo Document Edit"
+      },
+      {
+        "id": "edit.redo",
+        "text": "Redo Document Edit"
+      },
+      {
+        "separator": true
+      },
+      {
+        "id": "document.find",
+        "text": "Find…",
+        "accelerator": "Command+F"
+      },
+      {
+        "id": "document.replace",
+        "text": "Find and Replace…",
+        "accelerator": "Command+Alt+F"
+      },
+      {
+        "id": "workspace.search",
+        "text": "Search Workspace…",
+        "accelerator": "Command+Shift+F"
+      }
+    ]
   },
   {
     "text": "Format",
+    "before": "view",
     "items": [
       {
-        "text": "文件格式",
+        "text": "Text Style",
+        "items": [
+          {
+            "id": "format.bold",
+            "text": "Bold",
+            "checkable": true,
+            "accelerator": "Command+B"
+          },
+          {
+            "id": "format.italic",
+            "text": "Italic",
+            "checkable": true,
+            "accelerator": "Command+I"
+          },
+          {
+            "id": "format.strike",
+            "text": "Strikethrough",
+            "checkable": true,
+            "accelerator": "Command+Shift+X"
+          },
+          {
+            "id": "format.code",
+            "text": "Inline Code",
+            "checkable": true,
+            "accelerator": "Command+E"
+          },
+          {
+            "separator": true
+          },
+          {
+            "id": "format.clear",
+            "text": "Clear Text Formatting",
+            "accelerator": "Command+Backslash"
+          }
+        ]
+      },
+      {
+        "text": "Paragraph Style",
+        "items": [
+          {
+            "id": "format.paragraph",
+            "text": "Body",
+            "accelerator": "Command+Alt+0",
+            "checkable": true
+          },
+          {
+            "id": "format.h1",
+            "text": "Heading 1",
+            "accelerator": "Command+Alt+1",
+            "checkable": true
+          },
+          {
+            "id": "format.h2",
+            "text": "Heading 2",
+            "accelerator": "Command+Alt+2",
+            "checkable": true
+          },
+          {
+            "id": "format.h3",
+            "text": "Heading 3",
+            "accelerator": "Command+Alt+3",
+            "checkable": true
+          },
+          {
+            "id": "format.h4",
+            "text": "Heading 4",
+            "accelerator": "Command+Alt+4",
+            "checkable": true
+          },
+          {
+            "id": "format.h5",
+            "text": "Heading 5",
+            "accelerator": "Command+Alt+5",
+            "checkable": true
+          },
+          {
+            "id": "format.h6",
+            "text": "Heading 6",
+            "accelerator": "Command+Alt+6",
+            "checkable": true
+          }
+        ]
+      },
+      {
+        "text": "List",
+        "items": [
+          {
+            "id": "format.bullet",
+            "text": "Bulleted List",
+            "accelerator": "Command+Shift+8",
+            "checkable": true
+          },
+          {
+            "id": "format.ordered",
+            "text": "Numbered List",
+            "accelerator": "Command+Shift+7",
+            "checkable": true
+          },
+          {
+            "id": "format.todo",
+            "text": "Task List",
+            "accelerator": "Command+Shift+9",
+            "checkable": true
+          }
+        ]
+      },
+      {
+        "id": "format.quote",
+        "text": "Block Quote",
+        "accelerator": "Command+Shift+B",
+        "checkable": true
+      },
+      {
+        "id": "format.codeblock",
+        "text": "Code Block",
+        "accelerator": "Command+Alt+C"
+      },
+      {
+        "id": "format.link",
+        "text": "Add or Edit Link…",
+        "accelerator": "Command+K"
+      },
+      {
+        "separator": true
+      },
+      {
+        "text": "Document Format",
         "items": [
           {
             "id": "format.language.gas",
-            "text": "Assembly · GAS",
+            "text": "Assembly (GAS)",
             "checkable": true
           },
           {
             "id": "format.language.nasm",
-            "text": "Assembly · NASM",
+            "text": "Assembly (NASM)",
             "checkable": true
           },
           {
             "id": "format.language.c",
-            "text": "C/C++",
+            "text": "C / C++",
             "checkable": true
           },
           {
@@ -261,7 +266,7 @@
           },
           {
             "id": "format.language.flow",
-            "text": "Flow / 流程",
+            "text": "Flow",
             "checkable": true
           },
           {
@@ -326,7 +331,7 @@
           },
           {
             "id": "format.language.text",
-            "text": "Text",
+            "text": "Plain Text",
             "checkable": true
           },
           {
@@ -342,246 +347,321 @@
         ]
       },
       {
-        "id": "format.bold",
-        "text": "粗体",
-        "checkable": true,
-        "accelerator": "Command+B"
-      },
-      {
-        "id": "format.italic",
-        "text": "斜体",
-        "checkable": true,
-        "accelerator": "Command+I"
-      },
-      {
-        "id": "format.strike",
-        "text": "删除线",
-        "checkable": true,
-        "accelerator": "Command+Shift+X"
-      },
-      {
-        "id": "format.code",
-        "text": "行内代码",
-        "checkable": true,
-        "accelerator": "Command+E"
-      },
-      {
-        "text": "标题",
+        "text": "Source Code",
         "items": [
           {
-            "id": "format.paragraph",
-            "text": "正文",
-            "accelerator": "Command+Alt+0",
-            "checkable": true
+            "id": "source.autoIndentSelection",
+            "text": "Indent Selection"
           },
           {
-            "id": "format.h1",
-            "text": "一级标题",
-            "accelerator": "Command+Alt+1",
-            "checkable": true
+            "id": "source.autoIndentDocument",
+            "text": "Indent Document"
           },
           {
-            "id": "format.h2",
-            "text": "二级标题",
-            "accelerator": "Command+Alt+2",
-            "checkable": true
+            "separator": true
           },
           {
-            "id": "format.h3",
-            "text": "三级标题",
-            "accelerator": "Command+Alt+3",
-            "checkable": true
+            "id": "source.formatSelection",
+            "text": "Format Selection"
           },
           {
-            "id": "format.h4",
-            "text": "四级标题",
-            "accelerator": "Command+Alt+4",
-            "checkable": true
-          },
-          {
-            "id": "format.h5",
-            "text": "五级标题",
-            "accelerator": "Command+Alt+5",
-            "checkable": true
-          },
-          {
-            "id": "format.h6",
-            "text": "六级标题",
-            "accelerator": "Command+Alt+6",
-            "checkable": true
+            "id": "source.formatDocument",
+            "text": "Format Document"
           }
         ]
-      },
-      {
-        "id": "format.bullet",
-        "text": "无序列表",
-        "accelerator": "Command+Shift+8",
-        "checkable": true
-      },
-      {
-        "id": "format.ordered",
-        "text": "有序列表",
-        "accelerator": "Command+Shift+7",
-        "checkable": true
-      },
-      {
-        "id": "format.todo",
-        "text": "待办列表",
-        "accelerator": "Command+Shift+9",
-        "checkable": true
-      },
-      {
-        "id": "format.quote",
-        "text": "引用块",
-        "accelerator": "Command+Shift+B",
-        "checkable": true
-      },
-      {
-        "id": "format.codeblock",
-        "text": "代码块",
-        "accelerator": "Command+Alt+C"
-      },
-      {
-        "id": "format.clear",
-        "text": "清除文字格式",
-        "accelerator": "Command+Backslash"
-      },
-      {
-        "id": "format.link",
-        "text": "添加或编辑链接…",
-        "accelerator": "Command+K"
       }
     ]
   },
   {
     "text": "View",
+    "merge": "view",
     "items": [
       {
+        "id": "document.source",
+        "text": "Source Mode",
+        "checkable": true,
+        "accelerator": "Command+Alt+S"
+      },
+      {
         "id": "view.focus",
-        "text": "专注模式",
+        "text": "Focus Mode",
         "checkable": true,
         "accelerator": "Command+Shift+Enter"
       },
       {
         "id": "view.tools",
-        "text": "更多工具",
+        "text": "Editing Tools",
         "checkable": true,
         "accelerator": "Command+Alt+T"
       },
       {
-        "text": "风格",
+        "separator": true
+      },
+      {
+        "text": "Sidebars",
         "items": [
           {
-            "id": "style.classic",
-            "text": "经典",
+            "id": "sidebar.tree",
+            "text": "Document Tree",
             "checkable": true
           },
           {
-            "id": "style.calm",
-            "text": "清雅",
+            "id": "sidebar.list",
+            "text": "Document List",
             "checkable": true
           },
           {
-            "id": "style.paper",
-            "text": "纸页",
+            "id": "sidebar.notes",
+            "text": "Quick Notes",
             "checkable": true
           },
           {
-            "id": "style.minimal",
-            "text": "精简",
+            "id": "sidebar.readers",
+            "text": "Reading Library",
             "checkable": true
           },
           {
-            "id": "style.nine-rings",
-            "text": "九环",
+            "id": "sidebar.images",
+            "text": "Images",
             "checkable": true
           },
           {
-            "id": "style.mono-aware",
-            "text": "物哀",
-            "checkable": true
-          },
-          {
-            "id": "style.yugen",
-            "text": "幽玄",
-            "checkable": true
-          },
-          {
-            "id": "style.wabi-sabi",
-            "text": "侘寂",
+            "id": "sidebar.vocabulary",
+            "text": "Vocabulary",
             "checkable": true
           }
         ]
       },
       {
-        "text": "配色",
+        "id": "workspace.overview",
+        "text": "Expand Workspace Overview",
+        "checkable": true
+      },
+      {
+        "text": "Source Display",
         "items": [
           {
-            "id": "color.light",
-            "text": "浅色",
+            "id": "source.wrap",
+            "text": "Word Wrap",
             "checkable": true
           },
           {
-            "id": "color.dark",
-            "text": "深色",
+            "id": "source.highlight",
+            "text": "Syntax Highlighting",
             "checkable": true
           },
           {
-            "id": "color.system",
-            "text": "跟随系统",
+            "id": "source.micro",
+            "text": "Inline Preview",
             "checkable": true
           }
         ]
       },
       {
-        "text": "正文宽度",
+        "text": "Heading Folding",
         "items": [
           {
-            "id": "width.narrow",
-            "text": "窄幅",
-            "checkable": true
+            "id": "document.collapse",
+            "text": "Collapse All Headings"
           },
           {
-            "id": "width.standard",
-            "text": "标准",
-            "checkable": true
-          },
-          {
-            "id": "width.wide",
-            "text": "宽幅",
-            "checkable": true
+            "id": "document.expand",
+            "text": "Expand All Headings"
           }
         ]
       },
       {
-        "text": "密度",
-        "items": [
-          {
-            "id": "density.comfortable",
-            "text": "舒适",
-            "checkable": true
-          },
-          {
-            "id": "density.compact",
-            "text": "紧凑",
-            "checkable": true
-          }
-        ]
+        "separator": true
       },
       {
-        "text": "布局",
+        "text": "Appearance",
         "items": [
           {
-            "id": "layout.standard",
-            "text": "标准",
+            "text": "Style",
+            "items": [
+              {
+                "id": "style.classic",
+                "text": "Classic",
+                "checkable": true
+              },
+              {
+                "id": "style.calm",
+                "text": "Calm",
+                "checkable": true
+              },
+              {
+                "id": "style.paper",
+                "text": "Paper",
+                "checkable": true
+              },
+              {
+                "id": "style.minimal",
+                "text": "Minimal",
+                "checkable": true
+              },
+              {
+                "id": "style.nine-rings",
+                "text": "Nine Rings",
+                "checkable": true
+              },
+              {
+                "id": "style.mono-aware",
+                "text": "Mono no Aware",
+                "checkable": true
+              },
+              {
+                "id": "style.yugen",
+                "text": "Yūgen",
+                "checkable": true
+              },
+              {
+                "id": "style.wabi-sabi",
+                "text": "Wabi-Sabi",
+                "checkable": true
+              }
+            ]
+          },
+          {
+            "text": "Color Scheme",
+            "items": [
+              {
+                "id": "color.light",
+                "text": "Light",
+                "checkable": true
+              },
+              {
+                "id": "color.dark",
+                "text": "Dark",
+                "checkable": true
+              },
+              {
+                "id": "color.system",
+                "text": "Follow System",
+                "checkable": true
+              }
+            ]
+          },
+          {
+            "text": "Text Width",
+            "items": [
+              {
+                "id": "width.narrow",
+                "text": "Narrow",
+                "checkable": true
+              },
+              {
+                "id": "width.standard",
+                "text": "Standard",
+                "checkable": true
+              },
+              {
+                "id": "width.wide",
+                "text": "Wide",
+                "checkable": true
+              }
+            ]
+          },
+          {
+            "text": "Density",
+            "items": [
+              {
+                "id": "density.comfortable",
+                "text": "Comfortable",
+                "checkable": true
+              },
+              {
+                "id": "density.compact",
+                "text": "Compact",
+                "checkable": true
+              }
+            ]
+          },
+          {
+            "text": "Layout",
+            "items": [
+              {
+                "id": "layout.standard",
+                "text": "Standard",
+                "checkable": true
+              },
+              {
+                "id": "layout.exhibition",
+                "text": "Gallery",
+                "checkable": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "text": "Go",
+    "before": "window",
+    "items": [
+      {
+        "id": "workspace.home",
+        "text": "Workspace Home / Return to Document",
+        "accelerator": "Command+Shift+H"
+      },
+      {
+        "id": "workspace.switch",
+        "text": "Quick Switch…",
+        "accelerator": "Command+P"
+      },
+      {
+        "separator": true
+      },
+      {
+        "id": "document.jump",
+        "text": "Go to Line or Block…",
+        "accelerator": "Command+G"
+      },
+      {
+        "id": "document.outline",
+        "text": "Document Outline",
+        "checkable": true,
+        "accelerator": "Command+Alt+O"
+      },
+      {
+        "id": "document.bookmarks",
+        "text": "Bookmarks",
+        "checkable": true,
+        "accelerator": "Command+Alt+B"
+      },
+      {
+        "separator": true
+      },
+      {
+        "text": "Document Lists",
+        "items": [
+          {
+            "id": "workspace.recent",
+            "text": "Recent Documents",
             "checkable": true
           },
           {
-            "id": "layout.exhibition",
-            "text": "展陈",
+            "id": "workspace.favorites",
+            "text": "Favorites",
+            "checkable": true
+          },
+          {
+            "id": "workspace.today",
+            "text": "Modified Today",
             "checkable": true
           }
         ]
+      }
+    ]
+  },
+  {
+    "text": "Window",
+    "merge": "window",
+    "items": [
+      {
+        "id": "window.hide",
+        "text": "Hide Main Window",
+        "accelerator": "Command+Shift+W"
       }
     ]
   }

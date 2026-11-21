@@ -22,12 +22,11 @@ describe("document source syntax", () => {
   it("keeps native file-format choices aligned with document languages", () => {
     const format = catalog.find((entry) => entry.text === "Format")!;
     const choices = format.items.find(
-      (entry) => entry.text === "文件格式",
+      (entry) => entry.text === "Document Format",
     )!.items!;
-    expect(choices).toEqual(
+    expect(choices.map(({ id, checkable }) => ({ id, checkable }))).toEqual(
       DOCUMENT_LANGUAGE_OPTIONS.map((option) => ({
         id: documentLanguageCommand(option.value),
-        text: option.label,
         checkable: true,
       })),
     );

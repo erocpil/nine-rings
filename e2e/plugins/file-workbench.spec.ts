@@ -2450,8 +2450,9 @@ test("目录大小仅手动扫描，包含隐藏项和子目录，复用缓存�
   await expect(dialog.getByRole("button", { name: "开始统计", exact: true })).toBeVisible();
 });
 
-async function setupIndependentEditor(page: Page, sources: Record<string, string> = { "alpha.c": "int alpha(void) { return 1; }\n", "beta.c": "int beta(void) { return 2; }\n" }, initial = "alpha.c", images: Record<string, string> = {}) {
-  await page.addInitScript(({ sources, initial, images }) => {
+async function setupIndependentEditor(page: Page, sources: Record<string, string> = { "alpha.c": "int alpha(void) { return 1; }\n", "beta.c": "int beta(void) { return 2; }\n" }, initial = "alpha.c", images: Record<string, string> = {}, macMenu = false) {
+  await page.addInitScript(({ sources, initial, images, macMenu }) => {
+    if (macMenu) Object.defineProperty(navigator, "platform", { value: "MacIntel" });
     let next = 1;
     const callbacks = new Map<number, (event: unknown) => void>();
     const handlers = new Map<string, number>();
@@ -2465,7 +2466,7 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
     const persistSession = () => localStorage.setItem("fixture-editor-session", JSON.stringify({ files: state.files, current: state.current }));
     const persist = () => { localStorage.setItem("fixture-editor-buffers", JSON.stringify(records)); persistSession(); };
     const fixture = { state, sources, writes: [] as string[], relocations: [] as { revision?: string; reason?: string }[], finished: [] as unknown[], quit: 0, records, cancelSave: true, saves: [] as string[], assetReads: [] as string[], stats: [] as string[], bufferFiles: {} as Record<string, string> };
-    const emit = (event: string) => callbacks.get(handlers.get(event)!)?.({ event, id: 1, payload: null });
+    const emit = (event: string, payload: unknown = null) => callbacks.get(handlers.get(event)!)?.({ event, id: 1, payload });
     const requestRelocation = (targetNode: string) => { state.relocation = { id: state.current, token: ++state.revision, targetNode }; emit("workbench:editor-changed"); };
     Object.assign(window, { __editorFixture: fixture, __editorEmit: emit, __editorRequestRelocation: requestRelocation, __editorClose: (quit = false) => { state.revision++; state.closing = { token: state.revision, quit }; emit("workbench:editor-changed"); } });
     const textSnapshot = (text: string) => ({ source: text, revision: text, size: text.length, modifiedMs: 1, lineEnding: "lf", bom: false });
@@ -2474,6 +2475,7 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
       return textSnapshot(sources[node]);
     };
     (window as any).__TAURI_INTERNALS__ = {
+      metadata: { currentWindow: { label: "workbench-editor-test" } },
       transformCallback(callback: (event: unknown) => void) { const id = next++; callbacks.set(id, callback); return id; },
       unregisterCallback(id: number) { callbacks.delete(id); },
       async invoke(command: string, args: any) {
@@ -2492,6 +2494,8 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
           return { record: structuredClone(record), snapshot: { source: record.source, revision: record.baseRevision, size: record.source.length, modifiedMs: 1, bom: false, lineEnding: "lf" } };
         }
         if (command === "workbench_window_role") return "editor";
+        if (command === "plugin:window|is_focused") return true;
+        if (command === "workbench_set_editor_menu") { (window as any).__editorMenuStates = args.states; return; }
         if (command === "plugin:event|listen") { handlers.set(args.event, args.handler); return next++; }
         if (command === "workbench_editor_state") return structuredClone(state);
         if (command === "workbench_editor_relocation_reply") {
@@ -2548,9 +2552,40 @@ async function setupIndependentEditor(page: Page, sources: Record<string, string
         return;
       },
     };
-  }, { sources, initial, images });
+  }, { sources, initial, images, macMenu });
   await page.goto("/file-workbench.html");
 }
+
+test("macOS Workbench 编辑器菜单跟随前台视图和焦点，并执行现有源码命令", async ({ page }) => {
+  await setupIndependentEditor(page, { "guide.md": "# Menu sample\n\nInitial." }, "guide.md", {}, true);
+  const menuState = (id: string) => page.evaluate(id => (window as any).__editorMenuStates?.find((entry: { id: string }) => entry.id === id), id);
+  await expect.poll(() => menuState("document.source")).toMatchObject({ enabled: true, checked: false });
+  await expect.poll(() => menuState("document.export-pdf")).toMatchObject({ enabled: true });
+  await expect.poll(() => menuState("document.save")).toMatchObject({ enabled: false });
+  await page.evaluate(() => (window as any).__editorEmit("workbench:editor-menu", "document.source"));
+  const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  await expect(source).toBeVisible();
+  await expect.poll(() => menuState("document.source")).toMatchObject({ enabled: true, checked: true });
+  await expect.poll(async () => (await menuState("document.export-pdf"))?.enabled ?? false).toBe(false);
+  await expect(source).toHaveAttribute("contenteditable", "false");
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  await expect(source).toHaveAttribute("contenteditable", "true");
+  await source.focus();
+  await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.insertText(" Saved from the menu.");
+  await expect.poll(() => menuState("document.save")).toMatchObject({ enabled: true });
+  await page.evaluate(() => (window as any).__editorEmit("workbench:editor-menu", "document.save"));
+  await expect.poll(() => page.evaluate(() => (window as any).__editorFixture.sources["guide.md"])).toContain("Saved from the menu.");
+  await expect.poll(() => menuState("document.save")).toMatchObject({ enabled: false });
+  await page.evaluate(() => (window as any).__editorEmit("tauri://blur"));
+  await expect.poll(() => menuState("document.source")).toMatchObject({ enabled: false });
+  await page.evaluate(() => (window as any).__editorEmit("workbench:editor-menu", "document.source"));
+  await expect(source).toBeVisible();
+  await page.evaluate(() => (window as any).__editorEmit("tauri://focus"));
+  await expect.poll(() => menuState("document.source")).toMatchObject({ enabled: true });
+  await page.evaluate(() => (window as any).__editorEmit("workbench:editor-menu", "document.source"));
+  await expect(page.getByRole("heading", { name: "Menu sample" })).toBeVisible();
+});
 
 test("已打开文件只在干净时迁移，源码实例、选区、撤销和偏好跟随新路径", async ({ page }) => {
   await setupIndependentEditor(page);

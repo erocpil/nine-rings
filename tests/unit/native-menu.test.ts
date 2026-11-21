@@ -82,20 +82,34 @@ describe("macOS 菜单命令", () => {
       accelerator: "Command+W",
     });
   });
-  it("uses English top-level menu names and groups all three export formats", () => {
+  it("places English command groups beside their standard macOS roles", () => {
     expect(catalog.map((entry) => entry.text)).toEqual([
-      "Workspace",
+      "Nine Rings",
       "File",
+      "Edit",
       "Format",
       "View",
+      "Go",
+      "Window",
     ]);
+    expect(catalog.find((entry) => entry.text === "Format")?.before).toBe(
+      "view",
+    );
+    expect(catalog.find((entry) => entry.text === "Go")?.before).toBe("window");
     const file = catalog.find((entry) => entry.text === "File")!;
-    const exportMenu = file.items?.find(
-      (entry: { text: string }) => entry.text === "导出",
+    const exportMenu = file.items?.find((entry) => entry.text === "Export");
+    expect(exportMenu?.items?.map((entry) => entry.id)).toEqual([
+      "document.export-md",
+      "document.export-text",
+      "document.export-html",
+    ]);
+    expect(file.items).toContainEqual(
+      expect.objectContaining({
+        id: "document.export-pdf",
+        text: "Print or Save as PDF…",
+      }),
     );
-    expect(exportMenu?.items?.map((entry: { id: string }) => entry.id)).toEqual(
-      ["document.export-md", "document.export-text", "document.export-pdf"],
-    );
+    expect(JSON.stringify(catalog)).not.toMatch(/\p{Script=Han}/u);
   });
 });
 
