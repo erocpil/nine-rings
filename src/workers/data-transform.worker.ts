@@ -3,7 +3,7 @@
 import { measureBackupJson } from "../lib/backup-measurement";
 import { buildTextImportInput, type MarkdownImportOptions, type TextImportSource } from "../lib/markdown-import";
 import { deltaToProseMirror } from "../lib/delta-converter";
-import { extractTitle, mdToDelta } from "../lib/md-parser";
+import { extractTitle, markdownFragmentToDelta, mdToDelta } from "../lib/md-parser";
 import { deltaToMarkdown } from "../lib/markdown-serializer";
 
 interface WorkerRequest {
@@ -28,7 +28,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
     } else if (task === "delta-to-prosemirror") {
       result = deltaToProseMirror(payload);
     } else if (task === "markdown-to-prosemirror") {
-      result = deltaToProseMirror(mdToDelta(payload as string));
+      result = deltaToProseMirror(markdownFragmentToDelta(payload as string));
     } else if (task === "markdown-source") {
       const request = payload as { fileName: string; source: string };
       result = {

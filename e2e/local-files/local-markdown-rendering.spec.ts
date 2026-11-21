@@ -6,6 +6,7 @@ import { closeDocumentSidebar } from "../helpers/workspace";
 import { sourceInfo, selectSource } from "../helpers/source-editor";
 
 const markdown = [
+  "---\ntitle: YAML metadata\n---",
   "# 磁盘 Markdown",
   "```toc\nlevels: 1,2,3\n```",
   "**粗体**、*斜体*和 `inline_code`。脚注[^1]。",

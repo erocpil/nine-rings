@@ -15,6 +15,7 @@ import type { Editor } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import type { AppConfig, DeltaOps, DocumentBookmark } from "../types/models";
 import { markdownContentFingerprint } from "../lib/external-markdown-source";
+import { markdownFrontMatter } from "../lib/markdown-front-matter";
 import { writeDocumentSource } from "../lib/document-source";
 import { closeHistory } from "@tiptap/pm/history";
 import { deltaToProseMirror } from "../lib/delta-converter";
@@ -204,8 +205,8 @@ export function LocalMarkdownWorkspace({
     const edit = pending.current;
     if (!edit) return;
     try {
-      const serialized = deltaToMarkdown(edit.read());
       const previous = lastProjection.current;
+      const serialized = deltaToMarkdown({ ...edit.read(), metadata: { markdownFrontMatter: markdownFrontMatter(previous) } });
       const baseline = canonical.current?.source === previous
         ? canonical.current.text
         : deltaToMarkdown(previous === initial.source ? initial.content : writeDocumentSource(previous, "markdown"));

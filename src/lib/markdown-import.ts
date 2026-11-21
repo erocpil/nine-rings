@@ -181,12 +181,14 @@ export function buildMarkdownImportInput(
   options: MarkdownImportOptions,
 ): CreateNoteInput {
   const fallbackTitle = fileName.replace(/\.(md|markdown)$/i, "");
+  const content = mdToDelta(source);
   const input: CreateNoteInput = {
     date: options.date,
     title: extractTitle(source, fallbackTitle),
     content: {
-      ...mdToDelta(source),
+      ...content,
       metadata: {
+        ...content.metadata,
         sourceFormat: "markdown",
         originalFileName: fileName,
         markdownSource: source,

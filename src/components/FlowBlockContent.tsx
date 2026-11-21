@@ -11,7 +11,7 @@ import {
   useRef,
 } from "react";
 import { getSchema } from "@tiptap/core";
-import { mdToDelta } from "../lib/md-parser";
+import { markdownFragmentToDelta } from "../lib/md-parser";
 import { deltaToProseMirror } from "../lib/delta-converter";
 import { flowParts } from "../lib/flow-block";
 import { FLOW_BLOCK_FOCUS_EVENT } from "../lib/flow-block-focus";
@@ -32,7 +32,7 @@ const nesting = createContext(0);
 let schema: ReturnType<typeof getSchema> | undefined;
 export function parseFlowDocument(source: string) {
   schema ??= getSchema(documentRenderingExtensions());
-  const doc = schema.nodeFromJSON(deltaToProseMirror(mdToDelta(source)));
+  const doc = schema.nodeFromJSON(deltaToProseMirror(markdownFragmentToDelta(source)));
   doc.check();
   return doc;
 }

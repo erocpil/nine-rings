@@ -88,6 +88,7 @@ export interface DocumentMetadata {
   originalFileName?: string;
   /** Original Markdown, retained until the rendered body is edited. */
   markdownSource?: string;
+  markdownFrontMatter?: string;
   author?: string;
   organization?: string;
   email?: string;

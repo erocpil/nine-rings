@@ -1,7 +1,7 @@
 /** CommonMark/GFM parser shared by import, paste, source, templates and Workers. */
 import { markdownAST, parseGFMTable } from "./gfm-parser";
 export type { MarkdownSourceSpan } from "./gfm-parser";
-export { parseGFM as mdToDelta } from "./gfm-parser";
+export { parseGFM as mdToDelta, parseGFMFragment as markdownFragmentToDelta } from "./gfm-parser";
 
 export function looksLikeMarkdown(text: string): boolean {
   // Classification must not parse a megabyte twice on the UI thread before the Worker starts.

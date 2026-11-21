@@ -1,7 +1,7 @@
 import type { Editor } from "@tiptap/core";
 import { closeHistory } from "@tiptap/pm/history";
 import type { SourceEditorHandle } from "../source-editor-handle";
-import { mdToDelta } from "../md-parser";
+import { markdownFragmentToDelta } from "../md-parser";
 import { deltaToProseMirror } from "../delta-converter";
 import type { DocumentEditAdapter } from "../document-edit-sessions";
 
@@ -18,7 +18,7 @@ export function renderedEditAdapter(
     insert: (range, content) => {
       let nodes;
       if (content.type === "markdown")
-        nodes = deltaToProseMirror(mdToDelta(content.value)).content ?? [];
+        nodes = deltaToProseMirror(markdownFragmentToDelta(content.value)).content ?? [];
       else if (editor.state.doc.resolve(range.from).parent.type.spec.code)
         nodes = content.value ? [{ type: "text", text: content.value }] : [];
       else

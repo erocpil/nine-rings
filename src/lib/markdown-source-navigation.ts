@@ -333,12 +333,17 @@ export class SourceNavigationDocument {
   }
   read(): DeltaOps {
     if (this.unchanged) return this.unchanged;
+    const markdown = documentSourceLanguage(this.metadata) === "markdown";
+    const content = markdown ? this.model.delta : plainTextToDelta(this.source);
+    const metadata = { ...this.metadata };
+    delete metadata.markdownFrontMatter;
     return (this.cached ??= {
-      ...(documentSourceLanguage(this.metadata) === "markdown" ? this.model.delta : plainTextToDelta(this.source)),
+      ...content,
       metadata: {
-        ...this.metadata,
-        sourceFormat: documentSourceLanguage(this.metadata) === "markdown" ? "markdown" : "text",
-        ...(documentSourceLanguage(this.metadata) === "markdown" ? { markdownSource: this.source } : { sourceText: this.source }),
+        ...metadata,
+        ...content.metadata,
+        sourceFormat: markdown ? "markdown" : "text",
+        ...(markdown ? { markdownSource: this.source } : { sourceText: this.source }),
         referenceAnchors: this.referenceAnchors,
         bookmarks: this.bookmarks.map(
           ({ offset: _offset, blockNumber: _block, ...bookmark }) => bookmark,

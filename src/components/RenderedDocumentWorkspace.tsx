@@ -117,7 +117,7 @@ import { DocumentReferenceSearchContext } from "./DocumentReferenceSearchContext
 import { createReadingAnnotation, deleteReadingAnnotation, deleteReadingAnnotations, listReadingAnnotations, putReadingAnnotation, reanchorReadingAnnotations, READING_ANNOTATIONS_ENABLED, type ReadingAnnotation } from "../lib/reading-annotations";
 import { ReadingAnnotations, setReadingAnnotations } from "../extensions/ReadingAnnotations";
 import { ReadingAnnotationBubble } from "./ReadingAnnotationBubble";
-import { mdToDelta } from "../lib/md-parser";
+import { markdownFragmentToDelta } from "../lib/md-parser";
 import { markdownToProseMirrorAsync } from "../lib/data-transform-client";
 import { centerSearchMatch } from "../lib/search-scroll";
 import {
@@ -2688,7 +2688,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
         })),
       } : large
         ? await markdownToProseMirrorAsync(text)
-        : deltaToProseMirror(mdToDelta(text));
+        : deltaToProseMirror(markdownFragmentToDelta(text));
       if (editor.isDestroyed || request !== markdownPasteRequestRef.current) return;
       // 后台解析期间可以继续使用界面，但不能把结果写入新的正文/选区。
       if (readonlyRef.current || !editor.isEditable || editor.state.doc !== sourceDoc
@@ -3577,7 +3577,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
 
     const markdown = editor.state.doc.textBetween(from, to, "\n", "\n");
     if (!markdown.trim()) return;
-    const parsed = deltaToProseMirror(mdToDelta(markdown));
+    const parsed = deltaToProseMirror(markdownFragmentToDelta(markdown));
     editor.chain().focus().insertContentAt({ from, to }, parsed.content).run();
     setMarkdownSelectionNotice(true);
     setBlockOpen(false);
@@ -3676,7 +3676,10 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
 
   const handleExportMarkdown = async () => {
     if (workspaceHost?.exportMarkdown) return workspaceHost.exportMarkdown();
-    await exportDocumentMarkdown(localTitle, proseMirrorToDelta(editor.getJSON()));
+    await exportDocumentMarkdown(localTitle, {
+      ...proseMirrorToDelta(editor.getJSON()),
+      metadata: { markdownFrontMatter: content.metadata?.markdownFrontMatter },
+    });
   };
 
   const handleExportText = async () => {

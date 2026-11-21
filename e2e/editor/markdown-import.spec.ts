@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { waitForSavedText } from "../helpers/document";
 
 test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) => {
   const longSection = Array.from(
@@ -23,7 +24,7 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
     name: "review-import.md",
     mimeType: "text/markdown",
     buffer: Buffer.from(
-      `# Imported Review\n\n## VFIO/UIO接入层\n\n${longSection}\n\n### 子项\n\n- **队列初始化**\n  - 完成映射\n\n${outlineSections}`,
+      `---\ntitle: YAML metadata\ntags: [review]\n---\n\n# Imported Review\n\n## VFIO/UIO接入层\n\n${longSection}\n\n### 子项\n\n- **队列初始化**\n  - 完成映射\n\n${outlineSections}`,
       "utf8",
     ),
   });
@@ -40,6 +41,7 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
   await imported.click();
 
   await expect(page.locator(".note-title")).toHaveValue("Imported Review");
+  await expect(page.locator(".ProseMirror")).not.toContainText("YAML metadata");
   await expect(page.locator(".tag-chip", { hasText: "imported" })).toBeVisible();
   await expect(page.locator(".ProseMirror > ul > li > ul > li")).toHaveText("完成映射");
 
@@ -147,4 +149,13 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
     label?.querySelectorAll("button").forEach(button => button.remove());
     return label?.textContent ?? "";
   })).toBe("VFIO/UIO接入层");
+  await page.locator(".ProseMirror > p").filter({ hasText: /^正文段落 1：/ }).click();
+  await page.keyboard.press("End");
+  await page.keyboard.insertText(" Metadata round trip.");
+  await waitForSavedText(page, "Metadata round trip.");
+  await expect.poll(() => page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    const note = await api.notes.get(localStorage.getItem("nr:lastNote")!);
+    return note?.content?.metadata?.markdownFrontMatter;
+  })).toBe("---\ntitle: YAML metadata\ntags: [review]\n---");
 });

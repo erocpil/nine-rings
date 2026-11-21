@@ -3,7 +3,7 @@ import type { Transaction } from "@tiptap/pm/state";
 import { normalizePastedHTML } from "../extensions/NormalizeSingleParagraphPaste";
 import { shouldParseClipboardMarkdown } from "./clipboard-content";
 import { deltaToProseMirror } from "./delta-converter";
-import { mdToDelta } from "./md-parser";
+import { markdownFragmentToDelta } from "./md-parser";
 import { markdownToProseMirrorAsync } from "./data-transform-client";
 import type { DocumentBookmark, DocumentReferenceAnchor } from "../types/models";
 
@@ -55,7 +55,7 @@ export async function clipboardBlockFragment(schema: Schema, text: string, html:
   let fragment: Fragment;
   if (text && shouldParseClipboardMarkdown(text, html)) {
     const parsed = text.length >= 20_000 || text.split("\n", 501).length > 500
-      ? await markdownToProseMirrorAsync(text) : deltaToProseMirror(mdToDelta(text));
+      ? await markdownToProseMirrorAsync(text) : deltaToProseMirror(markdownFragmentToDelta(text));
     fragment = Fragment.fromArray(parsed.content.map(block => schema.nodeFromJSON(block)));
   } else if (html) {
     const container = document.createElement("div");

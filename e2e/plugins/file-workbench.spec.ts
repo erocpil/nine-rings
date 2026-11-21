@@ -1939,7 +1939,7 @@ test("内置源码行号与折叠样式即时生效，重开保留且不影响�
 
 test("Markdown 渲染正文可编辑并保存，源码往返保留会话、撤销与外部冲突保护", async ({ page }) => {
   await page.addInitScript(() => {
-    const state = { source: "# Demo\n\n\nOriginal paragraph.\n\n[Related](related.md)\n\n* first item\n* second item\n\n```c\nint sentinel;\n```\n", modified: 1, writes: 0 };
+    const state = { source: "---\ntitle: YAML metadata  \ntags: [demo]\n---\n\n# Demo\n\n\nOriginal paragraph.\n\n[Related](related.md)\n\n* first item\n* second item\n\n```c\nint sentinel;\n```\n", modified: 1, writes: 0 };
     (window as any).__markdownDisk = state;
     const file = { kind: "file", name: "sample.md", getFile: async () => new File([state.source], "sample.md", { lastModified: state.modified }), createWritable: async () => {
       let pending = state.source;
@@ -1967,6 +1967,7 @@ test("Markdown 渲染正文可编辑并保存，源码往返保留会话、撤�
   await expect(body).toContainText("Related destination.");
   await rendered.getByRole("button", { name: "链接后退", exact: true }).click();
   await expect(body).toContainText("Original paragraph.");
+  await expect(body).not.toContainText("YAML metadata");
   expect(await page.evaluate(() => (window as any).__markdownDisk.writes)).toBe(0);
   await rendered.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
   await expect(body).toBeEditable();
@@ -1989,6 +1990,7 @@ test("Markdown 渲染正文可编辑并保存，源码往返保留会话、撤�
   // Save immediately, including an unflushed rendered serializer.
   await rendered.getByRole("button", { name: "保存文件", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__markdownDisk.source)).toContain("added");
+  expect(await page.evaluate(() => (window as any).__markdownDisk.source)).toMatch(/^---\ntitle: YAML metadata  \ntags: \[demo\]\n---\n\n# Demo/);
   await expect.poll(() => page.evaluate(() => (window as any).__markdownDisk.writes)).toBe(1);
   await rendered.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
   const source = page.locator(".workbench-source-session .cm-content");

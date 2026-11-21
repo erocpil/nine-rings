@@ -12,8 +12,15 @@ import type { DeltaOp, DeltaOps } from "../types/models";
 import type { TableEmbed } from "./table-embed";
 import { bareLinkParts, CJK_LINK_BOUNDARY } from "./bare-autolinks";
 import { cjkEmphasis } from "./cjk-emphasis";
+import { markdownFrontMatter } from "./markdown-front-matter";
 
 export function markdownAST(source: string): Root {
+  return parseAst(source, markdownFrontMatter(source));
+}
+
+function parseAst(source: string, header?: string): Root {
+  // Keep offsets and line numbers relative to the original source.
+  if (header) source = header.replace(/[^\r\n]/g, " ") + source.slice(header.length);
   return fromMarkdown(source, {
     extensions: [gfm(), math(), cjkEmphasis()],
     // Micromark already recognizes source-aware GFM autolinks. The MDAST
@@ -365,7 +372,7 @@ function details(source: string, context: Context): DeltaOp {
     .replace(/^\s*<details\b[^>]*>/i, "")
     .replace(/<\/details>\s*$/i, "");
   const nested = { ...context, source: body };
-  const ast = markdownAST(body);
+  const ast = parseAst(body);
   collect(ast, nested);
   return {
     insert: {
@@ -719,7 +726,7 @@ function blocks(
           );
           if (tail.trim())
             ops.push(
-              ...blocks(markdownAST(tail).children, {
+              ...blocks(parseAst(tail).children, {
                 ...context,
                 source: tail,
               }),
@@ -754,7 +761,15 @@ export function parseGFM(
   source: string,
   spans?: MarkdownSourceSpan[],
 ): DeltaOps {
-  const ast = markdownAST(source);
+  return parseDocument(source, spans, markdownFrontMatter(source));
+}
+
+export function parseGFMFragment(source: string): DeltaOps {
+  return parseDocument(source);
+}
+
+function parseDocument(source: string, spans?: MarkdownSourceSpan[], header?: string): DeltaOps {
+  const ast = parseAst(source, header);
   const context: Context = {
     source,
     definitions: new Map(),
@@ -792,7 +807,7 @@ export function parseGFM(
         }),
       );
   }
-  return { ops };
+  return header ? { ops, metadata: { markdownFrontMatter: header } } : { ops };
 }
 export function parseGFMTable(source: string): TableEmbed | null {
   const node = markdownAST(source).children[0];

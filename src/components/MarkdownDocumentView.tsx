@@ -493,11 +493,12 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           const current = latestReader.current?.() ?? latestProps.current.content;
           const updated = reader();
           const metadata = { ...updated.metadata };
-          for (const key of ["sourceText", "markdownSource", "sourceFormat", "sourceLanguage"] as const) {
+          const sourceKeys = ["sourceText", "markdownSource", "markdownFrontMatter", "sourceFormat", "sourceLanguage"] as const;
+          for (const key of sourceKeys) {
             delete metadata[key];
           }
           const next = mapViewAnchors(updated, { ...current, metadata: { ...metadata,
-            ...Object.fromEntries(Object.entries(current.metadata ?? {}).filter(([key]) => ["sourceText", "markdownSource", "sourceFormat", "sourceLanguage"].includes(key))) } });
+            ...Object.fromEntries(sourceKeys.map(key => [key, current.metadata?.[key]]).filter(([, value]) => value !== undefined)) } });
           latestReader.current = () => next;
           props.onContentChange(() => next, options);
           return;

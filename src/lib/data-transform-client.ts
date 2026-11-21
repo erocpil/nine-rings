@@ -3,7 +3,7 @@ import type { CreateNoteInput, DeltaOps } from "../types/models";
 import { deltaToProseMirror } from "./delta-converter";
 import type { MarkdownImportOptions, TextImportSource } from "./markdown-import";
 import { buildTextImportInput } from "./markdown-import";
-import { extractTitle, mdToDelta } from "./md-parser";
+import { extractTitle, markdownFragmentToDelta, mdToDelta } from "./md-parser";
 import { deltaToMarkdown } from "./markdown-serializer";
 
 type WorkerTask = "measure-backup" | "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "markdown-to-prosemirror" | "delta-to-prosemirror" | "delta-to-markdown";
@@ -81,7 +81,7 @@ function runWorkerTask<T>(task: WorkerTask, payload: unknown, fallback: () => T)
 
 /** 粘贴时把两阶段转换留在同一个 Worker，避免主线程解析及中间 Delta 拷贝。 */
 export function markdownToProseMirrorAsync(source: string): Promise<ReturnType<typeof deltaToProseMirror>> {
-  const fallback = () => deltaToProseMirror(mdToDelta(source));
+  const fallback = () => deltaToProseMirror(markdownFragmentToDelta(source));
   // 某些 WebView 能创建 Worker，但无法加载其资源；仍允许粘贴。
   return runWorkerTask("markdown-to-prosemirror", source, fallback).catch(fallback);
 }

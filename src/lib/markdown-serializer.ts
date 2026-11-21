@@ -12,6 +12,7 @@ import type {
   BlockContent,
 } from "mdast";
 import { deltaToProseMirror, isProseMirror } from "./delta-converter";
+import { withMarkdownFrontMatter } from "./markdown-front-matter";
 
 function mergeInline(nodes: PhrasingContent[]): PhrasingContent[] {
   const result: PhrasingContent[] = [];
@@ -432,10 +433,7 @@ function serialize(root: Root): string {
     },
   });
 }
-/** One structured serializer for the UI, storage, Workers and CLI. */
-export function deltaToMarkdown(content: unknown): string {
-  const raw = (content as { metadata?: { sourceText?: unknown; sourceFormat?: unknown } } | null)?.metadata;
-  if (raw?.sourceFormat === "text" && typeof raw.sourceText === "string") return raw.sourceText;
+function markdownBody(content: unknown): string {
   const doc = isProseMirror(content)
     ? content
     : deltaToProseMirror(Array.isArray(content) ? { ops: content } : content);
@@ -444,20 +442,33 @@ export function deltaToMarkdown(content: unknown): string {
     children: (doc.content ?? []).flatMap(block),
   }).trimEnd();
 }
+
+function sourceMetadata(content: unknown) {
+  return (content as { metadata?: { sourceText?: unknown; sourceFormat?: unknown; markdownFrontMatter?: unknown } } | null)?.metadata;
+}
+
+/** One structured serializer for the UI, storage, Workers and CLI. */
+export function deltaToMarkdown(content: unknown): string {
+  const metadata = sourceMetadata(content);
+  if (metadata?.sourceFormat === "text" && typeof metadata.sourceText === "string") return metadata.sourceText;
+  return withMarkdownFrontMatter(metadata?.markdownFrontMatter, markdownBody(content));
+}
+
 export function noteToMarkdown(
   title: string | null | undefined,
   content: unknown,
 ): string {
-  const metadata = (content as { metadata?: { sourceText?: unknown; sourceFormat?: unknown } } | null)?.metadata;
+  const metadata = sourceMetadata(content);
   if (metadata?.sourceFormat === "text" && typeof metadata.sourceText === "string") return metadata.sourceText;
   const normalizedTitle = title?.trim() || "无标题";
-  const body = deltaToMarkdown(content);
+  const body = markdownBody(content);
   const heading = `# ${normalizedTitle}`;
-  return body === heading || body.startsWith(`${heading}\n`)
+  const titled = body === heading || body.startsWith(`${heading}\n`)
     ? body
     : body
       ? `${heading}\n\n${body}`
       : heading;
+  return withMarkdownFrontMatter(metadata?.markdownFrontMatter, titled);
 }
 
 function tableInlineHTML(nodes: readonly JSONContent[]): string {

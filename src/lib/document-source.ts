@@ -13,9 +13,11 @@ export function readDocumentSource(content: DeltaOps): string {
 
 export function writeDocumentSource(source: string, language: string, previous?: DocumentMetadata): DeltaOps {
   const metadata = { ...previous, sourceLanguage: language };
+  delete metadata.markdownFrontMatter;
   if (language === "markdown") {
     delete metadata.sourceText;
-    return { ...mdToDelta(source), metadata: { ...metadata, sourceFormat: "markdown", markdownSource: source } };
+    const content = mdToDelta(source);
+    return { ...content, metadata: { ...metadata, ...content.metadata, sourceFormat: "markdown", markdownSource: source } };
   }
   delete metadata.markdownSource;
   return { ...plainTextToDelta(source), metadata: { ...metadata, sourceFormat: "text", sourceText: source } };

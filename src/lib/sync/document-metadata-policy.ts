@@ -2,6 +2,7 @@ import type { JSONContent } from "@tiptap/core";
 import { CODE_LANGUAGE_OPTIONS } from "../code-language-options";
 import { isCertifiedHTMLSource } from "./html-body-policy";
 import { isCertifiedLinkDestination } from "./link-body-policy";
+import { markdownFrontMatter } from "../markdown-front-matter";
 
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -42,6 +43,7 @@ const strings = [
   "sourceLanguage",
   "originalFileName",
   "markdownSource",
+  "markdownFrontMatter",
   "author",
   "organization",
   "email",
@@ -74,6 +76,8 @@ export function isCertifiedDocumentMetadata(
   if (metadata.sourceText !== undefined && typeof metadata.sourceText !== "string") return false;
   for (const key of strings)
     if (metadata[key] !== undefined && !text(metadata[key])) return false;
+  if (typeof metadata.markdownFrontMatter === "string" &&
+    (metadata.sourceFormat === "text" || markdownFrontMatter(metadata.markdownFrontMatter) !== metadata.markdownFrontMatter)) return false;
   if (metadata.sourceLanguage !== undefined && !CODE_LANGUAGE_OPTIONS.some(option => option.value === metadata.sourceLanguage)) return false;
   if (
     metadata.keywords !== undefined &&
