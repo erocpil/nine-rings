@@ -1,7 +1,7 @@
 import { dragDockPanel, expectNarrowDocumentDock } from "../helpers/document-dock";
 import { measureDocumentRail } from "../helpers/document";
 import { expectFoldContextSubmenu } from "../helpers/context-submenu";
-import { sourceInfo, selectDocumentLanguage, selectSource } from "../helpers/source-editor";
+import { replaceSource, sourceInfo, selectDocumentLanguage, selectSource } from "../helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -2707,7 +2707,7 @@ test("Markdown 相对图片在快速预览中随来源目录切换", async ({ pa
   const root = testInfo.outputPath("relative-images");
   for (const [folder, width] of [["alpha", 31], ["beta", 52]] as const) {
     await mkdir(join(root, folder), { recursive: true });
-    await writeFile(join(root, folder, "guide.md"), '<img src="figure.svg" alt="目录题图" width="96" height="35">\n\n![缺失题图](missing.svg)\n');
+    await writeFile(join(root, folder, "guide.md"), '![目录题图](figure.svg)\n\n<img src="figure.svg" alt="固定尺寸图" width="96" height="35">\n\n![缺失题图](missing.svg)\n');
     await writeFile(join(root, folder, "figure.svg"), markdownTestImage(width));
   }
   await page.goto("/file-workbench.html");
@@ -2721,7 +2721,7 @@ test("Markdown 相对图片在快速预览中随来源目录切换", async ({ pa
     await page.getByRole("button", { name: "快速预览", exact: true }).click();
     const image = preview.getByRole("img", { name: "目录题图" });
     await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(width);
-    await expect.poll(() => image.evaluate(element => [element.clientWidth, element.clientHeight])).toEqual([96, 35]);
+    await expect.poll(() => preview.getByRole("img", { name: "固定尺寸图" }).evaluate(element => [element.clientWidth, element.clientHeight])).toEqual([96, 35]);
     await expect(preview.getByText("缺失题图")).toBeVisible();
     const url = await image.getAttribute("src");
     expect(url).toMatch(/^blob:/);
@@ -2733,6 +2733,47 @@ test("Markdown 相对图片在快速预览中随来源目录切换", async ({ pa
     }, url)).toBe(true);
     if (folder === "alpha") await left.getByRole("button", { name: "上级目录", exact: true }).click();
   }
+});
+
+test("Workbench Markdown 源码复用并排预览，实时更新且双向同步滚动", async ({ page }) => {
+  const doc = ["# Split preview", "![Diagram](figure.svg)", ...Array.from({ length: 66 }, (_, index) =>
+    `## Section ${index}\n\n${"Paragraph content for scroll synchronization. ".repeat(10)}`)].join("\n\n");
+  await setupIndependentEditor(page, { "guide.md": doc }, "guide.md", { "figure.svg": markdownTestImage(31) });
+  await page.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();
+  const source = page.locator(".cm-content:visible");
+  await expect(source).toHaveAttribute("contenteditable", "false");
+  const toggle = page.getByRole("button", { name: "并排预览", exact: true });
+  await toggle.click();
+  const preview = page.locator(".markdown-preview-scroll:visible");
+  await expect(preview.locator("h2")).toHaveCount(66);
+  await expect(preview.getByRole("img", { name: "Diagram" })).toBeVisible();
+  const left = (await page.locator(".markdown-split-source:visible").boundingBox())!;
+  const right = (await preview.boundingBox())!;
+  expect(left.x + left.width).toBeLessThanOrEqual(right.x + 1);
+  await page.locator(".cm-scroller:visible").hover();
+  await page.mouse.wheel(0, 900);
+  await expect.poll(() => preview.evaluate(element => element.scrollTop)).toBeGreaterThan(100);
+  const before = (await sourceInfo(source)).scrollTop;
+  await preview.hover();
+  await page.mouse.wheel(0, 1200);
+  await expect.poll(async () => (await sourceInfo(source)).scrollTop).toBeGreaterThan(before + 150);
+  await page.getByRole("checkbox", { name: "同步滚动", exact: true }).uncheck();
+  const frozen = (await sourceInfo(source)).scrollTop;
+  const previewTop = await preview.evaluate(element => element.scrollTop);
+  await preview.hover();
+  await page.mouse.wheel(0, 700);
+  await expect.poll(() => preview.evaluate(element => element.scrollTop)).toBeGreaterThan(previewTop + 100);
+  expect(Math.abs((await sourceInfo(source)).scrollTop - frozen)).toBeLessThan(2);
+
+  await page.getByRole("button", { name: "允许编辑", exact: true }).click();
+  const edited = `${doc}\n\n## Live update`;
+  await replaceSource(source, edited);
+  await expect(preview.getByRole("heading", { name: "Live update" })).toHaveCount(1);
+  expect(await page.evaluate(() => (window as any).__editorFixture.writes)).toEqual([]);
+  await page.setViewportSize({ width: 660, height: 760 });
+  await expect(toggle).toHaveCount(0);
+  await expect(preview).toHaveCount(0);
+  expect((await sourceInfo(source)).value).toBe(edited);
 });
 
 test("Markdown 快速预览直接查找渲染正文并连续定位", async ({ page }, testInfo) => {

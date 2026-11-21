@@ -21,7 +21,8 @@ async function fixture(page: Page) {
     };
     const left = localFileService.addFiles([
       file("Left/src/main.c", "int main(void) { return 0; }\n"),
-      file("Left/docs/readme.md", "# Browser\n\nBody\n"),
+      file("Left/docs/readme.md", "# Browser\n\nFind **visible** text.\n\n[Read more](guide.md#target)\n"),
+      file("Left/docs/guide.md", ["# Guide", ...Array.from({ length: 34 }, () => "Body ".repeat(28)), "## Target"].join("\n\n")),
       file("Left/.secret", "hidden"),
       file("Left/binary.bin", new Uint8Array([0, 1, 2])),
       ...Array.from({ length: 260 }, (_, index) => file(`Left/file-${String(index).padStart(3, "0")}.txt`, `entry ${index}\n`)),
@@ -34,6 +35,29 @@ async function fixture(page: Page) {
   await expect(browser).toBeVisible();
   return { browser, panel, roots, left: browser.getByRole("region", { name: "左侧目录", exact: true }), right: browser.getByRole("region", { name: "右侧目录", exact: true }) };
 }
+
+test("Nine Rings 文件浏览在 Markdown 预览内查找并打开授权章节", async ({ page }) => {
+  const { browser, left } = await fixture(page);
+  await left.getByRole("option", { name: /^docs/ }).dblclick();
+  await left.getByRole("option", { name: /^readme.md/ }).click();
+  await browser.getByRole("button", { name: "快速预览", exact: true }).click();
+  const preview = browser.getByRole("region", { name: "快速预览", exact: true });
+  await expect(preview.getByRole("heading", { name: "Browser" })).toBeVisible();
+  await preview.getByRole("button", { name: "查找预览", exact: true }).click();
+  const search = preview.getByRole("searchbox", { name: "查找预览文本" });
+  await search.fill("Find visible text");
+  await expect(preview.getByRole("search").getByRole("status")).toHaveText("1/1");
+  await search.press("Escape");
+  await preview.getByRole("link", { name: "Read more", exact: true }).click();
+  await expect(browser).toBeHidden();
+  const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  await expect.poll(async () => {
+    const reading = await sourceInfo(source);
+    return reading.value.slice(reading.selectionStart);
+  }).toBe("## Target");
+  await page.getByRole("button", { name: "渲染", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Target", exact: true })).toBeInViewport();
+});
 
 test("双栏独立路径、历史、多选、分页、隐藏项及返回查看器保持状态", async ({ page }) => {
   const { browser, left, right, roots } = await fixture(page);

@@ -563,7 +563,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         session: sourceEditorState, onChange: editSource, onEditorConfigChange: props.onEditorConfigChange,
         showLineNumbers: props.showLineNumbers, fontSize: props.editorFontSize, highlightActiveLine: props.highlightActiveLine,
         escapeRepair: documentLanguage === "markdown" ? <MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={applyEscapeRepair} /> : undefined,
-      }} renderContent={editor => <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={hasPreview && preview && !mobile} sync={previewSync} revision={previewRevision!} areaRef={viewPosition.area} fontSize={props.editorFontSize}>{editor}</MarkdownSplitPreview>} />
+      }} renderContent={editor => <MarkdownSplitPreview highlightActiveLine={props.highlightActiveLine} flowLevel={flowHeadingLevel(props.content.metadata)} enabled={hasPreview && preview && !mobile} sync={previewSync} revision={previewRevision!} sourceEditor={viewPosition.sourceHandle} fontSize={props.editorFontSize}>{editor}</MarkdownSplitPreview>} />
     </>}</DocumentNavigationWorkspace>}
   </div>;
 }

@@ -18,6 +18,10 @@ import { blockFontFamily } from "../../lib/editor-appearance";
 import { useLocalFileDetails } from "../../hooks/useLocalFileDetails";
 import { useLocalFileRevisionCheck } from "../../hooks/useLocalFileRevisionCheck";
 import { useLocalMarkdownImages } from "../../hooks/useLocalMarkdownImages";
+import { useDocumentPreview } from "../../hooks/useDocumentPreview";
+import { useMobileViewport } from "../../hooks/useEdgeDrawer";
+import { DocumentPreviewControls } from "../../components/DocumentPreviewControls";
+import { MarkdownSplitPreview } from "../../components/MarkdownSplitPreview";
 import { localFileInfoTimes } from "../../lib/local-files/file-info-times";
 import { DocumentTitleField } from "../../components/DocumentTitleField";
 import { PanelSideToggle } from "../../components/PanelSideToggle";
@@ -27,7 +31,7 @@ import { SourceNavigationDocument, type SourceEditRange } from "../../lib/markdo
 import { remapLocalFileBookmarks } from "../../lib/local-files/bookmark-positions";
 import { useMarkdownViewPosition } from "../../hooks/useMarkdownViewPosition";
 import { prepareLocalMarkdownView } from "../../lib/local-files/markdown-view-switch";
-import { DocumentImageLibraryContext } from "../../components/DocumentResourceContext";
+import { DocumentImageLibraryContext, DocumentResourceContext } from "../../components/DocumentResourceContext";
 import type { Editor } from "@tiptap/core";
 import type { LocalRenderedFlush } from "../../components/LocalMarkdownWorkspace";
 import { EditorFoldIconContext } from "../../components/EditorFoldIconContext";
@@ -100,6 +104,9 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const markdown = language === "markdown";
   const startsRendered = markdown && !file.location && initialView.rendered !== false;
   const [renderMarkdown, setRenderMarkdown] = useState(startsRendered);
+  const split = useDocumentPreview();
+  const mobile = useMobileViewport();
+  const splitVisible = active && markdown && !mobile && !renderMarkdown && split.preview;
   const [renderMounted, setRenderMounted] = useState(startsRendered);
   const [sourceMounted, setSourceMounted] = useState(!startsRendered);
   const previewRoot = useRef<HTMLElement>(null);
@@ -116,7 +123,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   const [renderPending, setRenderPending] = useState(false);
   const [renderEpoch, setRenderEpoch] = useState(0);
   const resourceNode = linkOrigin?.node ?? (persistDocument ? undefined : file.node.id);
-  const resolveResource = useLocalMarkdownImages(provider, linkOrigin?.rootId ?? file.rootId, active && renderMarkdown ? resourceNode : undefined, renderEpoch);
+  const resolveResource = useLocalMarkdownImages(provider, linkOrigin?.rootId ?? file.rootId, active && (renderMarkdown || splitVisible) ? resourceNode : undefined, renderEpoch);
   const renderMode = useRef(renderMarkdown); renderMode.current = renderMarkdown;
   const registerRenderedFlush = useCallback((value: LocalRenderedFlush | null) => { renderedFlush.current = value; }, []);
   const bindRendered = useCallback((editor: Editor | null) => {
@@ -576,10 +583,13 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
     <button className="btn-icon workbench-file-close" type="button" aria-label={closeLabel} title={closeLabel === "返回文件浏览" ? "关闭预览，返回文件浏览" : closeLabel} onClick={() => requestClose()}><ToolbarIcon name="close" /></button>
   </>;
   return <EditorFoldIconContext.Provider value={editorSettings}><section ref={previewRoot} style={workbenchTypographyVariables(typography) as React.CSSProperties} tabIndex={-1} className="local-file-view workbench-source-view" data-source-tools-hidden={!moreTools || undefined} aria-label="文件源码工作区" onClickCapture={event => {
-    const href = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]")?.getAttribute("href") : null;
+    const anchor = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+    const href = anchor?.getAttribute("href");
     if (!markdown || !href || !canFollowMarkdownLink(href) || !event.currentTarget.contains(event.target as Node)) return;
+    const inSplit = Boolean(anchor?.closest(".markdown-preview-scroll"));
+    if (inSplit && href.startsWith("#")) return;
     event.preventDefault();
-    if (!readonly && !isPrimaryShortcutModifier(event)) return;
+    if (!inSplit && !readonly && !isPrimaryShortcutModifier(event)) return;
     event.stopPropagation();
     void followLink(href);
   }} onKeyDownCapture={event => {
@@ -597,6 +607,7 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
   }}>
     {!renderMarkdown && <DocumentTitleBar className="local-files-toolbar local-file-titlebar">{accessToggle}<DocumentTitleField title={file.node.name} modified={dirty} preview revealOnClick={false} readonly={readonly} info={titleInfo} />
       {markdown && <FileBrowserMarkdownMode rendered={renderMarkdown} disabled={!base} onChange={changePreviewMode} />}
+      {markdown && base && !mobile && <DocumentPreviewControls state={split} />}
       <span ref={setNavigationTarget} className="workbench-navigation-actions" /><MoreToolsButton className="btn-icon" expanded={moreTools} onToggle={() => setMoreTools(!moreTools)} /><PanelSideToggle />
       {titleActions}
     </DocumentTitleBar>}
@@ -635,7 +646,12 @@ export function WorkbenchSourceView({ file, host, provider, settings, onClose, c
         catch (cause) { setError(String(cause)); }
       }, saveStatus: saving ? "saving" : dirty ? "dirty" : "clean", savedLabel: "保存到原文件；不参与数据库备份", navigation: null,
       onReady: bindHandle, onOpenLink: href => void followLink(href), canOpenLink: canFollowMarkdownLink,
-    }} /></DocumentActiveBoundary></>}</DocumentNavigationWorkspace></div>}
+    }} renderContent={editor => <DocumentImageLibraryContext.Provider value={false}><DocumentResourceContext.Provider value={resolveResource}>
+      <MarkdownSplitPreview enabled={splitVisible} sync={split.sync} revision={sourceNavigation} sourceEditor={position.sourceHandle}
+        fontSize={typography.note_font_size} highlightActiveLine={editorSettings.highlight_active_line} previewStyle={{ "--editor-font-family": blockFontFamily(typography.editor_font_family) } as React.CSSProperties}>
+        {editor}
+      </MarkdownSplitPreview>
+    </DocumentResourceContext.Provider></DocumentImageLibraryContext.Provider>} /></DocumentActiveBoundary></>}</DocumentNavigationWorkspace></div>}
     {settingsOpen && active && <WorkbenchEditorSettingsDialog typography={typography} config={editorSettings} store={settings} onClose={() => setSettingsOpen(false)} />}
     {external && active && <WorkspaceDialog title="磁盘版本比较" onClose={() => setExternal(null)}><p role="alert">{DISK_CONFLICT}</p><TextDiffView left={source} right={external.source} leftLabel="当前编辑" rightLabel="磁盘版本" /></WorkspaceDialog>}
     {leave && <WorkspaceDialog title="未保存的文件编辑" onClose={cancelLeave}>{error && <p role="alert">{error}</p>}<p>{persistDocument ? "首次保存时选择文件位置；也可保留本机编辑文档，下次启动会恢复。删除本机编辑草稿需通过标签菜单明确确认。" : "请先保存到原文件，或确认恢复草稿已持久化后离开。导出副本不会将原文件标记为已保存。最多保留 5 份草稿，不自动淘汰；满额时须先处理旧草稿。"}</p><div>

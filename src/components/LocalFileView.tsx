@@ -744,7 +744,7 @@ export function LocalFileView({ data, onClose, fontSize, vimModeEnabled = false,
         documentLanguageOptions: documentLanguageViewOptions(detectedLanguage),
         onDocumentLanguageChange: next => { const override = next === AUTO_DOCUMENT_LANGUAGE ? null : next; saveSourceViewLanguageOverride(languageOverrideIdentity, override); setLanguageOverride(override); },
         onEditorConfigChange,
-      }} renderContent={editor => <DocumentResourceContext.Provider value={resolveResource}><MarkdownSplitPreview enabled={!mobile && previewState.preview && (isMarkdown || isMermaid || isFlow)} sync={previewState.sync} revision={navigationRevision} areaRef={sourceHandle} fontSize={fontSize} highlightActiveLine={highlightActiveLine}>{editor}</MarkdownSplitPreview></DocumentResourceContext.Provider>} />}</div>
+      }} renderContent={editor => <DocumentResourceContext.Provider value={resolveResource}><MarkdownSplitPreview enabled={!mobile && previewState.preview && (isMarkdown || isMermaid || isFlow)} sync={previewState.sync} revision={navigationRevision} sourceEditor={editorHandle} fontSize={fontSize} highlightActiveLine={highlightActiveLine}>{editor}</MarkdownSplitPreview></DocumentResourceContext.Provider>} />}</div>
     </>}
     </>}
     </DocumentNavigationWorkspace>

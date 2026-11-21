@@ -11,8 +11,8 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
-  type RefObject,
 } from "react";
 import { getSchema } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
@@ -34,7 +34,7 @@ function previewDocument(revision: SourceNavigationDocument) {
 /** A derived, read-only projection. Never mounts a second writable editor. */
 export function MarkdownSplitPreview({
   revision,
-  areaRef,
+  sourceEditor,
   children,
   fontSize,
   enabled,
@@ -42,9 +42,10 @@ export function MarkdownSplitPreview({
   flowLevel = 0,
   highlightActiveLine = true,
   onPreviewReady,
+  previewStyle,
 }: {
   revision: SourceNavigationDocument;
-  areaRef: RefObject<SourceEditorHandle>;
+  sourceEditor: SourceEditorHandle | null;
   children: ReactNode;
   fontSize: number;
   enabled: boolean;
@@ -52,6 +53,7 @@ export function MarkdownSplitPreview({
   flowLevel?: number;
   highlightActiveLine?: boolean;
   onPreviewReady?: (element: HTMLDivElement) => void;
+  previewStyle?: CSSProperties;
 }) {
   useBlockDisplayPreferences();
   const [snapshot, setSnapshot] = useState<ReturnType<
@@ -84,7 +86,7 @@ export function MarkdownSplitPreview({
     return entries;
   }, [snapshot]);
   useEffect(() => {
-    const area = areaRef.current,
+    const area = sourceEditor,
       panel = preview.current,
       host = source.current;
     if (!enabled || !sync || !area || !panel || !host || !snapshot) return;
@@ -155,7 +157,7 @@ export function MarkdownSplitPreview({
       area.removeEventListener("scroll", fromSource);
       panel.removeEventListener("scroll", fromPreview);
     };
-  }, [sync, areaRef, snapshot, enabled]);
+  }, [sync, sourceEditor, snapshot, enabled]);
   useLayoutEffect(() => { if (snapshot && preview.current) onPreviewReady?.(preview.current); }, [snapshot, onPreviewReady, states]);
   const tocContext = useMemo(() => ({ items: snapshot ? extractDocumentOutline(snapshot.doc) : [], navigate: (item: { pos: number }) => {
     const block = blocks.find(block => block.pos === item.pos);
@@ -224,7 +226,7 @@ export function MarkdownSplitPreview({
               active.current = "preview";
             }}
             tabIndex={0}
-            style={{ fontSize }}
+            style={{ ...previewStyle, fontSize }}
           >
             <div className="ProseMirror" contentEditable={false}>
               {blocks.map(({ node, pos, offset }, index) => (
