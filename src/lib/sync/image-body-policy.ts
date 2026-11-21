@@ -1,6 +1,7 @@
 import { isCertifiedHTMLSource } from "./html-body-policy";
 import { isCertifiedInlineAtomAttributes } from "./inline-atom-policy";
 import { isCertifiedImageSource } from "./image-source-policy";
+import { imageDimensionPixels } from "../markdown-image-dimensions";
 export { isCertifiedImageSource } from "./image-source-policy";
 
 export function isCertifiedBlockImage(
@@ -18,6 +19,8 @@ export function isCertifiedBlockImage(
     if (key === "indent-explicit") return value === true;
     if (key === "imageAlt" || key === "imageTitle")
       return isCertifiedHTMLSource(value) && value.length > 0;
+    if (key === "imageHeight")
+      return typeof value === "number" && imageDimensionPixels(value) !== undefined;
     if (key === "imageWidth")
       return (
         (Number.isSafeInteger(value) && (value as number) > 0) ||
@@ -40,7 +43,7 @@ export function isCertifiedInlineImage(
   if (
     !record(value) ||
     Object.keys(value).some(
-      (key) => !["src", "alt", "title", "width"].includes(key),
+      (key) => !["src", "alt", "title", "width", "height"].includes(key),
     ) ||
     !isCertifiedImageSource(value.src) ||
     !isCertifiedHTMLSource(value.alt) ||
@@ -49,7 +52,9 @@ export function isCertifiedInlineImage(
       (isCertifiedHTMLSource(value.title) && value.title.length > 0)
     ) ||
     (value.width !== undefined &&
-      !isCertifiedBlockImage(value.src, { imageWidth: value.width }))
+      !isCertifiedBlockImage(value.src, { imageWidth: value.width })) ||
+    (value.height !== undefined &&
+      !isCertifiedBlockImage(value.src, { imageHeight: value.height }))
   )
     return false;
   return isCertifiedInlineAtomAttributes(attrs);

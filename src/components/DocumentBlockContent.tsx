@@ -161,7 +161,7 @@ export function renderReadonlyBlock(
     }
     case "htmlAnchor": return <a {...attrs} id={String(node.attrs.id)} data-document-anchor="" />;
     case "markdownImage": {
-      const image = <span {...attrs} className="markdown-inline-image"><ReadonlyImage src={String(node.attrs.src || "")} alt={node.attrs.alt} title={node.attrs.title} width={node.attrs.width} /></span>;
+      const image = <span {...attrs} className="markdown-inline-image"><ReadonlyImage src={String(node.attrs.src || "")} alt={node.attrs.alt} title={node.attrs.title} width={node.attrs.width} height={node.attrs.height} /></span>;
       const link = node.marks.find(mark => mark.type.name === "link");
       return link ? readonlyLink(String(link.attrs.href ?? ""), link.attrs.title ?? undefined, image) : image;
     }
@@ -204,7 +204,7 @@ export function renderReadonlyBlock(
       );
     case "resizableImage":
     case "image":
-      return <div {...attrs}><ReadonlyImage src={String(node.attrs.src || "")} alt={node.attrs.alt} title={node.attrs.title} width={node.attrs.width} /></div>;
+      return <div {...attrs}><ReadonlyImage src={String(node.attrs.src || "")} alt={node.attrs.alt} title={node.attrs.title} width={node.attrs.width} height={node.attrs.height} /></div>;
     case "table":
       return <div {...attrs} className="tableWrapper"><table><tbody>{children}</tbody></table></div>;
     case "tableRow": return <tr>{children}</tr>;

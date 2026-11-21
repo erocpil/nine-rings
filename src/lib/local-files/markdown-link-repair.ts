@@ -1,5 +1,6 @@
 import { markdownLanguage } from "@codemirror/lang-markdown";
 import type { Nodes } from "mdast";
+import { fromHtml } from "hast-util-from-html";
 import { markdownAST } from "../gfm-parser";
 import { localMarkdownImageNode } from "./markdown-images";
 import { localMarkdownLink, relativeMarkdownHref } from "./markdown-links";
@@ -9,7 +10,25 @@ export interface MarkdownLinkDestination {
   line: number;
   key: number;
   kind?: "image" | "shared";
-  range?: { from: number; to: number };
+  range?: { from: number; to: number; html?: true };
+}
+
+function htmlImageDestination(source: string, node: Extract<Nodes, { type: "html" }>): MarkdownLinkDestination[] {
+  const start = node.position?.start;
+  if (start?.offset === undefined || !/^<img\s/i.test(node.value)) return [];
+  const first = fromHtml(node.value, { fragment: true }).children[0];
+  if (first?.type !== "element" || first.tagName !== "img" || typeof first.properties.src !== "string") return [];
+  const tag = node.value.slice(0, first.position?.end.offset);
+  if (source.slice(start.offset, start.offset + tag.length) !== tag) return [];
+  const attributes = /\s+([^\s=/>]+)(?:\s*=\s*("[^"]*"|'[^']*'|[^\s"'=<>]+))?/gy;
+  attributes.lastIndex = 4;
+  for (let match = attributes.exec(tag); match; match = attributes.exec(tag)) {
+    if (match[1].toLowerCase() !== "src" || !match[2]) continue;
+    const quote = /^["']/.test(match[2]) ? 1 : 0;
+    const end = start.offset + attributes.lastIndex;
+    return [{ href: first.properties.src, line: start.line, key: start.offset, kind: "image", range: { from: end - match[2].length + quote, to: end - quote, html: true } }];
+  }
+  return [];
 }
 
 /** Use the shared parser for meaning and only use verified syntax spans for writes. */
@@ -19,6 +38,7 @@ export function markdownLinkDestinations(source: string, includeImages = false):
   const definitions = new Map<string, Extract<Nodes, { type: "definition" }>>();
   const references = new Map<string, Kind>();
   const destinations: Array<{ node: Destination; kind: Kind }> = [];
+  const htmlImages: MarkdownLinkDestination[] = [];
   const visit = (node: Nodes) => {
     if (node.type === "definition" && !definitions.has(node.identifier)) definitions.set(node.identifier, node);
     else if (node.type === "linkReference" || (includeImages && node.type === "imageReference")) {
@@ -27,6 +47,8 @@ export function markdownLinkDestinations(source: string, includeImages = false):
       references.set(node.identifier, previous && previous !== kind ? "shared" : kind);
     } else if (node.type === "link" || (includeImages && node.type === "image")) {
       destinations.push({ node, kind: node.type });
+    } else if (includeImages && node.type === "html") {
+      htmlImages.push(...htmlImageDestination(source, node));
     }
     if ("children" in node) node.children.forEach(visit);
   };
@@ -36,7 +58,7 @@ export function markdownLinkDestinations(source: string, includeImages = false):
     if (definition) destinations.push({ node: definition, kind });
   }
   const tree = markdownLanguage.parser.parse(source);
-  return destinations.flatMap(({ node: link, kind }) => {
+  return destinations.flatMap<MarkdownLinkDestination>(({ node: link, kind }) => {
     const { start, end } = link.position ?? {};
     if (start?.offset === undefined || end?.offset === undefined || !link.url) return [];
     const from = start.offset;
@@ -54,7 +76,7 @@ export function markdownLinkDestinations(source: string, includeImages = false):
       break;
     }
     return [{ href: link.url, line: start.line, key: from, ...(kind === "link" ? {} : { kind }), range }];
-  }).sort((a, b) => a.key - b.key);
+  }).concat(htmlImages).sort((a, b) => a.key - b.key);
 }
 
 export type MarkdownPathMove = { from: string; to: string };
@@ -97,7 +119,8 @@ export function applyMarkdownLinkEdits(source: string, changes: readonly Markdow
     if (!link.range) throw new Error("无法安全识别此链接的原始范围");
     // Markdown destination delimiters inside file names must remain literal.
     const escaped = href.replace(/[()<>\\\s]/gu, character => encodeURIComponent(character).replace(/\(/g, "%28").replace(/\)/g, "%29"));
-    result = result.slice(0, link.range.from) + escaped + result.slice(link.range.to);
+    const replacement = link.range.html ? escaped.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;") : escaped;
+    result = result.slice(0, link.range.from) + replacement + result.slice(link.range.to);
   }
   return result;
 }

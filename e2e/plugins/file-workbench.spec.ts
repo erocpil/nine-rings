@@ -2668,7 +2668,7 @@ test("Markdown 相对图片在独立编辑器的只读和可编辑视图中共�
   const note = "practice/lesson.md";
   const source = [
     "![题图](../images/diagram%20one.svg)",
-    "内联图片：![同一图片](../images/./diagram%20one.svg)",
+    '内联图片：<img src="../images/./diagram%20one.svg" alt="同一图片" width="83" height="40">',
     "![图片缺失](missing.svg)",
     "![越界图片](../../outside.svg)",
     "![绝对图片](/blocked-absolute.svg)",
@@ -2682,13 +2682,15 @@ test("Markdown 相对图片在独立编辑器的只读和可编辑视图中共�
   const rendered = page.locator(".ProseMirror:visible");
   const imageWidth = () => rendered.getByRole("img", { name: "题图", exact: true }).evaluate((image: HTMLImageElement) => image.naturalWidth);
   await expect.poll(imageWidth).toBe(37);
-  await expect(rendered.getByRole("img", { name: "同一图片" })).toBeVisible();
+  const sized = rendered.getByRole("img", { name: "同一图片" });
+  await expect.poll(() => sized.evaluate(image => [image.clientWidth, image.clientHeight])).toEqual([83, 40]);
   for (const alt of ["图片缺失", "越界图片", "绝对图片", "编码分隔符", "数据库图片", "正文文件"]) {
     await expect(rendered.getByText(alt, { exact: true })).toBeVisible();
   }
   await page.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
   await expect(rendered).toHaveAttribute("contenteditable", "true");
   await expect.poll(imageWidth).toBe(37);
+  await expect.poll(() => sized.evaluate(image => [image.clientWidth, image.clientHeight])).toEqual([83, 40]);
   const { reads, stats } = await page.evaluate(() => {
     const { assetReads, stats } = (window as any).__editorFixture;
     return { reads: assetReads, stats };
@@ -2705,7 +2707,7 @@ test("Markdown 相对图片在快速预览中随来源目录切换", async ({ pa
   const root = testInfo.outputPath("relative-images");
   for (const [folder, width] of [["alpha", 31], ["beta", 52]] as const) {
     await mkdir(join(root, folder), { recursive: true });
-    await writeFile(join(root, folder, "guide.md"), "![目录题图](figure.svg)\n\n![缺失题图](missing.svg)\n");
+    await writeFile(join(root, folder, "guide.md"), '<img src="figure.svg" alt="目录题图" width="96" height="35">\n\n![缺失题图](missing.svg)\n');
     await writeFile(join(root, folder, "figure.svg"), markdownTestImage(width));
   }
   await page.goto("/file-workbench.html");
@@ -2719,6 +2721,7 @@ test("Markdown 相对图片在快速预览中随来源目录切换", async ({ pa
     await page.getByRole("button", { name: "快速预览", exact: true }).click();
     const image = preview.getByRole("img", { name: "目录题图" });
     await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(width);
+    await expect.poll(() => image.evaluate(element => [element.clientWidth, element.clientHeight])).toEqual([96, 35]);
     await expect(preview.getByText("缺失题图")).toBeVisible();
     const url = await image.getAttribute("src");
     expect(url).toMatch(/^blob:/);

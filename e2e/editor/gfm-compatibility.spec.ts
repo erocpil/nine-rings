@@ -7,7 +7,7 @@ for (const mode of ["edit", "readonly", "virtual", "source"]) {
     await page.addInitScript(mode => localStorage.setItem("nr:experimentalReadonlyRendering", String(mode === "virtual")), mode);
     await createBlankDocument(page, "GFM compatibility");
     const markdown = "## Audit\n\n_italic_ and __bold__\n\nfirst  \nsecond\n\n[label][id]\n\n[id]: https://example.com/a_(b) \"Title\"\n\nA | B\n--- | ---\nx | y\n\n> - item with `code`\n\nbody[^中文] and again[^中文]\n\n[^中文]: note\n\n<!-- hidden-comment -->\n\nBefore ![inline image](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aC9sAAAAASUVORK5CYII= \"Image title\") after\n\nGFM-END";
-    const imageExamples = '\n\nLeft ![local icon](/ragdoll-32.png "Local image") Right\n\n[![linked icon](/ragdoll-32.png)](https://github.github.com/gfm/)\n\n功能 | 状态\n:--- | :---:\n主题 | 完成\n分栏 | 完成\n';
+    const imageExamples = '\n\nLeft <img src="/ragdoll-32.png" alt="local icon" title="Local image" width="40" height="24"> Right\n\n[![linked icon](/ragdoll-32.png)](https://github.github.com/gfm/)\n\n功能 | 状态\n:--- | :---:\n主题 | 完成\n分栏 | 完成\n';
     await page.locator(".ProseMirror:visible").evaluate(async (element, markdown) => {
       // Exercise the production import/model/schema boundary, without depending on clipboard permission.
       const { mdToDelta } = await import("/src/lib/md-parser.ts");
@@ -45,6 +45,7 @@ for (const mode of ["edit", "readonly", "virtual", "source"]) {
     const local = root.locator('img[alt="local icon"]');
     await local.scrollIntoViewIfNeeded();
     await expect.poll(() => local.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    await expect.poll(() => local.evaluate(image => [image.clientWidth, image.clientHeight])).toEqual([40, 24]);
     const geometry = await local.evaluate(image => {
       const paragraph = image.closest("p")!;
       const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);

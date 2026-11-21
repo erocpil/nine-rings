@@ -1,3 +1,4 @@
+import { imageDimensionPixels } from "../lib/markdown-image-dimensions";
 import { DocumentImageLibraryContext, DocumentResourceContext } from "../components/DocumentResourceContext";
 import { documentImages } from "../lib/image-library/document-images";
 import { requestImageView } from "../lib/image-library/viewer-request";
@@ -127,7 +128,7 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: NodeVi
       if (ev.cancelable) ev.preventDefault();
       if (ev.type === "pointerup" && !editor.isDestroyed && editor.isEditable && dragStart.current && imgRef.current) {
         const finalW = imgRef.current.offsetWidth;
-        updateAttributes({ width: `${finalW}px` });
+        updateAttributes({ width: `${finalW}px`, height: null });
       }
       cleanup();
     };
@@ -147,7 +148,7 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: NodeVi
   // 双击恢复原始大小
   const onDoubleClick = useCallback(() => {
     if (editor.isDestroyed || !editor.isEditable) return;
-    updateAttributes({ width: null });
+    updateAttributes({ width: null, height: null });
   }, [editor, updateAttributes]);
 
   const onImagePointerUp = useCallback((event: React.PointerEvent<HTMLImageElement>) => {
@@ -162,7 +163,7 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: NodeVi
     event.preventDefault();
     event.stopPropagation();
     imageTapRef.current = null;
-    updateAttributes({ width: null });
+    updateAttributes({ width: null, height: null });
   }, [editor, updateAttributes]);
 
   return (
@@ -172,7 +173,7 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: NodeVi
         src={displaySrc}
         alt={(node.attrs.alt as string) ?? ""}
         title={(node.attrs.title as string) ?? ""}
-        style={currentWidth ? { width: currentWidth, maxWidth: "100%" } : { maxWidth: "100%" }}
+        style={{ width: currentWidth ?? undefined, height: dragWidth === null ? imageDimensionPixels(node.attrs.height) : undefined, maxWidth: "100%" }}
         onDoubleClick={onDoubleClick}
         onPointerUp={onImagePointerUp}
         draggable={false}
@@ -205,6 +206,7 @@ export const ResizableImage = Node.create<{ authorizeSourceInNodeView: boolean }
       alt: { default: null },
       title: { default: null },
       width: { default: null },
+      height: { default: null, parseHTML: element => imageDimensionPixels(element.getAttribute("height")) ?? null },
     };
   },
 
@@ -213,11 +215,11 @@ export const ResizableImage = Node.create<{ authorizeSourceInNodeView: boolean }
   },
 
   renderHTML({ HTMLAttributes }) {
-    const { width, src, ...attrs } = HTMLAttributes;
-    const style = width ? `width: ${width};` : "";
+    const { width, height, src, ...attrs } = HTMLAttributes;
+    const style = imageStyle(width, height);
     // ProseMirror can materialize this DOM before React attaches the NodeView.
     const source = this.options.authorizeSourceInNodeView && src && !isDirectMarkdownImageSource(src) ? { "data-document-image-src": src } : { src };
-    return ["img", { ...attrs, ...source, style }];
+    return ["img", { ...attrs, ...source, height, style }];
   },
 
   addCommands() {
@@ -239,8 +241,13 @@ export const MarkdownImage = ResizableImage.extend({
   name: "markdownImage", group: "inline", inline: true,
   parseHTML() { return [{ tag: "img[data-markdown-inline]" }]; },
   renderHTML({ HTMLAttributes }) {
-    const { width, src, ...attrs } = HTMLAttributes;
+    const { width, height, src, ...attrs } = HTMLAttributes;
     const source = this.options.authorizeSourceInNodeView && src && !isDirectMarkdownImageSource(src) ? { "data-document-image-src": src } : { src };
-    return ["img", { ...attrs, ...source, ...(width ? { style: `width: ${width};` } : {}), "data-markdown-inline": "" }];
+    return ["img", { ...attrs, ...source, height, style: imageStyle(width, height) || undefined, "data-markdown-inline": "" }];
   },
 });
+
+function imageStyle(width: unknown, height: unknown): string {
+  const pixels = imageDimensionPixels(height);
+  return `${width ? `width: ${width};` : ""}${pixels ? `height: ${pixels}px;` : ""}`;
+}

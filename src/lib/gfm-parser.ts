@@ -13,6 +13,7 @@ import type { TableEmbed } from "./table-embed";
 import { bareLinkParts, CJK_LINK_BOUNDARY } from "./bare-autolinks";
 import { cjkEmphasis } from "./cjk-emphasis";
 import { markdownFrontMatter } from "./markdown-front-matter";
+import { htmlImageDimensions } from "./markdown-image-dimensions";
 
 export function markdownAST(source: string): Root {
   return parseAst(source, markdownFrontMatter(source));
@@ -283,6 +284,7 @@ function inline(
                 src: String(p.src ?? ""),
                 alt: String(p.alt ?? ""),
                 title: p.title ?? null,
+                ...htmlImageDimensions(p),
               },
             },
           });
@@ -483,6 +485,7 @@ function safeHTMLNodes(children: ReturnType<typeof fromHtml>["children"]): Delta
             src: String(p.src ?? ""),
             alt: String(p.alt ?? ""),
             title: p.title ?? null,
+            ...htmlImageDimensions(p),
           },
         },
         attributes,

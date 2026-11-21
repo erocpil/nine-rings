@@ -29,7 +29,7 @@
 
 公式支持 `$…$`、GitHub 的美元加反引号写法、`$$` 块和 `math` 围栏。使用本地 KaTeX，宏覆盖范围与 GitHub MathJax 不保证完全一致。`\(…\)` 仍为 Nine Rings 扩展。
 
-受限 HTML 支持 `mark`、`details/summary`、`br`、`sub/sup/ins`、基本强调、链接/图片及命名锚点；去除事件、任意样式等属性。HTML comment 不显示但保留源信息。其他 HTML 保留为不可执行的文本块/片段，不承诺与 GitHub 的 HTML 清洗后呈现相同。details 的 summary 仍是纯文本属性。
+受限 HTML 支持 `mark`、`details/summary`、`br`、`sub/sup/ins`、基本强调、链接/图片及命名锚点；去除事件、任意样式等属性。HTML comment 不显示但保留源信息。其他 HTML 保留为不可执行的文本块/片段，不承诺与 GitHub 的 HTML 清洗后呈现相同。details 的 summary 仍是纯文本属性。HTML 图片的正整数像素宽高会参与排版，并随 Markdown 回写和导出保留。普通图片仍使用 Markdown 图片语法。尺寸属性不会放宽图片来源限制。
 
 提示引用支持 `[!NOTE]`、`[!TIP]`、`[!IMPORTANT]`、`[!WARNING]`、`[!CAUTION]`。Mermaid 使用本地版本。`flow`、`toc`、`[[文档]]`、空 `/todo`、块模式和手动排版属于项目功能；GitHub mention、issue/PR、emoji shortcode 等网站服务不在范围内。
 

@@ -168,7 +168,7 @@ export function proseMirrorToDelta(pmJson: JSONContent | null | undefined): Delt
 
       case "image":
       case "resizableImage":
-        ops.push({ insert: { image: node.attrs?.src ?? "" }, attributes: { ...indentAttrs(node), ...(node.attrs?.alt ? { imageAlt: node.attrs.alt } : {}), ...(node.attrs?.title ? { imageTitle: node.attrs.title } : {}), ...(node.attrs?.width ? { imageWidth: node.attrs.width } : {}) } });
+        ops.push({ insert: { image: node.attrs?.src ?? "" }, attributes: { ...indentAttrs(node), ...(node.attrs?.alt ? { imageAlt: node.attrs.alt } : {}), ...(node.attrs?.title ? { imageTitle: node.attrs.title } : {}), ...(node.attrs?.width ? { imageWidth: node.attrs.width } : {}), ...(node.attrs?.height ? { imageHeight: node.attrs.height } : {}) } });
         ops.push({ insert: "\n" });
         break;
 
@@ -356,7 +356,7 @@ function extractInlineOps(
     } else if (inline.type === "mathInline") {
       ops.push({ insert: { mathInline: String(inline.attrs?.source ?? "") }, ...atomAttrs });
     } else if (inline.type === "markdownImage") {
-      ops.push({ insert: { inlineImage: { src: inline.attrs?.src ?? "", alt: inline.attrs?.alt ?? "", title: inline.attrs?.title ?? null, ...(inline.attrs?.width ? { width: inline.attrs.width } : {}) } }, ...atomAttrs });
+      ops.push({ insert: { inlineImage: { src: inline.attrs?.src ?? "", alt: inline.attrs?.alt ?? "", title: inline.attrs?.title ?? null, ...(inline.attrs?.width ? { width: inline.attrs.width } : {}), ...(inline.attrs?.height ? { height: inline.attrs.height } : {}) } }, ...atomAttrs });
     } else if (inline.type === "rawHtmlInline") {
       ops.push({ insert: { rawHtmlInline: String(inline.attrs?.source ?? "") }, ...atomAttrs });
     } else if (inline.type === "htmlAnchor") {
@@ -631,7 +631,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
     } else if (typeof insert === "object" && insert !== null) {
       if (insert.inlineImage && typeof insert.inlineImage === "object") {
         const image = insert.inlineImage as Record<string, unknown>;
-        currentParagraph.content.push({ type: "markdownImage", attrs: { src: image.src ?? "", alt: image.alt ?? "", title: image.title ?? null, width: image.width ?? null }, marks: deltaAttrToMarks(attrs) });
+        currentParagraph.content.push({ type: "markdownImage", attrs: { src: image.src ?? "", alt: image.alt ?? "", title: image.title ?? null, width: image.width ?? null, ...(image.height ? { height: image.height } : {}) }, marks: deltaAttrToMarks(attrs) });
         continue;
       }
       if (typeof insert.rawHtmlInline === "string" || typeof insert.htmlAnchor === "string") {
@@ -704,7 +704,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
       }
       if (insert.image) {
         if (currentParagraph.content.length > 0 || isImageBlock) flushParagraph();
-        doc.push({ type: "resizableImage", attrs: { src: insert.image, alt: attrs.imageAlt ?? null, title: attrs.imageTitle ?? null, width: attrs.imageWidth ?? null, ...embedIndentAttrs }, content: [] });
+        doc.push({ type: "resizableImage", attrs: { src: insert.image, alt: attrs.imageAlt ?? null, title: attrs.imageTitle ?? null, width: attrs.imageWidth ?? null, ...(attrs.imageHeight ? { height: attrs.imageHeight } : {}), ...embedIndentAttrs }, content: [] });
         currentParagraph = { type: "paragraph", content: [] };
         isImageBlock = false;
         skipEmptyLineAfterBlockEmbed = true;

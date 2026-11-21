@@ -13,6 +13,7 @@ import type {
 } from "mdast";
 import { deltaToProseMirror, isProseMirror } from "./delta-converter";
 import { withMarkdownFrontMatter } from "./markdown-front-matter";
+import { imageDimensionPixels } from "./markdown-image-dimensions";
 
 function mergeInline(nodes: PhrasingContent[]): PhrasingContent[] {
   const result: PhrasingContent[] = [];
@@ -106,6 +107,10 @@ function inline(content: JSONContent[]): PhrasingContent[] {
       case "markdownImage":
       case "image":
       case "resizableImage":
+        if (imageDimensionPixels(node.attrs?.width) || imageDimensionPixels(node.attrs?.height)) {
+          children = [{ type: "html", value: imageHTML(node) }];
+          break;
+        }
         children = [
           {
             type: "image",
@@ -210,6 +215,14 @@ function escapeHTML(text: string) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function imageHTML(node: JSONContent): string {
+  const width = imageDimensionPixels(node.attrs?.width);
+  const height = imageDimensionPixels(node.attrs?.height);
+  const attribute = (value: unknown) => escapeHTML(String(value ?? "")).replace(/\|/g, "&#124;");
+  const title = node.attrs?.title ? ` title="${attribute(node.attrs.title)}"` : "";
+  return `<img src="${attribute(node.attrs?.src)}" alt="${attribute(node.attrs?.alt)}"${title}${width ? ` width="${width}"` : ""}${height ? ` height="${height}"` : ""}>`;
 }
 function block(node: JSONContent): RootContent[] {
   const content = node.content ?? [];
@@ -473,7 +486,7 @@ export function noteToMarkdown(
 
 function tableInlineHTML(nodes: readonly JSONContent[]): string {
   return nodes.map(node => {
-    let html = node.type === "hardBreak" ? "<br>" : node.type === "text" ? escapeHTML(node.text ?? "") : node.type === "markdownImage" || node.type === "image" ? `<img src="${escapeHTML(String(node.attrs?.src ?? ""))}" alt="${escapeHTML(String(node.attrs?.alt ?? ""))}">` : tableInlineHTML(node.content ?? []);
+    let html = node.type === "hardBreak" ? "<br>" : node.type === "text" ? escapeHTML(node.text ?? "") : node.type === "markdownImage" || node.type === "image" ? imageHTML(node) : tableInlineHTML(node.content ?? []);
     for (const mark of node.marks ?? []) {
       const tag = ({ bold: "strong", italic: "em", strike: "del", code: "code", inlineHighlight: "mark" } as Record<string, string>)[mark.type];
       if (tag) html = `<${tag}${mark.type === "inlineHighlight" && normalizeEditorColor(mark.attrs?.backgroundColor) ? ` data-background-color="${normalizeEditorColor(mark.attrs?.backgroundColor)}"` : ""}>${html}</${tag}>`;

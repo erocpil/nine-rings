@@ -7,17 +7,20 @@ import { getImageUrl } from "../lib/storage/db-images";
 import { useNearViewport } from "../hooks/useNearViewport";
 import { readonlyImageSource } from "../lib/readonly-image-source";
 import { useCompactImage } from "../hooks/useCompactImage";
+import { imageDimensionPixels } from "../lib/markdown-image-dimensions";
 
 export function ReadonlyImage({
   src,
   alt,
   title,
   width,
+  height,
 }: {
   src: string;
   alt?: string;
   title?: string;
   width?: string | null;
+  height?: number | null;
 }) {
   const resolveResource = useContext(DocumentResourceContext);
   const allowLibrary = useContext(DocumentImageLibraryContext);
@@ -65,7 +68,7 @@ export function ReadonlyImage({
           title={title}
           loading="lazy"
           decoding="async"
-          style={{ maxWidth: "100%", width: width || undefined }}
+          style={{ maxWidth: "100%", width: width || undefined, height: imageDimensionPixels(height) }}
         />
       ) : (
         <span>{alt || "图片"}</span>
