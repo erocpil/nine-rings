@@ -185,6 +185,9 @@ pub(super) fn replace(
             .map_err(|error| error.to_string())?;
         serde_json::to_writer_pretty(&file, &manifest).map_err(|error| error.to_string())?;
         file.sync_all().map_err(|error| error.to_string())?;
+        // Windows can reject a directory rename while a descendant handle is
+        // open. Let the following directory identity check observe that race.
+        drop(file);
         if review_files(&source, &target)? != *expected {
             return Err("发布前来源或目标已变化，请重新检查".into());
         }
