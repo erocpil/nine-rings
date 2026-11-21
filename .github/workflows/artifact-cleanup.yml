@@ -40,6 +40,11 @@ jobs:
             fi
 
             case "$artifact_name" in
+              file-workbench-windows-x64 | file-workbench-linux-x64)
+                # A manual Workbench release reads both artifacts from its
+                # own build, even when another build finishes first.
+                continue
+                ;;
               nine-rings-tauri-windows-x64 | \
               nine-rings-tauri-linux-x86_64 | \
               nine-rings-tauri-macos-arm64 | \

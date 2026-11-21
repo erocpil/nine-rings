@@ -127,6 +127,7 @@ jobs:
           name: file-workbench-${{ matrix.platform }}
           path: workbench-artifacts/
           if-no-files-found: error
+          retention-days: 14
 
   publish:
     name: Publish Workbench downloads
@@ -150,6 +151,12 @@ jobs:
           version="$(node -p 'require("./native/file-workbench/src-tauri/tauri.conf.json").version')"
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           tag="workbench-v$version"
-          (cd workbench-release && sha256sum -c ./*.sha256)
+          (
+            cd workbench-release
+            for installer in "file-workbench-$version-windows-x64.exe" "file-workbench-$version-linux-x64.deb"; do
+              test -s "$installer"
+              sha256sum -c "$installer.sha256"
+            done
+          )
           gh release create "$tag" workbench-release/* --target "$GITHUB_SHA" --latest=false \
             --title "File Workbench $version" --notes "Windows NSIS and Linux Debian installers for File Workbench at $GITHUB_SHA."
