@@ -7,6 +7,7 @@
 - [共享双栏核心与独立应用宿主](decisions/003-shared-file-workbench.md)
 
 - [手机右侧导航与应用设置的手势职责](decisions/004-mobile-edge-navigation.md)
+- [磁盘 Markdown 跨文件内容嵌入（设计稿）](planning/markdown-transclusion.md)
 
 ## 2026-11-15：共享文件传输进度通道
 
