@@ -1,6 +1,7 @@
 import type { FileNode, LocalFileFingerprint } from "./file-model";
 
 export interface PreviewMatch { from: number; to: number }
+export const QUICK_TEXT_PREVIEW_LENGTH = 65_536;
 /** Literal Unicode search; never run user-supplied regex or derive offsets from
  * a case-folded copy (case folding can change the UTF-16 string length). */
 export function browserPreviewMatches(source: string, query: string, matchCase = false) {

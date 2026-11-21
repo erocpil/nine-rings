@@ -2776,6 +2776,30 @@ test("Workbench Markdown 源码复用并排预览，实时更新且双向同步�
   expect((await sourceInfo(source)).value).toBe(edited);
 });
 
+test("长 Markdown 快速预览解析截断边界后的定义，并可打开完整文件", async ({ page }, testInfo) => {
+  const root = testInfo.outputPath("markdown-long-preview");
+  await mkdir(root, { recursive: true });
+  await writeFile(join(root, "guide.md"), [
+    "# Preview start",
+    "[Reference link][destination] and a note[^note].",
+    ...Array.from({ length: 430 }, (_, index) => `Paragraph ${index}. ${"Content here. ".repeat(15)}`),
+    "## Full document destination",
+    "[destination]: guide.md#full-document-destination",
+    "[^note]: Footnote definition beyond the quick preview boundary.",
+  ].join("\n\n"));
+  await page.goto("/file-workbench.html");
+  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(root);
+  const left = page.getByRole("region", { name: "左侧目录", exact: true });
+  await left.getByRole("option", { name: /^guide.md/ }).click();
+  await page.getByRole("button", { name: "快速预览", exact: true }).click();
+  const preview = page.getByRole("region", { name: "快速预览", exact: true });
+  await expect(preview.getByRole("link", { name: "Reference link" })).toHaveAttribute("href", "guide.md#full-document-destination");
+  await expect(preview.getByText("Footnote definition beyond the quick preview boundary.")).toHaveCount(1);
+  await expect(preview.getByRole("heading", { name: "Full document destination" })).toHaveCount(0);
+  await preview.getByRole("button", { name: "打开完整 Markdown" }).click();
+  await expect(page.locator(".workbench-rendered-session:visible").getByRole("heading", { name: "Full document destination" })).toHaveCount(1);
+});
+
 test("Markdown 快速预览直接查找渲染正文并连续定位", async ({ page }, testInfo) => {
   const root = testInfo.outputPath("markdown-preview-find");
   await mkdir(root, { recursive: true });

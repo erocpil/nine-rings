@@ -5,10 +5,11 @@ import { buildTextImportInput, type MarkdownImportOptions, type TextImportSource
 import { deltaToProseMirror } from "../lib/delta-converter";
 import { extractTitle, markdownFragmentToDelta, mdToDelta } from "../lib/md-parser";
 import { deltaToMarkdown } from "../lib/markdown-serializer";
+import { prepareMarkdownQuickPreview } from "../lib/markdown-quick-preview";
 
 interface WorkerRequest {
   id: number;
-  task: "measure-backup" | "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "markdown-to-prosemirror" | "delta-to-prosemirror" | "delta-to-markdown";
+  task: "measure-backup" | "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "markdown-to-prosemirror" | "delta-to-prosemirror" | "delta-to-markdown" | "markdown-quick-preview";
   payload: unknown;
 }
 
@@ -29,6 +30,9 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
       result = deltaToProseMirror(payload);
     } else if (task === "markdown-to-prosemirror") {
       result = deltaToProseMirror(markdownFragmentToDelta(payload as string));
+    } else if (task === "markdown-quick-preview") {
+      const { source, limit } = payload as { source: string; limit: number };
+      result = prepareMarkdownQuickPreview(source, limit);
     } else if (task === "markdown-source") {
       const request = payload as { fileName: string; source: string };
       result = {

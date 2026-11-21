@@ -5,8 +5,9 @@ import type { MarkdownImportOptions, TextImportSource } from "./markdown-import"
 import { buildTextImportInput } from "./markdown-import";
 import { extractTitle, markdownFragmentToDelta, mdToDelta } from "./md-parser";
 import { deltaToMarkdown } from "./markdown-serializer";
+import { prepareMarkdownQuickPreview } from "./markdown-quick-preview";
 
-type WorkerTask = "measure-backup" | "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "markdown-to-prosemirror" | "delta-to-prosemirror" | "delta-to-markdown";
+type WorkerTask = "measure-backup" | "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "markdown-to-prosemirror" | "delta-to-prosemirror" | "delta-to-markdown" | "markdown-quick-preview";
 
 export function deltaToMarkdownAsync(content: DeltaOps): Promise<string> {
   return runWorkerTask("delta-to-markdown", content, () => deltaToMarkdown(content));
@@ -130,4 +131,9 @@ export function transformMarkdownSource(fileName: string, source: string): Promi
 
 export function measureBackupAsync(source: string): Promise<BackupMeasurement> {
   return runWorkerTask("measure-backup", source, () => measureBackupJson(source)).catch(() => measureBackupJson(source));
+}
+
+export function prepareMarkdownQuickPreviewAsync(source: string, limit: number) {
+  const fallback = () => prepareMarkdownQuickPreview(source, limit);
+  return runWorkerTask("markdown-quick-preview", { source, limit }, fallback).catch(fallback);
 }

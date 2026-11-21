@@ -1,4 +1,4 @@
-import { isBrowserImagePath, releaseBrowserPreview } from "./browser-preview";
+import { isBrowserImagePath, QUICK_TEXT_PREVIEW_LENGTH, releaseBrowserPreview } from "./browser-preview";
 import type { BrowserDirectoryHost, BrowserDirectoryProvider, BrowserPreview } from "./browser-contract";
 import { MAX_SOURCE_BYTES } from "./file-model";
 import type { LocalFileListOptions } from "./tree";
@@ -42,7 +42,12 @@ export function createBrowserDirectoryProvider(host: BrowserDirectoryHost): Brow
       const value = image ? await (host.files.readImagePreview?.(rootId, node, signal) ?? host.files.readImageAsset(rootId, node, signal)) : (await host.files.readSnapshot(rootId, node)).source;
       try { check(signal); }
       catch (cause) { if (image) releaseBrowserPreview({ kind: "image", value }); throw cause; }
-      return { kind: image ? "image" : "text", value: image ? value : value.slice(0, 65536), truncated: !image && value.length > 65536 };
+      if (image) return { kind: "image", value, truncated: false };
+      const truncated = value.length > QUICK_TEXT_PREVIEW_LENGTH;
+      return {
+        kind: "text", value: value.slice(0, QUICK_TEXT_PREVIEW_LENGTH), truncated,
+        ...(truncated && /\.(?:md|markdown)$/i.test(node) ? { markdownSource: value } : {}),
+      };
     },
     async page(rootId: string, node: string, offset: number, options: LocalFileListOptions, signal: AbortSignal) {
       check(signal);

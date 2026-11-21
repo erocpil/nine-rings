@@ -236,12 +236,13 @@ export class SourceNavigationDocument {
   }
   offsetAt(position: number) {
     const blocks = this.model.blocks;
-    const block =
-      blocks.find(
-        (entry, i) =>
-          entry.position <= position &&
-          (blocks[i + 1]?.position ?? Infinity) > position,
-      ) ?? blocks[0];
+    let low = 0, high = blocks.length;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (blocks[mid].position <= position) low = mid + 1;
+      else high = mid;
+    }
+    const block = blocks[Math.max(0, low - 1)];
     if (block && documentSourceLanguage(this.metadata) !== "markdown") {
       const span = this.model.map[block.index];
       return Math.min(this.source.length, (span?.from ?? 0) + Math.max(0, Math.min(block.text.length, position - block.position - 1)));

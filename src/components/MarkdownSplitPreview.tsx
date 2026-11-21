@@ -22,13 +22,15 @@ import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import type { ReadingBlockState } from "../lib/reading-block-session";
 import { footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
 import { useDocumentHoverPreview } from "./FootnoteHoverPreview";
+import { prepareMarkdownQuickPreviewAsync } from "../lib/data-transform-client";
+import type { MarkdownQuickPreview } from "../lib/markdown-quick-preview";
 
 let schema: ReturnType<typeof getSchema> | undefined;
-function previewDocument(revision: SourceNavigationDocument) {
+function previewDocument(revision: SourceNavigationDocument, prepared?: MarkdownQuickPreview) {
   schema ??= getSchema(documentRenderingExtensions());
-  const doc = schema.nodeFromJSON(revision.previewDocument);
+  const doc = schema.nodeFromJSON(prepared?.document ?? revision.previewDocument);
   doc.check();
-  return { doc, revision };
+  return { doc, revision, offsets: prepared?.offsets };
 }
 
 /** A derived, read-only projection. Never mounts a second writable editor. */
@@ -43,6 +45,7 @@ export function MarkdownSplitPreview({
   highlightActiveLine = true,
   onPreviewReady,
   previewStyle,
+  quickSourceLimit,
 }: {
   revision: SourceNavigationDocument;
   sourceEditor: SourceEditorHandle | null;
@@ -54,6 +57,7 @@ export function MarkdownSplitPreview({
   highlightActiveLine?: boolean;
   onPreviewReady?: (element: HTMLDivElement) => void;
   previewStyle?: CSSProperties;
+  quickSourceLimit?: number;
 }) {
   useBlockDisplayPreferences();
   const [snapshot, setSnapshot] = useState<ReturnType<
@@ -68,20 +72,24 @@ export function MarkdownSplitPreview({
   const documentHover = useDocumentHoverPreview(() => snapshot?.doc ?? null);
   useEffect(() => {
     if (!enabled) return;
+    let cancelled = false;
     const timer = setTimeout(() => {
-      try {
-        setSnapshot(previewDocument(revision));
-        setError("");
-      } catch {
+      void Promise.resolve().then(async () => {
+        const prepared = quickSourceLimit ? await prepareMarkdownQuickPreviewAsync(revision.source, quickSourceLimit) : undefined;
+        if (cancelled) return;
+        setSnapshot(previewDocument(revision, prepared));
+        setError(prepared && !prepared.offsets.length ? "首个 Markdown 块超出快速预览范围，请打开完整文件。" : "");
+      }).catch(() => {
+        if (cancelled) return;
         setError("预览暂时无法更新，保留上一次结果；源码仍可编辑和保存。");
-      }
+      });
     }, 220);
-    return () => clearTimeout(timer);
-  }, [revision, enabled]);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [revision, enabled, quickSourceLimit]);
   const blocks = useMemo(() => {
     const entries: { node: PMNode; pos: number; offset: number }[] = [];
-    snapshot?.doc.forEach((node, pos) =>
-      entries.push({ node, pos, offset: snapshot.revision.offsetAt(pos + 1) }),
+    snapshot?.doc.forEach((node, pos, index) =>
+      entries.push({ node, pos, offset: snapshot.offsets ? snapshot.offsets[index] ?? 0 : snapshot.revision.offsetAt(pos + 1) }),
     );
     return entries;
   }, [snapshot]);
@@ -190,7 +198,7 @@ export function MarkdownSplitPreview({
           className="markdown-preview-pane"
           aria-label={`${revision.language === "flow" ? "Flow" : revision.language === "mermaid" ? "Mermaid" : "Markdown"} 实时预览`}
         >
-          {error && <div role="status">{error}</div>}
+          {(error || (quickSourceLimit && !snapshot)) && <div role="status">{error || "正在解析长 Markdown…"}</div>}
           <div
             ref={preview}
             className="markdown-preview-scroll editor-content vr-note"

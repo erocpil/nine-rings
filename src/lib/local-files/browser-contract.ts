@@ -1,7 +1,7 @@
 import type { FileNode, FilePage, LocalFileDigest, LocalFileFingerprint, LocalFileDetails, LocalFileSnapshot } from "./file-model";
 import type { LocalFileListOptions } from "./tree";
 
-export type BrowserPreview = { kind: "text" | "image"; value: string; truncated: boolean } | { kind: "pdf"; value: Blob; truncated: false } | { kind: "epub"; value: Blob; truncated: false };
+export type BrowserPreview = { kind: "text"; value: string; truncated: boolean; markdownSource?: string } | { kind: "image"; value: string; truncated: false } | { kind: "pdf"; value: Blob; truncated: false } | { kind: "epub"; value: Blob; truncated: false };
 export interface BrowserTextLocation { from: number; to: number; revision: string }
 export interface BrowserFileOpen { rootId: string; rootName: string; node: FileNode; location?: BrowserTextLocation; headingFragment?: string; siblings?: readonly FileNode[] }
 

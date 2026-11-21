@@ -9,9 +9,9 @@ import type { BrowserDirectoryProvider } from "../lib/local-files/browser-contra
 import { FileBrowserRenderedFind } from "./FileBrowserRenderedFind";
 import type { PreviewFindInput } from "./FileBrowserPreviewFind";
 
-export function FileBrowserPreviewMarkdown({ source, rootId, node, provider, autoFocus = false, position, onOpenLink, find }: {
+export function FileBrowserPreviewMarkdown({ source, rootId, node, provider, autoFocus = false, position, onOpenLink, find, quickSourceLimit }: {
   source: string; rootId: string; node: string; provider: BrowserDirectoryProvider; autoFocus?: boolean; position?: PreviewScrollPosition;
-  onOpenLink: (href: string) => void; find?: PreviewFindInput;
+  onOpenLink: (href: string) => void; find?: PreviewFindInput; quickSourceLimit?: number;
 }) {
   const previewImage = useLocalMarkdownImages(provider, rootId, node);
   const revision = useMemo(() => SourceNavigationDocument.from(source, { ops: [] }), [source]);
@@ -20,13 +20,14 @@ export function FileBrowserPreviewMarkdown({ source, rootId, node, provider, aut
   const ready = useCallback((element: HTMLDivElement) => {
     setViewport(element);
     for (const item of element.querySelectorAll<HTMLElement>("[data-source-offset], [data-reading-text-start]")) {
-      item.dataset.previewSourceOffset = item.dataset.sourceOffset ?? String(revision.offsetAt(Number(item.dataset.readingTextStart)));
+      const sourceOffset = item.closest<HTMLElement>("[data-source-offset]")?.dataset.sourceOffset;
+      item.dataset.previewSourceOffset = sourceOffset ?? (quickSourceLimit ? "0" : String(revision.offsetAt(Number(item.dataset.readingTextStart))));
     }
     invalidatePreviewAnchors(element);
     if (restored.current) return;
     if (position) restoreRenderedPreview(element, position, source.length);
     restored.current = true;
-  }, [position, revision, source.length]);
+  }, [position, quickSourceLimit, revision, source.length]);
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => { if (autoFocus) host.current?.querySelector<HTMLElement>(".markdown-preview-scroll")?.focus({ preventScroll: true }); }, [autoFocus]);
   return <DocumentImageLibraryContext.Provider value={false}><DocumentResourceContext.Provider value={previewImage}><div ref={host} className="file-browser-markdown-preview" onScrollCapture={event => {
@@ -39,6 +40,6 @@ export function FileBrowserPreviewMarkdown({ source, rootId, node, provider, aut
       event.preventDefault(); event.stopPropagation(); onOpenLink(href);
     }
   }}>{find && <FileBrowserRenderedFind viewport={viewport} {...find} />}
-    <MarkdownSplitPreview revision={revision} sourceEditor={null} enabled sync={false} onPreviewReady={ready} fontSize={16} highlightActiveLine={false}>{null}</MarkdownSplitPreview>
+    <MarkdownSplitPreview revision={revision} sourceEditor={null} enabled sync={false} onPreviewReady={ready} fontSize={16} highlightActiveLine={false} quickSourceLimit={quickSourceLimit}>{null}</MarkdownSplitPreview>
   </div></DocumentResourceContext.Provider></DocumentImageLibraryContext.Provider>;
 }

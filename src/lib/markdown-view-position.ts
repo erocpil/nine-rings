@@ -227,8 +227,16 @@ export function weightToSourceOffset(
   map = sourcePositionMap(source),
   atBlockEnd = false,
 ): number {
-  const entry =
-    map.find((item) => atBlockEnd ? item.weightFrom < weight && item.weightTo >= weight : item.weightTo > weight) ?? map[map.length - 1];
+  // Source spans can move to the end (footnotes), but their rendered weights
+  // are monotonically increasing, including zero-weight spans.
+  let low = 0, high = map.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (atBlockEnd ? map[mid].weightTo < weight : map[mid].weightTo <= weight) low = mid + 1;
+    else high = mid;
+  }
+  const candidate = map[low];
+  const entry = candidate && (!atBlockEnd || candidate.weightFrom < weight) ? candidate : map[map.length - 1];
   if (entry && "textOffsets" in entry && entry.textOffsets?.length) {
     const offsets = entry.textOffsets;
     const index = Math.max(0, Math.ceil(weight - entry.weightFrom));
