@@ -134,7 +134,8 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
   }, [state.closing?.token, port]);
   const select = (id: string) => {
     if (closing.current) return;
-    setCurrent(id); void port.select(id).catch(report);
+    // The native state publishes selection only after saving the session.
+    void port.select(id).catch(report);
   };
   const linkSerial = useRef(0);
   const linkInFlight = useRef(false);
@@ -175,8 +176,10 @@ export function WorkbenchEditorWindow({ host, port = editorWindowPort }: { host:
   const createDocument = () => { if (!closing.current) void bufferDocumentPort.create().catch(report); };
   const closeTab = (id: string) => {
     if (closing.current) return;
-    if (dirty[id]) setCurrent(id);
-    closeRefs.current.get(id)?.current?.();
+    const requestClose = () => closeRefs.current.get(id)?.current?.();
+    if (dirty[id] && current !== id) {
+      void port.select(id).then(() => { if (!closing.current) requestClose(); }, report);
+    } else requestClose();
   };
   return <main className="file-workbench-app workbench-editor-window">
     {quitHint && <div className="workbench-quit-overlay"><div className="workbench-quit-card" role="status"><kbd>⌘Q</kbd><strong>{quitHint}</strong><span>继续使用则无需操作</span></div></div>}

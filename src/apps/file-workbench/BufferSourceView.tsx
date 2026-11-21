@@ -2,7 +2,6 @@ import { readWorkbenchLinkOrigin } from "./editor-window";
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { WorkbenchSourceView } from "./SourceView";
 import { bufferDocumentPort, createBufferDocumentHost, type BufferRecord } from "./buffer-documents";
-import { WorkspaceDialog } from "../../components/WorkspaceDialog";
 
 type Props = ComponentProps<typeof WorkbenchSourceView> & { bufferId: string };
 export function BufferSourceView(props: Props) {
@@ -10,7 +9,14 @@ export function BufferSourceView(props: Props) {
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   useEffect(() => { let live = true; void bufferDocumentPort.read(props.bufferId).then(value => { if (live) setRecord(value); }, cause => { if (live) setError(String(cause)); }); return () => { live = false; }; }, [props.bufferId, attempt]);
-  if (error) return <WorkspaceDialog title="新建文档读取失败" onClose={props.onClose}><p role="alert">{error}</p><button type="button" onClick={() => { setError(""); setAttempt(value => value + 1); }}>重试</button></WorkspaceDialog>;
+  const { closeRequest, onClose } = props;
+  useEffect(() => {
+    if (!error) return;
+    // No editable view was mounted. A window close can keep the native record as-is.
+    closeRequest.current = afterLeave => (afterLeave ?? onClose)();
+    return () => { closeRequest.current = null; };
+  }, [error, closeRequest, onClose]);
+  if (error) return <div className="workbench-source-view"><p role="alert">本机编辑文档读取失败：{error}</p><button type="button" onClick={() => { setError(""); setAttempt(value => value + 1); }}>重试</button></div>;
   if (!record) return <p role="status">正在恢复本机编辑文档…</p>;
   return <LoadedBuffer {...props} initial={record} />;
 }

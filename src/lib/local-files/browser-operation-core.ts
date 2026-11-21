@@ -56,6 +56,10 @@ export function createBrowserOperationRunner<Lease extends BrowserOperationLease
             const moveOpenFallback = async (write: Promise<string>, rootId: string, parent: string) => {
               try { return await write; }
               catch (error) {
+                if (operation.kind === "move" && /^(?:Error: )?MOVE_COPY_PUBLISHED:/.test(String(error))) {
+                  host.notify({ kind: "refresh", rootId: operation.rootId, node, targetRootId: rootId, targetNode: [parent, targetName].filter(Boolean).join("/") });
+                  throw error;
+                }
                 const relocate = host.files.relocateOpen;
                 if (!relocate || nodes.length !== 1 || rootId !== operation.rootId || !/^(?:Error: )?PATH_IN_USE:/.test(String(error))) throw error;
                 if (signal.aborted) throw new Error("MOVE_RELOCATION_NOT_WRITTEN: 已停止移动");
@@ -93,8 +97,8 @@ export function createBrowserOperationRunner<Lease extends BrowserOperationLease
             } else if (operation.kind === "trash") {
               await host.files.trash(operation.rootId, node);
               confirmed = true;
-              await host.reconcileTrash(operation.rootId, node);
-              host.notify({ kind: "trash", rootId: operation.rootId, node });
+              try { await host.reconcileTrash(operation.rootId, node); }
+              finally { host.notify({ kind: "trash", rootId: operation.rootId, node }); }
             } else {
               const next = await host.files.create(operation.rootId, operation.parent, targetName, operation.kind === "directory");
               confirmed = true;

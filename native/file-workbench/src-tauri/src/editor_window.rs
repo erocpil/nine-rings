@@ -545,13 +545,15 @@ pub(crate) fn reserve_buffer_save(
 pub fn update_buffer(app: &tauri::AppHandle, file: EditorFile) -> Result<(), String> {
     let owner = app.state::<EditorWindows>();
     let mut state = owner.0.lock().map_err(|_| "编辑器状态不可用")?;
-    let mut next = state.clone();
-    if let Some(current) = next.files.iter_mut().find(|item| item.id == file.id) {
-        current.file = file.file;
-    }
-    next.revision += 1;
-    next.persist(app)?;
-    *state = next;
+    let current = state
+        .files
+        .iter_mut()
+        .find(|item| item.id == file.id)
+        .ok_or("编辑文档标签已关闭")?;
+    // The committed buffer record supplies file metadata on restore. The
+    // manifest already keeps its identity, order and selection.
+    current.file = file.file;
+    state.revision += 1;
     drop(state);
     changed(app);
     Ok(())

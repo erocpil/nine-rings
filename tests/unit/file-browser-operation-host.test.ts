@@ -175,6 +175,35 @@ it("settles an in-flight write after cancellation and revocation without startin
   expect(instance.leases[0].release).toHaveBeenCalledOnce();
 });
 
+it("refreshes both panes after a cross-volume copy publishes without a confirmed move", async () => {
+  const { port } = host(),
+    conflict = decide(),
+    items: BrowserItemResult[] = [];
+  port.files.transfer.mockRejectedValueOnce(
+    new Error("MOVE_COPY_PUBLISHED: verify source"),
+  );
+  await expect(
+    createBrowserOperationRunner(port)(
+      operation,
+      "",
+      new AbortController().signal,
+      () => {},
+      conflict,
+      (item) => items.push(item),
+    ),
+  ).rejects.toThrow("MOVE_COPY_PUBLISHED");
+  expect(port.notify).toHaveBeenCalledWith({
+    kind: "refresh",
+    rootId: "left",
+    node: "src/a.c",
+    targetRootId: "right",
+    targetNode: "dest/a.c",
+  });
+  expect(port.reconcileMove).not.toHaveBeenCalled();
+  expect(conflict).not.toHaveBeenCalled();
+  expect(items.at(-1)?.status).toBe("uncertain");
+});
+
 for (const kind of [
   "move",
   "rename",
@@ -213,6 +242,13 @@ for (const kind of [
         (item) => items.push(item),
       ),
     ).rejects.toThrow("TARGET_EXISTS");
+    if (kind === "trash") {
+      expect(port.notify).toHaveBeenCalledWith({
+        kind: "trash",
+        rootId: "left",
+        node: "src/a.c",
+      });
+    }
     expect(conflict).not.toHaveBeenCalled();
     expect(items.at(-1)?.status).toBe("uncertain");
     const method =

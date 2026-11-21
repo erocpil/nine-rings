@@ -1373,7 +1373,18 @@ fn read(root: &Path, node: &str) -> Result<Snapshot, String> {
     if bytes.len() as u64 > MAX_BYTES {
         return Err("文件超过 4 MiB".into());
     }
-    let text = std::str::from_utf8(&bytes).map_err(|_| "仅支持 UTF-8 文本文件")?;
+    snapshot_from_bytes(&bytes, modified_millis(&meta))
+}
+
+fn modified_millis(meta: &fs::Metadata) -> u128 {
+    meta.modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |duration| duration.as_millis())
+}
+
+fn snapshot_from_bytes(bytes: &[u8], modified_ms: u128) -> Result<Snapshot, String> {
+    let text = std::str::from_utf8(bytes).map_err(|_| "仅支持 UTF-8 文本文件")?;
     if text
         .chars()
         .any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t' | '\x0b' | '\x0c'))
@@ -1381,7 +1392,7 @@ fn read(root: &Path, node: &str) -> Result<Snapshot, String> {
         return Err("这是二进制或不支持的文本文件".into());
     }
     let bom = bytes.starts_with(&[0xef, 0xbb, 0xbf]);
-    let content = if bom { &bytes[3..] } else { &bytes[..] };
+    let content = if bom { &bytes[3..] } else { bytes };
     let decoded = std::str::from_utf8(content).map_err(|_| "仅支持 UTF-8 文本文件")?;
     let without_crlf = decoded.replace("\r\n", "");
     let kinds = usize::from(decoded.contains("\r\n"))
@@ -1397,19 +1408,13 @@ fn read(root: &Path, node: &str) -> Result<Snapshot, String> {
         "lf"
     };
     let source = decoded.replace("\r\n", "\n").replace('\r', "\n");
-    let modified_ms = meta
-        .modified()
-        .ok()
-        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|duration| duration.as_millis())
-        .unwrap_or_default();
     Ok(Snapshot {
         source,
-        revision: format!("{:x}", Sha256::digest(&bytes)),
+        revision: format!("{:x}", Sha256::digest(bytes)),
         bom,
         line_ending: line_ending.into(),
         modified_ms,
-        size: meta.len(),
+        size: bytes.len() as u64,
     })
 }
 fn stat(root: &Path, node: &str) -> Result<Fingerprint, String> {
@@ -1461,9 +1466,16 @@ pub async fn local_files_read(
 }
 
 fn save_digest(path: &Path) -> Result<String, String> {
+    save_digest_with_limit(path, MAX_BYTES)
+}
+
+fn save_digest_with_limit(path: &Path, limit: u64) -> Result<String, String> {
     let before = fs::symlink_metadata(path).map_err(|error| error.to_string())?;
-    if !before.is_file() || is_link(&before) || before.len() > MAX_BYTES {
-        return Err("磁盘文件已变化，或超过 4 MiB 普通文本保存上限".into());
+    if !before.is_file() || is_link(&before) || before.len() > limit {
+        return Err(format!(
+            "磁盘文件已变化，或超过 {} MiB 保存核验上限",
+            limit / (1024 * 1024)
+        ));
     }
     let mut options = fs::OpenOptions::new();
     options.read(true);
@@ -1487,6 +1499,16 @@ fn save_digest(path: &Path) -> Result<String, String> {
         return Err("检查期间文件已变化".into());
     }
     Ok(digest)
+}
+
+fn apply_save_permissions(file: &fs::File, permissions: &fs::Permissions) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        file.set_permissions(fs::Permissions::from_mode(permissions.mode() & 0o777))
+    }
+    #[cfg(not(unix))]
+    file.set_permissions(permissions.clone())
 }
 
 #[cfg(target_os = "windows")]
@@ -1518,11 +1540,13 @@ fn replace_save_with_backup(temp: &Path, target: &Path, previous: &Path) -> Resu
 
 /// The file displaced by publication supplies the final revision evidence. A
 /// racing external write remains recoverable even if it was too late to veto.
-fn publish_editor_save(
+fn publish_save(
     temp: &Path,
     target: &Path,
     expected: &str,
+    permissions: &fs::Permissions,
     incoming: &str,
+    limit: u64,
     before_exchange: impl FnOnce(),
 ) -> Result<(), String> {
     #[cfg(target_os = "windows")]
@@ -1558,8 +1582,9 @@ fn publish_editor_save(
     };
     let parent = target.parent().ok_or_else(|| pending("无法核对保存目录"))?;
     super::local_file_transfer::sync_directory(parent).map_err(|error| pending(&error))?;
-    if save_digest(&previous).as_deref() != Ok(expected)
-        || save_digest(target).as_deref() != Ok(incoming)
+    if !fs::symlink_metadata(&previous).is_ok_and(|metadata| metadata.permissions() == *permissions)
+        || save_digest_with_limit(&previous, limit).as_deref() != Ok(expected)
+        || save_digest_with_limit(target, limit).as_deref() != Ok(incoming)
     {
         return Err(pending("保存时检测到外部文件变化，已保留保存前的内容"));
     }
@@ -1627,8 +1652,7 @@ fn write(
             .open(&temp)
             .map_err(|error| error.to_string())?;
         file.write_all(&bytes).map_err(|error| error.to_string())?;
-        file.set_permissions(target_permissions.clone())
-            .map_err(|error| error.to_string())?;
+        apply_save_permissions(&file, &target_permissions).map_err(|error| error.to_string())?;
         file.sync_all().map_err(|error| error.to_string())?;
         // ReplaceFileW opens the staged file without sharing; release this handle.
         drop(file);
@@ -1639,12 +1663,27 @@ fn write(
         if save_digest(&target)? != expected_revision {
             return Err("STALE_REVISION: 磁盘文件在保存期间被外部修改".into());
         }
+        if fs::symlink_metadata(&target)
+            .map_err(|error| error.to_string())?
+            .permissions()
+            != target_permissions
+        {
+            return Err("保存期间文件权限发生变化，请核对后重试".into());
+        }
         let grants = roots.lock().map_err(|_| "目录状态不可用")?;
         if grants.get(&root_id).map(PathBuf::as_path) != Some(root) {
             return Err("目录授权已撤销，未写入文件".into());
         }
         let incoming = format!("{:x}", Sha256::digest(&bytes));
-        publish_editor_save(&temp, &target, expected_revision, &incoming, || {})?;
+        publish_save(
+            &temp,
+            &target,
+            expected_revision,
+            &target_permissions,
+            &incoming,
+            MAX_BYTES,
+            || {},
+        )?;
         drop(grants);
         Ok(())
     })();
@@ -1790,7 +1829,7 @@ pub async fn choose_save_file(
     bom: bool,
     line_ending: String,
     before_write: impl Fn(&Path) -> Result<(), String> + Send + 'static,
-) -> Result<Option<PathBuf>, String> {
+) -> Result<Option<(PathBuf, Snapshot)>, String> {
     if source.len() as u64 > MAX_BYTES {
         return Err("文件超过 4 MiB".into());
     }
@@ -1819,7 +1858,13 @@ pub async fn choose_save_file(
     if bytes.len() as u64 > MAX_BYTES {
         return Err("另存后文件超过 4 MiB".into());
     }
-    choose_save_bytes(app, window, name, bytes, before_write).await
+    let mut snapshot = snapshot_from_bytes(&bytes, 0)?;
+    Ok(choose_save_bytes(app, window, name, bytes, before_write)
+        .await?
+        .map(|(path, modified_ms)| {
+            snapshot.modified_ms = modified_ms;
+            (path, snapshot)
+        }))
 }
 
 pub(crate) async fn choose_save_bytes(
@@ -1828,13 +1873,13 @@ pub(crate) async fn choose_save_bytes(
     name: String,
     bytes: Vec<u8>,
     before_write: impl Fn(&Path) -> Result<(), String> + Send + 'static,
-) -> Result<Option<PathBuf>, String> {
+) -> Result<Option<(PathBuf, u128)>, String> {
     file_caller(&window)?;
     if name.is_empty() || name.len() > 255 || name.contains(['/', '\\', ':', '\0']) {
         return Err("文件名无效".into());
     }
     let dialog = app.clone();
-    tauri::async_runtime::spawn_blocking(move || -> Result<Option<PathBuf>, String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<Option<(PathBuf, u128)>, String> {
         let Some(chosen) = dialog
             .dialog()
             .file()
@@ -1847,51 +1892,82 @@ pub(crate) async fn choose_save_bytes(
         let parent = fs::canonicalize(selected.parent().ok_or("保存路径无效")?)
             .map_err(|error| error.to_string())?;
         let target = parent.join(selected.file_name().ok_or("保存路径无效")?);
-        if let Ok(meta) = fs::symlink_metadata(&target) {
-            if is_link(&meta) || !meta.is_file() {
-                return Err("目标不是普通文件，拒绝覆盖".into());
-            }
-        }
+        let expected = save_as_revision(&target)?;
         before_write(&target)?;
         let _lease = scoped_caller(&window, false, vec![target.clone()])?;
-        let temp = parent.join(format!(".nr-save-as-{}.tmp", uuid::Uuid::new_v4()));
-        let result: Result<(), String> = (|| {
-            let mut file = fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&temp)
-                .map_err(|error| error.to_string())?;
-            file.write_all(&bytes).map_err(|error| error.to_string())?;
-            file.sync_all().map_err(|error| error.to_string())?;
-            #[cfg(windows)]
-            {
-                use std::os::windows::ffi::OsStrExt;
-                use windows::Win32::Storage::FileSystem::{
-                    MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
-                };
-                let from: Vec<u16> = temp.as_os_str().encode_wide().chain(Some(0)).collect();
-                let to: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
-                unsafe {
-                    MoveFileExW(
-                        windows::core::PCWSTR(from.as_ptr()),
-                        windows::core::PCWSTR(to.as_ptr()),
-                        MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-                    )
-                }
-                .map_err(|error| error.to_string())?;
-            }
-            #[cfg(not(windows))]
-            fs::rename(&temp, &target).map_err(|error| error.to_string())?;
-            Ok(())
-        })();
-        if result.is_err() {
-            let _ = fs::remove_file(&temp);
-        }
-        result?;
-        Ok(Some(target))
+        let modified_ms = write_save_as(&target, &bytes, expected, || {})?;
+        Ok(Some((target, modified_ms)))
     })
     .await
     .map_err(|error| error.to_string())?
+}
+
+fn save_as_revision(target: &Path) -> Result<Option<(String, fs::Permissions)>, String> {
+    let metadata = match fs::symlink_metadata(target) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+    };
+    if is_link(&metadata) || !metadata.is_file() || metadata.permissions().readonly() {
+        return Err("目标必须是可写的普通文件".into());
+    }
+    Ok(Some((
+        save_digest_with_limit(target, MAX_DIGEST_BYTES)?,
+        metadata.permissions(),
+    )))
+}
+
+fn write_save_as(
+    target: &Path,
+    bytes: &[u8],
+    expected: Option<(String, fs::Permissions)>,
+    before_publish: impl FnOnce(),
+) -> Result<u128, String> {
+    if expected.is_some() && bytes.len() as u64 > MAX_DIGEST_BYTES {
+        return Err("覆盖核验最多支持 256 MiB 文件，请另选文件名".into());
+    }
+    let parent = target.parent().ok_or("保存路径无效")?;
+    let temp = parent.join(format!(".nr-save-as-{}.tmp", uuid::Uuid::new_v4()));
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp)
+        .map_err(|error| error.to_string())?;
+    let result: Result<u128, String> = (|| {
+        file.write_all(bytes).map_err(|error| error.to_string())?;
+        if let Some((_, permissions)) = &expected {
+            apply_save_permissions(&file, permissions).map_err(|error| error.to_string())?;
+        }
+        file.sync_all().map_err(|error| error.to_string())?;
+        let modified_ms = modified_millis(&file.metadata().map_err(|error| error.to_string())?);
+        drop(file);
+        before_publish();
+        if let Some((revision, permissions)) = &expected {
+            if save_as_revision(target)? != expected {
+                return Err("保存目标已变化，请重新确认文件名".into());
+            }
+            let incoming = format!("{:x}", Sha256::digest(bytes));
+            publish_save(
+                &temp,
+                target,
+                revision,
+                permissions,
+                &incoming,
+                MAX_DIGEST_BYTES,
+                || {},
+            )?;
+        } else {
+            move_exclusive(&temp, target).map_err(|error| error.to_string())?;
+            super::local_file_transfer::sync_directory(parent).map_err(|error| {
+                format!("SAVE_PUBLISHED: 文件已写入，但目录同步失败，请核对：{error}")
+            })?;
+        }
+        Ok(modified_ms)
+    })();
+    if matches!(result, Err(ref error) if !error.starts_with("SAVE_PUBLISHED:")) {
+        let _ = fs::remove_file(&temp);
+    }
+    result
 }
 /// Atomic publication of private application recovery records.
 pub fn replace_recovery_file(temp: &Path, target: &Path) -> Result<(), String> {
@@ -1946,6 +2022,59 @@ pub fn write_selected_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn save_as_keeps_a_file_created_after_checking_the_destination() {
+        let fixture = TransferFixture::new();
+        let target = fixture.target();
+        let expected = save_as_revision(&target).unwrap();
+        assert!(expected.is_none());
+        assert!(write_save_as(&target, b"my document", expected, || {
+            fs::write(&target, "external document").unwrap();
+        })
+        .is_err());
+        assert_eq!(fs::read(&target).unwrap(), b"external document");
+        assert_eq!(fs::read_dir(target.parent().unwrap()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn save_as_rechecks_existing_targets_and_returns_the_staged_version() {
+        let fixture = TransferFixture::new();
+        let target = fixture.target();
+        fs::write(&target, "confirmed baseline").unwrap();
+        let expected = save_as_revision(&target).unwrap();
+        assert!(write_save_as(&target, b"my document", expected, || {
+            fs::write(&target, "external edit").unwrap();
+        })
+        .is_err());
+        assert_eq!(fs::read(&target).unwrap(), b"external edit");
+        assert_eq!(fs::read_dir(target.parent().unwrap()).unwrap().count(), 1);
+
+        let bytes = b"\xef\xbb\xbfmy document\r\n";
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&target, fs::Permissions::from_mode(0o4640)).unwrap();
+        }
+        let expected = save_as_revision(&target).unwrap();
+        let modified_ms = write_save_as(&target, bytes, expected, || {}).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(&target).unwrap().permissions().mode() & 0o7777,
+                0o640
+            );
+        }
+        let committed = snapshot_from_bytes(bytes, modified_ms).unwrap();
+        assert_eq!(committed.revision, save_digest(&target).unwrap());
+        fs::write(&target, "edit after publication").unwrap();
+        assert_eq!(committed.source, "my document\n");
+        assert_eq!(committed.line_ending, "crlf");
+        assert!(committed.bom);
+        assert_ne!(committed.revision, save_digest(&target).unwrap());
+    }
+
     #[test]
     fn save_keeps_the_exact_version_displaced_at_publication() {
         let fixture = TransferFixture::new();
@@ -1955,9 +2084,18 @@ mod tests {
         fs::write(&temp, "my edit").unwrap();
         let baseline = save_digest(&target).unwrap();
         let incoming = save_digest(&temp).unwrap();
-        let error = publish_editor_save(&temp, &target, &baseline, &incoming, || {
-            fs::write(&target, "external edit during save").unwrap();
-        })
+        let permissions = fs::metadata(&target).unwrap().permissions();
+        let error = publish_save(
+            &temp,
+            &target,
+            &baseline,
+            &permissions,
+            &incoming,
+            MAX_BYTES,
+            || {
+                fs::write(&target, "external edit during save").unwrap();
+            },
+        )
         .unwrap_err();
         assert!(error.starts_with("SAVE_PUBLISHED:"));
         assert_eq!(fs::read_to_string(&target).unwrap(), "my edit");
@@ -1966,6 +2104,38 @@ mod tests {
         assert_eq!(
             fs::read_to_string(&temp).unwrap(),
             "external edit during save"
+        );
+    }
+    #[cfg(unix)]
+    #[test]
+    fn save_keeps_the_displaced_file_if_its_permissions_changed_at_publication() {
+        use std::os::unix::fs::PermissionsExt;
+        let fixture = TransferFixture::new();
+        let target = fixture.target();
+        let temp = target.with_file_name(".nr-save-pending.tmp");
+        fs::write(&target, "baseline").unwrap();
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();
+        let permissions = fs::metadata(&target).unwrap().permissions();
+        fs::write(&temp, "my edit").unwrap();
+        let baseline = save_digest(&target).unwrap();
+        let incoming = save_digest(&temp).unwrap();
+        let error = publish_save(
+            &temp,
+            &target,
+            &baseline,
+            &permissions,
+            &incoming,
+            MAX_BYTES,
+            || {
+                fs::set_permissions(&target, fs::Permissions::from_mode(0o400)).unwrap();
+            },
+        )
+        .unwrap_err();
+        assert!(error.starts_with("SAVE_PUBLISHED:"));
+        assert_eq!(fs::read_to_string(&temp).unwrap(), "baseline");
+        assert_eq!(
+            fs::metadata(&temp).unwrap().permissions().mode() & 0o777,
+            0o400
         );
     }
     #[test]

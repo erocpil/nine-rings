@@ -413,28 +413,23 @@ pub async fn workbench_buffer_save(
         }
     }
     let _reservation = Reservation(&window, reservation.clone());
-    let mut committed_snapshot = None;
-    let path = if let Some(path) = record.path {
+    let (path, snapshot) = if let Some(path) = record.path {
         let value = path.clone();
         let target = window.clone();
         let text = source.clone();
         let expected = revision.clone();
-        committed_snapshot = Some(
-            tauri::async_runtime::spawn_blocking(move || {
-                super::editor_window::editor(&target)?;
-                let _lease = target.state::<FileWindowAccess>().begin_paths(
-                    target.label(),
-                    false,
-                    vec![value.clone()],
-                )?;
-                let snapshot =
-                    local_files::write_selected_file(&value, &text, &expected, bom, &line_ending)?;
-                serde_json::to_value(snapshot).map_err(|error| error.to_string())
-            })
-            .await
-            .map_err(|error| error.to_string())??,
-        );
-        path
+        let snapshot = tauri::async_runtime::spawn_blocking(move || {
+            super::editor_window::editor(&target)?;
+            let _lease = target.state::<FileWindowAccess>().begin_paths(
+                target.label(),
+                false,
+                vec![value.clone()],
+            )?;
+            local_files::write_selected_file(&value, &text, &expected, bom, &line_ending)
+        })
+        .await
+        .map_err(|error| error.to_string())??;
+        (path, snapshot)
     } else {
         let owner = window.clone();
         let scope = reservation.clone();
@@ -461,7 +456,7 @@ pub async fn workbench_buffer_save(
         )
         .await;
         match result {
-            Ok(Some(path)) => path,
+            Ok(Some(saved)) => saved,
             other => {
                 if let Some(path) = reservation.lock().map_err(|_| "保存状态不可用")?.take()
                 {
@@ -473,11 +468,7 @@ pub async fn workbench_buffer_save(
             }
         }
     };
-    let snapshot = match committed_snapshot {
-        Some(snapshot) => snapshot,
-        None => serde_json::to_value(local_files::read_selected_file(&path)?)
-            .map_err(|error| error.to_string())?,
-    };
+    let snapshot = serde_json::to_value(snapshot).map_err(|error| error.to_string())?;
     let saved = app
         .state::<BufferDocuments>()
         .committed(&id, path.clone(), &snapshot)
@@ -489,7 +480,7 @@ pub async fn workbench_buffer_save(
         })?;
     super::editor_window::update_buffer(&app, saved.session()).map_err(|error| {
         format!(
-            "文件已写入 {}，标签记录更新失败；本机编辑记录仍保留：{error}",
+            "文件已写入 {}，标签显示更新失败；本机编辑记录仍保留：{error}",
             path.display()
         )
     })?;
@@ -598,6 +589,45 @@ mod tests {
         let another = store.create().unwrap();
         store.discard(&another.id).unwrap();
         assert!(fixture.store().list().unwrap().is_empty());
+    }
+    #[test]
+    fn saved_buffer_restores_its_binding_from_the_record_with_an_older_manifest() {
+        let fixture = Fixture::new();
+        let mut notices = Vec::new();
+        let buffers = fixture.0.join("editor-documents");
+        let store = BufferDocuments::load(&buffers, &mut notices);
+        let first = store.create().unwrap();
+        let manifest = fixture.0.join("editor-session.json");
+        let sessions =
+            super::super::editor_session::EditorSessionStore::load(&manifest, &mut notices);
+        let tab = first.session();
+        sessions
+            .save(std::slice::from_ref(&tab), Some(&tab.id))
+            .unwrap();
+
+        let path = fixture.0.join("saved.txt");
+        fs::write(&path, "saved").unwrap();
+        store
+            .committed(
+                &first.id,
+                path.clone(),
+                &json!({"source":"saved", "revision":"rev"}),
+            )
+            .unwrap();
+
+        let sessions =
+            super::super::editor_session::EditorSessionStore::load(&manifest, &mut notices);
+        let session = sessions.read().unwrap().unwrap();
+        assert_eq!(session.current.as_deref(), Some(tab.id.as_str()));
+        assert_eq!(session.files[0].file["untitled"], true);
+        let id = session.files[0].file["bufferId"].as_str().unwrap();
+        let restored = BufferDocuments::load(&buffers, &mut notices)
+            .get(id)
+            .unwrap();
+        assert!(notices.is_empty());
+        assert_eq!(restored.session().id, tab.id);
+        assert_eq!(restored.path.as_deref(), Some(path.as_path()));
+        assert_eq!(restored.base_revision, "rev");
     }
     #[test]
     fn checkpoint_persists_the_reloaded_disk_baseline_with_the_draft() {

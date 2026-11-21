@@ -1,6 +1,11 @@
 /** User-facing highlights, newest date first. Keep one entry per ISO date; preserve topic labels when merging. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-11-22",
+    title: "另存为保护与 Workbench 会话修复",
+    changes: ["Nine Rings 和 File Workbench 在保存原文件时复核权限，在另存文本或导出 HTML 时保护新出现的文件和外部修改。", "Workbench 未命名文档首次保存后以实际写出的内容为版本基准。编辑器标签只在会话记录写入成功后切换，草稿读取失败时仍可退出并保留会话。", "跨磁盘移动需要核对结果时，两款应用都会刷新来源和目标列表。"],
+  },
+  {
     date: "2026-11-21",
     title: "文件移动、同名替换与保存保护",
     changes: ["File Workbench 复制替换在发布前重新检查 Unix 文件权限，恢复记录显示可读的原文件名。", "磁盘 Markdown 快速预览更快显示，连续查找复用已索引的渲染正文。", "macOS 的 Nine Rings 和 File Workbench 系统菜单统一使用英文，按文件、编辑、格式、视图和导航等任务分组。", "长 Markdown 快速预览仍能打开文件末尾定义的链接和脚注，并可直接打开完整文件。", "渲染视图可导出 HTML，File Workbench Editor 同时接入系统打印与存储为 PDF。", "Markdown 兼容 [toc] 自动目录和 Obsidian 自定义标题与默认折叠提示块。", "修复正文鼠标点击后较晚同步选区时，后退丢失点击前光标位置的问题。", "File Workbench Editor 的 Markdown 源码模式支持实时并排预览及双向同步滚动。", "Markdown 快速预览可直接查找并高亮渲染文字。", "文件快速预览可以沿相对 Markdown 链接打开编辑器并定位章节。", "Markdown 图片支持保留 HTML 中指定的像素宽高，显示及保存时继续使用相同尺寸。", "Markdown 文件头单独保留。Nine Rings 和 File Workbench 渲染正文时不显示 YAML，编辑正文后仍能保存原始文件头。", "在支持可恢复替换的 macOS、Linux 和 Windows 文件系统上，复制遇到同名普通文件时可先核对两份修订，再逐项确认替换。展开操作结果可查看原目标的备份路径。", "File Workbench 可在同一授权目录内移动或重命名已保存的打开文件，保留编辑标签、撤销与书签。有未保存内容时会阻止移动。", "桌面版检测到保存发布时的外部写入会保留被替换版本并提示核对。Workbench 遇到损坏的会话或草稿记录时保留原件并继续启动。", "渲染链接菜单打开后，即使焦点短暂回到正文区域，Escape 仍可关闭菜单。"],
