@@ -1791,10 +1791,6 @@ pub async fn choose_save_file(
     line_ending: String,
     before_write: impl Fn(&Path) -> Result<(), String> + Send + 'static,
 ) -> Result<Option<PathBuf>, String> {
-    file_caller(&window)?;
-    if name.is_empty() || name.len() > 255 || name.contains(['/', '\\', ':', '\0']) {
-        return Err("文件名无效".into());
-    }
     if source.len() as u64 > MAX_BYTES {
         return Err("文件超过 4 MiB".into());
     }
@@ -1822,6 +1818,20 @@ pub async fn choose_save_file(
     bytes.extend_from_slice(text.as_bytes());
     if bytes.len() as u64 > MAX_BYTES {
         return Err("另存后文件超过 4 MiB".into());
+    }
+    choose_save_bytes(app, window, name, bytes, before_write).await
+}
+
+pub(crate) async fn choose_save_bytes(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    name: String,
+    bytes: Vec<u8>,
+    before_write: impl Fn(&Path) -> Result<(), String> + Send + 'static,
+) -> Result<Option<PathBuf>, String> {
+    file_caller(&window)?;
+    if name.is_empty() || name.len() > 255 || name.contains(['/', '\\', ':', '\0']) {
+        return Err("文件名无效".into());
     }
     let dialog = app.clone();
     tauri::async_runtime::spawn_blocking(move || -> Result<Option<PathBuf>, String> {

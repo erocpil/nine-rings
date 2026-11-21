@@ -19,6 +19,8 @@ export function DocumentReadingToolbar({
   onExpand,
   onFoldLevel,
   onCopy,
+  onExportPdf,
+  onExportHtml,
   canCopy = false,
 }: {
   toolbarRef?: RefObject<HTMLDivElement>;
@@ -33,6 +35,8 @@ export function DocumentReadingToolbar({
   onExpand: () => void;
   onFoldLevel: (level: number) => void;
   onCopy?: () => void;
+  onExportPdf?: () => void;
+  onExportHtml?: () => void;
   canCopy?: boolean;
 }) {
   const [foldMenu, setFoldMenu] = useState<HTMLElement | null>(null);
@@ -120,6 +124,8 @@ export function DocumentReadingToolbar({
             <ToolbarIcon name="copy" />
           </button>
         )}
+        {onExportPdf && <button type="button" className="menu-btn" aria-label="导出 PDF" title="导出 PDF" onClick={onExportPdf}><ToolbarIcon name="document" /></button>}
+        {onExportHtml && <button type="button" className="menu-btn" aria-label="导出 HTML" title="导出 HTML" onClick={onExportHtml}><ToolbarIcon name="code" /></button>}
       </DocumentToolbar>
       {foldMenu && (
         <BlockActionMenu

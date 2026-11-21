@@ -98,6 +98,9 @@ export default defineConfig(async () => {
             }
             // KaTeX only loads after a formula is mounted; ship its JS/fonts as
             // a local lazy chunk so math also works offline and on mobile.
+            if (normalized.includes("/node_modules/katex/dist/fonts/") && normalized.includes("?inline")) {
+              return /KaTeX_(Main|Math)-/.test(normalized) ? "document-export-main-fonts" : "document-export-symbol-fonts";
+            }
             if (normalized.includes("/node_modules/katex/")) return "katex";
             // PDF 阅读器是独立的按需界面；PDF.js 体积较大，不能并入普通
             // 文档首屏共用的 vendor chunk。

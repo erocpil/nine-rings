@@ -1,5 +1,31 @@
 import { pressLineBoundary } from "../helpers/keyboard";
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+
+test("HTML 导出包含完整正文、章节链接、公式和离线图片，剔除交互脚本", async ({ page }) => {
+  await page.goto("/");
+  const pending = page.waitForEvent("download");
+  await page.evaluate(async () => {
+    const { exportDocumentAsHtml } = await import("/src/lib/pdf-export.ts");
+    exportDocumentAsHtml({
+      title: "可移植文档.md",
+      contentHtml: `<p><a href="#章节-1">第二个章节</a></p><h2>章节</h2><h2>章节</h2>
+        <p><img src="./figure.svg" alt="本地图" width="80"><span data-nr-math="inline" source="x^2"></span></p>
+        <script>throw new Error("unexpected")</script><p onclick="alert(1)">正文</p>`,
+      resolveImage: async () => new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="24" height="20"></svg>'], { type: "image/svg+xml" }),
+    });
+  });
+  const downloaded = await pending;
+  expect(downloaded.suggestedFilename()).toBe("可移植文档.html");
+  const html = await readFile((await downloaded.path())!, "utf8");
+  expect(html).toMatch(/^<!doctype html>/);
+  expect(html).not.toMatch(/<script|onclick|class="print-actions"|\.\/figure\.svg/);
+  expect(html).toContain("data:image/svg+xml;base64,");
+  expect(html).toMatch(/src:url\(data:[^,;)]+;base64,/);
+  expect(html).toContain('id="章节-1"');
+  expect(html).toContain('href="#章节-1"');
+  expect(html).toContain('class="katex"');
+});
 
 test("桌面 PDF 导出把准备好的独立文档交给原生窗口并报告创建错误", async ({ page }) => {
   await page.goto("/");

@@ -9,8 +9,6 @@ static HIDDEN_AUXILIARY_WINDOWS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static JOB_OBJECT_ENABLED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 #[cfg(target_os = "macos")]
-mod macos_print;
-#[cfg(target_os = "macos")]
 mod macos_window;
 pub mod service;
 #[cfg(any(target_os = "windows", test))]
@@ -880,6 +878,7 @@ pub fn run() {
             commands::export::export_data,
             commands::window::open_pdf_print_preview,
             commands::window::print_pdf_document,
+            commands::window::save_rendered_html,
             commands::export::import_data,
             commands::export::export_to_file,
             commands::export::export_binary_to_file,

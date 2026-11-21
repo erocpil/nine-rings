@@ -19,3 +19,8 @@ windows = { version = "0.58", features = [
     "Win32_Security", "Win32_System_Com", "Win32_System_Registry", "Win32_Foundation",
     "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Storage_FileSystem",
 ] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWindow", "NSPrintInfo", "NSPrintOperation"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSOperation", "block2"] }

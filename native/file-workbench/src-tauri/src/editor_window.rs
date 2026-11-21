@@ -196,6 +196,36 @@ pub fn workbench_window_role(window: tauri::WebviewWindow) -> Result<&'static st
     }
 }
 #[tauri::command]
+pub async fn open_pdf_print_preview(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    title: String,
+    html: String,
+) -> Result<(), String> {
+    editor(&window)?;
+    nine_rings_file_host::pdf_print::open_pdf_print_preview(app, title, html)
+}
+
+#[tauri::command]
+pub async fn print_pdf_document(
+    window: tauri::WebviewWindow,
+    title: Option<String>,
+) -> Result<(), String> {
+    nine_rings_file_host::pdf_print::print_pdf_document(window, title).await
+}
+
+#[tauri::command]
+pub async fn save_rendered_html(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    name: String,
+    html: String,
+) -> Result<bool, String> {
+    editor(&window)?;
+    nine_rings_file_host::pdf_print::save_rendered_html(app, window, name, html).await
+}
+
+#[tauri::command]
 pub async fn workbench_open_editor(
     window: tauri::WebviewWindow,
     app: tauri::AppHandle,

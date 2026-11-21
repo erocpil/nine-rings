@@ -155,21 +155,7 @@ pub async fn open_pdf_print_preview(
     if window.label() != "main" {
         return Err("只能从主窗口导出文档".into());
     }
-    let label = format!("pdf-print-{}", uuid::Uuid::new_v4());
-    let payload = serde_json::to_string(&html).map_err(|e| e.to_string())?;
-    let job_title = serde_json::to_string(&title).map_err(|e| e.to_string())?;
-    tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::App("pdf-print.html".into()))
-        .title(format!("{} — PDF 打印预览", title))
-        .inner_size(900.0, 850.0)
-        .center()
-        .initialization_script(format!(
-            "window.__NR_PRINT_HTML = {}; window.__NR_PRINT_TITLE = {};",
-            payload, job_title
-        ))
-        .on_navigation(|url| url.path() == "/pdf-print.html")
-        .build()
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    nine_rings_file_host::pdf_print::open_pdf_print_preview(app, title, html)
 }
 
 #[tauri::command]
@@ -177,18 +163,20 @@ pub async fn print_pdf_document(
     window: tauri::WebviewWindow,
     title: Option<String>,
 ) -> Result<(), String> {
-    if !window.label().starts_with("pdf-print-") {
-        return Err("只能打印文档预览窗口".into());
+    nine_rings_file_host::pdf_print::print_pdf_document(window, title).await
+}
+
+#[tauri::command]
+pub async fn save_rendered_html(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+    name: String,
+    html: String,
+) -> Result<bool, String> {
+    if window.label() != "main" {
+        return Err("只能从主窗口导出文档".into());
     }
-    #[cfg(target_os = "macos")]
-    {
-        crate::macos_print::print_document(&window, title.unwrap_or_else(|| "无标题".into())).await
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = title;
-        window.print().map_err(|e| e.to_string())
-    }
+    nine_rings_file_host::pdf_print::save_rendered_html(app, window, name, html).await
 }
 
 #[tauri::command]

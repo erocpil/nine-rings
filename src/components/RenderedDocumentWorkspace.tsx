@@ -129,7 +129,8 @@ import {
 } from "../extensions/SearchHighlights";
 import { exportDocumentMarkdown } from "../lib/markdown-export";
 import { isTauri } from "../lib/tauri-desktop";
-import { exportDocumentAsPdf, type PdfDocumentInfo } from "../lib/pdf-export";
+import { exportDocumentAsHtml, exportDocumentAsPdf, type PdfDocumentInfo } from "../lib/pdf-export";
+import { useDocumentExportImages } from "../hooks/useDocumentExportImages";
 import { FULLSCREEN_WILL_CHANGE_EVENT } from "../lib/fullscreen";
 import { DocumentPanelTitle, OutlinePanelTitle } from "./OutlinePanelTitle";
 import { preserveReadingPositions } from "../lib/reading-position";
@@ -487,6 +488,7 @@ export function RenderedDocumentWorkspace(input: NoteEditorProps) {
 function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, workspaceHost, onCreateDocument, onHostEditorReady, onHostSelection, documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, documentCreatedAt, documentUpdatedAt, documentLastAccessedAt, documentType, documentPath, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenProperties, editorSessionId, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
   const referenceSearch = React.useContext(DocumentReferenceSearchContext);
   const allowImageLibrary = React.useContext(DocumentImageLibraryContext);
+  const resolveExportImage = useDocumentExportImages();
   const statusBar = useStatusBarDisplay(showStatusBar, focusMode);
   const [documentSerializer] = useState(() => new IncrementalDocumentSerializer());
   const noteEditorRef = useRef<HTMLDivElement>(null);
@@ -2908,6 +2910,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
       title: localTitle.trim() || "无标题",
       contentHtml: editor.getHTML(),
       metadata: pdfDocumentInfo,
+      resolveImage: resolveExportImage,
       onError: error => window.alert(`无法导出 PDF：${error.message}`),
     });
     if (!opened) {
@@ -2915,7 +2918,17 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
         ? "无法启动系统打印界面，请确认系统打印服务可用后重试。"
         : "无法打开 PDF 打印页，请允许此站点打开弹出窗口后重试。");
     }
-  }, [editor, localTitle, pdfDocumentInfo, workspaceHost?.pdfExport]);
+  }, [editor, localTitle, pdfDocumentInfo, resolveExportImage, workspaceHost?.pdfExport]);
+
+  const handleExportHtml = () => {
+    if (!editor) return;
+    exportDocumentAsHtml({
+      title: localTitle.trim() || "无标题",
+      contentHtml: editor.getHTML(),
+      metadata: pdfDocumentInfo,
+      resolveImage: resolveExportImage,
+    });
+  };
 
   useEffect(() => {
     if (!editor || pdfExportRequestId === undefined || pdfExportRequestId === lastPdfExportRequestIdRef.current) return;
@@ -3218,6 +3231,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
     "document.export-md": { run: () => handleExportMarkdown() },
     "document.export-text": { run: () => { void handleExportText(); } },
     "document.export-pdf": { run: handleExportPdf, enabled: workspaceHost?.pdfExport !== false },
+    "document.export-html": { run: handleExportHtml },
     ...Object.fromEntries((["bold", "italic", "strike", "code"] as const).map(mark => [`format.${mark}`, { run: () => editor?.chain().focus().toggleMark(mark).run(), checked: editor?.isActive(mark), shortcut: nativeFormatShortcut, enabled: !readonly && editor?.can().toggleMark(mark) }])),
     ...Object.fromEntries(([1, 2, 3, 4, 5, 6] as const).map(level => [`format.h${level}`, { run: () => editor?.chain().focus().toggleHeading({ level }).run(), checked: editor?.isActive("heading", { level }), shortcut: nativeFormatShortcut, enabled: !readonly }])),
     "format.paragraph": { checked: editor?.isActive("paragraph"), run: () => editor?.chain().focus().setParagraph().run(), shortcut: nativeFormatShortcut, enabled: !readonly },
@@ -4561,7 +4575,8 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
             const anchor = root ? captureEditorViewportAnchor(editor, root) : null;
             editor.view.dispatch(editor.state.tr.setMeta(headingFoldPluginKey, { type: "set", keys: sections.filter(section => section.level >= level && section.end > section.headingEnd).map(section => section.key) }));
             if (root && anchor) restoreEditorViewportAnchor(editor, root, anchor, sections, getCollapsedHeadingKeys(editor));
-          }} onCopy={() => { void handleCopy(); }} canCopy={hasSelection()} />}
+          }} onCopy={() => { void handleCopy(); }} canCopy={hasSelection()}
+          onExportPdf={workspaceHost?.pdfExport === false ? undefined : handleExportPdf} onExportHtml={handleExportHtml} />}
 
         {!readonly && (<DocumentToolbar
           ref={attachToolbar}
@@ -4663,7 +4678,7 @@ function FullDocumentWorkspace({ createDocumentLabel, onEditorConfigChange, work
               runToolbarFormat, changeSelectedBlockIndent, handleToggleCodeBlock,
               insertBlankBlockAfterCurrent, hasSelection, convertSelectionFromMarkdown,
               setTableSelection, copySelectedTableCells, clearSelectedTableCells, setTableCellAlignment,
-              handleCopy, handleCopyBlock, copyReference: workspaceHost?.references === false ? undefined : copyReference, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf: workspaceHost?.pdfExport === false ? undefined : handleExportPdf, openEditorReplace,
+              handleCopy, handleCopyBlock, copyReference: workspaceHost?.references === false ? undefined : copyReference, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf: workspaceHost?.pdfExport === false ? undefined : handleExportPdf, handleExportHtml, openEditorReplace,
               toggleCurrentBookmark, openDocumentBookmarks, setLinkDialogUrl, setLinkDialog, setImageDialog,
             }}
             editorFontSize={editorFontSize} onEditorFontSizeChange={onEditorFontSizeChange}

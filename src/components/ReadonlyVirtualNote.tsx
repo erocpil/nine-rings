@@ -119,6 +119,7 @@ export function ReadonlyVirtualNote(
     onSearchTargetConsumed,
   } = props;
   const statusBar = useStatusBarDisplay(props.showStatusBar, props.focusMode);
+  const resolveExportImage = useDocumentExportImages();
   const active = useDocumentActive();
   const outlineDisplayConfig = usePanelDisplay("document-outline");
   const bookmarkDisplayConfig = usePanelDisplay("bookmarks");
@@ -996,6 +997,14 @@ export function ReadonlyVirtualNote(
     actions.push(...blockSpecificMenu(blockReadingActions(bodyRef.current?.querySelector<HTMLElement>(`[data-reading-row][data-position="${pos}"]`) ?? null, node.type.name)));
     return actions;
   };
+  const exportDocument = (format: "pdf" | "html") => {
+    const snapshot = document.implementation.createHTMLDocument();
+    const body = snapshot.body;
+    body.append(DOMSerializer.fromSchema(doc.type.schema).serializeFragment(doc.content, { document: snapshot }));
+    const options = { title: props.title ?? "无标题", contentHtml: body.innerHTML, metadata: props.pdfDocumentInfo, resolveImage: resolveExportImage };
+    if (format === "html") exportDocumentAsHtml(options);
+    else if (!exportDocumentAsPdf(options)) window.alert("无法打开 PDF 打印页，请允许此站点打开弹出窗口后重试。");
+  };
   const toolbar = (
     <>
       {!props.showLineNumbers && <button type="button" title="块级操作" aria-label="块级操作" data-title-block-menu="true" aria-haspopup="menu" aria-expanded={blockMenu !== null} onMouseDown={event => event.preventDefault()} onClick={event => {
@@ -1008,6 +1017,8 @@ export function ReadonlyVirtualNote(
         setBlockMenu(current => current?.trigger === trigger && current.doc === doc ? null : { position, number: index + 1, trigger, doc });
       }}><ToolbarIcon name="copy" /></button>}
       {props.documentViewToggle}
+      {props.workspaceHost?.pdfExport !== false && <button type="button" title="导出 PDF" aria-label="导出 PDF" onClick={() => exportDocument("pdf")}><ToolbarIcon name="document" /></button>}
+      <button type="button" title="导出 HTML" aria-label="导出 HTML" onClick={() => exportDocument("html")}><ToolbarIcon name="code" /></button>
       <button
         ref={outlineTriggerRef}
         type="button"
@@ -1565,3 +1576,6 @@ export function ReadonlyVirtualNote(
     </div></DocumentOutlineContext.Provider>
   );
 }
+import { DOMSerializer } from "@tiptap/pm/model";
+import { exportDocumentAsHtml, exportDocumentAsPdf } from "../lib/pdf-export";
+import { useDocumentExportImages } from "../hooks/useDocumentExportImages";

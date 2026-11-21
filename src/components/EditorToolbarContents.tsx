@@ -76,6 +76,7 @@ export interface EditorToolbarProps {
     handleClipboardPaste: () => Promise<void>;
     handleExportMarkdown: () => Promise<void>;
     handleExportPdf?: () => void;
+    handleExportHtml?: () => void;
     openEditorReplace: () => void;
     toggleCurrentBookmark: () => void;
     openDocumentBookmarks: () => void;
@@ -134,7 +135,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     changeSelectedBlockIndent, handleToggleCodeBlock,
     hasSelection, convertSelectionFromMarkdown,
     setTableSelection, copySelectedTableCells, clearSelectedTableCells, setTableCellAlignment,
-    handleCopy, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf,
+    handleCopy, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf, handleExportHtml,
     setLinkDialogUrl, setLinkDialog, setImageDialog,
   } = actions;
   const toggleBlockquote = () => {
@@ -425,6 +426,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     </span>
     {btn(<ToolbarIcon name="export" />, () => { void handleExportMarkdown(); }, false, "导出 Markdown", false, "document.export-md")}
     {handleExportPdf && btn(<ToolbarIcon name="document" />, handleExportPdf, false, "导出 PDF", false, "document.export-pdf")}
+    {handleExportHtml && btn(<ToolbarIcon name="code" />, handleExportHtml, false, "导出 HTML", false, "document.export-html")}
     <span className="menu-sep" />
     <span className="toolbar-font-actions" data-toolbar-tool="font">
     {btn("A⁻", () => onEditorFontSizeChange(Math.max(12, editorFontSize - 1)), false, "缩小字号", editorFontSize <= 12)}

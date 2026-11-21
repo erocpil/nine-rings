@@ -32,7 +32,7 @@ export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify("file-workbench-prototype") },
   resolve: { alias: { "decode-named-character-reference": fileURLToPath(new URL("./node_modules/decode-named-character-reference/index.js", import.meta.url)) } },
   worker: { format: "es", plugins: () => [pcre2Assets()] },
-  build: { outDir: ".local-tools/file-workbench-dist", rollupOptions: { input: fileURLToPath(new URL("./file-workbench.html", import.meta.url)), output: {
+  build: { outDir: ".local-tools/file-workbench-dist", rollupOptions: { input: { workbench: fileURLToPath(new URL("./file-workbench.html", import.meta.url)), pdfPrint: fileURLToPath(new URL("./pdf-print.html", import.meta.url)) }, output: {
     onlyExplicitManualChunks: true,
     manualChunks(id) {
       // The shared source editor must not pull CodeMirror's base runtime into a
@@ -43,6 +43,9 @@ export default defineConfig({
       if (/\/node_modules\/(?:mermaid|@mermaid-js|d3-[^/]+|cytoscape|dagre-d3-es|@dagrejs|@iconify)\//.test(normalized)) return undefined;
       if (/\/node_modules\/(?:@tiptap|prosemirror-[^/]+)\//.test(normalized)) return "document-runtime";
       if (/\/node_modules\/(?:lodash-es|dayjs|dompurify|marked|roughjs|stylis|ts-dedent)\//.test(normalized)) return "diagram-utilities";
+      if (normalized.includes("/node_modules/katex/dist/fonts/") && normalized.includes("?inline")) {
+        return /KaTeX_(Main|Math)-/.test(normalized) ? "document-export-main-fonts" : "document-export-symbol-fonts";
+      }
       if (normalized.includes("/node_modules/katex/")) return "math-runtime";
       return undefined;
     },

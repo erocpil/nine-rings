@@ -1971,7 +1971,10 @@ test("Markdown 渲染正文可编辑并保存，源码往返保留会话、撤�
   expect(await page.evaluate(() => (window as any).__markdownDisk.writes)).toBe(0);
   await rendered.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
   await expect(body).toBeEditable();
-  await expect(rendered.getByRole("button", { name: "导出 PDF", exact: true })).toHaveCount(0);
+  await expect(rendered.getByRole("button", { name: "导出 PDF", exact: true })).toHaveCount(1);
+  const htmlDownload = page.waitForEvent("download");
+  await rendered.getByRole("button", { name: "导出 HTML", exact: true }).click();
+  expect(await readFile((await (await htmlDownload).path())!, "utf8")).toContain("Original paragraph.");
   const exportFromToolbar = page.waitForEvent("download");
   await rendered.getByRole("button", { name: "导出 Markdown", exact: true }).click();
   expect(await readFile((await (await exportFromToolbar).path())!, "utf8")).toBe(await page.evaluate(() => (window as any).__markdownDisk.source));
@@ -2663,6 +2666,38 @@ test("独立编辑器轮询发现渲染正文冲突，保留编辑和磁盘副�
 
 const markdownTestImage = (width: number) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="20"><rect width="${width}" height="20" fill="teal"/></svg>`;
+
+test("Workbench 桌面渲染将包含授权图片的正文交给原生 PDF 和 HTML 导出", async ({ page }) => {
+  await setupIndependentEditor(page, {
+    "guide.md": "## Heading\n\nPortable content.\n\n![Local](figure.svg)",
+  }, "guide.md", { "figure.svg": markdownTestImage(37) });
+  await page.evaluate(() => {
+    const host = window as typeof window & {
+      __TAURI_INTERNALS__: { invoke: (command: string, args: unknown) => Promise<unknown> };
+      exportInvokes: Array<{ command: string; args: unknown }>;
+    };
+    const invoke = host.__TAURI_INTERNALS__.invoke;
+    host.exportInvokes = [];
+    host.__TAURI_INTERNALS__.invoke = async (command, args) => {
+      if (command === "open_pdf_print_preview" || command === "save_rendered_html") {
+        host.exportInvokes.push({ command, args });
+        return true;
+      }
+      return invoke(command, args);
+    };
+  });
+  const rendered = page.locator(".workbench-rendered-session:visible");
+  await expect(rendered.locator(".ProseMirror")).toHaveAttribute("contenteditable", "false");
+  await rendered.getByRole("button", { name: "导出 PDF", exact: true }).click();
+  await rendered.getByRole("button", { name: "导出 HTML", exact: true }).click();
+  const calls = () => page.evaluate(() => (window as unknown as { exportInvokes: Array<{ command: string; args: { name?: string; html: string } }> }).exportInvokes);
+  await expect.poll(async () => (await calls()).map(call => call.command).sort()).toEqual(["open_pdf_print_preview", "save_rendered_html"]);
+  for (const { args } of await calls()) {
+    expect(args.html).toContain("data:image/svg+xml;base64,");
+    expect(args.html).toContain("Portable content.");
+  }
+  expect((await calls()).find(call => call.command === "save_rendered_html")?.args.name).toBe("guide.html");
+});
 
 test("Markdown 相对图片在独立编辑器的只读和可编辑视图中共用授权读取", async ({ page }) => {
   const note = "practice/lesson.md";

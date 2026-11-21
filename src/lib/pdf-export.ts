@@ -5,7 +5,9 @@ import { applyCodeHighlighting } from "./code-highlight";
 import { isTauriRuntime } from "./runtime";
 import { renderMermaid } from "./mermaid-render";
 import { selectDocumentToc } from "./document-outline";
-import { tocLevels, outlineLabel } from "./heading-links";
+import { headingSlug, tocLevels, outlineLabel } from "./heading-links";
+import { isBundledImageSource } from "./sync/image-source-policy";
+import { calloutCaption } from "./markdown-callout";
 
 export interface PdfDocumentInfo extends DocumentMetadata {
   documentType?: string;
@@ -20,6 +22,7 @@ export interface PdfExportOptions {
   title: string;
   contentHtml: string;
   metadata?: PdfDocumentInfo;
+  resolveImage?: (source: string) => Promise<string | Blob | null>;
   onError?: (error: Error) => void;
 }
 
@@ -135,14 +138,9 @@ const PRINT_STYLES = `
 `;
 
 function headingId(text: string, index: number, used: Set<string>): string {
-  const base = text
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^\p{Letter}\p{Number}_-]/gu, "")
-    .slice(0, 64) || `section-${index + 1}`;
+  const base = headingSlug(text) || `section-${index + 1}`;
   let candidate = base;
-  let suffix = 2;
+  let suffix = 1;
   while (used.has(candidate)) candidate = `${base}-${suffix++}`;
   used.add(candidate);
   return candidate;
@@ -152,34 +150,28 @@ function headingId(text: string, index: number, used: Set<string>): string {
  * Open a dedicated print view. The system print dialog can save it as a PDF;
  * keeping this path HTML-based preserves selectable text, links and tables.
  */
-export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: PdfExportOptions): boolean {
-  // Prepare desktop content in an isolated frame, then print a dedicated native WebView.
-  const printFrame = isTauriRuntime() ? document.createElement("iframe") : null;
-  if (printFrame) {
-    printFrame.title = "PDF 打印文档";
-    printFrame.setAttribute("aria-hidden", "true");
-    Object.assign(printFrame.style, {
-      position: "fixed",
-      width: "1px",
-      height: "1px",
-      right: "0",
-      bottom: "0",
-      border: "0",
-      opacity: "0",
-      pointerEvents: "none",
-    });
-    document.body.append(printFrame);
-  }
-  const printWindow = printFrame?.contentWindow ?? window.open("", "_blank");
-  if (!printWindow) return false;
+export function exportDocumentAsPdf(options: PdfExportOptions): boolean {
+  return exportRenderedDocument(options, "pdf");
+}
+
+export function exportDocumentAsHtml(options: PdfExportOptions): void {
+  exportRenderedDocument(options, "html");
+}
+
+function exportRenderedDocument({ title, contentHtml, metadata, resolveImage, onError }: PdfExportOptions, format: "pdf" | "html"): boolean {
+  // Desktop and HTML exports build an inert document. The native print
+  // window waits for that snapshot's fonts and images after mounting it.
+  const nativePrint = format === "pdf" && isTauriRuntime();
+  const browserPrint = format === "pdf" && !nativePrint;
+  const printWindow = browserPrint ? window.open("", "_blank") : null;
+  if (browserPrint && !printWindow) return false;
 
   const closePrintView = () => {
-    if (printFrame) printFrame.remove();
-    else printWindow.close();
+    printWindow?.close();
   };
 
-  const printDocument = printWindow.document;
-  printDocument.title = `${title || "无标题"}.pdf`;
+  const printDocument = printWindow?.document ?? document.implementation.createHTMLDocument();
+  printDocument.title = format === "pdf" ? `${title || "无标题"}.pdf` : title || "无标题";
   printDocument.documentElement.lang = "zh-CN";
 
   const charset = printDocument.createElement("meta");
@@ -190,6 +182,12 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
   const style = printDocument.createElement("style");
   style.textContent = PRINT_STYLES;
   const headNodes: HTMLElement[] = [charset, viewport, style];
+  if (format === "html") {
+    const policy = printDocument.createElement("meta");
+    policy.httpEquiv = "Content-Security-Policy";
+    policy.content = "default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'";
+    headNodes.unshift(policy);
+  }
   for (const [name, value] of [
     ["author", metadata?.author],
     ["description", metadata?.summary],
@@ -214,7 +212,7 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
   printButton.className = "primary";
   printButton.textContent = "打印 / 存储为 PDF";
   printButton.disabled = true;
-  printButton.addEventListener("click", () => printWindow.print());
+  printButton.addEventListener("click", () => printWindow?.print());
   actions.append(closeButton, printButton);
 
   const wrapper = printDocument.createElement("main");
@@ -265,7 +263,7 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
   content.className = "document-content";
   const template = printDocument.createElement("template");
   template.innerHTML = contentHtml;
-  template.content.querySelectorAll("script, iframe, object, embed, style, link, .code-block-copy, [data-pdf-exclude]")
+  template.content.querySelectorAll("script, iframe, object, embed, style, link, base, meta, form, .code-block-copy, [data-pdf-exclude]")
     .forEach((node) => node.remove());
   template.content.querySelectorAll<HTMLElement>(".ProseMirror-activeline, .heading-fold-hidden, [data-heading-fold-hidden]")
     .forEach((element) => {
@@ -276,17 +274,37 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
     });
   template.content.querySelectorAll<HTMLElement>("*").forEach((element) => {
     for (const attribute of [...element.attributes]) {
-      if (attribute.name.toLowerCase().startsWith("on")) element.removeAttribute(attribute.name);
+      if (attribute.name.toLowerCase().startsWith("on") || attribute.name === "srcset") element.removeAttribute(attribute.name);
     }
     for (const attributeName of ["href", "src"]) {
-      const value = element.getAttribute(attributeName)?.trim().toLowerCase();
-      if (value?.startsWith("javascript:")) element.removeAttribute(attributeName);
+      if (element.tagName === "IMG" && attributeName === "src") continue;
+      const value = element.getAttribute(attributeName);
+      const colon = value?.indexOf(":") ?? -1;
+      if (!value || colon < 0) continue;
+      const scheme = Array.from(value.slice(0, colon)).filter(character => character.charCodeAt(0) > 32).join("").toLowerCase();
+      if (/^[a-z][a-z0-9+.-]*$/.test(scheme) && !["http", "https", "mailto", "tel"].includes(scheme)) element.removeAttribute(attributeName);
     }
   });
   template.content.querySelectorAll<HTMLElement>("pre[data-language] > code").forEach((code) => {
     applyCodeHighlighting(code, code.parentElement?.getAttribute("data-language"));
   });
-  content.append(template.content.cloneNode(true));
+  const imageSources = [...template.content.querySelectorAll<HTMLImageElement>("img")].map(image => {
+    const src = image.getAttribute("data-document-image-src") ?? image.getAttribute("src") ?? "";
+    image.removeAttribute("src");
+    image.removeAttribute("data-document-image-src");
+    return { image, src };
+  });
+  content.append(template.content);
+  const resolvedImages = new Map<string, Promise<string>>();
+  const imagePreparation = Promise.all(imageSources.map(async ({ image, src }) => {
+    let result = resolvedImages.get(src);
+    if (!result) {
+      result = printableImage(src, resolveImage).catch(() => "");
+      resolvedImages.set(src, result);
+    }
+    const url = await result;
+    if (url) image.setAttribute("src", url);
+  }));
   const quotePalette = blockWorkspacePreferences().quoteAlertColors === "style" ? null : quoteAlertPalette(["#ffffff"], "#202124");
   content.querySelectorAll<HTMLElement>("blockquote[data-alert]").forEach(quote => {
     const kind = quote.getAttribute("data-alert") as QuoteAlert;
@@ -296,7 +314,9 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
     quote.style.borderLeftColor = ink;
     quote.style.background = `color-mix(in srgb, ${ink} 3.5%, white)`;
     const caption = printDocument.createElement("div");
-    caption.textContent = `${definition.symbol} ${definition.label}`;
+    const calloutType = quote.getAttribute("data-callout-type");
+    const label = calloutType ? calloutCaption({ type: calloutType, title: quote.getAttribute("data-callout-title") ?? "", fold: null }) : definition.label;
+    caption.textContent = `${definition.symbol} ${label}`;
     caption.style.cssText = `color:${ink};font-weight:600`;
     quote.prepend(caption);
   });
@@ -318,9 +338,9 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
     });
     const formulas = [...content.querySelectorAll<HTMLElement>("[data-nr-math]")];
     if (formulas.length) {
-      const [katex, css] = await Promise.all([import("katex"), import("katex/dist/katex.min.css?inline")]);
+      const [katex, css] = await Promise.all([import("katex"), import("./portable-math-css").then(module => module.portableMathCSS())]);
       const mathStyle = printDocument.createElement("style");
-      mathStyle.textContent = css.default;
+      mathStyle.textContent = css;
       printDocument.head.append(mathStyle);
       for (const formula of formulas) formula.innerHTML = katex.default.renderToString(formula.getAttribute("source") ?? formula.getAttribute("data-source") ?? "", { displayMode: formula.getAttribute("data-nr-math") === "block", throwOnError: false, trust: false });
     }
@@ -347,7 +367,7 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
   // give every destination a stable id, but do not insert a visible TOC page in
   // the exported body.
   documentTitle.id = "document-title";
-  const usedIds = new Set<string>([documentTitle.id]);
+  const usedIds = new Set<string>([documentTitle.id, ...[...content.querySelectorAll("a[id], a[name]")].flatMap(anchor => [anchor.getAttribute("id"), anchor.getAttribute("name")].filter((id): id is string => Boolean(id)))]);
   const headings = [...content.querySelectorAll<HTMLHeadingElement>("h1, h2, h3, h4, h5, h6")];
   headings.forEach((heading, index) => {
     const existingId = heading.id.trim();
@@ -361,8 +381,8 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
   })();
 
   wrapper.append(...coverNodes, content);
-  printDocument.body.replaceChildren(actions, wrapper);
-  if (!printFrame) printWindow.opener = null;
+  printDocument.body.replaceChildren(...(format === "pdf" ? [actions, wrapper] : [wrapper]));
+  if (printWindow) printWindow.opener = null;
 
   // Let fonts and images settle before opening the system dialog. The visible
   // print button remains available when a platform suppresses automatic print.
@@ -379,26 +399,67 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata, onError }: P
   const timeout = new Promise<void>((resolve) => window.setTimeout(resolve, 1800));
   return Promise.race([Promise.all([imageReady, fontsReady]), timeout]);
   };
-  void Promise.race([diagramReady, new Promise<void>(resolve => window.setTimeout(resolve, 10_000))])
+  void Promise.all([imagePreparation, Promise.race([diagramReady, new Promise<void>(resolve => window.setTimeout(resolve, 10_000))])])
     .then(() => {
+      if (format === "html") return saveHTML(title, `<!doctype html>\n${printDocument.documentElement.outerHTML}`);
       printButton.disabled = false;
+      if (nativePrint) {
+        return import("@tauri-apps/api/core").then(({ invoke }) => invoke("open_pdf_print_preview", {
+          title: title.trim() || "无标题", html: printDocument.documentElement.outerHTML,
+        }));
+      }
       return assetsReady();
     }).then(() => {
-    if ((!printFrame && printWindow.closed) || (printFrame && !printFrame.isConnected)) return;
-    if (printFrame) {
-      return import("@tauri-apps/api/core").then(({ invoke }) => invoke("open_pdf_print_preview", {
-        title: title.trim() || "无标题", html: printDocument.documentElement.outerHTML,
-      })).finally(closePrintView);
-    }
+    if (!printWindow || printWindow.closed) return;
     printWindow.focus();
     printWindow.print();
   }).catch(reason => {
     closePrintView();
     const error = reason instanceof Error ? reason : new Error(String(reason));
     if (onError) onError(error);
-    else window.alert(`无法导出 PDF：${error.message}`);
+    else window.alert(`无法导出 ${format.toUpperCase()}：${error.message}`);
   });
   return true;
+}
+
+async function printableImage(source: string, resolve?: PdfExportOptions["resolveImage"]): Promise<string> {
+  if (/^(https?:|data:image\/)/i.test(source)) return source;
+  let asset = await resolve?.(source);
+  if (!asset && isBundledImageSource(source)) {
+    const response = await fetch(source);
+    asset = response.ok ? await response.blob() : null;
+  }
+  if (typeof asset === "string") {
+    if (/^data:image\//i.test(asset)) return asset;
+    if (!asset.startsWith("blob:")) return "";
+    const response = await fetch(asset);
+    asset = response.ok ? await response.blob() : null;
+  }
+  if (!asset?.type.startsWith("image/")) return "";
+  const blob = asset;
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function saveHTML(title: string, html: string): Promise<void> {
+  const stem = Array.from(title.trim().replace(/\.(?:md|markdown)$/i, "")).slice(0, 60)
+    .map(character => character.charCodeAt(0) < 32 || /[\\/:*?"<>|]/.test(character) ? "-" : character).join("");
+  const name = `${stem || "无标题"}.html`;
+  if (isTauriRuntime()) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("save_rendered_html", { name, html });
+    return;
+  }
+  const href = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.download = name;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(href), 0);
 }
 
 /** Materialize configured TOCs after all rendered headings have their PDF IDs. */

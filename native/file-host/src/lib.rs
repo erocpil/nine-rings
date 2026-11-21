@@ -5,3 +5,5 @@ mod local_file_transfer;
 pub mod local_files;
 
 pub mod window_access;
+
+pub mod pdf_print;
