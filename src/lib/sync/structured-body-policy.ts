@@ -690,7 +690,7 @@ function validEmbed(op: Record<string, unknown>, depth: number): boolean {
     return (
       quote.version === 1 &&
       Object.keys(quote).every((key) =>
-        ["version", "content", "alert"].includes(key),
+        ["version", "content", "alert", "callout"].includes(key),
       ) &&
       (quote.alert === undefined ||
         (typeof quote.alert === "string" &&
@@ -698,6 +698,13 @@ function validEmbed(op: Record<string, unknown>, depth: number): boolean {
             quote.alert,
           ))) &&
       (attrs.blockquote === undefined || attrs.blockquote === true) &&
+      (quote.callout === undefined || (
+        record(quote.callout) &&
+        Object.keys(quote.callout).every(key => ["type", "title", "fold"].includes(key)) &&
+        typeof quote.callout.type === "string" && /^[\w-]+$/.test(quote.callout.type) &&
+        isCertifiedHTMLSource(quote.callout.title) && !/[\r\n]/.test(quote.callout.title) &&
+        (quote.callout.fold === null || quote.callout.fold === "+" || quote.callout.fold === "-")
+      )) &&
       child(quote.content)
     );
   }

@@ -1,5 +1,28 @@
 import { test, expect } from "@playwright/test";
 import { createBlankDocument, waitForSavedText } from "../helpers/document";
+import { sourceInfo } from "../helpers/source-editor";
+
+test("Markdown 方言共用目录和提示引用，折叠后源码仍可往返", async ({ page }) => {
+  await createBlankDocument(page, "Markdown dialect");
+  await page.locator(".ProseMirror:visible").evaluate(async element => {
+    const { mdToDelta } = await import("/src/lib/md-parser.ts");
+    const { deltaToProseMirror } = await import("/src/lib/delta-converter.ts");
+    const editor = (element as HTMLElement & { editor: { commands: { setContent: (json: unknown, emit: boolean) => void } } }).editor;
+    editor.commands.setContent(deltaToProseMirror(mdToDelta("[toc]\n\n## Contents destination\n\n> [!question]- Custom title\n> Hidden callout body")), true);
+  });
+  await waitForSavedText(page, "Contents destination");
+  const root = page.locator(".note-editor:visible .editor-content").first();
+  await expect(root.locator(".document-toc-block").getByText("Contents destination", { exact: true })).toHaveCount(1);
+  const quote = root.locator("blockquote");
+  await expect(quote.getByText("Custom title")).toBeVisible();
+  await expect(quote).toHaveAttribute("data-collapsed", "true");
+  await expect.poll(() => quote.locator(".blockquote-content").evaluate(element => element.clientHeight)).toBe(0);
+  await quote.getByRole("button", { name: "展开引用块", exact: true }).click();
+  await expect.poll(() => quote.locator(".blockquote-content").evaluate(element => element.clientHeight)).toBeGreaterThan(0);
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  await expect.poll(async () => (await sourceInfo(source)).value).toMatch(/^\[toc\][\s\S]*> \[!question\]- Custom title/);
+});
 
 for (const mode of ["edit", "readonly", "virtual", "source"]) {
   test(`GFM structure is consistent in ${mode}`, async ({ page }) => {

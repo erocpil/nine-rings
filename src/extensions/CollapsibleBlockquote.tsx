@@ -4,6 +4,7 @@ import { useState } from "react";
 import { openBlockWorkspace } from "../lib/block-workspace";
 import { BlockquoteToolbar } from "../components/BlockquoteToolbar";
 import { editorReadingBlocks } from "./ReadingBlockSession";
+import { calloutCaption } from "../lib/markdown-callout";
 
 export const blockquoteFoldTransactionMeta = "nine-rings:blockquote-fold";
 
@@ -48,7 +49,7 @@ function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
       className="blockquote-node-view"
       data-workspace-collapsed={readingCollapsed === null ? undefined : String(readingCollapsed)}
     >
-      <BlockquoteToolbar alert={node.attrs.alert} text={node.textContent} collapsed={collapsed} toggle={toggle}
+      <BlockquoteToolbar alert={node.attrs.alert} title={calloutCaption(node.attrs.callout)} text={node.textContent} collapsed={collapsed} toggle={toggle}
         onOpen={event => openBlockWorkspace(editor, getPos(), event.currentTarget)} />
       <NodeViewContent className="blockquote-content" />
     </NodeViewWrapper>
@@ -60,6 +61,20 @@ export const CollapsibleBlockquote = Blockquote.extend({
     return {
       ...this.parent?.(),
       alert: { default: null, parseHTML: element => element.getAttribute("data-alert"), renderHTML: attributes => attributes.alert ? { "data-alert": attributes.alert } : {} },
+      callout: {
+        default: null,
+        parseHTML: element => {
+          const type = element.getAttribute("data-callout-type");
+          if (!type || !/^[\w-]+$/.test(type)) return null;
+          const fold = element.getAttribute("data-callout-fold");
+          return { type, title: element.getAttribute("data-callout-title") ?? "", fold: fold === "+" || fold === "-" ? fold : null };
+        },
+        renderHTML: ({ callout }) => callout ? {
+          "data-callout-type": callout.type,
+          "data-callout-title": callout.title,
+          "data-callout-fold": callout.fold,
+        } : {},
+      },
       collapsed: {
         default: false,
         parseHTML: (element) => element.getAttribute("data-collapsed") === "true",

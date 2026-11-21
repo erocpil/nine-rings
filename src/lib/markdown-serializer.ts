@@ -238,22 +238,29 @@ function block(node: JSONContent): RootContent[] {
           children: inline(content),
         },
       ];
-    case "codeBlock":
+    case "codeBlock": {
+      const value = content.map((child) => child.text ?? "").join("");
+      const shorthand = node.attrs?.language === "toc" && /^\[toc\]$/i.test(String(node.attrs?.meta ?? ""));
+      if (shorthand && !value.trim()) return [{ type: "html", value: node.attrs?.meta }];
       return [
         {
           type: "code",
           lang: node.attrs?.language ?? null,
-          meta: node.attrs?.meta ?? null,
-          value: content.map((child) => child.text ?? "").join(""),
+          meta: shorthand ? null : node.attrs?.meta ?? null,
+          value,
         },
       ];
+    }
     case "blockquote": {
       const children = content.flatMap(block) as BlockContent[];
-      if (node.attrs?.alert)
+      const callout = node.attrs?.callout;
+      if (node.attrs?.alert || callout)
         children.unshift({
           type: "paragraph",
           data: { nrAlert: true },
-          children: [{ type: "text", value: `[!${node.attrs.alert}]` }],
+          children: [{ type: "text", value: callout
+            ? `[!${callout.type}]${callout.fold ?? ""}${callout.title ? ` ${callout.title}` : ""}`
+            : `[!${node.attrs?.alert}]` }],
         });
       return [{ type: "blockquote", children }];
     }

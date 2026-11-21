@@ -14,6 +14,7 @@ import { bareLinkParts, CJK_LINK_BOUNDARY } from "./bare-autolinks";
 import { cjkEmphasis } from "./cjk-emphasis";
 import { markdownFrontMatter } from "./markdown-front-matter";
 import { htmlImageDimensions } from "./markdown-image-dimensions";
+import { calloutAlert, type MarkdownCallout } from "./markdown-callout";
 
 export function markdownAST(source: string): Root {
   return parseAst(source, markdownFrontMatter(source));
@@ -528,6 +529,11 @@ function blocks(
     switch (node.type) {
       case "paragraph":
       case "heading": {
+        const raw = context.source.slice(node.position?.start.offset, node.position?.end.offset);
+        if (node.type === "paragraph" && /^\[toc\]$/i.test(raw.trim())) {
+          ops.push({ insert: "\n", attributes: { "code-block": true, language: "toc", "code-meta": raw.trim(), "indent-explicit": true } });
+          break;
+        }
         const first = node.children[0];
         if (
           node.type === "paragraph" &&
@@ -594,26 +600,22 @@ function blocks(
         break;
       case "blockquote": {
         const first = node.children[0];
-        const alert =
-          first?.type === "paragraph" && first.children[0]?.type === "text"
-            ? /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\n|$)/.exec(
-                first.children[0].value,
-              )?.[1]
-            : undefined;
+        const from = first?.position?.start.offset;
+        const line = from === undefined ? "" : /^[^\r\n]*/.exec(context.source.slice(from))?.[0] ?? "";
+        const marker = first?.type === "paragraph" ? /^\[!([\w-]+)\]([+-])?(?:[\t ]+(.*))?$/.exec(line.trimEnd()) : null;
+        const github = marker && !marker[2] && !marker[3] && /^(NOTE|TIP|IMPORTANT|WARNING|CAUTION)$/.test(marker[1]);
+        const callout: MarkdownCallout | undefined = marker && !github ? { type: marker[1], title: marker[3] ?? "", fold: (marker[2] as "+" | "-" | undefined) ?? null } : undefined;
+        const alert = marker ? calloutAlert(marker[1]) : undefined;
         let children = node.children;
-        if (
-          alert &&
-          first?.type === "paragraph" &&
-          first.children[0]?.type === "text"
-        ) {
-          const remaining = {
-            ...first.children[0],
-            value: first.children[0].value.replace(/^\[![A-Z]+\]\n?/, ""),
-          };
-          children = [
-            { ...first, children: [remaining, ...first.children.slice(1)] },
-            ...node.children.slice(1),
-          ];
+        if (marker && from !== undefined && first?.type === "paragraph") {
+          const end = from + line.length;
+          const body = first.children.flatMap(child => {
+            if ((child.position?.start.offset ?? 0) > end) return [child];
+            if (child.type !== "text" || (child.position?.end.offset ?? 0) <= end) return [];
+            const value = child.value.replace(/^[^\r\n]*(?:\r\n|\r|\n|$)/, "");
+            return value ? [{ ...child, value }] : [];
+          });
+          children = [...(body.length ? [{ ...first, children: body }] : []), ...node.children.slice(1)];
         }
         const childSpans: MarkdownSourceSpan[] = [];
         const content = blocks(
@@ -638,9 +640,9 @@ function blocks(
         ops.push(
           {
             insert: {
-              blockquote: { version: 1, content, ...(alert ? { alert } : {}) },
+              blockquote: { version: 1, content, ...(alert ? { alert } : {}), ...(callout ? { callout } : {}) },
             },
-            attributes: { "indent-explicit": true },
+            attributes: { "indent-explicit": true, ...(callout?.fold === "-" ? { "blockquote-collapsed": true } : {}) },
           },
           { insert: "\n" },
         );

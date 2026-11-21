@@ -220,7 +220,7 @@ export function renderReadonlyBlock(
           className="blockquote-wrap" data-alert={node.attrs.alert || undefined}
           data-collapsed={String(collapsed)}
         >
-          <BlockquoteToolbar alert={node.attrs.alert} text={node.textContent} collapsed={collapsed}
+          <BlockquoteToolbar alert={node.attrs.alert} title={calloutCaption(node.attrs.callout)} text={node.textContent} collapsed={collapsed}
             position={pos} toggle={() => update(pos, { collapsed: !collapsed })} />
           {!collapsed && <div className="blockquote-content">{children}</div>}
         </blockquote>
@@ -297,3 +297,4 @@ export function decorateFlowBlock(block: React.ReactNode, attrs?: Record<string,
   const { class: flowClass, ...data } = attrs;
   return React.cloneElement(block, { ...data, className: `${block.props.className ?? ""} ${flowClass}` });
 }
+import { calloutCaption } from "../lib/markdown-callout";

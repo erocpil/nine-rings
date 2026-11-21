@@ -153,7 +153,7 @@ export function proseMirrorToDelta(pmJson: JSONContent | null | undefined): Delt
           };
           const blocks = node.content?.length ? node.content : [{ type: "paragraph", content: [] }];
           if (blocks.some(block => block.type !== "paragraph") || node.attrs?.alert || node.attrs?.indentExplicit === true) {
-            ops.push({ insert: { blockquote: { version: 1, content: proseMirrorToDelta({ type: "doc", content: blocks }).ops, ...(node.attrs?.alert ? { alert: node.attrs.alert } : {}) } }, attributes });
+            ops.push({ insert: { blockquote: { version: 1, content: proseMirrorToDelta({ type: "doc", content: blocks }).ops, ...(node.attrs?.alert ? { alert: node.attrs.alert } : {}), ...(node.attrs?.callout ? { callout: node.attrs.callout } : {}) } }, attributes });
             ops.push({ insert: "\n" });
             break;
           }
@@ -644,7 +644,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         continue;
       }
       if (insert.blockquote && typeof insert.blockquote === "object" && Array.isArray((insert.blockquote as { content?: unknown }).content)) {
-        const quote = insert.blockquote as { content: DeltaOp[] };
+        const quote = insert.blockquote as { content: DeltaOp[]; alert?: unknown; callout?: unknown };
         const body = deltaToProseMirror({ ops: quote.content }).content;
         const quoteNode = {
           type: "blockquote",
@@ -652,7 +652,8 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
             indent: Math.max(0, Math.min(8, Math.floor(Number(attrs.indent) || 0))),
             indentExplicit: attrs["indent-explicit"] === true,
             collapsed: attrs["blockquote-collapsed"] === true,
-            alert: (insert.blockquote as { alert?: unknown }).alert ?? null,
+            alert: quote.alert ?? null,
+            ...(quote.callout ? { callout: quote.callout } : {}),
           },
           content: body.length ? body : [{ type: "paragraph", content: [] }],
         };
