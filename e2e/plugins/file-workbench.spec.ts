@@ -2871,6 +2871,16 @@ test("长 Markdown 快速预览解析截断边界后的定义，并可打开完�
 });
 
 test("Markdown 快速预览直接查找渲染正文并连续定位", async ({ page }, testInfo) => {
+  await page.addInitScript(() => {
+    const walk = Document.prototype.createTreeWalker;
+    Object.assign(window, { previewSearchWalks: 0 });
+    Document.prototype.createTreeWalker = function (root, ...args) {
+      if (root instanceof Element && root.matches(".markdown-preview-scroll .ProseMirror") && args[0] === NodeFilter.SHOW_TEXT) {
+        (window as Window & { previewSearchWalks: number }).previewSearchWalks++;
+      }
+      return walk.call(this, root, ...args);
+    };
+  });
   const root = testInfo.outputPath("markdown-preview-find");
   await mkdir(root, { recursive: true });
   await writeFile(join(root, "guide.md"), [
@@ -2901,6 +2911,20 @@ test("Markdown 快速预览直接查找渲染正文并连续定位", async ({ pa
   })).toEqual(["needle phrase"]);
   await query.fill("only-in-url");
   await expect(status).toHaveText("0/0");
+  await query.fill("needle phrase");
+  await expect(status).toHaveText("1/2");
+  await query.fill("only-in-url");
+  await expect(status).toHaveText("0/0");
+  const walks = () => page.evaluate(() => (window as Window & { previewSearchWalks: number }).previewSearchWalks);
+  expect(await walks()).toBe(1);
+  // Rendered blocks may change after mount, including lazy diagrams.
+  await preview.locator(".markdown-preview-scroll .ProseMirror").evaluate(root => {
+    const late = root.ownerDocument.createElement("p");
+    late.textContent = "only-in-url now appears in the rendered body";
+    root.append(late);
+  });
+  await expect(status).toHaveText("1/1");
+  expect(await walks()).toBe(2);
   await query.press("Escape");
   await expect(query).toHaveCount(0);
   await preview.getByRole("button", { name: "切换到 Markdown 源码", exact: true }).click();

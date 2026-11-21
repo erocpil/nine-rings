@@ -40,6 +40,7 @@ export function MarkdownSplitPreview({
   children,
   fontSize,
   enabled,
+  live = true,
   sync,
   flowLevel = 0,
   highlightActiveLine = true,
@@ -52,6 +53,7 @@ export function MarkdownSplitPreview({
   children: ReactNode;
   fontSize: number;
   enabled: boolean;
+  live?: boolean;
   sync: boolean;
   flowLevel?: number;
   highlightActiveLine?: boolean;
@@ -73,8 +75,9 @@ export function MarkdownSplitPreview({
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
-    const timer = setTimeout(() => {
+    const prepare = () => {
       void Promise.resolve().then(async () => {
+        if (cancelled) return;
         const prepared = quickSourceLimit ? await prepareMarkdownQuickPreviewAsync(revision.source, quickSourceLimit) : undefined;
         if (cancelled) return;
         setSnapshot(previewDocument(revision, prepared));
@@ -83,9 +86,12 @@ export function MarkdownSplitPreview({
         if (cancelled) return;
         setError("预览暂时无法更新，保留上一次结果；源码仍可编辑和保存。");
       });
-    }, 220);
+    };
+    // Coalesce typing in the live editor. A disk preview already has a stable snapshot.
+    const timer = live ? setTimeout(prepare, 220) : undefined;
+    if (!live) prepare();
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [revision, enabled, quickSourceLimit]);
+  }, [revision, enabled, live, quickSourceLimit]);
   const blocks = useMemo(() => {
     const entries: { node: PMNode; pos: number; offset: number }[] = [];
     snapshot?.doc.forEach((node, pos, index) =>

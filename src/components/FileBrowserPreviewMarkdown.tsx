@@ -40,6 +40,6 @@ export function FileBrowserPreviewMarkdown({ source, rootId, node, provider, aut
       event.preventDefault(); event.stopPropagation(); onOpenLink(href);
     }
   }}>{find && <FileBrowserRenderedFind viewport={viewport} {...find} />}
-    <MarkdownSplitPreview revision={revision} sourceEditor={null} enabled sync={false} onPreviewReady={ready} fontSize={16} highlightActiveLine={false} quickSourceLimit={quickSourceLimit}>{null}</MarkdownSplitPreview>
+    <MarkdownSplitPreview revision={revision} sourceEditor={null} enabled live={false} sync={false} onPreviewReady={ready} fontSize={16} highlightActiveLine={false} quickSourceLimit={quickSourceLimit}>{null}</MarkdownSplitPreview>
   </div></DocumentResourceContext.Provider></DocumentImageLibraryContext.Provider>;
 }
