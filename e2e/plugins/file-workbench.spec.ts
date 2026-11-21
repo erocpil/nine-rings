@@ -1662,14 +1662,26 @@ test("大量目录标签使用4px横向滚动条并保留触控板滚动", async
   await expect.poll(() => tabs.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
 });
 
+async function loadTextSnapshot(page: Page, relativePath: string, source: string) {
+  await page.getByLabel("选择目录快照", { exact: true }).evaluate((element, { path, text }) => {
+    const file = new File([text], path.split("/").pop()!);
+    Object.defineProperty(file, "webkitRelativePath", { value: path });
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    (element as HTMLInputElement).files = transfer.files;
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  }, { path: relativePath, text: source });
+}
+
 test("活动列表选中背景更明显，非活动侧保留淡色选择并随焦点交换", async ({ page }) => {
   await page.goto("/file-workbench.html");
-  await page.getByLabel("选择目录快照", { exact: true }).setInputFiles(directory);
+  await loadTextSnapshot(page, "selection-fixture/alpha.c", "int alpha;\n");
   const left = page.getByRole("region", { name: "左侧目录", exact: true });
   const right = page.getByRole("region", { name: "右侧目录", exact: true });
-  await right.getByRole("combobox", { name: "选择授权目录" }).selectOption(await left.getByRole("combobox", { name: "选择授权目录" }).inputValue());
   const leftRow = left.getByRole("option", { name: /alpha.c/ });
   const rightRow = right.getByRole("option", { name: /alpha.c/ });
+  await expect(leftRow).toBeVisible();
+  await right.getByRole("combobox", { name: "选择授权目录" }).selectOption({ label: "selection-fixture（本次授权）" });
   await leftRow.click();
   await rightRow.click();
   for (const label of ["柔和浅色", "柔和深色", "清雅", "物哀"]) {
@@ -1958,15 +1970,7 @@ test("内置 Markdown 和 HTML 预览统一通过关闭按钮返回，Esc 保留
 
 test("内置源码行号与折叠样式即时生效，重开保留且不影响正文撤销", async ({ page }) => {
   const source = await readFile(join(directory, "alpha.c"), "utf8");
-  const loadSnapshot = () => page.getByLabel("选择目录快照", { exact: true }).evaluate((element, text) => {
-    // This case checks editor preferences, independent of native folder upload.
-    const file = new File([text], "alpha.c");
-    Object.defineProperty(file, "webkitRelativePath", { value: "source-fixture/alpha.c" });
-    const transfer = new DataTransfer();
-    transfer.items.add(file);
-    (element as HTMLInputElement).files = transfer.files;
-    element.dispatchEvent(new Event("change", { bubbles: true }));
-  }, source);
+  const loadSnapshot = () => loadTextSnapshot(page, "source-fixture/alpha.c", source);
   await page.goto("/file-workbench.html");
   await loadSnapshot();
   const left = page.getByRole("region", { name: "左侧目录", exact: true });
